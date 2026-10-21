@@ -272,3 +272,16 @@ readiness check-in, supersets.
   number) and drives the real screen file through a small DOM stub
   (`tests/helpers/coach-ui-harness.js`). Stall detection (next) must keep
   reading through `workingSets()`.
+
+- **#2 Stall detection — shipped (PR open, stacked on the warm-ups PR).** If a
+  lift's best (est. 1RM, or reps for bodyweight) has not beaten the first of its
+  last 3 sessions, `targetFor()` adds `target.stall` and the exercise card shows
+  "Same best (185 × 5) for 3 sessions" with **Deload to 165 lb (−10%)** and
+  **Swap it** (opens the normal swap panel). The deload weight rounds down to
+  plates the bar can load (other lifts round to their own step). **Nothing
+  changes a number until Jo taps**: weight, reps and note from `targetFor` are
+  identical with or without the stall; the banner hides once a set is logged. A
+  tapped deload is saved as `deload: true` on that exercise, which resets the
+  count (it takes 3 fresh sessions to flag again). It reads through
+  `workingSets()` so warm-ups neither cause nor hide a stall. No planned-deload
+  scheduling in v1. Test: [coach-stall](../../tests/coach-stall-2026-10-20.test.js).

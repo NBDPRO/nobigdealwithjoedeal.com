@@ -168,6 +168,16 @@
     return p ? `<div class="wc-plates">🏋 ${esc(p.text)}</div>` : '';
   }
 
+  // "Stuck 3 sessions" note with two choices. Shows only until a set is logged; never changes a number by itself.
+  function stallHtml(x, i) {
+    const st = x.target && x.target.stall;
+    if (!st || x.deload || doneCount(x)) return '';
+    const dl = st.deloadWeight != null
+      ? `<button class="btn wc-stall-btn" data-coach-action="deload" data-i="${i}">Deload to ${esc(st.deloadWeight)} lb (−10%)</button>` : '';
+    return `<div class="wc-stall">⚠ Same best (${esc(st.label)}) for ${esc(st.sessions)} sessions. Take a lighter week, or try a different lift.
+      <div class="wc-stall-btns">${dl}<button class="btn btn-ghost wc-stall-btn" data-coach-action="swap" data-i="${i}">Swap it</button></div></div>`;
+  }
+
   function exerciseHtml(x, i) {
     const ex = C().BY_ID[x.exId] || {};
     let workN = 0;
@@ -202,6 +212,7 @@
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
+      ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
       ${swaps}${rows}
       <button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>
@@ -270,8 +281,8 @@
     const now = Date.now();
     const session = {
       id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
-      exercises: live.exercises.map((x) => ({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
-        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }))
+      exercises: live.exercises.map((x) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
+        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }, x.deload ? { deload: true } : {}))
         .filter((x) => x.sets.length),
     };
     const all = C().mergeSessions([session].concat(prior), []);
@@ -354,6 +365,14 @@
         const s = settings(); s.avoid.exercises = s.avoid.exercises.filter((id) => id !== t.dataset.val);
         saveSettings(s); render(); return;
       }
+      case 'deload': {
+        const x = live && live.exercises[i];
+        const st = x && x.target && x.target.stall;
+        if (!st || st.deloadWeight == null || doneCount(x)) return;
+        const target = { weight: st.deloadWeight, reps: x.target.reps, note: 'Deload: ' + st.deloadWeight + ' lb (10% off) — easy, crisp reps, then build back up' };
+        live.exercises[i] = Object.assign({}, x, { target, deload: true, sets: rebuildSets(x, x.exId, target) });
+        persistLive(); toast('Deload set: ' + st.deloadWeight + ' lb'); render(); return;
+      }
       case 'show-avoided': swapShowAvoided = true; render(); return;
       case 'avoid-ex': {
         const x = live && live.exercises[i]; if (!x) return;
@@ -365,7 +384,7 @@
         // Nothing logged yet: swap it out right away for the best other option.
         const alt = doneCount(x) ? null : C().swapOptions(live.split, x.slot, live.exercises.map((e) => e.exId), sessions(), { today: today(), equip: s.equip, avoid: s.avoid })[0];
         if (alt) {
-          const target = C().targetFor(alt.id, x.repRange, sessions());
+          const target = C().targetFor(alt.id, x.repRange, sessions(), { plates: s.plates });
           live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target, sets: rebuildSets(x, alt.id, target) });
           persistLive();
           toast('Avoiding ' + x.name + ' — swapped to ' + alt.name);
@@ -401,7 +420,7 @@
         // An exercise Jo is avoiding needs a second, deliberate tap.
         if (C().isAvoided(ex, settings().avoid) && armed !== 'avoid:' + exId) { armed = 'avoid:' + exId; render(); return; }
         armed = '';
-        const target = C().targetFor(exId, x.repRange, sessions());
+        const target = C().targetFor(exId, x.repRange, sessions(), { plates: settings().plates });
         live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target, sets: rebuildSets(x, exId, target) });
         swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
       }

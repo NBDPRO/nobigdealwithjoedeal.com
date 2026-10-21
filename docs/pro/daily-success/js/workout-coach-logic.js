@@ -316,7 +316,7 @@
    *   any set under the bottom, or a set at RPE ≥ 9.5            → hold weight
    *   otherwise            → same weight, one more rep than the best set
    */
-  function targetFor(exId, repRange, sessions) {
+  function baseTarget(exId, repRange, sessions) {
     const ex = BY_ID[exId];
     const [lo, hi] = repRange || [8, 12];
     const h = historyOf(exId, sessions)[0];
@@ -343,6 +343,57 @@
     return { weight: top || null, reps: maxReps + 1, note: 'Beat last time: ' + (top ? top + ' × ' : '') + (maxReps + 1) + ' (last ' + last + ')' };
   }
 
+  // ── stall detection ───────────────────────────────────────────────────
+  // If an exercise's best (est. 1RM, or reps for a bodyweight lift) has not
+  // beaten the first of its last 3 sessions, it is stalled. targetFor() only
+  // REPORTS this (target.stall); nothing about the weight or reps is changed
+  // until Jo taps Deload. A session saved with deload:true resets the count
+  // (the deload and everything older is ignored), so a deload is not nagged
+  // as another stall. Reads through historyOf(), so warm-ups never count.
+  const STALL_SESSIONS = 3;
+  const DELOAD_PCT = 0.10;
+  const setScore = (s) => (num(s.weight) > 0 ? e1rm(s.weight, s.reps) : Math.round(num(s.reps)));
+  function bestSetOf(ex) {
+    let best = null, score = 0;
+    for (const s of workingSets(ex)) { const v = setScore(s); if (v > score) { score = v; best = s; } }
+    return best ? { score, weight: num(best.weight), reps: Math.round(num(best.reps)) } : null;
+  }
+  function deloadWeightFor(exId, top, platesCfg) {
+    const ex = BY_ID[exId];
+    if (!ex || !(top > 0)) return null;
+    const raw = top * (1 - DELOAD_PCT);
+    let w;
+    if (ex.equip === 'barbell') w = platesPerSide(raw, platesCfg).achieved;   // rounds down to a loadable weight
+    else { const step = ex.inc >= 5 ? 5 : 2.5; w = roundTo(raw, step); if (w >= top) w -= step; }
+    return w > 0 && w < top ? w : null;
+  }
+  function stallFor(exId, sessions, platesCfg) {
+    let hist = historyOf(exId, sessions);                       // newest first, working sets only
+    const cut = hist.findIndex((h) => h.ex.deload);
+    if (cut >= 0) hist = hist.slice(0, cut);
+    if (hist.length < STALL_SESSIONS) return null;
+    const recent = hist.slice(0, STALL_SESSIONS).map((h) => bestSetOf(h.ex));
+    if (recent.some((r) => !r)) return null;
+    const oldest = recent[STALL_SESSIONS - 1].score;
+    if (!(oldest > 0) || !recent.slice(0, STALL_SESSIONS - 1).every((r) => r.score <= oldest)) return null;
+    const best = recent.reduce((a, b) => (b.score > a.score ? b : a));
+    return {
+      sessions: STALL_SESSIONS,
+      best: { weight: best.weight, reps: best.reps },
+      label: best.weight > 0 ? best.weight + ' × ' + best.reps : best.reps + ' reps',
+      deloadWeight: deloadWeightFor(exId, topWeight(hist[0].ex), platesCfg),
+    };
+  }
+  const topWeight = (ex) => Math.max.apply(null, workingSets(ex).map((s) => num(s.weight)).concat([0]));
+
+  /** The target, plus target.stall when the lift has stalled (informational only). opts: { plates }. */
+  function targetFor(exId, repRange, sessions, opts) {
+    const t = baseTarget(exId, repRange, sessions);
+    const st = stallFor(exId, sessions, opts && opts.plates);
+    if (st) t.stall = st;
+    return t;
+  }
+
   /** Next day in the rotation after the last finished session. */
   function nextSplit(sessions, rotation) {
     const rot = ROTATIONS[rotation] || ROTATIONS.ppl;
@@ -366,7 +417,7 @@
       const pick = pickForSlot(slot, i, split, sessions, Object.assign({}, o, { rng, exclude: used.concat(o.exclude || []) }));
       if (!pick) return;
       used.push(pick.id);
-      const target = targetFor(pick.id, slot.reps, sessions);
+      const target = targetFor(pick.id, slot.reps, sessions, { plates: o.plates });
       exercises.push({
         exId: pick.id, name: pick.name, slot: i, repRange: slot.reps.slice(), target,
         sets: setsFor(slot, pick.id, target, slot.sets, o),
@@ -513,7 +564,7 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

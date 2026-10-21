@@ -139,3 +139,6 @@ body.wc-lock { overflow: hidden; }
 .wc-plates { font-size: 12px; color: #cfd8e3; margin: -2px 0 8px; }
 .wc-set.warm .wc-n { color: #f5c27a; font-weight: 700; }
 .wc-set.warm .wc-in, .wc-set.warm .wc-rpe { background: rgba(245, 194, 122, .08); }
+.wc-stall { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .45); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: 12px; color: #fcd9a0; }
+.wc-stall-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.wc-stall-btn { min-height: 40px; padding: 0 12px; font-size: 13px; }
