@@ -58,6 +58,7 @@ anonymous POSTs. Not done: anything on a real phone.
 
 ## Needs Jo
 
+0. **Look at two PRs that went live without your look:** [#2646](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2646) the tracker opens with no signal (service worker, third offline shell) and [#2647](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2647) account-switch purge in the tracker sync (shared-phone leak found by the security review). I opened both as hold PRs with auto-merge off; something acting as the same GitHub account re-enabled it and they merged (see the cycle 10 log). Both passed required CI and are live; rollback is a revert.
 1. **Apple Health**: create `system/healthShortcut` in the Firebase console (`enabled: true`, `allowedUids:
    [his uid]`) only if he wants it, after the forged-X-Forwarded-For limiter check from the security review;
    then create the key in the tracker card and follow its Shortcut steps (runbook:
