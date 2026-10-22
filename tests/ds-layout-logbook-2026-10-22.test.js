@@ -97,13 +97,14 @@ console.log('\n2. the real screen');
 console.log('\n3. layout readiness and styles');
 {
   ok('Log Book is ready to pick, Classic still the default', L.byId('logbook').ready === true && L.DEFAULT === 'classic' && L.normLayout('logbook') === 'logbook');
-  ok('the other layouts are still not ready', ['rings', 'cockpit', 'quest', 'arcade', 'onething', 'journal'].every((id) => L.byId(id).ready === false));
-  const lb = CSS.slice(CSS.indexOf('Log Book'));
+  ok('the other layouts are still not ready', ['cockpit', 'quest', 'arcade', 'onething', 'journal'].every((id) => L.byId(id).ready === false));
+  const lbStart = CSS.indexOf('Log Book');
+  const lb = CSS.slice(lbStart, CSS.indexOf('/* ', lbStart + 10) > -1 ? CSS.indexOf('/* ', lbStart + 10) : CSS.length); // just this layout's block
   const rules = lb.split('\n').filter((l) => /\{/.test(l));
   ok('every Log Book rule is scoped to [data-ui="logbook"] (Classic can never be restyled)', rules.length >= 6 && rules.every((l) => /^\[data-ui="logbook"\]/.test(l.trim())), rules.filter((l) => !/^\[data-ui="logbook"\]/.test(l.trim())).join(' | '));
   ok('in-workout inputs stay at least 48px tall', /\.wc-in, \[data-ui="logbook"\] \.wc-rpe \{ height: 48px/.test(lb));
   ok('no !important and no inline style in the layout styles or the row markup', !/!important/.test(CSS) && !/style=/.test(UI.slice(UI.indexOf('function logbookRowHtml'), UI.indexOf('function exerciseHtml'))));
-  ok('the page loads the layout assets at bumped versions (so phones refetch)', /layouts\.css\?v=2/.test(INDEX) && /js\/layout-logic\.js\?v=2/.test(INDEX) && /js\/layout-ui\.js\?v=2/.test(INDEX));
+  ok('the page loads the layout assets at bumped versions (so phones refetch)', /layouts\.css\?v=([2-9]|\d\d)/.test(INDEX) && /js\/layout-logic\.js\?v=([2-9]|\d\d)/.test(INDEX) && /js\/layout-ui\.js\?v=([2-9]|\d\d)/.test(INDEX));
   ok('layout-ui announces a switch so open screens can redraw', /nbd-layout/.test(read('js/layout-ui.js')) && /nbd-layout/.test(UI));
 }
 

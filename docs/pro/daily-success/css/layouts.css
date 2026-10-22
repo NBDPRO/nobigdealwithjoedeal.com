@@ -23,3 +23,17 @@
 [data-ui="logbook"] .wc-lb-c { display: block; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, .05); min-width: 0; }
 [data-ui="logbook"] .wc-lb-l { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
 [data-ui="logbook"] .wc-lb-v { display: block; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* ── Rings: the Today bar as four rings (floors, calories, protein, workout). Not sticky: the rings are a home, not a ribbon. ── */
+[data-ui="rings"] .today-bar.today-rings { position: static; display: block; white-space: normal; padding: 12px 8px 10px; }
+[data-ui="rings"] .rg-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+[data-ui="rings"] .rg-r { text-align: center; min-width: 0; }
+[data-ui="rings"] .rg-c { position: relative; width: 68px; height: 68px; max-width: 100%; margin: 0 auto; }
+[data-ui="rings"] .rg-svg { width: 100%; height: 100%; display: block; }
+[data-ui="rings"] .rg-t { stroke: rgba(255, 255, 255, .14); }
+[data-ui="rings"] .rg-p { stroke: var(--ac-on-dark, #E4783F); }
+[data-ui="rings"] .rg-r.done .rg-p { stroke: var(--grn, #34d399); }
+[data-ui="rings"] .rg-r.over .rg-p { stroke: #f59e0b; }
+[data-ui="rings"] .rg-v { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+[data-ui="rings"] .rg-l { display: block; margin-top: 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); }
+[data-ui="rings"] .rg-note { margin-top: 8px; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--grn, #34d399); }
