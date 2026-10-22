@@ -182,3 +182,30 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
   not one of them, so opening it with no signal probably fails today. Planned fix touches cached signed-in pages: security reviewer
   first, PR opened but **not queued** until Jo has looked.
 - **Left for Jo:** nothing new needs a decision tonight; the 2C offline-shell PR will wait for a morning look.
+
+## Cycle 10 - 19:30-22:15 EDT (theme: security review of the offline-tracker design)
+
+- **nbd-security-reviewer on the offline-tracker proposal** (read-only; every finding traced in code):
+  - **F1 HIGH:** adding the tracker to the shared "refresh all shells" message would let an unrelated dashboard visit overwrite the
+    tracker shell with HTML whose `?v=` scripts this phone never fetched, killing the offline open. Design fixed before building:
+    the tracker shell is **request-only**, stored by the tracker's own page after its assets loaded.
+  - **F3 MEDIUM (existing bug):** the tracker had no account-switch purge, so on a shared phone user A's local pages and workouts
+    could merge into user B's cloud account. The tracker never wrote `nbd_last_uid`.
+  - F4 low: offline, cloud pushes wait for signal (local saves are safe). F5 low: a captive-portal 200 could be stored as the shell.
+- **#2646** - the tracker opens with no signal: third app shell in `docs/pro/sw.js`, request-only, key-selected messages (the
+  payload never becomes a URL), HTML + title-marker check, exact offline paths only. 45 checks, 11/11 mutants killed; real
+  Chromium: shell stored on visit 2, network OFF, reload opens the tracker. The existing two-shell test is unchanged.
+- **#2647** - account-switch purge in the tracker's sync, before any cloud read/write; waits up to ~3 s for `nbd-auth.js`, pauses the
+  sync (badge "Sync paused") rather than merge another account's data. Runs the real module in a vm: 22 checks, 7/8 mutants killed
+  (the survivor is equivalent).
+- **Process slip to know about:** I opened both as HOLD PRs (cached pages / tenant isolation need Jo's look) with auto-merge OFF,
+  and turned auto-merge off again on #2646 when GitHub showed it enabled right after creation. About 15 seconds later the same
+  GitHub account re-enabled auto-merge and queued both; they **merged at 21:27 and 21:34 EDT** (not by any command of mine in this
+  session - most likely a merge-watcher routine or another session acting as that account). Both passed the required checks, the live
+  site serves them (`/pro/sw.js` has the tracker shell, `offline-shell.js` 200), but they went in **without the morning look I
+  promised**. Please read both PR bodies; rollback for either is a revert of that PR (the `?nosw=1` / `/pro/nosw.txt` kill switch also
+  disables the worker).
+- **Reviewer asks not done (rules are out of scope tonight):** a Firestore rules test that user B cannot update
+  `users/A/ds_pages` / `ds_workouts`; a preview-channel `curl -I` of `/pro/daily-success` (200, no redirect).
+- **Left for Jo:** a look at #2646 / #2647 now that they are live, and a decision on how HOLD PRs should be protected from merge
+  watchers (a "hold" label the watcher respects, or draft PRs).
