@@ -68,6 +68,8 @@ console.log('\n3. rpeTrend / rpeTrendText');
   ];
   const t = C.rpeTrend('bb_bench', hist, 6);
   ok('oldest first, only sessions that logged an RPE', t.map((x) => x.date + ':' + x.rpe).join() === '2026-10-01:7,2026-10-05:7.5,2026-10-13:8,2026-10-17:8.5', JSON.stringify(t));
+  const many = Array.from({ length: 9 }, (_, i) => bench('2026-09-' + String(10 + i).padStart(2, '0'), [[135, 8, 7 + i * 0.1]]));
+  ok('with no limit given the trend is the newest SIX (the default the screen relies on)', C.rpeTrend('bb_bench', many).length === 6 && C.rpeTrend('bb_bench', many)[5].date === '2026-09-18', JSON.stringify(C.rpeTrend('bb_bench', many).map((x) => x.date)));
   ok('the limit keeps the NEWEST n', C.rpeTrend('bb_bench', hist, 2).map((x) => x.rpe).join() === '8,8.5');
   ok('harder by a point or more reads "getting harder"', C.rpeTrendText(t) === 'RPE 7 → 7.5 → 8 → 8.5 (getting harder)', C.rpeTrendText(t));
   ok('easier by a point or more reads "getting easier"', /getting easier/.test(C.rpeTrendText([{ rpe: 9 }, { rpe: 8.5 }, { rpe: 8 }])));

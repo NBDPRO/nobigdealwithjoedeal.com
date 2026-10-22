@@ -65,6 +65,9 @@ console.log('\n1. repeatSession');
 
   const bw = C.repeatSession('pull', [sess('2026-10-16', 'pull', [['pullup', 0, [[0, 8], [0, 7]]]])], { today: '2026-10-21' });
   ok('bodyweight sets keep weight 0 (not blank, not NaN)', !!bw && working(bw.exercises[0]).every((s) => s.weight === 0));
+  const before = JSON.stringify(C.SPLITS.push.slots[0].reps);
+  r.exercises[0].repRange.push(99);
+  ok('the repeated lift\'s rep range is its own copy: editing it never changes the shared split definition', JSON.stringify(C.SPLITS.push.slots[0].reps) === before);
   ok('the source session is not mutated', last.exercises[0].sets.length === 4 && last.exercises[0].sets[1].reps === 8 && last.exercises[0].sets[1].done === true);
 }
 

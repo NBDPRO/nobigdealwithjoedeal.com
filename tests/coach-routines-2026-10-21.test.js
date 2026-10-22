@@ -40,6 +40,7 @@ console.log('\n1. normRoutines');
   ok('keeps the good ones, drops duplicates / blank names / missing ids / unknown splits / empty lifts / junk', n.length === 2 && n[0].id === 'r1' && n[1].id === 'r6', JSON.stringify(n.map((r) => r.id)));
   ok('ids are sanitised and names trimmed and collapsed', n[1].id === 'r6' && n[1].name === 'Pull B');
   ok('non-array input is an empty list', C.normRoutines(undefined).length === 0 && C.normRoutines({}).length === 0 && C.normRoutines('x').length === 0);
+  ok('routine names are capped at exactly 40 characters', C.normRoutines([R({ name: 'x'.repeat(60) })])[0].name.length === 40 && C.normRoutines([R({ name: 'y'.repeat(40) })])[0].name.length === 40);
   ok('set counts: more than 10 keep 10 (it used to become 3), none/zero fall back to 3, others kept', C.normRoutines([R({ lifts: [{ exId: 'bb_bench', slot: 0, sets: 99 }, { exId: 'ohp', slot: 2, sets: 0 }, { exId: 'incline_db', slot: 1, sets: 4 }, { exId: 'ohp', slot: 2, sets: 12 }] })])[0].lifts.map((l) => l.sets).join() === '10,3,4,10');
   ok('capped at 30 routines and 20 lifts each', C.normRoutines(Array.from({ length: 40 }, (_, i) => R({ id: 'x' + i, name: 'n' + i }))).length === 30 && C.normRoutines([R({ lifts: Array.from({ length: 30 }, () => ({ exId: 'bb_bench', slot: 0, sets: 3 })) })])[0].lifts.length === 20);
 }
