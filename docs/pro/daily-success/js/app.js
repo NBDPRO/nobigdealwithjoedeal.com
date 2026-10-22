@@ -290,8 +290,16 @@ const txt=(id)=>{const e=document.getElementById(id);return e?e.textContent:'';}
 let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')||'[]');}catch(e){}
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
+// Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
+const rings=document.documentElement.getAttribute('data-ui')==='rings';
+if(bar.classList)bar.classList.toggle('today-rings',rings);
+if(rings){let tg={};try{tg=(window.NBDFoodLogUI&&window.NBDFoodLogUI.targets&&window.NBDFoodLogUI.targets())||{};}catch(e){}
+bar.innerHTML=NBDDayLayout.ringsHtml(NBDDayLayout.ringsFor({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),calTarget:tg.calories,proteinTarget:tg.protein,workout:s.workout}));return;}
 bar.innerHTML='<span class="tb-i'+(s.allMet?' ok':'')+'">\u{1F525} <b>'+s.floors+'</b> floors</span><span class="tb-i">\u{1F37D} <b>'+s.cal+'</b> cal</span><span class="tb-i"><b>'+s.protein+'</b> g protein</span><span class="tb-i'+(s.workout?' ok':'')+'">\u{1F3CB} '+(s.workout?'done':'\u2014')+'</span>';
 }
+
+// A layout switch redraws the bar at once.
+window.addEventListener('nbd-layout',updateTodayBar);
 
 function addExercise(data,isDynamic){
 data=data||{};const i=exCount++;const tb=document.getElementById('ex-tbody');if(!tb)return;

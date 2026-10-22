@@ -196,5 +196,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDFoodLogUI = { refresh, cardHtml };
+  // targets(): { protein, calories } as the cards show them (protein falls back to body weight), for the Rings layout.
+  function targets() { return F().targetsFor(weight(), cfg().targets); }
+  window.NBDFoodLogUI = { refresh, cardHtml, targets };
 })();

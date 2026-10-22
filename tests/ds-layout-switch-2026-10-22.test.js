@@ -75,9 +75,9 @@ function boot(opts) {
   ok('the picker is rendered in BOTH places (appearance modal and first-run welcome)', /ui-picks/.test(a.els['npm-layouts'].innerHTML) && /ui-picks/.test(a.els['wg-layouts'].innerHTML));
   const html = a.els['npm-layouts'].innerHTML;
   ok('all eight layouts are listed; classic is checked', (html.match(/class="ui-pick[ "]/g) || []).length === 8 && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="classic"/.test(html), html.slice(0, 300));
-  ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (html.match(/ui-pick soon/g) || []).length === 7 && (html.match(/data-ui-pick=/g) || []).length === 1 && (html.match(/disabled aria-disabled="true"/g) || []).length === 7);
+  ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (() => { const soon = L.LAYOUTS.filter((l) => !l.ready).length; return (html.match(/ui-pick soon/g) || []).length === soon && (html.match(/data-ui-pick=/g) || []).length === 8 - soon && (html.match(/disabled aria-disabled="true"/g) || []).length === soon; })());
 
-  const b = boot({ store: { nbd_ds_layout: 'logbook' } });
+  const b = boot({ store: { nbd_ds_layout: 'quest' } });
   ok('a stored layout that is not ready is ignored (classic applied)', b.attrs['data-ui'] === 'classic');
   const c = boot({ store: { nbd_ds_layout: '<img onerror=x>' } });
   ok('hand-edited storage cannot reach the page: classic applied, and the picker html has no raw value', c.attrs['data-ui'] === 'classic' && !/onerror/.test(c.els['npm-layouts'].innerHTML));
@@ -89,7 +89,7 @@ function boot(opts) {
   ok('picking a ready layout applies data-ui, persists it and re-renders with it checked', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook' && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="logbook"/.test(e.els['wg-layouts'].innerHTML));
   const f = boot({ ready: ['logbook'], store: { nbd_ds_layout: 'logbook' } });
   ok('it comes back after a reload (stored + ready)', f.attrs['data-ui'] === 'logbook');
-  e.click('rings');
+  e.click('quest');
   ok('a click on a layout that is not ready changes nothing', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook');
   e.click('');
   e.click(null);

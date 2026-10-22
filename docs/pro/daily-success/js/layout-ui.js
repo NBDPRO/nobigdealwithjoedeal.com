@@ -22,6 +22,7 @@
     try { localStorage.setItem(L.KEY, next); } catch (_) { /* blocked: still applies for this visit */ }
     apply(next);
     render();
+    try { window.dispatchEvent(new CustomEvent('nbd-layout', { detail: next })); } catch (_) { /* old browser: a reload still applies it */ }
     return next;
   }
 
