@@ -179,7 +179,16 @@
     };
   }
 
-  const api = { CHUNK, isBlankAutoPage, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, widgetCfgFrom, mtOf };
+  /**
+   * Did a DIFFERENT account sign in on this phone since the last one? lastUid is the nbd_last_uid the dashboard records (a string),
+   * uid the account signing in now. Only two real, different ids count: no record (first sign-in on this phone) or the same account
+   * is not a switch, so a person's own local pages are never wiped.
+   */
+  function accountSwitched(lastUid, uid) {
+    return typeof lastUid === 'string' && lastUid !== '' && typeof uid === 'string' && uid !== '' && lastUid !== uid;
+  }
+
+  const api = { accountSwitched, CHUNK, isBlankAutoPage, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, widgetCfgFrom, mtOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDsSync = api;
 })(typeof window !== 'undefined' ? window : null);

@@ -434,6 +434,7 @@
     "theme-daylight-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
+    "tracker-account-switch-2026-10-21.test.js",
     "workout-coach-2026-09-29.test.js",
     "coach-avoid-list-2026-10-20.test.js",
     "coach-plate-calc-2026-10-20.test.js",
