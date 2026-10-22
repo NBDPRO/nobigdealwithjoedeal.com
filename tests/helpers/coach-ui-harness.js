@@ -30,8 +30,10 @@ function makeHarness(opts) {
     setAttribute(k, v) { this._attrs[k] = v; },
     appendChild() {},
   });
+  const docAttrs = {};
   const document = {
     readyState: 'complete',
+    documentElement: { getAttribute: (k) => (k in docAttrs ? docAttrs[k] : null), setAttribute: (k, v) => { docAttrs[k] = String(v); } },
     body: { classList: { add() {}, remove() {} }, appendChild(e) { if (e.id) els[e.id] = e; } },
     addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
     getElementById(id) { return els[id] || null; },
@@ -61,6 +63,7 @@ function makeHarness(opts) {
     Math: o.freeze ? FrozenMath : Math, Date: o.freeze ? FrozenDate : Date, JSON, Object, Array, Set, Map, String, Number, parseFloat, isFinite,
   };
   sandbox.window = sandbox;
+  sandbox.addEventListener = (type, fn) => { (listeners['w:' + type] = listeners['w:' + type] || []).push(fn); };
   sandbox.todayKey = () => o.today || '2026-10-20';
   sandbox.toast = (m) => { toasts.push(String(m)); };
   sandbox.dsSettingsChanged = () => {};
@@ -81,6 +84,8 @@ function makeHarness(opts) {
     field(name, i, s, value, extra) {
       fire('input', { target: { value: String(value), dataset: Object.assign({ coachField: name, i: String(i), s: String(s) }, extra || {}) } });
     },
+    // a layout switch: set data-ui on <html> and tell the page, as layout-ui.js does
+    setUi(id) { docAttrs['data-ui'] = id; (listeners['w:nbd-layout'] || []).forEach((fn) => fn({})); },
     live() { return read('nbd_ds_coach_live'); },
     saved() { return read('nbd_ds_workouts') || []; },
     settings() { return read('nbd_ds_coach'); },

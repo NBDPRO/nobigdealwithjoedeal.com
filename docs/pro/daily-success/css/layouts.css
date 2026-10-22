@@ -11,3 +11,15 @@
 .ui-pick-d { display: block; font-size: 12px; margin-top: 2px; color: var(--muted, #9aa6b6); overflow-wrap: anywhere; }
 #wg-layouts .ui-picks { padding: 0; }
 #wg-layouts h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
+
+/* ── Log Book: plain, fast, list-first. The coach screen as a flat log, big tap targets, last/best/today on one row. ── */
+[data-ui="logbook"] .wc-box { max-width: 560px; }
+[data-ui="logbook"] .wc-ex { background: transparent; border: 0; border-bottom: 1px solid var(--rule, rgba(255, 255, 255, .14)); border-radius: 0; padding: 14px 0; margin: 0; }
+[data-ui="logbook"] .wc-ex-name { font-size: 18px; font-weight: 800; }
+[data-ui="logbook"] .wc-target { font-size: 13px; opacity: .85; }
+[data-ui="logbook"] .wc-set { grid-template-columns: 30px minmax(0, 1fr) 14px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 8px; margin: 8px 0; }
+[data-ui="logbook"] .wc-in, [data-ui="logbook"] .wc-rpe { height: 48px; font-size: 18px; font-weight: 700; border-radius: 6px; }
+[data-ui="logbook"] .wc-lbrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 4px; }
+[data-ui="logbook"] .wc-lb-c { display: block; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, .05); min-width: 0; }
+[data-ui="logbook"] .wc-lb-l { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+[data-ui="logbook"] .wc-lb-v { display: block; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

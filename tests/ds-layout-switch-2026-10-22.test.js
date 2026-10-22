@@ -75,25 +75,25 @@ function boot(opts) {
   ok('the picker is rendered in BOTH places (appearance modal and first-run welcome)', /ui-picks/.test(a.els['npm-layouts'].innerHTML) && /ui-picks/.test(a.els['wg-layouts'].innerHTML));
   const html = a.els['npm-layouts'].innerHTML;
   ok('all eight layouts are listed; classic is checked', (html.match(/class="ui-pick[ "]/g) || []).length === 8 && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="classic"/.test(html), html.slice(0, 300));
-  ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (html.match(/ui-pick soon/g) || []).length === 7 && (html.match(/data-ui-pick=/g) || []).length === 1 && (html.match(/disabled aria-disabled="true"/g) || []).length === 7);
+  ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (html.match(/ui-pick soon/g) || []).length === 6 && (html.match(/data-ui-pick=/g) || []).length === 2 && (html.match(/disabled aria-disabled="true"/g) || []).length === 6);
 
-  const b = boot({ store: { nbd_ds_layout: 'logbook' } });
+  const b = boot({ store: { nbd_ds_layout: 'rings' } });
   ok('a stored layout that is not ready is ignored (classic applied)', b.attrs['data-ui'] === 'classic');
   const c = boot({ store: { nbd_ds_layout: '<img onerror=x>' } });
   ok('hand-edited storage cannot reach the page: classic applied, and the picker html has no raw value', c.attrs['data-ui'] === 'classic' && !/onerror/.test(c.els['npm-layouts'].innerHTML));
   const d = boot({ blocked: true });
   ok('blocked storage (private window): still applies classic and renders; set() does not throw', d.attrs['data-ui'] === 'classic' && /ui-picks/.test(d.els['npm-layouts'].innerHTML) && (() => { try { d.api.set('classic'); return true; } catch (_) { return false; } })());
 
-  const e = boot({ ready: ['logbook'] });
-  e.click('logbook');
-  ok('picking a ready layout applies data-ui, persists it and re-renders with it checked', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook' && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="logbook"/.test(e.els['wg-layouts'].innerHTML));
-  const f = boot({ ready: ['logbook'], store: { nbd_ds_layout: 'logbook' } });
-  ok('it comes back after a reload (stored + ready)', f.attrs['data-ui'] === 'logbook');
+  const e = boot({ ready: ['cockpit'] });
+  e.click('cockpit');
+  ok('picking a ready layout applies data-ui, persists it and re-renders with it checked', e.attrs['data-ui'] === 'cockpit' && e.store.nbd_ds_layout === 'cockpit' && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="cockpit"/.test(e.els['wg-layouts'].innerHTML));
+  const f = boot({ ready: ['cockpit'], store: { nbd_ds_layout: 'cockpit' } });
+  ok('it comes back after a reload (stored + ready)', f.attrs['data-ui'] === 'cockpit');
   e.click('rings');
-  ok('a click on a layout that is not ready changes nothing', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook');
+  ok('a click on a layout that is not ready changes nothing', e.attrs['data-ui'] === 'cockpit' && e.store.nbd_ds_layout === 'cockpit');
   e.click('');
   e.click(null);
-  ok('a click that is not on a picker button is ignored', e.attrs['data-ui'] === 'logbook');
+  ok('a click that is not on a picker button is ignored', e.attrs['data-ui'] === 'cockpit');
   e.click('classic');
   ok('switching back to classic works', e.attrs['data-ui'] === 'classic' && e.store.nbd_ds_layout === 'classic');
 }
