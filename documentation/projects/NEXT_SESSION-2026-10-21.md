@@ -27,7 +27,9 @@ anything newer is live.
 | Silent-failure review fixes: a failed save keeps the workout open (no more lost workout), bodyweight live Rep PR, section-toggle storage guard | #2625 |
 | Test hardening from the vacuous-test audit (logic gaps, comment-blind pins, type floor incl. rem/em/`font:`, real Call Center tab click) | #2626, #2628, #2633 |
 | Phone header strip fades at the right edge (DELETE / CSV / PDF / SAVE were off-screen with no hint); tab-close x and week-strip letters follow the theme | #2630, #2632 |
-| Docs: overnight log, forward roadmap ([DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md)) | #2627, #2629, #2631 |
+| Docs: overnight log, forward roadmap ([DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md)) | #2627, #2629, #2631, #2639, #2642 |
+| **Coach, Strong-style:** Repeat last workout (same lifts and per-set weights, reps blank); drop / failure set tags (D / F, drop sets never earn a PR); finish-screen recap (volume vs last time, best set per lift); **My exercises** (your own lifts, device-local) and **saved routines** (save a workout, start it later with today's targets); RPE shown (target notes say the effort behind the call, top-set RPE trend on the lift card) | #2635, #2637, #2638, #2640, #2643 |
+| Coach review fixes (31st routine, >10 sets, failed saves reported, stale tabs, slug collisions) and a long-routine-name overflow found by the phone sweep | #2641, #2644 |
 
 Live checks done: decoder file sha256 matches the reviewed build, tracker scripts served, CSP allows
 the food database only on the tracker pages (not `/`, not `/pro/dashboard`), health ingest answers 404 to
@@ -76,6 +78,9 @@ anonymous POSTs. Not done: anything on a real phone.
 - **Daily Success revamp, the rest:** a real-iPhone pass of everything in the audit note; Apple Health setup walk-through. The light-theme /
   phone sweep is done (ten skins x 360 / 390 / 412, no overflow; fixes in #2630 and #2632; the dark hero cover cannot be read by the contrast
   probe). Decisions Jo already made are in the memory note `daily-success-revamp-decisions-2026-10-21`.
-- **Forward plan:** [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md) - workout templates first, then set types + finish
-  summary, exercise library depth, measurements/photos, Sunday weekly review.
+- **Forward plan:** [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md). Done: routines (2A), RPE shown (2B). Next:
+  **2C offline confidence** - recon says `docs/pro/sw.js` keeps offline shells for `/pro/dashboard` and `/pro/customer` only, so the tracker
+  likely does not open with no signal (logging itself is already device-first). The fix is a third `APP_SHELLS` entry plus a "saved on this
+  phone / synced" indicator; it touches cached signed-in pages, so it needs the security reviewer and **Jo's look before it is queued**.
+  Then phase 3 (Sunday weekly review + muscle-volume map) and phase 4 (measurements and photos).
 - **Call Center:** filters are live; ask Jo what else he wants (status filters like Handled / Urgent / Has promise, a missed-call filter, saved views).

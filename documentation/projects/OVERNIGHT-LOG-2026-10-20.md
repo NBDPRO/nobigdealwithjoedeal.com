@@ -168,3 +168,17 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
 - **Queue notes:** #2634 left the queue once on a required `@stranger` timeout (runner load) and merged on the next attempt; a
   conflicting PR after another asset-version bump (#2638 vs #2640) was resolved by keeping both sides and the higher versions.
 - **Left for Jo:** nothing new needs a decision. Next: phase 2B (RPE history and explained targets), then 2C (offline recon).
+
+## Cycle 9 - 17:30-19:30 EDT (theme: the tracker on a phone, with the new coach screens)
+
+- **Shipped:** #2641 (review fixes for custom lifts and routines), #2643 (RPE: target notes say the effort behind the call, top-set
+  RPE trend on the lift card; the superset golden digest was re-blessed with proof that only the RPE wording moved it), #2642 (the
+  cycle 8 log).
+- **Phone sweep** of the coach card, a live workout and the settings (custom lifts, routines, drop-set tags, RPE history in play) at
+  360 / 390 / 412 px: no page overflow, no clipped controls, no console errors. One real bug: a long saved-routine name ran 110 px
+  out of the card (`.btn` is nowrap and 32 px tall); fixed in #2644, pinned, verified in a real browser. Chips and the set-number
+  button are 33-43 px wide but 44 px tall (above the WCAG 2.2 AA 24 px floor; the set-number button widens its hit area).
+- **Phase 2C recon (read-only):** `docs/pro/sw.js` keeps offline shells for `/pro/dashboard` and `/pro/customer` only. The tracker is
+  not one of them, so opening it with no signal probably fails today. Planned fix touches cached signed-in pages: security reviewer
+  first, PR opened but **not queued** until Jo has looked.
+- **Left for Jo:** nothing new needs a decision tonight; the 2C offline-shell PR will wait for a morning look.
