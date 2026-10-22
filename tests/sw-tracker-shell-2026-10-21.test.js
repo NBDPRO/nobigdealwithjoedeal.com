@@ -109,7 +109,11 @@ function dispatchMessage(sw, data) {
   const htmlRes = (body, extra) => new Response(body, Object.assign({ status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "script-src 'self'" } }, extra || {}));
   const trackerFetch = (body) => async (req) => {
     const u = typeof req === 'string' ? req : req.url;
-    return /daily-success/.test(u) ? htmlRes(body === undefined ? PAGE : body) : htmlRes('<html><title>Other</title></html>');
+    // Only the real page URL answers; any other URL (e.g. the synthetic cache key) is a 404, so a worker that fetches the wrong thing stores nothing.
+    const p = new URL(u, ORIGIN).pathname;
+    if (p === '/pro/daily-success') return htmlRes(body === undefined ? PAGE : body);
+    if (p === '/pro/dashboard' || p === '/pro/customer') return htmlRes('<html><title>' + p + '</title></html>');
+    return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/html' } });
   };
   const appShell = (sw) => sw.caches.store.get('nbd-appshell-v1');
   const stored = async (sw) => { const m = appShell(sw); const r = m && m.get(new URL(KEY, ORIGIN).href); return r ? r.clone().text() : null; };
@@ -130,7 +134,7 @@ function dispatchMessage(sw, data) {
     const sw = boot({ fetch: trackerFetch() });
     await dispatchMessage(sw, { type: 'CACHE_APP_SHELL', keys: [KEY] });
     ok('stored: the tracker page under its synthetic key', (await stored(sw)) === PAGE);
-    ok('only the tracker was fetched (not dashboard / customer), uncached and same-origin', sw.fetchLog.length === 1 && /daily-success$/.test(sw.fetchLog[0].url) && sw.fetchLog[0].init.cache === 'no-store' && sw.fetchLog[0].init.credentials === 'same-origin', JSON.stringify(sw.fetchLog));
+    ok('only the tracker was fetched (not dashboard / customer), uncached and same-origin', sw.fetchLog.length === 1 && new URL(sw.fetchLog[0].url, ORIGIN).href === ORIGIN + '/pro/daily-success' && sw.fetchLog[0].init.cache === 'no-store' && sw.fetchLog[0].init.credentials === 'same-origin', JSON.stringify(sw.fetchLog));
     const both = boot({ fetch: trackerFetch() });
     await dispatchMessage(both, { type: 'CACHE_APP_SHELL', keys: ['/pro/__app-shell__/dashboard', KEY] });
     ok('keys can name several shells', appShell(both).size === 2 && !!(await stored(both)));
@@ -157,6 +161,8 @@ function dispatchMessage(sw, data) {
     const cases = [
       ['a 500', () => new Response('boom', { status: 500, headers: { 'Content-Type': 'text/html' } })],
       ['a 403', () => new Response('no', { status: 403, headers: { 'Content-Type': 'text/html' } })],
+      ['a 500 that carries the real page body (the status gate alone must stop it)', () => htmlRes(PAGE, { status: 500 })],
+      ['a 403 that carries the real page body', () => htmlRes(PAGE, { status: 403 })],
       ['a redirected response', () => { const r = htmlRes(PAGE); Object.defineProperty(r, 'redirected', { value: true }); return r; }],
       ['JSON instead of HTML', () => new Response('{"a":1}', { status: 200, headers: { 'Content-Type': 'application/json' } })],
       ['HTML that is not the tracker (a captive portal 200)', () => htmlRes('<html><title>Wi-Fi login</title></html>')],
@@ -188,6 +194,10 @@ function dispatchMessage(sw, data) {
     await install(sw);
     await dispatchMessage(sw, { type: 'CACHE_APP_SHELL', keys: [KEY] });
     ok('ONLINE navigation to the tracker is not intercepted (the page always comes from hosting)', dispatchFetch(sw, '/pro/daily-success', 'navigate') === null);
+    sw.nav.onLine = false;
+    ok('OFFLINE navigation outside /pro/ is left to the browser (the takeover is scoped)', dispatchFetch(sw, '/roofing', 'navigate') === null && dispatchFetch(sw, '/', 'navigate') === null);
+    ok('OFFLINE navigation to another origin is left alone, even for the tracker path', dispatchFetch(sw, 'https://evil.test/pro/daily-success', 'navigate') === null);
+    sw.nav.onLine = true;
     sw.nav.onLine = false;
     for (const u of ['/pro/daily-success', '/pro/daily-success.html', '/pro/daily-success/', '/pro/daily-success?x=1#top']) {
       const p = dispatchFetch(sw, u, 'navigate');
@@ -230,11 +240,46 @@ function dispatchMessage(sw, data) {
   {
     ok('the shell version name is not bumped (the byte change installs the worker; the 4 MB cache name is pinned elsewhere)', /shell:\s*'nbd-shell-v32'/.test(SRC) && /cdn:\s*'nbd-cdn-v31'/.test(SRC));
     ok('the tracker entry is request-only and has a marker', /onRequestOnly: true, marker: '<title>Daily Success'/.test(SRC));
-    const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+    const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'index.html'), 'utf8').replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '');
     ok('the tracker loads the worker registration helper (kill switch honoured) and its own offline-shell script, deferred, no inline script', /<script src="\/pro\/js\/pages\/sw-register\.js" defer><\/script>/.test(html) && /<script src="\/pro\/daily-success\/js\/offline-shell\.js\?v=1" defer><\/script>/.test(html));
     const js = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'js', 'offline-shell.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     ok('the script posts only the tracker key, only when online and controlled', /type: 'CACHE_APP_SHELL', keys: \[KEY\]/.test(js) && /navigator\.onLine === false\) return/.test(js) && /serviceWorker\.controller/.test(js) && /var KEY = '\/pro\/__app-shell__\/daily-success'/.test(js));
     ok('it never sends a URL, account data or storage contents', !/localStorage|sessionStorage|fetch\(|XMLHttpRequest|uid|token/i.test(js));
+  }
+
+  console.log('\n8. offline-shell.js, executed against a fake browser (not grepped)');
+  {
+    const SCRIPT = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'js', 'offline-shell.js'), 'utf8');
+    const run = (o) => {
+      const posts = [], timers = [], listeners = { win: {}, sw: {} };
+      const nav = { onLine: o.onLine !== false, serviceWorker: o.noSW ? undefined : { controller: o.controller === false ? null : { postMessage: (m) => posts.push(m) }, addEventListener: (t, fn) => { listeners.sw[t] = fn; } } };
+      if (o.noSW) delete nav.serviceWorker;
+      const ctx = { navigator: nav, document: { readyState: o.ready || 'complete' }, window: { addEventListener: (t, fn) => { listeners.win[t] = fn; } }, setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; } };
+      vm.createContext(ctx);
+      vm.runInContext(SCRIPT, ctx);
+      return { posts, timers, listeners, nav, flush: () => { const t = timers.splice(0); t.forEach((x) => x.fn()); } };
+    };
+    const a = run({});
+    ok('an already-loaded page schedules ONE ask, a few seconds out (after the page and assets settle), not immediately', a.timers.length === 1 && a.timers[0].ms >= 2000 && a.posts.length === 0, JSON.stringify(a.timers.map((t) => t.ms)));
+    a.flush();
+    ok('then posts exactly the tracker key and nothing else', a.posts.length === 1 && JSON.stringify(a.posts[0]) === JSON.stringify({ type: 'CACHE_APP_SHELL', keys: [KEY] }), JSON.stringify(a.posts));
+    const loading = run({ ready: 'loading' });
+    ok('a page still loading waits for the load event before scheduling', loading.timers.length === 0 && typeof loading.listeners.win.load === 'function');
+    loading.listeners.win.load(); loading.flush();
+    ok('...and then posts once', loading.posts.length === 1);
+    const off = run({ onLine: false }); off.flush();
+    ok('offline: never asks', off.posts.length === 0);
+    const noCtl = run({ controller: false }); noCtl.flush();
+    ok('the worker is not controlling the page yet: no message', noCtl.posts.length === 0);
+    noCtl.nav.serviceWorker.controller = { postMessage: (m) => noCtl.posts.push(m) };
+    noCtl.listeners.sw.controllerchange();
+    noCtl.flush();
+    ok('first ever visit: when the worker takes control it asks (once)', noCtl.posts.length === 1);
+    noCtl.listeners.sw.controllerchange(); noCtl.flush();
+    ok('...and a second controllerchange does not ask again', noCtl.posts.length === 1);
+    const none = run({ noSW: true });
+    ok('a browser without service workers does nothing and does not throw', none.timers.length === 0 && none.posts.length === 0);
+    ok('control: the harness really does run the script (the same fake without the guard posts)', run({}).timers.length === 1);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

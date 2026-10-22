@@ -210,6 +210,23 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
 - **Left for Jo:** a look at #2646 / #2647 now that they are live, and a decision on how HOLD PRs should be protected from merge
   watchers (a "hold" label the watcher respects, or draft PRs).
 
+## Cycle 11 - 22:15-00:45 EDT (theme: vacuous-test audit of the evening's tests, security-adjacent first)
+
+- **Audit** (~130 mutations over the 8 test files of the evening): the logic and service-worker checks were mostly sound, but it
+  found checks that could not fail: the account-switch "purge before the first read" check never checked order, and a pre-purge
+  settings write (A's config into B's `userSettings`) passed; a storage-error check was a literal `true`; the service-worker stub
+  answered any URL containing `daily-success` (so fetching the synthetic cache key passed); a 500/403 carrying the real page body
+  was masked by the marker check; the offline takeover scope and `offline-shell.js` itself were only grepped (a comment decoy
+  passed); and nothing rendered a hostile name through the coach screen (escaping had source greps only).
+- **Fixed in #2649 (tests only, no production code):** ordered event log with the settings-leak check; exact-URL fetch assertion and a
+  404 stub; status-gate cases with the real body; offline scope cases; `offline-shell.js` executed against a fake browser; a new
+  rendered-escaping test for every place a name is shown (routine button, live card, settings rows and input value, recap, both PR
+  lines, history). Every audit mutation now goes red; equivalent mutants are listed in the audit (routine / custom ids are
+  sanitised to `[A-Za-z0-9_]` upstream, so `esc()` on `data-id` is defence in depth).
+- **Not audited:** the five other 2026-10-21 coach tests and the shared coach DOM harness (a fake in it would affect every coach
+  test).
+- **Left for Jo:** nothing new. The pending decision from cycle 10 stands (how HOLD PRs are protected from merge watchers).
+
 ## Cycle 12 - 00:45-09:00 EDT, Oct 22 (theme: a required check failing at midnight; session close-out)
 
 - **Incident:** "Unit suites (manifest)" (a REQUIRED check) failed on #2649 and #2650 at 00:13 ET, both unrelated to the change.
@@ -217,7 +234,7 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
   before 3 am, so ten Today / Needs-attention checks failed. It had never run in that window (written at ~5 am). Any PR whose queue run
   landed between 00:00 and 03:00 ET would have been blocked. Fixed in #2651 (fixtures are fractions of the time since New York
   midnight); proof with a faked clock: old test 68 passed / 10 failed at 00:13 ET, new test 78 / 0 at 00:00:30, 00:13, 02:30, 12:00 and
-  23:59 ET. Failed jobs on #2649 / #2650 re-run after morning; all three PRs were in the merge queue at close-out.
+  23:59 ET. Failed jobs on #2649 / #2650 re-ran after the fix; #2649, #2650 and #2651 all merged.
 - **Lesson recorded:** a test that uses the wall clock needs a faked-clock run (a `Date` preload) at the edges of the day, not just the
   hour it was written.
 - **Close-out:** the hourly overnight cron job (`822cd497`) is cancelled. Worktrees `nbd-wt-road` / `nbd-wt-doc` are removed after their

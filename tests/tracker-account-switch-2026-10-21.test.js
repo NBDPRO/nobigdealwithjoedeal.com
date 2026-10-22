@@ -40,6 +40,7 @@ function boot(opts) {
   const writes = [];          // every cloud write the module attempted
   const reads = [];           // every cloud read
   const purges = [];
+  const events = [];          // purge + every cloud read/write, in order
   const badges = [];
   let authCb = null;
   const el = () => ({ style: {}, set textContent(v) { badges.push(v); }, get textContent() { return ''; }, appendChild() {}, setAttribute() {} });
@@ -51,7 +52,7 @@ function boot(opts) {
   if (o.nbdAuth !== false) {
     window.NBDAuth = {
       purgeAccountStorage() {
-        purges.push(1);
+        purges.push(1); events.push('purge');
         if (o.purgeThrows) throw new Error('purge failed');
         for (const k of [...store.keys()]) if (/^nbd_(dsp|ds_workouts|user_config|ds_coach|ds_food)/.test(k)) store.delete(k);
       },
@@ -68,16 +69,16 @@ function boot(opts) {
     initializeApp: () => ({}), getApps: () => [], getAuth: () => ({}),
     onAuthStateChanged: (a, cb) => { authCb = cb; },
     getFirestore: () => ({}), doc: (...a) => ({ path: a.slice(1).join('/') }), collection: (...a) => ({ path: a.slice(1).join('/') }),
-    getDoc: async (ref) => { reads.push('getDoc ' + ref.path); return snap([]); },
-    getDocs: async (ref) => { reads.push('getDocs ' + ref.path); return snap(o.cloud || []); },
-    setDoc: async (ref, data) => { writes.push({ kind: 'setDoc', path: ref.path, data }); },
-    writeBatch: () => ({ set: (ref, data) => writes.push({ kind: 'batch', path: ref.path, data }), delete: () => {}, commit: async () => {} }),
+    getDoc: async (ref) => { events.push('read ' + ref.path); reads.push('getDoc ' + ref.path); return snap([]); },
+    getDocs: async (ref) => { events.push('read ' + ref.path); reads.push('getDocs ' + ref.path); return snap(o.cloud || []); },
+    setDoc: async (ref, data) => { events.push('write ' + ref.path); writes.push({ kind: 'setDoc', path: ref.path, data }); },
+    writeBatch: () => ({ set: (ref, data) => { events.push('write ' + ref.path); writes.push({ kind: 'batch', path: ref.path, data }); }, delete: () => {}, commit: async () => {} }),
     serverTimestamp: () => 'ts', connectEmulatorsIfLocal: async () => {},
   };
   const body = SYNC_SRC.replace(/^import [\s\S]*?from '[^']+';\n/gm, '');
   const ctx = vm.createContext(Object.assign({ window, document, localStorage, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, JSON, Date, Math, Promise, Map, Set, Object, Array, String, Number, Error }, stubs));
   vm.runInContext('(async () => {\n' + body + '\n})();', ctx, { filename: 'ds-firebase-sync.js' });
-  return { store, writes, reads, purges, badges, window, signIn: async (uid) => { while (!authCb) await new Promise((r) => setTimeout(r, 5)); await authCb({ uid }); } };
+  return { store, writes, reads, purges, events, badges, window, signIn: async (uid) => { while (!authCb) await new Promise((r) => setTimeout(r, 5)); await authCb({ uid }); } };
 }
 const pageA = { id: 'day-2026-10-01', dk: '2026-10-01', mt: 1700000000000, data: { note: 'A private day' } };
 const pagesWritten = (p) => p.writes.filter((w) => /ds_pages/.test(w.path)).map((w) => w.data && w.data.id);
@@ -85,14 +86,16 @@ const pagesWritten = (p) => p.writes.filter((w) => /ds_pages/.test(w.path)).map(
 (async () => {
 console.log('\n2. a different account signs in: the other account\'s local data is purged BEFORE any cloud read or write');
 {
-  const p = boot({ storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA], nbd_ds_workouts: [{ id: 'w1', date: '2026-10-01', exercises: [] }], nbd_user_config: { a: 1 } } });
+  const p = boot({ storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA], nbd_ds_workouts: [{ id: 'w1', date: '2026-10-01', exercises: [] }], nbd_user_config: { marker: 'A-CONFIG' }, nbd_user_config_at: String(Date.now()) } });
   await p.signIn('B');
   ok('the purge ran exactly once', p.purges.length === 1);
   ok('A\'s pages are not in B\'s cloud (nothing written for them)', !pagesWritten(p).includes('day-2026-10-01'), JSON.stringify(pagesWritten(p)));
   ok('A\'s local pages, workouts and config are gone from the phone', !p.store.has('nbd_dsp_v1') || p.store.get('nbd_dsp_v1') === '[]');
   ok('the page list on screen was reloaded after the purge', p.window._loaded >= 1);
   ok('the phone now records B as the last account', p.store.get('nbd_last_uid') === 'B');
-  ok('the purge came before the first cloud read (order)', p.purges.length === 1 && p.reads.length > 0);
+  ok('the purge is the FIRST thing that happens: before every cloud read and write (order)', p.events[0] === 'purge' && p.events.filter((e) => e === 'purge').length === 1 && p.events.length > 1, JSON.stringify(p.events));
+  ok('control: some cloud reads did happen after it (the check is not satisfied by an empty log)', p.events.slice(1).some((e) => /^read /.test(e)));
+  ok('A\'s settings never reach B\'s account either (userSettings, any write)', !JSON.stringify(p.writes).includes('A-CONFIG') && !p.writes.some((w) => /userSettings/.test(w.path) && JSON.stringify(w.data).includes('A-CONFIG')), JSON.stringify(p.writes).slice(0, 200));
 }
 
 console.log('\n3. the same account, or a first sign-in on this phone: nothing is wiped');
@@ -126,8 +129,13 @@ console.log('\n4. failure modes never leak and never wedge');
   ok('a purge that throws pauses the sync (A\'s data is not pushed into B\'s account)', boom.writes.length === 0 && boom.store.get('nbd_last_uid') === 'A');
 
   const stor = boot({ storageThrows: true, storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
-  await stor.signIn('B');
-  ok('a storage write error does not throw out of the sign-in handler', true);
+  let threw = null;
+  try { await stor.signIn('B'); } catch (e) { threw = e; }
+  ok('a storage write error does not throw out of the sign-in handler (and the sign-in still completed its cloud pass)', threw === null && stor.reads.length > 0, String(threw));
+  const quick = boot({ storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
+  const q0 = Date.now();
+  await quick.signIn('B');
+  ok('when the purge is already there it runs at once (no fixed 3 s wait)', quick.purges.length === 1 && Date.now() - q0 < 1000, String(Date.now() - q0));
 }
 
 console.log('\n5. source shape (comment-stripped)');
