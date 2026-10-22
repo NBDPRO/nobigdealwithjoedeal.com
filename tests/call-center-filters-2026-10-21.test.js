@@ -98,15 +98,21 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
   console.log('\n5. the real view');
   {
     const H = 3600e3;
+    // "Today" calls must be in today's New York day whatever time the suite runs: CI hit this at 00:13 ET, when "1 / 2 / 3 hours ago" are
+    // all yesterday. Offsets are fractions of the time since New York midnight (plus 1 s so today is never empty), newest first.
+    const etp = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date()).forEach((p) => { etp[p.type] = +p.value; });
+    const sinceMidnight = (etp.hour * 3600 + etp.minute * 60 + etp.second) * 1000 + 1000;
+    const todayAt = (frac) => Date.now() - Math.floor(sinceMidnight * frac);
     const rowsDb = {
       phone_calls: [
-        { id: 'c_today_in', userId: 'U', bucket: 'unknown', phoneDigits: '5135550101', direction: 'inbound', status: 'noted', startedAtMs: Date.now() - 1 * H, summary: 'roof leak', urgent: true },
-        { id: 'c_today_out', userId: 'U', bucket: 'unknown', phoneDigits: '5135550102', direction: 'outbound', status: 'noted', startedAtMs: Date.now() - 2 * H, summary: 'called back' },
+        { id: 'c_today_in', userId: 'U', bucket: 'unknown', phoneDigits: '5135550101', direction: 'inbound', status: 'noted', startedAtMs: todayAt(0.2), summary: 'roof leak', urgent: true },
+        { id: 'c_today_out', userId: 'U', bucket: 'unknown', phoneDigits: '5135550102', direction: 'outbound', status: 'noted', startedAtMs: todayAt(0.4), summary: 'called back' },
         { id: 'c_week_in', userId: 'U', bucket: 'unknown', phoneDigits: '5135550103', direction: 'inbound', status: 'noted', startedAtMs: Date.now() - 4 * 24 * H, summary: 'gutters' },
         { id: 'c_today_in_old', userId: 'U', bucket: 'unknown', phoneDigits: '5135550101', direction: 'inbound', status: 'noted', startedAtMs: Date.now() - 10 * 24 * H, summary: 'earlier call from the same person', urgent: true },
         { id: 'c_old_in', userId: 'U', bucket: 'unknown', phoneDigits: '5135550104', direction: 'inbound', status: 'noted', startedAtMs: Date.now() - 40 * 24 * H, summary: 'ancient' },
       ],
-      phone_text_days: [{ id: 'txt_5135550105_1', userId: 'U', channel: 'text', phoneDigits: '5135550105', status: 'noted', startedAtMs: Date.now() - 3 * H, messageCount: 2, contactName: 'Kim' }],
+      phone_text_days: [{ id: 'txt_5135550105_1', userId: 'U', channel: 'text', phoneDigits: '5135550105', status: 'noted', startedAtMs: todayAt(0.6), messageCount: 2, contactName: 'Kim' }],
     };
     function boot(saved, throwingStorage) {
       const listeners = {}; const view = { innerHTML: '' }; const badge = { textContent: '', dn: false, classList: { toggle(c, on) { badge.dn = !!on; } } };
