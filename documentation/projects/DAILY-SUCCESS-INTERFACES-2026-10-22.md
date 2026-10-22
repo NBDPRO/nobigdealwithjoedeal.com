@@ -1,0 +1,68 @@
+# Daily Success - the interface lineup (design brief)
+
+Written 2026-10-22 from Jo's ask: "make out versions of both" (a Strong-style log and a Rings-style dashboard) "as well as a few more", and
+get creative. Part of [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md); order against phase 3 is below.
+
+## The idea
+
+Two independent choices, so every look works with every color:
+
+- **Layout** (new): how the screens are arranged and what the home screen shows. Stored as `data-ui` on the root, in the same per-device
+  settings as the theme.
+- **Theme** (already shipped): the ten brand-safe color skins. Unchanged; each layout must look right in all ten.
+
+All layouts share one data model, one set of logic files and one sync path. A layout is CSS plus, where it changes the markup, a small
+render module. Nothing about storage, sync, the service worker or auth changes for a layout.
+
+## Constraints that apply to every layout
+
+- Strict CSP: no inline script or handler, no inline `style=` for dynamic values (use SVG attributes or classes); new JS is an external file with `defer`.
+- Gym use: in-workout controls are at least 44 px, sit in the lower thumb zone, and are spaced for one-handed, sweaty taps.
+- No trademarks or brand names in anything the user sees ("Strong", "Apple", "Hevy" stay in this doc only). Names below are generic.
+- Works offline (the tracker shell is cached) and at 320 px wide; a phone-fit test per layout, the same gate the themes use.
+- Default stays the current layout until Jo picks another; switching is instant and reversible, and never touches workout data.
+
+## The lineup
+
+| # | Layout | Feel | Home screen | Notes |
+|---|---|---|---|---|
+| 1 | **Log Book** | Plain, fast, list-first (the "log it and leave" look) | Today's workout list, last-time numbers beside every set | Closest to what lifters say they want: low friction |
+| 2 | **Rings** | Calm dashboard, big circles | Daily rings (floors, workout, calories, steps) with one tap into each | Drawn as SVG; ring closing is the reward |
+| 3 | **Quest** | RPG: XP, levels, daily quests | Quest board for today, XP bar, streak | Each lift is a node on a skill tree; rest days count toward the streak |
+| 4 | **Arcade** | Retro pixel, chunky numbers | Score, combo, "high scores" = PRs | Same data as Quest, louder styling, sound/haptic off by default |
+| 5 | **Cockpit** | Dense HUD for people who love numbers | One screen: week volume map, trends, readiness, next target | Uses the volume map and RPE trend already built |
+| 6 | **One Thing** | One big card at a time | "Do this next" and nothing else | For days when everything feels like too much |
+| 7 | **Journal** | Paper, calm, written | Today as a page: intention, workout, note | Pairs with the existing paper theme |
+
+### Ideas worth stealing (from research, treat as leads)
+
+- A skill tree instead of a bare progress bar: unlocking a named lift feels like identity, not a number. (Quest.)
+- Loss aversion is a stronger pull than reward, but an avatar that decays when you skip is punishing. If built, make it opt-in and off by default.
+- Completion feedback (a short spark or confetti, an achievement haptic different from a daily-bonus one), always switchable off.
+- Card-per-day plans that scan in about two seconds.
+- Hevy-style extras lifters praise: RPE on every set, supersets, drop sets, body measurements (we have the first three; measurements is phase 4).
+- Planned-versus-adaptive: some lifters ignore recommendations and only log, so the log must be fully usable without the coach.
+
+Sources: [gamified skill-tree and quest concepts](https://contra.com/community/bAeVXh2Y-revolutionize-fitness-with-a-gamified-retro-style), [fitness UI portfolio concepts](https://contra.com/p/ZYXeeZqo-gym-fitness-app-workout-and-fitness-mobile-app-uiux-design), [what lifters say about Strong and Hevy](https://gummysearch.com/tools/best-products/workout-app). These are portfolio pieces and review roundups, not hard data; test with Jo's own use.
+
+## Build order
+
+1. **Layout switch plumbing** (one PR): `data-ui` attribute, a picker next to the theme picker, per-device storage, a test that every layout x every theme renders without overflow at 320 px. Default layout unchanged.
+2. **Log Book** (the plainest; proves the plumbing) and **Rings** (Jo's two named looks).
+3. **Cockpit** (reuses the volume map, almost free).
+4. **Quest**, then **Arcade** (shares Quest's data: XP and levels derived from stored sessions, no new collection).
+5. **One Thing** and **Journal**.
+
+Each is its own PR, tested and checked at phone width before it is queued. The Sunday review page (phase 3) stays on the roadmap; it can ship before or between layouts, and the Cockpit and Rings homes will show it.
+
+## Open questions for Jo
+
+- Which two of the seven first, if not Log Book and Rings?
+- Quest and Arcade: XP and levels only, or also a streak that can break? (Default: XP and a streak that rest days keep alive; nothing decays.)
+- Should the picker live in the tracker settings only, or also on the first-run welcome?
+
+## Grok prompt (non-sensitive, for Jo to paste if he wants Grok's take)
+
+> I'm designing a personal gym / habit / coach tracker web app for one person's phone (offline-capable, dark and light themes). I want 7 distinct interface layouts users can switch between, from plain lifting log to gamified RPG. Be creative and out of the box: what unusual, delightful gym-tracking mechanics or visuals would a serious lifter love? Think skill trees, boss fights for PRs, weekly "seasons", body maps, sound, streak rules that do not punish rest days. Give 10 ideas with a one-line reason each, and flag any that annoy people in practice.
+
+Claude in Chrome was not connected when this was written, so Grok was not consulted; Grok's answers are leads, never requirements.

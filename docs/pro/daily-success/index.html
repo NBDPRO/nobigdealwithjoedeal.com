@@ -522,6 +522,7 @@ canvas{max-width:100%;display:block;}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=21">
+<link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/money.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
@@ -943,6 +944,9 @@ body.has-banner .today-bar{top:148px;}
          Color Theme" heading over a permanently empty box for every new
          user. -->
 
+    <!-- Layout picker (layout-ui.js fills it) -->
+    <div id="wg-layouts-wrap"><h3>Pick your layout</h3><div id="wg-layouts"></div></div>
+
     <!-- CTA -->
     <button data-action="close-welcome" data-hover-opacity=".88" style="
       width:100%;background:var(--ac,#BD5728);color:#fff;
@@ -1100,6 +1104,8 @@ body.has-banner .today-bar{top:148px;}
 <script src="/pro/daily-success/js/health-shortcut-ui.js?v=1" defer></script>
 <script src="/pro/js/pages/sw-register.js" defer></script>
 <script src="/pro/daily-success/js/offline-shell.js?v=1" defer></script>
+<script src="/pro/daily-success/js/layout-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/layout-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/food-log-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/food-log.js?v=1"></script>
 <script src="/pro/daily-success/js/food-search-logic.js?v=1" defer></script>
@@ -1126,6 +1132,7 @@ body.has-banner .today-bar{top:148px;}
     <div class="npm-tabs">
       <button class="npm-tab on" data-action="nbd-picker-tab" data-arg="themes">Themes</button>
       <button class="npm-tab" data-action="nbd-picker-tab" data-arg="fonts">Fonts</button>
+      <button class="npm-tab" data-action="nbd-picker-tab" data-arg="layouts">Layouts</button>
       <button class="npm-tab" data-action="nbd-picker-tab" data-arg="custom">Custom Builder</button>
     </div>
     <div class="npm-body">
@@ -1136,6 +1143,9 @@ body.has-banner .today-bar{top:148px;}
         </div>
         <div class="npm-cats" id="npm-cats"></div>
         <div class="npm-grid" id="npm-grid"></div>
+      </div>
+      <div class="npm-panel" id="npm-panel-layouts">
+        <div id="npm-layouts"></div>
       </div>
       <div class="npm-panel" id="npm-panel-fonts">
         <div class="npm-fonts" id="npm-fonts"></div>
