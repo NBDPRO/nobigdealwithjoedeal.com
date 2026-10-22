@@ -253,6 +253,20 @@ onAuthStateChanged(auth, async user => {
   showBadge('Loading...');
   try {
     if (!L()) { showBadge('Sync error'); return; }
+    // Shared phone: another account was last signed in here (the dashboard records nbd_last_uid), so its local pages, workouts, food
+    // log and money plan must not be merged into THIS account's cloud. The same purge the dashboard runs on an account switch.
+    // This module can win the race against nbd-auth.js, so wait (up to ~3 s) for the purge to exist. If it never does, pause the sync rather
+    // than merge the other account's data: the local copy is untouched and the next load retries.
+    let lastUid = null;
+    try { lastUid = localStorage.getItem('nbd_last_uid'); } catch (_) { /* unreadable: treated as no record */ }
+    if (L().accountSwitched(lastUid, user.uid)) {
+      const canPurge = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
+      for (let i = 0; i < 30 && !canPurge(); i++) await new Promise((r) => setTimeout(r, 100));
+      if (!canPurge()) { showBadge('Sync paused'); return; }
+      try { window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }
+      try { if (typeof window.loadPages === 'function') window.loadPages(); } catch (_) { /* the purge already ran; the sync below repopulates */ }
+    }
+    try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
     const restored = await syncSettings();
     const cloud = await pullFromFirestore();
     if (cloud === null) { showBadge('Sync error'); return; }
