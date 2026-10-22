@@ -209,3 +209,20 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
   `users/A/ds_pages` / `ds_workouts`; a preview-channel `curl -I` of `/pro/daily-success` (200, no redirect).
 - **Left for Jo:** a look at #2646 / #2647 now that they are live, and a decision on how HOLD PRs should be protected from merge
   watchers (a "hold" label the watcher respects, or draft PRs).
+
+## Cycle 12 - 00:45-09:00 EDT, Oct 22 (theme: a required check failing at midnight; session close-out)
+
+- **Incident:** "Unit suites (manifest)" (a REQUIRED check) failed on #2649 and #2650 at 00:13 ET, both unrelated to the change.
+  Cause was my own `call-center-filters-2026-10-21` test: its "today" calls sat 1 / 2 / 3 hours ago, which are *yesterday* in New York
+  before 3 am, so ten Today / Needs-attention checks failed. It had never run in that window (written at ~5 am). Any PR whose queue run
+  landed between 00:00 and 03:00 ET would have been blocked. Fixed in #2651 (fixtures are fractions of the time since New York
+  midnight); proof with a faked clock: old test 68 passed / 10 failed at 00:13 ET, new test 78 / 0 at 00:00:30, 00:13, 02:30, 12:00 and
+  23:59 ET. Failed jobs on #2649 / #2650 re-run after morning; all three PRs were in the merge queue at close-out.
+- **Lesson recorded:** a test that uses the wall clock needs a faked-clock run (a `Date` preload) at the edges of the day, not just the
+  hour it was written.
+- **Close-out:** the hourly overnight cron job (`822cd497`) is cancelled. Worktrees `nbd-wt-road` / `nbd-wt-doc` are removed after their
+  PRs land (junctions removed with `cmd //c rmdir` first).
+- **Still open for Jo:** how HOLD PRs should be protected from merge watchers (#2646 / #2647 merged past their hold; see cycle 10), a
+  look at those two PRs, and the real-iPhone pass. Everything else shipped this session is merged and live; the roadmap is
+  [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md) (phase 2C offline shipped via #2646; next is the Sunday
+  weekly review + muscle-volume map, then measurements and photos).

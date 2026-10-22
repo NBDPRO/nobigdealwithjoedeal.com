@@ -72,6 +72,7 @@ anonymous POSTs. Not done: anything on a real phone.
 
 ## Next lanes
 
+- **Wall-clock tests:** run any test that reads the clock under a faked `Date` at the edges of the day (the Call Center filters test broke the required manifest check between midnight and 3 am ET; fixed in #2651).
 - Get `@shard3` fully green (`visit-recorder` first-attempt failures in CI only) and `@shard2` under its cap
   (layouts, layout-island, crew-calendar, call-center-card, bento-board retries).
 - Active Era weight import, then the Hume -> Apple Health -> Shortcut path is already built (dark).
