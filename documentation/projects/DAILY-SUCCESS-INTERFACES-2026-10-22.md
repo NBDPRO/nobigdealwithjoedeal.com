@@ -55,14 +55,33 @@ Sources: [gamified skill-tree and quest concepts](https://contra.com/community/b
 
 Each is its own PR, tested and checked at phone width before it is queued. The Sunday review page (phase 3) stays on the roadmap; it can ship before or between layouts, and the Cockpit and Rings homes will show it.
 
-## Open questions for Jo
+## Decisions (Jo, 2026-10-22)
 
-- Which two of the seven first, if not Log Book and Rings?
-- Quest and Arcade: XP and levels only, or also a streak that can break? (Default: XP and a streak that rest days keep alive; nothing decays.)
-- Should the picker live in the tracker settings only, or also on the first-run welcome?
+- First two: **Log Book** and **Rings**.
+- Streaks **can break**; **XP is separate** and never drops (a broken streak costs no XP). Rest days and optional freezes keep a streak alive.
+- The layout picker lives in the tracker settings **and** on the first-run welcome: more available, not less.
 
 ## Grok prompt (non-sensitive, for Jo to paste if he wants Grok's take)
 
 > I'm designing a personal gym / habit / coach tracker web app for one person's phone (offline-capable, dark and light themes). I want 7 distinct interface layouts users can switch between, from plain lifting log to gamified RPG. Be creative and out of the box: what unusual, delightful gym-tracking mechanics or visuals would a serious lifter love? Think skill trees, boss fights for PRs, weekly "seasons", body maps, sound, streak rules that do not punish rest days. Give 10 ideas with a one-line reason each, and flag any that annoy people in practice.
 
-Claude in Chrome was not connected when this was written, so Grok was not consulted; Grok's answers are leads, never requirements.
+Grok's answer arrived via Jo on 2026-10-22 and is folded in below as leads, not requirements.
+
+## Grok's ten ideas, sorted against what already exists
+
+Already built (Daily Success coach): **ghost of last session** (the Previous column per set), **rest timer** with an alert, **warm-up plates**, a muscle **volume map** (#2653). So 7 and 8 are polish, not new work.
+
+| Idea | Fit | Layout |
+|---|---|---|
+| Last / best / today row above big steppers, one-tap plate math (10) | Mostly there; add the "best" cell and a plate tap | Log Book (default for training) |
+| Full-screen rest timer, breathing circle (8) | Timer exists; a full-screen mode is new | One Thing / Log Book |
+| Body heatmap, front/back, tap to jump to lifts (4) | Volume map is the data; the body drawing is new (SVG) | Cockpit |
+| Boss fight for a chosen PR target (2) | New; ignorable, one-tap log damages the bar | Quest / Arcade |
+| Weekly seasons with soft ranks (3) | New; must never punish deload weeks, so goals flex | Quest |
+| Skill tree with prerequisites (1) | New; keep it shallow, no forced programming | Quest |
+| Streak that breaks, XP that never does (6) | Decided above; freezes optional | Quest / Arcade, hidden elsewhere |
+| Sound design (5) | New; everything off by default, one mute, offline | All, opt-in |
+| Forge: sets add bricks to a growing structure (9) | New; cheap derived art | Journal / Arcade |
+
+Rule from Grok, which matches the research: anything done mid-set is one or two taps with last performance visible; navigation, typing and decisions happen between sets or after. Grok's claim that hard-reset streaks are the most common gamification complaint is unverified here; the design (XP never breaks, streak secondary) holds either way.
+
