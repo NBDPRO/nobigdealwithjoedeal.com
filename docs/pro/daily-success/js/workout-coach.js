@@ -54,6 +54,28 @@
   const sessions = () => readJson(SESS, []) || [];
   // Hard sets per muscle group over the last 7 days (warm-ups excluded), for the nudge.
   function weekBalance() { const s = settings(); return C().balance(sessions(), today(), { equip: s.equip, avoid: s.avoid }); }
+  // Weekly volume map: a bar per muscle (this week), a tick for last week, the 10-20 band shaded.
+  // Drawn as SVG attributes (no inline style, so it is CSP-proof).
+  function volumeHtml() {
+    const s = settings();
+    const v = C().volumeMap(sessions(), today(), { equip: s.equip, avoid: s.avoid });
+    if (!v.enough) return '';
+    const cap = Math.max(v.band.max + 4, ...v.rows.map((r) => Math.max(r.now, r.prev)));
+    const pc = (n) => Math.min(100, Math.round(n / cap * 100));
+    const rows = v.rows.map((r) => {
+      const diff = r.delta === 0 ? 'same as last week' : (r.delta > 0 ? '+' : '') + r.delta + ' vs last week';
+      const label = esc(r.label + ' ' + r.now + ' sets, ' + diff);
+      return '<div class="wc-vol-row"><span class="wc-vol-l">' + esc(r.label) + '</span>'
+        + '<svg class="wc-vol-bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="' + label + '">'
+        + '<rect class="wc-vol-track" x="0" y="0" width="100" height="10"/>'
+        + '<rect class="wc-vol-band" x="' + pc(v.band.min) + '" y="0" width="' + (pc(v.band.max) - pc(v.band.min)) + '" height="10"/>'
+        + '<rect class="wc-vol-fill ' + r.status + '" x="0" y="2" width="' + pc(r.now) + '" height="6"/>'
+        + '<rect class="wc-vol-prev" x="' + Math.max(0, pc(r.prev) - 1) + '" y="0" width="1.5" height="10"/></svg>'
+        + '<span class="wc-vol-n">' + r.now + '</span></div>';
+    }).join('');
+    return '<div class="wc-vol"><div class="wc-bal-h">Volume map, sets this week</div>' + rows
+      + '<div class="wc-bal-note">Shaded: ' + v.band.min + '-' + v.band.max + ' sets a week. Tick: last week.</div></div>';
+  }
   function balanceHtml() {
     const b = weekBalance();
     if (!b.enough) return '';
@@ -68,7 +90,7 @@
     if (needs.length) lines.push('Behind this week: ' + needs.join(', ') + '.');
     if (b.tilt === 'push') lines.push('Pushing ' + b.push + ' sets vs pulling ' + b.pull + ' — add some pulling.');
     if (b.tilt === 'pull') lines.push('Pulling ' + b.pull + ' sets vs pushing ' + b.push + ' — add some pressing.');
-    return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}</div>`;
+    return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}${volumeHtml()}</div>`;
   }
   let live = readJson(LIVE, null);
   let routines = [];           // saved routines (device-local)
