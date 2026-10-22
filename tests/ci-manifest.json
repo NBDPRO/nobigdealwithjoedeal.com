@@ -348,6 +348,7 @@
     "call-audio-transcode-2026-10-14.test.js",
     "offline-safety-2026-10-04.test.js",
     "sw-offline-shell-2026-10-04.test.js",
+    "sw-tracker-shell-2026-10-21.test.js",
     "five-tier-crm-2026-10-02.test.js",
     "estimate-v3-wizard-2026-10-02.test.js",
     "close-flow-2026-10-03.test.js",

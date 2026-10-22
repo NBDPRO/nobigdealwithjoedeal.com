@@ -31,6 +31,12 @@ const CACHE_VERSIONS = {
 const APP_SHELLS = [
   { key: '/pro/__app-shell__/dashboard', src: '/pro/dashboard', paths: ['/pro/dashboard', '/pro/dashboard.html'] },
   { key: '/pro/__app-shell__/customer', src: '/pro/customer', paths: ['/pro/customer', '/pro/customer.html'] },
+  // The Daily Success tracker (a public, local-first page: it works signed out). onRequestOnly: the dashboard's "refresh all shells"
+  // message must NOT touch it - the tracker's shell is only stored by the tracker itself, on a page that has just loaded its own
+  // versioned assets, so the stored HTML and the cached ?v= scripts always come from the same visit (a shell refreshed from another
+  // page could point at assets this phone never fetched and the offline open would be dead). marker: the stored page must really
+  // be the tracker, not a captive portal's 200.
+  { key: '/pro/__app-shell__/daily-success', src: '/pro/daily-success', paths: ['/pro/daily-success', '/pro/daily-success.html', '/pro/daily-success/'], onRequestOnly: true, marker: '<title>Daily Success' },
 ];
 const APP_SHELL_KEYS = new Set(APP_SHELLS.map((s) => s.key));
 
@@ -70,6 +76,8 @@ const NO_CACHE_HTML = new Set([
   // as portal.html — public-by-token HTML shell that we don't
   // want a cached pre-fix copy of outliving a security patch.
   '/pro/estimate-view.html',
+  // The tracker is stored only as an offline app shell (APP_SHELLS); the online page is never kept in the asset caches.
+  '/pro/daily-success.html',
 ]);
 
 function isAuthGatedHTML(url) {
@@ -287,8 +295,9 @@ self.addEventListener('message', event => {
   // later offline launch has something to open. Only a client of this origin
   // can post here; the shells are the same static files hosting serves to
   // anyone, so no account data is involved.
+  // event.data.keys (optional) narrows it to named shells; it only ever SELECTS from APP_SHELLS, it is never used as a URL.
   if (event.data && event.data.type === 'CACHE_APP_SHELL') {
-    event.waitUntil(cacheAppShells());
+    event.waitUntil(cacheAppShells(Array.isArray(event.data.keys) ? event.data.keys : null));
   }
 });
 
@@ -300,12 +309,20 @@ function shellFor(pathname) {
   return APP_SHELLS.find((s) => s.paths.indexOf(pathname) !== -1) || null;
 }
 
-async function cacheAppShells() {
+async function cacheAppShells(keys) {
   const cache = await caches.open(CACHE_VERSIONS.appShell);
-  await Promise.all(APP_SHELLS.map(async (s) => {
+  const wanted = APP_SHELLS.filter((s) => (keys ? keys.indexOf(s.key) !== -1 : !s.onRequestOnly));
+  await Promise.all(wanted.map(async (s) => {
     try {
       const res = await fetch(s.src, { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok || res.redirected) return;
+      if (s.marker) {
+        // Only a real HTML page that is the page we asked for is stored; anything else keeps the previous good copy.
+        const type = (res.headers && res.headers.get && res.headers.get('Content-Type')) || '';
+        if (type.indexOf('text/html') === -1) return;
+        const text = await res.clone().text();
+        if (text.indexOf(s.marker) === -1) return;
+      }
       // Re-wrap: a Response that went through a redirect, or that still
       // carries its network body stream, must not answer a later navigation.
       const body = await res.blob();
