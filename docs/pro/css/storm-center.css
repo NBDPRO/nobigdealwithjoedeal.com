@@ -94,3 +94,24 @@
 .stx-corange.stx-corange.stx-corange { color: var(--orange); }
 .stx-cblue.stx-cblue.stx-cblue { color: var(--blue); }
 .stx-cgreen.stx-cgreen.stx-cgreen { color: var(--green); }
+
+/* Outreach tab (js/storm-outreach-ui.js, 2026-10-23): tick-box list of customers
+   near a storm report, drafts only. Tokens only; rows are 44px+ touch targets
+   and wrap at phone width (360). */
+.sto-note { font-size: 12px; color: var(--m); margin: 0 0 12px; line-height: 1.45; }
+.sto-live { min-height: 18px; font-size: 12px; font-weight: 600; color: var(--t); margin-bottom: 8px; }
+.sto-list { list-style: none; margin: 10px 0 12px; padding: 0; }
+.sto-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--br); min-height: 44px; }
+.sto-row-off { opacity: .7; }
+.sto-check { width: 22px; height: 22px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--orange, currentColor); }
+.sto-check:focus-visible, .sto-draft summary:focus-visible { outline: 2px solid var(--orange, currentColor); outline-offset: 2px; }
+.sto-main { flex: 1; min-width: 0; }
+.sto-name { display: block; font-size: 14px; font-weight: 700; color: var(--t); overflow-wrap: anywhere; }
+.sto-sub { font-size: 11px; color: var(--m); margin-top: 2px; overflow-wrap: anywhere; }
+.sto-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.stc-tag.sto-cohort { background: var(--s); border: 1px solid var(--br); color: var(--t); font-weight: 600; }
+.stc-tag.sto-off { background: var(--s); border: 1px dashed var(--br); color: var(--m); }
+.sto-draft { margin-top: 6px; font-size: 12px; color: var(--t); }
+.sto-draft summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; color: var(--m); }
+.sto-draft p { margin: 4px 0 0; padding: 8px 10px; background: var(--s); border: 1px solid var(--br); border-radius: 8px; line-height: 1.45; overflow-wrap: anywhere; }
+.btn.sto-file { min-height: 44px; width: 100%; }
