@@ -29,3 +29,6 @@
 .rv-ta { height: auto; min-height: 64px; padding: 10px; margin-top: 8px; resize: vertical; font: inherit; }
 .rv-due { display: block; font-size: 11px; color: #8b9bb4; margin-top: 8px; }
 #rvOverlay .btn-ghost { margin-top: 10px; }
+.rv-act { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0; }
+.rv-act > div { min-width: 0; overflow-wrap: anywhere; }
+.rv-accept { min-height: 44px; padding: 0 16px; flex: 0 0 auto; }

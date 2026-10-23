@@ -47,6 +47,28 @@
     return true;
   }
   function trend() { return H() ? H().weightTrend(H().weightSeries(allPages()), today()) : null; }
+  // Next week's proposed targets (weekly-targets-logic.js). Computed once when the sheet opens and only ever applied by an Accept tap.
+  const COACH = 'nbd_ds_coach';
+  function actsFor(x) {
+    const T = window.NBDWeeklyTargets;
+    if (!T) return { items: [], notes: [] };
+    const w = x.week;
+    let cal = { days: 0, avg: null };
+    try { if (window.NBDAdaptiveCalories && window.NBDFoodLog) cal = T.calorieWeek(window.NBDAdaptiveCalories.intakeSeries(allPages(), window.NBDFoodLog.totals), w.from, w.to); } catch (_) { /* no food data */ }
+    return T.propose({
+      workouts: T.countWorkouts(readJson('nbd_ds_workouts', []), w.from, w.to),
+      workoutTarget: (readJson(COACH, {}) || {}).workoutsPerWeek,
+      floorsPct: x.fl.length ? w.pct : null,
+      calDays: cal.days, calAvg: cal.avg, calTarget: calTarget(), weightRule: x.weight,
+    });
+  }
+  function actsHtml() {
+    const a = _acts;
+    if (!a || !(a.items.length || a.notes.length)) return '';
+    const rows = a.items.map((it) => '<div class="rv-act"><div><b>' + esc(it.label) + ':</b> ' + (it.from == null ? 'not set' : esc(it.from)) + ' → <b>' + esc(it.to) + '</b><div class="wc-meta">' + esc(it.reason) + '</div></div>' +
+      (_accepted[it.id] ? '<span class="rv-good">✓ Set</span>' : '<button type="button" class="btn btn-ghost rv-accept" data-rv-action="accept" data-id="' + esc(it.id) + '">Accept</button>') + '</div>').join('');
+    return '<div class="wc-lbl">Next week's targets</div><div class="wc-hint">Proposals from this week's numbers. Nothing changes unless you tap Accept.</div>' + rows + a.notes.map((n) => '<div class="wc-meta">' + esc(n) + '</div>').join('');
+  }
   function calTarget() { const f = readJson(FOOD, {}); return Number(f && f.targets && f.targets.calories) || null; }
 
   function snapshot() {
@@ -112,6 +134,8 @@
 
   // ── the review sheet ───────────────────────────────────────────────────
   let _x = null;
+  let _acts = null;
+  let _accepted = {};
   function sheet() {
     let el = document.getElementById('rvOverlay');
     if (!el) { el = document.createElement('div'); el.id = 'rvOverlay'; el.className = 'wc-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Weekly review'); document.body.appendChild(el); }
@@ -120,6 +144,7 @@
   function open() {
     if (!R()) return;
     _x = snapshot();
+    _acts = actsFor(_x); _accepted = {};
     const x = _x, w = x.week, saved = x.s.weeks[today()] || {};
     const rows = w.rows.map((r) => '<div class="rv-row"><span>' + esc(r.label) + '</span><b class="' + (r.hit >= 6 ? 'rv-good' : r.hit <= 3 ? 'rv-bad' : '') + '">' + r.hit + '/' + r.of + '</b></div>').join('');
     const wt = x.weight;
@@ -139,6 +164,7 @@
       (wt.verdict === 'adjust' && wt.newCalories ? '<button type="button" class="btn btn-ghost" data-rv-action="cut">Set calories to ' + esc(wt.newCalories) + '</button>' : '') +
       '<div class="rv-goalset"><label>Start <input class="wc-in" id="rvGoalStart" inputmode="decimal" value="' + esc(x.s.goal.start || '') + '" placeholder="375"></label>' +
       '<label>Goal <input class="wc-in" id="rvGoalGoal" inputmode="decimal" value="' + esc(x.s.goal.goal || '') + '" placeholder="220"></label></div>' +
+      '<div id="rvActs">' + actsHtml() + '</div>' +
       (lastScary ? '<div class="wc-lbl">3 · Accountability</div>' + lastScary : '') +
       '<div class="wc-lbl">' + (lastScary ? '4' : '3') + ' · Promise audit</div>' +
       '<textarea class="wc-in rv-ta" id="rvKept" rows="2" maxlength="600" placeholder="What I said I\'d do — and did">' + esc(saved.kept || '') + '</textarea>' +
@@ -201,6 +227,21 @@
     toast('Daily calories set to ' + x.weight.newCalories);
     open();
   }
+  function doAccept(id) {
+    const it = _acts && _acts.items.find((i) => i.id === id);
+    const T = window.NBDWeeklyTargets;
+    if (!it || !T || _accepted[id]) return;
+    const key = id === 'workouts' ? COACH : id === 'calories' ? FOOD : null;
+    if (!key) return;
+    const cur = readJson(key, {}) || {};
+    const next = id === 'workouts' ? T.applyWorkouts(cur, it.to) : T.applyCalories(cur, it.to);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch (_) { toast('Could not save on this device'); return; }
+    if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(key);
+    _accepted[id] = true;
+    const box = document.getElementById('rvActs');
+    if (box) box.innerHTML = actsHtml();
+    toast(it.label + ' set to ' + it.to);
+  }
   async function doCopy() {
     const text = scorecard();
     try { await navigator.clipboard.writeText(text); toast('Scorecard copied'); }
@@ -241,6 +282,7 @@
     else if (a === 'close') close();
     else if (a === 'save') doSave();
     else if (a === 'cut') doCut();
+    else if (a === 'accept') doAccept(t.dataset.id);
     else if (a === 'copy') doCopy();
   });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.querySelector('#rvOverlay.open')) close(); });
