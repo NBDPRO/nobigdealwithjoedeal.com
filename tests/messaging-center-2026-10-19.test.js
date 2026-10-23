@@ -402,7 +402,7 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   ok('watch: inbox items are reports for the owner company, pending, create-only ids', filed.length === live1.filed && filed.every((k) => wdb.data.agent_inbox[k].kind === 'report' && wdb.data.agent_inbox[k].companyId === OWNER && wdb.data.agent_inbox[k].status === 'pending'));
   ok('watch: only ever writes agent_inbox + the bell (never a customer collection)', wdb.log.writes.every((w) => /^(agent_inbox|notifications)\//.test(w.path)), JSON.stringify(wdb.log.writes.map((w) => w.path)));
   const pushedBefore = calls.pushes.length;
-  const live2 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 5 * 60000, live: true, push });
+  const live2 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 1000, live: true, push }); // 1 s, not 5 min: T0 is the real clock, and +5 min crosses ET midnight at 23:55-00:00 (CI flaked 2026-10-22 23:55)
   ok('watch: a second run the same day files nothing new and pushes nothing (no spam)', live2.filed === 0 && live2.alreadyFiled === live1.filed && calls.pushes.length === pushedBefore, JSON.stringify(live2));
   const live3 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 26 * HOUR, live: true, push });
   ok('watch: a new day starts fresh dedupe keys', typeof live3.filed === 'number');
