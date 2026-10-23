@@ -1274,7 +1274,7 @@ function nbdRenderThemes() {
     const ok = _nbdUnlocked(t.plan) || t.cat === 'custom';
     const isAct = t.id === _nbd_activeTheme;
     const hexLum = h => { const n=parseInt((h||'#000').replace('#',''),16); const r=((n>>16)&255)/255,g=((n>>8)&255)/255,b=(n&255)/255; const tl=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4); return 0.2126*tl(r)+0.7152*tl(g)+0.0722*tl(b); };
-    const textCol = hexLum(t.bg||'#000') > 0.12 ? '#1a1208' : '#e8eaf0';
+    const textCol = hexLum(t.s||'#13171d') > 0.12 ? '#1a1208' : '#e8eaf0';
     const d = document.createElement('div');
     d.className = 'npm-bubble' + (isAct ? ' active' : '') + (ok ? '' : ' locked');
     d.onclick = () => { if (ok) nbdApplyTheme(t.id); else nbdToast('🔒 ' + t.plan + ' required'); };
