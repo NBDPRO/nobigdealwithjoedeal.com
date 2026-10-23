@@ -497,11 +497,13 @@
   }
 
   // "When" chips (Today / Yesterday / Last 24 hours / 7 / 30 days / Pick dates), two date boxes while picking, direction and
-  // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Missed), and a one-line summary with a Clear button whenever something narrows the list.
+  // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Short calls), and a one-line summary with a Clear button whenever something narrows the list.
+  // Needs attention never holds a handled call, so Handled there is always empty: the chip is off and says why.
+  var HANDLED_OFF = 'Handled calls are never on Needs attention. Open the All tab to see them.';
   function filterBar(shown, people) {
-    if (!FX) return '';
-    function chipBtn(kind, id, label, on) {
-      return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '">' + esc(label) + '</button>';
+    if (!FX) return '<div class="cc-filter-sum cc-filter-down" role="alert">Filters could not load, so the list below is NOT filtered. Reload the page to try again.</div>';
+    function chipBtn(kind, id, label, on, off) {
+      return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '"' + (off ? ' disabled aria-disabled="true" title="' + esc(off) + '"' : '') + '>' + esc(label) + '</button>';
     }
     var cur = FX.matchView ? FX.matchView(flt) : null;
     var views = FX.VIEWS ? '<div class="cc-fbar cc-views" role="group" aria-label="Views">' + FX.VIEWS.map(function (w) { return chipBtn('view', w.id, w.label, cur === w.id); }).join('') + '</div>' : '';
@@ -511,7 +513,7 @@
         '<label class="cc-date-lbl">To <input type="date" class="cc-date" data-cc-date="to" value="' + esc(flt.to) + '" aria-label="To date"></label></div>'
       : '';
     var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
-    var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0]); }).join('') + '</div>' : '';
+    var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0], s[0] === 'handled' && state.filter === 'attention' ? HANDLED_OFF : ''); }).join('') + '</div>' : '';
     var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
     var sum = FX.isActive(flt)
       ? '<div class="cc-filter-sum">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
@@ -560,6 +562,7 @@
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
+    else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
     else if (state.filter === 'attention') {
       // A person shows when any of their open calls matches the search.
