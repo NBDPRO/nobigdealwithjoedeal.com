@@ -120,6 +120,8 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await safeWaitForFunction(page, (lead) => Array.isArray(window._leads) && window._leads.some((l) => l.id === lead), S.lead, { timeout: 40_000 });
       await safeEvaluate(page, (id) => localStorage.setItem('nbd_recent_customers', JSON.stringify([{ id, ts: Date.now() }])), S.lead);
       await waitForRecorder(page);   // the recorder code is fetched on idle, before the signal goes
+      // CONTROL (temporary): the company consent setting is not on this phone when the signal goes.
+      await safeEvaluate(page, () => localStorage.removeItem('nbd_vr_cfg'));
       await context.setOffline(true);
 
       await bar.tap();
