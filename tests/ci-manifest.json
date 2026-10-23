@@ -1273,6 +1273,7 @@
     "firestore-rules.messaging-controls.test.js",
     "firestore-rules.thursday-handled.test.js",
     "firestore-rules.layout-usage.test.js",
+    "firestore-rules.job-conflict-notice.test.js",
     "firestore-rules.doc-drafts.test.js",
     "firestore-rules.cross-tenant.test.js",
     "firestore-rules.visit-captures.test.js",
