@@ -7,3 +7,4 @@
 .jco-row.jco-done { color: var(--m, #9ca3af); }
 .jco-mark { width: 14px; flex: 0 0 auto; }
 .jco-hint { color: var(--m, #9ca3af); font-size: 11px; }
+.jco-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

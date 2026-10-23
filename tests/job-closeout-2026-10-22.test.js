@@ -78,6 +78,9 @@ s = sandbox({ id: 'L1', stage: 'closed', firstName: '<img src=x onerror=1>' });
 s.win.JobCloseout.render();
 ok('no lead text reaches the markup', !/<img/.test(s.panel.innerHTML));
 
+s = sandbox({ id: 'L1', stage: 'closed', warrantyCertFiledAt: 1 });
+s.win.JobCloseout.render();
+ok('each row states done / to do in text for screen readers', /Done: <\/span>Warranty/.test(s.panel.innerHTML) && /To do: <\/span>Review asked/.test(s.panel.innerHTML));
 console.log('wiring');
 const html = read('docs/pro/customer.html');
 ok('customer.html has the panel', /id="closeoutPanel"/.test(html));

@@ -85,7 +85,7 @@
     var rows = res.rows.map(function (r) {
       var mark = r.state === 'done' ? '✓' : (r.state === 'unknown' ? '…' : '○');
       var tail = r.state === 'todo' ? ' <span class="jco-hint">— ' + esc(r.hint) + '</span>' : '';
-      return '<div class="jco-row' + (r.state === 'done' ? ' jco-done' : '') + '"><span class="jco-mark" aria-hidden="true">' + mark + '</span><span>' + esc(r.label) + tail + '</span></div>';
+      return '<div class="jco-row' + (r.state === 'done' ? ' jco-done' : '') + '"><span class="jco-mark" aria-hidden="true">' + mark + '</span><span><span class="jco-sr">' + (r.state === 'done' ? 'Done: ' : (r.state === 'unknown' ? 'Loading: ' : 'To do: ')) + '</span>' + esc(r.label) + tail + '</span></div>';
     }).join('');
     panel.innerHTML =
       '<div class="jco-head"><div class="panel-title">Finished-job check</div>' +
