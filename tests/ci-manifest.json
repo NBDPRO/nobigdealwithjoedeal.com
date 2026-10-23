@@ -309,6 +309,7 @@
     "tracker-weight-history-2026-09-29.test.js",
     "tracker-progress-charts-2026-10-20.test.js",
     "tracker-exercise-notes-2026-10-23.test.js",
+    "tracker-queue-purge-2026-10-23.test.js",
     "tracker-measurements-photos-2026-10-22.test.js",
     "tracker-photos-account-purge-2026-10-23.test.js",
     "health-shortcut-2026-10-20.test.js",
