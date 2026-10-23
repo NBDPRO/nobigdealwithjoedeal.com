@@ -27,3 +27,17 @@ Choices worth knowing:
 - A text day has no direction or length, so it can be handled / unhandled but is never missed.
 - Status is a fifth field on the one saved-filter record (`nbd_cc_filters`); an old record without it loads as "Any status".
 - Unchanged on purpose: the sidebar badge and "One at a time" ignore filters; Needs attention counts people, not rows.
+
+## Step 2 - saved views
+
+Two buttons above the When chips: **Missed today** (Today + Missed) and **Unhandled this week** (Last 7 days + Unhandled).
+
+- **Not a second saved thing.** A view is a named set of filters; tapping one writes the same one record (`nbd_cc_filters`)
+  the chips write. The button shows as pressed whenever the record equals the view (`matchView`), including after a reload.
+  Touch any chip and the view button un-presses while the rest of the filter stays.
+- A view keeps Jo's chosen order (sort) and replaces the range, dates, direction and status. Tapping the view that is on
+  turns off just that view's range and status (order and nothing else changes).
+- A view opens the **All** tab: Needs attention groups by person and hides handled / short calls a view may want.
+- Views ignore nothing that must not be narrowed: the sidebar badge and "One at a time" still show the real open list.
+- Definitions live in the pure module (`VIEWS`); adding a third view is one array entry plus a test row.
+- The screen test fakes `Date` (3 PM New York, 2026-10-21), so it cannot fail at midnight-3am ET.
