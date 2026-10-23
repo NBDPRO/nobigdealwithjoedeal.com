@@ -35,7 +35,7 @@
       return '<div class="wc-card ck-card ck-done"><div class="ck-msg">☀️ ' + esc(K().message(q) || 'Check-in saved.') + '</div>' +
         '<button type="button" class="wc-link ck-change" data-ck-action="reset">Change</button></div>';
     }
-    const rows = K().ROWS.map((row) => '<div class="ck-row"><span class="ck-l">' + esc(row.label) + '</span>' +
+    const rows = K().ROWS.map((row) => '<div class="ck-row" role="group" aria-label="' + esc(row.label) + '"><span class="ck-l">' + esc(row.label) + '</span>' +
       row.opts.map((o, n) => '<button type="button" class="wc-chip ck-chip' + (rec[row.k] === n + 1 ? ' on' : '') + '" data-ck-action="tap" data-k="' + esc(row.k) + '" data-v="' + (n + 1) + '" aria-pressed="' + (rec[row.k] === n + 1) + '">' + esc(o) + '</button>').join('') + '</div>').join('');
     return '<div class="wc-card ck-card"><div class="wc-card-h">☀️ Morning check-in <small>10 seconds, optional</small></div>' + rows +
       '<div class="ck-foot"><button type="button" class="wc-link ck-skip" data-ck-action="skip">Not today</button></div></div>';
