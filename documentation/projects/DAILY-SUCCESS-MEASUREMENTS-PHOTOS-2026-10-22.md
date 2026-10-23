@@ -32,3 +32,15 @@ Roadmap Horizon 2 item 4 ([DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADM
 ## Not done / needs Jo
 - Real-iPhone pass: camera capture, HEIC from the library (canvas decode via `createImageBitmap`), IndexedDB quota.
 - Themes use `--ac`, `--rule`, `--ac-text` tokens only; the save/add buttons use white text on `--ac` like `.rv-start`.
+
+## Update 2026-10-23: photos survived sign-out (fixed)
+The overnight audit found that `purgeAccountStorage()` (`docs/pro/js/nbd-auth.js`) swept `nbd_` localStorage and the My Skin
+database but never the photos database, so on a shared phone account B saw account A's progress photos. It now also
+deletes IndexedDB `nbd_ds_photos` (best-effort: no `indexedDB`, a throw or a blocked delete never stops sign-out; a blocked
+delete finishes when the other tab lets go). The "this note's" line above ("Where the data lives") was incomplete on this.
+Storage audit: `nbd_ds_measurements` and `nbd_ds_meas_unit` are swept by the existing `nbd_` prefix purge; the accent key
+`nbd_ds_accent` is a device preference owned by the accent picker and was left alone.
+The strip guard now asserts on the bytes stored in IndexedDB from a GPS-EXIF JPEG fixture (the old check only matched source
+text). Test: `tests/tracker-photos-account-purge-2026-10-23.test.js`; mutations (purge target renamed, throw in onblocked,
+unstripped blob stored, strip range narrowed) each went red. Removing the `if (!stripped) throw` line is an equivalent mutant:
+`stripped.out` on null throws anyway.
