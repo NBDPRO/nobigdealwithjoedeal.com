@@ -470,6 +470,9 @@ exports.saveAgentSettings = agentMcp.saveAgentSettings;
 exports.agentDraftAction = agentMcp.agentDraftAction;
 // Storm Mode (2026-10-11): post-storm check-in DRAFTS into the Agent inbox, nothing sent.
 exports.fileStormDrafts = agentMcp.fileStormDrafts;
+// Storm REPORT outreach (2026-10-22): list past customers / open leads near a recorded storm + file approve-first drafts. Nothing sent.
+exports.listStormOutreach = agentMcp.listStormOutreach;
+exports.fileStormOutreachDrafts = agentMcp.fileStormOutreachDrafts;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
