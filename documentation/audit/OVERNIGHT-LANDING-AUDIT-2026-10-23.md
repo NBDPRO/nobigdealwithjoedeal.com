@@ -97,3 +97,25 @@ Open (not audited as landed): #2665, #2667, #2670, #2673, #2676, #2678, #2679, #
 2. Progress photos: add one, sign out, sign in as another account, confirm none show (expected to FAIL until finding 1 is fixed).
 3. Call Center: tap each status chip, especially Missed, against calls you know.
 4. Save a job over a Cal.com booking: one bell notification, nothing sent to the customer.
+
+## Lane 1 — live public site (read-only, hands-on)
+
+No forms submitted, no non-GET requests (analytics POSTs aborted), no logins. 299 sitemap URLs + 9 nav/footer/body links crawled (308 internal), 355 external links, 12 sample pages x 4 widths (360/390/412/1280) x light/dark, interaction pass on 10 pages at 390 and 1280. Highest severity: **Medium**.
+
+| What I did | Result | Severity | Notes / repro |
+|---|---|---|---|
+| Crawl all internal URLs | PASS | - | 308/308 return 200; no 404/5xx/chains. `/r` is an intentional 302 chain to the Google review page. |
+| External links | PASS (7 blocked) | Info | 7 bot-wall 403s (yelp, jameshardie.com designer, two westlake pages, georgetownky.gov fee PDF, two KY city pages) — blocked, not broken, not followed up. |
+| Mixed content, console errors, failed requests, broken images | PASS | - | 0 http requests, 0 page errors, 0 failed requests, 0 broken images on the 12 sample pages. |
+| Horizontal overflow, clipped text | PASS | - | None at any width. |
+| Menu, accordions, tabs (no submit) | PASS | - | Hamburger toggles `aria-expanded`; all visible `<details>` open; no tabs on these pages. |
+| tel/mailto/sms links | PASS | - | Only `+18594207382` and jd@ (marketing). Two links (`/partners`, hail-season blog) use `tel:8594207382` without +1 — same number. |
+| Dark mode | N/A | Info | Light and dark renders identical; pages don't react to `prefers-color-scheme` (not a defect). |
+| Contrast on `/book` | FAIL | **Medium** | "Book the Adjuster Visit →" (`.tool-cta`) is `#DD875F` on white (~2.7:1); "60 min" chip ~2.45:1. `#DD875F` is the on-dark orange. Open `/book`, scroll to the adjuster card. |
+| Contrast, `/book` chips | FAIL | Low | "30 min / At your home / Free" chips `#BD5728` on tint ~4.05:1 (<4.5). |
+| Contrast, `#BD5728` text elsewhere | FAIL | Low | 2.8–3.5:1: "Step 1 of 5" + footer links on `/estimate`, footer column titles and "Owner & Operator" (3.04) on `/about`, stat numbers on roof-replacement (2.82 on navy), two headings in the hail-season blog. Automated check ignores gradients — confirm small ones by eye. |
+| Claim wording scan, 299 pages | PASS | - | No "we handle the claim". "Assignment of benefits" only as a consumer warning and "No assignment of benefits" on `/pro`. "Master Elite" only to disclaim it. No IKO claim. Commercial copy says independent subcontractors with their own insurance. |
+| Other credential claims | NEEDS JO | **Medium** | Home page says "member of the James Hardie Alliance" and "member of American Operator"; `/guides/siding-gutter-buyers-guide` and `/review` repeat Hardie Alliance; `about.html` also lists both in JSON-LD (`memberOf`) and the pattern repeats in the area pages. CLAUDE.md names only GAF Certified 1162011 and TAMKO Pro Gold as real certs. These claims look long-standing (citation kit 2026-07, SEO deep dive 2026-09-27 mention them), not from tonight — Jo should confirm they are true memberships. **I did not verify them.** |
+| "Our crew" hero eyebrow | Info | Low | "OUR CREW · REAL JOB, NOT STOCK" is ambiguous next to the independent-subs wording; not "in-house". |
+
+Environment note: no playwright module was available in the repo; the agent used a cached npx copy pointed at the installed chromium headless shell. Nothing was downloaded.
