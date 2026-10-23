@@ -875,6 +875,17 @@ body.has-banner .today-bar{top:148px;}
 :root .acc-sw{width:44px;height:44px;border-radius:50%;border:2px solid #2a3040;cursor:pointer;padding:0;}
 :root .acc-sw.on{border-color:#fff;box-shadow:0 0 0 2px #0d1017,0 0 0 4px #fff;}
 :root .acc-reset{min-height:44px;padding:0 12px;background:#13171d;border:1px solid #2a3040;border-radius:22px;color:#e8eaf0;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;}
+/* APPEARANCE PICKER SWEEP (2026-10-22): the panel is dark in every skin, but its tab strip, "Active:" line and subtitle used
+   #5a6478 (3.2:1), the selected tab and category chip put black or mid-orange on the accent (2.8-3.1:1), and the chips,
+   search box, Guide / Random / close were 24-32 px tall. */
+#nbd-picker-inner .npm-tab,#nbd-picker-inner .npm-active-lbl,#nbd-picker-inner .npm-subtitle{color:#9aa6b8;}
+#nbd-picker-inner .npm-tab.on,#nbd-picker-inner .npm-active-lbl strong{color:var(--ac-on-dark,#E4783F);}
+#nbd-picker-inner .npm-cat.on{color:#fff;}
+@media (max-width:768px){
+  #nbd-picker-inner .npm-cat,#nbd-picker-inner .npm-rnd,#nbd-picker-inner .npm-copy-btn,#nbd-picker-inner .npm-search{min-height:44px;}
+  #nbd-picker-inner .npm-close{min-width:44px;min-height:44px;}
+  #nbd-picker-inner .npm-tab{min-height:44px;padding-inline:9px;letter-spacing:.06em;}
+}
 </style>
 
 <!-- Global #nbd-pro-nav removed April 2026 to fix double-header bug. Navigation back to NBD Pro is via the NBD PRO logo in the .topbar below, which links to /pro/dashboard.html. -->
