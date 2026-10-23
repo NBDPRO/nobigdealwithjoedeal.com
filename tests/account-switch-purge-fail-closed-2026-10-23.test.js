@@ -93,8 +93,9 @@ function world(opts) {
       calls.purge++;
       if (opts.purge === 'throw') throw new Error('boom');
       if (opts.purge === 'reject') return Promise.reject(new Error('boom'));
+      if (opts.purge === 'rejectOnce' && calls.purge === 1) return Promise.reject(new Error('boom'));
       for (const k of [...ls.m.keys()]) if (/^(nbd[_-]|nav-)/.test(k) && k !== 'nbd_last_uid') ls.m.delete(k);
-      return Promise.resolve();
+      return Promise.resolve(opts.purgeResult === false ? false : true);
     },
   });
   if (opts.auth !== 'never' && opts.auth !== 'late') win.NBDAuth = fakeAuth();
@@ -152,6 +153,39 @@ const cleared = (w) => !w.ls.m.has('nbd_leads_cache') && !w.ls.m.has('nbd_ds_wor
     let threw2 = false;
     try { await FULL(w2)({ uid: 'B' }); } catch (_) { threw2 = true; }
     ok('deleteDatabase throwing: still no throw', !threw2);
+  }
+
+  console.log('\n4b. review findings (nbd-security-reviewer, same day)');
+  {
+    // unsent door knocks are WORK: the fail-closed clear must keep them (normal purge keeps them too)
+    const w = world({ auth: 'never', storage: { nbd_d2d_sync_queue: '[{"owner":"A"}]', nbd_d2d_queue_last_known_size: '1' } });
+    await FULL(w)({ uid: 'B' });
+    ok('fail closed keeps the unsent door-knock queue and its size counter', w.ls.m.has('nbd_d2d_sync_queue') && w.ls.m.has('nbd_d2d_queue_last_known_size'));
+    ok('control: ...while still clearing A\'s cached data', !w.ls.m.has('nbd_leads_cache'));
+
+    // another tab settled this switch while we waited: do not wipe B's live keys
+    const r = world({ auth: 'never' });
+    setTimeout(() => { r.ls.m.set('nbd_last_uid', 'B'); r.ls.m.set('nbd_b_live', '1'); }, 120);
+    await FULL(r)({ uid: 'B' });
+    ok('a switch another tab already settled is not re-wiped', r.ls.m.has('nbd_b_live') && r.idbDeleted.length === 0, r.idbDeleted.join());
+
+    // a purge that resolves false could not delete the SMS outbox: drop it directly, still record B
+    const f = world({ purgeResult: false });
+    await FULL(f)({ uid: 'B' });
+    ok('a purge resolving false drops the SMS outbox directly', f.idbDeleted.includes('nbd-sms-outbox-db'), f.idbDeleted.join());
+    ok('...and still records B (the sweep ran)', f.ls.m.get('nbd_last_uid') === 'B');
+    const ro = world({ purge: 'rejectOnce', purgeResult: false });
+    await FULL(ro)({ uid: 'B' });
+    ok('first purge rejects, the retry resolves false: the SMS outbox is dropped directly and B is recorded', ro.calls.purge === 2 && ro.idbDeleted.includes('nbd-sms-outbox-db') && ro.ls.m.get('nbd_last_uid') === 'B', 'purge=' + ro.calls.purge);
+    const t = world({});
+    await FULL(t)({ uid: 'B' });
+    ok('control: a purge resolving normally does not touch the SMS database itself', !t.idbDeleted.includes('nbd-sms-outbox-db'));
+
+    // the Daily Success sync is the SECOND writer of nbd_last_uid: it must await the purge
+    const DS = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'ds-firebase-sync.js'), 'utf8').replace(/\r\n/g, '\n');
+    const pAt = DS.indexOf('purgeAccountStorage();'), aw = DS.indexOf('await window.NBDAuth.purgeAccountStorage()');
+    const setAt = DS.indexOf("localStorage.setItem('nbd_last_uid', user.uid)");
+    ok('ds-firebase-sync awaits the purge before it records the uid', aw !== -1 && setAt > aw && pAt !== -1);
   }
 
   console.log('\n5. no switch, nothing to do');

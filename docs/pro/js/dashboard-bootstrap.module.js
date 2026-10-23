@@ -1569,37 +1569,49 @@
   // uid. If it still cannot run, fail CLOSED: clear what can be cleared directly
   // and leave nbd_last_uid on the previous account so the next load retries.
   const _PURGE_WAIT_MS = 5000;
-  function _failClosedClear() {
+  // Work, not cache: the normal purge keeps these too (nbd-auth.js KEEP, 2026-10-04).
+  const _FAIL_CLOSED_KEEP = ['nbd_last_uid', 'nbd_d2d_sync_queue', 'nbd_d2d_queue_last_known_size'];
+  function _failClosedClear(uid) {
+    // Another tab may have settled this very switch meanwhile: then B's own keys are live, not A's.
+    try { if (uid && localStorage.getItem('nbd_last_uid') === uid) return; } catch (_) { /* unreadable: clear */ }
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         // nbd_last_uid stays: it is what makes the next load retry the real purge.
-        if (k && k !== 'nbd_last_uid' && /^(nbd[_-]|nav-)/.test(k)) { try { localStorage.removeItem(k); } catch (_) { /* best-effort */ } }
+        if (k && _FAIL_CLOSED_KEEP.indexOf(k) === -1 && /^(nbd[_-]|nav-)/.test(k)) { try { localStorage.removeItem(k); } catch (_) { /* best-effort */ } }
       }
     } catch (_) { /* best-effort */ }
-    ['nbd_ds_photos', 'nbd-myskin', 'nbd-sms-outbox-db'].forEach((name) => {
+    ['nbd_ds_photos', 'nbd-myskin'].forEach((name) => {
       try { if (window.indexedDB) window.indexedDB.deleteDatabase(name); } catch (_) { /* best-effort */ }
     });
+    _dropSmsOutbox();
   }
   // `pending` is the promise the callback's own purge call returned (purgeAccountStorage
   // is async); a rejected one must not count as done.
+  function _dropSmsOutbox() { try { if (window.indexedDB) window.indexedDB.deleteDatabase('nbd-sms-outbox-db'); } catch (_) { /* best-effort */ } }
   async function _settleOwedPurge(uid, pending) {
     let last = null;
     try { last = localStorage.getItem('nbd_last_uid'); } catch (_) { return; }
     if (!last || last === uid) return;                       // no switch, or already settled
     if (pending) {
-      try { await pending; try { localStorage.setItem('nbd_last_uid', uid); } catch (_) { /* best-effort */ } return; } catch (_) { /* purge failed: retried below */ }
+      try {
+        const done = await pending;
+        if (done === false) _dropSmsOutbox();   // blocked / timed out: the queued texts must not outlive A
+        try { localStorage.setItem('nbd_last_uid', uid); } catch (_) { /* best-effort */ }
+        return;
+      } catch (_) { /* purge failed: retried below */ }
     }
     const ready = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
     for (let i = 0; i < _PURGE_WAIT_MS / 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
     if (ready()) {
       try {
-        await window.NBDAuth.purgeAccountStorage();
+        const done = await window.NBDAuth.purgeAccountStorage();
+        if (done === false) _dropSmsOutbox();
         try { localStorage.setItem('nbd_last_uid', uid); } catch (_) { /* best-effort */ }
         return;
       } catch (_) { /* fall through to the direct clear */ }
     }
-    _failClosedClear();
+    _failClosedClear(uid);
   }
   let _sessionUid;               // uid onAuthStateChanged last reported (undefined = not yet, null = signed out)
   let _leadsCacheUid = null;     // account whose leads window._leads holds (null = none)
