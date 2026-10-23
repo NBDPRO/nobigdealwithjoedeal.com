@@ -524,6 +524,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=21">
 <link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=4">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=1">
+<link rel="stylesheet" href="/pro/daily-success/css/measurements.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/money.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/export.css?v=1">
@@ -842,6 +843,13 @@ body.has-banner .today-bar{top:148px;}
   #ex-tbody td:nth-child(5)::before{content:"Notes";}
 }
 [data-theme="default"] .dt td input::placeholder,[data-theme="default"] .rbox input::placeholder,[data-theme="default"] .pr-inp::placeholder{color:#8793a4;opacity:1;}
+/* ACCENT PICKER (2026-10-22): eight curated swatches over the active skin, 44px targets, wraps at 360px. */
+:root .npm-accents{padding:8px 12px;border-bottom:1px solid #1e2530;flex-shrink:0;}
+:root .acc-lbl{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8a93a8;margin-bottom:6px;}
+:root .acc-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+:root .acc-sw{width:44px;height:44px;border-radius:50%;border:2px solid #2a3040;cursor:pointer;padding:0;}
+:root .acc-sw.on{border-color:#fff;box-shadow:0 0 0 2px #0d1017,0 0 0 4px #fff;}
+:root .acc-reset{min-height:44px;padding:0 12px;background:#13171d;border:1px solid #2a3040;border-radius:22px;color:#e8eaf0;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;}
 </style>
 
 <!-- Global #nbd-pro-nav removed April 2026 to fix double-header bug. Navigation back to NBD Pro is via the NBD PRO logo in the .topbar below, which links to /pro/dashboard.html. -->
@@ -1099,6 +1107,9 @@ body.has-banner .today-bar{top:148px;}
 <script src="/pro/daily-success/js/workout-coach.js?v=20"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/measurements-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/progress-charts-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/progress-charts-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/health-shortcut-ui.js?v=1" defer></script>
@@ -1117,6 +1128,8 @@ body.has-banner .today-bar{top:148px;}
 <script src="/pro/daily-success/js/money-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/export-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/export-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/accent-ui.js?v=1" defer></script>
 
 
 <!-- NBD UNIFIED APPEARANCE ENGINE MODALS -->
@@ -1142,6 +1155,7 @@ body.has-banner .today-bar{top:148px;}
           <button class="npm-rnd" data-action="nbd-random">⚄ Random</button>
         </div>
         <div class="npm-cats" id="npm-cats"></div>
+        <div class="npm-accents"><div class="acc-lbl">Accent colour</div><div id="npm-accents"></div></div>
         <div class="npm-grid" id="npm-grid"></div>
       </div>
       <div class="npm-panel" id="npm-panel-layouts">
