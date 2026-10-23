@@ -34,15 +34,19 @@
   /** A surface that is not clearly light counts as dark (missing or rgba value included), which is the safe side: the light tint on a light card would fail. */
   function isLight(hex) { return /^#[0-9a-f]{6}$/i.test(String(hex).trim()) && lum(hex.trim()) > 0.4; }
   const textFor = (a, surface) => (isLight(surface) ? a.onLight : a.onDark);
+  const isHex = (v) => /^#[0-9a-f]{6}$/i.test(String(v).trim());
+  /** The colour to judge light-or-dark by: the skin's card, or for a saved custom theme (no --paper rule) its own background. */
+  const surfaceOf = (paper, fallbackBg) => (isHex(paper) ? String(paper).trim() : (isHex(fallbackBg) ? String(fallbackBg).trim() : ''));
 
   /** The custom properties to set inline for this accent on a skin whose card colour is `paper`. */
   function vars(id, paper) {
     const a = byId(id);
     if (!a) return null;
-    return { '--ac': a.fill, '--ac-text': textFor(a, paper), '--ac-on-dark': a.onDark };
+    // --orange is the legacy name the appearance modal's own chrome reads; that modal is dark in every skin, so it takes the on-dark tint.
+    return { '--ac': a.fill, '--ac-text': textFor(a, paper), '--ac-on-dark': a.onDark, '--orange': a.onDark };
   }
 
-  const api = { KEY, ACCENTS, byId, normAccent, lum, isLight, textFor, vars };
+  const api = { KEY, ACCENTS, byId, normAccent, lum, isLight, isHex, surfaceOf, textFor, vars };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDAccent = Object.assign(root.NBDAccent || {}, api);
 })(typeof window !== 'undefined' ? window : null);
