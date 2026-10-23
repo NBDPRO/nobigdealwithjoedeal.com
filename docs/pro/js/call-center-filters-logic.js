@@ -21,6 +21,12 @@
   const DIRS = [['all', 'Either way'], ['in', 'They called'], ['out', 'You called']];
   const SORTS = [['new', 'Newest first'], ['old', 'Oldest first']];
   const STATUSES = [['all', 'Any status'], ['unhandled', 'Unhandled'], ['handled', 'Handled'], ['urgent', 'Urgent'], ['promise', 'Has promise'], ['missed', 'Missed']];
+  // One-tap views (Horizon 3): a named set of the filters above. They are not a second saved record - tapping one just sets the
+  // one saved-filter record (nbd_cc_filters); the order (sort) is Jo's own and is kept.
+  const VIEWS = [
+    { id: 'missed-today', label: 'Missed today', filter: { range: 'today', status: 'missed' } },
+    { id: 'unhandled-week', label: 'Unhandled this week', filter: { range: '7d', status: 'unhandled' } },
+  ];
   // Same cut-off the server uses to call a recording "short" (functions/call-center-logic.js SHORT_CALL_SEC).
   const MISSED_UNDER_SEC = 15;
   const KEY = 'nbd_cc_filters';
@@ -45,6 +51,19 @@
     if (o.range === 'custom' && !o.from && !o.to) o.range = 'all';          // "Pick dates" with nothing picked is no filter
     if (o.range !== 'custom') { o.from = ''; o.to = ''; }
     return o;
+  }
+
+  /** The filter a view sets, keeping the caller's current sort; null for an unknown view id. */
+  function applyView(id, current) {
+    const v = VIEWS.filter((x) => x.id === id)[0];
+    if (!v) return null;
+    return normalize(Object.assign({}, v.filter, { sort: normalize(current).sort }));
+  }
+  /** Which view the filter currently IS (same range, status and direction "either way"); null when none. Sort is ignored. */
+  function matchView(f) {
+    f = normalize(f);
+    const hit = VIEWS.filter((v) => { const w = normalize(v.filter); return w.range === f.range && w.status === f.status && w.dir === f.dir && w.from === f.from && w.to === f.to; })[0];
+    return hit ? hit.id : null;
   }
 
   /** YYYY-MM-DD plus n days (calendar arithmetic, no DST drift). */
@@ -203,7 +222,7 @@
   function load(storage) { try { return normalize(JSON.parse(storage.getItem(KEY))); } catch (_) { return defaults(); } }
   function save(storage, f) { try { storage.setItem(KEY, JSON.stringify(normalize(f))); } catch (_) { /* private mode */ } }
 
-  const api = { actionLabel, rove, focusKey, liveSummary, KEY, RANGES, DIRS, STATUSES, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
+  const api = { actionLabel, rove, focusKey, liveSummary, KEY, RANGES, DIRS, STATUSES, VIEWS, applyView, matchView, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallCenterFilters = api;
 })(typeof window !== 'undefined' ? window : null);

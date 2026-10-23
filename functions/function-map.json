@@ -195,6 +195,7 @@
   "onVisitCaptureWrite": "./visit-capture",
   "onYardSignCalendarWrite": "./google-calendar",
   "onYardSignPickupDue": "./push-functions",
+  "ownerWeeklyDigest": "./owner-weekly-digest",
   "pdfRenderRetention": "./pdf-render-retention",
   "phoneTextAction": "./phone-text-check",
   "previewAiPersona": "./handlers/ai-texting-preview",

@@ -89,8 +89,8 @@ ok('every registered gate is actually checked by some function (no stale entries
 // 35 (2026-10-15): + REVIEW_ASK_AUTO_EMAIL_ENABLED / REVIEW_ASK_AUTO_TEXT_ENABLED, the automatic review ask.
 // 36 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED, the own-document expiry watch (dark).
 // 37 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED, the brief's delta mode (dark).
-ok('the registry has exactly 41 gates (update this pin deliberately if that changes; +2 on 2026-10-19: STORM_NWS_TEXT_ENABLED, STORM_CONFIRM_TEXT_ENABLED; +1 SUB_PAPERWORK_WATCH_ENABLED; +1 on 2026-10-20: HEALTH_SHORTCUT_DISABLED)',
-  CRON_GATES.length === 41, String(CRON_GATES.length));
+ok('the registry has exactly 42 gates (update this pin deliberately if that changes; +2 on 2026-10-19: STORM_NWS_TEXT_ENABLED, STORM_CONFIRM_TEXT_ENABLED; +1 SUB_PAPERWORK_WATCH_ENABLED; +1 on 2026-10-20: HEALTH_SHORTCUT_DISABLED; +1 on 2026-10-22: OWNER_WEEKLY_DIGEST_ENABLED)',
+  CRON_GATES.length === 42, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);
