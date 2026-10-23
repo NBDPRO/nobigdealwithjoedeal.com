@@ -81,7 +81,18 @@ Audit plan, `step → verify`:
 - Walk Customer → Finish at 360×740, 390×844, 412×915 on a full roof and on a repair. For each step record: tap count, taps under 44px, whether the primary action stays above the keyboard when a field has focus, scroll traps (a scrollable region inside the modal that swallows the page scroll), and horizontal overflow.
 - Fix what is small and local; each fix gets a test that fails without it.
 
-Status: **not started when this note was written.** Findings get appended below under a dated heading.
+Status: **walked 2026-10-22, no product fix needed.** `tests/e2e/phone-v3-wizard.spec.js` already drives every step (header counts, a real control on each step, no sideways scroll, Next/Back hit-tested, every control at least 44px, packages priced, Save writes the on-screen total) but only at 390×844. Run on the local emulators with the viewport overridden:
+
+| Viewport | Result |
+|---|---|
+| 360×740 | 3/3 pass (full roof insurance, full roof cash Per-SQ, repair) |
+| 390×844 | 3/3 pass |
+| 412×915 | 3/3 pass, after one test fix: the spec hard-coded `844` as the bottom of the screen, which fails any taller phone (a test bug, not a layout bug) |
+| 360×560 (keyboard-open height) | the spec's "pitch chip is reachable" hit-test fails because the chip sits below the fold and the test does not scroll; the bar is a flex row under a scrolling body, not `position:fixed`, so it cannot cover a field. Not a product finding |
+
+Change: the spec reads `PHONE_W` / `PHONE_H` (default 390×844) and checks Next against the real viewport height. Not covered: the real iOS keyboard (Chromium cannot show it), so a field being covered while typing is still a Jo-on-iPhone check. Add to the daylight session: on the Measure step tap the area field and confirm it stays visible above the keyboard.
+
+Local-run trap for the next person: `docs/pro/js/nbd-emulator-connect.js` hard-codes the emulator ports (auth 9099, firestore 8080, storage 9199). Sibling sessions hold those ports; a second suite on one machine fails with "Port 8080 is not open". Temporarily point the file and a `--config` copy of `firebase.json` at other ports and revert both before committing.
 
 ## 4. Order of work
 
