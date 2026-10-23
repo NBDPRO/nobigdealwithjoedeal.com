@@ -52,3 +52,23 @@ Limits: the reviewers had Read/Grep/Glob only, no per-PR diffs, no test runs; no
 ## Still not verifiable by automation
 
 Authed production behaviour; the Cal.com alert end to end (needs the Functions emulator, which can send); whether #2695 closes the purge race at production timing.
+
+## Addendum (2026-10-23 evening): fixes verified after merge
+
+Deploy proof (ancestor of a surviving successful `Firebase deploy` run): 809ca30d (#2707 sync pill), 3a99e6d9 (#2702 /book contrast) and 673ac154 are covered by the success run for 673ac154; 50a0d4dc (#2695 purge fails closed) is covered by the success run for debc4ada. Several of those commits' own runs were cancelled as superseded, as expected.
+
+Live markers (read-only fetch): the Daily Success page loads `ds-firebase-sync.js?v=6` and the script carries "Sync error"; `/book` serves the new `.tool-cta` rule using `--card-accent-text` (#2702 used that variable, not `--card-text` from the closed duplicate #2706); `dashboard-bootstrap.module.js` carries the fail-closed marker `nbd_d2d_queue_last_known_size`. Contrast ratios were not re-measured on the live page; #2702's test asserts at least 4.5:1.
+
+Account-switch repro on the local emulator at main 5205d984 (includes 50a0d4dc), reusing the first-pass scripts:
+
+| Scenario | Result |
+|---|---|
+| Logout path (`NBDAuth.logout()`) | PASS: photos DB gone, B sees none |
+| Switch WITHOUT logout, 3 plain runs | PASS 3/3 (before the fix, 1499145c: FAIL) |
+| Same, nbd-auth.js delayed 1.5 s, also with 6x CPU throttle, and delayed 7.5 s (past the 5 s wait) | PASS 3/3: `purgeAccountStorage` ran first, then `nbd_last_uid` advanced to B |
+| nbd-auth.js blocked permanently, wait on the dashboard 7.5 s | PASS: purge never ran, `nbd_last_uid` stayed on A, dashboard fail-closed clear removed the photos |
+| nbd-auth.js blocked permanently, user leaves the dashboard within 5 s | **FAIL (residual, Low-Medium)**: `nbd_last_uid` stays on A, but A's photo DB survives and B sees A's photos on Daily Success |
+
+The residual needs nbd-auth.js to fail to load at all and an account switch followed by leaving the dashboard inside the 5 s wait. The sync side pauses rather than clearing the DB. Suggested follow-up: have Daily Success clear `nbd_ds_photos` itself when the purge is unavailable. The "Sync paused" badge text was not captured in any run.
+
+The #2707 sync-pill fix, the #2702 /book fix and the #2695 purge fix are therefore verified live; the owner-digest false "none" fix is #2714 (queued at the time of writing).
