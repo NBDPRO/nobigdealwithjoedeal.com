@@ -14,7 +14,7 @@ owns generic drafts and the `review_sprint` tool; this lane owns the post-job mo
 | `post_job` agent tool | `functions/agent-mcp-logic.js` `postJob()`, `agent-mcp.js:318` (Tucker, Frank) | Live, read-only: days since finish, balance owed, `review_requested`, `warranty_tier`, anniversary flag. No photo / final-invoice / referral fields. |
 | Paid-in-full rule | `functions/paid-in-full.js`, mirrored in `review-engine.js` | The single definition of "money collected"; everything below keys off it. |
 | Review ask, rep nudge | `functions/review-request-nudge.js`, `docs/pro/js/review-engine.js` | Live. Bell + prefilled SMS/email, 3-21 days after payment received. |
-| Review ask, automatic | `functions/review-ask-auto.js` + `-logic.js` | Email behind `REVIEW_ASK_AUTO_EMAIL_ENABLED`, text behind `REVIEW_ASK_AUTO_TEXT_ENABLED` (dark until A2P). One ask per job, no rating gate, no incentive. |
+| Review ask, automatic | `functions/review-ask-auto.js` + `-logic.js` | Email behind `REVIEW_ASK_AUTO_EMAIL_ENABLED`, text behind `REVIEW_ASK_AUTO_TEXT_ENABLED`. Twilio A2P is Verified (2026-10-19), but every send is still gated by the fail-closed kill switch `messaging_controls/global` plus per-automation flags (absent = off). One ask per job, no rating gate, no incentive. |
 | Review sprint | `review_sprint` tool, `draft_text` / `draft_email` | business-queue's lane. |
 | Referral program | `functions/referral-rewards.js` (`REFERRAL_BONUS_USD = 100`, credit at paid in full, not at "Closed" as the older docs say), `docs/pro/js/referral-rewards-ui.js`, `review-engine.js` code mint | Live. The rep's SMS already appends the homeowner's own referral link to the review ask. |
 | 1-year touch | `functions/anniversary-touch.js` | Dry-run flag; rep-in-the-loop only. |
@@ -38,4 +38,4 @@ owns generic drafts and the `review_sprint` tool; this lane owns the post-job mo
 2. **Warranty registration prompt.** A rep-facing prompt and a customer-facing draft that names only GAF Certified and TAMKO Pro Gold, and only when the job's materials are that manufacturer's.
 3. **Review-ask and referral-ask drafts.** Drafts only, filed for the rep to send; consent, STOP/HELP, quiet hours 8am-9pm, CAN-SPAM footer. Referral draft: separate from the review ask, after the review is left or the warranty is filed; a Kentucky insurance job gets the flat $100 wording with no deductible language; the review ask is never conditioned on rating or on the referral.
 
-Held until Jo flips the flags: any automatic send. Crews are independent subcontractors in every line of copy.
+Held until Jo flips the flags in the Firebase console: any automatic send (kill switch `messaging_controls/global` and per-automation flags, absent = off; consent, STOP/HELP and 8am-9pm quiet hours still apply). Only a Twilio "delivered" status proves delivery. Crews are independent subcontractors in every line of copy.
