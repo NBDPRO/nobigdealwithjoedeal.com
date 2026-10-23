@@ -13,10 +13,10 @@ hand are marked **(re-verified)**.
 
 ## Verdict
 
-- No Critical or High findings. Nothing customer-facing was sent or can be sent by this batch.
+- No Critical findings; one High (photo purge, below). Nothing customer-facing was sent or can be sent by this batch.
 - Privacy invariants hold (section "Privacy invariants").
 - Four commits were not yet live when sampled: the deploy queue was still working (section "Deploy status").
-- Highest-severity finding: **Medium** — on-device progress photos are not erased on sign-out or account switch.
+- Highest-severity finding: **High** (upgraded after the lane 3 repro) — on-device progress photos are not erased on sign-out or account switch. Parent session notified.
 
 ## Deploy status
 
@@ -48,7 +48,7 @@ Function code (860f257f) cannot be checked from outside, but the ce97821a run it
 | #2661 Cockpit tile numbers (0eafb8de) | yes | `cockpit-logic.js` served, `NBDCockpit` present | Low: module is unmounted (no page loads it), so nothing user-visible; streak tile shows "best N" before "train soon" once wired | nothing yet |
 | #2658 Log Book layout (4536ddc8) | yes | `layouts.css` has `logbook` rules | none new | Switch to Log Book; confirm Last / Best / Today row on a phone |
 | #2663 Accent picker (d4384c40) | yes | `accent-ui.js`/`accent-logic.js` served and referenced by index | Low: a saved custom theme has no `--paper` rule, so a dark custom theme can get the light-surface text tint; legacy `--orange`/`--gold` ignore the accent | pick each accent on a dark and a light skin |
-| #2662 Measurements + progress photos (d8382bd1) | content live (see anomaly) | `measurements-logic/ui`, `photos-logic`, `measurements.css` all linked from index and served | **Medium** photos persist after sign-out/switch (below); Low: muscle sites coloured as "bad" when they grow; Low: blob URLs not revoked on leaving the page; Low: put+prune in one try can say "could not save" after a save; delete failure silent | Take a photo (airplane mode on), sign out, sign in as someone else: photo cards must be empty; check EXIF with a GPS-tagged test photo |
+| #2662 Measurements + progress photos (d8382bd1) | content live (see anomaly) | `measurements-logic/ui`, `photos-logic`, `measurements.css` all linked from index and served | **High** photos persist after sign-out/switch (below); Low: muscle sites coloured as "bad" when they grow; Low: blob URLs not revoked on leaving the page; Low: put+prune in one try can say "could not save" after a save; delete failure silent | Take a photo (airplane mode on), sign out, sign in as someone else: photo cards must be empty; check EXIF with a GPS-tagged test photo |
 | #2666 Cal.com booking alert (860f257f) | **not proven** | not observable (server function) | Low: alert skipped if the Google sync throws first; no rules test for the notification write (rules re-read: client create needs `userId == auth.uid`, so cross-tenant spam is blocked) **(re-verified)** | Save a job over a Cal.com booking; expect one bell notification, none sent to the customer |
 | #2664 Call Center status filters (ce97821a) | queued; files live | filters-logic serves `unhandled`/`urgent`/`promise`/`missed` | **Medium** "Missed" can't see real missed calls — nothing writes `answered` **(re-verified: no writer in functions/)**; Low: default "Needs attention" tab + Handled chip is always empty; Low: filter module load failure hides the bar silently | Tap Missed with real calls; confirm it matches what you remember |
 | #2671 Theme contrast sweep (6c208c30) | **no** (pending) | not live | Medium: `ds-firebase-sync.js` sync pill hide-timer erases "Sync failed" after 0.1–0.4 s (pre-existing, not introduced here); Medium: a failed pages push skips workout sync for that load | after deploy: walk every theme on the iPhone |
@@ -56,7 +56,7 @@ Function code (860f257f) cannot be checked from outside, but the ce97821a run it
 
 ## Findings (ranked)
 
-1. **Medium — progress photos survive sign-out / account switch.** `purgeAccountStorage()` (`docs/pro/js/nbd-auth.js:788-857`) deletes `nbd-myskin` but never `nbd_ds_photos` (`measurements-ui.js:20`); rows carry no uid. On a shared phone the next user sees the previous user's body photos. **(re-verified: grep finds no `nbd_ds_photos`/deleteDatabase in nbd-auth.js.)** The feature's copy promises "stays on this phone". Fix: `indexedDB.deleteDatabase('nbd_ds_photos')` in the purge plus a test with a positive control. Measurements (`nbd_ds_measurements`) *are* purged and are not synced, so they are lost on sign-out — confirm that is acceptable.
+1. **High (confirmed by repro in lane 3) — progress photos survive sign-out / account switch.** `purgeAccountStorage()` (`docs/pro/js/nbd-auth.js:788-857`) deletes `nbd-myskin` but never `nbd_ds_photos` (`measurements-ui.js:20`); rows carry no uid. On a shared phone the next user sees the previous user's body photos. **(re-verified: grep finds no `nbd_ds_photos`/deleteDatabase in nbd-auth.js.)** The feature's copy promises "stays on this phone". Fix: `indexedDB.deleteDatabase('nbd_ds_photos')` in the purge plus a test with a positive control. Measurements (`nbd_ds_measurements`) *are* purged and are not synced, so they are lost on sign-out — confirm that is acceptable.
 2. **Medium — Call Center "Missed" is effectively "short inbound under 15 s with a known duration".** Dead `answered === false` branch; truly unanswered calls often have no recording and never reach `phone_calls`. The PR header already says Jo hasn't confirmed this status set. Rename (e.g. "Short calls") or source real missed-call data.
 3. **Medium — Daily Success sync pill (`ds-firebase-sync.js:66-72`).** Independent hide timers; "Saving…" timer hides the pill before/just after "Sync failed". Failure is nearly invisible.
 4. **Medium — `ds-firebase-sync.js:289-290, 212`.** A failed pages push aborts `syncWorkouts()` for the load; unguarded `localStorage.setItem` can abort remaining workout pushes.
@@ -145,3 +145,30 @@ Entry points: `/pro/sandbox` (guided story) and `/pro/explore` (sample account).
 | 18 | Forms / local-only behaviour | PASS | - | Add Lead validates and persists locally; "Nothing was sent" sheet; Ask Joe says no AI model is called; Reset and Sign Out work. |
 
 Not covered in depth: estimate wizard, customer card, how-to.html, dashboard dark-mode toggle.
+
+## Lane 3 — authed CRM + Daily Success on local emulators
+
+Rig: Auth + Firestore emulators and a static server on 127.0.0.1 serving this worktree's `docs/` (the stock rig could not run: no `node_modules` in any checkout, port 8080 held by another app, hosting emulator 404s under a `.claude` path). Seeded users `playwright-e2e@nbd.test` and `second-e2e@nbd.test`. `PLAYWRIGHT_BASE_URL` unset, proxy env scrubbed, every non-local request aborted (only the Sentry CDN, Google Fonts and one prod function call were blocked). Functions emulator never started; no SMS/email/production traffic. Screenshots in the scratchpad, not the repo. Worktree was at 6c208c30.
+
+| What I did | Result | Severity | Repro / notes |
+|---|---|---|---|
+| Photos survive sign-out / account switch | FAIL | **High** | Log in as A, add a progress photo, `NBDAuth.logout()`, log in as B, open Daily Success: B's card shows A's photo. `nbd_ds_measurements` is purged; `nbd_ds_photos` (IndexedDB) is not. Raw sign-out-without-purge path not completed (script hit a modal). |
+| Photo add with fake EXIF GPS (APP1 + COM) | PASS | - | Stored blob has no APP1–APP15/COM, no GPS string; resized 1600x1200 to 1280x960. |
+| Photo flow: second photo, Then and now, pose switch, two-tap delete, garbage file | PASS | - | Garbage gives "Could not save that photo"; delete needs a second tap. |
+| Measurements: invalid input, comma decimal, same-day replace, trend, cm/in, Remove latest | PASS | - | Rejects empty/abc/-5/0/1/999/3500/34.5.1/1e3; "34,5" saves; trend and unit pref persist; tampered storage tolerated. |
+| Measurement bounds | Info | Low | "4" (inches) accepted (min is 5 cm / 2 in); generic out-of-range toast. |
+| Typed measurement text lost to a one-time post-load `renderDash` | FAIL | Low | Type in Measurements within ~1 s of load: the field clears; saving immediately gives "Enter a number…". Unit/site toggles also clear typed text. |
+| Measurements + photos at 390 dark/default, 1280 dark/Warm Paper | PASS | - | No overflow; contrast >= 4.61 sampled; chips 44 px (the "in" chip is 35 px wide). |
+| Appearance picker + 8 accent swatches x 10 themes, 390 and 1280 | PASS | - | Swatches 44x44; no accent/button text under 4.5; accent and NBD Light persist across reload. |
+| Layout picker Classic / Log Book / Rings | PASS | - | Switch, no overflow at either width (detailed day-page visuals not inspected). |
+| Layout picker Cockpit | Info | - | Disabled ("COMING", `ready:false`) as are Quest/Arcade/One Thing/Journal — not exercisable. |
+| Workout coach keyboard (390) | FAIL | Medium | Enter on "START TODAY'S WORKOUT" opens `#wcOverlay` with no `role=dialog`/`aria-modal`; focus not moved inside; Tab reaches controls behind it; Escape does not close it. |
+| Day page keyboard (390) | FAIL | Medium | Food inputs show no outline or shadow on focus (3%-alpha tint only); buttons are fine (3 px outline). |
+| Call Center status chips on 8 seeded calls | PASS | - | Counts 6 / 2 / 1 / 1 / 2 correct. "Missed" caught a 4 s call and an `answered:false` call — so the chip works if some writer sets `answered`; the finding that nothing in `functions/` writes it still stands. |
+| Call Center date + direction filters | PASS | - | Range chips, 24h/7d/30d and "You called" correct. |
+| Console errors | PASS | - | None from app code; `[ThemeOverlays] Unknown overlay type: none` warnings (Low). |
+| `health-shortcut-ui.js` calls `getFunctions()` without `connectEmulatorsIfLocal` | FAIL | Low-Medium | In one run the browser tried `POST https://us-central1-nobigdeal-pro.cloudfunctions.net/healthShortcutManage` (blocked by the test). In the repo's own emulator rig this is a race that could send a status call to production. |
+
+Not exercised: Cal.com booking alert (needs the Functions emulator and sends alerts); Call Center "Said you'd do" deck (callables stubbed); detailed Rings / Log Book / Cockpit visuals; raw sign-out-then-switch; dark-theme and 1280 coach/keyboard checks; the repo's own `test:e2e:authed:emu` suite; full-page contrast audit; saved views (#2673) and appearance picker contrast (#2680) were not merged.
+
+Side effect to know about: the lane 3 agent's process cleanup matched broadly and may have killed some unrelated `bash.exe`/`node.exe` processes.
