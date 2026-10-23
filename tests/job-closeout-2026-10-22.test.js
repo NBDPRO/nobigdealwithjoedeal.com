@@ -45,7 +45,7 @@ ok('deleted lead is not finished', !C.isFinishedJob({ stage: 'closed', deleted: 
 
 console.log('render');
 function sandbox(lead, extra) {
-  const panel = { innerHTML: '', hidden: true };
+  const panel = { innerHTML: '', hidden: true, handlers: {}, addEventListener(n, f) { this.handlers[n] = f; } };
   const win = Object.assign({
     document: { getElementById: (id) => (id === 'closeoutPanel' ? panel : null) },
     _currentLead: lead,
