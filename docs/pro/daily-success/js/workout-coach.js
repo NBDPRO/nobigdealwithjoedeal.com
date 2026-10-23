@@ -422,9 +422,9 @@
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       ${logbookRowHtml(x)}<div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
       ${lastTimeHtml(x)}
-      ${noteHtml(x)}
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
+      ${noteHtml(x)}
       ${swaps}${rows}
       ${role ? '' : `<button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>${pairBtn}`}
     </div>`;

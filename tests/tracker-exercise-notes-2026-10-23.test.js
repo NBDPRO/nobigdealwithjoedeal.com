@@ -70,7 +70,7 @@ console.log('\n4. wiring');
   const idx = read('index.html');
   ok('the note is escaped before it reaches innerHTML', /esc\(prev\.text\)/.test(ui) && /esc\(N\.on\(map, x\.exId, today\(\)\)\)/.test(ui) && /esc\(x\.exId\)/.test(ui));
   ok('saved on change only, never per keystroke', /exnote'\) \{\s*\n\s*if \(ev\.type !== 'change'/.test(ui));
-  ok('the card shows the note under the Last time line', ui.indexOf('${lastTimeHtml(x)}\n      ${noteHtml(x)}') > -1);
+  ok('the card shows the note just above the sets, after the plate line (the plate-calc test keeps plates near the target line)', ui.indexOf('${platesHtml(x, ex)}\n      ${noteHtml(x)}') > -1);
   ok('notes ride the settings sync', /\{ key: 'nbd_ds_coach_notes', field: 'dsCoachNotes' \}/.test(read('ds-firebase-sync.js')));
   ok('logic loads before the coach screen', idx.indexOf('exercise-notes-logic.js') > -1 && idx.indexOf('exercise-notes-logic.js') < idx.indexOf('workout-coach.js?v='));
   ok('no network or storage in the pure logic', !/fetch\(|localStorage|XMLHttpRequest/.test(read('js', 'exercise-notes-logic.js')));
