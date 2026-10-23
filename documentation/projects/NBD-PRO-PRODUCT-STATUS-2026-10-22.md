@@ -62,7 +62,7 @@ the newer picture.
 - No owner-facing preview of an unpublished site (the public config refuses unpublished tenants), so an owner cannot see the page before releasing it.
 - Tenants that predate the flag (absent `sitePublished`) are published by status alone. A report listing them would make the release story auditable.
 
-**Smallest next PR (low risk):** the same read-only admin tenants view, with a "published (legacy, flag absent)" marker. A preview-before-release changes the public endpoint's behaviour, so it goes to the security reviewer first.
+**Update 2026-10-23:** the admin tenants view already showed "Site published" with a "yes (legacy)" marker (this note first missed that); a Site address column is added in the follow-up PR. Left:  A preview-before-release changes the public endpoint's behaviour, so it goes to the security reviewer first.
 
 ## 4. Pro demo
 
@@ -83,3 +83,6 @@ Retiring server `OWNER_EMAILS`; parameterising `success_url`; enabling seats / `
 3. Per-seat price and creating `STRIPE_PRICE_SEAT` (turns seats on). Should Pro get its own domain (`success_url`)?
 4. Is the Phase 0 IAM grant for access-code login done?
 5. Want an owner-side "preview my site before publishing"? It needs a security review first.
+
+## Finding for Jo (2026-10-23, security review of the Site address column)
+`firestore.rules` (companies update, around line 3007) does not freeze `siteSlug`, so an owner can write any string to their own `companies/{id}.siteSlug` straight from the client. That skips `setSiteSlug`'s format check, reserved-name list and the `siteSlugs/{slug}` uniqueness claim, so two tenants could hold the same slug and the public lookup (`limit(1)`) would serve one of them. The admin view now shows a malformed slug as blank. The real fix is a rules change (add `siteSlug` and `siteSlugUpdatedAt` to the `didNotChange` list, with a rules test that an owner UPDATE is denied). That is a Firestore rules change, so it waits for your OK.
