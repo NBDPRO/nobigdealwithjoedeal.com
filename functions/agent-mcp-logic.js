@@ -618,14 +618,23 @@ function postJob(leads, invoices, nowMs, args, tz) {
       });
     });
 }
+// The owner's own answer to "where did this customer come from" (leads/{id}.confirmedSource,
+// docs/pro/js/lead-source-fixer.js). The intake `source` is only a hint.
+const CONFIRMED_SOURCES = ['yelp', 'thumbtack_paid', 'thumbtack_direct', 'referral', 'repeat', 'door_knock', 'google', 'manufacturer_locator', 'other'];
 function leadSources(leads, expenses, nowMs, days) {
   const d = Math.min(Math.max(Math.floor(Number(days)) || 90, 7), 730);
   const cut = nowMs - d * 86400000;
   const rows = {};
   const row = (k) => (rows[k] = rows[k] || { source: k, leads: 0, won: 0, lost: 0, open: 0, spend: 0 });
+  const conf = {};
+  let unconfirmed = 0;
   activeLeads(leads).forEach((l) => {
     const t = ms(l.createdAt) || ms(l.updatedAt);
     if (!t || t < cut) return;
+    if (CONFIRMED_SOURCES.indexOf(l.confirmedSource) !== -1) {
+      const c = (conf[l.confirmedSource] = conf[l.confirmedSource] || { source: l.confirmedSource, leads: 0, won: 0 });
+      c.leads++; if (_SRK.isSale(l)) c.won++;
+    } else unconfirmed++;
     const r = row(String(l.source || '').trim() || 'Unknown'); r.leads++;
     // Won = THE sale test (stage-roles.js isSale: won, in production or
     // Contract Signed), the same set as the CRM's lead-source table — the won
@@ -644,7 +653,10 @@ function leadSources(leads, expenses, nowMs, days) {
     spend: r.spend ? r.spend / 100 : 0,
     cost_per_lead: r.spend && r.leads ? Math.round(r.spend / r.leads) / 100 : null,
   })).sort((x, y) => y.leads - x.leads);
-  return { days: d, sources: out, note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source.' };
+  const confirmed = Object.values(conf).sort((x, y) => y.leads - x.leads);
+  return { days: d, sources: out,
+    confirmed_sources: confirmed, unconfirmed_leads: unconfirmed,
+    note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source. `sources` is the intake tag, a hint that misattributes (Yelp and Thumbtack leads are often tagged otherwise); `confirmed_sources` is the owner’s own answer per customer, counts only, and unconfirmed_leads still has no answer. No money here: collected dollars per confirmed source live in the CRM (Where customers came from).' };
 }
 const DIRECT = 'direct';
 // jobsByLead (optional, { leadId: [jobs] }): the finished jobs are JOB
