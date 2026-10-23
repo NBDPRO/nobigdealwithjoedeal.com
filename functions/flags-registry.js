@@ -92,6 +92,8 @@ const ROWS = {
     meaning: 'Daily 9 AM: a note in your Agent inbox when your own insurance certificate, license or certification is 30, 14 or 7 days from expiring, or has expired. Never goes to a customer. Off = dry run, logs only.' },
   SUB_PAPERWORK_WATCH_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/SUB-PAPERWORK-2026-10-19.md',
     meaning: 'Daily 9:15 AM: a note in your Agent inbox when a sub insurance certificate or license is 30, 14 or 7 days from ending, or has ended. Never goes to a sub or customer. Off = dry run, logs only.' },
+  OWNER_WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/WAVE3-ADDONS-RECON-2026-10-22.md',
+    meaning: 'Monday 7:30 AM: one note in your Agent inbox with last week collected money, estimates awaiting signature (projected), calls to return and the jobs this week. Never goes to a customer or a rep. Off = dry run, logs only.' },
   WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
     meaning: 'The weekly roll-up email. Off = dry run, not sent.' },
   MONTHLY_OVERHEAD_ALERT_DISABLED: { group: 'Alerts & away', doc: 'documentation/projects/WEEKLY_CADENCE.md',

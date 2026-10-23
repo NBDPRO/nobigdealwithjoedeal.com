@@ -20,3 +20,11 @@ Recon only: three small CRM addons (weekly owner digest, receipt capture polish,
 ## Blocked on
 
 PRs 2662 to 2668 are all still open with CI backed up (most BLOCKED with checks pending; 2663 UNSTABLE with one failure). The brief says no first PR until they merge or CI is clearly healthy, so this note stays a local commit for now.
+
+## Built (item 1): `ownerWeeklyDigest`, ships dark
+
+- `functions/owner-weekly-digest-logic.js` (pure) and `owner-weekly-digest.js` (Monday 07:30 ET). Gate `OWNER_WEEKLY_DIGEST_ENABLED=true`; anything else logs counts and writes nothing. Jo flips it; Claude does not.
+- Files `agent_inbox/ownerdigest_<company>_<monday>` (kind `report`) with `create()`, so a rerun or retry files each week once, plus one bell to the owner. No SMS, no email, no draft, no rep.
+- Content: collected last Mon-Sun (payments by date received, refunds subtracted, cents); estimates awaiting signature (sent or opened, not accepted, customer not closed; labelled PROJECTED); calls to return (Call Center items, NBD owner account only today; other companies get no calls section); jobs dated Mon-Sun this week. No cost, margin or profit figure.
+- Test: `tests/owner-weekly-digest-2026-10-22.test.js` (34 checks, positive and negative controls). Mutation run, all caught: collection window widened, signed-proposal filter removed, closed-customer filter removed, `create()` swapped for `set()`, dry-run guard removed.
+- Does not touch `weeklyDigest` (the rep email, still dry-run) or the margin note.
