@@ -1893,6 +1893,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
            lead.jobChecklist; hidden until the lead loads. -->
       <div class="panel" id="checklistPanel" style="display:none;"></div>
 
+      <!-- FINISHED-JOB CHECK — window.JobCloseout (js/job-closeout.js), rendered from the checklist render. -->
+      <div class="panel" id="closeoutPanel" style="display:none;"></div>
+
       <!-- TIMELINE -->
       <div class="panel cpo-tasks">
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
@@ -2944,7 +2947,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/profit-tracker.js?v=5"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
-<script defer src="js/customer-checklist.js?v=3"></script>
+<script defer src="js/job-closeout.js?v=1"></script>
+<script defer src="js/customer-checklist.js?v=4"></script>
 <!-- Claim unification: canonical claim view + Claim Details panel/editor.
      MUST load before insurance-claim.js — advanceClaimStage syncs the
      coarse claimStatus via window.ClaimCore.claimStatusFromStage. -->
