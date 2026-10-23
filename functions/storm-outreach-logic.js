@@ -86,10 +86,23 @@ function milesTo(ev, lead) {
   return L.haversineMi(Number(ev.lat), Number(ev.lon), Number(lead.lat), Number(lead.lng));
 }
 
+const MAX_DAYS = 60; // the oldest report the list will ever show; filing refuses anything older
+
+/** When a report happened (epoch ms), or 0 when it cannot be told. */
+function reportMs(ev) {
+  return ST.validMs(ev && ev.valid) || L.ms(ev && ev.processedAt);
+}
+
+/** May a draft still be filed from this report? Not when it is undated, in the future, or older than MAX_DAYS. */
+function reportAgeOk(ev, nowMs) {
+  const t = reportMs(ev);
+  return t <= nowMs + 86400000 && t >= nowMs - MAX_DAYS * 86400000; // an undated report (t = 0) fails the lower bound
+}
+
 function clampArgs(args) {
   const a = args || {};
   return {
-    days: Math.min(Math.max(Math.floor(Number(a.days)) || 14, 1), 60),
+    days: Math.min(Math.max(Math.floor(Number(a.days)) || 14, 1), MAX_DAYS),
     miles: Math.min(Math.max(Number(a.miles) || 3, 0.5), 10),
   };
 }
@@ -134,4 +147,4 @@ function planStormOutreach(events, leads, names, nowMs, args) {
   };
 }
 
-module.exports = { MAX_EVENTS, MAX_PER_EVENT, cohortOf, hazardOf, buildStormReportCheckIn, milesTo, clampArgs, planStormOutreach };
+module.exports = { MAX_EVENTS, MAX_PER_EVENT, MAX_DAYS, reportMs, reportAgeOk, cohortOf, hazardOf, buildStormReportCheckIn, milesTo, clampArgs, planStormOutreach };

@@ -934,6 +934,7 @@ async function fileStormOutreachDrafts(request) {
   if (!ids.length) throw new HttpsError('invalid-argument', 'leadIds is required.');
   const ev = await readDoc('storm_events/' + eventKey);
   if (!ev) throw new HttpsError('not-found', 'That storm report is no longer on file.');
+  if (!SO.reportAgeOk(ev, Date.now())) throw new HttpsError('failed-precondition', 'That storm report is too old to draft from. Reload the tab for recent reports.');
   const miles = SO.clampArgs(data).miles;
   const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
   const tag = require('crypto').createHash('sha1').update(eventKey).digest('hex').slice(0, 16);

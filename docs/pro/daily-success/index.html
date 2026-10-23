@@ -526,6 +526,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=2">
 <link rel="stylesheet" href="/pro/daily-success/css/measurements.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/business-tile.css?v=1">
+<link rel="stylesheet" href="/pro/daily-success/css/checkin.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/eod.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/money.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
@@ -881,7 +882,22 @@ body.has-banner .today-bar{top:148px;}
 :root .bt-card{max-width:100%;box-sizing:border-box;}
 :root .bt-stat b{font-size:26px;}
 :root .bt-open{min-height:44px;}
+/* MORNING CHECK-IN (2026-10-23): 44px chips that share the row, label column fixed so 360px never wraps the chips off-screen. */
+:root .ck-card{max-width:100%;box-sizing:border-box;}
+:root .ck-l{flex:0 0 100%;}
+:root .ck-chip{min-height:44px;}
 :root .acc-reset{min-height:44px;padding:0 12px;background:#13171d;border:1px solid #2a3040;border-radius:22px;color:#e8eaf0;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;}
+/* APPEARANCE PICKER SWEEP (2026-10-22): the panel is dark in every skin, but its tab strip, "Active:" line and subtitle used
+   #5a6478 (3.2:1), the selected tab and category chip put black or mid-orange on the accent (2.8-3.1:1), and the chips,
+   search box, Guide / Random / close were 24-32 px tall. */
+#nbd-picker-inner .npm-tab,#nbd-picker-inner .npm-active-lbl,#nbd-picker-inner .npm-subtitle{color:#9aa6b8;}
+#nbd-picker-inner .npm-tab.on,#nbd-picker-inner .npm-active-lbl strong{color:var(--ac-on-dark,#E4783F);}
+#nbd-picker-inner .npm-cat.on{color:#fff;}
+@media (max-width:768px){
+  #nbd-picker-inner .npm-cat,#nbd-picker-inner .npm-rnd,#nbd-picker-inner .npm-copy-btn,#nbd-picker-inner .npm-search{min-height:44px;}
+  #nbd-picker-inner .npm-close{min-width:44px;min-height:44px;}
+  #nbd-picker-inner .npm-tab{min-height:44px;padding-inline:9px;letter-spacing:.06em;}
+}
 /* DAY WRAP-UP (2026-10-22): 44px targets, chips share the row, nothing wider than 360px. */
 :root .eod-card{max-width:100%;box-sizing:border-box;}
 :root .eod-chip{flex:1 1 0;min-width:0;}
@@ -1156,6 +1172,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/business-tile-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/business-tile-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/checkin-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/checkin-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/eod-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/eod-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>

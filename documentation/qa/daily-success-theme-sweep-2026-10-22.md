@@ -42,13 +42,19 @@ Guard: `tests/daily-success-theme-sweep-2026-10-22.test.js` (WCAG maths over eac
 paper surfaces, plus the rules and the inline colours). Mutation-checked: reverting `.rn`, dropping `.wc-ov` from the
 ghost rule, and restoring `#334455` each turn it red.
 
-## Not in this PR (open)
+## Appearance picker (second PR, after the accent picker #2663 merged)
 
-- **Appearance picker** (waits for the accent-picker PR #2663, which rewrites it): "NBD Light" and "Warm Paper" labels
-  are 1.2:1 (including the selected chip); tab strip and category chips 3.1 to 3.2:1; category chips, search box,
-  Guide / Random / close are 24 to 32 px tall; at 360 px the panel is 5 px wider than its box.
+Re-swept the merged tree (picker + Dash + Day, all ten skins, 360/390/412, accent swatches present): the swatches pass.
+Fixed: "NBD Light" / "Warm Paper" bubble labels 1.2:1 (the label ink was chosen from the page bg but painted on the
+bubble surface; it now follows the surface), tab strip / "Active:" / subtitle 3.2:1, selected tab 2.8:1 and selected
+category chip 3.1:1 (white on every theme and curated accent), category chips, search, Guide, Random, close and tabs
+24-32 px to 44 px, and the four tabs ran 4 px past the panel at 360 px. Guard: `tests/daily-success-picker-fit-2026-10-22.test.js`
+(mutation-checked). After it: picker 0 contrast, 0 tap, 0 overflow in 90 loads.
+
+## Not fixed (open)
+
 - Meal-name inputs scroll their text sideways in the Diet table at phone width (usable, not clipped content).
-- The Progress tab's measurements and photos (#2662) were not on `main` yet; re-sweep after it merges.
+- Measurements and Progress photos (#2662, merged): re-swept on the merged tree (Dash, Day, Progress, 10 skins x 3 widths, 90 loads, both cards rendered, empty state): 0 contrast, 0 tap, 0 overflow. Also swept populated: 7 seeded readings (trend chart, latest value) and two seeded front photos in IndexedDB (grid rendered), 10 skins x 3 widths, 30 loads: 0 contrast, 0 tap, 0 overflow. Not covered: the OS photo picker sheet (OS-owned).
 - WebKit pass and a daylight check on a real iPhone remain Jo's.
 
 Screenshots were taken locally and kept out of the repo.
