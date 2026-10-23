@@ -42,12 +42,14 @@ function boot(opts) {
   const purges = [];
   const events = [];          // purge + every cloud read/write, in order
   const badges = [];
+  const deletedDbs = [];      // IndexedDB databases deleted directly (the progress photos)
   let authCb = null;
   const el = () => ({ style: {}, set textContent(v) { badges.push(v); }, get textContent() { return ''; }, appendChild() {}, setAttribute() {} });
   const window = {
     NBDDsSync: L,
     loadPages() { window._loaded = (window._loaded || 0) + 1; },
     dsRefreshView() {},
+    indexedDB: { deleteDatabase: (n) => { deletedDbs.push(n); return {}; } },
   };
   if (o.nbdAuth !== false) {
     window.NBDAuth = {
@@ -78,7 +80,7 @@ function boot(opts) {
   const body = SYNC_SRC.replace(/^import [\s\S]*?from '[^']+';\n/gm, '');
   const ctx = vm.createContext(Object.assign({ window, document, localStorage, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, JSON, Date, Math, Promise, Map, Set, Object, Array, String, Number, Error }, stubs));
   vm.runInContext('(async () => {\n' + body + '\n})();', ctx, { filename: 'ds-firebase-sync.js' });
-  return { store, writes, reads, purges, events, badges, window, signIn: async (uid) => { while (!authCb) await new Promise((r) => setTimeout(r, 5)); await authCb({ uid }); } };
+  return { store, writes, reads, purges, events, badges, deletedDbs, window, signIn: async (uid) => { while (!authCb) await new Promise((r) => setTimeout(r, 5)); await authCb({ uid }); } };
 }
 const pageA = { id: 'day-2026-10-01', dk: '2026-10-01', mt: 1700000000000, data: { note: 'A private day' } };
 const pagesWritten = (p) => p.writes.filter((w) => /ds_pages/.test(w.path)).map((w) => w.data && w.data.id);
@@ -118,6 +120,11 @@ console.log('\n4. failure modes never leak and never wedge');
   ok('...the last-account record is NOT overwritten (so the next load retries instead of masking the switch)', noAuth.store.get('nbd_last_uid') === 'A');
   ok('...and it waited a bounded time (about 3 s), not forever', Date.now() - t0 < 6000 && Date.now() - t0 >= 2500, String(Date.now() - t0));
 
+  ok('...and the progress-photo database is deleted directly (the previous account body photos must not stay readable)', noAuth.deletedDbs.includes('nbd_ds_photos'), noAuth.deletedDbs.join());
+  const fine = boot({ storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
+  await fine.signIn('B');
+  ok('control: a switch that purged normally does not delete the photo database itself (the purge owns that)', fine.deletedDbs.length === 0);
+
   const late = boot({ nbdAuth: false, storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
   const purges = late.purges;
   setTimeout(() => { late.window.NBDAuth = { purgeAccountStorage() { purges.push(1); late.store.delete('nbd_dsp_v1'); } }; }, 400);
@@ -127,6 +134,7 @@ console.log('\n4. failure modes never leak and never wedge');
   const boom = boot({ purgeThrows: true, storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
   await boom.signIn('B');
   ok('a purge that throws pauses the sync (A\'s data is not pushed into B\'s account)', boom.writes.length === 0 && boom.store.get('nbd_last_uid') === 'A');
+  ok('...and the progress-photo database is deleted directly', boom.deletedDbs.includes('nbd_ds_photos'));
 
   const stor = boot({ storageThrows: true, storage: { nbd_last_uid: 'A', nbd_dsp_v1: [pageA] } });
   let threw = null;
