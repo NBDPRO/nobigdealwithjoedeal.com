@@ -10,6 +10,8 @@
  *   range: 'all' | 'today' | 'yesterday' | '24h' | '7d' | '30d' | 'custom'   (custom uses from / to, YYYY-MM-DD, either may be '')
  *   dir:   'all' | 'in' (they called) | 'out' (you called)   - text days have no direction, so any direction filter leaves them out
  *   status: 'all' | 'unhandled' | 'handled' | 'urgent' | 'promise' | 'missed'   (Horizon 3; Jo has NOT confirmed this exact set)
+ *   'missed' is SHOWN as "Short calls": nothing writes `answered` yet and a truly unanswered call often has no recording, so it never
+ *   reaches phone_calls. The id stays 'missed' (saved records keep working) until a real missed-call source exists.
  *   sort:  'new' | 'old'
  */
 (function (root) {
@@ -20,11 +22,11 @@
   const RANGES = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['24h', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['custom', 'Pick dates']];
   const DIRS = [['all', 'Either way'], ['in', 'They called'], ['out', 'You called']];
   const SORTS = [['new', 'Newest first'], ['old', 'Oldest first']];
-  const STATUSES = [['all', 'Any status'], ['unhandled', 'Unhandled'], ['handled', 'Handled'], ['urgent', 'Urgent'], ['promise', 'Has promise'], ['missed', 'Missed']];
+  const STATUSES = [['all', 'Any status'], ['unhandled', 'Unhandled'], ['handled', 'Handled'], ['urgent', 'Urgent'], ['promise', 'Has promise'], ['missed', 'Short calls']];
   // One-tap views (Horizon 3): a named set of the filters above. They are not a second saved record - tapping one just sets the
   // one saved-filter record (nbd_cc_filters); the order (sort) is Jo's own and is kept.
   const VIEWS = [
-    { id: 'missed-today', label: 'Missed today', filter: { range: 'today', status: 'missed' } },
+    { id: 'missed-today', label: 'Short calls today', filter: { range: 'today', status: 'missed' } },
     { id: 'unhandled-week', label: 'Unhandled this week', filter: { range: '7d', status: 'unhandled' } },
   ];
   // Same cut-off the server uses to call a recording "short" (functions/call-center-logic.js SHORT_CALL_SEC).
