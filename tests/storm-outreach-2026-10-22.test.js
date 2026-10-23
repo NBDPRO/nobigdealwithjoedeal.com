@@ -130,6 +130,8 @@ function seed() {
   ok('markup in a name or town is stripped', !/[<>]/.test(SO.buildStormReportCheckIn({ firstName: '<b>Ann</b>' }, names, { kind: 'hail', city: '<i>Mason</i>', valid: evt.valid }).body));
   ok('a company with no name set cannot draft', !!SO.buildStormReportCheckIn({}, L.companyNames({}, false), evt).error);
   ok('control: the claim gate does refuse "we handle the claim"', !!L.claimWordingProblem('We handle the claim for you.'));
+  ok('the gate runs on the finished draft: a company name that breaks the Kentucky rule is refused, an ordinary one is not',
+    !!SO.buildStormReportCheckIn({}, ['Insurance Claim Specialists'], evt).error && !!SO.buildStormReportCheckIn({}, ['We Handle Your Claim Roofing'], evt).error && !SO.buildStormReportCheckIn({}, ['Acme Roofing'], evt).error);
 
   console.log('B. cohorts');
   ok('won and closed stages are past customers', SO.cohortOf({ stage: 'closed' }) === 'past_customer' && SO.cohortOf({ stage: 'final_payment' }) === 'past_customer');
