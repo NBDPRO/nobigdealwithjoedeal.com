@@ -849,6 +849,18 @@ export const NBDAuth = {
       if (window.NBDMySkin) window.NBDMySkin.purgeLocal();
       else window.indexedDB.deleteDatabase('nbd-myskin');
     } catch (_) {}
+    // Daily Success progress photos (daily-success/js/measurements-ui.js,
+    // IndexedDB 'nbd_ds_photos'): a person's body photos, device-only. The
+    // nbd_ localStorage sweep above never reaches IndexedDB, so without this
+    // the next account on a shared phone saw the last one's photos. A blocked
+    // delete (a tab still holds the DB open) completes once that tab lets go.
+    try {
+      if (window.indexedDB) {
+        const req = window.indexedDB.deleteDatabase('nbd_ds_photos');
+        req.onblocked = () => {};
+        req.onerror = () => {};
+      }
+    } catch (_) { /* best-effort; never block sign-out on a storage error */ }
     // The offline SMS outbox holds homeowner phone numbers and message text
     // in IndexedDB until they are sent (docs/pro/js/sms-outbox.js). Same
     // shared-device rule as the keys above: gone on sign-out and on account
