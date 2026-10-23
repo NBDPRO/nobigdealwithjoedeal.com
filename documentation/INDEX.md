@@ -330,6 +330,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## Audits
 
+- [OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md) — second pass: deploy coverage, #2684 purge re-test (logout path passes, account-switch race still High), reviewer findings on the later merges, and which fix PRs own what.
 - [OVERNIGHT-LANDING-AUDIT-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-2026-10-23.md) — read-only audit of the 2026-10-22/23 overnight merges: deploy status per commit, live checks, reviewer findings (no High; Medium: progress photos survive sign-out, Call Center "Missed" blind to real missed calls, sync pill hides failures).
 - [CALL-LINE-AI-CREDIT-OUTAGE-2026-10-13](audit/CALL-LINE-AI-CREDIT-OUTAGE-2026-10-13.md) — 14 calls retired for good by an Anthropic credit outage (3 strikes on a billing error): provider-outage classifier, transcript kept, daily bell + push, reopen script, and the every-Anthropic-call-site audit table
 - [CUSTOMER-CLAIM-HONESTY-FIXES-2026-10-13](audit/CUSTOMER-CLAIM-HONESTY-FIXES-2026-10-13.md) — the false/risky customer statements from the contract-language inventory, removed or corrected (no new clauses): the dead "negotiate with my insurance company" template, invented "Satisfied Homeowner" testimonials, claim-guide "we handle the hard parts" / no-rate-increase / approval-timing promises, the $250 referral literal (code pays $100), "No cash payments accepted". Left for the attorney: "Backed personally by Joe Deal" and the five entity-name variants (listed with file:line)
