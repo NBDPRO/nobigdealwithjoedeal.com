@@ -71,7 +71,7 @@
     var panel = doc && doc.getElementById('closeoutPanel');
     if (!panel) return;
     lead = lead || root._currentLead || {};
-    if (!isFinishedJob(lead)) { panel.style.display = 'none'; return; }
+    if (!isFinishedJob(lead)) { panel.hidden = true; panel.innerHTML = ''; return; }
     var RE = root.ReviewEngine;
     var inv = null;
     try {
@@ -83,16 +83,13 @@
     var res = evaluate(lead, { photos: Array.isArray(root._customerPhotos) && (root._customerPhotos.length || (opts && opts.photosLoaded)) ? root._customerPhotos : null, invoices: inv, paidInFull: paid });
 
     var rows = res.rows.map(function (r) {
-      var mark = r.state === 'done' ? '\u2713' : (r.state === 'unknown' ? '\u2026' : '\u25CB');
-      var tail = r.state === 'todo' ? ' <span style="color:var(--m,#9ca3af);font-size:11px;">\u2014 ' + esc(r.hint) + '</span>' : '';
-      return '<div style="display:flex;gap:10px;align-items:baseline;padding:6px 4px;border-top:1px solid var(--br,rgba(255,255,255,.06));font-size:13px;color:' + (r.state === 'done' ? 'var(--m,#9ca3af)' : 'var(--t)') + ';">' +
-        '<span aria-hidden="true" style="width:14px;flex:0 0 auto;">' + mark + '</span><span>' + esc(r.label) + tail + '</span></div>';
+      var mark = r.state === 'done' ? '✓' : (r.state === 'unknown' ? '…' : '○');
+      var tail = r.state === 'todo' ? ' <span class="jco-hint">— ' + esc(r.hint) + '</span>' : '';
+      return '<div class="jco-row' + (r.state === 'done' ? ' jco-done' : '') + '"><span class="jco-mark" aria-hidden="true">' + mark + '</span><span>' + esc(r.label) + tail + '</span></div>';
     }).join('');
     panel.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
-        '<div class="panel-title" style="margin:0;">Finished-job check</div>' +
-        '<span style="font-size:12px;font-weight:700;color:var(--m,#9ca3af);">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span>' +
-      '</div>' + rows;
-    panel.style.display = 'block';
+      '<div class="jco-head"><div class="panel-title">Finished-job check</div>' +
+        '<span class="jco-count">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span></div>' + rows;
+    panel.hidden = false;
   };
 })(typeof window !== 'undefined' ? window : null);
