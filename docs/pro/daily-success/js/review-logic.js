@@ -125,6 +125,7 @@
     if (r.streak) lines.push('Streak: ' + r.streak.count + (r.streak.warned ? ' (missed yesterday)' : ''));
     if (r.weight) lines.push('Weight: ' + r.weight.text);
     if (r.goal) lines.push('Goal: ' + r.goal.now + ' → ' + r.goal.goal + ' lb (' + r.goal.left + ' to go)');
+    if (r.eodLines) r.eodLines.forEach((l) => lines.push(l));
     if (r.lastScary) lines.push('Last week\'s hard thing: "' + r.lastScary.text + '" — ' + (r.lastScary.done === true ? 'DONE' : r.lastScary.done === false ? 'NOT DONE' : 'not marked'));
     if (r.kept) lines.push('Kept: ' + r.kept);
     if (r.bailed) lines.push('Bailed: ' + r.bailed);

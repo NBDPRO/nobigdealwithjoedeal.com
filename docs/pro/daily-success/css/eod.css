@@ -1,0 +1,19 @@
+/* Day wrap-up card (js/eod-ui.js). Builds on workout-coach.css (.wc-card, .wc-chip, .wc-in, .wc-link). */
+.eod-wrap { margin: 0 0 14px; }
+.eod-card small { font-weight: 400; letter-spacing: 0; text-transform: none; opacity: .7; margin-left: 6px; }
+.eod-q { display: block; margin: 10px 0; }
+.eod-l { display: block; font-size: 13px; margin-bottom: 4px; }
+.eod-in { font-size: 16px; }
+.eod-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.eod-foot .btn { min-height: 44px; }
+.eod-line { margin: 4px 0; overflow-wrap: anywhere; }
+.eod-open, .eod-edit { min-height: 44px; }
+.eod-link, .eod-open { display: inline-flex; align-items: center; }
+/* The coach controls are styled for a dark overlay; on the day page the card follows the active skin instead. */
+.eod-card .eod-chip { background: transparent; color: inherit; border: 1px solid var(--rule, currentColor); }
+.eod-card .eod-chip.on { background: var(--ac, #BD5728); border-color: var(--ac, #BD5728); color: #fff; }
+.eod-card .eod-in { background: transparent; color: inherit; border: 1px solid var(--rule, currentColor); padding: 0 12px; }
+.eod-card .eod-in::placeholder { color: inherit; opacity: .55; }
+.eod-card .wc-link { color: var(--ac-text, var(--ac, #BD5728)); font-size: 14px; }
+.eod-card .eod-save { background: var(--ac, #BD5728); border: 1px solid var(--ac, #BD5728); color: #fff; font-weight: 700; padding: 0 20px; }
+.eod-card .eod-skip { background: transparent; color: inherit; border: 1px solid var(--rule, currentColor); padding: 0 16px; }
