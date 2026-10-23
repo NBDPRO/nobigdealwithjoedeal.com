@@ -25,6 +25,7 @@
   const CUSTOM = 'nbd_ds_coach_custom';   // [{ id, name, pattern, equip, compound }] - Jo's own lifts, this device
   const ROUTINES = 'nbd_ds_coach_routines';   // [{ id, name, split, lifts: [{ exId, name, slot, sets }] }] - this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
+  const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -374,6 +375,16 @@
     return (lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '') + (rt ? `<div class="wc-last wc-rpe-trend">${esc(rt)}</div>` : '');
   }
 
+  // Per-lift note: last time's note comes back as a line, and one field for today's (saved on change, offline).
+  function noteHtml(x) {
+    const N = window.NBDExNotes;
+    if (!N) return '';
+    const map = readJson(NOTES, {});
+    const prev = N.lastBefore(map, x.exId, today());
+    return (prev ? `<div class="wc-last wc-note-prev">📝 Last time (${esc(fmtDay(prev.dk))}): ${esc(prev.text)}</div>` : '') +
+      `<input class="wc-in wc-note" maxlength="${N.MAX}" placeholder="Note for next time" aria-label="Note for ${esc(x.name)}" autocomplete="off" value="${esc(N.on(map, x.exId, today()))}" data-coach-field="exnote" data-ex="${esc(x.exId)}">`;
+  }
+
   // Log Book layout: Last / Best / Today in one row above the sets. Other layouts get nothing (and the same markup as ever).
   function uiLayout() { try { return (document.documentElement && document.documentElement.getAttribute('data-ui')) || ''; } catch (_) { return ''; } }
   function logbookRowHtml(x) {
@@ -411,6 +422,7 @@
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       ${logbookRowHtml(x)}<div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
       ${lastTimeHtml(x)}
+      ${noteHtml(x)}
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
       ${swaps}${rows}
@@ -891,6 +903,12 @@
       reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
       if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toast(SAVE_FAILED); }
+      return;
+    }
+    if (el && el.dataset && el.dataset.coachField === 'exnote') {
+      if (ev.type !== 'change' || !window.NBDExNotes) return;
+      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toast(SAVE_FAILED); return; }
+      if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(NOTES);
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'cx') { if (el.dataset.k in cxDraft) cxDraft[el.dataset.k] = el.value; return; }

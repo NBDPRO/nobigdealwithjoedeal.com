@@ -41,6 +41,7 @@ const SETTINGS = [
   { key: 'nbd_user_config', field: 'dsConfig' },
   { key: 'nbd_gt',          field: 'dsGoalTargets' },
   { key: 'nbd_ds_coach',    field: 'dsCoach' },        // Workout Coach: rotation / freshness / equipment
+  { key: 'nbd_ds_coach_notes', field: 'dsCoachNotes' }, // Workout Coach: per-lift notes ("last time: ...")
   { key: 'nbd_ds_food',     field: 'dsFood' },         // Food card: favorites + protein / calorie targets
   { key: 'nbd_ds_reviews',  field: 'dsReviews' },      // Sunday review: weekly records + goal weight
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
