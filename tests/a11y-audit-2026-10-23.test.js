@@ -106,7 +106,7 @@ console.log('\n6. the a11y layer applies the rules');
   ok('accordion: sectionAria drives aria-expanded / aria-controls on .ph[data-action="toggle-section"]', /L\.sectionAria\(/.test(UI) && /\.ph\[data-action="toggle-section"\]/.test(UI));
   ok('div-buttons get role=button, tabindex=0 and Enter / Space activation', /setAttribute\('role', 'button'\)/.test(UI) && /setAttribute\('tabindex', '0'\)/.test(UI) && /ev\.key === 'Enter' \|\| ev\.key === ' '/.test(UI));
   ok('dialogs: role=dialog, aria-modal, inert page behind, trapped Tab, focus returned', /'aria-modal', 'true'/.test(UI) && /setAttribute\('inert', ''\)/.test(UI) && /L\.trapTab\(/.test(UI) && /target\.focus\(/.test(UI));
-  ok('inert is lifted BEFORE focus goes back (an inert opener cannot take focus)', UI.indexOf('setInert(stack.length ? stack[stack.length - 1].host : null);\n    closed.forEach') > 0);
+  ok('inert is lifted BEFORE focus goes back (an inert opener cannot take focus)', /if \(closed\.length\) setInert\(stack\.length \? stack\[stack\.length - 1\]\.host : null\);\n\s*closed\.forEach/.test(UI));
   ok('a redraw inside a dialog recovers focus', /function recoverFocus/.test(UI) && /L\.focusSelector\(/.test(UI));
   ok('habit dots are named "<habit>, <day>" and expose aria-pressed', /function habits\(/.test(UI) && /'aria-pressed'/.test(UI));
   ok('landmarks: banner, navigation, main, search and the page h1', ['banner', 'navigation', 'main', 'search'].every((r) => new RegExp("role: '" + r + "'").test(UI)) && /role: 'heading', 'aria-level': '1'/.test(UI));
@@ -124,7 +124,7 @@ console.log('\n7. Workout Coach');
   ok('the gear says whether settings are open', /class="wc-gear[^>]*aria-expanded=/.test(COACH));
   ok('the rest text is a role=timer element, not announced per tick', /id="wcRestT" role="timer" aria-live="off"/.test(COACH));
   ok('negative control: the tick no longer rebuilds the whole #wcRest (that dropped focus off Skip every second)', !/getElementById\('wcRest'\)[\s\S]{0,80}innerHTML\s*=\s*restText\(\)/.test(COACH));
-  ok('the milestones come from restSay and go to ONE persistent polite region', /A\.restSay\(/.test(COACH) && /id = 'wcSay'/.test(COACH) && /setAttribute\('aria-live', 'polite'\)/.test(COACH));
+  ok('the milestones come from restSay and go to ONE persistent polite region', /if \(A\) \{ const r = A\.restSay\(restLeft\(\), rest\.said \|\| ''\); rest\.said = r\.said; say\(r\.say\); \}/.test(COACH) && /id = 'wcSay'/.test(COACH) && /setAttribute\('aria-live', 'polite'\)/.test(COACH));
   ok('the announcer is created on the page, not inside the redrawn sheet', /document\.body\.appendChild\(el\)/.test(COACH.slice(COACH.indexOf('function say('))));
   ok('visually-hidden helper exists in the coach stylesheet (and the timer span keeps the flex layout)', /\.wc-sr\s*\{[^}]*clip:/.test(COACHCSS) && /\.wc-rest-t\s*\{/.test(COACHCSS));
   ok('the ready-check rows are named groups', /class="wc-ready-row" role="group" aria-label=/.test(COACH));
@@ -134,7 +134,7 @@ console.log('\n8. Call Center, toasts, deck');
 {
   ok('tabs: each tab has an id, aria-controls and a roving tabindex', /role="tab" id="ccTab-/.test(CC) && /aria-controls="ccPanel"/.test(CC) && /tabindex="' \+ \(active\[0\] === f\[0\]/.test(CC));
   ok('the list sits in a tabpanel labelled by the active tab', /id="ccPanel" role="tabpanel" aria-labelledby="ccTab-'/.test(CC));
-  ok('arrow keys move between the tabs through the pure rove()', /FX\.rove\(e\.key/.test(CC) && /state\.refocus =/.test(CC));
+  ok('arrow keys move between the tabs through the pure rove()', /FX\.rove\(e\.key/.test(CC) && /state\.refocus = '\[data-cc="filter"\]\[data-arg="'/.test(CC) && /state\.refocus \|\| focusKeyOf\(/.test(CC));
   ok('chips keep aria-pressed (existing) and the tablist is named', /aria-pressed="' \+ \(on \? 'true' : 'false'\)/.test(CC) && /role="tablist" aria-label="Call categories"/.test(CC));
   ok('a redraw restores focus to the same control, else to the panel', /function restoreFocus/.test(CC) && /FX\.focusKey\(/.test(CC) && /querySelector\('#ccPanel'\)/.test(CC));
   ok('negative control: the filter summary is not a role=status that is torn down every redraw', !/cc-filter-sum" role="status"/.test(CC));
@@ -144,7 +144,7 @@ console.log('\n8. Call Center, toasts, deck');
   ok('the a11y pass can never break the list (best effort, guarded)', /try \{ a11yApply\(/.test(CC));
   ok('focus ring for the Call Center controls', /\.cc-tab:focus-visible[^{]*\{\s*outline:/.test(CCCSS));
   ok('toasts: container is a polite status region; errors are role=alert', /setAttribute\('role', 'status'\)/.test(TOAST) && /setAttribute\('aria-live', 'polite'\)/.test(TOAST) && /type === 'error'\) toast\.setAttribute\('role', 'alert'\)/.test(TOAST));
-  ok('toasts: the first toast is added after its region exists (a new live region misses what it is born with)', /__fresh/.test(TOAST) && /setTimeout\(\(\) => container\.appendChild\(toast\), 50\)/.test(TOAST));
+  ok('toasts: the first toast is added after its region exists (a new live region misses what it is born with)', /container\.__fresh = true;/.test(TOAST) && /if \(container\.__fresh\) \{ container\.__fresh = false;/.test(TOAST) && /setTimeout\(\(\) => container\.appendChild\(toast\), 50\)/.test(TOAST));
   ok('triage deck: named dialog, focus moved in, opener refocused on close', /setAttribute\('aria-label', cfg\.title/.test(DECK) && /st\.opener =/.test(DECK) && /back\.focus\(/.test(DECK));
 }
 
