@@ -172,3 +172,8 @@ Rig: Auth + Firestore emulators and a static server on 127.0.0.1 serving this wo
 Not exercised: Cal.com booking alert (needs the Functions emulator and sends alerts); Call Center "Said you'd do" deck (callables stubbed); detailed Rings / Log Book / Cockpit visuals; raw sign-out-then-switch; dark-theme and 1280 coach/keyboard checks; the repo's own `test:e2e:authed:emu` suite; full-page contrast audit; saved views (#2673) and appearance picker contrast (#2680) were not merged.
 
 Side effect to know about: the lane 3 agent's process cleanup matched broadly and may have killed some unrelated `bash.exe`/`node.exe` processes.
+
+## Merged after the snapshot (not yet audited in depth)
+
+- #2670 (ea927b20) docs only — A2P wording; nothing to deploy.
+- #2665 (a2a11647) fix(pro) capture deep link no longer opens the estimate wizard over the recorder; deploy run pending at last check. Not reviewed beyond its title; re-run the reviewers on it. 6c208c30's deploy was in progress.
