@@ -615,6 +615,16 @@ async function run() {
   await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ✅ admin SDK path (publishTenantSite)
   await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing' }));          // ✅ unrelated owner edit still fine with the flag present
 
+  // 23e-3. siteSlug / siteSlugUpdatedAt (2026-10-23): only the setSiteSlug callable
+  //        (format, reserved names, siteSlugs/{slug} uniqueness claim) may write
+  //        them. A direct owner write skipped all of it and could duplicate a slug.
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlug: 'someone-elses' }));            // ❌ owner sets a slug directly
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlugUpdatedAt: 'now' }));              // ❌ forged slug stamp
+  await assertFails(setDoc(doc(alice, 'companies/co-a'), { siteSlug: '<img src=x>' }, { merge: true })); // ❌ merge-set same
+  await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { siteSlug: 'alice-roofing' }, { merge: true })); // ✅ platform-admin path (the callable itself uses the admin SDK, which skips rules)
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlug: 'another-one' }));              // ❌ still frozen once a slug exists
+  await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing 2' }));            // ✅ unrelated owner edit still fine with a slug present
+
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
   //      right above only guards UPDATE, so a self-serve owner could squat

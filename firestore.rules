@@ -2998,6 +2998,10 @@ service cloud.firestore {
       // sitePublished:false) and the owner's publishTenantSite callable (which
       // checks name + phone + service area first). A client create carrying
       // any of them, or an update that changes one, would be a self-publish.
+      // siteSlug / siteSlugUpdatedAt (2026-10-23) are frozen on update too: the
+      // only writer is the setSiteSlug callable (admin SDK), which validates the
+      // format and reserved names and holds the siteSlugs/{slug} uniqueness
+      // claim. A direct client write skipped all three and could duplicate a slug.
       allow create: if isAuth() && notViewer()
         && companyId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid
@@ -3006,7 +3010,8 @@ service cloud.firestore {
                                                  'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy']);
       allow update: if ((isAuth() && notViewer() && resource.data.ownerId == request.auth.uid)
             && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt',
-                             'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy'])) || isAdmin();
+                             'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy',
+                             'siteSlug', 'siteSlugUpdatedAt'])) || isAdmin();
       // A company that has been handed off (transferCompanyOwnership) is not
       // client-deletable: with the doc gone, ownsTenantByUid() would see "no
       // company doc" and hand the uid-keyed tenant back to the former owner.
