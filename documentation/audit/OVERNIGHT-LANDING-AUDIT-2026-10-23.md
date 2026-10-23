@@ -119,3 +119,30 @@ No forms submitted, no non-GET requests (analytics POSTs aborted), no logins. 29
 | "Our crew" hero eyebrow | Info | Low | "OUR CREW · REAL JOB, NOT STOCK" is ambiguous next to the independent-subs wording; not "in-house". |
 
 Environment note: no playwright module was available in the repo; the agent used a cached npx copy pointed at the installed chromium headless shell. Nothing was downloaded.
+
+## Lane 2 — NBD Pro public demo (live, no credentials)
+
+Entry points: `/pro/sandbox` (guided story) and `/pro/explore` (sample account). No account, no real form submitted. Highest severity: **Medium**. The dashboard itself made zero Firestore / Functions / Auth requests and no non-GET requests across 42 sidebar items, Agent inbox, Ask Joe, add-lead, Reset and Sign Out.
+
+| # | What I did | Result | Severity | Repro / notes |
+|---|---|---|---|---|
+| 1 | Zero-network check across sidebar, inbox, Ask Joe, add-lead, Reset, Sign Out | PASS | - | SDK imports resolve to same-origin `/pro/demo-sdk/*`. |
+| 2 | Real prod pages iframed in the sample account (Decision Engine, Understand, Project Codex, AI Usage) | FAIL | Medium | They embed real `/pro/ai-tree`, `/pro/understand`, `/pro/project-codex`, `/pro/analytics`, outside the demo worker scope; they load reCAPTCHA Enterprise and POST to the App Check exchange endpoint for project nobigdeal-pro (403) plus Google Fonts. Contradicts "nothing leaves your browser". No Firestore request seen. |
+| 3 | Same four panes, visually | FAIL | Medium | Render blank navy (`frame-ancestors 'none'` blocks the frames). A visitor sees an empty screen. |
+| 4 | "Daily Success" nav item | FAIL | Medium | Opens a new window on the REAL `/pro/daily-success`, leaving the sandbox; same App Check/reCAPTCHA POSTs. |
+| 5 | Door-to-Door clicked ~3.5 s after load | FAIL (race) | Low | "L.markerClusterGroup is not a function", stuck on "Loading…"; works after ~8 s. |
+| 6 | Agent inbox keyboard | FAIL | Low | `aria-modal=true` but focus stays on the sidebar and Tab walks the background; Escape closes. |
+| 7 | Sunday Review toast | FAIL | Low | Raw dev text: "Blocked in the sample account: fetch GET to /api/google-reviews". |
+| 8 | Console noise | FAIL | Low | `HEAD /pro/nosw.txt` 404 on every page; App Check "not configured"; "[ThemeOverlays] Unknown overlay type: none". |
+| 9 | Google Fonts on dashboard/iframes/popup | FAIL | Low | Third-party font requests (story page is self-hosted and clean). |
+| 10 | Story page tab order | FAIL | Low | First Tab hits "Open the green door"; skip link and header chips only after wrapping. Focus rings visible. |
+| 11 | Sample-account strip at 360–412 and desktop | FAIL | Low | Bottom strip covers Home buttons, D2D tabs, Storm card; storm map labels overlap. |
+| 12 | Greeting at 360 px | FAIL | Low | Name missing, brand truncated to "N…". |
+| 13 | Tap targets on desktop | FAIL | Low | Header tools 30x30, "↻" 31x19, "Sign Out" 12 px tall. |
+| 14 | Sample data dates | FAIL | Low | "Inspection Tue Oct 6" stale; Sunday Review shows $0 collected. |
+| 15 | Entry discoverability | NOTE | Low | Story end screen still shows a disabled "Explore the whole sample account / Coming next" though `/pro/explore` is live; reachable only by direct URL. |
+| 16 | Guided story, all 9 steps at 1280/412/390/360 | PASS | - | Keyboard completes it; end shows Start free (`/pro/register.html`) and Book a demo (cal.com). 0 console errors. |
+| 17 | Sample account sweep at 4 widths | PASS | - | No page overflow, no broken images. |
+| 18 | Forms / local-only behaviour | PASS | - | Add Lead validates and persists locally; "Nothing was sent" sheet; Ask Joe says no AI model is called; Reset and Sign Out work. |
+
+Not covered in depth: estimate wizard, customer card, how-to.html, dashboard dark-mode toggle.
