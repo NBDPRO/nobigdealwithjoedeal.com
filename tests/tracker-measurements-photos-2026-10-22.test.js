@@ -140,7 +140,7 @@ console.log('\n7. wired in safely, and nothing leaves the device');
   ok('it re-wraps the earlier hooks without dropping their flags', /Object\.keys\(origFit\)\.forEach/.test(ui) && /Object\.keys\(origDash\)\.forEach/.test(ui));
   const css = read('css', 'measurements.css');
   ok('inputs and buttons are 44px tap targets, input is 16px (no iOS zoom)', /\.ms-in \{[^}]*min-height: 44px[^}]*font-size: 16px/.test(css) && /\.ms-save, \.ms-add \{[^}]*min-height: 44px/.test(css));
-  ok('colours come from theme tokens, not fixed hex', !/#[0-9a-fA-F]{3,6}\b(?![^{]*var\()/.test(css.replace(/var\([^)]*\)/g, '')));
+  ok('colours come from theme tokens, not fixed hex (white on the accent button aside)', !/#[0-9a-fA-F]{3,6}\b(?![^{]*var\()/.test(css.replace(/var\([^)]*\)/g, '')));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
