@@ -42,6 +42,37 @@ Two buttons above the When chips: **Missed today** (Today + Missed) and **Unhand
 - Definitions live in the pure module (`VIEWS`); adding a third view is one array entry plus a test row.
 - The screen test fakes `Date` (3 PM New York, 2026-10-21), so it cannot fail at midnight-3am ET.
 
+## Step 3 - the call-to-job loop (recon first: most of it already shipped)
+
+Recon of `origin/main` before building found the loop was largely there, so this PR closes the gaps instead of rebuilding it:
+
+| Asked for | State on main |
+|---|---|
+| Match a call to a lead by `phoneDigits` (never `leadId`, null on every observed call) | **Shipped.** `leadForNumber` checks `phoneDigits`, `phone`, `phone2`, `altPhone`, `mobilePhone`, `secondaryPhone`; 3+ customers = relay line, no suggestion |
+| Suggested lead, one-tap attach | **Shipped.** "Looks like X - File on X" on the card and in the "Said you'd do" deck; `callCenterAction` `attach` |
+| A call's promises / `followUpDate` become a reminder | **Shipped, server side.** Attaching a noted call writes the timeline entry and a follow-up task (`leads/{id}/tasks/cube-<callId>`, `buildFollowUpTask`, createIfAbsent; only calls from the last 14 days). The 📌 Promise sheet writes a promise task the same way |
+
+Gaps closed here (client only - **no server, rules or auth change, so no security review was needed**):
+
+1. **A shared number was matched to the first customer silently.** Two customers on one number (a couple, a duplicate lead)
+   showed "this number is already on them" and a one-tap button for whichever lead came first, in the card AND the deck.
+   Now the card says "This number is on 2 customers - which one?" with a button per customer, and fileTarget / the deck
+   suggest nobody. The "+ New lead" duplicate guard is unchanged (a shared number still blocks a third lead).
+2. **Filing did not say what it would do.** The card now shows "Reminder: <what> (<who>) · due <date>" before the tap, and the
+   status line repeats it after. That text is a mirror of `buildFollowUpTask` (title, due date, priority, the 14-day window),
+   pinned equal to the server's function over a 13-case matrix, so the screen cannot promise a reminder the server will not make.
+   A call older than 14 days, a caller-only promise, a text day or a call whose notes are not written yet show no reminder line.
+
+New pure module `docs/pro/js/call-center-loop-logic.js` (`candidatesForNumber`, `followUpPreview`); it never writes or sends.
+
+**Not built, on purpose: a second path into the Agent inbox.** `agent_inbox` is create:false for clients (rules), so a call -> inbox item
+needs a new Cloud Function, and the item would then wait for Jo to approve what Jo already approved by tapping File / Promise (the
+real task is written immediately, on his tap). That is more server surface and one more tap for no new capability. If Jo wants the
+inbox review step anyway (for example for a teammate's calls), that is a new callable and needs the security reviewer first - flagged
+as an open question, not started.
+
+Still true: nothing is sent to a customer, no prod write from a script, the sidebar badge and "One at a time" ignore filters.
+
 ## Follow-up (2026-10-23, overnight-audit finding): "Missed" was not real - now "Short calls"
 
 The audit was right. The status chip and the saved view were called **Missed**, but they can only see "an inbound call under 15 s with a
