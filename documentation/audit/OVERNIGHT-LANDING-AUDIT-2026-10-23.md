@@ -73,7 +73,7 @@ All checked on `origin/main` after the merges:
 - `node scripts/check-image-privacy.js`: 789 images, 0 failures (4 benign camera-EXIF accepted).
 - Overnight diff (`docs/`, `functions/`) scanned for: certificate claims, "we handle the claim", "in-house", old oranges `#E8720C`/`#F08030`, `sk-ant`, `AIza`, `token=`, phone numbers, personal email addresses, cost/margin keys — no hits.
 - The only claim-wording hits repo-wide are the consumer-warning sentence about assignment of benefits in the adjuster-visit blog post and its `llms-full.txt` copy (advice to homeowners, fine).
-- CSP on the live Daily Success page: `script-src` has no `unsafe-inline`, `script-src-attr 'none'`. `check-inline-html-scripts` and `check-js-syntax` pass; `node tests/smoke.test.js` printed no failures. The full node manifest bucket was not completed here (CI is the gate).
+- CSP on the live Daily Success page: `script-src` has no `unsafe-inline`, `script-src-attr 'none'`. `check-inline-html-scripts` and `check-js-syntax` pass; `node tests/smoke.test.js` printed no failures. The local node manifest bucket run is NOT evidence either way: 509/622 suites passed before the 480 s wall-clock budget ended ("a suite is hanging"), in a worktree with no `functions/node_modules`, so function-dependent suites could not run. CI is the gate.
 
 ## Test quality (vacuous-test-auditor)
 
