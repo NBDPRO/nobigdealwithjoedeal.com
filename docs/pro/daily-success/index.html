@@ -521,7 +521,7 @@ canvas{max-width:100%;display:block;}
 
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
-<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=21">
+<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=22">
 <link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=4">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/measurements.css?v=1">
@@ -843,6 +843,32 @@ body.has-banner .today-bar{top:148px;}
   #ex-tbody td:nth-child(5)::before{content:"Notes";}
 }
 [data-theme="default"] .dt td input::placeholder,[data-theme="default"] .rbox input::placeholder,[data-theme="default"] .pr-inp::placeholder{color:#8793a4;opacity:1;}
+
+/* THEME SWEEP CONTRAST (2026-10-22): ten skins x 360/390/412 px, every text node measured against what is actually
+   behind it. Four classes of miss, all text that kept one hard-coded colour while the surface or the skin changed:
+   (1) ghost buttons on a surface that stays dark in Light / Warm Paper (the dashboard hero band, the Workout Coach /
+   Money / Review overlays) took the skin's dark "ghost" ink; (2) the tab x, the DASH tab label and the week-glance
+   letters sit on dark navy but used a light-surface ink; (3) captions in light grey on white cards (.rn row numbers,
+   .wc-lbl, the weight deltas, the delete x); (4) orange on dark (PDF, date rows, sync pill) one notch under 4.5:1. */
+:root .dhero .btn-ghost,:root .wc-ov .btn-ghost{color:var(--on-dark,#c3cfdf);}
+:root .dhero .btn-gold{color:var(--ac-on-dark,var(--gold));}
+:root .prd-d{color:var(--ac-text,var(--gold));}
+:root .tab .tx{color:var(--on-dark,#a9b8cc);}
+:root .tab.active:not(.dtab) .tx{color:var(--muted);}
+:root .dtab .tlbl{color:var(--ac-on-dark);}
+:root .ex-del{color:var(--muted);}
+:root .ex-del:hover{color:#c04040;}
+:root .rn{color:var(--muted);}
+:root .qcard .ql{color:#fff;}
+:root .wc-card .wc-lbl{color:var(--muted);}
+:root .wc-card .wt-up{color:var(--ac-text,#b45309);}
+:root .wc-card .wt-down{color:var(--grn,#16a34a);}
+@media (max-width:768px){
+  /* the last tap-target misses of the same sweep: a program-dashboard day row was 33 px, a Notes box 34 px, the "How is this worked out?" disclosure 18 px */
+  :root .prd{min-height:44px;}
+  :root textarea.ed{min-height:44px;}
+  :root details>summary{padding-block:13px;}
+}
 /* ACCENT PICKER (2026-10-22): eight curated swatches over the active skin, 44px targets, wraps at 360px. */
 :root .npm-accents{padding:8px 12px;border-bottom:1px solid #1e2530;flex-shrink:0;}
 :root .acc-lbl{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8a93a8;margin-bottom:6px;}
@@ -850,6 +876,14 @@ body.has-banner .today-bar{top:148px;}
 :root .acc-sw{width:44px;height:44px;border-radius:50%;border:2px solid #2a3040;cursor:pointer;padding:0;}
 :root .acc-sw.on{border-color:#fff;box-shadow:0 0 0 2px #0d1017,0 0 0 4px #fff;}
 :root .acc-reset{min-height:44px;padding:0 12px;background:#13171d;border:1px solid #2a3040;border-radius:22px;color:#e8eaf0;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;}
+
+/* ACCESSIBILITY (2026-10-23 audit): a focus ring on everything you can tab to (several inputs here set outline:none and only
+   tint their background), div-buttons that read as controls, and no motion for anyone who asked the phone for none. */
+button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ac-text,var(--ac,#BD5728))!important;outline-offset:2px;}
+[role="button"][data-action]{cursor:pointer;}
+.ph[role="button"]:focus-visible{outline-offset:-2px;}
+[role="dialog"]:focus{outline:none;}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 </style>
 
 <!-- Global #nbd-pro-nav removed April 2026 to fix double-header bug. Navigation back to NBD Pro is via the NBD PRO logo in the .topbar below, which links to /pro/dashboard.html. -->
@@ -982,10 +1016,10 @@ body.has-banner .today-bar{top:148px;}
     <span id="autosave-badge" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--grn);letter-spacing:.08em;opacity:0;transition:opacity .4s;margin-left:4px;"></span>
   </div>
   <div class="tbr">
-    <button class="btn-ico" data-action="toggle-search" title="Search (Ctrl+F)">🔍</button>
-          <button class="btn-ico" id="themeBtn" data-action="nbd-picker-open" title="Appearance — Themes, Fonts, Custom">🎨</button>
-    <button class="btn-ico" data-action="open-onboard" title="Customize Your Daily OS">⚙️</button>
-    <button class="btn-ico" data-action="open-welcome-guide" title="Welcome Guide &amp; Install">📖</button>
+    <button class="btn-ico" data-action="toggle-search" title="Search (Ctrl+F)" aria-label="Search all pages">🔍</button>
+          <button class="btn-ico" id="themeBtn" data-action="nbd-picker-open" title="Appearance — Themes, Fonts, Custom" aria-label="Appearance: themes, fonts, custom">🎨</button>
+    <button class="btn-ico" data-action="open-onboard" title="Customize Your Daily OS" aria-label="Customize your Daily OS">⚙️</button>
+    <button class="btn-ico" data-action="open-welcome-guide" title="Welcome Guide &amp; Install" aria-label="Welcome guide and install">📖</button>
     <button class="btn btn-ghost" data-action="smart-new-page">+ NEW</button>
     <button class="btn btn-ghost" data-action="open-rename">RENAME</button>
     <button class="btn btn-ghost" data-action="trigger-del">DELETE</button>
@@ -1002,12 +1036,12 @@ body.has-banner .today-bar{top:148px;}
   <div class="ob-btns">
     <button class="btn btn-red" data-action="open-onboard">Customize Now</button>
     <button class="btn btn-ghost" data-action="quick-start-defaults">Quick Start with Defaults</button>
-    <button class="ob-dismiss" data-action="hide-banner" title="Dismiss">×</button>
+    <button class="ob-dismiss" data-action="hide-banner" title="Dismiss" aria-label="Dismiss this banner">×</button>
   </div>
 </div>
 
 <div class="sbar" id="sbar">
-  <input class="sinp" id="sinp" placeholder="Search across all pages…" data-input-action="do-search">
+  <input class="sinp" id="sinp" type="search" aria-label="Search across all pages" placeholder="Search across all pages…" data-input-action="do-search">
   <button class="btn btn-ghost" data-action="toggle-search">CLOSE</button>
 </div>
 <div class="sdrop" id="sdrop"></div>
@@ -1102,14 +1136,15 @@ body.has-banner .today-bar{top:148px;}
 <script src="/pro/daily-success/js/ds-sync-logic.js?v=2"></script>
 <script src="/pro/daily-success/js/review-logic.js?v=3"></script>
 <script src="/pro/daily-success/js/day-layout-logic.js?v=2"></script>
+<script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/app.js"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=19"></script>
-<script src="/pro/daily-success/js/workout-coach.js?v=20"></script>
+<script src="/pro/daily-success/js/workout-coach.js?v=21"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/measurements-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/measurements-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/progress-charts-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/progress-charts-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/health-shortcut-ui.js?v=1" defer></script>
@@ -1130,6 +1165,7 @@ body.has-banner .today-bar{top:148px;}
 <script src="/pro/daily-success/js/export-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/accent-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/a11y-ui.js?v=2" defer></script>
 
 
 <!-- NBD UNIFIED APPEARANCE ENGINE MODALS -->

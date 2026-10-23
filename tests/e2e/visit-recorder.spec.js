@@ -67,6 +67,8 @@ async function seed(stamp) {
   const user = await auth.getUserByEmail(creds.email);
   const uid = user.uid;
   const co = ((user.customClaims || {}).companyId) || uid;
+  const old = await db.collection('users/' + uid + '/visit_captures').get();
+  await Promise.all(old.docs.map((d) => d.ref.delete()));
   const lead = (await db.collection('leads').add({
     userId: uid, companyId: co, e2eTestData: true, deleted: false, createdAt: new Date(),
     firstName: 'ZZVisit', lastName: 'Reyes' + stamp, stage: 'inspected', jobType: 'cash', jobValue: 12000,

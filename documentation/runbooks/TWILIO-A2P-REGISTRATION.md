@@ -1,5 +1,13 @@
 # Twilio A2P 10DLC registration — get the CRM's texts delivered
 
+> **STATUS 2026-10-22: A2P IS VERIFIED.** The campaign went Verified on 2026-10-19 and
+> Jo reconfirmed it on 2026-10-22 (see
+> [MESSAGING-HARDENING-2026-10-19](../audit/MESSAGING-HARDENING-2026-10-19.md)). Everything
+> below is **history** from when the account was a Trial with no brand or campaign. Verified
+> is not "automatic texting is on": every outbound path is still behind the fail-closed
+> `messaging_controls/global` kill switch and per-automation flags (absent = OFF), and only a
+> Twilio `delivered` status proves a text arrived, never `alert_outbox` `sent`.
+
 ## 2026-10-04 update — ready to submit (start here)
 
 Everything below this section is the 2026-10-02 first draft. Where the two

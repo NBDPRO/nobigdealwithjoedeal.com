@@ -2310,7 +2310,9 @@
     const tasksId = urlParams.get('tasks');
     
     const estParam = urlParams.get('est');
-    const leadParam = urlParams.get('lead');
+    // ?capture=1&lead=ID is the visit recorder's deep link (visit-recorder-launcher.js): that `lead`
+    // is the customer to record, not a request to open the estimate builder over the recorder.
+    const leadParam = urlParams.get('capture') === '1' ? null : urlParams.get('lead');
     const templatesParam = urlParams.get('templates');
 
     if (templatesParam && leadParam) {
