@@ -144,7 +144,7 @@ const pass = (c, status) => FX.passes(c, { status }, TODAY, NOW);
     const view = read('docs/pro/js/call-center-view.js'), loader = read('docs/pro/js/script-loader.js'), logic = read('docs/pro/js/call-center-filters-logic.js');
     ok('the click handler routes data-cc="status" into setFlt', /a === 'status'\) setFlt\(\{ status: b\.getAttribute\('data-arg'\) \}\)/.test(view));
     ok('status chips are plain buttons (no inline handlers or styles - CSP)', !/cc-status[^>]*(onclick|style=)/.test(view));
-    ok('versions bumped so phones fetch the new files', /call-center-filters-logic\.js\?v=4/.test(loader) && /call-center-view\.js\?v=26/.test(loader));
+    ok('versions bumped so phones fetch the new files', /call-center-filters-logic\.js\?v=4/.test(loader) && /call-center-view\.js\?v=27/.test(loader));
     ok('the missed rule lives in the pure module, not the view', /function isMissed/.test(logic) && !/isMissed/.test(view));
   }
 
