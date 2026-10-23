@@ -66,7 +66,7 @@
     const a = _acts;
     if (!a || !(a.items.length || a.notes.length)) return '';
     const rows = a.items.map((it) => '<div class="rv-act"><div><b>' + esc(it.label) + ':</b> ' + (it.from == null ? 'not set' : esc(it.from)) + ' → <b>' + esc(it.to) + '</b><div class="wc-meta">' + esc(it.reason) + '</div></div>' +
-      (_accepted[it.id] ? '<span class="rv-good">✓ Set</span>' : '<button type="button" class="btn btn-ghost rv-accept" data-rv-action="accept" data-id="' + esc(it.id) + '">Accept</button>') + '</div>').join('');
+      (_accepted[it.id] ? '<span class="rv-good">✓ Set</span>' : '<button type="button" class="btn btn-ghost rv-accept" data-rv-action="accept" data-id="' + esc(it.id) + '" aria-label="Accept ' + esc(it.label) + ': ' + esc(it.to) + '">Accept</button>') + '</div>').join('');
     return '<div class="wc-lbl">Next week's targets</div><div class="wc-hint">Proposals from this week's numbers. Nothing changes unless you tap Accept.</div>' + rows + a.notes.map((n) => '<div class="wc-meta">' + esc(n) + '</div>').join('');
   }
   function calTarget() { const f = readJson(FOOD, {}); return Number(f && f.targets && f.targets.calories) || null; }
