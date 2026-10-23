@@ -16,8 +16,8 @@
   const pick = () => (memory !== undefined ? memory : A.normAccent(stored()));
 
   // The active theme's own accent (app.js writes it inline as --ac; a saved custom theme has no CSS skin to fall back on).
-  function themeAccent() {
-    try { const t = _nbdGetTheme(_nbd_activeTheme); return t && t.accent; } catch (_) { return null; }
+  function themeAccent() { // the active theme object (its accent and, for a custom theme, its bg)
+    try { return _nbdGetTheme(_nbd_activeTheme) || null; } catch (_) { return null; }
   }
 
   // Drop our inline text values first so the skin's own --paper is what gets read, then lay the accent over it.
@@ -25,12 +25,12 @@
     html.style.removeProperty('--ac-text');
     html.style.removeProperty('--ac-on-dark');
     const id = pick();
+    const theme = themeAccent();
     if (!id) {
-      const own = themeAccent();
-      if (own) html.style.setProperty('--ac', own); else html.style.removeProperty('--ac');
+      ['--ac', '--orange'].forEach((p) => { if (theme && theme.accent) html.style.setProperty(p, theme.accent); else html.style.removeProperty(p); });
       return;
     }
-    const paper = getComputedStyle(html).getPropertyValue('--paper');
+    const paper = A.surfaceOf(getComputedStyle(html).getPropertyValue('--paper'), theme && theme.bg);
     const v = A.vars(id, paper);
     if (v) Object.keys(v).forEach((p) => html.style.setProperty(p, v[p]));
   }

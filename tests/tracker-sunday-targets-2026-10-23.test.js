@@ -94,6 +94,12 @@ console.log('\n5. applying changes only what was accepted');
 
 console.log('\n6. wiring: proposals are shown, never auto-applied');
 {
+  const vm = require('vm');
+  ['review-ui.js', 'workout-coach.js', 'weekly-targets-logic.js'].forEach((f) => {
+    let err = '';
+    try { new vm.Script(read('js', f), { filename: f }); } catch (e) { err = e.message; }
+    ok(f + ' compiles (an unescaped apostrophe in a string would break the whole review screen)', err === '', err);
+  });
   const ui = stripComments(read('js', 'review-ui.js'));
   const coach = stripComments(read('js', 'workout-coach.js'));
   const lg = stripComments(read('js', 'weekly-targets-logic.js'));

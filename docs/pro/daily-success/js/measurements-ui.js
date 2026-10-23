@@ -36,7 +36,7 @@
   function msHtml() {
     if (!M()) return '';
     const all = list();
-    const chips = M().SITES.map((s) => '<button type="button" class="pg-chip' + (s.id === site ? ' on' : '') + '" data-ms-action="site" data-site="' + esc(s.id) + '">' + esc(s.label) + '</button>').join('');
+    const chips = M().SITES.map((s) => '<button type="button" class="pg-chip' + (s.id === site ? ' on' : '') + '" aria-pressed="' + (s.id === site) + '" data-ms-action="site" data-site="' + esc(s.id) + '">' + esc(s.label) + '</button>').join('');
     const units = ['in', 'cm'].map((u) => '<button type="button" class="pg-chip' + (u === unit ? ' on' : '') + '" data-ms-action="unit" data-unit="' + u + '" aria-pressed="' + (u === unit) + '">' + u + '</button>').join('');
     const t = M().trend(all, site);
     const label = (M().SITES.find((s) => s.id === site) || {}).label || site;
@@ -118,7 +118,7 @@
 
   function phHtml() {
     if (!PH()) return '';
-    const chips = PH().POSES.map((p) => '<button type="button" class="pg-chip' + (p.id === pose ? ' on' : '') + '" data-ms-action="pose" data-pose="' + esc(p.id) + '">' + esc(p.label) + '</button>').join('');
+    const chips = PH().POSES.map((p) => '<button type="button" class="pg-chip' + (p.id === pose ? ' on' : '') + '" aria-pressed="' + (p.id === pose) + '" data-ms-action="pose" data-pose="' + esc(p.id) + '">' + esc(p.label) + '</button>').join('');
     return '<div class="wc-card ms-card" id="phCard"><div class="wc-card-h">📸 Progress photos</div>' +
       '<div class="pg-chips">' + chips + '</div>' +
       '<label class="wc-btn ms-add" for="phFile">Add ' + esc(pose) + ' photo</label>' +
@@ -140,7 +140,7 @@
     let html = '';
     if (pair) html += '<div class="wc-lbl">Then and now</div><div class="ms-cmp"><figure>' + img(pair.first, 'ms-big') + '<figcaption>' + esc(pair.first.date) + '</figcaption></figure><figure>' + img(pair.latest, 'ms-big') + '<figcaption>' + esc(pair.latest.date) + '</figcaption></figure></div>';
     html += '<div class="wc-lbl">All ' + esc(pose) + ' photos</div><div class="ms-grid">' + mine.map((p) =>
-      '<div class="ms-th">' + img(p, 'ms-img') + '<span>' + esc(p.date) + '</span><button type="button" class="pg-chip" data-ms-action="del" data-id="' + esc(p.id) + '">' + (armed === p.id ? 'Tap again to delete' : 'Delete') + '</button></div>').join('') + '</div>';
+      '<div class="ms-th">' + img(p, 'ms-img') + '<span>' + esc(p.date) + '</span><button type="button" class="pg-chip" aria-label="Delete ' + esc(pose) + ' photo from ' + esc(p.date) + '" data-ms-action="del" data-id="' + esc(p.id) + '">' + (armed === p.id ? 'Tap again to delete' : 'Delete') + '</button></div>').join('') + '</div>';
     body.className = ''; body.innerHTML = html;
   }
 

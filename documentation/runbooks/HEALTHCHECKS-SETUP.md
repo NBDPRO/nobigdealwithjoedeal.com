@@ -125,7 +125,7 @@ table drifts from it.
 | `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention, promiseCleanup, reelCleanup | 1 day | 6 hours | cleanup / retention jobs (incl. promise cleanup, Reel cleanup) |
 | `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay, esignReminderSweep, reviewAskAutoSweep, invoiceOverdueSweep, companyDocExpiryWatch, subPaperworkWatch | 1 day | 6 hours | morning digests + nudges to Jo; the company-document expiry watch (09:00 ET, Agent-inbox reports to the owner); e-sign reminders to signers (10:00 ET); the automatic review ask (10:00 ET); invoice overdue sweep (08:15 ET) |
 | `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |
-| `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) |
+| `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport, ownerWeeklyDigest | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) + owner digest into the Agent inbox (Mon 07:30 ET) |
 | `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |
 
 That is 19 of 20 — one spare for the next high-stakes cron.

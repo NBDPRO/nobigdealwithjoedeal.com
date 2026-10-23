@@ -232,11 +232,11 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
   console.log('\n6. wiring');
   {
     const view = read('docs/pro/js/call-center-view.js'), css = read('docs/pro/css/phone-calls.css'), loader = read('docs/pro/js/script-loader.js'), dash = read('docs/pro/dashboard.html');
-    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=2',\s*'js\/call-center-view\.js\?v=24'\s*\]/.test(loader));
+    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=4',\s*'js\/call-center-view\.js\?v=26'\s*\]/.test(loader));
     ok('the stylesheet version was bumped for the new rules', /css\/phone-calls\.css\?v=12/.test(dash) && /\.cc-fbar \{/.test(css));
     ok('chips, date boxes and Clear are 44px targets', /\.cc-date \{[^}]*min-height: 44px/.test(css) && /\.cc-clear \{[^}]*min-height: 44px/.test(css) && /\.cc-tab \{\s*min-height: 44px/.test(css));
     ok('no inline handlers or inline styles in the new markup (CSP)', !/cc-fchip[^>]*(onclick|style=)/.test(view) && !/cc-date[^>]*(onclick|style=)/.test(view));
-    ok('the view still works without the filter module (guarded by FX)', /var FX = window\.NBDCallCenterFilters \|\| null;/.test(view) && /if \(!FX\) return '';/.test(view));
+    ok('the view still works without the filter module (guarded by FX)', /var FX = window\.NBDCallCenterFilters \|\| null;/.test(view) && /if \(!FX\) return '<div class="cc-filter-sum cc-filter-down" role="alert">/.test(view));
     ok('the sidebar badge is computed from the unfiltered list', /var navCount = base === state\.calls \? counts\.attention : groupNeeds\(state\.calls\)\.length;/.test(view));
   }
 

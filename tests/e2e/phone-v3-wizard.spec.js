@@ -5,7 +5,8 @@
 // test pins the step lists and the tagging; nothing drove it in a browser
 // at phone size until this spec. Jo runs the INSTALLED iPhone app, so the
 // @media(display-mode: standalone) rules are forced on (a browser tab never
-// matches them) and the viewport is an iPhone 14/15 (390 × 844).
+// matches them) and the viewport is an iPhone 14/15 (390 × 844). Other phones:
+// PHONE_W / PHONE_H (360×740 and 412×915 both pass, 2026-10-22).
 //
 // Every step is checked for what a thumb gets, not for class names:
 //   - the header names the step and counts it (n / total);
@@ -25,7 +26,7 @@ const IPHONE = {
   isMobile: true,
   hasTouch: true,
   serviceWorkers: 'block',
-  viewport: { width: 390, height: 844 },
+  viewport: { width: Number(process.env.PHONE_W) || 390, height: Number(process.env.PHONE_H) || 844 },
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
 };
 
@@ -180,7 +181,7 @@ async function checkStep(page, expectTitle, idx, total) {
     expect(await reachable(next), expectTitle + ': Next is not covered').toBe(true);
     const bb = await next.boundingBox();
     expect(bb.height, 'Next is thumb-sized').toBeGreaterThanOrEqual(48);
-    expect(bb.y + bb.height, 'Next sits on screen').toBeLessThanOrEqual(844);
+    expect(bb.y + bb.height, 'Next sits on screen').toBeLessThanOrEqual(page.viewportSize().height);
   }
 }
 

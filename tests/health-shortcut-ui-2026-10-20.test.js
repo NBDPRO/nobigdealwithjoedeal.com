@@ -106,6 +106,12 @@ console.log('\nCSP + WIRING');
   ok('one delegated document click listener, no per-element listeners', (code.match(/addEventListener\('click'/g) || []).length === 1 && !/\.onclick\s*=/.test(code));
   ok('the key is never written to storage', !/localStorage|sessionStorage|indexedDB/.test(code));
   ok('index.html loads the script (external, deferred) and the stylesheet', /<script src="\/pro\/daily-success\/js\/health-shortcut-ui\.js\?v=1" defer><\/script>/.test(HTML) && HTML.includes('/pro/daily-success/css/health-shortcut.css'));
+  // The callable must be pointed at the emulator BEFORE it fires (a bare getFunctions() raced the
+  // page-wide connect and could POST to production in the local rig).
+  const connectsFirst = (src) => { const c = src.indexOf('connectEmulatorsIfLocal({ functions'); const h = src.indexOf('httpsCallable('); return c >= 0 && h >= 0 && c < h; };
+  ok('the callable connects the Functions emulator (localhost only) before httpsCallable fires', connectsFirst(code));
+  ok('NEGATIVE CONTROL: the ordering check flags a call with no connect, and a connect after the call', !connectsFirst("httpsCallable(mod.getFunctions(), 'x')") && !connectsFirst("httpsCallable(f); connectEmulatorsIfLocal({ functions: f })") && connectsFirst("await connectEmulatorsIfLocal({ functions: f }); httpsCallable(f)"));
+  ok('the connect uses the shared no-op-in-prod helper, not a hard-coded host', code.includes('/pro/js/nbd-emulator-connect.js') && !/127.0.0.1|connectFunctionsEmulator/.test(code));
   ok('the card calls only healthShortcutManage', (code.match(/httpsCallable\(/g) || []).length === 1 && code.includes("'healthShortcutManage'"));
 }
 

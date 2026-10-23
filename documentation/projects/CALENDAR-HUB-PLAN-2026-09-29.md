@@ -423,3 +423,9 @@ views (Phase 4: Jo said one calendar, just for him, for now); any automatic
 Google connection (Phase 1) and sharing his main calendar free/busy with the
 service-account email, both shown in the Schedule view's Google Calendar panel.
 Next session: nothing to pick up here unless Jo wants Phase 4.
+
+### Follow-up 2026-10-23 (overnight audit of #2666)
+
+- The alert now runs as its own step AFTER the Google sync in both triggers, so a Google outage (sync throws) no longer swallows it; the job trigger reads the lead in its own try.
+- The tests drive the real `onLeadCalendarWrite.run` / `onJobCalendarWrite.run` handlers (fake Firestore + fake Google, up and down) instead of matching source text; 7 trigger mutations all caught. `_internal.setDb` is the test hook.
+- New rules test [firestore-rules.job-conflict-notice](../../tests/firestore-rules.job-conflict-notice.test.js) (14 checks, positive controls; a loosened create rule turns the spoof check red), wired into ci.yml. No rules changed.

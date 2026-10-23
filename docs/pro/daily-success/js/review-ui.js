@@ -67,7 +67,16 @@
     if (!a || !(a.items.length || a.notes.length)) return '';
     const rows = a.items.map((it) => '<div class="rv-act"><div><b>' + esc(it.label) + ':</b> ' + (it.from == null ? 'not set' : esc(it.from)) + ' → <b>' + esc(it.to) + '</b><div class="wc-meta">' + esc(it.reason) + '</div></div>' +
       (_accepted[it.id] ? '<span class="rv-good">✓ Set</span>' : '<button type="button" class="btn btn-ghost rv-accept" data-rv-action="accept" data-id="' + esc(it.id) + '" aria-label="Accept ' + esc(it.label) + ': ' + esc(it.to) + '">Accept</button>') + '</div>').join('');
-    return '<div class="wc-lbl">Next week's targets</div><div class="wc-hint">Proposals from this week's numbers. Nothing changes unless you tap Accept.</div>' + rows + a.notes.map((n) => '<div class="wc-meta">' + esc(n) + '</div>').join('');
+    return '<div class="wc-lbl">Next week&#39;s targets</div><div class="wc-hint">Proposals from this week&#39;s numbers. Nothing changes unless you tap Accept.</div>' + rows + a.notes.map((n) => '<div class="wc-meta">' + esc(n) + '</div>').join('');
+  }
+  // The week's day wrap-ups (eod-logic.js), or [] when the module or notes are absent.
+  function eodSummary() { try { return window.NBDEod && window.NBDEodUI ? window.NBDEod.weekSummary(window.NBDEodUI.load(), today()) : null; } catch (_) { return null; } }
+  function eodLines() { const s = eodSummary(); return s ? window.NBDEod.scorecardLines(s) : []; }
+  function eodHtml() {
+    const s = eodSummary();
+    if (!s || !s.days) return '';
+    return '<div class="wc-lbl">Day wrap-ups</div><div class="wc-meta">' + esc(s.days) + '/7 days' + (s.bodyAvg != null ? ' · body avg ' + esc(s.bodyAvg) + '/3' : '') + '</div>' +
+      s.wins.map((w) => '<div class="rv-row"><span>' + esc(w.dk.slice(5)) + '</span><span>' + esc(w.text) + '</span></div>').join('');
   }
   function calTarget() { const f = readJson(FOOD, {}); return Number(f && f.targets && f.targets.calories) || null; }
 
@@ -99,7 +108,7 @@
         from: x.week.from, to: x.week.to, floors: x.fl.length ? x.week : null, taxMoved: !!saved.taxMoved, streak: x.streak,
         weight: x.weight, goal: x.goal,
         lastScary: x.last && x.last.scary ? { text: x.last.scary, done: typeof saved.lastDone === 'boolean' ? saved.lastDone : null } : null,
-        kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue,
+        kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue, eodLines: eodLines(),
       });
       const doc = R().snapshotDoc({ floors: x.fl, byDayToday: R().metByDay(allPages(), x.fl).get(today()), todayDk: today(),
         streak: x.streak, week: x.week, trend: x.t, rule: x.weight, goal: x.goal, scorecard: card,
@@ -160,6 +169,7 @@
         '<div class="rv-tax"><div><b>Miss tax: $' + (w.missTaxCents / 100).toFixed(0) + '</b> <small>(' + w.misses + ' missed × $5)</small></div>' +
         (w.missTaxCents ? '<label class="rv-check"><input type="checkbox" id="rvTaxMoved"' + (saved.taxMoved ? ' checked' : '') + '> I moved it to savings</label>' : '<div class="wc-meta">Nothing owed. Clean week.</div>') + '</div>'
         : '<div class="wc-meta">No daily floors set yet — set them under ⚙️ Customize.</div>') +
+      eodHtml() +
       '<div class="wc-lbl">2 · Weigh-in</div><div class="wc-meta rv-wt rv-wt-' + esc(wt.verdict) + '">' + esc(wt.text) + '</div>' +
       (wt.verdict === 'adjust' && wt.newCalories ? '<button type="button" class="btn btn-ghost" data-rv-action="cut">Set calories to ' + esc(wt.newCalories) + '</button>' : '') +
       '<div class="rv-goalset"><label>Start <input class="wc-in" id="rvGoalStart" inputmode="decimal" value="' + esc(x.s.goal.start || '') + '" placeholder="375"></label>' +
@@ -200,7 +210,7 @@
     return R().scorecardText({
       from: x.week.from, to: x.week.to, floors: x.fl.length ? x.week : null, taxMoved: c.taxMoved, streak: x.streak,
       weight: x.weight, goal: x.goal, lastScary: x.last && x.last.scary ? { text: x.last.scary, done: c.lastDone } : null,
-      kept: c.kept, bailed: c.bailed, scary: c.scary, scaryDue: c.scaryDue,
+      kept: c.kept, bailed: c.bailed, scary: c.scary, scaryDue: c.scaryDue, eodLines: eodLines(),
     });
   }
   function doSave() {

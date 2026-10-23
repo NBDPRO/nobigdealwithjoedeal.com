@@ -55,6 +55,14 @@
     fltSave();
     render();
   }
+  // A view shows calls, so it opens the All tab (Needs attention groups by person and hides the handled / short ones a view may want).
+  // Tapping the view that is already on turns just that view off (its range and status; the order stays).
+  function applyViewNow(id) {
+    if (!FX || !FX.applyView) return;
+    var n = FX.matchView(flt) === id ? FX.normalize(Object.assign({}, flt, { range: 'all', status: 'all', from: '', to: '' })) : FX.applyView(id, flt);
+    if (!n) return;
+    flt = n; state.filter = 'all'; state.customOpen = false; state.focusId = null; fltSave(); render();
+  }
   function clearFlt() { if (!FX) return; flt = FX.defaults(); state.customOpen = false; state.focusId = null; fltSave(); render(); }
 
   function esc(s) {
@@ -451,24 +459,28 @@
   }
 
   // "When" chips (Today / Yesterday / Last 24 hours / 7 / 30 days / Pick dates), two date boxes while picking, direction and
-  // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Missed), and a one-line summary with a Clear button whenever something narrows the list.
+  // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Short calls), and a one-line summary with a Clear button whenever something narrows the list.
+  // Needs attention never holds a handled call, so Handled there is always empty: the chip is off and says why.
+  var HANDLED_OFF = 'Handled calls are never on Needs attention. Open the All tab to see them.';
   function filterBar(shown, people) {
-    if (!FX) return '';
-    function chipBtn(kind, id, label, on) {
-      return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '">' + esc(label) + '</button>';
+    if (!FX) return '<div class="cc-filter-sum cc-filter-down" role="alert">Filters could not load, so the list below is NOT filtered. Reload the page to try again.</div>';
+    function chipBtn(kind, id, label, on, off) {
+      return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '"' + (off ? ' disabled aria-disabled="true" title="' + esc(off) + '"' : '') + '>' + esc(label) + '</button>';
     }
+    var cur = FX.matchView ? FX.matchView(flt) : null;
+    var views = FX.VIEWS ? '<div class="cc-fbar cc-views" role="group" aria-label="Views">' + FX.VIEWS.map(function (w) { return chipBtn('view', w.id, w.label, cur === w.id); }).join('') + '</div>' : '';
     var when = FX.RANGES.map(function (r) { return chipBtn('range', r[0], r[1], flt.range === r[0] || (r[0] === 'custom' && state.customOpen)); }).join('');
     var dates = (flt.range === 'custom' || state.customOpen)
       ? '<div class="cc-date-row"><label class="cc-date-lbl">From <input type="date" class="cc-date" data-cc-date="from" value="' + esc(flt.from) + '" aria-label="From date"></label>' +
         '<label class="cc-date-lbl">To <input type="date" class="cc-date" data-cc-date="to" value="' + esc(flt.to) + '" aria-label="To date"></label></div>'
       : '';
     var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
-    var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0]); }).join('') + '</div>' : '';
+    var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0], s[0] === 'handled' && state.filter === 'attention' ? HANDLED_OFF : ''); }).join('') + '</div>' : '';
     var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
     var sum = FX.isActive(flt)
-      ? '<div class="cc-filter-sum" role="status">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
+      ? '<div class="cc-filter-sum">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
       : '';
-    return '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
+    return views + '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
       '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + stats + sum;
   }
 
@@ -496,7 +508,7 @@
       rows.forEach(function (c) { seen[c.id] = true; });
       shownN = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
     }
-    var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
+    var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title"><span aria-hidden="true">📞</span> Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
       (navCount && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + navCount + ')</button>' : '') +
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
@@ -504,14 +516,15 @@
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
       '</div>' + healthPanel() + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
-      '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
-        return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
+      '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
+        return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
       }).join('') + '</div>' + filterBar(shownN, state.filter === 'attention') + '</div>';
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
+    else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
     else if (state.filter === 'attention') {
       // A person shows when any of their open calls matches the search.
@@ -527,9 +540,56 @@
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
     var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
-    el.innerHTML = '<div class="cc-wrap">' + head + thPanel + '<div class="cc-list">' + body + '</div></div>';
+    // A redraw drops keyboard focus: remember which control had it (or which one an arrow key is moving to) and put it back.
+    var fk = state.refocus || focusKeyOf(document.activeElement);
+    state.refocus = '';
+    el.innerHTML = '<div class="cc-wrap">' + head + '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">' + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
     focusedCard();
+    a11yPass(el, shownN, active);
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
+    else if (fk && typeof el.querySelector === 'function') restoreFocus(el, fk);
+  }
+
+  // ── accessibility (2026-10-23 audit) ─────────────────────────────────
+  function focusKeyOf(a) {
+    if (!FX || !a || !a.getAttribute || !a.closest || !a.closest('#view-calls')) return '';
+    var attrs = {};
+    ['data-cc', 'data-arg', 'data-id', 'data-ids', 'data-cc-date', 'data-ccp'].forEach(function (k) { attrs[k] = a.getAttribute(k); });
+    attrs.id = a.id || '';
+    return FX.focusKey(attrs);
+  }
+  function restoreFocus(el, fk) {
+    var t = null;
+    try { t = el.querySelector(fk); } catch (_) { t = null; }
+    // the control is gone (a card was handled and left the list): land on the list, not at the top of the page
+    if (!t) t = el.querySelector('#ccPanel');
+    if (t && !t.disabled) { try { t.focus({ preventScroll: true }); } catch (_) { /* ignore */ } }
+  }
+  function a11yPass(el, shownN, active) {
+    if (!FX || typeof el.querySelectorAll !== 'function' || !document.body) return;
+    try { a11yApply(el, shownN, active); } catch (_) { /* best effort: never block the list */ }
+  }
+  function a11yApply(el, shownN, active) {
+    el.querySelectorAll('[data-cc-status]').forEach(function (s) { s.setAttribute('role', 'status'); });
+    el.querySelectorAll('.cc-card').forEach(function (card) {
+      var whoEl = card.querySelector('.pc-who');
+      var who = whoEl ? whoEl.firstChild && whoEl.firstChild.nodeType === 3 ? whoEl.firstChild.nodeValue : whoEl.textContent : '';
+      card.querySelectorAll('.pc-actions button').forEach(function (b) {
+        if (b.getAttribute('aria-label')) return;
+        var l = FX.actionLabel(b.textContent, who);
+        if (l) b.setAttribute('aria-label', l);
+      });
+    });
+    // One polite line after the list changes: "Showing 3 people, Needs attention, Today".
+    if (!state.loaded) return;
+    var live = document.getElementById('ccLive');
+    if (!live) {
+      live = document.createElement('div');
+      live.id = 'ccLive'; live.className = 'cc-sr'; live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite'); live.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(live);
+    }
+    var say = FX.liveSummary(shownN, state.filter === 'attention', active[1], FX.isActive(flt) ? FX.describe(flt, todayYmd()) : []);
+    if (live.getAttribute('data-said') !== say) { live.setAttribute('data-said', say); live.textContent = say; }
   }
 
   function status(id, text) {
@@ -581,7 +641,7 @@
     }
     slot.innerHTML = '';
     var a = document.createElement('audio');
-    a.controls = true; a.preload = 'auto'; a.src = state.blobUrls[id];
+    a.controls = true; a.preload = 'auto'; a.src = state.blobUrls[id]; a.setAttribute('aria-label', 'Call recording');
     slot.appendChild(a);
     a.play().catch(function () {});
   }
@@ -1241,6 +1301,7 @@
     else if (a === 'dir') setFlt({ dir: b.getAttribute('data-arg') });
     else if (a === 'status') setFlt({ status: b.getAttribute('data-arg') });
     else if (a === 'sort') setFlt({ sort: b.getAttribute('data-arg') });
+    else if (a === 'view') applyViewNow(b.getAttribute('data-arg'));
     else if (a === 'clearfilters') clearFlt();
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
@@ -1270,6 +1331,17 @@
     else if (a === 'health-reload') { health.error = false; loadHealth(); }
     else if (a === 'tagconfirm') tagConfirm();
     else if (a === 'tagcancel') { state.tag = null; render(); }
+  });
+  // The category tabs are one tab stop; the arrow keys (and Home / End) move between them and open the one they land on.
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (!FX || !t || !t.closest || t.getAttribute('role') !== 'tab' || !t.closest('#view-calls .cc-filters')) return;
+    var tabs = Array.prototype.slice.call(t.closest('.cc-filters').querySelectorAll('[role="tab"]'));
+    var to = FX.rove(e.key, tabs.indexOf(t), tabs.length);
+    if (to < 0) return;
+    e.preventDefault();
+    state.refocus = '[data-cc="filter"][data-arg="' + tabs[to].getAttribute('data-arg') + '"]';
+    tabs[to].click();
   });
   // A label was applied, undone or rolled back: the chips and the
   // needs-attention grouping both read it.
