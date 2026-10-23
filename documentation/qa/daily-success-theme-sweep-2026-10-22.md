@@ -54,7 +54,7 @@ category chip 3.1:1 (white on every theme and curated accent), category chips, s
 ## Not fixed (open)
 
 - Meal-name inputs scroll their text sideways in the Diet table at phone width (usable, not clipped content).
-- Measurements and Progress photos (#2662, merged): re-swept on the merged tree (Dash, Day, Progress, 10 skins x 3 widths, 90 loads, both cards rendered, empty state): 0 contrast, 0 tap, 0 overflow. Not covered: a card with logged readings and photos (needs a seeded IndexedDB), and the photo picker sheet itself (OS-owned).
+- Measurements and Progress photos (#2662, merged): re-swept on the merged tree (Dash, Day, Progress, 10 skins x 3 widths, 90 loads, both cards rendered, empty state): 0 contrast, 0 tap, 0 overflow. Also swept populated: 7 seeded readings (trend chart, latest value) and two seeded front photos in IndexedDB (grid rendered), 10 skins x 3 widths, 30 loads: 0 contrast, 0 tap, 0 overflow. Not covered: the OS photo picker sheet (OS-owned).
 - WebKit pass and a daylight check on a real iPhone remain Jo's.
 
 Screenshots were taken locally and kept out of the repo.
