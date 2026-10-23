@@ -106,6 +106,7 @@
    decks, the grouped Said-you'd-do card's rows, the owner's "Match my tagged
    contacts" preview, and the customer page's "Wrong customer → move to…". */
 .cc-suggest { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); display: flex; flex-direction: column; gap: 6px; }
+.cc-suggest-note { font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
 .cc-suggest-btn { align-self: flex-start; max-width: 100%; overflow-wrap: anywhere; }
 .cc-deck-item + .cc-deck-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br, #2a2f35); }
 .cc-tagmatch { margin-bottom: 12px; }
