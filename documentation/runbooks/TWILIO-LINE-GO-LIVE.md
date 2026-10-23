@@ -30,7 +30,7 @@ status callbacks get 200 + empty TwiML, and nothing is recorded. A call hears
 
 ## Go-live steps (Jo approves each; Claude can do the console clicks)
 
-1. **Wait for A2P approval.** In Twilio Console → Messaging → Regulatory
+1. **A2P approval: DONE (campaign Verified 2026-10-19).** Confirm in Twilio Console → Messaging → Regulatory
    Compliance → Campaigns, the campaign shows Verified and (937) 764-4855 is in
    its Messaging Service sender pool.
 2. **Check the secret.** `TWILIO_AUTH_TOKEN` in Secret Manager must be the
@@ -100,7 +100,7 @@ Every missed inbound call already carries a one-tap reply draft (an `sms:`
 link with the reply typed) on the Call Center card, the bell row and the
 callWatch push. Joe sends it from his own phone; nothing goes from Twilio.
 
-Once the A2P campaign is approved, set `MISSED_CALL_AUTOTEXT_ENABLED=true` in
+The A2P campaign is approved (Verified 2026-10-19). To turn it on, set `MISSED_CALL_AUTOTEXT_ENABLED=true` in
 `functions/.env.nobigdeal-pro` and deploy. Then the Call Center ingest
 (`functions/missed-call-autotext.js`) also texts the caller from the Twilio
 number, but only when ALL of these hold:
