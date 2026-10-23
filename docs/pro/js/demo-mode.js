@@ -91,7 +91,8 @@
     var rec = { url: String(url || '').slice(0, 300), how: how, at: Date.now() };
     state.blocked.push(rec);
     try { console.warn('[sample account] blocked ' + how + ': ' + rec.url); } catch (_) {}
-    notice('Blocked in the sample account: ' + (fromSw ? 'a request' : how) + ' to ' + shortUrl(rec.url) + '. Nothing left your browser.', true);
+    // Plain words for the visitor; the technical record stays in state.blocked and the console.
+    notice('That live data is not in the sample account. Nothing left your browser.', true);
     return rec;
   }
   function shortUrl(u) {
@@ -435,6 +436,22 @@
     var q = pending; pending = [];
     q.forEach(function (n) { notice(n[0], n[1]); });
     sampleJoeFootnote();
+    hideLiveOnlyScreens();
+  }
+  // These screens open the real production pages (iframes or a new window), which
+  // load reCAPTCHA / App Check and are outside the demo worker: not in the sample account.
+  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-aiusage', 'nav-daily'];
+  var LIVE_ONLY_TPL = ['tpl-view-aitree', 'tpl-view-understand', 'tpl-view-projectcodex', 'tpl-view-aiusage'];
+  function hideLiveOnlyScreens() {
+    LIVE_ONLY_NAV.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); el.setAttribute('tabindex', '-1'); }
+    });
+    LIVE_ONLY_TPL.forEach(function (id) {
+      var tpl = document.getElementById(id);
+      var frames = tpl && tpl.content ? tpl.content.querySelectorAll('iframe[data-src]') : [];
+      for (var i = 0; i < frames.length; i++) frames[i].removeAttribute('data-src');
+    });
   }
   // Ask Joe's footnote names the model and offers "Change Key" (it clears a
   // stored API key). Neither is true here: no model is called and there is
