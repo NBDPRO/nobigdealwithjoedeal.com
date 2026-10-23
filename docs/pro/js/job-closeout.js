@@ -80,6 +80,56 @@
     });
   };
 
+  function draftHtml(d) {
+    function box(id, label, text) {
+      return '<label class="jco-lbl" for="' + id + '">' + esc(label) + '</label>' +
+        '<textarea id="' + id + '" class="jco-ta" readonly rows="5">' + esc(text) + '</textarea>' +
+        '<button type="button" class="jco-btn" data-jco-copy="' + id + '">Copy ' + esc(label.toLowerCase()) + '</button>';
+    }
+    var h = '<div class="jco-draft" role="group" aria-label="Draft ' + esc(d.kind) + ' ask (not sent)">';
+    if (d.email) h += box('jcoEmail', 'Email', 'Subject: ' + d.email.subject + '\n\n' + d.email.body);
+    if (d.text) h += box('jcoText', 'Text', d.text);
+    h += d.notes.map(function (n) { return '<p class="jco-note">' + esc(n) + '</p>'; }).join('') + '</div>';
+    return h;
+  }
+
+  // One delegated listener per panel element (CSP: no inline handlers).
+  function bind(panel) {
+    if (panel.__jcoBound) return;
+    panel.__jcoBound = true;
+    panel.addEventListener('click', function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest('[data-jco-draft],[data-jco-copy]') : null;
+      if (!t) return;
+      if (t.hasAttribute('data-jco-copy')) {
+        var ta = root.document.getElementById(t.getAttribute('data-jco-copy'));
+        if (!ta) return;
+        try { ta.select(); } catch (e) {}
+        try {
+          if (root.navigator && root.navigator.clipboard) root.navigator.clipboard.writeText(ta.value);
+          else root.document.execCommand('copy');
+          if (typeof root.showToast === 'function') root.showToast('Copied. Nothing was sent.', 'success');
+        } catch (e) { /* the text is selected: the rep can copy by hand */ }
+        return;
+      }
+      buildDraft(t.getAttribute('data-jco-draft'));
+    });
+  }
+
+  async function buildDraft(kind) {
+    var lead = root._currentLead || {};
+    var RE = root.ReviewEngine, PD = root.PostJobDrafts, panel = root.document.getElementById('closeoutPanel');
+    if (!RE || !PD || !panel) return;
+    var link = '';
+    try {
+      link = kind === 'review' ? await RE.getReviewLink() : await RE.referralLinkFor(lead.id);
+    } catch (e) { link = ''; }
+    var p = root._companyProfile;
+    var d = PD.build(kind, lead, { link: link, company: p && (p.companyName || p.name) });
+    if (!d) { if (typeof root.showToast === 'function') root.showToast('No link set up yet for this draft', 'error'); return; }
+    panel.__jcoDraft = { lead: lead.id, draft: d };
+    api.render(lead);
+  }
+
   api.render = function (lead, opts) {
     var doc = root.document;
     var panel = doc && doc.getElementById('closeoutPanel');
@@ -106,9 +156,23 @@
       prompt = '<div class="jco-prompt" role="note"><strong>' + esc(WARRANTY_PROMPT.title) + '</strong><ol>' +
         WARRANTY_PROMPT.steps.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol></div>';
     }
+    // Drafts (post-job-drafts-logic.js): shown, never sent.
+    var drafts = '';
+    var PD = root.PostJobDrafts;
+    if (PD) {
+      var mo = PD.moments(lead, { paidInFull: paid });
+      var btn = function (kind, label) {
+        return '<button type="button" class="jco-btn" data-jco-draft="' + kind + '">' + esc(label) + '</button>';
+      };
+      var btns = (mo.review ? btn('review', 'Draft review ask') : '') + (mo.referral ? btn('referral', 'Draft referral ask') : '');
+      if (btns) drafts += '<div class="jco-drafts">' + btns + '</div>';
+      var open = panel.__jcoDraft;
+      if (open && open.lead === lead.id && open.draft) drafts += draftHtml(open.draft);
+    }
     panel.innerHTML =
       '<div class="jco-head"><div class="panel-title">Finished-job check</div>' +
-        '<span class="jco-count">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span></div>' + rows + prompt;
+        '<span class="jco-count">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span></div>' + rows + prompt + drafts;
+    bind(panel);
     panel.hidden = false;
   };
 })(typeof window !== 'undefined' ? window : null);
