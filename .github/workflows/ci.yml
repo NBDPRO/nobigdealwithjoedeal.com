@@ -543,6 +543,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-lusage-test 'node firestore-rules.layout-usage.test.js'
+      # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
+      - name: Run job-conflict notice rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-jobconf-test 'node firestore-rules.job-conflict-notice.test.js'
       # Company documents (own-document expiry, 2026-10-18): companies/{cid}/companyDocs. Own file.
       - name: Run company-docs rules tests under emulator
         run: |

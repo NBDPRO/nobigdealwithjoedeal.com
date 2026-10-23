@@ -38,6 +38,8 @@ const disabled = () => process.env.GOOGLE_CALENDAR_SYNC_DISABLED === 'true';
 
 let _client = null;
 let _testClient = null;
+let _testDb = null;
+const dbNow = () => _testDb || getFirestore();
 async function gclient() {
   if (_testClient) return _testClient;
   if (_client) return _client;
@@ -494,7 +496,7 @@ exports.onLeadCalendarWrite = onDocumentWritten(
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's lead
     if (before && after && !G.calendarFieldsChanged(before, after)) return; // nothing the calendar shows
-    const db = getFirestore();
+    const db = dbNow();
     const cfg = await loadConfig(db);
     if (!cfg || !cfg.calendarId) return;                               // not set up yet
     try {
@@ -508,11 +510,17 @@ exports.onLeadCalendarWrite = onDocumentWritten(
       if (LEAD_EVENT_FIELDS.some((k) => JSON.stringify((before || {})[k] === undefined ? null : (before || {})[k]) !== JSON.stringify((after || {})[k] === undefined ? null : (after || {})[k]))) {
         r.events = await syncLeadEvents(db, cfg.calendarId, event.params.leadId, after);
       }
-      if (after && isOwnerLead(after) && after.deleted !== true) r.overlapAlerts = await alertJobOverlapsBookings(db, event.params.leadId, G.desiredEventsForLead(Object.assign({ id: event.params.leadId }, after)));
       logger.info('[googleCalendar] lead synced', { leadId: event.params.leadId, ...r });
     } catch (e) {
       // The nightly reconcile repairs anything missed here.
       logger.warn('[googleCalendar] lead sync failed', { leadId: event.params.leadId, status: statusOf(e), msg: e && e.message });
+    }
+    // Its own step: the booking alert reads only Firestore, so a Google outage
+    // (the sync above throwing) must not swallow it. Never throws.
+    try {
+      if (after && isOwnerLead(after) && after.deleted !== true) await alertJobOverlapsBookings(db, event.params.leadId, G.desiredEventsForLead(Object.assign({ id: event.params.leadId }, after)));
+    } catch (e) {
+      logger.warn('[googleCalendar] lead booking alert failed', { leadId: event.params.leadId, msg: e && e.message });
     }
   }
 );
@@ -528,19 +536,30 @@ exports.onJobCalendarWrite = onDocumentWritten(
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's job
     if (before && after && !G.jobCalendarFieldsChanged(before, after)) return;
-    const db = getFirestore();
+    const db = dbNow();
     const cfg = await loadConfig(db);
     if (!cfg || !cfg.calendarId) return;
     const { leadId, jobId } = event.params;
+    let lead = null;
     try {
       const ls = await db.collection('leads').doc(leadId).get();
-      const lead = ls.exists ? ls.data() : null;
-      if (lead && lead.activeJobId === jobId) return;                  // the lead's own events
+      lead = ls.exists ? ls.data() : null;
+    } catch (e) {
+      logger.warn('[googleCalendar] job sync failed', { leadId, jobId, status: statusOf(e), msg: e && e.message });
+      return;
+    }
+    if (lead && lead.activeJobId === jobId) return;                    // the lead's own events
+    try {
       const r = await syncJob(cfg.calendarId, leadId, lead, jobId, after);
-      if (lead && after && isOwnerLead(lead)) r.overlapAlerts = await alertJobOverlapsBookings(db, leadId, G.desiredEventsForJob(Object.assign({ id: leadId }, lead), Object.assign({ id: jobId }, after)));
       logger.info('[googleCalendar] job synced', { leadId, jobId, ...r });
     } catch (e) {
       logger.warn('[googleCalendar] job sync failed', { leadId, jobId, status: statusOf(e), msg: e && e.message });
+    }
+    // Its own step, so a Google outage cannot swallow the booking alert. Never throws.
+    try {
+      if (lead && after && isOwnerLead(lead)) await alertJobOverlapsBookings(db, leadId, G.desiredEventsForJob(Object.assign({ id: leadId }, lead), Object.assign({ id: jobId }, after)));
+    } catch (e) {
+      logger.warn('[googleCalendar] job booking alert failed', { leadId, jobId, msg: e && e.message });
     }
   }
 );
@@ -658,7 +677,8 @@ exports.googleCalendarReconcile = onSchedule(
   }
 );
 
-module.exports._internal = { bookingConflicts, alertJobOverlapsBookings, setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
+module.exports._internal = { bookingConflicts, alertJobOverlapsBookings,
+  setDb: (d) => { _testDb = d; }, setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
   syncLeadEvent, syncLeadEvents, syncOrder,
   setClient: (c) => { _testClient = c; },
   setWeather: (fn) => { _weatherFn = fn; } };

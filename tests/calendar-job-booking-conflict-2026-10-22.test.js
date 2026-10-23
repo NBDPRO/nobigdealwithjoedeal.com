@@ -141,6 +141,62 @@ function fakeDb(appts, opts) {
   ok('the bell id is deterministic and written with create() (once), not set()',
     /notifications\/job-conflict-' \+ leadId \+ '-' \+ h\.apptId \+ '-' \+ h\.jobStartMs\)\.create\(/.test(src));
 
+  console.log('\n6. the REAL trigger handlers (not source text): they alert, and Google cannot stop them');
+  const snap = (d) => ({ exists: !!d, data: () => d });
+  const handlerDb = (docs, appts) => {
+    const base = fakeDb(appts);
+    base.doc = ((orig) => (p) => Object.assign(orig(p), { get: async () => snap(docs[p]) }))(base.doc);
+    const coll = base.collection;
+    base.collection = (name) => {
+      if (name === 'leads') return { doc: (id) => ({ get: async () => snap(docs['leads/' + id]), collection: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }) }) };
+      return coll(name);
+    };
+    return base;
+  };
+  const googleUp = { email: async () => null, request: async () => ({ data: { items: [] } }) };
+  const googleDown = { email: async () => null, request: async () => { throw new Error('google outage'); } };
+  M._internal.setWeather(async () => ({}));
+  const cfgDoc = { 'integrations/googleCalendar': { calendarId: 'cal1' } };
+  const unscheduled = lead('Install', {});
+  const scheduled = lead('Install', { scheduledDate: '2026-10-06', scheduledStart: '07:00', scheduledDurationMin: 240 });
+  const leadEvt = (before, after) => ({ params: { leadId: 'LeadA' }, data: { before: snap(before), after: snap(after) } });
+  const jobEvt = (before, after) => ({ params: { leadId: 'LeadA', jobId: 'J2' }, data: { before: snap(before), after: snap(after) } });
+
+  for (const [label, client] of [['Google up', googleUp], ['Google DOWN', googleDown]]) {
+    M._internal.setClient(client);
+    const dbL = handlerDb(cfgDoc, bookings);
+    M._internal.setDb(dbL);
+    await M.onLeadCalendarWrite.run(leadEvt(unscheduled, scheduled));
+    ok('lead trigger, ' + label + ': moving a job onto a booking writes the bell row',
+      dbL.created.length === 1 && /job-conflict-LeadA-hit-/.test(dbL.created[0].path), JSON.stringify(dbL.created));
+
+    const dbL2 = handlerDb(cfgDoc, bookings);
+    M._internal.setDb(dbL2);
+    await M.onLeadCalendarWrite.run(leadEvt(scheduled, Object.assign({}, scheduled, { deleted: true })));
+    ok('lead trigger, ' + label + ': a deleted lead alerts nothing', dbL2.created.length === 0);
+
+    const dbJ = handlerDb(Object.assign({ 'leads/LeadA': lead('Install', { activeJobId: 'J1' }) }, cfgDoc), bookings);
+    M._internal.setDb(dbJ);
+    await M.onJobCalendarWrite.run(jobEvt(null, Object.assign({ id: 'J2', title: 'Repair', companyId: 'OWNER', userId: 'OWNER' }, { scheduledDate: '2026-10-06', scheduledStart: '07:00', scheduledDurationMin: 240 })));
+    ok('job trigger, ' + label + ': another job moved onto a booking writes the bell row',
+      dbJ.created.length === 1 && /job-conflict-LeadA-hit-/.test(dbJ.created[0].path), JSON.stringify(dbJ.created));
+  }
+
+  M._internal.setClient(googleUp);
+  const dbN = handlerDb(cfgDoc, bookings);
+  M._internal.setDb(dbN);
+  await M.onLeadCalendarWrite.run(leadEvt(unscheduled, lead('Install', { scheduledDate: '2026-10-06', scheduledStart: '15:00', scheduledDurationMin: 60 })));
+  ok('lead trigger: a job clear of every booking writes nothing (negative control)', dbN.created.length === 0, JSON.stringify(dbN.created));
+  const dbT = handlerDb(cfgDoc, bookings);
+  M._internal.setDb(dbT);
+  await M.onLeadCalendarWrite.run(leadEvt(unscheduled, Object.assign({}, scheduled, { companyId: 'OTHER', userId: 'OTHER' })));
+  ok('lead trigger: another tenant\'s lead alerts nothing', dbT.created.length === 0);
+  const dbU = handlerDb(cfgDoc, bookings);
+  M._internal.setDb(dbU);
+  await M.onLeadCalendarWrite.run(leadEvt(Object.assign({}, scheduled), Object.assign({}, scheduled, { notes: 'x' })));
+  ok('lead trigger: an edit that changes nothing the calendar shows alerts nothing', dbU.created.length === 0);
+  M._internal.setDb(null);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
