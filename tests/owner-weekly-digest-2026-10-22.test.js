@@ -22,10 +22,11 @@ const ROOT = path.join(__dirname, '..');
 
 // owner-weekly-digest.js needs firebase packages at module scope; stub them so
 // the test runs without functions/node_modules (same idea as other tests).
+const WARNS = [];
 const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === './integrations/heartbeat') return { onSchedule: (_o, fn) => fn };
-  if (request === 'firebase-functions/v2') return { logger: { info() {}, warn() {} } };
+  if (request === 'firebase-functions/v2') return { logger: { info() {}, warn(...a) { WARNS.push(a); } } };
   if (request === 'firebase-admin/firestore') return { getFirestore: () => null, FieldValue: { serverTimestamp: () => 'TS' } };
   return origLoad.apply(this, arguments);
 };
@@ -139,6 +140,32 @@ const NOW = Date.parse('2026-10-26T11:30:00Z'); // 7:30 ET Monday
   const r3 = await W.runDigest({ db: live, nowMs: NOW + 7 * 86400000, live: true });
   ok('negative control: the next Monday files a new report', r3.filed === 1 && ('agent_inbox/ownerdigest_co1_2026-11-02' in live.store));
   ok('nothing but agent_inbox and notifications is written', live.writes.every((p) => /^(agent_inbox|notifications)\//.test(p)));
+
+  console.log('\n— jobs read fails (2026-10-23) —');
+  // no lead carries a scheduledDate here, so a failed jobs read is the ONLY reason the calendar looks empty
+  const seedNoDates = { docs: Object.assign({}, seed.docs) };
+  leads.forEach((l) => { seedNoDates.docs['leads/' + l.id] = Object.assign({ companyId: 'co1' }, l, { scheduledDate: undefined }); });
+  const failing = fakeDb(seedNoDates);
+  failing.collectionGroup = () => ({ where() { return this; }, limit() { return this; }, get: async () => { throw new Error('jobs index missing'); } });
+  WARNS.length = 0;
+  const rf = await W.runDigest({ db: failing, nowMs: NOW, live: true });
+  const ft = failing.store['agent_inbox/ownerdigest_co1_2026-10-26'];
+  ok('a failed jobs read still files the rest of the digest', rf.filed === 1 && rf.failed === 0 && !!ft && /Collected 2026-10-19/.test(ft.text), JSON.stringify(rf));
+  ok('the filed text says calendar jobs are unavailable', !!ft && /Calendar jobs unavailable this week/.test(ft.text), ft && ft.text);
+  ok('the filed text never says "none" for jobs when the read failed', !!ft && !/Jobs on the calendar this week: none/.test(ft.text));
+  ok('the failure is logged at warn level with the company', WARNS.some((w) => /jobs read failed/.test(w[0]) && w[1] && w[1].companyId === 'co1' && /jobs index missing/.test(w[1].msg)), JSON.stringify(WARNS));
+  ok('negative control: a healthy empty calendar still says none', /Jobs on the calendar this week: none/.test(D.render(D.buildDigest({ leads: [], todayYmd: TODAY, jobsUnavailable: false })).text));
+  ok('negative control: a healthy run (empty jobs read) is not flagged unavailable', !/unavailable/.test(live.store['agent_inbox/ownerdigest_co1_2026-10-26'].text));
+  const partial = D.render(D.buildDigest({ leads, jobsByLead: null, jobsUnavailable: true, todayYmd: TODAY })).text;
+  ok('with lead-dated jobs and a failed read, the list is kept and marked possibly incomplete', /2026-10-28 Ann Test/.test(partial) && /may be incomplete/.test(partial));
+
+  console.log('\n— overlong digest is not cut silently —');
+  const longName = 'Z'.repeat(300);
+  const big = D.buildDigest({ leads: Array.from({ length: 12 }, (_, i) => ({ id: 'y' + i, firstName: longName + i, stage: 'new', scheduledDate: '2026-10-27' })), todayYmd: TODAY });
+  const bigText = D.render(big).text;
+  ok('an overlong digest stays within the inbox limit', bigText.length <= 2000, String(bigText.length));
+  ok('an overlong digest ends with a visible cut-off marker', /Digest cut off/.test(bigText) && bigText.endsWith('not shown.]'), bigText.slice(-120));
+  ok('negative control: a short digest has no cut-off marker', !/Digest cut off/.test(D.render(dig).text));
 
   console.log('\n— wiring —');
   const src = fs.readFileSync(path.join(ROOT, 'functions/owner-weekly-digest.js'), 'utf8').split(/\r?\n/).filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');

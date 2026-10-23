@@ -85,6 +85,7 @@ function buildDigest(inp) {
     awaiting, awaitingCents: awaiting.reduce((s, a) => s + a.totalCents, 0),
     calls,
     jobs: jobsThisWeek(leads, inp.jobsByLead, thisWeek),
+    jobsUnavailable: inp.jobsUnavailable === true, // the jobs read failed: not the same as "no jobs"
   };
 }
 
@@ -112,8 +113,13 @@ function render(d) {
   if (d.calls != null) out.push('');
   out.push.apply(out, section('Jobs on the calendar ' + d.thisWeek.from + ' to ' + d.thisWeek.to + ' (' + d.jobs.length + '):',
     d.jobs.map((j) => j.day + ' ' + j.name)));
-  if (!d.jobs.length) out.push('Jobs on the calendar this week: none.');
-  const text = out.join('\n').trim().slice(0, L.MAX_TEXT);
+  if (d.jobsUnavailable) out.push('Calendar jobs unavailable this week (could not read the calendar)' + (d.jobs.length ? '; the list above may be incomplete.' : '.'));
+  else if (!d.jobs.length) out.push('Jobs on the calendar this week: none.');
+  let text = out.join('\n').trim();
+  if (text.length > L.MAX_TEXT) { // never cut silently: the last section (jobs) is what goes first
+    const note = '\n[Digest cut off at ' + L.MAX_TEXT + ' characters; later lines not shown.]';
+    text = text.slice(0, L.MAX_TEXT - note.length) + note;
+  }
   return { title: ('Monday digest, week of ' + d.thisWeek.from).slice(0, 140), text };
 }
 
