@@ -67,6 +67,8 @@ async function seed(stamp) {
   const user = await auth.getUserByEmail(creds.email);
   const uid = user.uid;
   const co = ((user.customClaims || {}).companyId) || uid;
+  const old = await db.collection('users/' + uid + '/visit_captures').get();
+  await Promise.all(old.docs.map((d) => d.ref.delete()));
   const lead = (await db.collection('leads').add({
     userId: uid, companyId: co, e2eTestData: true, deleted: false, createdAt: new Date(),
     firstName: 'ZZVisit', lastName: 'Reyes' + stamp, stage: 'inspected', jobType: 'cash', jobValue: 12000,
@@ -120,8 +122,15 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await safeWaitForFunction(page, (lead) => Array.isArray(window._leads) && window._leads.some((l) => l.id === lead), S.lead, { timeout: 40_000 });
       await safeEvaluate(page, (id) => localStorage.setItem('nbd_recent_customers', JSON.stringify([{ id, ts: Date.now() }])), S.lead);
       await waitForRecorder(page);   // the recorder code is fetched on idle, before the signal goes
-      // CONTROL (temporary): the company consent setting is not on this phone when the signal goes.
+      // The company's consent setting must be on the phone BEFORE the signal goes. begin() only
+      // waits 1.5 s for it, then fails CLOSED and shows the "Record this visit" reminder sheet
+      // instead of recording (by design). On a loaded CI runner the read lost that race, and the
+      // test then waited 15 s for a panel that was waiting for a tap (CI 39840567839 and 4 more).
+      // Start from a phone that never read it, then read it, so the risky window is exercised
+      // every run instead of depending on timing.
       await safeEvaluate(page, () => localStorage.removeItem('nbd_vr_cfg'));
+      await safeEvaluate(page, () => window.NBDVisitRecorder.refreshConfig());
+      expect(await safeEvaluate(page, () => window.NBDVisitRecorder.getConfig().known), 'the consent setting is read before the signal goes').toBe(true);
       await context.setOffline(true);
 
       await bar.tap();
