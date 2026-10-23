@@ -711,7 +711,8 @@
     "auto-theme-rules.test.js",
     "visit-recorder-2026-10-13.test.js",
     "visit-capture-pipeline-2026-10-13.test.js",
-    "visit-recorder-ui-2026-10-15.test.js"
+    "visit-recorder-ui-2026-10-15.test.js",
+    "a11y-audit-2026-10-23.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

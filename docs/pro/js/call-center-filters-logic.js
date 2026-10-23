@@ -159,11 +159,51 @@
     return parts;
   }
 
+  /**
+   * Accessible names for the action buttons on a call card. Several cards each carry "Play" / "Handled" / "Promise", so a
+   * screen reader needs to hear WHOSE: "Handled for Dana Smith". The leading glyph (▶ ✓ 📌 🏷 ＋) is dropped from the spoken name.
+   */
+  function actionLabel(text, who) {
+    const t = String(text == null ? '' : text).replace(/^[^A-Za-z0-9]+/, '').replace(/…$/, '').replace(/\s+/g, ' ').trim();
+    const w = String(who == null ? '' : who).replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    return w ? t + ' for ' + w : t;
+  }
+
+  /** Arrow-key roving across a row of tabs: the index to move to, or -1 for a key that is not ours. */
+  function rove(key, index, count) {
+    if (!count || count < 1) return -1;
+    if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % count;
+    if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + count) % count;
+    if (key === 'Home') return 0;
+    if (key === 'End') return count - 1;
+    return -1;
+  }
+
+  /**
+   * The Call Center redraws its whole view on every click, which drops keyboard focus. This turns the focused control's
+   * attributes into a selector that finds "the same control" after the redraw. attrs = { 'data-cc': 'range', 'data-arg': 'today' }
+   * (only the keys in KEYS are used). '' when there is nothing to go on.
+   */
+  const FOCUS_KEYS = ['data-cc', 'data-arg', 'data-id', 'data-ids', 'data-cc-date', 'data-ccp', 'id'];
+  function focusKey(attrs) {
+    const a = attrs || {};
+    const q = (v) => String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const parts = FOCUS_KEYS.filter((k) => a[k] != null && a[k] !== '').map((k) => '[' + k + '="' + q(a[k]) + '"]');
+    return parts.join('');
+  }
+
+  /** The one-line summary a screen reader hears after the list changes, e.g. "Showing 3 people, Needs attention, Today". */
+  function liveSummary(shown, people, tabLabel, parts) {
+    const noun = people ? (shown === 1 ? 'person' : 'people') : (shown === 1 ? 'call' : 'calls');
+    return ['Showing ' + shown + ' ' + noun].concat(tabLabel ? [tabLabel] : [], parts || []).join(', ');
+  }
+
   /** Read/write the saved choice (localStorage-shaped object; failures are ignored - filters are a convenience). */
   function load(storage) { try { return normalize(JSON.parse(storage.getItem(KEY))); } catch (_) { return defaults(); } }
   function save(storage, f) { try { storage.setItem(KEY, JSON.stringify(normalize(f))); } catch (_) { /* private mode */ } }
 
-  const api = { KEY, RANGES, DIRS, STATUSES, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
+  const api = { actionLabel, rove, focusKey, liveSummary, KEY, RANGES, DIRS, STATUSES, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallCenterFilters = api;
 })(typeof window !== 'undefined' ? window : null);

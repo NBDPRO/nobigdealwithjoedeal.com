@@ -242,17 +242,24 @@
     later.sort(function (a, b) { return skips[a.id] - skips[b.id]; });
     st = { cfg: cfg, queue: fresh.concat(later), skips: skips, done: 0, skipped: 0, undo: null, busy: false };
     var o = el();
+    st.opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     o.classList.add('open');
     document.documentElement.classList.add('deck-locked');
     status('');
     paint();
+    // Screen readers: name the dialog and move focus into it (the opener gets it back on close).
+    o.setAttribute('aria-label', cfg.title || 'Triage');
+    var shell = o.querySelector('.deck-shell');
+    if (shell) { shell.setAttribute('tabindex', '-1'); try { shell.focus({ preventScroll: true }); } catch (_) { /* ignore */ } }
   }
   function close() {
     var o = document.getElementById(ID);
     if (o) o.classList.remove('open');
     document.documentElement.classList.remove('deck-locked');
     var cb = st && st.cfg.onClose; var done = st ? st.done : 0;
+    var back = st && st.opener;
     st = null;
+    if (back && back.isConnected) { try { back.focus({ preventScroll: true }); } catch (_) { /* ignore */ } }
     if (typeof cb === 'function') { try { cb(done); } catch (_) {} }
   }
 
