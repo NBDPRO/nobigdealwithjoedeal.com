@@ -348,6 +348,14 @@ async function runTool(name, args, key) {
     return L.toolText(L.leadSources(leads, expenses, Date.now(), args.days));
   }
 
+  if (name === 'margin_review') {
+    const [leads, invoices, expenses, jobsByLead] = await Promise.all([
+      companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+      companyJobsByLead(company),
+    ]);
+    return L.toolText(L.marginReview(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
+  }
+
   if (name === 'job_profit') {
     // The company's jobs too, so a repeat customer's finished first job is
     // listed after the card moved on (review R6-2-10).
