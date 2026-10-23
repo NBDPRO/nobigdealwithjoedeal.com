@@ -86,7 +86,7 @@
     ],
     storm: [
       'js/storm-center.js?v=7',
-      'js/storm-outreach-ui.js?v=1',
+      'js/storm-outreach-ui.js?v=2',
       'js/storm-integration.js?v=4',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
