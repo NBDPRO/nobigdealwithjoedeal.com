@@ -275,7 +275,7 @@ onAuthStateChanged(auth, async user => {
       const canPurge = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
       for (let i = 0; i < 30 && !canPurge(); i++) await new Promise((r) => setTimeout(r, 100));
       if (!canPurge()) { showBadge('Sync paused'); return; }
-      try { window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }
+      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
       try { if (typeof window.loadPages === 'function') window.loadPages(); } catch (_) { /* the purge already ran; the sync below repopulates */ }
     }
     try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
