@@ -1560,6 +1560,47 @@
   // other. The lead book additionally tracks WHICH account its rows belong to
   // (_leadsCacheUid) so an in-flight load that resolves after its account
   // stopped being current is discarded rather than committed.
+  // A shared-device account switch whose purge could not run in the callback's
+  // first tick (window.NBDAuth is assigned by nbd-auth.js, which can load after
+  // this module, or purgeAccountStorage threw). Silently skipping it AND recording
+  // the new uid as "last" was the leak: the second defence (daily-success sync,
+  // keyed on nbd_last_uid) then saw no switch, and B read A's cached leads, photos
+  // and texts. So: wait (bounded) for the purge, run it, and only then record the
+  // uid. If it still cannot run, fail CLOSED: clear what can be cleared directly
+  // and leave nbd_last_uid on the previous account so the next load retries.
+  const _PURGE_WAIT_MS = 5000;
+  function _failClosedClear() {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        // nbd_last_uid stays: it is what makes the next load retry the real purge.
+        if (k && k !== 'nbd_last_uid' && /^(nbd[_-]|nav-)/.test(k)) { try { localStorage.removeItem(k); } catch (_) { /* best-effort */ } }
+      }
+    } catch (_) { /* best-effort */ }
+    ['nbd_ds_photos', 'nbd-myskin', 'nbd-sms-outbox-db'].forEach((name) => {
+      try { if (window.indexedDB) window.indexedDB.deleteDatabase(name); } catch (_) { /* best-effort */ }
+    });
+  }
+  // `pending` is the promise the callback's own purge call returned (purgeAccountStorage
+  // is async); a rejected one must not count as done.
+  async function _settleOwedPurge(uid, pending) {
+    let last = null;
+    try { last = localStorage.getItem('nbd_last_uid'); } catch (_) { return; }
+    if (!last || last === uid) return;                       // no switch, or already settled
+    if (pending) {
+      try { await pending; try { localStorage.setItem('nbd_last_uid', uid); } catch (_) { /* best-effort */ } return; } catch (_) { /* purge failed: retried below */ }
+    }
+    const ready = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
+    for (let i = 0; i < _PURGE_WAIT_MS / 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
+    if (ready()) {
+      try {
+        await window.NBDAuth.purgeAccountStorage();
+        try { localStorage.setItem('nbd_last_uid', uid); } catch (_) { /* best-effort */ }
+        return;
+      } catch (_) { /* fall through to the direct clear */ }
+    }
+    _failClosedClear();
+  }
   let _sessionUid;               // uid onAuthStateChanged last reported (undefined = not yet, null = signed out)
   let _leadsCacheUid = null;     // account whose leads window._leads holds (null = none)
   function _clearAnalyticsCardCaches() {
@@ -1633,11 +1674,18 @@
     // switch and fresh-login — the sign-out controls historically bypassed
     // NBDAuth.logout()'s purge, so the prior user's customer PII lingered.
     // nbd_last_uid is in the purge KEEP set, so it survives the wipe.
+    let _pendingPurge = null;   // the promise purgeAccountStorage() returned, settled below
     try {
       const _lastUid = localStorage.getItem('nbd_last_uid');
+      let _purgeOwed = false;
       if (_lastUid && _lastUid !== user.uid) {
+        _purgeOwed = true;
         if (window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function') {
-          window.NBDAuth.purgeAccountStorage();
+          try {
+            const _r = window.NBDAuth.purgeAccountStorage();
+            if (_r && typeof _r.then === 'function') _pendingPurge = _r;   // owed until it resolves
+            else _purgeOwed = false;
+          } catch (_) { /* still owed: settled below */ }
         }
         // The IN-MEMORY analytics card caches used to be cleared here too.
         // They are not, any more: nbd_last_uid is shared by every tab and
@@ -1649,8 +1697,14 @@
         // purging on an in-memory switch would wipe prefs the new account
         // has already written in another tab.
       }
-      localStorage.setItem('nbd_last_uid', user.uid);
+      // Record this account only once the previous one's data is really gone.
+      // Recording it regardless made a skipped purge permanent (see
+      // _settleOwedPurge above); an owed purge leaves nbd_last_uid on the old uid.
+      if (!_purgeOwed) localStorage.setItem('nbd_last_uid', user.uid);
     } catch (_) { /* best-effort; never block boot on a storage error */ }
+    // Nothing below (the subscription read, loadLeads, any render of cached
+    // rows) runs until a switch the block could not purge is settled.
+    await _settleOwedPurge(user.uid, _pendingPurge);
 
     // ── SUBSCRIPTION CHECK ────────────────────────────────────
     // Owner bypass — claims-based: keyed on the { owner: true } custom
