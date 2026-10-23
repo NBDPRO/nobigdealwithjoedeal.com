@@ -525,6 +525,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=4">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/measurements.css?v=1">
+<link rel="stylesheet" href="/pro/daily-success/css/eod.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/money.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/export.css?v=1">
@@ -887,6 +888,10 @@ body.has-banner .today-bar{top:148px;}
   #nbd-picker-inner .npm-close{min-width:44px;min-height:44px;}
   #nbd-picker-inner .npm-tab{min-height:44px;padding-inline:9px;letter-spacing:.06em;}
 }
+/* DAY WRAP-UP (2026-10-22): 44px targets, chips share the row, nothing wider than 360px. */
+:root .eod-card{max-width:100%;box-sizing:border-box;}
+:root .eod-chip{flex:1 1 0;min-width:0;}
+:root .eod-in{min-height:44px;max-width:100%;}
 
 /* ACCESSIBILITY (2026-10-23 audit): a focus ring on everything you can tab to (several inputs here set outline:none and only
    tint their background), div-buttons that read as controls, and no motion for anyone who asked the phone for none. */
@@ -1145,7 +1150,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 
 <script src="/pro/js/toast.js?v=1"></script>
 <script src="/pro/daily-success/js/ds-sync-logic.js?v=2"></script>
-<script src="/pro/daily-success/js/review-logic.js?v=3"></script>
+<script src="/pro/daily-success/js/review-logic.js?v=4"></script>
 <script src="/pro/daily-success/js/day-layout-logic.js?v=2"></script>
 <script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/app.js"></script>
@@ -1153,6 +1158,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/workout-coach.js?v=21"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/eod-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/eod-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/measurements-ui.js?v=2" defer></script>
@@ -1169,7 +1176,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/food-search-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-ui.js?v=1" defer></script>
-<script src="/pro/daily-success/js/review-ui.js?v=3"></script>
+<script src="/pro/daily-success/js/review-ui.js?v=4"></script>
 <script src="/pro/daily-success/js/money-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/money-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/export-logic.js?v=1" defer></script>
@@ -1271,5 +1278,5 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="nbd-toast" id="nbd-toast"></div>
 
 </body>
-  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=4"></script>
+  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=5"></script>
 </html>
