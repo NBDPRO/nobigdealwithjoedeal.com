@@ -125,7 +125,7 @@ console.log('\n4. food log targets, readiness, styles, page');
   ok('every Rings rule is scoped to [data-ui="rings"] (Classic can never be restyled)', rules.length >= 8 && rules.every((l) => /^\[data-ui="rings"\]/.test(l.trim())), rules.filter((l) => !/^\[data-ui="rings"\]/.test(l.trim())).join(' | '));
   ok('the Rings bar is not sticky (a home, not a ribbon) and stays readable: labels at least 11px', /\.today-bar\.today-rings \{ position: static/.test(rg) && /\.rg-l \{[^}]*font-size: 11px/.test(rg));
   ok('no !important in the layout styles', !/!important/.test(CSS));
-  ok('the page loads the changed assets at bumped versions (phones refetch)', /day-layout-logic\.js\?v=2/.test(INDEX) && /food-log\.js\?v=2/.test(INDEX) && /layouts\.css\?v=3/.test(INDEX));
+  ok('the page loads the changed assets at bumped versions (phones refetch)', /day-layout-logic\.js\?v=2/.test(INDEX) && /food-log\.js\?v=2/.test(INDEX) && /layouts\.css\?v=([3-9]|\d\d)/.test(INDEX));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

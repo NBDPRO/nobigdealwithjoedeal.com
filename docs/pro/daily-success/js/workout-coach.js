@@ -374,6 +374,15 @@
     return (lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '') + (rt ? `<div class="wc-last wc-rpe-trend">${esc(rt)}</div>` : '');
   }
 
+  // Log Book layout: Last / Best / Today in one row above the sets. Other layouts get nothing (and the same markup as ever).
+  function uiLayout() { try { return (document.documentElement && document.documentElement.getAttribute('data-ui')) || ''; } catch (_) { return ''; } }
+  function logbookRowHtml(x) {
+    if (uiLayout() !== 'logbook') return '';
+    const r = C().snapshotRow(x.exId, x.target, sessions());
+    const cell = (label, v, unit) => '<span class="wc-lb-c"><span class="wc-lb-l">' + label + '</span><span class="wc-lb-v">' + (v ? esc(v) + (unit || '') : '\u2014') + '</span></span>';
+    return '<div class="wc-lbrow">' + cell('Last', r.last) + cell('Best e1RM', r.best, r.best ? ' lb' : '') + cell('Today', r.today) + '</div>';
+  }
+
   function exerciseHtml(x, i, role) {
     const ex = C().BY_ID[x.exId] || {};
     let workN = 0;
@@ -400,7 +409,7 @@
         <div class="wc-ex-sub">${esc(x.repRange[0])}–${esc(x.repRange[1])} reps · ${esc(ex.equip || '')}</div></div>
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
-      <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
+      ${logbookRowHtml(x)}<div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
       ${lastTimeHtml(x)}
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
@@ -875,6 +884,8 @@
   document.addEventListener('click', onClick);
   document.addEventListener('input', onField);
   document.addEventListener('change', onField);
+  // A layout switch re-draws an open workout so the Log Book row appears or goes away at once.
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd-layout', () => { if (live && overlay().innerHTML) render(); });
 
   function boot() {
     if (!C()) return;

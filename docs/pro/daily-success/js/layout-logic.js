@@ -15,7 +15,7 @@
   const DEFAULT = 'classic';
   const LAYOUTS = [
     { id: 'classic', label: 'Classic', blurb: 'The tracker as it is today.', ready: true },
-    { id: 'logbook', label: 'Log Book', blurb: 'Plain and fast. Today\'s workout as a list, last time beside every set.', ready: false },
+    { id: 'logbook', label: 'Log Book', blurb: 'Plain and fast. Today\'s workout as a list, last time beside every set.', ready: true },
     { id: 'rings', label: 'Rings', blurb: 'Daily rings for floors, workout and calories. Close the rings.', ready: true },
     { id: 'cockpit', label: 'Cockpit', blurb: 'One dense screen of numbers: volume map, trends, readiness.', ready: false },
     { id: 'quest', label: 'Quest', blurb: 'XP, levels, daily quests and a skill tree. Streaks can break; XP never does.', ready: false },

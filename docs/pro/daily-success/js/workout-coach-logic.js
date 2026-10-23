@@ -862,6 +862,26 @@
   }
 
   /**
+   * The Log Book's three-cell row above a lift's sets: Last (top working set last time), Best (best estimated 1RM ever)
+   * and Today (the target). Empty strings when there is nothing to show; read-only, never fills a number.
+   */
+  function snapshotRow(exId, target, sessions) {
+    const lt = lastTime(exId, sessions);
+    let last = '';
+    if (lt && lt.sets.length) {
+      const top = lt.sets.reduce((a, s) => (s.weight > a.weight || (s.weight === a.weight && s.reps > a.reps) ? s : a));
+      last = top.weight > 0 ? fmtW(top.weight) + '\u00d7' + top.reps : top.reps + ' reps';
+    }
+    const best = Math.round(bestE1rm(exId, sessions));
+    let today = '';
+    if (target) {
+      const w = num(target.weight);
+      today = w > 0 ? fmtW(w) + '\u00d7' + target.reps : (target.reps ? target.reps + ' reps' : '');
+    }
+    return { last, best: best > 0 ? String(best) : '', today };
+  }
+
+  /**
    * Live PR check while a workout is open. Two kinds, one trophy per lift (strength wins):
    *   'e1rm' - a ticked set of up to HIGH_REP reps beats the best estimated 1RM from earlier
    *            finished sessions;
@@ -1029,7 +1049,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, volumeMap, VOLUME_BAND, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, topRpe, rpeTrend, rpeTrendText, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, snapshotRow, SET_KINDS, nextSetKind, setKindLabel, topRpe, rpeTrend, rpeTrendText, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;
