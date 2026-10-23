@@ -41,3 +41,36 @@ Two buttons above the When chips: **Missed today** (Today + Missed) and **Unhand
 - Views ignore nothing that must not be narrowed: the sidebar badge and "One at a time" still show the real open list.
 - Definitions live in the pure module (`VIEWS`); adding a third view is one array entry plus a test row.
 - The screen test fakes `Date` (3 PM New York, 2026-10-21), so it cannot fail at midnight-3am ET.
+
+## Follow-up (2026-10-23, overnight-audit finding): "Missed" was not real - now "Short calls"
+
+The audit was right. The status chip and the saved view were called **Missed**, but they can only see "an inbound call under 15 s with a
+known duration":
+
+- Nothing in `functions/` writes `answered` on a `phone_calls` doc (grep: no writer). The `answered === false` branch in `isMissed`
+  is dormant until one exists.
+- `phone_calls` is built from Cube ACR **recordings** (a Drive folder). A call nobody picked up often has no recording, so it never
+  becomes a row at all. The people Jo most wants to see are exactly the ones the chip cannot show.
+
+So the labels were relabelled honestly: chip **Short calls**, view **Short calls today**. The ids stay (`missed`, `missed-today`) so a
+record saved in someone's browser keeps working, and a test pins both the new words and the unchanged ids.
+
+**Real missed-call source: what would have to exist.** Two candidates, neither built:
+
+1. **The NBD Twilio line (`functions/twilio-line.js` voice dial-status).** It already computes `callOutcome(DialCallStatus)` =
+   answered / missed with the caller, duration and CallSid, and files a note on a matched lead, a `missed_call` notification, or an
+   Agent-inbox item for an unknown number. It does **not** write `phone_calls`. A server change there (and in `call-center.js`)
+   could write a `phone_calls` row with `answered: true|false`, `source: 'twilio_line'` for each forwarded call. That covers calls to
+   the business number only, not calls to Jo's personal cell.
+2. **Jo's personal cell.** Cube ACR only records conversations. A missed call there leaves nothing on his phone's recorder; the only
+   copy is the carrier / phone call log. Nothing in the CRM reads it today.
+
+Either is a server change to a webhook or an ingest path (security review before it ships), so it is a separate decision for Jo, not part
+of this PR. Until then "Short calls" is the true statement of what the chip does.
+
+Same PR, two small honesty fixes:
+
+- **Handled on Needs attention was always empty** (that tab never holds a handled call). The chip is now disabled there with the reason,
+  and a saved "Handled" that lands on Needs attention shows the reason and an "Open All" button instead of "Nothing needs you".
+- **If the filter module fails to load, the bar no longer vanishes silently.** It shows "Filters could not load, so the list below is NOT
+  filtered. Reload the page to try again." (`role="alert"`).

@@ -59,7 +59,7 @@ const pass = (c, status) => FX.passes(c, { status }, TODAY, NOW);
   {
     ok('junk status falls back to "all"; a good one survives', FX.normalize({ status: 'sideways' }).status === 'all' && FX.normalize({ status: 'missed' }).status === 'missed' && FX.normalize(null).status === 'all');
     ok('status alone makes the filter active (so Clear, the summary and the empty-state show)', FX.isActive({ status: 'urgent' }) && !FX.isActive({ status: 'all' }));
-    ok('describe names the status', FX.describe({ status: 'promise' }, TODAY).join('|') === 'Has promise' && FX.describe({ range: 'today', dir: 'in', status: 'missed' }, TODAY).join('|') === 'Today|They called|Missed');
+    ok('describe names the status', FX.describe({ status: 'promise' }, TODAY).join('|') === 'Has promise' && FX.describe({ range: 'today', dir: 'in', status: 'missed' }, TODAY).join('|') === 'Today|They called|Short calls');
     const mem = {}; const st = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); } };
     FX.save(st, { status: 'unhandled' });
     ok('status is saved with the rest of the one saved-filter record', FX.load(st).status === 'unhandled' && Object.keys(mem).length === 1);
@@ -104,7 +104,7 @@ const pass = (c, status) => FX.passes(c, { status }, TODAY, NOW);
     ok('control: nothing filtered at first - all eight rows, no summary line', ids(v).length === 8 && !/cc-filter-sum/.test(v.view.innerHTML), String(ids(v).length));
     v.click({ 'data-cc': 'status', 'data-arg': 'missed' });
     ok('Missed: the 0 s and the 8 s inbound calls - not the unknown-length one, not the short outbound, not the texts', JSON.stringify(ids(v)) === '["c_noans","c_short"]', JSON.stringify(ids(v)));
-    ok('the summary says Missed and counts rows', /Showing 2 of 8 · Missed/.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
+    ok('the summary says Short calls (not "Missed": nothing records unanswered calls yet) and counts rows', /Showing 2 of 8 · Short calls/.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
     ok('the active chip is pressed, the others are not', /aria-pressed="true" data-cc="status" data-arg="missed"/.test(v.view.innerHTML) && /aria-pressed="false" data-cc="status" data-arg="all"/.test(v.view.innerHTML));
     ok('the choice is saved in the one record', JSON.parse(v.mem[FX.KEY]).status === 'missed');
     v.click({ 'data-cc': 'status', 'data-arg': 'handled' });
@@ -144,7 +144,7 @@ const pass = (c, status) => FX.passes(c, { status }, TODAY, NOW);
     const view = read('docs/pro/js/call-center-view.js'), loader = read('docs/pro/js/script-loader.js'), logic = read('docs/pro/js/call-center-filters-logic.js');
     ok('the click handler routes data-cc="status" into setFlt', /a === 'status'\) setFlt\(\{ status: b\.getAttribute\('data-arg'\) \}\)/.test(view));
     ok('status chips are plain buttons (no inline handlers or styles - CSP)', !/cc-status[^>]*(onclick|style=)/.test(view));
-    ok('versions bumped so phones fetch the new files', /call-center-filters-logic\.js\?v=3/.test(loader) && /call-center-view\.js\?v=25/.test(loader));
+    ok('versions bumped so phones fetch the new files', /call-center-filters-logic\.js\?v=4/.test(loader) && /call-center-view\.js\?v=26/.test(loader));
     ok('the missed rule lives in the pure module, not the view', /function isMissed/.test(logic) && !/isMissed/.test(view));
   }
 
