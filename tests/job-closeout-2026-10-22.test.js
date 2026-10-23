@@ -45,7 +45,7 @@ ok('deleted lead is not finished', !C.isFinishedJob({ stage: 'closed', deleted: 
 
 console.log('render');
 function sandbox(lead, extra) {
-  const panel = { innerHTML: '', style: {} };
+  const panel = { innerHTML: '', hidden: true };
   const win = Object.assign({
     document: { getElementById: (id) => (id === 'closeoutPanel' ? panel : null) },
     _currentLead: lead,
@@ -59,13 +59,13 @@ function sandbox(lead, extra) {
 }
 let s = sandbox({ id: 'L1', stage: 'closed', warrantyCertFiledAt: 1, reviewRequested: true });
 s.win.JobCloseout.render();
-ok('finished job renders the card with All done', s.panel.style.display === 'block' && /All done/.test(s.panel.innerHTML));
+ok('finished job renders the card with All done', s.panel.hidden === false && /All done/.test(s.panel.innerHTML));
 s = sandbox({ id: 'L1', stage: 'closed' });
 s.win.JobCloseout.render();
 ok('missing warranty shows its hint', /Generate the warranty certificate/.test(s.panel.innerHTML) && /2 of 5|3 of 5/.test(s.panel.innerHTML));
 s = sandbox({ id: 'L1', stage: 'approved' });
 s.win.JobCloseout.render();
-ok('negative control: unfinished job hides the card', s.panel.style.display === 'none' && s.panel.innerHTML === '');
+ok('negative control: unfinished job hides the card', s.panel.hidden === true && s.panel.innerHTML === '');
 s = sandbox({ id: 'L1', stage: 'closed' }, { _customerPhotos: [] });
 s.win.JobCloseout.render();
 ok('empty photos before load = unknown, not a false todo', !/Upload the After set/.test(s.panel.innerHTML));
@@ -84,6 +84,7 @@ ok('customer.html has the panel', /id="closeoutPanel"/.test(html));
 ok('customer.html loads job-closeout.js with defer, before the checklist', /<script defer src="js\/job-closeout\.js\?v=\d+"><\/script>\s*<script defer src="js\/customer-checklist\.js/.test(html));
 ok('checklist render calls JobCloseout', /JobCloseout\.render\(lead\)/.test(read('docs/pro/js/customer-checklist.js')));
 ok('photo load re-renders it (both branches)', (read('docs/pro/js/customer-bootstrap.module.js').match(/JobCloseout\.render\(window\._currentLead, \{ photosLoaded: true \}\)/g) || []).length === 2);
+ok('no inline style attributes in the module', !/\bstyle\s*=/.test(read('docs/pro/js/job-closeout.js').replace(/\/\*[\s\S]*?\*\//g, '')));
 ok('no inline handlers or writes in the module', !/\bon\w+=|updateDoc|setDoc|addDoc/.test(read('docs/pro/js/job-closeout.js').replace(/\/\*[\s\S]*?\*\//g, '')));
 
 console.log(`\n${passed} passed, ${failed} failed`);
