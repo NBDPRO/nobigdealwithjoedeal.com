@@ -42,7 +42,11 @@ const HOUR = 3600000, DAY = 86400000;
 // Tue 2026-10-20 15:00 UTC = 11:00 ET (inside the 8am-9pm window).
 const NOW = Date.UTC(2026, 9, 20, 15, 0, 0);
 const at = (hAgo) => NOW - hAgo * HOUR;
-const ev = (o) => Object.assign({ id: 'e' + Math.random().toString(36).slice(2), channel: 'sms', automation: 'rep_text', atMs: at(1), outcome: 'sent', errorCode: '', toKey: '8595550101', toDisplay: '(•••) •••-0101', name: 'Pat L.', templateId: 'x', text: 'hello', consent: 'form', state: 'OH', internal: false, blockedReason: '', source: 't' }, o);
+// Deterministic, digit-free ids: a random base-36 id holds a 7+ digit run about 1 time in 2,200 (measured),
+// which the "no raw 7+ digit run" assertions below read as a leaked phone number, so the suite flaked at that rate.
+let _evSeq = 0;
+const _evId = () => { let n = _evSeq++, out = ''; do { out = String.fromCharCode(97 + (n % 26)) + out; n = Math.floor(n / 26); } while (n > 0); return 'evt-' + out; };
+const ev = (o) => Object.assign({ id: _evId(), channel: 'sms', automation: 'rep_text', atMs: at(1), outcome: 'sent', errorCode: '', toKey: '8595550101', toDisplay: '(•••) •••-0101', name: 'Pat L.', templateId: 'x', text: 'hello', consent: 'form', state: 'OH', internal: false, blockedReason: '', source: 't' }, o);
 
 console.log('\nMASKING');
 ok('maskPhone shows last 4 only', L.maskPhone('(859) 555-0142') === '(•••) •••-0142');
@@ -55,8 +59,10 @@ ok('scrubText masks an e-mail typed into a reply', !/pat\.lee/.test(L.scrubText(
 const leaky = ev({ text: 'Reply from 859-555-0142 or pat@example.com ' + 'z'.repeat(200), name: 'Pat 8595550142', toDisplay: L.maskPhone('8595550142') });
 const pub = L.publicEvent(leaky, {});
 ok('publicEvent: first line <= 80 chars', pub.firstLine.length <= 80);
-ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"atMs":\d+/, '')) && !/pat@example/.test(JSON.stringify(pub)), JSON.stringify(pub));
+ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"(atMs|generatedAtMs|ageMs|lastSendAtMs)":\d+/g, '')) && !/pat@example/.test(JSON.stringify(pub)), JSON.stringify(pub));
 ok('publicEvent never carries the raw recipient key', !('toKey' in pub));
+ok('control: the 7+ digit scan can fail (a leaked number or a 7-digit id trips it)', /\d{7,}/.test(JSON.stringify({ id: 'e12345678z' })) && /\d{7,}/.test(JSON.stringify({ recipient: '8595550142' })));
+ok('ev() ids hold no digits, so the scan only ever sees real leaks', Array.from({ length: 300 }, () => ev({}).id).every((id) => !/\d/.test(id)));
 
 console.log('\nNORMALISERS (one ledger row -> one event)');
 {
