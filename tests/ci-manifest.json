@@ -225,6 +225,7 @@
     "cash-payouts-2026-10-19.test.js",
     "messaging-center-2026-10-19.test.js",
     "book-contrast-2026-10-23.test.js",
+    "orange-text-on-navy-2026-10-23.test.js",
     "job-cost-audit-2026-10-19.test.js",
     "sub-payments-2026-10-19.test.js",
     "payment-backfill-2026-10-19.test.js",
