@@ -29,8 +29,8 @@ GitHub keeps one pending run per group and cancels older *pending* ones. The two
 | 0eafb8de, 4536ddc8 | success | deployed |
 | d4384c40 | success (ran 01:57–02:39) | deployed |
 | d8382bd1 | cancelled (0 jobs) | files nevertheless **live** (see anomaly) |
-| 860f257f | cancelled (0 jobs) | **functions change NOT proven deployed** |
-| ce97821a | queued | Call Center files already served live |
+| 860f257f | cancelled (0 jobs) | covered: ancestor of ce97821a, whose run later **succeeded** (update 2026-10-23, see below) |
+| ce97821a | success (checked again later) | deployed; Call Center files were already served live |
 | 91bea9a5, a0b6008c | docs only | nothing to deploy |
 | 6c208c30 | pending | **not live yet** (`ds-firebase-sync.js` still has the old pill colour) |
 
@@ -39,8 +39,7 @@ was cancelled and the surviving run's SHA (d4384c40) predates them. Something
 deployed a tree containing d8382bd1 (likely the long-running d4384c40 run or a
 later queued run starting from a newer ref). I could not explain it without run
 logs, so for these files "live" rests on content, not on the ancestor rule.
-Function code (860f257f) cannot be checked from outside: **recheck that the
-queued runs for ce97821a / 6c208c30 finish green**; they carry 860f257f.
+Function code (860f257f) cannot be checked from outside, but the ce97821a run it is an ancestor of finished green. **6c208c30 was still queued at the last check; recheck it.**
 
 ## Per-PR table
 
