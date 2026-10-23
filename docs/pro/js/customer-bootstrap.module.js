@@ -1871,6 +1871,7 @@ async function loadPhotos(leadId) {
     if (!raw.length) {
       window._customerPhotos = [];
       renderCustomerPhotoStrip();
+      try { if (window.JobCloseout) window.JobCloseout.render(window._currentLead, { photosLoaded: true }); } catch (_) {}
       return;
     }
 
@@ -1881,6 +1882,7 @@ async function loadPhotos(leadId) {
     window._customerPhotos = raw.slice().sort(nbdComparePhotos);
 
     renderCustomerPhotoStrip();
+    try { if (window.JobCloseout) window.JobCloseout.render(window._currentLead, { photosLoaded: true }); } catch (_) {}
   } catch (e) {
     console.error('Error loading photos:', e);
     document.getElementById('photoList').innerHTML = `
