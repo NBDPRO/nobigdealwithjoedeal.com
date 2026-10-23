@@ -1588,6 +1588,8 @@
   }
   // `pending` is the promise the callback's own purge call returned (purgeAccountStorage
   // is async); a rejected one must not count as done.
+  // Is a switch still unsettled (a different account recorded)? Sync, so the callback only yields when it must.
+  function _switchOwed(uid) { try { const l = localStorage.getItem('nbd_last_uid'); return !!l && l !== uid; } catch (_) { return false; } }
   function _dropSmsOutbox() { try { if (window.indexedDB) window.indexedDB.deleteDatabase('nbd-sms-outbox-db'); } catch (_) { /* best-effort */ } }
   async function _settleOwedPurge(uid, pending) {
     let last = null;
@@ -1716,7 +1718,7 @@
     } catch (_) { /* best-effort; never block boot on a storage error */ }
     // Nothing below (the subscription read, loadLeads, any render of cached
     // rows) runs until a switch the block could not purge is settled.
-    await _settleOwedPurge(user.uid, _pendingPurge);
+    if (_pendingPurge || _switchOwed(user.uid)) await _settleOwedPurge(user.uid, _pendingPurge);
 
     // ── SUBSCRIPTION CHECK ────────────────────────────────────
     // Owner bypass — claims-based: keyed on the { owner: true } custom
