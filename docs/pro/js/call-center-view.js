@@ -55,6 +55,14 @@
     fltSave();
     render();
   }
+  // A view shows calls, so it opens the All tab (Needs attention groups by person and hides the handled / short ones a view may want).
+  // Tapping the view that is already on turns just that view off (its range and status; the order stays).
+  function applyViewNow(id) {
+    if (!FX || !FX.applyView) return;
+    var n = FX.matchView(flt) === id ? FX.normalize(Object.assign({}, flt, { range: 'all', status: 'all', from: '', to: '' })) : FX.applyView(id, flt);
+    if (!n) return;
+    flt = n; state.filter = 'all'; state.customOpen = false; state.focusId = null; fltSave(); render();
+  }
   function clearFlt() { if (!FX) return; flt = FX.defaults(); state.customOpen = false; state.focusId = null; fltSave(); render(); }
 
   function esc(s) {
@@ -457,6 +465,8 @@
     function chipBtn(kind, id, label, on) {
       return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '">' + esc(label) + '</button>';
     }
+    var cur = FX.matchView ? FX.matchView(flt) : null;
+    var views = FX.VIEWS ? '<div class="cc-fbar cc-views" role="group" aria-label="Views">' + FX.VIEWS.map(function (w) { return chipBtn('view', w.id, w.label, cur === w.id); }).join('') + '</div>' : '';
     var when = FX.RANGES.map(function (r) { return chipBtn('range', r[0], r[1], flt.range === r[0] || (r[0] === 'custom' && state.customOpen)); }).join('');
     var dates = (flt.range === 'custom' || state.customOpen)
       ? '<div class="cc-date-row"><label class="cc-date-lbl">From <input type="date" class="cc-date" data-cc-date="from" value="' + esc(flt.from) + '" aria-label="From date"></label>' +
@@ -468,7 +478,7 @@
     var sum = FX.isActive(flt)
       ? '<div class="cc-filter-sum">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
       : '';
-    return '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
+    return views + '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
       '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + stats + sum;
   }
 
@@ -1288,6 +1298,7 @@
     else if (a === 'dir') setFlt({ dir: b.getAttribute('data-arg') });
     else if (a === 'status') setFlt({ status: b.getAttribute('data-arg') });
     else if (a === 'sort') setFlt({ sort: b.getAttribute('data-arg') });
+    else if (a === 'view') applyViewNow(b.getAttribute('data-arg'));
     else if (a === 'clearfilters') clearFlt();
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
