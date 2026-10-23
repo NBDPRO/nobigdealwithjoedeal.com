@@ -61,3 +61,20 @@ handle the claim", no AOB; gate run on all copy.
 - **Plan and read-only reviews/insights design:**
   [GBP-READ-ONLY-DESIGN-2026-10-22](GBP-READ-ONLY-DESIGN-2026-10-22.md).
   Nothing that needs the API is built.
+
+## Status (end of session, 2026-10-22)
+
+- **PR 1 (backend) is built and committed on branch
+  `claude/storm-demand-e88c51`, but not opened as a PR**: the queue rule is to
+  wait until the tracker/Call Center PRs (#2662-#2667) merge or CI is healthy,
+  and CI was still backed up (runs queued). Open it, rebase first, when CI
+  drains. Files: `functions/storm-outreach-logic.js`, the two callables in
+  `functions/agent-mcp.js`, `tests/storm-outreach-2026-10-22.test.js` (48
+  checks, mutation-run: every guard goes red when broken), plus the
+  function-map / FUNCTIONS_INDEX / index.js / viewer-callables / manifest rows.
+- Needs a `functions/` deploy before the callables exist in prod. No flag, no
+  rules change, no prod write.
+- **PR 2 (CRM panel)** not started: a Storm Center list with tick boxes that
+  calls the two callables. Needs a phone-width check.
+- GBP: waiting on Jo to read the Cloud Console quota; design is in
+  [GBP-READ-ONLY-DESIGN-2026-10-22](GBP-READ-ONLY-DESIGN-2026-10-22.md).
