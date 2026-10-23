@@ -78,6 +78,7 @@
     "portal-view-tracking-2026-09-16.test.js",
     "portal-doc-modal-a11y-2026-09-16.test.js",
     "portal-tenant-cta-contrast-2026-09-16.test.js",
+    "book-contrast-2026-10-23.test.js",
     "call-ladder-2026-10-12.test.js",
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "never-forget-client-2026-10-13.test.js",
