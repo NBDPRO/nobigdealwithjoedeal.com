@@ -6,9 +6,10 @@
  * a call happened, which way it went, and the order. Dates are America/New_York calendar days, like the rest of the
  * Call Center (todayYmd). Loaded before call-center-view.js (lazy bundle 'callcenter').
  *
- * Filter object: { range, from, to, dir, sort }
+ * Filter object: { range, from, to, dir, status, sort }
  *   range: 'all' | 'today' | 'yesterday' | '24h' | '7d' | '30d' | 'custom'   (custom uses from / to, YYYY-MM-DD, either may be '')
  *   dir:   'all' | 'in' (they called) | 'out' (you called)   - text days have no direction, so any direction filter leaves them out
+ *   status: 'all' | 'unhandled' | 'handled' | 'urgent' | 'promise' | 'missed'   (Horizon 3; Jo has NOT confirmed this exact set)
  *   sort:  'new' | 'old'
  */
 (function (root) {
@@ -19,13 +20,16 @@
   const RANGES = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['24h', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['custom', 'Pick dates']];
   const DIRS = [['all', 'Either way'], ['in', 'They called'], ['out', 'You called']];
   const SORTS = [['new', 'Newest first'], ['old', 'Oldest first']];
+  const STATUSES = [['all', 'Any status'], ['unhandled', 'Unhandled'], ['handled', 'Handled'], ['urgent', 'Urgent'], ['promise', 'Has promise'], ['missed', 'Missed']];
+  // Same cut-off the server uses to call a recording "short" (functions/call-center-logic.js SHORT_CALL_SEC).
+  const MISSED_UNDER_SEC = 15;
   const KEY = 'nbd_cc_filters';
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const ids = (list) => list.map((x) => x[0]);
   const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + 'T00:00:00Z')) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;
 
-  function defaults() { return { range: 'all', from: '', to: '', dir: 'all', sort: 'new' }; }
+  function defaults() { return { range: 'all', from: '', to: '', dir: 'all', status: 'all', sort: 'new' }; }
 
   /** Clean any input (stored JSON, a click) into a valid filter; a reversed custom range is swapped, junk is dropped. */
   function normalize(f) {
@@ -34,6 +38,7 @@
     if (ids(RANGES).indexOf(f.range) > -1) o.range = f.range;
     if (ids(DIRS).indexOf(f.dir) > -1) o.dir = f.dir;
     if (ids(SORTS).indexOf(f.sort) > -1) o.sort = f.sort;
+    if (ids(STATUSES).indexOf(f.status) > -1) o.status = f.status;
     o.from = isYmd(f.from) ? f.from : '';
     o.to = isYmd(f.to) ? f.to : '';
     if (o.from && o.to && o.from > o.to) { const t = o.from; o.from = o.to; o.to = t; }
@@ -71,7 +76,33 @@
     }
   }
 
-  function isActive(f) { f = normalize(f); return f.range !== 'all' || f.dir !== 'all'; }
+  function isActive(f) { f = normalize(f); return f.range !== 'all' || f.dir !== 'all' || f.status !== 'all'; }
+
+  /**
+   * Missed = a call that came in and was not talked through: the phone says it was not answered, or the recording is
+   * shorter than MISSED_UNDER_SEC. An unknown length (null / missing - not every call has a sidecar) is NOT missed, and an
+   * outbound call or a day of texts never is.
+   */
+  function isMissed(c) {
+    if (!c || c.channel === 'text' || c.direction !== 'inbound') return false;
+    if (c.answered === false) return true;
+    const d = c.durationSec;
+    if (d === null || d === undefined || d === '' || typeof d === 'boolean') return false;
+    const n = Number(d);
+    return isFinite(n) && n >= 0 && n < MISSED_UNDER_SEC;
+  }
+  /** Still open: not handled, not personal, not done, not spam (the "closed" half of Needs attention, without its reasons). */
+  function isOpen(c) { return !!c && !c.handledAtMs && c.status !== 'personal' && c.taskDone !== true && c.callType !== 'spam'; }
+  function matchesStatus(c, status) {
+    switch (status) {
+      case 'unhandled': return isOpen(c);
+      case 'handled': return !!c.handledAtMs;
+      case 'urgent': return c.urgent === true;
+      case 'promise': return Array.isArray(c.promises) && c.promises.length > 0;
+      case 'missed': return isMissed(c);
+      default: return true;
+    }
+  }
 
   /** Does this call or text day pass the date + direction filters? nowMs is for the rolling 24h window. */
   function passes(call, f, todayYmd, nowMs) {
@@ -82,6 +113,7 @@
       if (f.dir === 'in' && call.direction !== 'inbound') return false;
       if (f.dir === 'out' && call.direction !== 'outbound') return false;
     }
+    if (f.status !== 'all' && !matchesStatus(call, f.status)) return false;
     if (f.range === 'all') return true;
     const t = Number(call.startedAtMs);
     if (!isFinite(t) || t <= 0) return false;                                          // no time -> cannot be placed in a range
@@ -122,6 +154,8 @@
     }
     if (f.dir === 'in') parts.push('They called');
     if (f.dir === 'out') parts.push('You called');
+    const st = STATUSES.filter((s) => s[0] === f.status)[0];
+    if (st && f.status !== 'all') parts.push(st[1]);
     return parts;
   }
 
@@ -129,7 +163,7 @@
   function load(storage) { try { return normalize(JSON.parse(storage.getItem(KEY))); } catch (_) { return defaults(); } }
   function save(storage, f) { try { storage.setItem(KEY, JSON.stringify(normalize(f))); } catch (_) { /* private mode */ } }
 
-  const api = { KEY, RANGES, DIRS, SORTS, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
+  const api = { KEY, RANGES, DIRS, STATUSES, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallCenterFilters = api;
 })(typeof window !== 'undefined' ? window : null);
