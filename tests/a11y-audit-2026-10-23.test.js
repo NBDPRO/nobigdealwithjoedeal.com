@@ -148,6 +148,20 @@ console.log('\n8. Call Center, toasts, deck');
   ok('triage deck: named dialog, focus moved in, opener refocused on close', /setAttribute\('aria-label', cfg\.title/.test(DECK) && /st\.opener =/.test(DECK) && /back\.focus\(/.test(DECK));
 }
 
+console.log('\n8b. surfaces that landed after the first pass (Progress measurements / photos, accent swatches, status chips)');
+{
+  // this file has "image/*" inside a string, which the block-comment stripper would take for a comment start: drop whole comment lines instead
+  const MS = fs.readFileSync(path.join(ROOT, 'docs/pro/daily-success/js/measurements-ui.js'), 'utf8').replace(/\r\n/g, '\n').split('\n').filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
+  const AC = read('docs/pro/daily-success/js/accent-ui.js');
+  const toggles = (MS.match(/data-ms-action="(site|pose|unit)"/g) || []).length;
+  ok('site, pose and unit chips are all toggles with aria-pressed', toggles === 3 && (MS.match(/aria-pressed="' \+ \((s\.id === site|p\.id === pose|u === unit)\)/g) || []).length === 3);
+  ok('each photo Delete button says which photo', /aria-label="Delete ' \+ esc\(pose\) \+ ' photo from ' \+ esc\(p\.date\)/.test(MS));
+  ok('photos have alt text and the measurement box a label', /alt="' \+ esc\(pose\) \+ ' photo from/.test(MS) && /id="msInput"[^>]*aria-label=/.test(MS));
+  ok('accent swatches are a named radiogroup with aria-checked and a label each', /role="radiogroup" aria-label="Accent colour"/.test(AC) && /role="radio" aria-checked=/.test(AC) && /aria-label="' \+ esc\(a\.label\)/.test(AC));
+  ok('status chips go through chipBtn (aria-pressed) inside a named group', /role="group" aria-label="Status">' \+ FX\.STATUSES\.map\(function \(s\) \{ return chipBtn\('status'/.test(CC));
+  ok('a redraw right after a Progress / accent tap puts focus back', /function recoverTap/.test(UI) && /button\[data-ms-action\],button\[data-accent-pick\]/.test(UI) && /recoverTap\(\);\n  \}/.test(UI));
+}
+
 console.log('\n9. this suite is wired into CI');
 {
   const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/ci-manifest.json'), 'utf8'));

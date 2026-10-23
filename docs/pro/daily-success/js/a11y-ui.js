@@ -199,6 +199,21 @@
     const t = ev.target.closest && ev.target.closest('button,[role=button],input,select');
     if (t && top.host.contains(t)) top.lastSel = selFor(t);
   }, true);
+  // Outside dialogs: a tap on a button that redraws its own panel (Progress chips, Log today...) leaves focus on <body>;
+  // put it back on "the same button" if the redraw happened right after the tap.
+  let lastTap = null;
+  document.addEventListener('click', (ev) => {
+    const t = ev.target.closest && ev.target.closest('button[data-ms-action],button[data-accent-pick]');
+    lastTap = t ? { sel: selFor(t), at: Date.now() } : null;
+  }, true);
+  function recoverTap() {
+    if (!lastTap || Date.now() - lastTap.at > 1500 || stack.length) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && document.contains(a)) return;
+    let el = null;
+    try { el = $(lastTap.sel); } catch (_) { el = null; }
+    if (el) { try { el.focus({ preventScroll: true }); } catch (_) { /* ignore */ } }
+  }
   document.addEventListener('change', (ev) => {
     const top = stack[stack.length - 1];
     if (top && ev.target && top.host.contains(ev.target)) top.lastSel = selFor(ev.target);
@@ -243,6 +258,7 @@
     tabs(document);
     syncDialogs();
     recoverFocus();
+    recoverTap();
   }
   function schedule() { if (!queued) { queued = true; (window.requestAnimationFrame || setTimeout)(pass); } }
 
