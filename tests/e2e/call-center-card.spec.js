@@ -21,7 +21,7 @@ function admin() {
   if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro', storageBucket: 'nobigdeal-pro.firebasestorage.app' });
   const { getFirestore } = require('firebase-admin/firestore');
   const { getStorage } = require('firebase-admin/storage');
-  _app = { db: getFirestore(), bucket: getStorage().bucket() };
+  _app = { db: getFirestore(), bucket: getStorage().bucket('nobigdeal-pro.firebasestorage.app') };
   return _app;
 }
 
