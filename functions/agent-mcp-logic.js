@@ -103,6 +103,10 @@ const TOOLS = {
     description: 'Where customers came from over the last N days (default 90): leads per source (Door Knock, Storm Canvass, Referral, Website, Google, Thumbtack…), how many are won (a signed contract, in production or finished) / lost / still open, win rate, and marketing spend per source with cost per lead where expenses are tagged. Counts only — no customer names.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730 } }, additionalProperties: false },
   },
+  margin_review: {
+    description: 'WEEKLY MARGIN REVIEW (INTERNAL, read only): finished jobs from the last N days (default 7) whose margin is at least 5 points below the company-wide margin on the 90 days before, each with the direct cost category that took the biggest share of what was collected. Only jobs with costs logged are judged (a job with none overstates profit). Needs 3+ judged jobs in the 90-day baseline, else it says so. Collected money only.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 60, description: 'Window of finished jobs to review (default 7)' } }, additionalProperties: false },
+  },
   job_profit: {
     description: 'Per finished job: money COLLECTED on its invoices (refunds off) minus the DIRECT costs logged against it (materials, subs, labor, dumpster, permits, disposal — tax included), giving profit and margin. Jobs still being paid show low until the final payment lands. Internal only — never put these cost or margin figures anywhere public.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730, description: 'Jobs finished in the last N days (default 180)' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
@@ -207,7 +211,7 @@ const BOTS = {
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
   tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'review_sprint', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
   dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
-  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'margin_review', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
   priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report', 'file_social_draft'] },
   theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'lead_sources', 'file_report'] },
   // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
@@ -659,6 +663,9 @@ function leadSources(leads, expenses, nowMs, days) {
     note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source. `sources` is the intake tag, a hint that misattributes (Yelp and Thumbtack leads are often tagged otherwise); `confirmed_sources` is the owner’s own answer per customer, counts only, and unconfirmed_leads still has no answer. No money here: collected dollars per confirmed source live in the CRM (Where customers came from).' };
 }
 const DIRECT = 'direct';
+const MARGIN_DROP_POINTS = 5;
+const MARGIN_BASELINE_DAYS = 90;
+const MARGIN_BASELINE_MIN_JOBS = 3;
 // jobsByLead (optional, { leadId: [jobs] }): the finished jobs are JOB
 // records (jobs-logic.js jobRecords — the rule every other money surface
 // uses), so a repeat customer whose card moved on to a signed second job
@@ -707,6 +714,44 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
   const tc = jobs.reduce((s, j) => s + Math.round(j.collected * 100), 0), tk = jobs.reduce((s, j) => s + Math.round(j.direct_costs * 100), 0);
   return { jobs, totals: { collected: tc / 100, direct_costs: tk / 100, profit: (tc - tk) / 100, margin_pct: tc > 0 ? Math.round((tc - tk) / tc * 100) : null },
     note: 'INTERNAL. Collected money minus direct job costs. A job with no costs logged (costs_logged false) overstates profit until its receipts are added.' };
+}
+// Weekly margin review (Jo queue item 5, 2026-10-23). Built on jobProfit so it
+// can never disagree with it. Money in cents; the output rounds to whole
+// percent. INTERNAL: never publish these figures.
+function marginReview(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
+  const a = args || {};
+  const win = Math.min(Math.max(Math.floor(Number(a.days)) || 7, 1), 60);
+  const jp = jobProfit(leads, invoices, expenses, nowMs, { days: Math.max(win + MARGIN_BASELINE_DAYS, 7), limit: MAX_LIST }, tz, jobsByLead);
+  const recentFrom = nyDay(nowMs - win * 86400000, tz);
+  const cents = (n) => Math.round(Number(n) * 100);
+  const judged = jp.jobs.filter((j) => j.costs_logged && cents(j.collected) > 0);
+  const recent = judged.filter((j) => String(j.finished) >= recentFrom);
+  const base = judged.filter((j) => String(j.finished) < recentFrom);
+  const skipped = jp.jobs.filter((j) => String(j.finished) >= recentFrom && !(j.costs_logged && cents(j.collected) > 0)).length;
+  const out = { window_days: win, baseline_days: MARGIN_BASELINE_DAYS, jobs_reviewed: recent.length, jobs_skipped_no_costs: skipped,
+    capped: jp.jobs.length >= MAX_LIST, baseline_jobs: base.length, baseline_margin_pct: null, flagged: [],
+    note: 'INTERNAL. Collected money minus direct costs logged. Never publish. Jobs with no costs logged are not judged.' };
+  if (base.length < MARGIN_BASELINE_MIN_JOBS) { out.note += ' Not enough history for a baseline (needs ' + MARGIN_BASELINE_MIN_JOBS + ' judged jobs in the prior ' + MARGIN_BASELINE_DAYS + ' days).'; return out; }
+  const bc = base.reduce((t, j) => t + cents(j.collected), 0), bk = base.reduce((t, j) => t + cents(j.direct_costs), 0);
+  const baseMargin = (bc - bk) / bc * 100;
+  out.baseline_margin_pct = Math.round(baseMargin);
+  recent.forEach((j) => {
+    const m = (cents(j.collected) - cents(j.direct_costs)) / cents(j.collected) * 100;
+    if (m > baseMargin - MARGIN_DROP_POINTS) return;
+    const byCat = {};
+    (expenses || []).forEach((e) => {
+      if (!e || e.deleted === true || e.costType !== DIRECT || e.leadId !== j.lead_id) return;
+      if (j.job_id && e.jobId && e.jobId !== j.job_id) return;
+      const k = String(e.category || 'other_direct');
+      byCat[k] = (byCat[k] || 0) + (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+    });
+    const top = Object.keys(byCat).sort((x, y) => byCat[y] - byCat[x])[0];
+    out.flagged.push({ lead_id: j.lead_id, job_id: j.job_id, name: j.name, finished: j.finished, collected: j.collected,
+      margin_pct: Math.round(m), points_below: Math.round(baseMargin - m),
+      top_cost: top ? { category: top, pct_of_collected: Math.round(byCat[top] / cents(j.collected) * 100) } : null });
+  });
+  out.flagged.sort((x, y) => y.points_below - x.points_below);
+  return out;
 }
 function haversineMi(la1, lo1, la2, lo2) {
   const R = 3958.8, toR = (x) => x * Math.PI / 180;
@@ -1496,7 +1541,7 @@ module.exports = {
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
