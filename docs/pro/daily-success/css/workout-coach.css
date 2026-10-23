@@ -213,3 +213,8 @@ button.wc-kind.k-fail { color: #fda4af; font-weight: 700; }
 .wc-set.next { box-shadow: -3px 0 0 var(--ac, #BD5728); padding-left: 2px; }
 .wc-ss-add { display: flex; gap: 6px; }
 .wc-ss-add .wc-add { margin-top: 0; }
+
+/* Accessibility (2026-10-23): the rest-timer text is its own element so the Skip button next to it is never redrawn; the
+   announcer is visually hidden but read by screen readers. */
+.wc-rest-t { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
+.wc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
