@@ -577,9 +577,21 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
   // ── G. sandbox placeholder ──────────────────────────────────────────────
   console.log('G. /pro/sandbox placeholder');
   const sb = read('docs/pro/sandbox.html');
-  const ph = (/<div class="sx-next-phase"[\s\S]*?<\/div>/.exec(sb) || [''])[0];
-  ok('"Explore the whole sample account" is still a disabled placeholder, not a link', /aria-disabled="true"/.test(ph) && !/<a\b|href=/.test(ph));
-  ok('nothing on /pro/sandbox links to /pro/explore yet', !/\/pro\/explore/.test(sb) && !/\/pro\/explore/.test(read('docs/pro/js/sandbox-story.js')));
+  const ph = (/<a class="sx-next-phase"[\s\S]*?<\/a>/.exec(sb) || [''])[0];
+  ok('"Explore the sample account" is a real link to /pro/explore (it is live), not a disabled placeholder', /href="\/pro\/explore"/.test(ph) && !/coming next|aria-disabled/i.test(ph));
+  ok('control: the sandbox end card was found (the link check above is not vacuous)', ph.length > 20);
+
+  // Live-only screens: the sample account must not open real production pages (reCAPTCHA / App Check / frame-ancestors blank).
+  {
+    const dash = read('docs/pro/dashboard.html'), dm = stripComments(read('docs/pro/js/demo-mode.js'));
+    const tpls = [...dash.matchAll(/<template id="(tpl-view-[\w-]+)">\s*<iframe[^>]*data-src="(\/pro\/[^"]+)"/g)].map((m) => m[1]);
+    ok('control: dashboard.html embeds several /pro/ iframes in view templates', tpls.length >= 4, String(tpls.length));
+    const listed = (/LIVE_ONLY_TPL = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
+    ok('every iframe view template pointing at a real /pro/ page is stripped in the sample account', tpls.length > 0 && tpls.every((t) => listed.indexOf("'" + t + "'") !== -1), tpls.join(','));
+    const navs = (/LIVE_ONLY_NAV = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
+    ok('their sidebar entries and the Success Tracker window-opener are hidden (and exist on the page)', ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-aiusage', 'nav-daily'].every((id) => navs.indexOf("'" + id + "'") !== -1 && dash.indexOf('id="' + id + '"') !== -1));
+    ok('the blocked-request toast is plain words, no raw "fetch GET to /api/..." dev text', !/Blocked in the sample account: ' \+/.test(dm) && /That live data is not in the sample account/.test(dm));
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
