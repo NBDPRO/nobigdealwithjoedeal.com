@@ -116,6 +116,7 @@ const H = 3600e3, D = 86400e3;
       noted('c_solo', { phoneDigits: '5135550201', promises: [{ who: 'jo', text: 'Send the estimate', due: '2026-10-23' }], contactName: 'Pat' }),
       noted('c_solo_plain', { phoneDigits: '5135550201', startedAtMs: NOW - 3 * H }),
       noted('c_couple', { phoneDigits: '5135550301', followUpDate: '2026-10-25', contactName: 'The Couples' }),
+      noted('c_couple_hint', { phoneDigits: '5135550301', startedAtMs: NOW - 4 * H, suggestedLeadId: 'COUP1', suggestedLeadName: 'Jo Couple', suggestedWhy: 'their name said on the call' }),
       noted('c_relay', { phoneDigits: '5135550401' }),
       noted('c_unknown', { phoneDigits: '5135550999' }),
       noted('c_old', { phoneDigits: '5135550201', startedAtMs: NOW - 20 * D, promises: [{ who: 'jo', text: 'Old promise' }] }),
@@ -150,9 +151,24 @@ const H = 3600e3, D = 86400e3;
     ok('two customers on the number: the card asks "which one?" and offers BOTH, one button each', /This number is on <b>2 customers<\/b> — which one\?/.test(couple) && /data-lead="COUP1"[^>]*>File on Jo Couple</.test(couple) && /data-lead="COUP2"[^>]*>File on Sam Couple</.test(couple), couple.slice(0, 400));
     ok('...and never picks the first for you (no "Looks like" line on a shared number)', !/Looks like/.test(couple));
     ok('...with the follow-up date shown as the reminder it will set', /Reminder: Follow up with The Couples · due Oct 25/.test(couple));
+    const hint = card('c_couple_hint');
+    ok('a shared number WITH a name-based suggestion still asks (a guess between two customers is not a one-tap)', /which one?/.test(hint) && !/Looks like/.test(hint) && /data-lead="COUP1"/.test(hint) && /data-lead="COUP2"/.test(hint), hint.slice(0, 300));
     ok('the screen helpers agree: fileTarget is null for a shared number, fileChoices lists both', CC._fileTarget({ id: 'c_couple', phoneDigits: '5135550301' }) === null && CC._fileChoices({ id: 'c_couple', phoneDigits: '5135550301' }).length === 2);
     ok('control: a relay line (3 customers) suggests nobody', !/cc-suggest/.test(card('c_relay').replace(/cc-suggest-btn/g, '')) || (!/File on R1/.test(card('c_relay')) && !/File on R2/.test(card('c_relay'))), card('c_relay').slice(0, 200));
     ok('control: an unknown number suggests nobody', !/File on /.test(card('c_unknown')));
+
+    // the "Said you'd do" deck must not pick the first of two either
+    let deckCfg = null;
+    win.NBDTriageDeck = { open(cfg) { deckCfg = cfg; } };
+    const pItem = (callId, digits) => ({ callId, phoneDigits: digits, leadId: null, kind: 'nofile', channel: 'call', who: 'Caller', promises: ['Send the estimate'], summary: 's', startedAtMs: NOW - H });
+    CC._promises.items = [pItem('c_solo', '5135550201')];
+    CC.openPromises();
+    const soloDeck = deckCfg.card(deckCfg.items[0]);
+    ok('deck: one customer on the number still gets the one-tap (control for the check below)', /cc-deck-one/.test(soloDeck) && /data-lead="SOLO"/.test(soloDeck), soloDeck.slice(0, 200));
+    CC._promises.items = [pItem('c_couple', '5135550301')];
+    CC.openPromises();
+    const coupleDeck = deckCfg.card(deckCfg.items[0]);
+    ok('deck: two customers on the number get NO one-tap for either (the File box is still there)', !/cc-deck-one/.test(coupleDeck) && !/data-lead="COUP/.test(coupleDeck) && /File on a customer/.test(coupleDeck), coupleDeck.slice(0, 200));
 
     // tapping: the right customer goes to the server, nothing else is called
     calls.length = 0;
