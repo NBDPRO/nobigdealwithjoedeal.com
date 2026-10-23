@@ -542,6 +542,15 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
     ok('#/messaging says "flags could not be read" differently from "switched off"', /could not be read/.test(unread) && !/switched off/.test(unread) && /switched off/.test(off) && !/could not be read/.test(off));
   }
 
+  // client: 'sent' (provider accepted) must never look like 'delivered'
+  {
+    const oh = C.outcomesHtml({ outcomes: { sms: { sent: 3, delivered: 1, failed: 0, undelivered: 0, unknown: 0 }, email: {}, push: {} } });
+    ok('outcomes: accepted-not-confirmed is amber, delivered is green', /mc-warn">accepted, not confirmed 3/.test(oh) && /mc-ok">delivered 1/.test(oh), oh.slice(0, 400));
+    ok('outcomes: no green chip claims plain "sent"', !/mc-ok">sent/.test(oh));
+    const evh = (outcome) => C.eventHtml(L.publicEvent(ev({ automation: 'lead_ack_text', consent: 'form', text: 'Got your estimate request', atMs: NOW - 1000, outcome }), {}), 'America/New_York');
+    ok('row: sent shows amber accepted-not-confirmed; delivered shows green', /mc-warn">accepted, not confirmed/.test(evh('sent')) && /mc-ok">delivered/.test(evh('delivered')));
+  }
+
   // client: status strip wording and colours
   {
     const strip = (controls) => C.statusHtml({ generatedAtMs: T0, status: { controls, texting: { enabled: true }, a2pRegistered: 'yes', automations: [] } });
