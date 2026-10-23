@@ -29,3 +29,11 @@ Merge-group and push runs use a unique concurrency group per run (by design, so 
 - Concurrent-runner limit: inferred from queue waits, not read from the account's plan.
 - The three failed API fetches could shift the medians by a point or two.
 - Per-job minutes use started-to-completed time, so a job that was cancelled mid-run counts for the time it ran.
+
+## Update 2026-10-23 (later): the merge queue waits for the WHOLE run, and the first fix shipped
+
+**The queue waits for non-required jobs.** Merge time vs the merge-group run's end (run id, PR, run end, mergedAt, UTC): 39903380661 / #2667 / 05:51:15 / 05:51:07; 39908054031 / #2684 / 06:45:49 / 06:46:18; 39911789761 / #2685 / 07:27:26 / 07:25:02; 39916101707 / #2688 / 07:55:50 / 07:52:52. Each merged within about 3 minutes of its run ending, and each of those runs ended at the non-required `@shard2`'s 25-minute cap (22-23 jobs green, `@shard2` cancelled). Created-to-end for the 24 completed merge-group runs sampled was 41-80 minutes. Some PRs merged earlier because a later group in the stacked queue carried them.
+
+**Shipped (#2697): `@shard2` and `@shard3` run on `pull_request` only.** A matrix `exclude` expression keyed on `github.event_name` drops them on merge_group and push; the five required legs keep their names. Evidence: the PR run listed 24 jobs (all 7 Authed E2E legs); a throwaway push-event probe run listed 22 and only the 5 required legs; #2697's own queue run (39941491714) listed 22 jobs; #2696's queue run (39943047142, 11:00:27 to 11:30:37, 30 min) had no shard2/shard3 jobs and was the first run in the sample to conclude `success`. A guard in `tests/merge-queue-ready-2026-10-04.test.js` fails if the exclude could ever drop a required leg.
+
+**Public-surface E2E is required and was wedging.** In 3 of 3 sampled cancellations its `Install Playwright chromium + webkit` step ran the full 20-minute job cap (runs 39902211462, 39910356722, 39917577938). Fixed in #2715 with a per-attempt cap of 3 minutes and up to 3 attempts. The same install step exists in `esign-suites` (also required), `mobile-realtime`, `pro-demo`, `qc-render-sweep`, `visual-regression` and the E2E matrix; not changed yet.
