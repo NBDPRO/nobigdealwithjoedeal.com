@@ -1,6 +1,6 @@
 # Wave 3 addons recon (2026-10-22)
 
-Recon only: three small CRM addons (weekly owner digest, receipt capture polish, Cal.com phone). Method: `origin/main` at `4536ddc8`, the business-queue recon (BUSINESS-QUEUE-RECON-2026-10-22, PR 2668, not merged yet so not linked), and a grep of `docs/pro/` and `functions/`. No prod reads, no writes, no flags. **Headline: item 3 is already fixed and tested, item 2 is already built, item 1 is mostly built; one small real gap remains.**
+Recon only: three small CRM addons (weekly owner digest, receipt capture polish, Cal.com phone). Method: `origin/main` at `4536ddc8`, the business-queue recon ([BUSINESS-QUEUE-RECON-2026-10-22](BUSINESS-QUEUE-RECON-2026-10-22.md), PR 2668), and a grep of `docs/pro/` and `functions/`. No prod reads, no writes, no flags. **Headline: item 3 is already fixed and tested, item 2 is already built, item 1 is mostly built; one small real gap remains.**
 
 ## Per item
 
@@ -17,9 +17,9 @@ Recon only: three small CRM addons (weekly owner digest, receipt capture polish,
 - No overlap with business-queue item 5 (weekly job-margin note from `job_profit`): this digest carries no cost, margin or profit figure.
 - Open questions for Jo: owner-only recipient (solo owner uid / `companyId`) and whether it should replace the rep email or sit beside it. Default: beside it, owner only.
 
-## Blocked on
+## Queue note
 
-PRs 2662 to 2668 are all still open with CI backed up (most BLOCKED with checks pending; 2663 UNSTABLE with one failure). The brief says no first PR until they merge or CI is clearly healthy, so this note stays a local commit for now.
+The first PR waited while the open-PR count was above the overnight limit; the parent raised the limit to 12 on 2026-10-23 and this went out as one PR (recon note plus the digest).
 
 ## Built (item 1): `ownerWeeklyDigest`, ships dark
 
