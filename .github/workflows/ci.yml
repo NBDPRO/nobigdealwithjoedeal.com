@@ -1270,16 +1270,27 @@ jobs:
       # is 2.3 min against a 20 min cap.
       # 2026-10-23: this step wedged past the 20 min job cap on 3 of 3 sampled cancellations
       # (runs 39902211462, 39910356722, 39917577938: step started, never finished, job cancelled
-      # at 20.3 min), and this job is REQUIRED. A normal install is well under a minute (the whole
-      # job's median is 2.0 min). So: cap each attempt at 3 min and retry up to 3 times. `timeout`
-      # puts the command in its own process group and signals the group, so a hung apt-get/download
-      # child dies with it. A real, persistent failure still fails the step on the 3rd attempt.
+      # at 20.3 min), and this job is REQUIRED; the whole job's median is 2.0 min. The stall is the
+      # apt download of the ~180 webkit dependency packages from the runner's mirror (PR #2715's own
+      # run fetched 7 of them in 3 min). Two measures, both bounded:
+      #  1. apt retries stalled connections (Retries 5, 30 s timeouts) instead of the 120 s default.
+      #  2. each attempt is capped at 4 min; `timeout` kills npx but NOT the root apt-get it spawned,
+      #     which keeps the dpkg lock (a first version of this step retried straight into
+      #     "Could not get lock" and failed all 3 attempts in 3.6 min). So between attempts we wait
+      #     (up to 4 min) for that apt-get to finish; it resumes from the packages already fetched.
+      # Worst case 12 min of attempts inside the 20 min cap. A persistent failure still fails the step.
       - name: Install Playwright chromium + webkit
         run: |
+          sudo tee /etc/apt/apt.conf.d/99ci-resilience >/dev/null <<'APT'
+          Acquire::Retries "5";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          APT
           cd tests
-          for attempt in 1 2 3; do
-            if timeout -k 10 180 npx playwright install --with-deps chromium webkit; then exit 0; fi
+          for attempt in 1 2; do
+            if timeout -k 10 240 npx playwright install --with-deps chromium webkit; then exit 0; fi
             echo "::warning::playwright install attempt ${attempt} failed or timed out"
+            for i in $(seq 1 48); do pgrep -x apt-get >/dev/null || pgrep -x dpkg >/dev/null || break; sleep 5; done
           done
           exit 1
       # /search needs the Pagefind index the deploy builds (2026-10-16).
