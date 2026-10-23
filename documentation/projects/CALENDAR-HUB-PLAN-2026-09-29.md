@@ -413,7 +413,7 @@ nothing goes to the customer; free date-only reminders never count; the
 existing `GOOGLE_CALENDAR_SYNC_DISABLED` switch silences it; any failure is
 logged and swallowed. No rules, auth or index changes; no prod writes.
 Test: [calendar-job-booking-conflict](../../tests/calendar-job-booking-conflict-2026-10-22.test.js)
-(25 checks, positive and negative controls, mutation-run).
+(26 checks, positive and negative controls; 10 mutations, all caught).
 
 **Not built, by design (still Jo's call):** per-rep calendars and crew-facing
 views (Phase 4: Jo said one calendar, just for him, for now); any automatic

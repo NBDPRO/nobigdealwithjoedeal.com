@@ -109,6 +109,10 @@ function fakeDb(appts, opts) {
   const db2 = fakeDb(bookings, { existingIds: ['notifications/job-conflict-LeadA-hit-' + at('2026-10-06T11:00:00Z')] });
   ok('editing the same job again does not re-alert (row already exists)',
     (await M._internal.alertJobOverlapsBookings(db2, 'LeadA', install)) === 0 && db2.created.length === 0);
+  const two = Object.assign({}, bookings, { hit2: appt('hit2', '2026-10-06T14:00:00Z', '2026-10-06T14:30:00Z') });
+  const db2b = fakeDb(two, { existingIds: ['notifications/job-conflict-LeadA-hit-' + at('2026-10-06T11:00:00Z')] });
+  ok('an already-alerted booking does not stop the next overlapping booking from being alerted',
+    (await M._internal.alertJobOverlapsBookings(db2b, 'LeadA', install)) === 1 && db2b.created.length === 1 && /-hit2-/.test(db2b.created[0].path), JSON.stringify(db2b.created));
   const db3 = fakeDb(bookings);
   ok('a free date-only job never reads the bookings at all',
     (await M._internal.alertJobOverlapsBookings(db3, 'LeadR', reminder)) === 0 && db3.queries.length === 0);
