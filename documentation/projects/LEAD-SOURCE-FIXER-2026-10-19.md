@@ -19,7 +19,3 @@
 **Files:** `docs/pro/js/lead-source-fixer.js`, `docs/pro/css/lead-source-fixer.css`, `docs/pro/dashboard.html` (button + tags), `firestore.rules`, `tests/lead-source-fixer-2026-10-19.test.js` (72 checks, 10 mutations tried and caught), `tests/firestore-rules.confirmed-source.test.js` (+ a step in `.github/workflows/ci.yml`), `tests/ci-manifest.json`, `tests/dashboard-boot-budget-2026-10-03.test.js` (+1 deliberate script tag).
 
 **Not done on purpose:** no production data touched, no prod flag written, the rules are not deployed by this PR beyond the normal deploy on merge. Possible follow-ups (not built): feed `confirmedSource` into the agent `lead_sources` tool and Reports > Lead Sources; show the answer on the customer page.
-
-## Update 2026-10-22: confirmed source reaches the agent `lead_sources` tool
-
-`lead_sources` (CoS / Dana / Frank / Theo) now returns `confirmed_sources` (leads and won per `confirmedSource` in the window) and `unconfirmed_leads` next to the unchanged intake-tag `sources`. Counts only: no money, no names. An unknown value or a cleared answer counts as unconfirmed. Collected dollars per confirmed source stay in the CRM report above. Test: `tests/lead-sources-confirmed-2026-10-22.test.js` (4 mutations tried, all caught). Why the intake tag undercounts Thumbtack: Thumbtack sends no hire event, and a customer who finds NBD on Thumbtack directly never arrives as a lead; see [BUSINESS-QUEUE-RECON-2026-10-22](BUSINESS-QUEUE-RECON-2026-10-22.md).
