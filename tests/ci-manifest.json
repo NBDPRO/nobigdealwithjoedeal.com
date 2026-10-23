@@ -676,6 +676,7 @@
     "contract-signed-is-booked-2026-10-06.test.js",
     "storm-mode.test.js",
     "storm-mode-drafts-2026-10-11.test.js",
+    "storm-outreach-2026-10-22.test.js",
     "no-personal-data-in-repo-2026-10-06.test.js",
     "system-plus-standard-and-up-2026-10-05.test.js",
     "member-offboarding-2026-10-06.test.js",
