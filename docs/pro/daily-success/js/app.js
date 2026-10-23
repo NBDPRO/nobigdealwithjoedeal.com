@@ -200,7 +200,7 @@ w.appendChild(t);
 });
 const plus=document.createElement('div');plus.className='tplus';plus.textContent='+';plus.title='New / jump to today';
 plus.dataset.action='smart-new-page';w.appendChild(plus);
-setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});},50);
+setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior(),block:'nearest',inline:'nearest'});},50);
 }
 
 function buildCover(p,qi){
@@ -607,7 +607,7 @@ document.querySelectorAll('.pc[data-sec]').forEach(card=>{let st={};try{st=JSON.
 
 calcMacros();
 updateTodayBar();
-window.scrollTo({top:0,behavior:'smooth'});
+window.scrollTo({top:0,behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior()});
 }
 
 function toggleSection(ph){
