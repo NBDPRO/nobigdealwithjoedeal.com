@@ -321,6 +321,7 @@
     "schedule-already-completed-2026-10-13.test.js",
     "google-calendar-sync-2026-09-29.test.js",
     "calendar-booking-conflict-2026-10-20.test.js",
+    "calendar-job-booking-conflict-2026-10-22.test.js",
     "refunds-in-revenue-2026-09-29.test.js",
     "smart-followup-ai-burst-2026-09-29.test.js",
     "stripe-crm-invoice-2026-09-29.test.js",
