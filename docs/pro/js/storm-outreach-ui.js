@@ -21,7 +21,8 @@
   'use strict';
 
   var MAX_PER_EVENT = 40; // the callable's cap
-  var state = { status: 'idle', data: null, error: '', picked: {}, busy: '', note: '' };
+  var RADII = [1, 3, 5, 10]; // miles; the callables clamp to 0.5-10 and default to 3
+  var state = { status: 'idle', data: null, error: '', picked: {}, busy: '', note: '', miles: 3 };
 
   var COHORT = { past_customer: 'Past customer', open_lead: 'Open lead' };
   var SKIP = {
@@ -96,6 +97,9 @@
       + '<div class="stc-card-sub">' + esc(ev.when_text || ev.when) + ' &middot; ' + esc(ev.counts ? ev.counts.past_customer : 0) + ' past customers, '
       + esc(ev.counts ? ev.counts.open_lead : 0) + ' open leads nearby'
       + (total > shown ? ' (nearest ' + shown + ' shown)' : '') + '</div>'
+      + (shown && ev.customers.some(selectable) ? '<div class="sto-bar">'
+        + '<button type="button" class="btn btn-sm" data-sto-action="all" data-sto-event="' + esc(ev.key) + '">Select everyone I can text</button>'
+        + '<button type="button" class="btn btn-sm" data-sto-action="none" data-sto-event="' + esc(ev.key) + '">Clear</button></div>' : '')
       + (shown ? '<ul class="sto-list">' + ev.customers.map(function (c) { return rowHtml(ev, c); }).join('') + '</ul>'
         + '<button type="button" class="btn btn-orange sto-file" data-sto-action="file" data-sto-event="' + esc(ev.key) + '"'
         + (n && !state.busy ? '' : ' disabled') + '>' + esc(state.busy === ev.key ? 'Filing…' : 'File ' + n + ' draft' + (n === 1 ? '' : 's') + ' to Agent inbox') + '</button>'
@@ -107,6 +111,9 @@
     var head = '<div class="stc-section"><div class="stc-sec-head">Storm outreach drafts</div>'
       + '<p class="sto-note">Past customers and open leads near a recorded storm report. Tick the people you want to check in on and file them. '
       + '<strong>Nothing is sent from here</strong>: each draft waits in your Agent inbox and you send it yourself. The wording only says a storm was reported near the town; it never promises damage or a claim outcome.</p>'
+      + '<div class="sto-radius" role="group" aria-label="Distance from the report">' + RADII.map(function (m) {
+        return '<button type="button" class="btn btn-sm sto-radius-btn" data-sto-action="miles" data-sto-miles="' + m + '" aria-pressed="' + (state.miles === m) + '"' + (state.busy ? ' disabled' : '') + '>' + m + ' mi</button>';
+      }).join('') + '</div>'
       + '<div class="sto-live" role="status" aria-live="polite">' + esc(state.note) + '</div>';
     if (state.status === 'loading' || state.status === 'idle') return head + '<div class="nbd-empty"><div class="ne-sub">⏳ Loading storm reports…</div></div></div>';
     if (state.status === 'error') {
@@ -126,7 +133,7 @@
   function load(force) {
     if (!force && (state.status === 'loading' || state.status === 'ready')) return;
     state.status = 'loading'; state.error = '';
-    callable('listStormOutreach', {}).then(function (d) {
+    callable('listStormOutreach', { miles: state.miles }).then(function (d) {
       state.data = d || { events: [] }; state.status = 'ready';
     }).catch(function (e) {
       state.status = 'error';
@@ -144,8 +151,8 @@
     if (!ids.length || state.busy) return;
     state.busy = key; state.note = '';
     repaint();
-    // The list and the filing both use the callable's default radius (3 mi).
-    callable('fileStormOutreachDrafts', { eventKey: key, leadIds: ids }).then(function (r) {
+    // The same radius the list was built with; the server re-measures it.
+    callable('fileStormOutreachDrafts', { eventKey: key, leadIds: ids, miles: state.miles }).then(function (r) {
       state.picked[key] = {};
       var n = (r && r.filed) || 0;
       state.note = n + ' draft' + (n === 1 ? '' : 's') + ' filed to your Agent inbox. Nothing was sent.' + skipText(r && r.skipped);
@@ -164,6 +171,28 @@
     }
   }
 
+  function setMiles(m) {
+    if (state.busy || RADII.indexOf(m) < 0 || m === state.miles) return;
+    state.miles = m; state.picked = {}; state.note = '';
+    load(true);
+    repaint();
+  }
+
+  // Tick (or clear) every row of one report that can be ticked, in place so focus stays put.
+  function setAll(root, key, on) {
+    var ev = ((state.data && state.data.events) || []).filter(function (e) { return e.key === key; })[0];
+    if (!ev || state.busy) return;
+    var map = {};
+    if (on) (ev.customers || []).filter(selectable).slice(0, MAX_PER_EVENT).forEach(function (c) { map[c.lead_id] = true; });
+    state.picked[key] = map;
+    var boxes = root.querySelectorAll('.sto-check');
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].getAttribute('data-sto-event') !== key || boxes[i].disabled) continue;
+      boxes[i].checked = !!map[boxes[i].getAttribute('data-sto-lead')];
+    }
+    syncButton(root, key);
+  }
+
   function wire() {
     var root = document.getElementById('view-storm');
     if (!root || root.__stoWired) return;
@@ -174,6 +203,9 @@
       var a = t.getAttribute('data-sto-action');
       if (a === 'file') file(t.getAttribute('data-sto-event'));
       else if (a === 'reload') { load(true); repaint(); }
+      else if (a === 'miles') setMiles(Number(t.getAttribute('data-sto-miles')));
+      else if (a === 'all') setAll(root, t.getAttribute('data-sto-event'), true);
+      else if (a === 'none') setAll(root, t.getAttribute('data-sto-event'), false);
     });
     root.addEventListener('change', function (ev) {
       var t = ev.target;

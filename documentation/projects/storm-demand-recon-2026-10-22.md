@@ -103,3 +103,7 @@ handle the claim", no AOB; gate run on all copy.
   `tests/storm-outreach-ui-2026-10-23.test.js` (32 checks, 10 mutations red).
 - **Jo items:** read the GBP Cloud Console quota (case 8-9748000042165, 0 =
   pending, 300 = approved). Still parked: reviews/insights build.
+- **PR 3 (2026-10-23):** Outreach tab gains a radius control (1 / 3 / 5 / 10 mi,
+  sent to both callables, clamped and re-measured server-side) and per-report
+  Select everyone I can text / Clear (only rows that can be ticked). UI only; no
+  backend change; still drafts only. Test now 45 checks, 9 more mutations red.

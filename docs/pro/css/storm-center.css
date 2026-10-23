@@ -115,3 +115,7 @@
 .sto-draft summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; color: var(--m); }
 .sto-draft p { margin: 4px 0 0; padding: 8px 10px; background: var(--s); border: 1px solid var(--br); border-radius: 8px; line-height: 1.45; overflow-wrap: anywhere; }
 .btn.sto-file { min-height: 44px; width: 100%; }
+.sto-radius, .sto-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.sto-radius-btn, .sto-bar .btn { min-height: 44px; }
+.sto-radius-btn[aria-pressed="true"] { background: var(--orange, currentColor); color: var(--accent-fg); border-color: var(--orange, currentColor); }
+.sto-bar { margin-top: 10px; }
