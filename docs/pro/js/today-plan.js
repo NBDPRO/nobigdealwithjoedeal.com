@@ -748,6 +748,16 @@
   }
 
   /** "N things today" — the header line. */
+  // Counts-only summary the Daily Success tracker reads (tracker "Today's business" tile). Numbers only - no names, phones or ids -
+  // and the same counts the Today screen shows: calls are PEOPLE, follow-ups are one row per lead, jobs are today's appointments.
+  // null = publish nothing: a rule that threw is never a quiet zero.
+  function summaryForTracker(plan, uid, now) {
+    if (!plan || !uid || !(now > 0)) return null;
+    if (plan.computeFailed && plan.computeFailed.length) return null;
+    var n = function (a) { return Array.isArray(a) ? a.length : 0; };
+    return { v: 1, uid: String(uid), asOf: now, calls: n(plan.calls), followUps: n(plan.promised) + n(plan.promises) + n(plan.estimates) + n(plan.stalled), jobs: n(plan.appointments) };
+  }
+
   function headline(n) { return n === 0 ? 'Nothing due today' : n + (n === 1 ? ' thing today' : ' things today'); }
 
   /**
@@ -772,7 +782,7 @@
     tasksQuery: tasksQuery, groupTasksByLead: groupTasksByLead, taskDue: taskDue, taskDueYmd: taskDueYmd,
     collectTodayItems: collectTodayItems, buildTodayPlan: buildTodayPlan, headline: headline, stormLine: stormLine,
     fmtCents: fmtCents, ymdLocal: ymdLocal, addDaysYmdLocal: addDaysYmdLocal, nyDateOf: nyDateOf, actionId: actionId,
-    JOB_FIELDS: JOB_FIELDS,
+    JOB_FIELDS: JOB_FIELDS, summaryForTracker: summaryForTracker,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (root && root.document) root.NBDTodayPlan = API;

@@ -1,0 +1,9 @@
+/* Today's business tile (js/business-tile-ui.js). Builds on workout-coach.css (.wc-card, .wc-link); follows the active skin. */
+.bt-wrap { margin: 0 0 12px; }
+.bt-stats { display: flex; gap: 8px; margin: 8px 0 4px; }
+.bt-stat { flex: 1 1 0; min-width: 0; text-align: center; }
+.bt-stat b { display: block; font-size: 28px; line-height: 1.1; }
+.bt-stat span { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.bt-age { font-size: 12px; opacity: .75; margin: 4px 0; overflow-wrap: anywhere; }
+.bt-stale .bt-age { opacity: 1; font-size: 14px; }
+.bt-card .bt-open { display: inline-flex; align-items: center; color: var(--ac-text, var(--ac, #BD5728)); font-size: 14px; }

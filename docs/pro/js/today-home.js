@@ -281,7 +281,20 @@
     var plan_ = P.buildTodayPlan(planOpts);
     plan_.hiddenCalls = hiddenCalls;
     plan_.computeFailed = computeFailed;
+    publishToTracker(plan_);
     return plan_;
+  }
+
+  // Daily Success reads these three counts (never names or ids) from localStorage. Only when every read behind them answered; a
+  // failed or still-loading read leaves the last good summary alone, and the tracker shows its age. Purged with the other nbd_ keys
+  // on sign-out and account switch (nbd-auth.js purgeAccountStorage).
+  function publishToTracker(p) {
+    try {
+      var P = plan();
+      if (!w._user || w._leadsLoaded !== true || appts.failed || appts.checking || !P || typeof P.summaryForTracker !== 'function') return;
+      var s = P.summaryForTracker(p, uid(), Date.now());
+      if (s) w.localStorage.setItem('nbd_today_summary', JSON.stringify(s));
+    } catch (_) { /* the tracker tile just shows its age */ }
   }
 
   // ── paint ────────────────────────────────────────────────────────────
