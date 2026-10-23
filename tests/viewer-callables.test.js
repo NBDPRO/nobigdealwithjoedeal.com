@@ -515,6 +515,9 @@ const VERDICTS = {
   agentDraftAction: 'role-gated',
   // Storm Mode check-in drafts (2026-10-11): requireKeyAdmin, same as agentDraftAction.
   fileStormDrafts: 'role-gated',
+  // Storm REPORT outreach (2026-10-22): requireKeyAdmin, same as fileStormDrafts.
+  listStormOutreach: 'role-gated',
+  fileStormOutreachDrafts: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses

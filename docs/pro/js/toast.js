@@ -9,6 +9,8 @@
  *   - per-type durations: success 4000 / info 5000 / warning 7000 / error 9000
  *   - ✕ dismiss button
  *   - message set via textContent — NEVER innerHTML
+ *   - the container is a polite live region (role=status) so a screen reader hears each toast; an error toast is role=alert.
+ *     A region only announces content added AFTER it exists, so the first toast of a page is added a beat after the container.
  *
  * Exposes window.showToast(message, type) with type in
  * {success, error, warning, info}; anything else falls back to info.
@@ -36,7 +38,11 @@
       container = document.createElement('div');
       container.id = 'toastContainer';
       container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:var(--z-toast,10002);display:flex;flex-direction:column;gap:8px;align-items:flex-end;';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-live', 'polite');
+      container.setAttribute('aria-relevant', 'additions');
       document.body.appendChild(container);
+      container.__fresh = true;
     }
     while (container.children.length >= 5) container.firstChild.remove();
     const toast = document.createElement('div');
@@ -51,7 +57,9 @@
     close.addEventListener('click', () => toast.remove());
     toast.appendChild(msg);
     toast.appendChild(close);
-    container.appendChild(toast);
+    if (type === 'error') toast.setAttribute('role', 'alert');
+    if (container.__fresh) { container.__fresh = false; setTimeout(() => container.appendChild(toast), 50); }
+    else container.appendChild(toast);
     setTimeout(() => {
       toast.style.transition = 'opacity .25s, transform .25s';
       toast.style.opacity = '0';
