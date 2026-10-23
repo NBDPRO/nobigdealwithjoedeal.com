@@ -525,7 +525,38 @@ function bookingConflictNotice(attendeeName, startMs, overlaps) {
   };
 }
 
+/**
+ * The reverse of bookingOverlaps (Jo's answer #4, "a job moved onto an existing
+ * booking later"): a job's NBD Jobs events [googleEvents] against the live
+ * Cal.com bookings [appointments: { id, name, startMs, endMs }]. Same busy
+ * rule as everywhere (jobsBusy): a free date-only reminder never counts.
+ * Returns one row per (job block, booking) that overlap; touching is not overlapping.
+ */
+function jobBookingOverlaps(googleEvents, appointments, localToUtcMs) {
+  const out = [];
+  for (const b of jobsBusy(googleEvents, null, localToUtcMs)) {
+    const bs = Date.parse(b.start), be = Date.parse(b.end);
+    for (const a of appointments || []) {
+      if (!a || !isFinite(a.startMs) || !isFinite(a.endMs) || a.endMs <= a.startMs) continue;
+      if (a.startMs < be && a.endMs > bs) out.push({ apptId: String(a.id), name: a.name || null, apptStartMs: a.startMs, jobTitle: b.title, jobStartMs: bs });
+    }
+  }
+  return out;
+}
+
+/** The bell row when a job lands on a booking. Warn only; nothing is sent to the customer. */
+function jobConflictNotice(overlaps) {
+  const first = (overlaps || [])[0];
+  if (!first) return null;
+  const when = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(first.apptStartMs));
+  const who = String(first.name || 'A customer').slice(0, 60);
+  const job = String(first.jobTitle || 'NBD job').slice(0, 60);
+  const more = overlaps.length > 1 ? ' (+' + (overlaps.length - 1) + ' more)' : '';
+  return { title: 'Job overlaps a booking', message: job + ' now overlaps ' + who + "'s booking on " + when + more + '. Contact them to reschedule, or move the job.' };
+}
+
 module.exports = {
+  jobBookingOverlaps, jobConflictNotice,
   bookingOverlaps, bookingConflictNotice,
   TZ, eventIdFor, toGoogleEvent, desiredEventsForLead, allIdsForLead, eventSignature, planSync,
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,

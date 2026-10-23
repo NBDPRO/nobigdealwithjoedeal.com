@@ -40,7 +40,7 @@
   // search narrow; the choice is saved between visits. customOpen keeps the two date boxes showing while Jo picks.
   var FX = window.NBDCallCenterFilters || null;
   function lsStore() { try { return window.localStorage || null; } catch (_) { return null; } }
-  var flt = FX ? FX.load(lsStore()) : { range: 'all', from: '', to: '', dir: 'all', sort: 'new' };
+  var flt = FX ? FX.load(lsStore()) : { range: 'all', from: '', to: '', dir: 'all', status: 'all', sort: 'new' };
   state.customOpen = false;
   function fltSave() { if (FX) FX.save(lsStore(), flt); }
   function fltPass(c) { return !FX || FX.passes(c, flt, todayYmd(), Date.now()); }
@@ -451,7 +451,7 @@
   }
 
   // "When" chips (Today / Yesterday / Last 24 hours / 7 / 30 days / Pick dates), two date boxes while picking, direction and
-  // order chips, and a one-line summary with a Clear button whenever something narrows the list.
+  // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Missed), and a one-line summary with a Clear button whenever something narrows the list.
   function filterBar(shown, people) {
     if (!FX) return '';
     function chipBtn(kind, id, label, on) {
@@ -463,12 +463,13 @@
         '<label class="cc-date-lbl">To <input type="date" class="cc-date" data-cc-date="to" value="' + esc(flt.to) + '" aria-label="To date"></label></div>'
       : '';
     var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
+    var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0]); }).join('') + '</div>' : '';
     var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
     var sum = FX.isActive(flt)
       ? '<div class="cc-filter-sum">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
       : '';
     return '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
-      '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + sum;
+      '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + stats + sum;
   }
 
   function render() {
@@ -1285,6 +1286,7 @@
     if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; state.focusId = null; render(); }
     else if (a === 'range') setFlt({ range: b.getAttribute('data-arg') });
     else if (a === 'dir') setFlt({ dir: b.getAttribute('data-arg') });
+    else if (a === 'status') setFlt({ status: b.getAttribute('data-arg') });
     else if (a === 'sort') setFlt({ sort: b.getAttribute('data-arg') });
     else if (a === 'clearfilters') clearFlt();
     else if (a === 'play') play(id);

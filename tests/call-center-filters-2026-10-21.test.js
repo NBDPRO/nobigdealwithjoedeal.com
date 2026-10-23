@@ -43,7 +43,7 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
 
   console.log('\n2. normalize / persistence');
   {
-    ok('defaults are "any time, all calls, newest first"', JSON.stringify(FX.defaults()) === '{"range":"all","from":"","to":"","dir":"all","sort":"new"}');
+    ok('defaults are "any time, all calls, newest first"', JSON.stringify(FX.defaults()) === '{"range":"all","from":"","to":"","dir":"all","status":"all","sort":"new"}');
     ok('junk becomes the defaults', JSON.stringify(FX.normalize(null)) === JSON.stringify(FX.defaults()) && JSON.stringify(FX.normalize('x')) === JSON.stringify(FX.defaults()) && FX.normalize({ range: 'forever', dir: 'sideways', sort: 'random' }).range === 'all');
     ok('a reversed custom range is swapped, not emptied', (function () { const n = FX.normalize({ range: 'custom', from: '2026-10-20', to: '2026-10-10' }); return n.from === '2026-10-10' && n.to === '2026-10-20'; })());
     ok('invalid dates are dropped (Feb 30, wrong shape)', FX.normalize({ range: 'custom', from: '2026-02-30', to: '10/21/2026' }).range === 'all');
@@ -53,7 +53,7 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
     ok('isActive: a range or a direction counts; sort alone does not (it only reorders)', FX.isActive({ range: 'today' }) && FX.isActive({ dir: 'in' }) && !FX.isActive({ sort: 'old' }) && !FX.isActive(FX.defaults()));
     const mem = {}; const storage = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); } };
     FX.save(storage, { range: '7d', dir: 'out', sort: 'old' });
-    ok('save then load round-trips', JSON.stringify(FX.load(storage)) === JSON.stringify({ range: '7d', from: '', to: '', dir: 'out', sort: 'old' }));
+    ok('save then load round-trips', JSON.stringify(FX.load(storage)) === JSON.stringify({ range: '7d', from: '', to: '', dir: 'out', status: 'all', sort: 'old' }));
     mem[FX.KEY] = '{not json';
     ok('corrupt saved JSON loads as defaults, no throw', JSON.stringify(FX.load(storage)) === JSON.stringify(FX.defaults()));
     ok('no storage at all (private mode / null) is safe', JSON.stringify(FX.load(null)) === JSON.stringify(FX.defaults()) && (function () { try { FX.save(null, { range: 'today' }); return true; } catch (e) { return false; } })());
@@ -232,7 +232,7 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
   console.log('\n6. wiring');
   {
     const view = read('docs/pro/js/call-center-view.js'), css = read('docs/pro/css/phone-calls.css'), loader = read('docs/pro/js/script-loader.js'), dash = read('docs/pro/dashboard.html');
-    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=1',\s*'js\/call-center-view\.js\?v=23'\s*\]/.test(loader));
+    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=2',\s*'js\/call-center-view\.js\?v=24'\s*\]/.test(loader));
     ok('the stylesheet version was bumped for the new rules', /css\/phone-calls\.css\?v=12/.test(dash) && /\.cc-fbar \{/.test(css));
     ok('chips, date boxes and Clear are 44px targets', /\.cc-date \{[^}]*min-height: 44px/.test(css) && /\.cc-clear \{[^}]*min-height: 44px/.test(css) && /\.cc-tab \{\s*min-height: 44px/.test(css));
     ok('no inline handlers or inline styles in the new markup (CSP)', !/cc-fchip[^>]*(onclick|style=)/.test(view) && !/cc-date[^>]*(onclick|style=)/.test(view));
