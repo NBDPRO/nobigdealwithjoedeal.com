@@ -31,7 +31,7 @@
   function formHtml(dk, rec) {
     const r = rec && !rec.skipped ? rec : {};
     const chips = [1, 2, 3].map((n) => '<button type="button" class="wc-chip eod-chip' + (r.body === n ? ' on' : '') + '" data-eod-action="body" data-v="' + n + '" aria-pressed="' + (r.body === n) + '">' + esc(E().BODY[n]) + '</button>').join('');
-    return '<div class="eod-q"><div class="eod-l">How does your body feel?</div><div class="wc-chips" data-body="' + esc(r.body || 0) + '">' + chips + '</div></div>' +
+    return '<div class="eod-q"><div class="eod-l">How does your body feel?</div><div class="wc-chips" role="group" aria-label="How your body feels" data-body="' + esc(r.body || 0) + '">' + chips + '</div></div>' +
       '<label class="eod-q"><span class="eod-l">One business win or next action</span><input class="wc-in eod-in" id="eodWin" maxlength="' + E().MAX + '" autocomplete="off" value="' + esc(r.win || '') + '"></label>' +
       '<label class="eod-q"><span class="eod-l">Tomorrow\'s non-negotiable</span><input class="wc-in eod-in" id="eodTomorrow" maxlength="' + E().MAX + '" autocomplete="off" value="' + esc(r.tomorrow || '') + '"></label>' +
       '<div class="eod-foot"><button type="button" class="btn eod-save" data-eod-action="save">Save</button><button type="button" class="btn btn-ghost eod-skip" data-eod-action="skip">Not tonight</button></div>';
