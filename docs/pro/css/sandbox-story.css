@@ -226,8 +226,9 @@ html:not(.sx-js) .sx-step { border-bottom: 1px solid var(--pl-line); margin-bott
 .sx-end-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp3); margin-top: var(--sp6); }
 .sx-cta-main { font-size: 20px; min-height: 60px; }
 .sx-plan-note { color: var(--pl-muted); font-size: 15px; margin-top: var(--sp4); }
-.sx-next-phase { display: grid; gap: 4px; margin: var(--sp6) auto 0; padding: var(--sp4); border: 1px dashed var(--pl-line); border-radius: 14px; opacity: .72; cursor: not-allowed; max-width: 480px; }
-.sx-next-title { font-weight: 700; font-size: 17px; color: var(--pl-muted); }
+.sx-next-phase { display: grid; gap: 4px; margin: var(--sp6) auto 0; padding: var(--sp4); border: 1px solid var(--pl-line); border-radius: 14px; max-width: 480px; text-decoration: none; }
+.sx-next-phase:hover, .sx-next-phase:focus-visible { border-color: var(--pl-muted); }
+.sx-next-title { font-weight: 700; font-size: 17px; color: var(--pl-ink, inherit); }
 .sx-next-sub { font-size: 14px; color: var(--pl-muted); }
 .sx-end-links { margin-top: var(--sp5); color: var(--pl-muted); font-size: 15px; }
 

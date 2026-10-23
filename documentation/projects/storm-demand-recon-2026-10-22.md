@@ -81,3 +81,25 @@ handle the claim", no AOB; gate run on all copy.
   calls the two callables. Needs a phone-width check.
 - GBP: waiting on Jo to read the Cloud Console quota; design is in
   [GBP-READ-ONLY-DESIGN-2026-10-22](GBP-READ-ONLY-DESIGN-2026-10-22.md).
+
+## Update 2026-10-23
+
+- **PR 1 merged** (#2679): recon, GBP design, the two callables.
+- **Do the callables ship with the normal deploy?** Yes. `.github/workflows/firebase-deploy.yml`
+  runs on a push to `main` whose paths include `functions/**` (and `docs/**`), and its
+  functions steps run on `push`; PR 1 touched `functions/`, so
+  `listStormOutreach` and `fileStormOutreachDrafts` ship with that deploy. No
+  manual deploy is needed. (Not run or watched from this session; confirm the
+  deploy went green before relying on the tab.)
+- **PR 2 (CRM panel)**: a new **Outreach** tab in Storm Center
+  (`docs/pro/js/storm-outreach-ui.js`, loaded in the `storm` bundle). Tick
+  past customers / open leads near a recorded report, preview each draft,
+  file the ticked ones. The browser sends only the report key and lead ids;
+  wording, distance and the STOP / Do-Not-Text gates are server-side. Owner
+  and company admins only. Nothing sends from the tab: the owner sends from
+  the Agent inbox. Checked at 360 / 390 / 412 px, light and dark: no
+  horizontal overflow, 22px tick boxes, 44px file button; each row has an
+  accessible name and a tied label; test
+  `tests/storm-outreach-ui-2026-10-23.test.js` (32 checks, 10 mutations red).
+- **Jo items:** read the GBP Cloud Console quota (case 8-9748000042165, 0 =
+  pending, 300 = approved). Still parked: reviews/insights build.

@@ -1,0 +1,10 @@
+/* Finished-job check card (js/job-closeout.js). Classes, not inline styles. */
+#closeoutPanel[hidden] { display: none; }
+.jco-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.jco-head .panel-title { margin: 0; }
+.jco-count { font-size: 12px; font-weight: 700; color: var(--m, #9ca3af); }
+.jco-row { display: flex; gap: 10px; align-items: baseline; padding: 6px 4px; border-top: 1px solid var(--br, rgba(255,255,255,.06)); font-size: 13px; color: var(--t); }
+.jco-row.jco-done { color: var(--m, #9ca3af); }
+.jco-mark { width: 14px; flex: 0 0 auto; }
+.jco-hint { color: var(--m, #9ca3af); font-size: 11px; }
+.jco-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
