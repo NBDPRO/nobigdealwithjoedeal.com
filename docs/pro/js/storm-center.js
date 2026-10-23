@@ -861,6 +861,7 @@
 
   function setTab(tab) {
     currentTab = tab;
+    if (tab === 'outreach' && window.StormOutreachUI) window.StormOutreachUI.load();
     render();
   }
 
@@ -934,6 +935,7 @@
           ${tabBtn('alerts', 'Live Alerts', '📡')}
           ${tabBtn('zones', 'Storm Zones', '🗺️')}
           ${tabBtn('canvass', 'Canvass Plans', '🚪')}
+          ${tabBtn('outreach', 'Outreach', '✉️')}
           ${tabBtn('analytics', 'Storm Analytics', '📊')}
         </div>
       </div>
@@ -951,6 +953,8 @@
       html += renderZonesTab();
     } else if (currentTab === 'canvass') {
       html += renderCanvassTab();
+    } else if (currentTab === 'outreach') {
+      html += window.StormOutreachUI ? window.StormOutreachUI.html() : '<div class="nbd-empty"><div class="ne-sub">Loading…</div></div>';
     } else if (currentTab === 'analytics') {
       html += renderAnalyticsTab();
     }

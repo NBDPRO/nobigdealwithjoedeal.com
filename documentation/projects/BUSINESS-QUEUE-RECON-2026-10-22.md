@@ -11,7 +11,7 @@ Recon only, for the seven-item business-side queue. Method: `origin/main` at `45
 | 3 | Estimate follow-up view | [ESTIMATE-FOLLOW-BOARD-2026-10-19](ESTIMATE-FOLLOW-BOARD-2026-10-19.md): grouped, opened-but-silent first, then value, with a projected total. Drafts only. Dark, flag `estimateFollowBoard`. | Built. Sorting is by value then quiet days. | No PR. Jo flips `estimateFollowBoard`. |
 | 4 | Collected vs projected labels | `docs/pro/js/collected-revenue.js` (`NBDRevenue`) and `tests/revenue-collected-only-2026-09-28.test.js` pin the surfaces that carry a "revenue" label. | Surfaces added after 09-28 are not in that pin. | One audit PR if the grep finds a mislabel; otherwise a note. |
 | 5 | Weekly job-margin review | Agent tool `job_profit` (Frank) gives per finished job collected minus direct costs and margin, server side. | No weekly note of jobs whose margin fell. "Fell" needs a baseline (see assumption). | One PR: a pure, tested function over the same `job_profit` rows, filed as an Agent-inbox report, CRM-internal only. Nothing under `docs/` public pages. |
-| 6 | A2P status | Repo docs say the campaign went **Verified on 2026-10-19** ([MESSAGING-CONTROL-CENTER-2026-10-19](MESSAGING-CONTROL-CENTER-2026-10-19.md), [MESSAGING-HARDENING-2026-10-19](../audit/MESSAGING-HARDENING-2026-10-19.md)). The 10-13 packet is superseded: rejected 30909 twice, then fixed. | Not re-read live: that needs Twilio credentials, which this queue may not touch. | Report only, no PR. Texting stays gated by `messaging_controls/global` and the `integrations/sms.a2pApproved` flag; Jo flips those. |
+| 6 | A2P status | Repo docs say the campaign went **Verified on 2026-10-19** ([MESSAGING-CONTROL-CENTER-2026-10-19](MESSAGING-CONTROL-CENTER-2026-10-19.md), [MESSAGING-HARDENING-2026-10-19](../audit/MESSAGING-HARDENING-2026-10-19.md)). The 10-13 packet is superseded: rejected 30909 twice, then fixed. | Settled: **Verified, per Jo 2026-10-22**; no Twilio re-read needed. | Report only, no PR. Texting stays gated by `messaging_controls/global` and the `integrations/sms.a2pApproved` flag; Jo flips those. |
 | 7 | Review-request drafts | `functions/review-request-nudge.js` (nudges the rep after paid in full), `review-ask-auto.js` (gated, off), agent `review_sprint` plus Tucker's `draft_text` (drafts into the Agent inbox, owner sends). | Drafting path exists. Likely no new code. | Check the draft wording against the claim gate; no PR unless a gap shows. |
 
 ## Assumptions
@@ -26,3 +26,15 @@ Flip `leadSourceFixer`, `speedToLead`, `estimateFollowBoard` in the Firebase con
 ## Order of work
 
 Recon PR (this note) → item 1 (confirmed source into lead_sources) → item 5 → item 4 audit → item 7 check. One PR at a time.
+
+## Update 2026-10-23: item 4, collected vs projected label audit (no code change)
+
+Method: two greps over `docs/pro/` js and html for visible text that says Revenue, Sales, Income, Earned, Booked, plus a read of the sources behind each hit. No mislabel found:
+
+- Surfaces already on the collected ledger (`NBDRevenue`) and pinned by `tests/revenue-collected-only-2026-09-28.test.js`: Home tile, Analytics, Reports, leaderboard, weekly digest, rep report.
+- D2D tracker (`d2d-tracker-ui-2026b.js`): the banner reads "Expected Value / Door" with the tag "Projected - not yet earned"; the chips say Pipeline, Closed and Proj/mo, and the one metric tile is labelled "Proj. Revenue". Honest.
+- Team leaderboard in `dashboard-api.js`: sums won jobs' `jobValue` but labels it "booked", not revenue. Honest, but it is contract value, not cash.
+- Lead Sources table (`lead-source-roi.js`): the column is "Booked per $1", and collected dollars are shown separately. Honest.
+- Daily Success `s-revenue` is the rep's own typed number in a personal tracker, not CRM money.
+
+Open if Jo wants it stricter: rename "booked" to "booked (contract value)" on the leaderboard. Not done: the word is accurate and the ask was to fix screens that call projected money revenue.

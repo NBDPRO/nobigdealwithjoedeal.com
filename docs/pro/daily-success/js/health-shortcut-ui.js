@@ -93,7 +93,12 @@
 
   async function call(action) {
     const mod = await import(FUNCTIONS_SDK);
-    const res = await mod.httpsCallable(mod.getFunctions(), 'healthShortcutManage')({ action });
+    const fns = mod.getFunctions();
+    // Localhost only: point THIS instance at the Functions emulator before the call. The page-wide
+    // connect does not await the default instance, so without this the first call can race it and
+    // POST to production. A no-op off localhost.
+    try { await (await import('/pro/js/nbd-emulator-connect.js')).connectEmulatorsIfLocal({ functions: fns }); } catch (_) { /* prod path */ }
+    const res = await mod.httpsCallable(fns, 'healthShortcutManage')({ action });
     return (res && res.data) || {};
   }
 

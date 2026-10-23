@@ -105,6 +105,9 @@ const BOUNDARY = (bStart !== -1 && bEnd > bStart) ? BOOT_SRC.slice(bStart, bEnd)
 const AUTH_CB = lift(BOOT_SRC, AUTH_MARKER);
 const LOAD_LEADS = lift(BOOT_SRC, 'async function loadLeads()');
 const OPTIMISTIC = lift(BOOT_SRC, 'function _optimisticInsertLead(leadId, data)');
+// The shared-device purge helpers the callback awaits (fail-closed fix, 2026-10-23).
+const PURGE_HELPERS = BOOT_SRC.slice(BOOT_SRC.indexOf('const _PURGE_WAIT_MS'), BOOT_SRC.indexOf('let _sessionUid;'));
+ok('the purge helpers the callback awaits were lifted too', PURGE_HELPERS.includes('async function _settleOwedPurge('));
 
 ok('account-boundary block lifted (session/cache uid + _resetLeadsCache + _bindCachesToSession)',
   !!BOUNDARY && BOUNDARY.includes('function _resetLeadsCache()') && BOUNDARY.includes('let _leadsCacheUid'));
@@ -127,7 +130,7 @@ if (!BOUNDARY || !AUTH_CB || !LOAD_LEADS || !OPTIMISTIC) {
 }
 // Module-scope `let`s stay private to the wrapper, exactly as in the ES module;
 // only the entry points a real caller has are handed back.
-const BOOT_WRAPPER = '(function () {\n' + BOUNDARY + '\n' + AUTH_CB + ');\n' + LOAD_LEADS + '\n' + OPTIMISTIC + '\n'
+const BOOT_WRAPPER = '(function () {\n' + PURGE_HELPERS + '\n' + BOUNDARY + '\n' + AUTH_CB + ');\n' + LOAD_LEADS + '\n' + OPTIMISTIC + '\n'
   + 'return { loadLeads: loadLeads, optimisticInsert: _optimisticInsertLead };\n})()';
 
 // ── Minimal fake DOM (same idiom as unloaded-cache-gates.test.js) ────
@@ -252,6 +255,9 @@ function makePage() {
   win.S = { NEW: 'new' };
   win.stageRole = (k) => (k === 'closed' ? 'won' : 'active');
   win._firestoreCycledOnBoot = true; // skip the once-per-tab pre-flight cycle
+  // nbd-auth.js's purge, present as on a real page. The callback now awaits a switch's purge
+  // (and waits up to 5 s for NBDAuth when it is absent) before it reads claims.
+  win.NBDAuth = { purgeAccountStorage: () => {} };   // synchronous, as the old harness's skipped purge was: no extra await before the claims read
 
   // The real bootstrap code. onAuthStateChanged just captures the callback.
   let authCb = null;

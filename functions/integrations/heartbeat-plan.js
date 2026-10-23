@@ -113,6 +113,7 @@ const PLAN = {
   weeklyDigest:              { slug: 'weekly-crons' },
   dormantLeadNudge:          { slug: 'weekly-crons' },
   weeklyVendorConfigExport:  { slug: 'weekly-crons' }, // Sun 04:30 ET config snapshot
+  ownerWeeklyDigest:         { slug: 'weekly-crons' }, // Mon 07:30 ET owner digest into the Agent inbox
 
   monthlyMarketingReport:    { slug: 'monthly-crons' },
   monthlyOverheadAlertCron:  { slug: 'monthly-crons' },

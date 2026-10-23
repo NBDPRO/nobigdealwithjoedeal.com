@@ -41,9 +41,11 @@ const SETTINGS = [
   { key: 'nbd_user_config', field: 'dsConfig' },
   { key: 'nbd_gt',          field: 'dsGoalTargets' },
   { key: 'nbd_ds_coach',    field: 'dsCoach' },        // Workout Coach: rotation / freshness / equipment
+  { key: 'nbd_ds_coach_notes', field: 'dsCoachNotes' }, // Workout Coach: per-lift notes ("last time: ...")
   { key: 'nbd_ds_food',     field: 'dsFood' },         // Food card: favorites + protein / calorie targets
   { key: 'nbd_ds_reviews',  field: 'dsReviews' },      // Sunday review: weekly records + goal weight
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
+  { key: 'nbd_ds_eod',      field: 'dsEod' },          // end-of-day review: one short note per date
   { key: 'nbd_ds_money',    field: 'dsMoney' },        // money tab: paycheck plan (nicknames + amounts only)
 ];
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
@@ -63,13 +65,20 @@ function injectBadge() {
   _badge = b;
 }
 
-function showBadge(text, color) {
+// One hide timer, cleared on every call: a stale "Saving..." timer used to hide a
+// "Sync failed" pill 0.1-0.4 s after it appeared. Errors stay up longer than
+// success messages so a failed save is actually seen.
+const BADGE_MS = 2400, BADGE_ERR_MS = 7000;
+let _badgeTimer = null;
+function showBadge(text, color, ms) {
   if (!_badge) return;
   _badge.textContent = text;
   _badge.style.color = color || 'var(--ac-text,#E4783F)';
   _badge.style.opacity = '1';
-  setTimeout(() => { _badge.style.opacity = '0'; }, 2400);
+  clearTimeout(_badgeTimer);
+  _badgeTimer = setTimeout(() => { _badge.style.opacity = '0'; }, ms || BADGE_MS);
 }
+const showError = (text) => showBadge(text, null, BADGE_ERR_MS);
 
 const readJson = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
 
@@ -209,7 +218,9 @@ async function syncWorkouts() {
     snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
   } catch (e) { return; }
   const merged = window.NBDCoach.mergeSessions(readJson(WKEY, []), cloud);
-  localStorage.setItem(WKEY, JSON.stringify(merged));
+  // A full / private-mode localStorage must not abort the cloud pushes below; the failure is rethrown at the end so the caller shows it.
+  let cacheErr = null;
+  try { localStorage.setItem(WKEY, JSON.stringify(merged)); } catch (e) { cacheErr = e; }
   const inCloud = new Map(cloud.map(x => [String(x.id), x]));
   const push = merged.filter(x => { const c = inCloud.get(String(x.id)); return !c || (Number(x.mt) || 0) > (Number(c.mt) || 0); });
   for (const group of L().chunk(push, L().CHUNK)) {
@@ -218,6 +229,7 @@ async function syncWorkouts() {
     await batch.commit();
   }
   if (window.NBDCoachUI && typeof window.NBDCoachUI.refresh === 'function') window.NBDCoachUI.refresh();
+  if (cacheErr) throw cacheErr;
 }
 
 async function pushWorkout(session) {
@@ -239,7 +251,7 @@ function installInterceptor() {
     clearTimeout(_syncTimer);
     showBadge('Saving...');
     _syncTimer = setTimeout(() => {
-      pushToFirestore(readJson(STORE, [])).catch(() => showBadge('Sync failed'));
+      pushToFirestore(readJson(STORE, [])).catch(() => showError('Sync failed'));
     }, DEBOUNCE);
   };
 }
@@ -252,7 +264,7 @@ onAuthStateChanged(auth, async user => {
   installInterceptor();
   showBadge('Loading...');
   try {
-    if (!L()) { showBadge('Sync error'); return; }
+    if (!L()) { showError('Sync error'); return; }
     // Shared phone: another account was last signed in here (the dashboard records nbd_last_uid), so its local pages, workouts, food
     // log and money plan must not be merged into THIS account's cloud. The same purge the dashboard runs on an account switch.
     // This module can win the race against nbd-auth.js, so wait (up to ~3 s) for the purge to exist. If it never does, pause the sync rather
@@ -263,13 +275,13 @@ onAuthStateChanged(auth, async user => {
       const canPurge = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
       for (let i = 0; i < 30 && !canPurge(); i++) await new Promise((r) => setTimeout(r, 100));
       if (!canPurge()) { showBadge('Sync paused'); return; }
-      try { window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }
+      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
       try { if (typeof window.loadPages === 'function') window.loadPages(); } catch (_) { /* the purge already ran; the sync below repopulates */ }
     }
     try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
     const restored = await syncSettings();
     const cloud = await pullFromFirestore();
-    if (cloud === null) { showBadge('Sync error'); return; }
+    if (cloud === null) { showError('Sync error'); return; }
     _ledger.clear();
     for (const cp of cloud) if (!cp.deleted) _ledger.set(String(cp.id), L().mtOf(cp));
     const local = readJson(STORE, []);
@@ -286,8 +298,11 @@ onAuthStateChanged(auth, async user => {
       // screen wasn't showing, and the next tab tap wiped that page's rows.
       if (typeof window.dsRefreshView === 'function') window.dsRefreshView();
     }
-    await pushToFirestore(merged.pages);
-    await syncWorkouts();
-    showBadge(merged.pages.length + ' days loaded', '#2ECC8A');
-  } catch(e) { showBadge('Sync error'); }
+    // Isolated: a failing pages push must not skip the workout sync (or the reverse).
+    let failed = false;
+    try { await pushToFirestore(merged.pages); } catch (e) { failed = true; console.warn('[ds-sync] pages push failed', e && e.code); }
+    try { await syncWorkouts(); } catch (e) { failed = true; console.warn('[ds-sync] workout sync failed', e && e.code); }
+    if (failed) showError('Sync error');
+    else showBadge(merged.pages.length + ' days loaded', '#2ECC8A');
+  } catch(e) { showError('Sync error'); }
 });

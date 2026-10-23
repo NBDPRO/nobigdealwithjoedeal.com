@@ -543,6 +543,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-lusage-test 'node firestore-rules.layout-usage.test.js'
+      # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
+      - name: Run job-conflict notice rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-jobconf-test 'node firestore-rules.job-conflict-notice.test.js'
       # Company documents (own-document expiry, 2026-10-18): companies/{cid}/companyDocs. Own file.
       - name: Run company-docs rules tests under emulator
         run: |
@@ -952,6 +957,13 @@ jobs:
         # alphabetically after phone-draw-crosshair.spec.js; neither is in the merge-queue
         # ruleset yet (Jo adds @shard2 and @shard3 once both have passed on main).
         shard: ['@shard1', '@shard2', '@shard3', '@audit', '@stranger', '@gauntlet', '@engines']
+        # 2026-10-23 (Jo, overnight): @shard2 and @shard3 are NOT required and @shard2 has never
+        # finished (cap hit 37 of 37 runs; documentation/qa/ci-runner-minutes-2026-10-23.md). They
+        # run on pull_request only: on merge_group and push these two legs are dropped from the
+        # matrix (NOT skipped by an if:, which would report one unexpanded SKIPPED name), so the
+        # five REQUIRED legs keep producing their exact check names on every event. Saves ~78
+        # runner-min per merged PR. Re-add them to the queue once both pass on main and are required.
+        exclude: ${{ fromJSON(github.event_name == 'pull_request' && '[]' || '[{"shard":"@shard2"},{"shard":"@shard3"}]') }}
     # Rock 3: hermetic authed journey — seed a tenant in the Auth/Firestore
     # emulators, serve docs/ from the hosting emulator (the client SDK
     # auto-connects to emulators on localhost via nbd-emulator-connect.js),
