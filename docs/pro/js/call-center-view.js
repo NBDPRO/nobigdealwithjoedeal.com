@@ -108,6 +108,33 @@
     return madeLeads[d] || null;
   }
   /**
+   * What a number points at (call-center-loop-logic.js): { one } a sure thing, { many } two customers share it (a couple, a
+   * duplicate lead) so the card must ask. A relay line (3+) and no match are both empty. A lead made on this screen counts.
+   */
+  function numberMatch(num) {
+    var LP = window.NBDCallCenterLoop;
+    if (!LP) { var o = leadForNumber(num); return { one: o, many: [] }; }
+    var r = LP.candidatesForNumber(window._leads || [], num);
+    if (r.candidates.length > 1) return { one: null, many: r.candidates };
+    if (r.candidates.length === 1) return { one: r.candidates[0], many: [] };
+    return { one: r.proxy ? null : (madeLeads[digits10(num)] || null), many: [] };
+  }
+  /** The customers a shared number is on (2+), for the "which one?" row; [] otherwise. */
+  function fileChoices(c) {
+    if (!c || c.leadId || c.channel === 'text') return [];
+    return numberMatch(c.phoneDigits).many;
+  }
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  /** The reminder filing this call sets, in words ('' when none) - the server writes it on attach (follow-up task cube-<callId>). */
+  function reminderText(c) {
+    var LP = window.NBDCallCenterLoop;
+    if (!LP || !c) return '';
+    var p = LP.followUpPreview(c, Date.now(), todayYmd());
+    if (!p) return '';
+    var m = /^\d{4}-(\d{2})-(\d{2})$/.exec(p.dueDate || '');
+    return 'Reminder: ' + p.title + (m ? ' · due ' + MON[+m[1] - 1] + ' ' + (+m[2]) : '');
+  }
+  /**
    * "File on X" for a call on no customer: the customer its number is
    * already on (a sure thing), else the one the notes point at (stored by
    * the server as suggestedLeadId when the notes were written). Never
@@ -115,7 +142,9 @@
    */
   function fileTarget(c) {
     if (!c || c.leadId || c.channel === 'text') return null;
-    var byNum = leadForNumber(c.phoneDigits);
+    var nm = numberMatch(c.phoneDigits);
+    if (nm.many.length) return null;                                  // a shared number: ask (fileChoices), never pick the first
+    var byNum = nm.one;
     if (byNum) return { leadId: byNum.leadId, name: byNum.name, why: 'this number is already on them' };
     if (!c.suggestedLeadId) return null;
     var L = leadsById(), l = L[c.suggestedLeadId], any = Object.keys(L).length;
@@ -130,9 +159,18 @@
     if (!c || isViewer() || c.leadId || c.channel === 'text') return '';
     var t = fileTarget(c);
     var idsAttr = ids && ids.length > 1 ? ' data-ids="' + esc(ids.join(',')) + '"' : '';
+    var rem = ids && ids.length > 1 ? '' : reminderText(c);
+    var remRow = rem ? '<span class="cc-suggest-note">' + esc(rem) + '</span>' : '';
     if (t) {
-      return '<div class="cc-suggest" data-cc-suggest="' + esc(c.id) + '"><span>Looks like <b>' + esc(t.name) + '</b>' + (t.why ? ' — ' + esc(t.why) : '') + '.</span>' +
+      return '<div class="cc-suggest" data-cc-suggest="' + esc(c.id) + '"><span>Looks like <b>' + esc(t.name) + '</b>' + (t.why ? ' — ' + esc(t.why) : '') + '.</span>' + remRow +
         '<button type="button" class="btn btn-orange pc-play cc-suggest-btn" data-ccp="suggest" data-id="' + esc(c.id) + '" data-lead="' + esc(t.leadId) + '" data-name="' + esc(t.name) + '"' + idsAttr + '>File on ' + esc(t.name) + '</button></div>';
+    }
+    var many = fileChoices(c);
+    if (many.length) {
+      return '<div class="cc-suggest cc-suggest-many" data-cc-suggest="' + esc(c.id) + '"><span>This number is on <b>' + many.length + ' customers</b> — which one?</span>' + remRow +
+        many.slice(0, 4).map(function (m) {
+          return '<button type="button" class="btn btn-orange pc-play cc-suggest-btn" data-ccp="suggest" data-id="' + esc(c.id) + '" data-lead="' + esc(m.leadId) + '" data-name="' + esc(m.name) + '"' + idsAttr + '>File on ' + esc(m.name) + '</button>';
+        }).join('') + '</div>';
     }
     if (taggedNotInCrm(c)) {
       return '<div class="cc-suggest cc-suggest-new" data-cc-suggest="' + esc(c.id) + '"><span>Tagged “NBD Customer” in your phone — not in the CRM yet.</span>' +
@@ -870,7 +908,7 @@
     // rest of the number's calls and texts with it.
     var anchor = g.items.filter(function (p) { return p.channel !== 'text'; })[0] || null;
     var withSuggest = g.items.filter(function (p) { return p.suggest; })[0];
-    var byNum = anchor ? leadForNumber(anchor.phoneDigits) : null;
+    var byNum = anchor ? numberMatch(anchor.phoneDigits).one : null;
     var target = byNum ? { leadId: byNum.leadId, name: byNum.name, why: 'this number is already on them' }
       : (withSuggest ? withSuggest.suggest : (anchor ? fileTarget(byId(anchor.callId)) : null));
     var isLead = g.items.some(function (p) { return p.callType === 'lead'; });
@@ -1017,9 +1055,10 @@
     try {
       if (b.getAttribute('data-ccp') === 'suggest') {
         var name = b.getAttribute('data-name') || 'the customer';
+        var rem = reminderText(byId(id));
         var r = await fileOn(id, b.getAttribute('data-lead'));
         if (inView) render();
-        status(id, 'Filed on ' + name + refiledText(r) + '.' + after);
+        status(id, 'Filed on ' + name + refiledText(r) + '.' + (rem ? ' ' + rem + '.' : '') + after);
       } else {
         status(id, 'Creating the lead…');
         var made = await leadFromCall(info);
@@ -1367,6 +1406,8 @@
     _groupPromises: groupPromises,
     _leadForNumber: leadForNumber,
     _fileTarget: fileTarget,
+    _fileChoices: fileChoices,
+    _reminderText: reminderText,
     _promises: promises,
     _state: state,
     _needsAttention: needsAttention,
