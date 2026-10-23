@@ -41,8 +41,11 @@ the CRM cannot read it directly: a callable is needed.
 2. Later PR: Storm Center panel in the CRM that calls the two callables.
    Needs a phone check; not started.
 
-Rules honoured: drafts only, nothing sends (outbound texting is off until A2P
-approval — a draft is sent by the owner from their own phone); email stays
+Rules honoured: drafts only, nothing sends (Twilio A2P went Verified
+2026-10-19, but every outbound path stays behind the fail-closed kill switch
+`messaging_controls/global` and per-automation flags, absent = OFF; a draft is
+sent by the owner from their own phone, and only a Twilio "delivered" status
+proves delivery); email stays
 out of scope (existing owner-approval path only); quiet hours 8am-9pm
 homeowner-local at send; no claim/outcome/price/insurance words; no "we
 handle the claim", no AOB; gate run on all copy.
