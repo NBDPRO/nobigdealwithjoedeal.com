@@ -46,6 +46,7 @@
       plates: C().normPlates(s.plates),
       warmups: s.warmups !== false,
       restAlert: C().normRestAlert(s.restAlert),
+      workoutsPerWeek: window.NBDWeeklyTargets ? window.NBDWeeklyTargets.normWeekly(s.workoutsPerWeek) : (s.workoutsPerWeek == null ? null : s.workoutsPerWeek),
     };
   }
   function saveSettings(s) {
@@ -193,6 +194,12 @@
     }
     if (!live && routines.length) body += `<div class="wc-routines"><div class="wc-lbl">My routines</div>${routines.map((r) => `<button class="btn btn-ghost wc-routine" data-coach-action="routine-start" data-id="${esc(r.id)}">▶ ${esc(r.name)} <small>${esc(r.lifts.length)} lifts</small></button>`).join('')}</div>`;
     const meta = [];
+    if (s.workoutsPerWeek && window.NBDWeeklyTargets) {
+      const WT = window.NBDWeeklyTargets, d7 = new Date();
+      const from = new Date(d7.getFullYear(), d7.getMonth(), d7.getDate() - 6);
+      const fk = from.getFullYear() + '-' + String(from.getMonth() + 1).padStart(2, '0') + '-' + String(from.getDate()).padStart(2, '0');
+      meta.push('Week: ' + WT.countWorkouts(all, fk, today()) + '/' + s.workoutsPerWeek + ' workouts');
+    }
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
     // A variety score over one or two workouts is noise — show it once there's a pattern to read.
     if (v.total >= 12) meta.push('Variety (4 wks): ' + v.pct + '%');
