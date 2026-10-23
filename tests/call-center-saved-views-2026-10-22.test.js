@@ -29,7 +29,7 @@ const H = 3600e3, D = 86400e3;
 (async () => {
   console.log('\n1. the views (pure)');
   {
-    ok('two views, with the names Jo asked for', FX.VIEWS.map((v) => v.label).join('|') === 'Missed today|Unhandled this week');
+    ok('two views, with the names Jo asked for', FX.VIEWS.map((v) => v.label).join('|') === 'Short calls today|Unhandled this week');
     const m = FX.applyView('missed-today', FX.defaults());
     ok('Missed today = Today + Missed', m.range === 'today' && m.status === 'missed' && m.dir === 'all');
     const u = FX.applyView('unhandled-week', FX.defaults());
@@ -81,7 +81,7 @@ const H = 3600e3, D = 86400e3;
     v.click({ 'data-cc': 'view', 'data-arg': 'missed-today' });
     ok('Missed today: only the call that rang unanswered an hour ago (not the missed one from 3 days ago, not today\'s long call)', JSON.stringify(ids(v)) === '["c_miss_today"]', JSON.stringify(ids(v)));
     ok('it opened the All tab, even from Needs attention', /aria-selected="true" data-cc="filter" data-arg="all"/.test(v.view.innerHTML));
-    ok('the view button is pressed and the summary says what it is', /aria-pressed="true" data-cc="view" data-arg="missed-today"/.test(v.view.innerHTML) && /Showing 1 of 5 · Today · Missed/.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
+    ok('the view button is pressed and the summary says what it is', /aria-pressed="true" data-cc="view" data-arg="missed-today"/.test(v.view.innerHTML) && /Showing 1 of 5 · Today · Short calls/.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
     ok('it wrote the ONE saved-filter record (no second record)', rec(v).range === 'today' && rec(v).status === 'missed' && Object.keys(v.mem).length === 1);
     v.click({ 'data-cc': 'view', 'data-arg': 'unhandled-week' });
     ok('Unhandled this week: today\'s two + the missed one from 3 days ago; not the handled one, not the 20-day-old one', JSON.stringify(ids(v)) === '["c_miss_today","c_miss_week","c_talk_today"]', JSON.stringify(ids(v)));

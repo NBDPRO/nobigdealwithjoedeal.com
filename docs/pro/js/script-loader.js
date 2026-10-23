@@ -485,8 +485,8 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-filters-logic.js?v=3',
-      'js/call-center-view.js?v=25'
+      'js/call-center-filters-logic.js?v=4',
+      'js/call-center-view.js?v=26'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export

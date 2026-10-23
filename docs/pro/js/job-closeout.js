@@ -55,7 +55,21 @@
     return { rows: rows, done: done, total: rows.length, complete: done === rows.length, next: rows.filter(function (r) { return r.state === 'todo'; })[0] || null };
   }
 
-  var api = { evaluate: evaluate, isFinishedJob: isFinishedJob };
+  // The rep prompt shown while the warranty row is open. Credentials are the
+  // two NBD holds (Jo, 2026-10-14 / brief 2026-10-22). Add a name here only
+  // after Jo confirms the credential; tests/job-closeout-2026-10-22.test.js
+  // pins the list and bans the ones NBD does not hold.
+  var CREDENTIALS = ['GAF Certified #1162011', 'TAMKO Pro Gold #181382'];
+  var WARRANTY_PROMPT = {
+    title: 'Register the warranty',
+    steps: [
+      'File the warranty certificate for this job (Documents tab).',
+      'If this job bought a GAF or TAMKO system warranty, register it with that manufacturer under NBD’s ' + CREDENTIALS.join(' / ') + ' account. For any other brand, follow that manufacturer’s own registration.',
+      'Registration is done by you in the manufacturer’s portal; nothing is filed or sent for you.'
+    ]
+  };
+
+  var api = { evaluate: evaluate, isFinishedJob: isFinishedJob, CREDENTIALS: CREDENTIALS, WARRANTY_PROMPT: WARRANTY_PROMPT };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root) return;
   root.JobCloseout = api;
@@ -87,9 +101,14 @@
       var tail = r.state === 'todo' ? ' <span class="jco-hint">— ' + esc(r.hint) + '</span>' : '';
       return '<div class="jco-row' + (r.state === 'done' ? ' jco-done' : '') + '"><span class="jco-mark" aria-hidden="true">' + mark + '</span><span><span class="jco-sr">' + (r.state === 'done' ? 'Done: ' : (r.state === 'unknown' ? 'Loading: ' : 'To do: ')) + '</span>' + esc(r.label) + tail + '</span></div>';
     }).join('');
+    var prompt = '';
+    if (res.rows.filter(function (r) { return r.key === 'warranty' && r.state === 'todo'; }).length) {
+      prompt = '<div class="jco-prompt" role="note"><strong>' + esc(WARRANTY_PROMPT.title) + '</strong><ol>' +
+        WARRANTY_PROMPT.steps.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol></div>';
+    }
     panel.innerHTML =
       '<div class="jco-head"><div class="panel-title">Finished-job check</div>' +
-        '<span class="jco-count">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span></div>' + rows;
+        '<span class="jco-count">' + (res.complete ? 'All done' : res.done + ' of ' + res.total) + '</span></div>' + rows + prompt;
     panel.hidden = false;
   };
 })(typeof window !== 'undefined' ? window : null);

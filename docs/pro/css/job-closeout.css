@@ -8,3 +8,5 @@
 .jco-mark { width: 14px; flex: 0 0 auto; }
 .jco-hint { color: var(--m, #9ca3af); font-size: 11px; }
 .jco-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.jco-prompt { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--orange, #BD5728); font-size: 12px; color: var(--t); }
+.jco-prompt ol { margin: 4px 0 0 18px; padding: 0; }
