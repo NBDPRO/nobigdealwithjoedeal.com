@@ -26,3 +26,15 @@ Flip `leadSourceFixer`, `speedToLead`, `estimateFollowBoard` in the Firebase con
 ## Order of work
 
 Recon PR (this note) → item 1 (confirmed source into lead_sources) → item 5 → item 4 audit → item 7 check. One PR at a time.
+
+## Update 2026-10-23: item 4, collected vs projected label audit (no code change)
+
+Method: two greps over `docs/pro/` js and html for visible text that says Revenue, Sales, Income, Earned, Booked, plus a read of the sources behind each hit. No mislabel found:
+
+- Surfaces already on the collected ledger (`NBDRevenue`) and pinned by `tests/revenue-collected-only-2026-09-28.test.js`: Home tile, Analytics, Reports, leaderboard, weekly digest, rep report.
+- D2D tracker (`d2d-tracker-ui-2026b.js`): the banner reads "Expected Value / Door" with the tag "Projected - not yet earned"; the chips say Pipeline, Closed and Proj/mo, and the one metric tile is labelled "Proj. Revenue". Honest.
+- Team leaderboard in `dashboard-api.js`: sums won jobs' `jobValue` but labels it "booked", not revenue. Honest, but it is contract value, not cash.
+- Lead Sources table (`lead-source-roi.js`): the column is "Booked per $1", and collected dollars are shown separately. Honest.
+- Daily Success `s-revenue` is the rep's own typed number in a personal tracker, not CRM money.
+
+Open if Jo wants it stricter: rename "booked" to "booked (contract value)" on the leaderboard. Not done: the word is accurate and the ask was to fix screens that call projected money revenue.
