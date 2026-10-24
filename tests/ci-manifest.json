@@ -155,6 +155,7 @@
     "d2d-map-vendor-race-2026-10-24.test.js",
     "audit-pass1-leftovers-2026-10-24.test.js",
     "ui-sweep-a11y-2026-10-24.test.js",
+    "pro-demo-callable-words-2026-10-24.test.js",
     "csv-import-stage-customerid-2026-09-28.test.js",
     "global-search-phone-match-2026-09-28.test.js",
     "lead-deep-link-2026-09-28.test.js",

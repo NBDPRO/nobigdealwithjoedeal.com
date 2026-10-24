@@ -177,7 +177,49 @@ const WOULD = {
   createConnectOnboardingLink: 'open Stripe to finish setting up payouts',
   createConnectDashboardLink: 'open your Stripe dashboard',
   createAgentKey: 'make an API key for a bot',
-  getJobWeather: 'check the weather.gov forecast for each scheduled job'
+  getJobWeather: 'check the weather.gov forecast for each scheduled job',
+  // UI sweep (2026-10-24): every callable the CRM names, so a visitor never sees a function name.
+  callPipelineHealth: 'check your pipeline for stuck leads',
+  getAdjusterTacticBoard: 'load the adjuster tactic board',
+  listTeamMembers: 'list your team',
+  activateInvitedRep: 'activate an invited rep',
+  alertRecipients: 'look up who gets alerts',
+  backfillAnalytics: 'rebuild your analytics',
+  getEsignEnvelopeForOwner: 'open this signing request',
+  getGameCard: 'load your rep scorecard',
+  manageAway: 'turn Away mode on or off',
+  manageSmsCompliance: 'change your texting compliance settings',
+  markEmailUnsubscribed: 'mark this email unsubscribed',
+  messagingCenter: 'load your text threads',
+  mintOwnerClaims: 'refresh your sign-in permissions',
+  resolveAddress: 'look up this address',
+  revokeMySessions: 'sign you out everywhere',
+  revokePortalToken: "turn off this customer's portal link",
+  routeDrive: "plan the drive between today's stops",
+  saveEsignFields: 'save the signature fields on this document',
+  voidEsignEnvelope: 'void this signing request',
+  callCenterAction: 'file this call on a customer',
+  callPromisesList: 'list the promises you made on calls',
+  callTaggedMatch: 'match this call to a customer',
+  carePlanAdmin: 'change a Roof Care Plan membership',
+  convertUnmatchedSms: 'file this text on a customer',
+  createCalendarFeedToken: 'make your calendar feed link',
+  createTeamMember: 'add a team member',
+  deactivateUser: 'deactivate a team member',
+  deleteAgentBot: 'remove a bot',
+  exportCompanyData: 'export your company data',
+  fileStormDrafts: 'file storm outreach drafts into your Agent inbox',
+  fileStormOutreachDrafts: 'file storm outreach drafts into your Agent inbox',
+  freshEstimateLink: 'make a fresh estimate link',
+  getAdminAnalytics: 'load admin analytics',
+  getAiTextingStats: 'load your AI texting stats',
+  getBusyTimes: 'read your calendar busy times',
+  getGoogleCalendarStatus: 'check your Google Calendar connection',
+  getThursdayRecording: "load Thursday's recording",
+  leadBrief: 'write a brief on this customer',
+  listStormOutreach: 'list your storm outreach',
+  recordEstimateShared: 'note that this estimate was shared',
+  reserveCompanyPrefix: 'reserve your company web address'
 };
 
 // Wave 4: callables that a screen the sample account covers with an
@@ -187,13 +229,14 @@ const WOULD = {
 // that it is not in the sample account). They still refuse, but without a
 // second notice on top of the card: nothing to tell the visitor that the
 // screen does not already say.
-const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage']);
+const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage', 'trackUsage', 'flagStatus']); // trackUsage / flagStatus: background pings, nothing to tell the visitor
 
 export function sampleCallableMessage(name) {
   const doing = WOULD[name];
   return doing
     ? 'In your real account this would ' + doing + '. The sample account never contacts anyone.'
-    : '"' + name + '" runs on NBD Pro servers, so it is not in the sample account.';
+    // Plain words, no function name (UI sweep 2026-10-24: visitors saw '"getAdjusterTacticBoard" runs on…').
+    : 'That runs on NBD Pro servers, so it is not in the sample account.';
 }
 
 function callableError(name) {

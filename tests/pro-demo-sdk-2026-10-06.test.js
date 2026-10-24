@@ -574,7 +574,7 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
     !/<script(?![^>]*\bsrc=)[^>]*>/i.test(pay) && /<script defer src="\/pro\/explore\/explore-pay\.js\?v=\d+"><\/script>/.test(pay));
   ok('…its script is one the demo worker serves from /pro/explore/ itself (explore-*.js)', /explore-\[\\w-\]\+\\\.\(js\|css\)/.test(read('docs/pro/explore/demo-sw.js')) && !NET.test(stripComments(read('docs/pro/explore/explore-pay.js'))));
   const fnsSrc = stripComments(read('docs/pro/demo-sdk/firebase-functions.js'));
-  ok('screens behind a card refuse quietly (no second notice): payout status, bot keys, AI persona, Stripe balance, the dark Apple Health card', /const QUIET = new Set\(\['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage'\]\);/.test(fnsSrc) && /if \(!shown && !QUIET\.has\(name\)\) demoNotice/.test(fnsSrc));
+  ok('screens behind a card refuse quietly (no second notice): payout status, bot keys, AI persona, Stripe balance, the dark Apple Health card', /const QUIET = new Set\(\['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage'[^\]]*\]\);/.test(fnsSrc) && /if \(!shown && !QUIET\.has\(name\)\) demoNotice/.test(fnsSrc));
 
   // ── G. sandbox placeholder ──────────────────────────────────────────────
   console.log('G. /pro/sandbox placeholder');
