@@ -129,7 +129,7 @@ console.log('\n3. the widget dates each card');
 
   const card = api.renderReviewCard({ author: 'Pat', rating: 5, text: 'Great crew.', relativeTime: '2 weeks ago', time: oct12 });
   ok('card carries <time datetime="2026-10-12">Oct 12, 2026</time>', /<time datetime="2026-10-12">Oct 12, 2026<\/time>/.test(card), card);
-  ok('…with Google\'s relative wording beside it', /Oct 12, 2026<\/time> &middot; 2 weeks ago/.test(card));
+  ok('…with Google\'s relative wording beside it', /Oct 12, 2026<\/time> &middot; <span style="white-space:nowrap">2 weeks ago<\/span>/.test(card));
   const noRel = api.renderReviewCard({ author: 'Pat', rating: 5, text: 'x', time: oct12 });
   ok('no relative wording → the date alone, no stray separator', /Oct 12, 2026<\/time><\/div>/.test(noRel) && !/&middot;/.test(noRel));
   const noTime = api.renderReviewCard({ author: 'Pat', rating: 5, text: 'x', relativeTime: 'a year ago' });

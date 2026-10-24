@@ -1,0 +1,12 @@
+/* reviews-strip.css — the "Recent Google reviews" section every homeowner page
+   carries (site-src/partials/reviews-strip.html, 2026-10-24). The cards inside
+   [data-nbd-google-reviews] are styled by google-reviews-widget.js. */
+.reviews-strip{background:#f6f4f0;border-top:1px solid #e8e5e0;padding:56px 20px}
+.reviews-strip-inner{max-width:1100px;margin:0 auto}
+.reviews-strip-head{text-align:center;margin-bottom:28px}
+.reviews-strip-eyebrow{margin:0 0 8px;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#A14A22}
+.reviews-strip-title{margin:0;font-size:clamp(1.5rem,3.2vw,2.1rem);line-height:1.15;color:#12223d}
+.reviews-strip-lede{margin:10px auto 0;max-width:52ch;font-size:.95rem;line-height:1.6;color:#4a4a4a}
+.reviews-strip-more{text-align:center;margin-top:24px}
+.reviews-strip-all{display:inline-block;padding:12px 22px;border:1px solid rgba(18,34,61,.35);border-radius:100px;color:#12223d;font-weight:700;font-size:.9rem;text-decoration:none}
+.reviews-strip-all:hover,.reviews-strip-all:focus-visible{border-color:#12223d;background:rgba(18,34,61,.06)}
