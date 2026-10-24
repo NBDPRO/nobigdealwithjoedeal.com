@@ -453,7 +453,7 @@
   .kc-addr{font-size:var(--kcard-meta-fz);color:var(--ink-soft);margin-bottom:var(--kcard-gap);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* Phone tap-to-call */
   .kc-phone-row{display:flex;align-items:center;gap:5px;margin-bottom:var(--kcard-gap);}
-  .kc-phone-link{font-size:var(--kcard-meta-fz);color:var(--blue);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:3px;}
+  .kc-phone-link{font-size:var(--kcard-meta-fz);color:var(--ui-info-text,var(--blue));text-decoration:none;font-weight:600;display:flex;align-items:center;gap:3px;}
   .kc-phone-link:hover{filter:brightness(1.15);}
   .kc-email-line{font-size:var(--kcard-meta-fz);color:var(--ink-soft);margin-bottom:var(--kcard-gap);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* Carrier + claim row */
@@ -850,8 +850,8 @@
     font-family:'Barlow Condensed',sans-serif;
     font-size:28px; font-weight:800; line-height:1; color:var(--t);
   }
-  .fc-scenario-likely .fc-scen-val{ color:var(--orange); }
-  .fc-scenario-best   .fc-scen-val{ color:var(--green); }
+  .fc-scenario-likely .fc-scen-val{ color:var(--ui-accent-text,var(--orange)); }
+  .fc-scenario-best   .fc-scen-val{ color:var(--ui-success-text,var(--green)); }
   .fc-scenario-worst  .fc-scen-val{ color:var(--red); }
   .fc-scen-sub{ font-size:10px; color:var(--m); margin-top:4px; }
 

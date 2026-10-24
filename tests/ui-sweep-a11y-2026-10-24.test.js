@@ -169,5 +169,13 @@ ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)
   ok('Job Templates: the category chip pulls its colour halfway to --t; the count pill reads --t', /jt-chip" style="color:color-mix\(in srgb,' \+ esc\(col\) \+ ' 50%, var\(--t, #e8eaf0\)\)/.test(read('docs/pro/js/job-templates-ui.js')) && /\.jt-pill \.ct\{background:var\(--br,#2a2f35\);color:var\(--t,#e8eaf0\);/.test(read('docs/pro/js/job-templates-ui.js')));
 }
 
+// Dark mode (prefers-color-scheme: dark) on the default theme.
+{
+  const da = read('docs/pro/css/dashboard-app.css'), kf = read('docs/pro/css/kanban-force.css');
+  ok('dark mode: the big widget number reads the accent text token (plain orange is 2.84:1 on the navy)', /\.w-big-num\{[^}]*color:var\(--ui-accent-text/.test(da));
+  ok('dark mode: Settings legal links have a colour (default link blue was 1.4:1 on the navy)', /#settingsLegalLinks a\{color:var\(--ui-accent-text/.test(da));
+  ok('dark mode: forecast scenario values and the card phone link read the text tokens', /\.fc-scenario-likely \.fc-scen-val\{ color:var\(--ui-accent-text/.test(kf) && /\.fc-scenario-best   \.fc-scen-val\{ color:var\(--ui-success-text/.test(kf) && /\.kc-phone-link\{[^}]*color:var\(--ui-info-text/.test(kf));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);
