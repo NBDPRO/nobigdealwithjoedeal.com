@@ -345,14 +345,20 @@
       + (_sentPhone.length ? '<div class="ai-meta">Sent from your phone (last 14 days)</div>' + _sentPhone.map(sentRowHtml).join('') : '');
   }
 
+  // Keyboard dialog contract (audit 2026-10-23): focus moves in on open, Tab
+  // wraps inside the modal, Escape closes, and focus goes back to the opener.
+  const FOCUSABLE = 'button:not([disabled]):not([hidden]), [href]:not([hidden]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let opener = null;
   async function open() {
     if (!canUse()) { if (window.showToast) window.showToast('The Agent inbox is for the owner or an admin', 'error'); return; }
-    close();
+    const from = document.getElementById('aiOverlay') ? opener : document.activeElement;
+    close(true);
+    opener = from;
     // Opened from the phone More drawer: step out of it first.
     try { if (typeof window.closeMobileMore === 'function') window.closeMobileMore(); } catch (_) {}
     const ov = document.createElement('div');
     ov.className = 'ai-overlay'; ov.id = 'aiOverlay';
-    ov.innerHTML = '<div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle">' +
+    ov.innerHTML = '<div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle" tabindex="-1">' +
       '<div class="ai-head"><div><h2 class="ai-h" id="aiTitle">🤖 Agent inbox</h2><div class="ai-sub" id="aiCount">Loading…</div></div>' +
       '<button type="button" class="ai-close" data-ai-act="close" aria-label="Close">✕</button></div>' +
       '<p class="ai-note">Your bot team files notes, reminders, reports and drafts here. Nothing reaches a customer unless you send it yourself — a text draft opens in your own Messages app, an email in your own Mail. Edit before adding or sending.</p>' +
@@ -364,13 +370,20 @@
       '<button type="button" class="ai-btn ai-conn-link" data-ai-act="bots">🔌 Bots &amp; API — connect a bot, keys</button>' +
       '</div>';
     document.body.appendChild(ov);
+    const first = ov.querySelector(FOCUSABLE);
+    if (first) first.focus();
     try { _items = await load(); } catch (e) { _items = []; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
     try { _sentPhone = await loadSentPhone(); } catch (e) { _sentPhone = []; console.warn('[agent-inbox] sent list failed:', (e && (e.code || e.message)) || e); }
     _checks = {};
     paint();
     if (_items.some((i) => i.kind === 'draft_text' || i.kind === 'draft_email')) { _checks = await checkDrafts(_items); paint(); }
   }
-  function close() { const o = document.getElementById('aiOverlay'); if (o) o.remove(); }
+  function close(keepFocus) {
+    const o = document.getElementById('aiOverlay'); if (o) o.remove();
+    if (keepFocus === true) return;
+    const back = opener; opener = null;
+    if (back && document.contains(back) && typeof back.focus === 'function') back.focus();
+  }
 
   async function decide(id, approve) {
     const it = _items.find((x) => x.id === id);
@@ -504,7 +517,20 @@
     const ta = document.getElementById('aiText-' + id), sj = document.getElementById('aiSubj-' + id);
     a.setAttribute('href', it.kind === 'draft_text' ? smsHref(c.to, ta ? ta.value : it.text, iosNow()) : mailtoHref(c.to, sj ? sj.value : it.title, ta ? ta.value : it.text));
   });
-  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.getElementById('aiOverlay')) close(); });
+  document.addEventListener('keydown', (ev) => {
+    const ov = document.getElementById('aiOverlay');
+    if (!ov) return;
+    if (ev.key === 'Escape') { close(); return; }
+    if (ev.key !== 'Tab') return;
+    const modal = ov.querySelector('.ai-modal') || ov;
+    const f = modal.querySelectorAll(FOCUSABLE);
+    const a = document.activeElement;
+    if (!f.length) { ev.preventDefault(); modal.focus(); return; }
+    const firstEl = f[0], last = f[f.length - 1];
+    if (!modal.contains(a)) { ev.preventDefault(); firstEl.focus(); }
+    else if (ev.shiftKey && (a === firstEl || a === modal)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && a === last) { ev.preventDefault(); firstEl.focus(); }
+  });
 
   // Entry points: ?agentInbox=1 (the 🤖 bell notification) and the palette.
   function boot() {
