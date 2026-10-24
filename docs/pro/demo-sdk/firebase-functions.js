@@ -219,7 +219,17 @@ const WOULD = {
   leadBrief: 'write a brief on this customer',
   listStormOutreach: 'list your storm outreach',
   recordEstimateShared: 'note that this estimate was shared',
-  reserveCompanyPrefix: 'reserve your company web address'
+  reserveCompanyPrefix: 'reserve your company web address',
+  revokeAgentKey: "revoke a bot's API key",
+  rotateAccessCodes: 'rotate your access codes',
+  runMigrations: 'run data migrations',
+  saveAgentBot: 'save a bot',
+  saveAgentSettings: 'save your bot settings',
+  setupGoogleCalendar: 'connect your Google Calendar',
+  thursdayCallAction: 'file a Thursday call',
+  updateUserRole: "change a team member's role",
+  uploadCompanyLogo: 'upload your company logo',
+  validateAccessCode: 'check an access code'
 };
 
 // Wave 4: callables that a screen the sample account covers with an
