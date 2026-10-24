@@ -179,5 +179,13 @@ ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)
 
 ok('customer card: the quick-note box shows keyboard focus (its inline outline:none is overridden)', /#quickNoteInput:focus-visible \{\n  outline: 2px solid var\(--ui-focus, var\(--orange\)\) !important;/.test(read('docs/pro/customer.html')));
 
+// Public pages on navy / cream.
+{
+  const pr = read('docs/pro/pricing.html');
+  ok('pricing: the headline accent and the logo accent are the light brand orange on the navy (#BD5728 read 2.8:1)', /\.headline span\{color:#DD875F;\}/.test(pr) && /\.pro-nav-logo span\{color:#DD875F\}/.test(pr) && !/\.pro-nav[^{}]*\{[^}]*color:\s*var\(--orange/.test(pr));
+  const tm = read('docs/pro/terms.html');
+  ok('terms: the footer hours are readable (30% white was 2.7:1) and every privacy link is the dark orange on cream', /color:rgba\(255,255,255,\.62\);font-size:\.78rem;margin-top:8px">Mon/.test(tm) && (tm.match(/<a href="\/privacy" style="color:#A14A22;text-decoration:underline">Privacy Policy<\/a>/g) || []).length === 3 && !/style="color:var\(--orange\);text-decoration:none">Privacy Policy/.test(tm));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);
