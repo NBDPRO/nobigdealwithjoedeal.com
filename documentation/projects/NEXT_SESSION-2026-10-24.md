@@ -20,10 +20,10 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
     its own suites pass after the merge (23/23, 28/28). Needs: update branch, re-run, queue.
   - [#2656](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2656) paint-color blog draft -
     stays a draft until Jo writes his lines.
-- **This session could not push.** Every `git push` and the GitHub app's update-branch / auto-merge
-  calls returned 403 ("Claude doesn't have GitHub access to NBDPRO/... for your organization").
-  Reads worked. Fix: reconnect GitHub for the NBDPRO org (claude.ai connect-github) or reinstall the
-  Claude GitHub App on the repo. Until then, #2719's update and both merges are by hand.
+- **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
+  accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
+  (Configure -> repository access / pending permissions). A plain account reconnect did not fix it, and a
+  session's credentials do not refresh mid-session.
 
 ## What shipped 10-22 -> 10-23 (merged, deployed)
 
@@ -55,28 +55,27 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 ## Needs Jo
 
-1. **GitHub access for this tool** (above) - or merge #2720 and #2719 by hand.
-2. **Flip what's built and dark, if wanted** (Firebase console / env):
+1. **Flip what's built and dark, if wanted** (Firebase console / env):
    - `leadSourceFixer`, `speedToLead`, `estimateFollowBoard`, then answer the "Where customers came from" cards.
    - `OWNER_WEEKLY_DIGEST_ENABLED=true` (owner digest into the Agent inbox). Also decide: owner only? And
      should company admins be able to read its revenue lines (rules 2622-2625)?
    - `roofWeatherChip`.
    - Texting automations stay off until he opens `messaging_controls/global`.
-3. **Confirm claims**: James Hardie Alliance and American Operator memberships (home, /review, siding
+2. **Confirm claims**: James Hardie Alliance and American Operator memberships (home, /review, siding
    guide, about JSON-LD); IKO ROOFPRO Advantage held or not (the agent lists it as confirmed; the
    finished-job card does not).
-4. **Real-iPhone pass**, one sitting: theme walk, photo sign-out, Call Center chips against known calls,
+3. **Real-iPhone pass**, one sitting: theme walk, photo sign-out, Call Center chips against known calls,
    Cal.com bell (one bell, nothing to the customer), [Draw daylight checklist](../qa/DRAW-DAYLIGHT-TEST-CHECKLIST-2026-10-22.md)
    (go-live = `CROSSHAIR_DEFAULT_ON = true`), VoiceOver checklist ([a11y audit](../qa/a11y-audit-2026-10-23.md)),
    measurements/photos (camera, HEIC), plus the 10-21 items (barcode, Download my data, coach).
-5. **Contracts**: book the LegalShield attorney and the D1-D12 decisions
+4. **Contracts**: book the LegalShield attorney and the D1-D12 decisions
    ([status](CONTRACT-LANGUAGE-STATUS-2026-10-22.md)).
-6. **Data he supplies**: Active Era export rows (weight import), Search Console export (SEO pass),
+5. **Data he supplies**: Active Era export rows (weight import), Search Console export (SEO pass),
    GBP quota on case 8-9748000042165.
-7. **CI policy** ([ci-runner-minutes](../qa/ci-runner-minutes-2026-10-23.md)): stop non-required jobs in the
+6. **CI policy** ([ci-runner-minutes](../qa/ci-runner-minutes-2026-10-23.md)): stop non-required jobs in the
    queue/push, docs-only fast path, the Public-surface Playwright wedge fix (it is a *required* job and
-   just blocked #2719).
-8. Still open from 10-21: Apple Health switch, review #2646/#2647, required-check ruleset for the shards.
+   blocked #2719).
+7. Still open from 10-21: Apple Health switch, review #2646/#2647, required-check ruleset for the shards.
 
 ## Next lanes (engineering, no Jo needed)
 
