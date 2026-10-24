@@ -1263,15 +1263,16 @@ jobs:
         run: |
           cd tests
           npm install --silent --no-audit --no-fund
-      # webkit as well as chromium since 2026-09-08: nav-drawer.spec.js runs
-      # on the mobile-webkit project because the drawer's failure modes are
-      # iOS-shaped (100vh, fixed overflow scrolling, body scroll locks) and
-      # Chromium hides all of them. Adds ~1 min to a job whose measured max
-      # is 2.3 min against a 20 min cap.
-      - name: Install Playwright chromium + webkit
+      # Chromium ONLY since 2026-10-24 (Jo's call). From 2026-09-08 this job
+      # also installed webkit for the mobile-webkit project, and `--with-deps
+      # webkit` pulls ~180 apt packages from a mirror that crawls: it ran this
+      # REQUIRED job to its 20 min cap in 3 of 3 sampled cancellations and
+      # cancelled #2719's first run (documentation/qa/ci-runner-minutes-2026-10-23.md).
+      # The mobile-webkit specs moved to public-e2e-webkit below (not required).
+      - name: Install Playwright chromium
         run: |
           cd tests
-          npx playwright install --with-deps chromium webkit
+          npx playwright install --with-deps chromium
       # /search needs the Pagefind index the deploy builds (2026-10-16).
       - name: Build the site search index (Pagefind)
         run: |
@@ -1281,12 +1282,55 @@ jobs:
         run: |
           cd tests
           npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
-            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 pro-public.spec.js marketing.spec.js nav-drawer.spec.js site-search.spec.js'
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js marketing.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-public-traces
+          path: tests/test-results/
+          retention-days: 7
+
+  # The mobile-webkit half of public-e2e (split out 2026-10-24): nav-drawer
+  # (the drawer's failure modes are iOS-shaped: 100vh, fixed overflow
+  # scrolling, body scroll locks, all hidden by Chromium) and site-search
+  # (Pagefind's WebAssembly index on iOS Safari), at an iPod-touch viewport.
+  # NOT in the merge-queue ruleset: the webkit apt install is the step that
+  # stalls, so it runs on every PR but can no longer block a merge. Same
+  # hosting-emulator pin as public-e2e (the config defaults to PRODUCTION).
+  # No if: on the event (tests/merge-queue-ready-2026-10-04.test.js); 15 min
+  # bounds a stall below the queue's longest required job.
+  public-e2e-webkit:
+    name: Public-surface E2E (mobile WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install test deps
+        run: |
+          cd tests
+          npm install --silent --no-audit --no-fund
+      - name: Install Playwright webkit
+        run: |
+          cd tests
+          npx playwright install --with-deps webkit
+      - name: Build the site search index (Pagefind)
+        run: |
+          node scripts/build-site-search.mjs --install
+          node scripts/build-site-search.mjs
+      - name: Run mobile-webkit specs against the hosting emulator
+        run: |
+          cd tests
+          npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=mobile-webkit --workers=1 nav-drawer.spec.js site-search.spec.js'
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-public-webkit-traces
           path: tests/test-results/
           retention-days: 7
 
