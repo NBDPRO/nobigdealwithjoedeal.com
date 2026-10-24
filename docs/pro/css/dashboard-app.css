@@ -5499,3 +5499,21 @@ body {
 .cp-alert-warn{ margin:0 0 10px; padding:10px 12px; border:1px solid #d97706; border-radius:6px; background:rgba(217,119,6,.10); font-size:12px; line-height:1.5; }
 /* Team tab: owner hand-off button (dashboard-team-tab.js, 2026-10-08). */
 .team-makeowner-btn{background:none;border:1px solid var(--br);color:var(--m);border-radius:6px;padding:4px 9px;font-size:10px;cursor:pointer;margin-left:6px;}
+
+/* ── Target floor (UI sweep 2026-10-24, documentation/audit/UI-SWEEP-2026-10-24.md) ──
+   Controls measured under the 24px minimum target (WCAG 2.5.8) through the
+   sample account. min-height/min-width only: nothing that already clears 24px
+   changes, and nothing grows past what it needs. */
+.kview-btn, .fa-btn, .w-mini-btn, .pl-card-btn, #view-money .btn,
+#view-crm .btn-sm, [data-action="call"][data-fn="hideFollowUpAlerts"],
+[data-sc-action="openCardDetail"], .w-goal-set { min-height: 24px; }
+.kview-btn, .fa-btn, .w-mini-btn, .pl-card-btn, #view-money .btn,
+[data-sc-action="openCardDetail"] { display: inline-flex; align-items: center; justify-content: center; }
+.w-goal-set { display: flex; align-items: center; }
+.deleted-drawer-close, .w-card-remove { min-width: 24px; min-height: 24px; }
+.jt-check { width: 24px; height: 24px; }
+.cu-name { display: inline-block; min-height: 24px; }
+.sp-toggle, label:has(> #slopeLfToggle), label:has(> input[type="checkbox"]) { min-height: 24px; }
+/* Pipeline card controls (desktop board). */
+.kc-arrow { min-width: 24px; min-height: 24px; }
+.kc-task-badge, .kc-phone-link, .kc-tag.kct-action, .kc-tag.kct-action-doc, .kc-tag.kct-action-stage { min-height: 24px; display: inline-flex; align-items: center; }

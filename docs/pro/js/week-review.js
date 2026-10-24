@@ -252,7 +252,7 @@
 
     // 9: one decision
     const decide = card('🧭 One decision to make this week',
-      '<textarea class="wr-note" id="wrDecision" rows="3" maxlength="2000" placeholder="The one call this week’s numbers point to…">' + esc(_note || '') + '</textarea>' +
+      '<textarea class="wr-note" id="wrDecision" aria-label="This week’s decision" rows="3" maxlength="2000" placeholder="The one call this week’s numbers point to…">' + esc(_note || '') + '</textarea>' +
       '<div class="wr-row-end"><span class="wr-dim" id="wrDecisionState"></span><button type="button" class="wr-btn wr-btn-primary" data-wr="save-decision">Save</button></div>');
 
     h.innerHTML =

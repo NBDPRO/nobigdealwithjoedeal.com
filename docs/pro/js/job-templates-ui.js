@@ -1151,7 +1151,7 @@
     });
 
     return '<div class="jt-controls">' +
-      '<input type="text" class="jt-search" id="jtSearch" data-jt-action="search" ' +
+      '<input type="text" class="jt-search" id="jtSearch" aria-label="Search templates" data-jt-action="search" ' +
         'placeholder="Search templates by name, tag, or description..." value="' + esc(state.search) + '">' +
       '<div class="jt-pills">' + typePills + '</div>' +
       '<div class="jt-pills">' + catPills + '</div>' +

@@ -281,7 +281,7 @@
     const missedList = missed || [];
     host.innerHTML =
       '<div class="sp-tools">' +
-        '<input type="search" id="spSearch" class="sp-search" placeholder="Search name, address or customer #" value="' + esc(_q) + '">' +
+        '<input type="search" id="spSearch" class="sp-search" aria-label="Search the schedule" placeholder="Search name, address or customer #" value="' + esc(_q) + '">' +
         '<label class="sp-toggle"><input type="checkbox" id="spAll"' + (_all ? ' checked' : '') + '> Show all open leads</label>' +
       '</div>' +
       '<div class="sp-h">Needs a date <span class="sp-count">' + needs.length + '</span></div>' +

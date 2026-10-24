@@ -285,10 +285,10 @@
 
     wrap.innerHTML = `
       <div class="prosp-filter-row">
-        <select class="prosp-sel" id="pf-age">
+        <select class="prosp-sel" id="pf-age" aria-label="Filter by age">
           ${ageOpts.map(([v,l]) => `<option value="${v}" ${state.age===v?'selected':''}>${l}</option>`).join('')}
         </select>
-        <select class="prosp-sel" id="pf-attempts">
+        <select class="prosp-sel" id="pf-attempts" aria-label="Filter by knock attempts">
           ${attemptOpts.map(([v,l]) => `<option value="${v}" ${state.attempts===v?'selected':''}>${l}</option>`).join('')}
         </select>
         ${showRepFilter ? `

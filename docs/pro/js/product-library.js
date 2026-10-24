@@ -726,7 +726,7 @@
 
         <!-- Search & Filter -->
         <div class="plx-filterbox">
-          <input type="text" id="product-search" placeholder="Search by name, brand, tag..." value="${escapeHtml(currentFilter.search)}"
+          <input type="text" id="product-search" aria-label="Search products" placeholder="Search by name, brand, tag..." value="${escapeHtml(currentFilter.search)}"
             class="plx-search">
 
           <!-- Tier Filter Buttons -->
