@@ -177,3 +177,12 @@ Side effect to know about: the lane 3 agent's process cleanup matched broadly an
 
 - #2670 (ea927b20) docs only — A2P wording; nothing to deploy.
 - #2665 (a2a11647) fix(pro) capture deep link no longer opens the estimate wizard over the recorder; deploy run pending at last check. Not reviewed beyond its title; re-run the reviewers on it. 6c208c30's deploy was in progress.
+
+## Update 2026-10-24: pass-1 UI findings fixed
+
+| Finding | Outcome |
+|---|---|
+| Typed measurement text lost to the post-load `renderDash` (and the unit / site chips) | Fixed: the typed text is kept and written back, focus and caret return after a re-render, a save clears it. `tests/tracker-measure-draft-2026-10-24.test.js`. |
+| Workout coach keyboard (390), Medium | Fixed: `aria-modal`, focus moves in on open, Tab wraps, Escape closes (the workout stays saved), focus returns to the opener. `tests/coach-overlay-keyboard-2026-10-24.test.js` (the coach UI harness gained focus / key support). |
+| Agent inbox keyboard (demo walk row 6) | Fixed: focus moves to Close on open, Tab stays in the modal, focus returns on close. `tests/agent-inbox-keyboard-2026-10-24.test.js`. |
+| Blob URLs not revoked on leaving the page (Low) | No change: `fillPhotos` revokes the previous URLs on every refill and the browser releases them on unload; the residual (a re-render that drops the card without a refill) is a handful of URLs until the next fill. |

@@ -226,13 +226,47 @@
       el.id = 'wcOverlay';
       el.className = 'wc-ov';
       el.setAttribute('role', 'dialog');
+      el.setAttribute('aria-modal', 'true');
       el.setAttribute('aria-label', 'Workout Coach');
+      el.tabIndex = -1;
       document.body.appendChild(el);
     }
     return el;
   }
-  function open() { overlay().classList.add('open'); document.body.classList.add('wc-lock'); render(); }
-  function close() { overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard(); }
+  // Keyboard dialog contract (audit 2026-10-23): focus moves in on open, Tab
+  // wraps inside, Escape closes (same as the Close button: the live workout is
+  // already saved), and focus goes back to whatever opened it.
+  const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let opener = null;
+  const isOpen = () => { const el = document.getElementById('wcOverlay'); return !!(el && el.classList.contains('open')); };
+  function open() {
+    const el = overlay();
+    const was = isOpen();
+    if (!was) opener = document.activeElement;
+    el.classList.add('open'); document.body.classList.add('wc-lock'); render();
+    if (!was) (el.querySelector(FOCUSABLE) || el).focus();
+  }
+  function close() {
+    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard();
+    const o = opener; opener = null;
+    let back = o && document.contains(o) ? o : null;
+    // The card is re-drawn on close, so the opener may be gone: use the new button with the same action.
+    if (!back && o && o.dataset && /^[\w-]+$/.test(o.dataset.coachAction || '')) back = document.querySelector('[data-coach-action="' + o.dataset.coachAction + '"]');
+    if (back && typeof back.focus === 'function') back.focus();
+  }
+  function onKey(ev) {
+    if (!isOpen()) return;
+    const el = overlay();
+    if (ev.key === 'Escape') { ev.preventDefault(); close(); return; }
+    if (ev.key !== 'Tab') return;
+    const f = el.querySelectorAll(FOCUSABLE);
+    const a = document.activeElement;
+    if (!f.length) { ev.preventDefault(); el.focus(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!el.contains(a)) { ev.preventDefault(); first.focus(); }
+    else if (ev.shiftKey && (a === first || a === el)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && a === last) { ev.preventDefault(); first.focus(); }
+  }
 
   function render() {
     const el = overlay();
@@ -927,6 +961,7 @@
   }
 
   document.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKey);
   document.addEventListener('input', onField);
   document.addEventListener('change', onField);
   // A layout switch re-draws an open workout so the Log Book row appears or goes away at once.
