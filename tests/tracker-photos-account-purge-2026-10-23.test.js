@@ -98,6 +98,7 @@ function loadFeature(uiSource) {
       }),
     },
     toast: () => {},
+    addEventListener() {},
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
