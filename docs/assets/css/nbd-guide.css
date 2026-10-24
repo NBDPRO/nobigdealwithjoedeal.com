@@ -13,6 +13,7 @@
 html{scroll-behavior:smooth;font-size:16px;-webkit-text-size-adjust:100%}
 body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);background:var(--off-white);line-height:1.7;-webkit-font-smoothing:antialiased}
 .g-page a{color:var(--orange-dark);text-underline-offset:2px}
+.g-page a.g-skip{color:#fff} /* the link rule above outranked .g-skip and painted the focused skip link dark orange on orange, 1.3:1 (2026-10-24) */
 .g-page a:hover{color:var(--orange)}
 .g-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:var(--orange);color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 8px 0}
 .g-skip:focus{left:0}

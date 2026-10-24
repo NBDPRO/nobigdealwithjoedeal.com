@@ -1,6 +1,6 @@
 /* Mobile-only mid-article CTA injected by /assets/js/blog-midpost-cta.js */
 .blog-midpost-cta{display:block;margin:2.5rem 0;padding:1.75rem 1.5rem;background:var(--navy-dark,#12223d);color:#fff;border-radius:12px;border-left:6px solid var(--orange,#bd5728);text-align:center}
-.blog-midpost-cta .bmc-eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.14em;color:var(--orange,#bd5728);text-transform:uppercase;margin-bottom:.5rem}
+.blog-midpost-cta .bmc-eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.14em;color:var(--orange-light,#dd875f);/* brand orange on the navy card read 3.45:1 (2026-10-24) */text-transform:uppercase;margin-bottom:.5rem}
 .blog-midpost-cta h3{color:#fff;font-size:1.4rem;margin:0 0 .75rem;font-weight:800;font-family:'Bebas Neue',sans-serif;letter-spacing:.02em}
 .blog-midpost-cta p{color:rgba(255,255,255,.85);font-size:1rem;line-height:1.55;margin:0 0 1.25rem}
 .blog-midpost-cta .bmc-actions{display:flex;flex-direction:column;gap:.75rem}
