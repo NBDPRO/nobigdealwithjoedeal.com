@@ -633,12 +633,17 @@ function goTo(name, params = {}) {
     // on first load after a cache-version bump (poor connectivity + empty
     // nbd-cdn cache). In that case we surface a retry button instead of
     // leaving the spinner up forever.
+    // The map vendor bundle loads in PARALLEL with the tracker (VIEW_BUNDLES
+    // d2d: ['mapvendor', 'd2d']), so window.D2D can exist before
+    // leaflet.markercluster.js has run; the tracker's init then threw on
+    // L.markerClusterGroup and the view stuck on "Loading…" (2026-10-23 audit).
     function waitForD2D(cb) {
-      if (window.D2D) { cb(); return; }
+      const ready = () => !!(window.D2D && window.L && typeof window.L.markerClusterGroup === 'function');
+      if (ready()) { cb(); return; }
       let t2 = 0;
       const iv = setInterval(()=> {
         t2++;
-        if (window.D2D) {
+        if (ready()) {
           clearInterval(iv);
           cb();
         } else if (t2 > 160) { // 8 seconds

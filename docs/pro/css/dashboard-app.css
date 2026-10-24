@@ -357,7 +357,7 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
 .upill:hover{border-color:var(--orange);}
 .av{width:24px;height:24px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--accent-fg,#fff);}
 .uname{font-size:12px;font-weight:500;}
-.so{font-size:11px;color:var(--m);background:none;border:none;cursor:pointer;transition:color .2s;}
+.so{font-size:11px;color:var(--m);background:none;border:none;cursor:pointer;transition:color .2s;min-height:24px;padding:0 4px;} /* 24px: it measured 57x12, under the minimum target (WCAG 2.5.8; 2026-10-23 audit) */
 .so:hover{color:var(--orange);}
 
 /* ══ PRO CHROME — icon system + header tools (2026-05-14) ══════════════

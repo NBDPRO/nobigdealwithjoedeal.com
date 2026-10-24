@@ -912,6 +912,8 @@ body.has-banner .today-bar{top:148px;}
 button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ac-text,var(--ac,#BD5728))!important;outline-offset:2px;}
 [role="button"][data-action]{cursor:pointer;}
 .ph[role="button"]:focus-visible{outline-offset:-2px;}
+/* Table inputs sit in a scrolling wrap (.tbl-wrap, overflow:auto) that clipped the outside ring at its left edge: draw it inside. */
+.dt td input:focus-visible,#ex-tbody td input:focus-visible{outline-offset:-2px;}
 [role="dialog"]:focus{outline:none;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 </style>

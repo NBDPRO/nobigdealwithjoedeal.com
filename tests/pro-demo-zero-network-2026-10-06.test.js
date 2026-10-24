@@ -123,6 +123,20 @@ async function waitFor(page, fn, arg, ms) {
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e).slice(0, 300)));
 
+    console.log('0. the guided story (/pro/sandbox): keyboard starts at the top');
+    // 2026-10-23 audit: the story wrote #storm into the URL while loading, the
+    // browser took that as a jump to the first step, and the first Tab skipped
+    // the skip link and the header. A deep link (#estimate) still works.
+    await page.goto(ORIGIN + '/pro/sandbox');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    await page.keyboard.press('Tab');
+    const firstTab = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    ok('the first Tab on the story page reaches "Skip to the demo"', /\bpl-skip\b/.test(firstTab || ''), firstTab);
+    await page.goto('about:blank');   // a fresh load, not a same-page hash change
+    await page.goto(ORIGIN + '/pro/sandbox#estimate');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    ok('a deep link to a step still opens that step', await page.evaluate(() => /Estimate/.test(document.querySelector('.sx-chip[aria-current="step"]').textContent) && location.hash === '#estimate'));
+
     console.log('1. open the sample account');
     await page.goto(ORIGIN + '/pro/explore');
     await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });

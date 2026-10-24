@@ -1,5 +1,20 @@
 # Overnight landing audit — 2026-10-22 evening to 2026-10-23
 
+> **Update 2026-10-24: status of the lane 2 / lane 3 UI findings below.**
+> - **Fixed earlier (#2724 and before):** Agent inbox keyboard (#6), coach overlay keyboard, typed measurement wiped by `renderDash`, photo purge (High), and the raw "Blocked in the sample account" toast (#7). The story end screen's "Coming next" (#15) is gone.
+> - **Fixed by #2725 / #2726:** the iframed prod panes and Daily Success (#2, #3, #4). Every tool now runs inside `/pro/explore`.
+> - **Fixed in the audit-leftovers PR (2026-10-24):**
+>   - #10 story tab order: the story wrote `#storm` during load, and the browser took it as a jump.
+>   - #5 D2D "L.markerClusterGroup is not a function": the map vendor and the tracker load in parallel, so `waitForD2D` now waits for both. This is a real race on slow connections in production too.
+>   - #11 strip over Home's Record visit bar on phones.
+>   - #12 greeting cut to "WELCOME B…": this happened on every phone, not just 360 px, in production. It now wraps to two lines.
+>   - #13 desktop targets under 24 px: the ↻ connection button and Sign Out.
+>   - Lane 3 food inputs: the ring existed, but the table's scroll box clipped it, so it is now drawn inside.
+> - **Left as is:**
+>   - #14 story dates are a fixed narrative; the Kentucky hold timing is computed from them.
+>   - #12 "NBD …" brand truncation at 360–390 px, beside the NBD logo square: a brand call for Jo.
+>   - #8 console noise and #9 Google Fonts.
+
 Read-only audit of what landed on `origin/main` overnight. Snapshot taken
 2026-10-23 ~03:45 UTC at main `6c208c30`. Nothing was fixed in this PR; every
 finding below is a lead for a later PR. No prod writes, no flag flips, no logins.

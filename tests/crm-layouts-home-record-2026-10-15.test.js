@@ -405,9 +405,12 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
       /#homeAttention\.ha-strip:not\(\[hidden\]\)\{display:grid;/.test(tcss) && /#homeAttention\.ha-strip:not\(\[hidden\]\)\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\);\}/.test(tcss)
       && tcss.indexOf('#homeAttention.ha-strip:not([hidden]){display:grid') < tcss.indexOf('[data-ha-alldup="1"]'));
     ok('the welcome row sits on the cards\' edges with a 44px button', /#view-home \.view-scroll > \.page-hdr\{width:100%;margin-left:0;margin-right:0;padding-left:0;padding-right:0;/.test(tcss) && /\.home-hdr-acts > \.btn\{min-height:44px;/.test(tcss));
+    // 2026-10-24: one line beside New Estimate cut the greeting to "WELCOME B…" on every phone (2026-10-23 audit).
+    const titleRule = (/\.view-scroll\.tp-has-rows > \.page-hdr \.page-title\{([^}]*)\}/.exec(tcss) || [])[1] || '';
+    ok('the phone welcome title wraps to two lines instead of cutting the name off', /white-space:normal/.test(titleRule) && /line-clamp:2/.test(titleRule) && !/nowrap|text-overflow:ellipsis/.test(titleRule), titleRule);
     const dash = read('docs/pro/dashboard.html');
     ok('dashboard tags are re-versioned for the files changed',
-      /today-home\.css\?v=6/.test(dash) && /home-attention\.js\?v=(2[3-9]|[3-9]\d)(?!\d)/.test(dash)   /* >= 23: 24 since the app badge (2026-10-16) */ && /today-home\.js\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash)   /* >= 16: 17 since the closes-this-week kick (2026-10-15) */ && /layout-system\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the fail-closed hydrate (layouts audit D14, 2026-10-15) */
+      /today-home\.css\?v=([6-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 6: 7 since the two-line greeting (2026-10-24) */ && /home-attention\.js\?v=(2[3-9]|[3-9]\d)(?!\d)/.test(dash)   /* >= 23: 24 since the app badge (2026-10-16) */ && /today-home\.js\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash)   /* >= 16: 17 since the closes-this-week kick (2026-10-15) */ && /layout-system\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the fail-closed hydrate (layouts audit D14, 2026-10-15) */
       && /pixel-mode\.js\?v=2/.test(dash) && /visit-recorder-launcher\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the phone Home clearance fix (2026-10-21) */ && /shape-preboot\.js\?v=([3-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 3: 4 since per-layout button size (2026-10-16) */ && /standalone-compat\.js\?v=2/.test(dash));
   }
 

@@ -476,7 +476,13 @@
       var row = active.parentNode.parentNode;
       row.scrollLeft = Math.max(0, active.parentNode.offsetLeft - 16);
     }
-    try { root.history.replaceState(null, '', '#' + steps[cur].id); } catch (_) { /* file:// or sandboxed frame */ }
+    // Not on a first visit with no hash: writing #storm during load makes the
+    // browser treat it as a jump to that step once the page finishes loading,
+    // so the first Tab skipped the skip link and the header (2026-10-23 audit).
+    var landing = opts && opts.initial && !root.location.hash;
+    if (!landing) {
+      try { root.history.replaceState(null, '', '#' + steps[cur].id); } catch (_) { /* file:// or sandboxed frame */ }
+    }
     if (opts && opts.initial) return;
     var h = steps[cur].querySelector('h2');
     var top = document.getElementById('sx-progress');

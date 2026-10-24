@@ -146,7 +146,9 @@ section.tp{padding-left:var(--ui-space-5) !important;padding-right:var(--ui-spac
 @media (max-width:768px){
   .view-scroll.tp-has-rows > .page-hdr{flex-direction:row;align-items:center;gap:var(--ui-space-3);margin-bottom:var(--ui-space-3);}
   .view-scroll.tp-has-rows > .page-hdr > div:first-child{flex:1 1 auto;min-width:0;}
-  .view-scroll.tp-has-rows > .page-hdr .page-title{font-size:18px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* Up to two lines, not one: beside the New Estimate button one line cut the
+     greeting to "WELCOME B…" on every phone, so the name never showed (2026-10-23 audit). */
+  .view-scroll.tp-has-rows > .page-hdr .page-title{font-size:18px;line-height:1.2;overflow:hidden;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow-wrap:anywhere;}
   .view-scroll.tp-has-rows > .page-hdr .page-sub{display:none;}
   .view-scroll.tp-has-rows > .page-hdr .home-hdr-acts{width:auto;flex:0 0 auto;}
   .view-scroll.tp-has-rows > .page-hdr .home-hdr-acts > .btn{flex:0 0 auto;width:auto;white-space:nowrap;padding:0 var(--ui-space-4);}
