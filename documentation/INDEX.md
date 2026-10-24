@@ -335,6 +335,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 ## Audits
 
 - [OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md) — second pass: deploy coverage, #2684 purge re-test (logout path passes, account-switch race still High), reviewer findings on the later merges, and which fix PRs own what.
+- [REVIEWS-STRIP-2026-10-24](projects/REVIEWS-STRIP-2026-10-24.md) — recent Google reviews, with their dates, on every homeowner page: one `reviews-strip` partial on 229 pages (+48 our-work pages from the template), dates on every card, a test naming the pages that carry none.
 - [UI-SWEEP-2026-10-24](audit/UI-SWEEP-2026-10-24.md) — pass 1 of the system-wide UI sweep: all 37 CRM views at phone and desktop through the sample account. No sideways scroll and no app errors; about 30 unlabeled inputs, sub-24 px targets, off-brand Product Library buttons, raw function names in sample notices; proposed fix order.
 - [OVERNIGHT-LANDING-AUDIT-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-2026-10-23.md) — read-only audit of the 2026-10-22/23 overnight merges: deploy status per commit, live checks, reviewer findings (no High; Medium: progress photos survive sign-out, Call Center "Missed" blind to real missed calls, sync pill hides failures).
 - [CALL-LINE-AI-CREDIT-OUTAGE-2026-10-13](audit/CALL-LINE-AI-CREDIT-OUTAGE-2026-10-13.md) — 14 calls retired for good by an Anthropic credit outage (3 strikes on a billing error): provider-outage classifier, transcript kept, daily bell + push, reopen script, and the every-Anthropic-call-site audit table

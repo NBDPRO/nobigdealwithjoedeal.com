@@ -480,6 +480,24 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
     </div>
   </div>
 </div>
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<section class="reviews-strip" aria-labelledby="reviews-strip-title" style="background:#f6f4f0;border-top:1px solid #e8e5e0;padding:56px 20px">
+  <div style="max-width:1100px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:28px">
+      <p style="margin:0 0 8px;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#A14A22">What homeowners say</p>
+      <h2 id="reviews-strip-title" style="margin:0;font-size:clamp(1.5rem,3.2vw,2.1rem);line-height:1.15;color:#12223d">Recent Google reviews</h2>
+      <p style="margin:10px auto 0;max-width:52ch;font-size:.95rem;line-height:1.6;color:#4a4a4a">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div style="text-align:center;margin-top:24px">
+      <a href="/review" style="display:inline-block;padding:12px 22px;border:1px solid rgba(18,34,61,.35);border-radius:100px;color:#12223d;font-weight:700;font-size:.9rem;text-decoration:none">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 
 <!-- nbd:partial footer-slim link1_href="/services/storm-damage" link1_name="Storm Damage" link2_href="/areas" link2_name="Service Areas" -->
@@ -492,7 +510,6 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <!-- /nbd:partial footer-slim -->
 
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
 <script defer src="/assets/js/storm-check.js?v=5"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->

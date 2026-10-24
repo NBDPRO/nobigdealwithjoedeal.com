@@ -1123,6 +1123,8 @@ ${linksOutHtml(p)}
     <div class="pd-book pd-book-end">${BOOK_LIKE_THIS}</div>
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
+<!-- nbd:partial reviews-strip -->
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="${crumbArea}" crumb_city_name="${crumbCity}" -->
 <!-- /nbd:partial footer-standard -->

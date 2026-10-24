@@ -1,7 +1,14 @@
 /**
  * Google Reviews widget — fetches cached reviews from the
  * getGoogleReviews Cloud Function and renders a rating summary plus
- * the latest 5 reviews into any element matching [data-nbd-google-reviews].
+ * the latest reviews into any element matching [data-nbd-google-reviews].
+ *
+ * Every homeowner page carries the container since 2026-10-24, through the
+ * reviews-strip partial (site-src/partials/reviews-strip.html), so the newest
+ * reviews and their dates show everywhere, not only on the hubs. Each card
+ * names the review's date ("Oct 12, 2026") from the payload's `time` (unix
+ * seconds, both the Places and the GBP paths), with Google's relative wording
+ * ("2 weeks ago") beside it.
  *
  * Graceful degradation: if the endpoint is unavailable or returns no
  * data, the container renders a "Read our reviews on Google" card that
@@ -16,6 +23,11 @@
  */
 (function () {
   'use strict';
+
+  // One run per page. A page that carries the reviews-strip partial AND a
+  // hand-placed copy of this script would otherwise fetch and render twice.
+  if (window.__nbdGoogleReviewsWidget) return;
+  window.__nbdGoogleReviewsWidget = true;
 
   const ENDPOINT = '/api/google-reviews';
   // Google Business Profile short link — the one hardcoded copy in this
@@ -58,6 +70,24 @@
     return ' · ' + n + ' new ' + when;
   }
 
+  // The review's date. `time` is unix seconds from both server paths
+  // (functions/google-reviews.js maps Places' publishTime to seconds; the GBP
+  // sync stores seconds). Anything unparseable, or a date in the future or
+  // before Google reviews existed, renders nothing rather than a wrong day.
+  // Output is built from a Date only, so it is safe in innerHTML.
+  function reviewDate(review) {
+    const t = Number(review && review.time);
+    if (!Number.isFinite(t) || t <= 0) return null;
+    const ms = t < 1e12 ? t * 1000 : t; // tolerate milliseconds too
+    const d = new Date(ms);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2005 || ms > Date.now() + 864e5) return null;
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return {
+      iso: d.toISOString().slice(0, 10),
+      text: MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(),
+    };
+  }
+
   function truncate(text, limit) {
     const t = (text || '').trim();
     if (t.length <= limit) return esc(t);
@@ -69,7 +99,12 @@
     const photo = review.profilePhotoUrl
       ? `<img src="${esc(review.profilePhotoUrl)}" alt="" referrerpolicy="no-referrer" class="gr-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
       : `<div style="width:40px;height:40px;border-radius:50%;background:#e8e5e0;flex-shrink:0"></div>`;
-    const when = esc(review.relativeTime || '');
+    const date = reviewDate(review);
+    const rel = esc(review.relativeTime || '');
+    // "Oct 12, 2026 · 2 weeks ago"; either half alone when the other is missing.
+    const when = date
+      ? `<time datetime="${date.iso}">${date.text}</time>` + (rel ? ` &middot; <span style="white-space:nowrap">${rel}</span>` : '')
+      : rel;
     const text = truncate(review.text || '', 320);
     return `
       <div class="gr-card" style="background:#fff;border:1px solid #e8e5e0;border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:12px">
