@@ -105,7 +105,7 @@ console.log('\n6. photos: sizes, records, compare, cap');
   ok('a small image is never enlarged', JSON.stringify(PH.fitSize(600, 800)) === '{"w":600,"h":800}');
   ok('zero / NaN size -> null', PH.fitSize(0, 10) === null && PH.fitSize(NaN, 10) === null);
   const rec = PH.makeRecord({ date: '2026-10-22', pose: 'front', w: 960, h: 1280, bytes: 90000, blob: {} });
-  ok('record carries the photo and its labels only (no url / token / path)', rec && Object.keys(rec).sort().join() === 'blob,bytes,date,h,id,pose,w');
+  ok('record carries the photo and its labels only (no url / token / path)', rec && Object.keys(rec).sort().join() === 'blob,bytes,date,h,id,owner,pose,w');
   ok('bad pose / date / missing blob -> no record', PH.makeRecord({ date: '2026-10-22', pose: 'selfie', blob: {} }) === null && PH.makeRecord({ date: 'x', pose: 'front', blob: {} }) === null && PH.makeRecord({ date: '2026-10-22', pose: 'front' }) === null);
   const mk = (id, date, pose) => ({ id, date, pose });
   const list = [mk('a', '2026-09-01', 'front'), mk('b', '2026-10-20', 'front'), mk('c', '2026-10-01', 'front'), mk('d', '2026-10-02', 'side')];

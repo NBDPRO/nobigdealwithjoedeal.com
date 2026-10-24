@@ -14,6 +14,12 @@
  *   fitSize             scale-down dimensions (long edge <= max)
  *   makeRecord          the row stored in IndexedDB (no URL, no token, no
  *                       path: the photo bytes are the only payload)
+ *   visible             which photos THIS account may see: each row records the
+ *                       account that took it (owner). A row is shown only to its
+ *                       owner, and only once the phone's recorded last account
+ *                       (nbd_last_uid) is that same account, i.e. the shared-device
+ *                       purge has settled. Rows from before owners existed (no
+ *                       owner) are claimed by the first settled account to look.
  *   firstAndLatest      the oldest and newest photo of a pose, for the
  *                       side-by-side compare
  *   prune               the newest MAX_PHOTOS only
@@ -85,7 +91,23 @@
   function makeRecord(o) {
     if (!o || !validYmd(o.date) || !validPose(o.pose) || !o.blob) return null;
     const id = 'ph_' + o.date.replace(/-/g, '') + '_' + (o.nonce || Math.random().toString(36).slice(2, 8));
-    return { id, date: o.date, pose: o.pose, w: o.w | 0, h: o.h | 0, bytes: o.bytes | 0, blob: o.blob };
+    return { id, date: o.date, pose: o.pose, w: o.w | 0, h: o.h | 0, bytes: o.bytes | 0, owner: typeof o.owner === 'string' && o.owner ? o.owner : null, blob: o.blob };
+  }
+
+  /**
+   * { show, claim, hidden }. uid = the signed-in account (null: nobody known), last = nbd_last_uid.
+   *   - a signed-in account whose switch has not settled (last !== uid) sees NOTHING: the previous
+   *     account's data may still be on the phone, and an owner match alone is not proof it was purged
+   *   - a settled account sees its own rows, plus legacy ownerless rows (which it then claims)
+   *   - nobody known sees only ownerless rows
+   */
+  function visible(list, uid, last) {
+    const rows = (list || []).filter(Boolean);
+    const known = typeof uid === 'string' && uid !== '';
+    if (known && last !== uid) return { show: [], claim: [], hidden: rows.length };
+    const show = rows.filter((p) => (known ? (!p.owner || p.owner === uid) : !p.owner));
+    const claim = known ? show.filter((p) => !p.owner) : [];
+    return { show, claim, hidden: rows.length - show.length };
   }
 
   const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1);
@@ -103,7 +125,7 @@
     return s.length > cap ? s.slice(0, s.length - cap).map((p) => p.id) : [];
   }
 
-  const api = { POSES, MAX_EDGE, MAX_PHOTOS, MAX_BYTES, validPose, stripJpegMetadata, hasMetadata, fitSize, makeRecord, firstAndLatest, prune };
+  const api = { POSES, MAX_EDGE, MAX_PHOTOS, MAX_BYTES, validPose, stripJpegMetadata, hasMetadata, fitSize, makeRecord, visible, firstAndLatest, prune };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDPhotos = api;
 })(typeof window !== 'undefined' ? window : null);
