@@ -129,7 +129,14 @@ const ROUTES = [
   [/^https:\/\/api\.weather\.gov\/alerts\b/, nwsAlerts],
   // No sample outlook: an empty Storm Prediction Center layer, not a made-up one.
   [/^https:\/\/www\.spc\.noaa\.gov\/products\/outlook\//, () => json({ type: 'FeatureCollection', features: [], sample: true })],
-  [/^\/api\/storm-report\b/, stormReports]
+  [/^\/api\/storm-report\b/, stormReports],
+  // Success Tracker food search / barcode lookup: Open Food Facts is a live
+  // database, so it stays in the real account. The card falls back to typing
+  // the macros by hand, which works here.
+  [/^https:\/\/world\.openfoodfacts\.org\//, () => {
+    demoNotice('Food search looks foods up in Open Food Facts in your real account. Here, type the macros by hand.', { kind: 'offline', what: 'food-search' });
+    return json({ sample: true, error: 'food search is in your real account' }, 503);
+  }]
 ];
 
 /** Answer one recognised request from sample data. demo-mode.js decides which URLs come here. */

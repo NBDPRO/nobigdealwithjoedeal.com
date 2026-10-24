@@ -118,7 +118,7 @@
   // Wave 3: the maps' weather, storm-report and geocoder reads are answered
   // from sample data (/pro/demo-sdk/offline.js) BEFORE they could leave the
   // browser: the request is never made, so it is not "blocked" either.
-  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/)|\/api\/storm-report\b)/;
+  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/|world\.openfoodfacts\.org\/)|\/api\/storm-report\b)/;
   var offlineApi = null, offlineWaiters = [];
   state.offlineLoaded = function (api) {
     offlineApi = api;
@@ -245,7 +245,7 @@
     (document.head || document.documentElement).appendChild(s);
   }
   loadScript('/pro/demo-sdk/basemap.js?v=1', false);
-  loadScript('/pro/demo-sdk/offline.js?v=1', true);
+  loadScript('/pro/demo-sdk/offline.js?v=2', true);
   // Wave 4.
   loadScript('/pro/demo-sdk/endpoints.js?v=2', true);
   loadScript('/pro/demo-sdk/real-account.js?v=1', false);
@@ -332,6 +332,9 @@
     Object.defineProperty(SP, 'length', { configurable: true, get: function () { return ownKeys(this).length; } });
     state.clearStorage = function () { [localStorage, sessionStorage].forEach(function (s) { ownKeys(s).forEach(function (k) { ri.call(s, k); }); }); };
   } catch (_) { /* storage blocked: nothing to protect */ }
+  // The Success Tracker's first-visit welcome talks about the visitor's own
+  // NBD Pro backup and home-screen install: not true of the sample account.
+  try { if (/^\/pro\/explore\/daily-success\/?$/.test(location.pathname)) localStorage.setItem('nbd-welcome-seen', '1'); } catch (_) {}
 
   // ── service workers: the demo worker stays, /pro/sw.js stays out ───────
   try {
@@ -350,6 +353,8 @@
     if (p.indexOf(PREFIX) === 0) return null;
     var m = /^\/pro\/([\w-]+?)(\.html)?$/.exec(p);
     if (m && DEMO_PAGES[m[1]]) return PREFIX + m[1] + x.search + x.hash;
+    // Success Tracker (2026-10-24) lives in a folder: /pro/daily-success/.
+    if (/^\/pro\/daily-success(\/(index\.html)?)?$/.test(p)) return PREFIX + 'daily-success' + x.search + x.hash;
     if (/^\/pro\/login(\.html)?$/.test(p)) return '/pro/sandbox';
     if (EXIT_OK.test(p) || p === '/') return null;
     if (p.indexOf('/pro/') === 0) return '';
@@ -388,6 +393,19 @@
     if (to === '') { stayNotice(); return; }
     location.assign(to);
   }, true);
+
+  // window.open (the dashboard's "Success Tracker" button opens a tab with it):
+  // same rule as links. A same-origin CRM page opens its sample copy, or not at all.
+  try {
+    var realOpen = window.open;
+    window.open = function (url) {
+      var to = url == null ? null : remap(String(url));
+      if (to === null) return realOpen.apply(window, arguments);
+      if (to === '') { stayNotice(); return null; }
+      var args = Array.prototype.slice.call(arguments); args[0] = to;
+      return realOpen.apply(window, args);
+    };
+  } catch (_) {}
 
   if (window.navigation && typeof window.navigation.addEventListener === 'function') {
     window.navigation.addEventListener('navigate', function (e) {
@@ -453,7 +471,9 @@
   var SANDBOX_TOOLS = { 'tpl-view-aiusage': '/pro/explore/analytics' };
   // Not yet in the sample account: they would open the real production pages
   // (reCAPTCHA / App Check, outside the demo worker). Hidden until each joins.
-  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-daily'];
+  // Success Tracker (nav-daily) opens in a window, not a view: remap() and
+  // the window.open wrapper send it to /pro/explore/daily-success.
+  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex'];
   var LIVE_ONLY_TPL = ['tpl-view-aitree', 'tpl-view-understand', 'tpl-view-projectcodex'];
   function hideLiveOnlyScreens() {
     Object.keys(SANDBOX_TOOLS).forEach(function (id) {

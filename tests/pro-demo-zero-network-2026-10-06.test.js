@@ -649,6 +649,32 @@ async function waitFor(page, fn, arg, ms) {
     }
     ok('the server served AI Usage through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/analytics' && e.kind === 'rewrite'));
 
+    console.log('26. Success Tracker: the sidebar entry opens its sample copy, on a sample week');
+    ok('the Success Tracker entry is in the sample sidebar', await page.evaluate(() => { const n = document.getElementById('nav-daily'); return !!n && n.style.display !== 'none' && n.getAttribute('aria-hidden') !== 'true'; }));
+    const [ds] = await Promise.all([ctx.waitForEvent('page', { timeout: 20000 }), page.locator('#nav-daily').click()]);
+    ds.on('pageerror', (e) => pageErrors.push('daily-success: ' + String(e && e.message || e).slice(0, 300)));
+    await ds.waitForLoadState('domcontentloaded');
+    ok('it opens /pro/explore/daily-success (the sample copy, not the real /pro/daily-success/)', new URL(ds.url()).pathname === '/pro/explore/daily-success', ds.url());
+    await ds.waitForFunction(() => { try { return (JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]')).length >= 7; } catch (_) { return false; } }, null, { timeout: 30000, polling: 250 });
+    const dsState = await ds.evaluate(() => ({
+      demo: !!(window.__NBD_DEMO__ && window.__NBD_DEMO__.active), strip: !!document.getElementById('nbd-demo-strip'),
+      welcome: (document.getElementById('welcomeModal') || { style: {} }).style.display,
+      pages: JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]').length, text: document.body.innerText
+    }));
+    ok('the tracker runs in the sample account (demo-mode armed, its strip shown, no first-visit welcome)', dsState.demo && dsState.strip && dsState.welcome !== 'flex', JSON.stringify({ demo: dsState.demo, strip: dsState.strip, welcome: dsState.welcome }));
+    ok('the sample week loaded from the sample account: six days plus today, a five-day floor streak, a weight trend',
+      dsState.pages === 7 && /FLOOR STREAK\s*5\b/i.test(dsState.text) && /\d{3}\.\d lb on/.test(dsState.text), dsState.text.slice(0, 600));
+    // Food search: a real search, answered by the sample account, not Open Food Facts.
+    const searched = await ds.evaluate(async () => {
+      const r = await window.fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=yogurt&json=1');
+      return { status: r.status, body: await r.json(), notice: (window.__NBD_DEMO__.notices || []).some((n) => /real account/.test(n.message || n)) };
+    });
+    ok('food search is answered in the sample account ("in your real account"), never fetched', searched.status === 503 && searched.body.sample === true && searched.notice, JSON.stringify(searched));
+    const dsBlocked = await ds.evaluate(() => window.__NBD_DEMO__.blocked.slice());
+    ok('the tracker blocked nothing (no attempt was made)', dsBlocked.length === 0, JSON.stringify(dsBlocked));
+    ok('the server served the tracker through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/daily-success' && e.kind === 'rewrite'));
+    await ds.close();
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));

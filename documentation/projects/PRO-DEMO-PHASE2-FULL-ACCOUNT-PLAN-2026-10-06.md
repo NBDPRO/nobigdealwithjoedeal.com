@@ -13,6 +13,13 @@
 >
 > **Shipped first: AI Usage**, on 71 sample `api_usage` records (seed v5).
 >
+> **Then the Success Tracker** (seed v6). It opens in a window, not a framed view, so it needs no header block. Its rewrite is `/pro/explore/daily-success` → `/pro/daily-success/index.html`, and every asset on that page is an absolute path. `remap()` and a `window.open` wrapper in `demo-mode.js` send the sidebar entry there.
+> - The sample week is six `users/demo-owner/ds_pages` day pages (the last six days, a five-day floor streak, workouts, meals, door numbers, a weight trend). Today is left blank for the visitor.
+> - Food search (Open Food Facts) is answered by `offline.js` with "in your real account", and the visitor types macros by hand.
+> - `healthShortcutManage` refuses quietly, so the Apple Health card stays dark, as it is in production.
+> - The first-visit welcome is marked seen there, because it promises a real-account backup and a home-screen install.
+> - Walk step 26.
+>
 > **Jo's decisions for the rest:**
 > - The three AI tools get canned sample answers, labelled, with no AI model called.
 > - Their insurance topics (supplement strategy, carrier tactics, adjuster prep) stay out of the sandbox.

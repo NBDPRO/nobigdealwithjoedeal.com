@@ -187,7 +187,7 @@ const WOULD = {
 // that it is not in the sample account). They still refuse, but without a
 // second notice on top of the card: nothing to tell the visitor that the
 // screen does not already say.
-const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather']);
+const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage']);
 
 export function sampleCallableMessage(name) {
   const doing = WOULD[name];
