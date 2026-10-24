@@ -82,7 +82,9 @@ for (const p of DEMO_PATHS) {
   ok(p + ' is noindex', robots && /noindex/.test(robots.value));
 }
 const demoBlockIdx = hosting.headers.findIndex((b) => b.source === '/pro/explore/**');
-const lastProBlock = hosting.headers.map((b, i) => (/^\/(@\(pro|pro)/.test(b.source) || b.source === '**') ? i : -1).filter((i) => i >= 0 && i !== demoBlockIdx && hosting.headers[i].source !== '/pro/explore');
+// The sample account's own blocks (/pro/explore, /pro/explore/** and the tool-page
+// block /pro/explore/@(...), 2026-10-24) are not competitors: only real /pro blocks are.
+const lastProBlock = hosting.headers.map((b, i) => (/^\/(@\(pro|pro)/.test(b.source) || b.source === '**') ? i : -1).filter((i) => i >= 0 && !/^\/pro\/explore(\/|$)/.test(hosting.headers[i].source));
 ok('the /pro/explore/** block comes after every /pro and ** block (last match wins)', demoBlockIdx > Math.max.apply(null, lastProBlock));
 // The real CRM keeps its own policy (the demo block must not leak onto it).
 for (const p of ['/pro/dashboard', '/pro/customer']) {
@@ -587,9 +589,13 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
     const tpls = [...dash.matchAll(/<template id="(tpl-view-[\w-]+)">\s*<iframe[^>]*data-src="(\/pro\/[^"]+)"/g)].map((m) => m[1]);
     ok('control: dashboard.html embeds several /pro/ iframes in view templates', tpls.length >= 4, String(tpls.length));
     const listed = (/LIVE_ONLY_TPL = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
-    ok('every iframe view template pointing at a real /pro/ page is stripped in the sample account', tpls.length > 0 && tpls.every((t) => listed.indexOf("'" + t + "'") !== -1), tpls.join(','));
+    // 2026-10-24: a tool joins the sample account through SANDBOX_TOOLS (its view
+    // loads /pro/explore/<tool>); every other real /pro/ iframe is still stripped.
+    const routed = (/SANDBOX_TOOLS = \{([^}]*)\}/.exec(dm) || ['', ''])[1];
+    ok('every iframe view template pointing at a real /pro/ page is either routed into /pro/explore/ or stripped', tpls.length > 0 && tpls.every((t) => listed.indexOf("'" + t + "'") !== -1 || new RegExp("'" + t + "': '/pro/explore/[\\w-]+'").test(routed)), tpls.join(','));
     const navs = (/LIVE_ONLY_NAV = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
-    ok('their sidebar entries and the Success Tracker window-opener are hidden (and exist on the page)', ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-aiusage', 'nav-daily'].every((id) => navs.indexOf("'" + id + "'") !== -1 && dash.indexOf('id="' + id + '"') !== -1));
+    const tplNav = { 'tpl-view-aitree': 'nav-aitree', 'tpl-view-understand': 'nav-understand', 'tpl-view-projectcodex': 'nav-projectcodex', 'tpl-view-aiusage': 'nav-aiusage' };
+    ok('the sidebar entry of every stripped view (and the Success Tracker window-opener) is hidden, and exists on the page', Object.keys(tplNav).filter((t) => listed.indexOf("'" + t + "'") !== -1).map((t) => tplNav[t]).concat(['nav-daily']).every((id) => navs.indexOf("'" + id + "'") !== -1 && dash.indexOf('id="' + id + '"') !== -1));
     ok('the blocked-request toast is plain words, no raw "fetch GET to /api/..." dev text', !/Blocked in the sample account: ' \+/.test(dm) && /That live data is not in the sample account/.test(dm));
   }
 

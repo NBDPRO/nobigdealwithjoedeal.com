@@ -740,7 +740,8 @@
     "free-tools-contrast-2026-10-24.test.js",
     "tracker-measure-draft-2026-10-24.test.js",
     "coach-overlay-keyboard-2026-10-24.test.js",
-    "agent-inbox-keyboard-2026-10-24.test.js"
+    "agent-inbox-keyboard-2026-10-24.test.js",
+    "pro-demo-tools-2026-10-24.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
