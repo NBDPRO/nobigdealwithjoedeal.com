@@ -36,7 +36,11 @@ async function jobsByLead(db, companyId) {
     const snaps = await Promise.all(['companyId', 'userId'].map((f) =>
       db.collectionGroup('jobs').where(f, '==', companyId).limit(5000).get()));
     return require('./jobs-logic').jobsByLeadFromDocs(snaps.reduce((all, sn) => all.concat(sn.docs), []));
-  } catch (_) { return null; }
+  } catch (e) {
+    // null = "could not read" (an empty calendar is {}); the digest then says unavailable, never "none"
+    logger.warn('[ownerWeeklyDigest] jobs read failed', { companyId, msg: e && e.message });
+    return null;
+  }
 }
 
 async function ownerFor(db, companyId) {
@@ -79,7 +83,7 @@ async function runDigest({ db, nowMs, live, gatherCalls }) {
       if (owner === NBD_OWNER && gatherCalls) {
         try { callItems = (await gatherCalls({ db, nowMs })).items; } catch (e) { logger.warn('[ownerWeeklyDigest] calls read failed', { msg: e && e.message }); }
       }
-      const digest = D.buildDigest({ leads, jobsByLead: jbl, invoices, estimates, deals, callItems, todayYmd, tz });
+      const digest = D.buildDigest({ leads, jobsByLead: jbl, jobsUnavailable: jbl === null, invoices, estimates, deals, callItems, todayYmd, tz });
       if (!live) continue;
       const r = D.render(digest);
       try {

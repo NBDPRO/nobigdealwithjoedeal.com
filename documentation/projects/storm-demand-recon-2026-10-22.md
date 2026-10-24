@@ -107,3 +107,10 @@ handle the claim", no AOB; gate run on all copy.
   sent to both callables, clamped and re-measured server-side) and per-report
   Select everyone I can text / Clear (only rows that can be ticked). UI only; no
   backend change; still drafts only. Test now 45 checks, 9 more mutations red.
+- **PR 4 (2026-10-23), hardening from the overnight audit (pass 2):** finding 3
+  fixed (the Outreach tab drops customers, drafts and ticks when the account
+  changes in the same tab, and ignores an answer still in flight for the old
+  account); finding 5 fixed in part (filing refuses a report older than 60 days
+  or undated; **no rate limit added**, still open); finding 4 was already
+  fail-closed (`textGate` refuses a null opt-out read) and is now pinned by a
+  test with a control. Backend suite 53 checks, UI suite 50, mutations red.

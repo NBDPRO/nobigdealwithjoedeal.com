@@ -44,7 +44,7 @@ function boot(callImpl) {
   ctx.window.window = win;
   vm.createContext(ctx);
   vm.runInContext(SRC, ctx, { filename: 'storm-outreach-ui.js' });
-  return { ui: win.StormOutreachUI, calls, handlers, repaints: () => repaints };
+  return { ui: win.StormOutreachUI, win, calls, handlers, repaints: () => repaints };
 }
 
 const PLAN = {
@@ -174,6 +174,30 @@ const KEY = PLAN.events[0].key;
   ok('Clear is ignored while a filing is in flight', Object.keys(m4.ui._state.picked[KEY] || {}).length === 2 && m4.ui._state.busy === KEY);
   release(); await tick();
 
+  console.log('B3. account switch in the same tab (audit finding 3)');
+  const sw = boot(async () => PLAN);
+  sw.win._user = { uid: 'u1' }; sw.win._userClaims = { companyId: 'coA' };
+  sw.ui.load(); await tick(); sw.ui._wire();
+  sw.handlers.click({ target: { closest: () => ({ disabled: false, getAttribute: (k) => ({ 'data-sto-action': 'all', 'data-sto-event': KEY })[k] }) } });
+  ok('control: company A sees its customers and has two ticked', /Wanda/.test(sw.ui.html()) && Object.keys(sw.ui._state.picked[KEY] || {}).length === 2);
+  sw.win._user = { uid: 'u2' }; sw.win._userClaims = { companyId: 'coB' };
+  const afterSwitch = sw.ui.html();
+  ok('after a switch to company B the old customers, drafts and ticks are gone', !/Wanda|Oren|Hi Wanda/.test(afterSwitch) && sw.ui._state.data === null && Object.keys(sw.ui._state.picked).length === 0);
+  const listsBefore = sw.calls.filter((c) => c.name === 'listStormOutreach').length;
+  sw.ui.load(); await tick();
+  ok('opening the tab as company B lists again instead of reusing the old list', sw.calls.filter((c) => c.name === 'listStormOutreach').length === listsBefore + 1);
+  const sw2 = (() => { let release; const gate = new Promise((r) => { release = r; }); const h = boot(async () => { await gate; return PLAN; }); h.release = release; return h; })();
+  sw2.win._userClaims = { companyId: 'coA' };
+  sw2.ui.load();
+  sw2.win._userClaims = { companyId: 'coB' };
+  sw2.ui.html();
+  sw2.release(); await tick();
+  ok('an answer still in flight for the old account is dropped, not shown to the new one', sw2.ui._state.data === null && !/Wanda/.test(sw2.ui.html()));
+  const same = boot(async () => PLAN);
+  same.win._user = { uid: 'u1' }; same.win._userClaims = { companyId: 'coA' };
+  same.ui.load(); await tick(); same.ui.html(); same.ui.load(); await tick();
+  ok('control: with no account change the loaded list is kept and listed once', /Wanda/.test(same.ui.html()) && same.calls.filter((c) => c.name === 'listStormOutreach').length === 1);
+
   console.log('C. nothing here can send; CSP-clean; wired in');
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   ok('no fetch / XHR / sms / email / outbound call in the module', !/\bfetch\s*\(|XMLHttpRequest|sendBeacon|sendSms|sendEmail|twilio|resend|agentDraftAction|smsLog|sms_log/i.test(code));
@@ -181,7 +205,7 @@ const KEY = PLAN.events[0].key;
   ok('no inline handlers, <script>, or style attributes in the markup', !/\son[a-z]+\s*=/i.test(code.replace(/ariaon/g, '')) && !/<script/i.test(code) && !/style="/.test(code));
   const sc = read('docs/pro/js/storm-center.js');
   ok('storm-center has the Outreach tab, the load hook and the render branch', /tabBtn\('outreach'/.test(sc) && /window\.StormOutreachUI\.load\(\)/.test(sc) && /currentTab === 'outreach'/.test(sc));
-  ok('the loader ships the module after storm-center, with a bumped cache version', /storm-center\.js\?v=7[\s\S]*storm-outreach-ui\.js\?v=2/.test(read('docs/pro/js/script-loader.js')));
+  ok('the loader ships the module after storm-center, with a bumped cache version', /storm-center\.js\?v=7[\s\S]*storm-outreach-ui\.js\?v=3/.test(read('docs/pro/js/script-loader.js')));
   const css = read('docs/pro/css/storm-center.css');
   ok('styles exist for the tab, use no raw hex colours, and keep 44px targets', /\.sto-row/.test(css) && !/\.sto-[^{]*\{[^}]*#[0-9a-fA-F]{3,6}/.test(css) && /\.btn\.sto-file \{ min-height: 44px/.test(css));
   ok('the radius and select-all buttons keep 44px targets and the pressed radius is visibly different', /\.sto-radius-btn, \.sto-bar \.btn \{ min-height: 44px/.test(css) && /\.sto-radius-btn\[aria-pressed="true"\]/.test(css));

@@ -203,6 +203,23 @@ function seed() {
   const oth = await file({ uid: 'someoneElse', token: {} }, { eventKey: EV, leadIds: ['won1', 'open1'] });
   ok("another company's owner cannot file drafts for this company's customers", oth.r && oth.r.filed === 0 && oth.r.skipped.not_on_board === 2, JSON.stringify(oth));
 
+  console.log('F. hardening (overnight audit 2026-10-23)');
+  ok('reportAgeOk: fresh yes; 61 days, undated and far-future no', SO.reportAgeOk({ valid: '2026-10-21T20:40:00' }, NOW) && !SO.reportAgeOk({ valid: '2026-08-20T20:40:00' }, NOW)
+    && !SO.reportAgeOk({}, NOW) && !SO.reportAgeOk({ valid: '2026-12-25T00:00:00' }, NOW) && SO.reportAgeOk({ valid: '2026-08-24T20:40:00' }, NOW));
+  seed();
+  r = await file(OWNER, { eventKey: 'ev_old', leadIds: ['won1', 'open1'] });
+  ok('filing from an 80-day-old report is refused and files nothing', r.err && r.err.code === 'failed-precondition' && inbox().length === 0, JSON.stringify(r.r || r.err && r.err.code));
+  r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
+  ok('control: the fresh report still files', r.r && r.r.filed === 2 && inbox().length === 2, JSON.stringify(r));
+  seed();
+  const realDoc = DB.doc;
+  DB.doc = (p) => (/^sms_opt_outs\//.test(p) ? { get: async () => { throw new Error('read failed'); } } : realDoc(p));
+  r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
+  ok('an unreadable Do-Not-Text list fails closed: nothing is filed', r.r && r.r.filed === 0 && r.r.skipped.cannot_text === 2 && inbox().length === 0, JSON.stringify(r));
+  DB.doc = realDoc;
+  r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
+  ok('control: with the list readable the same call files both', r.r && r.r.filed === 2, JSON.stringify(r));
+
   Date.now = realNow;
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

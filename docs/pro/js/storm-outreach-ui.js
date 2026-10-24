@@ -22,7 +22,23 @@
 
   var MAX_PER_EVENT = 40; // the callable's cap
   var RADII = [1, 3, 5, 10]; // miles; the callables clamp to 0.5-10 and default to 3
-  var state = { status: 'idle', data: null, error: '', picked: {}, busy: '', note: '', miles: 3 };
+  var state = { status: 'idle', data: null, error: '', picked: {}, busy: '', note: '', miles: 3, owner: null, gen: 0 };
+
+  // Whose screen this is. The module outlives a sign-out / account switch in the
+  // same tab, so customers, drafts and ticks from the previous account must not
+  // stay in memory (audit 2026-10-23, finding 3). A switch bumps gen so a call
+  // still in flight for the old account is ignored when it answers.
+  function who() {
+    var c = window._userClaims || {};
+    return c.companyId || (window._user && window._user.uid) || '';
+  }
+  function syncOwner() {
+    var now = who();
+    if (state.owner === null) { state.owner = now; return; }
+    if (state.owner === now) return;
+    state.owner = now; state.gen++;
+    state.status = 'idle'; state.data = null; state.error = ''; state.picked = {}; state.busy = ''; state.note = ''; state.miles = 3;
+  }
 
   var COHORT = { past_customer: 'Past customer', open_lead: 'Open lead' };
   var SKIP = {
@@ -108,6 +124,7 @@
   }
 
   function html() {
+    syncOwner();
     var head = '<div class="stc-section"><div class="stc-sec-head">Storm outreach drafts</div>'
       + '<p class="sto-note">Past customers and open leads near a recorded storm report. Tick the people you want to check in on and file them. '
       + '<strong>Nothing is sent from here</strong>: each draft waits in your Agent inbox and you send it yourself. The wording only says a storm was reported near the town; it never promises damage or a claim outcome.</p>'
@@ -131,11 +148,15 @@
   }
 
   function load(force) {
+    syncOwner();
     if (!force && (state.status === 'loading' || state.status === 'ready')) return;
     state.status = 'loading'; state.error = '';
+    var gen = state.gen;
     callable('listStormOutreach', { miles: state.miles }).then(function (d) {
+      if (gen !== state.gen) return;
       state.data = d || { events: [] }; state.status = 'ready';
     }).catch(function (e) {
+      if (gen !== state.gen) return;
       state.status = 'error';
       state.error = (e && e.code === 'permission-denied') ? 'Only the owner or an admin can use storm outreach.' : 'Try again in a moment.';
     }).then(repaint);
@@ -150,15 +171,20 @@
     var ids = pickedIds(key).slice(0, MAX_PER_EVENT);
     if (!ids.length || state.busy) return;
     state.busy = key; state.note = '';
+    var gen = state.gen;
     repaint();
     // The same radius the list was built with; the server re-measures it.
     callable('fileStormOutreachDrafts', { eventKey: key, leadIds: ids, miles: state.miles }).then(function (r) {
+      if (gen !== state.gen) return;
       state.picked[key] = {};
       var n = (r && r.filed) || 0;
       state.note = n + ' draft' + (n === 1 ? '' : 's') + ' filed to your Agent inbox. Nothing was sent.' + skipText(r && r.skipped);
     }).catch(function (e) {
-      state.note = (e && e.code === 'permission-denied') ? 'Only the owner or an admin can file drafts.' : 'Could not file the drafts. Nothing was sent. Try again.';
-    }).then(function () { state.busy = ''; repaint(); });
+      if (gen !== state.gen) return;
+      state.note = (e && e.code === 'permission-denied') ? 'Only the owner or an admin can file drafts.'
+        : (e && e.code === 'failed-precondition') ? 'That storm report is too old to draft from. Nothing was sent. Reload for recent reports.'
+        : 'Could not file the drafts. Nothing was sent. Try again.';
+    }).then(function () { if (gen === state.gen) state.busy = ''; repaint(); });
   }
 
   function syncButton(root, key) {
