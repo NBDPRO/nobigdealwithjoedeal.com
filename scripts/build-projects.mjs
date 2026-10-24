@@ -1208,7 +1208,8 @@ const stampFile = (file, transform, required) => {
 // to empty and every run of apply-partials.js would refill it, forever.
 // schema-entity is the one definition of the business/Joe the page's JSON-LD
 // references by @id; like the chrome, apply-partials.js owns its content.
-const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard', 'schema-entity'];
+// reviews-strip (2026-10-24): the recent-reviews section every homeowner page carries.
+const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard', 'schema-entity', 'reviews-strip'];
 function carryOverPartials(freshHtml, existingHtml) {
   if (!existingHtml) return freshHtml;
   let out = freshHtml;
