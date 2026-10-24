@@ -115,7 +115,7 @@ console.log('F. wiring');
   ok('the shim exposes importDoors / showDoorList / hideDoorList / deleteDoorList', ['importDoors', 'showDoorList', 'hideDoorList', 'deleteDoorList'].every((a) => new RegExp('\\b' + a + ': ').test(shim)));
   ok('the Routes tab paints the door lists', /if \(window\.NBDDoorImport && typeof window\.NBDDoorImport\.html === 'function'\) html \+= window\.NBDDoorImport\.html\(\);/.test(read('docs/pro/js/d2d-tracker-ui-2026b.js')));
   const dash = read('docs/pro/dashboard.html');
-  ok('script-loader and the D2D stylesheet were cache-busted', /js\/script-loader\.js\?v=(20[89]|2[1-9]\d)\b/.test(dash) && /css\/d2d-tracker\.css\?v=3/.test(dash) && /js\/script-loader\.js\?v=(20[89]|2[1-9]\d)\b/.test(read('docs/pro/customer.html')));
+  ok('script-loader and the D2D stylesheet were cache-busted', /js\/script-loader\.js\?v=(20[89]|2[1-9]\d)\b/.test(dash) && /css\/d2d-tracker\.css\?v=([3-9]|\d\d)(?!\d)/.test(dash) && /js\/script-loader\.js\?v=(20[89]|2[1-9]\d)\b/.test(read('docs/pro/customer.html')));
   const src = read('docs/pro/js/d2d-door-import.js');
   ok('writes only to d2d_doorlists, with the import confirmed first; nothing is sent', /collection\(w\._db \|\| w\.db, 'd2d_doorlists'\)/.test(src) && /uiConfirm\(msg/.test(src) && !/sms:|tel:|mailto:|httpsCallable|fetch\(/.test(src));
   ok('a viewer is stopped before the file picker (NBDRole.guard)', /root\.NBDRole\.guard\(\) === false/.test(src));

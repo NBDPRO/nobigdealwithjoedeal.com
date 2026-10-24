@@ -2139,7 +2139,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 
 /* PIN GRID */
 /* Drawing sidebar section labels — click to collapse/expand */
-.slabel2{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin:10px 0 6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid color-mix(in srgb, var(--orange) 15%, transparent);user-select:none;-webkit-tap-highlight-color:transparent;}
+.slabel2{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));margin:10px 0 6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid color-mix(in srgb, var(--orange) 15%, transparent);user-select:none;-webkit-tap-highlight-color:transparent;}
 .slabel2::after{content:'−';font-size:14px;color:var(--m);transition:transform .15s;}
 .slabel2.collapsed::after{content:'+';}
 .pin-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;}
@@ -2283,7 +2283,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .draw-mode-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
 .draw-mode-btn{flex:1;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:6px 4px;font-size:10px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--m);cursor:pointer;text-align:center;transition:all .15s;}
 .draw-mode-btn:hover{border-color:var(--orange);color:var(--t);}
-.draw-mode-btn.active{background:var(--og);border-color:var(--orange);color:var(--orange);}
+.draw-mode-btn.active{background:var(--og);border-color:var(--orange);color:var(--ui-accent-text,var(--orange));}
 .draw-mode-btn.mode-perim.active{background:rgba(34,197,94,.12);border-color:#22C55E;color:#22C55E;}
 .draw-mode-btn.mode-er.active{background:rgba(99,102,241,.12);border-color:#6366F1;color:#6366F1;}
 .draw-mode-btn.mode-gutter.active{background:rgba(6,182,212,.12);border-color:#06B6D4;color:#06B6D4;}
@@ -2317,7 +2317,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .draw-btns{display:flex;gap:5px;margin-bottom:10px;}
 .draw-btn{flex:1;padding:8px 5px;border:1px solid var(--br);border-radius:6px;background:var(--s2);color:var(--t);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
 .draw-btn:hover{border-color:var(--orange);color:var(--orange);}
-.draw-btn.go{background:var(--green);border-color:var(--green);color:var(--bg);}
+.draw-btn.go{background:#15803d;border-color:#15803d;color:#fff;} /* fixed dark green: var(--green) under white read 3.1:1 (UI sweep 2026-10-24) */
 .draw-btn.go:hover{background:#25b87a;}
 .draw-btn.stop{background:rgba(224,82,82,.12);border-color:var(--red);color:var(--red);}
 .line-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;margin-bottom:10px;}
@@ -2343,7 +2343,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .cr-row:last-child{border-bottom:none;font-weight:700;font-size:13px;}
 .cr-key{color:var(--m);}
 .cr-val{color:var(--t);}
-.cr-row.hl .cr-val{color:var(--orange);font-family:'Barlow Condensed',sans-serif;font-size:16px;}
+.cr-row.hl .cr-val{color:var(--ui-accent-text,var(--orange));font-family:'Barlow Condensed',sans-serif;font-size:16px;}
 
 /* ESTIMATE BUILDER */
 .est-steps{display:flex;gap:0;margin-bottom:22px;}
@@ -2911,7 +2911,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .meas-label{background:rgba(10,12,15,.88);color:var(--t);border:1px solid color-mix(in srgb, var(--orange) 60%, transparent);border-radius:3px;padding:2px 6px;font-size:10px;font-weight:700;font-family:'Barlow Condensed',sans-serif;white-space:nowrap;cursor:pointer;pointer-events:auto;}
 
 /* DRAW TOOL — shortcut hint */
-.draw-shortcut-hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,12,15,.92);color:var(--t);font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:10px 24px;border-radius:8px;border:1px solid var(--orange);pointer-events:none;z-index:9000;animation:shintFade .7s ease-out forwards;}
+.draw-shortcut-hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,12,15,.92);color:#fff;/* fixed dark card: var(--t) was dark-on-dark on a light theme (UI sweep 2026-10-24) */font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:10px 24px;border-radius:8px;border:1px solid var(--orange);pointer-events:none;z-index:9000;animation:shintFade .7s ease-out forwards;}
 @keyframes shintFade{0%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-60%) scale(.95);}}
 
 /* DRAW TOOL — facet area label on map */

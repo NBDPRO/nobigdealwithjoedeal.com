@@ -93,7 +93,7 @@
 .stx-cgreen-fs22px.stx-cgreen-fs22px.stx-cgreen-fs22px { color: var(--green); font-size: 22px; }
 .stx-corange-fs22px.stx-corange-fs22px.stx-corange-fs22px { color: var(--orange); font-size: 22px; }
 .stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--blue) 13%, transparent); color: var(--blue); font-weight: 600; }
-.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, #ff6d00 13%, transparent); color: #ff6d00; font-weight: 600; }
+.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, #ff6d00 13%, transparent); color: color-mix(in srgb, #ff6d00 50%, var(--t, #e8eaf0)); font-weight: 600; }
 .stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--green) 13%, transparent); color: var(--green); font-weight: 600; }
 .stx-fs18px-corange.stx-fs18px-corange.stx-fs18px-corange { font-size: 18px; color: var(--orange); }
 .stx-fs18px-cgreen.stx-fs18px-cgreen.stx-fs18px-cgreen { font-size: 18px; color: var(--green); }

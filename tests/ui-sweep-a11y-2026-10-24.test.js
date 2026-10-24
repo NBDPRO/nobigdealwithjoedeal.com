@@ -14,6 +14,12 @@
  * (green 3.1:1, gold 3.0:1, blue 3.5:1) and brand orange as text (4.37:1)
  * get the "pulled halfway to --t" tokens the repo already used for accent
  * and danger text: --ui-success-text, --ui-warn-text, --ui-info-text.
+ * Pass 4 (the other 14 CRM views, and the Obsidian theme): the same
+ * token moves on D2D, Storm, Photos, Templates, Products, Job Templates,
+ * Draw, Training and Academy; the accent ink rule picks whichever of
+ * white / dark ink reads better on the final accent (Obsidian's light-mode
+ * accent kept white at 3.4:1); the Draw shortcuts hint and the Academy's
+ * fixed-dark surface get colours that read there.
  * Pass 2 (customer card, portal, marketing): the customer card's invoice
  * action row pushed the page sideways on desktop; the profit tracker's
  * labels were not tied to their inputs; the pricing FAQ buttons and the
@@ -136,6 +142,31 @@ ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)
   ok('Money tiles read the text tokens (no plain var(--green,#16a34a) as a text colour)', !/'var\(--(green|gold|red|orange),#[0-9a-fA-F]+\)'/.test(read('docs/pro/js/money-dashboard.js')));
   ok('the pipeline score and job-type chips pull their text halfway to --t', (read('docs/pro/js/crm-pipeline.js').match(/color:color-mix\(in srgb,' \+ (color|_c) \+ ' 50%, var\(--t, #e8eaf0\)\)/g) || []).length === 2);
   ok('DESIGN.md names the three new tokens', /`--ui-success-text`/.test(read('DESIGN.md')) && /`--ui-warn-text`/.test(read('DESIGN.md')) && /`--ui-info-text`/.test(read('DESIGN.md')));
+}
+
+// Pass 4.
+{
+  const te = read('docs/pro/js/theme-engine.js');
+  ok('theme-engine: the accent ink is whichever of dark / white reads better on the final accent', /const accentFg = contrastRatio\('#0a0a0a', accentFinal\) > contrastRatio\('#ffffff', accentFinal\)\s*\?\s*'#0a0a0a'\s*:\s*'#ffffff';/.test(te));
+  ok('…and the old "white unless under 3:1" rule is gone', !/contrastRatio\('#ffffff', accentFinal\) < 3/.test(te));
+  const d2d = read('docs/pro/css/d2d-tracker.css');
+  for (const [cls, tok] of [['blue', '--ui-info-text'], ['gold', '--ui-warn-text'], ['green', '--ui-success-text'], ['orange', '--ui-accent-text']]) ok('d2d-tracker.css .dk-c-' + cls + ' reads ' + tok, new RegExp('\\.dk-c-' + cls + '\\.dk-c-' + cls + ' \\{ color: var\\(' + tok).test(d2d));
+  ok('theme-system.css .fg-orange (a text utility) reads --ui-accent-text', /\.fg-orange\{color:var\(--ui-accent-text/.test(read('docs/pro/css/theme-system.css')));
+  const da = read('docs/pro/css/dashboard-app.css');
+  ok('the Draw shortcuts hint (a fixed dark card) paints white text, not var(--t)', /\.draw-shortcut-hint\{[^}]*background:rgba\(10,12,15,\.92\);color:#fff;/.test(da));
+  ok('the Draw go button is a fixed dark green under white (var(--green) read 3.1:1)', /\.draw-btn\.go\{background:#15803d;border-color:#15803d;color:#fff;\}/.test(da));
+  ok('.slabel2 and the highlighted .cr-val read the accent text token', /\.slabel2\{[^}]*color:var\(--ui-accent-text/.test(da) && /\.cr-row\.hl \.cr-val\{color:var\(--ui-accent-text/.test(da));
+  const rda = read('docs/pro/js/real-deal-academy.js');
+  ok('Academy: its dark surface uses the light brand orange for text and the brand orange for fills', /--rda-orange: #DD875F;/.test(rda) && /--rda-muted: #9CA3AF;/.test(rda) && !/background[^;]*var\(--rda-orange\)/.test(rda) && /background: #BD5728;/.test(rda));
+  const pl = read('docs/pro/css/product-library.css');
+  ok('Products: Edit is a dark blue under white, Archive a dark grey on its light fill', /\.plx-btn-edit\.plx-btn-edit \{[^}]*background: #1d4ed8; color: #fff;/.test(pl) && /\.plx-btn-ghost\.plx-btn-ghost \{[^}]*color: #4b5563;/.test(pl));
+  const dash = read('docs/pro/dashboard.html');
+  const docsTpl = dash.slice(dash.indexOf('<template id="tpl-view-docs">'), dash.indexOf('</template>', dash.indexOf('<template id="tpl-view-docs">')));
+  ok('Templates library: no category title, badge or icon uses a plain status colour as text', !/class="tl-(cat-title|cat-badge|doc-icon)[^"]*" style="[^"]*(?<![-a-z])color:(var\(--(orange|green|blue)\)|#[0-9a-fA-F]{6});/.test(docsTpl) && /tl-cat-badge" style="[^"]*color:var\(--ui-accent-text/.test(docsTpl));
+  ok('Draw: the three green/gold ghost buttons read the status text tokens', (dash.match(/color:var\(--ui-success-text,var\(--green\)\);" data-action="call" data-fn="(applySmartWaste|loadDrawingFromCustomer|[A-Za-z]+)"/g) || []).length >= 3 && /color:var\(--ui-warn-text,var\(--gold,#EAB308\)\);" data-action="call" data-fn="runSolarAnalysis"/.test(dash));
+  ok('Storm: severity and damage chips pull their colour halfway to --t', (read('docs/pro/js/storm-center.js').match(/color:color-mix\(in srgb, \$\{[^}]+\} 50%, var\(--t, #e8eaf0\)\)/g) || []).length === 2);
+  ok('Training: the difficulty label pulls its colour halfway to --t', /class="tc-diff" style="color:color-mix\(in srgb, \$\{s\.diffColor\} 50%, var\(--t, #e8eaf0\)\);"/.test(read('docs/pro/js/sales-training-ui.js')));
+  ok('Job Templates: the category chip pulls its colour halfway to --t; the count pill reads --t', /jt-chip" style="color:color-mix\(in srgb,' \+ esc\(col\) \+ ' 50%, var\(--t, #e8eaf0\)\)/.test(read('docs/pro/js/job-templates-ui.js')) && /\.jt-pill \.ct\{background:var\(--br,#2a2f35\);color:var\(--t,#e8eaf0\);/.test(read('docs/pro/js/job-templates-ui.js')));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

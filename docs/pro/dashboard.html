@@ -25,7 +25,7 @@
 <!-- Rock 4 Phase 2: theme system extracted to css/theme-system.css.
      Same content (80 themes + trial-banner CSS) the inline <style id="theme-system">
      used to carry. Customer/vault/login already loaded the file; dashboard now joins. -->
-<link rel="stylesheet" href="css/theme-system.css?v=10">
+<link rel="stylesheet" href="css/theme-system.css?v=12">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
 <link rel="stylesheet" href="css/agent-inbox.css?v=5">
 <link rel="stylesheet" href="css/agent-bots.css?v=1">
@@ -152,7 +152,7 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=17">
+<link rel="stylesheet" href="css/dashboard-app.css?v=20">
 <link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
@@ -180,20 +180,20 @@
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
-<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
+<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=3">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/voicemail-view.css?v=1">
 <link rel="stylesheet" href="css/reports-trends-view.css?v=2">
 <link rel="stylesheet" href="css/supplement.css?v=1">
-<link rel="stylesheet" href="css/product-library.css?v=2">
+<link rel="stylesheet" href="css/product-library.css?v=4">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
-<link rel="stylesheet" href="css/d2d-tracker.css?v=3">
-<link rel="stylesheet" href="css/storm-center.css?v=5">
+<link rel="stylesheet" href="css/d2d-tracker.css?v=4">
+<link rel="stylesheet" href="css/storm-center.css?v=7">
 <link rel="stylesheet" href="css/my-skin.css?v=6">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=7" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=4" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=7" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -1226,7 +1226,7 @@
 
         <!-- BREADCRUMB -->
         <div style="padding:0 0 12px;border-bottom:1px solid var(--br);margin-bottom:12px;">
-          <span style="font-size:10px;color:var(--orange);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
+          <span style="font-size:10px;color:var(--ui-accent-text,var(--orange));cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
         </div>
 
         <!-- ADDRESS SEARCH -->
@@ -1405,7 +1405,7 @@
       <div class="map-sidebar" id="map-sidebar-draw">
         <!-- BREADCRUMB -->
         <div style="padding:0 0 12px;border-bottom:1px solid var(--br);margin-bottom:12px;">
-          <span style="font-size:10px;color:var(--orange);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
+          <span style="font-size:10px;color:var(--ui-accent-text,var(--orange));cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
         </div>
 
         <div class="slabel2">Property Address</div>
@@ -1516,17 +1516,17 @@
           Slope-correct rake, hip &amp; valley LF for the estimate
         </label>
         <!-- SMART WASTE -->
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px;margin-bottom:4px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="applySmartWaste" title="Calculate waste based on roof complexity">🧠 Smart Waste (AI)</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px;margin-bottom:4px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="applySmartWaste" title="Calculate waste based on roof complexity">🧠 Smart Waste (AI)</button>
         <div id="smartWasteInfo" style="display:none;font-size:10px;color:var(--m);padding:4px 6px;background:var(--s2);border-radius:5px;margin-bottom:8px;"></div>
 
         <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="importToEstimate">📋 Generate Estimate</button>
-        <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;background:var(--green);border-color:var(--green);" data-action="call" data-fn="saveDrawingToCustomer">💾 Save to Customer</button>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="loadDrawingFromCustomer">📂 Load from Customer</button>
+        <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;background:#15803d;border-color:#15803d;" data-action="call" data-fn="saveDrawingToCustomer">💾 Save to Customer</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="loadDrawingFromCustomer">📂 Load from Customer</button>
         <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="exportDrawReport">📤 Measurement Report</button>
         <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="generateScopeFromDrawing">📋 Scope of Work</button>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="showMaterialTakeoff">🧱 Material Takeoff</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="showMaterialTakeoff">🧱 Material Takeoff</button>
         <div style="font-size:10px;color:var(--m,#888);margin:2px 0 6px;line-height:1.4;">Carrier estimates stay in Xactimate — this tool measures and scopes, it doesn't replace it.</div>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--gold,#EAB308);color:var(--gold,#EAB308);" data-action="call" data-fn="runSolarAnalysis">☀️ Solar Analysis</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--gold,#EAB308);color:var(--ui-warn-text,var(--gold,#EAB308));" data-action="call" data-fn="runSolarAnalysis">☀️ Solar Analysis</button>
 
         <!-- ACCESSORIES -->
         <div class="slabel2">Accessories</div>
@@ -2636,12 +2636,12 @@
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">⚡</span>
             <h3 class="tl-cat-title fg-orange">Generators</h3>
-            <span class="tl-cat-badge" style="background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--orange);">Auto-fill from CRM</span>
+            <span class="tl-cat-badge" style="background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--ui-accent-text,var(--orange));">Auto-fill from CRM</span>
             <span class="tl-cat-count">4 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="proposal">
-              <div class="tl-doc-icon" style="background:color-mix(in srgb, var(--orange) 10%, transparent);color:var(--orange);">📊</div>
+              <div class="tl-doc-icon" style="background:color-mix(in srgb, var(--orange) 10%, transparent);color:var(--ui-accent-text,var(--orange));">📊</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Proposal / Estimate</div>
                 <div class="tl-doc-desc">Branded proposal with tiered pricing, warranty details, and project photos</div>
@@ -2657,7 +2657,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="warranty_certificate">
-              <div class="tl-doc-icon" style="background:rgba(218,165,32,.1);color:#DAA520;">🛡️</div>
+              <div class="tl-doc-icon" style="background:rgba(218,165,32,.1);color:color-mix(in srgb, #DAA520 50%, var(--t, #e8eaf0));">🛡️</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Warranty Certificate</div>
                 <div class="tl-doc-desc">Premium tiered warranty certificate with seal — Good, Better, or Best</div>
@@ -2680,8 +2680,8 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">🛡️</span>
-            <h3 class="tl-cat-title" style="color:var(--blue);">Insurance Documents</h3>
-            <span class="tl-cat-badge" style="background:rgba(74,158,255,.12);color:var(--blue);">Claims & Supplements</span>
+            <h3 class="tl-cat-title" style="color:var(--ui-info-text,var(--blue));">Insurance Documents</h3>
+            <span class="tl-cat-badge" style="background:rgba(74,158,255,.12);color:var(--ui-info-text,var(--blue));">Claims & Supplements</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
@@ -2733,8 +2733,8 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📝</span>
-            <h3 class="tl-cat-title" style="color:var(--green);">Contracts & Agreements</h3>
-            <span class="tl-cat-badge" style="background:rgba(46,204,138,.12);color:var(--green);">Signatures Required</span>
+            <h3 class="tl-cat-title" style="color:var(--ui-success-text,var(--green));">Contracts & Agreements</h3>
+            <span class="tl-cat-badge" style="background:rgba(46,204,138,.12);color:var(--ui-success-text,var(--green));">Signatures Required</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
@@ -2786,13 +2786,13 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📂</span>
-            <h3 class="tl-cat-title" style="color:#9C27B0;">Leave-Behind Packets</h3>
-            <span class="tl-cat-badge" style="background:rgba(156,39,176,.12);color:#9C27B0;">Sales & Homeowner</span>
+            <h3 class="tl-cat-title" style="color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">Leave-Behind Packets</h3>
+            <span class="tl-cat-badge" style="background:rgba(156,39,176,.12);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">Sales & Homeowner</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="company_intro">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">🏢</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">🏢</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Company One-Pager</div>
                 <div class="tl-doc-desc">Full-color marketing piece with services, testimonials, and financing CTA</div>
@@ -2800,7 +2800,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="financing_options">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">💳</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">💳</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Financing Options Sheet</div>
                 <div class="tl-doc-desc">Acorn Finance financing plans with monthly payment breakdowns and application steps</div>
@@ -2808,7 +2808,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="inspectionHomeowner">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">🔍</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">🔍</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Inspection Report (Homeowner)</div>
                 <div class="tl-doc-desc">Sales-focused inspection report with condition grades and photo documentation</div>
@@ -2816,7 +2816,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="storm_checklist">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">⛈️</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">⛈️</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Storm Damage Checklist</div>
                 <div class="tl-doc-desc">Printable 5-section checklist covering roof, gutters, siding, windows, and interior</div>
@@ -2824,7 +2824,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="claim_guide">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">📖</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">📖</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Insurance Claim Process Guide</div>
                 <div class="tl-doc-desc">7-step process walkthrough with FAQs — builds trust and sets expectations</div>
@@ -2839,13 +2839,13 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📣</span>
-            <h3 class="tl-cat-title" style="color:#FF6B35;">Marketing & Mailers</h3>
-            <span class="tl-cat-badge" style="background:rgba(255,107,53,.12);color:#FF6B35;">Print & Distribute</span>
+            <h3 class="tl-cat-title" style="color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">Marketing & Mailers</h3>
+            <span class="tl-cat-badge" style="background:rgba(255,107,53,.12);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">Print & Distribute</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="referral_card">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">🤝</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">🤝</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Referral Card</div>
                 <div class="tl-doc-desc">Postcard-style referral with reward program details and 3-step process</div>
@@ -2853,7 +2853,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="before_after_report">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">📸</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">📸</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Before & After Report</div>
                 <div class="tl-doc-desc">Visual project documentation with before/after photo grids and highlights</div>
@@ -2861,7 +2861,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="door_hanger">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">🚪</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">🚪</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Door Hanger</div>
                 <div class="tl-doc-desc">Print-ready door hanger — "We're in your neighborhood" free inspection offer</div>
@@ -2869,7 +2869,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="neighborhood_mailer">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">📬</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">📬</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Neighborhood Mailer</div>
                 <div class="tl-doc-desc">Targeted mailer for neighborhoods with a recent NBD project and referral CTA</div>
@@ -2877,7 +2877,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="testimonial_sheet">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">⭐</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">⭐</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Customer Testimonial Sheet</div>
                 <div class="tl-doc-desc">Social proof sheet with 4 real reviews, star ratings, and satisfaction stats</div>
@@ -7497,7 +7497,7 @@
 <script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
-<script defer src="js/reports-dashboard.js?v=4"></script>
+<script defer src="js/reports-dashboard.js?v=5"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
 <script defer src="js/reports-trends.js?v=4"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->

@@ -235,7 +235,7 @@
     const periodTabs = PERIODS.map(p =>
       '<button type="button" class="nbd-rdash-period" data-period="' + p.key + '" ' +
         'style="padding:6px 12px;background:' + (p.key === period ? 'var(--orange, #A14A22)' : 'transparent') + ';' +
-        'color:' + (p.key === period ? '#fff' : 'var(--m, #888)') + ';' +
+        'color:' + (p.key === period ? 'var(--accent-fg, #fff)' : 'var(--m, #888)') + ';' +
         'border:1px solid ' + (p.key === period ? 'var(--orange, #A14A22)' : 'var(--br, #2a2f35)') + ';' +
         'border-radius:5px;font:inherit;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;">' +
         _esc(p.label) +

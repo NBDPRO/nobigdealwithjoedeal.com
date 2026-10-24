@@ -75,17 +75,17 @@
       'js/academy-courses.js?v=1',
       'js/academy-admin.js?v=3',
       'js/real-deal-academy-lab.js?v=2',
-      'js/real-deal-academy.js?v=3'
+      'js/real-deal-academy.js?v=4'
     ],
     training: [
       // Step 4f (2026-05-17): sales-training.js split into engine +
       // ui modules + thin shim. Load order: engine → ui → shim.
       'js/sales-training-engine.js?v=2',
-      'js/sales-training-ui.js?v=3',
+      'js/sales-training-ui.js?v=4',
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=7',
+      'js/storm-center.js?v=8',
       'js/storm-outreach-ui.js?v=3',
       'js/storm-integration.js?v=4',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
@@ -147,7 +147,7 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=4',
+      'js/stripe-ledger-panel.js?v=5',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
       'js/money-dashboard.js?v=12'
@@ -268,7 +268,7 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=11',
+      'js/product-library.js?v=13',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -311,7 +311,7 @@
       'js/job-templates-data.js?v=6',
       'js/job-templates.js?v=9',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=10',
+      'js/job-templates-ui.js?v=13',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
@@ -395,7 +395,7 @@
     // loadBundle() calls window._nbdInitThemeStack (dashboard-ui.js owns the
     // init sequence; the hook is idempotent).
     theme: [
-      'js/theme-engine.js?v=9',
+      'js/theme-engine.js?v=10',
       'js/theme-preview.js?v=1',
       'js/surface-style.js?v=1',
       'js/theme-overlays.js?v=4',

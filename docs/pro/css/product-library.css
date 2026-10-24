@@ -55,8 +55,8 @@
 .plx-dim6 { opacity: .6; font-weight: 400; }
 .plx-dim7b { opacity: .7; font-weight: 400; }
 .plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
-.plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
-.plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+.plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #4b5563; /* was #6b7280: 4.4:1 (UI sweep 2026-10-24) */ border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
+.plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #1d4ed8; color: #fff; /* was #3b82f6: 3.7:1 under white (UI sweep 2026-10-24) */ border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
 /* UI sweep 2026-10-24: Export CSV and Reset were a green and a red fill beside the orange Add Product.
    Both are quiet .btn-ghost buttons now, like Price book; Reset keeps danger-coloured text (it asks first). */
 .plx-btn-reset.plx-btn-reset { color: var(--ui-danger-text, #dc2626); }
