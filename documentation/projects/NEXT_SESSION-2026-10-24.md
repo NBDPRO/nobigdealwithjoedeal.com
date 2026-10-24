@@ -83,8 +83,9 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 1. ~~Public-surface E2E install wedge~~ - fixed the same day (Jo chose option (b)): WebKit moved off the required job into `Public-surface E2E (mobile WebKit)`, not required.
 2. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
-3. Pass-2 leftovers: storm callables rate limit, digest `deal_rooms` team undercount and `companies.limit(500)`,
-   lead-source fixer `confirmedSourceAt` (unverified), `docs/free-tools/index.html` `.tool-cta` contrast.
+3. ~~Pass-2 leftovers~~ - worked 2026-10-24: storm callables rate-limited, `/free-tools` CTA contrast fixed,
+   `confirmedSourceAt` and the opt-out read checked (no change needed). Still open: the digest's `deal_rooms` team
+   undercount and `companies.limit(500)` (deferred, see the [pass-2 update](../audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md)).
 4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
    typed measurement text wiped by `renderDash`, blob URLs not revoked.
 5. `@shard2` specs (six named in the CI-minutes note).

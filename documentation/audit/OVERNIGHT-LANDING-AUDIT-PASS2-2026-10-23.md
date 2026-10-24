@@ -72,3 +72,17 @@ Account-switch repro on the local emulator at main 5205d984 (includes 50a0d4dc),
 The residual needs nbd-auth.js to fail to load at all and an account switch followed by leaving the dashboard inside the 5 s wait. The sync side pauses rather than clearing the DB. Suggested follow-up: have Daily Success clear `nbd_ds_photos` itself when the purge is unavailable. The "Sync paused" badge text was not captured in any run.
 
 The #2707 sync-pill fix, the #2702 /book fix and the #2695 purge fix are therefore verified live; the owner-digest false "none" fix is #2714 (queued at the time of writing).
+
+## Update 2026-10-24: where each remaining finding landed
+
+| # | Finding | Outcome |
+|---|---|---|
+| 1 | Digest false "none" | Fixed in #2714 (merged 10-23). |
+| 2 | Digest truncation / `deal_rooms` team undercount / `companies.limit(500)` | Truncation marker fixed in #2714. **Deferred**: a deal room carries only its creator's `userId` (no `companyId`), so counting a team's rooms means joining through the company's lead ids. `agent-mcp.js` reads `deal_rooms` the same way, so this is a cross-file change, not a one-liner. The 500-company cap is a simple pagination with the digest still dark and far fewer tenants. |
+| 3 | Storm Outreach tab keeps the previous account's state | Fixed in #2716. |
+| 4 | Storm filing reads opt-out with `.catch(() => null)` | **No change needed**: `textGate` treats a null result as "the Do-Not-Text list could not be checked" and skips the lead (fails closed). #2716 pins it with a failing-read test. |
+| 5 | Storm callables: no age cutoff at filing, no rate limit | Cutoff fixed in #2716. Rate limits added 2026-10-24 (`listStormOutreach` 30/min, `fileStormOutreachDrafts` 10/min via `shared.callableRateLimit`), test section G in `tests/storm-outreach-2026-10-22.test.js`. |
+| 6 | `lead_sources` free-text keys as a prompt-injection surface | Unchanged (existing behaviour; the bots can only draft). |
+| 7 | Lead-source fixer's in-memory patch omits `confirmedSourceAt` | **No failure path found**: the rules only check the four fields when one changes, and no client code writes a whole lead back (the only `setDoc` on `leads/` is the jobs subcollection). Left as is. |
+| - | `/free-tools` `.tool-cta` contrast (same as /book) | Fixed 2026-10-24, `tests/free-tools-contrast-2026-10-24.test.js`. |
+| 8 | Company admins can read the owner digest's revenue lines | Still Jo's question (rules 2622-2625). |
