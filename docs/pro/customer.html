@@ -313,6 +313,13 @@ header {
   outline-offset: 2px;
   border-radius: 6px;
 }
+/* The quick-note box sets outline:none inline (it sits in a bordered card), so the keyboard
+   focus never showed (UI sweep 2026-10-24). !important because the inline style would win. */
+#quickNoteInput:focus-visible {
+  outline: 2px solid var(--ui-focus, var(--orange)) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 
 .quick-actions {
   display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;

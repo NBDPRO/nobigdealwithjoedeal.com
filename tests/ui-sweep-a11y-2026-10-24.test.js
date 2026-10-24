@@ -177,5 +177,7 @@ ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)
   ok('dark mode: forecast scenario values and the card phone link read the text tokens', /\.fc-scenario-likely \.fc-scen-val\{ color:var\(--ui-accent-text/.test(kf) && /\.fc-scenario-best   \.fc-scen-val\{ color:var\(--ui-success-text/.test(kf) && /\.kc-phone-link\{[^}]*color:var\(--ui-info-text/.test(kf));
 }
 
+ok('customer card: the quick-note box shows keyboard focus (its inline outline:none is overridden)', /#quickNoteInput:focus-visible \{\n  outline: 2px solid var\(--ui-focus, var\(--orange\)\) !important;/.test(read('docs/pro/customer.html')));
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);
