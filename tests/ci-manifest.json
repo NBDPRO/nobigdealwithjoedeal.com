@@ -1092,6 +1092,14 @@
       "falling back to client-side html2canvas. vm-sandboxes the real functions",
       "against both packaging shapes; a source regex matched the broken code too."
     ],
+    "functions-zod-audit-pin-2026-10-23.test.js": [
+      "functions/ must not ship the HIGH zod advisory (GHSA-mrhx-c7xc-m3w5) that",
+      "the Dependency audit job started failing on 2026-10-23. zod arrives only",
+      "via puppeteer-core -> chromium-bidi; the fix is an overrides pin on",
+      "chromium-bidi (not a puppeteer-core bump, which moves the PDF CDP client).",
+      "Asserts the lockfile zod, the override, the puppeteer-core pin, and that",
+      "render-pdf.js never opts into the BiDi path."
+    ],
     "health-digest-render-pdf-signal.test.js": [
       "The daily digest must shout when the PDF renderer is down. The 149 interop",
       "break ran 100% failing for eleven weeks unnoticed because the client",
