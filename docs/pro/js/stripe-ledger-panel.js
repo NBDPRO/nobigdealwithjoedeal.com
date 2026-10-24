@@ -215,8 +215,8 @@
     // cash are not in it and refunds sit beside it, while Home revenue is net
     // collected across every method — two different numbers.
     return '<div class="sl-sec">Stripe gross (card) — this month</div><div class="sl-grid">' +
-      '<div class="sl-tile"><div class="sl-lbl">Gross</div><div class="sl-val" style="color:var(--green,#16a34a);">' + esc(L.fmtMoney(t.grossCents)) + '</div><div class="sl-sub">' + t.count + ' payment' + (t.count === 1 ? '' : 's') + '</div></div>' +
-      '<div class="sl-tile"><div class="sl-lbl">Stripe fees</div><div class="sl-val" style="color:var(--orange,#BD5728);">' + esc(L.fmtMoney(t.feeCents)) + '</div><div class="sl-sub">' +
+      '<div class="sl-tile"><div class="sl-lbl">Gross</div><div class="sl-val" style="color:var(--ui-success-text,var(--green,#16a34a));">' + esc(L.fmtMoney(t.grossCents)) + '</div><div class="sl-sub">' + t.count + ' payment' + (t.count === 1 ? '' : 's') + '</div></div>' +
+      '<div class="sl-tile"><div class="sl-lbl">Stripe fees</div><div class="sl-val" style="color:var(--ui-accent-text,var(--orange,#BD5728));">' + esc(L.fmtMoney(t.feeCents)) + '</div><div class="sl-sub">' +
         (t.grossCents ? ((t.feeCents / t.grossCents) * 100).toFixed(1) + '% of gross' : 'no fees yet') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Net</div><div class="sl-val">' + esc(L.fmtMoney(t.netCents)) + '</div><div class="sl-sub">' +
         (t.refundCount ? esc(L.fmtMoney(-t.refundCents)) + ' refunded' : 'after fees') + '</div></div>' +
@@ -456,7 +456,7 @@
     var h = '<p>Preview of ' + esc(rangeLabel(sync.days)) + ' — <strong>nothing has been written yet.</strong></p>' +
       '<div class="sl-grid" style="margin-top:10px;">' +
       '<div class="sl-tile"><div class="sl-lbl">Stripe gross (card)</div><div class="sl-val">' + esc(L.fmtMoney(m.collectedCents)) + '</div><div class="sl-sub">in this range</div></div>' +
-      '<div class="sl-tile"><div class="sl-lbl">Will record</div><div class="sl-val" style="color:var(--green,#16a34a);">' + (m.records + m.creates) + '</div><div class="sl-sub">' + m.creates + ' new CRM invoice' + (m.creates === 1 ? '' : 's') + '</div></div>' +
+      '<div class="sl-tile"><div class="sl-lbl">Will record</div><div class="sl-val" style="color:var(--ui-success-text,var(--green,#16a34a));">' + (m.records + m.creates) + '</div><div class="sl-sub">' + m.creates + ' new CRM invoice' + (m.creates === 1 ? '' : 's') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Needs review</div><div class="sl-val" style="color:var(--gold,#eab308);">' + m.review + '</div><div class="sl-sub">you pick the customer</div></div>' +
       '</div>';
     if (!m.total) return h + '<p>Stripe has nothing in this range.</p>';

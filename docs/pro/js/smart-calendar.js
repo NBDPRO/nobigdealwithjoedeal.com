@@ -483,10 +483,10 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const rows = items.map(item => {
       const l = item.lead || {};
       const name = _esc(`${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead');
-      const label = item.label ? `<div style="font-size:11px;color:var(--orange);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(item.label)}</div>` : '';
+      const label = item.label ? `<div style="font-size:11px;color:var(--ui-accent-text,var(--orange));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(item.label)}</div>` : '';
       const addr = _esc(l.address || '');
       const open = l.id
-        ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(l.id)}" style="background:none;border:none;color:var(--orange);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap;">Open →</button>`
+        ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(l.id)}" style="background:none;border:none;color:var(--ui-accent-text,var(--orange));font-size:11px;cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap;">Open →</button>`
         : '';
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--br);">
         <div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>${label}

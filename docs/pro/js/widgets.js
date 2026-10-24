@@ -192,7 +192,8 @@ const WIDGETS = [
       if(!leads.length) { el.innerHTML = '<div class="w-empty">No hot leads right now</div>'; return; }
       el.innerHTML = leads.map(l => {
         const k = _normStage(l);
-        const color = k === 'contacted' ? '#A855F7' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? '#F97316' : 'var(--m)';
+        // Text tokens (UI sweep 2026-10-24): the plain purple and orange read 3.8:1 and 2.7:1 as 10px text on a light theme.
+        const color = k === 'contacted' ? 'color-mix(in srgb, var(--purple, #A855F7) 50%, var(--t, #e8eaf0))' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? 'var(--ui-accent-text, #F97316)' : 'var(--m)';
         return `
         <div class="w-lead-row" data-w-goto="crm">
           <div class="w-lead-name">${esc(_leadName(l, 'Unknown'))}</div>

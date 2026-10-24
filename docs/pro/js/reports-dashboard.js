@@ -213,7 +213,7 @@
     const up = deltaPct > 0;
     // For "good = up" metrics (revenue, leads, close rate, avg ticket), green-up.
     // Caller can pass invertColor if the metric is "bad when up" (none here today).
-    const color = (up && !invertColor) || (!up && invertColor) ? '#10b981' : '#ef4444';
+    const color = (up && !invertColor) || (!up && invertColor) ? 'var(--ui-success-text, #10b981)' : 'var(--ui-danger-text, #ef4444)';
     const arrow = up ? '↑' : '↓';
     const sign = up ? '+' : '';
     return '<span style="font-size:11px;color:' + color + ';font-weight:700;margin-left:6px;">' +

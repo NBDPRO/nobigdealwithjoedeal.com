@@ -10,6 +10,10 @@
  *   D. visual consistency: Product Library's green and red header buttons,
  *      Storm Center's stat cards cut off on a phone, Prospects' header
  *      buttons indented on a phone.
+ * Pass 3 (text contrast, light themes): status colours used as small text
+ * (green 3.1:1, gold 3.0:1, blue 3.5:1) and brand orange as text (4.37:1)
+ * get the "pulled halfway to --t" tokens the repo already used for accent
+ * and danger text: --ui-success-text, --ui-warn-text, --ui-info-text.
  * Pass 2 (customer card, portal, marketing): the customer card's invoice
  * action row pushed the page sideways on desktop; the profit tracker's
  * labels were not tied to their inputs; the pricing FAQ buttons and the
@@ -93,6 +97,46 @@ ok('pricing: FAQ question buttons are at least 24px tall', /\.faq-q\{[^}]*min-he
 ok('pricing: the NBD PRO logo link is at least 24px tall', /\.pro-nav-logo\{[^}]*min-height:24px/.test(pricing));
 ok('landing pages: the NBD PRO logo link is at least 24px tall', /\.pl-logo \{[^}]*min-height: 24px/.test(read('docs/pro/css/landing.css')));
 ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/index.html')) && /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/sandbox.html')));
+
+// Pass 3: status text tokens, computed the way crm-layouts-audit-fixes D5 computes --ui-accent-text.
+{
+  const UI = read('docs/pro/css/ui-primitives.css');
+  const hx = (h) => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map((x) => x + x).join(''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); };
+  const lum = (c) => { const n = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * n(c[0]) + 0.7152 * n(c[1]) + 0.0722 * n(c[2]); };
+  const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const themes = {};
+  for (const t of read('docs/pro/css/theme-system.css').matchAll(/:root\[data-theme="([^"]+)"\]\s*\{([^}]*)\}/g)) {
+    const v = {}; for (const d of t[2].matchAll(/--([a-z0-9]+):\s*(#[0-9a-fA-F]{3,6})\b/g)) v[d[1]] = hx(d[2]);
+    themes[t[1]] = v;
+  }
+  for (const [tok, base] of [['--ui-success-text', 'green'], ['--ui-warn-text', 'gold'], ['--ui-info-text', 'blue']]) {
+    const m = UI.match(new RegExp(tok.replace(/-/g, '\\-') + ':\\s*color-mix\\(in srgb,\\s*var\\(--' + base + '[^)]*\\)\\s*(\\d+)%,\\s*var\\(--t[^)]*\\)\\)'));
+    ok(tok + ' is defined from the ' + base + ' token pulled toward --t', !!m);
+    const p = m ? Number(m[1]) / 100 : 1;
+    const mix = (a, b) => a.map((v, i) => v * p + b[i] * (1 - p));
+    const worst = (name) => { const v = themes[name]; if (!v || !v[base] || !v.t) return null; const c = mix(v[base], v.t); return Math.min(...['bg', 's', 's2', 's3'].filter((k) => v[k]).map((k) => cr(c, v[k]))); };
+    for (const name of ['nbd-original', 'paper', 'presentation']) {
+      const w = worst(name);
+      ok(tok + ' clears 4.5:1 on every ' + name + ' surface', w == null || w >= 4.5, w && w.toFixed(2));
+    }
+    const plain = themes.presentation && themes.presentation[base] && themes.presentation.s2 ? cr(themes.presentation[base], themes.presentation.s2) : null;
+    ok('control: the plain ' + base + ' token is under 4.5:1 as text on a light surface (the defect)', plain == null || plain < 4.5, plain && plain.toFixed(2));
+  }
+  // The flagged rules read the tokens.
+  const kf = read('docs/pro/css/kanban-force.css'), da = read('docs/pro/css/dashboard-app.css');
+  for (const [file, src, rule, tok] of [
+    ['kanban-force', kf, '.kct-claim', '--ui-success-text'], ['kanban-force', kf, '.kct-dmg', '--ui-info-text'], ['kanban-force', kf, '.kct-val', '--ui-accent-text'], ['kanban-force', kf, '.kct-due', '--ui-danger-text'],
+    ['kanban-force', kf, '.kct-needs', '--ui-warn-text'], ['kanban-force', kf, '.kc-days-fresh', '--ui-success-text'], ['kanban-force', kf, '.kc-days-warm', '--ui-warn-text'], ['kanban-force', kf, '.fa-date', '--ui-accent-text'],
+    ['dashboard-app', da, '.panel-label', '--ui-accent-text'], ['dashboard-app', da, '.kct-roof-new', '--ui-success-text'], ['dashboard-app', da, '.kct-roof-mid', '--ui-warn-text'], ['dashboard-app', da, '.btn-red', '--ui-danger-text'], ['dashboard-app', da, '.kc-task-badge.has-overdue', '--ui-danger-text'], ['dashboard-app', da, '.est-src-chip.classic', '--ui-info-text']
+  ]) {
+    const re = new RegExp(rule.replace(/[.]/g, '\\.') + '\\s*\\{[^}]*color:\\s*var\\(' + tok.replace(/-/g, '\\-'));
+    ok(file + ' ' + rule + ' reads ' + tok + ' as its text colour', re.test(src));
+  }
+  ok('numbers.css .nb-green / .nb-red read the text tokens', /\.nb-green \{ color: var\(--ui-success-text/.test(read('docs/pro/css/numbers.css')) && /\.nb-red \{ color: var\(--ui-danger-text/.test(read('docs/pro/css/numbers.css')));
+  ok('Money tiles read the text tokens (no plain var(--green,#16a34a) as a text colour)', !/'var\(--(green|gold|red|orange),#[0-9a-fA-F]+\)'/.test(read('docs/pro/js/money-dashboard.js')));
+  ok('the pipeline score and job-type chips pull their text halfway to --t', (read('docs/pro/js/crm-pipeline.js').match(/color:color-mix\(in srgb,' \+ (color|_c) \+ ' 50%, var\(--t, #e8eaf0\)\)/g) || []).length === 2);
+  ok('DESIGN.md names the three new tokens', /`--ui-success-text`/.test(read('DESIGN.md')) && /`--ui-warn-text`/.test(read('DESIGN.md')) && /`--ui-info-text`/.test(read('DESIGN.md')));
+}
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);

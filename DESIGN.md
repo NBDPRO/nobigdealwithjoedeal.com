@@ -174,6 +174,7 @@ tokens through `color-mix`, so every theme inherits it with no per-theme line.
 | Focus | `--ui-focus`, `--ui-focus-ring` | Accent pulled toward `--t` so it clears 3:1 on dark and light; every control that didn't define a ring gets this one. |
 | Accent text | `--ui-accent-text` | Accent pulled halfway to `--t`. Use it whenever the accent is the TEXT colour (an active tab, a tag, a link-button): brand orange as text on navy is 2.8:1, this is 4.85:1. Filled buttons keep `--orange` with `--accent-fg`. |
 | Danger text | `--ui-danger-text` | `--red` pulled halfway to `--t`. Use it whenever red is the TEXT colour (an expired certificate, an error line): plain red as text on navy is under 4.5:1, this clears 4.5:1 on every theme. Red fills, borders and dots keep `--red`. |
+| Status text | `--ui-success-text`, `--ui-warn-text`, `--ui-info-text` | `--green`, `--gold` and `--blue` pulled halfway to `--t`, the same move. Use them whenever a status colour is the TEXT colour (a chip, a trend arrow, a tile value): plain green reads 3.1:1, gold 3.0:1 and blue 3.5:1 as small text on the light themes. Fills, borders and dots keep the plain token. (UI sweep, 2026-10-24.) |
 
 Primitives built on them: `.ui-surface`, `.ui-surface-raised`, `.ui-badge`
 (`.is-accent/-success/-warn/-danger/-info`), `.ui-chip` (`.is-on`),

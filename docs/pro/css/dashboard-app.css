@@ -2006,11 +2006,11 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .btn-orange:hover{background:var(--ob);}
 .btn-ghost{background:var(--s2);color:var(--t);border-color:var(--br);}
 .btn-ghost:hover{border-color:var(--orange);color:var(--orange);}
-.btn-red{background:rgba(224,82,82,.12);color:var(--red);border-color:var(--red);}
+.btn-red{background:rgba(224,82,82,.12);color:var(--ui-danger-text,var(--red));border-color:var(--red);}
 .btn-green{background:rgba(46,204,138,.12);color:var(--green);border-color:var(--green);}
 .panel{background:var(--s);border:1px solid var(--br);border-radius:10px;overflow:hidden;margin-bottom:16px;}
 .panel-hdr{padding:14px 18px 12px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;}
-.panel-label{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:2px;}
+.panel-label{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));margin-bottom:2px;} /* accent as text: 4.37:1 plain on the light page (UI sweep 2026-10-24) */
 .panel-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
 .panel-body{padding:18px 20px;}
 /* Hot Leads (js/hot-leads-widget.js): keep the row action cluster out of the
@@ -2269,10 +2269,10 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .mir-item span{color:var(--t);font-weight:600;}
 /* Roof age badge on kanban card */
 .kct-roof{font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em;}
-.kct-roof-new{background:rgba(46,204,138,.15);color:var(--green);}
-.kct-roof-mid{background:rgba(234,179,8,.15);color:var(--gold);}
-.kct-roof-old{background:rgba(224,82,82,.15);color:var(--red);}
-.kct-roof-ancient{background:rgba(155,109,255,.15);color:var(--purple);}
+.kct-roof-new{background:rgba(46,204,138,.15);color:var(--ui-success-text,var(--green));}
+.kct-roof-mid{background:rgba(234,179,8,.15);color:var(--ui-warn-text,var(--gold));}
+.kct-roof-old{background:rgba(224,82,82,.15);color:var(--ui-danger-text,var(--red));}
+.kct-roof-ancient{background:rgba(155,109,255,.15);color:color-mix(in srgb, var(--purple) 50%, var(--t, #e8eaf0));}
 .pin-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 
 /* DRAW PANEL */
@@ -2435,7 +2435,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
   max-width: 180px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.est-lead-chip.assigned { color: #4ade80; border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.06); }
+.est-lead-chip.assigned { color: var(--ui-success-text, #4ade80); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.06); }
 .est-lead-chip.unassigned { color: var(--m, #888); background: var(--s3, #1a1d23); }
 .est-lead-chip.unassigned:hover { color: var(--orange); border-color: var(--orange); }
 .est-src-chip {
@@ -2444,8 +2444,8 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
   padding: 2px 7px; border-radius: 3px;
   text-transform: uppercase;
 }
-.est-src-chip.v2 { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--orange); border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent); }
-.est-src-chip.classic { background: rgba(96,165,250,.08); color: #60a5fa; border: 1px solid rgba(96,165,250,.25); }
+.est-src-chip.v2 { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--ui-accent-text, var(--orange)); border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent); }
+.est-src-chip.classic { background: rgba(96,165,250,.08); color: var(--ui-info-text, #60a5fa); border: 1px solid rgba(96,165,250,.25); }
 .est-date { font-size: 10px; color: var(--m, #888); margin-left: auto; }
 .nbd-est-card .est-card-total {
   font-family: 'Barlow Condensed', sans-serif;
@@ -2511,7 +2511,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 /* ── SETTINGS TABS ─────────────────────────────────────────────────── */
 .stab-btn{background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m);cursor:pointer;transition:color var(--t-mid),border-color var(--t-mid),background var(--t-mid);white-space:nowrap;margin-bottom:-2px;}
 .stab-btn:hover{color:var(--t);}
-.stab-btn.stab-active{color:var(--orange);border-bottom-color:var(--orange);}
+.stab-btn.stab-active{color:var(--ui-accent-text,var(--orange));border-bottom-color:var(--orange);}
 /* Scroll affordance (mobile overflow sweep, 2026-09-14): #stab-bar's 13
    tabs overflow-x:auto with no scrollbar cue at all — same invisible-
    horizontal-scroll bug as .crm-hdr-views/.cb-stats-row above, same fix. */
@@ -3338,9 +3338,9 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
   margin-left: 6px;
 }
-.kc-stage-age-warming  { background: rgba(251,191,36,0.18); color: #d97706; border: 1px solid rgba(251,191,36,0.45); }
-.kc-stage-age-stale    { background: rgba(249,115,22,0.20); color: #ea580c; border: 1px solid rgba(249,115,22,0.50); }
-.kc-stage-age-critical { background: rgba(239,68,68,0.22);  color: #dc2626; border: 1px solid rgba(239,68,68,0.55); }
+.kc-stage-age-warming  { background: rgba(251,191,36,0.18); color: var(--ui-warn-text, #d97706); border: 1px solid rgba(251,191,36,0.45); }
+.kc-stage-age-stale    { background: rgba(249,115,22,0.20); color: var(--ui-accent-text, #ea580c); border: 1px solid rgba(249,115,22,0.50); }
+.kc-stage-age-critical { background: rgba(239,68,68,0.22);  color: var(--ui-danger-text, #dc2626); border: 1px solid rgba(239,68,68,0.55); }
 
 /* Wave 57: fresh-share pulse. The W44 share-tracking pill (e.g.
    "📤 SMS today") gets a subtle 2.4s pulse animation when the
@@ -5236,8 +5236,8 @@ body {
 .kc-task-badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--kcard-tag-fz, 10px);font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;padding:3px 8px;border-radius:10px;cursor:pointer;border:1px solid color-mix(in srgb, var(--ink) 14%, transparent);background:color-mix(in srgb, var(--ink) 6%, transparent);color:color-mix(in srgb, var(--ink) 65%, var(--paper));transition:all .15s;white-space:nowrap;font-weight:600;}
 .kc-task-badge:hover{border-color:var(--orange);color:var(--orange);background:color-mix(in srgb, var(--orange) 10%, transparent);}
 .kc-task-badge.has-tasks{color:var(--ink);border-color:color-mix(in srgb, var(--ink) 22%, transparent);}
-.kc-task-badge.has-overdue{border-color:var(--red);color:var(--red);background:color-mix(in srgb, var(--red) 12%, transparent);}
-.kc-task-badge.all-done{border-color:var(--green);color:var(--green);background:color-mix(in srgb, var(--green) 12%, transparent);}
+.kc-task-badge.has-overdue{border-color:var(--red);color:var(--ui-danger-text,var(--red));background:color-mix(in srgb, var(--red) 12%, transparent);}
+.kc-task-badge.all-done{border-color:var(--green);color:var(--ui-success-text,var(--green));background:color-mix(in srgb, var(--green) 12%, transparent);}
 /* R4.4: empty-state task badge — quiet pill instead of bright '+ Tasks'
    CTA so the real action signals (Due / Needs X / next-action) win
    the visual hierarchy. Still discoverable on hover via the existing

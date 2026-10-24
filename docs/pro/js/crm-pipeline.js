@@ -1237,13 +1237,13 @@ function buildCard(l){
     //   this-week → blue   (sometime soon)
     let bg, color, border, icon, label;
     if (sug.priority === 'urgent') {
-      bg = 'rgba(239,68,68,0.16)'; color = '#fca5a5'; border = 'rgba(239,68,68,0.45)';
+      bg = 'rgba(239,68,68,0.16)'; color = 'var(--ui-danger-text, #fca5a5)'; border = 'rgba(239,68,68,0.45)';
       icon = '⚡'; label = 'Urgent';
     } else if (sug.priority === 'today') {
-      bg = 'rgba(245,158,11,0.16)'; color = '#fcd34d'; border = 'rgba(245,158,11,0.45)';
+      bg = 'rgba(245,158,11,0.16)'; color = 'var(--ui-warn-text, #fcd34d)'; border = 'rgba(245,158,11,0.45)';
       icon = '💡'; label = 'Today';
     } else { // this-week
-      bg = 'rgba(96,165,250,0.16)'; color = '#93c5fd'; border = 'rgba(96,165,250,0.45)';
+      bg = 'rgba(96,165,250,0.16)'; color = 'var(--ui-info-text, #93c5fd)'; border = 'rgba(96,165,250,0.45)';
       icon = '👁'; label = 'Watch';
     }
     // Title attribute carries the headline + reasoning so reps can
@@ -1309,7 +1309,8 @@ function buildCard(l){
       const titleAttr = escHtml(`Lead score ${score}/100 (${b.label}). ${reason}`);
       leadScoreBadge =
         '<span class="kc-tag" title="' + titleAttr + '" ' +
-          'style="background:' + color + '22;color:' + color + ';' +
+          // Text pulled halfway to --t (UI sweep 2026-10-24): the band colour alone read 2.9:1 as 10px text on a light theme. Dot and border keep it.
+          'style="background:' + color + '22;color:color-mix(in srgb,' + color + ' 50%, var(--t, #e8eaf0));' +
           'border-color:' + color + '88;display:inline-flex;align-items:center;' +
           'gap:3px;font-variant-numeric:tabular-nums;font-weight:700;">' +
           '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + color + ';"></span>' +
@@ -1339,7 +1340,7 @@ function buildCard(l){
       const _c = _jtm.color || '#888';
       jobTypeBadge =
         '<span class="kc-tag kct-jobtype" title="' + escHtml(_jtm.label) + '" ' +
-          'style="background:color-mix(in srgb,' + _c + ' 18%, var(--s3));color:' + _c + ';' +
+          'style="background:color-mix(in srgb,' + _c + ' 18%, var(--s3));color:color-mix(in srgb,' + _c + ' 50%, var(--t, #e8eaf0));' +
           'border-color:color-mix(in srgb,' + _c + ' 50%, var(--br));font-size:10px;padding:2px 6px;">' +
           (_jtm.icon || '?') +
         '</span>';

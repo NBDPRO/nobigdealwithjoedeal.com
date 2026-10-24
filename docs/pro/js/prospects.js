@@ -244,15 +244,15 @@
       `;
     };
     wrap.innerHTML = `
-      ${tile('all',  'Total',     stats.total, 'var(--orange)')}
-      ${tile('hot',  'Hot',       stats.hot,   '#f97316')}
-      ${tile('warm', 'Warm',      stats.warm,  '#3b82f6')}
-      ${tile('cold', 'Cold',      stats.cold,  '#94a3b8')}
+      ${tile('all',  'Total',     stats.total, 'var(--ui-accent-text, var(--orange))')}
+      ${tile('hot',  'Hot',       stats.hot,   'var(--ui-accent-text, #f97316)')}
+      ${tile('warm', 'Warm',      stats.warm,  'var(--ui-info-text, #3b82f6)')}
+      ${tile('cold', 'Cold',      stats.cold,  'var(--m, #94a3b8)')}
       <div class="prosp-stat" style="
         flex:1; min-width:80px; padding:10px 12px; border-radius:8px;
         background:var(--s2); border:1px solid var(--br);
       ">
-        <div style="font-size:10px;font-weight:700;color:var(--green);letter-spacing:.08em;text-transform:uppercase;">Conv. Rate</div>
+        <div style="font-size:10px;font-weight:700;color:var(--ui-success-text,var(--green));letter-spacing:.08em;text-transform:uppercase;">Conv. Rate</div>
         <div style="font-size:22px;font-weight:800;font-family:'Barlow Condensed',sans-serif;line-height:1;margin-top:4px;">${stats.convRate}%</div>
         <div style="font-size:9px;color:var(--m);margin-top:2px;">last 90 days</div>
       </div>
@@ -364,7 +364,7 @@
       return `
         <div class="prosp-col" style="border-top:3px solid ${d.color};">
           <div class="prosp-col-hdr">
-            <span style="color:${d.color};font-weight:800;">${d.label}</span>
+            <span style="color:color-mix(in srgb, ${d.color} 50%, var(--t, #e8eaf0));font-weight:800;">${d.label}</span>
             <span class="prosp-col-count">${items.length}</span>
           </div>
           <div class="prosp-col-body">
@@ -419,7 +419,7 @@
         </div>
         ${(p.firstName || p.lastName) ? `<div class="prosp-name">${escapeHtml((p.firstName||'') + ' ' + (p.lastName||'')).trim()}</div>` : ''}
         <div class="prosp-meta">
-          <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:${disp.color};">${disp.label}</span>
+          <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:color-mix(in srgb, ${disp.color} 50%, var(--t, #e8eaf0));">${disp.label}</span>
           ${days != null ? `<span class="prosp-age">${days === 0 ? 'today' : days + 'd ago'}</span>` : ''}
           ${fuDue ? `<span class="prosp-fu-due" title="Follow-up overdue">⏰ Due</span>` : ''}
         </div>
@@ -444,7 +444,7 @@
         <div class="prosp-row-main">
           <div class="prosp-addr">${escapeHtml(p.address || '(no address)')}</div>
           <div class="prosp-row-sub">
-            <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:${disp.color};">${disp.label}</span>
+            <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:color-mix(in srgb, ${disp.color} 50%, var(--t, #e8eaf0));">${disp.label}</span>
             <span class="prosp-attempt-inline">Knock #${att}</span>
             ${days != null ? `<span class="prosp-age">${days === 0 ? 'today' : days + 'd'}</span>` : ''}
             ${fuDue ? `<span class="prosp-fu-due">⏰ Follow-up due</span>` : ''}
@@ -527,7 +527,7 @@
       const r = rate(v.promoted, v.total);
       return `
         <div class="prosp-an-row">
-          <span class="prosp-an-row-label" style="color:${v.color};">${v.label}</span>
+          <span class="prosp-an-row-label" style="color:color-mix(in srgb, ${v.color} 50%, var(--t, #e8eaf0));">${v.label}</span>
           <div class="prosp-an-bar"><div class="prosp-an-bar-fill" style="width:${r}%;background:${v.color};"></div></div>
           <span class="prosp-an-row-pct">${r}%</span>
           <span class="prosp-an-row-count">${v.promoted}/${v.total}</span>
@@ -552,7 +552,7 @@
     wrap.innerHTML = `
       <details class="prosp-analytics" ${a.total >= 5 ? 'open' : ''}>
         <summary>📊 Conversion Analytics — last 90 days
-          <span style="margin-left:8px;color:var(--green);font-weight:800;">${overallRate}%</span>
+          <span style="margin-left:8px;color:var(--ui-success-text,var(--green));font-weight:800;">${overallRate}%</span>
           <span style="font-size:10px;color:var(--m);margin-left:6px;">(${a.promoted}/${a.total} promoted)</span>
         </summary>
         <div class="prosp-an-grid">

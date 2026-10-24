@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="css/agent-inbox.css?v=5">
 <link rel="stylesheet" href="css/agent-bots.css?v=1">
 <link rel="stylesheet" href="css/sort-customers.css?v=2">
-<link rel="stylesheet" href="css/triage-deck.css?v=2">
+<link rel="stylesheet" href="css/triage-deck.css?v=3">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
 <link rel="stylesheet" href="css/stale-leads-cleanup.css?v=1">
 <link rel="stylesheet" href="css/lead-source-fixer.css?v=1">
@@ -63,7 +63,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=21" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=22" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
@@ -152,18 +152,18 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=16">
-<link rel="stylesheet" href="css/ui-primitives.css?v=15">
+<link rel="stylesheet" href="css/dashboard-app.css?v=17">
+<link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=2">
-<link rel="stylesheet" href="css/money-dashboard.css?v=1">
+<link rel="stylesheet" href="css/money-dashboard.css?v=2">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=3">
-<link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/crm-pipeline-view.css?v=2">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=2">
 <link rel="stylesheet" href="css/field-sunlight.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=7">
@@ -183,7 +183,7 @@
 <link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/voicemail-view.css?v=1">
-<link rel="stylesheet" href="css/reports-trends-view.css?v=1">
+<link rel="stylesheet" href="css/reports-trends-view.css?v=2">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=2">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
@@ -191,7 +191,7 @@
 <link rel="stylesheet" href="css/storm-center.css?v=5">
 <link rel="stylesheet" href="css/my-skin.css?v=6">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
-<link rel="stylesheet" href="css/kanban-force.css?v=6" id="kanban-force-css-link">
+<link rel="stylesheet" href="css/kanban-force.css?v=7" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
 <link rel="stylesheet" href="css/theme-bridge.css?v=4" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
@@ -227,7 +227,7 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=8">
+<link rel="stylesheet" href="css/google-calendar.css?v=9">
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
@@ -235,7 +235,7 @@
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
-<link rel="stylesheet" href="css/numbers.css?v=2">
+<link rel="stylesheet" href="css/numbers.css?v=3">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
@@ -2245,7 +2245,7 @@
     <!-- FOLLOW-UP ALERTS (collapsible) -->
     <div id="followUpAlertsWrap" style="display:none;padding:0 16px 8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span id="followUpAlertsLabel" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);">Follow-ups Due</span>
+        <span id="followUpAlertsLabel" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));">Follow-ups Due</span>
         <button data-action="call" data-fn="hideFollowUpAlerts" style="background:none;border:1px solid var(--br);color:var(--m);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit;">Dismiss</button>
       </div>
       <div id="followUpAlerts"></div>
@@ -6320,7 +6320,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=11"></script>
+<script defer src="js/dashboard-widgets.js?v=12"></script>
 <script defer src="js/dashboard-ui.js?v=14"></script>
 <script defer src="js/dashboard-actions.js?v=19"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -7271,7 +7271,7 @@
 <script defer src="js/jobs-store.js?v=5"></script>
 <!-- Rich card density + board strip (2026-10-11, C5): read by crm-pipeline.js at render time. -->
 <script defer src="js/pipeline-rich-cards.js?v=2"></script>
-<script defer src="js/crm-pipeline.js?v=21"></script>
+<script defer src="js/crm-pipeline.js?v=22"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -7328,7 +7328,7 @@
      so the menu picks up Copy/Text Portal Link items on first render. -->
 <script defer src="js/portal-link-helpers.js?v=3"></script>
 <script defer src="js/kanban-context-menu.js?v=4"></script>
-<script defer src="js/customer-engagement-score.js?v=2"></script>
+<script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
 <script defer src="js/smart-followup.js?v=4"></script>
@@ -7359,7 +7359,7 @@
 <script defer src="js/numbers-logic.js?v=2"></script>
 <script defer src="js/numbers-data.js?v=2"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/widgets.js?v=17"></script>
+<script defer src="js/widgets.js?v=18"></script>
 <script defer src="js/today-home.js?v=24"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
@@ -7407,7 +7407,7 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=6"></script>
+<script defer src="js/smart-calendar.js?v=7"></script>
 <script defer src="js/calendar-feed-ui.js?v=2"></script>
 <script defer src="js/google-calendar-ui.js?v=7"></script>
 <script defer src="js/d2d-storm-layer.js?v=2"></script>
@@ -7497,14 +7497,14 @@
 <script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
-<script defer src="js/reports-dashboard.js?v=3"></script>
+<script defer src="js/reports-dashboard.js?v=4"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
-<script defer src="js/reports-trends.js?v=3"></script>
+<script defer src="js/reports-trends.js?v=4"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
 <!-- LAZY: theme-engine + overlays/sounds/achievements/gx load via the `theme`
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
-<script defer src="js/prospects.js?v=5"></script>
+<script defer src="js/prospects.js?v=6"></script>
 <script defer src="js/lead-source-roi.js?v=4"></script>
 <!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
 <script defer src="js/reports-numbers.js?v=1"></script>

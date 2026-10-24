@@ -3,7 +3,7 @@
 .rtx-dflex-jcspacebet-gap8px.rtx-dflex-jcspacebet-gap8px.rtx-dflex-jcspacebet-gap8px { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 12px; }
 .rtx-cm.rtx-cm.rtx-cm { color: var(--m, #888); }
 .rtx-opa06.rtx-opa06.rtx-opa06 { opacity: 0.6; }
-.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green, #2ecc8a); }
+.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ui-success-text, var(--green, #2ecc8a)); }
 .rtx-cm-fs12px-fstitalic.rtx-cm-fs12px-fstitalic.rtx-cm-fs12px-fstitalic { color: var(--m, #888); font-size: 12px; font-style: italic; }
 .rtx-w700-fontabularn-cfbbf24.rtx-w700-fontabularn-cfbbf24.rtx-w700-fontabularn-cfbbf24 { font-weight: 700; font-variant-numeric: tabular-nums; color: #fbbf24; }
 .rtx-mb18px.rtx-mb18px.rtx-mb18px { margin-bottom: 18px; }
