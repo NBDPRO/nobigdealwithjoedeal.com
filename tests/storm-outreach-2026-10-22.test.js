@@ -68,11 +68,12 @@ const NOW = Date.parse('2026-10-22T16:00:00Z');
 const realNow = Date.now;
 Date.now = () => NOW;
 const serverTimestamp = () => ({ toMillis: () => NOW });
+const RL = { block: null }; // limiter namespace the stub refuses (section G)
 const origLoad = Module._load;
 Module._load = function (request) {
   if (request === 'firebase-admin/firestore') return { getFirestore: () => DB, FieldValue: { serverTimestamp } };
   if (request === 'firebase-admin/auth') return { getAuth: () => ({ getUser: async (uid) => ({ uid, disabled: false, customClaims: {} }) }) };
-  if (/upstash-ratelimit$/.test(request)) return { enforceRateLimit: async () => ({ count: 1 }) };
+  if (/upstash-ratelimit$/.test(request)) return { enforceRateLimit: async (ns) => { if (RL.block && ns === RL.block) { const e = new Error('rate limited'); e.rateLimited = true; throw e; } return { count: 1 }; } };
   return origLoad.apply(this, arguments);
 };
 const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
@@ -219,6 +220,19 @@ function seed() {
   DB.doc = realDoc;
   r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
   ok('control: with the list readable the same call files both', r.r && r.r.filed === 2, JSON.stringify(r));
+
+  console.log('G. rate limits (audit pass 2, finding 5)');
+  seed();
+  RL.block = 'callable:listStormOutreach:uid';
+  r = await list(OWNER, {});
+  ok('listStormOutreach answers resource-exhausted when its limiter refuses', r.err && r.err.code === 'resource-exhausted', JSON.stringify(r.r ? 'no error' : r.err && r.err.code));
+  RL.block = 'callable:fileStormOutreachDrafts:uid';
+  r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
+  ok('fileStormOutreachDrafts answers resource-exhausted and files nothing', r.err && r.err.code === 'resource-exhausted' && inbox().length === 0, JSON.stringify(r.r || r.err && r.err.code));
+  ok('the limiters are separate: listing still works while filing is limited', !!(await list(OWNER, {})).r);
+  RL.block = null;
+  r = await file(OWNER, { eventKey: EV, leadIds: ['won1', 'open1'] });
+  ok('control: with the limiter open the same call files both', r.r && r.r.filed === 2, JSON.stringify(r));
 
   Date.now = realNow;
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

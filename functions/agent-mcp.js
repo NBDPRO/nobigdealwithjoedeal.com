@@ -45,6 +45,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
+const { callableRateLimit } = require('./shared');
 const L = require('./agent-mcp-logic');
 const SO = require('./storm-outreach-logic');
 const SW = require('./schedule-window');
@@ -911,6 +912,7 @@ async function stormDrafts(request) {
 // measures the distance and builds the wording, so none of it is trusted.
 async function listStormOutreach(request) {
   const c = requireKeyAdmin(request);
+  await callableRateLimit(request, 'listStormOutreach', 30, 60_000);
   const a = SO.clampArgs(request.data);
   const [leads, ev, profile] = await Promise.all([
     companyLeads(c.company),
@@ -923,6 +925,8 @@ async function listStormOutreach(request) {
 
 async function fileStormOutreachDrafts(request) {
   const c = requireKeyAdmin(request);
+  // Up to MAX_PER_EVENT lead reads + inbox writes per call (audit pass 2, finding 5).
+  await callableRateLimit(request, 'fileStormOutreachDrafts', 10, 60_000);
   const data = request.data || {};
   const eventKey = String(data.eventKey || '');
   if (!/^[\w.|-]{6,240}$/.test(eventKey)) throw new HttpsError('invalid-argument', 'eventKey is required.');

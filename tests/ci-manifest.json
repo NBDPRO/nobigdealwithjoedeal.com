@@ -736,7 +736,8 @@
     "visit-capture-pipeline-2026-10-13.test.js",
     "visit-recorder-ui-2026-10-15.test.js",
     "a11y-audit-2026-10-23.test.js",
-    "public-e2e-webkit-split-2026-10-24.test.js"
+    "public-e2e-webkit-split-2026-10-24.test.js",
+    "free-tools-contrast-2026-10-24.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
