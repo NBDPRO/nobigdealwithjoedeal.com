@@ -1,4 +1,4 @@
-# NEXT_SESSION - 2026-10-24: the 10-22/23 build days, live; two PRs waiting
+# NEXT_SESSION - 2026-10-24: the 10-22/23 build days, live; #2719/#2720 landed
 
 **Session of 2026-10-24 (pick-up and follow-up).** Continues
 [NEXT_SESSION-2026-10-21](NEXT_SESSION-2026-10-21.md) (its Needs Jo list still stands except where
@@ -9,15 +9,17 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
 - **Everything on `main` is live.** The `Firebase deploy` run for `ef666ca` (#2717) finished green;
   it covers every commit below. (Some per-commit runs show *cancelled*: superseded under
   `concurrency: firebase-deploy`, expected.)
-- **Open PRs:**
+  #2719 and #2720 merged after that: check their `Firebase deploy` runs in Actions before calling them live.
+- **Landed this session (merged 2026-10-24 through the queue):**
   - [#2720](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2720) zod / chromium-bidi pin
-    (HIGH npm advisory). All checks green except the non-required `@shard2` (cancelled at its cap).
-    Ready to queue.
+    (HIGH npm advisory GHSA-mrhx-c7xc-m3w5).
   - [#2719](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2719) progress photos
-    owner-stamped (closes the purge residual from #2695). Blocked: the required Public-surface E2E was
-    *cancelled* (the Playwright install wedge, see [ci-runner-minutes](../qa/ci-runner-minutes-2026-10-23.md)),
-    and the branch is behind `main`. `main` merges in clean (only `tests/ci-manifest.json` auto-merges);
-    its own suites pass after the merge (23/23, 28/28). Needs: update branch, re-run, queue.
+    owner-stamped (closes the purge residual from #2695), after a `main` merge and a fresh CI run (its
+    Public-surface E2E had been *cancelled* by the Playwright install wedge, see
+    [ci-runner-minutes](../qa/ci-runner-minutes-2026-10-23.md)).
+  - The handoff PR (#2721) also carries **body-parser 2.4.0** in `functions/` (HIGH GHSA-27r3-jxmh-p828,
+    published 10-22; it turned the Dependency audit red on every PR).
+- **Still open:**
   - [#2656](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2656) paint-color blog draft -
     stays a draft until Jo writes his lines.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
@@ -79,12 +81,11 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 ## Next lanes (engineering, no Jo needed)
 
-1. Land #2720, then #2719 (update branch first).
-2. Public-surface E2E install wedge (apt cache or move webkit off the required job) - it blocks merges.
-3. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
-4. Pass-2 leftovers: storm callables rate limit, digest `deal_rooms` team undercount and `companies.limit(500)`,
+1. Public-surface E2E install wedge (apt cache or move webkit off the required job) - it cancelled #2719's first run.
+2. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
+3. Pass-2 leftovers: storm callables rate limit, digest `deal_rooms` team undercount and `companies.limit(500)`,
    lead-source fixer `confirmedSourceAt` (unverified), `docs/free-tools/index.html` `.tool-cta` contrast.
-5. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
+4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
    typed measurement text wiped by `renderDash`, blob URLs not revoked.
-6. `@shard2` specs (six named in the CI-minutes note).
-7. Tracker layouts: Cockpit, then Quest/Arcade, then One Thing/Journal ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).
+5. `@shard2` specs (six named in the CI-minutes note).
+6. Tracker layouts: Cockpit, then Quest/Arcade, then One Thing/Journal ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).
