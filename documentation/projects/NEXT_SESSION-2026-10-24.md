@@ -81,7 +81,7 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 ## Next lanes (engineering, no Jo needed)
 
-1. Public-surface E2E install wedge (apt cache or move webkit off the required job) - it cancelled #2719's first run.
+1. ~~Public-surface E2E install wedge~~ - fixed the same day (Jo chose option (b)): WebKit moved off the required job into `Public-surface E2E (mobile WebKit)`, not required.
 2. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
 3. Pass-2 leftovers: storm callables rate limit, digest `deal_rooms` team undercount and `companies.limit(500)`,
    lead-source fixer `confirmedSourceAt` (unverified), `docs/free-tools/index.html` `.tool-cta` contrast.
