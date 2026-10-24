@@ -114,7 +114,7 @@
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
-      'js/profit-tracker.js?v=5',
+      'js/profit-tracker.js?v=6',
       'js/expenses.js?v=16',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',

@@ -74,7 +74,7 @@ console.log('C. /pro: no unverifiable claims-volume figure');
 const pro = read('docs/pro/index.html');
 ok('/pro: no "$10M+" and no "claims experience"', !/\$10M|10 million|claims experience/i.test(pro), firstMatch(pro, /\$10M|claims experience/i));
 ok('/pro: the proof row still shows the checkable figures', /<strong>7 years<\/strong>/.test(pro) && /<strong>Every price<\/strong>/.test(pro));
-ok('/pro: landing.css cache-busted for the 4-up proof row', pro.includes('/pro/css/landing.css?v=3') && /\.pl-proof-row \{ display: grid; grid-template-columns: repeat\(4, 1fr\); \}/.test(read('docs/pro/css/landing.css')));
+ok('/pro: landing.css cache-busted for the 4-up proof row', /\/pro\/css\/landing\.css\?v=([3-9]|\d\d)(?!\d)/.test(pro) && /\.pl-proof-row \{ display: grid; grid-template-columns: repeat\(4, 1fr\); \}/.test(read('docs/pro/css/landing.css')));
 
 console.log('D. CRM login: the free playbook, not a Masterclass');
 const login = read('docs/pro/login.html');

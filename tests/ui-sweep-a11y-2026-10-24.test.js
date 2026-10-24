@@ -10,6 +10,10 @@
  *   D. visual consistency: Product Library's green and red header buttons,
  *      Storm Center's stat cards cut off on a phone, Prospects' header
  *      buttons indented on a phone.
+ * Pass 2 (customer card, portal, marketing): the customer card's invoice
+ * action row pushed the page sideways on desktop; the profit tracker's
+ * labels were not tied to their inputs; the pricing FAQ buttons and the
+ * logo links were under 24px.
  * Measured in a browser through the sample account; this file pins the
  * source so neither regresses silently.
  *
@@ -74,6 +78,21 @@ ok('Storm Center (phone): the stat cards are a two-column grid, not a clipped sc
 ok('Prospects (phone): the header buttons run full width', /@media \(max-width:768px\) \{ #view-prospects \.page-hdr \{ align-items:stretch; \} #view-prospects \.page-hdr > div \{ width:100%; \} \}/.test(read('docs/pro/css/kanban-force.css')));
 const dhtml = read('docs/pro/dashboard.html');
 ok('dashboard re-versions the three stylesheets', /css\/product-library\.css\?v=([2-9]|\d\d)"/.test(dhtml) && /css\/storm-center\.css\?v=([5-9]|\d\d)"/.test(dhtml) && /css\/kanban-force\.css\?v=([6-9]|\d\d)"/.test(dhtml));
+
+// Pass 2.
+const cust = read('docs/pro/customer.html');
+const ir = ((/\n\.invoice-right \{([\s\S]*?)\n\}/.exec(cust) || [])[1] || '').replace(/\/\*[\s\S]*?\*\//g, '');
+ok('customer card: the invoice action row wraps at every width (no flex-shrink:0, no sideways scroll)', /flex-wrap:wrap/.test(ir) && /min-width:0/.test(ir) && !/flex-shrink:0/.test(ir), ir.replace(/\s+/g, ' ').slice(0, 200));
+const pt = read('docs/pro/js/profit-tracker.js');
+for (const [lab, id] of [['Material Cost', 'ptMaterial'], ['Labor Cost', 'ptLabor'], ['Misc / Other', 'ptMisc'], ['Overhead %', 'ptOverhead']]) {
+  ok('profit tracker: "' + lab + '" labels #' + id, new RegExp('<label [^>]*for="' + id + '">' + esc(lab) + '</label>').test(pt));
+}
+ok('customer.html and the loader re-version profit-tracker.js', /profit-tracker\.js\?v=([6-9]|\d\d)"/.test(cust) && /'js\/profit-tracker\.js\?v=([6-9]|\d\d)'/.test(read('docs/pro/js/script-loader.js')));
+const pricing = read('docs/pro/pricing.html');
+ok('pricing: FAQ question buttons are at least 24px tall', /\.faq-q\{[^}]*min-height:24px/.test(pricing));
+ok('pricing: the NBD PRO logo link is at least 24px tall', /\.pro-nav-logo\{[^}]*min-height:24px/.test(pricing));
+ok('landing pages: the NBD PRO logo link is at least 24px tall', /\.pl-logo \{[^}]*min-height: 24px/.test(read('docs/pro/css/landing.css')));
+ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/index.html')) && /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/sandbox.html')));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);

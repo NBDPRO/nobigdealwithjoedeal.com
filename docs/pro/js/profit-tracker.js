@@ -250,22 +250,22 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         ${expFed ? `<div class="ptx-fs10px-cgreen-m10px014p">✓ Margin reflects ${expenses.length} logged expense${expenses.length > 1 ? 's' : ''} — $${formatPT(pl.materialCost + pl.laborCost + pl.miscCosts)} direct cost from the Expenses ledger.</div>` : ''}
         <div class="ptx-dgrid-gtc1fr1fr-gap12px">
           <div>
-            <label class="ptx-fs11px-cm-ttuppercas">Material Cost</label>
+            <label class="ptx-fs11px-cm-ttuppercas" for="ptMaterial">Material Cost</label>
             <input id="ptMaterial" type="number" step="0.01" value="${lead.materialCost || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label class="ptx-fs11px-cm-ttuppercas">Labor Cost</label>
+            <label class="ptx-fs11px-cm-ttuppercas" for="ptLabor">Labor Cost</label>
             <input id="ptLabor" type="number" step="0.01" value="${lead.laborCost || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label class="ptx-fs11px-cm-ttuppercas">Misc / Other</label>
+            <label class="ptx-fs11px-cm-ttuppercas" for="ptMisc">Misc / Other</label>
             <input id="ptMisc" type="number" step="0.01" value="${lead.miscCosts || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label class="ptx-fs11px-cm-ttuppercas">Overhead %</label>
+            <label class="ptx-fs11px-cm-ttuppercas" for="ptOverhead">Overhead %</label>
             <input id="ptOverhead" type="number" step="1" value="${overheadPctFrom(lead.overheadPct)}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
