@@ -31,6 +31,10 @@
   let unit = (() => { try { return localStorage.getItem(UNIT_KEY) === 'cm' ? 'cm' : 'in'; } catch (_) { return 'in'; } })();
   let armed = null;          // photo id awaiting a second tap to delete
   let urls = [];
+  // What is typed in the Measurements box. Every re-render (the post-load
+  // renderDash, the unit / site chips) rebuilds the card, so the text is kept
+  // here and written back; a save clears it (audit 2026-10-23).
+  let draft = '';
 
   const list = () => (M() ? M().clean(readJson(KEY, [])) : []);
   const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); return true; } catch (_) { toast('Could not save on this device'); return false; } };
@@ -56,7 +60,7 @@
     const spark = M().sparkline(M().series(all, site), label + ' over time');
     return '<div class="wc-card ms-card" id="msCard"><div class="wc-card-h">📏 Measurements</div>' +
       '<div class="pg-chips">' + chips + '</div>' + big + (spark ? '<div class="ms-chart">' + spark + '</div>' : '') +
-      '<div class="ms-row"><input class="ms-in" id="msInput" type="text" inputmode="decimal" autocomplete="off" aria-label="' + esc(label) + ' in ' + unit + '" placeholder="' + esc(label) + ' (' + unit + ')">' +
+      '<div class="ms-row"><input class="ms-in" id="msInput" type="text" inputmode="decimal" autocomplete="off" aria-label="' + esc(label) + ' in ' + unit + '" placeholder="' + esc(label) + ' (' + unit + ')" value="' + esc(draft) + '">' +
       '<button type="button" class="wc-btn ms-save" data-ms-action="save">Log today</button></div>' +
       '<div class="pg-chips">' + units + (t.count ? '<button type="button" class="pg-chip" data-ms-action="undo">Remove latest</button>' : '') + '</div>' +
       '<div class="pg-note">Saved on this phone only. Same time of day, relaxed, tape snug not tight.</div></div>';
@@ -154,7 +158,19 @@
   }
 
   function refreshPhotos() { const el = document.getElementById('phCard'); if (el) { el.outerHTML = phHtml(); fillPhotos(); } }
-  function refreshMs() { const el = document.getElementById('msCard'); if (el) el.outerHTML = msHtml(); }
+  // Run a re-render; if the Measurements box had focus, give it back with the caret where it was.
+  function keepMsFocus(fn) {
+    const a = document.activeElement;
+    const had = !!(a && a.id === 'msInput');
+    const sel = had ? [a.selectionStart, a.selectionEnd] : null;
+    const r = fn();
+    if (had) {
+      const n = document.getElementById('msInput');
+      if (n && n !== a) { n.focus(); try { n.setSelectionRange(sel[0], sel[1]); } catch (_) { /* not a text field */ } }
+    }
+    return r;
+  }
+  function refreshMs() { const el = document.getElementById('msCard'); if (el) keepMsFocus(() => { el.outerHTML = msHtml(); }); }
   const cardsHtml = () => msHtml() + phHtml();
 
   document.addEventListener('click', (ev) => {
@@ -167,7 +183,7 @@
       const inp = document.getElementById('msInput');
       const mm = M().parseEntry(inp && inp.value, unit);
       if (mm == null) { toast('Enter a number like 34.5'); return; }
-      if (save(M().upsert(list(), today(), site, mm))) { refreshMs(); toast('Logged'); }
+      if (save(M().upsert(list(), today(), site, mm))) { draft = ''; refreshMs(); toast('Logged'); }
     } else if (a === 'undo') {
       const s = M().series(list(), site); const last = s[s.length - 1];
       if (last && save(M().remove(list(), last.date, site))) refreshMs();
@@ -180,6 +196,7 @@
   });
   // ds-firebase-sync learned who is signed in (or settled the account switch): re-check what may be shown.
   window.addEventListener('nbd-ds-account', () => { refreshPhotos(); });
+  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'msInput') draft = ev.target.value; });
   document.addEventListener('change', (ev) => {
     const f = ev.target;
     if (f && f.id === 'phFile' && f.files && f.files[0]) { const file = f.files[0]; f.value = ''; addPhoto(file); }
@@ -196,20 +213,23 @@
     const origDash = window.renderDash;
     if (typeof origDash === 'function' && !origDash.__meas) {
       const wrappedDash = function () {
-        const r = origDash.apply(this, arguments);
-        try {
-          const main = document.getElementById('main');
-          if (main && !document.getElementById('msCard')) {
-            const box = document.createElement('div');
-            box.className = 'ms-dash';
-            box.innerHTML = cardsHtml();
-            const weight = document.getElementById('wtCard');
-            const anchor = weight && weight.parentNode && weight.parentNode.parentNode === main ? weight.parentNode : null;
-            main.insertBefore(box, anchor ? anchor.nextSibling : main.firstChild);
-            fillPhotos();
-          }
-        } catch (_) { /* the dashboard renders without it */ }
-        return r;
+        const args = arguments;
+        return keepMsFocus(() => {
+          const r = origDash.apply(this, args);
+          try {
+            const main = document.getElementById('main');
+            if (main && !document.getElementById('msCard')) {
+              const box = document.createElement('div');
+              box.className = 'ms-dash';
+              box.innerHTML = cardsHtml();
+              const weight = document.getElementById('wtCard');
+              const anchor = weight && weight.parentNode && weight.parentNode.parentNode === main ? weight.parentNode : null;
+              main.insertBefore(box, anchor ? anchor.nextSibling : main.firstChild);
+              fillPhotos();
+            }
+          } catch (_) { /* the dashboard renders without it */ }
+          return r;
+        });
       };
       Object.keys(origDash).forEach((k) => { wrappedDash[k] = origDash[k]; });
       wrappedDash.__meas = true;
