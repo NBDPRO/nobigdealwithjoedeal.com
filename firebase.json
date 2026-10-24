@@ -82,6 +82,7 @@
       { "_comment": "Pro demo phase 2 (2026-10-06): the browser-only sample account. The REAL page files are served under /pro/explore/ so /pro/explore/demo-sw.js (scope /pro/explore/) can answer their Firebase SDK imports with the in-browser fake in docs/pro/demo-sdk/. One copy of each page; nothing touches the live database. Rewrites only fire when no file matches, and docs/pro/explore/ holds no dashboard/customer file. Plan: documentation/projects/PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md",
         "source": "/pro/explore/dashboard", "destination": "/pro/dashboard.html" },
       { "source": "/pro/explore/customer", "destination": "/pro/customer.html" },
+      { "_comment": "Sample account tool pages (2026-10-24): the real tool page served under /pro/explore/ so the demo worker answers its SDK imports; the dashboard embeds it. One entry per tool as it joins the sample account (tests/pro-demo-tools-2026-10-24.test.js).", "source": "/pro/explore/analytics", "destination": "/pro/analytics.html" },
       { "_comment": "Pillar 5 phase 1: universal tenant microsite. /sites/t/<companyId-or-slug> serves the one static template (rewrites only fire when no real file matches, so site.js/site.css still serve directly); /api/site-config is the whitelisted server-side companyProfile read behind it.",
         "source": "/api/site-config", "function": { "functionId": "getPublicSiteConfig", "region": "us-central1" } },
       { "source": "/api/social-media", "function": { "functionId": "socialMedia", "region": "us-central1" } },
@@ -544,6 +545,16 @@
           { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
           { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        ]
+      },
+      {
+        "source": "/pro/explore/@(analytics)",
+        "headers": [
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
         ]
       }
     ]

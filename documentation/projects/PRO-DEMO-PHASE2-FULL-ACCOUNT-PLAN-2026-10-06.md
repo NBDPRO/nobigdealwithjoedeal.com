@@ -1,5 +1,23 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Update 2026-10-24: the tool pages join the sample account, one PR per tool** (Jo: "build something similar for all the rest of the tools pages"). Until now `demo-mode.js` hid Decision Engine, Understand, Project Codex, AI Usage and Success Tracker, because they opened the REAL `/pro/` pages (outside the demo worker, refused by `frame-ancestors`, App Check).
+>
+> **How a tool joins:**
+> 1. A `firebase.json` rewrite `/pro/explore/<tool>` to the real page file.
+> 2. A header block `/pro/explore/@(<tools>)` after `/pro/explore/**`: the sample account's policy, but `frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN`, so only the sample dashboard can frame it.
+> 3. The page loads `demo-mode.js` first. Framed, `demo-mode.js` mounts no strip and sends its notices and blocked records to the dashboard's `__NBD_DEMO__`, so the walk's verdict covers the frame.
+> 4. A `SANDBOX_TOOLS` entry in `demo-mode.js` that points the dashboard view at `/pro/explore/<tool>`, and the tool comes off `LIVE_ONLY_*`.
+> 5. Sample data in the seed.
+>
+> Pinned by `tests/pro-demo-tools-2026-10-24.test.js`. The zero-network walk opens each tool, starting at step 25.
+>
+> **Shipped first: AI Usage**, on 71 sample `api_usage` records (seed v5).
+>
+> **Jo's decisions for the rest:**
+> - The three AI tools get canned sample answers, labelled, with no AI model called.
+> - Their insurance topics (supplement strategy, carrier tactics, adjuster prep) stay out of the sandbox.
+> - Success Tracker gets a sample week. Food search and Apple Health show "in your real account".
+
 > **Update 2026-10-07 (later): waves 1–4 ship together as #2294** (Jo: "good to go"). #2261, #2265 and #2281 close once it merges. Merging main surfaced three things the sample account has to keep up with. Read these before changing it:
 > - **Self-hosted SDK (#2155).** The CRM imports `/assets/vendor/firebase/<ver>/firebase-*.js` from our own origin. `demo-sw.js` must answer that path (`VENDOR_SDK_RE`). If it doesn't, the real SDK loads and only the CSP stands between the demo and Firestore. The export-parity scan in `tests/pro-demo-sdk-2026-10-06.test.js` reads the vendored URLs.
 > - **"Ok to text?" (#2246).** Phone texts call `phoneTextAction` first; the fake answers `check`. `NBDPhoneShare.share` is answered by `demo-mode.js`, because its `location.assign(sms:)` can't be wrapped. The Agent inbox text button has its `href` removed before the inbox opens it.

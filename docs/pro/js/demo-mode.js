@@ -52,7 +52,11 @@
 
   var NS = 'nbd_demo:';
   var IDB_NAME = 'nbd-demo-account';
-  var DEMO_PAGES = { dashboard: true, customer: true };
+  var DEMO_PAGES = { dashboard: true, customer: true, analytics: true };
+  // A tool page embedded in the sample dashboard (AI Usage today): same guards,
+  // but no second strip; its notices and blocked records go to the dashboard's.
+  var FRAMED = (function () { try { return window.self !== window.top; } catch (_) { return true; } })();
+  var parentDemo = function () { try { return FRAMED && window.parent.__NBD_DEMO__ && window.parent.__NBD_DEMO__.active ? window.parent.__NBD_DEMO__ : null; } catch (_) { return null; } };
   // Leaving the CRM for these is fine: they are public pages.
   var EXIT_OK = /^\/(pro\/(register|pricing|sandbox|terms|index)?(\.html)?|pro\/?|privacy(\.html)?)$/;
   var FUNCTION_PATHS = /^\/(api\/|cspReport|share\/|deal\/|report\/|calendar\/|unsubscribe\/|hooks\/|tenant-logo\/|__\/|pro\/account-erasure)/;
@@ -73,6 +77,8 @@
   function notice(msg, isBlock) {
     var text = String(msg || '').slice(0, 240);
     state.notices.push({ at: Date.now(), message: text, blocked: !!isBlock });
+    var up = parentDemo();
+    if (up && typeof up.say === 'function') { up.say(text); return; }
     if (!toastEl) { pending.push([text, isBlock]); return; }
     toastEl.textContent = text;
     toastEl.className = 'nbd-demo-toast' + (isBlock ? ' is-block' : '') + ' is-on';
@@ -90,6 +96,8 @@
   function block(url, how, fromSw) {
     var rec = { url: String(url || '').slice(0, 300), how: how, at: Date.now() };
     state.blocked.push(rec);
+    var up = parentDemo();
+    if (up && up.blocked) up.blocked.push(Object.assign({ frame: location.pathname }, rec));
     try { console.warn('[sample account] blocked ' + how + ': ' + rec.url); } catch (_) {}
     // Plain words for the visitor; the technical record stays in state.blocked and the console.
     notice('That live data is not in the sample account. Nothing left your browser.', true);
@@ -407,6 +415,7 @@
     } catch (_) { done(); }
   }
   function mountStrip() {
+    if (FRAMED) return;
     if (document.getElementById('nbd-demo-strip')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -438,11 +447,20 @@
     sampleJoeFootnote();
     hideLiveOnlyScreens();
   }
-  // These screens open the real production pages (iframes or a new window), which
-  // load reCAPTCHA / App Check and are outside the demo worker: not in the sample account.
-  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-aiusage', 'nav-daily'];
-  var LIVE_ONLY_TPL = ['tpl-view-aitree', 'tpl-view-understand', 'tpl-view-projectcodex', 'tpl-view-aiusage'];
+  // Tool pages that run in the sample account (2026-10-24): the dashboard's
+  // view loads the page under /pro/explore/, where the demo worker answers its
+  // SDK imports and firebase.json lets the sample dashboard frame it.
+  var SANDBOX_TOOLS = { 'tpl-view-aiusage': '/pro/explore/analytics' };
+  // Not yet in the sample account: they would open the real production pages
+  // (reCAPTCHA / App Check, outside the demo worker). Hidden until each joins.
+  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex', 'nav-daily'];
+  var LIVE_ONLY_TPL = ['tpl-view-aitree', 'tpl-view-understand', 'tpl-view-projectcodex'];
   function hideLiveOnlyScreens() {
+    Object.keys(SANDBOX_TOOLS).forEach(function (id) {
+      var tpl = document.getElementById(id);
+      var frames = tpl && tpl.content ? tpl.content.querySelectorAll('iframe[data-src]') : [];
+      for (var i = 0; i < frames.length; i++) frames[i].setAttribute('data-src', SANDBOX_TOOLS[id]);
+    });
     LIVE_ONLY_NAV.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); el.setAttribute('tabindex', '-1'); }

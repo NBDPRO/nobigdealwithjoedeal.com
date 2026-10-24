@@ -624,6 +624,31 @@ async function waitFor(page, fn, arg, ms) {
       /Nothing was sent/.test(sheet) && /JOB SHEET/.test(sheet) && /402 Example Hill Rd/.test(sheet) && !/\$\d/.test(sheet) && page.url() === urlProd, sheet.slice(0, 500));
     await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
 
+    console.log('25. AI Usage: the real page inside the sample dashboard, on sample usage');
+    await page.evaluate(() => { window.location.href = '/pro/dashboard.html'; });
+    await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });
+    await waitFor(page, () => Array.isArray(window._leads) && window._leads.length >= 20 && typeof window.goTo === 'function');
+    ok('the AI Usage entry is in the sample sidebar', await page.evaluate(() => { const n = document.getElementById('nav-aiusage'); return !!n && n.style.display !== 'none' && n.getAttribute('aria-hidden') !== 'true'; }));
+    await page.evaluate(() => window.goTo('aiusage'));
+    await waitFor(page, () => { const f = document.getElementById('iframe-aiusage'); return !!f && /\/pro\/explore\/analytics$/.test(f.getAttribute('src') || ''); }, null, 15000);
+    const usageFrame = page.frames().find((f) => /\/pro\/explore\/analytics$/.test(f.url())) ||
+      await (async () => { await page.waitForTimeout(1500); return page.frames().find((f) => /\/pro\/explore\/analytics$/.test(f.url())); })();
+    ok('the view loads /pro/explore/analytics (inside the sample account, not the real /pro/analytics)', !!usageFrame, page.frames().map((f) => f.url()).join(' | '));
+    if (usageFrame) {
+      await usageFrame.waitForFunction(() => { const v = document.getElementById('vReq'); return v && /^[1-9][\d,]*$/.test(v.textContent.trim()); }, null, { timeout: 30000, polling: 200 });
+      await usageFrame.locator('[data-range="30d"]').click();   // a real click on the page's own range button
+      await usageFrame.waitForFunction(() => /30 Days/.test((document.getElementById('lReq') || {}).textContent || ''), null, { timeout: 10000, polling: 200 });
+      const u = await usageFrame.evaluate(() => ({
+        req: document.getElementById('vReq').textContent.trim(), cost: document.getElementById('vCost').textContent.trim(),
+        features: (document.getElementById('featureBody') || document.body).innerText,
+        demo: !!(window.__NBD_DEMO__ && window.__NBD_DEMO__.active), strip: !!document.getElementById('nbd-demo-strip'),
+        embedded: document.documentElement.classList.contains('nbd-embedded')
+      }));
+      ok('it shows the sample month: requests, a cost, and the sample features', /^[1-9]/.test(u.req) && /^\$\d/.test(u.cost) && /ask-joe/.test(u.features) && /decision-engine/.test(u.features), JSON.stringify(u).slice(0, 400));
+      ok('the framed page runs in the sample account (demo-mode armed) with no second strip, embedded', u.demo && !u.strip && u.embedded, JSON.stringify({ demo: u.demo, strip: u.strip, embedded: u.embedded }));
+    }
+    ok('the server served AI Usage through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/analytics' && e.kind === 'rewrite'));
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));
