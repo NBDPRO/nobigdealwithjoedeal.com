@@ -8,6 +8,8 @@
  *     2026-10-23 focus ring, but their scrolling wrap clipped its left edge.
  *   - lane 2 #13: two desktop header controls under the 24px minimum target
  *     (WCAG 2.5.8): the connection ↻ (33x19) and Sign Out (57x12).
+ *   - lane 2 #8 (part): "[ThemeOverlays] Unknown overlay type: none" on every
+ *     load of a theme whose overlay is 'none'.
  * The other fixes from the same list carry their own tests: the story page's
  * first Tab (pro-demo-zero-network step 0), the D2D map-vendor race
  * (d2d-map-vendor-race-2026-10-24) and the two-line phone greeting
@@ -51,6 +53,26 @@ const dapp = read('docs/pro/css/dashboard-app.css');
 ok('desktop: Sign Out is at least 24px tall', /\.so\{[^}]*min-height:24px;/.test(dapp));
 const dash = read('docs/pro/dashboard.html');
 ok('dashboard re-versions both files', /css\/dashboard-app\.css\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash) && /js\/connection-status-btn\.js\?v=([5-9]|\d\d)(?!\d)/.test(dash));
+
+// theme-overlays.js apply(): 'none' is "no overlay", not an unknown type. Run the real apply().
+{
+  const vm = require('vm');
+  const warns = [];
+  const sb = { window: {}, document: { createElement: () => ({ style: {}, appendChild() {} }), body: { appendChild() {} }, documentElement: { getAttribute: () => null }, addEventListener() {} },
+    console: { warn: (m) => warns.push(m), log() {} }, matchMedia: () => ({ matches: false, addEventListener() {} }), requestAnimationFrame() {}, cancelAnimationFrame() {}, setTimeout() {}, clearTimeout() {} };
+  sb.window = sb; sb.innerWidth = 1280; sb.innerHeight = 800; sb.addEventListener = () => {};
+  let loaded = true;
+  try { vm.runInNewContext(read('docs/pro/js/theme-overlays.js'), sb); } catch (e) { loaded = e.message; }
+  const TO = sb.ThemeOverlays || sb.NBDThemeOverlays || Object.values(sb).find((v) => v && typeof v.apply === 'function' && v.overlayLibrary);
+  ok('control: theme-overlays.js loads and exposes apply()', loaded === true && !!TO, loaded);
+  if (TO) {
+    TO.enabled = true; TO.container = {}; TO.destroy = () => {};
+    TO.apply({ type: 'none' });
+    ok('overlay type \'none\' applies nothing and warns nothing', warns.length === 0 && !TO.currentOverlay, warns.join(' | '));
+    TO.apply({ type: 'not-a-real-overlay' });
+    ok('control: a truly unknown type still warns', warns.some((w) => /Unknown overlay type: not-a-real-overlay/.test(w)));
+  }
+}
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);
