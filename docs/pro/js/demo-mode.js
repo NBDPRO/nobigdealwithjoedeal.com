@@ -468,13 +468,19 @@
   // Tool pages that run in the sample account (2026-10-24): the dashboard's
   // view loads the page under /pro/explore/, where the demo worker answers its
   // SDK imports and firebase.json lets the sample dashboard frame it.
-  var SANDBOX_TOOLS = { 'tpl-view-aiusage': '/pro/explore/analytics' };
-  // Not yet in the sample account: they would open the real production pages
-  // (reCAPTCHA / App Check, outside the demo worker). Hidden until each joins.
+  var SANDBOX_TOOLS = {
+    'tpl-view-aiusage': '/pro/explore/analytics',
+    'tpl-view-aitree': '/pro/explore/ai-tree',
+    'tpl-view-understand': '/pro/explore/understand',
+    'tpl-view-projectcodex': '/pro/explore/project-codex'
+  };
+  // Not in the sample account: views that would open a real production page
+  // (reCAPTCHA / App Check, outside the demo worker). Every tool has joined
+  // (2026-10-24); a new one starts here until it does.
   // Success Tracker (nav-daily) opens in a window, not a view: remap() and
   // the window.open wrapper send it to /pro/explore/daily-success.
-  var LIVE_ONLY_NAV = ['nav-aitree', 'nav-understand', 'nav-projectcodex'];
-  var LIVE_ONLY_TPL = ['tpl-view-aitree', 'tpl-view-understand', 'tpl-view-projectcodex'];
+  var LIVE_ONLY_NAV = [];
+  var LIVE_ONLY_TPL = [];
   function hideLiveOnlyScreens() {
     Object.keys(SANDBOX_TOOLS).forEach(function (id) {
       var tpl = document.getElementById(id);
@@ -512,4 +518,16 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountStrip);
   else mountStrip();
+
+  // Insurance topics stay out of the sample account (Jo, 2026-10-24): the
+  // Decision Engine's Insurance vs Cash and Supplement Strategy, Understand's
+  // Insurance Deep Dive, and Project Codex's Supplement Strategy card. Their
+  // sample answers refuse too (demo-sdk/tools-canned.js).
+  var SANDBOX_HIDE = '[data-cat="insurance"], [data-cat="supplement"], [data-action="select-domain"][data-domain="insurance"], [data-pc-action="runAction"][data-arg="supplement"]';
+  function hideInsuranceTopics() {
+    var els = document.querySelectorAll(SANDBOX_HIDE);
+    for (var i = 0; i < els.length; i++) { els[i].style.display = 'none'; els[i].setAttribute('aria-hidden', 'true'); els[i].setAttribute('tabindex', '-1'); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hideInsuranceTopics);
+  else hideInsuranceTopics();
 })();

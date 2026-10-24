@@ -217,7 +217,7 @@ CEILING.localBytes += 16 * 1024;
 // Without it the shipped gates fail under CI (process.env.CI) and are skipped
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
-  blockingBytes: 82 * 1024,
+  blockingBytes: 84 * 1024,   // deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
   localBytes: 2790 * 1024,
   templateBytes: 73 * 1024,
 };

@@ -21,6 +21,7 @@
 // Loaded by demo-mode.js as a module, only under /pro/explore/.
 import { ready, seedMeta, reviveSeed, rawList, demoNotice } from './_store.js';
 import { answerJoe } from './ask-joe-canned.js';
+import { answerTool } from './tools-canned.js';
 
 const HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'X-NBD-Demo': 'sample-offline' };
 const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: HEADERS });
@@ -164,13 +165,22 @@ export function position() {
 /** window.callClaude in the sample account. */
 export async function callClaude(req) {
   await ready();
+  // Decision Engine, Understand and Project Codex (2026-10-24): sample answers, no model.
+  // First: the Decision Engine's prompt says "You are Joe Deal's...", which the
+  // Ask Joe test below would otherwise take.
+  const tool = answerTool(req);
+  if (tool) {
+    const st = window.__NBD_DEMO__;
+    if (st) { st.toolAnswers = (st.toolAnswers || 0) + 1; }
+    return tool;
+  }
   const isJoe = req && (req.toolset === 'joe-actions-v1' || req.feature === 'joe' || /Ask Joe|You are Joe/i.test(String(req.system || '')));
   if (isJoe) {
     const st = window.__NBD_DEMO__;
     if (st) { st.joeAnswers = (st.joeAnswers || 0) + 1; }
     return answerJoe(req);
   }
-  const msg = 'AI features run on NBD Pro servers, so they are not in the sample account. Ask Joe has sample answers.';
+  const msg = 'AI features run on NBD Pro servers, so they are not in the sample account. Ask Joe and the AI tools have sample answers.';
   demoNotice(msg, { kind: 'ai' });
   throw new Error(msg);
 }

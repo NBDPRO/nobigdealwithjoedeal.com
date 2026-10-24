@@ -53,7 +53,7 @@ document.addEventListener('click', (e) => {
     case 'sendAiMessage': sendAiMessage(); break;
     case 'copyModal':     copyModal(); break;
     case 'closeModal':    closeModal(); break;
-    case 'runAction':     runAction(t.getAttribute('data-arg')); break;
+    case 'runAction':     runAction(t.getAttribute('data-arg'), t); break;
     case 'bgClose':       if (e.target === t) closeModal(); break;
   }
 });
@@ -396,14 +396,16 @@ function buildProjectContext() {
 }
 
 /* ── Quick Actions ── */
-async function runAction(type) {
+async function runAction(type, card) {
   if (!currentProject) {
     toast('Select a project first.', 'err');
     return;
   }
 
-  const card = event.currentTarget;
-  card.classList.add('loading');
+  // The delegate passes the card it found. The global click event's current
+  // target is the document under a delegated listener, so reading the card
+  // from it threw (2026-10-24).
+  if (card) card.classList.add('loading');
 
   const ctx = buildProjectContext();
   const prompts = {
@@ -441,7 +443,7 @@ async function runAction(type) {
     toast('Action failed: ' + err.message, 'err');
   }
 
-  card.classList.remove('loading');
+  if (card) card.classList.remove('loading');
 }
 
 /* ── Modal ── */
@@ -492,32 +494,3 @@ document.addEventListener('keydown', (e) => {
 /* ── Try init if auth already ready ── */
 if (window._firebaseReady) initCodex();
 
-// ── CSP-safe data-pc-action delegate ──
-// The strict CSP at firebase.json:44 blocks `script-src-attr 'none'`, so
-// inline `onclick="..."` attributes silently no-op. The page markup uses
-// `data-pc-action="..."` + optional `data-arg="..."`; this delegate maps
-// them to the existing globals.
-(function () {
-  if (window._NBD_PC_DELEGATE_BOUND) return;
-  window._NBD_PC_DELEGATE_BOUND = true;
-  document.addEventListener('click', function (ev) {
-    const t = ev.target && ev.target.closest && ev.target.closest('[data-pc-action]');
-    if (!t) return;
-    const action = t.dataset.pcAction;
-    if (action === 'bgClose') {
-      // Backdrop click — only close if user clicked the backdrop itself,
-      // not a child inside it (mirrors the old `if(event.target===this)`).
-      if (ev.target !== t) return;
-      if (typeof closeModal === 'function') closeModal();
-      return;
-    }
-    if (action === 'runAction') {
-      const arg = t.dataset.arg;
-      if (typeof runAction === 'function') runAction(arg);
-      return;
-    }
-    const fn = window[action];
-    if (typeof fn === 'function') fn();
-    else console.warn('[project-codex] no dispatch for', action);
-  });
-})();

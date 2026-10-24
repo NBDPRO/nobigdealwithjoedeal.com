@@ -20,6 +20,13 @@
 > - The first-visit welcome is marked seen there, because it promises a real-account backup and a home-screen install.
 > - Walk step 26.
 >
+> **Then the three AI tools** (Decision Engine, Understand, Project Codex), framed like AI Usage (`@(analytics|ai-tree|understand|project-codex)`). Their `callClaude` requests go to `demo-sdk/tools-canned.js`, matched by each page's own system prompt, and checked before Ask Joe's test, since the Decision Engine's prompt says "You are Joe Deal's...". Every answer says "no AI model was called".
+> - **Decision Engine:** Pricing Strategy and Damage Assessment answer from the visitor's own choices. Insurance vs Cash and Supplement Strategy are hidden (Jo: insurance vs cash counts as insurance).
+> - **Understand:** a short answer for each of the 16 Technical and Business starter topics, with no dollar figures and no code section numbers. **Jo reviews this wording.** A typed question gets "answers its starter topics". Insurance Deep Dive is hidden.
+> - **Project Codex:** answers are built only from the selected sample job's record, which the page sends in the request. No number appears that the record did not carry. The Supplement Strategy card is hidden.
+> - **Found on the way, a production bug:** every Codex Quick Action card threw on click (`event.currentTarget` under a delegated listener). A duplicate delegate also ran every action twice. Both are fixed (`tests/project-codex-quick-actions-2026-10-24.test.js`).
+> - Walk step 27. `LIVE_ONLY_NAV` / `LIVE_ONLY_TPL` are now empty: every dashboard tool runs in the sample account.
+>
 > **Jo's decisions for the rest:**
 > - The three AI tools get canned sample answers, labelled, with no AI model called.
 > - Their insurance topics (supplement strategy, carrier tactics, adjuster prep) stay out of the sandbox.
