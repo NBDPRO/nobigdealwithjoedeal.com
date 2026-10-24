@@ -1,12 +1,15 @@
 /**
  * tests/ui-sweep-a11y-2026-10-24.test.js
  *
- * UI sweep pass 1 (documentation/audit/UI-SWEEP-2026-10-24.md), groups A and B:
+ * UI sweep pass 1 (documentation/audit/UI-SWEEP-2026-10-24.md), groups A, B and D:
  *   A. every input the sweep found with no accessible name now has one
  *      (a <label for> where a visible label already sat beside it, else an
  *      aria-label);
  *   B. the controls measured under the 24px minimum target (WCAG 2.5.8) get a
- *      24px floor in dashboard-app.css.
+ *      24px floor in dashboard-app.css;
+ *   D. visual consistency: Product Library's green and red header buttons,
+ *      Storm Center's stat cards cut off on a phone, Prospects' header
+ *      buttons indented on a phone.
  * Measured in a browser through the sample account; this file pins the
  * source so neither regresses silently.
  *
@@ -59,6 +62,18 @@ for (const s of ['.kview-btn', '.fa-btn', '.w-mini-btn', '.pl-card-btn', '#view-
 ok('the floor only sets minimums (no fixed heights that could clip text), except the checkbox box itself',
   rules.every((r) => !/(?:^|;)\s*height:/.test(r.body) || r.sel === '.jt-check'));
 ok('dashboard.html re-versions dashboard-app.css', /css\/dashboard-app\.css\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(read('docs/pro/dashboard.html')));
+
+// D. Visual consistency.
+const pl = read('docs/pro/js/product-library.js');
+ok('Product Library: Export CSV is a quiet ghost button (not a green fill)', /data-pl-action="exportCSV" class="btn btn-ghost"/.test(pl) && !/plx-btn-green/.test(pl));
+ok('Product Library: Reset is a ghost button with danger text (not a red fill)', /data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset"/.test(pl) && /\.plx-btn-reset\.plx-btn-reset \{ color: var\(--ui-danger-text/.test(read('docs/pro/css/product-library.css')));
+ok('control: Reset still asks before it wipes the library', /_ask\('Reset all products to defaults\?/.test(pl));
+ok('product-library.css no longer carries the orphaned green/red fills', !/plx-btn-green|plx-btn-red/.test(read('docs/pro/css/product-library.css')));
+const storm = read('docs/pro/css/storm-center.css');
+ok('Storm Center (phone): the stat cards are a two-column grid, not a clipped scrolling row', /@media \(max-width: 600px\) \{\n  \.stc-stats \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); overflow-x: visible; \}/.test(storm));
+ok('Prospects (phone): the header buttons run full width', /@media \(max-width:768px\) \{ #view-prospects \.page-hdr \{ align-items:stretch; \} #view-prospects \.page-hdr > div \{ width:100%; \} \}/.test(read('docs/pro/css/kanban-force.css')));
+const dhtml = read('docs/pro/dashboard.html');
+ok('dashboard re-versions the three stylesheets', /css\/product-library\.css\?v=([2-9]|\d\d)"/.test(dhtml) && /css\/storm-center\.css\?v=([5-9]|\d\d)"/.test(dhtml) && /css\/kanban-force\.css\?v=([6-9]|\d\d)"/.test(dhtml));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);

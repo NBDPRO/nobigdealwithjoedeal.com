@@ -209,7 +209,7 @@ const KEY = PLAN.events[0].key;
   const css = read('docs/pro/css/storm-center.css');
   ok('styles exist for the tab, use no raw hex colours, and keep 44px targets', /\.sto-row/.test(css) && !/\.sto-[^{]*\{[^}]*#[0-9a-fA-F]{3,6}/.test(css) && /\.btn\.sto-file \{ min-height: 44px/.test(css));
   ok('the radius and select-all buttons keep 44px targets and the pressed radius is visibly different', /\.sto-radius-btn, \.sto-bar \.btn \{ min-height: 44px/.test(css) && /\.sto-radius-btn\[aria-pressed="true"\]/.test(css));
-  ok('the dashboard bumps the stylesheet version', /css\/storm-center\.css\?v=4/.test(read('docs/pro/dashboard.html')));
+  ok('the dashboard bumps the stylesheet version', /css\/storm-center\.css\?v=([4-9]|\d\d)(?!\d)/.test(read('docs/pro/dashboard.html')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

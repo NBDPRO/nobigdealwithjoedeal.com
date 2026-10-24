@@ -10,6 +10,12 @@
 .stc-stats { display: flex; gap: 10px; margin-bottom: 14px; overflow-x: auto; }
 .stat-card.stc-stat { flex: 1; min-width: 120px; }
 .stat-card.stc-stat-wide { min-width: 150px; }
+/* Phones (UI sweep 2026-10-24): the four stat cards were a sideways-scrolling row
+   that cut the third card off and hid the fourth. Two by two instead. */
+@media (max-width: 600px) {
+  .stc-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
+  .stat-card.stc-stat, .stat-card.stc-stat-wide { min-width: 0; }
+}
 .stc-tabs { display: flex; gap: 0; margin-bottom: 14px; overflow-x: auto; border-bottom: 2px solid var(--br); }
 .stc-map { width: 100%; height: 280px; border-top: 1px solid var(--br); border-bottom: 1px solid var(--br); }
 .stc-body { padding: 0 20px 20px; }

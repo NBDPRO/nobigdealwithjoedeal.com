@@ -693,8 +693,8 @@
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
             <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
-            <button data-pl-action="exportCSV" class="plx-btn-green">Export CSV</button>
-            ${editable ? `<button data-pl-action="resetDefaults" class="plx-btn-red">Reset</button>` : ''}
+            <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
+            ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>
         </div>
 

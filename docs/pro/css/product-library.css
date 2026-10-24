@@ -57,8 +57,9 @@
 .plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
 .plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
 .plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
-.plx-btn-green.plx-btn-green { padding: 8px 14px; background: #10b981; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
-.plx-btn-red.plx-btn-red { padding: 8px 14px; background: #ef4444; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
+/* UI sweep 2026-10-24: Export CSV and Reset were a green and a red fill beside the orange Add Product.
+   Both are quiet .btn-ghost buttons now, like Price book; Reset keeps danger-coloured text (it asks first). */
+.plx-btn-reset.plx-btn-reset { color: var(--ui-danger-text, #dc2626); }
 .plx-btn-delete.plx-btn-delete { padding: 8px 16px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .plx-btn-add.plx-btn-add { padding: 8px 16px; background: var(--orange,#BD5728); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
 .plx-btn-cancel.plx-btn-cancel { padding: 8px 16px; background: var(--s2); color: var(--t); border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
