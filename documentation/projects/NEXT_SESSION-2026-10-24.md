@@ -22,6 +22,24 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
 - **Still open:**
   - [#2656](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2656) paint-color blog draft -
     stays a draft until Jo writes his lines.
+- **Later on 2026-10-24 (same session, after the handoff PR):**
+  - Merged:
+    - #2722: WebKit moved off the required Public-surface job.
+    - #2723: audit pass-2 leftovers.
+    - #2724: pass-1 UI fixes (measurement text, coach and inbox keyboard).
+    - [#2725](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2725): AI Usage runs in the sample account.
+  - **Open:** [#2726](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2726) is green.
+    - Every remaining dashboard tool runs in `/pro/explore`: the Success Tracker on a sample week, and Decision Engine, Understand and Project Codex on canned sample answers with no model and no insurance topics.
+    - It also fixes a production bug: every Project Codex Quick Action card threw on click.
+    - **It waits on Jo's review of the sample-answer wording** (`docs/pro/demo-sdk/tools-canned.js`). Auto-merge is deliberately off.
+    - Plan and decisions: the 2026-10-24 update in [PRO-DEMO-PHASE2 plan](PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md).
+  - **Next PR, after #2726:** the audit pass-1 leftovers. Status of each item is at the top of [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-LANDING-AUDIT-2026-10-23.md).
+    - D2D map-vendor load race (production).
+    - Phone greeting cut to "WELCOME B…" (production).
+    - Story page tab order.
+    - Desktop tap targets.
+    - Strip over the Record visit bar.
+  - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
   accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
   (Configure -> repository access / pending permissions). A plain account reconnect did not fix it, and a
