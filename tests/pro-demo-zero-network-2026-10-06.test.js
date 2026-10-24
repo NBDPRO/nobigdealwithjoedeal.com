@@ -649,6 +649,89 @@ async function waitFor(page, fn, arg, ms) {
     }
     ok('the server served AI Usage through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/analytics' && e.kind === 'rewrite'));
 
+    console.log('26. Success Tracker: the sidebar entry opens its sample copy, on a sample week');
+    ok('the Success Tracker entry is in the sample sidebar', await page.evaluate(() => { const n = document.getElementById('nav-daily'); return !!n && n.style.display !== 'none' && n.getAttribute('aria-hidden') !== 'true'; }));
+    const [ds] = await Promise.all([ctx.waitForEvent('page', { timeout: 20000 }), page.locator('#nav-daily').click()]);
+    ds.on('pageerror', (e) => pageErrors.push('daily-success: ' + String(e && e.message || e).slice(0, 300)));
+    await ds.waitForLoadState('domcontentloaded');
+    ok('it opens /pro/explore/daily-success (the sample copy, not the real /pro/daily-success/)', new URL(ds.url()).pathname === '/pro/explore/daily-success', ds.url());
+    await ds.waitForFunction(() => { try { return (JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]')).length >= 7; } catch (_) { return false; } }, null, { timeout: 30000, polling: 250 });
+    const dsState = await ds.evaluate(() => ({
+      demo: !!(window.__NBD_DEMO__ && window.__NBD_DEMO__.active), strip: !!document.getElementById('nbd-demo-strip'),
+      welcome: (document.getElementById('welcomeModal') || { style: {} }).style.display,
+      pages: JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]').length, text: document.body.innerText
+    }));
+    ok('the tracker runs in the sample account (demo-mode armed, its strip shown, no first-visit welcome)', dsState.demo && dsState.strip && dsState.welcome !== 'flex', JSON.stringify({ demo: dsState.demo, strip: dsState.strip, welcome: dsState.welcome }));
+    ok('the sample week loaded from the sample account: six days plus today, a five-day floor streak, a weight trend',
+      dsState.pages === 7 && /FLOOR STREAK\s*5\b/i.test(dsState.text) && /\d{3}\.\d lb on/.test(dsState.text), dsState.text.slice(0, 600));
+    // Food search: a real search, answered by the sample account, not Open Food Facts.
+    const searched = await ds.evaluate(async () => {
+      const r = await window.fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=yogurt&json=1');
+      return { status: r.status, body: await r.json(), notice: (window.__NBD_DEMO__.notices || []).some((n) => /real account/.test(n.message || n)) };
+    });
+    ok('food search is answered in the sample account ("in your real account"), never fetched', searched.status === 503 && searched.body.sample === true && searched.notice, JSON.stringify(searched));
+    const dsBlocked = await ds.evaluate(() => window.__NBD_DEMO__.blocked.slice());
+    ok('the tracker blocked nothing (no attempt was made)', dsBlocked.length === 0, JSON.stringify(dsBlocked));
+    ok('the server served the tracker through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/daily-success' && e.kind === 'rewrite'));
+    await ds.close();
+
+    console.log('27. Decision Engine, Understand, Project Codex: sample answers, no model, no insurance topics');
+    const toolFrame = async (view, re) => {
+      await page.evaluate((v) => window.goTo(v), view);
+      for (let i = 0; i < 60; i++) { const f = page.frames().find((x) => re.test(x.url())); if (f) return f; await page.waitForTimeout(250); }
+      return null;
+    };
+    const tree = await toolFrame('aitree', /\/pro\/explore\/ai-tree$/);
+    ok('Decision Engine loads /pro/explore/ai-tree inside the sample dashboard', !!tree, page.frames().map((f) => f.url()).join(' | '));
+    if (tree) {
+      await tree.waitForSelector('[data-cat="pricing"]', { timeout: 20000 });
+      const cats = await tree.evaluate(() => [...document.querySelectorAll('.cat-card')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.cat).join(','));
+      ok('only Pricing Strategy and Damage Assessment are offered (the insurance categories are hidden)', cats === 'pricing,damage', cats);
+      await tree.click('[data-cat="pricing"]');
+      for (let q = 0; q < 8; q++) {   // the page's own flow: pick the first option, Next
+        const done = await tree.evaluate(() => document.getElementById('resultPanel').classList.contains('active') || document.getElementById('errorPanel').classList.contains('active'));
+        if (done) break;
+        await tree.locator('#optionsGrid > *').first().click();
+        await tree.locator('#btnNext:not([disabled])').click();
+      }
+      await tree.waitForFunction(() => document.getElementById('resultPanel').classList.contains('active') || document.getElementById('errorPanel').classList.contains('active'), null, { timeout: 10000 });
+      const r = await tree.evaluate(() => ({ ok: document.getElementById('resultPanel').classList.contains('active'), decision: document.getElementById('resultDecision').textContent, body: document.getElementById('resultBody').innerText, err: document.getElementById('errorMsg').textContent }));
+      ok('a Pricing run gives a sample recommendation in the page\'s own layout, labelled "no AI model was called"',
+        r.ok && /^Lead with the (Good|Better|Best) option/.test(r.decision) && /KEY REASONING/i.test(r.body) && /no AI model was called/.test(r.body), JSON.stringify(r).slice(0, 400));
+    }
+    const und = await toolFrame('understand', /\/pro\/explore\/understand$/);
+    ok('Understand loads /pro/explore/understand inside the sample dashboard', !!und);
+    if (und) {
+      await und.waitForSelector('[data-domain="technical"]', { timeout: 20000 });
+      const doms = await und.evaluate(() => [...document.querySelectorAll('[data-domain]')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.domain).join(','));
+      ok('Understand offers Technical and Business (Insurance Deep Dive is hidden)', doms === 'technical,business', doms);
+      await und.click('[data-domain="business"]');
+      await und.evaluate(() => { document.getElementById('chatInput').value = 'How to get more Google reviews and rank higher'; });
+      await und.locator('#chatSend').click();
+      await und.waitForFunction(() => /Sample answer/.test(document.getElementById('chatMsgs').innerText), null, { timeout: 10000, polling: 200 });
+      const msg = await und.evaluate(() => document.getElementById('chatMsgs').innerText);
+      ok('a starter topic gets its sample answer, labelled', /Ask at the right moment/.test(msg) && /no AI model was called/.test(msg), msg.slice(0, 300));
+    }
+    const cx = await toolFrame('projectcodex', /\/pro\/explore\/project-codex$/);
+    ok('Project Codex loads /pro/explore/project-codex inside the sample dashboard', !!cx);
+    if (cx) {
+      await cx.waitForFunction(() => { const s = document.getElementById('projSelect'); return s && s.options.length > 2; }, null, { timeout: 20000, polling: 200 });
+      const pick = await cx.evaluate(() => { const o = [...document.getElementById('projSelect').options].find((x) => x.value); return { value: o.value, label: o.textContent }; });
+      await cx.selectOption('#projSelect', pick.value);
+      await cx.locator('.tab[data-tab="ask"]').click();
+      await cx.locator('.ai-chip').first().click();
+      await cx.waitForFunction(() => /no AI model was called/.test(document.getElementById('aiMsgs').innerText), null, { timeout: 10000, polling: 200 });
+      const st = await cx.evaluate(() => document.getElementById('aiMsgs').innerText);
+      ok('Status check answers from the selected sample job\'s own record', /Stage:/.test(st) && /Address:/.test(st) && /built from this sample job's record/.test(st), st.slice(0, 300));
+      await cx.locator('.tab[data-tab="actions"]').click();
+      const cards = await cx.evaluate(() => [...document.querySelectorAll('[data-pc-action="runAction"]')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.arg).join(','));
+      ok('Quick Actions offer everything but Supplement Strategy', cards === 'scope,followup,checklist,closeout,review', cards);
+      await cx.locator('[data-arg="checklist"]').click();   // threw on every click before 2026-10-24 (event.currentTarget)
+      await cx.waitForFunction(() => /Pre-Build Checklist/.test((document.getElementById('modalBody') || {}).innerText || ''), null, { timeout: 10000, polling: 200 });
+      ok('a Quick Action card opens its sample document (the card click works)', true);
+    }
+    for (const t of ['ai-tree', 'understand', 'project-codex']) ok('the server served ' + t + ' through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/' + t && e.kind === 'rewrite'));
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));
