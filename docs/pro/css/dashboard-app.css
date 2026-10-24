@@ -5513,7 +5513,7 @@ body {
 .deleted-drawer-close, .w-card-remove { min-width: 24px; min-height: 24px; }
 .jt-check { width: 24px; height: 24px; }
 .cu-name { display: inline-block; min-height: 24px; }
-.sp-toggle, label:has(> #slopeLfToggle), label:has(> input[type="checkbox"]) { min-height: 24px; }
+:where(.sp-toggle, label:has(> #slopeLfToggle), label:has(> input[type="checkbox"])) { min-height: 24px; } /* :where keeps this at zero specificity: the bare :has() version outranked the upgrade rows' 44px labels (phone-views Settings spec, 2026-10-24) */
 /* Pipeline card controls (desktop board). */
 .kc-arrow { min-width: 24px; min-height: 24px; }
 .kc-task-badge, .kc-phone-link, .kc-tag.kct-action, .kc-tag.kct-action-doc, .kc-tag.kct-action-stage { min-height: 24px; display: inline-flex; align-items: center; }

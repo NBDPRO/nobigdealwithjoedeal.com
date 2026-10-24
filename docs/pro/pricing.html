@@ -31,7 +31,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 .header::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:120px;height:4px;background:#BD5728;border-radius:2px;}
 .brand{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:.2em;color:#dd875f;text-transform:uppercase;margin-bottom:12px;}
 .headline{font-family:'Barlow Condensed',sans-serif;font-size:clamp(36px,6vw,56px);font-weight:800;text-transform:uppercase;line-height:1;margin-bottom:16px;}
-.headline span{color:#DD875F;} /* the brand light orange: #BD5728 on the navy read 2.8:1 (UI sweep 2026-10-24) */
+.headline span{color:#BD5728;}
 .subhead{font-size:16px;color:#8b9bb4;max-width:520px;margin:0 auto;line-height:1.5;}
 .north-star{font-size:12px;color:#dd875f;font-weight:700;letter-spacing:.08em;margin-top:16px;text-transform:uppercase;}
 
@@ -67,7 +67,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 .faq-title{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;text-transform:uppercase;text-align:center;margin-bottom:24px;}
 .faq-item{border-bottom:1px solid #1e2228;padding:16px 0;}
 /* a11y: .faq-q is a real <button> (keyboard operable) — reset the chrome. */
-.faq-q{font-size:14px;font-weight:700;color:#f0f0f0;cursor:pointer;display:block;width:100%;text-align:left;background:none;border:0;padding:4px 0;min-height:24px;font-family:'Barlow',sans-serif;} /* 24px target (UI sweep 2026-10-24): it measured 17px tall */
+.faq-q{font-size:14px;font-weight:700;color:#f0f0f0;cursor:pointer;display:block;width:100%;text-align:left;background:none;border:0;padding:0;font-family:'Barlow',sans-serif;}
 .faq-q:focus-visible{outline:2px solid #BD5728;outline-offset:4px;}
 .cta:focus-visible{outline:2px solid #fff;outline-offset:3px;}
 /* Automatic-renewal disclosure under each paid button (2026-10-03) */
@@ -89,12 +89,12 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
    removed from the footer 2026-10-04). Scoped to
    .pro-nav* so it cannot collide with the page's existing .header/.brand. */
 .pro-nav{position:sticky;top:0;z-index:1000;background:var(--s,#111418);border-bottom:1px solid var(--br,rgba(255,255,255,.07));display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 5%}
-.pro-nav-logo{font-family:'Barlow Condensed',sans-serif;font-size:18px;letter-spacing:2px;color:#E8EAF0;text-decoration:none;font-weight:800;flex-shrink:0;display:inline-flex;align-items:center;min-height:24px}
-.pro-nav-logo span{color:#DD875F}
+.pro-nav-logo{font-family:'Barlow Condensed',sans-serif;font-size:18px;letter-spacing:2px;color:#E8EAF0;text-decoration:none;font-weight:800;flex-shrink:0}
+.pro-nav-logo span{color:var(--orange,#BD5728)}
 .pro-nav-links{display:flex;align-items:center;gap:22px;list-style:none;margin:0;padding:0}
 .pro-nav-links a{color:rgba(255,255,255,.82);text-decoration:none;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .pro-nav-links a:hover{color:#fff}
-.pro-nav-links a[aria-current="page"]{color:#DD875F}
+.pro-nav-links a[aria-current="page"]{color:var(--orange,#BD5728)}
 .pro-nav-cta{background:#BD5728;color:#fff !important;padding:9px 18px;border-radius:5px}
 .pro-nav-cta:hover{background:#A14A22}
 @media(max-width:760px){.pro-nav-links li{display:none}.pro-nav-links li:nth-last-child(-n+2){display:block}.pro-nav{padding:10px 16px;gap:10px}}

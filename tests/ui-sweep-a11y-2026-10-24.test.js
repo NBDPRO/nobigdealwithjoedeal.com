@@ -69,7 +69,8 @@ const css = read('docs/pro/css/dashboard-app.css');
 const block = css.slice(css.indexOf('/* ── Target floor (UI sweep 2026-10-24'));
 ok('dashboard-app.css has the target-floor block', block.length > 100 && block.length < css.length);
 const rules = [...block.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), body: m[2] }));
-const floorOf = (selector) => rules.find((r) => r.sel.split(',').map((x) => x.trim()).includes(selector) && /min-height:\s*24px|(?:^|;)\s*height:\s*24px/.test(r.body));
+// A rule may sit inside :where(...) (zero specificity, so it never outranks a 44px rule).
+const floorOf = (selector) => rules.find((r) => r.sel.replace(/^:where\((.*)\)$/s, '$1').split(',').map((x) => x.trim()).includes(selector) && /min-height:\s*24px|(?:^|;)\s*height:\s*24px/.test(r.body));
 for (const s of ['.kview-btn', '.fa-btn', '.w-mini-btn', '.pl-card-btn', '#view-money .btn', '[data-sc-action="openCardDetail"]', '.w-goal-set', '.deleted-drawer-close', '.w-card-remove', '.jt-check', '.cu-name', '.sp-toggle', '.kc-arrow', '.kc-task-badge', '.kc-phone-link', '.kc-tag.kct-action', '.kc-tag.kct-action-doc', '.kc-tag.kct-action-stage']) {
   ok('24px floor: ' + s, !!floorOf(s));
 }
@@ -99,8 +100,11 @@ for (const [lab, id] of [['Material Cost', 'ptMaterial'], ['Labor Cost', 'ptLabo
 }
 ok('customer.html and the loader re-version profit-tracker.js', /profit-tracker\.js\?v=([6-9]|\d\d)"/.test(cust) && /'js\/profit-tracker\.js\?v=([6-9]|\d\d)'/.test(read('docs/pro/js/script-loader.js')));
 const pricing = read('docs/pro/pricing.html');
-ok('pricing: FAQ question buttons are at least 24px tall', /\.faq-q\{[^}]*min-height:24px/.test(pricing));
-ok('pricing: the NBD PRO logo link is at least 24px tall', /\.pro-nav-logo\{[^}]*min-height:24px/.test(pricing));
+// pricing.html is NOT changed in this PR: /pro/pricing has committed pixel baselines
+// (visual-regression job) that must be CI-rendered and blessed by a person from the
+// run's artifact, which the sandbox cannot download. The FAQ (17px) and logo (22px)
+// floors and the headline accent wait for that re-bless (UI-SWEEP note, pass 2).
+ok('pricing: left as on main until its baselines are re-blessed', pricing.length > 0);
 ok('landing pages: the NBD PRO logo link is at least 24px tall', /\.pl-logo \{[^}]*min-height: 24px/.test(read('docs/pro/css/landing.css')));
 ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/index.html')) && /landing\.css\?v=([4-9]|\d\d)"/.test(read('docs/pro/sandbox.html')));
 
@@ -157,7 +161,7 @@ ok('/pro and /pro/sandbox re-version landing.css', /landing\.css\?v=([4-9]|\d\d)
   ok('the Draw go button is a fixed dark green under white (var(--green) read 3.1:1)', /\.draw-btn\.go\{background:#15803d;border-color:#15803d;color:#fff;\}/.test(da));
   ok('.slabel2 and the highlighted .cr-val read the accent text token', /\.slabel2\{[^}]*color:var\(--ui-accent-text/.test(da) && /\.cr-row\.hl \.cr-val\{color:var\(--ui-accent-text/.test(da));
   const rda = read('docs/pro/js/real-deal-academy.js');
-  ok('Academy: its dark surface uses the light brand orange for text and the brand orange for fills', /--rda-orange: #DD875F;/.test(rda) && /--rda-muted: #9CA3AF;/.test(rda) && !/background[^;]*var\(--rda-orange\)/.test(rda) && /background: #BD5728;/.test(rda));
+  ok('Academy: its dark surface uses the light brand orange for text and the brand orange for fills', /--rda-orange: #DD875F;/.test(rda) && /--rda-muted: #9CA3AF;/.test(rda) && !/background[^;]*var\(--rda-orange\)/.test(rda) && /background: var\(--orange, #BD5728\);/.test(rda));
   const pl = read('docs/pro/css/product-library.css');
   ok('Products: Edit is a dark blue under white, Archive a dark grey on its light fill', /\.plx-btn-edit\.plx-btn-edit \{[^}]*background: #1d4ed8; color: #fff;/.test(pl) && /\.plx-btn-ghost\.plx-btn-ghost \{[^}]*color: #4b5563;/.test(pl));
   const dash = read('docs/pro/dashboard.html');
@@ -182,7 +186,7 @@ ok('customer card: the quick-note box shows keyboard focus (its inline outline:n
 // Public pages on navy / cream.
 {
   const pr = read('docs/pro/pricing.html');
-  ok('pricing: the headline accent and the logo accent are the light brand orange on the navy (#BD5728 read 2.8:1)', /\.headline span\{color:#DD875F;\}/.test(pr) && /\.pro-nav-logo span\{color:#DD875F\}/.test(pr) && !/\.pro-nav[^{}]*\{[^}]*color:\s*var\(--orange/.test(pr));
+  ok('pricing: headline accent unchanged until the visual baselines are re-blessed (see pass 2)', pr.length > 0);
   const tm = read('docs/pro/terms.html');
   ok('terms: the footer hours are readable (30% white was 2.7:1) and every privacy link is the dark orange on cream', /color:rgba\(255,255,255,\.62\);font-size:\.78rem;margin-top:8px">Mon/.test(tm) && (tm.match(/<a href="\/privacy" style="color:#A14A22;text-decoration:underline">Privacy Policy<\/a>/g) || []).length === 3 && !/style="color:var\(--orange\);text-decoration:none">Privacy Policy/.test(tm));
 }

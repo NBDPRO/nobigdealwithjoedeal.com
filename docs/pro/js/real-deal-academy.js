@@ -641,7 +641,7 @@
         .rda-button {
           display: inline-block;
           padding: 12px 24px;
-          background: #BD5728;
+          background: var(--orange, #BD5728);
           color: white;
           border: none;
           border-radius: 6px;

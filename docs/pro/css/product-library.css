@@ -16,7 +16,7 @@
 .plx-wrap6-mb { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .plx-row6 { display: flex; gap: 6px; }
 .plx-row6-mb { display: flex; gap: 6px; margin-bottom: 12px; }
-.plx-row8 { display: flex; gap: 8px; }
+.plx-row8 { display: flex; gap: 8px; flex-wrap: wrap; } /* wrap: the four header buttons ran 421px wide on phones (phone-fit, 2026-10-24) */
 .plx-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .plx-card-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--br); }
 .plx-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
