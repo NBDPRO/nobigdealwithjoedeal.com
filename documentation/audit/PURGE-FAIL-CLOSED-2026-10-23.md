@@ -30,3 +30,16 @@ the module against a fake device. It includes a control showing the pre-fix bloc
 uid, drop the await, no fail-closed clear, no wait, rejected purge counted as done, fallback advancing the uid, queue wipe,
 no re-read, `false` ignored, sync not awaited) each went red. An `nbd-security-reviewer` pass found the sync second-writer,
 the queue wipe, the `false` result and the multi-tab case; all four are addressed above.
+
+## Follow-up: photos hidden from other accounts (2026-10-23, PR after #2695)
+Residual gap: if `nbd-auth.js` never loads and the user leaves within the 5 s wait, `nbd_last_uid` stays on A and A's
+IndexedDB `nbd_ds_photos` survived; B could read it on Daily Success (the sync paused but did not clear it). Two locks:
+- each photo now records the account that took it (`owner`). `NBDPhotos.visible()` shows a photo only to its owner, and only
+  once `nbd_last_uid` equals the signed-in uid (the switch settled); an unsettled switch shows nothing, and adding a photo is
+  refused until it settles. Photos from before owners existed are claimed by the first settled account to open the card.
+  Hidden, not deleted: the owner gets them back.
+- `ds-firebase-sync.js` deletes the photo database directly in both "cannot purge" branches, and exposes
+  `window.NBDDsAuth.uid()` plus an `nbd-ds-account` event so the card re-checks when the account is known / settled.
+Tests: `tests/tracker-photos-owner-gate-2026-10-23.test.js` and two new checks in `tracker-account-switch-2026-10-21.test.js`;
+eight mutations each went red. Still open: the other Daily Success data (pages, workouts) stays on the phone during a paused
+sync; that is the older "Sync paused" design.

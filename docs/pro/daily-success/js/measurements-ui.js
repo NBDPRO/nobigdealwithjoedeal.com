@@ -21,6 +21,9 @@
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
+  // Who is signed in (ds-firebase-sync.js) and which account the phone last settled on (nbd_last_uid).
+  const acctUid = () => (window.NBDDsAuth && typeof window.NBDDsAuth.uid === 'function' ? window.NBDDsAuth.uid() : null);
+  const lastUid = () => { try { return localStorage.getItem('nbd_last_uid'); } catch (_) { return null; } };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
 
   let site = 'waist';
@@ -106,7 +109,9 @@
     if (!file || !PH()) return;
     try {
       const e = await encode(file);
-      const rec = PH().makeRecord({ date: today(), pose, w: e.w, h: e.h, bytes: e.blob.size, blob: e.blob });
+      const uid = acctUid();
+      if (uid && lastUid() !== uid) { toast('Still switching accounts - try again in a moment'); return; }
+      const rec = PH().makeRecord({ date: today(), pose, owner: uid, w: e.w, h: e.h, bytes: e.blob.size, blob: e.blob });
       if (!rec) throw new Error('bad record');
       await putPhoto(rec);
       const drop = PH().prune(await allPhotos());
@@ -133,6 +138,10 @@
     urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
     let photos = [];
     try { photos = await allPhotos(); } catch (_) { body.textContent = 'Photos are not available in this browser.'; return; }
+    const vis = PH().visible(photos, acctUid(), lastUid());
+    vis.claim.forEach((p) => { putPhoto(Object.assign({}, p, { owner: acctUid() })).catch(() => {}); });   // legacy rows join this account
+    photos = vis.show;
+    if (!photos.length && vis.hidden) { body.textContent = 'Photos on this phone belong to another account.'; return; }
     const mine = photos.filter((p) => p.pose === pose).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     if (!mine.length) { body.textContent = 'No ' + pose + ' photos yet.'; return; }
     const img = (p, cls) => { const u = URL.createObjectURL(p.blob); urls.push(u); return '<img class="' + cls + '" src="' + u + '" alt="' + esc(pose) + ' photo from ' + esc(p.date) + '" loading="lazy">'; };
@@ -169,6 +178,8 @@
       armed = null; delPhoto(id).then(refreshPhotos, refreshPhotos);
     }
   });
+  // ds-firebase-sync learned who is signed in (or settled the account switch): re-check what may be shown.
+  window.addEventListener('nbd-ds-account', () => { refreshPhotos(); });
   document.addEventListener('change', (ev) => {
     const f = ev.target;
     if (f && f.id === 'phFile' && f.files && f.files[0]) { const file = f.files[0]; f.value = ''; addPhoto(file); }

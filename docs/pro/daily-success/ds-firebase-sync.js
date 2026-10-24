@@ -51,6 +51,12 @@ const SETTINGS = [
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 
 let _uid = null, _syncTimer = null, _badge = null;
+// Who is signed in, for the progress-photo gate (js/measurements-ui.js). Separate from _uid so it can say "nobody".
+let _acct = null;
+window.NBDDsAuth = { uid: () => _acct };
+const announceAccount = () => { try { window.dispatchEvent(new CustomEvent('nbd-ds-account')); } catch (_) { /* best-effort */ } };
+// The account switch could not be purged here: A's body photos must not stay readable for B.
+const dropPhotosDb = () => { try { if (window.indexedDB) window.indexedDB.deleteDatabase('nbd_ds_photos'); } catch (_) { /* best-effort */ } };
 let _pushing = null;              // the in-flight push, so two never overlap
 const _ledger = new Map();        // page id → mt the cloud last held
 const DEBOUNCE = 2000;
@@ -259,8 +265,10 @@ function installInterceptor() {
 injectBadge();
 
 onAuthStateChanged(auth, async user => {
-  if (!user) { showBadge('Offline mode'); return; }
+  if (!user) { _acct = null; announceAccount(); showBadge('Offline mode'); return; }
   _uid = user.uid;
+  _acct = user.uid;
+  announceAccount();
   installInterceptor();
   showBadge('Loading...');
   try {
@@ -274,11 +282,12 @@ onAuthStateChanged(auth, async user => {
     if (L().accountSwitched(lastUid, user.uid)) {
       const canPurge = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
       for (let i = 0; i < 30 && !canPurge(); i++) await new Promise((r) => setTimeout(r, 100));
-      if (!canPurge()) { showBadge('Sync paused'); return; }
-      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { showBadge('Sync paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
+      if (!canPurge()) { dropPhotosDb(); showBadge('Sync paused'); return; }
+      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { dropPhotosDb(); showBadge('Sync paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
       try { if (typeof window.loadPages === 'function') window.loadPages(); } catch (_) { /* the purge already ran; the sync below repopulates */ }
     }
     try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
+    announceAccount();
     const restored = await syncSettings();
     const cloud = await pullFromFirestore();
     if (cloud === null) { showError('Sync error'); return; }
