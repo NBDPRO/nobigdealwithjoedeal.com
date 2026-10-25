@@ -157,12 +157,12 @@ var TIERS = [
 ];
 var BOSS = { maple: 'hoa', oak: 'lawyer', hollow: 'exadjuster', country: 'farmer', lakeview: 'ceo', oldtown: 'historic' };
 var STREETS = [
-  { id: 'maple', name: 'Maple Court', level: 1, ground: '#2d5a2a', yard: '#356b31', sq: [18, 28], hail: 0.75, traffic: 0.8, pool: ['nervous', 'skeptic', 'busy', 'elder', 'diy', 'firstHome', 'renter'], extras: ['nosolicit', 'empty'] },
-  { id: 'oak', name: 'Oak Ridge', level: 3, ground: '#2f5f33', yard: '#3a7238', sq: [28, 40], hail: 0.6, traffic: 1.05, pool: ['threeQuotes', 'skeptic', 'deductible', 'landlord', 'busy', 'realtor', 'neighborPro', 'solar'], extras: ['nosolicit'] },
-  { id: 'hollow', name: 'Storm Hollow', level: 5, ground: '#34502f', yard: '#3d5f36', sq: [22, 34], hail: 0.92, traffic: 1.3, pool: ['nervous', 'deductible', 'threeQuotes', 'landlord', 'diy', 'skeptic', 'veteran', 'caregiver'], extras: ['empty'] },
-  { id: 'country', name: 'Country Road', level: 6, ground: '#4a6b2a', yard: '#5a7a34', sq: [24, 36], hail: 0.7, traffic: 0.6, pool: ['elder', 'diy', 'veteran', 'firstHome', 'caregiver', 'skeptic'], extras: ['empty'] },
+  { id: 'maple', name: 'Maple Court', level: 1, ground: '#2d5a2a', yard: '#356b31', sq: [18, 28], hail: 0.75, traffic: 0.8, pool: ['nervous', 'skeptic', 'busy', 'elder', 'diy', 'firstHome', 'renter', 'newBaby'], extras: ['nosolicit', 'empty'] },
+  { id: 'oak', name: 'Oak Ridge', level: 3, ground: '#2f5f33', yard: '#3a7238', sq: [28, 40], hail: 0.6, traffic: 1.05, pool: ['threeQuotes', 'skeptic', 'deductible', 'landlord', 'busy', 'realtor', 'neighborPro', 'solar', 'flipper'], extras: ['nosolicit'] },
+  { id: 'hollow', name: 'Storm Hollow', level: 5, ground: '#34502f', yard: '#3d5f36', sq: [22, 34], hail: 0.92, traffic: 1.3, pool: ['nervous', 'deductible', 'threeQuotes', 'landlord', 'diy', 'skeptic', 'veteran', 'caregiver', 'claimDenied'], extras: ['empty'] },
+  { id: 'country', name: 'Country Road', level: 6, ground: '#4a6b2a', yard: '#5a7a34', sq: [24, 36], hail: 0.7, traffic: 0.6, pool: ['elder', 'diy', 'veteran', 'firstHome', 'caregiver', 'skeptic', 'retiredCop', 'claimDenied'], extras: ['empty'] },
   { id: 'lakeview', name: 'Lakeview Estates', level: 8, ground: '#2f6a4a', yard: '#3a7a54', sq: [40, 58], hail: 0.65, traffic: 1.0, pool: ['neighborPro', 'realtor', 'solar', 'threeQuotes', 'busy', 'skeptic'], extras: ['nightShift'] },
-  { id: 'oldtown', name: 'Old Town', level: 10, ground: '#3c4f33', yard: '#4a5e3c', sq: [20, 30], hail: 0.8, traffic: 1.45, walls: ['#b5543c', '#9e4a36', '#c26a4a', '#a85a44', '#8f4632'], pool: ['elder', 'renter', 'landlord', 'caregiver', 'veteran', 'realtor'], extras: ['nightShift', 'nosolicit'] },
+  { id: 'oldtown', name: 'Old Town', level: 10, ground: '#3c4f33', yard: '#4a5e3c', sq: [20, 30], hail: 0.8, traffic: 1.45, walls: ['#b5543c', '#9e4a36', '#c26a4a', '#a85a44', '#8f4632'], pool: ['elder', 'renter', 'landlord', 'caregiver', 'veteran', 'realtor', 'retiredCop', 'flipper'], extras: ['nightShift', 'nosolicit'] },
 ];
 var NAMES = ['Linda', 'Mike', 'Tasha', 'Earl', 'Rosa', 'Dwayne', 'Priya', 'Gus', 'Carol', 'Marcus', 'Beth', 'Hank', 'Mei', 'Otis', 'Jada', 'Walt', 'Nora', 'Ray', 'Tina', 'Cal', 'Deb', 'Luis', 'Ada', 'Bo'];
 var WALLS = ['#c9b79c', '#a9b7c6', '#d6c6a8', '#b8c9a9', '#e0cfa8', '#c4b5c9', '#d9b8a5', '#b5c4c9'];
@@ -174,6 +174,7 @@ var PERSONA = {
   nosolicit: { want: 'better', mood: 'frown' }, empty: { want: 'better' },
   renter: { want: 'good' }, realtor: { want: 'good' }, firstHome: { want: 'good' }, nightShift: { want: 'better' },
   veteran: { want: 'best' }, neighborPro: { want: 'better', mood: 'frown' }, caregiver: { want: 'good', elder: true }, solar: { want: 'better' },
+  claimDenied: { want: 'better', mood: 'frown' }, retiredCop: { want: 'better', mood: 'frown' }, flipper: { want: 'good' }, newBaby: { want: 'better' },
   farmer: { want: 'good', boss: true, tag: 'farmer', look: { skin: 3, hair: 'short', hairColor: 5, eyes: 'happy', hat: 'cap', hatColor: 3, beard: 'full', shirt: 1, vest: 'none', pants: 1, tool: 'none', extra: 'none' } },
   ceo: { want: 'best', boss: true, mood: 'frown', tag: 'CEO', look: { skin: 2, hair: 'ponytail', hairColor: 0, eyes: 'round', hat: 'none', hatColor: 0, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades' } },
   historic: { want: 'best', boss: true, tag: 'Historic Commission chair', look: { skin: 0, hair: 'short', hairColor: 5, eyes: 'sleepy', hat: 'none', hatColor: 0, beard: 'mustache', shirt: 3, vest: 'none', pants: 1, tool: 'none', extra: 'glasses' } },
@@ -445,6 +446,66 @@ var TREES = {
       { say: "Knock anyway. Storm damage is important.", go: 'mad', trust: -30 },
     ] },
     mad: { text: "Can you not read? Off my porch.", choices: [{ say: "Sorry about that.", end: 'lose', tip: { bad: true, text: "Knocking past a No Soliciting sign costs you the house and your reputation on the street." } }] },
+  },
+  claimDenied: {
+    start: { text: "Don't bother. Insurance already denied my roof last year. Said it was 'wear and tear'.", choices: [
+      { say: "That happens a lot with a bad first inspection. A denial isn't final: you can ask for a re-inspection with photos of real hail hits. Want me to look and show you exactly what I find?", go: 'again', trust: 15, tip: { good: true, text: 'A denial is a bad first look, not a verdict. The homeowner asks for the re-inspection.' } },
+      { say: "I know a guy at the carrier. I'll get it pushed through for you.", end: 'lose', dirty: true, tip: { bad: true, text: "You don't 'push claims through'. Only the policyholder works the claim, and a public adjuster if they hire one. That line is the one that gets reps sued." } },
+      { say: "Sorry to hear that. Here's my card in case something changes.", end: 'later' },
+    ] },
+    again: { text: "And what if they deny it again? I'm not paying for a roof I can't afford.", choices: [
+      { say: "Then you'll know for sure, and I'll tell you honestly what it needs and what it can wait on. No roof gets sold here that your photos don't justify.", go: 'yes', trust: 15 },
+      { say: "If they deny it, I'll find a way to make the numbers work on the claim.", end: 'lose', dirty: true, tip: { bad: true, text: '"Make the numbers work" on a claim is fraud, out loud.' } },
+    ] },
+    yes: { text: "Fine. Take your pictures. I want to see every one.", choices: [{ say: "You'll see every one, {n}.", end: 'inspect' }] },
+  },
+  retiredCop: {
+    start: { text: "Thirty years on the force. I've seen every storm scam there is. Let me see some ID and a license.", choices: [
+      { say: "Here's my ID, our city solicitor permit, and the company card with the office address. Call the office while I wait if you like.", go: 'checked', trust: 20, tip: { good: true, text: 'ID, permit, office address. Pros carry all three to the door.' } },
+      { say: "Roofers don't need a license in Kentucky, so there's nothing to show.", go: 'hmm', trust: -15, tip: { text: 'Even where no state license exists, you still carry the city solicitor permit and company ID. Show something.' } },
+      { say: "Have a good one, sir.", end: 'later' },
+    ] },
+    hmm: { text: "Then you'll understand if I don't let a stranger on my roof.", choices: [
+      { say: "Completely. Here's my ID and the office number. If you'd rather, I'll come back with the owner.", go: 'checked', trust: 10 },
+      { say: "Suit yourself.", end: 'lose' },
+    ] },
+    checked: { text: "Alright. And if you find something, what's the play? I'm not signing anything to an insurance company's benefit.", choices: [
+      { say: "You file your own claim, you pay your own deductible, and nobody signs benefits over to anyone. I just document and build.", go: 'yes', trust: 15, tip: { good: true, text: 'The whole Kentucky rulebook in one sentence.' } },
+      { say: "You sign with us and we handle the claim and the adjuster. Easier for you.", end: 'lose', dirty: true, tip: { bad: true, text: 'An assignment of benefits. He had the cuffs out before you finished the sentence.' } },
+    ] },
+    yes: { text: "Go on up. I'll be watching.", choices: [{ say: "Wouldn't expect anything less.", end: 'inspect' }] },
+  },
+  flipper: {
+    start: { text: "I flip these. I need the cheapest roof that passes inspection, and I need it this week.", choices: [
+      { say: "The Good option is a full system that passes every time: proper underlayment, drip edge, ice-and-water where code says. Cheaper than that is a tear-off twice.", go: 'cost', trust: 10, tip: { good: true, text: 'Cheapest that passes is still a full system. Say what Good includes.' } },
+      { say: "We can do an overlay right on top of the old shingles. Fast and cheap.", go: 'layers', trust: -10 },
+      { say: "We can skip the permit to save you time.", end: 'lose', dirty: true, tip: { bad: true, text: "No permit means no inspection, which is what the flipper's buyer will ask for first. And it's the trap." } },
+    ] },
+    layers: { text: "An overlay? My buyer's inspector flags second layers every time.", choices: [
+      { say: "You're right, and a second layer hides the decking. Tear-off with the Good system is the real cheapest.", go: 'cost', trust: 10 },
+      { say: "Nobody checks for layers.", end: 'lose', tip: { bad: true, text: 'They do. Second layers are called out on nearly every home inspection.' } },
+    ] },
+    cost: { text: "Fine. Schedule and price, today. Can you do that?", choices: [
+      { say: "I'll measure now and price it on the spot. Build day depends on the crew board; I'll be straight with you about that.", go: 'yes', trust: 10 },
+      { say: "Pay half in cash today and I'll put you first.", end: 'lose', dirty: true, tip: { bad: true, text: 'Cash at the door. The flipper has heard that one from the chasers already.' } },
+    ] },
+    yes: { text: "Go measure. Clock's running.", choices: [{ say: "On it.", end: 'inspect' }] },
+  },
+  newBaby: {
+    start: { text: "(whispering) Baby just went down. Can this be quick?", choices: [
+      { say: "(whispering) Absolutely. I'm checking roofs after the hail. Want me to take a quiet look and leave the photos in your mailbox? No knocking.", go: 'quiet', trust: 15, tip: { good: true, text: 'Match the moment. Quiet, short, zero pressure.' } },
+      { say: "This only takes twenty minutes, I promise. Hail damage can't wait.", go: 'ugh', trust: -15 },
+      { say: "(whispering) Of course. I'll come back another time.", end: 'later', trust: 5 },
+    ] },
+    ugh: { text: "You woke him up. Great.", choices: [
+      { say: "I'm sorry. I'll leave my card and go.", end: 'later' },
+      { say: "Well, while you're up...", end: 'lose', tip: { bad: true, text: 'Read the room. There was no sale here today, only a reputation.' } },
+    ] },
+    quiet: { text: "(whispering) If you're quiet. And no nail guns if we do this, not before nine.", choices: [
+      { say: "(whispering) Noted for the crew: no start before nine, and I'll text you the day before.", go: 'yes', trust: 10 },
+      { say: "(whispering) Crews start at seven. That's just roofing.", go: 'yes', trust: -5, tip: { text: 'True, but a start time is negotiable. Offer it.' } },
+    ] },
+    yes: { text: "(whispering) Okay. Go.", choices: [{ say: "(whispering) Thanks, {n}.", end: 'inspect' }] },
   },
 };
 

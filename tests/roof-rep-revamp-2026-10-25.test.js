@@ -97,5 +97,19 @@ console.log('\n5. wiring');
   ok('the source-of-truth note moved to the repo', /Source of truth: THIS FILE/.test(SRC) && !/generated from it/.test(SRC));
 }
 
+console.log('\n6. four homeowners from the playbook');
+{
+  const who = ['claimDenied', 'retiredCop', 'flipper', 'newBaby'];
+  ok('each has a persona entry and a talk tree with a start node', who.every((p) => new RegExp(p + ': \\{ want:').test(SRC) && new RegExp('^  ' + p + ': \\{\\n    start: \\{', 'm').test(SRC)));
+  ok('each is in at least one street pool', who.every((p) => new RegExp("pool: \\[[^\\]]*'" + p + "'").test(SRC)));
+  const tree = (p) => { const at = SRC.indexOf('\n  ' + p + ': {\n    start:'); return SRC.slice(at, SRC.indexOf('\n  },', at)); };
+  const dirtyLines = (p) => (tree(p).match(/\{ say: "[^"]+", end: 'lose', dirty: true/g) || []).length;
+  ok('the denied-claim door: "push it through" and "make the numbers work" are dirty and lose', dirtyLines('claimDenied') === 2 && /push(ed)? (it )?through/.test(tree('claimDenied')));
+  ok('the retired cop: the assignment-of-benefits line is dirty and loses; showing ID is the best line', dirtyLines('retiredCop') === 1 && /trust: 20/.test(tree('retiredCop')));
+  ok('the flipper: skipping the permit and cash at the door are dirty and lose; the overlay is only weak', dirtyLines('flipper') === 2 && /overlay/i.test(tree('flipper')));
+  ok('the new parent: no trap, just read the room', dirtyLines('newBaby') === 0 && /whispering/.test(tree('newBaby')));
+  ok('every tree ends at the inspection', who.every((p) => /end: 'inspect'/.test(tree(p))));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
