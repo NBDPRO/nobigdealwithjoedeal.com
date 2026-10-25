@@ -301,7 +301,7 @@ bar.innerHTML=NBDArcadeUI.html({floors:fl3.map(f=>({id:f.id,label:f.label,met:pd
 // Journal layout (data-ui="journal"): a paper page with an intention and a note; both are page fields (data-k), so they save
 // with the page. Read what is typed back before re-rendering, or a floor toggle would wipe it (journal-ui.js).
 if(journal&&window.NBDJournalUI&&p){p.data=p.data||{};bar.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
-bar.innerHTML=NBDJournalUI.html({dk:p.dk,isToday:isToday(p.dk),intention:p.data['journal-intention']||'',note:p.data['journal-note']||'',floorsMet:hit,floorsTotal:total,workout:s.workout});return;}
+bar.innerHTML=NBDJournalUI.html({dk:p.dk,isToday:isToday(p.dk),intention:p.data['journal-intention']||'',note:p.data['journal-note']||'',floorsMet:hit,floorsTotal:total,workout:s.workout,recent:NBDJournalUI.recentIntentions(pages,p.dk,5)});return;}
 // One Thing layout (data-ui="onething"): one big "do this next" card (onething-ui.js / onething-logic.js).
 if(onething&&window.NBDOneThingUI){const fl2=getFloors(),pd2=(p&&p.data)||{};
 bar.innerHTML=NBDOneThingUI.html({floors:fl2.map(f=>({id:f.id,label:f.label,met:pd2['floormet-'+f.id]==='1'})),workout:s.workout,dk:p&&p.dk,today:todayKey()});return;}

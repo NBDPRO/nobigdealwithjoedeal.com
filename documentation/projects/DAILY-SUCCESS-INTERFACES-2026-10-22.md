@@ -65,7 +65,8 @@ Each is its own PR, tested and checked at phone width before it is queued. The S
   - Arcade: `arcade-logic.js` (Quest's data as a scoreboard; hi-scores are the best estimated one-rep max per lift, Epley with reps capped at 12, from finished sessions) + `arcade-ui.js` (SCORE / 1UP / COMBO / TODAY in zero-padded mono digits, a stepped level bar, missions that reuse `toggle-floor`, hi-scores; scanlines in CSS; sound and haptics stay off); `tests/ds-layout-arcade-2026-10-25.test.js`.
 - The gate from the constraints list is in CI: `tests/ds-layouts-phone-fit-2026-10-25.test.js` loads the day page in every layout x every theme at 320 px (plus 390 px) in real Chromium and fails on sideways scroll, an empty Today bar, a control under 44 px or a page error (88 renders; the zero-network Chromium job).
 - Quest's skill tree (10-25, later the same day): a folded <details> under the board; every lift ever logged is a node (one finished session unlocks it, five master it), library lifts never logged show locked (four at most). `skillTree()` in `quest-logic.js`.
-- Next: nothing in the lineup. Idea still open: Journal's week view.
+- Journal's week view (10-25, later): a folded "Past intentions" list under the note, the last five dated pages that carry one, newest first (`recentIntentions()` in `journal-ui.js`).
+- Next: nothing in the lineup.
 
 ## Decisions (Jo, 2026-10-22)
 

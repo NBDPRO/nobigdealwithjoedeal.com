@@ -36,6 +36,11 @@ console.log('\n1. the page');
   ok('typed text is escaped in the value and the textarea', !/<img src=x/.test(evil) && !/<script>/.test(evil) && /&lt;img/.test(evil) && /&lt;\/textarea&gt;/.test(evil));
   ok('no inline style attribute', !/style="/.test(h));
   ok('no input at all does not throw', /jn-page/.test(J.html()) && /jn-page/.test(J.html(null)));
+  const pages = [{ dk: '2026-10-25', data: { 'journal-intention': 'today' } }, { dk: '2026-10-23', data: { 'journal-intention': 'Call three leads' } }, { dk: '2026-10-24', data: { 'journal-intention': 'Rest' } }, { dk: '2026-10-22', data: {} }, { dk: 'bad', data: { 'journal-intention': 'x' } }];
+  const r = J.recentIntentions(pages, '2026-10-25', 5);
+  ok('past intentions: other dated pages that carry one, newest first', r.map((x) => x.dk).join() === '2026-10-24,2026-10-23' && r[0].intention === 'Rest');
+  ok('the week view is a folded <details> that lists them with short dates, and is absent with none', /<details class="jn-week"><summary>Past intentions<\/summary><ul class="jn-past"><li><span class="jn-past-d">Sat, Oct 24<\/span><span class="jn-past-t">Rest<\/span><\/li>/.test(J.html({ dk: '2026-10-25', recent: r })) && !/jn-week/.test(J.html({ dk: '2026-10-25', recent: [] })));
+  ok('past intentions are escaped', /&lt;b&gt;/.test(J.html({ dk: '2026-10-25', recent: [{ dk: '2026-10-24', intention: '<b>x</b>' }] })));
 }
 
 console.log('\n2. wiring');
@@ -43,7 +48,7 @@ console.log('\n2. wiring');
   ok('Journal is ready to pick; Classic still the default', L.byId('journal').ready === true && L.DEFAULT === 'classic' && L.normLayout('journal') === 'journal');
   ok('updateTodayBar renders the page only in the Journal layout and toggles the class', /journal=ui==='journal'/.test(APP) && /bar\.classList\.toggle\('today-journal',journal\)/.test(APP) && /if\(journal&&window\.NBDJournalUI&&p\)/.test(APP));
   ok('it reads the live field values back into the page before re-rendering (a floor toggle never wipes typing)', /bar\.querySelectorAll\('\[data-k\]'\)\.forEach\(el=>\{p\.data\[el\.dataset\.k\]=el\.value\|\|'';\}\);/.test(APP));
-  ok('it hands the page the date, today flag, both fields, the floors and the workout', /NBDJournalUI\.html\(\{dk:p\.dk,isToday:isToday\(p\.dk\),intention:p\.data\['journal-intention'\]\|\|'',note:p\.data\['journal-note'\]\|\|'',floorsMet:hit,floorsTotal:total,workout:s\.workout\}\)/.test(APP));
+  ok('it hands the page the date, today flag, both fields, the floors, the workout and the past intentions', /NBDJournalUI\.html\(\{dk:p\.dk,isToday:isToday\(p\.dk\),intention:p\.data\['journal-intention'\]\|\|'',note:p\.data\['journal-note'\]\|\|'',floorsMet:hit,floorsTotal:total,workout:s\.workout,recent:NBDJournalUI\.recentIntentions\(pages,p\.dk,5\)\}\)/.test(APP));
   ok('collectPage saves every data-k field on the page (so the journal fields ride the page save)', /document\.querySelectorAll\('\[data-k\]'\)\.forEach\(el=>\{p\.data\[el\.dataset\.k\]=el\.value\|\|'';\}\);/.test(APP));
   ok('journal-ui loads deferred', /<script src="\/pro\/daily-success\/js\/journal-ui\.js\?v=\d+" defer><\/script>/.test(INDEX));
   const jn = CSS.slice(CSS.indexOf('Journal:'), CSS.indexOf('One Thing:'));

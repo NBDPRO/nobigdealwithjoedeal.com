@@ -55,6 +55,13 @@
 [data-ui="journal"] .jn-in:focus-visible, [data-ui="journal"] .jn-note:focus-visible { outline: 2px solid #a14a22; outline-offset: 2px; }
 [data-ui="journal"] .jn-status { margin-top: 12px; font-size: 15px; color: #4b5563; }
 [data-ui="journal"] .jn-status.trained { color: #166534; }
+[data-ui="journal"] .jn-week { margin-top: 12px; border-top: 1px solid #e3dccb; padding-top: 4px; }
+[data-ui="journal"] .jn-week summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; list-style: none; }
+[data-ui="journal"] .jn-week summary::-webkit-details-marker { display: none; }
+[data-ui="journal"] .jn-past { margin: 0; padding: 0 0 4px; list-style: none; }
+[data-ui="journal"] .jn-past li { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; font-size: 15px; }
+[data-ui="journal"] .jn-past-d { flex: none; width: 92px; font-style: italic; color: #6b7280; font-size: 13px; }
+[data-ui="journal"] .jn-past-t { flex: 1; min-width: 0; }
 [data-ui="journal"] .jn-link { display: inline-block; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: #a14a22; font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; }
 
 /* ── One Thing: the Today bar as one big "do this next" card. Static; one title, one button, one "not now". ── */
