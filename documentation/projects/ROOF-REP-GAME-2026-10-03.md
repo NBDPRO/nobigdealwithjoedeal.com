@@ -297,3 +297,12 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   the ghost line adds "+N XP since you last looked." `game-card.js` v6. Checked on the sample account through the demo's
   namespaced storage: a refresh after lowering the remembered value cheers and says "+85 XP since you last looked.";
   the next refresh is quiet. Guard grows to 114.
+- **Wave 24, animation principles.** The face turns with the look: the features slide across the head toward where
+  the eyes point, the ear on that side tucks behind and the other comes forward, the front hair follows a little, so a
+  frontal head reads as a three-quarter one whenever a character looks aside (a knock, a glance, the pointer). The
+  walk looks ahead and the cap lifts on each footfall; the cheer squashes with the feet on the ground and stretches at
+  the top of the jump; hoodie strings swing with the hair. A facing change turns instead of mirroring in a frame:
+  `tween(state, pose, now, ms, facing)` eases the body from one side to the other over 180 ms (`TURN_MS`), the body
+  squeezing toward edge-on while the head stays round (counter-scaled) and the features slide round it; every loop and
+  the street's keyed characters (the rep, the rival, the doorway, the crew) get it, and `draw` takes any facing in
+  -1..1 for callers that turn by hand. `chibi.js` v12. Guard grows to 121.

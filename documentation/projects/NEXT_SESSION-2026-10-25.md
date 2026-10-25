@@ -34,8 +34,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   the speech sheet as trust moves, a walk that fits the build, the rival's smirk. Wave 19: the leaderboard faces arrive one after another; the sheet's dog
   barks. Wave 20: speech varies the mouth and brows; the HUD face mirrors the street rep. Wave 21: a
   frowning idle sighs and shakes its head, a happy one rocks. Wave 22: the sample account's leaderboards show the
-  owner's face (seed v8). Wave 23: the game card cheers for XP earned since the last look. Guard
-  `tests/chibi-2026-10-25.test.js` (114).
+  owner's face (seed v8). Wave 23: the game card cheers for XP earned since the last look. Wave 24: the face turns
+  with the look (a three-quarter head), the walk looks ahead with a loose cap, the cheer squashes and stretches, hoodie
+  strings swing, and a facing change turns over 180 ms (the head stays round) instead of mirroring in a frame. Guard
+  `tests/chibi-2026-10-25.test.js` (121).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the

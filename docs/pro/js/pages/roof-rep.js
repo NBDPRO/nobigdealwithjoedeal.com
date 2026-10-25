@@ -167,8 +167,8 @@ function seasonLook(look, h) {
   return Object.keys(d).length ? Object.assign({}, look, d) : look;
 }
 function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
-  var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
+  var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t, null, facing) : null; // wave 24: a keyed character turns instead of flipping
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: tw && tw.facing != null ? tw.facing : facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 // wave 18: intro { pose, ms } opens with that pose (the sheet's homeowner folds their arms or nods) before p takes over
