@@ -179,7 +179,9 @@ function runScript(opts) {
 }
 
 // ── 4 + 5. media bytes ─────────────────────────────────────────────────────
-const ALLOWED_TAGS = new Set(['encoder', 'duration', 'language', 'handler_name', 'major_brand', 'minor_version', 'compatible_brands']);
+// vendor_id is the sample entry's four-byte vendor field ([0][0][0][0] on every hero file), which ffprobe 6.1 reports as a
+// stream tag; the mp4 muxer writes it, it names no person, place or device (2026-10-25).
+const ALLOWED_TAGS = new Set(['encoder', 'duration', 'language', 'handler_name', 'major_brand', 'minor_version', 'compatible_brands', 'vendor_id']);
 
 function mp4Problems(buf) {
   const out = [];
