@@ -1,6 +1,6 @@
 import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
-import { getFirestore, collection, collectionGroup, getDocs, query, where } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, collectionGroup, getDocs, query, where, doc, getDoc } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 
 const firebaseConfig = {
@@ -31,6 +31,7 @@ const WON_STAGES = ['closed','install_complete','final_photos','final_payment','
 let currentTab = 'doors';
 let currentPeriod = 'all';
 let currentUser = null;
+let myAvatar = null; // userSettings/{uid}.game.avatar: the Home game card's look, drawn as the chibi on this rep's row (wave 10)
 let rawData = { leads: [], knocks: [], invoices: [], jobsByLead: {} };
 
 // ── Helpers ──
@@ -322,9 +323,10 @@ function renderBoard(reps) {
         ? fmtCurrency(entry.revenue) + ' revenue · ' + entry.rate + '% close rate'
         : entry.deals + ' deals · ' + entry.knocks + ' doors knocked';
 
+    const mine = currentUser && entry.uid === currentUser.uid && myAvatar && window.NBDChibi;
     return '<div class="lb-row ' + rankClass + '">' +
       '<div class="rank">' + rankIcon + '</div>' +
-      '<div class="avatar">' + esc(initials(name)) + '</div>' +
+      (mine ? '<div class="avatar"><canvas data-lb-chibi width="76" height="76" role="img" aria-label="' + esc(name) + '"></canvas></div>' : '<div class="avatar">' + esc(initials(name)) + '</div>') +
       '<div class="lb-info">' +
         '<div class="lb-name">' + esc(name) + '</div>' +
         '<div class="lb-sub">' + sub + '</div>' +
@@ -337,6 +339,10 @@ function renderBoard(reps) {
   }).join('');
 
   board.innerHTML = rows;
+  // The chibi waves every 14 s like the Home game card; one loop per draw (animate() replaces the previous one).
+  board.querySelectorAll('canvas[data-lb-chibi]').forEach((cv) => {
+    window.NBDChibi.animate(cv, window.NBDChibi.normalize(myAvatar), function (t) { return { pose: t % 14000 < 1600 ? 'wave' : 'idle', crop: 'bust' }; });
+  });
 }
 
 function renderFeed(metrics) {
@@ -404,6 +410,9 @@ onAuthStateChanged(auth, user => {
   if (user) {
     document.getElementById('auth-wall').style.display = 'none';
     document.getElementById('board').style.display = 'block';
+    // Owner-only read; a miss or a rep without a game card keeps the initials.
+    const uid = user.uid;
+    getDoc(doc(db, 'userSettings', uid)).then((s) => { myAvatar = (s.exists() && s.data().game && s.data().game.avatar) || null; if (myAvatar) renderAll(); }).catch(() => { myAvatar = null; });
     loadData();
   } else {
     document.getElementById('board').style.display = 'none';

@@ -205,3 +205,10 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   each cycle: a weight shift onto one foot, hands on the hips with a head tilt, a stretch with a yawn (eyes shut,
   mouth open). Each eases in and out. A chibi's arms cannot reach its hat, so there is no hat tip.
 - Versions: `chibi.js?v=9`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 75 checks.
+
+### Wave 10 (same day, seventh PR): the leaderboard page
+
+- `/pro/leaderboard` drew a gradient circle with the rep's initials. It now loads `chibi.js` and reads the rep's own
+  `userSettings/{uid}.game.avatar` (the Home game card's look; owner-only read), and the rep's row shows that avatar
+  as a bust-crop chibi that waves every 14 s like the game card. A rep without a game card, or a failed read, keeps
+  the initials. `leaderboard.js?v=4`; the pin rides the chibi guard (76).
