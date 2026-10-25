@@ -992,17 +992,26 @@ function drawHouse(h, st) {
   if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
-function drawDog(c, x, y, t) {
-  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline.
-  var wag = Math.sin(t / 110) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+function drawDog(c, x, y, t, bark) {
+  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline. Wave 19:
+  // barking (the sheet's "big dog") hops on a 480 ms beat, the mouth opens and the ear flips on the hop, with a small
+  // "WOOF" burst; the tail wags faster. t = 0 draws it still.
+  var hop = bark && t ? Math.max(0, Math.sin(t / 480 * Math.PI * 2)) : 0, open = bark && t ? (Math.sin(t / 480 * Math.PI * 2) > 0.3 ? 1 : 0) : 0;
+  var wag = Math.sin(t / (bark ? 70 : 110)) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+  y -= hop * 1.6;
   var blob = function (fill) { c.fillStyle = fill; c.fill(); };
   c.lineWidth = 1.4; c.strokeStyle = ink; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(x + 1, y + 1.5); c.quadraticCurveTo(x - 3 + wag, y - 2, x - 2.5 + wag, y - 4.5); c.stroke(); // tail
   c.beginPath(); c.ellipse(x + 4.5, y + 2, 5, 2.8, 0, 0, 6.3); c.stroke(); blob(fur); // body
-  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
-  c.beginPath(); c.arc(x + 9.5, y - 0.5, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
-  c.beginPath(); c.ellipse(x + 7.6, y - 1.6, 1.3, 2, 0.5, 0, 6.3); c.stroke(); blob(furD); // ear
-  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4, 0.9, 0.9); c.fillRect(x + 12, y - 0.2, 1, 1); // eye, nose
+  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5 + hop * 1.6); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
+  c.beginPath(); c.arc(x + 9.5, y - 0.5 - hop * 0.6, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
+  c.beginPath(); c.ellipse(x + 7.6, y - 1.6 - hop * 1.2, 1.3, 2, 0.5 - hop * 0.9, 0, 6.3); c.stroke(); blob(furD); // ear (flips up on the hop)
+  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4 - hop * 0.6, 0.9, 0.9); c.fillRect(x + 12, y - 0.2 - hop * 0.6, 1, 1); // eye, nose
+  if (open) { // the open mouth: a dark wedge under the nose with a tongue, and the bark
+    c.fillStyle = ink; c.beginPath(); c.moveTo(x + 10.6, y + 0.9 - hop * 0.6); c.lineTo(x + 12.6, y + 0.6 - hop * 0.6); c.lineTo(x + 11.8, y + 2.2 - hop * 0.6); c.closePath(); c.fill();
+    c.fillStyle = '#e2707f'; c.fillRect(x + 11.3, y + 1.3 - hop * 0.6, 0.9, 0.7);
+    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '700 2.6px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText('WOOF', x + 13.5, y - 2.5 - hop * 1.5);
+  }
 }
 function drawCar(c, x, y, w, color, dir, bus) {
   // Top-down traffic (vector since 2026-10-25): a rounded body with a roof panel, glass, lights at both ends, four tyres
@@ -1154,7 +1163,7 @@ function faceScene(kind) {
     if (faceCv.width !== w * dpr || faceCv.height !== hh * dpr) { faceCv.width = w * dpr; faceCv.height = hh * dpr; }
     var c = faceCv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); var t = Date.now();
     c.save(); c.translate(w / 2, hh / 2);
-    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t); }
+    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t, true); } // wave 19: it barks
     else if (kind === 'truck') { c.scale(2.4, 2.4); drawTruck(c, -6, -10, 1); }
     else { // a closed door, a knob, a hanger on it
       c.scale(3, 3); c.fillStyle = '#5a2f1c'; c.beginPath(); c.moveTo(-4, -11); c.arcTo(6, -11, 6, 11, 2); c.arcTo(6, 11, -6, 11, 2); c.arcTo(-6, 11, -6, -11, 2); c.arcTo(-6, -11, 6, -11, 2); c.closePath(); c.fill(); c.fillStyle = '#6b3a24'; c.fillRect(-5, -10, 10, 20);

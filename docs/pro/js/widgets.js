@@ -626,7 +626,7 @@ const WIDGETS = [
           <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
           <div class="wg-right"><div class="wg-orange-12">$${(r.rev/1000).toFixed(1)}k</div><div class="wg-tiny">${r.deals} deals</div></div>
         </div>`).join('');
-      if (window.NBDChibi && typeof el.querySelectorAll === 'function') el.querySelectorAll('canvas[data-wg-face]').forEach((cv) => { const look = TN.avatarFor(cv.getAttribute('data-wg-face')); if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust' }; }); });
+      if (window.NBDChibi && typeof el.querySelectorAll === 'function') el.querySelectorAll('canvas[data-wg-face]').forEach((cv, i) => { const look = TN.avatarFor(cv.getAttribute('data-wg-face')); if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust', popDelay: i * 90 }; }); }); // the faces arrive one after another (chibi wave 19)
     }},
 
   // ═══ TOOLS & QUICK ACTIONS ═══

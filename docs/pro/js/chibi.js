@@ -42,7 +42,8 @@
  *          cringe (a hand over the mouth, eyes shut, a slow head shake; the front arm is drawn over the head for it).
  *          Wave 18: cross (arms folded across the chest, brows down, chin up: a homeowner closing off); the walk fits the
  *          body (an elder shuffles, a stocky build sways, a slim one steps quicker); mood 'smug' is a one-sided smirk with
- *          one brow up (the rival).
+ *          one brow up (the rival). Wave 19: per-frame popDelay (ms) holds a loop's canvas blank that long before its
+ *          pop-in, so a list of faces arrives one after another (not under reduced motion).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
  *                                         thumbs · cringe (wave 17) · cross (wave 18)
@@ -521,7 +522,7 @@
   }
   var POP_MS = 360, POKE_MS = 1200;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0;
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0, due = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
     // wave 14: a tap on the canvas gets a wave back, unless the page already answers taps on it (the game card, the
     // locker and the HUD cheer on their own through __chibiTap) or the first frame's options say poke: false
@@ -534,8 +535,11 @@
       if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
       if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
       if (!last || now - last >= 32) {
-        last = now;
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
+        // wave 19: a staggered arrival. The canvas stays blank until its turn, then pops in like any other.
+        if (!due) due = now + (!reduce && o.pop == null && Number(o.popDelay) > 0 ? Number(o.popDelay) : 0);
+        if (now < due) { raf = requestAnimationFrame(frame); return; }
+        last = now;
         if (o.poke === false) canvas.__pokeOff = true;
         if (canvas.__pokeUntil > now && !canvas.__chibiTap && (o.pose == null || o.pose === 'idle')) o.pose = 'wave';
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;

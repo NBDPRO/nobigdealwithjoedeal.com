@@ -274,3 +274,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   beat, more lean), a stocky build sways more on a slightly slower beat, a slim one steps on a quicker one; `draw`
   hands the look's build and elder flag to `poseOf`. Mood `smug` is a one-sided smirk with one brow up (never when
   sad or cheering); Chad from Storm Bros wears it. Guard grows to 105.
+- **Wave 19, a staggered arrival, and the dog barks.** A per-frame `popDelay` (ms) holds a loop's canvas blank that
+  long before its pop-in, so the Dashboard view's Leaderboard and the Team Leaderboard widget bring their faces in one
+  after another down the list, 90 ms apart (`dashboard-api.js` v10, `widgets.js` v20; not under reduced motion,
+  which still draws its one still frame). The speech sheet's "big dog" barks: `drawDog` takes a `bark` flag and hops
+  on a 480 ms beat with the mouth open (a tongue, a small WOOF), the ear flipping up and a faster wag; the street's
+  yard dogs and the reduced-motion frame keep the old drawing. Guard grows to 107.
