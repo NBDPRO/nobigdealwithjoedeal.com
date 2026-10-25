@@ -5529,7 +5529,7 @@ body {
    category chips (30px), Academy's tabs (36px), Reports' period chips (26px). Board cards keep their compact
    !important sizes (the card is the target), and the widget close marks stay square. */
 @media (max-width:600px){
-  .view :is(button, .btn, a.btn, [role="button"], select):not(.k-card *):not(.w-card-remove):not(.kc-arrow):not(.w-mini-btn){ min-height:44px; }
+  .view :is(button, .btn, a.btn, [role="button"], select):not(.k-card *):not(.w-card-remove):not(.kc-arrow){ min-height:44px; }
   .view :is(.deleted-drawer-close, .w-card-remove){ min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
   /* The 24px desktop floor above names these by id; on a phone the 44px floor wins. */
   #view-money .btn, #view-crm .btn-sm:not(.k-card *){ min-height:44px; }
