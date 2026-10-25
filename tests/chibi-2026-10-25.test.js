@@ -296,11 +296,14 @@ ok('wave 25: dust rises from the feet as a cheer lands (strongest at contact, go
 ok('wave 25: the dust is drawn as four puffs (two a side) on the ground, and nothing when there is none', (() => { const fills = (t) => { const m = makeCtx(); CH.draw(m.ctx, {}, { h: 120, t, pose: 'cheer', blink: false }); return m.log.fills; }; return fills(20) === fills(267) + 4 && /118 \+ p\.jump - dk \* 4/.test(read('docs/pro/js/chibi.js')); })());
 ok('wave 25: the ground shadow spreads with the body\'s squash (its x radius follows sx)', /22 \* s \* \(1 - p\.jump \/ 40\) \* popX \* p\.sx, 5 \* s \* popX/.test(read('docs/pro/js/chibi.js')));
 ok('wave 25: a loop whose canvas sits below (or above) the viewport paints nothing and polls twice a second; once scrolled into view it paints, popping in from its first frame; a canvas partly in view paints; a window with no innerHeight never rests', (() => {
+  const realNow = Date.now; Date.now = () => 1700000001000; // frozen: the two first frames compared below must share one instant (the idle breath moves sy every ms)
+  try {
   const mk = (top, innerHeight) => { const L = load({ innerHeight }); const cv = fakeCanvas(64, 64); cv.getBoundingClientRect = () => ({ width: 64, height: 64, top, bottom: top + 64, left: 0 }); L.CH.animate(cv, {}, () => ({ pose: 'idle', blink: false, seed: 0 })); return { L, cv }; };
   const below = mk(900, 500), above = mk(-200, 500), partly = mk(480, 500), stub = mk(900, undefined), inView = mk(100, 500);
   const rested = below.cv._log.fills === 0 && below.L.timers.length === 1 && below.L.timers[0][1] === 500 && above.cv._log.fills === 0 && above.L.timers.length === 1;
   below.cv.getBoundingClientRect = () => ({ width: 64, height: 64, top: 100, bottom: 164, left: 0 }); below.L.timers[0][0]();
   return rested && below.cv._log.fills > 0 && below.cv._log.scale[0][1] === inView.cv._log.scale[0][1] && partly.cv._log.fills > 0 && stub.cv._log.fills > 0 && stub.L.timers.length === 0;
+  } finally { Date.now = realNow; }
 })());
 
 async function wave11() {
