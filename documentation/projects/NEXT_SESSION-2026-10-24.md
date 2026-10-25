@@ -50,7 +50,7 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
       `ensure-nav-responsive-css.js` keeps a canonical body that must change with the stylesheet.
   - **Daily Success notebook** (Jo, 10-25, same PR): the tab row is Dash · Today · open page · Notebook (n) · +; every page files by month in a drawer. Note: [DAILY-SUCCESS-NOTEBOOK-2026-10-25](DAILY-SUCCESS-NOTEBOOK-2026-10-25.md).
   - **Roof Rep revamp** (Jo, 10-25, same PR): NBD look, phone play layout, game feel, objection duels, quest board, Storm Run, seasons, crew ranks and duels. The repo file is the source now. Update section in [ROOF-REP-GAME-2026-10-03](ROOF-REP-GAME-2026-10-03.md).
-  - **Daily Success Cockpit, Quest and One Thing layouts** (10-25, same PR): three more layouts are ready to pick; see the status line in [DAILY-SUCCESS-INTERFACES-2026-10-22](DAILY-SUCCESS-INTERFACES-2026-10-22.md).
+  - **Daily Success Cockpit, Quest, One Thing and Journal layouts** (10-25, same PR): four more layouts are ready to pick (only Arcade is left); see the status line in [DAILY-SUCCESS-INTERFACES-2026-10-22](DAILY-SUCCESS-INTERFACES-2026-10-22.md).
   - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
   accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
@@ -119,4 +119,4 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
    typed measurement text wiped by `renderDash`, blob URLs not revoked.
 5. `@shard2` specs (six named in the CI-minutes note).
-6. Tracker layouts: ~~Cockpit~~ ~~Quest~~ ~~One Thing~~ (shipped 10-25), then Arcade and Journal ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).
+6. Tracker layouts: ~~Cockpit~~ ~~Quest~~ ~~One Thing~~ ~~Journal~~ (shipped 10-25); Arcade is the last ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).

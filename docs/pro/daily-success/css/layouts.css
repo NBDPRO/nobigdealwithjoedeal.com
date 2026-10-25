@@ -12,6 +12,21 @@
 #wg-layouts .ui-picks { padding: 0; }
 #wg-layouts h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
 
+/* ── Journal: the Today bar as a calm paper page. Warm paper in every theme (that is the point of this layout), serif, ruled note. ── */
+[data-ui="journal"] .today-bar.today-journal { position: static; display: block; white-space: normal; padding: 0; background: transparent; border: 0; }
+[data-ui="journal"] .jn-page { background: #f7f3ea; color: #1f2937; border: 1px solid #e3dccb; border-radius: 6px; padding: 18px 18px 16px; font-family: Georgia, 'Times New Roman', serif; box-shadow: 0 1px 0 #e3dccb, 0 8px 24px rgba(0, 0, 0, .18); }
+[data-ui="journal"] .jn-date { font-size: 15px; font-style: italic; color: #4b5563; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+[data-ui="journal"] .jn-today { font-style: normal; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #a14a22; }
+[data-ui="journal"] .jn-field { display: block; margin-top: 14px; }
+[data-ui="journal"] .jn-l { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; font-family: inherit; }
+[data-ui="journal"] .jn-in, [data-ui="journal"] .jn-note { display: block; width: 100%; min-height: 44px; padding: 8px 2px; border: 0; border-bottom: 1px solid #c9bda2; border-radius: 0; background: transparent; color: #1f2937; font: inherit; font-size: 19px; line-height: 1.5; }
+[data-ui="journal"] .jn-note { min-height: 128px; resize: vertical; border-bottom: 0; background-image: repeating-linear-gradient(transparent, transparent 27px, #d8cfb8 27px, #d8cfb8 28px); background-attachment: local; line-height: 28px; padding-top: 0; }
+[data-ui="journal"] .jn-in::placeholder, [data-ui="journal"] .jn-note::placeholder { color: #9ca3af; font-style: italic; }
+[data-ui="journal"] .jn-in:focus-visible, [data-ui="journal"] .jn-note:focus-visible { outline: 2px solid #a14a22; outline-offset: 2px; }
+[data-ui="journal"] .jn-status { margin-top: 12px; font-size: 15px; color: #4b5563; }
+[data-ui="journal"] .jn-status.trained { color: #166534; }
+[data-ui="journal"] .jn-link { display: inline-block; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: #a14a22; font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; }
+
 /* ── One Thing: the Today bar as one big "do this next" card. Static; one title, one button, one "not now". ── */
 [data-ui="onething"] .today-bar.today-onething { position: static; display: block; white-space: normal; padding: 0; background: transparent; border: 0; }
 [data-ui="onething"] .ot-card { background: var(--bar); border: 1px solid var(--rule); border-radius: 16px; padding: 22px 20px 16px; text-align: center; }

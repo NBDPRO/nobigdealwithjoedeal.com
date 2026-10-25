@@ -293,8 +293,12 @@ let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')|
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
 // Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
-const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething';
-if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);}
+const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething',journal=ui==='journal';
+if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);bar.classList.toggle('today-journal',journal);}
+// Journal layout (data-ui="journal"): a paper page with an intention and a note; both are page fields (data-k), so they save
+// with the page. Read what is typed back before re-rendering, or a floor toggle would wipe it (journal-ui.js).
+if(journal&&window.NBDJournalUI&&p){p.data=p.data||{};bar.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
+bar.innerHTML=NBDJournalUI.html({dk:p.dk,isToday:isToday(p.dk),intention:p.data['journal-intention']||'',note:p.data['journal-note']||'',floorsMet:hit,floorsTotal:total,workout:s.workout});return;}
 // One Thing layout (data-ui="onething"): one big "do this next" card (onething-ui.js / onething-logic.js).
 if(onething&&window.NBDOneThingUI){const fl2=getFloors(),pd2=(p&&p.data)||{};
 bar.innerHTML=NBDOneThingUI.html({floors:fl2.map(f=>({id:f.id,label:f.label,met:pd2['floormet-'+f.id]==='1'})),workout:s.workout,dk:p&&p.dk,today:todayKey()});return;}

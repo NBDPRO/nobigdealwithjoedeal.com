@@ -21,7 +21,7 @@
     { id: 'quest', label: 'Quest', blurb: 'XP, levels and daily quests. Streaks can break; XP never does.', ready: true },
     { id: 'arcade', label: 'Arcade', blurb: 'Retro pixel look: scores, combos, PRs as high scores.', ready: false },
     { id: 'onething', label: 'One Thing', blurb: 'One big card: do this next, nothing else.', ready: true },
-    { id: 'journal', label: 'Journal', blurb: 'A calm paper page for the day.', ready: false },
+    { id: 'journal', label: 'Journal', blurb: 'A calm paper page for the day: an intention, a note.', ready: true },
   ];
 
   const byId = (id) => LAYOUTS.find((l) => l.id === id) || null;

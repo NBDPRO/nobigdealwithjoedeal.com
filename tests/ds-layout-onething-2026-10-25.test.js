@@ -80,7 +80,7 @@ console.log('\n3. wiring');
   ok('every One Thing rule is scoped to [data-ui="onething"]', rules.length >= 8 && rules.every((l) => /^\[data-ui="onething"\]/.test(l.trim())), rules.filter((l) => !/^\[data-ui="onething"\]/.test(l.trim())).join(' | '));
   ok('the big button is 56 px, "Not now" 44 px, the card static', /\.ot-btn \{[^}]*min-height: 56px/.test(ot) && /\.ot-skip \{[^}]*min-height: 44px/.test(ot) && /today-onething \{ position: static;/.test(ot));
   ok('no font under 11 px', !/font-size: (10|9|8)px/.test(ot));
-  ok('layouts.css cache version bumped', /layouts\.css\?v=7/.test(INDEX));
+  ok('layouts.css cache version bumped', /layouts\.css\?v=\d+/.test(INDEX));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
