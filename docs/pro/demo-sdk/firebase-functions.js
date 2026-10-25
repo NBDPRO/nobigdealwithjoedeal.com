@@ -23,7 +23,11 @@ const CANNED = {
   integrationAvailability: () => ({ configured: {}, sample: true }),
   // Live feature flags are an owner/admin readout of the real deploy; the sample has none.
   flagStatus: () => ({ flags: [], groups: [], committedAvailable: false, sample: true }),
-  getGameCard: () => ({ ok: false, sample: true, reason: 'Leaderboards fill in from a real team.' }),
+  // The Home game card (game-card.js). The real callable scores the rep's own
+  // tasks, calls, leads and payments (functions/game-logic.js); the sample
+  // owner's week is fixed here, on the same ladder (50·L·(L+1) XP per level,
+  // the same rule labels), and the card says it is a sample.
+  getGameCard: () => sampleGameCard(),
   // Wave 2: reopening a generated document from the customer's Documents
   // list. The real callable reads the saved HTML out of Storage after an
   // ownership check; here the CRM's own upload is still in this tab's fake
@@ -240,6 +244,32 @@ const WOULD = {
 // second notice on top of the card: nothing to tell the visitor that the
 // screen does not already say.
 const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage', 'trackUsage', 'flagStatus']); // trackUsage / flagStatus: background pings, nothing to tell the visitor
+
+function sampleGameCard() {
+  // Mondays, Eastern-agnostic: the card never shows the dates, the ladder only
+  // needs them to be real week starts.
+  const d = new Date(); const day = (d.getUTCDay() + 6) % 7;
+  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day));
+  const ymd = (t) => t.toISOString().slice(0, 10);
+  const lastMonday = new Date(monday.getTime() - 7 * 86400000);
+  const breakdown = [
+    { kind: 'task', label: 'Follow-ups done', count: 6, xp: 60 },
+    { kind: 'filed', label: 'Calls filed on a customer', count: 3, xp: 30 },
+    { kind: 'handled', label: 'Calls handled', count: 5, xp: 15 },
+    { kind: 'lead', label: 'New leads', count: 2, xp: 20 },
+    { kind: 'review', label: 'Review asks sent', count: 2, xp: 30 },
+    { kind: 'collected', label: 'Money collected', count: 3000, xp: 30 },
+  ];
+  const week = breakdown.reduce((s, b) => s + b.xp, 0); // 185
+  // 1,240 XP all time: level 5 "Installer" (floor 1,000, next 1,500)
+  return {
+    sample: true,
+    totalXp: 1240, level: 5, title: 'Installer', levelFloor: 1000, levelNext: 1500,
+    week: { start: ymd(monday), xp: week }, lastWeek: { start: ymd(lastMonday), xp: 140 },
+    streak: { current: 3, best: 9, activeToday: true },
+    breakdown,
+  };
+}
 
 export function sampleCallableMessage(name) {
   const doing = WOULD[name];

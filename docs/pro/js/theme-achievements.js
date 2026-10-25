@@ -575,7 +575,7 @@
         color: var(--text-primary, #fff);
       }
 
-      .unlock-count {
+      .achievement-panel .unlock-count {
         margin: 0;
         font-size: 14px;
         color: #eab308;
@@ -634,11 +634,11 @@
         color: #9ca3af;
       }
 
-      .progress-container {
+      .achievement-panel .progress-container {
         margin-bottom: 16px;
       }
 
-      .progress-bar {
+      .achievement-panel .progress-bar {
         width: 100%;
         height: 8px;
         background: #4b5563;
@@ -647,13 +647,13 @@
         margin-bottom: 6px;
       }
 
-      .progress-fill {
+      .achievement-panel .progress-fill {
         height: 100%;
         background: #eab308;
         transition: width 0.3s ease;
       }
 
-      .progress-text {
+      .achievement-panel .progress-text {
         font-size: 12px;
         color: #d1d5db;
       }
@@ -664,12 +664,12 @@
         gap: 12px;
       }
 
-      .checkmark {
+      .achievement-panel .checkmark {
         font-size: 20px;
         color: #eab308;
       }
 
-      .try-theme-btn {
+      .achievement-panel .try-theme-btn {
         flex: 1;
         padding: 8px 12px;
         background: #eab308;
@@ -682,7 +682,7 @@
         transition: background 0.2s;
       }
 
-      .try-theme-btn:hover {
+      .achievement-panel .try-theme-btn:hover {
         background: #f5d547;
       }
 
@@ -731,7 +731,9 @@
         transform: translateY(0);
       }
 
-      .toast-content {
+      /* Scoped to the banner (2026-10-25): bare .toast-* rules here dressed every
+         ui.js toast on the dashboard in a 48px pulsing icon and 32px of padding. */
+      .achievement-unlock-toast .toast-content {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -741,16 +743,16 @@
         margin: 0 auto;
       }
 
-      .toast-icon {
+      .achievement-unlock-toast .toast-icon {
         font-size: 48px;
         animation: pulse 1s infinite;
       }
 
-      .toast-text {
+      .achievement-unlock-toast .toast-text {
         flex: 1;
       }
 
-      .toast-label {
+      .achievement-unlock-toast .toast-label {
         font-size: 12px;
         font-weight: 700;
         color: rgba(0, 0, 0, 0.7);
@@ -758,13 +760,13 @@
         margin-bottom: 4px;
       }
 
-      .toast-name {
+      .achievement-unlock-toast .toast-name {
         font-size: 24px;
         font-weight: 700;
         color: rgba(0, 0, 0, 0.9);
       }
 
-      .toast-action-btn {
+      .achievement-unlock-toast .toast-action-btn {
         padding: 12px 24px;
         background: rgba(0, 0, 0, 0.2);
         color: rgba(0, 0, 0, 0.9);
@@ -777,7 +779,7 @@
         white-space: nowrap;
       }
 
-      .toast-action-btn:hover {
+      .achievement-unlock-toast .toast-action-btn:hover {
         background: rgba(0, 0, 0, 0.3);
         transform: scale(1.05);
       }

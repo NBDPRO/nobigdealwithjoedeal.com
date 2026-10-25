@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 6; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week
+const SEED_VERSION = 7; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -104,6 +104,13 @@ function build() {
     uid: UID, email: 'owner@sample-roofing.example', displayName: owner, role: 'company_admin',
     companyId: UID, company: S.company, phone: '(859) 555-0100', calcomUsername: '', calcomEventSlug: 'roof-inspection',
     isSample: true, createdAt: ts(-120)
+  });
+  // The Home game card is opt-in (game-card.js reads userSettings.game); the
+  // sample owner has it on, with an avatar, so a visitor sees the card and the
+  // avatar editor on Home (2026-10-25). The canned getGameCard supplies the week.
+  add('userSettings/' + UID, {
+    game: { enabled: true, avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none' } },
+    isSample: true,
   });
   add('subscriptions/' + UID, { plan: 'growth', status: 'active', isSample: true, currentPeriodEnd: ts(25) });
   add('companies/' + UID, {
