@@ -69,7 +69,17 @@ signature canvases, the 3D roof viewer.
 
 ## Status
 
-- 2026-10-25: the clean-up audit ran as a workflow (twelve finders by dimension, two sceptics per finding,
-  one fixer per part, a critic over the full 576-look matrix); its fixes land on the renderer with guard
-  pins. The prototype panel ran the same evening. Both are logged in the
+- 2026-10-25: the clean-up audit ran as a workflow (twelve finders by dimension, a sceptic per body part over the
+  127 findings, one fixer per part, a critic over the full 576-look matrix); its fixes land on the renderer with guard
+  pins. The prototype panel ran the same evening (six attempts; the art and product judges ranked crisp-chibi >
+  crisp-tall > cel-chibi > paint-tall > cel-tall > paint-chibi and kept the chibi proportions with the head at about
+  38–40 %). A third workflow drew the street dog to the bar (three cel-shaded attempts, two judges, the winner
+  `animation-first` integrated into `roof-rep.js`). All three stalled on the account's session limit after their
+  first phases and were resumed from cache at 22:03 UTC. Both notes that log them: the
   [10-25 handoff](NEXT_SESSION-2026-10-25.md) and the [Roof Rep game note](ROOF-REP-GAME-2026-10-03.md).
+- 2026-10-25, the sprite packs Jo uploaded (Mana Seed base demo, Mana Seed Farmer sample, Craftpix tiny heroes) were
+  measured against this bar and the renderer: the recommendation is to keep the procedural renderer and redraw it
+  pixel-crisp at Mana Seed proportions (route R3 in the handoff), and to use the Mana Seed demo as-is in Pixel World,
+  the one surface where a 29-px four-direction walk is the whole need. The Pixel World lane runs as a fourth workflow
+  (`pw-local`); the Mana Seed sheets are held to the same bar (hair under hat, outfit under hair, nothing through the
+  HP bar or the "!" bubble, feet on the tile) and judged by rendering before they ship.

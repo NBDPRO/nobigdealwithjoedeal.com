@@ -48,7 +48,28 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   dimension, two sceptics per finding, a fixer per part, a critic over the full matrix) and a prototype panel for the
   painted style (six attempts, three judges, a plan and a contact sheet). Jo's open decisions: proportions (chibi
   painted to the bar, or the references' three-and-a-half-head figures), true side and back views, which personas
-  and pickers get hoods, robes, belts, satchels and lanterns.
+  and pickers get hoods, robes, belts, satchels and lanterns. **How the evening went (22:00 UTC):** the finders,
+  the six prototypes and the art and product judges finished; then every agent died on the account's session limit
+  ("resets 8pm UTC"), so the audit's verify/fix/critic, the panel's engineering judge and synthesis, and the dog's
+  integration were resumed from their cached runs at 22:03 UTC (the audit on a restructured script: one sceptic per
+  body part instead of two per finding). Their outcomes are item 0 under "Next lanes" below and in the
+  [style bar note](CHARACTER-STYLE-BAR-2026-10-25.md)'s status section.
+- **Jo's sprite packs (16:00 UTC):** the Mana Seed Character Base demo 2.0, the Mana Seed Farmer free sample and
+  Craftpix's tiny heroes, "free models and designs we can use and base off of … might be easier and cleaner". Measured,
+  not blurbed: 64-px cells, a 14×29 px figure, four drawn directions; the free demo covers 2 of our 16 poses (stand,
+  walk) and the paid Farmer system 9 (four of them front-only); option parity would be ~30 new layers × 32–64 cells
+  each (416–1,920 cells, 6–27 artist days) and loses eye colour, builds, moods, gaze, the turn, speech shapes and
+  cross-fades (waves 12–25). The mapping (poses, options, fit per surface, licence text, three routes with days) is in
+  the session scratchpad (`render/sprites/MAPPING.md`, contact sheet `keymap/sheet-3x.png`); the recommendation given to
+  Jo: **R3**, keep the procedural renderer and redraw it pixel-crisp at Mana Seed proportions (head ≈ 35–38 %, 3–4 tone
+  ramps, 1-px ink, 135 ms walk), plus the one free win: **the Mana Seed demo into Pixel World as-is** (16-px tiles, a
+  two-tile-tall figure, walk in four directions is the whole need, the demo's licence allows commercial use). Jo has not
+  picked a route; the Pixel World swap runs as a lane under any route (Next lanes, item 0).
+- **American Operator's official kit (16:00 UTC, "you can decide"):** PR #2740 (draft): the dark "Locally Owned &
+  Operated / Certified by American Operator" banner replaces the shield-and-text tile in every footer cert bar (287
+  pages: four partials restamped plus 13 hand-edited pages), the orange banner under the About page's credential chips.
+  Verified by an independent agent; blocked only by the two landing visual baselines (mobile, tablet) that the sandbox
+  cannot bless (Needs Jo, item 5).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -129,11 +150,32 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 2. **`@shard2` / `@shard3` in the required set** once `@shard2` finishes on `main` after #2731.
 3. **Clay mascot** (Canva media `MAHY-9Hts18`): export + licence call; the vector chibi stays for every customisable avatar.
 4. Everything else on the 10-24 list (flags to flip, claims to confirm, the real-iPhone pass, contracts, data, CI policy).
+5. **#2740's landing baselines** (`landing-mobile` and `landing-tablet` in `tests/e2e/visual-regression.spec.js-snapshots/`):
+   the footer banner moves every pixel below the fold, so the two full-page baselines have to be re-blessed from CI's
+   renderer (local renders differ on 9 of 12 baselines). Either allow `*.blob.core.windows.net` in the environment's
+   network settings so the sandbox can pull the `visual-regression-output` artifact, or drop the two `-actual.png`
+   files from that artifact into the snapshots folder on the PR branch.
+6. **The sprite route** (R1 Mana Seed everywhere with the paid Farmer system and a commissioned artist, R2 Mana Seed
+   on the street and in Pixel World only, R3 keep the renderer and redraw it pixel-crisp): the recommendation is R3;
+   the Pixel World swap ships under any of them. If R1, two licence questions first (may the paid sheets ship as plain
+   PNG files on a public site; what terms govern our own layers).
+7. **The painted style's proportions and views** once the contact sheet (`render/proto/CONTACT.png`) and PLAN.md are in
+   hand: chibi painted to the bar (the judges' pick) or the references' taller figures; whether to add true side and
+   back views; which personas get the new outfit pieces.
 
 ## Next lanes (engineering, no Jo needed)
 
 Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
 characters ran to wave 23). What is left, and what is new:
+
+0. **The four character workflows resumed at 22:03 UTC** (each on its own worktree and local branch, cherry-picked onto
+   the work branch when its gates pass; none widens #2740): the clean-up audit's fixes on `wave24-local`
+   (`scratchpad/audit`), the street dog drawn to the bar on `dog-local` (`scratchpad/dog`; winner `animation-first`
+   with grafts from the other two attempts), the painted panel's PLAN.md + CONTACT.png (for Jo, Needs Jo item 7), and
+   the Pixel World sprite swap on `pw-local` (`scratchpad/pw`): the Mana Seed demo body, outfit, hair and hat sheets
+   under `docs/pro/img/mana-seed/` with a CREDIT.txt, colour-mapped at runtime from `userSettings.game.avatar` for the
+   player and from the lead id for townsfolk, string patterns kept as the fallback, a new guard
+   `tests/pixel-world-sprites-2026-10-25.test.js`. Whatever finished is listed in the style bar note's status section.
 
 1. **`@shard2` went green on #2738's run** (both misses on #2737's run were read from their dumps and fixed: compact-header
    test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's stamp). Watch the
