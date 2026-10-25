@@ -51,6 +51,11 @@
     const openKey = typeof today === 'string' && byKey.has(today.slice(0, 7)) ? today.slice(0, 7) : keys[0];
     return keys.map((key) => {
       const entries = byKey.get(key).sort(newerFirst);
+      // same-day entries (a second page for the day, or a sync merge that left two with suf 1): number them so the rows differ
+      const perDay = {};
+      entries.forEach((e) => { perDay[e.dk] = (perDay[e.dk] || 0) + 1; });
+      const seen = {};
+      entries.forEach((e) => { e.dayCount = perDay[e.dk]; seen[e.dk] = (seen[e.dk] || 0) + 1; e.nth = e.dayCount - seen[e.dk] + 1; });
       return { key, label: key === 'undated' ? 'Undated' : monthLabel(key), open: key === openKey, count: entries.length, entries };
     });
   }

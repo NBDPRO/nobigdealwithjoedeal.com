@@ -49,7 +49,7 @@
 
   function row(e) {
     const kpi = (P()[e.idx] && P()[e.idx].kpi) || null;
-    const meta = [e.weekday, e.dk].filter(Boolean).join(' · ');
+    const meta = [e.weekday, e.dk, e.dayCount > 1 ? 'entry ' + e.nth + ' of ' + e.dayCount : ''].filter(Boolean).join(' · ');
     const stat = kpi && (kpi.doors || kpi.closes) ? ' · ' + (kpi.doors || 0) + ' doors, ' + (kpi.closes || 0) + ' closes' : '';
     const current = C() === e.idx;
     return '<li class="nbk-row' + (current ? ' is-current' : '') + (e.isToday ? ' is-today' : '') + '">' +

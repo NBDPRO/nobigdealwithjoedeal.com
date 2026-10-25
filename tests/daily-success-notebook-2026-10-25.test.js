@@ -50,6 +50,9 @@ console.log('\n1. filing: pages grouped by month, newest month first, newest day
   ok('today is flagged', oct[0].isToday && oct[1].isToday && !oct[2].isToday);
   ok('the current month is open, older months start folded', g[0].open === true && g[1].open === false && g[2].open === false);
   ok('each entry carries a weekday for the row', oct[2].weekday === 'Tue' && g[1].entries[0].weekday === 'Thu', oct[2].weekday + ' ' + g[1].entries[0].weekday);
+  ok('same-day entries are numbered for the row (newest is the higher entry), single days are not', oct[0].dayCount === 2 && oct[0].nth === 2 && oct[1].nth === 1 && oct[2].dayCount === 1);
+  const dup = N.groupByMonth([mk('2026-05-19'), mk('2026-05-19')], TODAY)[0].entries;
+  ok('two pages for one day with the same suf (a sync merge) still get entry 1 and entry 2', dup[0].nth !== dup[1].nth && dup[0].dayCount === 2);
   ok('a section counts its entries', g[0].count === 4 && g[1].count === 1);
 }
 
