@@ -34,8 +34,21 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   the speech sheet as trust moves, a walk that fits the build, the rival's smirk. Wave 19: the leaderboard faces arrive one after another; the sheet's dog
   barks. Wave 20: speech varies the mouth and brows; the HUD face mirrors the street rep. Wave 21: a
   frowning idle sighs and shakes its head, a happy one rocks. Wave 22: the sample account's leaderboards show the
-  owner's face (seed v8). Wave 23: the game card cheers for XP earned since the last look. Guard
-  `tests/chibi-2026-10-25.test.js` (114).
+  owner's face (seed v8). Wave 23: the game card cheers for XP earned since the last look. Wave 24: the face turns
+  with the look (a three-quarter head), the walk looks ahead with a loose cap, the cheer squashes and stretches, hoodie
+  strings swing, and a facing change turns over 180 ms (the head stays round) instead of mirroring in a frame. Wave
+  25: dust puffs on a cheer's landing, the shadow spreads under a squash, and loops scrolled out of the viewport rest
+  (and pop in when they scroll into view). Guard `tests/chibi-2026-10-25.test.js` (125).
+- **The character style bar (Jo, 15:10 UTC):** two reference images (a cel-shaded hooded robe as pixel art and as
+  clean vector; a hooded lantern-carrier from eight angles) and two sentences: "this level of detail and style or
+  above" and "super clean and no overlapping of items, accessories, outfit etc." Now CLAUDE.md rule g, with the
+  references and what they mean for the renderer in
+  [CHARACTER-STYLE-BAR-2026-10-25](CHARACTER-STYLE-BAR-2026-10-25.md); `scripts/chibi-sheet.js` renders a grid from
+  a JSON spec so a change can be looked at. Two workflows ran the same evening: the clean-up audit (twelve finders by
+  dimension, two sceptics per finding, a fixer per part, a critic over the full matrix) and a prototype panel for the
+  painted style (six attempts, three judges, a plan and a contact sheet). Jo's open decisions: proportions (chibi
+  painted to the bar, or the references' three-and-a-half-head figures), true side and back views, which personas
+  and pickers get hoods, robes, belts, satchels and lanterns.
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -94,8 +107,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
     stamp (`'ZZCW Alpha ' + s`), the drag starts on the Week view (the pill is clicked if not pressed, the placed job
     re-asserted, 600 ms for the re-render) and the dump adds the pill's state and the cell count.
   - The flaky one (call-center-view) passed on retry; its layout-leak reset landed in #2734.
-  Both specs together on the emulators after the fix: 7 passed in 36.0 s. The next @shard2 run is the first that can
-  go 168/168.
+  Both specs together on the emulators after the fix: 7 passed in 36.0 s.
+- **#2738 merged 15:11 UTC, and its run was the first with every job green: @shard2 passed in 13.9 min and @shard3 in
+  13.9 min.** The two fixes above held on the runner, so the leg has gone from two order-dependent misses to clean;
+  lane 2 (the required set) is now Jo's call alone.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
@@ -120,11 +135,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
 characters ran to wave 23). What is left, and what is new:
 
-1. **`@shard2` to 168/168:** both misses on #2737's run were read from their dumps and fixed (the bullet above):
-   compact-header test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's
-   stamp. Watch the next full run; if test 4 still misses, the dump names the next cover (the traces artifact holds
-   the screenshot for a reader with blob access). If it goes green, lane 2 is the only thing between the leg and the
-   required set.
+1. **`@shard2` went green on #2738's run** (both misses on #2737's run were read from their dumps and fixed: compact-header
+   test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's stamp). Watch the
+   next two full runs; if a miss comes back, its dump names the cover (the traces artifact holds the screenshot for a
+   reader with blob access). Lane 2 is the only thing between the leg and the required set.
 2. **`@shard2` / `@shard3` in the required set** waits on Jo (Needs Jo, item 2): the leg runs in about 13 minutes now.
 3. **Characters, left on the table:** the leaderboard page (`/pro/leaderboard`) is a single-rep board, so only your own
    face shows there (wave 10); if it ever lists teammates, `team-names.js` `loadAvatars()` is the read to reuse. A kid

@@ -46,8 +46,15 @@
  *          pop-in, so a list of faces arrives one after another (not under reduced motion). Wave 20: talking varies the
  *          mouth's shape (round to wide) and the brows rise and fall with the words, so a long line reads as speech.
  *          Wave 21: the mood colours the idle. A frowning character shakes their head slowly with a sigh every 7 s and
- *          looks away more; a happy one rocks gently with the hair swinging along.
- *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
+ *          looks away more; a happy one rocks gently with the hair swinging along. Wave 24: the face turns with the look
+ *          (the features slide across the head, one ear tucks behind, the front hair follows: a three-quarter head),
+ *          the walk looks ahead with a cap that lifts on each footfall, the cheer squashes on the ground and stretches at
+ *          the top, hoodie strings swing with the hair, and tween(state, pose, now, ms, facing) turns a facing change
+ *          over TURN_MS (the body squeezes toward edge-on while the head stays round and the features slide round it)
+ *          instead of mirroring in a frame; draw takes any facing in -1..1 for callers that turn by hand. Wave 25: dust
+ *          puffs from the feet when a cheer lands, the ground shadow spreads under a squash, and a loop whose canvas is
+ *          scrolled out of the viewport rests (no paint, a poll twice a second) and pops in when it scrolls into view.
+ *   NBDChibi.POSES                   — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
  *                                         thumbs · cringe (wave 17) · cross (wave 18)
  *
@@ -123,6 +130,7 @@
       p.armL = w * 18 * amp; p.armR = -p.armL; p.elbowL = -10 - Math.max(0, -p.armL) * 0.9; p.elbowR = -10 - Math.max(0, -p.armR) * 0.9;
       p.bob = Math.abs(w) * -2.4 * amp; p.sy = 1 - Math.abs(w2) * 0.025 * sway; p.sx = 1 + Math.abs(w2) * 0.02 * sway; p.lean = o.elder ? 6 : 4; p.tilt = -w * 1.5 * sway;
       p.hair = s(t / cad - 1.1) * 7 * m;
+      p.look = 0.6; p.hat = Math.abs(w) * 0.6 * amp; // wave 24: the eyes (and the face) ahead, a loose cap that lifts on each footfall
     }
     else if (pose === 'knock') { p.armRUp = 1; p.armR = -58; p.elbowR = -62 + s(t / 45) * 24 * m; p.fist = true; p.lean = 7; p.browUp = 1; p.look = 1; }
     else if (pose === 'talk') {
@@ -134,9 +142,15 @@
       p.look = (t + seed) % 4200 > 3600 ? -1 : 0;
     }
     else if (pose === 'cheer') {
-      var j = s(t / 170) * m;
+      var j = s(t / 170) * m, air = Math.abs(j);
       p.armLUp = 1; p.armRUp = 1; p.armL = 150 + j * 14; p.armR = -150 - j * 14; p.elbowL = 14 + j * 6; p.elbowR = -14 - j * 6;
-      p.jump = Math.abs(j) * 7; p.mouth = 'open'; p.mouthOpen = 1; p.sy = 1 + j * 0.03; p.sx = 1 - j * 0.03; p.browUp = 1;
+      p.jump = air * 7; p.mouth = 'open'; p.mouthOpen = 1; p.browUp = 1;
+      // wave 24: squash and stretch. The body flattens while the feet are on the ground (the bottom third of the arc:
+      // the crouch before a jump and the landing after it) and stretches toward the top; a still frame stands plain.
+      if (m) { p.sy = air < 0.3 ? 1 - (1 - air / 0.3) * 0.07 : 1 + (air - 0.3) / 0.7 * 0.035; p.sx = 2 - p.sy; }
+      // wave 25: dust at the feet on a landing. Strongest as the feet meet the ground, gone by the time the body is a
+      // third of the way back up (the rising half of the bottom of the arc, so the crouch before the jump stays clean).
+      p.dust = m && air < 0.3 && c(t / 170) * (j < 0 ? -1 : 1) > 0 ? 1 - air / 0.3 : 0;
       p.hat = Math.max(0, c(t / 170)) * 2.2 * m; p.hair = -c(t / 170) * 6 * m; p.emote = 'sparkle';
     }
     else if (pose === 'sad') { p.tilt = 7; p.browDown = 1; p.mouth = 'frown'; p.bob = 3; p.armL = 6; p.armR = -6; p.elbowL = -2; p.elbowR = -2; p.look = 1; p.emote = 'sweat'; p.sy = 0.985; }
@@ -198,11 +212,23 @@
   }
   // tween(state, pose, now): the caller keeps one state object per character; the result carries from + mix while a
   // change is still fading. Reduced motion snaps.
-  function tween(st, pose, now, ms) {
+  // wave 24: tween(state, pose, now, ms, facing) also turns the body: a facing change eases from the old side to the new
+  // over TURN_MS (the result's facing runs 1 → -1 through the thin edge-on frame) instead of mirroring in one frame.
+  // Without a facing argument the result carries none and the caller's own facing stands.
+  var TURN_MS = 180;
+  function tween(st, pose, now, ms, facing) {
     ms = ms || TWEEN_MS;
     if (st.pose !== pose) { st.from = st.pose || pose; st.pose = pose; st.since = now; }
     var k = reduce ? 1 : Math.min(1, (now - (st.since || 0)) / ms); k = k * k * (3 - 2 * k);
-    return { pose: pose, from: k < 1 && st.from !== pose ? st.from : undefined, mix: k };
+    var r = { pose: pose, from: k < 1 && st.from !== pose ? st.from : undefined, mix: k };
+    if (facing != null) {
+      var f = facing < 0 ? -1 : 1;
+      if (st.facing == null) st.facing = f;
+      if (st.facing !== f) { st.fromFacing = st.facing; st.facing = f; st.turnAt = now; }
+      var tk = reduce || !st.turnAt ? 1 : Math.min(1, (now - st.turnAt) / TURN_MS); tk = tk * tk * (3 - 2 * tk);
+      r.facing = tk < 1 ? st.fromFacing + (f - st.fromFacing) * tk : f;
+    }
+    return r;
   }
 
   // ── drawing helpers (every part: stroke the outline first, then fill, so overlaps stay clean) ───────────────────
@@ -250,7 +276,12 @@
     var wind = Math.max(0, Math.min(1, Number(o.wind) || 0));
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
     if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
-    var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h, facing = o.facing === -1 ? -1 : 1;
+    // wave 24: facing is 1 or -1, or any number between while a tween turns the body (never thinner than 8%, so the
+    // edge-on frame still reads as a figure); the sign decides which way the eyes and the face turn
+    var fv = Number(o.facing), facing = isFinite(fv) && fv !== 0 ? Math.max(-1, Math.min(1, fv)) : 1;
+    if (Math.abs(facing) < 0.08) facing = facing < 0 ? -0.08 : 0.08;
+    var fab = Math.abs(facing), fsign = facing < 0 ? -1 : 1, turnK = 1 - fab;
+    var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h;
     // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 106%
     // and settles, from the feet. Nothing at 1 (or when unset).
     var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
@@ -258,7 +289,13 @@
     // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
     // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
     var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
-    if (gz) { var gx = Math.max(-1, Math.min(1, gz.x)) * facing, gy = Math.max(-1, Math.min(1, Number(gz.y) || 0)); p.look = Math.max(-1.3, Math.min(1.3, p.look + gx * 1.3)); p.lookY = gy < 0 ? gy * 2 : gy * 0.5; p.tilt += gx * 3; }
+    if (gz) { var gx = Math.max(-1, Math.min(1, gz.x)) * fsign, gy = Math.max(-1, Math.min(1, Number(gz.y) || 0)); p.look = Math.max(-1.3, Math.min(1.3, p.look + gx * 1.3)); p.lookY = gy < 0 ? gy * 2 : gy * 0.5; p.tilt += gx * 3; }
+    // wave 24: the face turns with the look. The features (cheeks, eyes, brows, nose, mouth, beard, eyewear) slide across
+    // the head toward where the eyes point, the ear on that side tucks behind and the other comes forward, and the
+    // front hair follows a little: a frontal head reads as a three-quarter one when the character looks aside. Mid-turn
+    // (|facing| < 1) the body squeezes toward edge-on but the head stays round (it is counter-scaled below) and the
+    // features slide toward the side the character is turning to, so the turn reads as a head turning, not a card flipping.
+    var turn = Math.max(-1, Math.min(1, (p.look || 0) * 0.75 - turnK * fsign * 2.5)), fx = turn * 3.2 - turnK * fsign * 8;
     // wave 12: the build, and an elder's stoop (the head carried forward)
     var B = BUILDS[a.build], bw = B.w, bh = bodyH(a), bhead = B.head;
     if (a.elder) p.lean += 3;
@@ -266,9 +303,9 @@
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
-    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX * p.sx, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); } // × sx: the shadow spreads under a squash (wave 25)
     ctx.translate(x, y - p.jump * s);
-    ctx.scale(facing * s * p.sx * popX, s * p.sy * popY);
+    ctx.scale(facing * s * p.sx * popX, s * p.sy * popY * (1 + turnK * 0.04)); // a turning body lifts a touch (wave 24)
     ctx.translate(-50, -120);
     // breathing / walking bob moves the whole body
     ctx.translate(0, p.bob);
@@ -279,7 +316,7 @@
     var hairG = pen.grad(25, 5, 75, 50, shade(hair, 26), shade(hair, -18));
     var hatG = pen.grad(25, 0, 75, 40, shade(hatC, 34), shade(hatC, -22));
     var hx = 50, hy = 42 - headRise(a), hr = 29;
-    function headXf() { ctx.translate(hx, hy); ctx.scale(bhead, bhead); ctx.translate(-hx, -hy); }
+    function headXf() { ctx.translate(hx, hy); ctx.scale(bhead / fab, bhead); ctx.translate(-hx, -hy); } // the head stays round mid-turn (wave 24)
 
     // back hair (behind the head): long hair sways from the crown, the ponytail swings from its root
     ctx.save(); headXf();
@@ -310,7 +347,7 @@
     if (a.extra === 'belt') { pen.rrect(29, 96, 42, 6, 2, '#7A4A22'); ctx.fillStyle = '#E0B45A'; ctx.fillRect(46, 97, 8, 4); ctx.fillStyle = '#9AA0A6'; ctx.fillRect(33, 101, 6, 4); ctx.fillStyle = '#7A4A22'; ctx.fillRect(60, 101, 5, 4); }
     // a collar line and the head's shadow on the chest; the hoodie's pouch and strings; the polo's collar and placket
     if (a.top === 'polo') { pen.shape(function (c) { c.moveTo(40, 72); c.lineTo(50, 84); c.lineTo(60, 72); c.lineTo(56, 70); c.lineTo(50, 78); c.lineTo(44, 70); }, shade(shirt, 28)); ctx.fillStyle = shade(shirt, -30); ctx.fillRect(49, 80, 2, 2); ctx.fillRect(49, 85, 2, 2); }
-    else if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); ctx.strokeStyle = '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45, 90); ctx.moveTo(54, 76); ctx.lineTo(55, 90); ctx.stroke(); }
+    else if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); ctx.strokeStyle = '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45 + p.hair * 0.25, 90); ctx.moveTo(54, 76); ctx.lineTo(55 + p.hair * 0.25, 90); ctx.stroke(); } // the strings swing with the hair (wave 24)
     else { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
     ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.ellipse(50 + p.lean * 0.4, 73 + p.bob * 0.2, 17, 4.5, 0, 0, Math.PI * 2); ctx.fill();
 
@@ -354,14 +391,17 @@
     }
 
     ctx.restore(); // body group
+    // wave 25: landing dust, two puffs a side that spread and fade from the feet (on the ground, not with the body)
+    if (p.dust > 0 && !reduce) { var dk = 1 - p.dust; ctx.save(); ctx.globalAlpha = p.dust * 0.55; ctx.fillStyle = '#C9CDD2'; [-1, 1].forEach(function (sg) { ctx.beginPath(); ctx.arc(50 + sg * (15 + dk * 10), 118 + p.jump - dk * 4, 2.2 + dk * 2.4, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(50 + sg * (22 + dk * 12), 119.5 + p.jump - dk * 2, 1.4 + dk * 1.6, 0, Math.PI * 2); ctx.fill(); }); ctx.restore(); }
 
     // head: a soft circle with a chin, ears, shading and a highlight
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy);
-    pen.circle(hx - hr + 1, hy + 4, 5, skinG); pen.circle(hx + hr - 1, hy + 4, 5, skinG);
+    ctx.save(); ctx.translate(hx, hy); ctx.scale(1 / fab, 1); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy); // 1 / fab: round mid-turn (wave 24)
+    pen.circle(hx - hr + 1, hy + 4, 5 * (1 + 0.12 * turn), skinG); pen.circle(hx + hr - 1, hy + 4, 5 * (1 - 0.12 * turn), skinG);
     pen.shape(function (c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }, skinG);
     // highlight on the forehead, and the hat brim's shadow across it
     ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.ellipse(hx - 10, hy - 14, 9, 5, -0.5, 0, Math.PI * 2); ctx.fill();
     if (a.hat === 'hardhat' || a.hat === 'cap') { ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.beginPath(); ctx.ellipse(hx, hy - 9, hr - 1, a.hat === 'cap' ? 5 : 3.5, 0, 0, Math.PI); ctx.fill(); }
+    ctx.save(); ctx.translate(fx, 0); // the features, turned (wave 24)
     if (a.elder) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; [[-16, 20], [16, 20]].forEach(function (w) { ctx.beginPath(); ctx.moveTo(hx + w[0], hy + w[1] - 3); ctx.quadraticCurveTo(hx + w[0] * 1.1, hy + w[1], hx + w[0] * 0.9, hy + w[1] + 4); ctx.stroke(); }); }
     // cheeks
     if (p.mouth !== 'frown') { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
@@ -421,10 +461,11 @@
       pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG);
       if (!(p.mouth === 'open' || p.mouthOpen > 0.15)) { if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my + 3); ctx.quadraticCurveTo(hx, my, hx + 5, my + 3); ctx.stroke(); } else { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my); ctx.quadraticCurveTo(hx, my + 4, hx + 5, my); ctx.stroke(); } }
     }
+    ctx.restore(); // the features
 
-    // front hair (sways a touch with the body)
+    // front hair (sways a touch with the body, and follows the turned face a little)
     var top = hy - hr - 2;
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx, -hy);
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx + fx * 0.4, -hy);
     if (a.hair === 'short') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 2, top - 4, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + hr - 4, hy - 10, hx + 12, hy - 16); c.quadraticCurveTo(hx, hy - 8, hx - 10, hy - 17); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'spiky') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.lineTo(hx - hr - 6, top - 10); c.lineTo(hx - 16, top - 5); c.lineTo(hx - 10, top - 16); c.lineTo(hx - 3, top - 6); c.lineTo(hx + 4, top - 17); c.lineTo(hx + 10, top - 5); c.lineTo(hx + 20, top - 14); c.lineTo(hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 12, hy - 14, hx, hy - 12); c.quadraticCurveTo(hx - 12, hy - 14, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'long') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy + 2); c.quadraticCurveTo(hx - hr - 3, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 3, top - 4, hx + hr + 1, hy + 2); c.quadraticCurveTo(hx + hr - 6, hy - 10, hx + 8, hy - 14); c.quadraticCurveTo(hx - 4, hy - 6, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 4, hy - 12, hx - hr - 1, hy + 2); }, hairG); }
@@ -456,7 +497,8 @@
     }
     ctx.restore();
 
-    // eyewear (over the hair and hat brims)
+    // eyewear (over the hair and hat brims, turned with the features)
+    ctx.save(); ctx.translate(fx, 0);
     if (a.extra === 'glasses') {
       ctx.strokeStyle = '#4A5A6B'; ctx.lineWidth = 2; [eyL, eyR].forEach(function (cx) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 8.5, ey - 7.5, 17, 15, 4) : ctx.rect(cx - 8.5, ey - 7.5, 17, 15); ctx.stroke(); ctx.fillStyle = 'rgba(156,211,240,.28)'; ctx.fill(); });
       ctx.beginPath(); ctx.moveTo(eyL + 8.5, ey - 1); ctx.lineTo(eyR - 8.5, ey - 1); ctx.stroke();
@@ -465,11 +507,12 @@
       [eyL, eyR].forEach(function (cx) { pen.rrect(cx - 9, ey - 7, 18, 13, 5, pen.grad(cx - 9, ey - 7, cx + 9, ey + 6, '#3A3F4A', '#0E1116')); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(cx - 3, ey - 3, 4, 1.6, -0.4, 0, Math.PI * 2); ctx.fill(); });
       pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, 2.4); pen.line(eyL - 9, ey - 3, hx - hr + 1, ey - 5, 2.4); pen.line(eyR + 9, ey - 3, hx + hr - 1, ey - 5, 2.4);
     }
+    ctx.restore(); // eyewear
     // a sweat drop slides down the temple when sad (stays with the head)
     if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
     var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
-    if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
+    if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + fx + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
     if (p.cover) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); frontArm(); ctx.restore(); } // the hand over the mouth sits on top of the face
 
@@ -545,6 +588,9 @@
       var now = Date.now();
       if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
       if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
+      // wave 25: a canvas scrolled out of the viewport (40 px of grace) rests the same way, and pops in when it scrolls
+      // into view, since its first paint is its birth. A page with no innerHeight (a stub) never rests.
+      if (box && typeof box.top === 'number' && (box.bottom < -40 || box.top > (window.innerHeight || Infinity) + 40)) { box = null; timer = setTimeout(frame, 500); return; }
       if (!last || now - last >= 32) {
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
         // wave 19: a staggered arrival. The canvas stays blank until its turn, then pops in like any other.
@@ -553,7 +599,7 @@
         last = now;
         if (o.poke === false) canvas.__pokeOff = true;
         if (canvas.__pokeUntil > now && !canvas.__chibiTap && (o.pose == null || o.pose === 'idle')) o.pose = 'wave';
-        var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;
+        var tp = tween(tw, pick(POSES, o.pose, 'idle'), now, null, o.facing); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix; if (tp.facing != null) o.facing = tp.facing; // a facing change turns (wave 24)
         if (!reduce && o.pop == null && o.pop !== false) { if (!born) born = now; if (now - born < POP_MS) o.pop = (now - born) / POP_MS; }
         if (o.gaze == null && !reduce) {
           if (box && box.width && PTR.at && now - PTR.at < 4000 && typeof box.left === 'number') gazeAt(box, o.crop, gzs); else { gzs.x *= 0.88; gzs.y *= 0.88; }
@@ -573,5 +619,5 @@
     return stop;
   }
 
-  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, BUILDS: BUILDS, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _pointer: PTR, headRise: headRise, POP_MS: POP_MS, POKE_MS: POKE_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
+  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, BUILDS: BUILDS, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, TURN_MS: TURN_MS, _pointer: PTR, headRise: headRise, POP_MS: POP_MS, POKE_MS: POKE_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
 })();
