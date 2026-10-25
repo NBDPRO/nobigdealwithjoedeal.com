@@ -96,6 +96,8 @@ function fakeCanvas(w, h, connected) {
 {
   const cv = fakeCanvas(64, 64); CH.paintCanvas(cv, {}, { pose: 'idle' });
   ok('paintCanvas sizes the bitmap to the CSS box times devicePixelRatio (64 css → 128 px at 2x)', cv.width === 128 && cv.height === 128 && cv._log.fills >= 28);
+  const cvb = fakeCanvas(999, 999); CH.paintCanvas(cvb, {}, { box: { width: 40, height: 40 } });
+  ok('a loop can hand paintCanvas a cached box so no layout is read per frame', cvb.width === 80 && cvb.height === 80);
   const cv2 = fakeCanvas(44, 44); CH.paintCanvas(cv2, {}, { crop: 'bust' });
   const cv2b = fakeCanvas(44, 44); CH.paintCanvas(cv2b, {}, {});
   ok('a bust crop draws the same character minus the ground shadow', cv2._log.fills >= 20 && cv2b._log.fills === cv2._log.fills + 1);
@@ -104,8 +106,9 @@ function fakeCanvas(w, h, connected) {
   const L = load(); const cv = fakeCanvas(64, 64); let calls = 0;
   const stop = L.CH.animate(cv, {}, () => { calls++; return { pose: 'idle' }; });
   ok('animate draws the first frame at once and queues the next one', calls === 1 && L.rafs.length === 1 && L.CH._loops() === 1);
-  L.rafs[0](); ok('the next frame draws again', calls === 2);
-  cv.isConnected = false; L.rafs[1]();
+  L.rafs[0](16); ok('a frame 16 ms later is skipped (the loop paints at most 30 times a second)', calls === 1);
+  L.rafs[1](48); ok('a frame 48 ms later draws again', calls === 2);
+  cv.isConnected = false; L.rafs[2](100);
   ok('a loop ends on its own once the canvas leaves the document', calls === 2 && L.CH._loops() === 0);
   const cv3 = fakeCanvas(64, 64); L.CH.animate(cv3, {}, () => ({})); const s2 = L.CH.animate(cv3, {}, () => ({}));
   ok('a second animate on the same canvas replaces the first (one loop per canvas)', L.CH._loops() === 1); s2();

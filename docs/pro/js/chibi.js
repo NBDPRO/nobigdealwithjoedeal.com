@@ -279,7 +279,7 @@
   function paintCanvas(canvas, look, o) {
     o = o || {};
     var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    var rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 0, height: 0 };
+    var rect = o.box || (canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 0, height: 0 });
     var cw = Math.round(rect.width) || canvas.width || 64, ch = Math.round(rect.height) || canvas.height || 64;
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
@@ -288,14 +288,21 @@
     draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed });
   }
   var loops = 0;
+  // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
+  // frame on every avatar on the page is what a slow phone notices), and it stops itself when the canvas leaves the page.
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, seed = Math.floor(Math.random() * 3000);
+    var alive = true, raf = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
-    function frame() {
+    function frame(ts) {
       if (!alive) return;
       if (canvas.isConnected === false) { stop(); return; }
-      var o = fn ? (fn(Date.now()) || {}) : {}; o.t = Date.now(); if (o.seed == null) o.seed = seed;
-      paintCanvas(canvas, look, o);
+      var now = Date.now();
+      if (ts == null || ts - last >= 32 || !last) {
+        last = ts || now;
+        if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
+        var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
+        paintCanvas(canvas, look, o);
+      }
       if (reduce) { alive = false; return; }
       raf = requestAnimationFrame(frame);
     }
