@@ -116,11 +116,26 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 ## Next lanes (engineering, no Jo needed)
 
 1. ~~Public-surface E2E install wedge~~ - fixed the same day (Jo chose option (b)): WebKit moved off the required job into `Public-surface E2E (mobile WebKit)`, not required.
-2. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
+2. ~~Purge follow-ups~~ - browser repro built 2026-10-25: `tests/e2e/account-switch-purge.spec.js` (@audit) creates a
+   second tenant with the admin SDK, signs A in, signs out the PLAIN way (`auth.signOut()`), signs B in through the
+   login page and asserts A's `nbd_*` / `nav-` keys are gone and `nbd_last_uid` flips to B only after the purge
+   (the pass-2 High path, closed by #2695). Passes on the emulators in 12 s.
 3. ~~Pass-2 leftovers~~ - worked 2026-10-24: storm callables rate-limited, `/free-tools` CTA contrast fixed,
    `confirmedSourceAt` and the opt-out read checked (no change needed). Still open: the digest's `deal_rooms` team
    undercount and `companies.limit(500)` (deferred, see the [pass-2 update](../audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md)).
 4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
    typed measurement text wiped by `renderDash`, blob URLs not revoked.
-5. `@shard2` specs (six named in the CI-minutes note).
+5. ~~`@shard2` specs~~ - reproduced 2026-10-25 on local emulators under CI conditions (`CI=1`, retries 2, the
+   five specs the 10-20 log named: call-center-card, crew-calendar, inbox-layout, layouts, mission-control).
+   **All five pass.** Two findings: (a) `layouts.spec.js` had drifted from the picker, which folds every
+   non-featured layout under a closed "More layouts" group and repaints Settings (losing the Appearance tab) on a
+   layout change - the spec now opens the panel and the group before each click on its test layout (`openPicker`),
+   so it no longer burns 3 × 180 s per CI run; (b) mission-control's four "worker process exited" failures were the
+   rig, not the product: a worktree whose `tests/node_modules` was a symlink with no `playwright` package. With a
+   real install all four pass (9.9 min for the pair). What is left for the shard is its runtime against the
+   25-min cap, not failures; the zero-network walk's AI Usage click miss (CI 2026-10-25, twice) now records what the
+   parent dashboard has at the click point, so the next miss names the cover instead of the symptom.
+   Also found on the way: #2727 committed `tests/node_modules` as a symlink into a scratch worktree (the
+   `.gitignore` pattern `tests/node_modules/` only matches a directory). Untracked, and the pattern now also lists
+   the bare name so a symlink can never be staged again.
 6. ~~Tracker layouts~~ - the whole lineup shipped 10-25 (Cockpit, Quest, One Thing, Journal, Arcade) ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).

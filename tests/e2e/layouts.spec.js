@@ -27,6 +27,23 @@ const REGISTER = () => {
   }, 5);
 };
 
+// The Layouts panel lives on Settings > Appearance, and the picker folds every non-featured layout
+// (ztest among them) under a closed "More layouts" group. A layout change repaints the Settings view
+// (the Appearance tab is not sticky across it), so each step that clicks a ztest card opens the panel
+// again rather than assuming the last one's state (CI 2026-10-25: the second "Try it" after a revert
+// waited 180 s on a card that was in the DOM but under an inactive tab).
+async function openPicker(page) {
+  await safeEvaluate(page, () => { window.goTo && window.goTo('settings'); });
+  await page.locator('#stab-appearance').waitFor({ state: 'visible', timeout: 15_000 });
+  await page.locator('#stab-appearance').click();
+  await page.locator('#layoutsPanelBody .lp-card').first().waitFor({ state: 'visible', timeout: 15_000 });
+  await safeEvaluate(page, () => window.LayoutRegistry.get('ztest') && window.NBDLayoutPicker.render());
+  const more = page.locator('#layoutsPanelBody .lp-more');
+  await expect(more).toHaveCount(1);
+  if (!(await more.evaluate((d) => d.open))) await more.locator('summary').click();
+  await expect(page.locator('.lp-card[data-layout-id="ztest"]')).toBeVisible();
+}
+
 async function resetSettings(email) {
   const { initializeApp, getApps } = require('firebase-admin/app');
   if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
@@ -67,14 +84,9 @@ test.describe.serial('Layouts @shard2', () => {
     expect(base.cur.source).toBe('classic');
 
     // ── the picker (lazy) ──
-    await safeEvaluate(page, () => { window.goTo && window.goTo('settings'); });
-    await page.locator('#stab-appearance').waitFor({ state: 'visible', timeout: 15_000 });
-    await page.locator('#stab-appearance').click();
-    await page.locator('#layoutsPanelBody .lp-card').first().waitFor({ state: 'visible', timeout: 15_000 });
-    await safeEvaluate(page, () => window.LayoutRegistry.get('ztest') && window.NBDLayoutPicker.render());
+    await openPicker(page);
     const classicCard = page.locator('.lp-card[data-layout-id="classic"]');
     await expect(classicCard).toContainText('In use');
-    await expect(page.locator('.lp-card[data-layout-id="ztest"]')).toBeVisible();
 
     // ── try it: applies on this screen, shows the bar, does not save ──
     await page.locator('.lp-card[data-layout-id="ztest"] [data-lp="try"]').click();
@@ -91,6 +103,7 @@ test.describe.serial('Layouts @shard2', () => {
     await expect(page.locator('#lpPreviewBar')).toHaveCount(0);
 
     // ── try then KEEP: written for THIS device only ──
+    await openPicker(page);
     await page.locator('.lp-card[data-layout-id="ztest"] [data-lp="try"]').click();
     await page.locator('#lpPreviewBar [data-lp="keep"]').click();
     await safeWaitForFunction(page, async () => {

@@ -61,7 +61,8 @@ ok("dashboard-app.css: Schedule's two read-only link fields may shrink below the
   /#calFeedUrl, #calBookingUrl\{min-width:0;\}/.test(app));
 
 // Cache-busters moved with the fix.
-ok('dashboard.html loads dashboard-app.css?v=24 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 24; })());
+ok('under 380 px the wordmark text is hidden (the mark alone says NBD; audit row 12 at 360, 390 keeps it)', /@media \(max-width:380px\)\{\s*\.logo span\{font-size:0;\}/.test(app));
+ok('dashboard.html loads dashboard-app.css?v=25 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 25; })());
 ok('dashboard.html loads product-library.css?v=6 or later', (() => { const m = /product-library\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 6; })());
 
 console.log(`\n${passed} passed, ${failed} failed`);
