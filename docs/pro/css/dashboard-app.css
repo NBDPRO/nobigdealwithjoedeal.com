@@ -5542,6 +5542,11 @@ body {
   .logo{font-size:0;letter-spacing:0;}
   .logo span{font-size:14px;letter-spacing:.06em;}
 }
+/* Under 400 px the header's five tools leave the wordmark no room and "PRO" clipped to "PR" (audit row 12,
+   re-measured 2026-10-25 at 360). The mark alone carries the brand there; the text stays in the DOM. */
+@media (max-width:400px){
+  .logo span{font-size:0;}
+}
 
 /* 320 px sweep (2026-10-25): the Reports header's third button and the Photos job cards' View button ran off the
    right edge on the narrowest phones. Header button rows wrap; a photo job card stacks its button under the text. */
