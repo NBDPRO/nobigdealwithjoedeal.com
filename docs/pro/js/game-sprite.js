@@ -27,13 +27,14 @@
   };
   var OPTIONS = {
     skin:   { label: 'Skin', colors: C.skin },
-    hair:   { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald']] },
+    hair:   { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald'], ['curly', 'Curly'], ['afro', 'Afro'], ['bun', 'Bun']] },
     hairColor: { label: 'Hair color', colors: C.hair },
     eyes:   { label: 'Eyes', values: [['round', 'Bright'], ['happy', 'Happy'], ['wink', 'Wink'], ['sleepy', 'Chill']] },
     hat:    { label: 'Headwear', values: [['hardhat', 'Hard hat'], ['cap', 'Ball cap'], ['beanie', 'Beanie'], ['none', 'None']] },
     hatColor: { label: 'Headwear color', colors: C.color },
     beard:  { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
     shirt:  { label: 'Shirt', colors: C.shirt },
+    top:    { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
     vest:   { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
     pants:  { label: 'Pants', colors: C.pants },
     tool:   { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -57,6 +58,7 @@
       hatColor: idx(hatColor, C.color.length, DEFAULTS.hatColor),
       beard: pick(vals('beard'), a.beard, DEFAULTS.beard),
       shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
+      top: pick(vals('top'), a.top, 'tee'),
       vest: pick(vals('vest'), a.vest, DEFAULTS.vest),
       pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
       tool: pick(vals('tool'), a.tool, DEFAULTS.tool),
@@ -115,14 +117,14 @@
 
     // ── hair ──
     var top = function () { row(4, 11, 20, hair); row(5, 9, 22, hair); rect(8, 6, 23, 8, hair); set(12, 4, hairL); set(13, 5, hairL); };
-    if (a.hair === 'short') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); row(9, 9, 11, hair); row(9, 20, 22, hair); set(14, 9, hairD); }
+    if (a.hair === 'short' || a.hair === 'curly' || a.hair === 'bun') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); row(9, 9, 11, hair); row(9, 20, 22, hair); set(14, 9, hairD); }
     else if (a.hair === 'spiky') {
       top();
       // Spikes only when nothing is on the head — a hat flattens them.
       if (a.hat === 'none') [10, 13, 16, 19].forEach(function (x) { set(x, 3, hair); set(x + 1, 2, hair); set(x + 1, 3, hair); });
       rect(8, 9, 8, 10, hair); rect(23, 9, 23, 10, hair);
     }
-    else if (a.hair === 'long') { top(); rect(7, 8, 8, 19, hair); rect(23, 8, 24, 19, hair); rect(7, 18, 8, 19, hairD); rect(23, 18, 24, 19, hairD); row(9, 9, 13, hair); }
+    else if (a.hair === 'long' || a.hair === 'afro') { top(); rect(7, 8, 8, 19, hair); rect(23, 8, 24, 19, hair); rect(7, 18, 8, 19, hairD); rect(23, 18, 24, 19, hairD); row(9, 9, 13, hair); }
     else if (a.hair === 'buzz') { row(5, 11, 20, hairD); rect(9, 6, 22, 7, hairD); }
     else if (a.hair === 'ponytail') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); rect(24, 6, 26, 8, hair); rect(25, 9, 26, 13, hair); set(26, 14, hairD); set(24, 6, hairL); }
     // bald: nothing

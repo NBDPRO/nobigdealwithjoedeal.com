@@ -46,6 +46,30 @@ function requireTestUser() {
  * @param {{ email: string, password: string }} creds
  */
 async function loginAs(page, creds) {
+  // ── Emulator-only: answer LeadDedup's possible-duplicate modal. A CI retry
+  // runs against the same emulator as the attempt before it, and
+  // LeadDedup.normName strips digits, so 'Hail1761380000' and 'Hail1761380400'
+  // on the same street are "the same name on the same street": _saveLead then
+  // awaits promptUser() — a click nobody makes — and the retry burns its whole
+  // test timeout (3 × 240 s in mission-control alone; the @shard2 25-minute
+  // cap, 2026-10-25). "Create anyway" is the rep's own answer for a separate
+  // household, so the spec gets the fresh lead it asked for and dedup itself
+  // is untouched. An init script, not an evaluate: specs reload after saving.
+  if (/localhost|127\.0\.0\.1/.test(process.env.PLAYWRIGHT_BASE_URL || '') && !page.__nbdDedupArmed) {
+    page.__nbdDedupArmed = true;
+    await page.addInitScript(() => {
+      window.__nbdDedupAutoCreated = 0;
+      const answer = () => {
+        const btn = document.querySelector('#nbd-dedup-overlay #nbd-dedup-create');
+        if (!btn) return;
+        window.__nbdDedupAutoCreated++;
+        console.warn('[e2e] LeadDedup prompt answered "Create anyway" (' + window.__nbdDedupAutoCreated + ')');
+        btn.click();
+      };
+      // document, not documentElement: an init script runs before <html> exists.
+      new MutationObserver(answer).observe(document, { childList: true, subtree: true });
+    });
+  }
   await page.goto('/pro/login.html');
   // Login.js wires the form once the Firebase SDK has loaded; wait
   // for the button to be enabled rather than time-boxing. The page

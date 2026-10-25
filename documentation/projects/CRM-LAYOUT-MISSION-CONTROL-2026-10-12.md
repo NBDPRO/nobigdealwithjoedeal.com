@@ -212,3 +212,21 @@ layers, Crews disabled, blocked-then-allowed On my way).
 | M1 MapView | built | #2356 |
 | M2 L02 Mission Control | built, stacked on M1 | #2360 |
 | M3 #11 job map: crew day route | built, stacked on M2 | see PR list |
+
+## Update 2026-10-25: turfs on a stacked pin, and why the e2e spec hung on CI retries
+
+- **Product:** `splitTurfs` balances its cuts on door quantiles. Four leads
+  geocoded to the same point (the e2e rep's test customers; a street of leads
+  geocoded to one pin would do it too) made every cut the same number, the
+  collision de-dup kept one, and the rep got 2 turfs under a "3 turfs" stepper.
+  When the de-dup loses a cut, `mission-logic.js` now falls back to equal-width
+  cuts so the count the rep asked for is the count drawn. Pinned in
+  `tests/layout-mission-2026-10-12.test.js` ("doors stacked on one point").
+- **Spec on CI:** a retry of `mission-control.spec.js` found the previous
+  attempt's leads: `LeadDedup.normName` strips digits, so `InPath1761…` twice on
+  "1 Storm Row" is "the same name on the same street", and `_saveLead` waited on
+  the possible-duplicate modal for the whole 240 s timeout, three times. The
+  login fixture answers that modal on the emulators ("Create anyway"), and the
+  spec resets `layoutState.mission` on every pick (a previous attempt's Leads
+  toggle came back ON). Three runs in one emulator session pass in 45-49 s each
+  ([handoff](NEXT_SESSION-2026-10-25.md)).

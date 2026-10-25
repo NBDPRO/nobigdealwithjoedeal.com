@@ -135,7 +135,7 @@ function fakeDb(seed, { cgFails } = {}) {
       combos++;
     }
   } catch (e) { drawErr = e; }
-  ok('every hair × headwear × eyes × extras combination builds a 32×32 sprite', !drawErr && combos === 6 * 4 * 4 * 4, drawErr && drawErr.message);
+  ok('every hair × headwear × eyes × extras combination builds a 32×32 sprite', !drawErr && combos === 9 * 4 * 4 * 4, drawErr && drawErr.message);
   const spiky = SP._build(SP.normalize({ hair: 'spiky', hat: 'cap', hairColor: 3 }));
   ok('a hat flattens spiky hair (no hair pixels above the cap)', [0, 1, 2].every((y) => !spiky[y].includes('#E0B45A')));
 

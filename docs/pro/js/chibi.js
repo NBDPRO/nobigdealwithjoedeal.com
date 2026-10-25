@@ -24,6 +24,7 @@
  *                                         stop(). Under prefers-reduced-motion it draws one still frame.
  *   NBDChibi.tween(state, pose, now)   — pose + from + mix for a caller that draws by hand (the street): give it the
  *                                         same state object every frame
+ *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -41,7 +42,8 @@
     shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
     pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
   };
-  var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald'], EYES = ['round', 'happy', 'wink', 'sleepy'];
+  var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], EYES = ['round', 'happy', 'wink', 'sleepy'];
+  var TOPS = ['tee', 'hoodie', 'polo'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
   var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'];
   var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
@@ -60,6 +62,7 @@
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
       clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
+      top: pick(TOPS, a.top, 'tee'),
     };
   }
   function shade(hex, amt) {
@@ -198,6 +201,9 @@
 
     // back hair (behind the head): long hair sways from the crown, the ponytail swings from its root
     if (a.hair === 'long') { ctx.save(); ctx.translate(hx, hy - 10); ctx.rotate(p.hair * 0.35 * Math.PI / 180); ctx.translate(-hx, -(hy - 10)); pen.rrect(21, 30, 58, 50, 14, hairG); ctx.restore(); }
+    if (a.hair === 'afro') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.1 * Math.PI / 180); ctx.translate(-hx, -hy); pen.shape(function (c) { for (var i = 0; i < 14; i++) { var an = -Math.PI * 0.95 + i * (Math.PI * 1.9 / 13), rr = hr + 10 + (i % 2) * 3; var px = hx + Math.cos(an) * rr, py = hy - 6 + Math.sin(an) * rr * 0.92; if (i === 0) c.moveTo(px, py); else c.quadraticCurveTo(hx + Math.cos(an - 0.12) * (rr + 7), hy - 6 + Math.sin(an - 0.12) * (rr + 7) * 0.92, px, py); } }, hairG); ctx.restore(); }
+    if (a.hair === 'bun') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.4 * Math.PI / 180); ctx.translate(-hx, -hy); pen.circle(hx - 8, hy - hr - 2, 10, hairG); pen.circle(hx - 11, hy - hr - 5, 3.5, shade(hair, 30), true); ctx.restore(); }
+    if (a.top === 'hoodie') { pen.shape(function (c) { c.moveTo(26, 78); c.quadraticCurveTo(22, 52, 50, 46); c.quadraticCurveTo(78, 52, 74, 78); c.quadraticCurveTo(50, 70, 26, 78); }, pen.grad(26, 46, 74, 78, shade(shirt, 10), shade(shirt, -26))); }
     if (a.hair === 'ponytail') { ctx.save(); ctx.translate(70, 30); ctx.rotate(p.hair * Math.PI / 180); ctx.translate(-70, -30); pen.shape(function (c) { c.moveTo(70, 30); c.quadraticCurveTo(92, 36, 86, 66); c.quadraticCurveTo(80, 60, 74, 48); c.quadraticCurveTo(76, 40, 70, 30); }, hairG); ctx.restore(); }
 
     // legs (hips at 42 and 58, y 98): thigh + shin with a knee, boots on the shin
@@ -216,8 +222,10 @@
       ctx.fillStyle = VESTD; ctx.fillRect(32, 97, 12, 2); ctx.fillRect(56, 97, 12, 2);
     }
     if (a.extra === 'belt') { pen.rrect(29, 96, 42, 6, 2, '#7A4A22'); ctx.fillStyle = '#E0B45A'; ctx.fillRect(46, 97, 8, 4); ctx.fillStyle = '#9AA0A6'; ctx.fillRect(33, 101, 6, 4); ctx.fillStyle = '#7A4A22'; ctx.fillRect(60, 101, 5, 4); }
-    // a collar line and the head's shadow on the chest
-    ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke();
+    // a collar line and the head's shadow on the chest; the hoodie's pouch and strings; the polo's collar and placket
+    if (a.top === 'polo') { pen.shape(function (c) { c.moveTo(40, 72); c.lineTo(50, 84); c.lineTo(60, 72); c.lineTo(56, 70); c.lineTo(50, 78); c.lineTo(44, 70); }, shade(shirt, 28)); ctx.fillStyle = shade(shirt, -30); ctx.fillRect(49, 80, 2, 2); ctx.fillRect(49, 85, 2, 2); }
+    else if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); ctx.strokeStyle = '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45, 90); ctx.moveTo(54, 76); ctx.lineTo(55, 90); ctx.stroke(); }
+    else { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
     ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.ellipse(50 + p.lean * 0.4, 73 + p.bob * 0.2, 17, 4.5, 0, 0, Math.PI * 2); ctx.fill();
 
     // arms: shoulder pivots at (34,78) and (66,78); upper arm 11, forearm 11, a hand (or a fist, or a pointing finger)
@@ -310,6 +318,9 @@
     else if (a.hair === 'spiky') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.lineTo(hx - hr - 6, top - 10); c.lineTo(hx - 16, top - 5); c.lineTo(hx - 10, top - 16); c.lineTo(hx - 3, top - 6); c.lineTo(hx + 4, top - 17); c.lineTo(hx + 10, top - 5); c.lineTo(hx + 20, top - 14); c.lineTo(hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 12, hy - 14, hx, hy - 12); c.quadraticCurveTo(hx - 12, hy - 14, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'long') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy + 2); c.quadraticCurveTo(hx - hr - 3, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 3, top - 4, hx + hr + 1, hy + 2); c.quadraticCurveTo(hx + hr - 6, hy - 10, hx + 8, hy - 14); c.quadraticCurveTo(hx - 4, hy - 6, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 4, hy - 12, hx - hr - 1, hy + 2); }, hairG); }
     else if (a.hair === 'buzz') { pen.shape(function (c) { c.moveTo(hx - hr + 1, hy - 6); c.quadraticCurveTo(hx - hr, top, hx, top - 1); c.quadraticCurveTo(hx + hr, top, hx + hr - 1, hy - 6); c.quadraticCurveTo(hx, hy - 12, hx - hr + 1, hy - 6); }, shade(hair, -14), true); ctx.strokeStyle = INK; ctx.lineWidth = pen.lw * 0.6; ctx.beginPath(); ctx.moveTo(hx - hr + 1, hy - 6); ctx.quadraticCurveTo(hx, hy - 12, hx + hr - 1, hy - 6); ctx.stroke(); }
+    else if (a.hair === 'curly') { pen.shape(function (c) { c.moveTo(hx - hr - 2, hy); for (var i = 0; i <= 8; i++) { var ang = Math.PI + i * (Math.PI / 8), r1 = hr + 4; var ex = hx + Math.cos(ang) * r1, ey2 = hy - 4 + Math.sin(ang) * (r1 + 2); var mx = hx + Math.cos(ang - Math.PI / 16) * (r1 + 7), my2 = hy - 4 + Math.sin(ang - Math.PI / 16) * (r1 + 9); if (i) c.quadraticCurveTo(mx, my2, ex, ey2); } c.quadraticCurveTo(hx + 16, hy - 12, hx + 4, hy - 16); c.quadraticCurveTo(hx - 8, hy - 8, hx - 16, hy - 15); c.quadraticCurveTo(hx - hr + 3, hy - 10, hx - hr - 2, hy); }, hairG); }
+    else if (a.hair === 'afro') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 4); c.quadraticCurveTo(hx - hr - 2, top - 6, hx, top - 7); c.quadraticCurveTo(hx + hr + 2, top - 6, hx + hr + 1, hy - 4); c.quadraticCurveTo(hx + hr - 6, hy - 12, hx + 6, hy - 15); c.quadraticCurveTo(hx - 6, hy - 9, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 4); }, hairG); }
+    else if (a.hair === 'bun') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 3, hx, top - 4); c.quadraticCurveTo(hx + hr + 2, top - 3, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 18, hy - 12, hx + 2, hy - 18); c.quadraticCurveTo(hx - 10, hy - 8, hx - 18, hy - 16); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'ponytail') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 2, top - 4, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 20, hy - 12, hx + 6, hy - 20); c.quadraticCurveTo(hx - 6, hy - 10, hx - 16, hy - 18); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     if (a.hair !== 'bald' && a.hair !== 'buzz') { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(hx - 12, top + 2, 8, 2.6, -0.3, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();

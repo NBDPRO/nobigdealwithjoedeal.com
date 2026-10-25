@@ -30,13 +30,14 @@ var C = {
 };
 var OPTIONS = {
   skin: { label: 'Skin', colors: C.skin },
-  hair: { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald']] },
+  hair: { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald'], ['curly', 'Curly'], ['afro', 'Afro'], ['bun', 'Bun']] },
   hairColor: { label: 'Hair color', colors: C.hair },
   eyes: { label: 'Eyes', values: [['round', 'Bright'], ['happy', 'Happy'], ['wink', 'Wink'], ['sleepy', 'Chill']] },
   hat: { label: 'Headwear', values: [['hardhat', 'Hard hat'], ['cap', 'Ball cap'], ['beanie', 'Beanie'], ['none', 'None']] },
   hatColor: { label: 'Headwear color', colors: C.color },
   beard: { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
   shirt: { label: 'Shirt', colors: C.shirt },
+  top: { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
   vest: { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
   pants: { label: 'Pants', colors: C.pants },
   tool: { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -58,6 +59,7 @@ function normalize(a) {
     beard: pickv(vals('beard'), a.beard, DEFAULTS.beard), shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
     vest: pickv(vals('vest'), a.vest, DEFAULTS.vest), pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
     tool: pickv(vals('tool'), a.tool, DEFAULTS.tool), extra: pickv(vals('extra'), a.extra, DEFAULTS.extra),
+    top: pickv(vals('top'), a.top, 'tee'),
   };
 }
 function shade(hex, amt) {
@@ -601,7 +603,8 @@ function migrate(s) {
   s.badges = s.badges || {}; s.trained = s.trained || {}; s.usedNames = s.usedNames || []; s.skills = s.skills || {}; s.reviews = s.reviews || []; s.stats = s.stats || {}; s.trophies = s.trophies || {}; s.seasons = s.seasons || {}; s.cleanStreak = s.cleanStreak || 0; s.owned = s.owned || {}; if (s.bank == null) s.bank = s.collected || 0; s.seed = s.seed || 1 + Math.floor(Math.random() * 997); return s; }
 function makeLook(persona) {
   var p = PERSONA[persona] || {};
-  return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long']),
+  return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short', 'bun']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long', 'curly', 'afro', 'bun']), // wave 4: the street's homeowners wear the new hair and tops too
+    top: pick(['tee', 'tee', 'hoodie', 'polo']),
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
     tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder };
