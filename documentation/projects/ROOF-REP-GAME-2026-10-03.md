@@ -110,5 +110,8 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   the fallback and for `game-xp`'s pins.
 - Bitmaps size to the CSS box × devicePixelRatio (crisp on phones); loops end when a canvas leaves the page; reduced
   motion draws one still frame. Guard: `tests/chibi-2026-10-25.test.js` (35).
-- **Not done, for Jo:** the clay-render / 3D mascot direction (GameForce's look) needs rendered assets; this renderer is
-  the vector ceiling without them.
+- **The clay-render direction, for Jo:** a trial through the Canva connector produced a usable 3D clay chibi foreman
+  (hard hat, hi-vis, hammer, waving) at https://www.canva.com/M/MAHY-9Hts18 (Canva media id `MAHY-9Hts18`), but the
+  connector returns only a 200 px preview; a full-size export needs a Canva design + export from Jo's account, and the
+  licence call is Jo's. If approved: strip EXIF, vendor under `docs/pro/img/roof-rep/`, use it on the tutorial and Train
+  cards (the foreman) and keep the vector chibi for every customisable avatar.

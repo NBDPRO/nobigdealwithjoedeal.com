@@ -201,7 +201,7 @@
 
   function draw(canvas, avatar) {
     // The vector chibi (chibi.js, 2026-10-25) when it is on the page; the 32×32 grid below otherwise.
-    if (window.NBDChibi) { window.NBDChibi.animate(canvas, normalize(avatar), function () { return { pose: 'idle' }; }); return; }
+    if (window.NBDChibi) { window.NBDChibi.animate(canvas, normalize(avatar), function (t) { return { pose: t % 14000 < 1600 ? 'wave' : 'idle' }; }); return; } // a wave every 14 s
     if (!canvas || !canvas.getContext) return;
     var a = normalize(avatar);
     var G = outline(build(a));
