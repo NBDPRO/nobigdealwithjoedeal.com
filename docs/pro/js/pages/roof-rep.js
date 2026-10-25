@@ -139,7 +139,20 @@ function paint(ctx, look, ox, oy, u) {
   var G = spriteGrid(look);
   for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) { if (!G[y][x]) continue; ctx.fillStyle = G[y][x]; ctx.fillRect(ox + x * u, oy + y * u, u, u); }
 }
-function drawTo(canvas, look) { var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32); }
+// The vector chibi (js/chibi.js, 2026-10-25) draws every avatar now; the 32×32 grid above stays as the fallback and for the
+// crew board's thumbnails. POSE is a short-lived override for the street (a cheer on a signed job, a slump on a lost door).
+var CH = window.NBDChibi || null;
+var POSE = { name: null, until: 0 };
+function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
+function chibi(ctx, look, cx, feetY, p, facing, t) {
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: 26, t: t, pose: p, facing: facing, shadow: false });
+  else paint(ctx, look, cx - 8, feetY - 16, 0.5);
+}
+function drawTo(canvas, look, p, mood) {
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { return { pose: p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'), mood: mood, crop: crop }; }); return; }
+  var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
+}
+function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }
 
 // ════════════════════════════════════════════════════════════════════════
 // The world: levels, streets, homeowners, the price book.
@@ -794,7 +807,7 @@ function levelToast(before) {
   if (after.level <= before) return;
   var unl = STREETS.filter(function (s) { return s.level === after.level; }).map(function (s) { return s.name; });
   var gear = Object.keys(LOCKS).filter(function (k) { return LOCKS[k] === after.level; });
-  sfx('level'); FX.burst(WALK.px, WALK.py - 24, 40);
+  sfx('level'); FX.burst(WALK.px, WALK.py - 24, 40); pose('cheer', 1800);
   toast('LEVEL UP! ' + after.level + ' · ' + after.title.toUpperCase() + (unl.length ? ' · NEW STREET: ' + unl.join(', ').toUpperCase() : '') + (gear.length ? ' · NEW GEAR IN THE LOCKER' : ''));
   renderChips(); renderLocker(); hud();
   var lines = [];
@@ -850,7 +863,7 @@ function finishDay() {
 function seasonCard() {
   var n = RR.seasonOf(SAVE.day - 1), xp = SAVE.seasonXp || 0, rank = RR.seasonRank(xp);
   SAVE.seasonsDone = (SAVE.seasonsDone || 0) + 1; SAVE.seasonBest = Math.max(SAVE.seasonBest || 0, xp); SAVE.seasonXp = 0;
-  checkTrophies(); persist(); sfx('trophy'); FX.burst(160, 100, 50);
+  checkTrophies(); persist(); sfx('trophy'); FX.burst(160, 100, 50); pose('cheer', 1800);
   overlay('<div class="big"><h2>SEASON ' + n + ' COMPLETE</h2><div class="huge">' + esc(rank) + '</div><p>' + xp.toLocaleString('en-US') + ' XP this season · ' + SAVE.cleanDays + ' clean days all time · ' + money(SAVE.collected) + ' collected</p>' +
     '<p class="help">Next rank: ' + (RR.SEASON_RANKS.filter(function (r) { return r[0] > xp; }).slice(-1).map(function (r) { return r[1] + ' at ' + r[0].toLocaleString('en-US') + ' XP'; })[0] || 'you are at the top') + '. Season ' + (n + 1) + ' starts tomorrow.</p>' +
     '<button type="button" class="btn primary wide" id="seasonOk">On to season ' + (n + 1) + '</button></div>');
@@ -958,12 +971,13 @@ function drawWorld() {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
-    paint(g, RIVAL_LOOK, Math.round(RIVAL.x) - 8, Math.round(RIVAL.y) - 30, 0.5);
-    g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 36, 8, 4);
+    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
+    g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 42, 8, 4);
   }
-  var bob = FX.bob(WALK.path.length > 0, now);
-  g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 6, 2, 0, 0, 6.3); g.fill();
-  paint(g, SAVE.avatar, Math.round(WALK.px) - 8, Math.round(WALK.py) - 30 + bob, 0.5);
+  var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
+  if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
+  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now);
   if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
   if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
   FX.draw(g);
@@ -1025,8 +1039,8 @@ function arrive2(h, dogTip) {
 var faceCv = document.getElementById('face');
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function say(look, name, text, choices, tip, meter) {
-  faceCv.getContext('2d').clearRect(0, 0, 32, 32);
-  if (look) drawTo(faceCv, look);
+  if (look) drawTo(faceCv, look, 'talk', meter && meter.pct < 35 ? 'frown' : undefined);
+  else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
   if (meter) { var m = document.createElement('div'); m.className = 'meter'; var ml = document.createElement('span'); ml.textContent = (meter.label || 'Trust') + ' ' + Math.round(meter.pct) + '%'; var mb = document.createElement('div'); mb.className = 'bar'; var mi = document.createElement('i'); mi.className = 'rr-w' + Math.round(Math.max(0, Math.min(100, meter.pct)) / 5) * 5; mb.appendChild(mi); m.appendChild(ml); m.appendChild(mb); t.appendChild(m); }
@@ -1063,11 +1077,11 @@ function node(h, key, tip) {
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
-  if (end === 'later') { setStatus(h, 'later'); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
+  if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
-  if (end === 'book') { setStatus(h, 'booked'); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
+  if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
   if (end === 'inspect') inspect(h, SAVE.streetId);
 }
 
@@ -1288,7 +1302,7 @@ function tierScore(h, t) {
 function signed(h, sid, t) {
   var price = t.psq * h.sq;
   h.price = price; h.tier = t.key; DAY.signed++; DAY.sold += price; dayCount('sign'); sfx('cash');
-  FX.burst(WALK.px, WALK.py - 24, 28); FX.float(money(price), WALK.px, WALK.py - 48, '#7bc96f', true); FX.flash(false);
+  FX.burst(WALK.px, WALK.py - 24, 28); FX.float(money(price), WALK.px, WALK.py - 48, '#7bc96f', true); FX.flash(false); pose('cheer', 2000);
   if (PERSONA[h.persona].boss) stat('bosses');
   gain(60 + Math.round(price / 1000), h.name + ' signed: ' + t.name + ' ' + money(price));
   if (h.damage === 'hail' || h.damage === 'some') {
@@ -2432,7 +2446,7 @@ async function renderCrew() {
     var tr = document.createElement('tr'), me = r.id === 'me' || r.id === NET.uid; if (me) tr.className = 'me';
     var td0 = document.createElement('td'); td0.className = 'rk'; td0.textContent = i + 1; tr.appendChild(td0);
     var td1 = document.createElement('td'), w = document.createElement('div'); w.className = 'who2';
-    var cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; drawTo(cv, r.avatar || DEFAULTS); w.appendChild(cv);
+    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; w.appendChild(cv); drawStill(cv, r.avatar || DEFAULTS);
     var nm = document.createElement('div'), p = names[r.id];
     nm.textContent = me ? (p && p.name ? p.name + ' (you)' : 'You') : (p && p.name) || 'A rep';
     var sm = document.createElement('small'); sm.textContent = 'Lv ' + (r.level || 1) + ' · ' + (r.title || 'Apprentice'); nm.appendChild(sm);
@@ -2471,7 +2485,7 @@ function tutorial(i) {
   overlay('<h2>' + esc(T.t) + '</h2><div class="tut"><canvas id="tutFace" width="32" height="32" aria-hidden="true"></canvas><p>' + esc(T.p) + '</p></div>' +
     '<div class="dots">' + TUTORIAL.map(function (_, k) { return '<i' + (k === i ? ' class="on"' : '') + '></i>'; }).join('') + '</div>' +
     '<div class="row"><button type="button" class="btn primary grow" id="tutN">' + (last ? "Let's go" : 'Next') + '</button>' + (last ? '' : '<button type="button" class="btn" id="tutS">Skip</button>') + '</div>');
-  drawTo(document.getElementById('tutFace'), FOREMAN);
+  drawTo(document.getElementById('tutFace'), FOREMAN, 'talk');
   var end = function () { SAVE.tutored = true; saveLocal(); closeOverlay(); showTab('today'); };
   document.getElementById('tutN').addEventListener('click', function () { if (last) end(); else tutorial(i + 1); });
   var sk2 = document.getElementById('tutS'); if (sk2) sk2.addEventListener('click', end);

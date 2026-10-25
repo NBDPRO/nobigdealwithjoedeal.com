@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "chibi-2026-10-25.test.js",
     "dashboard-font-consistency-2026-10-25.test.js",
     "field-rules-ky-emergency-2026-10-16.test.js",
     "technical-illustrations-2026-10-16.test.js",

@@ -18,7 +18,7 @@ body { margin: 0; background: var(--night); color: var(--ink); font-family: var(
 
 /* ── header: back, face, title + level bar, sound ── */
 .top { display: flex; align-items: center; gap: 10px; }
-.top canvas { width: 44px; height: 44px; image-rendering: pixelated; background: var(--panel-2); border-radius: 10px; flex: none; }
+.top canvas { width: 44px; height: 44px; background: var(--panel-2); border-radius: 10px; flex: none; }
 .top .t { min-width: 0; flex: 1; }
 h1 { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .12em; margin: 0; color: var(--gold); }
 .lvl { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
@@ -63,7 +63,7 @@ canvas#world { display: block; width: 100%; height: auto; touch-action: manipula
 
 /* the speech sheet: who is talking, what they said, what you can say back */
 .box { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; min-height: 120px; display: flex; gap: 12px; animation: rr-pop .25s; }
-.face { width: 64px; height: 64px; flex: none; image-rendering: pixelated; background: var(--panel-2); border-radius: 12px; }
+.face { width: 72px; height: 72px; flex: none; background: var(--panel-2); border-radius: 12px; }
 .talk { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .who { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sky); }
 .line { margin: 0; animation: rr-pop .25s; }
@@ -132,7 +132,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
 /* ── locker ── */
 .locker { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-.locker canvas { width: 160px; height: 160px; image-rendering: pixelated; background: var(--panel-2); border-radius: 12px; flex: none; }
+.locker canvas { width: 160px; height: 160px; background: var(--panel-2); border-radius: 12px; flex: none; }
 .opts { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .08em; font-family: var(--display); font-weight: 700; }
 .sw { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -155,7 +155,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .lb .rk { font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--gold); width: 28px; }
 .lb .who2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lb .who2 small { display: block; color: var(--muted); font-size: 13px; }
-.lb canvas { width: 32px; height: 32px; image-rendering: pixelated; background: var(--panel-2); border-radius: 6px; flex: none; }
+.lb canvas { width: 32px; height: 32px; background: var(--panel-2); border-radius: 6px; flex: none; }
 .lb .num { text-align: right; white-space: nowrap; }
 .fc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .fc div { background: var(--panel-2); border-radius: 10px; padding: 8px; text-align: center; }
@@ -163,7 +163,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .fc small { color: var(--muted); font-size: 13px; }
 .call { font-size: 40px; text-align: center; }
 .tut { display: flex; gap: 12px; align-items: flex-start; }
-.tut canvas { width: 64px; height: 64px; image-rendering: pixelated; background: var(--panel-2); border-radius: 10px; flex: none; }
+.tut canvas { width: 64px; height: 64px; background: var(--panel-2); border-radius: 10px; flex: none; }
 .dots { display: flex; gap: 6px; justify-content: center; }
 .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
 .dots i.on { background: var(--gold); }
