@@ -104,6 +104,46 @@
       { kind: 'ok', say: "I can only put what's damaged on the claim.", trust: 6 },
       { kind: 'trap', say: "Sure, we'll pad the scope a little. Everybody does.", trust: -30, dirty: true, lose: true, tip: { bad: true, text: 'Padding a supplement is insurance fraud. Game over at this door.' } },
     ] },
+    { k: 'recent', text: "My roof was replaced five years ago. It can't be bad already.", answers: [
+      { kind: 'best', say: "Age isn't the question after hail; impact is. A five-year-old roof can take hits a twenty-year-old one shrugs off, and it's still under warranty, which matters. Let me look and show you either way.", trust: 12, tip: { good: true, text: 'Hail damage is about impact, not age. Say it kindly and offer proof.' } },
+      { kind: 'ok', say: "Probably fine then. Want me to check anyway while I'm here?", trust: 4 },
+      { kind: 'weak', say: "Five years is old for the cheap stuff builders use.", trust: -8, tip: { bad: true, text: 'You just insulted the roof they paid for.' } },
+    ] },
+    { k: 'adjusterNo', text: "The adjuster already came out and said there's no damage.", answers: [
+      { kind: 'best', say: "Then let's get you the photos I take, with a chalk circle on every hit, and you can ask for a re-inspection. Adjusters look at a lot of roofs fast; a second look with evidence is normal.", trust: 14, tip: { good: true, text: 'A denial is a bad first look, not a verdict. The homeowner asks for the re-inspection, you supply the proof.' } },
+      { kind: 'ok', say: "That happens. If you want a second opinion, I'll document what I find.", trust: 5 },
+      { kind: 'trap', say: "Adjusters always say that. I'll call your carrier and get it overturned.", trust: -30, dirty: true, lose: true, tip: { bad: true, text: 'You can\'t work the claim for them. Only the policyholder, or a licensed public adjuster, can.' } },
+    ] },
+    { k: 'rates', text: "If I file a claim my rates will go up. I'd rather not.", answers: [
+      { kind: 'best', say: "That's a fair worry. A storm claim is an act-of-God claim; carriers can't single you out for it in Kentucky, though rates move with the whole area after a big storm. Ask your agent before you decide; I'll give you the photos either way.", trust: 12, tip: { good: true, text: 'Answer honestly and send them to their agent. Never promise what rates will do.' } },
+      { kind: 'ok', say: "Ask your agent; it's their call to explain. I'll leave the photos with you.", trust: 5 },
+      { kind: 'trap', say: "Just don't mention it was hail. Call it wear and tear and the rate won't move.", trust: -30, dirty: true, lose: true, tip: { bad: true, text: 'Coaching a homeowner to misstate a claim is fraud.' } },
+    ] },
+    { k: 'patch', text: "Can't you just patch the bad spots?", answers: [
+      { kind: 'best', say: "If it's a few spots, yes, and I'll tell you that. If the hail hit the whole slope, a patch leaves the rest of it leaking next year. Let me see which one you've got.", trust: 12, tip: { good: true, text: 'Say yes when a repair is the honest answer. The game pays for honest calls.' } },
+      { kind: 'ok', say: "Sometimes. Let me look first.", trust: 4 },
+      { kind: 'weak', say: "Nobody patches hail. It's a full roof or nothing.", trust: -10, tip: { bad: true, text: 'That is a sales line, not a diagnosis.' } },
+    ] },
+    { k: 'selling', text: "We're selling the house next spring. Why would I put a roof on it?", answers: [
+      { kind: 'best', say: "Because the buyer's inspector will find the hail before you do, and a known roof problem comes off the price twice over. A new roof with a transferable warranty sells a house.", trust: 12, tip: { good: true, text: 'Sellers think in resale. Talk inspection and transferable warranty.' } },
+      { kind: 'ok', say: "Fair. Want the photos so you know what the inspector will see?", trust: 5 },
+      { kind: 'weak', say: "Then it's the buyer's problem.", trust: -10, tip: { bad: true, text: 'Disclosure law says otherwise, and so does decency.' } },
+    ] },
+    { k: 'match', text: "Can you match this other quote? It's $2,000 less.", answers: [
+      { kind: 'best', say: "Let me see it. If it's the same shingle, same underlayment, ice-and-water, drip edge, permit and the warranty in writing, I'll explain my number line by line. If something's missing, you'll see why it's cheaper.", trust: 12, tip: { good: true, text: 'Compare scopes, not totals.' } },
+      { kind: 'ok', say: "I can't match blind, but I'll price the same scope honestly.", trust: 5 },
+      { kind: 'weak', say: "Sure, I'll match it. Where do I sign?", trust: -8, tip: { bad: true, text: 'Matching a number you haven\'t read means your first number was padded, or the match will cut corners.' } },
+    ] },
+    { k: 'financing', text: "I can't pay for a roof right now.", answers: [
+      { kind: 'best', say: "If it's storm damage, insurance pays most of it and you cover the deductible. If it isn't, we have financing with a real monthly number, no pressure. Let's find out which first.", trust: 12, tip: { good: true, text: 'Separate the insurance question from the money question.' } },
+      { kind: 'ok', say: "Understood. We do have payment plans if it ever helps.", trust: 4 },
+      { kind: 'trap', say: "We'll just raise the insurance claim enough to cover your deductible too.", trust: -30, dirty: true, lose: true, tip: { bad: true, text: 'Inflating a claim to cover the deductible is fraud, twice.' } },
+    ] },
+    { k: 'solar', text: "I've got solar panels up there. Nobody wants to touch them.", answers: [
+      { kind: 'best', say: "We do: the panels come off and go back on with the installer or a licensed electrician, and it's a line item on the estimate so there's no surprise.", trust: 12, tip: { good: true, text: 'Name the plan and put the panel work on the estimate.' } },
+      { kind: 'ok', say: "We've worked around panels before. Let me look at the layout.", trust: 5 },
+      { kind: 'weak', say: "We'll roof around them and it'll be fine.", trust: -10, tip: { bad: true, text: 'You can\'t replace shingles under a panel without moving it.' } },
+    ] },
   ];
 
   // A small seeded shuffle (mulberry32) so a day's quests and a door's objections are the same on a reload.

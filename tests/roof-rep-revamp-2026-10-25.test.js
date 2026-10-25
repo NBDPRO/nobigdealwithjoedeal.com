@@ -23,16 +23,16 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
 
 console.log('\n1. the objections: one best answer each, traps are dirty and lose the door, never a winning trap');
 {
-  ok('a real pool (15+)', R.OBJECTIONS.length >= 15, String(R.OBJECTIONS.length));
+  ok('a real pool (25: the 17 from the first pass and eight more from the playbook)', R.OBJECTIONS.length >= 25, String(R.OBJECTIONS.length));
   ok('keys are unique', new Set(R.OBJECTIONS.map((o) => o.k)).size === R.OBJECTIONS.length);
   ok('exactly one best answer per objection', R.OBJECTIONS.every((o) => o.answers.filter((a) => a.kind === 'best').length === 1));
   ok('every best answer builds trust (+10 or more) and carries a lesson tip', R.OBJECTIONS.every((o) => o.answers.filter((a) => a.kind === 'best').every((a) => a.trust >= 10 && a.tip && a.tip.good)));
   const traps = R.OBJECTIONS.flatMap((o) => o.answers.filter((a) => a.kind === 'trap'));
-  ok('the Kentucky-rule traps exist (deductible, AOB/handle the claim, cash up front, permit, check sign-over, scope padding)', traps.length >= 6, String(traps.length));
+  ok('the Kentucky-rule traps exist (deductible, AOB/handle the claim, cash up front, permit, check sign-over, scope padding, overturning a denial, misstating the cause, inflating the claim)', traps.length >= 9, String(traps.length));
   ok('every trap is dirty, loses the door and costs trust', traps.every((a) => a.dirty && a.lose && a.trust <= -25));
   ok('every trap explains itself with a bad tip', traps.every((a) => a.tip && a.tip.bad && a.tip.text.length > 30));
   ok('no trap line reads like a best answer (break test: mark one as best and the one-best rule fails)', (() => { const o = JSON.parse(JSON.stringify(R.OBJECTIONS[2])); o.answers.find((a) => a.kind === 'trap').kind = 'best'; return o.answers.filter((a) => a.kind === 'best').length !== 1; })());
-  const bad = /handle your (insurance )?claim|cover(ing)? your deductible|eat (the|your) deductible|sign it over|skip (it|the permit)|pad the scope|cash and you jump/i;
+  const bad = /handle your (insurance )?claim|cover(ing)? your deductible|eat (the|your) deductible|sign it over|skip (it|the permit)|pad the scope|cash and you jump|get it overturned|call it wear and tear|raise the insurance claim/i;
   ok('the forbidden lines only ever appear on a trap or weak answer, never best or ok', R.OBJECTIONS.every((o) => o.answers.every((a) => !bad.test(a.say) || a.kind === 'trap' || a.kind === 'weak')));
   ok('weak answers cost trust but are not fraud (no dirty flag)', R.OBJECTIONS.flatMap((o) => o.answers.filter((a) => a.kind === 'weak')).every((a) => a.trust < 0 && !a.dirty && !a.lose));
   ok('every answer kind is one of best / ok / weak / trap', R.OBJECTIONS.every((o) => o.answers.every((a) => ['best', 'ok', 'weak', 'trap'].includes(a.kind))));
