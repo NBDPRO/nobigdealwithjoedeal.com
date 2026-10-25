@@ -48,7 +48,7 @@ h1 { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spac
 .drive { margin: 4px 0 -6px; font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
 .chips::-webkit-scrollbar { display: none; }
-.chip { flex: none; font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--ink); background: var(--panel); border: 2px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 40px; cursor: pointer; white-space: nowrap; }
+.chip { flex: none; font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--ink); background: var(--panel); border: 2px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 44px; cursor: pointer; white-space: nowrap; }
 .chip[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: #2a2416; }
 .chip:disabled { opacity: .5; cursor: not-allowed; }
 .stage { position: relative; border: 2px solid var(--line); border-radius: 14px; overflow: hidden; background: #2d5a2a; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
@@ -136,9 +136,9 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .opts { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .08em; font-family: var(--display); font-weight: 700; }
 .sw { display: flex; gap: 8px; flex-wrap: wrap; }
-.swatch { width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+.swatch { width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--line); cursor: pointer; padding: 0; }
 .swatch:disabled { opacity: .3; cursor: not-allowed; }
-.opt { font-family: var(--body); font-size: 15px; color: var(--ink); background: var(--panel-2); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; min-height: 38px; cursor: pointer; }
+.opt { font-family: var(--body); font-size: 15px; color: var(--ink); background: var(--panel-2); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; min-height: 44px; cursor: pointer; }
 .swatch[aria-pressed="true"], .opt[aria-pressed="true"] { outline: 3px solid var(--gold); outline-offset: 2px; }
 .opt:disabled { opacity: .45; cursor: not-allowed; }
 .skill { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
