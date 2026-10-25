@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 7; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar
+const SEED_VERSION = 8; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22)
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -111,6 +111,15 @@ function build() {
   add('userSettings/' + UID, {
     game: { enabled: true, avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none' } },
     isSample: true,
+  });
+  // The owner's Roof Rep row (2026-10-25, character wave 22): the dashboard's Leaderboard view and the Team Leaderboard
+  // widget read roofRepScores for each rep's look (team-names.js), so the sample owner's row shows the same face as the
+  // game card instead of initials. Numbers are the game's own shape (firestore.rules keys); the week is not current,
+  // so weekXp counts for nothing this week.
+  add('roofRepScores/' + UID, {
+    xp: 1240, level: 5, title: 'Installer', weekKey: '2026-W40', weekXp: 0, bestDay: 180, days: 12, cleanDays: 9, collected: 38600,
+    badges: { ladder: 1, tools: 1 }, name: owner, companyId: UID, at: ts(-1), isSample: true,
+    avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none', eyeColor: 1, build: 'regular' },
   });
   add('subscriptions/' + UID, { plan: 'growth', status: 'active', isSample: true, currentPeriodEnd: ts(25) });
   add('companies/' + UID, {

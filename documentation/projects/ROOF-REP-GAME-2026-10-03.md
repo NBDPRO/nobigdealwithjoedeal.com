@@ -288,3 +288,7 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   shakes their head slowly with a sigh in the last 1.3 s of every 7 s (eyes shut, the mouth a touch open, the body
   dips) and glances away twice as often; a happy one rocks gently on a 520 ms beat with the hair swinging along.
   Reduced motion keeps both still. Guard grows to 112.
+- **Wave 22, the sample account shows a face.** The demo seed (v8) carries `roofRepScores/demo-owner` with the game
+  card's look (plus an eye colour and a build) in the rules' key shape, so the Dashboard view's Leaderboard and the
+  Team Leaderboard widget on `/pro/explore` show Sam's chibi instead of initials (checked on the static server: one
+  row, one face, no initials). Guard grows to 113.
