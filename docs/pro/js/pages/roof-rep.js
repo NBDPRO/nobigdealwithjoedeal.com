@@ -2085,13 +2085,17 @@ function stormRun() {
     if (over) return;
     var o = RR.pickObjections(1, seed + n * 97, [])[0]; n++;
     var box = document.getElementById('runQ'); if (!box) return;
-    box.innerHTML = '<p class="line">' + esc(o.text) + '</p>';
+    // a different homeowner says each objection (2026-10-25): a talking face beside the line, cheering a best answer, slumping at a trap
+    var who = makeLook(pick(['skeptic', 'busy', 'elder', 'diy', 'threeQuotes', 'landlord']));
+    box.innerHTML = '<div class="run-q"><canvas class="face" id="runFace" width="32" height="32" aria-hidden="true"></canvas><p class="line">' + esc(o.text) + '</p></div>';
+    drawTo(document.getElementById('runFace'), who, 'talk', who.mood || undefined);
     var c = document.createElement('div'); c.className = 'choices';
     RR.answersShuffled(o, seed + n).forEach(function (a) {
       var b = document.createElement('button'); b.type = 'button'; b.textContent = a.say;
       b.addEventListener('click', function () {
         if (over || c.dataset.done) return; c.dataset.done = '1'; r[a.kind]++;
         b.classList.add(a.kind === 'best' ? 'right' : a.kind === 'trap' ? 'wrong' : 'on');
+        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'idle', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
         if (a.kind === 'best') sfx('good'); else if (a.kind === 'trap') { sfx('bad'); FX.shake(); }
         var st2 = document.getElementById('runS'); if (st2) st2.textContent = r.best + ' best · ' + r.trap + ' strike' + (r.trap === 1 ? '' : 's');
         if (r.trap >= RR.RUN.strikes) return end();
