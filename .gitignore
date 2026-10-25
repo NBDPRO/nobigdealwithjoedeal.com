@@ -1,6 +1,7 @@
 # Dependencies — don't commit, rebuild in CI
 functions/node_modules/
 docs/pro/js/node_modules/
+tests/node_modules
 tests/node_modules/
 tests/visual/node_modules/
 tests/visual/test-results/

@@ -658,7 +658,24 @@ async function waitFor(page, fn, arg, ms) {
       await usageFrame.waitForFunction(() => { const c = document.getElementById('chart'); return !!c && !/Loading chart/.test(c.textContent || ''); }, null, { timeout: 30000, polling: 200 });
       const frameErrors = [];
       usageFrame.page().on('pageerror', (e) => frameErrors.push(String(e).slice(0, 200)));
-      await usageFrame.locator('[data-range="30d"]').click();   // a real click on the page's own range button
+      // A real click on the page's own range button. Playwright proves the button is the hit target INSIDE
+      // the frame, not that nothing in the parent dashboard covers the frame at that point (the sample strip,
+      // a header): a covered point swallows the click silently (CI 2026-10-25, the 30-day label never came
+      // while the frame itself was fine). So first read the point the click will land on, and make the parent
+      // bring the frame to it; record what the parent has at that point either way for the diagnosis.
+      const rangeBtn = usageFrame.locator('[data-range="30d"]');
+      await rangeBtn.scrollIntoViewIfNeeded();
+      const parentHit = await (async () => {
+        const box = await rangeBtn.boundingBox();
+        if (!box) return 'no box';
+        const fbox = await page.locator('#iframe-aiusage').boundingBox();
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        return page.evaluate(([px, py, fb]) => {
+          const el = document.elementFromPoint(px, py);
+          return (el ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : '') : 'null') + ' at ' + Math.round(px) + ',' + Math.round(py) + ' frame ' + JSON.stringify(fb && { x: Math.round(fb.x), y: Math.round(fb.y), w: Math.round(fb.width), h: Math.round(fb.height) });
+        }, [x, y, fbox]);
+      })();
+      await rangeBtn.click();
       let rangeTook = true;
       try {
         await usageFrame.waitForFunction(() => /30 Days/.test((document.getElementById('lReq') || {}).textContent || ''), null, { timeout: 15000, polling: 200 });
@@ -669,7 +686,7 @@ async function waitFor(page, fn, arg, ms) {
           active: [...document.querySelectorAll('.tt.active')].map((b) => b.dataset.range), setRange: typeof window.setRange,
           chart: ((document.getElementById('chart') || {}).textContent || '').slice(0, 60),
         })).catch((e) => String(e));
-        ok('the 30 Days range button took the click (label says Last 30 Days)', false, JSON.stringify(diag) + ' | errors: ' + frameErrors.join(' || '));
+        ok('the 30 Days range button took the click (label says Last 30 Days)', false, JSON.stringify(diag) + ' | parent hit: ' + parentHit + ' | errors: ' + frameErrors.join(' || '));
       }
       const u = await usageFrame.evaluate(() => ({
         req: document.getElementById('vReq').textContent.trim(), cost: document.getElementById('vCost').textContent.trim(),
