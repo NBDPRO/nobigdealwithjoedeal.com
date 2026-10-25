@@ -27,12 +27,14 @@ var C = {
   color: ['#F2A900', '#378ADD', '#E24B4A', '#639922', '#F5F5F0', '#2C2C2A'],
   shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
   pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
+  eye: ['#3A2A26', '#2F6FB3', '#3E7F4C', '#8A6A3A', '#5E6670'], // wave 16 (chibi.js C.eye)
 };
 var OPTIONS = {
   skin: { label: 'Skin', colors: C.skin },
   hair: { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald'], ['curly', 'Curly'], ['afro', 'Afro'], ['bun', 'Bun']] },
   hairColor: { label: 'Hair color', colors: C.hair },
   eyes: { label: 'Eyes', values: [['round', 'Bright'], ['happy', 'Happy'], ['wink', 'Wink'], ['sleepy', 'Chill']] },
+  eyeColor: { label: 'Eye color', colors: C.eye },
   hat: { label: 'Headwear', values: [['hardhat', 'Hard hat'], ['cap', 'Ball cap'], ['beanie', 'Beanie'], ['none', 'None']] },
   hatColor: { label: 'Headwear color', colors: C.color },
   beard: { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
@@ -60,7 +62,7 @@ function normalize(a) {
     beard: pickv(vals('beard'), a.beard, DEFAULTS.beard), shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
     vest: pickv(vals('vest'), a.vest, DEFAULTS.vest), pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
     tool: pickv(vals('tool'), a.tool, DEFAULTS.tool), extra: pickv(vals('extra'), a.extra, DEFAULTS.extra),
-    top: pickv(vals('top'), a.top, 'tee'), build: pickv(vals('build'), a.build, 'regular'),
+    top: pickv(vals('top'), a.top, 'tee'), build: pickv(vals('build'), a.build, 'regular'), eyeColor: idx(a.eyeColor, C.eye.length, 0),
   };
 }
 function shade(hex, amt) {
@@ -169,8 +171,9 @@ function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
-function drawTo(canvas, look, p, mood) {
-  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
+// wave 18: intro { pose, ms } opens with that pose (the sheet's homeowner folds their arms or nods) before p takes over
+function drawTo(canvas, look, p, mood, intro) {
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust', iMs = intro && intro.ms || 0; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = intro && now - start < iMs ? intro.pose : p === 'talk' && now - start > 1800 + iMs ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (canvas.id === 'meFace' && POSE.until > now && POSE.name && POSE.name !== 'walk') pz = POSE.name; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
 // A mini-game scene that keeps painting while its canvas is on the page (2026-10-25 wave 3: the crews in the build,
@@ -625,7 +628,7 @@ function makeLook(persona) {
   var p = PERSONA[persona] || {};
   return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short', 'bun']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long', 'curly', 'afro', 'bun']), // wave 4: the street's homeowners wear the new hair and tops too
     top: pick(['tee', 'tee', 'hoodie', 'polo']),
-    hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
+    hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), eyeColor: rnd(5), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
     tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder,
     prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none',
@@ -989,17 +992,26 @@ function drawHouse(h, st) {
   if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
-function drawDog(c, x, y, t) {
-  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline.
-  var wag = Math.sin(t / 110) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+function drawDog(c, x, y, t, bark) {
+  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline. Wave 19:
+  // barking (the sheet's "big dog") hops on a 480 ms beat, the mouth opens and the ear flips on the hop, with a small
+  // "WOOF" burst; the tail wags faster. t = 0 draws it still.
+  var hop = bark && t ? Math.max(0, Math.sin(t / 480 * Math.PI * 2)) : 0, open = bark && t ? (Math.sin(t / 480 * Math.PI * 2) > 0.3 ? 1 : 0) : 0;
+  var wag = Math.sin(t / (bark ? 70 : 110)) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+  y -= hop * 1.6;
   var blob = function (fill) { c.fillStyle = fill; c.fill(); };
   c.lineWidth = 1.4; c.strokeStyle = ink; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(x + 1, y + 1.5); c.quadraticCurveTo(x - 3 + wag, y - 2, x - 2.5 + wag, y - 4.5); c.stroke(); // tail
   c.beginPath(); c.ellipse(x + 4.5, y + 2, 5, 2.8, 0, 0, 6.3); c.stroke(); blob(fur); // body
-  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
-  c.beginPath(); c.arc(x + 9.5, y - 0.5, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
-  c.beginPath(); c.ellipse(x + 7.6, y - 1.6, 1.3, 2, 0.5, 0, 6.3); c.stroke(); blob(furD); // ear
-  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4, 0.9, 0.9); c.fillRect(x + 12, y - 0.2, 1, 1); // eye, nose
+  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5 + hop * 1.6); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
+  c.beginPath(); c.arc(x + 9.5, y - 0.5 - hop * 0.6, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
+  c.beginPath(); c.ellipse(x + 7.6, y - 1.6 - hop * 1.2, 1.3, 2, 0.5 - hop * 0.9, 0, 6.3); c.stroke(); blob(furD); // ear (flips up on the hop)
+  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4 - hop * 0.6, 0.9, 0.9); c.fillRect(x + 12, y - 0.2 - hop * 0.6, 1, 1); // eye, nose
+  if (open) { // the open mouth: a dark wedge under the nose with a tongue, and the bark
+    c.fillStyle = ink; c.beginPath(); c.moveTo(x + 10.6, y + 0.9 - hop * 0.6); c.lineTo(x + 12.6, y + 0.6 - hop * 0.6); c.lineTo(x + 11.8, y + 2.2 - hop * 0.6); c.closePath(); c.fill();
+    c.fillStyle = '#e2707f'; c.fillRect(x + 11.3, y + 1.3 - hop * 0.6, 0.9, 0.7);
+    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '700 2.6px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText('WOOF', x + 13.5, y - 2.5 - hop * 1.5);
+  }
 }
 function drawCar(c, x, y, w, color, dir, bus) {
   // Top-down traffic (vector since 2026-10-25): a rounded body with a roof panel, glass, lights at both ends, four tyres
@@ -1138,6 +1150,7 @@ function arrive2(h, dogTip) {
 
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
+var SAY_PCT = {}; // wave 18: the trust each homeowner showed on their last line (house index:name)
 // The sheet's face box when nobody is talking: a big wagging dog, a closed door with a hanger, or the pickup. Drawn with
 // the street's own vector pieces at 4x, on the same stop hook the chibi loops use, so say() always replaces it cleanly.
 function faceScene(kind) {
@@ -1150,7 +1163,7 @@ function faceScene(kind) {
     if (faceCv.width !== w * dpr || faceCv.height !== hh * dpr) { faceCv.width = w * dpr; faceCv.height = hh * dpr; }
     var c = faceCv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); var t = Date.now();
     c.save(); c.translate(w / 2, hh / 2);
-    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t); }
+    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t, true); } // wave 19: it barks
     else if (kind === 'truck') { c.scale(2.4, 2.4); drawTruck(c, -6, -10, 1); }
     else { // a closed door, a knob, a hanger on it
       c.scale(3, 3); c.fillStyle = '#5a2f1c'; c.beginPath(); c.moveTo(-4, -11); c.arcTo(6, -11, 6, 11, 2); c.arcTo(6, 11, -6, 11, 2); c.arcTo(-6, 11, -6, -11, 2); c.arcTo(-6, -11, 6, -11, 2); c.closePath(); c.fill(); c.fillStyle = '#6b3a24'; c.fillRect(-5, -10, 10, 20);
@@ -1169,10 +1182,14 @@ function say(look, name, text, choices, tip, meter) {
   var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
   var wasOpen = DOOR && WALK.target && DOOR.h === WALK.target ? DOOR.since : 0;
   var next = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood, since: wasOpen || Date.now() } : null; // since: the door only swings on the first line
+  // wave 18: body language. Trust down five points or more since this homeowner last spoke: arms folded for 1.6 s; up
+  // five or more: a nod. The street's doorway figure holds the same pose until the next line.
+  var intro = null;
+  if (meter && next) { var tk = next.h.i + ':' + next.h.name, prev = SAY_PCT[tk]; if (prev != null && meter.pct <= prev - 5) intro = { pose: 'cross', ms: 1600 }; else if (prev != null && meter.pct >= prev + 5) intro = { pose: 'nod', ms: 1100 }; SAY_PCT[tk] = meter.pct; if (intro) next.pose = intro.pose; }
   if (DOOR && DOOR.h && !next) LEAVE = { look: DOOR.look, h: DOOR.h, mood: DOOR.mood, pose: DOOR.pose || 'wave', out: !!DOOR.out, since: Date.now(), tx: WALK.px + (WALK.px > doorOf(DOOR.h).x ? 22 : -22), ty: WALK.py - 12 };
   DOOR = next;
   if (typeof look === 'string') faceScene(look); // no homeowner in the sheet: the dog, the closed door or the truck (2026-10-25 wave 2)
-  else if (look) drawTo(faceCv, look, 'talk', mood);
+  else if (look) drawTo(faceCv, look, 'talk', mood, intro);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
@@ -1210,11 +1227,12 @@ function node(h, key, tip) {
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  // wave 17: a hand over the mouth when the loss was the rep's own call; a plain loss hangs the head
+  if (end === 'lose') { setStatus(h, 'lost'); pose(tip && tip.bad ? 'cringe' : 'sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
   if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
-  if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
+  if (end === 'book') { setStatus(h, 'booked'); pose('thumbs', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
   if (end === 'inspect') { pose('point', 1400); inspect(h, SAVE.streetId); }
 }
 
@@ -1703,7 +1721,7 @@ var SEASON = {
 function seasonFor(day) { return SEASONS[Math.floor((day - 1) / 7) % 4]; }
 
 // ── The rival: Chad from Storm Bros works storm streets ──
-var RIVAL_LOOK = { skin: 1, hair: 'spiky', hairColor: 3, eyes: 'wink', hat: 'cap', hatColor: 2, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades' };
+var RIVAL_LOOK = { skin: 1, hair: 'spiky', hairColor: 3, eyes: 'wink', hat: 'cap', hatColor: 2, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades', mood: 'smug' }; // wave 18: the smirk
 var RIVAL = { x: 340, y: 100, tx: 340, ty: 100 };
 function rivalStreet(sid) { var last = SAVE.lastStorm && SAVE.lastStorm[sid]; return sid === 'hollow' || (last != null && SAVE.day - last <= 3); }
 function rivalMove() {

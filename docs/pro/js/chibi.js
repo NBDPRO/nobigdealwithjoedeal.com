@@ -37,9 +37,19 @@
  *          animated canvas gets a wave back for 1.2 s unless the page handles taps itself (poke: false, or a canvas that
  *          already has a __chibiTap handler), and every fourth blink is a double blink. Draw option pop 0..1 is the
  *          pop-in's progress for callers that draw by hand. Wave 15: draw option cold 0..1 puffs breath from the mouth
- *          every 3.2 s (the street passes it in winter).
+ *          every 3.2 s (the street passes it in winter). Wave 16: eyeColor 0..4 (brown · blue · green · hazel · grey)
+ *          colours the iris; both pickers offer it. Wave 17: two poses, thumbs (a thumbs-up with a wink and a grin) and
+ *          cringe (a hand over the mouth, eyes shut, a slow head shake; the front arm is drawn over the head for it).
+ *          Wave 18: cross (arms folded across the chest, brows down, chin up: a homeowner closing off); the walk fits the
+ *          body (an elder shuffles, a stocky build sways, a slim one steps quicker); mood 'smug' is a one-sided smirk with
+ *          one brow up (the rival). Wave 19: per-frame popDelay (ms) holds a loop's canvas blank that long before its
+ *          pop-in, so a list of faces arrives one after another (not under reduced motion). Wave 20: talking varies the
+ *          mouth's shape (round to wide) and the brows rise and fall with the words, so a long line reads as speech.
+ *          Wave 21: the mood colours the idle. A frowning character shakes their head slowly with a sigh every 7 s and
+ *          looks away more; a happy one rocks gently with the hair swinging along.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
- *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
+ *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
+ *                                         thumbs · cringe (wave 17) · cross (wave 18)
  *
  * Pure drawing; no DOM writes besides the canvas it is handed. CSP-safe, no dependencies. ES5 on purpose (classic
  * script on both pages). Guarded by tests/chibi-2026-10-25.test.js.
@@ -54,12 +64,13 @@
     color: ['#F2A900', '#378ADD', '#E24B4A', '#639922', '#F5F5F0', '#2C2C2A'],
     shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
     pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
+    eye: ['#3A2A26', '#2F6FB3', '#3E7F4C', '#8A6A3A', '#5E6670'], // wave 16: brown (the look every saved avatar had) · blue · green · hazel · grey
   };
   var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], EYES = ['round', 'happy', 'wink', 'sleepy'];
   var TOPS = ['tee', 'hoodie', 'polo'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
   var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'], PROPS = ['none', 'phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers', 'umbrella'];
-  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
+  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb', 'thumbs', 'cringe', 'cross'];
   // wave 12: builds. w and h scale the body group (legs, torso, arms) from the feet; head scales the head on its own, so
   // a tall rep reads as tall (smaller head, longer body) and a stocky one as stocky (wider body, same head).
   var BUILDS = { regular: { w: 1, h: 1, head: 1 }, slim: { w: 0.88, h: 1.04, head: 0.96 }, stocky: { w: 1.2, h: 0.97, head: 1 }, tall: { w: 0.96, h: 1.12, head: 0.93 } };
@@ -75,10 +86,10 @@
     a = a || {};
     return {
       skin: idx(a.skin, C.skin.length, 1), hair: pick(HAIRS, a.hair, 'short'), hairColor: idx(a.hairColor, C.hair.length, 1),
-      eyes: pick(EYES, a.eyes, 'round'), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
+      eyes: pick(EYES, a.eyes, 'round'), eyeColor: idx(a.eyeColor, C.eye.length, 0), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
-      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
+      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : a.mood === 'smug' ? 'smug' : 'smile', elder: !!a.elder,
       top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'), build: pick(BUILD_NAMES, a.build, 'regular'),
     };
   }
@@ -104,17 +115,22 @@
     // a blink in the last 150 ms of every 3.6 s; every fourth one is a double blink (two 90 ms closes) (wave 14)
     if (o.blink !== false) { var cyc = (t + seed) % 3600, dbl = Math.floor((t + seed) / 3600) % 4 === 3; p.eyesClosed = !!(m && (dbl ? (cyc > 3300 && cyc < 3390) || (cyc > 3480 && cyc < 3570) : cyc > 3450)); }
     if (pose === 'walk') {
-      var w = s(t / 95) * m, w2 = c(t / 95) * m;
-      p.legL = w * 24; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
-      p.armL = w * 18; p.armR = -p.armL; p.elbowL = -10 - Math.max(0, -p.armL) * 0.9; p.elbowR = -10 - Math.max(0, -p.armR) * 0.9;
-      p.bob = Math.abs(w) * -2.4; p.sy = 1 - Math.abs(w2) * 0.025; p.sx = 1 + Math.abs(w2) * 0.02; p.lean = 4; p.tilt = -w * 1.5;
-      p.hair = s(t / 95 - 1.1) * 7 * m;
+      // wave 18: the walk fits the body. An elder shuffles (half the stride, a slower cadence, more lean), a stocky build
+      // sways more and steps a touch slower, a slim one steps quicker.
+      var cad = o.elder ? 125 : o.build === 'slim' ? 85 : o.build === 'stocky' ? 105 : 95, amp = o.elder ? 0.55 : 1, sway = o.build === 'stocky' ? 1.7 : 1;
+      var w = s(t / cad) * m, w2 = c(t / cad) * m;
+      p.legL = w * 24 * amp; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
+      p.armL = w * 18 * amp; p.armR = -p.armL; p.elbowL = -10 - Math.max(0, -p.armL) * 0.9; p.elbowR = -10 - Math.max(0, -p.armR) * 0.9;
+      p.bob = Math.abs(w) * -2.4 * amp; p.sy = 1 - Math.abs(w2) * 0.025 * sway; p.sx = 1 + Math.abs(w2) * 0.02 * sway; p.lean = o.elder ? 6 : 4; p.tilt = -w * 1.5 * sway;
+      p.hair = s(t / cad - 1.1) * 7 * m;
     }
     else if (pose === 'knock') { p.armRUp = 1; p.armR = -58; p.elbowR = -62 + s(t / 45) * 24 * m; p.fist = true; p.lean = 7; p.browUp = 1; p.look = 1; }
     else if (pose === 'talk') {
       var v = 0.52 + 0.42 * s(t / 70) * (0.55 + 0.45 * s(t / 190)) + 0.18 * s(t / 310);
       p.mouthOpen = Math.max(0, Math.min(1, v)) * m; if (m === 0) p.mouthOpen = 0.6;
-      p.tilt = s(t / 400) * 2 * m; p.bob = s(t / 400) * -0.6 * m; p.armR = -12 + s(t / 300) * 10 * m; p.elbowR = -30 - s(t / 300) * 18 * m; p.browUp = 1;
+      p.tilt = s(t / 400) * 2 * m; p.bob = s(t / 400) * -0.6 * m; p.armR = -12 + s(t / 300) * 10 * m; p.elbowR = -30 - s(t / 300) * 18 * m;
+      // wave 20: the mouth's shape runs round to wide on its own beat and the brows rise and fall with the words
+      p.mouthW = m ? 0.8 + 0.45 * Math.abs(s(t / 150 + 0.7)) : 1; p.browUp = m ? 0.7 + 0.3 * s(t / 230) : 1;
       p.look = (t + seed) % 4200 > 3600 ? -1 : 0;
     }
     else if (pose === 'cheer') {
@@ -141,6 +157,15 @@
       p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
     }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }
+    // wave 17: a thumbs-up at chest height (the fist lands 16 forward and 12 up of the shoulder), with a wink and a grin
+    else if (pose === 'thumbs') { p.armRUp = 1; p.armR = -102 + s(t / 260) * 2 * m; p.elbowR = -49; p.fist = true; p.thumb = true; p.wink = true; p.mouth = 'grin'; p.browUp = 1; p.tilt = -3; p.lean = 2; p.bob = -1 + s(t / 300) * 0.8 * m; }
+    // wave 17: a hand over the mouth (14 back and 16 up of the shoulder, so the hand covers the mouth and the arm is
+    // drawn over the head), eyes shut, brows down, the head dropped and shaking slowly: "oh no"
+    // wave 18: arms folded across the chest. Each upper arm runs in toward the centre (65 degrees), each forearm level
+    // across it, so the two forearms overlap at upper-chest height with the front one on top; brows down, the chin a
+    // touch up, nothing in the hands: a homeowner closing off
+    else if (pose === 'cross') { p.armL = -65; p.elbowL = -25; p.armR = 65; p.elbowR = 25; p.armRUp = 1; p.noProp = true; p.browDown = 0.8; p.mouth = 'flat'; p.tilt = -2; p.lean = -1; p.bob = s(t / 700) * -0.6 * m; }
+    else if (pose === 'cringe') { p.armRUp = 1; p.armR = 154; p.elbowR = -29; p.cover = true; p.eyesClosed = true; p.browDown = 1; p.mouth = 'flat'; p.tilt = 6 + s(t / 160) * 2 * m; p.bob = 2; p.armL = 6; p.elbowL = -4; p.sy = 0.985; }
     else {
       p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; // a glance to each side every 6.4 s
       // wave 9: a fidget in the last 1.2 s of every 9 s, a different one each cycle: shift the weight onto one foot,
@@ -155,6 +180,13 @@
       }
     }
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
+    if (o.mood === 'smug' && pose !== 'sad' && pose !== 'cheer') { p.smug = true; if (p.mouth === 'smile' || p.mouth === 'flat') p.mouth = 'smirk'; } // wave 18
+    // wave 21: the mood colours the idle. A frown: a slow head shake with a sigh (the mouth opens a touch, the eyes
+    // close) in the last 1.3 s of every 7 s, and the glance away comes twice as often; happy: a gentle rock with the hair.
+    if (pose === 'idle' && m) {
+      if (o.mood === 'frown') { var mf = (t + seed * 5) % 7000; if (mf > 5700) { var mk = s((mf - 5700) / 1300 * Math.PI); p.tilt += s((mf - 5700) / 140) * 2.2 * mk; p.eyesClosed = p.eyesClosed || mk > 0.5; p.mouthOpen = Math.max(p.mouthOpen, mk * 0.25); p.bob += mk * 1.2; } if (!p.look && (t + seed * 3) % 3200 > 2600) p.look = -1; }
+      else if (o.mood === 'happy') { p.tilt += s(t / 520) * 1.6; p.bob += s(t / 520 + 1) * -0.6; p.hair += s(t / 520 - 0.6) * 2.5; }
+    }
     if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
   }
@@ -211,7 +243,7 @@
     o = o || {};
     var a = normalize(look), pose = pick(POSES, o.pose, 'idle'), t = o.t == null ? 0 : o.t;
     if (a.hair === 'spiky' && a.hat !== 'none') a.hair = 'short'; // spikes tuck under a hat
-    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed };
+    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder };
     var p = poseOf(pose, t, po);
     if (o.from && o.mix != null && o.mix < 1 && POSES.indexOf(o.from) >= 0 && o.from !== pose) p = mixPose(poseOf(o.from, t, po), p, Math.max(0, o.mix));
     // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
@@ -230,7 +262,7 @@
     // wave 12: the build, and an elder's stoop (the head carried forward)
     var B = BUILDS[a.build], bw = B.w, bh = bodyH(a), bhead = B.head;
     if (a.elder) p.lean += 3;
-    var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants];
+    var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants], eyeC = C.eye[a.eyeColor];
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
@@ -283,21 +315,23 @@
     ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.ellipse(50 + p.lean * 0.4, 73 + p.bob * 0.2, 17, 4.5, 0, 0, Math.PI * 2); ctx.fill();
 
     // arms: shoulder pivots at (34,78) and (66,78); upper arm 11, forearm 11, a hand (or a fist, or a pointing finger)
-    function hand(pn, fist, point) {
+    function hand(pn, fist, point, thumbAng) {
       pn.circle(0, 11, fist ? 5.5 : 5, skinG);
+      if (thumbAng != null) { ctx.save(); ctx.translate(0, 11); ctx.rotate(-thumbAng * Math.PI / 180); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(2.5, -3); ctx.lineTo(2.5, -11); ctx.lineWidth = 4 + pn.lw * 2; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = skin; ctx.stroke(); ctx.restore(); }
       if (fist) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 11, 3, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke(); }
       if (point) { ctx.save(); ctx.translate(0, 11); ctx.rotate(-0.1); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 9); ctx.lineCap = 'round'; ctx.lineWidth = 4 + pn.lw * 2; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = skin; ctx.stroke(); ctx.restore(); }
     }
-    function arm(sx, sy, ang, bend, fist, point) {
+    function arm(sx, sy, ang, bend, fist, point, thumb) {
       ctx.save(); ctx.translate(sx, sy);
-      pen.jointed(ang, 11, bend, 11, 9, shirtG, function (pn) { hand(pn, fist, point); });
+      pen.jointed(ang, 11, bend, 11, 9, shirtG, function (pn) { hand(pn, fist, point, thumb ? ang + bend : null); });
       ctx.restore();
     }
     // whatever the hand holds sits at the end of the forearm
     function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); ctx.scale(1 / bw, 1 / bh); fn(); ctx.restore(); }
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
-    if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
+    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
     else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
@@ -337,7 +371,7 @@
     function roundEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey, 6, 7.5, 0, WHITE);
-      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, '#6A5248'); ir.addColorStop(0.7, '#3A2A26'); ir.addColorStop(1, '#241915');
+      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, shade(eyeC, 44)); ir.addColorStop(0.7, eyeC); ir.addColorStop(1, shade(eyeC, -24));
       ctx.fillStyle = ir; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 1.5 + lookY, 4, 5.5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#1A1210'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.6 + lookY, 2.3, 2.8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(cx, ey - 5, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill();
@@ -348,7 +382,7 @@
     function sleepyEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey + 1, 6, 5, 0, WHITE);
-      ctx.fillStyle = '#3A2A26'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = eyeC; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1 + lookY * 0.6, 1.3, 0, Math.PI * 2); ctx.fill();
       pen.shape(function (c) { c.moveTo(cx - 7, ey - 6); c.quadraticCurveTo(cx, ey - 1, cx + 7, ey - 6); c.lineTo(cx + 7, ey - 1.5); c.quadraticCurveTo(cx, ey - 3, cx - 7, ey - 1.5); }, skinG, true);
       pen.line(cx - 6, ey - 1.5, cx + 6, ey - 1.5, 2);
@@ -356,26 +390,27 @@
     var shades = a.extra === 'shades';
     if (!shades) {
       if (a.eyes === 'happy' || pose === 'cheer' || p.happyEyes) { happyEye(eyL); happyEye(eyR); }
-      else if (a.eyes === 'wink') { roundEye(eyL, p.eyesClosed); happyEye(eyR); }
+      else if (a.eyes === 'wink' || p.wink) { roundEye(eyL, p.eyesClosed); happyEye(eyR); }
       else if (a.eyes === 'sleepy') { sleepyEye(eyL, p.eyesClosed); sleepyEye(eyR, p.eyesClosed); }
       else { roundEye(eyL, p.eyesClosed); roundEye(eyR, p.eyesClosed); }
     }
     // brows
-    var browC = a.hair === 'bald' ? shade(skin, -40) : shade(hair, -10), bUp = p.browUp * 2.5, bDn = p.browDown;
+    var browC = a.hair === 'bald' ? shade(skin, -40) : shade(hair, -10), bUp = p.browUp * 2.5, bDn = p.browDown, bUpR = bUp + (p.smug ? 2.6 : 0); // one brow up for a smirk (wave 18)
     ctx.strokeStyle = browC; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(eyL - 6, ey - 11 - bUp + bDn * 2); ctx.quadraticCurveTo(eyL, ey - 14 - bUp + bDn * 1, eyL + 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUp + bDn * 1, eyR + 6, ey - 11 - bUp + bDn * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUpR - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUpR + bDn * 1, eyR + 6, ey - 11 - bUpR + bDn * 2); ctx.stroke();
     // nose
     ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke();
     // mouth
     var my = hy + 19;
     if (p.mouth === 'open' || p.mouthOpen > 0.15) {
-      var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0);
-      pen.ellipse(hx, my + 1, 5 + oh * 0.4, oh, 0, '#6B2A2A');
+      var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0), mw = p.mouthW || 1;
+      pen.ellipse(hx, my + 1, (5 + oh * 0.4) * mw, oh, 0, '#6B2A2A');
       ctx.fillStyle = '#E2707F'; ctx.beginPath(); ctx.ellipse(hx, my + 1 + oh * 0.55, 3.2, oh * 0.4, 0, 0, Math.PI * 2); ctx.fill();
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
     } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
     else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4); }
+    else if (p.mouth === 'smirk') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
     else if (p.mouth === 'grin') { pen.shape(function (c) { c.moveTo(hx - 8, my - 2); c.quadraticCurveTo(hx, my + 9, hx + 8, my - 2); c.quadraticCurveTo(hx, my + 2, hx - 8, my - 2); }, '#6B2A2A'); ctx.fillStyle = WHITE; ctx.fillRect(hx - 5, my - 1, 10, 1.8); }
     else { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
     // beard
@@ -436,9 +471,11 @@
     var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
     if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
+    if (p.cover) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); frontArm(); ctx.restore(); } // the hand over the mouth sits on top of the face
 
-    // the right (front) arm and whatever it holds
-    arm(66, 78, p.armR, p.elbowR, p.fist, p.point);
+    // the right (front) arm and whatever it holds (drawn here, or over the head when the pose covers the mouth: wave 17)
+    function frontArm() {
+    arm(66, 78, p.armR, p.elbowR, p.fist, p.point, p.thumb);
     if (!p.fist && !p.point && (!p.armRUp || p.swing)) {
       inHand(66, 78, p.armR, p.elbowR, function () {
         if (p.swing) { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); return; } // a hammer swings whatever the look holds
@@ -447,6 +484,8 @@
         else if (a.tool === 'ladder') { ctx.translate(10, -40); pen.rrect(0, 0, 4, 62, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 62, 2, '#B4B2A9'); for (var ry = 6; ry < 60; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); }
       });
     }
+    }
+    if (!p.cover) frontArm();
 
     // emotes that float free of the head: sparkles on a cheer, thought dots when thinking
     if (p.emote === 'sparkle' && !reduce) {
@@ -494,7 +533,7 @@
   }
   var POP_MS = 360, POKE_MS = 1200;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0;
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0, due = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
     // wave 14: a tap on the canvas gets a wave back, unless the page already answers taps on it (the game card, the
     // locker and the HUD cheer on their own through __chibiTap) or the first frame's options say poke: false
@@ -507,8 +546,11 @@
       if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
       if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
       if (!last || now - last >= 32) {
-        last = now;
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
+        // wave 19: a staggered arrival. The canvas stays blank until its turn, then pops in like any other.
+        if (!due) due = now + (!reduce && o.pop == null && Number(o.popDelay) > 0 ? Number(o.popDelay) : 0);
+        if (now < due) { raf = requestAnimationFrame(frame); return; }
+        last = now;
         if (o.poke === false) canvas.__pokeOff = true;
         if (canvas.__pokeUntil > now && !canvas.__chibiTap && (o.pose == null || o.pose === 'idle')) o.pose = 'wave';
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;

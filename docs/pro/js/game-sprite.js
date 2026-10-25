@@ -24,12 +24,14 @@
     color: ['#F2A900', '#378ADD', '#E24B4A', '#639922', '#F5F5F0', '#2C2C2A'],   // headwear
     shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
     pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
+    eye: ['#3A2A26', '#2F6FB3', '#3E7F4C', '#8A6A3A', '#5E6670'],   // wave 16: the iris (chibi.js); the 32-px grid below keeps its one dark eye
   };
   var OPTIONS = {
     skin:   { label: 'Skin', colors: C.skin },
     hair:   { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald'], ['curly', 'Curly'], ['afro', 'Afro'], ['bun', 'Bun']] },
     hairColor: { label: 'Hair color', colors: C.hair },
     eyes:   { label: 'Eyes', values: [['round', 'Bright'], ['happy', 'Happy'], ['wink', 'Wink'], ['sleepy', 'Chill']] },
+    eyeColor: { label: 'Eye color', colors: C.eye },
     hat:    { label: 'Headwear', values: [['hardhat', 'Hard hat'], ['cap', 'Ball cap'], ['beanie', 'Beanie'], ['none', 'None']] },
     hatColor: { label: 'Headwear color', colors: C.color },
     beard:  { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
@@ -55,6 +57,7 @@
       hair: pick(vals('hair'), a.hair, DEFAULTS.hair),
       hairColor: idx(a.hairColor, C.hair.length, DEFAULTS.hairColor),
       eyes: pick(vals('eyes'), a.eyes, DEFAULTS.eyes),
+      eyeColor: idx(a.eyeColor, C.eye.length, 0),
       hat: pick(vals('hat'), typeof a.hat === 'number' ? 'hardhat' : a.hat, DEFAULTS.hat),
       hatColor: idx(hatColor, C.color.length, DEFAULTS.hatColor),
       beard: pick(vals('beard'), a.beard, DEFAULTS.beard),

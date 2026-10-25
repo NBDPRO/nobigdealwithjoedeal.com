@@ -252,3 +252,39 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   homeowner at the door for the season without touching the saved look: in winter a beanie over bare hair and a
   hoodie over a tee (most of them; the house index decides, so the same person dresses the same way all day), in
   summer shades on every other bare-eyed homeowner. Guard grows to 94.
+- **Wave 16, eye colour.** `C.eye` (brown · blue · green · hazel · grey; brown first, so every saved look keeps its
+  eyes) colours the iris gradient of the round eye and the fill of the chill eye; the pupil stays dark. Both pickers
+  grew an **Eye color** swatch row (the locker; the game card through `game-sprite.js` v6 with the five swatch classes
+  in `game-card.css` v5, which the game-xp guard checks against the option table), and the street rolls one per
+  homeowner. `chibi.js` v11, `roof-rep.js` v13. Guard grows to 97 (the palette, normalize, the gradient stops and
+  fills a blue-eyed and a green-eyed draw use, the pickers, the CSS and the street).
+- **Wave 17, two poses for the street's outcomes.** `thumbs`: the front arm up to chest height as a fist with a thumb
+  that points up whatever the arm's angle, a wink and a grin; the rep gives one when a homeowner books an inspection
+  (was a wave). `cringe`: the hand over the mouth (the arm swung back and up, and drawn over the head so the hand sits
+  on the face), eyes shut, brows down, the head dropped and shaking slowly; the rep does it when a lost door was their
+  own bad call (`tip.bad`), and still hangs the head (`sad`) on a plain loss. A chibi's arm reaches the mouth, not the
+  forehead, so this is the facepalm the body allows. The shipped-bytes ceiling moves 2804 → 2816 KB with a dated note:
+  waves 12–17 grew `chibi.js` from 47 to 56 KB (deferred), and the gate sat at 2804 of 2804. Guard grows to 100.
+- **Wave 18, body language in the sheet, a walk that fits the body, the smirk.** `cross`: arms folded across the
+  chest (each upper arm in at 65°, each forearm level across it so the two overlap at upper-chest height with the
+  front one on top; brows down, chin up; nothing in the hands). The speech sheet keeps the trust each homeowner showed
+  on their last line (`SAY_PCT`): five points down or more opens the next line with 1.6 s of folded arms, five up or
+  more with a 1.1 s nod, then the talk; the doorway figure on the street holds the same pose until the next line
+  (`drawTo` takes an `intro { pose, ms }`). The walk fits the body: an elder shuffles (half the stride on a slower
+  beat, more lean), a stocky build sways more on a slightly slower beat, a slim one steps on a quicker one; `draw`
+  hands the look's build and elder flag to `poseOf`. Mood `smug` is a one-sided smirk with one brow up (never when
+  sad or cheering); Chad from Storm Bros wears it. Guard grows to 105.
+- **Wave 19, a staggered arrival, and the dog barks.** A per-frame `popDelay` (ms) holds a loop's canvas blank that
+  long before its pop-in, so the Dashboard view's Leaderboard and the Team Leaderboard widget bring their faces in one
+  after another down the list, 90 ms apart (`dashboard-api.js` v10, `widgets.js` v20; not under reduced motion,
+  which still draws its one still frame). The speech sheet's "big dog" barks: `drawDog` takes a `bark` flag and hops
+  on a 480 ms beat with the mouth open (a tongue, a small WOOF), the ear flipping up and a faster wag; the street's
+  yard dogs and the reduced-motion frame keep the old drawing. Guard grows to 107.
+- **Wave 20, speech reads as speech, and the HUD face mirrors the street.** Talking varies the mouth's shape (round
+  to wide, on its own beat) and the brows rise and fall with the words, so a long line in the sheet reads as speech
+  rather than a metronome. The HUD face follows the street rep's pose while it lasts: a cheer on a sale, a thumbs-up
+  on a booking, a cringe on a bad call (never the walk; a tap's cheer still wins). Guard grows to 110.
+- **Wave 21, the mood colours the idle.** A frowning character (a skeptic at the door, a homeowner under 35% trust)
+  shakes their head slowly with a sigh in the last 1.3 s of every 7 s (eyes shut, the mouth a touch open, the body
+  dips) and glances away twice as often; a happy one rocks gently on a 520 ms beat with the hair swinging along.
+  Reduced motion keeps both still. Guard grows to 112.

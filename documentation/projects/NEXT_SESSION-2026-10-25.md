@@ -30,7 +30,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   weather, idle fidgets. Waves 10–11: the chibi on the leaderboard page and the dashboard leaderboards. Waves 12–13:
   builds (regular / slim / stocky / tall, an elder stoop) and eyes that follow the pointer. Wave 14: a pop-in on
   arrival, a wave back when tapped, the double blink. Wave 15: cold breath and winter / summer dress on the street.
-  Guard `tests/chibi-2026-10-25.test.js` (94).
+  Wave 16: eye colour in both pickers. Wave 17: thumbs-up and cringe poses on the street's outcomes. Wave 18: folded arms and a nod in
+  the speech sheet as trust moves, a walk that fits the build, the rival's smirk. Wave 19: the leaderboard faces arrive one after another; the sheet's dog
+  barks. Wave 20: speech varies the mouth and brows; the HUD face mirrors the street rep. Wave 21: a
+  frowning idle sighs and shakes its head, a happy one rocks. Guard `tests/chibi-2026-10-25.test.js` (112).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -69,6 +72,8 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   `tests/crm-strip-one-row-2026-10-25.test.js`. Local note: this sandbox's proxy blocks fonts.googleapis, so the
   dashboard renders in a wider fallback font; `loginAs` on the emulators now serves the self-hosted Barlow sheet
   (`nbd-fonts-pro.css`) in its place, so local widths match CI's.
+- **Merged today after #2735:** #2736 (character waves 12–15 + the ANSI-tolerant CI filter, 14:12 UTC). Waves 16–21
+  follow in the next PR on the same branch.
 - **@shard2 on #2735 (the first run with the hosting-log filter): 167 passed, 1 failed, 13.0 min.** Only
   compact-header test 4 ("the first card starts in the top half") missed; crew-calendar passed. The filter itself
   missed: on the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address and

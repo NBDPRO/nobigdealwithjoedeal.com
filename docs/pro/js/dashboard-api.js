@@ -159,9 +159,10 @@ async function renderLeaderboard(){
     '</div>';
   }).join('');
   // The looks breathe (idle, blink, a fidget every 9 s); a hidden view paints nothing (chibi v6).
-  if (window.NBDChibi) lbEl.querySelectorAll('canvas[data-lb-face]').forEach((cv) => {
+  // The faces arrive one after another down the list, 90 ms apart (chibi wave 19).
+  if (window.NBDChibi) lbEl.querySelectorAll('canvas[data-lb-face]').forEach((cv, i) => {
     const look = window.NBDTeamNames.avatarFor(cv.getAttribute('data-lb-face'));
-    if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust' }; });
+    if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust', popDelay: i * 90 }; });
   });
 }
 
