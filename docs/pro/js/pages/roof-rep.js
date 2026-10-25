@@ -987,30 +987,153 @@ function drawHouse(h, st) {
   if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
   // bushes
   g.fillStyle = se === 'winter' ? '#9fb3a6' : shade(st.yard, 22); [[h.x + 9, y + 54], [h.x + w - 9, y + 54]].forEach(function (b) { g.beginPath(); g.arc(b[0], b[1], 4, 0, 6.3); g.arc(b[0] + 4, b[1] + 1, 3, 0, 6.3); g.fill(); });
-  if (h.dog) drawDog(g, h.x + 58, h.top ? y + 60 : y - 10, Date.now());
+  if (h.dog) drawDog(g, h.x + 58, h.top ? y + 60 : y - 10, Date.now(), false, { coat: ['brown', 'black', 'golden', 'spotted'][h.i % 4] }); // clean-up 2026-10-25: a coat per house
   var c2 = FLAG[h.status];
   if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
-function drawDog(c, x, y, t, bark) {
-  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline. Wave 19:
-  // barking (the sheet's "big dog") hops on a 480 ms beat, the mouth opens and the ear flips on the hop, with a small
-  // "WOOF" burst; the tail wags faster. t = 0 draws it still.
-  var hop = bark && t ? Math.max(0, Math.sin(t / 480 * Math.PI * 2)) : 0, open = bark && t ? (Math.sin(t / 480 * Math.PI * 2) > 0.3 ? 1 : 0) : 0;
-  var wag = Math.sin(t / (bark ? 70 : 110)) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
-  y -= hop * 1.6;
-  var blob = function (fill) { c.fillStyle = fill; c.fill(); };
-  c.lineWidth = 1.4; c.strokeStyle = ink; c.lineJoin = 'round';
-  c.beginPath(); c.moveTo(x + 1, y + 1.5); c.quadraticCurveTo(x - 3 + wag, y - 2, x - 2.5 + wag, y - 4.5); c.stroke(); // tail
-  c.beginPath(); c.ellipse(x + 4.5, y + 2, 5, 2.8, 0, 0, 6.3); c.stroke(); blob(fur); // body
-  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5 + hop * 1.6); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
-  c.beginPath(); c.arc(x + 9.5, y - 0.5 - hop * 0.6, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
-  c.beginPath(); c.ellipse(x + 7.6, y - 1.6 - hop * 1.2, 1.3, 2, 0.5 - hop * 0.9, 0, 6.3); c.stroke(); blob(furD); // ear (flips up on the hop)
-  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4 - hop * 0.6, 0.9, 0.9); c.fillRect(x + 12, y - 0.2 - hop * 0.6, 1, 1); // eye, nose
-  if (open) { // the open mouth: a dark wedge under the nose with a tongue, and the bark
-    c.fillStyle = ink; c.beginPath(); c.moveTo(x + 10.6, y + 0.9 - hop * 0.6); c.lineTo(x + 12.6, y + 0.6 - hop * 0.6); c.lineTo(x + 11.8, y + 2.2 - hop * 0.6); c.closePath(); c.fill();
-    c.fillStyle = '#e2707f'; c.fillRect(x + 11.3, y + 1.3 - hop * 0.6, 0.9, 0.7);
-    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '700 2.6px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText('WOOF', x + 13.5, y - 2.5 - hop * 1.5);
+function drawDog(c, x, y, t, bark, opts) {
+  // clean-up 2026-10-25: the dog to the style bar. A cel-shaded side-view dog, feet at y + 6, facing +x, about 18 units
+  // wide and 12.5 tall at scale 1. A rig (crouch, hop, land, mouth, woof, a wag whose tip lags, leg swing, bob, blink,
+  // ear angle, head tilt) drives parts that are each one base tone, a hard-edged shadow crescent and, on the sheet, a
+  // light crescent, a deep core strip, fold strokes and highlights, under one ink outline whose weight follows the device
+  // scale (c.getTransform). The skull and the muzzle are one union path, the floppy ear hangs on the side of the head,
+  // the far legs are one flat path per pair, the sitting rump is one outline. bark (the sheet's big dog): a crouch, a
+  // hop on a 480 ms beat, the jaw dropping around a tongue, the ear flipping up, a WOOF at the apex, a faster wag and a
+  // ground shadow that shrinks under the hop. t = 0 draws a still frame. opts: coat ('brown' | 'black' | 'golden' |
+  // 'spotted'), facing (1 | -1, mirrored about the dog's centre so the footprint stays), pose ('stand' | 'sit' | 'walk'),
+  // scale (a multiplier about (x, y)). Canvas 2D paths only; drawDog.COATS is the only state.
+  opts = opts || {};
+  var COAT = drawDog.COATS || (drawDog.COATS = { // base, far (the far legs), deep (strokes), ear, muzzle, the shadow and light overlays (rgba, so a patch shades like the base), collar, nose; black carries tan points, spotted a patch
+    brown: { base: '#a8652d', far: '#7d4a1f', deep: '#5e3414', ear: '#6e3f1b', muzzle: '#d9a86e', sh: 'rgba(60,25,45,.36)', li: 'rgba(255,236,190,.42)', collar: '#c0392b', nose: '#1a1512' },
+    black: { base: '#4a4a59', far: '#34343f', deep: '#23232c', ear: '#2b2b35', muzzle: '#b5804a', sh: 'rgba(0,0,14,.4)', li: 'rgba(200,210,245,.42)', collar: '#2f7fd6', nose: '#1a1512', points: true, brow: '#b5804a' },
+    golden: { base: '#dcae5e', far: '#b3843a', deep: '#8f6424', ear: '#b8822f', muzzle: '#f3e0b4', sh: 'rgba(120,60,20,.34)', li: 'rgba(255,250,225,.5)', collar: '#2e8b57', nose: '#3a2a24' },
+    spotted: { base: '#f2eee6', far: '#c9c2b4', deep: '#a39b8c', ear: '#3b2a22', muzzle: '#f2eee6', sh: 'rgba(70,60,80,.28)', li: 'rgba(255,255,255,.65)', collar: '#bd5728', nose: '#1a1512', patch: '#3b2a22' }
+  });
+  var K = COAT[opts.coat] || COAT.brown, stance = opts.pose || 'stand', fac = opts.facing === -1 ? -1 : 1, sc = opts.scale || 1;
+  var still = !t, T = t || 0, sit = stance === 'sit', walk = stance === 'walk', TAU = 6.2832;
+  var m = c.getTransform ? c.getTransform() : null, s = (m ? Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) : 2) * sc; // device px per unit
+  var lod = s < 1.5 ? 0 : s < 2.8 ? 1 : 2, lw = lod > 1 ? Math.max(0.42, Math.min(1, 0.3 + 1.2 / s)) : Math.max(0.34, Math.min(0.85, 0.2 + 0.9 / s)), INK = '#1a1512';
+  var ss = function (a, b, v) { v = Math.max(0, Math.min(1, (v - a) / (b - a))); return v * v * (3 - 2 * v); };
+  // ── the rig: every number below is a pose parameter; the drawing reads only these ──
+  var ph = bark && !still ? (T % 480) / 480 : 0, crouch = 0, hop = 0, land = 0;
+  if (bark && !still) { if (ph < 0.18) crouch = Math.sin(ph / 0.18 * Math.PI); else if (ph < 0.72) { var ar = (ph - 0.18) / 0.54; hop = 4 * ar * (1 - ar); } else land = Math.sin((ph - 0.72) / 0.28 * Math.PI); }
+  var mouth = bark && !still ? ss(0.19, 0.3, ph) * (1 - ss(0.62, 0.76, ph)) : 0; // 0 closed … 1 wide open
+  var woof = bark && !still ? ss(0.24, 0.4, ph) * (1 - ss(0.6, 0.74, ph)) : 0;   // the burst, peaking at the apex
+  var wagT = bark ? 70 : 110, wag = still ? 0 : Math.sin(T / wagT), curl = still ? 0 : Math.sin(T / wagT - 1.1); // the tip lags the root
+  var sw = walk && !still ? Math.sin(T / 90) : 0, bob = walk && !still ? Math.pow(Math.sin(T / 90), 2) * 0.3 : 0;
+  var blink = !still && ((T + 1500) % 3100) < 110;
+  var lift = sit ? 0 : -hop * 1.7 + crouch * 0.9 + land * 0.4 - bob;
+  var bx = 4.6, by = (sit ? 0.2 : 1.0) + lift, lean = sit ? 0 : -0.1 * hop + 0.06 * crouch;              // body centre and lean
+  var hx = sit ? 9.4 : 10.0, hy = (sit ? -5.0 : -2.8) + lift + (sit ? -hop * 0.8 : -hop * 0.3 + crouch * 0.5) - (walk ? Math.pow(Math.sin(T / 90 - 0.5), 2) * 0.2 : 0);
+  var tilt = -0.26 * hop + 0.1 * crouch + (sit ? -0.08 : 0);                                              // head tilt: throws the muzzle up on the bark
+  var earA = (sit ? 0.7 : 1.05) * hop - 0.3 * land - 0.15 * crouch + 0.1 * sw;                                            // the ear flips up and back on the hop
+  var LX = 0.55, LY = -0.835;                                                                                // key light: up and in front
+  // ── helpers (path functions add to the current path at an offset; the caller begins it) ──
+  var cel = function (path, base, dSh, dLi, ang, extra) { // fill; inside the clip: the shadow crescent (the part minus itself moved toward the light), on the sheet a deep core strip and a light crescent; then the outline
+    var ca = Math.cos(-(ang || 0)), sa = Math.sin(-(ang || 0)), ux = LX * ca - LY * sa, uy = LX * sa + LY * ca;
+    c.beginPath(); path(0, 0); c.fillStyle = base; c.fill();
+    if (lod > 0 || dSh >= 1) { c.save(); c.clip();
+      if (extra) extra();
+      c.fillStyle = K.sh; c.beginPath(); c.rect(-40, -40, 80, 80); path(ux * dSh, uy * dSh); c.fill('evenodd');
+      if (lod > 1) { c.beginPath(); c.rect(-40, -40, 80, 80); path(ux * dSh * 0.5, uy * dSh * 0.5); c.fill('evenodd'); } // the fourth tone: the strip at the edge, doubled
+      if (lod > 1 && dLi) { c.beginPath(); c.rect(-40, -40, 80, 80); path(-ux * dLi, -uy * dLi); c.fillStyle = K.li; c.fill('evenodd'); }
+      c.restore(); }
+    c.beginPath(); path(0, 0); c.stroke();
+  };
+  var flat = function (path, fill) { c.beginPath(); path(0, 0); c.fillStyle = fill; c.fill(); c.stroke(); };
+  var deepStroke = function (fn, w) { c.strokeStyle = K.deep; if (w) c.lineWidth = lw * w; c.beginPath(); fn(); c.stroke(); c.strokeStyle = INK; c.lineWidth = lw; };
+  var body = function (dx, dy) { c.moveTo(dx - 5.0, dy - 1.6);
+    c.bezierCurveTo(dx - 5.0, dy - 3.6, dx - 1.5, dy - 3.5, dx + 2.5, dy - 2.9); c.bezierCurveTo(dx + 4.6, dy - 2.6, dx + 5.8, dy - 1.2, dx + 5.6, dy + 0.6);
+    c.bezierCurveTo(dx + 5.4, dy + 2.4, dx + 2.5, dy + 3.1, dx + 0.5, dy + 3.0); c.bezierCurveTo(dx - 2.5, dy + 3.0, dx - 5.6, dy + 2.2, dx - 5.6, dy + 0.2);
+    c.bezierCurveTo(dx - 5.6, dy - 0.8, dx - 5.0, dy - 1.4, dx - 5.0, dy - 1.6); c.closePath(); };
+  var bodySit = function (dx, dy) { // the chest, the belly and the haunch resting on the ground as one outline (world units, not pitched)
+    c.moveTo(dx + 8.6, dy - 2.9); c.bezierCurveTo(dx + 10.0, dy - 2.2, dx + 10.6, dy - 0.2, dx + 10.0, dy + 1.6); c.bezierCurveTo(dx + 9.7, dy + 2.6, dx + 8.6, dy + 3.2, dx + 7.2, dy + 3.3);
+    c.bezierCurveTo(dx + 5.8, dy + 3.4, dx + 4.8, dy + 3.9, dx + 4.2, dy + 4.6); c.bezierCurveTo(dx + 3.9, dy + 5.6, dx + 2.4, dy + 6.0, dx + 1.0, dy + 6.0);
+    c.bezierCurveTo(dx - 0.8, dy + 6.0, dx - 1.6, dy + 4.6, dx - 1.3, dy + 3.0); c.bezierCurveTo(dx - 1.0, dy + 1.2, dx + 1.0, dy - 0.8, dx + 3.4, dy - 1.7);
+    c.bezierCurveTo(dx + 5.2, dy - 2.4, dx + 7.2, dy - 3.1, dx + 8.6, dy - 2.9); c.closePath(); };
+  var leg = function (hw, L) { return function (dx, dy) { c.moveTo(dx - hw, dy - 0.6); c.lineTo(dx - hw, dy + L - 1.0);
+    c.quadraticCurveTo(dx - hw, dy + L, dx - hw + 0.9, dy + L); c.lineTo(dx + hw + 0.5, dy + L); c.quadraticCurveTo(dx + hw + 1.0, dy + L, dx + hw + 0.9, dy + L - 0.9);
+    c.quadraticCurveTo(dx + hw + 0.5, dy + L - 1.6, dx + hw, dy + L - 1.9); c.lineTo(dx + hw, dy - 0.6); c.closePath(); }; };
+  var band = function (hw, L) { c.moveTo(-hw, -0.6); c.lineTo(-hw, L - 1.0); c.quadraticCurveTo(-hw, L - 0.1, -hw + 0.7, L - 0.1); c.lineTo(-hw + 0.7, -0.6); c.closePath(); }; // the back-edge cel band of a near leg
+  var head = function (dx, dy) { // the skull and the muzzle as one outline: the arc runs the long way round, the muzzle bumps out in front
+    c.moveTo(dx + 1.68, dy + 2.61); c.arc(dx, dy, 3.1, 1.0, -0.35, false);
+    c.bezierCurveTo(dx + 3.9, dy - 1.05, dx + 4.7, dy - 0.5, dx + 4.9, dy + 0.2); c.bezierCurveTo(dx + 5.05, dy + 0.9, dx + 4.7, dy + 1.7, dx + 3.9, dy + 2.1);
+    c.bezierCurveTo(dx + 3.2, dy + 2.45, dx + 2.4, dy + 2.65, dx + 1.68, dy + 2.61); c.closePath(); };
+  var ear = function (dx, dy) { c.moveTo(dx, dy - 0.3); c.bezierCurveTo(dx + 1.1, dy + 0.3, dx + 1.15, dy + 2.6, dx + 0.1, dy + 3.5);
+    c.bezierCurveTo(dx - 0.8, dy + 4.2, dx - 1.75, dy + 3.3, dx - 1.55, dy + 2.3); c.bezierCurveTo(dx - 1.4, dy + 1.1, dx - 0.8, dy + 0.1, dx, dy - 0.3); c.closePath(); };
+  var tail = function (L, w0, w1, cv) { return function (dx, dy) { // a tapered quadratic ribbon along +x, bending by cv
+    var n = 8, A = [], B = [], i, u, mt, px, py, tx, ty, tl, w;
+    for (i = 0; i <= n; i++) { u = i / n; mt = 1 - u; px = u * L; py = 2 * mt * u * cv; tx = L; ty = 2 * (mt * cv - u * cv); tl = Math.sqrt(tx * tx + ty * ty) || 1; w = w0 + (w1 - w0) * u;
+      A.push([dx + px - ty / tl * w, dy + py + tx / tl * w]); B.push([dx + px + ty / tl * w, dy + py - tx / tl * w]); }
+    c.moveTo(A[0][0], A[0][1]); for (i = 1; i <= n; i++) c.lineTo(A[i][0], A[i][1]);
+    tl = Math.sqrt(L * L + cv * cv) || 1; c.quadraticCurveTo(dx + L + L / tl * w1 * 1.4, dy - cv / tl * w1 * 1.4, B[n][0], B[n][1]);
+    for (i = n - 1; i >= 0; i--) c.lineTo(B[i][0], B[i][1]); c.closePath(); }; };
+  var rot = function (px, py, ang, fn) { c.save(); c.translate(px, py); if (ang) c.rotate(ang); fn(); c.restore(); };
+  var legs = function (P, near) { // one leg pair: [hipX, halfWidth, angle] × 2. Far: one flat path in the far tone. Near: one path with a cel band at the yard size, shaded per leg with toe ticks on the sheet
+    var L = sit ? 5.0 : Math.min(5.0, 6 - by), hy0 = sit ? 1.0 : by, i;
+    if (near && lod > 1) { for (i = 0; i < P.length; i++) rot(P[i][0], hy0, P[i][2], function () { cel(leg(P[i][1], L), K.base, 0.7, 0, P[i][2]); deepStroke(function () { c.moveTo(P[i][1] - 0.35, L - 1.0); c.lineTo(P[i][1] - 0.25, L - 0.25); }); }); return; }
+    c.beginPath(); for (i = 0; i < P.length; i++) rot(P[i][0], hy0, P[i][2], function () { leg(P[i][1], L)(0, 0); }); c.fillStyle = near ? K.base : K.far; c.fill();
+    if (near && lod > 0) { c.beginPath(); for (i = 0; i < P.length; i++) rot(P[i][0], hy0, P[i][2], function () { band(P[i][1], L); }); c.fillStyle = K.sh; c.fill(); }
+    c.beginPath(); for (i = 0; i < P.length; i++) rot(P[i][0], hy0, P[i][2], function () { leg(P[i][1], L)(0, 0); }); c.stroke();
+  };
+  // ── draw ──
+  c.save(); c.translate(x + (fac < 0 ? 12 * sc : 0), y); c.scale(fac * sc, sc);
+  c.lineWidth = lw; c.strokeStyle = INK; c.lineJoin = 'round'; c.lineCap = 'round';
+  if (bark) { c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(sit ? 4.2 : 4.8, 6.3, (sit ? 6.2 : 7.4) * (1 - 0.28 * hop), 1.1 - 0.25 * hop, 0, 0, TAU); c.fill(); } // the ground shadow, the sheet only; it shrinks under the hop
+  // tail: rotated about its root; the root sits inside the rump so the join is hidden by the body
+  var tA = sit ? 3.35 - wag * 0.3 : -2.15 + wag * 0.45 - hop * 0.3, tRoot = sit ? [-0.6, 4.8] : [bx - 5.2, by - 1.0];
+  rot(tRoot[0], tRoot[1], tA, function () { var tp = tail(3.9, 0.72, 0.36, (sit ? 0.5 : 1.1) + curl * 0.7); if (lod > 1) cel(tp, K.base, 0.7, 0.4, tA); else flat(tp, K.base); });
+  // legs hang from hips inside the body: the far pair first, set back toward the tail, then the near pair
+  if (!sit) { legs([[0.3, 0.9, 0.5 * sw + 0.3 * hop], [6.7, 0.9, -0.5 * sw - 0.35 * hop]], false); legs([[1.6, 1.0, -0.5 * sw + 0.3 * hop], [8.0, 1.0, 0.5 * sw - 0.35 * hop]], true); }
+  else { legs([[7.4, 0.9, 0]], false); legs([[8.7, 1.0, 0]], true); }
+  if (sit) {
+    cel(bodySit, K.base, 1.0, 0.5, 0, K.patch ? function () { c.beginPath(); c.ellipse(4.4, 0.2, 2.2, 1.4, -0.3, 0, TAU); c.fillStyle = K.patch; c.fill(); } : null);
+    flat(function (dx, dy) { c.moveTo(dx + 2.6, dy + 5.0); c.quadraticCurveTo(dx + 4.8, dy + 4.9, dx + 5.1, dy + 5.6); c.quadraticCurveTo(dx + 5.0, dy + 6.0, dx + 4.4, dy + 6.0); c.lineTo(dx + 2.6, dy + 6.0); c.closePath(); }, K.base); // the hind paw forward
+    if (lod > 0) deepStroke(function () { c.moveTo(3.0, 1.1); c.quadraticCurveTo(6.1, 3.0, 4.2, 5.1); }, 0.85); // the haunch: the thigh's front edge, from the belly down to the hind paw
+    if (lod > 1) { c.strokeStyle = K.li; c.lineWidth = lw * 0.55; c.beginPath(); c.moveTo(2.4, -1.0); c.quadraticCurveTo(5.0, -2.1, 8.0, -2.4); c.stroke(); c.strokeStyle = INK; c.lineWidth = lw; } // the hot line on the back
+  } else {
+    rot(bx, by, lean, function () { cel(body, K.base, 1.0, 0.5, lean, K.patch ? function () { c.beginPath(); c.moveTo(-3.6, -2.2); c.bezierCurveTo(-1.2, -3.4, 1.4, -2.6, 1.6, -0.8); c.bezierCurveTo(1.7, 0.6, -0.6, 1.2, -2.2, 0.4); c.bezierCurveTo(-3.6, -0.3, -4.4, -1.4, -3.6, -2.2); c.fillStyle = K.patch; c.fill(); } : null);
+      if (lod > 1) { c.strokeStyle = K.li; c.lineWidth = lw * 0.55; c.beginPath(); c.moveTo(-3.6, -2.3); c.quadraticCurveTo(-0.6, -2.95, 3.0, -2.35); c.stroke(); c.strokeStyle = INK; c.lineWidth = lw; } }); // the hot line on the back
+    if (lod > 1) deepStroke(function () { c.moveTo(bx - 3.4, by + 0.2); c.quadraticCurveTo(bx - 2.2, by + 0.9, bx - 2.4, by + 2.2); }); // the haunch line
+  }
+  if (lod > 0) { // collar: an ink band under a colour band, hugging the bottom of the head
+    var a0 = 1.35, a1 = sit ? 2.45 : 2.62;
+    c.lineCap = 'butt'; c.beginPath(); c.arc(hx, hy, 3.7, a0, a1); c.lineWidth = 1.15 + 1.7 * lw; c.strokeStyle = INK; c.stroke(); // ink rim = one outline weight each side
+    c.beginPath(); c.arc(hx, hy, 3.7, a0, a1); c.lineWidth = 1.15 - lw * 0.3; c.strokeStyle = K.collar; c.stroke(); c.lineWidth = lw; c.lineCap = 'round'; c.strokeStyle = INK;
+    if (lod > 1) { c.fillStyle = '#f2c14e'; c.beginPath(); c.arc(hx + 0.9, hy + 4.2, 0.5, 0, TAU); c.fill(); c.stroke(); }
+  }
+  if (lod > 1) deepStroke(function () { // fur: a chest ruff and a haunch tuft in the deep tone (the sheet only; they would be mud at the yard size)
+    if (!sit) { c.moveTo(bx + 4.6, by + 1.3); c.quadraticCurveTo(bx + 4.0, by + 1.9, bx + 4.3, by + 2.5); c.moveTo(bx + 3.4, by + 2.0); c.quadraticCurveTo(bx + 2.9, by + 2.5, bx + 3.2, by + 3.0); }
+    else { c.moveTo(9.3, 1.2); c.quadraticCurveTo(8.7, 1.8, 9.0, 2.5); c.moveTo(0.4, 1.6); c.quadraticCurveTo(-0.1, 2.1, 0.2, 2.7); } });
+  rot(hx, hy, tilt, function () { // the head group: skull + muzzle, the ear on the side, the muzzle patch, nose, mouth, eye
+    var ex = 1.0, ey = -0.6, mx = 2.6, my = 0.9, nx = 4.3, ny = 0.3, earB = -0.2 + earA;
+    cel(head, K.base, 1.0, 0.5, tilt, function () {
+      if (K.patch) { c.beginPath(); c.ellipse(-1.0, -0.6, 1.9, 2.5, 0.2, 0, TAU); c.fillStyle = K.patch; c.fill(); } // an ear-side patch; the face stays white
+      if (lod > 1 || K.points) { c.beginPath(); c.ellipse(mx, my, 2.15, 1.45, 0.1, 0, TAU); c.fillStyle = K.muzzle; c.fill(); // the lighter muzzle patch, with its own cel on the sheet
+        if (lod > 1) { c.beginPath(); c.ellipse(mx, my, 2.15, 1.45, 0.1, 0.35, 2.8); c.closePath(); c.fillStyle = K.sh; c.fill(); } }
+    });
+    if (lod > 1) { c.strokeStyle = K.li; c.lineWidth = lw * 0.6; c.beginPath(); c.arc(0, 0, 2.3, -2.2, -1.2); c.stroke(); c.strokeStyle = INK; c.lineWidth = lw; } // the head shine arc
+    rot(-1.4, -2.3, earB, function () { if (lod > 1) { cel(ear, K.ear, 0.6, 0.35, earB); deepStroke(function () { c.moveTo(0.3, 0.6); c.quadraticCurveTo(0.55, 1.8, 0.1, 2.9); }); } else flat(ear, K.ear); }); // the fold down the ear on the sheet
+    if (K.brow && (lod > 0)) { c.fillStyle = K.brow; c.beginPath(); c.ellipse(ex - 0.1, ey - 1.0, 0.45, 0.27, 0, 0, TAU); c.fill(); } // the tan brow point
+    c.fillStyle = K.nose; c.beginPath(); c.moveTo(nx - 0.75, ny - 0.45); c.lineTo(nx + 0.6, ny - 0.3); c.quadraticCurveTo(nx + 0.75, ny + 0.2, nx + 0.15, ny + 0.6); c.quadraticCurveTo(nx - 0.6, ny + 0.3, nx - 0.75, ny - 0.45); c.closePath(); c.fill();
+    if (lod > 1) { c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.ellipse(nx - 0.2, ny - 0.15, 0.3, 0.16, 0, 0, TAU); c.fill(); c.fillStyle = INK; c.beginPath(); c.arc(mx + 0.3, my + 0.35, 0.13, 0, TAU); c.moveTo(mx + 1.1, my + 0.75); c.arc(mx + 0.97, my + 0.75, 0.13, 0, TAU); c.fill(); } // the nose glint and two whisker dots
+    if (mouth > 0.03) { // the open mouth: a dark interior, the fur-coloured jaw dropping under it (its outline is the jaw), the tongue lolling over the lip
+      var J = function () { c.quadraticCurveTo(mx + 1.7, my + 0.6 + 1.4 * mouth, mx + 0.8, my + 0.7 + 1.5 * mouth); c.quadraticCurveTo(mx - 0.5, my + 0.8 + 0.9 * mouth, mx - 0.9, my + 0.72); };
+      c.fillStyle = '#2a1418'; c.beginPath(); c.moveTo(mx - 0.9, my + 0.72); c.lineTo(mx + 1.85, my + 0.42); J(); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(mx + 1.85, my + 0.42); J(); c.quadraticCurveTo(mx - 0.6, my + 1.25 + 1.2 * mouth, mx + 0.9, my + 1.1 + 1.9 * mouth); c.quadraticCurveTo(mx + 2.0, my + 0.9 + 1.5 * mouth, mx + 1.95, my + 0.45); c.closePath(); c.fillStyle = K.muzzle; c.fill(); c.stroke();
+      c.fillStyle = '#e2707f'; c.beginPath(); c.ellipse(mx + 0.85, my + 0.75 + 1.15 * mouth, 0.55, 0.75 * mouth, 0, 0, TAU); c.fill();
+    } else if (lod > 0) { c.beginPath(); c.moveTo(nx - 0.2, ny + 0.65); c.quadraticCurveTo(nx - 0.6, ny + 1.3, nx - 1.4, ny + 1.25); c.stroke(); } // closed: a small smile
+    if (blink) { c.beginPath(); c.moveTo(ex - 0.7, ey); c.lineTo(ex + 0.7, ey); c.stroke(); }
+    else { c.fillStyle = '#fff'; c.beginPath(); c.ellipse(ex, ey, 0.74, 0.82, 0, 0, TAU); c.fill(); if (lod > 1) c.stroke();
+      c.fillStyle = INK; c.beginPath(); c.arc(ex + 0.18, ey + 0.03, lod > 1 ? 0.46 : 0.5, 0, TAU); c.fill();
+      if (lod > 1) { c.fillStyle = '#fff'; c.beginPath(); c.arc(ex + 0.3, ey - 0.25, 0.16, 0, TAU); c.fill(); } }
+  });
+  c.restore();
+  if (woof > 0.02) { // the WOOF burst over the back in the un-hopped frame, never mirrored, popping in scale at the apex
+    c.save(); c.translate(x + (fac < 0 ? 12 * sc : 0) + fac * (sit ? 0 : 1.5) * sc, y - 6.2 * sc); var k = sc * (0.65 + 0.45 * woof); c.scale(k, k); c.globalAlpha = Math.min(1, woof * 1.6);
+    c.font = '800 2.5px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.lineJoin = 'round';
+    c.lineWidth = 0.9; c.strokeStyle = '#fff'; c.strokeText('WOOF', 0, 0); c.fillStyle = INK; c.fillText('WOOF', 0, 0); c.restore();
   }
 }
 function drawCar(c, x, y, w, color, dir, bus) {
@@ -1163,7 +1286,7 @@ function faceScene(kind) {
     if (faceCv.width !== w * dpr || faceCv.height !== hh * dpr) { faceCv.width = w * dpr; faceCv.height = hh * dpr; }
     var c = faceCv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); var t = Date.now();
     c.save(); c.translate(w / 2, hh / 2);
-    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t, true); } // wave 19: it barks
+    if (kind === 'dog') { var k = Math.min(3.2, w / 22.5); c.scale(k, k); drawDog(c, -5, -1.5, reduce ? 0 : t, true); } // wave 19: it barks; clean-up 2026-10-25: fitted to the 56 px phone box (3.2 in the 72 px box)
     else if (kind === 'truck') { c.scale(2.4, 2.4); drawTruck(c, -6, -10, 1); }
     else { // a closed door, a knob, a hanger on it
       c.scale(3, 3); c.fillStyle = '#5a2f1c'; c.beginPath(); c.moveTo(-4, -11); c.arcTo(6, -11, 6, 11, 2); c.arcTo(6, 11, -6, 11, 2); c.arcTo(-6, 11, -6, -11, 2); c.arcTo(-6, -11, 6, -11, 2); c.closePath(); c.fill(); c.fillStyle = '#6b3a24'; c.fillRect(-5, -10, 10, 20);
