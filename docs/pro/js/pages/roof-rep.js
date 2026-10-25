@@ -1011,7 +1011,9 @@ function drawWorld() {
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
     chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
-    g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 42, 8, 4);
+    // a small STORM BROS tag over the rival's head (2026-10-25; was a red rectangle)
+    g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
+    g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
   if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, 'talk', 1, now, 22, DOOR.mood); }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
