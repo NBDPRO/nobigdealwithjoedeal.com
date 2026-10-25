@@ -201,4 +201,7 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   the street's `wxLook()` puts one in the rep's and the rival's hand on a rain or snow day. A draw option `wind`
   (0..1) gusts the hair, lifts the hat and leans the body; `chibi()` passes 1 on a windy day for every street
   character.
-- Versions: `chibi.js?v=8`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 74 checks.
+- **Idle fidgets (wave 9, chibi.js v9):** in the last 1.2 s of every 9 s an idle character fidgets, a different one
+  each cycle: a weight shift onto one foot, hands on the hips with a head tilt, a stretch with a yawn (eyes shut,
+  mouth open). Each eases in and out. A chibi's arms cannot reach its hat, so there is no hat tip.
+- Versions: `chibi.js?v=9`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 75 checks.

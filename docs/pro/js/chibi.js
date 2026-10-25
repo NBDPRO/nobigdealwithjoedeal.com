@@ -27,7 +27,8 @@
  *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4);
  *          prop phone · mug · cane · keys · baby · brush · papers in the back hand (wave 7: what a homeowner carries);
  *          umbrella (wave 8: the back arm goes up and a canopy sits over the head). Draw option wind 0..1 gusts the hair,
- *          lifts the hat and leans the body (wave 8).
+ *          lifts the hat and leans the body (wave 8). Idle fidgets every 9 s: a weight shift, hands on the hips, a
+ *          stretch and yawn (wave 9), so a character that is doing nothing still looks alive.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -122,7 +123,19 @@
       p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
     }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }
-    else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; } // a glance to each side every 6.4 s
+    else {
+      p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; // a glance to each side every 6.4 s
+      // wave 9: a fidget in the last 1.2 s of every 9 s, a different one each cycle: shift the weight onto one foot,
+      // hands on the hips with a head tilt, a stretch with a yawn. Each eases in and out so the body never pops. (The
+      // arms are too short to reach the hat: a chibi's hand gets to the cheek at most.)
+      var fc = (t + seed * 7) % 9000;
+      if (m && fc > 7800) {
+        var fe = s((fc - 7800) / 1200 * Math.PI), kind = (seed + Math.floor((t + seed * 7) / 9000)) % 3;
+        if (kind === 0) { p.lean = fe * 4; p.tilt = fe * 3; p.legL = fe * 3; p.kneeL = fe * 4; p.bob -= fe * 1.5; }
+        else if (kind === 1) { p.armL = 46 * fe; p.armR = -46 * fe; p.elbowL = 112 * fe; p.elbowR = -112 * fe; p.tilt = fe * 5; p.look = -1; p.browUp = fe * 0.6; }
+        else { p.armL = 24 * fe; p.armR = -24 * fe; p.elbowL = 46 * fe; p.elbowR = -46 * fe; p.sy = 1 + fe * 0.035; p.bob -= fe * 2; if (fe > 0.45) { p.mouth = 'open'; p.mouthOpen = 0.55; p.eyesClosed = true; } }
+      }
+    }
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
     if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
