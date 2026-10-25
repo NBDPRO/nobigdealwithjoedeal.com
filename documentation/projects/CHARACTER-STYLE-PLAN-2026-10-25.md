@@ -1,5 +1,9 @@
 # Character style upgrade: the plan (synthesis lead, 2026-10-25)
 
+> **Status (2026-10-25 23:40 UTC): cancelled by Jo's decision that Grabber's HD cast replaces the old
+> characters.** The plan stays as the record of what the panel found; no wave below is scheduled. If the HD cast
+> stalls and Jo reopens the painted route, wave 1 needs no decision and is the place to start.
+
 **What this is.** The output of the painted-style prototype panel run on 2026-10-25 for the
 [character style bar](CHARACTER-STYLE-BAR-2026-10-25.md): six independent Canvas 2D attempts (cel, painterly and
 crisp-vector, each at chibi and 3.5-head proportions), three judges (art, product, engineering), one synthesis. The

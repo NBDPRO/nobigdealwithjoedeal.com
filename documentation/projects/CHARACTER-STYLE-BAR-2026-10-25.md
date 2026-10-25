@@ -55,18 +55,14 @@ level:
 Not characters (not under this bar): the theme art tiles (`scripts/build-theme-art.mjs`), the photo, e-sign and
 signature canvases, the 3D roof viewer.
 
-## Open decisions (Jo)
+## Decisions (Jo)
 
-- **Proportions:** keep the chibi (the whole cast, both pickers and the street are built around it) and
-  paint it to this fidelity, or move to the references' three-and-a-half-head figures. A prototype panel
-  (six Canvas 2D attempts: cel, painterly and crisp-vector techniques, each in both proportions) and a
-  judged contact sheet were produced for this choice on 2026-10-25; the plan that came out of it is
-  [CHARACTER-STYLE-PLAN-2026-10-25](CHARACTER-STYLE-PLAN-2026-10-25.md) (all three judges: keep the chibi,
-  ship the crisp cel recipe; the decisions are its section 5) and is folded into this note once Jo has picked.
-- **Views:** add true side and back views (a turnaround like reference 2) on top of the front view and
-  the three-quarter head turn (wave 24).
-- **Outfits:** which personas and pickers get the new pieces (hood, robe or cloak, rope belt, satchel,
-  lantern, boots), and how dark the palette may go against the brand's navy and orange.
+- **2026-10-25 23:40 UTC:** the HD cast (Grabber's original pixel art) replaces the old procedural characters. The
+  questions this note carried (proportions, views, outfits) are closed as moot: the painted restyle in
+  [the plan](CHARACTER-STYLE-PLAN-2026-10-25.md) is cancelled, and the old chibi gets overlap and clipping fixes only
+  until layered HD avatar sheets (hair, cap, shirt) exist and a cast loader can draw the saved looks. **The bar itself
+  stands for the HD cast:** every sprite wired in is rendered and looked at before it ships (rule g), and art changes
+  go through Jo to Grabber, who owns the art.
 
 ## Status
 
@@ -87,3 +83,5 @@ signature canvases, the 3D roof viewer.
   the one surface where a 29-px four-direction walk is the whole need. The Pixel World lane runs as a fourth workflow
   (`pw-local`); the Mana Seed sheets are held to the same bar (hair under hat, outfit under hair, nothing through the
   HP bar or the "!" bubble, feet on the tile) and judged by rendering before they ship.
+- 2026-10-25 23:40 UTC: Jo chose the HD cast. The Mana Seed Pixel World lane was stopped (its worktree `pw-local`
+  stays unmerged) and Grabber's games handoff took its place (see the 10-25 handoff).
