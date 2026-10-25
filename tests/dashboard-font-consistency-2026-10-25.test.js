@@ -54,8 +54,14 @@ ok('money-dashboard.css: the Collections row button is 44px on a phone', /@media
 ok('dashboard-app.css: at phone width the wordmark keeps only PRO beside the NBD mark', /@media \(max-width:480px\)\{\s*\.logo\{font-size:0;[^}]*\}\s*\.logo span\{font-size:14px;[^}]*\}/.test(app));
 ok('dashboard.html loads money-dashboard.css?v=3 or later', (() => { const m = /money-dashboard\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 3; })());
 
+// 320 px (same sweep): header button rows wrap, a Photos job card stacks its button, Schedule's link fields shrink.
+ok('dashboard-app.css: under 420px the page-header button rows wrap and a photo job card stacks its button',
+  /@media \(max-width:420px\)\{[^@]*\.page-hdr \.flex-g8\{flex-wrap:wrap;\}[^@]*\.nbd-photo-lead\.panel-hdr\{flex-wrap:wrap;[^}]*\}[^@]*\.nbd-photo-lead\.panel-hdr > \.btn\{flex:1 1 100%;\}/.test(app));
+ok("dashboard-app.css: Schedule's two read-only link fields may shrink below their intrinsic width",
+  /#calFeedUrl, #calBookingUrl\{min-width:0;\}/.test(app));
+
 // Cache-busters moved with the fix.
-ok('dashboard.html loads dashboard-app.css?v=23 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 23; })());
+ok('dashboard.html loads dashboard-app.css?v=24 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 24; })());
 ok('dashboard.html loads product-library.css?v=6 or later', (() => { const m = /product-library\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 6; })());
 
 console.log(`\n${passed} passed, ${failed} failed`);
