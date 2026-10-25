@@ -20,7 +20,7 @@
 //   PLAYWRIGHT_TEST_USER_PASSWORD=nbd-e2e-password-1 \
 //   npx playwright test --config=playwright.config.js phone-crm-header-compact-2026-10-13.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
-const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction, ensureClassicLayout } = require('./fixtures/auth');
 const { deleteSeededRun } = require('./fixtures/seeded-run');
 
 const W = 390;
@@ -150,6 +150,7 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
     });
     await applyInsets(page);
     await loginAs(page, creds);
+    await ensureClassicLayout(page); // the shard shares one rep: a leftover Crew pick changed the CRM tab (2026-10-25)
     await applyInsets(page);
     await safeWaitForFunction(page, () => typeof window.addDoc === 'function' && !!window.db && !!window._user && typeof window._loadLeads === 'function', { timeout: 30_000 });
     await safeEvaluate(page, ({ s, tag }) => {
@@ -266,7 +267,7 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
   test('1 · the seven view tabs share ONE row, 44px tall, every one tappable', async () => {
     await ensureCrm();
     const m = await measure(page);
-    expect(m.tabRows, 'rows the tabs sit on (ALL used to wrap onto a second row)').toBe(1);
+    expect(m.tabRows, 'rows the tabs sit on (ALL used to wrap onto a second row); tabs: ' + m.tabHits.map((t) => t.t + ' ' + t.w + 'x' + t.h).join(', ') + ' in ' + m.vw + 'px').toBe(1);
     expect(m.tabHits.length).toBe(7);
     expect(shortOf(m.tabHits), 'tab heights').toEqual([]);
     expect(bad(m.tabHits), 'tabs under a finger').toEqual([]);

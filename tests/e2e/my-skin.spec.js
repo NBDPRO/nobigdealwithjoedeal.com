@@ -131,7 +131,11 @@ test.describe.serial('My Skin @shard2', () => {
     await safeEvaluate(page, () => { window.goTo && window.goTo('settings'); });
     await page.locator('#stab-appearance').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('#stab-appearance').click();
-    await page.locator('#myskinPerTheme').check();
+    // 2026-10-19 (wallpaper recon): the two switches became one "Background style" choice;
+    // "Real theme wallpaper" sets enabled AND perTheme, and the old "Different background
+    // per theme" checkbox stays in the page hidden as the stored binding. Check the radio.
+    await page.locator('#myskinStyleWallpaper').check();
+    await expect(page.locator('#myskinPerTheme')).toBeChecked({ timeout: 15_000 });
     await expect(page.locator('#myskinThemeCard')).toBeVisible({ timeout: 15_000 });
     await safeEvaluate(page, () => window.ThemeEngine.apply('pokemon', true));
     const up = await page.evaluate(async () => {

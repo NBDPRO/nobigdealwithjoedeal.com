@@ -16,7 +16,7 @@
  * @shard2 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
-const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction, ensureClassicLayout } = require('./fixtures/auth');
 
 let _app = null;
 function admin() {
@@ -112,6 +112,7 @@ test.describe.serial('Call Center view @shard2', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!window._user && !!window._user.uid && typeof window.goTo === 'function', null, { timeout: 30_000 });
+    await ensureClassicLayout(page); // the shard shares one rep: a leftover Crew pick was the "wider than the phone" element (2026-10-25)
 
     const s = Date.now();
     const leadId = await seedLead(page, admin().db, { firstName: 'ZZCV', lastName: 'Cust' + s, address: '1 Call Ct, Mason OH 45040', phone: '5135557' + String(s).slice(-3), stage: 'new', jobType: 'cash' });
@@ -212,13 +213,20 @@ test.describe.serial('Call Center view @shard2', () => {
       const btn = document.querySelector('.cc-card[data-call-id="' + id + '"] [data-cc="play"]').getBoundingClientRect();
       const tab = document.querySelector('#view-calls .cc-tab').getBoundingClientRect();
       const search = document.getElementById('ccSearch').getBoundingClientRect();
-      let worst = 0; v.querySelectorAll('*').forEach((el) => { const r = el.getBoundingClientRect(); if (r.width) worst = Math.max(worst, r.right); });
-      return { btn: btn.height, tab: tab.height, search: search.height, worst, vw: document.documentElement.clientWidth };
+      // Names the widest element: a bare number ("849 > 391") cost a session a round trip (2026-10-25).
+      // The date rail (.cc-fbar) scrolls sideways on purpose: its chips past the edge are reachable by a
+      // swipe, so what is inside a horizontal scroller is skipped and the page's own sideways scroll is
+      // asserted instead (the "Pick dates" chip at 740..850 was the whole finding, 2026-10-25).
+      const rails = Array.from(v.querySelectorAll('*')).filter((e) => /^(auto|scroll)$/.test(getComputedStyle(e).overflowX));
+      let worst = 0, who = '';
+      v.querySelectorAll('*').forEach((el) => { if (rails.some((rail) => rail !== el && rail.contains(el))) return; const r = el.getBoundingClientRect(); if (r.width && r.right > worst) { worst = r.right; who = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : '') + ' "' + (el.textContent || '').trim().slice(0, 40) + '" ' + Math.round(r.left) + '..' + Math.round(r.right) + ' x ' + Math.round(r.width) + ' in ' + (function (e) { const out = []; for (let a = e.parentElement, n = 0; a && a !== v && n < 6; a = a.parentElement, n++) { const cs = getComputedStyle(a); out.push(a.tagName.toLowerCase() + (a.id ? '#' + a.id : '') + (a.className && typeof a.className === 'string' ? '.' + a.className.trim().split(/\s+/)[0] : '') + (a.hidden ? '[hidden]' : '') + '{' + cs.display + '/' + cs.overflowX + '/' + cs.position + '}'); } return out.join(' > '); })(el); } });
+      return { btn: btn.height, tab: tab.height, search: search.height, worst, who, vw: document.documentElement.clientWidth, sideways: document.scrollingElement.scrollWidth - document.documentElement.clientWidth };
     }, 'cube_zzcv' + s + 'a');
     expect(fit.btn).toBeGreaterThanOrEqual(44);
     expect(fit.tab).toBeGreaterThanOrEqual(44);
     expect(fit.search).toBeGreaterThanOrEqual(44);
-    expect(fit.worst, 'nothing wider than the phone').toBeLessThanOrEqual(fit.vw + 1);
+    expect(fit.worst, 'nothing wider than the phone (widest: ' + fit.who + ')').toBeLessThanOrEqual(fit.vw + 1);
+    expect(fit.sideways, 'the page does not scroll sideways').toBeLessThanOrEqual(1);
     await page.screenshot({ path: 'test-results/call-center-view-phone.png' });
 
     // Play.
