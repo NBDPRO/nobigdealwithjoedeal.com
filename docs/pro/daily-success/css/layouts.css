@@ -12,6 +12,20 @@
 #wg-layouts .ui-picks { padding: 0; }
 #wg-layouts h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
 
+/* ── Cockpit: one dense HUD in place of the Today bar. Eight tiles (today + the training week), a "behind" line. Static, not sticky. ── */
+[data-ui="cockpit"] .today-bar.today-cockpit { position: static; display: block; white-space: normal; padding: 10px 8px 8px; }
+[data-ui="cockpit"] .ck-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+[data-ui="cockpit"] .ck-t { min-width: 0; padding: 7px 8px; border-radius: 8px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); display: block; }
+[data-ui="cockpit"] .ck-l, [data-ui="cockpit"] .ck-v, [data-ui="cockpit"] .ck-s { display: block; flex: none; width: auto; height: auto; }
+[data-ui="cockpit"] .ck-t.ok { border-color: var(--grn, #34d399); }
+[data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-ui="cockpit"] .ck-v { font-size: 17px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+[data-ui="cockpit"] .ck-t.ok .ck-v { color: var(--grn, #34d399); }
+[data-ui="cockpit"] .ck-s { font-size: 11px; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-ui="cockpit"] .ck-behind { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--ac-on-dark, #E4783F); }
+[data-ui="cockpit"] .ck-behind.ok { color: var(--grn, #34d399); }
+@media (max-width: 360px) { [data-ui="cockpit"] .ck-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 /* ── Log Book: plain, fast, list-first. The coach screen as a flat log, big tap targets, last/best/today on one row. ── */
 [data-ui="logbook"] .wc-box { max-width: 560px; }
 [data-ui="logbook"] .wc-ex { background: transparent; border: 0; border-bottom: 1px solid var(--rule, rgba(255, 255, 255, .14)); border-radius: 0; padding: 14px 0; margin: 0; }

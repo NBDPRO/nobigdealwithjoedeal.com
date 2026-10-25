@@ -55,6 +55,11 @@ Sources: [gamified skill-tree and quest concepts](https://contra.com/community/b
 
 Each is its own PR, tested and checked at phone width before it is queued. The Sunday review page (phase 3) stays on the roadmap; it can ship before or between layouts, and the Cockpit and Rings homes will show it.
 
+## Status (2026-10-25)
+
+- Shipped: **Log Book**, **Rings** (10-22) and **Cockpit** (10-25: `cockpit-ui.js` + the Today-bar branch in `app.js`; eight tiles from `day-layout-logic.js` and `cockpit-logic.js`, a "behind this week" line; `tests/ds-layout-cockpit-2026-10-25.test.js`).
+- Next in order: Quest, Arcade, One Thing, Journal.
+
 ## Decisions (Jo, 2026-10-22)
 
 - First two: **Log Book** and **Rings**.
