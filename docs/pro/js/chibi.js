@@ -70,7 +70,7 @@
     else if (pose === 'sad') { p.tilt = 7; p.browDown = 1; p.mouth = 'frown'; p.bob = 3; p.armL = 6; p.armR = -6; p.look = 1; }
     else if (pose === 'wave') { p.armRUp = 1; p.armR = -140 + s(t / 120) * 25 * m; p.mouth = 'open'; p.mouthOpen = 0.6; p.browUp = 1; p.bob = s(t / 300) * -1 * m; }
     else if (pose === 'think') { p.armRUp = 1; p.armR = -158 + s(t / 500) * 3 * m; p.look = -1; p.browUp = 0.5; p.tilt = -4; p.mouth = 'flat'; }
-    else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; }
+    else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; var gl = (t + (o.seed || 0) * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; } // a glance to each side every 6.4 s
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
     return p;
   }

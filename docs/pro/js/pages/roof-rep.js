@@ -935,21 +935,40 @@ function drawHouse(h, st) {
   if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
   // bushes
   g.fillStyle = se === 'winter' ? '#9fb3a6' : shade(st.yard, 22); [[h.x + 9, y + 54], [h.x + w - 9, y + 54]].forEach(function (b) { g.beginPath(); g.arc(b[0], b[1], 4, 0, 6.3); g.arc(b[0] + 4, b[1] + 1, 3, 0, 6.3); g.fill(); });
-  if (h.dog) { var dx2 = h.x + 58, dy2 = h.top ? y + 60 : y - 10; g.fillStyle = '#1a1512'; g.fillRect(dx2 - 1, dy2 - 1, 10, 6); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2, 8, 4); g.fillRect(dx2 + 6, dy2 - 2, 3, 3); g.fillStyle = '#1a1512'; g.fillRect(dx2 + 8, dy2 - 1, 1, 1); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2 + 4, 1, 2); g.fillRect(dx2 + 6, dy2 + 4, 1, 2); }
+  if (h.dog) drawDog(g, h.x + 58, h.top ? y + 60 : y - 10, Date.now());
   var c2 = FLAG[h.status];
   if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
+function drawDog(c, x, y, t) {
+  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline.
+  var wag = Math.sin(t / 110) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+  var blob = function (fill) { c.fillStyle = fill; c.fill(); };
+  c.lineWidth = 1.4; c.strokeStyle = ink; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(x + 1, y + 1.5); c.quadraticCurveTo(x - 3 + wag, y - 2, x - 2.5 + wag, y - 4.5); c.stroke(); // tail
+  c.beginPath(); c.ellipse(x + 4.5, y + 2, 5, 2.8, 0, 0, 6.3); c.stroke(); blob(fur); // body
+  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
+  c.beginPath(); c.arc(x + 9.5, y - 0.5, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
+  c.beginPath(); c.ellipse(x + 7.6, y - 1.6, 1.3, 2, 0.5, 0, 6.3); c.stroke(); blob(furD); // ear
+  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4, 0.9, 0.9); c.fillRect(x + 12, y - 0.2, 1, 1); // eye, nose
+}
 function drawTruck(c, x, y, s) {
-  // Top-down pickup, nose up: white body, ladder rack, orange stripe.
-  s = s || 1;
-  c.fillStyle = '#1a1512'; c.fillRect(x - 1 * s, y - 1 * s, 14 * s, 22 * s);
-  c.fillStyle = '#f3ede2'; c.fillRect(x, y, 12 * s, 20 * s);
-  c.fillStyle = '#8ec5ff'; c.fillRect(x + 2 * s, y + 3 * s, 8 * s, 3 * s);
-  c.fillStyle = '#d8743a'; c.fillRect(x, y + 8 * s, 12 * s, 1 * s);
-  c.fillStyle = '#9aa0a6'; c.fillRect(x + 1 * s, y + 10 * s, 1 * s, 9 * s); c.fillRect(x + 10 * s, y + 10 * s, 1 * s, 9 * s);
-  for (var r = 11; r < 19; r += 3) c.fillRect(x + 1 * s, y + r * s, 10 * s, 1 * s);
-  c.fillStyle = '#2a2320'; c.fillRect(x - 1 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x - 1 * s, y + 14 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 14 * s, 1 * s, 3 * s);
+  // Top-down pickup, nose up: a white body with a hood line, a glass windshield, the orange stripe, a bed with a
+  // ladder rack, four tyres and one dark outline (vector since 2026-10-25; the footprint is the old 12x20 sprite).
+  s = s || 1; var w = 12 * s, h = 20 * s;
+  var rr = function (px, py, pw, ph, r) { c.beginPath(); c.moveTo(px + r, py); c.arcTo(px + pw, py, px + pw, py + ph, r); c.arcTo(px + pw, py + ph, px, py + ph, r); c.arcTo(px, py + ph, px, py, r); c.arcTo(px, py, px + pw, py, r); c.closePath(); };
+  c.fillStyle = 'rgba(0,0,0,.25)'; rr(x - 0.5 * s, y + 1.2 * s, w + 1 * s, h, 3 * s); c.fill();
+  c.fillStyle = '#1a1512'; [[-1.3, 3], [w / s - 1.7, 3], [-1.3, 13.5], [w / s - 1.7, 13.5]].forEach(function (p) { rr(x + p[0] * s, y + p[1] * s, 3 * s, 4.2 * s, 1 * s); c.fill(); });
+  c.fillStyle = '#1a1512'; rr(x - 0.9 * s, y - 0.9 * s, w + 1.8 * s, h + 1.8 * s, 3 * s); c.fill();
+  var g2 = c.createLinearGradient(x, y, x + w, y); g2.addColorStop(0, '#fbf7ee'); g2.addColorStop(1, '#d6cfbf'); c.fillStyle = g2; rr(x, y, w, h, 2.5 * s); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(x + 1 * s, y + 6.5 * s, w - 2 * s, 0.8 * s);
+  c.fillStyle = '#8ec5ff'; rr(x + 1.5 * s, y + 2.6 * s, w - 3 * s, 3.4 * s, 1 * s); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(x + 2.2 * s, y + 3.1 * s, 3 * s, 0.9 * s);
+  c.fillStyle = '#d8743a'; c.fillRect(x, y + 8 * s, w, 1.2 * s);
+  c.fillStyle = '#c9c2b2'; rr(x + 1 * s, y + 9.8 * s, w - 2 * s, 9.2 * s, 1 * s); c.fill();
+  c.fillStyle = '#9aa0a6'; c.fillRect(x + 1.6 * s, y + 10.3 * s, 1.1 * s, 8.4 * s); c.fillRect(x + w - 2.7 * s, y + 10.3 * s, 1.1 * s, 8.4 * s);
+  for (var r = 11.6; r < 18.5; r += 2.4) c.fillRect(x + 1.6 * s, y + r * s, w - 3.2 * s, 0.9 * s);
+  c.fillStyle = '#fff4c2'; c.fillRect(x + 1 * s, y + 0.2 * s, 2.2 * s, 1 * s); c.fillRect(x + w - 3.2 * s, y + 0.2 * s, 2.2 * s, 1 * s);
 }
 function drawWorld() {
   var st = curStreet(), se = seasonFor(SAVE.day), now = Date.now();
