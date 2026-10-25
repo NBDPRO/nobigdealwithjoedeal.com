@@ -40,6 +40,14 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
     - Desktop tap targets.
     - Strip over the Record visit bar.
   - **Reviews on every homeowner page** (Jo's ask, same day): the `reviews-strip` partial puts the newest Google reviews, each with its date, on the 229 pages that had none, plus the our-work pages from their template. Note: [REVIEWS-STRIP-2026-10-24](REVIEWS-STRIP-2026-10-24.md).
+  - **The sweep PR, [#2727](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2727)** (draft while CI runs; Jo asked to ship it): audit pass-1 leftovers,
+    a11y labels and 24 px floors, the text-contrast tokens, the reviews strip on every homeowner page (dates on every card,
+    `/review` shows the whole synced set), and pass 5 of the sweep on the homeowner page families (brand orange on navy on 64
+    footers and a dozen other spots, floors on nav and crumb links). Passes 1–5: [UI-SWEEP-2026-10-24](../audit/UI-SWEEP-2026-10-24.md).
+    - **Held back for Jo:** `/pro/pricing` (FAQ 17 px, logo 22 px, headline 2.8:1) because its visual baselines must be
+      CI-rendered and committed by a person from the `visual-regression-output` artifact (`ci.yml`, the bless step).
+    - CI lessons from the PR: the `:where()` wrapper on floor rules; `build-projects.mjs` must list every partial it carries over;
+      `ensure-nav-responsive-css.js` keeps a canonical body that must change with the stylesheet.
   - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
   accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
