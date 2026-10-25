@@ -44,6 +44,8 @@ function ok(name, cond, detail) {
 
 const DAY = 86400000;
 const T = Date.UTC(2026, 9, 5, 15, 0, 0);
+// A clock frozen at T for the code under test (see C3-C6: the rule is Eastern calendar days, the display is the device's zone).
+const FixedDate = class extends Date { constructor(...a) { if (a.length) super(...a); else super(T); } static now() { return T; } };
 
 // ── server ───────────────────────────────────────────────────────────
 console.log('\nserver');
@@ -92,7 +94,7 @@ function loadEnv(rule) {
     window: win,
     document: { addEventListener() {}, getElementById() { return null; }, querySelector() { return null; }, querySelectorAll() { return []; }, createElement: noop, head: noop(), body: noop() },
     console: { log() {}, warn() {}, error() {} },
-    setTimeout, clearTimeout, Date, Math, JSON,
+    setTimeout, clearTimeout, Date: FixedDate, Math, JSON,
   };
   if (rule === 'real') vm.runInNewContext(read(DG + 'deposit-rule.js'), sandbox, { filename: 'deposit-rule.js' });
   else win.NBDDepositRule = rule;
@@ -112,7 +114,7 @@ for (const [label, rule, days] of [['real rule', 'real', 7], ['stand-in 9-day ru
   const fields = {};
   pf.DOC_SCHEMAS.invoice.sections.forEach((s) => s.fields.forEach((f) => { fields[f.key] = f; }));
   const ctx = { lead: {}, estimate: {}, photos: [], overrides: {} };
-  const now = Date.now();
+  const now = T; // the sandbox clock
 
   const due = pf._resolveFieldValue(fields.dueDate, ctx);
   ok(`C3 [${label}] invoice form Due Date defaults to today + ${days}`, due === ymd(now + days * DAY), 'got ' + due);
