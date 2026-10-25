@@ -56,9 +56,16 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     if (r.short.length) problems.push('short controls: ' + r.short.join(', '));
     if (errs.length) problems.push('page errors: ' + errs.join(' | '));
     if (problems.length) bad.push(c.ui + ' x ' + c.theme + ' @ ' + c.w + ': ' + problems.join('; '));
+    // the dashboard (cur = -1) in the same layout and theme: it must not scroll sideways either
+    if (c.theme === 'default') {
+      await page.evaluate(() => { try { switchTo(-1); } catch (_) {} });
+      await page.waitForTimeout(150);
+      const d = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, dash: !!document.querySelector('.dhero') }));
+      if (d.sw > c.w || !d.dash || errs.length) bad.push(c.ui + ' dashboard @ ' + c.w + ': ' + (d.sw > c.w ? 'scrolls sideways ' + d.sw : !d.dash ? 'no dashboard' : 'page errors ' + errs.join(' | ')));
+    }
     await ctx.close();
   }
-  ok(combos.length + ' layout x theme x width renders: no sideways scroll, the Today bar painted, every bar control 44 px, no page errors', bad.length === 0, bad.join('\n      '));
+  ok(combos.length + ' layout x theme x width renders (plus each layout\'s dashboard at both widths): no sideways scroll, the Today bar painted, every bar control 44 px, no page errors', bad.length === 0, bad.join('\n      '));
   await browser.close(); await srv.close();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
