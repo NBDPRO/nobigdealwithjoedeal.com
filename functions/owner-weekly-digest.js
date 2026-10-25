@@ -14,7 +14,7 @@
  */
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, FieldPath } = require('firebase-admin/firestore');
 const L = require('./agent-mcp-logic');
 const D = require('./owner-weekly-digest-logic');
 
@@ -26,6 +26,22 @@ const NBD_OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 // (solo accounts own by uid, team accounts by companyId).
 async function docsOf(db, collection, companyId, fields) {
   const snaps = await Promise.all(fields.map((f) => db.collection(collection).where(f, '==', companyId).limit(5000).get()));
+  const byId = {};
+  snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
+  return Object.values(byId);
+}
+
+// A deal room carries only its creator's uid (no companyId), so a team's rooms are the ones its reps created. The
+// reps are the distinct userIds on the company's own leads: one query per rep, nothing from a uid that owns none of
+// the company's leads (pass-2 item 2, 2026-10-25).
+function repUids(leads, companyId) {
+  const s = new Set();
+  (leads || []).forEach((l) => { if (l && l.userId && String(l.userId) !== String(companyId)) s.add(String(l.userId)); });
+  return Array.from(s).slice(0, 50);
+}
+async function dealRoomsOf(db, companyId, leads) {
+  const uids = [String(companyId)].concat(repUids(leads, companyId));
+  const snaps = await Promise.all(uids.map((u) => db.collection('deal_rooms').where('userId', '==', u).limit(5000).get()));
   const byId = {};
   snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
   return Object.values(byId);
@@ -62,8 +78,15 @@ async function tzFor(db, companyId) {
 }
 
 async function runDigest({ db, nowMs, live, gatherCalls }) {
-  const cs = await db.collection('companies').limit(500).get();
   const out = { companies: 0, filed: 0, alreadyFiled: 0, failed: 0 };
+  // Page the companies by document id: a single limit(500) read would skip company 501+ (pass-2 item 2, 2026-10-25).
+  let cursor = null;
+  while (true) {
+    let q = db.collection('companies').orderBy(FieldPath.documentId()).limit(500);
+    if (cursor) q = q.startAfter(cursor);
+    const cs = await q.get();
+    if (cs.empty) break;
+    cursor = cs.docs[cs.docs.length - 1];
   for (const doc of cs.docs) {
     const companyId = doc.id;
     out.companies++;
@@ -71,11 +94,11 @@ async function runDigest({ db, nowMs, live, gatherCalls }) {
       const tz = await tzFor(db, companyId);
       const todayYmd = L.dayInZone(nowMs, tz);
       const owner = await ownerFor(db, companyId);
-      const [leads, invoices, estimates, deals, jbl] = await Promise.all([
-        docsOf(db, 'leads', companyId, ['companyId', 'userId']),
+      const leads = await docsOf(db, 'leads', companyId, ['companyId', 'userId']);
+      const [invoices, estimates, deals, jbl] = await Promise.all([
         docsOf(db, 'invoices', companyId, ['companyId', 'createdBy']),
         docsOf(db, 'estimates', companyId, ['companyId', 'userId']),
-        docsOf(db, 'deal_rooms', companyId, ['userId']),
+        dealRoomsOf(db, companyId, leads),
         jobsByLead(db, companyId),
       ]);
       // The Call Center is NBD's owner account only today.
@@ -105,6 +128,8 @@ async function runDigest({ db, nowMs, live, gatherCalls }) {
       out.failed++;
       logger.warn('[ownerWeeklyDigest] company failed', { msg: e && e.message });
     }
+  }
+    if (cs.docs.length < 500) break;
   }
   return out;
 }

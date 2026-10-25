@@ -103,7 +103,8 @@ ok('dates are New York days (03:30Z on Oct 1 is Sep 30 in KY)', edge.collected =
 
 console.log('\n── server wiring');
 const srv = read('functions/agent-mcp.js');
-ok('estimates_status reads estimates + deal_rooms for the company', /name === 'estimates_status'/.test(srv) && /companyDocs\('estimates', company/.test(srv) && /companyDocs\('deal_rooms', company/.test(srv));
+ok('estimates_status reads estimates + deal_rooms for the company', /name === 'estimates_status'/.test(srv) && /companyDocs\('estimates', company/.test(srv) && /companyDealRooms\(company, leads\)/.test(srv));
+ok('estimates_status and closes_this_week read a team\'s deal rooms by every rep uid on the company\'s leads, not only the company uid (pass-2 item 2, 2026-10-25)', /async function companyDealRooms\(companyId, leads\)/.test(srv) && (srv.match(/companyDealRooms\(company, leads\)/g) || []).length === 2 && !/companyDocs\('deal_rooms'/.test(srv));
 ok('collected_revenue defaults to this month and validates dates', /name === 'collected_revenue'/.test(srv) && /today\.slice\(0, 8\) \+ '01'/.test(srv) && /from > to/.test(srv));
 ok('invoices are read by company (companyId and createdBy)', /companyDocs\('invoices', company, \['companyId', 'createdBy'\]\)/.test(srv));
 

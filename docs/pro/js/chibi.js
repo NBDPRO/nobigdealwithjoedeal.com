@@ -24,7 +24,11 @@
  *                                         stop(). Under prefers-reduced-motion it draws one still frame.
  *   NBDChibi.tween(state, pose, now)   — pose + from + mix for a caller that draws by hand (the street): give it the
  *                                         same state object every frame
- *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4).
+ *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4);
+ *          prop phone · mug · cane · keys · baby · brush · papers in the back hand (wave 7: what a homeowner carries);
+ *          umbrella (wave 8: the back arm goes up and a canopy sits over the head). Draw option wind 0..1 gusts the hair,
+ *          lifts the hat and leans the body (wave 8). Idle fidgets every 9 s: a weight shift, hands on the hips, a
+ *          stretch and yawn (wave 9), so a character that is doing nothing still looks alive.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -45,7 +49,7 @@
   var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], EYES = ['round', 'happy', 'wink', 'sleepy'];
   var TOPS = ['tee', 'hoodie', 'polo'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
-  var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'];
+  var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'], PROPS = ['none', 'phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers', 'umbrella'];
   var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
   var INK = '#1f1a17', WHITE = '#FFFFFF', BLUSH = 'rgba(242,120,120,.45)', VEST = '#C6E11C', VESTD = '#9DB51A';
   var TWEEN_MS = 220;
@@ -62,7 +66,7 @@
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
       clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
-      top: pick(TOPS, a.top, 'tee'),
+      top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'),
     };
   }
   function shade(hex, amt) {
@@ -119,7 +123,19 @@
       p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
     }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }
-    else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; } // a glance to each side every 6.4 s
+    else {
+      p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; // a glance to each side every 6.4 s
+      // wave 9: a fidget in the last 1.2 s of every 9 s, a different one each cycle: shift the weight onto one foot,
+      // hands on the hips with a head tilt, a stretch with a yawn. Each eases in and out so the body never pops. (The
+      // arms are too short to reach the hat: a chibi's hand gets to the cheek at most.)
+      var fc = (t + seed * 7) % 9000;
+      if (m && fc > 7800) {
+        var fe = s((fc - 7800) / 1200 * Math.PI), kind = (seed + Math.floor((t + seed * 7) / 9000)) % 3;
+        if (kind === 0) { p.lean = fe * 4; p.tilt = fe * 3; p.legL = fe * 3; p.kneeL = fe * 4; p.bob -= fe * 1.5; }
+        else if (kind === 1) { p.armL = 46 * fe; p.armR = -46 * fe; p.elbowL = 112 * fe; p.elbowR = -112 * fe; p.tilt = fe * 5; p.look = -1; p.browUp = fe * 0.6; }
+        else { p.armL = 24 * fe; p.armR = -24 * fe; p.elbowL = 46 * fe; p.elbowR = -46 * fe; p.sy = 1 + fe * 0.035; p.bob -= fe * 2; if (fe > 0.45) { p.mouth = 'open'; p.mouthOpen = 0.55; p.eyesClosed = true; } }
+      }
+    }
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
     if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
@@ -180,6 +196,10 @@
     var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed };
     var p = poseOf(pose, t, po);
     if (o.from && o.mix != null && o.mix < 1 && POSES.indexOf(o.from) >= 0 && o.from !== pose) p = mixPose(poseOf(o.from, t, po), p, Math.max(0, o.mix));
+    // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
+    var wind = Math.max(0, Math.min(1, Number(o.wind) || 0));
+    if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
+    if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
     var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h, facing = o.facing === -1 ? -1 : 1;
     var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants];
     var pen = new Pen(ctx, s);
@@ -244,6 +264,26 @@
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
     if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
+    // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
+    function prop(k) {
+      if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
+      else if (k === 'mug') { pen.circle(3, -1, 4, '#F5F5F0'); pen.circle(3, -1, 1.6, '#C9CDD2', true); pen.rrect(-9, -7, 11, 12, 2, '#F5F5F0'); pen.ellipse(-3.5, -7, 5, 1.6, 0, '#6B4A2B', true); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -11); ctx.quadraticCurveTo(-4, -13, -6, -15); ctx.moveTo(-2, -11); ctx.quadraticCurveTo(0, -13, -2, -15); ctx.stroke(); }
+      else if (k === 'cane') { pen.rrect(-1.5, -8, 3, 30, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, 20, 4, 2.5); }
+      else if (k === 'keys') { pen.circle(0, -3, 4.5, '#B4B8BD'); pen.circle(0, -3, 2, '#6F747A', true); pen.rrect(-3, 1, 3.5, 10, 1, '#E0B45A'); pen.rrect(0.5, 1.5, 3, 9, 1, '#B4B8BD'); ctx.fillStyle = INK; ctx.fillRect(-3, 8, 1.5, 1.5); ctx.fillRect(2.5, 7, 1.5, 1.5); }
+      else if (k === 'baby') { pen.ellipse(-4, -3, 9.5, 6.5, 0.35, '#F2C6DC'); pen.circle(-10, -7, 4.2, '#F2C6A0'); ctx.fillStyle = INK; ctx.fillRect(-12, -7.5, 1.6, 1); ctx.fillRect(-9, -7.5, 1.6, 1); ctx.fillStyle = BLUSH; ctx.fillRect(-12.5, -5.5, 2, 1.2); ctx.fillRect(-8.5, -5.5, 2, 1.2); ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -8); ctx.quadraticCurveTo(0, -4, -2, 2); ctx.stroke(); }
+      else if (k === 'brush') { pen.rrect(-1.5, -16, 3, 17, 1.5, '#8B5A2B'); pen.rrect(-4.5, 0, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 3.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 9, 8, 2.5); }
+      else if (k === 'umbrella') {
+        // the hand frame turns with the arm; square it back up so the canopy sits over the head (body to +x, up is -y)
+        ctx.rotate(-(p.armL + p.elbowL) * Math.PI / 180);
+        pen.line(0, 2, 18, -58, 2.6 + pen.lw * 0.6, INK); pen.line(0, 2, 18, -58, 2.2, '#2C2C2A'); pen.circle(0, 4, 2.4, '#2C2C2A');
+        pen.shape(function (c) { c.moveTo(-24, -58); c.quadraticCurveTo(-18, -92, 18, -96); c.quadraticCurveTo(54, -92, 60, -58); for (var si = 0; si < 6; si++) c.quadraticCurveTo(53 - si * 14, -52, 46 - si * 14, -58); }, '#BD5728');
+        ctx.fillStyle = '#DD875F'; [[-10, -60], [18, -94], [46, -60]].forEach(function (pt, i) { ctx.beginPath(); ctx.moveTo(18, -58); if (i === 1) { ctx.lineTo(4, -90); ctx.lineTo(32, -90); } else { ctx.lineTo(pt[0], pt[1]); ctx.lineTo(pt[0] + (i ? -6 : 6), -84); } ctx.closePath(); ctx.fill(); });
+        ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; [-10, 46].forEach(function (rx) { ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(rx, -60); ctx.stroke(); }); ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(18, -94); ctx.stroke();
+        pen.circle(18, -97, 2.2, '#2C2C2A');
+      }
+      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
+    }
 
     // head: a soft circle with a chin, ears, shading and a highlight
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.tilt * Math.PI / 180); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy);
@@ -397,32 +437,37 @@
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
   // frame on every avatar on the page is what a slow phone notices), it cross-fades every pose change, and it stops
-  // itself when the canvas leaves the page.
+  // itself when the canvas leaves the page. A canvas with no box (its tab or panel is hidden) is not painted at all:
+  // the loop polls it twice a second until it has one again (wave 5, 2026-10-25: the crew board's rows and Big Dave
+  // kept drawing behind the Street tab).
+  var paints = 0;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {};
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {};
     if (canvas.__chibiStop) canvas.__chibiStop();
     function frame() {
       if (!alive) return;
+      raf = 0; timer = 0;
       if (canvas.isConnected === false) { stop(); return; }
       var now = Date.now();
+      if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
+      if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
       if (!last || now - last >= 32) {
         last = now;
-        if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;
-        paintCanvas(canvas, look, o);
+        paintCanvas(canvas, look, o); paints++;
       }
       if (reduce) { alive = false; return; }
       raf = requestAnimationFrame(frame);
     }
     // stop exists before the first frame: a canvas animated before it is in the DOM used to hit "stop is not a
     // function" on that frame (the crew board's rows, 2026-10-25 wave 5) and the loop died without a trace.
-    var stop = function () { if (!alive) return; alive = false; loops--; if (raf) cancelAnimationFrame(raf); if (canvas.__chibiStop === stop) canvas.__chibiStop = null; };
+    var stop = function () { if (!alive) return; alive = false; loops--; if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); if (canvas.__chibiStop === stop) canvas.__chibiStop = null; };
     canvas.__chibiStop = stop;
     loops++;
     frame();
     return stop;
   }
 
-  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _loops: function () { return loops; } };
+  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
 })();

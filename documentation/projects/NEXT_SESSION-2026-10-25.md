@@ -10,9 +10,13 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   notebook and layouts + Roof Rep revamp + the vector characters), #2728 (characters wave 2), #2729 (E2E lanes 5 + 2,
   the 360 px wordmark, the committed `tests/node_modules` symlink removed), #2730 (characters wave 3). Each squash on
   `main` deploys; check the `Firebase deploy` runs before calling the last one live.
-- **Open:** #2731 (the Island hero repaints when the jobs store loads; the spec carries its own second job). After it:
-  characters wave 4 (curly / afro / bun hair, tee / hoodie / polo tops in every picker; the street's homeowners wear
-  them too) and this handoff, already committed on the branch behind it.
+- **Merged later the same day:** #2731 (Island repaint), #2732 (characters wave 4 + the dedup-modal retry fix +
+  the turf fallback), #2733 (the sample account's game card, wave 5, the LEAVE scene, the toast style leak and the
+  Tools drawer).
+- **Open:** #2734 (the Pipeline strip one row on a phone, the @shard2 layout-leak reset in five specs, chibi v9 with
+  the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9). It also carries the
+  hero-video test's `vendor_id` allow (ffprobe 6.1), the digest + MCP team deal-room count and company paging
+  (pass-2 item 2), and the `lead_sources` key hardening (pass-2 item 6), each with its pin.
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
@@ -39,6 +43,22 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   is 380px now (`dashboard-app.css?v=26`); guard `tests/draw-tools-drawer-2026-10-25.test.js`. Why the leg ran 23
   min: the spec's four `describe.serial` groups re-run whole on every retry (tests 130-239 of a 168-test shard were
   this one file). With both fixed, read the next run's wall time before deciding on the required set.
+  **On #2733 the leg finished again (20 min)** and the five remaining failures were run together on one emulator, the
+  way the shard runs them (`NBD_AUTHED_SPECS_FILE` with the five specs). Four were the shard sharing ONE rep: a Crew
+  layout pick from `crew-calendar.spec.js` outlived its spec (`LayoutEngine.saveUser` writes `prefs().user`), so
+  `#nbdCrewRoot` sat over Today, the header and the Call Center for every later spec (19.6 min of timeouts for five
+  specs; 4.4 min once reset). `ensureClassicLayout(page)` in `fixtures/auth.js` clears a saved pick, and the five
+  specs call it after login. Also found: `my-skin.spec.js` checked a stale radio (`#myskinPerTheme` is checked after
+  `#myskinStyleWallpaper`); `call-center-view.spec.js` flagged chips inside a horizontal scroll rail as overflow (the
+  fit check now names the widest element and skips rails); `never-forget-client.spec.js` tapped Handled expecting the
+  promise sheet, but Handled is one tap with an Undo since #2668 and the sheet opens from "I promised something".
+  One product bug: the phone tap-target floor from #2727 (`.view :is(button, …) { min-height: 44px }`) beat the Pipeline
+  strip's 32px chips, so the strip was 56px and, with a wide fallback font, wrapped to two rows (100px). The floor now
+  skips `.kr-stat` / `.kr-cycle` (their `::after` hit area is the 44px target; `dashboard-app.css?v=27`), and the chips
+  lost 2px of padding and a 9px key so the row holds even without Barlow (`pipeline-rich-cards.css?v=3`); guard
+  `tests/crm-strip-one-row-2026-10-25.test.js`. Local note: this sandbox's proxy blocks fonts.googleapis, so the
+  dashboard renders in a wider fallback font; `loginAs` on the emulators now serves the self-hosted Barlow sheet
+  (`nbd-fonts-pro.css`) in its place, so local widths match CI's.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
@@ -69,4 +89,4 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 4. ~~Characters: the Train tab cards and the crew board still use still frames; the drive game's truck and traffic are
    vector but static~~ (done 10-25, wave 5: Big Dave in the Training Yard, breathing crew rows, an eased truck with
    exhaust and skid dust; plus the `animate()` stop-ordering bug in chibi.js). Also the LEAVE scene: a signed homeowner steps out to the rep and cheers,
-   a lost one shrugs, the rest wave, then the door swings shut. Left: the Train course cards themselves carry no character.
+   a lost one shrugs, the rest wave, then the door swings shut. ~~Left: the Train course cards themselves carry no character.~~ (done, waves 6 and 7 in the same PR as the strip fix: the rep demonstrates each course on its card, and homeowners carry persona props.)

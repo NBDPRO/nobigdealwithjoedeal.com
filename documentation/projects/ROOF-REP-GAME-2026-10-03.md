@@ -178,4 +178,30 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
 - **Renderer bug (chibi.js v5):** `animate()` defined `stop` after its first frame, so a canvas animated before it
   was in the DOM hit "stop is not a function" on that frame and the loop died silently. Found by the crew board rows;
   fixed by defining `stop` first.
-- Versions: `chibi.js?v=5`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 65 checks.
+- **Hidden loops paint nothing (chibi.js v6):** a loop whose canvas has no box (its tab or panel is hidden) skips
+  the paint and polls twice a second until it has one. Measured on the page: 5 loops live, 30 paints/s on the Street
+  tab (the HUD face), 60 on Train (HUD + Big Dave), 59 on Crew (HUD + the row); before, every loop painted behind
+  every tab.
+- Versions: `chibi.js?v=6`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 67 checks.
+
+### Waves 6 and 7 (same day, sixth PR): the course cards, and what homeowners carry
+
+- **Training Yard course cards (wave 6):** each card shows the player's own avatar doing the course beside its
+  text: climbing a drawn ladder (`paintCourseLadder` on `sceneLoop`), swinging a hammer, reading the rule book
+  (clipboard, think), pointing out a roof part, measuring with the tape, explaining the job (talk). An earned badge
+  cheers every 11 s; a tap cheers. Six loops, but hidden cards paint nothing (v6), so a tab costs one tab.
+  `.course-card` lays the 64×84 canvas beside the text.
+- **Persona props (wave 7, chibi.js v7):** a `prop` look field drawn in the back hand (the clipboard still wins
+  it): phone, coffee mug, cane to the ground, key ring, swaddled baby, paintbrush, fan of papers. `makeLook` rolls one
+  from `PERSONA_PROP` on about two doors in three: busy / realtor / flipper phones, night-shift / retired-cop /
+  skeptic mugs, elder and caregiver canes, the landlord's keys, the new baby, the DIY brush, three-quotes /
+  claim-denied / deductible papers. Props are homeowner-only; the avatar editor does not offer them.
+- **Weather on the characters (wave 8, chibi.js v8):** a `prop: 'umbrella'` raises the back arm and holds an orange
+  canopy over the head (the hand frame is squared back up so the canopy sits over the head whatever the arm angle);
+  the street's `wxLook()` puts one in the rep's and the rival's hand on a rain or snow day. A draw option `wind`
+  (0..1) gusts the hair, lifts the hat and leans the body; `chibi()` passes 1 on a windy day for every street
+  character.
+- **Idle fidgets (wave 9, chibi.js v9):** in the last 1.2 s of every 9 s an idle character fidgets, a different one
+  each cycle: a weight shift onto one foot, hands on the hips with a head tilt, a stretch with a yawn (eyes shut,
+  mouth open). Each eases in and out. A chibi's arms cannot reach its hat, so there is no hat tip.
+- Versions: `chibi.js?v=9`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 75 checks.

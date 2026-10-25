@@ -12,7 +12,7 @@
  * @shard2 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
-const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction, ensureClassicLayout } = require('./fixtures/auth');
 
 function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 // This week's Monday + n days, in the browser's local calendar (what the app uses).
@@ -31,6 +31,8 @@ test.describe.serial('Crew Calendar @shard2', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine && !!window.NBDProduction, null, { timeout: 30_000 });
+    await ensureClassicLayout(page);
+    try {
 
     const s = Date.now();
     // two crews on the roster: the doc production.js saveSub writes
@@ -226,5 +228,9 @@ test.describe.serial('Crew Calendar @shard2', () => {
     await expect(page.locator('.cw-scroll')).toBeVisible();
     const over2 = await safeEvaluate(page, () => document.scrollingElement.scrollWidth - window.innerWidth);
     expect(over2).toBeLessThanOrEqual(1);
+    } finally {
+      // The shard shares this rep: leave the layout the way the next spec expects it (2026-10-25).
+      await ensureClassicLayout(page).catch(() => {});
+    }
   });
 });

@@ -123,8 +123,10 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 3. ~~Pass-2 leftovers~~ - worked 2026-10-24: storm callables rate-limited, `/free-tools` CTA contrast fixed,
    `confirmedSourceAt` and the opt-out read checked (no change needed). Still open: the digest's `deal_rooms` team
    undercount and `companies.limit(500)` (deferred, see the [pass-2 update](../audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md)).
-4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
-   typed measurement text wiped by `renderDash`, blob URLs not revoked.
+4. ~~Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
+   typed measurement text wiped by `renderDash`, blob URLs not revoked.~~ All five were closed by 10-25: the iframed
+   panes and the food-input ring on 10-23 (#2725 / #2726, see the audit's top note), the other three in the 10-24
+   session's pass-1 leftovers PR.
 5. ~~`@shard2` specs~~ - reproduced 2026-10-25 on local emulators under CI conditions (`CI=1`, retries 2, the
    five specs the 10-20 log named: call-center-card, crew-calendar, inbox-layout, layouts, mission-control).
    **All five pass.** Two findings: (a) `layouts.spec.js` had drifted from the picker, which folds every

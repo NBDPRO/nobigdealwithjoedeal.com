@@ -151,6 +151,18 @@ async function companyDocs(collection, companyId, fields) {
   return Object.values(byId);
 }
 
+// A deal room carries only its creator's uid (no companyId), so a team's rooms are the ones its reps created: the
+// reps are the distinct userIds on the company's leads (one query each; a uid that owns none of the company's leads
+// is never read). Same rule as owner-weekly-digest.js (pass-2 item 2, 2026-10-25).
+async function companyDealRooms(companyId, leads) {
+  const uids = new Set([String(companyId)]);
+  (leads || []).forEach((l) => { if (l && l.userId && uids.size < 51) uids.add(String(l.userId)); });
+  const snaps = await Promise.all(Array.from(uids).map((u) => db().collection('deal_rooms').where('userId', '==', u).limit(5000).get()));
+  const byId = {};
+  snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
+  return Object.values(byId);
+}
+
 // The company's own bots (agent_bots, server-only), keyed 'c_<id>'.
 async function companyBots(companyId) {
   const s = await db().collection('agent_bots').where('companyId', '==', companyId).limit(200).get();
@@ -285,8 +297,9 @@ async function runTool(name, args, key) {
   }
 
   if (name === 'estimates_status') {
-    const [leads, estimates, deals] = await Promise.all([
-      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
+    const leads = await companyLeads(company);
+    const [estimates, deals] = await Promise.all([
+      companyDocs('estimates', company, ['companyId', 'userId']), companyDealRooms(company, leads),
     ]);
     return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now(), tz),
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
@@ -298,8 +311,9 @@ async function runTool(name, args, key) {
     const viewsP = db().collection('notifications').where('userId', '==', company).where('type', '==', 'estimate_viewed').limit(500).get()
       .then((s) => s.docs.map((d) => { const n = d.data() || {}; return { leadId: n.leadId, atMs: L.ms(n.createdAt) }; }))
       .catch(() => []);
-    const [leads, estimates, deals, views] = await Promise.all([
-      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']), viewsP,
+    const leads = await companyLeads(company);
+    const [estimates, deals, views] = await Promise.all([
+      companyDocs('estimates', company, ['companyId', 'userId']), companyDealRooms(company, leads), viewsP,
     ]);
     return L.toolText({ customers: L.closesThisWeek(leads, estimates, deals, views, args, Date.now(), tz),
       note: 'projected_value is the job value (else the latest estimate total), customer-facing. likelihood_pct is a heuristic (stage, last touch, estimate opens, prequal / deposit, follow-up), not a forecast. Next actions are for the owner; nothing is sent.' });

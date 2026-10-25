@@ -27,7 +27,7 @@ const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === './integrations/heartbeat') return { onSchedule: (_o, fn) => fn };
   if (request === 'firebase-functions/v2') return { logger: { info() {}, warn(...a) { WARNS.push(a); } } };
-  if (request === 'firebase-admin/firestore') return { getFirestore: () => null, FieldValue: { serverTimestamp: () => 'TS' } };
+  if (request === 'firebase-admin/firestore') return { getFirestore: () => null, FieldValue: { serverTimestamp: () => 'TS' }, FieldPath: { documentId: () => '__id__' } };
   return origLoad.apply(this, arguments);
 };
 const D = require(path.join(ROOT, 'functions/owner-weekly-digest-logic.js'));
@@ -102,8 +102,10 @@ ok('long lists are capped with a +N more line and stay under the inbox limit', /
 console.log('\n— runDigest (fake Firestore) —');
 function fakeDb(seed) {
   const store = Object.assign({}, seed.docs);
-  const mkQuery = (rows) => ({ where: (f, _o, v) => mkQuery(rows.filter((r) => r.data[f] === v)), limit: () => mkQuery(rows),
-    get: async () => ({ docs: rows.map((r) => ({ id: r.id, data: () => r.data, ref: r.ref || { parent: { parent: { id: r.leadId } } } })) }) });
+  // limit applies at get(), after startAfter, the way Firestore orders them
+  const mkQuery = (rows, lim) => ({ where: (f, _o, v) => mkQuery(rows.filter((r) => r.data[f] === v), lim), limit: (n) => mkQuery(rows, n),
+    orderBy: () => mkQuery(rows.slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)), lim), startAfter: (d) => mkQuery(rows.filter((r) => r.id > d.id), lim),
+    get: async () => { const page = lim ? rows.slice(0, lim) : rows; return { docs: page.map((r) => ({ id: r.id, data: () => r.data, ref: r.ref || { parent: { parent: { id: r.leadId } } } })), get empty() { return page.length === 0; }, size: page.length }; } });
   const rowsOf = (coll) => Object.keys(store).filter((k) => k.startsWith(coll + '/') && k.split('/').length === 2).map((k) => ({ id: k.split('/')[1], data: store[k] }));
   const writes = [];
   return {
@@ -122,6 +124,10 @@ leads.forEach((l) => { seed.docs['leads/' + l.id] = Object.assign({ companyId: '
 invoices.forEach((i) => { seed.docs['invoices/' + i.id] = Object.assign({ companyId: 'co1' }, i); });
 estimates.forEach((e) => { seed.docs['estimates/' + e.id] = Object.assign({ companyId: 'co1' }, e); });
 deals.forEach((d) => { seed.docs['deal_rooms/' + d.id] = Object.assign({ userId: 'co1' }, d); });
+// a team rep's customer: the lead carries companyId co1 and the rep's userId; the rep's deal room carries ONLY the rep's uid
+seed.docs['leads/t'] = { companyId: 'co1', userId: 'rep1', firstName: 'Tam', lastName: 'Test', stage: 'new' };
+seed.docs['estimates/e5'] = { companyId: 'co1', leadId: 't', grandTotal: 4000, createdAt: '2026-10-14T12:00:00Z' };
+seed.docs['deal_rooms/d5'] = { userId: 'rep1', estimateId: 'e5', leadId: 't', status: 'sent', sentAt: '2026-10-15T12:00:00Z', viewCount: 0 };
 const NOW = Date.parse('2026-10-26T11:30:00Z'); // 7:30 ET Monday
 
 (async () => {
@@ -140,6 +146,17 @@ const NOW = Date.parse('2026-10-26T11:30:00Z'); // 7:30 ET Monday
   const r3 = await W.runDigest({ db: live, nowMs: NOW + 7 * 86400000, live: true });
   ok('negative control: the next Monday files a new report', r3.filed === 1 && ('agent_inbox/ownerdigest_co1_2026-11-02' in live.store));
   ok('nothing but agent_inbox and notifications is written', live.writes.every((p) => /^(agent_inbox|notifications)\//.test(p)));
+  console.log('\n— a team\'s deal rooms (pass-2 item 2, 2026-10-25) —');
+  ok('a rep\'s proposal counts as awaiting signature (the room carries the rep\'s uid, not the company\'s)', /Tam Test \$4,000/.test(live.store[id].text), live.store[id].text);
+  ok('negative control: the owner\'s own rooms still count', /Ann Test \$12,001/.test(live.store[id].text), live.store[id].text);
+  const stray = fakeDb({ docs: Object.assign({}, seed.docs, { 'deal_rooms/d6': { userId: 'stranger', estimateId: 'e2', leadId: 'd', status: 'accepted', sentAt: '2026-10-16T12:00:00Z' } }) });
+  await W.runDigest({ db: stray, nowMs: NOW, live: true });
+  ok('negative control: a room by a uid that owns none of the company\'s leads is not read (Di stays awaiting)', /Di Test \$8,000/.test(stray.store[id].text), stray.store[id].text);
+  console.log('\n— more than 500 companies —');
+  const manyCos = { docs: Object.assign({}, seed.docs) };
+  for (let i = 0; i < 502; i++) manyCos.docs['companies/zz' + String(i).padStart(3, '0')] = { ownerId: 'o' + i };
+  const paged = await W.runDigest({ db: fakeDb(manyCos), nowMs: NOW, live: false });
+  ok('every company is visited, not the first 500 (503 here)', paged.companies === 503, JSON.stringify(paged));
 
   console.log('\n— jobs read fails (2026-10-23) —');
   // no lead carries a scheduledDate here, so a failed jobs read is the ONLY reason the calendar looks empty

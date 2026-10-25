@@ -398,6 +398,11 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     await page.waitForFunction(() =>
       window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.calculateEstimate === 'function'
       && typeof window._saveEstimate === 'function', null, { timeout: 20_000 });
+    // The browser overlays companyProfile.pricing at calc time. Until the SEEDED profile has arrived, _companyProfile
+    // is the defaults merge (no permits), and for a non-NBD tenant the neutral base zeroes the permit: $28,500 against
+    // the Node engine's $28,700 (CI 2026-10-25, three retries, main green an hour earlier: a race, not the math). The
+    // seeded permits restore parity, so wait for the remote profile before computing.
+    await page.waitForFunction(() => window._companyProfileLoaded === true, null, { timeout: 20_000 });
 
     // Same locked scenario shape as tests/estimate-pricing.test.js — the
     // Node engine is the spec reference; the browser engine must agree to
