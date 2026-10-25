@@ -137,6 +137,10 @@ console.log('\n3. the widget dates each card');
   const hostile = api.renderReviewCard({ author: 'Pat', rating: 5, text: 'x', relativeTime: '<img src=x onerror=alert(1)>', time: oct12 });
   ok('relative wording is still escaped', !/<img/.test(hostile) && /&lt;img/.test(hostile));
 
+  ok('the strip shows the six newest cards; /review opts out of the cap with data-nbd-gr-limit="all"',
+    /const limit = limitAttr === 'all' \? reviews\.length/.test(W) && /reviews\.slice\(0, limit\)/.test(W) && !/reviews\.slice\(0, 6\)/.test(W)
+    && /<div data-nbd-google-reviews data-nbd-gr-limit="all"><\/div>/.test(read('docs/review.html'))
+    && !/data-nbd-gr-limit/.test(read('site-src/partials/reviews-strip.html')));
   ok('the widget runs once per page (guard flag before any work)',
     /if \(window\.__nbdGoogleReviewsWidget\) return;\s*window\.__nbdGoogleReviewsWidget = true;/.test(W)
     && W.indexOf('__nbdGoogleReviewsWidget') < W.indexOf("const ENDPOINT"));

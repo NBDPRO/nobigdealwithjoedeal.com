@@ -150,6 +150,12 @@
       return;
     }
 
+    // Six newest cards by default (the strip on every page); /review, which
+    // promises "all our Google reviews", sets data-nbd-gr-limit="all" and gets the
+    // whole payload (2026-10-25). Any other value is a number of cards.
+    const limitAttr = container.getAttribute ? container.getAttribute('data-nbd-gr-limit') : null;
+    const limit = limitAttr === 'all' ? reviews.length : (parseInt(limitAttr, 10) > 0 ? parseInt(limitAttr, 10) : 6);
+
     container.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:24px">
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;text-align:center">
@@ -174,7 +180,7 @@
           }
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-          ${reviews.slice(0, 6).map(renderReviewCard).join('')}
+          ${reviews.slice(0, limit).map(renderReviewCard).join('')}
         </div>
       </div>`;
     // Hide avatars whose Google URL has expired/404s. Was an inline
