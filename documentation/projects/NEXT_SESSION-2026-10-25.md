@@ -97,8 +97,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
     stamp (`'ZZCW Alpha ' + s`), the drag starts on the Week view (the pill is clicked if not pressed, the placed job
     re-asserted, 600 ms for the re-render) and the dump adds the pill's state and the cell count.
   - The flaky one (call-center-view) passed on retry; its layout-leak reset landed in #2734.
-  Both specs together on the emulators after the fix: 7 passed in 36.0 s. The next @shard2 run is the first that can
-  go 168/168.
+  Both specs together on the emulators after the fix: 7 passed in 36.0 s.
+- **#2738 merged 15:11 UTC, and its run was the first with every job green: @shard2 passed in 13.9 min and @shard3 in
+  13.9 min.** The two fixes above held on the runner, so the leg has gone from two order-dependent misses to clean;
+  lane 2 (the required set) is now Jo's call alone.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
@@ -123,11 +125,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
 characters ran to wave 23). What is left, and what is new:
 
-1. **`@shard2` to 168/168:** both misses on #2737's run were read from their dumps and fixed (the bullet above):
-   compact-header test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's
-   stamp. Watch the next full run; if test 4 still misses, the dump names the next cover (the traces artifact holds
-   the screenshot for a reader with blob access). If it goes green, lane 2 is the only thing between the leg and the
-   required set.
+1. **`@shard2` went green on #2738's run** (both misses on #2737's run were read from their dumps and fixed: compact-header
+   test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's stamp). Watch the
+   next two full runs; if a miss comes back, its dump names the cover (the traces artifact holds the screenshot for a
+   reader with blob access). Lane 2 is the only thing between the leg and the required set.
 2. **`@shard2` / `@shard3` in the required set** waits on Jo (Needs Jo, item 2): the leg runs in about 13 minutes now.
 3. **Characters, left on the table:** the leaderboard page (`/pro/leaderboard`) is a single-rep board, so only your own
    face shows there (wave 10); if it ever lists teammates, `team-names.js` `loadAvatars()` is the read to reuse. A kid
