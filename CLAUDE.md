@@ -86,7 +86,9 @@ g. Characters, sprites and animations are held to the bar in
    `documentation/projects/CHARACTER-STYLE-BAR-2026-10-25.md` (Jo, 2026-10-25): the
    detail and style of the two reference images there, or above, and super clean:
    no overlapping parts, accessories or outfit pieces, nothing clipped or detached,
-   legible at every shipped size. Render the combinations a change touches
+   legible at every shipped size. It covers every surface in that note's inventory
+   (the chibi and all its consumers, the 32×32 pixel avatar, the Roof Rep scene
+   sprites, Pixel World, Pixel Mode). Render the combinations a change touches
    (`node scripts/chibi-sheet.js`) and look at the sheet before calling it done.
 
 ## Read first
