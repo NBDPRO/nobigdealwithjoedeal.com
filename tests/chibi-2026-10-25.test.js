@@ -171,7 +171,7 @@ function fakeCanvas(w, h, connected) {
 
 console.log('\n5. The pages');
 const rr = read('docs/pro/roof-rep.html'), dash = read('docs/pro/dashboard.html'), rrjs = read('docs/pro/js/pages/roof-rep.js'), gs = read('docs/pro/js/game-sprite.js');
-ok('roof-rep.html loads chibi.js v9 before roof-rep-fx.js and roof-rep.js v10', rr.indexOf('js/chibi.js?v=9') > 0 && rr.indexOf('js/chibi.js?v=9') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=10') > 0);
+ok('roof-rep.html loads chibi.js v9 before roof-rep-fx.js and roof-rep.js v11', rr.indexOf('js/chibi.js?v=9') > 0 && rr.indexOf('js/chibi.js?v=9') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=11') > 0);
 ok('dashboard.html loads chibi.js v9 before game-sprite.js (v4)', dash.indexOf('js/chibi.js?v=9') > 0 && dash.indexOf('js/chibi.js?v=9') < dash.indexOf('js/game-sprite.js?v=4'));
 ok('wave 5: a loop whose canvas has no box (hidden tab or panel) paints nothing and polls twice a second', /if \(box && !box\.width && !box\.height\) \{ box = null; timer = setTimeout\(frame, 500\); return; \}/.test(read('docs/pro/js/chibi.js')) && /if \(timer\) clearTimeout\(timer\);/.test(read('docs/pro/js/chibi.js')) && /_paints: function \(\) \{ return paints; \}/.test(read('docs/pro/js/chibi.js')));
 ok('wave 5: animate() defines stop before its first frame (a detached canvas stops cleanly instead of throwing)', (function () { var js = read('docs/pro/js/chibi.js'); var a = js.indexOf('var stop = function () { if (!alive) return; alive = false; loops--;'); var f = js.indexOf('loops++;\n    frame();'); return a > 0 && f > 0 && a < f; })());
