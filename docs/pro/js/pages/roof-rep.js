@@ -146,6 +146,10 @@ function paint(ctx, look, ox, oy, u) {
 var CH = window.NBDChibi || null;
 var POSE = { name: null, until: 0 };
 var DOOR = null; // the homeowner standing in the doorway while the speech sheet is open
+// Wave 5 (2026-10-25): when the sheet lets the homeowner go they leave on their own terms. A signed homeowner steps out
+// to the rep, cheers with them and walks back in; a lost door shrugs; the rest wave; then the door swings shut.
+var LEAVE = null;
+function leaveEnd(L) { return L.since + (L.out ? 2300 : 900); }
 function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
 var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
 function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
@@ -953,8 +957,8 @@ function drawHouse(h, st) {
   var glow = DAY && DAY.min >= 16 * 60;
   [h.x + 14, h.x + w - 26].forEach(function (wx) { g.fillStyle = '#2b3442'; g.fillRect(wx - 1, y + 29, 14, 12); g.fillStyle = glow ? '#ffd98a' : '#8ec5ff'; g.fillRect(wx, y + 30, 12, 10); g.fillStyle = 'rgba(43,52,66,.9)'; g.fillRect(wx + 5, y + 30, 2, 10); g.fillRect(wx, y + 34, 12, 1); });
   // door
-  if (DOOR && DOOR.h === h) { // the door swings open over 240 ms and stands open while the homeowner is in it (2026-10-25)
-    var dk = DOOR.since ? Math.min(1, (Date.now() - DOOR.since) / 240) : 1; dk = dk * (2 - dk);
+  if ((DOOR && DOOR.h === h) || (LEAVE && LEAVE.h === h)) { // the door swings open over 240 ms and stands open while the homeowner is in it (2026-10-25)
+    var dk = DOOR && DOOR.h === h ? (DOOR.since ? Math.min(1, (Date.now() - DOOR.since) / 240) : 1) : Math.max(0, Math.min(1, (leaveEnd(LEAVE) - Date.now()) / 240)); dk = dk * (2 - dk); // …and swings shut over the last 240 ms of a leave
     g.fillStyle = '#2b1d14'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = 'rgba(255,217,138,' + (0.25 * dk).toFixed(3) + ')'; g.fillRect(h.x + 35, y + 38, 10, 17);
     var lx = h.x + 34 - 4 * dk, lw = 12 - 7 * dk; g.fillStyle = '#5a2f1c'; rrect(lx, y + 36, lw, 20, 2); g.fill(); g.fillStyle = '#6b3a24'; g.fillRect(lx + 1, y + 37, Math.max(1, lw - 2), 18);
   } else { g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2); }
@@ -1043,6 +1047,16 @@ function drawWorld() {
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
   if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, DOOR.look, dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
+  if (LEAVE) {
+    var e = now - LEAVE.since, dl = doorOf(LEAVE.h), lx = dl.x - 3, ly = dl.y - 6, lp = LEAVE.pose, lf = 1, k;
+    if (now >= leaveEnd(LEAVE)) LEAVE = null;
+    else if (LEAVE.out) {
+      if (e < 450) { k = e / 450; k = k * (2 - k); lx += (LEAVE.tx - lx) * k; ly += (LEAVE.ty - ly) * k; lp = 'walk'; lf = LEAVE.tx < dl.x ? -1 : 1; }
+      else if (e < 1850) { lx = LEAVE.tx; ly = LEAVE.ty; lp = 'cheer'; lf = WALK.px < lx ? -1 : 1; }
+      else { k = (e - 1850) / 450; k = k * (2 - k); lx = LEAVE.tx + (lx - LEAVE.tx) * k; ly = LEAVE.ty + (ly - LEAVE.ty) * k; lp = 'walk'; lf = dl.x < LEAVE.tx ? -1 : 1; }
+    }
+    if (LEAVE) { g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(lx), Math.round(ly) + 1, 6, 2, 0, 0, 6.3); g.fill(); chibi(g, LEAVE.look, Math.round(lx), Math.round(ly), lp, lf, now, 22, LEAVE.mood, 'door'); }
+  }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
@@ -1136,7 +1150,9 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 function say(look, name, text, choices, tip, meter) {
   var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
   var wasOpen = DOOR && WALK.target && DOOR.h === WALK.target ? DOOR.since : 0;
-  DOOR = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood, since: wasOpen || Date.now() } : null; // since: the door only swings on the first line
+  var next = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood, since: wasOpen || Date.now() } : null; // since: the door only swings on the first line
+  if (DOOR && DOOR.h && !next) LEAVE = { look: DOOR.look, h: DOOR.h, mood: DOOR.mood, pose: DOOR.pose || 'wave', out: !!DOOR.out, since: Date.now(), tx: WALK.px + (WALK.px > doorOf(DOOR.h).x ? 22 : -22), ty: WALK.py - 12 };
+  DOOR = next;
   if (typeof look === 'string') faceScene(look); // no homeowner in the sheet: the dog, the closed door or the truck (2026-10-25 wave 2)
   else if (look) drawTo(faceCv, look, 'talk', mood);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
@@ -1406,6 +1422,7 @@ function signed(h, sid, t) {
   var price = t.psq * h.sq;
   h.price = price; h.tier = t.key; DAY.signed++; DAY.sold += price; dayCount('sign'); sfx('cash');
   FX.burst(WALK.px, WALK.py - 24, 28); FX.float(money(price), WALK.px, WALK.py - 48, '#7bc96f', true); FX.flash(false); pose('cheer', 2000);
+  if (DOOR) { DOOR.pose = 'cheer'; DOOR.out = true; } // they step out and celebrate with you when the sheet closes
   if (PERSONA[h.persona].boss) stat('bosses');
   gain(60 + Math.round(price / 1000), h.name + ' signed: ' + t.name + ' ' + money(price));
   if (h.damage === 'hail' || h.damage === 'some') {

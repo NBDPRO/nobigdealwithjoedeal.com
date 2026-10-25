@@ -170,6 +170,11 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   faint bob, puffs exhaust on every lane change and a cloud of skid dust on a bump. Nothing spawns over the lot's
   column any more (the first move up used to be an instant fender bender when a car drifted into it), and no two cars
   spawn nose to tail.
+- **Homeowners leave on their own terms (the LEAVE scene):** when the speech sheet lets a homeowner go they no longer
+  vanish with the door. A signed homeowner steps out to the rep's side (450 ms), cheers with them (1.4 s) and walks
+  back in; a lost door shrugs; a booked or carded door waves; then the door swings shut over its last 240 ms. One
+  state (`LEAVE`), created where `say()` used to drop `DOOR`, drawn in `drawWorld` on the street canvas, and
+  `drawHouse` keeps the leaf open for it.
 - **Renderer bug (chibi.js v5):** `animate()` defined `stop` after its first frame, so a canvas animated before it
   was in the DOM hit "stop is not a function" on that frame and the loop died silently. Found by the crew board rows;
   fixed by defining `stop` first.
