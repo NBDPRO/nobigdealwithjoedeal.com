@@ -138,7 +138,24 @@ function dayBefore(ymd) {
   return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
 }
 
-/** The card: level from all-time XP, this week vs last week, and why. */
+/**
+ * The work streak (GameForce round-2 appendix #8, fits "compete with yourself"): days in a row, Eastern, with at least one
+ * XP-earning event (money collected counts too). Today being empty so far never breaks it: the day is not over, so an empty
+ * today reads from yesterday. -> { current, best, activeToday }
+ */
+function streak(events, todayYmd) {
+  const days = new Set();
+  for (const e of events || []) if (e && e.atMs) days.add(etDay(e.atMs));
+  const activeToday = days.has(todayYmd);
+  let current = 0, d = activeToday ? todayYmd : dayBefore(todayYmd);
+  for (let guard = 0; guard < 4000 && days.has(d); guard++) { current++; d = dayBefore(d); }
+  const sorted = Array.from(days).sort();
+  let best = 0, run = 0, prev = null;
+  for (const day of sorted) { run = prev && dayBefore(day) === prev ? run + 1 : 1; best = Math.max(best, run); prev = day; }
+  return { current, best: Math.max(best, current), activeToday };
+}
+
+/** The card: level from all-time XP, this week vs last week, the streak, and why. */
 function buildCard({ uid, nowMs, tasks, calls, leads, invoices, paymentsOf }) {
   const events = eventsFrom({ uid, tasks, calls, leads, invoices, paymentsOf });
   const wb = weekBounds(nowMs);
@@ -146,6 +163,7 @@ function buildCard({ uid, nowMs, tasks, calls, leads, invoices, paymentsOf }) {
   const thisWeek = score(events, wb.thisStart, wb.today);
   const lastWeek = score(events, wb.lastStart, dayBefore(wb.thisStart));
   const lv = levelFor(total.xp);
+  const st = streak(events, wb.today);
   const order = ['task', 'promise', 'filed', 'handled', 'lead', 'review', 'won', 'collected'];
   const breakdown = order.filter((k) => thisWeek.byKind[k]).map((k) => ({
     kind: k, label: RULES[k].label, count: thisWeek.byKind[k].count, xp: thisWeek.byKind[k].xp,
@@ -153,8 +171,9 @@ function buildCard({ uid, nowMs, tasks, calls, leads, invoices, paymentsOf }) {
   return {
     totalXp: total.xp, level: lv.level, title: lv.title, levelFloor: lv.floor, levelNext: lv.next,
     week: { start: wb.thisStart, xp: thisWeek.xp }, lastWeek: { start: wb.lastStart, xp: lastWeek.xp },
+    streak: st,
     breakdown,
   };
 }
 
-module.exports = { RULES, TITLES, xpForLevel, levelFor, weekBounds, eventsFrom, score, buildCard, etDay, toMs };
+module.exports = { RULES, TITLES, xpForLevel, levelFor, weekBounds, eventsFrom, score, streak, buildCard, etDay, toMs };

@@ -40,7 +40,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 .hero { padding:60px 5% 20px; text-align:center; position:relative; }
 .storm-icon { font-size:64px; margin-bottom:16px; animation:pulse 2s ease infinite; }
 @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
-.hero-eyebrow { font-size:.7rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--alert); margin-bottom:12px; }
+.hero-eyebrow { font-size:.7rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--orange-light,#dd875f); /* --alert on the navy read 3.45:1 (2026-10-25) */ margin-bottom:12px; }
 .hero h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.2rem,6vw,3.8rem); line-height:1.05; margin-bottom:16px; }
 .hero h1 span { color:var(--alert); }
 .hero p { color:rgba(255,255,255,.6); font-size:.95rem; max-width:500px; margin:0 auto; line-height:1.6; }
@@ -68,7 +68,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 /* trust line above Submit (2026-10-03); rating hydrated live by google-reviews-widget.js */
 .nbd-trust-line { margin:4px 0 10px; font-size:.78rem; font-weight:600; color:rgba(255,255,255,.72); text-align:center; line-height:1.4; }
 .nbd-trust-line span[aria-hidden] { color:#fbbc04; }
-.signup-btn { width:100%; padding:15px; background:var(--alert); color:var(--navy-dark); border:none; border-radius:10px; font-family:'Montserrat',sans-serif; font-size:.9rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:8px; }
+.signup-btn { width:100%; padding:15px; background:var(--orange-light,#dd875f); /* was --alert: navy on the brand orange read 3.45:1; the hover stays amber (2026-10-25) */ color:var(--navy-dark); border:none; border-radius:10px; font-family:'Montserrat',sans-serif; font-size:.9rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:8px; }
 .signup-btn:hover { background:#fbbf24; transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,158,11,.3); }
 .signup-btn:disabled { opacity:.6; cursor:wait; }
 .signup-note { font-size:.7rem; color:rgba(255,255,255,.62); text-align:center; margin-top:12px; line-height:1.5; }
@@ -126,9 +126,9 @@ nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:
 nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
 nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
 nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
-nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
 nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
-nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:4px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
 nav.tool-nav .nav-cta:hover{background:#A14A22}
 @media(max-width:560px){
   /* Hide the top-nav Back/Call cluster on small phones (collided with the
@@ -472,6 +472,25 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
   <p class="how-note">These alerts come from National Weather Service reports. They tell you a storm was reported near your area, not that your roof was hit. The only way to know what your roof needs is a free inspection.</p>
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer class="foot">
   © 2026 No Big Deal Home Solutions. No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC. <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> &middot; <a href="/sms-program" data-nbd-sms="1">Text Messages</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
@@ -486,7 +505,6 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
      rules layer (C-3). Submissions go through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script defer  src="/assets/js/inline/e9b498fbd3.js"></script>
 
 <script defer  src="/assets/js/inline/c5a2295382.js?v=2"></script>

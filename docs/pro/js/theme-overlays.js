@@ -102,7 +102,9 @@
 
       this.destroy();
 
-      if (!overlayConfig || !overlayConfig.type) return;
+      // 'none' is how a theme says "no overlay" (2026-10-23 audit: it logged
+      // "Unknown overlay type: none" on every load of such a theme).
+      if (!overlayConfig || !overlayConfig.type || overlayConfig.type === 'none') return;
 
       // Self-gated overlays (shader-gradient) run on phones and handle
       // reduced motion themselves — one static frame instead of nothing —

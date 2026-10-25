@@ -139,6 +139,7 @@
       '<div class="gc-weeks">' +
         '<div class="gc-stat"><div class="gc-muted">This week</div><div class="gc-num">' + fmt(c.week.xp) + ' XP</div></div>' +
         '<div class="gc-stat"><div class="gc-muted">Last week (your ghost)</div><div class="gc-num">' + fmt(c.lastWeek.xp) + ' XP</div></div>' +
+        (c.streak ? '<div class="gc-stat gc-streak"><div class="gc-muted">Work streak</div><div class="gc-num">' + (c.streak.current ? '🔥 ' : '') + fmt(c.streak.current) + ' day' + (c.streak.current === 1 ? '' : 's') + '</div><div class="gc-muted gc-small">' + (c.streak.current ? (c.streak.activeToday ? 'today counts' : 'earn anything today to keep it') : 'tick a follow-up today to start one') + (c.streak.best > c.streak.current ? ' · best ' + fmt(c.streak.best) : '') + '</div></div>' : '') +
       '</div>' +
       '<div class="gc-muted gc-vs">' + (ahead > 0 ? 'Ahead of your ghost by ' + fmt(ahead) + ' XP.' : ahead < 0 ? fmt(-ahead) + ' XP behind your ghost — the week isn\'t over.' : 'Dead even with your ghost.') + '</div>' +
       (c.breakdown && c.breakdown.length ? '<div class="gc-list">' + c.breakdown.map(function (b) {

@@ -99,7 +99,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .pledge-hero .lead{font-size:1.1rem;color:rgba(255,255,255,.85);line-height:1.65;max-width:740px;margin-bottom:32px;font-weight:600}
 .pledge-hero .lead strong{color:#fff;font-weight:700}
 .ph-ctas{display:flex;flex-wrap:wrap;gap:14px}
-.btn-primary{display:inline-flex;align-items:center;gap:8px;background:#BD5728;color:#fff!important;padding:15px 28px;border-radius:8px;font-weight:800;font-size:.9rem;letter-spacing:.05em;text-transform:uppercase;box-shadow:0 4px 14px rgba(189,87,40,.35);transition:transform .15s,background .2s,box-shadow .15s}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:#BD5728;color:#fff!important;padding:14px 28px;border-radius:8px;font-weight:800;font-size:.9rem;letter-spacing:.05em;text-transform:uppercase;box-shadow:0 4px 14px rgba(189,87,40,.35);transition:transform .15s,background .2s,box-shadow .15s}
 .btn-primary:hover{background:#A14A22;transform:translateY(-2px);box-shadow:0 8px 22px rgba(189,87,40,.45)}
 .btn-outline{display:inline-flex;align-items:center;gap:8px;background:transparent;color:#fff!important;border:2px solid rgba(255,255,255,.5);padding:13px 26px;border-radius:8px;font-weight:700;font-size:.9rem;letter-spacing:.04em;text-transform:uppercase;transition:border-color .2s,background .2s}
 .btn-outline:hover{border-color:var(--orange);background:rgba(189,87,40,.1)}
@@ -226,7 +226,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
 .footer-desc{font-size:.85rem;line-height:1.65;margin-bottom:18px;color:rgba(255,255,255,.72)}
 .footer-badges{display:flex;flex-wrap:wrap;gap:6px}
 .footer-badge{background:rgba(255,255,255,.08);padding:4px 10px;border-radius:12px;font-size:.7rem;color:rgba(255,255,255,.7);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.footer-col .footer-col-title{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:var(--orange);letter-spacing:.08em;margin-bottom:14px}
+.footer-col .footer-col-title{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:var(--orange-light,#dd875f);letter-spacing:.08em;margin-bottom:14px}
 .footer-col ul{list-style:none}
 .footer-col li{margin-bottom:8px}
 .footer-col a{font-size:.85rem;color:rgba(255,255,255,.82);transition:color .2s}
@@ -707,6 +707,25 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
 </section>
 
 <!-- ── FOOTER ── -->
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer>
   <div class="footer-grid">

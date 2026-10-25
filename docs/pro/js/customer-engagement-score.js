@@ -67,7 +67,7 @@
     if (ests.some(e => e.respondedAt)) {
       return {
         tier: 4, label: 'Responded', icon: '✅',
-        bg: 'rgba(251,191,36,0.18)', color: 'var(--gold)',
+        bg: 'rgba(251,191,36,0.18)', color: 'var(--ui-warn-text, var(--gold))',
         border: 'rgba(251,191,36,0.45)',
         title: 'Customer has responded to an estimate.',
       };
@@ -105,7 +105,7 @@
     if (viewCount > 0 && (isFreshShare || viewCount >= 2)) {
       return {
         tier: 3, label: 'Hot', icon: '🔥',
-        bg: 'rgba(251,146,60,0.18)', color: 'var(--orange)',
+        bg: 'rgba(251,146,60,0.18)', color: 'var(--ui-accent-text, var(--orange))',
         border: 'rgba(251,146,60,0.45)',
         title: viewCount >= 2
           ? `Customer viewed ${viewCount}× — strong signal.`
@@ -117,7 +117,7 @@
     if (viewCount > 0) {
       return {
         tier: 2, label: 'Viewed', icon: '👀',
-        bg: 'rgba(46,204,138,0.18)', color: '#5eead4',
+        bg: 'rgba(46,204,138,0.18)', color: 'var(--ui-success-text, #5eead4)',
         border: 'rgba(46,204,138,0.45)',
         title: 'Customer has opened the portal at least once.',
       };
@@ -127,7 +127,7 @@
     if (sharedMs > 0) {
       return {
         tier: 1, label: 'Sent', icon: '📨',
-        bg: 'rgba(155,109,255,0.14)', color: 'var(--purple)',
+        bg: 'rgba(155,109,255,0.14)', color: 'color-mix(in srgb, var(--purple) 50%, var(--t, #e8eaf0))',
         border: 'rgba(155,109,255,0.45)',
         title: 'Portal link sent — waiting for the customer to open it.',
       };

@@ -14,8 +14,8 @@
   <meta name="robots" content="noindex, nofollow">
   <script src="js/pages/sw-register.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap">
-  <link rel="stylesheet" href="css/roof-rep.css?v=1">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Lato:wght@400;700&display=swap">
+  <link rel="stylesheet" href="css/roof-rep.css?v=4">
 </head>
 <body>
   <div class="wrap">
@@ -47,12 +47,13 @@
     </nav>
 
     <section class="panel" id="p-street" hidden>
-      <div class="chips" id="streetChips"></div>
-      <div class="stage"><canvas id="world" width="320" height="200" aria-label="The street: tap a house to walk to its door"></canvas></div>
+      <div class="stage"><canvas id="world" width="640" height="400" aria-label="The street: tap a house to walk to its door"></canvas></div>
       <div class="box">
         <canvas class="face" id="face" width="32" height="32" aria-hidden="true"></canvas>
         <div class="talk" id="talk"></div>
       </div>
+      <h3 class="drive">Drive to</h3>
+      <div class="chips" id="streetChips"></div>
       <div class="row"><p class="help grow">Tap a house to knock. Dark specks on a roof mean hail. Flags: blue booked, green signed, gold hanger, red lost. Tap another street to drive there.</p><button type="button" class="btn" id="endBtn">Call it a day</button></div>
     </section>
 
@@ -74,6 +75,9 @@
   </div>
 
   <script type="module" src="js/pages/roof-rep-net.js?v=1"></script>
-  <script src="js/pages/roof-rep.js?v=1" defer></script>
+  <script src="js/pages/roof-rep-rules.js?v=1" defer></script>
+  <script src="js/chibi.js?v=1" defer></script>
+  <script src="js/pages/roof-rep-fx.js?v=1" defer></script>
+  <script src="js/pages/roof-rep.js?v=3" defer></script>
 </body>
 </html>

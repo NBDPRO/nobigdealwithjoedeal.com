@@ -123,6 +123,20 @@ async function waitFor(page, fn, arg, ms) {
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e).slice(0, 300)));
 
+    console.log('0. the guided story (/pro/sandbox): keyboard starts at the top');
+    // 2026-10-23 audit: the story wrote #storm into the URL while loading, the
+    // browser took that as a jump to the first step, and the first Tab skipped
+    // the skip link and the header. A deep link (#estimate) still works.
+    await page.goto(ORIGIN + '/pro/sandbox');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    await page.keyboard.press('Tab');
+    const firstTab = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    ok('the first Tab on the story page reaches "Skip to the demo"', /\bpl-skip\b/.test(firstTab || ''), firstTab);
+    await page.goto('about:blank');   // a fresh load, not a same-page hash change
+    await page.goto(ORIGIN + '/pro/sandbox#estimate');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    ok('a deep link to a step still opens that step', await page.evaluate(() => /Estimate/.test(document.querySelector('.sx-chip[aria-current="step"]').textContent) && location.hash === '#estimate'));
+
     console.log('1. open the sample account');
     await page.goto(ORIGIN + '/pro/explore');
     await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });
@@ -636,8 +650,27 @@ async function waitFor(page, fn, arg, ms) {
     ok('the view loads /pro/explore/analytics (inside the sample account, not the real /pro/analytics)', !!usageFrame, page.frames().map((f) => f.url()).join(' | '));
     if (usageFrame) {
       await usageFrame.waitForFunction(() => { const v = document.getElementById('vReq'); return v && /^[1-9][\d,]*$/.test(v.textContent.trim()); }, null, { timeout: 30000, polling: 200 });
+      // The first render also draws the chart after the stats; on a fast runner the
+      // click could land while that layout was still settling (CI 2026-10-25: the
+      // 30-day label never came, twice, while every local run passed). Wait for the
+      // chart to be drawn first, then click, and on a miss report the frame's
+      // state instead of dying on the timeout.
+      await usageFrame.waitForFunction(() => { const c = document.getElementById('chart'); return !!c && !/Loading chart/.test(c.textContent || ''); }, null, { timeout: 30000, polling: 200 });
+      const frameErrors = [];
+      usageFrame.page().on('pageerror', (e) => frameErrors.push(String(e).slice(0, 200)));
       await usageFrame.locator('[data-range="30d"]').click();   // a real click on the page's own range button
-      await usageFrame.waitForFunction(() => /30 Days/.test((document.getElementById('lReq') || {}).textContent || ''), null, { timeout: 10000, polling: 200 });
+      let rangeTook = true;
+      try {
+        await usageFrame.waitForFunction(() => /30 Days/.test((document.getElementById('lReq') || {}).textContent || ''), null, { timeout: 15000, polling: 200 });
+      } catch (e) { rangeTook = false; }
+      if (!rangeTook) {
+        const diag = await usageFrame.evaluate(() => ({
+          url: location.href, ready: document.readyState, lReq: (document.getElementById('lReq') || {}).textContent,
+          active: [...document.querySelectorAll('.tt.active')].map((b) => b.dataset.range), setRange: typeof window.setRange,
+          chart: ((document.getElementById('chart') || {}).textContent || '').slice(0, 60),
+        })).catch((e) => String(e));
+        ok('the 30 Days range button took the click (label says Last 30 Days)', false, JSON.stringify(diag) + ' | errors: ' + frameErrors.join(' || '));
+      }
       const u = await usageFrame.evaluate(() => ({
         req: document.getElementById('vReq').textContent.trim(), cost: document.getElementById('vCost').textContent.trim(),
         features: (document.getElementById('featureBody') || document.body).innerText,

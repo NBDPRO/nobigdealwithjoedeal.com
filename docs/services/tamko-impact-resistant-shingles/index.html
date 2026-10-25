@@ -72,7 +72,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .hero h1 span{color:#BD5728}
 .hero .lead{font-size:1.05rem;color:rgba(255,255,255,.85);line-height:1.65;margin-bottom:24px}
 .hero-cta{display:flex;gap:12px;flex-wrap:wrap}
-.btn-primary{background:#BD5728;color:#fff;padding:14px 26px;border-radius:8px;font-weight:800;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none}
+.btn-primary{background:#BD5728;color:#fff;padding:14px 28px;border-radius:8px;font-weight:800;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none}
 .btn-primary:hover{background:#A14A22;transform:translateY(-1px)}
 .btn-ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);padding:14px 26px;border-radius:8px;font-weight:700;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;font-family:inherit;transition:all .2s;text-decoration:none}
 .btn-ghost:hover{border-color:var(--orange);background:rgba(189,87,40,.1)}
@@ -883,6 +883,25 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <!-- nbd:updated -->
 <div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
 <!-- /nbd:updated -->
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer>
   <div class="footer-grid">

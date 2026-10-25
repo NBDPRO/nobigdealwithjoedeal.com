@@ -10,6 +10,12 @@
 .stc-stats { display: flex; gap: 10px; margin-bottom: 14px; overflow-x: auto; }
 .stat-card.stc-stat { flex: 1; min-width: 120px; }
 .stat-card.stc-stat-wide { min-width: 150px; }
+/* Phones (UI sweep 2026-10-24): the four stat cards were a sideways-scrolling row
+   that cut the third card off and hid the fourth. Two by two instead. */
+@media (max-width: 600px) {
+  .stc-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
+  .stat-card.stc-stat, .stat-card.stc-stat-wide { min-width: 0; }
+}
 .stc-tabs { display: flex; gap: 0; margin-bottom: 14px; overflow-x: auto; border-bottom: 2px solid var(--br); }
 .stc-map { width: 100%; height: 280px; border-top: 1px solid var(--br); border-bottom: 1px solid var(--br); }
 .stc-body { padding: 0 20px 20px; }
@@ -87,7 +93,7 @@
 .stx-cgreen-fs22px.stx-cgreen-fs22px.stx-cgreen-fs22px { color: var(--green); font-size: 22px; }
 .stx-corange-fs22px.stx-corange-fs22px.stx-corange-fs22px { color: var(--orange); font-size: 22px; }
 .stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--blue) 13%, transparent); color: var(--blue); font-weight: 600; }
-.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, #ff6d00 13%, transparent); color: #ff6d00; font-weight: 600; }
+.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, #ff6d00 13%, transparent); color: color-mix(in srgb, #ff6d00 50%, var(--t, #e8eaf0)); font-weight: 600; }
 .stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--green) 13%, transparent); color: var(--green); font-weight: 600; }
 .stx-fs18px-corange.stx-fs18px-corange.stx-fs18px-corange { font-size: 18px; color: var(--orange); }
 .stx-fs18px-cgreen.stx-fs18px-cgreen.stx-fs18px-cgreen { font-size: 18px; color: var(--green); }

@@ -332,6 +332,9 @@
    0px until fab-stack-coordinator.js measures a mounted strip, so this is a
    no-op on every view today. */
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--t);height:100vh;height:100dvh;padding-bottom:var(--nbd-bottom-chrome, 0px);overflow:hidden;display:flex;flex-direction:column;touch-action:pan-x pan-y pinch-zoom;-webkit-overflow-scrolling:touch;-webkit-tap-highlight-color:transparent;}
+/* Controls read the page font (2026-10-25 visual sweep): the UA default put Arial on every button, input and select that
+   no class styled - Academy tabs, Draw line types, Stripe buttons, the widget close marks, the board arrows. */
+button,input,select,textarea{font-family:inherit;}
 
 /* HEADER
    OWNERSHIP (2026-07 Phase 2): dashboard-app.css owns the GLOBAL <header>
@@ -357,7 +360,7 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
 .upill:hover{border-color:var(--orange);}
 .av{width:24px;height:24px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--accent-fg,#fff);}
 .uname{font-size:12px;font-weight:500;}
-.so{font-size:11px;color:var(--m);background:none;border:none;cursor:pointer;transition:color .2s;}
+.so{font-size:11px;color:var(--m);background:none;border:none;cursor:pointer;transition:color .2s;min-height:24px;padding:0 4px;} /* 24px: it measured 57x12, under the minimum target (WCAG 2.5.8; 2026-10-23 audit) */
 .so:hover{color:var(--orange);}
 
 /* ══ PRO CHROME — icon system + header tools (2026-05-14) ══════════════
@@ -2006,11 +2009,11 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .btn-orange:hover{background:var(--ob);}
 .btn-ghost{background:var(--s2);color:var(--t);border-color:var(--br);}
 .btn-ghost:hover{border-color:var(--orange);color:var(--orange);}
-.btn-red{background:rgba(224,82,82,.12);color:var(--red);border-color:var(--red);}
+.btn-red{background:rgba(224,82,82,.12);color:var(--ui-danger-text,var(--red));border-color:var(--red);}
 .btn-green{background:rgba(46,204,138,.12);color:var(--green);border-color:var(--green);}
 .panel{background:var(--s);border:1px solid var(--br);border-radius:10px;overflow:hidden;margin-bottom:16px;}
 .panel-hdr{padding:14px 18px 12px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;}
-.panel-label{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:2px;}
+.panel-label{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));margin-bottom:2px;} /* accent as text: 4.37:1 plain on the light page (UI sweep 2026-10-24) */
 .panel-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
 .panel-body{padding:18px 20px;}
 /* Hot Leads (js/hot-leads-widget.js): keep the row action cluster out of the
@@ -2139,7 +2142,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 
 /* PIN GRID */
 /* Drawing sidebar section labels — click to collapse/expand */
-.slabel2{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin:10px 0 6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid color-mix(in srgb, var(--orange) 15%, transparent);user-select:none;-webkit-tap-highlight-color:transparent;}
+.slabel2{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));margin:10px 0 6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid color-mix(in srgb, var(--orange) 15%, transparent);user-select:none;-webkit-tap-highlight-color:transparent;}
 .slabel2::after{content:'−';font-size:14px;color:var(--m);transition:transform .15s;}
 .slabel2.collapsed::after{content:'+';}
 .pin-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;}
@@ -2269,10 +2272,10 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .mir-item span{color:var(--t);font-weight:600;}
 /* Roof age badge on kanban card */
 .kct-roof{font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em;}
-.kct-roof-new{background:rgba(46,204,138,.15);color:var(--green);}
-.kct-roof-mid{background:rgba(234,179,8,.15);color:var(--gold);}
-.kct-roof-old{background:rgba(224,82,82,.15);color:var(--red);}
-.kct-roof-ancient{background:rgba(155,109,255,.15);color:var(--purple);}
+.kct-roof-new{background:rgba(46,204,138,.15);color:var(--ui-success-text,var(--green));}
+.kct-roof-mid{background:rgba(234,179,8,.15);color:var(--ui-warn-text,var(--gold));}
+.kct-roof-old{background:rgba(224,82,82,.15);color:var(--ui-danger-text,var(--red));}
+.kct-roof-ancient{background:rgba(155,109,255,.15);color:color-mix(in srgb, var(--purple) 50%, var(--t, #e8eaf0));}
 .pin-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 
 /* DRAW PANEL */
@@ -2283,7 +2286,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .draw-mode-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
 .draw-mode-btn{flex:1;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:6px 4px;font-size:10px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--m);cursor:pointer;text-align:center;transition:all .15s;}
 .draw-mode-btn:hover{border-color:var(--orange);color:var(--t);}
-.draw-mode-btn.active{background:var(--og);border-color:var(--orange);color:var(--orange);}
+.draw-mode-btn.active{background:var(--og);border-color:var(--orange);color:var(--ui-accent-text,var(--orange));}
 .draw-mode-btn.mode-perim.active{background:rgba(34,197,94,.12);border-color:#22C55E;color:#22C55E;}
 .draw-mode-btn.mode-er.active{background:rgba(99,102,241,.12);border-color:#6366F1;color:#6366F1;}
 .draw-mode-btn.mode-gutter.active{background:rgba(6,182,212,.12);border-color:#06B6D4;color:#06B6D4;}
@@ -2317,7 +2320,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .draw-btns{display:flex;gap:5px;margin-bottom:10px;}
 .draw-btn{flex:1;padding:8px 5px;border:1px solid var(--br);border-radius:6px;background:var(--s2);color:var(--t);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
 .draw-btn:hover{border-color:var(--orange);color:var(--orange);}
-.draw-btn.go{background:var(--green);border-color:var(--green);color:var(--bg);}
+.draw-btn.go{background:#15803d;border-color:#15803d;color:#fff;} /* fixed dark green: var(--green) under white read 3.1:1 (UI sweep 2026-10-24) */
 .draw-btn.go:hover{background:#25b87a;}
 .draw-btn.stop{background:rgba(224,82,82,.12);border-color:var(--red);color:var(--red);}
 .line-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;margin-bottom:10px;}
@@ -2343,7 +2346,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .cr-row:last-child{border-bottom:none;font-weight:700;font-size:13px;}
 .cr-key{color:var(--m);}
 .cr-val{color:var(--t);}
-.cr-row.hl .cr-val{color:var(--orange);font-family:'Barlow Condensed',sans-serif;font-size:16px;}
+.cr-row.hl .cr-val{color:var(--ui-accent-text,var(--orange));font-family:'Barlow Condensed',sans-serif;font-size:16px;}
 
 /* ESTIMATE BUILDER */
 .est-steps{display:flex;gap:0;margin-bottom:22px;}
@@ -2435,7 +2438,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
   max-width: 180px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.est-lead-chip.assigned { color: #4ade80; border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.06); }
+.est-lead-chip.assigned { color: var(--ui-success-text, #4ade80); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.06); }
 .est-lead-chip.unassigned { color: var(--m, #888); background: var(--s3, #1a1d23); }
 .est-lead-chip.unassigned:hover { color: var(--orange); border-color: var(--orange); }
 .est-src-chip {
@@ -2444,8 +2447,8 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
   padding: 2px 7px; border-radius: 3px;
   text-transform: uppercase;
 }
-.est-src-chip.v2 { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--orange); border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent); }
-.est-src-chip.classic { background: rgba(96,165,250,.08); color: #60a5fa; border: 1px solid rgba(96,165,250,.25); }
+.est-src-chip.v2 { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--ui-accent-text, var(--orange)); border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent); }
+.est-src-chip.classic { background: rgba(96,165,250,.08); color: var(--ui-info-text, #60a5fa); border: 1px solid rgba(96,165,250,.25); }
 .est-date { font-size: 10px; color: var(--m, #888); margin-left: auto; }
 .nbd-est-card .est-card-total {
   font-family: 'Barlow Condensed', sans-serif;
@@ -2511,7 +2514,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 /* ── SETTINGS TABS ─────────────────────────────────────────────────── */
 .stab-btn{background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m);cursor:pointer;transition:color var(--t-mid),border-color var(--t-mid),background var(--t-mid);white-space:nowrap;margin-bottom:-2px;}
 .stab-btn:hover{color:var(--t);}
-.stab-btn.stab-active{color:var(--orange);border-bottom-color:var(--orange);}
+.stab-btn.stab-active{color:var(--ui-accent-text,var(--orange));border-bottom-color:var(--orange);}
 /* Scroll affordance (mobile overflow sweep, 2026-09-14): #stab-bar's 13
    tabs overflow-x:auto with no scrollbar cue at all — same invisible-
    horizontal-scroll bug as .crm-hdr-views/.cb-stats-row above, same fix. */
@@ -2911,7 +2914,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .meas-label{background:rgba(10,12,15,.88);color:var(--t);border:1px solid color-mix(in srgb, var(--orange) 60%, transparent);border-radius:3px;padding:2px 6px;font-size:10px;font-weight:700;font-family:'Barlow Condensed',sans-serif;white-space:nowrap;cursor:pointer;pointer-events:auto;}
 
 /* DRAW TOOL — shortcut hint */
-.draw-shortcut-hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,12,15,.92);color:var(--t);font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:10px 24px;border-radius:8px;border:1px solid var(--orange);pointer-events:none;z-index:9000;animation:shintFade .7s ease-out forwards;}
+.draw-shortcut-hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,12,15,.92);color:#fff;/* fixed dark card: var(--t) was dark-on-dark on a light theme (UI sweep 2026-10-24) */font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:10px 24px;border-radius:8px;border:1px solid var(--orange);pointer-events:none;z-index:9000;animation:shintFade .7s ease-out forwards;}
 @keyframes shintFade{0%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-60%) scale(.95);}}
 
 /* DRAW TOOL — facet area label on map */
@@ -3077,7 +3080,7 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .w-card:hover .w-card-remove{opacity:1;}
 .w-card-remove:hover{color:var(--red);}
 .w-card-body{padding:12px;}
-.w-big-num{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:var(--orange);line-height:1;}
+.w-big-num{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:var(--ui-accent-text,var(--orange));line-height:1;} /* 2.84:1 plain on the navy (dark mode, UI sweep 2026-10-24) */
 .w-sub{font-size:10px;color:var(--m);margin-top:4px;text-transform:uppercase;letter-spacing:.06em;}
 .w-empty{text-align:center;padding:16px 8px;font-size:11px;color:var(--m);}
 .w-bar-track{width:100%;height:6px;background:var(--br);border-radius:3px;overflow:hidden;}
@@ -3338,9 +3341,9 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
   margin-left: 6px;
 }
-.kc-stage-age-warming  { background: rgba(251,191,36,0.18); color: #d97706; border: 1px solid rgba(251,191,36,0.45); }
-.kc-stage-age-stale    { background: rgba(249,115,22,0.20); color: #ea580c; border: 1px solid rgba(249,115,22,0.50); }
-.kc-stage-age-critical { background: rgba(239,68,68,0.22);  color: #dc2626; border: 1px solid rgba(239,68,68,0.55); }
+.kc-stage-age-warming  { background: rgba(251,191,36,0.18); color: var(--ui-warn-text, #d97706); border: 1px solid rgba(251,191,36,0.45); }
+.kc-stage-age-stale    { background: rgba(249,115,22,0.20); color: var(--ui-accent-text, #ea580c); border: 1px solid rgba(249,115,22,0.50); }
+.kc-stage-age-critical { background: rgba(239,68,68,0.22);  color: var(--ui-danger-text, #dc2626); border: 1px solid rgba(239,68,68,0.55); }
 
 /* Wave 57: fresh-share pulse. The W44 share-tracking pill (e.g.
    "📤 SMS today") gets a subtle 2.4s pulse animation when the
@@ -5236,8 +5239,8 @@ body {
 .kc-task-badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--kcard-tag-fz, 10px);font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;padding:3px 8px;border-radius:10px;cursor:pointer;border:1px solid color-mix(in srgb, var(--ink) 14%, transparent);background:color-mix(in srgb, var(--ink) 6%, transparent);color:color-mix(in srgb, var(--ink) 65%, var(--paper));transition:all .15s;white-space:nowrap;font-weight:600;}
 .kc-task-badge:hover{border-color:var(--orange);color:var(--orange);background:color-mix(in srgb, var(--orange) 10%, transparent);}
 .kc-task-badge.has-tasks{color:var(--ink);border-color:color-mix(in srgb, var(--ink) 22%, transparent);}
-.kc-task-badge.has-overdue{border-color:var(--red);color:var(--red);background:color-mix(in srgb, var(--red) 12%, transparent);}
-.kc-task-badge.all-done{border-color:var(--green);color:var(--green);background:color-mix(in srgb, var(--green) 12%, transparent);}
+.kc-task-badge.has-overdue{border-color:var(--red);color:var(--ui-danger-text,var(--red));background:color-mix(in srgb, var(--red) 12%, transparent);}
+.kc-task-badge.all-done{border-color:var(--green);color:var(--ui-success-text,var(--green));background:color-mix(in srgb, var(--green) 12%, transparent);}
 /* R4.4: empty-state task badge — quiet pill instead of bright '+ Tasks'
    CTA so the real action signals (Due / Needs X / next-action) win
    the visual hierarchy. Still discoverable on hover via the existing
@@ -5499,3 +5502,54 @@ body {
 .cp-alert-warn{ margin:0 0 10px; padding:10px 12px; border:1px solid #d97706; border-radius:6px; background:rgba(217,119,6,.10); font-size:12px; line-height:1.5; }
 /* Team tab: owner hand-off button (dashboard-team-tab.js, 2026-10-08). */
 .team-makeowner-btn{background:none;border:1px solid var(--br);color:var(--m);border-radius:6px;padding:4px 9px;font-size:10px;cursor:pointer;margin-left:6px;}
+
+/* ── Target floor (UI sweep 2026-10-24, documentation/audit/UI-SWEEP-2026-10-24.md) ──
+   Controls measured under the 24px minimum target (WCAG 2.5.8) through the
+   sample account. min-height/min-width only: nothing that already clears 24px
+   changes, and nothing grows past what it needs. */
+.kview-btn, .fa-btn, .w-mini-btn, .pl-card-btn, #view-money .btn,
+#view-crm .btn-sm, [data-action="call"][data-fn="hideFollowUpAlerts"],
+[data-sc-action="openCardDetail"], .w-goal-set { min-height: 24px; }
+.kview-btn, .fa-btn, .w-mini-btn, .pl-card-btn, #view-money .btn,
+[data-sc-action="openCardDetail"] { display: inline-flex; align-items: center; justify-content: center; }
+.w-goal-set { display: flex; align-items: center; }
+.deleted-drawer-close, .w-card-remove { min-width: 24px; min-height: 24px; }
+.jt-check { width: 24px; height: 24px; }
+.cu-name { display: inline-block; min-height: 24px; }
+:where(.sp-toggle, label:has(> #slopeLfToggle), label:has(> input[type="checkbox"])) { min-height: 24px; } /* :where keeps this at zero specificity: the bare :has() version outranked the upgrade rows' 44px labels (phone-views Settings spec, 2026-10-24) */
+/* Pipeline card controls (desktop board). */
+.kc-arrow { min-width: 24px; min-height: 24px; }
+.kc-task-badge, .kc-phone-link, .kc-tag.kct-action, .kc-tag.kct-action-doc, .kc-tag.kct-action-stage { min-height: 24px; display: inline-flex; align-items: center; }
+/* Settings legal links had no colour of their own: default browser blue on the navy, 1.4:1 in dark mode (UI sweep 2026-10-24). */
+#settingsLegalLinks a{color:var(--ui-accent-text,var(--orange));}
+
+/* Phone tap-target floor (DESIGN.md: no tap target under 44px on a phone; visual sweep 2026-10-25). The per-control
+   rules above stay; this is the floor for every button-like control they missed: Money's row buttons (24px),
+   Schedule's "Open →" (24px), the Settings segments (30px), Draw's mode and line-type buttons (25/30px), Products'
+   category chips (30px), Academy's tabs (36px), Reports' period chips (26px). Board cards keep their compact
+   !important sizes (the card is the target), and the widget close marks stay square. */
+@media (max-width:600px){
+  .view :is(button, .btn, a.btn, [role="button"], select):not(.k-card *):not(.w-card-remove):not(.kc-arrow){ min-height:44px; }
+  .view :is(.deleted-drawer-close, .w-card-remove){ min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+  /* The 24px desktop floor above names these by id; on a phone the 44px floor wins. */
+  #view-money .btn, #view-crm .btn-sm:not(.k-card *){ min-height:44px; }
+}
+
+/* Phone header: the wordmark ellipsised to "NBD …" beside a mark that already says NBD (visual sweep 2026-10-25).
+   The mark carries NBD; the wordmark keeps only PRO, so the pair reads "[NBD] PRO". The full text stays in the DOM
+   for assistive tech. */
+@media (max-width:480px){
+  .logo{font-size:0;letter-spacing:0;}
+  .logo span{font-size:14px;letter-spacing:.06em;}
+}
+
+/* 320 px sweep (2026-10-25): the Reports header's third button and the Photos job cards' View button ran off the
+   right edge on the narrowest phones. Header button rows wrap; a photo job card stacks its button under the text. */
+@media (max-width:420px){
+  .page-hdr .flex-g8{flex-wrap:wrap;}
+  .nbd-photo-lead.panel-hdr{flex-wrap:wrap;gap:10px;}
+  .nbd-photo-lead.panel-hdr > .btn{flex:1 1 100%;}
+}
+/* Schedule's calendar-feed row: the read-only link field kept its intrinsic width and pushed "Create my link" off a
+   320 px screen (same sweep). */
+#calFeedUrl, #calBookingUrl{min-width:0;}

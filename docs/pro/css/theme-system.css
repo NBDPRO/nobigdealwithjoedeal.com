@@ -277,7 +277,7 @@
 .fwt-14{font-weight:600;color:var(--text);font-size:14px;}
 .fw-bold-t{font-weight:600;color:var(--t);}
 .gold-14{font-weight:700;color:var(--gold);font-size:14px;}
-.fg-orange{color:var(--orange);}
+.fg-orange{color:var(--ui-accent-text,var(--orange));} /* a TEXT utility: plain orange is 4.37:1 on the light page (UI sweep 2026-10-24) */
 .eyebrow{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;}
 .eyebrow-9{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);display:block;margin-bottom:4px;}
 .eyebrow-9i{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);}

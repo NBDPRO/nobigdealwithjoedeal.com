@@ -70,7 +70,7 @@ nav{background:var(--navy-dark);padding:0 40px;display:flex;align-items:center;j
 .nav-links{display:flex;align-items:center;gap:28px;list-style:none}
 .nav-links a{color:rgba(255,255,255,.8);text-decoration:none;font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;padding:4px 0;border-bottom:2px solid transparent}
 .nav-links a:hover{color:var(--orange-light);border-bottom-color:var(--orange-light)}
-.nav-cta{background:#BD5728!important;color:white!important;padding:10px 22px!important;border-radius:4px;border-bottom:none!important;transition:background .2s!important}
+.nav-cta{background:#BD5728!important;color:white!important;padding:10px 22px!important;border-radius:6px;border-bottom:none!important;transition:background .2s!important}
 .nav-cta:hover{background:#A14A22!important}
 .hamburger{display:none;flex-direction:column;gap:6px;cursor:pointer;padding:10px;z-index:1001}
 .hamburger span{display:block;width:26px;height:3px;background:#ffffff;border-radius:2px;transition:all .3s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
@@ -106,7 +106,7 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
 .footer-desc{font-size:.82rem;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:20px}
 .footer-badges{display:flex;flex-wrap:wrap;gap:8px}
 .footer-badge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:100px;padding:4px 12px;font-size:.64rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)}
-.footer-col-title{font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col-title{font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-links{list-style:none;display:flex;flex-direction:column;gap:9px}
 .footer-links a{color:rgba(255,255,255,.72);text-decoration:none;font-size:.82rem;transition:color .2s}
 .footer-links a:hover{color:var(--orange-light)}
@@ -115,7 +115,7 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
 .pro-door{font-size:.78rem;color:rgba(255,255,255,.55);text-decoration:none;transition:all .2s;border-bottom:1px solid rgba(189,87,40,.3);padding-bottom:2px;font-weight:600;letter-spacing:.03em}
 .pro-door:hover{color:var(--orange-light);border-bottom-color:var(--orange-light)}
 
-.back-to-top{position:fixed;bottom:28px;right:28px;width:44px;height:44px;background:var(--navy);color:white;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 16px rgba(0,0,0,.25);opacity:0;transform:translateY(12px);transition:opacity .3s,transform .3s,background .2s;z-index:998;pointer-events:none}
+.back-to-top{position:fixed;bottom:28px;right:28px;width:44px;height:44px;background:var(--navy);color:white;border:none;border-radius:8px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 16px rgba(0,0,0,.25);opacity:0;transform:translateY(12px);transition:opacity .3s,transform .3s,background .2s;z-index:998;pointer-events:none}
 .back-to-top.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .back-to-top:hover{background:#BD5728}
 
@@ -492,16 +492,16 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <p>We use third-party services to operate and improve our Website. These partners may collect and use your information as described below:</p>
 
       <h3>Firebase</h3>
-      <p>We use Google Firebase for data storage, authentication, and database management. Firebase securely stores customer inquiry data and project information. Firebase is subject to <a href="https://policies.google.com/privacy" target="_blank" style="color:#A14A22;text-decoration:underline">Google's Privacy Policy</a>.</p>
+      <p>We use Google Firebase for data storage, authentication, and database management. Firebase securely stores customer inquiry data and project information. Firebase is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" style="color:#A14A22;text-decoration:underline">Google's Privacy Policy</a>.</p>
 
       <h3>Google Analytics</h3>
-      <p>We use Google Analytics (Measurement ID: G-8PG7N9Q3DL) to track Website traffic and user behavior. This helps us understand what's working and improve your experience. Google Analytics uses cookies to collect data and is subject to <a href="https://policies.google.com/privacy" target="_blank" style="color:#A14A22;text-decoration:underline">Google's Privacy Policy</a>.</p>
+      <p>We use Google Analytics (Measurement ID: G-8PG7N9Q3DL) to track Website traffic and user behavior. This helps us understand what's working and improve your experience. Google Analytics uses cookies to collect data and is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" style="color:#A14A22;text-decoration:underline">Google's Privacy Policy</a>.</p>
 
       <h3>Microsoft Clarity</h3>
       <p>We may use Microsoft Clarity on our public Website pages to see, in aggregate, how visitors use them (where people click, how far they scroll, which pages confuse them) through heatmaps and anonymized session replays. Clarity captures mouse movement, clicks, scrolls and page interactions; text you type into forms is masked and never sent. Clarity is not used in our customer portal, CRM, or any page that shows your account or project details. It does not run if your browser sends a Do Not Track or Global Privacy Control signal. Microsoft and its affiliates may use this data as described in the <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener" style="color:#A14A22;text-decoration:underline">Microsoft Privacy Statement</a>.</p>
 
       <h3>Stripe</h3>
-      <p>When you make a payment, we use Stripe to process credit card and payment information. Stripe handles all payment processing and does not store your full payment details on our servers. Stripe is PCI compliant and subject to <a href="https://stripe.com/privacy" target="_blank" style="color:#A14A22;text-decoration:underline">Stripe's Privacy Policy</a>.</p>
+      <p>When you make a payment, we use Stripe to process credit card and payment information. Stripe handles all payment processing and does not store your full payment details on our servers. Stripe is PCI compliant and subject to <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" style="color:#A14A22;text-decoration:underline">Stripe's Privacy Policy</a>.</p>
 
       <h3>Email &amp; Communication Services</h3>
       <p>We use <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener" style="color:#A14A22;text-decoration:underline">Resend</a> to deliver transactional email (estimate confirmations, appointment reminders, receipts) and <a href="https://www.twilio.com/en-us/legal/privacy" target="_blank" rel="noopener" style="color:#A14A22;text-decoration:underline">Twilio</a> to send SMS messages when you have opted in. These providers process your email address, phone number, and message content on our behalf.</p>

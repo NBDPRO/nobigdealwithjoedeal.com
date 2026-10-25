@@ -540,14 +540,14 @@
   }
   function monthCloseHtml(mc) {
     if (!mc) return '';
-    var netColor = mc.netCents >= 0 ? 'var(--green)' : 'var(--red)';
+    var netColor = mc.netCents >= 0 ? 'var(--ui-success-text,var(--green))' : 'var(--ui-danger-text,var(--red))';
     var shell = 'background:var(--s);border:1px solid var(--br);border-radius:12px;padding:12px 16px;margin-bottom:20px;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;';
     var summaryText = mc.closed
       ? mc.monthName + ' closed ✓'
       : 'Close ' + mc.monthLabel;
     var summaryStyle = mc.prominent
       ? 'cursor:pointer;min-height:44px;display:flex;align-items:center;font-family:\'Barlow Condensed\',sans-serif;font-size:20px;font-weight:800;color:var(--t);'
-      : 'cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:13px;font-weight:700;color:' + (mc.closed ? 'var(--green)' : 'var(--orange)') + ';';
+      : 'cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:13px;font-weight:700;color:' + (mc.closed ? 'var(--ui-success-text,var(--green))' : 'var(--ui-accent-text,var(--orange))') + ';';
     var html = '<details id="nbd-month-close" data-month="' + esc(mc.monthKey) + '"' + (mc.prominent ? ' open' : '') +
       ' style="' + shell + (mc.prominent ? 'border-top:2px solid var(--orange);' : '') + '">' +
       '<summary style="' + summaryStyle + '">' + esc(summaryText) + '</summary>';
@@ -556,8 +556,8 @@
         '<div style="font-size:20px;font-weight:800;color:' + color + ';white-space:nowrap;">' + esc(fmt(cents)) + '</div></div>';
     };
     html += '<div class="mdx-meta-row">' +
-      big('Collected', mc.collectedCents, 'var(--green)') +
-      big('Expenses', mc.expensesCents, 'var(--orange)') +
+      big('Collected', mc.collectedCents, 'var(--ui-success-text,var(--green))') +
+      big('Expenses', mc.expensesCents, 'var(--ui-accent-text,var(--orange))') +
       big('Net', mc.netCents, netColor) + '</div>' +
       '<div class="mdx-m11-mb10">' + esc(mc.monthLabel + ' · collected money only (payments received, refunds taken off) · expenses incl. tax') + '</div>';
     if (mc.categories.length) {
@@ -593,8 +593,8 @@
     var scroll = document.querySelector('#view-money .view-scroll');
     if (!scroll) return;
     _lastQueue = m.collectionsQueue || [];
-    var netColor = m.netCashCents >= 0 ? 'var(--green,#16a34a)' : 'var(--red,#dc2626)';
-    var marginColor = m.grossMargin == null ? 'var(--t,#fff)' : m.grossMargin >= 40 ? 'var(--green,#16a34a)' : m.grossMargin >= 25 ? 'var(--gold,#eab308)' : 'var(--red,#dc2626)';
+    var netColor = m.netCashCents >= 0 ? 'var(--ui-success-text,var(--green))' : 'var(--ui-danger-text,var(--red))';
+    var marginColor = m.grossMargin == null ? 'var(--t,#fff)' : m.grossMargin >= 40 ? 'var(--ui-success-text,var(--green))' : m.grossMargin >= 25 ? 'var(--ui-warn-text,var(--gold))' : 'var(--ui-danger-text,var(--red))';
     var html = '';
     html += '<div class="mdx-mb18"><h2 class="mdx-title">💵 Money — ' + m.year + '</h2>' +
       '<div class="mdx-m12-mt">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div></div>';
@@ -609,8 +609,8 @@
     // "Collected" with nothing telling you what counts. Revenue = collected only.
     html += '<div class="mdx-m11-mb10">' + esc('Collected money only: payments received on the day they came in, refunds taken off. Signed, closed and pipeline work is not counted here.') + '</div>';
     html += grid([
-      card('Collected', fmt(m.collectedCents), 'paid invoices', 'var(--green,#16a34a)'),
-      card('Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--orange,#BD5728)'),
+      card('Collected', fmt(m.collectedCents), 'paid invoices', 'var(--ui-success-text,var(--green))'),
+      card('Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--ui-accent-text,var(--orange))'),
       card('Net Cash', fmt(m.netCashCents), m.netCashCents >= 0 ? 'in the black' : 'in the red', netColor),
       card('Outstanding A/R', fmt(m.outstandingCents), 'unpaid invoices', 'var(--blue,#3b82f6)'),
     ]);
@@ -629,9 +629,9 @@
     html += '<div class="mdx-caps12">Collections Queue</div>';
     html += grid([
       card('Current', fmt(m.agingCents.current), 'not yet due', 'var(--blue,#3b82f6)'),
-      card('1–30 Days', fmt(m.agingCents.d1_30), 'past due', 'var(--gold,#eab308)'),
-      card('31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--orange,#BD5728)'),
-      card('60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--red,#dc2626)'),
+      card('1–30 Days', fmt(m.agingCents.d1_30), 'past due', 'var(--ui-warn-text,var(--gold,#eab308))'),
+      card('31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--ui-accent-text,var(--orange,#BD5728))'),
+      card('60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--ui-danger-text,var(--red,#dc2626))'),
     ]);
     html += '<div class="ui-card mdx-mb20">';
     if (!overdue.length) {
@@ -640,7 +640,7 @@
       var shownQ = overdue.slice(0, 20);
       html += '<div class="mdx-col8">';
       shownQ.forEach(function (q) {
-        var badgeColor = q.bucket === 'd61_plus' ? 'var(--red,#dc2626)' : q.bucket === 'd31_60' ? 'var(--orange,#BD5728)' : 'var(--gold,#eab308)';
+        var badgeColor = q.bucket === 'd61_plus' ? 'var(--ui-danger-text,var(--red,#dc2626))' : q.bucket === 'd31_60' ? 'var(--ui-accent-text,var(--orange,#BD5728))' : 'var(--ui-warn-text,var(--gold,#eab308))';
         var nameHtml = q.leadId
           ? '<a href="/pro/customer.html?id=' + encodeURIComponent(q.leadId) + '" class="mdx-link">' + esc(q.customerName) + '</a>'
           : '<span class="mdx-strong">' + esc(q.customerName) + '</span>';
@@ -675,7 +675,7 @@
     html += '<div class="mdx-caps12">Job profitability (won jobs)</div>';
     html += grid([
       card('Contract Value', fmt(m.wonContractCents), m.costedJobs + ' of ' + m.wonJobs + ' won jobs costed', 'var(--blue,#3b82f6)'),
-      card('Direct Costs', fmt(m.wonDirectCents), 'materials, labor, subs', 'var(--orange,#BD5728)'),
+      card('Direct Costs', fmt(m.wonDirectCents), 'materials, labor, subs', 'var(--ui-accent-text,var(--orange,#BD5728))'),
       card('Gross Margin', m.grossMargin == null ? '—' : m.grossMargin + '%', 'before overhead & commission', marginColor),
       card('Overhead', fmt(m.overheadCents), 'operating costs YTD', 'var(--purple,#8b5cf6)'),
     ]);
@@ -696,7 +696,7 @@
     html += '</div>';
     html += '<div class="ui-card">' +
       '<h3 class="mdx-h3">1099 Worklist — ' + m.year + '</h3>' +
-      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:40px;font-weight:800;color:' + (m.due1099 ? 'var(--orange,#BD5728)' : 'var(--t,#fff)') + ';">' + m.due1099 + '</div>' +
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:40px;font-weight:800;color:' + (m.due1099 ? 'var(--ui-accent-text,var(--orange,#BD5728))' : 'var(--t,#fff)') + ';">' + m.due1099 + '</div>' +
       '<div class="mdx-m12">supplier(s) need a 1099-NEC · ' + fmt(m.due1099Cents) + ' in service payments</div>' +
       '<div class="mdx-m10-mt">Eligible + W-9 on file + ≥ ' + fmt(m.thresholdCents) + ' (' + m.year + ' threshold). Manage in Expenses → Suppliers.</div>' +
       '</div>';

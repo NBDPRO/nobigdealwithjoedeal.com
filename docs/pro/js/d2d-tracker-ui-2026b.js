@@ -1375,7 +1375,7 @@
               </button>
             `).join('')}
           </div>
-          <select class="d2d-select" data-on-change="d2dSetDispoFilter">
+          <select class="d2d-select" aria-label="Filter by outcome" data-on-change="d2dSetDispoFilter">
             <option value="">All Dispositions</option>
             ${DISPO_ORDER.map(key => `<option value="${key}" ${filterDispo === key ? 'selected' : ''}>${DISPOSITIONS[key].label}</option>`).join('')}
           </select>

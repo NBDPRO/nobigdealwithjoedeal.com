@@ -13,8 +13,9 @@
  *
  * Page: /pro/roof-rep.html. Storage: localStorage cache + roofRep/{uid};
  * crew board: roofRepScores (same company). See js/pages/roof-rep-net.js.
- * Source of truth for content: the published claude.ai artifact; this file
- * is generated from it (keep the two in step).
+ * Source of truth: THIS FILE (2026-10-25). The claude.ai artifact it began as
+ * is retired; edit here. Game feel lives in roof-rep-fx.js, the look in
+ * css/roof-rep.css.
  */
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
@@ -138,7 +139,21 @@ function paint(ctx, look, ox, oy, u) {
   var G = spriteGrid(look);
   for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) { if (!G[y][x]) continue; ctx.fillStyle = G[y][x]; ctx.fillRect(ox + x * u, oy + y * u, u, u); }
 }
-function drawTo(canvas, look) { var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32); }
+// The vector chibi (js/chibi.js, 2026-10-25) draws every avatar now; the 32×32 grid above stays as the fallback and for the
+// crew board's thumbnails. POSE is a short-lived override for the street (a cheer on a signed job, a slump on a lost door).
+var CH = window.NBDChibi || null;
+var POSE = { name: null, until: 0 };
+var DOOR = null; // the homeowner standing in the doorway while the speech sheet is open
+function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
+function chibi(ctx, look, cx, feetY, p, facing, t, h, mood) {
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood });
+  else paint(ctx, look, cx - 8, feetY - 16, 0.5);
+}
+function drawTo(canvas, look, p, mood) {
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s
+  var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
+}
+function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }
 
 // ════════════════════════════════════════════════════════════════════════
 // The world: levels, streets, homeowners, the price book.
@@ -156,12 +171,12 @@ var TIERS = [
 ];
 var BOSS = { maple: 'hoa', oak: 'lawyer', hollow: 'exadjuster', country: 'farmer', lakeview: 'ceo', oldtown: 'historic' };
 var STREETS = [
-  { id: 'maple', name: 'Maple Court', level: 1, ground: '#2d5a2a', yard: '#356b31', sq: [18, 28], hail: 0.75, traffic: 0.8, pool: ['nervous', 'skeptic', 'busy', 'elder', 'diy', 'firstHome', 'renter'], extras: ['nosolicit', 'empty'] },
-  { id: 'oak', name: 'Oak Ridge', level: 3, ground: '#2f5f33', yard: '#3a7238', sq: [28, 40], hail: 0.6, traffic: 1.05, pool: ['threeQuotes', 'skeptic', 'deductible', 'landlord', 'busy', 'realtor', 'neighborPro', 'solar'], extras: ['nosolicit'] },
-  { id: 'hollow', name: 'Storm Hollow', level: 5, ground: '#34502f', yard: '#3d5f36', sq: [22, 34], hail: 0.92, traffic: 1.3, pool: ['nervous', 'deductible', 'threeQuotes', 'landlord', 'diy', 'skeptic', 'veteran', 'caregiver'], extras: ['empty'] },
-  { id: 'country', name: 'Country Road', level: 6, ground: '#4a6b2a', yard: '#5a7a34', sq: [24, 36], hail: 0.7, traffic: 0.6, pool: ['elder', 'diy', 'veteran', 'firstHome', 'caregiver', 'skeptic'], extras: ['empty'] },
+  { id: 'maple', name: 'Maple Court', level: 1, ground: '#2d5a2a', yard: '#356b31', sq: [18, 28], hail: 0.75, traffic: 0.8, pool: ['nervous', 'skeptic', 'busy', 'elder', 'diy', 'firstHome', 'renter', 'newBaby'], extras: ['nosolicit', 'empty'] },
+  { id: 'oak', name: 'Oak Ridge', level: 3, ground: '#2f5f33', yard: '#3a7238', sq: [28, 40], hail: 0.6, traffic: 1.05, pool: ['threeQuotes', 'skeptic', 'deductible', 'landlord', 'busy', 'realtor', 'neighborPro', 'solar', 'flipper'], extras: ['nosolicit'] },
+  { id: 'hollow', name: 'Storm Hollow', level: 5, ground: '#34502f', yard: '#3d5f36', sq: [22, 34], hail: 0.92, traffic: 1.3, pool: ['nervous', 'deductible', 'threeQuotes', 'landlord', 'diy', 'skeptic', 'veteran', 'caregiver', 'claimDenied'], extras: ['empty'] },
+  { id: 'country', name: 'Country Road', level: 6, ground: '#4a6b2a', yard: '#5a7a34', sq: [24, 36], hail: 0.7, traffic: 0.6, pool: ['elder', 'diy', 'veteran', 'firstHome', 'caregiver', 'skeptic', 'retiredCop', 'claimDenied'], extras: ['empty'] },
   { id: 'lakeview', name: 'Lakeview Estates', level: 8, ground: '#2f6a4a', yard: '#3a7a54', sq: [40, 58], hail: 0.65, traffic: 1.0, pool: ['neighborPro', 'realtor', 'solar', 'threeQuotes', 'busy', 'skeptic'], extras: ['nightShift'] },
-  { id: 'oldtown', name: 'Old Town', level: 10, ground: '#3c4f33', yard: '#4a5e3c', sq: [20, 30], hail: 0.8, traffic: 1.45, walls: ['#b5543c', '#9e4a36', '#c26a4a', '#a85a44', '#8f4632'], pool: ['elder', 'renter', 'landlord', 'caregiver', 'veteran', 'realtor'], extras: ['nightShift', 'nosolicit'] },
+  { id: 'oldtown', name: 'Old Town', level: 10, ground: '#3c4f33', yard: '#4a5e3c', sq: [20, 30], hail: 0.8, traffic: 1.45, walls: ['#b5543c', '#9e4a36', '#c26a4a', '#a85a44', '#8f4632'], pool: ['elder', 'renter', 'landlord', 'caregiver', 'veteran', 'realtor', 'retiredCop', 'flipper'], extras: ['nightShift', 'nosolicit'] },
 ];
 var NAMES = ['Linda', 'Mike', 'Tasha', 'Earl', 'Rosa', 'Dwayne', 'Priya', 'Gus', 'Carol', 'Marcus', 'Beth', 'Hank', 'Mei', 'Otis', 'Jada', 'Walt', 'Nora', 'Ray', 'Tina', 'Cal', 'Deb', 'Luis', 'Ada', 'Bo'];
 var WALLS = ['#c9b79c', '#a9b7c6', '#d6c6a8', '#b8c9a9', '#e0cfa8', '#c4b5c9', '#d9b8a5', '#b5c4c9'];
@@ -173,6 +188,7 @@ var PERSONA = {
   nosolicit: { want: 'better', mood: 'frown' }, empty: { want: 'better' },
   renter: { want: 'good' }, realtor: { want: 'good' }, firstHome: { want: 'good' }, nightShift: { want: 'better' },
   veteran: { want: 'best' }, neighborPro: { want: 'better', mood: 'frown' }, caregiver: { want: 'good', elder: true }, solar: { want: 'better' },
+  claimDenied: { want: 'better', mood: 'frown' }, retiredCop: { want: 'better', mood: 'frown' }, flipper: { want: 'good' }, newBaby: { want: 'better' },
   farmer: { want: 'good', boss: true, tag: 'farmer', look: { skin: 3, hair: 'short', hairColor: 5, eyes: 'happy', hat: 'cap', hatColor: 3, beard: 'full', shirt: 1, vest: 'none', pants: 1, tool: 'none', extra: 'none' } },
   ceo: { want: 'best', boss: true, mood: 'frown', tag: 'CEO', look: { skin: 2, hair: 'ponytail', hairColor: 0, eyes: 'round', hat: 'none', hatColor: 0, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades' } },
   historic: { want: 'best', boss: true, tag: 'Historic Commission chair', look: { skin: 0, hair: 'short', hairColor: 5, eyes: 'sleepy', hat: 'none', hatColor: 0, beard: 'mustache', shirt: 3, vest: 'none', pants: 1, tool: 'none', extra: 'glasses' } },
@@ -445,6 +461,66 @@ var TREES = {
     ] },
     mad: { text: "Can you not read? Off my porch.", choices: [{ say: "Sorry about that.", end: 'lose', tip: { bad: true, text: "Knocking past a No Soliciting sign costs you the house and your reputation on the street." } }] },
   },
+  claimDenied: {
+    start: { text: "Don't bother. Insurance already denied my roof last year. Said it was 'wear and tear'.", choices: [
+      { say: "That happens a lot with a bad first inspection. A denial isn't final: you can ask for a re-inspection with photos of real hail hits. Want me to look and show you exactly what I find?", go: 'again', trust: 15, tip: { good: true, text: 'A denial is a bad first look, not a verdict. The homeowner asks for the re-inspection.' } },
+      { say: "I know a guy at the carrier. I'll get it pushed through for you.", end: 'lose', dirty: true, tip: { bad: true, text: "You don't 'push claims through'. Only the policyholder works the claim, and a public adjuster if they hire one. That line is the one that gets reps sued." } },
+      { say: "Sorry to hear that. Here's my card in case something changes.", end: 'later' },
+    ] },
+    again: { text: "And what if they deny it again? I'm not paying for a roof I can't afford.", choices: [
+      { say: "Then you'll know for sure, and I'll tell you honestly what it needs and what it can wait on. No roof gets sold here that your photos don't justify.", go: 'yes', trust: 15 },
+      { say: "If they deny it, I'll find a way to make the numbers work on the claim.", end: 'lose', dirty: true, tip: { bad: true, text: '"Make the numbers work" on a claim is fraud, out loud.' } },
+    ] },
+    yes: { text: "Fine. Take your pictures. I want to see every one.", choices: [{ say: "You'll see every one, {n}.", end: 'inspect' }] },
+  },
+  retiredCop: {
+    start: { text: "Thirty years on the force. I've seen every storm scam there is. Let me see some ID and a license.", choices: [
+      { say: "Here's my ID, our city solicitor permit, and the company card with the office address. Call the office while I wait if you like.", go: 'checked', trust: 20, tip: { good: true, text: 'ID, permit, office address. Pros carry all three to the door.' } },
+      { say: "Roofers don't need a license in Kentucky, so there's nothing to show.", go: 'hmm', trust: -15, tip: { text: 'Even where no state license exists, you still carry the city solicitor permit and company ID. Show something.' } },
+      { say: "Have a good one, sir.", end: 'later' },
+    ] },
+    hmm: { text: "Then you'll understand if I don't let a stranger on my roof.", choices: [
+      { say: "Completely. Here's my ID and the office number. If you'd rather, I'll come back with the owner.", go: 'checked', trust: 10 },
+      { say: "Suit yourself.", end: 'lose' },
+    ] },
+    checked: { text: "Alright. And if you find something, what's the play? I'm not signing anything to an insurance company's benefit.", choices: [
+      { say: "You file your own claim, you pay your own deductible, and nobody signs benefits over to anyone. I just document and build.", go: 'yes', trust: 15, tip: { good: true, text: 'The whole Kentucky rulebook in one sentence.' } },
+      { say: "You sign with us and we handle the claim and the adjuster. Easier for you.", end: 'lose', dirty: true, tip: { bad: true, text: 'An assignment of benefits. He had the cuffs out before you finished the sentence.' } },
+    ] },
+    yes: { text: "Go on up. I'll be watching.", choices: [{ say: "Wouldn't expect anything less.", end: 'inspect' }] },
+  },
+  flipper: {
+    start: { text: "I flip these. I need the cheapest roof that passes inspection, and I need it this week.", choices: [
+      { say: "The Good option is a full system that passes every time: proper underlayment, drip edge, ice-and-water where code says. Cheaper than that is a tear-off twice.", go: 'cost', trust: 10, tip: { good: true, text: 'Cheapest that passes is still a full system. Say what Good includes.' } },
+      { say: "We can do an overlay right on top of the old shingles. Fast and cheap.", go: 'layers', trust: -10 },
+      { say: "We can skip the permit to save you time.", end: 'lose', dirty: true, tip: { bad: true, text: "No permit means no inspection, which is what the flipper's buyer will ask for first. And it's the trap." } },
+    ] },
+    layers: { text: "An overlay? My buyer's inspector flags second layers every time.", choices: [
+      { say: "You're right, and a second layer hides the decking. Tear-off with the Good system is the real cheapest.", go: 'cost', trust: 10 },
+      { say: "Nobody checks for layers.", end: 'lose', tip: { bad: true, text: 'They do. Second layers are called out on nearly every home inspection.' } },
+    ] },
+    cost: { text: "Fine. Schedule and price, today. Can you do that?", choices: [
+      { say: "I'll measure now and price it on the spot. Build day depends on the crew board; I'll be straight with you about that.", go: 'yes', trust: 10 },
+      { say: "Pay half in cash today and I'll put you first.", end: 'lose', dirty: true, tip: { bad: true, text: 'Cash at the door. The flipper has heard that one from the chasers already.' } },
+    ] },
+    yes: { text: "Go measure. Clock's running.", choices: [{ say: "On it.", end: 'inspect' }] },
+  },
+  newBaby: {
+    start: { text: "(whispering) Baby just went down. Can this be quick?", choices: [
+      { say: "(whispering) Absolutely. I'm checking roofs after the hail. Want me to take a quiet look and leave the photos in your mailbox? No knocking.", go: 'quiet', trust: 15, tip: { good: true, text: 'Match the moment. Quiet, short, zero pressure.' } },
+      { say: "This only takes twenty minutes, I promise. Hail damage can't wait.", go: 'ugh', trust: -15 },
+      { say: "(whispering) Of course. I'll come back another time.", end: 'later', trust: 5 },
+    ] },
+    ugh: { text: "You woke him up. Great.", choices: [
+      { say: "I'm sorry. I'll leave my card and go.", end: 'later' },
+      { say: "Well, while you're up...", end: 'lose', tip: { bad: true, text: 'Read the room. There was no sale here today, only a reputation.' } },
+    ] },
+    quiet: { text: "(whispering) If you're quiet. And no nail guns if we do this, not before nine.", choices: [
+      { say: "(whispering) Noted for the crew: no start before nine, and I'll text you the day before.", go: 'yes', trust: 10 },
+      { say: "(whispering) Crews start at seven. That's just roofing.", go: 'yes', trust: -5, tip: { text: 'True, but a start time is negotiable. Offer it.' } },
+    ] },
+    yes: { text: "(whispering) Okay. Go.", choices: [{ say: "(whispering) Thanks, {n}.", end: 'inspect' }] },
+  },
 };
 
 // ── Training: three courses, each earns a badge with a perk on the job ──
@@ -508,7 +584,7 @@ function makeLook(persona) {
   return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long']),
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
-    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '' };
+    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder };
 }
 function newName() {
   var free = NAMES.filter(function (n) { return SAVE.usedNames.indexOf(n) < 0; });
@@ -717,9 +793,10 @@ function startDay() {
   applyMorning(plan);
   WALK = { px: 160, py: 100, path: [], target: null, busy: false };
   renderAll(); showTab('street'); var wxTip = wet(plan.wx) ? 'Rain today: roofs are wet, so no climbing. Book inspections for tomorrow and work the phone.' : plan.wx === 'wind' ? 'Windy today: ladders are touchy' + (SAVE.badges.ladder || owns('drone') ? ', but your training has you covered.' : '. Inspections run 4 seconds shorter without the ladder badge.') : '';
-  var chs = CHALLENGES.filter(function (c) { return !c.when || c.when(); }); var ch = pick(chs); DAY.ch = { k: ch.k, need: ch.need, text: ch.text }; DAY.counts = {};
+  var chs = CHALLENGES.filter(function (c) { return !c.when || c.when(); }); DAY.quests = RR.pickQuests(chs, 3, (SAVE.seed || 1) * 1000 + SAVE.day); DAY.ch = DAY.quests[0]; DAY.counts = {};
+  if (!SAVE.weekly || SAVE.weekly.week !== RR.weekFor(SAVE.day)) SAVE.weekly = Object.assign(RR.pickWeekly(SAVE.day, SAVE.seed || 0), { counts: {} });
   SAVE.seasons = SAVE.seasons || {}; SAVE.seasons[seasonFor(SAVE.day)] = 1; checkTrophies();
-  wxTip = 'Today\'s challenge: ' + ch.text + ' (+40 XP). ' + wxTip;
+  wxTip = 'Three quests on your Today list (+40 XP each, all three pays a $500 bonus). ' + wxTip;
   if (DAY.canvassed) wxTip = 'Your canvasser booked ' + DAY.canvassed + ' for today. ' + wxTip;
   if (DAY.rivalLost) wxTip = 'Storm Bros signed ' + DAY.rivalLost + ' door' + (DAY.rivalLost > 1 ? 's' : '') + ' you left hanging. Get to rival-visited doors fast. ' + wxTip;
   idle(plan.builds.length ? { good: true, text: 'Build day! The crew is on ' + plan.builds.map(function (b) { return b.h.name; }).join(' and ') + (plan.builds.length > 1 ? "'s roofs" : "'s roof") + '. Run the build from your Today list, or they finish by 6 PM without you. ' + wxTip } : plan.waiting.length && wet(plan.wx) ? { text: 'Rain pushed ' + plan.waiting.length + ' build' + (plan.waiting.length > 1 ? 's' : '') + ' to tomorrow. ' + wxTip } : wxTip ? { text: wxTip } : null);
@@ -731,13 +808,24 @@ function levelToast(before) {
   if (after.level <= before) return;
   var unl = STREETS.filter(function (s) { return s.level === after.level; }).map(function (s) { return s.name; });
   var gear = Object.keys(LOCKS).filter(function (k) { return LOCKS[k] === after.level; });
-  sfx('level');
+  sfx('level'); FX.burst(WALK.px, WALK.py - 24, 40); pose('cheer', 1800);
   toast('LEVEL UP! ' + after.level + ' · ' + after.title.toUpperCase() + (unl.length ? ' · NEW STREET: ' + unl.join(', ').toUpperCase() : '') + (gear.length ? ' · NEW GEAR IN THE LOCKER' : ''));
   renderChips(); renderLocker(); hud();
+  var lines = [];
+  if (unl.length) lines.push('New street: ' + unl.join(', '));
+  if (gear.length) lines.push('New gear in the Locker');
+  lines.push('+1 skill point to spend');
+  setTimeout(function () {
+    if (!document.getElementById('ov').hidden) return;
+    overlay('<div class="big"><canvas class="lvlFace" id="lvlFace" width="120" height="120" aria-hidden="true"></canvas><h2>LEVEL UP</h2><div class="huge">' + after.level + '</div><p class="lvlup">' + esc(after.title) + '</p><ul class="report">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul><button type="button" class="btn primary wide" id="lvlOk">Keep going</button></div>');
+    drawTo(document.getElementById('lvlFace'), SAVE.avatar, 'cheer');
+    document.getElementById('lvlOk').addEventListener('click', closeOverlay);
+  }, 350);
 }
 function gain(x, why) {
   var before = lvl();
   DAY.xp += x; SAVE.xp += x; DAY.log.push({ xp: x, why: why }); hud();
+  if (x >= 5) FX.float('+' + x + ' XP', WALK.px, WALK.py - 36, x >= 50 ? '#f2a900' : '#f3ede2', x >= 50);
   levelToast(before);
 }
 // XP outside a working day (training before you clock in).
@@ -756,8 +844,9 @@ function endDay() {
 function finishDay() {
   if (DAY.clean && DAY.xp > 0) { gain(50, 'Clean day: no shady promises'); SAVE.cleanDays++; SAVE.cleanStreak = (SAVE.cleanStreak || 0) + 1; } else SAVE.cleanStreak = 0;
   checkTrophies();
-  SAVE.weekXp += DAY.xp; SAVE.bestDay = Math.max(SAVE.bestDay, DAY.xp); SAVE.sold += DAY.sold;
-  var done = DAY, dayNo = SAVE.day;
+  SAVE.weekXp += DAY.xp; SAVE.bestDay = Math.max(SAVE.bestDay, DAY.xp); SAVE.sold += DAY.sold; SAVE.seasonXp = (SAVE.seasonXp || 0) + DAY.xp;
+  if (DAY.clean && DAY.xp > 0) weekCount('clean');
+  var done = DAY, dayNo = SAVE.day, seasonOver = RR.seasonEndsOn(dayNo);
   SAVE.day++; DAY = null;
   persist();
   var L = levelFor(SAVE.xp), ag = agendaDue(SAVE.day).length;
@@ -769,8 +858,18 @@ function finishDay() {
     '<ul class="report">' + done.log.slice(-7).map(function (l) { return '<li>+' + l.xp + ' · ' + esc(l.why) + '</li>'; }).join('') + '</ul>' +
     '<p class="help">Sold isn\'t collected: the money comes in when the roof is built. ' + (ag ? 'Tomorrow you have ' + ag + ' thing' + (ag > 1 ? 's' : '') + ' on your list.' : '') + '</p>' +
     '<button type="button" class="btn primary wide" id="nextDay">On to day ' + SAVE.day + '</button>');
-  document.getElementById('nextDay').addEventListener('click', function () { closeOverlay(); renderAll(); showTab('today'); });
+  document.getElementById('nextDay').addEventListener('click', function () { closeOverlay(); if (seasonOver) return seasonCard(); renderAll(); showTab('today'); });
   renderAll();
+}
+// A season is 28 days. Its card ranks the rep on the XP earned in it, then the counter resets.
+function seasonCard() {
+  var n = RR.seasonOf(SAVE.day - 1), xp = SAVE.seasonXp || 0, rank = RR.seasonRank(xp);
+  SAVE.seasonsDone = (SAVE.seasonsDone || 0) + 1; SAVE.seasonBest = Math.max(SAVE.seasonBest || 0, xp); SAVE.seasonXp = 0;
+  checkTrophies(); persist(); sfx('trophy'); FX.burst(160, 100, 50); pose('cheer', 1800);
+  overlay('<div class="big"><h2>SEASON ' + n + ' COMPLETE</h2><div class="huge">' + esc(rank) + '</div><p>' + xp.toLocaleString('en-US') + ' XP this season · ' + SAVE.cleanDays + ' clean days all time · ' + money(SAVE.collected) + ' collected</p>' +
+    '<p class="help">Next rank: ' + (RR.SEASON_RANKS.filter(function (r) { return r[0] > xp; }).slice(-1).map(function (r) { return r[1] + ' at ' + r[0].toLocaleString('en-US') + ' XP'; })[0] || 'you are at the top') + '. Season ' + (n + 1) + ' starts tomorrow.</p>' +
+    '<button type="button" class="btn primary wide" id="seasonOk">On to season ' + (n + 1) + '</button></div>');
+  document.getElementById('seasonOk').addEventListener('click', function () { closeOverlay(); renderAll(); showTab('today'); });
 }
 
 // ── The agenda (things you said you'd do) ──
@@ -791,72 +890,149 @@ function agendaLabel(a) {
 // The street.
 // ════════════════════════════════════════════════════════════════════════
 var W = document.getElementById('world'), g = W.getContext('2d');
+var RR = window.RoofRepRules;
+var FX = window.RoofRepFX || { float: function () {}, burst: function () {}, shake: function () {}, flash: function () {}, weather: function () {}, tint: function () {}, draw: function () {}, bob: function () { return 0; } };
+// The canvas is 640x400 for crisp lines; every drawing call below thinks in 320x200.
+g.setTransform(W.width / 320, 0, 0, W.height / 200, 0, 0);
 function curStreet() { return streetOf(SAVE.streetId); }
 function doorOf(h) { return { x: h.x + 40, y: h.top ? 74 : 122 }; }
 var FLAG = { rivaled: '#7f4fb0', building: '#d8743a', booked: '#8ec5ff', inspected: '#8ec5ff', signed: '#7bc96f', approved: '#7bc96f', built: '#f3ede2', hanger: '#f2a900', later: '#a9b0bf', lost: '#ef6b6b', fine: '#7bc96f', denied: '#ef6b6b', quiet: '#a9b0bf' };
+function rrect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function drawHouse(h, st) {
-  var y = h.top ? 18 : 122, w = 80;
-  g.fillStyle = seasonFor(SAVE.day) === 'winter' ? '#dfe7ea' : seasonFor(SAVE.day) === 'fall' ? '#5f7a34' : st.yard; g.fillRect(h.x - 4, h.top ? 8 : 116, w + 8, 76);
-  if (st.id === 'oak') { g.fillStyle = '#e8e2d4'; for (var fx = h.x - 2; fx < h.x + 84; fx += 6) g.fillRect(fx, h.top ? 10 : 186, 2, 6); g.fillRect(h.x - 2, h.top ? 12 : 188, 86, 1); }
+  // Illustrated (2026-10-25): soft shapes, a shaded gable roof, framed windows, a path to the door. Same footprint as before
+  // (the click map and door positions in doorOf/walkTo are unchanged).
+  var y = h.top ? 18 : 122, w = 80, se = seasonFor(SAVE.day);
+  g.fillStyle = se === 'winter' ? '#dfe7ea' : se === 'fall' ? '#5f7a34' : st.yard; g.fillRect(h.x - 4, h.top ? 8 : 116, w + 8, 76);
+  if (st.id === 'oak') { g.fillStyle = 'rgba(232,226,212,.9)'; for (var fx = h.x - 2; fx < h.x + 84; fx += 6) g.fillRect(fx, h.top ? 10 : 186, 2, 6); g.fillRect(h.x - 2, h.top ? 12 : 188, 86, 1); }
+  // path and shadow
+  g.fillStyle = 'rgba(0,0,0,.18)'; rrect(h.x + 8, y + 52, w - 12, 6, 3); g.fill();
+  g.fillStyle = '#cfc6b4'; rrect(h.x + 35, h.top ? y + 56 : y - 14, 10, 14, 2); g.fill();
+  // walls
+  g.fillStyle = h.wall; rrect(h.x + 6, y + 22, w - 12, 34, 2); g.fill();
+  g.fillStyle = shade(h.wall, -18); g.fillRect(h.x + 6, y + 50, w - 12, 6);
+  g.fillStyle = shade(h.wall, 10); g.fillRect(h.x + 6, y + 22, 3, 34);
+  // roof: a gable with a lighter near slope and an eave line
   var roofC = h.status === 'built' ? '#3f4a5a' : h.roof;
-  g.fillStyle = h.wall; g.fillRect(h.x + 6, y + 22, w - 12, 34);
-  g.fillStyle = shade(h.wall, -25); g.fillRect(h.x + 6, y + 52, w - 12, 4);
-  for (var i = 0; i < 12; i++) { g.fillStyle = i % 3 === 0 ? shade(roofC, 12) : roofC; g.fillRect(h.x + i * 2, y + 22 - i * 2, w - i * 4, 2); }
-  g.fillStyle = shade(roofC, -25); g.fillRect(h.x, y + 22, w, 2);
+  g.fillStyle = shade(roofC, -10); g.beginPath(); g.moveTo(h.x - 1, y + 23); g.lineTo(h.x + w / 2, y - 2); g.lineTo(h.x + w + 1, y + 23); g.closePath(); g.fill();
+  g.fillStyle = shade(roofC, 14); g.beginPath(); g.moveTo(h.x + 2, y + 21); g.lineTo(h.x + w / 2, y + 1); g.lineTo(h.x + w / 2 + 2, y + 1); g.lineTo(h.x + w / 2 + 2, y + 21); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1; for (var c = 1; c < 4; c++) { g.beginPath(); g.moveTo(h.x + 2 + c * 9, y + 23 - c * 5); g.lineTo(h.x + w - 2 - c * 9, y + 23 - c * 5); g.stroke(); }
+  g.fillStyle = shade(roofC, -30); g.fillRect(h.x - 1, y + 22, w + 2, 2);
   if (h.status !== 'built') {
-    if (h.damage === 'hail') { g.fillStyle = '#1b1b1b'; [[18, 12], [30, 16], [46, 10], [58, 15], [38, 6]].forEach(function (p) { g.fillRect(h.x + p[0], y + p[1], 2, 2); }); }
-    if (h.damage === 'some') { g.fillStyle = '#1b1b1b'; [[24, 14], [50, 12]].forEach(function (p) { g.fillRect(h.x + p[0], y + p[1], 2, 2); }); }
-    if (h.damage === 'gutter') { g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 2, y + 24, 30, 2); g.fillRect(h.x + 32, y + 26, 14, 2); g.fillRect(h.x + 46, y + 24, 32, 2); if (seasonFor(SAVE.day) === 'fall') { g.fillStyle = '#e0b45a'; g.fillRect(h.x + 10, y + 23, 3, 1); g.fillRect(h.x + 56, y + 23, 4, 1); } }
+    g.fillStyle = '#1b1b1b';
+    if (h.damage === 'hail') [[18, 12], [30, 16], [46, 10], [58, 15], [38, 6]].forEach(function (p) { g.beginPath(); g.arc(h.x + p[0], y + p[1], 1.4, 0, 6.3); g.fill(); });
+    if (h.damage === 'some') [[24, 14], [50, 12]].forEach(function (p) { g.beginPath(); g.arc(h.x + p[0], y + p[1], 1.4, 0, 6.3); g.fill(); });
+    if (h.damage === 'gutter') { g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 2, y + 24, 30, 2); g.fillRect(h.x + 32, y + 26, 14, 2); g.fillRect(h.x + 46, y + 24, 32, 2); if (se === 'fall') { g.fillStyle = '#e0b45a'; g.fillRect(h.x + 10, y + 23, 3, 1); g.fillRect(h.x + 56, y + 23, 4, 1); } }
     if (h.damage === 'repair') { g.fillStyle = '#1b1b1b'; g.fillRect(h.x + 52, y + 9, 3, 3); g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 52, y + 4, 2, 4); }
-    if (PERSONA[h.persona].boss && h.status === 'fresh') { g.fillStyle = '#f2a900'; g.fillRect(h.x + 34, y - 8, 12, 4); g.fillRect(h.x + 34, y - 11, 2, 3); g.fillRect(h.x + 39, y - 12, 2, 4); g.fillRect(h.x + 44, y - 11, 2, 3); }
+    if (PERSONA[h.persona].boss && h.status === 'fresh') { g.fillStyle = '#f2a900'; g.beginPath(); g.moveTo(h.x + 34, y - 4); g.lineTo(h.x + 46, y - 4); g.lineTo(h.x + 46, y - 10); g.lineTo(h.x + 43, y - 7); g.lineTo(h.x + 40, y - 12); g.lineTo(h.x + 37, y - 7); g.lineTo(h.x + 34, y - 10); g.closePath(); g.fill(); }
     if (h.damage === 'old') { g.fillStyle = shade(h.roof, 30); for (var j = 0; j < 6; j++) g.fillRect(h.x + 12 + j * 9, y + 14 + (j % 2) * 3, 5, 1); }
   } else { g.fillStyle = '#f2a900'; g.fillRect(h.x + 30, y + 4, 20, 1); }
-  g.fillStyle = '#8ec5ff'; g.fillRect(h.x + 14, y + 30, 12, 10); g.fillRect(h.x + w - 26, y + 30, 12, 10);
-  g.fillStyle = '#2b3442'; g.fillRect(h.x + 19, y + 30, 2, 10); g.fillRect(h.x + w - 21, y + 30, 2, 10);
-  g.fillStyle = '#6b3a24'; g.fillRect(h.x + 35, y + 38, 10, 18); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2);
+  // windows with frames and a warm glow late in the day
+  var glow = DAY && DAY.min >= 16 * 60;
+  [h.x + 14, h.x + w - 26].forEach(function (wx) { g.fillStyle = '#2b3442'; g.fillRect(wx - 1, y + 29, 14, 12); g.fillStyle = glow ? '#ffd98a' : '#8ec5ff'; g.fillRect(wx, y + 30, 12, 10); g.fillStyle = 'rgba(43,52,66,.9)'; g.fillRect(wx + 5, y + 30, 2, 10); g.fillRect(wx, y + 34, 12, 1); });
+  // door
+  if (DOOR && DOOR.h === h) { // the door stands open while the homeowner is in it (2026-10-25)
+    g.fillStyle = '#2b1d14'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = 'rgba(255,217,138,.25)'; g.fillRect(h.x + 35, y + 38, 10, 17);
+    g.fillStyle = '#5a2f1c'; rrect(h.x + 30, y + 36, 5, 20, 2); g.fill(); g.fillStyle = '#6b3a24'; g.fillRect(h.x + 31, y + 37, 3, 18);
+  } else { g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2); }
   if (h.persona === 'nosolicit' || h.persona === 'nightShift') { g.fillStyle = '#fff'; g.fillRect(h.x + 47, y + 40, 10, 6); g.fillStyle = '#c0392b'; g.fillRect(h.x + 48, y + 42, 8, 2); }
-  if (h.status === 'built') { g.fillStyle = '#d8743a'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
-  g.fillStyle = '#b9b0a0'; g.fillRect(h.x + 36, h.top ? y + 56 : y - 14, 8, 14);
-  if (h.dog) { var dx2 = h.x + 58, dy2 = h.top ? y + 60 : y - 10; g.fillStyle = '#1a1512'; g.fillRect(dx2 - 1, dy2 - 1, 10, 6); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2, 8, 4); g.fillRect(dx2 + 6, dy2 - 2, 3, 3); g.fillStyle = '#1a1512'; g.fillRect(dx2 + 8, dy2 - 1, 1, 1); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2 + 4, 1, 2); g.fillRect(dx2 + 6, dy2 + 4, 1, 2); g.fillRect(dx2 - 2, dy2 - 1, 2, 1); }
-  var c = FLAG[h.status];
-  if (c) { g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, h.top ? y + 1 : y + 59, 8, 8); g.fillStyle = c; g.fillRect(h.x + 70, h.top ? y + 2 : y + 60, 6, 6); }
+  if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
+  // bushes
+  g.fillStyle = se === 'winter' ? '#9fb3a6' : shade(st.yard, 22); [[h.x + 9, y + 54], [h.x + w - 9, y + 54]].forEach(function (b) { g.beginPath(); g.arc(b[0], b[1], 4, 0, 6.3); g.arc(b[0] + 4, b[1] + 1, 3, 0, 6.3); g.fill(); });
+  if (h.dog) drawDog(g, h.x + 58, h.top ? y + 60 : y - 10, Date.now());
+  var c2 = FLAG[h.status];
+  if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
+function drawDog(c, x, y, t) {
+  // A small vector dog (2026-10-25): body, head, a floppy ear, a wagging tail, four legs, one dark outline.
+  var wag = Math.sin(t / 110) * 2.2, ink = '#1a1512', fur = '#a0612b', furD = '#7a4a22';
+  var blob = function (fill) { c.fillStyle = fill; c.fill(); };
+  c.lineWidth = 1.4; c.strokeStyle = ink; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(x + 1, y + 1.5); c.quadraticCurveTo(x - 3 + wag, y - 2, x - 2.5 + wag, y - 4.5); c.stroke(); // tail
+  c.beginPath(); c.ellipse(x + 4.5, y + 2, 5, 2.8, 0, 0, 6.3); c.stroke(); blob(fur); // body
+  [[1.2, 4], [3.2, 4.4], [6, 4.4], [8, 4]].forEach(function (l) { c.beginPath(); c.moveTo(x + l[0], y + 2); c.lineTo(x + l[0], y + l[1] + 1.5); c.lineWidth = 2.6; c.strokeStyle = ink; c.stroke(); c.lineWidth = 1.2; c.strokeStyle = furD; c.stroke(); c.lineWidth = 1.4; c.strokeStyle = ink; });
+  c.beginPath(); c.arc(x + 9.5, y - 0.5, 2.8, 0, 6.3); c.stroke(); blob(fur); // head
+  c.beginPath(); c.ellipse(x + 7.6, y - 1.6, 1.3, 2, 0.5, 0, 6.3); c.stroke(); blob(furD); // ear
+  c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4, 0.9, 0.9); c.fillRect(x + 12, y - 0.2, 1, 1); // eye, nose
+}
+function drawCar(c, x, y, w, color, dir, bus) {
+  // Top-down traffic (vector since 2026-10-25): a rounded body with a roof panel, glass, lights at both ends, four tyres
+  // and one outline; buses get a row of windows. dir > 0 drives right (nose on the right).
+  var rr = function (px, py, pw, ph, r) { c.beginPath(); c.moveTo(px + r, py); c.arcTo(px + pw, py, px + pw, py + ph, r); c.arcTo(px + pw, py + ph, px, py + ph, r); c.arcTo(px, py + ph, px, py, r); c.arcTo(px, py, px + pw, py, r); c.closePath(); };
+  c.fillStyle = 'rgba(0,0,0,.25)'; rr(x + 1, y + 2, w, 16, 4); c.fill();
+  c.fillStyle = '#1a1512'; [[3, -2], [w - 7, -2], [3, 14], [w - 7, 14]].forEach(function (p) { rr(x + p[0], y + p[1], 4.5, 4, 1); c.fill(); });
+  c.fillStyle = '#1a1512'; rr(x - 1, y - 1, w + 2, 18, 4); c.fill();
+  var g2 = c.createLinearGradient(x, y, x, y + 16); g2.addColorStop(0, shade(color, 26)); g2.addColorStop(1, shade(color, -18)); c.fillStyle = g2; rr(x, y, w, 16, 3.5); c.fill();
+  if (bus) { c.fillStyle = shade(color, -30); c.fillRect(x + 3, y + 7, w - 6, 1.2); c.fillStyle = '#8ec5ff'; for (var wx = 5; wx < w - 6; wx += 7) rr(x + wx, y + 2.5, 4.5, 4, 1), c.fill(); for (var wx2 = 5; wx2 < w - 6; wx2 += 7) rr(x + wx2, y + 9.5, 4.5, 4, 1), c.fill(); }
+  else {
+    var cab = dir > 0 ? x + w * 0.42 : x + w * 0.18, cw = w * 0.4;
+    c.fillStyle = shade(color, -14); rr(cab, y + 1.5, cw, 13, 2.5); c.fill();
+    c.fillStyle = '#8ec5ff'; rr(dir > 0 ? cab + cw - 4.5 : cab + 1.5, y + 2.5, 3, 11, 1); c.fill(); rr(dir > 0 ? cab + 1.5 : cab + cw - 4.5, y + 3.5, 2.2, 9, 1); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(cab + 2, y + 3, cw - 4, 1);
+  }
+  c.fillStyle = '#fff4c2'; c.fillRect(dir > 0 ? x + w - 2.5 : x + 0.5, y + 1.5, 2, 3); c.fillRect(dir > 0 ? x + w - 2.5 : x + 0.5, y + 11.5, 2, 3);
+  c.fillStyle = '#e24b4a'; c.fillRect(dir > 0 ? x + 0.5 : x + w - 2.5, y + 1.5, 2, 3); c.fillRect(dir > 0 ? x + 0.5 : x + w - 2.5, y + 11.5, 2, 3);
+}
 function drawTruck(c, x, y, s) {
-  // Top-down pickup, nose up: white body, ladder rack, orange stripe.
-  s = s || 1;
-  c.fillStyle = '#1a1512'; c.fillRect(x - 1 * s, y - 1 * s, 14 * s, 22 * s);
-  c.fillStyle = '#f3ede2'; c.fillRect(x, y, 12 * s, 20 * s);
-  c.fillStyle = '#8ec5ff'; c.fillRect(x + 2 * s, y + 3 * s, 8 * s, 3 * s);
-  c.fillStyle = '#d8743a'; c.fillRect(x, y + 8 * s, 12 * s, 1 * s);
-  c.fillStyle = '#9aa0a6'; c.fillRect(x + 1 * s, y + 10 * s, 1 * s, 9 * s); c.fillRect(x + 10 * s, y + 10 * s, 1 * s, 9 * s);
-  for (var r = 11; r < 19; r += 3) c.fillRect(x + 1 * s, y + r * s, 10 * s, 1 * s);
-  c.fillStyle = '#2a2320'; c.fillRect(x - 1 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x - 1 * s, y + 14 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 14 * s, 1 * s, 3 * s);
+  // Top-down pickup, nose up: a white body with a hood line, a glass windshield, the orange stripe, a bed with a
+  // ladder rack, four tyres and one dark outline (vector since 2026-10-25; the footprint is the old 12x20 sprite).
+  s = s || 1; var w = 12 * s, h = 20 * s;
+  var rr = function (px, py, pw, ph, r) { c.beginPath(); c.moveTo(px + r, py); c.arcTo(px + pw, py, px + pw, py + ph, r); c.arcTo(px + pw, py + ph, px, py + ph, r); c.arcTo(px, py + ph, px, py, r); c.arcTo(px, py, px + pw, py, r); c.closePath(); };
+  c.fillStyle = 'rgba(0,0,0,.25)'; rr(x - 0.5 * s, y + 1.2 * s, w + 1 * s, h, 3 * s); c.fill();
+  c.fillStyle = '#1a1512'; [[-1.3, 3], [w / s - 1.7, 3], [-1.3, 13.5], [w / s - 1.7, 13.5]].forEach(function (p) { rr(x + p[0] * s, y + p[1] * s, 3 * s, 4.2 * s, 1 * s); c.fill(); });
+  c.fillStyle = '#1a1512'; rr(x - 0.9 * s, y - 0.9 * s, w + 1.8 * s, h + 1.8 * s, 3 * s); c.fill();
+  var g2 = c.createLinearGradient(x, y, x + w, y); g2.addColorStop(0, '#fbf7ee'); g2.addColorStop(1, '#d6cfbf'); c.fillStyle = g2; rr(x, y, w, h, 2.5 * s); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(x + 1 * s, y + 6.5 * s, w - 2 * s, 0.8 * s);
+  c.fillStyle = '#8ec5ff'; rr(x + 1.5 * s, y + 2.6 * s, w - 3 * s, 3.4 * s, 1 * s); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(x + 2.2 * s, y + 3.1 * s, 3 * s, 0.9 * s);
+  c.fillStyle = '#d8743a'; c.fillRect(x, y + 8 * s, w, 1.2 * s);
+  c.fillStyle = '#c9c2b2'; rr(x + 1 * s, y + 9.8 * s, w - 2 * s, 9.2 * s, 1 * s); c.fill();
+  c.fillStyle = '#9aa0a6'; c.fillRect(x + 1.6 * s, y + 10.3 * s, 1.1 * s, 8.4 * s); c.fillRect(x + w - 2.7 * s, y + 10.3 * s, 1.1 * s, 8.4 * s);
+  for (var r = 11.6; r < 18.5; r += 2.4) c.fillRect(x + 1.6 * s, y + r * s, w - 3.2 * s, 0.9 * s);
+  c.fillStyle = '#fff4c2'; c.fillRect(x + 1 * s, y + 0.2 * s, 2.2 * s, 1 * s); c.fillRect(x + w - 3.2 * s, y + 0.2 * s, 2.2 * s, 1 * s);
 }
 function drawWorld() {
-  var st = curStreet();
-  g.fillStyle = seasonFor(SAVE.day) === 'winter' ? '#c9d3d6' : st.ground; g.fillRect(0, 0, 320, 200);
-  g.fillStyle = '#c9c1b2'; g.fillRect(0, 80, 320, 8); g.fillRect(0, 112, 320, 8);
-  g.fillStyle = '#3b3f47'; g.fillRect(0, 88, 320, 24);
+  var st = curStreet(), se = seasonFor(SAVE.day), now = Date.now();
+  g.fillStyle = se === 'winter' ? '#c9d3d6' : st.ground; g.fillRect(0, 0, 320, 200);
+  g.fillStyle = 'rgba(0,0,0,.06)'; for (var gy = 0; gy < 200; gy += 16) g.fillRect(0, gy, 320, 1);
+  g.fillStyle = '#cfc6b4'; g.fillRect(0, 80, 320, 8); g.fillRect(0, 112, 320, 8);
+  g.fillStyle = '#39404b'; g.fillRect(0, 88, 320, 24);
+  g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, 88, 320, 2);
   g.fillStyle = '#e8d27a'; for (var x = 4; x < 320; x += 20) g.fillRect(x, 99, 10, 2);
   if (st.id === 'hollow') { g.fillStyle = '#56606e'; [[40, 104], [180, 92], [260, 106]].forEach(function (p) { g.fillRect(p[0], p[1], 14, 3); }); g.fillStyle = '#5a3a22'; [[96, 84], [210, 116]].forEach(function (p) { g.fillRect(p[0], p[1], 12, 2); g.fillRect(p[0] + 4, p[1] - 2, 2, 2); }); }
   g.save(); g.translate(14, 110); g.rotate(-Math.PI / 2); drawTruck(g, 0, 0, 1); g.restore();
   ensureStreet(st.id).houses.forEach(function (h) { drawHouse(h, st); });
-  var SE = SEASON[seasonFor(SAVE.day)];
-  [[104, 60], [208, 60], [104, 150], [208, 150]].forEach(function (t) { g.fillStyle = '#5a3a22'; g.fillRect(t[0], t[1] + 8, 3, 8); g.fillStyle = SE.tree; g.fillRect(t[0] - 4, t[1], 11, 9); g.fillStyle = SE.leaf; g.fillRect(t[0] - 2, t[1] + 1, 5, 4); });
+  var SE = SEASON[se];
+  [[104, 60], [208, 60], [104, 150], [208, 150]].forEach(function (t) {
+    g.fillStyle = 'rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(t[0] + 2, t[1] + 17, 7, 2, 0, 0, 6.3); g.fill();
+    g.fillStyle = '#5a3a22'; g.fillRect(t[0], t[1] + 8, 3, 8);
+    g.fillStyle = SE.tree; g.beginPath(); g.arc(t[0] + 1, t[1] + 4, 7, 0, 6.3); g.fill();
+    g.fillStyle = SE.leaf; g.beginPath(); g.arc(t[0] - 1, t[1] + 2, 4, 0, 6.3); g.fill();
+  });
   if (DAY && rivalStreet(st.id)) {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
-    paint(g, RIVAL_LOOK, Math.round(RIVAL.x) - 8, Math.round(RIVAL.y) - 30, 0.5);
-    g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 36, 8, 4);
+    g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
+    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
+    // a small STORM BROS tag over the rival's head (2026-10-25; was a red rectangle)
+    g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
+    g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
-  paint(g, SAVE.avatar, Math.round(WALK.px) - 8, Math.round(WALK.py) - 30, 0.5);
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, 'talk', 1, now, 22, DOOR.mood); }
+  var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
+  if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
+  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now);
+  if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
+  if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
+  FX.draw(g);
 }
+var KNOCK = { x: 0, y: 0, until: 0 };
 function walkTo(h) {
   if (!DAY || WALK.busy || !document.getElementById('ov').hidden) return;
   var d = doorOf(h);
   WALK.target = h; WALK.busy = true;
-  WALK.path = [{ x: WALK.px, y: ROAD_Y + 8 }, { x: d.x, y: ROAD_Y + 8 }, { x: d.x, y: d.y }];
+  WALK.path = [{ x: WALK.px, y: ROAD_Y + 8 }, { x: d.x + 8, y: ROAD_Y + 8 }, { x: d.x + 8, y: d.y }]; // stops beside the door, then turns to it
 }
 function tick() {
   if (WALK.path.length) {
@@ -875,9 +1051,9 @@ var STATUS_MSG = {
   fine: "You told {n} the roof was fine. They remember that.", denied: "The claim was denied. {n} is thinking it over.", quiet: "{n} went quiet. Maybe next storm.",
 };
 function arrive() {
-  var h = WALK.target; WALK.busy = false;
+  var h = WALK.target; WALK.busy = false; WALK.face = -1;
   spend(Math.max(2, 5 + rnd(4) - 2 * sk('hustle'))); if (!DAY || DAY.over) return;
-  sfx('knock');
+  sfx('knock'); KNOCK = { x: WALK.px - 9, y: WALK.py - 18, until: Date.now() + 500 }; // the ring sits on the door, beside the rep
   if (h.status === 'fresh') dayCount('knock');
   if (h.dog && h.status === 'fresh' && h.dogDay !== SAVE.day) {
     sfx('bark');
@@ -907,13 +1083,16 @@ function arrive2(h, dogTip) {
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function say(look, name, text, choices, tip) {
-  faceCv.getContext('2d').clearRect(0, 0, 32, 32);
-  if (look) drawTo(faceCv, look);
+function say(look, name, text, choices, tip, meter) {
+  var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
+  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: mood } : null;
+  if (look) drawTo(faceCv, look, 'talk', mood);
+  else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
+  if (meter) { var m = document.createElement('div'); m.className = 'meter'; var ml = document.createElement('span'); ml.textContent = (meter.label || 'Trust') + ' ' + Math.round(meter.pct) + '%'; var mb = document.createElement('div'); mb.className = 'bar'; var mi = document.createElement('i'); mi.className = 'rr-w' + Math.round(Math.max(0, Math.min(100, meter.pct)) / 5) * 5; mb.appendChild(mi); m.appendChild(ml); m.appendChild(mb); t.appendChild(m); }
   var p = document.createElement('p'); p.className = 'line'; p.textContent = text; t.appendChild(p);
-  if (tip && tip.text) { var d = document.createElement('div'); d.className = 'tip' + (tip.bad ? ' bad' : tip.good ? ' good' : ''); d.textContent = tip.text; t.appendChild(d); }
+  if (tip && tip.text) { var d = document.createElement('div'); d.className = 'tip' + (tip.bad ? ' bad' : tip.good ? ' good' : ''); d.textContent = tip.text; t.appendChild(d); if (tip.bad) { FX.shake(); FX.flash(true); sfx('bad'); } else if (tip.good) FX.flash(false); }
   var c = document.createElement('div'); c.className = 'choices';
   choices.forEach(function (ch) {
     var b = document.createElement('button'); b.type = 'button'; b.textContent = ch.say;
@@ -941,15 +1120,15 @@ function node(h, key, tip) {
       if (ch.go) return node(h, ch.go, t2);
       finish(h, ch.end, t2);
     } };
-  }), tip);
+  }), tip, { label: 'Trust', pct: h.trust });
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
-  if (end === 'later') { setStatus(h, 'later'); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
+  if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
-  if (end === 'book') { setStatus(h, 'booked'); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
+  if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
   if (end === 'inspect') inspect(h, SAVE.streetId);
 }
 
@@ -962,33 +1141,39 @@ function gridGame(o, done) {
   while (spots.length < o.n) { var k = rnd(cols * rows); if (spots.indexOf(k) < 0) spots.push(k); }
   overlay('<h2>' + esc(o.title) + '</h2><p class="help">' + esc(o.help) + '</p>' +
     '<canvas class="mg" id="mg" width="' + cols * cell + '" height="' + rows * cell + '" aria-label="Roof: tap the damage"></canvas>' +
-    '<div class="row"><b id="mgT">' + left + 's</b><span class="help grow" id="mgF">Found 0</span><button type="button" class="btn" id="mgDone">Done</button></div>');
+    '<div class="row"><b id="mgT">' + left + 's</b><span class="help grow" id="mgF">📷 0 photos</span><button type="button" class="btn" id="mgDone">Done</button></div>');
   var cv = document.getElementById('mg'), r = cv.getContext('2d'), revealUntil = o.reveal ? Date.now() + 2000 : 0;
   if (o.reveal) setTimeout(function () { if (!over) paintGrid(); }, 2050);
+  var flashUntil = 0;
   function paintGrid() {
     var reveal = Date.now() < revealUntil;
+    // the roof as shingle courses (2026-10-25): each row a course, tabs offset every other course, a shadow under each
+    r.fillStyle = o.roof; r.fillRect(0, 0, cols * cell, rows * cell);
     for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) {
-      var i = y * cols + x;
-      r.fillStyle = (x + y) % 2 ? shade(o.roof, 8) : o.roof; r.fillRect(x * cell, y * cell, cell, cell);
-      r.fillStyle = shade(o.roof, -20); r.fillRect(x * cell, y * cell + cell - 2, cell, 2);
+      var i = y * cols + x, off = y % 2 ? cell / 2 : 0;
+      r.fillStyle = shade(o.roof, ((x * 7 + y * 13) % 5) * 2 - 2); r.fillRect(x * cell, y * cell, cell, cell);
+      r.fillStyle = 'rgba(0,0,0,.28)'; r.fillRect(x * cell, y * cell + cell - 3, cell, 3);
+      r.fillStyle = 'rgba(0,0,0,.18)'; r.fillRect(((x * cell + off) % (cols * cell)), y * cell + 2, 1, cell - 5);
+      r.fillStyle = 'rgba(255,255,255,.07)'; r.fillRect(x * cell, y * cell, cell, 1);
       if (spots.indexOf(i) >= 0) {
         if (o.style === 'bag') { r.fillStyle = '#1a1512'; r.fillRect(x * cell + 5, y * cell + 9, cell - 10, cell - 18); r.fillStyle = '#c9a66b'; r.fillRect(x * cell + 6, y * cell + 10, cell - 12, cell - 20); }
         else if (o.style === 'nail') { r.fillStyle = '#c9ccd1'; r.fillRect(x * cell + cell / 2 - 1, y * cell + 6, 2, cell - 12); r.fillRect(x * cell + cell / 2 - 3, y * cell + 6, 6, 2); }
         else if (o.style === 'old') { r.fillStyle = shade(o.roof, 26); r.fillRect(x * cell + 3, y * cell + 4, cell - 6, 3); }
-        else { r.fillStyle = shade(o.roof, -14); var s = Math.max(3, Math.round(cell / 5)); r.fillRect(x * cell + (cell - s) / 2, y * cell + (cell - s) / 2 - 1, s, s); }
+        else { var cx = x * cell + cell / 2, cy = y * cell + cell / 2 - 1, rad = Math.max(2.5, cell / 7); r.fillStyle = shade(o.roof, 18); r.beginPath(); r.arc(cx + 1, cy + 1, rad + 1.5, 0, 6.3); r.fill(); r.fillStyle = shade(o.roof, -26); r.beginPath(); r.arc(cx, cy, rad, 0, 6.3); r.fill(); }
       }
       if (reveal && spots.indexOf(i) >= 0 && found.indexOf(i) < 0) { r.strokeStyle = '#8ec5ff'; r.lineWidth = 2; r.strokeRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4); }
       if (found.indexOf(i) >= 0) { r.strokeStyle = o.chalk ? '#ffffff' : '#f2a900'; r.lineWidth = 2; r.beginPath(); r.arc(x * cell + cell / 2, y * cell + cell / 2 - 1, cell / 2 - 3, 0, Math.PI * 2); r.stroke(); }
     }
     if (o.square) { r.strokeStyle = '#ffffff'; r.lineWidth = 2; r.setLineDash([4, 3]); r.strokeRect(1, 1, cols * cell - 2, rows * cell - 2); r.setLineDash([]); }
+    if (flashUntil > Date.now()) { r.fillStyle = 'rgba(255,255,255,' + ((flashUntil - Date.now()) / 220) + ')'; r.fillRect(0, 0, cols * cell, rows * cell); requestAnimationFrame(function () { if (!over) paintGrid(); }); }
   }
   paintGrid();
   cv.addEventListener('click', function (e) {
     if (over) return;
     var b = cv.getBoundingClientRect(), x = Math.floor((e.clientX - b.left) / b.width * cols), y = Math.floor((e.clientY - b.top) / b.height * rows), i = y * cols + x;
     if (spots.indexOf(i) >= 0 && found.indexOf(i) < 0) {
-      found.push(i); paintGrid();
-      document.getElementById('mgF').textContent = 'Found ' + found.length;
+      found.push(i); flashUntil = Date.now() + 220; sfx('shutter'); paintGrid();
+      document.getElementById('mgF').textContent = '📷 ' + found.length + ' photo' + (found.length === 1 ? '' : 's');
       if (found.length === o.n) end();
     }
   });
@@ -1040,19 +1225,12 @@ function drive(dest, done) {
     // draw
     for (var r = 0; r < DROWS; r++) {
       var y = r * ROW;
-      if (r === 0) { c.fillStyle = dest.ground; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; c.fillRect(120, y + 4, 80, 16); c.fillStyle = '#185fa5'; c.fillRect(122, y + 6, 76, 12); c.fillStyle = '#fff'; c.font = '7px "Press Start 2P", monospace'; c.textAlign = 'center'; c.fillText(dest.name.toUpperCase(), 160, y + 15); c.fillStyle = '#5a3a22'; c.fillRect(158, y + 20, 4, 8); }
+      if (r === 0) { c.fillStyle = dest.ground; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; c.fillRect(120, y + 4, 80, 16); c.fillStyle = '#185fa5'; c.fillRect(122, y + 6, 76, 12); c.fillStyle = '#fff'; c.font = '700 8px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'center'; c.fillText(dest.name.toUpperCase(), 160, y + 15); c.fillStyle = '#5a3a22'; c.fillRect(158, y + 20, 4, 8); }
       else if (r === 4) { c.fillStyle = '#356b31'; c.fillRect(0, y, 320, ROW); c.fillStyle = '#2f7a35'; for (var bx = 10; bx < 320; bx += 52) c.fillRect(bx, y + 9, 10, 9); }
       else if (r === DROWS - 1) { c.fillStyle = '#6b6f78'; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; for (var px = 20; px < 320; px += 40) c.fillRect(px, y + 2, 2, ROW - 4); }
       else { c.fillStyle = '#3b3f47'; c.fillRect(0, y, 320, ROW); if (r !== 3 && r !== 6) { c.fillStyle = '#e8d27a'; for (var dx = 4; dx < 320; dx += 20) c.fillRect(dx, y + ROW - 1, 10, 2); } }
     }
-    lanes.forEach(function (L) { L.cars.forEach(function (car) {
-      var y = L.row * ROW + 6;
-      c.fillStyle = '#1a1512'; c.fillRect(car.x - 1, y - 1, car.w + 2, 18);
-      c.fillStyle = car.bus ? '#f2c200' : car.c; c.fillRect(car.x, y, car.w, 16);
-      c.fillStyle = '#8ec5ff';
-      if (car.bus) { for (var wx = 4; wx < car.w - 4; wx += 7) c.fillRect(car.x + wx, y + 3, 4, 4); }
-      else c.fillRect(L.dir > 0 ? car.x + car.w - 9 : car.x + 3, y + 3, 6, 10);
-    }); });
+    lanes.forEach(function (L) { L.cars.forEach(function (car) { drawCar(c, car.x, L.row * ROW + 6, car.w, car.bus ? '#f2c200' : car.c, L.dir, car.bus); }); });
     if (!(T.flash > 0 && Math.floor(T.flash / 5) % 2)) drawTruck(c, T.x, T.row * ROW + 4, 1);
     raf = requestAnimationFrame(frame);
   }
@@ -1124,6 +1302,7 @@ function honesty(h, sid) {
 }
 function pitch(h, sid) { if (h.measured) return pitchTiers(h, sid); return measureStep(h, sid); }
 function pitchTiers(h, sid, mTip) {
+  if (!h.dueled && h.persona !== 'empty') return duel(h, sid, function (tip) { pitchTiers(h, sid, tip || mTip); });
   var lead = h.damage === 'old' ? 'You show ' + h.name + ' the worn shingles. They nod slowly.' :
     h.found >= 0.7 ? 'Your photos show clear hail hits. ' + h.name + ' leans in.' : 'You only got a few photos. ' + h.name + ' looks unsure.';
   say(h.look, h.name, lead + ' (' + h.sq + ' squares.) Which option do you recommend?', TIERS.map(function (t) {
@@ -1133,6 +1312,29 @@ function pitchTiers(h, sid, mTip) {
     idle({ text: 'Estimate left. Their follow-up is on tomorrow\'s list.' });
   } }]), mTip || (SAVE.badges.walk ? { good: true, text: 'Job explainer badge: you walk them through the whole job, start to finish (+5 trust).' } : null));
 }
+// ── The objection duel (2026-10-25): two pushbacks before the price, answered the NBD way. The trap answers are the
+// Kentucky rules; they lose the door. The trust meter is the HP bar. Content: roof-rep-rules.js OBJECTIONS.
+function duel(h, sid, then) {
+  h.objDone = h.objDone || [];
+  var picks = RR.pickObjections(2, (SAVE.seed || 1) * 131 + h.i * 17 + SAVE.day * 3 + (h.sq || 0), h.objDone), k = 0, lastTip = null;
+  stat('duels');
+  function ask() {
+    if (k >= picks.length) { h.dueled = true; return then(lastTip); }
+    var o = picks[k], round = k + 1;
+    say(h.look, h.name + (h.tag ? ' · ' + h.tag : ''), o.text, RR.answersShuffled(o, (SAVE.seed || 1) * 7 + h.i + k).map(function (a) {
+      return { say: a.say, act: function () {
+        h.objDone.push(o.k); h.trust = Math.max(0, Math.min(100, h.trust + (a.trust || 0)));
+        if (a.dirty) DAY.clean = false;
+        spend(4); if (!DAY || DAY.over) return;
+        if (a.kind === 'best') { stat('duelBest'); dayCount('duelBest'); gain(8, 'Handled "' + o.text.slice(0, 28) + '…" the right way'); }
+        lastTip = a.tip ? { good: a.tip.good, bad: a.tip.bad, text: fill(a.tip.text, h) } : null;
+        if (a.lose) { setStatus(h, 'lost'); return idle(lastTip || { bad: true, text: 'That line ended it. ' + h.name + ' closed the door.' }); }
+        k++; ask();
+      } };
+    }), k === 0 ? { text: 'Objection ' + round + ' of ' + picks.length + '. Pick the line you would really say.' } : lastTip, { label: 'Trust', pct: h.trust });
+  }
+  ask();
+}
 function tierScore(h, t) {
   var order = ['good', 'better', 'best'], d = Math.abs(order.indexOf(t.key) - order.indexOf(PERSONA[h.persona].want));
   return d === 0 ? 25 : d === 1 ? 0 : -25;
@@ -1140,6 +1342,7 @@ function tierScore(h, t) {
 function signed(h, sid, t) {
   var price = t.psq * h.sq;
   h.price = price; h.tier = t.key; DAY.signed++; DAY.sold += price; dayCount('sign'); sfx('cash');
+  FX.burst(WALK.px, WALK.py - 24, 28); FX.float(money(price), WALK.px, WALK.py - 48, '#7bc96f', true); FX.flash(false); pose('cheer', 2000);
   if (PERSONA[h.persona].boss) stat('bosses');
   gain(60 + Math.round(price / 1000), h.name + ' signed: ' + t.name + ' ' + money(price));
   if (h.damage === 'hail' || h.damage === 'some') {
@@ -1250,6 +1453,7 @@ function sfx(name) {
       bad: [[220, 0, .12, 'square', .07], [165, .12, .2, 'square', .07]],
       bark: [[300, 0, .06, 'sawtooth', .1], [250, .1, .08, 'sawtooth', .1]],
       trophy: [[784, 0, .1], [988, .1, .1], [1175, .2, .1], [1568, .3, .3]],
+      shutter: [[1800, 0, .03, 'square', .08], [900, .04, .05, 'square', .06]],
     }[name] || [];
     P.forEach(function (n) { tone(n[0], n[1], n[2], n[3], n[4]); });
   } catch (_) {}
@@ -1268,6 +1472,9 @@ var TROPHIES = [
   { k: 'phone', ico: '📞', name: 'Phone pro', what: 'Handle 10 calls the right way', test: function () { return st('calls') >= 10; } },
   { k: 'six', ico: '💰', name: 'Six figures', what: 'Collect $100,000', test: function () { return SAVE.collected >= 100000; } },
   { k: 'seasons', ico: '🗓', name: 'Four seasons', what: 'Work a day in every season', test: function () { return Object.keys(SAVE.seasons || {}).length >= 4; } },
+  { k: 'duelist', ico: '🎯', name: 'Objection handler', what: 'Give the best answer to 25 objections', test: function () { return st('duelBest') >= 25; } },
+  { k: 'runner', ico: '⚡', name: 'Storm runner', what: 'A perfect Storm Run', test: function () { return st('perfectRuns') >= 1; } },
+  { k: 'season', ico: '🏁', name: 'Season finisher', what: 'Finish a 28-day season', test: function () { return (SAVE.seasonsDone || 0) >= 1; } },
   { k: 'class', ico: '🎓', name: 'Top of the class', what: 'Earn all six training badges', test: function () { return Object.keys(SAVE.badges).length >= 6; } },
   { k: 'allBosses', ico: '🏆', name: 'Boss of bosses', what: 'Sign all six boss doors', test: function () { return st('bosses') >= 6; } },
   { k: 'cat', ico: '🌪', name: 'Eye of the storm', what: 'Work a catastrophe storm day', test: function () { return st('cat') >= 1; } },
@@ -1308,6 +1515,7 @@ var CHALLENGES = [
   { k: 'knock', need: 8, text: 'Knock 8 doors' },
   { k: 'insp', need: 3, text: 'Inspect 3 roofs' },
   { k: 'sign', need: 2, text: 'Sign 2 jobs' },
+  { k: 'duelBest', need: 3, text: 'Answer 3 objections the best way' },
   { k: 'calls', need: 2, text: 'Handle 2 calls the right way' },
   { k: 'drives', need: 2, text: 'Make 2 drives without a scratch' },
   { k: 'rivals', need: 1, text: 'Beat Storm Bros at a door', when: function () { return STREETS.some(function (x) { return lvl() >= x.level && rivalStreet(x.id); }); } },
@@ -1318,14 +1526,33 @@ var CHALLENGES = [
   { k: 'review', need: 1, text: 'Earn a 5★ review', when: function () { return allHouses().some(function (x) { return x.h.status === 'approved' && x.h.buildDay === SAVE.day; }); } },
 ];
 function dayCount(k) {
-  if (!DAY || !DAY.ch) return;
+  if (!DAY || !DAY.quests) return;
   DAY.counts = DAY.counts || {}; DAY.counts[k] = (DAY.counts[k] || 0) + 1;
-  if (DAY.ch.k === k && !DAY.ch.done && DAY.counts[k] >= DAY.ch.need) { DAY.ch.done = true; sfx('good'); toast('CHALLENGE DONE: ' + DAY.ch.text.toUpperCase() + ' · +40 XP'); gain(40, 'Daily challenge: ' + DAY.ch.text); }
+  DAY.quests.forEach(function (q) {
+    if (q.k !== k || q.done || DAY.counts[k] < q.need) return;
+    q.done = true; sfx('good'); toast('QUEST DONE: ' + q.text.toUpperCase() + ' · +40 XP'); gain(40, 'Quest: ' + q.text); FX.burst(WALK.px, WALK.py - 24, 16);
+    if (DAY.quests.every(function (x) { return x.done; })) { SAVE.bank += 500; gain(60, 'All three quests done'); toast('QUEST BOARD CLEARED · +$500 BONUS · +60 XP'); }
+  });
+  weekCount(k);
+}
+function weekCount(k) {
+  var w = SAVE.weekly; if (!w || w.done) return;
+  w.counts = w.counts || {}; w.counts[k] = (w.counts[k] || 0) + 1;
+  if (w.k === k && w.counts[k] >= w.need) { w.done = true; SAVE.bank += w.cash; gainAny(w.xp, 'Weekly quest: ' + w.text); sfx('trophy'); toast('WEEKLY QUEST DONE: ' + w.text.toUpperCase() + ' · ' + money(w.cash) + ' · +' + w.xp + ' XP'); }
+}
+function questRow(q, counts, reward) {
+  var have = Math.min(q.need, (counts && counts[q.k]) || 0), pct = Math.round(have / q.need * 100);
+  return '<div class="quest' + (q.done ? ' done' : '') + '"><div class="chal"><span>' + (q.done ? '✓ ' : '') + esc(q.text) + '</span><b>' + have + '/' + q.need + '</b></div><div class="bar"><i class="rr-w' + Math.round(pct / 5) * 5 + '"></i></div><small>' + esc(reward) + '</small></div>';
 }
 function challengeHtml() {
-  if (!DAY || !DAY.ch) return '';
-  var have = Math.min(DAY.ch.need, (DAY.counts && DAY.counts[DAY.ch.k]) || 0), pct = Math.round(have / DAY.ch.need * 100);
-  return '<div class="card' + (DAY.ch.done ? '' : ' hl') + '"><h3>TODAY\'S CHALLENGE · +40 XP</h3><div class="chal"><span>' + esc(DAY.ch.text) + '</span><b>' + have + '/' + DAY.ch.need + '</b></div><div class="bar"><i class="rr-w' + Math.round(pct / 5) * 5 + '"></i></div></div>';
+  var html = '';
+  if (DAY && DAY.quests) {
+    var left = DAY.quests.filter(function (q) { return !q.done; }).length;
+    html += '<div class="card' + (left ? ' hl' : '') + '"><h3>QUEST BOARD · ' + (left ? left + ' TO GO' : 'CLEARED') + '</h3>' + DAY.quests.map(function (q) { return questRow(q, DAY.counts, '+40 XP'); }).join('') + '<p class="help">All three in one day: +$500 to the bank and +60 XP.</p></div>';
+  }
+  var w = SAVE.weekly;
+  if (w) html += '<div class="card"><h3>WEEKLY QUEST · WEEK ' + w.week + '</h3>' + questRow(w, w.counts, money(w.cash) + ' + ' + w.xp + ' XP') + '</div>';
+  return html;
 }
 
 // ── End of day: log it in the CRM ──
@@ -1853,6 +2080,51 @@ function ring() {
 // ════════════════════════════════════════════════════════════════════════
 // Training.
 // ════════════════════════════════════════════════════════════════════════
+// ── Storm Run (2026-10-25): a 60-second objection gauntlet. GameForce's "dungeon run", NBD style. ──
+function stormRun() {
+  var left = RR.RUN.seconds, r = { best: 0, ok: 0, weak: 0, trap: 0 }, over = false, seed = Date.now() % 100000, n = 0;
+  overlay('<h2>STORM RUN</h2><p class="help">Sixty seconds of pushback, one objection after another. Best answers score, traps strike, three strikes and you\'re out.</p>' +
+    '<div class="run"><b id="runT">' + left + 's</b><span id="runS">0 best · 0 strikes</span></div><div id="runQ"></div>');
+  var timer = setInterval(function () { left--; var el = document.getElementById('runT'); if (el) el.textContent = left + 's'; if (left <= 0) end(); }, 1000);
+  function next() {
+    if (over) return;
+    var o = RR.pickObjections(1, seed + n * 97, [])[0]; n++;
+    var box = document.getElementById('runQ'); if (!box) return;
+    // a different homeowner says each objection (2026-10-25): a talking face beside the line, cheering a best answer, slumping at a trap
+    var who = makeLook(pick(['skeptic', 'busy', 'elder', 'diy', 'threeQuotes', 'landlord']));
+    box.innerHTML = '<div class="run-q"><canvas class="face" id="runFace" width="32" height="32" aria-hidden="true"></canvas><p class="line">' + esc(o.text) + '</p></div>';
+    drawTo(document.getElementById('runFace'), who, 'talk', who.mood || undefined);
+    var c = document.createElement('div'); c.className = 'choices';
+    RR.answersShuffled(o, seed + n).forEach(function (a) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = a.say;
+      b.addEventListener('click', function () {
+        if (over || c.dataset.done) return; c.dataset.done = '1'; r[a.kind]++;
+        b.classList.add(a.kind === 'best' ? 'right' : a.kind === 'trap' ? 'wrong' : 'on');
+        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'idle', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
+        if (a.kind === 'best') sfx('good'); else if (a.kind === 'trap') { sfx('bad'); FX.shake(); }
+        var st2 = document.getElementById('runS'); if (st2) st2.textContent = r.best + ' best · ' + r.trap + ' strike' + (r.trap === 1 ? '' : 's');
+        if (r.trap >= RR.RUN.strikes) return end();
+        setTimeout(next, 350);
+      });
+      c.appendChild(b);
+    });
+    box.appendChild(c);
+  }
+  function end() {
+    if (over) return; over = true; clearInterval(timer);
+    var sc = RR.runScore(r);
+    stat('runs'); if (sc.grade === 'Perfect run') stat('perfectRuns');
+    if (DAY) spend(20);
+    if (sc.xp) gainAny(sc.xp, 'Storm Run: ' + sc.grade);
+    checkTrophies();
+    overlay('<div class="big"><h2>' + esc(sc.grade.toUpperCase()) + '</h2><div class="huge">+' + sc.xp + '</div><p>XP · ' + r.best + ' best answers, ' + r.ok + ' fine, ' + r.weak + ' weak, ' + r.trap + ' trap' + (r.trap === 1 ? '' : 's') + '</p>' +
+      (r.trap ? '<div class="tip bad">A trap line in real life is a lost customer and a lawsuit. Train it out here.</div>' : '<div class="tip good">Not one trap line. That is how a pro sounds at the door.</div>') +
+      '<div class="row"><button type="button" class="btn primary grow" id="runAgain">Run it again</button><button type="button" class="btn" id="runOk">Done</button></div></div>');
+    document.getElementById('runAgain').addEventListener('click', stormRun);
+    document.getElementById('runOk').addEventListener('click', function () { closeOverlay(); renderTrain(); });
+  }
+  next();
+}
 function trainDone(key, passed, detail) {
   var first = passed && !SAVE.badges[key], again = passed && !first && SAVE.trained[key] !== SAVE.day;
   if (first) { SAVE.badges[key] = SAVE.day; SAVE.trained[key] = SAVE.day; gainAny(60, 'Earned the ' + COURSES[key].badge + ' badge'); }
@@ -2044,7 +2316,9 @@ function renderTrain() {
       '<p class="help">' + (has ? '<span class="badge-ok">✓ ' + esc(C2.badge) + '</span> · ' : 'Badge: ' + esc(C2.badge) + ' · ') + esc(C2.perk) + '</p>' +
       '<button type="button" class="btn primary" data-course="' + k + '">' + (has ? 'Refresher' : 'Start course') + '</button></div>';
   });
+  html += '<div class="card hl"><h3>STORM RUN · 60 SECONDS</h3><p class="help">Objection after objection, no roof to climb. Best answers score, trap lines strike. Best so far: ' + (st('perfectRuns') ? 'a perfect run' : st('runs') ? st('runs') + ' run' + (st('runs') > 1 ? 's' : '') : 'none yet') + '.' + (DAY ? ' Costs 20 minutes of your day.' : '') + '</p><button type="button" class="btn primary" id="runBtn">Start a Storm Run</button></div>';
   el.innerHTML = html;
+  document.getElementById('runBtn').addEventListener('click', stormRun);
   el.querySelectorAll('[data-course]').forEach(function (b) {
     b.addEventListener('click', function () {
       var k = b.dataset.course;
@@ -2060,12 +2334,12 @@ function renderTrain() {
 function hud() {
   var L = levelFor(SAVE.xp);
   document.getElementById('hDay').textContent = SAVE.day + ' ' + SEASON[seasonFor(SAVE.day)].icon;
-  document.getElementById('hTime').textContent = DAY ? clock(Math.min(DAY.min, DAY.end)) + ' ' + WX[DAY.wx].icon : 'Morning';
+  document.getElementById('hTime').textContent = DAY ? clock(Math.min(DAY.min, DAY.end)).replace(' ', '').replace(/M$/, '').toLowerCase() + ' ' + WX[DAY.wx].icon : 'Morning';
   var spf = spFree(), lk = document.getElementById('lkBadge'); lk.hidden = spf <= 0; lk.textContent = spf;
   document.getElementById('hXp').textContent = DAY ? DAY.xp : 0;
   document.getElementById('hSigned').textContent = DAY ? DAY.signed : 0;
   document.getElementById('hColl').textContent = money(SAVE.collected);
-  document.getElementById('lvlText').textContent = 'Level ' + L.level + ' · ' + L.title + ' · ' + SAVE.xp.toLocaleString('en-US') + ' / ' + L.next.toLocaleString('en-US') + ' XP';
+  document.getElementById('lvlText').textContent = 'Level ' + L.level + ' · ' + L.title + ' · ' + SAVE.xp.toLocaleString('en-US') + ' / ' + L.next.toLocaleString('en-US') + ' XP' + ((SAVE.cleanStreak || 0) >= 2 ? ' · 🔥 ' + SAVE.cleanStreak + '-day clean streak' : '');
   var pct = Math.round((SAVE.xp - L.floor) / (L.next - L.floor) * 100);
   document.getElementById('lvlFill').style.width = pct + '%';
   document.getElementById('lvlBar').setAttribute('aria-valuenow', pct);
@@ -2197,23 +2471,32 @@ async function renderCrew() {
   }
   rows.forEach(function (r) { r.wk = r.weekKey === wk ? (r.weekXp || 0) : 0; });
   rows.sort(function (a, b) { return b.wk - a.wk || (b.xp || 0) - (a.xp || 0); });
+  var myId = online ? NET.uid : 'me', rk = RR.crewRanks(rows, myId, wk), duelHtml = '';
+  if (SAVE.duel && online) {
+    var d = RR.duelState(rows, myId, SAVE.duel.id, wk);
+    duelHtml = '<div class="card hl duel"><h3>DUEL · THIS WEEK</h3><div class="duel-row"><b>You</b><span class="duel-score">' + d.me + ' – ' + d.them + '</span><b>' + esc(d.name) + '</b></div><p class="help">' + (d.gone ? 'They have not played this week yet.' : d.lead === 'me' ? 'You are ahead. Keep the pressure on.' : d.lead === 'them' ? 'They are ahead. Knock more doors.' : 'Dead even.') + ' Most week XP by Monday wins. Bragging rights only.</p><button type="button" class="btn" id="duelEnd">End the duel</button></div>';
+  }
   var names = {};
   rows.forEach(function (r) { names[r.id] = { name: r.name || '' }; });
   if (seq !== crewSeq) return;
   el.innerHTML = '<div class="card"><h2>CREW BOARD · THIS WEEK</h2><p class="help">Ranked by XP earned this week (resets Monday). Everyone on your NBD Pro team shows up once they play a day.</p>' +
     '<table class="lb"><thead><tr><th></th><th>Rep</th><th class="num">Week</th><th class="num hide-sm">Best day</th><th class="num hide-sm">Days</th></tr></thead><tbody id="lbBody"></tbody></table>' +
-    (!online ? '<p class="help">Sign in to NBD Pro to see your team\'s board. For now it\'s just you.</p>' : '') + '</div>';
+    (!online ? '<p class="help">Sign in to NBD Pro to see your team\'s board. For now it\'s just you.</p>' : '<p class="help">You: #' + rk.week + ' this week · #' + rk.all + ' all time · ' + rk.of + ' rep' + (rk.of === 1 ? '' : 's') + ' on the board.' + (SAVE.duel ? '' : ' Tap Duel beside a crewmate to race them this week.') + '</p>') + '</div>';
+  el.insertAdjacentHTML('afterbegin', duelHtml);
+  var de = document.getElementById('duelEnd'); if (de) de.addEventListener('click', function () { SAVE.duel = null; persist(); renderCrew(); });
   el.insertAdjacentHTML('beforeend', trophiesHtml());
   var body = document.getElementById('lbBody');
   rows.forEach(function (r, i) {
     var tr = document.createElement('tr'), me = r.id === 'me' || r.id === NET.uid; if (me) tr.className = 'me';
     var td0 = document.createElement('td'); td0.className = 'rk'; td0.textContent = i + 1; tr.appendChild(td0);
     var td1 = document.createElement('td'), w = document.createElement('div'); w.className = 'who2';
-    var cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; drawTo(cv, r.avatar || DEFAULTS); w.appendChild(cv);
+    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; w.appendChild(cv); drawStill(cv, r.avatar || DEFAULTS);
     var nm = document.createElement('div'), p = names[r.id];
     nm.textContent = me ? (p && p.name ? p.name + ' (you)' : 'You') : (p && p.name) || 'A rep';
     var sm = document.createElement('small'); sm.textContent = 'Lv ' + (r.level || 1) + ' · ' + (r.title || 'Apprentice'); nm.appendChild(sm);
-    w.appendChild(nm); td1.appendChild(w); tr.appendChild(td1);
+    w.appendChild(nm);
+    if (online && !me && !(SAVE.duel && SAVE.duel.id === r.id)) { var db = document.createElement('button'); db.type = 'button'; db.className = 'btn duel-btn'; db.textContent = 'Duel'; db.setAttribute('aria-label', 'Duel ' + ((p && p.name) || 'this rep') + ' this week'); db.addEventListener('click', function () { SAVE.duel = { id: r.id, name: (p && p.name) || 'A rep', week: wk }; persist(); renderCrew(); toast('DUEL ON: YOU VS ' + (((p && p.name) || 'A REP').toUpperCase()) + ' THIS WEEK'); }); w.appendChild(db); }
+    td1.appendChild(w); tr.appendChild(td1);
     [[r.wk + ' XP', ''], [(r.bestDay || 0) + ' XP', ' hide-sm'], [String(r.days || 0), ' hide-sm']].forEach(function (c) { var td = document.createElement('td'); td.className = 'num' + c[1]; td.textContent = c[0]; tr.appendChild(td); });
     body.appendChild(tr);
   });
@@ -2246,7 +2529,7 @@ function tutorial(i) {
   overlay('<h2>' + esc(T.t) + '</h2><div class="tut"><canvas id="tutFace" width="32" height="32" aria-hidden="true"></canvas><p>' + esc(T.p) + '</p></div>' +
     '<div class="dots">' + TUTORIAL.map(function (_, k) { return '<i' + (k === i ? ' class="on"' : '') + '></i>'; }).join('') + '</div>' +
     '<div class="row"><button type="button" class="btn primary grow" id="tutN">' + (last ? "Let's go" : 'Next') + '</button>' + (last ? '' : '<button type="button" class="btn" id="tutS">Skip</button>') + '</div>');
-  drawTo(document.getElementById('tutFace'), FOREMAN);
+  drawTo(document.getElementById('tutFace'), FOREMAN, 'talk');
   var end = function () { SAVE.tutored = true; saveLocal(); closeOverlay(); showTab('today'); };
   document.getElementById('tutN').addEventListener('click', function () { if (last) end(); else tutorial(i + 1); });
   var sk2 = document.getElementById('tutS'); if (sk2) sk2.addEventListener('click', end);

@@ -55,6 +55,19 @@ Sources: [gamified skill-tree and quest concepts](https://contra.com/community/b
 
 Each is its own PR, tested and checked at phone width before it is queued. The Sunday review page (phase 3) stays on the roadmap; it can ship before or between layouts, and the Cockpit and Rings homes will show it.
 
+## Status (2026-10-25)
+
+- Shipped: **the whole lineup**. Log Book and Rings (10-22); Cockpit, Quest, One Thing, Journal and Arcade (10-25).
+  - Cockpit: `cockpit-ui.js` + the Today-bar branch in `app.js`; eight tiles from `day-layout-logic.js` and `cockpit-logic.js`, a "behind this week" line; `tests/ds-layout-cockpit-2026-10-25.test.js`.
+  - Quest: `quest-logic.js` (the board on `xp-logic.js`: each floor +10, all floors +25, a workout +100; streaks can break, XP never drops via a high-water mark in `nbd_ds_xp_high`) + `quest-ui.js` (level badge, XP bar, streak, floors as tappable quests that reuse app.js's `toggle-floor` action, the workout quest opens the coach); `tests/ds-layout-quest-2026-10-25.test.js`. The skill tree from the brief is not built yet.
+  - One Thing: `onething-logic.js` (the next thing in order: check-in while it asks, the first unmet floor, the workout, the evening wrap-up, then rest; "Not now" moves a thing to the back for this visit) + `onething-ui.js` (one big card and button; the floor button reuses `toggle-floor`, check-in and wrap-up scroll to their cards, the workout opens the coach); `tests/ds-layout-onething-2026-10-25.test.js`.
+  - Journal: `journal-ui.js`: a warm paper page in every theme (the date written out, an intention line, a status line with a coach link, a ruled note). The intention and note are page fields (`data-k` `journal-intention` / `journal-note`), so they save and sync with the page; `updateTodayBar()` reads the live values back before every re-render so a floor toggle never wipes typing; `tests/ds-layout-journal-2026-10-25.test.js`.
+  - Arcade: `arcade-logic.js` (Quest's data as a scoreboard; hi-scores are the best estimated one-rep max per lift, Epley with reps capped at 12, from finished sessions) + `arcade-ui.js` (SCORE / 1UP / COMBO / TODAY in zero-padded mono digits, a stepped level bar, missions that reuse `toggle-floor`, hi-scores; scanlines in CSS; sound and haptics stay off); `tests/ds-layout-arcade-2026-10-25.test.js`.
+- The gate from the constraints list is in CI: `tests/ds-layouts-phone-fit-2026-10-25.test.js` loads the day page in every layout x every theme at 320 px (plus 390 px) in real Chromium and fails on sideways scroll, an empty Today bar, a control under 44 px or a page error (88 renders; the zero-network Chromium job).
+- Quest's skill tree (10-25, later the same day): a folded <details> under the board; every lift ever logged is a node (one finished session unlocks it, five master it), library lifts never logged show locked (four at most). `skillTree()` in `quest-logic.js`.
+- Journal's week view (10-25, later): a folded "Past intentions" list under the note, the last five dated pages that carry one, newest first (`recentIntentions()` in `journal-ui.js`).
+- Next: nothing in the lineup.
+
 ## Decisions (Jo, 2026-10-22)
 
 - First two: **Log Book** and **Rings**.

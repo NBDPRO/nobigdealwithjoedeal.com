@@ -125,7 +125,7 @@
   :root[data-mode="light"] .kh-adj      { color:#7e22ce; }
   :root[data-mode="light"] .kh-adjdone  { color:#6d28d9; }
   :root[data-mode="light"] .kh-scope    { color:#b45309; }
-  :root[data-mode="light"] .kh-est      { color:#a16207; }
+  :root[data-mode="light"] .kh-est      { color:#854d0e; } /* was #a16207: 4.45:1 on the column panel (UI sweep 2026-10-24) */
   :root[data-mode="light"] .kh-supp     { color:#c2410c; }
   :root[data-mode="light"] .kh-suppok   { color:#15803d; }
   :root[data-mode="light"] .kh-neg      { color:#c2410c; }
@@ -139,7 +139,7 @@
   :root[data-mode="light"] .kh-jobcr    { color:#0369a1; }
   :root[data-mode="light"] .kh-permit   { color:#4338ca; }
   :root[data-mode="light"] .kh-matord   { color:#b45309; }
-  :root[data-mode="light"] .kh-matdel   { color:#a16207; }
+  :root[data-mode="light"] .kh-matdel   { color:#854d0e; } /* was #a16207: 4.45:1 on the column panel (UI sweep 2026-10-24) */
   :root[data-mode="light"] .kh-crew     { color:#0f766e; }
   :root[data-mode="light"] .kh-install  { color:#047857; }
   :root[data-mode="light"] .kh-instdone { color:#15803d; }
@@ -453,7 +453,7 @@
   .kc-addr{font-size:var(--kcard-meta-fz);color:var(--ink-soft);margin-bottom:var(--kcard-gap);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* Phone tap-to-call */
   .kc-phone-row{display:flex;align-items:center;gap:5px;margin-bottom:var(--kcard-gap);}
-  .kc-phone-link{font-size:var(--kcard-meta-fz);color:var(--blue);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:3px;}
+  .kc-phone-link{font-size:var(--kcard-meta-fz);color:var(--ui-info-text,var(--blue));text-decoration:none;font-weight:600;display:flex;align-items:center;gap:3px;}
   .kc-phone-link:hover{filter:brightness(1.15);}
   .kc-email-line{font-size:var(--kcard-meta-fz);color:var(--ink-soft);margin-bottom:var(--kcard-gap);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* Carrier + claim row */
@@ -462,9 +462,9 @@
   .kc-claim-num{font-size:9px;color:var(--ink-soft);font-family:'DM Mono','Courier New',monospace;opacity:.7;}
   /* Days since contact */
   .kc-days{font-size:var(--kcard-tag-fz);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:3px;display:inline-flex;align-items:center;gap:3px;}
-  .kc-days-fresh{background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--green);}
-  .kc-days-warm{background:color-mix(in srgb, var(--gold) 18%, transparent);color:var(--gold);}
-  .kc-days-cold{background:color-mix(in srgb, var(--red) 18%, transparent);color:var(--red);}
+  .kc-days-fresh{background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--ui-success-text,var(--green));}
+  .kc-days-warm{background:color-mix(in srgb, var(--gold) 18%, transparent);color:var(--ui-warn-text,var(--gold));}
+  .kc-days-cold{background:color-mix(in srgb, var(--red) 18%, transparent);color:var(--ui-danger-text,var(--red));}
   /* Photo thumbnail strip */
   .kc-photos{display:flex;gap:3px;margin-bottom:var(--kcard-gap);}
   .kc-photo-thumb{width:32px;height:32px;border-radius:4px;object-fit:cover;border:1px solid var(--rule);cursor:pointer;}
@@ -472,14 +472,14 @@
     display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
   .kc-tags{display:flex!important;gap:3px;flex-wrap:wrap;margin-bottom:var(--kcard-gap);}
   .kc-tag{font-size:var(--kcard-tag-fz);font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:10px;text-transform:uppercase;}
-  .kct-dmg{background:color-mix(in srgb, var(--blue) 18%, transparent);color:var(--blue);}
-  .kct-claim{background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--green);}
-  .kct-val{background:color-mix(in srgb, var(--orange) 18%, transparent);color:var(--orange);font-weight:800;}
-  .kct-due{background:color-mix(in srgb, var(--red) 18%, transparent);color:var(--red);}
+  .kct-dmg{background:color-mix(in srgb, var(--blue) 18%, transparent);color:var(--ui-info-text,var(--blue));}
+  .kct-claim{background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--ui-success-text,var(--green));}
+  .kct-val{background:color-mix(in srgb, var(--orange) 18%, transparent);color:var(--ui-accent-text,var(--orange));font-weight:800;}
+  .kct-due{background:color-mix(in srgb, var(--red) 18%, transparent);color:var(--ui-danger-text,var(--red));}
   /* Needs-X badge — surfaces required fields blocking stage advancement. */
   .kct-needs{
     background:color-mix(in srgb, var(--gold, #F59E0B) 18%, transparent);
-    color:var(--gold, #F59E0B);
+    color:var(--ui-warn-text, var(--gold, #F59E0B));
     border:1px solid color-mix(in srgb, var(--gold, #F59E0B) 40%, transparent);
     cursor:help;
   }
@@ -522,12 +522,12 @@
   }
   .kct-action-doc{
     background: color-mix(in srgb, var(--orange, #BD5728) 14%, transparent);
-    color: var(--orange, #BD5728);
+    color: var(--ui-accent-text, var(--orange, #BD5728));
     border-color: color-mix(in srgb, var(--orange, #BD5728) 40%, transparent);
   }
   .kct-action-stage{
     background: color-mix(in srgb, var(--blue, #2563eb) 14%, transparent);
-    color: var(--blue, #93c5fd);
+    color: var(--ui-info-text, var(--blue, #93c5fd));
     border-color: color-mix(in srgb, var(--blue, #2563eb) 40%, transparent);
   }
   /* Sweep R3: strengthen carrier pill visibility. Before this round
@@ -791,7 +791,7 @@
   .lsroi-table tr:last-child td{ border-bottom:none; }
   .lsroi-source{ font-weight:700; }
   .lsroi-num{ text-align:right; font-variant-numeric:tabular-nums; }
-  .lsroi-rate{ color:var(--green); font-weight:700; }
+  .lsroi-rate{ color:var(--ui-success-text,var(--green)); font-weight:700; }
   .lsroi-rev{ font-weight:700; }
   .lsroi-bar{
     margin-top:4px; height:3px; background:var(--s); border-radius:2px;
@@ -850,8 +850,8 @@
     font-family:'Barlow Condensed',sans-serif;
     font-size:28px; font-weight:800; line-height:1; color:var(--t);
   }
-  .fc-scenario-likely .fc-scen-val{ color:var(--orange); }
-  .fc-scenario-best   .fc-scen-val{ color:var(--green); }
+  .fc-scenario-likely .fc-scen-val{ color:var(--ui-accent-text,var(--orange)); }
+  .fc-scenario-best   .fc-scen-val{ color:var(--ui-success-text,var(--green)); }
   .fc-scenario-worst  .fc-scen-val{ color:var(--red); }
   .fc-scen-sub{ font-size:10px; color:var(--m); margin-top:4px; }
 
@@ -870,7 +870,7 @@
     padding-top:8px; margin-top:4px;
     font-size:14px; font-weight:700; color:var(--t);
   }
-  .fc-bd-emphasis .fc-bd-val{ color:var(--orange); }
+  .fc-bd-emphasis .fc-bd-val{ color:var(--ui-accent-text,var(--orange)); }
   .fc-bd-val{
     font-family:'Barlow Condensed',sans-serif;
     font-weight:700; color:var(--t);
@@ -904,7 +904,7 @@
   .fc-deal-stage{ color:var(--m); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .fc-deal-prob{ text-align:right; color:var(--m); }
   .fc-deal-value{ text-align:right; color:var(--t); font-variant-numeric:tabular-nums; }
-  .fc-deal-expected{ text-align:right; color:var(--orange); font-weight:700; font-variant-numeric:tabular-nums; }
+  .fc-deal-expected{ text-align:right; color:var(--ui-accent-text,var(--orange)); font-weight:700; font-variant-numeric:tabular-nums; }
   .fc-deal-row.fc-risk{
     background:color-mix(in srgb, var(--red) 6%, transparent);
   }
@@ -1475,7 +1475,7 @@
   .rev-lbl{font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
   .follow-up-alert{background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex!important;align-items:center;gap:10px;font-size:12px;}
   .fa-name{font-weight:700;color:var(--t);}
-  .fa-date{color:var(--orange);font-size:11px;}
+  .fa-date{color:var(--ui-accent-text,var(--orange));font-size:11px;}
   .fa-btn{margin-left:auto;background:var(--orange);color:var(--accent-fg);border:none;border-radius:4px;padding:4px 10px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700;}
   /* "+ N more" under the follow-up rows is a button now (it opens the rest,
      crm-pipeline.js _renderFollowUpRows); dressed as the old text line. */
@@ -1514,6 +1514,9 @@
 #view-prospects.active { display:flex; }
 #view-prospects .view-scroll { flex:1; overflow-y:auto; padding:14px 16px 80px; }
 #view-prospects .page-hdr { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:14px; padding:0; }
+/* Phones (UI sweep 2026-10-24): stacked, the flex-end alignment pushed the D2D Tracker
+   and New Knock buttons in from the left edge. Full width like every other view's header. */
+@media (max-width:768px) { #view-prospects .page-hdr { align-items:stretch; } #view-prospects .page-hdr > div { width:100%; } }
 
 /* Stats strip — flex row of clickable tiles */
 .prosp-stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
@@ -1726,7 +1729,7 @@
   height:6px; background:var(--s); border-radius:3px; overflow:hidden;
 }
 .prosp-an-bar-fill { height:100%; transition:width .25s; }
-.prosp-an-row-pct { text-align:right; font-weight:700; color:var(--green); }
+.prosp-an-row-pct { text-align:right; font-weight:700; color:var(--ui-success-text,var(--green)); }
 .prosp-an-row-count { text-align:right; color:var(--m); font-family:'DM Mono','Courier New',monospace; font-size:10px; }
 .prosp-an-empty { color:var(--m); font-size:11px; padding:8px 0; }
 

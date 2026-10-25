@@ -35,6 +35,10 @@ function injectCSS() {
   display:flex;
   align-items:center;
   justify-content:center;
+  /* Desktop too (2026-10-24): it measured 33x19, under the 24px minimum
+     target (WCAG 2.5.8; 2026-10-23 audit). Phones get 44px below. */
+  min-width:24px;
+  min-height:24px;
 }
 #nbd-conn-btn:active {
   transform:scale(.88);

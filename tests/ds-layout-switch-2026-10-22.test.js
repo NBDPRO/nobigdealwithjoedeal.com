@@ -65,6 +65,8 @@ function boot(opts) {
   vm.createContext(sandbox);
   vm.runInContext(LOGIC_SRC, sandbox);
   if (o.ready) o.ready.forEach((id) => { sandbox.window.NBDLayout.byId(id).ready = true; });
+  // every layout is ready since 2026-10-25, so a fixture asks for one to be "coming" again to pin the not-ready rules
+  if (o.notReady) o.notReady.forEach((id) => { sandbox.window.NBDLayout.byId(id).ready = false; });
   vm.runInContext(UI_SRC, sandbox);
   const click = (id) => clickHandler({ target: { closest: (sel) => (sel === '[data-ui-pick]' && id ? { getAttribute: () => id } : null) } });
   return { store, attrs, els, click, api: sandbox.window.NBDLayout };
@@ -77,19 +79,19 @@ function boot(opts) {
   ok('all eight layouts are listed; classic is checked', (html.match(/class="ui-pick[ "]/g) || []).length === 8 && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="classic"/.test(html), html.slice(0, 300));
   ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (() => { const soon = L.LAYOUTS.filter((l) => !l.ready).length; return (html.match(/ui-pick soon/g) || []).length === soon && (html.match(/data-ui-pick=/g) || []).length === 8 - soon && (html.match(/disabled aria-disabled="true"/g) || []).length === soon; })());
 
-  const b = boot({ store: { nbd_ds_layout: 'quest' } });
+  const b = boot({ store: { nbd_ds_layout: 'arcade' }, notReady: ['arcade'] });
   ok('a stored layout that is not ready is ignored (classic applied)', b.attrs['data-ui'] === 'classic');
   const c = boot({ store: { nbd_ds_layout: '<img onerror=x>' } });
   ok('hand-edited storage cannot reach the page: classic applied, and the picker html has no raw value', c.attrs['data-ui'] === 'classic' && !/onerror/.test(c.els['npm-layouts'].innerHTML));
   const d = boot({ blocked: true });
   ok('blocked storage (private window): still applies classic and renders; set() does not throw', d.attrs['data-ui'] === 'classic' && /ui-picks/.test(d.els['npm-layouts'].innerHTML) && (() => { try { d.api.set('classic'); return true; } catch (_) { return false; } })());
 
-  const e = boot({ ready: ['logbook'] });
+  const e = boot({ ready: ['logbook'], notReady: ['arcade'] });
   e.click('logbook');
   ok('picking a ready layout applies data-ui, persists it and re-renders with it checked', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook' && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="logbook"/.test(e.els['wg-layouts'].innerHTML));
   const f = boot({ ready: ['logbook'], store: { nbd_ds_layout: 'logbook' } });
   ok('it comes back after a reload (stored + ready)', f.attrs['data-ui'] === 'logbook');
-  e.click('quest');
+  e.click('arcade');
   ok('a click on a layout that is not ready changes nothing', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook');
   e.click('');
   e.click(null);

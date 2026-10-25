@@ -103,7 +103,7 @@ nav { position: sticky; top: 0; z-index: 1000; background: var(--navy-dark); bor
 .hero-lead { font-size: 1rem; color: rgba(255,255,255,.78); line-height: 1.7; margin-bottom: 28px; max-width: 520px; }
 .hero-lead strong { color: #fff; }
 .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-.btn-primary { background:#BD5728; color: #fff !important; padding: 14px 24px; border-radius: 8px; font-weight: 800; font-size: .92rem; letter-spacing: .04em; text-transform: uppercase; box-shadow: 0 6px 16px rgba(189,87,40,.35); transition: all .15s; }
+.btn-primary { background:#BD5728; color: #fff !important; padding: 14px 28px; border-radius: 8px; font-weight: 800; font-size: .92rem; letter-spacing: .04em; text-transform: uppercase; box-shadow: 0 6px 16px rgba(189,87,40,.35); transition: all .15s; }
 .btn-primary:hover { background:#A14A22; transform: translateY(-1px); }
 .btn-secondary { background: transparent; color: #fff !important; border: 2px solid #fff; padding: 12px 22px; border-radius: 8px; font-weight: 800; font-size: .92rem; letter-spacing: .04em; text-transform: uppercase; }
 .btn-secondary:hover { background: #fff; color: var(--navy-dark) !important; }
@@ -258,7 +258,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
 .footer-desc { font-size: .85rem; line-height: 1.6; margin-bottom: 18px; }
 .footer-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .footer-badge { background: rgba(255,255,255,.08); padding: 4px 10px; border-radius: 12px; font-size: .7rem; }
-.footer-col .footer-col-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; color: var(--orange); letter-spacing: .08em; margin-bottom: 14px; }
+.footer-col .footer-col-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; color:var(--orange-light,#dd875f); letter-spacing: .08em; margin-bottom: 14px; }
 .footer-col ul { list-style: none; }
 .footer-col li { margin-bottom: 8px; }
 .footer-col a { font-size: .85rem; color: rgba(255,255,255,.7); }
@@ -806,6 +806,25 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
 <!-- nbd:updated -->
 <div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-07">October 7, 2026</time></p></div>
 <!-- /nbd:updated -->
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer>
   <div class="footer-grid">
@@ -820,7 +839,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       <h2 class="footer-col-title">The Guarantee</h2>
       <ul>
         <li><a href="/services/the-nbd-guarantee">Tier System</a></li>
-        <li><a href="/services/lumanail" style="color:var(--orange)">LumaNail™ Upgrade</a></li><li><a href="/services/gaf-timberline">GAF Timberline Lineup</a></li>
+        <li><a href="/services/lumanail" style="color:var(--orange-light,#dd875f)">LumaNail™ Upgrade</a></li><li><a href="/services/gaf-timberline">GAF Timberline Lineup</a></li>
         <li><a href="/the-pledge" style="color:#dd875f;font-weight:800;">The NBD Pledge</a></li>
         <li><a href="/services/the-nbd-guarantee" style="color:#dd875f;font-weight:800;">The NBD Guarantee</a></li>
 <li><a href="/services/lumanail" style="color:#dd875f;font-weight:800;">LumaNail™ Upgrade</a></li><li><a href="/services/gaf-timberline">GAF Timberline Lineup</a></li>
@@ -841,7 +860,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
         <li><a href="/our-work">Our Work</a></li>
         <li><a href="/areas">Service Areas</a></li>
         <li><a href="/blog">Blog</a></li>
-        <li><a href="/estimate" style="color:var(--orange);">Instant Estimate</a></li>
+        <li><a href="/estimate" style="color:var(--orange-light,#dd875f)">Instant Estimate</a></li>
       </ul>
     </div>
     <div class="footer-col">

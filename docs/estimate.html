@@ -93,7 +93,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .ac-item:hover,.ac-item.kb-active{background:rgba(189,87,40,.1);color:var(--white);}
 
 /* ── Primary Button ── */
-.btn-primary{width:100%;padding:16px;background:#BD5728;color:var(--white);border:none;border-radius:10px;font-family:'Montserrat',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-primary{width:100%;padding:16px;background:#BD5728;color:var(--white);border:none;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:8px;}
 .btn-primary:hover:not(:disabled){background:#A14A22;transform:translateY(-1px);box-shadow:0 6px 24px rgba(189,87,40,.4);}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 
@@ -305,9 +305,9 @@ nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:
 nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
 nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
 nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
-nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
 nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
-nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:4px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
 nav.tool-nav .nav-cta:hover{background:#A14A22}
 @media(max-width:560px){
   /* Hide the top-nav Back/Call cluster on small phones — it collided with the
@@ -1033,6 +1033,25 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
   Joe provides free on-site inspections with exact pricing — no obligation.
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer class="foot">
   &copy; 2026 No Big Deal Home Solutions. No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC. <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> &middot; <a href="/sms-program" data-nbd-sms="1">Text Messages</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
@@ -1050,7 +1069,6 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
 <!-- Live Google rating for the trust line above Submit (data-nbd-gr-rating). -->
-<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
 <script type="module" src="/assets/js/inline/f95015cb84.module.js?v=2"></script>
 

@@ -101,9 +101,9 @@ nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:
 nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
 nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
 nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
-nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
 nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
-nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:4px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
 nav.tool-nav .nav-cta:hover{background:#A14A22}
 @media(max-width:560px){
   /* Hide the top-nav Back/Call cluster on small phones — it collided with the
@@ -436,6 +436,25 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
   <h2>Still not sure which one?</h2>
   <p>Text or call and I'll point you at the right one &mdash; <a href="tel:+18594207382">(859) 420-7382</a>. Or start with a <a href="/free-tools">free tool</a> if you'd rather not talk to anybody yet.</p>
 </section>
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-slim link1_href="/about" link1_name="About Joe" link2_href="/blog" link2_name="Blog" -->
 <footer class="foot-slim">

@@ -271,6 +271,14 @@
      theme's surfaces, and on a light theme it gets darker. Red fills and
      borders keep var(--red). (2026-10-16, Crew "Certificate expired".) */
   --ui-danger-text: color-mix(in srgb, var(--red, #e5484d) 50%, var(--t, #e8eaf0));
+  /* Success, warning and info as TEXT: the same move for --green, --gold and
+     --blue. The UI sweep (2026-10-24) measured plain green at 3.1:1, gold at
+     3.0:1 and blue at 3.5:1 as 10-13px text on the light themes; these pull
+     each halfway to the text colour. Fills, borders and dots keep the plain
+     token. */
+  --ui-success-text: color-mix(in srgb, var(--green, #2ecc8a) 50%, var(--t, #e8eaf0));
+  --ui-warn-text: color-mix(in srgb, var(--gold, #d4a017) 50%, var(--t, #e8eaf0));
+  --ui-info-text: color-mix(in srgb, var(--blue, #4a9eff) 50%, var(--t, #e8eaf0));
 
   /* Motion. Durations by job, not by whim. Easing: standard for state
      changes, enter (decelerate) for things arriving, exit (accelerate) for

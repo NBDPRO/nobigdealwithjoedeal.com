@@ -22,6 +22,39 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
 - **Still open:**
   - [#2656](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2656) paint-color blog draft -
     stays a draft until Jo writes his lines.
+- **Later on 2026-10-24 (same session, after the handoff PR):**
+  - Merged:
+    - #2722: WebKit moved off the required Public-surface job.
+    - #2723: audit pass-2 leftovers.
+    - #2724: pass-1 UI fixes (measurement text, coach and inbox keyboard).
+    - [#2725](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2725): AI Usage runs in the sample account.
+  - **Open:** [#2726](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2726) is green.
+    - Every remaining dashboard tool runs in `/pro/explore`: the Success Tracker on a sample week, and Decision Engine, Understand and Project Codex on canned sample answers with no model and no insurance topics.
+    - It also fixes a production bug: every Project Codex Quick Action card threw on click.
+    - **It waits on Jo's review of the sample-answer wording** (`docs/pro/demo-sdk/tools-canned.js`). Auto-merge is deliberately off.
+    - Plan and decisions: the 2026-10-24 update in [PRO-DEMO-PHASE2 plan](PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md).
+  - **Next PR, after #2726:** the audit pass-1 leftovers. Status of each item is at the top of [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-LANDING-AUDIT-2026-10-23.md).
+    - D2D map-vendor load race (production).
+    - Phone greeting cut to "WELCOME B…" (production).
+    - Story page tab order.
+    - Desktop tap targets.
+    - Strip over the Record visit bar.
+  - **Reviews on every homeowner page** (Jo's ask, same day): the `reviews-strip` partial puts the newest Google reviews, each with its date, on the 229 pages that had none, plus the our-work pages from their template. Note: [REVIEWS-STRIP-2026-10-24](REVIEWS-STRIP-2026-10-24.md).
+  - **The sweep PR, [#2727](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2727)** (draft while CI runs; Jo asked to ship it): audit pass-1 leftovers,
+    a11y labels and 24 px floors, the text-contrast tokens, the reviews strip on every homeowner page (dates on every card,
+    `/review` shows the whole synced set), and pass 5 of the sweep on the homeowner page families (brand orange on navy on 64
+    footers and a dozen other spots, floors on nav and crumb links). Passes 1–5: [UI-SWEEP-2026-10-24](../audit/UI-SWEEP-2026-10-24.md).
+    - **Held back for Jo:** `/pro/pricing` (FAQ 17 px, logo 22 px, headline 2.8:1) because its visual baselines must be
+      CI-rendered and committed by a person from the `visual-regression-output` artifact (`ci.yml`, the bless step).
+    - CI lessons from the PR: the `:where()` wrapper on floor rules; `build-projects.mjs` must list every partial it carries over;
+      `ensure-nav-responsive-css.js` keeps a canonical body that must change with the stylesheet.
+  - **Daily Success notebook** (Jo, 10-25, same PR): the tab row is Dash · Today · open page · Notebook (n) · +; every page files by month in a drawer. Note: [DAILY-SUCCESS-NOTEBOOK-2026-10-25](DAILY-SUCCESS-NOTEBOOK-2026-10-25.md).
+  - **Roof Rep revamp** (Jo, 10-25, same PR): NBD look, phone play layout, game feel, objection duels, quest board, Storm Run, seasons, crew ranks and duels. The repo file is the source now. Update section in [ROOF-REP-GAME-2026-10-03](ROOF-REP-GAME-2026-10-03.md).
+  - **Daily Success layouts, the whole lineup** (10-25, same PR): Cockpit, Quest, One Thing, Journal and Arcade are ready to pick; see the status line in [DAILY-SUCCESS-INTERFACES-2026-10-22](DAILY-SUCCESS-INTERFACES-2026-10-22.md).
+  - **Characters (10-25, same PR):** a vector chibi renderer (`docs/pro/js/chibi.js`) draws every avatar on Roof Rep and the CRM game card: shaded, outlined, blinking, eight animated poses (walk, knock, talk, cheer, sad, wave, think, idle). Note: the later-10-25 update in [ROOF-REP-GAME-2026-10-03](ROOF-REP-GAME-2026-10-03.md). Guard: `tests/chibi-2026-10-25.test.js`.
+  - **Visual-consistency sweep (10-25, same PR, pass 6 in [UI-SWEEP-2026-10-24](../audit/UI-SWEEP-2026-10-24.md)):** the Product Library and every un-classed dashboard control read Barlow (they were the OS font); one Products title instead of three; a 44 px phone floor for every view's controls; the phone header reads "[NBD] PRO"; marketing nav CTA, primary button padding and radii aligned to the majority; the portal and estimate view each got their h1. Guard: `tests/dashboard-font-consistency-2026-10-25.test.js`.
+  - **Later on 10-25, same PR:** Roof Rep plays side by side on desktop, its HUD is three across under 360 px and its chips / swatches / options are 44 px; Quest got its skill tree; the Home game card shows a work streak (server `streak()` in `functions/game-logic.js`, GameForce appendix #8); the layouts gate also renders each layout's dashboard.
+  - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
   accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
   (Configure -> repository access / pending permissions). A plain account reconnect did not fix it, and a
@@ -57,6 +90,7 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 ## Needs Jo
 
+0. **Visual decisions from the 10-25 sweep** (pass 6 of the sweep note): marketing cards are 12–14 px radius site-wide against DESIGN.md's "8 px and pills" (add a 14 px card token, or move ~40 card rules to 8 px); the nav CTA majority is 6 px against the rule's 8; the dashboard's 9 px labels against the 11 px phone rule; `/pro/register`'s Google button font and eye toggle, and `/pro/pricing`, both wait on a CI-rendered baseline bless (`visual-regression-output` from run 8275).
 1. **Flip what's built and dark, if wanted** (Firebase console / env):
    - `leadSourceFixer`, `speedToLead`, `estimateFollowBoard`, then answer the "Where customers came from" cards.
    - `OWNER_WEEKLY_DIGEST_ENABLED=true` (owner digest into the Agent inbox). Also decide: owner only? And
@@ -89,4 +123,4 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 4. Pass-1 leftovers: Pro demo iframed prod panes, coach overlay Escape/focus, food-input focus ring,
    typed measurement text wiped by `renderDash`, blob URLs not revoked.
 5. `@shard2` specs (six named in the CI-minutes note).
-6. Tracker layouts: Cockpit, then Quest/Arcade, then One Thing/Journal ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).
+6. ~~Tracker layouts~~ - the whole lineup shipped 10-25 (Cockpit, Quest, One Thing, Journal, Arcade) ([interfaces](DAILY-SUCCESS-INTERFACES-2026-10-22.md)).

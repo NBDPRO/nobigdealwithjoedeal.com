@@ -108,7 +108,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .sidebar-card{background:var(--off-white);border-radius:14px;padding:28px;border:1px solid var(--light-gray)}
 .sidebar-card h3{font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
 .sidebar-links{list-style:none;display:flex;flex-direction:column;gap:10px}
-.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px}
+.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px;padding:4px 0}
 .sidebar-links li a:hover{color:var(--orange)}
 .sidebar-links li a::before{content:'→';color:var(--orange);font-weight:700}
 .cta-sidebar{background:var(--navy-dark);color:#fff;border-radius:14px;padding:28px;text-align:center}
@@ -122,7 +122,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -210,7 +210,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .sidebar-card{background:var(--off-white);border-radius:14px;padding:28px;border:1px solid var(--light-gray)}
 .sidebar-card h3{font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
 .sidebar-links{list-style:none;display:flex;flex-direction:column;gap:10px}
-.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px}
+.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px;padding:4px 0}
 .sidebar-links li a:hover{color:var(--orange)}
 .sidebar-links li a::before{content:'→';color:var(--orange);font-weight:700}
 .cta-sidebar{background:var(--navy-dark);color:#fff;border-radius:14px;padding:28px;text-align:center}
@@ -224,7 +224,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -694,6 +694,25 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
   </aside>
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-blog -->
 <footer>

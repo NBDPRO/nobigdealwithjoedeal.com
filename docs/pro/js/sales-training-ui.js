@@ -47,7 +47,7 @@
         <div class="training-card" data-st-action="startScenario" data-st-id="${s.id}">
           <div class="tc-header">
             <span class="tc-icon">${s.icon}</span>
-            <div class="tc-diff" style="color:${s.diffColor};">${s.difficulty}</div>
+            <div class="tc-diff" style="color:color-mix(in srgb, ${s.diffColor} 50%, var(--t, #e8eaf0));">${s.difficulty}</div>
           </div>
           <div class="tc-title">${s.title}</div>
           <div class="tc-sub">${s.subtitle}</div>

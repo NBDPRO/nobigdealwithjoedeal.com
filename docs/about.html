@@ -347,7 +347,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
 .cred { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:7px 13px; font-size:.74rem; font-weight:700; color:rgba(255,255,255,.85); letter-spacing:.06em; text-transform:uppercase; }
 .cred.hl { background:rgba(189,87,40,.15); border-color:rgba(189,87,40,.4); color:var(--orange-light); }
 .about-hero-cta { display:flex; flex-wrap:wrap; gap:12px; margin-top:32px; }
-.about-hero-cta .btn-primary { background:#BD5728; color:#fff; padding:14px 26px; border-radius:8px; font-weight:800; font-size:.92rem; text-decoration:none; letter-spacing:.02em; display:inline-flex; align-items:center; gap:8px; transition:transform .18s ease, box-shadow .18s ease; box-shadow:0 4px 14px rgba(189,87,40,.35); }
+.about-hero-cta .btn-primary { background:#BD5728; color:#fff; padding:14px 28px; border-radius:8px; font-weight:800; font-size:.92rem; text-decoration:none; letter-spacing:.02em; display:inline-flex; align-items:center; gap:8px; transition:transform .18s ease, box-shadow .18s ease; box-shadow:0 4px 14px rgba(189,87,40,.35); }
 .about-hero-cta .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(189,87,40,.45); }
 .about-hero-cta .btn-ghost { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.35); padding:14px 26px; border-radius:8px; font-weight:700; font-size:.92rem; text-decoration:none; letter-spacing:.02em; display:inline-flex; align-items:center; gap:8px; transition:border-color .18s ease, background .18s ease; }
 .about-hero-cta .btn-ghost:hover { border-color:var(--orange); background:rgba(189,87,40,.1); }
@@ -424,7 +424,7 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
 @media(min-width:1025px) and (max-width:1440px){
   nav{padding-left:24px!important;padding-right:24px!important}
   nav .nav-links{gap:14px!important}
-  nav .nav-links > li > a{font-size:.7rem!important;letter-spacing:.05em!important;padding:4px 0!important}
+  nav .nav-links > li > a{font-size:.7rem!important;letter-spacing:.05em!important;padding:5px 0!important}
   nav .nav-cta{padding:8px 14px!important;font-size:.7rem!important}
   nav .nav-logo img{height:50px!important}
   nav .nav-logo-text .brand{font-size:.9rem!important}
@@ -893,6 +893,25 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
   </div>
 </section>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-extended -->
 <footer>

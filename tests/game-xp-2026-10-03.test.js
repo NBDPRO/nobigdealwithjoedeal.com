@@ -73,6 +73,20 @@ ok('last week is scored on its own (task 10 + $350 → 3)', card.lastWeek.xp ===
 ok('all-time XP counts everything to date (incl. an August lead), level from it', card.totalXp === 170 && card.level === G.levelFor(170).level && card.level === 2, String(card.totalXp));
 const refund = G.buildCard(Object.assign({}, records, { tasks: [], calls: [], leads: [], invoices: [{ total: 1000, balanceDue: 0, payments: [{ amount: 1000, at: at('2026-09-29T15:00:00Z') }], refunds: [{ amount: 1000, at: at('2026-09-30T15:00:00Z') }] }] }));
 ok('a refund takes the money back (net $0 → 0 XP)', refund.week.xp === 0);
+console.log('\n2b. The work streak');
+{
+  const ev = (days) => days.map((d) => ({ kind: 'task', atMs: Date.parse(d + 'T15:00:00Z') }));
+  ok('three days in a row ending today → 3, active today', G.streak(ev(['2026-10-01', '2026-10-02', '2026-10-03']), '2026-10-03').current === 3 && G.streak(ev(['2026-10-01', '2026-10-02', '2026-10-03']), '2026-10-03').activeToday === true);
+  ok('today empty so far never breaks it: reads from yesterday', G.streak(ev(['2026-10-01', '2026-10-02']), '2026-10-03').current === 2 && G.streak(ev(['2026-10-01', '2026-10-02']), '2026-10-03').activeToday === false);
+  ok('a missed day (yesterday) ends it at 0 until today earns something', G.streak(ev(['2026-09-30', '2026-10-01']), '2026-10-03').current === 0);
+  ok('best remembers an older run (5 days in September) when the current is shorter', G.streak(ev(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-10-03']), '2026-10-03').best === 5);
+  ok('money collected counts as a day worked', G.streak([{ kind: 'collected', atMs: Date.parse('2026-10-03T15:00:00Z'), units: 100 }], '2026-10-03').current === 1);
+  ok('Eastern days: 11 PM ET on the 2nd (03:00Z on the 3rd) is still the 2nd', G.streak([{ kind: 'task', atMs: Date.parse('2026-10-03T03:00:00Z') }], '2026-10-03').current === 1 && G.streak([{ kind: 'task', atMs: Date.parse('2026-10-03T03:00:00Z') }], '2026-10-03').activeToday === false);
+  ok('no events → zeros, no throw', G.streak([], '2026-10-03').current === 0 && G.streak(undefined, '2026-10-03').best === 0);
+  const CARD_JS = require('fs').readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'game-card.js'), 'utf8');
+  ok('the Home card shows it (a third stat, a full-width row on phones)', /gc-stat gc-streak/.test(CARD_JS) && /Work streak/.test(CARD_JS) && /\.gc-streak \{ grid-column: 1 \/ -1; \}/.test(require('fs').readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'css', 'game-card.css'), 'utf8')));
+  ok('the card carries it', card.streak && typeof card.streak.current === 'number' && typeof card.streak.best === 'number');
+}
 ok('nothing done → a level-1 card with zeros, not an error', G.buildCard({ uid: UID, nowMs: NOW, paymentsOf }).totalXp === 0 && G.buildCard({ uid: UID, nowMs: NOW, paymentsOf }).level === 1);
 
 console.log('\n3. getGameCard — the caller\'s own records, read-only');

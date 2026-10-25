@@ -45,11 +45,11 @@
 .dk-followup.dk-followup { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--s); border: 1px solid var(--br); border-radius: 6px; margin-bottom: 4px; cursor: pointer; }
 .dk-scroll.dk-scroll { max-height: 300px; overflow-y: auto; }
 .dk-mb12.dk-mb12 { margin-bottom: 12px; }
-.dk-c-blue.dk-c-blue { color: var(--blue, #4A9EFF); }
-.dk-c-gold.dk-c-gold { color: var(--gold, #EAB308); }
-.dk-c-green.dk-c-green { color: var(--green, #2ECC8A); }
-.dk-c-orange.dk-c-orange { color: var(--orange, #BD5728); }
-.dk-c-purple.dk-c-purple { color: var(--purple,#9B6DFF); }
+.dk-c-blue.dk-c-blue { color: var(--ui-info-text, var(--blue, #4A9EFF)); }
+.dk-c-gold.dk-c-gold { color: var(--ui-warn-text, var(--gold, #EAB308)); }
+.dk-c-green.dk-c-green { color: var(--ui-success-text, var(--green, #2ECC8A)); }
+.dk-c-orange.dk-c-orange { color: var(--ui-accent-text, var(--orange, #BD5728)); }
+.dk-c-purple.dk-c-purple { color: color-mix(in srgb, var(--purple,#9B6DFF) 50%, var(--t, #e8eaf0)); }
 .dk-prompt.dk-prompt { text-align: center; padding: 28px 20px; }
 .dk-empty-sm.dk-empty-sm { padding: 20px; }
 .dk-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 2px solid var(--green); margin: 2px; }
