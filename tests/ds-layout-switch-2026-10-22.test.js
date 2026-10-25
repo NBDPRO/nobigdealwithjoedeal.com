@@ -77,7 +77,7 @@ function boot(opts) {
   ok('all eight layouts are listed; classic is checked', (html.match(/class="ui-pick[ "]/g) || []).length === 8 && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="classic"/.test(html), html.slice(0, 300));
   ok('layouts that are not ready are disabled, say "coming", and carry no pick handle', (() => { const soon = L.LAYOUTS.filter((l) => !l.ready).length; return (html.match(/ui-pick soon/g) || []).length === soon && (html.match(/data-ui-pick=/g) || []).length === 8 - soon && (html.match(/disabled aria-disabled="true"/g) || []).length === soon; })());
 
-  const b = boot({ store: { nbd_ds_layout: 'quest' } });
+  const b = boot({ store: { nbd_ds_layout: 'arcade' } }); // arcade: still not ready (quest went ready 2026-10-25)
   ok('a stored layout that is not ready is ignored (classic applied)', b.attrs['data-ui'] === 'classic');
   const c = boot({ store: { nbd_ds_layout: '<img onerror=x>' } });
   ok('hand-edited storage cannot reach the page: classic applied, and the picker html has no raw value', c.attrs['data-ui'] === 'classic' && !/onerror/.test(c.els['npm-layouts'].innerHTML));
@@ -89,7 +89,7 @@ function boot(opts) {
   ok('picking a ready layout applies data-ui, persists it and re-renders with it checked', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook' && /ui-pick on"[^>]*aria-checked="true"[^>]*data-ui-pick="logbook"/.test(e.els['wg-layouts'].innerHTML));
   const f = boot({ ready: ['logbook'], store: { nbd_ds_layout: 'logbook' } });
   ok('it comes back after a reload (stored + ready)', f.attrs['data-ui'] === 'logbook');
-  e.click('quest');
+  e.click('arcade');
   ok('a click on a layout that is not ready changes nothing', e.attrs['data-ui'] === 'logbook' && e.store.nbd_ds_layout === 'logbook');
   e.click('');
   e.click(null);

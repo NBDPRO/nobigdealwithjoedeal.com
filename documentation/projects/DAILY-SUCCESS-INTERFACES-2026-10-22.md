@@ -57,8 +57,10 @@ Each is its own PR, tested and checked at phone width before it is queued. The S
 
 ## Status (2026-10-25)
 
-- Shipped: **Log Book**, **Rings** (10-22) and **Cockpit** (10-25: `cockpit-ui.js` + the Today-bar branch in `app.js`; eight tiles from `day-layout-logic.js` and `cockpit-logic.js`, a "behind this week" line; `tests/ds-layout-cockpit-2026-10-25.test.js`).
-- Next in order: Quest, Arcade, One Thing, Journal.
+- Shipped: **Log Book**, **Rings** (10-22), **Cockpit** and **Quest** (10-25).
+  - Cockpit: `cockpit-ui.js` + the Today-bar branch in `app.js`; eight tiles from `day-layout-logic.js` and `cockpit-logic.js`, a "behind this week" line; `tests/ds-layout-cockpit-2026-10-25.test.js`.
+  - Quest: `quest-logic.js` (the board on `xp-logic.js`: each floor +10, all floors +25, a workout +100; streaks can break, XP never drops via a high-water mark in `nbd_ds_xp_high`) + `quest-ui.js` (level badge, XP bar, streak, floors as tappable quests that reuse app.js's `toggle-floor` action, the workout quest opens the coach); `tests/ds-layout-quest-2026-10-25.test.js`. The skill tree from the brief is not built yet.
+- Next in order: Arcade (shares Quest's data), One Thing, Journal.
 
 ## Decisions (Jo, 2026-10-22)
 

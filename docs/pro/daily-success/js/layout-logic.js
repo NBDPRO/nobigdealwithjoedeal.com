@@ -18,7 +18,7 @@
     { id: 'logbook', label: 'Log Book', blurb: 'Plain and fast. Today\'s workout as a list, last time beside every set.', ready: true },
     { id: 'rings', label: 'Rings', blurb: 'Daily rings for floors, workout and calories. Close the rings.', ready: true },
     { id: 'cockpit', label: 'Cockpit', blurb: 'One dense HUD: today\'s numbers, the training week, what is behind.', ready: true },
-    { id: 'quest', label: 'Quest', blurb: 'XP, levels, daily quests and a skill tree. Streaks can break; XP never does.', ready: false },
+    { id: 'quest', label: 'Quest', blurb: 'XP, levels and daily quests. Streaks can break; XP never does.', ready: true },
     { id: 'arcade', label: 'Arcade', blurb: 'Retro pixel look: scores, combos, PRs as high scores.', ready: false },
     { id: 'onething', label: 'One Thing', blurb: 'One big card: do this next, nothing else.', ready: false },
     { id: 'journal', label: 'Journal', blurb: 'A calm paper page for the day.', ready: false },

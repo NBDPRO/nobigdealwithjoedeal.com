@@ -64,7 +64,7 @@ console.log('\n2. wiring');
   ok('tile parts are plain blocks (the bar\'s own span rule gives flex children 100% and collapsed the values)', /\.ck-l, \[data-ui="cockpit"\] \.ck-v, \[data-ui="cockpit"\] \.ck-s \{ display: block; flex: none;/.test(ck));
   ok('the HUD is static (not sticky), four tiles a row, two on the narrowest phones', /today-cockpit \{ position: static;/.test(ck) && /repeat\(4, minmax\(0, 1fr\)\)/.test(ck) && /max-width: 360px\) \{ \[data-ui="cockpit"\] \.ck-grid \{ grid-template-columns: repeat\(2/.test(ck));
   ok('no font under 11 px in the HUD', !/font-size: (10|9|8)px/.test(ck));
-  ok('layouts.css cache version bumped', /layouts\.css\?v=5/.test(INDEX));
+  ok('layouts.css cache version bumped', /layouts\.css\?v=[56]/.test(INDEX));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

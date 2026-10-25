@@ -293,8 +293,11 @@ let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')|
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
 // Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
-const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit';
-if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);}
+const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest';
+if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);}
+// Quest layout (data-ui="quest"): the bar is a quest board; floors are quests you tap (quest-ui.js / quest-logic.js).
+if(quest&&window.NBDQuestUI&&window.NBDQuest){const fl=getFloors(),pd=(p&&p.data)||{};
+bar.innerHTML=NBDQuestUI.html({floors:fl.map(f=>({id:f.id,label:f.label,met:pd['floormet-'+f.id]==='1'})),workout:s.workout,sessions:sessions,days:NBDQuest.daysFrom(pages,fl),today:todayKey(),xp:window.NBDXp,coach:window.NBDCoach});return;}
 // Cockpit layout (data-ui="cockpit"): one dense HUD of today's numbers plus the training week (cockpit-ui.js).
 if(cockpit&&window.NBDCockpitUI){let tg2={};try{tg2=(window.NBDFoodLogUI&&window.NBDFoodLogUI.targets&&window.NBDFoodLogUI.targets())||{};}catch(e){}
 bar.innerHTML=NBDCockpitUI.html({summary:s,targets:tg2,sessions:sessions,today:todayKey(),coach:window.NBDCoach,xp:window.NBDXp});return;}

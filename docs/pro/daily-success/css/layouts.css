@@ -12,6 +12,32 @@
 #wg-layouts .ui-picks { padding: 0; }
 #wg-layouts h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
 
+/* ── Quest: the Today bar as a quest board. Level and XP bar, the streak, floors as tappable quests, the workout quest. Static. ── */
+[data-ui="quest"] .today-bar.today-quest { position: static; display: block; white-space: normal; padding: 10px 10px 8px; }
+[data-ui="quest"] .qb-head { display: flex; align-items: center; gap: 8px; }
+[data-ui="quest"] .qb-lv { flex: none; font-size: 13px; font-weight: 800; letter-spacing: .06em; color: #fff; background: var(--ac, #BD5728); border-radius: 999px; padding: 3px 10px; }
+[data-ui="quest"] .qb-bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+[data-ui="quest"] .qb-bar i { display: block; height: 100%; width: 0; background: var(--ac-on-dark, #E4783F); transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+[data-ui="quest"] .qb-xpn { flex: none; font-size: 11px; color: var(--on-dark, #c3cfdf); font-variant-numeric: tabular-nums; }
+[data-ui="quest"] .qb-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--on-dark, #c3cfdf); }
+[data-ui="quest"] .qb-streak.on { color: #f59e0b; font-weight: 700; }
+[data-ui="quest"] .qb-streak.risk { color: var(--ac-on-dark, #E4783F); font-weight: 700; }
+[data-ui="quest"] .qb-today { font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+[data-ui="quest"] .qb-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+[data-ui="quest"] .qb-q { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .06); color: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+[data-ui="quest"] .qb-q.bonus { cursor: default; opacity: .9; }
+[data-ui="quest"] .qb-q.done { border-color: var(--grn, #34d399); background: rgba(52, 211, 153, .12); }
+[data-ui="quest"] .qb-q.done .qb-lbl { text-decoration: line-through; opacity: .8; }
+[data-ui="quest"] .qb-chk { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--grn, #34d399); }
+[data-ui="quest"] .qb-q.done .qb-chk { border-color: var(--grn, #34d399); }
+[data-ui="quest"] .qb-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-ui="quest"] .qb-xp { flex: none; font-size: 11px; font-weight: 700; color: var(--ac-on-dark, #E4783F); font-variant-numeric: tabular-nums; }
+[data-ui="quest"] .qb-q.done .qb-xp { color: var(--grn, #34d399); }
+[data-ui="quest"] .qb-done { margin-top: 8px; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--grn, #34d399); }
+[data-ui="quest"] .qb-left { margin-top: 8px; text-align: center; font-size: 12px; color: var(--on-dark, #c3cfdf); }
+[data-ui="quest"] .qb-w0 { width: 0%; } [data-ui="quest"] .qb-w5 { width: 5%; } [data-ui="quest"] .qb-w10 { width: 10%; } [data-ui="quest"] .qb-w15 { width: 15%; } [data-ui="quest"] .qb-w20 { width: 20%; } [data-ui="quest"] .qb-w25 { width: 25%; } [data-ui="quest"] .qb-w30 { width: 30%; } [data-ui="quest"] .qb-w35 { width: 35%; } [data-ui="quest"] .qb-w40 { width: 40%; } [data-ui="quest"] .qb-w45 { width: 45%; } [data-ui="quest"] .qb-w50 { width: 50%; }
+[data-ui="quest"] .qb-w55 { width: 55%; } [data-ui="quest"] .qb-w60 { width: 60%; } [data-ui="quest"] .qb-w65 { width: 65%; } [data-ui="quest"] .qb-w70 { width: 70%; } [data-ui="quest"] .qb-w75 { width: 75%; } [data-ui="quest"] .qb-w80 { width: 80%; } [data-ui="quest"] .qb-w85 { width: 85%; } [data-ui="quest"] .qb-w90 { width: 90%; } [data-ui="quest"] .qb-w95 { width: 95%; } [data-ui="quest"] .qb-w100 { width: 100%; }
+
 /* ── Cockpit: one dense HUD in place of the Today bar. Eight tiles (today + the training week), a "behind" line. Static, not sticky. ── */
 [data-ui="cockpit"] .today-bar.today-cockpit { position: static; display: block; white-space: normal; padding: 10px 8px 8px; }
 [data-ui="cockpit"] .ck-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
