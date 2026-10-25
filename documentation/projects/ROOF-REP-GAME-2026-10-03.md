@@ -265,3 +265,12 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   own bad call (`tip.bad`), and still hangs the head (`sad`) on a plain loss. A chibi's arm reaches the mouth, not the
   forehead, so this is the facepalm the body allows. The shipped-bytes ceiling moves 2804 → 2816 KB with a dated note:
   waves 12–17 grew `chibi.js` from 47 to 56 KB (deferred), and the gate sat at 2804 of 2804. Guard grows to 100.
+- **Wave 18, body language in the sheet, a walk that fits the body, the smirk.** `cross`: arms folded across the
+  chest (each upper arm in at 65°, each forearm level across it so the two overlap at upper-chest height with the
+  front one on top; brows down, chin up; nothing in the hands). The speech sheet keeps the trust each homeowner showed
+  on their last line (`SAY_PCT`): five points down or more opens the next line with 1.6 s of folded arms, five up or
+  more with a 1.1 s nod, then the talk; the doorway figure on the street holds the same pose until the next line
+  (`drawTo` takes an `intro { pose, ms }`). The walk fits the body: an elder shuffles (half the stride on a slower
+  beat, more lean), a stocky build sways more on a slightly slower beat, a slim one steps on a quicker one; `draw`
+  hands the look's build and elder flag to `poseOf`. Mood `smug` is a one-sided smirk with one brow up (never when
+  sad or cheering); Chad from Storm Bros wears it. Guard grows to 105.

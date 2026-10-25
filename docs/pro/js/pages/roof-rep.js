@@ -171,8 +171,9 @@ function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
-function drawTo(canvas, look, p, mood) {
-  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
+// wave 18: intro { pose, ms } opens with that pose (the sheet's homeowner folds their arms or nods) before p takes over
+function drawTo(canvas, look, p, mood, intro) {
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust', iMs = intro && intro.ms || 0; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = intro && now - start < iMs ? intro.pose : p === 'talk' && now - start > 1800 + iMs ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
 // A mini-game scene that keeps painting while its canvas is on the page (2026-10-25 wave 3: the crews in the build,
@@ -1140,6 +1141,7 @@ function arrive2(h, dogTip) {
 
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
+var SAY_PCT = {}; // wave 18: the trust each homeowner showed on their last line (house index:name)
 // The sheet's face box when nobody is talking: a big wagging dog, a closed door with a hanger, or the pickup. Drawn with
 // the street's own vector pieces at 4x, on the same stop hook the chibi loops use, so say() always replaces it cleanly.
 function faceScene(kind) {
@@ -1171,10 +1173,14 @@ function say(look, name, text, choices, tip, meter) {
   var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
   var wasOpen = DOOR && WALK.target && DOOR.h === WALK.target ? DOOR.since : 0;
   var next = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood, since: wasOpen || Date.now() } : null; // since: the door only swings on the first line
+  // wave 18: body language. Trust down five points or more since this homeowner last spoke: arms folded for 1.6 s; up
+  // five or more: a nod. The street's doorway figure holds the same pose until the next line.
+  var intro = null;
+  if (meter && next) { var tk = next.h.i + ':' + next.h.name, prev = SAY_PCT[tk]; if (prev != null && meter.pct <= prev - 5) intro = { pose: 'cross', ms: 1600 }; else if (prev != null && meter.pct >= prev + 5) intro = { pose: 'nod', ms: 1100 }; SAY_PCT[tk] = meter.pct; if (intro) next.pose = intro.pose; }
   if (DOOR && DOOR.h && !next) LEAVE = { look: DOOR.look, h: DOOR.h, mood: DOOR.mood, pose: DOOR.pose || 'wave', out: !!DOOR.out, since: Date.now(), tx: WALK.px + (WALK.px > doorOf(DOOR.h).x ? 22 : -22), ty: WALK.py - 12 };
   DOOR = next;
   if (typeof look === 'string') faceScene(look); // no homeowner in the sheet: the dog, the closed door or the truck (2026-10-25 wave 2)
-  else if (look) drawTo(faceCv, look, 'talk', mood);
+  else if (look) drawTo(faceCv, look, 'talk', mood, intro);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
@@ -1706,7 +1712,7 @@ var SEASON = {
 function seasonFor(day) { return SEASONS[Math.floor((day - 1) / 7) % 4]; }
 
 // ── The rival: Chad from Storm Bros works storm streets ──
-var RIVAL_LOOK = { skin: 1, hair: 'spiky', hairColor: 3, eyes: 'wink', hat: 'cap', hatColor: 2, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades' };
+var RIVAL_LOOK = { skin: 1, hair: 'spiky', hairColor: 3, eyes: 'wink', hat: 'cap', hatColor: 2, beard: 'none', shirt: 5, vest: 'none', pants: 2, tool: 'none', extra: 'shades', mood: 'smug' }; // wave 18: the smirk
 var RIVAL = { x: 340, y: 100, tx: 340, ty: 100 };
 function rivalStreet(sid) { var last = SAVE.lastStorm && SAVE.lastStorm[sid]; return sid === 'hollow' || (last != null && SAVE.day - last <= 3); }
 function rivalMove() {

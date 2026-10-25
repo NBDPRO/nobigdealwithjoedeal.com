@@ -40,9 +40,12 @@
  *          every 3.2 s (the street passes it in winter). Wave 16: eyeColor 0..4 (brown · blue · green · hazel · grey)
  *          colours the iris; both pickers offer it. Wave 17: two poses, thumbs (a thumbs-up with a wink and a grin) and
  *          cringe (a hand over the mouth, eyes shut, a slow head shake; the front arm is drawn over the head for it).
+ *          Wave 18: cross (arms folded across the chest, brows down, chin up: a homeowner closing off); the walk fits the
+ *          body (an elder shuffles, a stocky build sways, a slim one steps quicker); mood 'smug' is a one-sided smirk with
+ *          one brow up (the rival).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
- *                                         thumbs · cringe (wave 17)
+ *                                         thumbs · cringe (wave 17) · cross (wave 18)
  *
  * Pure drawing; no DOM writes besides the canvas it is handed. CSP-safe, no dependencies. ES5 on purpose (classic
  * script on both pages). Guarded by tests/chibi-2026-10-25.test.js.
@@ -63,7 +66,7 @@
   var TOPS = ['tee', 'hoodie', 'polo'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
   var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'], PROPS = ['none', 'phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers', 'umbrella'];
-  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb', 'thumbs', 'cringe'];
+  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb', 'thumbs', 'cringe', 'cross'];
   // wave 12: builds. w and h scale the body group (legs, torso, arms) from the feet; head scales the head on its own, so
   // a tall rep reads as tall (smaller head, longer body) and a stocky one as stocky (wider body, same head).
   var BUILDS = { regular: { w: 1, h: 1, head: 1 }, slim: { w: 0.88, h: 1.04, head: 0.96 }, stocky: { w: 1.2, h: 0.97, head: 1 }, tall: { w: 0.96, h: 1.12, head: 0.93 } };
@@ -82,7 +85,7 @@
       eyes: pick(EYES, a.eyes, 'round'), eyeColor: idx(a.eyeColor, C.eye.length, 0), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
-      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
+      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : a.mood === 'smug' ? 'smug' : 'smile', elder: !!a.elder,
       top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'), build: pick(BUILD_NAMES, a.build, 'regular'),
     };
   }
@@ -108,11 +111,14 @@
     // a blink in the last 150 ms of every 3.6 s; every fourth one is a double blink (two 90 ms closes) (wave 14)
     if (o.blink !== false) { var cyc = (t + seed) % 3600, dbl = Math.floor((t + seed) / 3600) % 4 === 3; p.eyesClosed = !!(m && (dbl ? (cyc > 3300 && cyc < 3390) || (cyc > 3480 && cyc < 3570) : cyc > 3450)); }
     if (pose === 'walk') {
-      var w = s(t / 95) * m, w2 = c(t / 95) * m;
-      p.legL = w * 24; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
-      p.armL = w * 18; p.armR = -p.armL; p.elbowL = -10 - Math.max(0, -p.armL) * 0.9; p.elbowR = -10 - Math.max(0, -p.armR) * 0.9;
-      p.bob = Math.abs(w) * -2.4; p.sy = 1 - Math.abs(w2) * 0.025; p.sx = 1 + Math.abs(w2) * 0.02; p.lean = 4; p.tilt = -w * 1.5;
-      p.hair = s(t / 95 - 1.1) * 7 * m;
+      // wave 18: the walk fits the body. An elder shuffles (half the stride, a slower cadence, more lean), a stocky build
+      // sways more and steps a touch slower, a slim one steps quicker.
+      var cad = o.elder ? 125 : o.build === 'slim' ? 85 : o.build === 'stocky' ? 105 : 95, amp = o.elder ? 0.55 : 1, sway = o.build === 'stocky' ? 1.7 : 1;
+      var w = s(t / cad) * m, w2 = c(t / cad) * m;
+      p.legL = w * 24 * amp; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
+      p.armL = w * 18 * amp; p.armR = -p.armL; p.elbowL = -10 - Math.max(0, -p.armL) * 0.9; p.elbowR = -10 - Math.max(0, -p.armR) * 0.9;
+      p.bob = Math.abs(w) * -2.4 * amp; p.sy = 1 - Math.abs(w2) * 0.025 * sway; p.sx = 1 + Math.abs(w2) * 0.02 * sway; p.lean = o.elder ? 6 : 4; p.tilt = -w * 1.5 * sway;
+      p.hair = s(t / cad - 1.1) * 7 * m;
     }
     else if (pose === 'knock') { p.armRUp = 1; p.armR = -58; p.elbowR = -62 + s(t / 45) * 24 * m; p.fist = true; p.lean = 7; p.browUp = 1; p.look = 1; }
     else if (pose === 'talk') {
@@ -149,6 +155,10 @@
     else if (pose === 'thumbs') { p.armRUp = 1; p.armR = -102 + s(t / 260) * 2 * m; p.elbowR = -49; p.fist = true; p.thumb = true; p.wink = true; p.mouth = 'grin'; p.browUp = 1; p.tilt = -3; p.lean = 2; p.bob = -1 + s(t / 300) * 0.8 * m; }
     // wave 17: a hand over the mouth (14 back and 16 up of the shoulder, so the hand covers the mouth and the arm is
     // drawn over the head), eyes shut, brows down, the head dropped and shaking slowly: "oh no"
+    // wave 18: arms folded across the chest. Each upper arm runs in toward the centre (65 degrees), each forearm level
+    // across it, so the two forearms overlap at upper-chest height with the front one on top; brows down, the chin a
+    // touch up, nothing in the hands: a homeowner closing off
+    else if (pose === 'cross') { p.armL = -65; p.elbowL = -25; p.armR = 65; p.elbowR = 25; p.armRUp = 1; p.noProp = true; p.browDown = 0.8; p.mouth = 'flat'; p.tilt = -2; p.lean = -1; p.bob = s(t / 700) * -0.6 * m; }
     else if (pose === 'cringe') { p.armRUp = 1; p.armR = 154; p.elbowR = -29; p.cover = true; p.eyesClosed = true; p.browDown = 1; p.mouth = 'flat'; p.tilt = 6 + s(t / 160) * 2 * m; p.bob = 2; p.armL = 6; p.elbowL = -4; p.sy = 0.985; }
     else {
       p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; // a glance to each side every 6.4 s
@@ -164,6 +174,7 @@
       }
     }
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
+    if (o.mood === 'smug' && pose !== 'sad' && pose !== 'cheer') { p.smug = true; if (p.mouth === 'smile' || p.mouth === 'flat') p.mouth = 'smirk'; } // wave 18
     if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
   }
@@ -220,7 +231,7 @@
     o = o || {};
     var a = normalize(look), pose = pick(POSES, o.pose, 'idle'), t = o.t == null ? 0 : o.t;
     if (a.hair === 'spiky' && a.hat !== 'none') a.hair = 'short'; // spikes tuck under a hat
-    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed };
+    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder };
     var p = poseOf(pose, t, po);
     if (o.from && o.mix != null && o.mix < 1 && POSES.indexOf(o.from) >= 0 && o.from !== pose) p = mixPose(poseOf(o.from, t, po), p, Math.max(0, o.mix));
     // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
@@ -307,7 +318,8 @@
     function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); ctx.scale(1 / bw, 1 / bh); fn(); ctx.restore(); }
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
-    if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
+    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
     else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
@@ -371,10 +383,10 @@
       else { roundEye(eyL, p.eyesClosed); roundEye(eyR, p.eyesClosed); }
     }
     // brows
-    var browC = a.hair === 'bald' ? shade(skin, -40) : shade(hair, -10), bUp = p.browUp * 2.5, bDn = p.browDown;
+    var browC = a.hair === 'bald' ? shade(skin, -40) : shade(hair, -10), bUp = p.browUp * 2.5, bDn = p.browDown, bUpR = bUp + (p.smug ? 2.6 : 0); // one brow up for a smirk (wave 18)
     ctx.strokeStyle = browC; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(eyL - 6, ey - 11 - bUp + bDn * 2); ctx.quadraticCurveTo(eyL, ey - 14 - bUp + bDn * 1, eyL + 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUp + bDn * 1, eyR + 6, ey - 11 - bUp + bDn * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUpR - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUpR + bDn * 1, eyR + 6, ey - 11 - bUpR + bDn * 2); ctx.stroke();
     // nose
     ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke();
     // mouth
@@ -386,6 +398,7 @@
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
     } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
     else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4); }
+    else if (p.mouth === 'smirk') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
     else if (p.mouth === 'grin') { pen.shape(function (c) { c.moveTo(hx - 8, my - 2); c.quadraticCurveTo(hx, my + 9, hx + 8, my - 2); c.quadraticCurveTo(hx, my + 2, hx - 8, my - 2); }, '#6B2A2A'); ctx.fillStyle = WHITE; ctx.fillRect(hx - 5, my - 1, 10, 1.8); }
     else { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
     // beard
