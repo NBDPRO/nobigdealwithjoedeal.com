@@ -108,6 +108,9 @@ body.has-banner .sdrop{top:148px;}
 .srt mark{background:rgba(249,115,22,.25);color:#fff;border-radius:1px;padding:0 2px;}
 .sr0{padding:14px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#8fa1b8;text-align:center;}
 
+/* controls inherit the page font: the emoji / x icon buttons used to fall to the browser default (visual sweep 2026-10-25) */
+button,input,select,textarea{font-family:inherit;}
+
 /* TABS */
 .tabrow{position:fixed;left:0;right:0;z-index:250;top:52px;background:var(--tabbar);border-bottom:2px solid var(--tb);display:flex;align-items:flex-end;overflow-x:auto;padding:0 10px;gap:2px;scrollbar-width:none;}
 .tabrow.sp{top:100px;}.tabrow::-webkit-scrollbar{display:none;}
