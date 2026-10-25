@@ -119,3 +119,20 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   connector returns only a 200 px preview; a full-size export needs a Canva design + export from Jo's account, and the
   licence call is Jo's. If approved: strip EXIF, vendor under `docs/pro/img/roof-rep/`, use it on the tutorial and Train
   cards (the foreman) and keep the vector chibi for every customisable avatar.
+
+### Wave 2 (same day, second PR): motion quality
+
+- **Jointed limbs.** Arms are an upper arm + forearm (elbow), legs a thigh + shin (knee), drawn as two capsules whose
+  outlines go down before either fill so the joint has no seam. The knock pumps the forearm, the wave swings beside the
+  head, think rests the hand at the chin, the walk bends the forward elbow and the trailing knee.
+- **Cross-fades.** Every pose change blends over 220 ms (`NBDChibi.tween` keeps the state; `mixPose` interpolates
+  numbers and switches shapes half way). `animate` does it for every canvas loop; the street passes a tween key per
+  character (`'rep'`, `'rival'`, `'door'`) to `chibi()`. Reduced motion snaps.
+- **Secondary motion.** Ponytails swing from the root, long hair sways, the front hair follows; hats lift on a cheer
+  jump; the walk squashes on each footfall; talking varies the mouth like speech (three overlapping sines, a glance away).
+- **Emotes.** Sparkles orbit on a cheer, a sweat drop slides down the temple when sad, thought dots fill in when thinking.
+- **Grounding.** A neck shadow on the chest, a brim shadow under hard hats and caps, an upper-lid shadow and a two-tone
+  iris in the eyes.
+- **Three new poses, wired:** `point` (the rep points up at the roof when a homeowner says go inspect), `nod` (the Storm
+  Run homeowner nods at a fair answer instead of going idle), `shrug` (the doorway homeowner shrugs when a door is lost).
+- Versions: `chibi.js?v=2`, `roof-rep.js?v=4`. Guard grows to 51 checks.

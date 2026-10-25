@@ -145,8 +145,10 @@ var CH = window.NBDChibi || null;
 var POSE = { name: null, until: 0 };
 var DOOR = null; // the homeowner standing in the doorway while the speech sheet is open
 function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
-function chibi(ctx, look, cx, feetY, p, facing, t, h, mood) {
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood });
+var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
+function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
+  var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix });
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
@@ -1013,16 +1015,16 @@ function drawWorld() {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
-    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
+    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now, 0, 0, 'rival');
     // a small STORM BROS tag over the rival's head (2026-10-25; was a red rectangle)
     g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
-  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, 'talk', 1, now, 22, DOOR.mood); }
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22, DOOR.mood, 'door'); }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
-  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now);
+  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now, 0, 0, 'rep');
   if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
   if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
   FX.draw(g);
@@ -1124,12 +1126,12 @@ function node(h, key, tip) {
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
   if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
   if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
-  if (end === 'inspect') inspect(h, SAVE.streetId);
+  if (end === 'inspect') { pose('point', 1400); inspect(h, SAVE.streetId); }
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2100,7 +2102,7 @@ function stormRun() {
       b.addEventListener('click', function () {
         if (over || c.dataset.done) return; c.dataset.done = '1'; r[a.kind]++;
         b.classList.add(a.kind === 'best' ? 'right' : a.kind === 'trap' ? 'wrong' : 'on');
-        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'idle', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
+        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'nod', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
         if (a.kind === 'best') sfx('good'); else if (a.kind === 'trap') { sfx('bad'); FX.shake(); }
         var st2 = document.getElementById('runS'); if (st2) st2.textContent = r.best + ' best · ' + r.trap + ' strike' + (r.trap === 1 ? '' : 's');
         if (r.trap >= RR.RUN.strikes) return end();
