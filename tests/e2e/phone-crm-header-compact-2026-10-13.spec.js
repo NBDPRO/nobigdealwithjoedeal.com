@@ -338,7 +338,10 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
     const m = await measure(page);
     // eslint-disable-next-line no-console
     console.log(`[crm-header] first card top=${m.firstCard.top}px of ${m.vh}px (${Math.round(100 * m.firstCard.top / m.vh)}%); was 588px (70%) before the compact header`);
-    expect(m.firstCard.top, 'first card top (px)').toBeLessThanOrEqual(Math.round(m.vh * 0.52));
+    // CI 2026-10-25 (@shard2, test 160 of 168): 424px alone, over 52% in the shard. The message names every visible
+    // block between the top of the page and the first card, so the next miss names the cover instead of the symptom.
+    const stack = await safeEvaluate(page, (cardTop) => [...document.querySelectorAll('#view-crm *')].filter((e) => { const r = e.getBoundingClientRect(); return r.height >= 16 && r.width >= 200 && r.top >= 0 && r.bottom <= cardTop + 1 && e.children.length < 12 && !e.closest('.k-card'); }).slice(0, 24).map((e) => { const r = e.getBoundingClientRect(); return (e.id ? '#' + e.id : e.tagName.toLowerCase() + '.' + String(e.className).split(' ')[0]) + ' ' + Math.round(r.top) + '-' + Math.round(r.bottom); }).join(' | ') + ' || layout=' + document.documentElement.getAttribute('data-layout') + ' density=' + document.documentElement.getAttribute('data-density') + ' body=' + document.body.className, m.firstCard.top);
+    expect(m.firstCard.top, 'first card top (px); above it: ' + stack).toBeLessThanOrEqual(Math.round(m.vh * 0.52));
   });
 
   test('5 · a desktop-width window keeps the three-segment style switch', async () => {

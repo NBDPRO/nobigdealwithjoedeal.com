@@ -32,6 +32,7 @@ test.describe.serial('Crew Calendar @shard2', () => {
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine && !!window.NBDProduction, null, { timeout: 30_000 });
     await ensureClassicLayout(page);
+    const consoleLines = []; // outside the try: the finally prints it when the test fails (2026-10-25)
     try {
 
     const s = Date.now();
@@ -122,7 +123,6 @@ test.describe.serial('Crew Calendar @shard2', () => {
     // drag Placed (Wed-Thu, Alpha) to Friday in Bravo's lane: day + crew move, length and start stay
     const fri = weekDay(4);
     // diagnostics for a CI-only miss: every toast, console line and pointer event
-    const consoleLines = [];
     page.on('console', (m) => { if (consoleLines.length < 40 && /warn|error/.test(m.type())) consoleLines.push(m.type() + ': ' + m.text().slice(0, 200)); });
     await safeEvaluate(page, () => {
       window.__crewDbg = [];
@@ -229,6 +229,13 @@ test.describe.serial('Crew Calendar @shard2', () => {
     const over2 = await safeEvaluate(page, () => document.scrollingElement.scrollWidth - window.innerWidth);
     expect(over2).toBeLessThanOrEqual(1);
     } finally {
+      // CI 2026-10-25 (@shard2, after ~150 tests): this test failed there and passes alone, so a failure prints the page
+      // state the next reader needs (layout pick, overlays, body classes, the first console warnings).
+      if (test.info().status !== test.info().expectedStatus) {
+        const st = await safeEvaluate(page, () => ({ url: location.pathname + location.hash, layout: document.documentElement.getAttribute('data-layout'), crewRoot: !!document.getElementById('nbdCrewRoot'), body: document.body.className, overlays: [...document.querySelectorAll('.modal.show, .modal.open, [role="dialog"]:not([hidden]), .toast, .nbd-toast')].filter((e) => e.getClientRects().length).map((e) => (e.id ? '#' + e.id : e.className.split(' ')[0]) + ':' + (e.textContent || '').trim().slice(0, 60)).slice(0, 8) })).catch((e) => String(e && e.message));
+        // eslint-disable-next-line no-console
+        console.log('[crew-calendar] failed with ' + JSON.stringify(st) + ' console=' + JSON.stringify(consoleLines.slice(0, 8)));
+      }
       // The shard shares this rep: leave the layout the way the next spec expects it (2026-10-25).
       await ensureClassicLayout(page).catch(() => {});
     }

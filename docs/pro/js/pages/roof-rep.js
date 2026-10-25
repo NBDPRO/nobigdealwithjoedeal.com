@@ -551,7 +551,7 @@ var TREES = {
   },
 };
 
-// ── Training: three courses, each earns a badge with a perk on the job ──
+// ── Training: six courses, each earns a badge with a perk on the job ──
 var COURSES = {
   ladder: { name: 'Ladder safety', badge: 'Ladder certified', perk: '+3 seconds on every roof inspection (you set up faster)' },
   tools: { name: 'Right tool, right job', badge: 'Tool pro', perk: '+3 seconds on adjuster test squares' },
@@ -1548,7 +1548,7 @@ function sfx(name) {
 var TROPHIES = [
   { k: 'clean7', ico: '🧼', name: 'Clean week', what: '7 clean days in a row', test: function () { return (SAVE.cleanStreak || 0) >= 7; } },
   { k: 'chad', ico: '🥊', name: 'Chad who?', what: 'Beat Storm Bros at 5 doors', test: function () { return st('rivals') >= 5; } },
-  { k: 'bosses', ico: '👑', name: 'Boss slayer', what: 'Sign all three boss doors', test: function () { return st('bosses') >= 3; } },
+  { k: 'bosses', ico: '👑', name: 'Boss slayer', what: 'Sign three boss doors', test: function () { return st('bosses') >= 3; } },
   { k: 'stars', ico: '⭐', name: 'Five stars', what: 'Earn five 5★ reviews', test: function () { return SAVE.reviews.filter(function (r) { return r === 5; }).length >= 5; } },
   { k: 'honest', ico: '🤝', name: 'Straight shooter', what: 'Tell 3 homeowners their roof is fine', test: function () { return st('honest') >= 3; } },
   { k: 'paper', ico: '📋', name: 'Paper trail', what: 'Document 5 supplements', test: function () { return st('supps') >= 5; } },
@@ -1574,7 +1574,7 @@ var TROPHIES = [
   { k: 'dogs', ico: '🐕', name: 'Dog whisperer', what: 'Calm 5 barking dogs the right way', test: function () { return st('dogs') >= 5; } },
   { k: 'tarp', ico: '⛺', name: 'First responder', what: 'Tarp 3 emergency leaks', test: function () { return st('tarps') >= 3; } },
   { k: 'news', ico: '📺', name: 'Straight talk on TV', what: 'Give an honest news interview', test: function () { return st('news') >= 1; } },
-  { k: 'safety', ico: '🦺', name: 'Safety first', what: 'Earn all three training badges', test: function () { return Object.keys(SAVE.badges).length >= 3; } },
+  { k: 'safety', ico: '🦺', name: 'Safety first', what: 'Earn any three training badges', test: function () { return Object.keys(SAVE.badges).length >= 3; } },
 ];
 function st(k) { return (SAVE.stats && SAVE.stats[k]) || 0; }
 function stat(k, n) { SAVE.stats = SAVE.stats || {}; SAVE.stats[k] = st(k) + (n || 1); if (DAY) dayCount(k); checkTrophies(); }
@@ -2524,7 +2524,7 @@ function renderToday() {
   Object.keys(SAVE.streets).forEach(function (sid) { SAVE.streets[sid].houses.forEach(function (h) { if (false) bld.push(h.name + ' · build day ' + h.buildDay + ' · ' + money(h.price)); }); });
   if (bld.length) html += '<div class="card"><h3>ON THE BUILD CALENDAR</h3><ul class="report">' + bld.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('') + '</ul></div>';
   var nb = Object.keys(SAVE.badges).length;
-  html += '<div class="card"><h3>CAREER</h3><div class="grid-sum"><span>Days worked</span><b>' + (SAVE.day - 1) + '</b><span>Sold (retail)</span><b>' + money(SAVE.sold) + '</b><span>Collected</span><b>' + money(SAVE.collected) + '</b><span>Best day</span><b>' + SAVE.bestDay + ' XP</b><span>Clean days</span><b>' + SAVE.cleanDays + '</b><span>Bank</span><b>' + money(SAVE.bank) + '</b><span>Reviews</span><b>' + (SAVE.reviews.length ? repStars().toFixed(1) + '★ (' + SAVE.reviews.length + ')' : '—') + '</b><span>Badges</span><b>' + nb + ' / 3</b></div>' +
+  html += '<div class="card"><h3>CAREER</h3><div class="grid-sum"><span>Days worked</span><b>' + (SAVE.day - 1) + '</b><span>Sold (retail)</span><b>' + money(SAVE.sold) + '</b><span>Collected</span><b>' + money(SAVE.collected) + '</b><span>Best day</span><b>' + SAVE.bestDay + ' XP</b><span>Clean days</span><b>' + SAVE.cleanDays + '</b><span>Bank</span><b>' + money(SAVE.bank) + '</b><span>Reviews</span><b>' + (SAVE.reviews.length ? repStars().toFixed(1) + '★ (' + SAVE.reviews.length + ')' : '—') + '</b><span>Badges</span><b>' + nb + ' / ' + Object.keys(COURSES).length + '</b></div>' +
     '<div class="row"><button type="button" class="btn" id="howBtn">How to play</button><button type="button" class="btn" id="resetBtn">Start a new career</button></div></div>';
   el.innerHTML = html;
   var sb = document.getElementById('startBtn'); if (sb) sb.addEventListener('click', startDay);

@@ -1049,9 +1049,14 @@ jobs:
           # connection-refusals are allowlisted there); widening functions
           # to all shards is future work once boot cost is addressed.
           NBD_EMU_FUNCTIONS: ${{ (matrix.shard == '@stranger' || matrix.shard == '@gauntlet') && '1' || '' }}
+        # The hosting emulator logs every GET (one line per script and stylesheet the dashboard loads); on a long
+        # shard that is ~1.6 MB of access log and the job-log tail the GitHub API serves (last 5000 lines) covered the
+        # final five minutes only, so a failure's error block from earlier in the run was out of reach (2026-10-25).
+        # Drop those lines; pipefail keeps the emulator script's exit code.
         run: |
+          set -o pipefail
           cd tests
-          npm run test:e2e:authed:emu
+          npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -v ' hosting: 127.0.0.1 - - '
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7

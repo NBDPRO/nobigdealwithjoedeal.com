@@ -94,6 +94,8 @@ async function renderLeaderboard(){
   // whose leads carry no repName showed as "Teammate Y6HCf6" — a uid fragment
   // (CRM sweep R14, 2026-09-28). A refused roster read falls back as before.
   if (window.NBDTeamNames) { try { await window.NBDTeamNames.load(); } catch (_) {} }
+  // Each rep's Roof Rep look (characters wave 11): best effort, a miss keeps the initials.
+  if (window.NBDTeamNames && window.NBDTeamNames.loadAvatars) { try { await window.NBDTeamNames.loadAvatars(); } catch (_) {} }
   Object.values(reps).forEach(r => {
     if (r.name) return;
     const rosterName = window.NBDTeamNames ? window.NBDTeamNames.nameFor(r.owner) : null;
@@ -137,8 +139,14 @@ async function renderLeaderboard(){
     const revStr = r.revenue > 0 ? '$' + (r.revenue >= 1000 ? (r.revenue / 1000).toFixed(1) + 'K' : Math.round(r.revenue)) : '$0';
     const barW = Math.round((r.won / maxWon) * 100);
     const knockStr = r.knocks > 0 ? ' · ' + Number(r.knocks) + ' doors' : '';
+    const look = (window.NBDTeamNames && window.NBDTeamNames.avatarFor) ? window.NBDTeamNames.avatarFor(r.owner) : null;
+    const initials = String(r.name || '?').split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
+    const face = (look && window.NBDChibi)
+      ? '<canvas class="lb-face" data-lb-face="' + esc(r.owner) + '" width="72" height="72" role="img" aria-label="' + esc(r.name) + '"></canvas>'
+      : '<div class="lb-initials" aria-hidden="true">' + esc(initials) + '</div>';
     return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--br);">' +
       '<div style="font-size:20px;width:28px;text-align:center;">' + (medals[i] || '#' + (i + 1)) + '</div>' +
+      face +
       '<div style="flex:1;">' +
         '<div style="font-size:13px;font-weight:600;">' + esc(r.name) + '</div>' +
         '<div style="font-size:11px;color:var(--m);">' + Number(r.leads || 0) + ' leads · ' + Number(r.won || 0) + ' won · ' + esc(rateStr) + ' close rate' + esc(knockStr) + '</div>' +
@@ -150,6 +158,11 @@ async function renderLeaderboard(){
       '</div>' +
     '</div>';
   }).join('');
+  // The looks breathe (idle, blink, a fidget every 9 s); a hidden view paints nothing (chibi v6).
+  if (window.NBDChibi) lbEl.querySelectorAll('canvas[data-lb-face]').forEach((cv) => {
+    const look = window.NBDTeamNames.avatarFor(cv.getAttribute('data-lb-face'));
+    if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust' }; });
+  });
 }
 
 // ══════════════════════════════════════════════

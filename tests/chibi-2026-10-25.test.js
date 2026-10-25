@@ -171,7 +171,26 @@ function fakeCanvas(w, h, connected) {
 
 console.log('\n5. The pages');
 const rr = read('docs/pro/roof-rep.html'), dash = read('docs/pro/dashboard.html'), rrjs = read('docs/pro/js/pages/roof-rep.js'), gs = read('docs/pro/js/game-sprite.js');
-ok('roof-rep.html loads chibi.js v9 before roof-rep-fx.js and roof-rep.js v10', rr.indexOf('js/chibi.js?v=9') > 0 && rr.indexOf('js/chibi.js?v=9') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=10') > 0);
+ok('roof-rep.html loads chibi.js v9 before roof-rep-fx.js and roof-rep.js v11', rr.indexOf('js/chibi.js?v=9') > 0 && rr.indexOf('js/chibi.js?v=9') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=11') > 0);
+const lbh = read('docs/pro/leaderboard.html'), lbj = read('docs/pro/js/pages/leaderboard.js');
+ok('wave 10: leaderboard.html loads chibi.js v9 (defer) before its module (v4), and the module draws the rep\'s own game-card avatar as a bust-crop chibi in the row, initials when there is none', lbh.indexOf('js/chibi.js?v=9') > 0 && lbh.indexOf('js/chibi.js?v=9') < lbh.indexOf('js/pages/leaderboard.js?v=4') && /getDoc\(doc\(db, 'userSettings', uid\)\)/.test(lbj) && /myAvatar = \(s\.exists\(\) && s\.data\(\)\.game && s\.data\(\)\.game\.avatar\) \|\| null/.test(lbj) && /window\.NBDChibi\.animate\(cv, window\.NBDChibi\.normalize\(myAvatar\), function \(t\) \{ return \{ pose: t % 14000 < 1600 \? 'wave' : 'idle', crop: 'bust' \}; \}\)/.test(lbj) && /esc\(initials\(name\)\)/.test(lbj) && /\.avatar canvas \{ width: 100%; height: 100%; display: block; border-radius: 50%; \}/.test(lbh));
+// wave 11: the dashboard's two leaderboards draw each teammate's Roof Rep look from roofRepScores (team-names.js).
+// Async (the fake reads resolve on microtasks), so it runs right before the summary.
+async function wave11() {
+  const tnSrc = read('docs/pro/js/team-names.js');
+  const mk = (claims, user, scores) => { let reads = 0; const win = { _userClaims: claims, _user: user, db: {}, collection: (_d, a, b, c) => [a, b, c].filter(Boolean).join('/'), query: (c) => c, where: (f, _o, v) => f + '==' + v, doc: (_d, a, b) => a + '/' + b,
+    getDocs: async (q) => { reads++; if (q !== 'roofRepScores') throw new Error('path ' + q); return { docs: scores.map((r) => ({ id: r.id, data: () => r })) }; },
+    getDoc: async (pth) => { reads++; const r = scores.find((x) => 'roofRepScores/' + x.id === pth); return { exists: () => !!r, data: () => r }; } }; vm.runInNewContext(tnSrc, { window: win }); return { TN: win.NBDTeamNames, reads: () => reads }; };
+  const team = mk({ companyId: 'co1' }, { uid: 'me' }, [{ id: 'u-rep', companyId: 'co1', avatar: { hair: 'afro', top: 'hoodie' } }, { id: 'u-none', companyId: 'co1' }]);
+  const before = team.TN.avatarFor('u-rep');
+  await team.TN.loadAvatars(); await team.TN.loadAvatars();
+  ok('wave 11: team-names.js reads the company\'s roofRepScores once and maps uid to the saved look; a row without an avatar and an unknown uid give null; nothing before the load', before === null && team.reads() === 1 && team.TN.avatarFor('u-rep').hair === 'afro' && team.TN.avatarFor('u-none') === null && team.TN.avatarFor('nobody') === null && team.TN.avatarsReady() === true);
+  const solo = mk({}, { uid: 'me' }, [{ id: 'me', avatar: { hair: 'bun' } }]);
+  await solo.TN.loadAvatars();
+  ok('wave 11: a solo owner (no companyId claim) reads only their own roofRepScores doc', solo.reads() === 1 && solo.TN.avatarFor('me').hair === 'bun');
+  const api = read('docs/pro/js/dashboard-api.js'), wg = read('docs/pro/js/widgets.js'), dash = read('docs/pro/dashboard.html');
+  ok('wave 11: the Leaderboard view loads the looks after the roster and draws a bust-crop chibi per row (initials when a rep has none); the Team Leaderboard widget draws one beside the name and redraws itself once the read lands', /await window\.NBDTeamNames\.loadAvatars\(\)/.test(api) && /canvas class="lb-face" data-lb-face=/.test(api) && /window\.NBDChibi\.animate\(cv, window\.NBDChibi\.normalize\(look\), function \(\) \{ return \{ pose: 'idle', crop: 'bust' \}; \}\)/.test(api) && /esc\(initials\)/.test(api) && /data-wg-face=/.test(wg) && /TN\.loadAvatars\(\)\.then\(\(\) => \{ const w = WIDGETS\.find\(x => x\.id === 'team-leaderboard'\); if \(w && document\.contains\(el\)\) w\.render\(el\); \}\)/.test(wg) && /team-names\.js\?v=2/.test(dash) && /dashboard-api\.js\?v=9/.test(dash) && /widgets\.js\?v=19/.test(dash));
+}
 ok('dashboard.html loads chibi.js v9 before game-sprite.js (v4)', dash.indexOf('js/chibi.js?v=9') > 0 && dash.indexOf('js/chibi.js?v=9') < dash.indexOf('js/game-sprite.js?v=4'));
 ok('wave 5: a loop whose canvas has no box (hidden tab or panel) paints nothing and polls twice a second', /if \(box && !box\.width && !box\.height\) \{ box = null; timer = setTimeout\(frame, 500\); return; \}/.test(read('docs/pro/js/chibi.js')) && /if \(timer\) clearTimeout\(timer\);/.test(read('docs/pro/js/chibi.js')) && /_paints: function \(\) \{ return paints; \}/.test(read('docs/pro/js/chibi.js')));
 ok('wave 5: animate() defines stop before its first frame (a detached canvas stops cleanly instead of throwing)', (function () { var js = read('docs/pro/js/chibi.js'); var a = js.indexOf('var stop = function () { if (!alive) return; alive = false; loops--;'); var f = js.indexOf('loops++;\n    frame();'); return a > 0 && f > 0 && a < f; })());
@@ -198,5 +217,7 @@ const css = read('docs/pro/css/roof-rep.css'), gcss = read('docs/pro/css/game-ca
 ok('no avatar canvas keeps image-rendering: pixelated (vector now)', !/pixelated/.test(css) && !/pixelated/.test(gcss));
 ok('roof-rep.css v6 and game-card.css v4 are what the pages load', /roof-rep\.css\?v=6/.test(rr) && /game-card\.css\?v=4/.test(dash));
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+wave11().then(() => {
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed ? 1 : 0);
+}, (e) => { console.log('  ✗ wave 11 block threw: ' + (e && e.stack)); process.exit(1); });

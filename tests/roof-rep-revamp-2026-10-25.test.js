@@ -111,5 +111,8 @@ console.log('\n6. four homeowners from the playbook');
   ok('every tree ends at the inspection', who.every((p) => /end: 'inspect'/.test(tree(p))));
 }
 
+console.log('\n── career card (2026-10-25)');
+ok('the Career card counts badges against the number of courses, not a hard-coded 3', /Badges<\/span><b>' \+ nb \+ ' \/ ' \+ Object\.keys\(COURSES\)\.length \+ '<\/b>/.test(SRC) && !/nb \+ ' \/ 3</.test(SRC));
+ok('Safety first asks for any three badges (its test is >= 3), Top of the class for all six; Boss slayer for three of the six boss doors', /name: 'Safety first', what: 'Earn any three training badges'/.test(SRC) && /name: 'Top of the class', what: 'Earn all six training badges'/.test(SRC) && /name: 'Boss slayer', what: 'Sign three boss doors'/.test(SRC) && /name: 'Boss of bosses', what: 'Sign all six boss doors'/.test(SRC));
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
