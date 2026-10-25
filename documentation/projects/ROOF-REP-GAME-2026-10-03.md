@@ -218,3 +218,24 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   (`dashboard-api.js` v9) shows each rep's chibi beside the medal, initials for a rep who has never opened Roof Rep;
   the Team Leaderboard widget (`widgets.js` v19) draws one beside the name and redraws itself once the read lands.
   Guard grows to 79.
+
+### Waves 12 and 13 (same day, eighth PR): builds, and eyes that follow you
+
+- **Wave 12, builds.** Every character had the same body. `chibi.js` (v10) knows four builds (`BUILDS`: regular ·
+  slim · stocky · tall): the body group (legs, torso, arms, and what the hands hold) is scaled from the feet by the
+  build's width and height, the head is scaled on its own, and the head sits on the scaled neck (`headRise`), so a
+  tall rep reads as tall (longer body, smaller head) and a stocky one as stocky (wider body, same head). Props and
+  tools are counter-scaled inside the hand so a mug stays a mug. An elder look stoops: a 4% shorter body, the head
+  carried 2 units lower and 3 forward. The bust crop moves the feet by the same rise, so a leaderboard face stays
+  centred whatever the build. Both pickers (the locker and the Home game card, `game-sprite.js` v5) grew a **Build**
+  row; the street rolls a build per homeowner (most people regular; `PERSONA_BUILD` gives the retired cop, the farmer
+  and the night-shift worker a stocky one, the veteran, the realtor and the CEO a tall one, the flipper and the
+  attorney a slim one), and Big Dave is stocky. `roof-rep.js?v=12`.
+- **Wave 13, gaze.** A draw option `gaze { x, y }` (-1..1, screen space) turns the irises toward a point (the iris has
+  more room to climb than to drop, so looking down is gentler) and tilts the head three degrees after them; facing
+  -1 mirrors it. `animate()` keeps one passive `pointermove` / `pointerdown` listener for the page and, for four
+  seconds after the pointer (or a finger) last moved, eases every loop's gaze toward it and back out after, so the
+  locker preview, the HUD face, the game card and every leaderboard face watch the cursor. A per-frame `gaze: false`
+  opts a canvas out; a per-frame gaze of its own wins; reduced motion draws none. The street draws by hand and keeps
+  its own glances. Guard grows to 88 (builds, head rise, every pose per build, the pickers and the street; the gaze
+  geometry, the clamps, and a frozen-clock loop with the pointer to each side).

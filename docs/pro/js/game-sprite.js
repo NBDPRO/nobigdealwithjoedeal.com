@@ -35,6 +35,7 @@
     beard:  { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
     shirt:  { label: 'Shirt', colors: C.shirt },
     top:    { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
+    build:  { label: 'Build', values: [['regular', 'Regular'], ['slim', 'Slim'], ['stocky', 'Stocky'], ['tall', 'Tall']] }, // wave 12: drawn by chibi.js; the 32-px grid below ignores it
     vest:   { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
     pants:  { label: 'Pants', colors: C.pants },
     tool:   { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -59,6 +60,7 @@
       beard: pick(vals('beard'), a.beard, DEFAULTS.beard),
       shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
       top: pick(vals('top'), a.top, 'tee'),
+      build: pick(vals('build'), a.build, 'regular'),
       vest: pick(vals('vest'), a.vest, DEFAULTS.vest),
       pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
       tool: pick(vals('tool'), a.tool, DEFAULTS.tool),

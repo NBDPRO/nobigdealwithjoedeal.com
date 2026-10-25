@@ -26,7 +26,10 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
-  the build, nailing and ladder mini-games. Wave 4: the looks above. Guard `tests/chibi-2026-10-25.test.js` (60).
+  the build, nailing and ladder mini-games. Wave 4: the looks above. Waves 6–9: course-card demos, homeowner props,
+  weather, idle fidgets. Waves 10–11: the chibi on the leaderboard page and the dashboard leaderboards. Waves 12–13:
+  builds (regular / slim / stocky / tall, an elder stoop) and eyes that follow the pointer. Guard
+  `tests/chibi-2026-10-25.test.js` (88).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the

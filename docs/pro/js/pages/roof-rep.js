@@ -38,6 +38,7 @@ var OPTIONS = {
   beard: { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
   shirt: { label: 'Shirt', colors: C.shirt },
   top: { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
+  build: { label: 'Build', values: [['regular', 'Regular'], ['slim', 'Slim'], ['stocky', 'Stocky'], ['tall', 'Tall']] }, // wave 12 (chibi.js)
   vest: { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
   pants: { label: 'Pants', colors: C.pants },
   tool: { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -59,7 +60,7 @@ function normalize(a) {
     beard: pickv(vals('beard'), a.beard, DEFAULTS.beard), shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
     vest: pickv(vals('vest'), a.vest, DEFAULTS.vest), pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
     tool: pickv(vals('tool'), a.tool, DEFAULTS.tool), extra: pickv(vals('extra'), a.extra, DEFAULTS.extra),
-    top: pickv(vals('top'), a.top, 'tee'),
+    top: pickv(vals('top'), a.top, 'tee'), build: pickv(vals('build'), a.build, 'regular'),
   };
 }
 function shade(hex, amt) {
@@ -225,7 +226,7 @@ var PERSONA = {
   exadjuster: { want: 'best', boss: true, tag: 'retired adjuster', look: { skin: 1, hair: 'bald', hairColor: 5, eyes: 'sleepy', hat: 'cap', hatColor: 1, beard: 'mustache', shirt: 5, vest: 'none', pants: 0, tool: 'none', extra: 'none', clipboard: true } },
 };
 var ADJUSTER = { skin: 2, hair: 'short', hairColor: 0, eyes: 'round', hat: 'cap', hatColor: 5, beard: 'mustache', shirt: 2, vest: 'none', pants: 2, tool: 'none', extra: 'glasses', clipboard: true };
-var FOREMAN = { skin: 4, hair: 'buzz', hairColor: 0, eyes: 'happy', hat: 'hardhat', hatColor: 4, beard: 'full', shirt: 1, vest: 'yes', pants: 1, tool: 'tape', extra: 'glasses' };
+var FOREMAN = { skin: 4, hair: 'buzz', hairColor: 0, eyes: 'happy', hat: 'hardhat', hatColor: 4, beard: 'full', shirt: 1, vest: 'yes', pants: 1, tool: 'tape', extra: 'glasses', build: 'stocky' }; // Big Dave is built like a foreman (wave 12)
 
 // The talks. {n} is the homeowner's name. A choice: say, then go (next node) or end,
 // trust (+/-), tip ({good|bad, text}), dirty (breaks the clean-day rule).
@@ -608,6 +609,8 @@ function migrate(s) {
   if (!streetOf(s.streetId)) s.streetId = 'maple';
   s.badges = s.badges || {}; s.trained = s.trained || {}; s.usedNames = s.usedNames || []; s.skills = s.skills || {}; s.reviews = s.reviews || []; s.stats = s.stats || {}; s.trophies = s.trophies || {}; s.seasons = s.seasons || {}; s.cleanStreak = s.cleanStreak || 0; s.owned = s.owned || {}; if (s.bank == null) s.bank = s.collected || 0; s.seed = s.seed || 1 + Math.floor(Math.random() * 997); return s; }
 // wave 7: what a homeowner carries to the door (chibi.js props); most of a persona's doors, not all
+// wave 12: a persona's build, where one fits the part; everyone else rolls one (most people are regular)
+var PERSONA_BUILD = { retiredCop: 'stocky', veteran: 'tall', farmer: 'stocky', flipper: 'slim', realtor: 'tall', ceo: 'tall', lawyer: 'slim', nightShift: 'stocky' };
 var PERSONA_PROP = { busy: 'phone', realtor: 'phone', flipper: 'phone', nightShift: 'mug', retiredCop: 'mug', skeptic: 'mug', elder: 'cane', caregiver: 'cane', landlord: 'keys', newBaby: 'baby', diy: 'brush', threeQuotes: 'papers', claimDenied: 'papers', deductible: 'papers' };
 function makeLook(persona) {
   var p = PERSONA[persona] || {};
@@ -616,7 +619,8 @@ function makeLook(persona) {
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
     tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder,
-    prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none' };
+    prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none',
+    build: PERSONA_BUILD[persona] || pick(['regular', 'regular', 'regular', 'slim', 'stocky', 'tall']) };
 }
 function newName() {
   var free = NAMES.filter(function (n) { return SAVE.usedNames.indexOf(n) < 0; });
