@@ -152,3 +152,10 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   hammering (both cheer when the ridge cap goes on); the nailing roofer swings on every tap; the rep stands at the
   ladder's foot sizing it up, then cheers at 4 ft or slumps at 2 / 7. The ladder label drops the last pixel font.
 - Versions: `chibi.js?v=3`, `roof-rep.js?v=5`. Guard grows to 57 checks.
+
+### Wave 4 (same day, fourth PR): more people
+
+- Three hair styles (curly, afro, bun) and a **Top** option (tee, hoodie with hood / pouch / drawstrings, polo with
+  collar and placket), in the renderer, the Roof Rep locker and the CRM game-card picker. The 32×32 pixel fallback
+  draws the new hair as its nearest cousin. Every saved look still reads the same (`top` defaults to tee).
+- Versions: `chibi.js?v=4`, `roof-rep.js?v=6`, `game-sprite.js?v=4`. Guard grows to 59 checks.

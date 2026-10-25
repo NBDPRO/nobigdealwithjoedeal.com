@@ -56,17 +56,19 @@ ok('normalize falls back on every unknown value and keeps mood and clipboard', n
 ok('the palette matches the game card sprite (same six skins, six hair colours, six shirts, four pants)', JSON.stringify(CH.C.skin) === JSON.stringify(['#FBD9C0', '#F2C6A0', '#D99A6C', '#B97A4E', '#8D5A36', '#5E3B23']) && CH.C.shirt.length === 6 && CH.C.pants.length === 4 && CH.C.hair.length === 6);
 
 console.log('\n2. Every part, every pose, both facings draw');
-const hairs = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald'], eyes = ['round', 'happy', 'wink', 'sleepy'], hats = ['hardhat', 'cap', 'beanie', 'none'];
+const hairs = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], eyes = ['round', 'happy', 'wink', 'sleepy'], hats = ['hardhat', 'cap', 'beanie', 'none'];
 const beards = ['none', 'stubble', 'mustache', 'full'], tools = ['hammer', 'tape', 'ladder', 'none'], extras = ['none', 'glasses', 'shades', 'belt'];
 let combos = 0, err = null, minFills = Infinity;
 try {
   hairs.forEach((hair) => hats.forEach((hat) => eyes.forEach((ey) => beards.forEach((beard) => {
     const { ctx, log } = makeCtx();
-    CH.draw(ctx, { hair, hat, eyes: ey, beard, vest: 'yes', tool: tools[combos % 4], extra: extras[combos % 4], clipboard: combos % 5 === 0, elder: combos % 7 === 0 }, { x: 50, y: 120, h: 120, t: 1234, pose: CH.POSES[combos % 8], facing: combos % 2 ? -1 : 1 });
+    CH.draw(ctx, { hair, hat, eyes: ey, beard, vest: combos % 3 ? 'yes' : 'none', top: ['tee', 'hoodie', 'polo'][combos % 3], tool: tools[combos % 4], extra: extras[combos % 4], clipboard: combos % 5 === 0, elder: combos % 7 === 0 }, { x: 50, y: 120, h: 120, t: 1234, pose: CH.POSES[combos % 8], facing: combos % 2 ? -1 : 1 });
     combos++; minFills = Math.min(minFills, log.fills);
   }))));
 } catch (e) { err = e; }
-ok('6 hair × 4 headwear × 4 eyes × 4 beards (tools, extras, clipboard, elder cycling) draw without throwing', !err && combos === 384, err && err.stack);
+ok('9 hair × 4 headwear × 4 eyes × 4 beards (tops, tools, extras, clipboard, elder cycling) draw without throwing', !err && combos === 576, err && err.stack);
+ok('normalize knows the wave-4 looks: curly / afro / bun hair and the tee / hoodie / polo top (unknown top falls back to tee)', CH.normalize({ hair: 'afro', top: 'hoodie' }).hair === 'afro' && CH.normalize({ hair: 'bun', top: 'polo' }).top === 'polo' && CH.normalize({ top: 'cape' }).top === 'tee' && CH.normalize({ hair: 'curly' }).hair === 'curly');
+ok('a hoodie and a polo draw more than a tee (hood + pouch + strings; collar + placket)', (() => { const t = makeCtx(), h = makeCtx(), p = makeCtx(); CH.draw(t.ctx, { top: 'tee' }, { h: 60 }); CH.draw(h.ctx, { top: 'hoodie' }, { h: 60 }); CH.draw(p.ctx, { top: 'polo' }, { h: 60 }); return h.log.fills > t.log.fills && p.log.fills > t.log.fills; })());
 {
   let e2 = null, n2 = 0;
   try { ['point', 'nod', 'shrug', 'think', 'sad', 'cheer'].forEach((p) => ['hammer', 'ladder', 'none'].forEach((tool) => { CH.draw(makeCtx().ctx, { tool, clipboard: true, hair: 'ponytail' }, { h: 90, t: 777, pose: p, from: 'walk', mix: 0.4 }); n2++; })); } catch (e) { e2 = e; }
@@ -155,8 +157,8 @@ function fakeCanvas(w, h, connected) {
 
 console.log('\n5. The pages');
 const rr = read('docs/pro/roof-rep.html'), dash = read('docs/pro/dashboard.html'), rrjs = read('docs/pro/js/pages/roof-rep.js'), gs = read('docs/pro/js/game-sprite.js');
-ok('roof-rep.html loads chibi.js v3 before roof-rep-fx.js and roof-rep.js v5', rr.indexOf('js/chibi.js?v=3') > 0 && rr.indexOf('js/chibi.js?v=3') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=5') > 0);
-ok('dashboard.html loads chibi.js v3 before game-sprite.js (v3)', dash.indexOf('js/chibi.js?v=3') > 0 && dash.indexOf('js/chibi.js?v=3') < dash.indexOf('js/game-sprite.js?v=3'));
+ok('roof-rep.html loads chibi.js v4 before roof-rep-fx.js and roof-rep.js v6', rr.indexOf('js/chibi.js?v=4') > 0 && rr.indexOf('js/chibi.js?v=4') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=6') > 0);
+ok('dashboard.html loads chibi.js v4 before game-sprite.js (v4)', dash.indexOf('js/chibi.js?v=4') > 0 && dash.indexOf('js/chibi.js?v=4') < dash.indexOf('js/game-sprite.js?v=4'));
 ok('game-sprite.js draws through the chibi when it is on the page (a wave every 14 s, a cheer on tap, one listener per canvas) and keeps the 32×32 grid as the fallback', /window\.NBDChibi\.animate\(canvas, normalize\(avatar\), function \(t\) \{ return \{ pose: canvas\.__cheerUntil > t \? 'cheer' : t % 14000 < 1600 \? 'wave' : 'idle' \}; \}\)/.test(gs) && /if \(!canvas\.__chibiTap\) \{ canvas\.__chibiTap = true; canvas\.addEventListener\('click'/.test(gs) && /_build: build, _outline: outline/.test(gs));
 ok('the Roof Rep HUD face and locker preview cheer when tapped (one listener per canvas, on the same loop)', /canvas\.id === 'meFace' \|\| canvas\.id === 'lkPrev'\)\) \{ canvas\.__chibiTap = true; canvas\.addEventListener\('click'/.test(rrjs) && /if \(canvas\.__cheerUntil > now\) pz = 'cheer';/.test(rrjs));
 ok('roof-rep.js draws the street rep and the rival through chibi() with a pose, facing, the frame time and a tween key so pose changes cross-fade', /chibi\(g, SAVE\.avatar, Math\.round\(WALK\.px\), Math\.round\(WALK\.py\) - 12, p0, WALK\.face \|\| 1, now, 0, 0, 'rep'\)/.test(rrjs) && /chibi\(g, RIVAL_LOOK, [^;]*rd > 1\.6 \? 'walk' : 'idle'[^;]*'rival'\)/.test(rrjs) && /var tw = key \? CH\.tween\(TWEENS\[key\] \|\| \(TWEENS\[key\] = \{\}\), p, t\) : null/.test(rrjs));
