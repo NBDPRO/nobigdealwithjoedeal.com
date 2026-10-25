@@ -116,7 +116,10 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 ## Next lanes (engineering, no Jo needed)
 
 1. ~~Public-surface E2E install wedge~~ - fixed the same day (Jo chose option (b)): WebKit moved off the required job into `Public-surface E2E (mobile WebKit)`, not required.
-2. Purge follow-ups: `clearFirestoreCache()` on account switch needs a browser repro.
+2. ~~Purge follow-ups~~ - browser repro built 2026-10-25: `tests/e2e/account-switch-purge.spec.js` (@audit) creates a
+   second tenant with the admin SDK, signs A in, signs out the PLAIN way (`auth.signOut()`), signs B in through the
+   login page and asserts A's `nbd_*` / `nav-` keys are gone and `nbd_last_uid` flips to B only after the purge
+   (the pass-2 High path, closed by #2695). Passes on the emulators in 12 s.
 3. ~~Pass-2 leftovers~~ - worked 2026-10-24: storm callables rate-limited, `/free-tools` CTA contrast fixed,
    `confirmedSourceAt` and the opt-out read checked (no change needed). Still open: the digest's `deal_rooms` team
    undercount and `companies.limit(500)` (deferred, see the [pass-2 update](../audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md)).
