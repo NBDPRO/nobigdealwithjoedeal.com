@@ -65,3 +65,30 @@ upgrades; 26 trophies; daily challenge; first-day tutorial; chiptune sound.
 - `tests/firestore-rules.test.js` (roofRep owner-only; roofRepScores same-company)
 - `tests/e2e/roof-rep.spec.js` (iPhone first: More tab, tutorial, a full day,
   Firestore save, wiped-cache reload; then desktop sidebar tab + "← CRM")
+
+## Update 2026-10-25: the revamp (Jo: "seriously revamp Roof Rep")
+
+**The repo is the source now.** `docs/pro/js/pages/roof-rep.js` is edited directly; the claude.ai artifact above is
+retired and the split script is no longer used. GameForce (gameforce.ai, Jo's original gamification inspiration) was
+read again for the mechanic list: XP levels, leaderboards, achievements, daily quests, duel arena, guilds, tournaments,
+token shop, boss battles, dungeon runs, streaks, "#n this week / all time". Roof Rep already had half; the rest landed
+the Roof Rep way (no loot boxes, no stakes, the Kentucky rules still the core).
+
+| Piece | What changed |
+| --- | --- |
+| Look | NBD palette (navy, brand orange, light orange on navy) and Montserrat / Lato replace the retro arcade skin. The street is drawn as a clean illustration at 2x (gable roofs, framed windows that glow after 4 PM, paths, bushes, pennant flags). Characters stay the pixel sprites shared with the CRM game card. `css/roof-rep.css` rewritten. |
+| Phone layout | One-strip HUD, tabs as a fixed bottom bar (safe-area aware), the street edge to edge with the homeowner's speech sheet tucked under it, "Drive to" as a scroller. |
+| Feel | `js/pages/roof-rep-fx.js`: floating +XP / cash text, confetti and flash on a signed job, shake and red flash on a bad call, a knock ring, walk bob, rain / snow / leaves, evening tint, staggered choice buttons, a LEVEL UP card. Reduced motion keeps particles, drops shakes and bobs. |
+| Objection duel | Every pitch opens with two pushbacks from a 17-objection pool (`js/pages/roof-rep-rules.js` OBJECTIONS) written in NBD's voice. One best answer each (+trust, a lesson tip), an ok one, a weak one; the Kentucky-rule traps (deductible, AOB / "I'll handle your claim", cash up front, skip the permit, sign the check over, pad the scope) are dirty and lose the door. A trust meter is the HP bar. |
+| Quest board | Three daily quests (seeded per day) replace the single challenge; all three in a day pays $500 + 60 XP. A weekly quest rotates with the week (sign 5, inspect 10, knock 30, 3 honest calls, 5 clean days) and pays cash + XP. |
+| Storm Run | Train tab: a 60-second objection gauntlet. Best answers score, traps strike, three strikes end it; a perfect run pays a bonus. 20 minutes of the day if played mid-day. |
+| Seasons | 28 days. After the day-28 summary a season card ranks the rep on the season's XP (Rookie, Door Knocker, Estimator, Closer, Roof Boss, Storm Legend) and resets. |
+| Crew | "#n this week · #m all time" on the board, and **Duel** beside any crewmate: most week XP by Monday, bragging rights only (client-side from `roofRepScores`; no new writes). |
+| Trophies | Objection handler (25 best answers), Storm runner (a perfect run), Season finisher. Clean-streak counter in the header. |
+
+Tests: `tests/roof-rep-revamp-2026-10-25.test.js` (46: traps never win, one best answer each, forbidden lines only on
+traps, seeded picks, scoring, seasons, crew ranks, wiring) alongside the original `roof-rep-game-2026-10-03` pins.
+
+Not done yet (next): new homeowner personas and streets from NBD's playbook; a rooftop inspection mini-game with photo
+evidence (the grid game stays); crew guild / team goals; the e2e spec (`tests/e2e/roof-rep.spec.js`) still drives the
+same ids and passes the same flow.
