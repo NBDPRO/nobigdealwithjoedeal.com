@@ -14,10 +14,9 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   the turf fallback), #2733 (the sample account's game card, wave 5, the LEAVE scene, the toast style leak and the
   Tools drawer).
 - **Open:** #2734 (the Pipeline strip one row on a phone, the @shard2 layout-leak reset in five specs, chibi v9 with
-  the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9). **Held back on the
-  branch, not yet pushed, for the PR after it** (so #2734's CI run is not cancelled again): the hero-video test's
-  `vendor_id` allow (ffprobe 6.1), the digest + MCP team deal-room count and company paging (pass-2 item 2), and the
-  `lead_sources` key hardening (pass-2 item 6). Each has its pin; `git log origin/main..` lists them.
+  the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9). It also carries the
+  hero-video test's `vendor_id` allow (ffprobe 6.1), the digest + MCP team deal-room count and company paging
+  (pass-2 item 2), and the `lead_sources` key hardening (pass-2 item 6), each with its pin.
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
