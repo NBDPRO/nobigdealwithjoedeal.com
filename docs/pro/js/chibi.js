@@ -37,7 +37,8 @@
  *          animated canvas gets a wave back for 1.2 s unless the page handles taps itself (poke: false, or a canvas that
  *          already has a __chibiTap handler), and every fourth blink is a double blink. Draw option pop 0..1 is the
  *          pop-in's progress for callers that draw by hand. Wave 15: draw option cold 0..1 puffs breath from the mouth
- *          every 3.2 s (the street passes it in winter).
+ *          every 3.2 s (the street passes it in winter). Wave 16: eyeColor 0..4 (brown · blue · green · hazel · grey)
+ *          colours the iris; both pickers offer it.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -54,6 +55,7 @@
     color: ['#F2A900', '#378ADD', '#E24B4A', '#639922', '#F5F5F0', '#2C2C2A'],
     shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
     pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
+    eye: ['#3A2A26', '#2F6FB3', '#3E7F4C', '#8A6A3A', '#5E6670'], // wave 16: brown (the look every saved avatar had) · blue · green · hazel · grey
   };
   var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], EYES = ['round', 'happy', 'wink', 'sleepy'];
   var TOPS = ['tee', 'hoodie', 'polo'];
@@ -75,7 +77,7 @@
     a = a || {};
     return {
       skin: idx(a.skin, C.skin.length, 1), hair: pick(HAIRS, a.hair, 'short'), hairColor: idx(a.hairColor, C.hair.length, 1),
-      eyes: pick(EYES, a.eyes, 'round'), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
+      eyes: pick(EYES, a.eyes, 'round'), eyeColor: idx(a.eyeColor, C.eye.length, 0), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
       clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
@@ -230,7 +232,7 @@
     // wave 12: the build, and an elder's stoop (the head carried forward)
     var B = BUILDS[a.build], bw = B.w, bh = bodyH(a), bhead = B.head;
     if (a.elder) p.lean += 3;
-    var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants];
+    var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants], eyeC = C.eye[a.eyeColor];
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
@@ -337,7 +339,7 @@
     function roundEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey, 6, 7.5, 0, WHITE);
-      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, '#6A5248'); ir.addColorStop(0.7, '#3A2A26'); ir.addColorStop(1, '#241915');
+      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, shade(eyeC, 44)); ir.addColorStop(0.7, eyeC); ir.addColorStop(1, shade(eyeC, -24));
       ctx.fillStyle = ir; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 1.5 + lookY, 4, 5.5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#1A1210'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.6 + lookY, 2.3, 2.8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(cx, ey - 5, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill();
@@ -348,7 +350,7 @@
     function sleepyEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey + 1, 6, 5, 0, WHITE);
-      ctx.fillStyle = '#3A2A26'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = eyeC; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1 + lookY * 0.6, 1.3, 0, Math.PI * 2); ctx.fill();
       pen.shape(function (c) { c.moveTo(cx - 7, ey - 6); c.quadraticCurveTo(cx, ey - 1, cx + 7, ey - 6); c.lineTo(cx + 7, ey - 1.5); c.quadraticCurveTo(cx, ey - 3, cx - 7, ey - 1.5); }, skinG, true);
       pen.line(cx - 6, ey - 1.5, cx + 6, ey - 1.5, 2);

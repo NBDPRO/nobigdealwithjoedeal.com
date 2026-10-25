@@ -252,3 +252,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   homeowner at the door for the season without touching the saved look: in winter a beanie over bare hair and a
   hoodie over a tee (most of them; the house index decides, so the same person dresses the same way all day), in
   summer shades on every other bare-eyed homeowner. Guard grows to 94.
+- **Wave 16, eye colour.** `C.eye` (brown · blue · green · hazel · grey; brown first, so every saved look keeps its
+  eyes) colours the iris gradient of the round eye and the fill of the chill eye; the pupil stays dark. Both pickers
+  grew an **Eye color** swatch row (the locker; the game card through `game-sprite.js` v6 with the five swatch classes
+  in `game-card.css` v5, which the game-xp guard checks against the option table), and the street rolls one per
+  homeowner. `chibi.js` v11, `roof-rep.js` v13. Guard grows to 97 (the palette, normalize, the gradient stops and
+  fills a blue-eyed and a green-eyed draw use, the pickers, the CSS and the street).
