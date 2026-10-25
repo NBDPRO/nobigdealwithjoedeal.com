@@ -142,3 +142,13 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
 - **Tap to cheer:** the HUD face, the locker preview and the CRM game-card avatar cheer for 1.6 s when tapped (one
   listener per canvas, same loop).
 - Versions: `chibi.js?v=2`, `roof-rep.js?v=4`, `game-sprite.js?v=3`. Guard grows to 53 checks.
+
+### Wave 3 (same day, third PR): the crews in the mini-games
+
+- Two poses: `hammer` (a 520 ms wind-up and strike; the tool stays in hand through the swing) and `climb` (hands on
+  the rungs, legs stepping).
+- `sceneLoop(cv, paint)` keeps a mini-game canvas painting while it is on the page, on the same stop hook the chibi
+  loops use. The build cross-section has Big Dave on the ground pointing out the next layer and a roofer on the deck
+  hammering (both cheer when the ridge cap goes on); the nailing roofer swings on every tap; the rep stands at the
+  ladder's foot sizing it up, then cheers at 4 ft or slumps at 2 / 7. The ladder label drops the last pixel font.
+- Versions: `chibi.js?v=3`, `roof-rep.js?v=5`. Guard grows to 57 checks.

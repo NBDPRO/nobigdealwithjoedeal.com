@@ -24,7 +24,8 @@
  *                                         stop(). Under prefers-reduced-motion it draws one still frame.
  *   NBDChibi.tween(state, pose, now)   — pose + from + mix for a caller that draws by hand (the street): give it the
  *                                         same state object every frame
- *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug
+ *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
+ *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
  * Pure drawing; no DOM writes besides the canvas it is handed. CSP-safe, no dependencies. ES5 on purpose (classic
  * script on both pages). Guarded by tests/chibi-2026-10-25.test.js.
@@ -43,7 +44,7 @@
   var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald'], EYES = ['round', 'happy', 'wink', 'sleepy'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
   var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'];
-  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug'];
+  var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
   var INK = '#1f1a17', WHITE = '#FFFFFF', BLUSH = 'rgba(242,120,120,.45)', VEST = '#C6E11C', VESTD = '#9DB51A';
   var TWEEN_MS = 220;
   var reduce = false;
@@ -74,7 +75,7 @@
   function poseOf(pose, t, o) {
     var p = { bob: 0, lean: 0, tilt: 0, armL: 0, armR: 0, elbowL: -8, elbowR: -8, legL: 0, legR: 0, kneeL: 0, kneeR: 0, armRUp: 0, armLUp: 0,
       jump: 0, sx: 1, sy: 1, hair: 0, hat: 0, mouth: 'smile', browUp: 0, browDown: 0, eyesClosed: false, look: 0, fist: false,
-      point: false, mouthOpen: 0, emote: null };
+      point: false, mouthOpen: 0, emote: null, swing: false };
     var m = reduce ? 0 : 1, s = Math.sin, c = Math.cos, seed = o.seed || 0;
     if (o.blink !== false) { var cyc = (t + seed) % 3600; p.eyesClosed = !!(cyc > 3450 && m); }
     if (pose === 'walk') {
@@ -102,6 +103,18 @@
     else if (pose === 'think') { p.armRUp = 1; p.armR = -118; p.elbowR = -130 + s(t / 500) * 3 * m; p.look = -1; p.browUp = 0.5; p.tilt = -4; p.mouth = 'flat'; p.emote = 'dots'; }
     else if (pose === 'point') { p.armRUp = 1; p.armR = -108 + s(t / 260) * 2 * m; p.elbowR = -6; p.point = true; p.browUp = 1; p.look = 1; p.lean = 3; p.mouth = 'open'; p.mouthOpen = 0.35; }
     else if (pose === 'nod') { var nd = s(t / 190) * m; p.tilt = nd * 4; p.bob = Math.max(0, nd) * 1.6; p.browUp = 0.5; p.hair = -nd * 3; p.armL = 2; p.armR = -2; p.mouth = 'grin'; }
+    else if (pose === 'hammer') {
+      // Wind up over the shoulder, strike down fast, hold a beat: a 520 ms cycle the tool rides along.
+      var cyc2 = (t % 520) / 520, k = cyc2 < 0.6 ? cyc2 / 0.6 : 1 - (cyc2 - 0.6) / 0.4; k = k * k;
+      p.armRUp = 1; p.swing = true; p.armR = -150 + k * 120 * m; p.elbowR = -40 + k * 30 * m; p.lean = 3 + k * 3 * m; p.tilt = -2 + k * 4 * m;
+      p.armL = 10; p.elbowL = -20; p.browUp = 0.6; p.mouth = cyc2 > 0.6 && m ? 'open' : 'flat'; p.mouthOpen = cyc2 > 0.6 && m ? 0.4 : 0; p.sy = 1 - k * 0.02 * m;
+    }
+    else if (pose === 'climb') {
+      // Hands on the rungs, one leg stepping up at a time, the body close to the ladder.
+      var st = s(t / 240) * m;
+      p.armLUp = 1; p.armRUp = 1; p.armL = 165 + st * 6; p.armR = -165 + st * 6; p.elbowL = 10; p.elbowR = -10;
+      p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
+    }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }
     else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; p.hair = s(t / 650) * 1.5 * m; var gl = (t + seed * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; } // a glance to each side every 6.4 s
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
@@ -336,8 +349,9 @@
 
     // the right (front) arm and whatever it holds
     arm(66, 78, p.armR, p.elbowR, p.fist, p.point);
-    if (!p.fist && !p.point && !p.armRUp) {
+    if (!p.fist && !p.point && (!p.armRUp || p.swing)) {
       inHand(66, 78, p.armR, p.elbowR, function () {
+        if (p.swing) { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); return; } // a hammer swings whatever the look holds
         if (a.tool === 'hammer') { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
         else if (a.tool === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
         else if (a.tool === 'ladder') { ctx.translate(10, -40); pen.rrect(0, 0, 4, 62, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 62, 2, '#B4B2A9'); for (var ry = 6; ry < 60; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); }

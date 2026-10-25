@@ -155,6 +155,24 @@ function drawTo(canvas, look, p, mood) {
   if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
+// A mini-game scene that keeps painting while its canvas is on the page (2026-10-25 wave 3: the crews in the build,
+// nailing and ladder scenes). paint(c, t) draws one frame; the loop sits on the same stop hook the chibi loops use,
+// so a second scene on the same canvas replaces the first, and it ends itself when the overlay closes.
+function sceneLoop(cv, paint) {
+  if (cv.__chibiStop) cv.__chibiStop();
+  var alive = true, raf = 0, last = 0, reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function frame() {
+    if (!alive) return;
+    if (cv.isConnected === false) { stop(); return; }
+    var now = Date.now();
+    if (!last || now - last >= 32) { last = now; var c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); paint(c, now); }
+    if (reduce) { alive = false; return; }
+    raf = requestAnimationFrame(frame);
+  }
+  var stop = function () { alive = false; if (raf) cancelAnimationFrame(raf); if (cv.__chibiStop === stop) cv.__chibiStop = null; };
+  cv.__chibiStop = stop; frame(); return stop;
+}
+var CREW = { skin: 2, hair: 'short', hairColor: 0, eyes: 'round', hat: 'hardhat', hatColor: 0, beard: 'stubble', shirt: 2, vest: 'yes', pants: 2, tool: 'hammer', extra: 'none' };
 function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1750,7 +1768,12 @@ var LAYERS = [
   { name: 'Flashing and vents', c: '#c9ccd1' }, { name: 'Ridge cap', c: '#2f343c' },
 ];
 function drawBuild(cv, done) {
-  var c = cv.getContext('2d'), W2 = cv.width, H2 = cv.height;
+  cv.__buildDone = done;
+  if (!cv.__buildLoop) { cv.__buildLoop = true; sceneLoop(cv, function (c, t) { paintBuild(c, cv, cv.__buildDone, t); }); }
+}
+var BUILD_TW = { fore: {}, crew: {} };
+function paintBuild(c, cv, done, t) {
+  var W2 = cv.width, H2 = cv.height;
   c.fillStyle = '#8ec5ff'; c.fillRect(0, 0, W2, H2);
   c.fillStyle = '#356b31'; c.fillRect(0, H2 - 24, W2, 24);
   c.fillStyle = '#e0cfa8'; c.fillRect(70, 100, 180, H2 - 124);
@@ -1765,6 +1788,11 @@ function drawBuild(cv, done) {
     if (i === 1) { c.fillStyle = L.c; c.fillRect(46, 102, 8, 4); c.fillRect(266, 102, 8, 4); continue; }
     c.beginPath(); c.moveTo(50, 102 - off); c.lineTo(160, 28 - off); c.lineTo(270, 102 - off); c.stroke();
   }
+  if (!CH) return;
+  // Big Dave on the ground pointing the next layer out; a roofer on the deck hammering while there is work, cheering when the ridge cap is on.
+  var full = done >= LAYERS.length, tf = CH.tween(BUILD_TW.fore, full ? 'cheer' : 'point', t), tc = CH.tween(BUILD_TW.crew, full ? 'cheer' : done ? 'hammer' : 'idle', t);
+  CH.draw(c, FOREMAN, { x: 30, y: H2 - 24, h: 44, t: t, pose: tf.pose, from: tf.from, mix: tf.mix, facing: 1 });
+  CH.draw(c, CREW, { x: 212, y: 64 - Math.max(0, done - 1) * 3, h: 34, t: t, pose: tc.pose, from: tc.from, mix: tc.mix, facing: -1, shadow: false });
 }
 function buildJob(h, a) {
   spend(AG_MIN.build); if (!DAY || DAY.over) return;
@@ -1889,11 +1917,12 @@ function photoReport(h, done) {
 function nailing(done) {
   var hits = 0, taps = 0, need = 6, maxTaps = 10, pos = 0, dir = 1, over = false, raf = 0;
   overlay('<h2>NAIL THE SHINGLES</h2><p class="help">Tap when the marker is on the green nail line. High-wind spec: 6 nails per shingle.</p><canvas class="mg" id="nl" width="320" height="90" aria-label="Shingle nailing"></canvas><div class="row"><b id="nlH">0/6 nails</b><span class="help grow" id="nlT">Taps left: 10</span><button type="button" class="btn primary" id="nlGo">Nail!</button></div>');
-  var cv = document.getElementById('nl'), c = cv.getContext('2d'), z0 = 138, z1 = 176;
+  var cv = document.getElementById('nl'), c = cv.getContext('2d'), z0 = 138, z1 = 176, swingUntil = 0, nailTw = {};
   function frame() {
     if (over) return;
     pos += dir * 4.4; if (pos > 300) { pos = 300; dir = -1; } if (pos < 0) { pos = 0; dir = 1; }
     c.fillStyle = '#4a4f5a'; c.fillRect(0, 0, 320, 90);
+    if (CH) { var nt = Date.now(), np = CH.tween(nailTw, swingUntil > nt ? 'hammer' : 'idle', nt); CH.draw(c, CREW, { x: 40, y: 86, h: 64, t: nt, pose: np.pose, from: np.from, mix: np.mix, facing: 1, shadow: false }); } // the roofer swings on every tap
     c.fillStyle = '#3d4250'; for (var x = 0; x < 320; x += 40) c.fillRect(x, 0, 2, 90);
     c.fillStyle = 'rgba(123,201,111,.55)'; c.fillRect(z0, 0, z1 - z0, 90);
     c.fillStyle = '#7bc96f'; c.fillRect(z0, 44, z1 - z0, 2);
@@ -1905,6 +1934,7 @@ function nailing(done) {
     if (over) return;
     taps++;
     var x = pos + 11, ok = x >= z0 && x <= z1; if (ok) hits++;
+    swingUntil = Date.now() + 420;
     sfx(ok ? 'knock' : 'bad');
     document.getElementById('nlH').textContent = hits + '/6 nails'; document.getElementById('nlT').textContent = 'Taps left: ' + (maxTaps - taps);
     if (hits >= need || taps >= maxTaps) { over = true; cancelAnimationFrame(raf); document.removeEventListener('keydown', key); setTimeout(function () { closeOverlay(); done(hits); }, 300); }
@@ -2170,13 +2200,19 @@ function trainDone(key, passed, detail) {
     '<button type="button" class="btn primary wide" id="trOk">Back to training</button>');
   document.getElementById('trOk').addEventListener('click', function () { closeOverlay(); renderTrain(); });
 }
+var LADDER_TW = {}, LADDER_POSE = 'think';
 function drawLadder(cv, feet) {
-  var c = cv.getContext('2d'), u = 9, gy = 176, wx = 220, eave = gy - 16 * u;
+  cv.__ladderFeet = feet; LADDER_POSE = feet == null ? 'think' : feet === 4 ? 'cheer' : 'sad';
+  if (!cv.__ladderLoop) { cv.__ladderLoop = true; sceneLoop(cv, function (c, t) { paintLadder(c, cv, cv.__ladderFeet, t); }); }
+}
+function paintLadder(c, cv, feet, t) {
+  var u = 9, gy = 176, wx = 220, eave = gy - 16 * u;
   c.fillStyle = '#8ec5ff'; c.fillRect(0, 0, cv.width, cv.height);
   c.fillStyle = '#356b31'; c.fillRect(0, gy, cv.width, cv.height - gy);
   c.fillStyle = '#c9b79c'; c.fillRect(wx, eave, 90, gy - eave);
   c.fillStyle = '#4a3f37'; c.fillRect(wx - 8, eave - 6, 100, 8);
-  c.fillStyle = '#e8e2d4'; c.font = '8px "Press Start 2P", monospace'; c.textAlign = 'left'; c.fillText('16 FT', wx + 8, eave + 20);
+  c.fillStyle = '#e8e2d4'; c.font = '700 10px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'left'; c.fillText('16 FT', wx + 8, eave + 20);
+  if (CH) { var lp = CH.tween(LADDER_TW, LADDER_POSE, t); CH.draw(c, SAVE.avatar, { x: 60, y: gy, h: 56, t: t, pose: lp.pose, from: lp.from, mix: lp.mix, facing: 1 }); } // the rep sizes the ladder up, then cheers or slumps with the answer
   if (feet == null) return;
   var bx = wx - feet * u, len = Math.hypot(wx - bx, gy - eave), ext = 3 * u, dx = (wx - bx) / len, dy = (eave - gy) / len;
   var tx = wx + dx * ext, ty = eave + dy * ext;
