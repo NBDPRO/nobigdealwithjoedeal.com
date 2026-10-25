@@ -59,3 +59,5 @@
 .mdx-strong.mdx-strong.mdx-strong { color: var(--t,#fff); font-weight: 700; }
 .mdx-name.mdx-name.mdx-name { color: var(--t); font-weight: 600; overflow-wrap: anywhere; }
 .mdx-rule.mdx-rule.mdx-rule { border-top: 1px solid var(--br); }
+/* Phone: the Collections queue's row button was 24px tall (visual sweep 2026-10-25; DESIGN.md's 44px floor). */
+@media (max-width:600px){ .mdx-btn-xs.mdx-btn-xs.mdx-btn-xs.mdx-btn-xs { min-height: 44px; } }

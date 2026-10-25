@@ -46,8 +46,16 @@ for (const s of sheets) {
 }
 ok('no dashboard stylesheet sets an OS font stack on body or a view root', offenders.length === 0, offenders.join('; '));
 
+// Phone floors (same sweep): every button-like control in a view is at least 44px tall at phone width, the
+// desktop 24px id rule yields to it, and the Money queue's row button carries its own floor.
+const phoneFloor = /@media \(max-width:600px\)\{[^@]*\.view :is\(button, \.btn, a\.btn, \[role="button"\], select\)[^{]*\{ min-height:44px; \}[^@]*#view-money \.btn, #view-crm \.btn-sm:not\(\.k-card \*\)\{ min-height:44px; \}/;
+ok('dashboard-app.css: phone tap-target floor for every button-like control in a view, outranking the 24px id rule', phoneFloor.test(app));
+ok('money-dashboard.css: the Collections row button is 44px on a phone', /@media \(max-width:600px\)\{ \.mdx-btn-xs(\.mdx-btn-xs){3} \{ min-height: 44px; \} \}/.test(read('docs/pro/css/money-dashboard.css')));
+ok('dashboard-app.css: at phone width the wordmark keeps only PRO beside the NBD mark', /@media \(max-width:480px\)\{\s*\.logo\{font-size:0;[^}]*\}\s*\.logo span\{font-size:14px;[^}]*\}/.test(app));
+ok('dashboard.html loads money-dashboard.css?v=3 or later', (() => { const m = /money-dashboard\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 3; })());
+
 // Cache-busters moved with the fix.
-ok('dashboard.html loads dashboard-app.css?v=22 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 22; })());
+ok('dashboard.html loads dashboard-app.css?v=23 or later', (() => { const m = /dashboard-app\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 23; })());
 ok('dashboard.html loads product-library.css?v=6 or later', (() => { const m = /product-library\.css\?v=(\d+)/.exec(html); return m && +m[1] >= 6; })());
 
 console.log(`\n${passed} passed, ${failed} failed`);

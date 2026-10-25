@@ -5522,3 +5522,23 @@ body {
 .kc-task-badge, .kc-phone-link, .kc-tag.kct-action, .kc-tag.kct-action-doc, .kc-tag.kct-action-stage { min-height: 24px; display: inline-flex; align-items: center; }
 /* Settings legal links had no colour of their own: default browser blue on the navy, 1.4:1 in dark mode (UI sweep 2026-10-24). */
 #settingsLegalLinks a{color:var(--ui-accent-text,var(--orange));}
+
+/* Phone tap-target floor (DESIGN.md: no tap target under 44px on a phone; visual sweep 2026-10-25). The per-control
+   rules above stay; this is the floor for every button-like control they missed: Money's row buttons (24px),
+   Schedule's "Open →" (24px), the Settings segments (30px), Draw's mode and line-type buttons (25/30px), Products'
+   category chips (30px), Academy's tabs (36px), Reports' period chips (26px). Board cards keep their compact
+   !important sizes (the card is the target), and the widget close marks stay square. */
+@media (max-width:600px){
+  .view :is(button, .btn, a.btn, [role="button"], select):not(.k-card *):not(.w-card-remove):not(.kc-arrow):not(.w-mini-btn){ min-height:44px; }
+  .view :is(.deleted-drawer-close, .w-card-remove){ min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+  /* The 24px desktop floor above names these by id; on a phone the 44px floor wins. */
+  #view-money .btn, #view-crm .btn-sm:not(.k-card *){ min-height:44px; }
+}
+
+/* Phone header: the wordmark ellipsised to "NBD …" beside a mark that already says NBD (visual sweep 2026-10-25).
+   The mark carries NBD; the wordmark keeps only PRO, so the pair reads "[NBD] PRO". The full text stays in the DOM
+   for assistive tech. */
+@media (max-width:480px){
+  .logo{font-size:0;letter-spacing:0;}
+  .logo span{font-size:14px;letter-spacing:.06em;}
+}
