@@ -40,7 +40,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 .hero { padding:60px 5% 20px; text-align:center; position:relative; }
 .storm-icon { font-size:64px; margin-bottom:16px; animation:pulse 2s ease infinite; }
 @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
-.hero-eyebrow { font-size:.7rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--alert); margin-bottom:12px; }
+.hero-eyebrow { font-size:.7rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--orange-light,#dd875f); /* --alert on the navy read 3.45:1 (2026-10-25) */ margin-bottom:12px; }
 .hero h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.2rem,6vw,3.8rem); line-height:1.05; margin-bottom:16px; }
 .hero h1 span { color:var(--alert); }
 .hero p { color:rgba(255,255,255,.6); font-size:.95rem; max-width:500px; margin:0 auto; line-height:1.6; }
@@ -68,7 +68,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 /* trust line above Submit (2026-10-03); rating hydrated live by google-reviews-widget.js */
 .nbd-trust-line { margin:4px 0 10px; font-size:.78rem; font-weight:600; color:rgba(255,255,255,.72); text-align:center; line-height:1.4; }
 .nbd-trust-line span[aria-hidden] { color:#fbbc04; }
-.signup-btn { width:100%; padding:15px; background:var(--alert); color:var(--navy-dark); border:none; border-radius:10px; font-family:'Montserrat',sans-serif; font-size:.9rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:8px; }
+.signup-btn { width:100%; padding:15px; background:var(--orange-light,#dd875f); /* was --alert: navy on the brand orange read 3.45:1; the hover stays amber (2026-10-25) */ color:var(--navy-dark); border:none; border-radius:10px; font-family:'Montserrat',sans-serif; font-size:.9rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:8px; }
 .signup-btn:hover { background:#fbbf24; transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,158,11,.3); }
 .signup-btn:disabled { opacity:.6; cursor:wait; }
 .signup-note { font-size:.7rem; color:rgba(255,255,255,.62); text-align:center; margin-top:12px; line-height:1.5; }
