@@ -1069,7 +1069,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 @media(max-width:640px){.nbd-social{margin-left:0;margin-top:8px;display:flex;gap:8px}}
 .pd-wrap{max-width:1000px;margin:0 auto;padding:32px 5% 64px;}
 .pd-crumb{font-size:.78rem;margin-bottom:18px;}
-.pd-crumb a{color:var(--orange);text-decoration:none;font-weight:700;}
+.pd-crumb a{color:var(--orange);text-decoration:none;font-weight:700;display:inline-block;padding:5px 0;}
 .pd-hero{width:100%;max-height:480px;object-fit:cover;border-radius:14px;display:block;margin-bottom:24px;}
 .pd-title{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--navy-dark);letter-spacing:.5px;margin-bottom:8px;}
 .pd-price{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#A14A22;margin-bottom:14px;}
@@ -1077,7 +1077,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .pd-era{font-size:.9rem;line-height:1.6;color:#333;background:var(--off-white);border-left:3px solid var(--navy-dark);padding:10px 14px;border-radius:0 8px 8px 0;margin:4px 0 14px;max-width:720px;}
 .pd-desc{font-size:1rem;line-height:1.7;color:#333;margin-bottom:32px;max-width:720px;}
 .pd-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;}
-.pd-back{display:inline-block;margin-top:8px;font-weight:700;color:#A14A22;text-decoration:none;}
+.pd-back{display:inline-block;margin-top:8px;padding:4px 0;font-weight:700;color:#A14A22;text-decoration:none;}
 .pd-h2{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;color:var(--navy-dark);letter-spacing:.5px;margin:8px 0 12px;}
 .pd-text{font-size:1rem;line-height:1.7;color:#333;margin-bottom:28px;max-width:720px;}
 .pd-list{margin:0 0 28px 1.2em;max-width:720px;line-height:1.7;color:#333;}
