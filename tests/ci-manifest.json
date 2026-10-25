@@ -65,6 +65,8 @@
     "layout-island-2026-10-12.test.js",
     "e2e-retry-hygiene-2026-10-25.test.js",
     "pro-demo-game-card-2026-10-25.test.js",
+    "toast-style-leak-2026-10-25.test.js",
+    "draw-tools-drawer-2026-10-25.test.js",
     "layout-field-2026-10-11.test.js",
     "layout-focus-2026-10-11.test.js",
     "layout-inbox-2026-10-12.test.js",

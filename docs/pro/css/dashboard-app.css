@@ -4398,7 +4398,11 @@ body {
   .two-col{grid-template-columns:1fr;gap:10px;}
   .map-view{flex-direction:column!important;position:static!important;overflow:visible!important;}
   .map-sidebar{width:100%!important;max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0!important;border-right:none!important;border-top:1px solid var(--br);order:2;}
-  .map-sidebar.open{max-height:340px;overflow-y:auto;padding:12px!important;}
+  /* 380px, was 340 (2026-10-25): the 44px tap targets from the UI sweep (#2727) grew the Draw drawer's
+     Gutters stack (breadcrumb, address, My location, Draw Mode, the gutter totals, Finish run) to 373px,
+     so "✓ Finish run" opened with its lower half under the bottom nav at 393x852 and 412x860
+     (phone-draw-crosshair.spec.js, the first @shard2 run that ever finished). */
+  .map-sidebar.open{max-height:380px;overflow-y:auto;padding:12px!important;}
   /* height:55vw dropped (and the two !important twins in MAP MOBILE
      OVERRIDES below). `.map-area{flex:1}` is `flex:1 1 0%`, and in the
      column flex context that #view-map.active/#view-draw.active restore

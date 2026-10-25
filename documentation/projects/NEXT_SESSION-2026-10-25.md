@@ -28,8 +28,17 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   `layoutState`: the day-route `aria-pressed` failure). Running the spec three times on one emulator also surfaced a
   product bug: four leads geocoded to one pin collapsed `splitTurfs`' quantile cuts and the rep got 2 turfs under a
   "3 turfs" stepper; `mission-logic.js` now falls back to equal-width cuts when a cut is lost (pin in
-  `tests/layout-mission-2026-10-12.test.js`). Guard: `tests/e2e-retry-hygiene-2026-10-25.test.js`. The
-  first failures of that run (1–4) are not in the readable tail of the log; read the next `@shard2` run on a PR.
+  `tests/layout-mission-2026-10-12.test.js`). Guard: `tests/e2e-retry-hygiene-2026-10-25.test.js`.
+  **On #2732 the leg finished for the first time** (23 min: 136 passed, 8 failed, 24 did not run). Both legible
+  failures are `phone-draw-crosshair.spec.js`, both reproduce alone on the emulators, both are product bugs from the
+  10-24 UI sweep (#2727): (a) `theme-achievements.js` injected bare `.toast-content` / `.toast-icon` rules (32px padding,
+  a 48px pulsing icon) that dressed every ui.js toast on the dashboard; at 360x640 the Draw screen's toast wrapped one
+  word per line into a 160px block over the magnifier. Scoped to the banner (`theme-achievements.js?v=3`); guard
+  `tests/toast-style-leak-2026-10-25.test.js`. (b) the 44px tap targets grew the Tools drawer's Gutters stack to 373px
+  inside a 340px drawer, so "✓ Finish run" opened half under the bottom nav at 393x852 and 412x860; the phone drawer
+  is 380px now (`dashboard-app.css?v=26`); guard `tests/draw-tools-drawer-2026-10-25.test.js`. Why the leg ran 23
+  min: the spec's four `describe.serial` groups re-run whole on every retry (tests 130-239 of a 168-test shard were
+  this one file). With both fixed, read the next run's wall time before deciding on the required set.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
