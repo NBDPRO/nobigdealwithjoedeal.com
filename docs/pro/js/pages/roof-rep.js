@@ -605,13 +605,16 @@ function migrate(s) {
   var d = freshSave(); Object.keys(d).forEach(function (k) { if (s[k] == null) s[k] = d[k]; });
   if (!streetOf(s.streetId)) s.streetId = 'maple';
   s.badges = s.badges || {}; s.trained = s.trained || {}; s.usedNames = s.usedNames || []; s.skills = s.skills || {}; s.reviews = s.reviews || []; s.stats = s.stats || {}; s.trophies = s.trophies || {}; s.seasons = s.seasons || {}; s.cleanStreak = s.cleanStreak || 0; s.owned = s.owned || {}; if (s.bank == null) s.bank = s.collected || 0; s.seed = s.seed || 1 + Math.floor(Math.random() * 997); return s; }
+// wave 7: what a homeowner carries to the door (chibi.js props); most of a persona's doors, not all
+var PERSONA_PROP = { busy: 'phone', realtor: 'phone', flipper: 'phone', nightShift: 'mug', retiredCop: 'mug', skeptic: 'mug', elder: 'cane', caregiver: 'cane', landlord: 'keys', newBaby: 'baby', diy: 'brush', threeQuotes: 'papers', claimDenied: 'papers', deductible: 'papers' };
 function makeLook(persona) {
   var p = PERSONA[persona] || {};
   return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short', 'bun']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long', 'curly', 'afro', 'bun']), // wave 4: the street's homeowners wear the new hair and tops too
     top: pick(['tee', 'tee', 'hoodie', 'polo']),
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
-    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder };
+    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder,
+    prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none' };
 }
 function newName() {
   var free = NAMES.filter(function (n) { return SAVE.usedNames.indexOf(n) < 0; });

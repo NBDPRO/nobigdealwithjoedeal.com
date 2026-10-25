@@ -24,7 +24,8 @@
  *                                         stop(). Under prefers-reduced-motion it draws one still frame.
  *   NBDChibi.tween(state, pose, now)   — pose + from + mix for a caller that draws by hand (the street): give it the
  *                                         same state object every frame
- *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4).
+ *   Looks: hair short · spiky · long · buzz · ponytail · bald · curly · afro · bun; top tee · hoodie · polo (wave 4);
+ *          prop phone · mug · cane · keys · baby · brush · papers in the back hand (wave 7: what a homeowner carries).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -45,7 +46,7 @@
   var HAIRS = ['short', 'spiky', 'long', 'buzz', 'ponytail', 'bald', 'curly', 'afro', 'bun'], EYES = ['round', 'happy', 'wink', 'sleepy'];
   var TOPS = ['tee', 'hoodie', 'polo'];
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
-  var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'];
+  var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'], PROPS = ['none', 'phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers'];
   var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
   var INK = '#1f1a17', WHITE = '#FFFFFF', BLUSH = 'rgba(242,120,120,.45)', VEST = '#C6E11C', VESTD = '#9DB51A';
   var TWEEN_MS = 220;
@@ -62,7 +63,7 @@
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
       clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
-      top: pick(TOPS, a.top, 'tee'),
+      top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'),
     };
   }
   function shade(hex, amt) {
@@ -244,6 +245,17 @@
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
     if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
+    // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
+    function prop(k) {
+      if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
+      else if (k === 'mug') { pen.circle(3, -1, 4, '#F5F5F0'); pen.circle(3, -1, 1.6, '#C9CDD2', true); pen.rrect(-9, -7, 11, 12, 2, '#F5F5F0'); pen.ellipse(-3.5, -7, 5, 1.6, 0, '#6B4A2B', true); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -11); ctx.quadraticCurveTo(-4, -13, -6, -15); ctx.moveTo(-2, -11); ctx.quadraticCurveTo(0, -13, -2, -15); ctx.stroke(); }
+      else if (k === 'cane') { pen.rrect(-1.5, -8, 3, 30, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, 20, 4, 2.5); }
+      else if (k === 'keys') { pen.circle(0, -3, 4.5, '#B4B8BD'); pen.circle(0, -3, 2, '#6F747A', true); pen.rrect(-3, 1, 3.5, 10, 1, '#E0B45A'); pen.rrect(0.5, 1.5, 3, 9, 1, '#B4B8BD'); ctx.fillStyle = INK; ctx.fillRect(-3, 8, 1.5, 1.5); ctx.fillRect(2.5, 7, 1.5, 1.5); }
+      else if (k === 'baby') { pen.ellipse(-4, -3, 9.5, 6.5, 0.35, '#F2C6DC'); pen.circle(-10, -7, 4.2, '#F2C6A0'); ctx.fillStyle = INK; ctx.fillRect(-12, -7.5, 1.6, 1); ctx.fillRect(-9, -7.5, 1.6, 1); ctx.fillStyle = BLUSH; ctx.fillRect(-12.5, -5.5, 2, 1.2); ctx.fillRect(-8.5, -5.5, 2, 1.2); ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -8); ctx.quadraticCurveTo(0, -4, -2, 2); ctx.stroke(); }
+      else if (k === 'brush') { pen.rrect(-1.5, -16, 3, 17, 1.5, '#8B5A2B'); pen.rrect(-4.5, 0, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 3.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 9, 8, 2.5); }
+      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
+    }
 
     // head: a soft circle with a chin, ears, shading and a highlight
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.tilt * Math.PI / 180); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy);

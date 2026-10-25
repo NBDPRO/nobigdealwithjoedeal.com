@@ -67,6 +67,14 @@ try {
   }))));
 } catch (e) { err = e; }
 ok('9 hair × 4 headwear × 4 eyes × 4 beards (tops, tools, extras, clipboard, elder cycling) draw without throwing', !err && combos === 576, err && err.stack);
+// wave 7: props in the back hand (the street homeowners carry what their persona would)
+const PROPS = ['phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers'];
+let propErr = null, propFills = {};
+try { PROPS.forEach((prop) => { const { ctx, log } = makeCtx(); CH.draw(ctx, { prop }, { x: 50, y: 120, h: 120, t: 500, pose: 'idle' }); propFills[prop] = log.fills; }); } catch (e) { propErr = e; }
+const { log: noneLog } = (() => { const r = makeCtx(); CH.draw(r.ctx, { prop: 'none' }, { x: 50, y: 120, h: 120, t: 500, pose: 'idle' }); return r; })();
+ok('wave 7: every prop (phone, mug, cane, keys, baby, brush, papers) draws without throwing and adds fills over an empty hand', !propErr && PROPS.every((k) => propFills[k] > noneLog.fills), propErr && propErr.stack);
+ok('normalize keeps a known prop and drops an unknown one; the clipboard wins the back hand when both are set', CH.normalize({ prop: 'mug' }).prop === 'mug' && CH.normalize({ prop: 'sword' }).prop === 'none' && CH.normalize({}).prop === 'none' && (() => { const both = makeCtx(), clip = makeCtx(); CH.draw(both.ctx, { prop: 'mug', clipboard: true }, { x: 50, y: 120, h: 120, t: 500, pose: 'idle' }); CH.draw(clip.ctx, { clipboard: true }, { x: 50, y: 120, h: 120, t: 500, pose: 'idle' }); return both.log.fills === clip.log.fills && both.log.fills > noneLog.fills; })());
+ok('the street rolls a prop by persona (busy phone, night-shift mug, elder cane, landlord keys, new-baby bundle, DIY brush, three-quotes papers)', /var PERSONA_PROP = \{ busy: 'phone', realtor: 'phone', flipper: 'phone', nightShift: 'mug', retiredCop: 'mug', skeptic: 'mug', elder: 'cane', caregiver: 'cane', landlord: 'keys', newBaby: 'baby', diy: 'brush', threeQuotes: 'papers', claimDenied: 'papers', deductible: 'papers' \};/.test(read('docs/pro/js/pages/roof-rep.js')) && /prop: PERSONA_PROP\[persona\] && Math\.random\(\) < \.65 \? PERSONA_PROP\[persona\] : 'none'/.test(read('docs/pro/js/pages/roof-rep.js')));
 ok('normalize knows the wave-4 looks: curly / afro / bun hair and the tee / hoodie / polo top (unknown top falls back to tee)', CH.normalize({ hair: 'afro', top: 'hoodie' }).hair === 'afro' && CH.normalize({ hair: 'bun', top: 'polo' }).top === 'polo' && CH.normalize({ top: 'cape' }).top === 'tee' && CH.normalize({ hair: 'curly' }).hair === 'curly');
 ok('a hoodie and a polo draw more than a tee (hood + pouch + strings; collar + placket)', (() => { const t = makeCtx(), h = makeCtx(), p = makeCtx(); CH.draw(t.ctx, { top: 'tee' }, { h: 60 }); CH.draw(h.ctx, { top: 'hoodie' }, { h: 60 }); CH.draw(p.ctx, { top: 'polo' }, { h: 60 }); return h.log.fills > t.log.fills && p.log.fills > t.log.fills; })());
 {
@@ -157,8 +165,8 @@ function fakeCanvas(w, h, connected) {
 
 console.log('\n5. The pages');
 const rr = read('docs/pro/roof-rep.html'), dash = read('docs/pro/dashboard.html'), rrjs = read('docs/pro/js/pages/roof-rep.js'), gs = read('docs/pro/js/game-sprite.js');
-ok('roof-rep.html loads chibi.js v6 before roof-rep-fx.js and roof-rep.js v8', rr.indexOf('js/chibi.js?v=6') > 0 && rr.indexOf('js/chibi.js?v=6') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=8') > 0);
-ok('dashboard.html loads chibi.js v6 before game-sprite.js (v4)', dash.indexOf('js/chibi.js?v=6') > 0 && dash.indexOf('js/chibi.js?v=6') < dash.indexOf('js/game-sprite.js?v=4'));
+ok('roof-rep.html loads chibi.js v7 before roof-rep-fx.js and roof-rep.js v9', rr.indexOf('js/chibi.js?v=7') > 0 && rr.indexOf('js/chibi.js?v=7') < rr.indexOf('roof-rep-fx.js?v=') && rr.indexOf('roof-rep.js?v=9') > 0);
+ok('dashboard.html loads chibi.js v7 before game-sprite.js (v4)', dash.indexOf('js/chibi.js?v=7') > 0 && dash.indexOf('js/chibi.js?v=7') < dash.indexOf('js/game-sprite.js?v=4'));
 ok('wave 5: a loop whose canvas has no box (hidden tab or panel) paints nothing and polls twice a second', /if \(box && !box\.width && !box\.height\) \{ box = null; timer = setTimeout\(frame, 500\); return; \}/.test(read('docs/pro/js/chibi.js')) && /if \(timer\) clearTimeout\(timer\);/.test(read('docs/pro/js/chibi.js')) && /_paints: function \(\) \{ return paints; \}/.test(read('docs/pro/js/chibi.js')));
 ok('wave 5: animate() defines stop before its first frame (a detached canvas stops cleanly instead of throwing)', (function () { var js = read('docs/pro/js/chibi.js'); var a = js.indexOf('var stop = function () { if (!alive) return; alive = false; loops--;'); var f = js.indexOf('loops++;\n    frame();'); return a > 0 && f > 0 && a < f; })());
 ok('wave 5: a crew row starts its loop only once the row is on the page', /if \(cv\.__live\) cv\.__live\(\);/.test(rrjs) && rrjs.indexOf('body.appendChild(tr);') < rrjs.indexOf('if (cv.__live) cv.__live();'));
