@@ -10,9 +10,14 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   notebook and layouts + Roof Rep revamp + the vector characters), #2728 (characters wave 2), #2729 (E2E lanes 5 + 2,
   the 360 px wordmark, the committed `tests/node_modules` symlink removed), #2730 (characters wave 3). Each squash on
   `main` deploys; check the `Firebase deploy` runs before calling the last one live.
-- **Open:** #2731 (the Island hero repaints when the jobs store loads; the spec carries its own second job). After it:
-  characters wave 4 (curly / afro / bun hair, tee / hoodie / polo tops in every picker; the street's homeowners wear
-  them too) and this handoff, already committed on the branch behind it.
+- **Merged later the same day:** #2731 (Island repaint), #2732 (characters wave 4 + the dedup-modal retry fix +
+  the turf fallback), #2733 (the sample account's game card, wave 5, the LEAVE scene, the toast style leak and the
+  Tools drawer).
+- **Open:** #2734 (the Pipeline strip one row on a phone, the @shard2 layout-leak reset in five specs, chibi v9 with
+  the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9). **Held back on the
+  branch, not yet pushed, for the PR after it** (so #2734's CI run is not cancelled again): the hero-video test's
+  `vendor_id` allow (ffprobe 6.1), the digest + MCP team deal-room count and company paging (pass-2 item 2), and the
+  `lead_sources` key hardening (pass-2 item 6). Each has its pin; `git log origin/main..` lists them.
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
