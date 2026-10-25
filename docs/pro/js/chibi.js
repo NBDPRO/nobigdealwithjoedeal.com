@@ -47,7 +47,7 @@
       eyes: pick(EYES, a.eyes, 'round'), hat: pick(HATS, a.hat, 'hardhat'), hatColor: idx(a.hatColor, C.color.length, 0),
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
-      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : 'smile', elder: !!a.elder,
+      clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
     };
   }
   function shade(hex, amt) {
@@ -72,6 +72,7 @@
     else if (pose === 'think') { p.armRUp = 1; p.armR = -158 + s(t / 500) * 3 * m; p.look = -1; p.browUp = 0.5; p.tilt = -4; p.mouth = 'flat'; }
     else { p.bob = s(t / 650) * -1.2 * m; p.sy = 1 + s(t / 650) * 0.012 * m; p.armL = s(t / 650) * 2 * m; p.armR = -p.armL; var gl = (t + (o.seed || 0) * 3) % 6400; if (m && gl > 5200) p.look = gl > 5800 ? -1 : 1; } // a glance to each side every 6.4 s
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
+    if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
   }
 
@@ -193,7 +194,7 @@
     }
     var shades = a.extra === 'shades';
     if (!shades) {
-      if (a.eyes === 'happy' || pose === 'cheer') { happyEye(eyL); happyEye(eyR); }
+      if (a.eyes === 'happy' || pose === 'cheer' || p.happyEyes) { happyEye(eyL); happyEye(eyR); }
       else if (a.eyes === 'wink') { roundEye(eyL, p.eyesClosed); happyEye(eyR); }
       else if (a.eyes === 'sleepy') { sleepyEye(eyL, p.eyesClosed); sleepyEye(eyR, p.eyesClosed); }
       else { roundEye(eyL, p.eyesClosed); roundEye(eyR, p.eyesClosed); }
@@ -214,6 +215,7 @@
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
     } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
     else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4); }
+    else if (p.mouth === 'grin') { pen.shape(function (c) { c.moveTo(hx - 8, my - 2); c.quadraticCurveTo(hx, my + 9, hx + 8, my - 2); c.quadraticCurveTo(hx, my + 2, hx - 8, my - 2); }, '#6B2A2A'); ctx.fillStyle = WHITE; ctx.fillRect(hx - 5, my - 1, 10, 1.8); }
     else { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
     // beard
     if (a.beard === 'stubble') { ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); }

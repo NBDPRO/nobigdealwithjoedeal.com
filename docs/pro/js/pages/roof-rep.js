@@ -1079,8 +1079,9 @@ function arrive2(h, dogTip) {
 var faceCv = document.getElementById('face');
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function say(look, name, text, choices, tip, meter) {
-  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: meter && meter.pct < 35 ? 'frown' : undefined } : null;
-  if (look) drawTo(faceCv, look, 'talk', meter && meter.pct < 35 ? 'frown' : undefined);
+  var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
+  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: mood } : null;
+  if (look) drawTo(faceCv, look, 'talk', mood);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
