@@ -1193,6 +1193,12 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      # The Daily Success layouts (interfaces brief gate, 2026-10-25): every layout x every theme
+      # at 320 px, plus 390 px, on the tracker's day page. Same server, same Chromium, no auth.
+      - name: Run the Daily Success layouts phone-fit check
+        run: |
+          cd tests
+          node ds-layouts-phone-fit-2026-10-25.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
