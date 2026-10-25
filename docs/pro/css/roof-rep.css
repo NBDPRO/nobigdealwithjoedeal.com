@@ -120,7 +120,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .overlay .card.big { text-align: center; }
 .overlay .card.big h2 { font-size: 22px; }
 .overlay .card.big .huge { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; color: var(--gold); }
-.mg { width: 100%; max-width: 420px; image-rendering: pixelated; touch-action: manipulation; border-radius: 10px; cursor: crosshair; display: block; margin: 0 auto; }
+.mg { width: 100%; max-width: 420px; image-rendering: auto; touch-action: manipulation; border-radius: 10px; cursor: crosshair; display: block; margin: 0 auto; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row .grow { flex: 1; }
 .dpad { display: grid; grid-template-columns: repeat(3, 64px); grid-template-rows: repeat(2, 48px); gap: 6px; justify-content: center; }

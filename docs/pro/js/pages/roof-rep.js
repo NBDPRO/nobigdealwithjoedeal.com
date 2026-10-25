@@ -1080,33 +1080,39 @@ function gridGame(o, done) {
   while (spots.length < o.n) { var k = rnd(cols * rows); if (spots.indexOf(k) < 0) spots.push(k); }
   overlay('<h2>' + esc(o.title) + '</h2><p class="help">' + esc(o.help) + '</p>' +
     '<canvas class="mg" id="mg" width="' + cols * cell + '" height="' + rows * cell + '" aria-label="Roof: tap the damage"></canvas>' +
-    '<div class="row"><b id="mgT">' + left + 's</b><span class="help grow" id="mgF">Found 0</span><button type="button" class="btn" id="mgDone">Done</button></div>');
+    '<div class="row"><b id="mgT">' + left + 's</b><span class="help grow" id="mgF">📷 0 photos</span><button type="button" class="btn" id="mgDone">Done</button></div>');
   var cv = document.getElementById('mg'), r = cv.getContext('2d'), revealUntil = o.reveal ? Date.now() + 2000 : 0;
   if (o.reveal) setTimeout(function () { if (!over) paintGrid(); }, 2050);
+  var flashUntil = 0;
   function paintGrid() {
     var reveal = Date.now() < revealUntil;
+    // the roof as shingle courses (2026-10-25): each row a course, tabs offset every other course, a shadow under each
+    r.fillStyle = o.roof; r.fillRect(0, 0, cols * cell, rows * cell);
     for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) {
-      var i = y * cols + x;
-      r.fillStyle = (x + y) % 2 ? shade(o.roof, 8) : o.roof; r.fillRect(x * cell, y * cell, cell, cell);
-      r.fillStyle = shade(o.roof, -20); r.fillRect(x * cell, y * cell + cell - 2, cell, 2);
+      var i = y * cols + x, off = y % 2 ? cell / 2 : 0;
+      r.fillStyle = shade(o.roof, ((x * 7 + y * 13) % 5) * 2 - 2); r.fillRect(x * cell, y * cell, cell, cell);
+      r.fillStyle = 'rgba(0,0,0,.28)'; r.fillRect(x * cell, y * cell + cell - 3, cell, 3);
+      r.fillStyle = 'rgba(0,0,0,.18)'; r.fillRect(((x * cell + off) % (cols * cell)), y * cell + 2, 1, cell - 5);
+      r.fillStyle = 'rgba(255,255,255,.07)'; r.fillRect(x * cell, y * cell, cell, 1);
       if (spots.indexOf(i) >= 0) {
         if (o.style === 'bag') { r.fillStyle = '#1a1512'; r.fillRect(x * cell + 5, y * cell + 9, cell - 10, cell - 18); r.fillStyle = '#c9a66b'; r.fillRect(x * cell + 6, y * cell + 10, cell - 12, cell - 20); }
         else if (o.style === 'nail') { r.fillStyle = '#c9ccd1'; r.fillRect(x * cell + cell / 2 - 1, y * cell + 6, 2, cell - 12); r.fillRect(x * cell + cell / 2 - 3, y * cell + 6, 6, 2); }
         else if (o.style === 'old') { r.fillStyle = shade(o.roof, 26); r.fillRect(x * cell + 3, y * cell + 4, cell - 6, 3); }
-        else { r.fillStyle = shade(o.roof, -14); var s = Math.max(3, Math.round(cell / 5)); r.fillRect(x * cell + (cell - s) / 2, y * cell + (cell - s) / 2 - 1, s, s); }
+        else { var cx = x * cell + cell / 2, cy = y * cell + cell / 2 - 1, rad = Math.max(2.5, cell / 7); r.fillStyle = shade(o.roof, 18); r.beginPath(); r.arc(cx + 1, cy + 1, rad + 1.5, 0, 6.3); r.fill(); r.fillStyle = shade(o.roof, -26); r.beginPath(); r.arc(cx, cy, rad, 0, 6.3); r.fill(); }
       }
       if (reveal && spots.indexOf(i) >= 0 && found.indexOf(i) < 0) { r.strokeStyle = '#8ec5ff'; r.lineWidth = 2; r.strokeRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4); }
       if (found.indexOf(i) >= 0) { r.strokeStyle = o.chalk ? '#ffffff' : '#f2a900'; r.lineWidth = 2; r.beginPath(); r.arc(x * cell + cell / 2, y * cell + cell / 2 - 1, cell / 2 - 3, 0, Math.PI * 2); r.stroke(); }
     }
     if (o.square) { r.strokeStyle = '#ffffff'; r.lineWidth = 2; r.setLineDash([4, 3]); r.strokeRect(1, 1, cols * cell - 2, rows * cell - 2); r.setLineDash([]); }
+    if (flashUntil > Date.now()) { r.fillStyle = 'rgba(255,255,255,' + ((flashUntil - Date.now()) / 220) + ')'; r.fillRect(0, 0, cols * cell, rows * cell); requestAnimationFrame(function () { if (!over) paintGrid(); }); }
   }
   paintGrid();
   cv.addEventListener('click', function (e) {
     if (over) return;
     var b = cv.getBoundingClientRect(), x = Math.floor((e.clientX - b.left) / b.width * cols), y = Math.floor((e.clientY - b.top) / b.height * rows), i = y * cols + x;
     if (spots.indexOf(i) >= 0 && found.indexOf(i) < 0) {
-      found.push(i); paintGrid();
-      document.getElementById('mgF').textContent = 'Found ' + found.length;
+      found.push(i); flashUntil = Date.now() + 220; sfx('shutter'); paintGrid();
+      document.getElementById('mgF').textContent = '📷 ' + found.length + ' photo' + (found.length === 1 ? '' : 's');
       if (found.length === o.n) end();
     }
   });
@@ -1393,6 +1399,7 @@ function sfx(name) {
       bad: [[220, 0, .12, 'square', .07], [165, .12, .2, 'square', .07]],
       bark: [[300, 0, .06, 'sawtooth', .1], [250, .1, .08, 'sawtooth', .1]],
       trophy: [[784, 0, .1], [988, .1, .1], [1175, .2, .1], [1568, .3, .3]],
+      shutter: [[1800, 0, .03, 'square', .08], [900, .04, .05, 'square', .06]],
     }[name] || [];
     P.forEach(function (n) { tone(n[0], n[1], n[2], n[3], n[4]); });
   } catch (_) {}
