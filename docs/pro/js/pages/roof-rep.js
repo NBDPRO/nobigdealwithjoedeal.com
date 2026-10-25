@@ -150,7 +150,7 @@ function chibi(ctx, look, cx, feetY, p, facing, t, h, mood) {
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
-  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { return { pose: p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'), mood: mood, crop: crop }; }); return; }
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { return { pose: p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'), mood: mood, crop: crop }; }); return; }
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
 function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }
@@ -817,7 +817,8 @@ function levelToast(before) {
   lines.push('+1 skill point to spend');
   setTimeout(function () {
     if (!document.getElementById('ov').hidden) return;
-    overlay('<div class="big"><h2>LEVEL UP</h2><div class="huge">' + after.level + '</div><p class="lvlup">' + esc(after.title) + '</p><ul class="report">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul><button type="button" class="btn primary wide" id="lvlOk">Keep going</button></div>');
+    overlay('<div class="big"><canvas class="lvlFace" id="lvlFace" width="120" height="120" aria-hidden="true"></canvas><h2>LEVEL UP</h2><div class="huge">' + after.level + '</div><p class="lvlup">' + esc(after.title) + '</p><ul class="report">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul><button type="button" class="btn primary wide" id="lvlOk">Keep going</button></div>');
+    drawTo(document.getElementById('lvlFace'), SAVE.avatar, 'cheer');
     document.getElementById('lvlOk').addEventListener('click', closeOverlay);
   }, 350);
 }

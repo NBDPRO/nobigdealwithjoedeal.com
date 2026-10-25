@@ -117,9 +117,10 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(8, 14, 26, .9); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
 .overlay[hidden] { display: none; }
 .overlay .card { max-width: 460px; width: 100%; border-color: var(--gold); margin: auto; animation: rr-pop .22s; }
-.overlay .card.big { text-align: center; }
-.overlay .card.big h2 { font-size: 22px; }
-.overlay .card.big .huge { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; color: var(--gold); }
+.overlay .card.big, .overlay .big { text-align: center; } /* .big is the inner block (2026-10-25): the card rule never matched */
+.lvlFace { width: 120px; height: 120px; display: block; margin: 0 auto 4px; }
+.overlay .card.big h2, .overlay .big h2 { font-size: 22px; }
+.overlay .card.big .huge, .overlay .big .huge { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; color: var(--gold); }
 .mg { width: 100%; max-width: 420px; image-rendering: auto; touch-action: manipulation; border-radius: 10px; cursor: crosshair; display: block; margin: 0 auto; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row .grow { flex: 1; }
