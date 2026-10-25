@@ -319,5 +319,7 @@ function wireDom() {
     });
   }
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireDom);
-else wireDom();
+// A parsed document ('interactive' or 'complete') wires now; anything else (still 'loading', or a stub
+// document with no readyState, as the smoke harness evaluates this file) waits for DOMContentLoaded.
+if (document.readyState === 'interactive' || document.readyState === 'complete') wireDom();
+else document.addEventListener('DOMContentLoaded', wireDom);

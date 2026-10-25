@@ -250,7 +250,7 @@ console.log('F. the three AI tools: sample answers, no model, no insurance topic
 console.log('\n+. AI Usage range buttons wire even when DOMContentLoaded already fired');
 {
   const A = require('fs').readFileSync(require('path').join(__dirname, '..', 'docs', 'pro', 'js', 'pages', 'pro-analytics.js'), 'utf8');
-  ok('the range and refresh wiring runs at once on a parsed document, else on DOMContentLoaded (a module whose imports land late would otherwise never wire)', /if \(document\.readyState === 'loading'\) document\.addEventListener\('DOMContentLoaded', wireDom\);\nelse wireDom\(\);/.test(A) && /function wireDom\(\)/.test(A) && !/document\.addEventListener\('DOMContentLoaded', \(\) => \{/.test(A));
+  ok('the range and refresh wiring runs at once on a parsed document, else on DOMContentLoaded (a module whose imports land late would otherwise never wire)', /if \(document\.readyState === 'interactive' \|\| document\.readyState === 'complete'\) wireDom\(\);\nelse document\.addEventListener\('DOMContentLoaded', wireDom\);/.test(A) && /function wireDom\(\)/.test(A) && !/document\.addEventListener\('DOMContentLoaded', \(\) => \{/.test(A));
   ok('wiring twice never double-binds a button', /btn\.dataset\.wired/.test(A));
 }
 
