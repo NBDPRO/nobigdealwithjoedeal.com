@@ -85,4 +85,4 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 4. ~~Characters: the Train tab cards and the crew board still use still frames; the drive game's truck and traffic are
    vector but static~~ (done 10-25, wave 5: Big Dave in the Training Yard, breathing crew rows, an eased truck with
    exhaust and skid dust; plus the `animate()` stop-ordering bug in chibi.js). Also the LEAVE scene: a signed homeowner steps out to the rep and cheers,
-   a lost one shrugs, the rest wave, then the door swings shut. Left: the Train course cards themselves carry no character.
+   a lost one shrugs, the rest wave, then the door swings shut. ~~Left: the Train course cards themselves carry no character.~~ (done, waves 6 and 7 in the same PR as the strip fix: the rep demonstrates each course on its card, and homeowners carry persona props.)
