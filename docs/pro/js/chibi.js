@@ -45,6 +45,8 @@
  *          one brow up (the rival). Wave 19: per-frame popDelay (ms) holds a loop's canvas blank that long before its
  *          pop-in, so a list of faces arrives one after another (not under reduced motion). Wave 20: talking varies the
  *          mouth's shape (round to wide) and the brows rise and fall with the words, so a long line reads as speech.
+ *          Wave 21: the mood colours the idle. A frowning character shakes their head slowly with a sigh every 7 s and
+ *          looks away more; a happy one rocks gently with the hair swinging along.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
  *                                         thumbs · cringe (wave 17) · cross (wave 18)
@@ -179,6 +181,12 @@
     }
     if (o.mood === 'frown' && pose !== 'cheer' && pose !== 'wave') { p.mouth = p.mouth === 'open' ? 'open' : 'frown'; p.browDown = Math.max(p.browDown, 0.7); }
     if (o.mood === 'smug' && pose !== 'sad' && pose !== 'cheer') { p.smug = true; if (p.mouth === 'smile' || p.mouth === 'flat') p.mouth = 'smirk'; } // wave 18
+    // wave 21: the mood colours the idle. A frown: a slow head shake with a sigh (the mouth opens a touch, the eyes
+    // close) in the last 1.3 s of every 7 s, and the glance away comes twice as often; happy: a gentle rock with the hair.
+    if (pose === 'idle' && m) {
+      if (o.mood === 'frown') { var mf = (t + seed * 5) % 7000; if (mf > 5700) { var mk = s((mf - 5700) / 1300 * Math.PI); p.tilt += s((mf - 5700) / 140) * 2.2 * mk; p.eyesClosed = p.eyesClosed || mk > 0.5; p.mouthOpen = Math.max(p.mouthOpen, mk * 0.25); p.bob += mk * 1.2; } if (!p.look && (t + seed * 3) % 3200 > 2600) p.look = -1; }
+      else if (o.mood === 'happy') { p.tilt += s(t / 520) * 1.6; p.bob += s(t / 520 + 1) * -0.6; p.hair += s(t / 520 - 0.6) * 2.5; }
+    }
     if (o.mood === 'happy' && pose !== 'sad') { p.happyEyes = true; p.browUp = Math.max(p.browUp, 0.6); if (p.mouth === 'smile') p.mouth = 'grin'; }
     return p;
   }

@@ -284,3 +284,7 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   to wide, on its own beat) and the brows rise and fall with the words, so a long line in the sheet reads as speech
   rather than a metronome. The HUD face follows the street rep's pose while it lasts: a cheer on a sale, a thumbs-up
   on a booking, a cringe on a bad call (never the walk; a tap's cheer still wins). Guard grows to 110.
+- **Wave 21, the mood colours the idle.** A frowning character (a skeptic at the door, a homeowner under 35% trust)
+  shakes their head slowly with a sigh in the last 1.3 s of every 7 s (eyes shut, the mouth a touch open, the body
+  dips) and glances away twice as often; a happy one rocks gently on a 520 ms beat with the hair swinging along.
+  Reduced motion keeps both still. Guard grows to 112.
