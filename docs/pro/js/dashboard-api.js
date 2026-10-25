@@ -142,8 +142,8 @@ async function renderLeaderboard(){
     const look = (window.NBDTeamNames && window.NBDTeamNames.avatarFor) ? window.NBDTeamNames.avatarFor(r.owner) : null;
     const initials = String(r.name || '?').split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
     const face = (look && window.NBDChibi)
-      ? '<canvas class="lb-face" data-lb-face="' + esc(r.owner) + '" width="72" height="72" role="img" aria-label="' + esc(r.name) + '" style="width:36px;height:36px;border-radius:50%;background:var(--s3);flex:none;display:block;"></canvas>'
-      : '<div style="width:36px;height:36px;border-radius:50%;background:var(--s3);color:var(--m);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;" aria-hidden="true">' + esc(initials) + '</div>';
+      ? '<canvas class="lb-face" data-lb-face="' + esc(r.owner) + '" width="72" height="72" role="img" aria-label="' + esc(r.name) + '"></canvas>'
+      : '<div class="lb-initials" aria-hidden="true">' + esc(initials) + '</div>';
     return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--br);">' +
       '<div style="font-size:20px;width:28px;text-align:center;">' + (medals[i] || '#' + (i + 1)) + '</div>' +
       face +

@@ -225,7 +225,7 @@ CEILING.localBytes += 16 * 1024;
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
   blockingBytes: 84 * 1024,   // deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
-  localBytes: 2798 * 1024, // deliberate raise 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred
+  localBytes: 2804 * 1024, // deliberate raise 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
   templateBytes: 73 * 1024,
 };
 

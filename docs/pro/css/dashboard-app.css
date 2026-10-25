@@ -5565,3 +5565,8 @@ body {
 /* Schedule's calendar-feed row: the read-only link field kept its intrinsic width and pushed "Create my link" off a
    320 px screen (same sweep). */
 #calFeedUrl, #calBookingUrl{min-width:0;}
+
+/* Leaderboard view (Dashboard > Leaderboard): each rep's Roof Rep look beside the medal, initials for a rep without one
+   (characters wave 11, 2026-10-25). */
+.lb-face{width:36px;height:36px;border-radius:50%;background:var(--s3);flex:none;display:block;}
+.lb-initials{width:36px;height:36px;border-radius:50%;background:var(--s3);color:var(--m);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;}

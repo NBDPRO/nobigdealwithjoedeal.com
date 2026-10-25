@@ -619,7 +619,7 @@ const WIDGETS = [
       // the first render kicks the read and redraws itself once it lands. No look, no slot.
       const TN = window.NBDTeamNames;
       if (TN && TN.loadAvatars && !TN.avatarsReady() && !el.__avatarsAsked) { el.__avatarsAsked = true; TN.loadAvatars().then(() => { const w = WIDGETS.find(x => x.id === 'team-leaderboard'); if (w && document.contains(el)) w.render(el); }).catch(() => {}); }
-      const face = (r) => { const look = TN && TN.avatarFor ? TN.avatarFor(r.owner) : null; return (look && window.NBDChibi) ? `<canvas data-wg-face="${esc(r.owner)}" width="56" height="56" aria-hidden="true" style="width:28px;height:28px;border-radius:50%;background:var(--s3);flex:none;display:block;"></canvas>` : ''; };
+      const face = (r) => { const look = TN && TN.avatarFor ? TN.avatarFor(r.owner) : null; return (look && window.NBDChibi) ? `<canvas class="wg-face" data-wg-face="${esc(r.owner)}" width="56" height="56" aria-hidden="true"></canvas>` : ''; };
       el.innerHTML = '<div class="wg-tiny">Booked (all time)</div>' + reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
           <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>${face(r)}

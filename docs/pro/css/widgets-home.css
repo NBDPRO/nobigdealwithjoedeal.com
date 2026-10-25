@@ -99,3 +99,6 @@
 .wg-col4 { display: flex; flex-direction: column; gap: 4px; }
 .wg-w100 { width: 100%; }
 .wg-mt4 { margin-top: 4px; }
+
+/* Team Leaderboard widget: a rep's Roof Rep look beside the name (characters wave 11, 2026-10-25) */
+.wg-face { width: 28px; height: 28px; border-radius: 50%; background: var(--s3); flex: none; display: block; }
