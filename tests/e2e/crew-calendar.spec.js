@@ -67,9 +67,11 @@ test.describe.serial('Crew Calendar @shard2', () => {
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'crew' && !!document.getElementById('nbdCrewRoot'), null, { timeout: 40_000 });
 
-    // lanes: both crews + "No crew yet"; the placed job is a 2-column block in Alpha's lane
-    await expect(page.locator('.cw-lane-name', { hasText: 'ZZCW Alpha' })).toBeVisible({ timeout: 40_000 });
-    await expect(page.locator('.cw-lane-name', { hasText: 'ZZCW Bravo' })).toBeVisible();
+    // lanes: both crews + "No crew yet"; the placed job is a 2-column block in Alpha's lane. The crews are named with
+    // this attempt's stamp: a CI retry runs against the same emulator, so an earlier attempt's "ZZCW Alpha" lane is
+    // still on the board and the bare name matched two or three lanes (#2737's run, strict-mode violation on every retry).
+    await expect(page.locator('.cw-lane-name', { hasText: 'ZZCW Alpha ' + s })).toBeVisible({ timeout: 40_000 });
+    await expect(page.locator('.cw-lane-name', { hasText: 'ZZCW Bravo ' + s })).toBeVisible();
     await expect(page.locator('.cw-lane-name', { hasText: 'No crew yet' })).toBeVisible();
     const placed = page.locator('.cw-block', { hasText: 'Placed' + s });
     await expect(placed).toBeVisible();
@@ -131,10 +133,17 @@ test.describe.serial('Crew Calendar @shard2', () => {
       if (typeof st === 'function') window.showToast = function (m) { log('toast:' + (typeof m === 'string' ? m : JSON.stringify(m && m.message))); return st.apply(this, arguments); };
       ['pointerdown', 'pointerup', 'pointercancel'].forEach((t) => document.addEventListener(t, (e) => {
         const top = document.elementsFromPoint(e.clientX, e.clientY).slice(0, 3).map((x) => x.className || x.tagName).join(' > ');
-        log(t + ' ' + e.pointerType + ' btn' + e.button + ' @' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' target=' + ((e.target && e.target.className) || e.target.tagName) + ' top=' + top);
+        const root = document.getElementById('nbdCrewRoot');
+        log(t + ' ' + e.pointerType + ' btn' + e.button + ' @' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' target=' + ((e.target && e.target.className) || e.target.tagName) + ' top=' + top + ' dragging=' + !!(root && root.classList.contains('cw-dragging')));
       }, true));
       new MutationObserver(() => log('crew root replaced/removed? present=' + !!document.getElementById('nbdCrewRoot'))).observe(document.body, { childList: true });
     });
+    // The layout ignores a press unless it is on the week view (crew.js onPointerDown: S.view !== 'week' returns), and
+    // the view is read from the saved layoutState on load. Put the board on Week before the drag and say so in the dump.
+    const weekPill = page.locator('.cw-pill[data-cw="view"][data-v="week"]');
+    if (await weekPill.count() && (await weekPill.first().getAttribute('aria-pressed')) !== 'true') { await weekPill.first().click(); await expect(weekPill.first()).toHaveAttribute('aria-pressed', 'true'); }
+    await expect(placed.first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(600); // let a repaint from the just-written leads land before the press, not under it
     await drag(placed.first(), cell('sub:' + ids.bravo, fri));
     try {
       await expect.poll(async () => (await fresh(ids.placed)).scheduledDate, { timeout: 15_000 }).toBe(fri);
@@ -147,6 +156,8 @@ test.describe.serial('Crew Calendar @shard2', () => {
         notice: (document.querySelector('.cw-notice') || {}).innerText || null,
         toasts: Array.from(document.querySelectorAll('#toastContainer .toast')).map((t) => t.innerText),
         activeView: (document.querySelector('.view.active') || {}).id || null,
+        weekPill: (document.querySelector('.cw-pill[data-cw="view"][data-v="week"]') || {}).getAttribute ? document.querySelector('.cw-pill[data-cw="view"][data-v="week"]').getAttribute('aria-pressed') : null,
+        cells: document.querySelectorAll('.cw-cell').length,
         blocks: Array.from(document.querySelectorAll('.cw-block')).map((b) => b.className + ' | ' + b.innerText.replace(/s+/g, ' ')),
         events: window.__crewDbg,
       }));

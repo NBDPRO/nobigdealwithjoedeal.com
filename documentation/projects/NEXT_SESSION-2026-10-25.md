@@ -33,7 +33,9 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   Wave 16: eye colour in both pickers. Wave 17: thumbs-up and cringe poses on the street's outcomes. Wave 18: folded arms and a nod in
   the speech sheet as trust moves, a walk that fits the build, the rival's smirk. Wave 19: the leaderboard faces arrive one after another; the sheet's dog
   barks. Wave 20: speech varies the mouth and brows; the HUD face mirrors the street rep. Wave 21: a
-  frowning idle sighs and shakes its head, a happy one rocks. Guard `tests/chibi-2026-10-25.test.js` (112).
+  frowning idle sighs and shakes its head, a happy one rocks. Wave 22: the sample account's leaderboards show the
+  owner's face (seed v8). Wave 23: the game card cheers for XP earned since the last look. Guard
+  `tests/chibi-2026-10-25.test.js` (114).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -81,6 +83,19 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   of reach again). The pattern now allows up to 20 characters there (this PR); the next @shard2 run is the first whose
   tail will hold the dump. The traces artifact (playwright-authed-traces-1, 9 MB) is on the run for a reader with
   blob access.
+- **@shard2 on #2737 (the first run whose tail held the dumps): 165 passed, 2 failed, 1 flaky, 11.5 min.** Zero hosting
+  lines in the tail, so both misses were read from their dumps and fixed in the same evening:
+  - compact-header test 4: the first card sat at 548px (65%) and the dump named two data-driven blocks the shared rep's
+    earlier specs leave behind, the follow-up alerts (124px) and the sort-customers banner (60px). Neither is the
+    header's doing, so the test now subtracts their heights (`#followUpAlertsWrap`, `#sortCustomersWrap`) before the
+    52% rule and logs them. Alone: 424px with 60px of data blocks.
+  - crew-calendar's drag test: a strict-mode violation on `.cw-lane` with `hasText: 'ZZCW Alpha'`, because a retry's
+    first attempt had left its own crew behind and two lanes matched. The lanes are now matched by this attempt's
+    stamp (`'ZZCW Alpha ' + s`), the drag starts on the Week view (the pill is clicked if not pressed, the placed job
+    re-asserted, 600 ms for the re-render) and the dump adds the pill's state and the cell count.
+  - The flaky one (call-center-view) passed on retry; its layout-leak reset landed in #2734.
+  Both specs together on the emulators after the fix: 7 passed in 36.0 s. The next @shard2 run is the first that can
+  go 168/168.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
@@ -102,13 +117,20 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 
 ## Next lanes (engineering, no Jo needed)
 
-1. Watch #2731 to merge; push wave 4 + this handoff as the next PR.
-2. ~~The game card in the sample account~~ (done 10-25, above).
-3. `@shard2` runtime after the retry fix: if it still cannot finish, profile the CI log the way the 10-25 session did
-   (per-spec wall time from the line reporter's timestamps) rather than splitting blind. The MCP log tool returns the
-   last 5000 lines only and the Actions blob host is off the proxy allow-list, so the head of a 25-minute log is out
-   of reach from a cloud session; the per-spec `(retries)` markers in the tail still tell you which specs failed once.
-4. ~~Characters: the Train tab cards and the crew board still use still frames; the drive game's truck and traffic are
-   vector but static~~ (done 10-25, wave 5: Big Dave in the Training Yard, breathing crew rows, an eased truck with
-   exhaust and skid dust; plus the `animate()` stop-ordering bug in chibi.js). Also the LEAVE scene: a signed homeowner steps out to the rep and cheers,
-   a lost one shrugs, the rest wave, then the door swings shut. ~~Left: the Train course cards themselves carry no character.~~ (done, waves 6 and 7 in the same PR as the strip fix: the rep demonstrates each course on its card, and homeowners carry persona props.)
+Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
+characters ran to wave 23). What is left, and what is new:
+
+1. **`@shard2` to 168/168:** both misses on #2737's run were read from their dumps and fixed (the bullet above):
+   compact-header test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's
+   stamp. Watch the next full run; if test 4 still misses, the dump names the next cover (the traces artifact holds
+   the screenshot for a reader with blob access). If it goes green, lane 2 is the only thing between the leg and the
+   required set.
+2. **`@shard2` / `@shard3` in the required set** waits on Jo (Needs Jo, item 2): the leg runs in about 13 minutes now.
+3. **Characters, left on the table:** the leaderboard page (`/pro/leaderboard`) is a single-rep board, so only your own
+   face shows there (wave 10); if it ever lists teammates, `team-names.js` `loadAvatars()` is the read to reuse. A kid
+   build, night tint on the street's characters and seasonal dress for the rep's own look were considered and not
+   built. The shipped-bytes ceiling has about 9 KB of slack (2807 of 2816 KB); the next renderer wave that needs more
+   raises it with a dated note, as waves 12–17 did.
+4. **The sample account** carries the owner's Roof Rep row (seed v8) so its leaderboards show a face; a second sample
+   rep (a real team on `/pro/explore`) would make the Team Leaderboard widget and the staggered arrival visible to a
+   prospect. Seed v9 if wanted: a member doc, a few leads under the second uid, a `roofRepScores` row.

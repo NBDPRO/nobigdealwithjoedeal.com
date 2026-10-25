@@ -77,7 +77,7 @@ function ok(name, cond, detail) {
   ok('…and shows the answer\'s reason when it is not a card', /reason/.test(load));
 
   console.log('\n4. versions');
-  ok('dashboard loads game-card.js?v=5', /js\/game-card\.js\?v=5/.test(read('docs/pro/dashboard.html')));
+  ok('dashboard loads game-card.js?v=6', /js\/game-card\.js\?v=6/.test(read('docs/pro/dashboard.html')));
   ok('ci-manifest lists this file', read('tests/ci-manifest.json').indexOf('pro-demo-game-card-2026-10-25.test.js') !== -1);
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
