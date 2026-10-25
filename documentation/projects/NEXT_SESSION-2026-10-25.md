@@ -72,6 +72,8 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   `tests/crm-strip-one-row-2026-10-25.test.js`. Local note: this sandbox's proxy blocks fonts.googleapis, so the
   dashboard renders in a wider fallback font; `loginAs` on the emulators now serves the self-hosted Barlow sheet
   (`nbd-fonts-pro.css`) in its place, so local widths match CI's.
+- **Merged today after #2735:** #2736 (character waves 12–15 + the ANSI-tolerant CI filter, 14:12 UTC). Waves 16–21
+  follow in the next PR on the same branch.
 - **@shard2 on #2735 (the first run with the hosting-log filter): 167 passed, 1 failed, 13.0 min.** Only
   compact-header test 4 ("the first card starts in the top half") missed; crew-calendar passed. The filter itself
   missed: on the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address and
