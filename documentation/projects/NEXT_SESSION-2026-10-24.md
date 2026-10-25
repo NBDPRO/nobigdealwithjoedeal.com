@@ -51,6 +51,7 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
   - **Daily Success notebook** (Jo, 10-25, same PR): the tab row is Dash · Today · open page · Notebook (n) · +; every page files by month in a drawer. Note: [DAILY-SUCCESS-NOTEBOOK-2026-10-25](DAILY-SUCCESS-NOTEBOOK-2026-10-25.md).
   - **Roof Rep revamp** (Jo, 10-25, same PR): NBD look, phone play layout, game feel, objection duels, quest board, Storm Run, seasons, crew ranks and duels. The repo file is the source now. Update section in [ROOF-REP-GAME-2026-10-03](ROOF-REP-GAME-2026-10-03.md).
   - **Daily Success layouts, the whole lineup** (10-25, same PR): Cockpit, Quest, One Thing, Journal and Arcade are ready to pick; see the status line in [DAILY-SUCCESS-INTERFACES-2026-10-22](DAILY-SUCCESS-INTERFACES-2026-10-22.md).
+  - **Visual-consistency sweep (10-25, same PR, pass 6 in [UI-SWEEP-2026-10-24](../audit/UI-SWEEP-2026-10-24.md)):** the Product Library and every un-classed dashboard control read Barlow (they were the OS font); one Products title instead of three; a 44 px phone floor for every view's controls; the phone header reads "[NBD] PRO"; marketing nav CTA, primary button padding and radii aligned to the majority; the portal and estimate view each got their h1. Guard: `tests/dashboard-font-consistency-2026-10-25.test.js`.
   - **Later on 10-25, same PR:** Roof Rep plays side by side on desktop, its HUD is three across under 360 px and its chips / swatches / options are 44 px; Quest got its skill tree; the Home game card shows a work streak (server `streak()` in `functions/game-logic.js`, GameForce appendix #8); the layouts gate also renders each layout's dashboard.
   - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
@@ -88,6 +89,7 @@ Notes for the details: [OVERNIGHT-LANDING-AUDIT-2026-10-23](../audit/OVERNIGHT-L
 
 ## Needs Jo
 
+0. **Visual decisions from the 10-25 sweep** (pass 6 of the sweep note): marketing cards are 12–14 px radius site-wide against DESIGN.md's "8 px and pills" (add a 14 px card token, or move ~40 card rules to 8 px); the nav CTA majority is 6 px against the rule's 8; the dashboard's 9 px labels against the 11 px phone rule; `/pro/register`'s Google button font and eye toggle, and `/pro/pricing`, both wait on a CI-rendered baseline bless (`visual-regression-output` from run 8275).
 1. **Flip what's built and dark, if wanted** (Firebase console / env):
    - `leadSourceFixer`, `speedToLead`, `estimateFollowBoard`, then answer the "Where customers came from" cards.
    - `OWNER_WEEKLY_DIGEST_ENABLED=true` (owner digest into the Agent inbox). Also decide: owner only? And
