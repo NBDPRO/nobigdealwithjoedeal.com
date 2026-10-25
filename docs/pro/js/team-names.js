@@ -10,6 +10,11 @@
  *
  * One cached read per session (per company); a refused or failed read just
  * resolves an empty map — callers fall back to their own labels.
+ *
+ * Avatars (characters wave 11, 2026-10-25): loadAvatars() / avatarFor(uid) map
+ * uid → the Roof Rep look from roofRepScores (readable across the company by
+ * firestore.rules; a solo owner reads their own doc). A rep who has never
+ * opened Roof Rep has no row and keeps whatever the caller draws instead.
  */
 (function () {
   'use strict';
@@ -42,6 +47,40 @@
     return p;
   }
 
+  let _av = null, _avKey = null, _avInflight = null;
+  function _avatarKey() { return _companyId() || ((window._user && window._user.uid) ? 'solo:' + window._user.uid : null); }
+  function loadAvatars() {
+    const key = _avatarKey();
+    if (!key) return Promise.resolve({});
+    if (_av && _avKey === key) return Promise.resolve(_av);
+    if (_avInflight && _avInflight.key === key) return _avInflight.p;
+    const db = window.db || window._db;
+    const cid = _companyId();
+    let p;
+    if (cid && db && window.getDocs && window.query && window.collection && window.where) {
+      p = window.getDocs(window.query(window.collection(db, 'roofRepScores'), window.where('companyId', '==', cid))).then((snap) => {
+        const map = {};
+        snap.docs.forEach((d) => { const r = d.data() || {}; if (r.avatar && typeof r.avatar === 'object') map[d.id] = r.avatar; });
+        return map;
+      });
+    } else if (!cid && db && window.getDoc && window.doc && window._user && window._user.uid) {
+      p = window.getDoc(window.doc(db, 'roofRepScores', window._user.uid)).then((s) => {
+        const map = {}; const r = s && s.exists() ? (s.data() || {}) : {};
+        if (r.avatar && typeof r.avatar === 'object') map[window._user.uid] = r.avatar;
+        return map;
+      });
+    } else return Promise.resolve({});
+    p = p.catch(() => ({})).then((map) => { _av = map; _avKey = key; return map; }).finally(() => { if (_avInflight && _avInflight.p === p) _avInflight = null; });
+    _avInflight = { key, p };
+    return p;
+  }
+  // Synchronous: the look, or null until loadAvatars() resolved / for a rep without one.
+  function avatarFor(uid) {
+    if (!uid) return null;
+    return (_av && _avKey === _avatarKey() && _av[uid]) || null;
+  }
+  function avatarsReady() { return !!(_av && _avKey === _avatarKey()); }
+
   // Synchronous lookup against the cache (null until load() resolved).
   function nameFor(uid) {
     if (!uid) return null;
@@ -50,5 +89,5 @@
     return (_cache && _cacheKey === _companyId() && _cache[uid]) || null;
   }
 
-  window.NBDTeamNames = { load, nameFor };
+  window.NBDTeamNames = { load, nameFor, loadAvatars, avatarFor, avatarsReady };
 })();

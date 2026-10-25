@@ -212,3 +212,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   `userSettings/{uid}.game.avatar` (the Home game card's look; owner-only read), and the rep's row shows that avatar
   as a bust-crop chibi that waves every 14 s like the game card. A rep without a game card, or a failed read, keeps
   the initials. `leaderboard.js?v=4`; the pin rides the chibi guard (76).
+- **Wave 11, the dashboard's two leaderboards:** `team-names.js` (v2) also maps uid to the Roof Rep look from
+  `roofRepScores` (`loadAvatars()` / `avatarFor()`: one company read behind the companyId claim, or the viewer's own
+  doc for a solo owner; readable across the company by `firestore.rules`). The Dashboard view's Leaderboard
+  (`dashboard-api.js` v9) shows each rep's chibi beside the medal, initials for a rep who has never opened Roof Rep;
+  the Team Leaderboard widget (`widgets.js` v19) draws one beside the name and redraws itself once the read lands.
+  Guard grows to 79.

@@ -596,6 +596,7 @@ const WIDGETS = [
       });
       const reps = Object.entries(byRep)
         .map(([owner, r]) => ({
+          owner,
           // Fall back to the signed-in user's own name for their own row, then
           // a neutral label — never an invented person.
           name: r.name
@@ -614,12 +615,18 @@ const WIDGETS = [
           + 'No closed jobs yet — reps appear here once deals start closing.</div>';
         return;
       }
+      // Each rep's Roof Rep look beside the name (characters wave 11): drawn from the cached roofRepScores read;
+      // the first render kicks the read and redraws itself once it lands. No look, no slot.
+      const TN = window.NBDTeamNames;
+      if (TN && TN.loadAvatars && !TN.avatarsReady() && !el.__avatarsAsked) { el.__avatarsAsked = true; TN.loadAvatars().then(() => { const w = WIDGETS.find(x => x.id === 'team-leaderboard'); if (w && document.contains(el)) w.render(el); }).catch(() => {}); }
+      const face = (r) => { const look = TN && TN.avatarFor ? TN.avatarFor(r.owner) : null; return (look && window.NBDChibi) ? `<canvas data-wg-face="${esc(r.owner)}" width="56" height="56" aria-hidden="true" style="width:28px;height:28px;border-radius:50%;background:var(--s3);flex:none;display:block;"></canvas>` : ''; };
       el.innerHTML = '<div class="wg-tiny">Booked (all time)</div>' + reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
-          <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
+          <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>${face(r)}
           <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
           <div class="wg-right"><div class="wg-orange-12">$${(r.rev/1000).toFixed(1)}k</div><div class="wg-tiny">${r.deals} deals</div></div>
         </div>`).join('');
+      if (window.NBDChibi && typeof el.querySelectorAll === 'function') el.querySelectorAll('canvas[data-wg-face]').forEach((cv) => { const look = TN.avatarFor(cv.getAttribute('data-wg-face')); if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust' }; }); });
     }},
 
   // ═══ TOOLS & QUICK ACTIONS ═══
