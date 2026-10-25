@@ -143,9 +143,10 @@ function paint(ctx, look, ox, oy, u) {
 // crew board's thumbnails. POSE is a short-lived override for the street (a cheer on a signed job, a slump on a lost door).
 var CH = window.NBDChibi || null;
 var POSE = { name: null, until: 0 };
+var DOOR = null; // the homeowner standing in the doorway while the speech sheet is open
 function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
-function chibi(ctx, look, cx, feetY, p, facing, t) {
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: 26, t: t, pose: p, facing: facing, shadow: false });
+function chibi(ctx, look, cx, feetY, p, facing, t, h, mood) {
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood });
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
@@ -583,7 +584,7 @@ function makeLook(persona) {
   return { skin: rnd(6), hair: p.elder ? pick(['bald', 'short']) : pick(['short', 'long', 'buzz', 'ponytail', 'bald', 'short', 'long']),
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
-    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '' };
+    tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder };
 }
 function newName() {
   var free = NAMES.filter(function (n) { return SAVE.usedNames.indexOf(n) < 0; });
@@ -974,6 +975,7 @@ function drawWorld() {
     chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
     g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 42, 8, 4);
   }
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, 'talk', 1, now, 22, DOOR.mood); }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
@@ -987,7 +989,7 @@ function walkTo(h) {
   if (!DAY || WALK.busy || !document.getElementById('ov').hidden) return;
   var d = doorOf(h);
   WALK.target = h; WALK.busy = true;
-  WALK.path = [{ x: WALK.px, y: ROAD_Y + 8 }, { x: d.x, y: ROAD_Y + 8 }, { x: d.x, y: d.y }];
+  WALK.path = [{ x: WALK.px, y: ROAD_Y + 8 }, { x: d.x + 8, y: ROAD_Y + 8 }, { x: d.x + 8, y: d.y }]; // stops beside the door, then turns to it
 }
 function tick() {
   if (WALK.path.length) {
@@ -1006,9 +1008,9 @@ var STATUS_MSG = {
   fine: "You told {n} the roof was fine. They remember that.", denied: "The claim was denied. {n} is thinking it over.", quiet: "{n} went quiet. Maybe next storm.",
 };
 function arrive() {
-  var h = WALK.target; WALK.busy = false;
+  var h = WALK.target; WALK.busy = false; WALK.face = -1;
   spend(Math.max(2, 5 + rnd(4) - 2 * sk('hustle'))); if (!DAY || DAY.over) return;
-  sfx('knock'); KNOCK = { x: WALK.px, y: WALK.py - 18, until: Date.now() + 500 };
+  sfx('knock'); KNOCK = { x: WALK.px - 9, y: WALK.py - 18, until: Date.now() + 500 }; // the ring sits on the door, beside the rep
   if (h.status === 'fresh') dayCount('knock');
   if (h.dog && h.status === 'fresh' && h.dogDay !== SAVE.day) {
     sfx('bark');
@@ -1039,6 +1041,7 @@ function arrive2(h, dogTip) {
 var faceCv = document.getElementById('face');
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function say(look, name, text, choices, tip, meter) {
+  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: meter && meter.pct < 35 ? 'frown' : undefined } : null;
   if (look) drawTo(faceCv, look, 'talk', meter && meter.pct < 35 ? 'frown' : undefined);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
