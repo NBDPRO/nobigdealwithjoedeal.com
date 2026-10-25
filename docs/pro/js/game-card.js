@@ -33,6 +33,11 @@
   function avatar() { return S() ? S().normalize((st.settings && st.settings.avatar) || {}) : {}; }
   function enabled() { return !!(st.settings && st.settings.enabled); }
   function fmt(n) { return Math.round(Number(n) || 0).toLocaleString('en-US'); }
+  // The week's XP the rep saw on their last look at the card (per browser, per uid; character wave 23). When the card
+  // comes back higher, the avatar cheers and the card says how much came in since. Browser storage can be absent.
+  function seenKey() { return 'nbd.gc.seenXp.' + (uid() || 'anon'); }
+  function seenXp() { try { var v = localStorage.getItem(seenKey()); return v == null ? null : Number(v); } catch (_) { return null; } }
+  function rememberXp(xp) { try { localStorage.setItem(seenKey(), String(Math.round(Number(xp) || 0))); } catch (_) {} }
 
   // ── settings (userSettings/{uid}.game) ─────────────────────────────────
   // A cold boot can catch Firestore mid-connect (2026-10-04): getDoc then
@@ -137,6 +142,7 @@
     var span = Math.max(1, (c.levelNext || 1) - (c.levelFloor || 0));
     var pct = Math.max(0, Math.min(100, Math.round(((c.totalXp - (c.levelFloor || 0)) / span) * 100)));
     var ahead = c.week.xp - c.lastWeek.xp;
+    var seen = seenXp(), gained = seen == null ? 0 : Math.max(0, Math.round(c.week.xp - seen)); rememberXp(c.week.xp);
     el.innerHTML = '<div class="gc-card">' +
       '<div class="gc-top">' +
         '<canvas class="gc-sprite" id="gcHomeSprite" width="128" height="128" role="img" aria-label="Your avatar"></canvas>' +
@@ -149,7 +155,7 @@
         '<div class="gc-stat"><div class="gc-muted">Last week (your ghost)</div><div class="gc-num">' + fmt(c.lastWeek.xp) + ' XP</div></div>' +
         (c.streak ? '<div class="gc-stat gc-streak"><div class="gc-muted">Work streak</div><div class="gc-num">' + (c.streak.current ? '🔥 ' : '') + fmt(c.streak.current) + ' day' + (c.streak.current === 1 ? '' : 's') + '</div><div class="gc-muted gc-small">' + (c.streak.current ? (c.streak.activeToday ? 'today counts' : 'earn anything today to keep it') : 'tick a follow-up today to start one') + (c.streak.best > c.streak.current ? ' · best ' + fmt(c.streak.best) : '') + '</div></div>' : '') +
       '</div>' +
-      '<div class="gc-muted gc-vs">' + (ahead > 0 ? 'Ahead of your ghost by ' + fmt(ahead) + ' XP.' : ahead < 0 ? fmt(-ahead) + ' XP behind your ghost — the week isn\'t over.' : 'Dead even with your ghost.') + '</div>' +
+      '<div class="gc-muted gc-vs">' + (ahead > 0 ? 'Ahead of your ghost by ' + fmt(ahead) + ' XP.' : ahead < 0 ? fmt(-ahead) + ' XP behind your ghost — the week isn\'t over.' : 'Dead even with your ghost.') + (gained > 0 ? ' +' + fmt(gained) + ' XP since you last looked.' : '') + '</div>' +
       (c.breakdown && c.breakdown.length ? '<div class="gc-list">' + c.breakdown.map(function (b) {
         return '<div class="gc-row"><span>' + esc(b.label) + ' (' + (b.kind === 'collected' ? '$' + fmt(b.count) : fmt(b.count)) + ')</span><span>+' + fmt(b.xp) + '</span></div>';
       }).join('') + '</div>' : '<div class="gc-muted">Nothing yet this week. Tick a follow-up or file a call and it shows up here.</div>') +
@@ -158,7 +164,9 @@
         '<a class="btn btn-ghost btn-sm gc-play" href="/pro/roof-rep.html">🎮 Play Roof Rep</a></div>' +
       (st.editing ? editorHtml('gcHomeEd') : '') +
     '</div>';
-    drawSprite(document.getElementById('gcHomeSprite'), avatar());
+    var home = document.getElementById('gcHomeSprite');
+    if (gained > 0 && home) home.__cheerUntil = Date.now() + 1800; // the avatar cheers for the XP that came in since the last look
+    drawSprite(home, avatar());
     if (st.editing) drawSprite(document.getElementById('gcHomeEdSprite'), avatar());
   }
 
