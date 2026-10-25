@@ -293,8 +293,11 @@ let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')|
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
 // Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
-const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething',journal=ui==='journal';
-if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);bar.classList.toggle('today-journal',journal);}
+const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething',journal=ui==='journal',arcade=ui==='arcade';
+if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);bar.classList.toggle('today-journal',journal);bar.classList.toggle('today-arcade',arcade);}
+// Arcade layout (data-ui="arcade"): Quest's data as a scoreboard (arcade-ui.js / arcade-logic.js).
+if(arcade&&window.NBDArcadeUI&&window.NBDQuest){const fl3=getFloors(),pd3=(p&&p.data)||{};
+bar.innerHTML=NBDArcadeUI.html({floors:fl3.map(f=>({id:f.id,label:f.label,met:pd3['floormet-'+f.id]==='1'})),workout:s.workout,sessions:sessions,days:NBDQuest.daysFrom(pages,fl3),today:todayKey(),xp:window.NBDXp,coach:window.NBDCoach});return;}
 // Journal layout (data-ui="journal"): a paper page with an intention and a note; both are page fields (data-k), so they save
 // with the page. Read what is typed back before re-rendering, or a floor toggle would wipe it (journal-ui.js).
 if(journal&&window.NBDJournalUI&&p){p.data=p.data||{};bar.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});

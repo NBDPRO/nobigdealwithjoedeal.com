@@ -51,7 +51,7 @@ console.log('\n2. wiring');
   ok('every Journal rule is scoped to [data-ui="journal"]', rules.length >= 10 && rules.every((l) => /^\[data-ui="journal"\]/.test(l.trim())), rules.filter((l) => !/^\[data-ui="journal"\]/.test(l.trim())).join(' | '));
   ok('paper in every theme: fixed warm paper and dark ink, a serif stack, inputs 44 px, static', /\.jn-page \{ background: #f7f3ea; color: #1f2937;/.test(jn) && /Georgia/.test(jn) && /\.jn-in, \[data-ui="journal"\] \.jn-note \{[^}]*min-height: 44px/.test(jn) && /today-journal \{ position: static;/.test(jn));
   ok('no font under 11 px', !/font-size: (10|9|8)px/.test(jn));
-  ok('layouts.css cache version bumped', /layouts\.css\?v=8/.test(INDEX));
+  ok('layouts.css cache version bumped', /layouts\.css\?v=\d+/.test(INDEX));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -19,7 +19,7 @@
     { id: 'rings', label: 'Rings', blurb: 'Daily rings for floors, workout and calories. Close the rings.', ready: true },
     { id: 'cockpit', label: 'Cockpit', blurb: 'One dense HUD: today\'s numbers, the training week, what is behind.', ready: true },
     { id: 'quest', label: 'Quest', blurb: 'XP, levels and daily quests. Streaks can break; XP never does.', ready: true },
-    { id: 'arcade', label: 'Arcade', blurb: 'Retro pixel look: scores, combos, PRs as high scores.', ready: false },
+    { id: 'arcade', label: 'Arcade', blurb: 'Retro scoreboard: score, combo, missions, PRs as hi-scores.', ready: true },
     { id: 'onething', label: 'One Thing', blurb: 'One big card: do this next, nothing else.', ready: true },
     { id: 'journal', label: 'Journal', blurb: 'A calm paper page for the day: an intention, a note.', ready: true },
   ];

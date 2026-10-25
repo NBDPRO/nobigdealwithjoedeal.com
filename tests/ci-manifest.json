@@ -250,6 +250,7 @@
     "ds-layout-quest-2026-10-25.test.js",
     "ds-layout-onething-2026-10-25.test.js",
     "ds-layout-journal-2026-10-25.test.js",
+    "ds-layout-arcade-2026-10-25.test.js",
     "google-reviews-momentum.test.js",
     "google-reviews-not-configured.test.js",
     "google-reviews-static-hooks.test.js",
