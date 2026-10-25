@@ -13,10 +13,16 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 - **Merged later the same day:** #2731 (Island repaint), #2732 (characters wave 4 + the dedup-modal retry fix +
   the turf fallback), #2733 (the sample account's game card, wave 5, the LEAVE scene, the toast style leak and the
   Tools drawer).
-- **Open:** #2734 (the Pipeline strip one row on a phone, the @shard2 layout-leak reset in five specs, chibi v9 with
-  the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9). It also carries the
-  hero-video test's `vendor_id` allow (ffprobe 6.1), the digest + MCP team deal-room count and company paging
-  (pass-2 item 2), and the `lead_sources` key hardening (pass-2 item 6), each with its pin.
+- **Merged 12:42 UTC:** #2734 (the Pipeline strip one row on a phone, the @shard2 layout-leak reset in five specs,
+  chibi v9 with the hidden-canvas throttle, persona props, weather and idle fidgets, character waves 6 to 9, the
+  @shard1 estimate-parity race, the hero-video test's `vendor_id` allow, the digest + MCP team deal-room count and
+  company paging, the `lead_sources` key hardening). **Its @shard2 leg ran in 13.6 min: 165 passed, 1 flaky
+  (focus-mode), 2 order-dependent misses** (crew-calendar test 1, compact-header test 4; both pass alone and in a
+  pair locally). The error blocks were out of reach: the hosting emulator's access log (~1.6 MB) pushed them past the
+  5000-line tail the API serves, so the next PR filters that log out of the authed legs and both specs print their
+  page state on failure.
+- **Open next:** the CI log filter + spec dumps, and the Roof Rep trophy / career copy counts (badges out of six
+  courses, Boss slayer three of six boss doors).
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
