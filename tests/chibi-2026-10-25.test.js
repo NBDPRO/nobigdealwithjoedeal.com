@@ -34,17 +34,18 @@ function makeCtx() {
 }
 function load(opts) {
   opts = opts || {};
-  const rafs = [];
+  const rafs = [], timers = [];
   const win = {
     devicePixelRatio: opts.dpr || 2,
+    innerHeight: opts.innerHeight,
     matchMedia: () => ({ matches: !!opts.reduce }),
     requestAnimationFrame: (fn) => { rafs.push(fn); return rafs.length; },
     cancelAnimationFrame: () => {},
   };
-  const box = { window: win, console, Date, Math, Number, JSON, parseInt, requestAnimationFrame: win.requestAnimationFrame, cancelAnimationFrame: win.cancelAnimationFrame };
+  const box = { window: win, console, Date, Math, Number, JSON, parseInt, requestAnimationFrame: win.requestAnimationFrame, cancelAnimationFrame: win.cancelAnimationFrame, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout: () => {} };
   vm.createContext(box);
   vm.runInContext(read('docs/pro/js/chibi.js'), box);
-  return { CH: win.NBDChibi, rafs, win };
+  return { CH: win.NBDChibi, rafs, timers, win };
 }
 
 console.log('1. The API');
@@ -289,6 +290,18 @@ ok('wave 24: draw takes any facing in -1..1 as the body\'s x scale (never thinne
 ok('wave 24: tween(state, pose, now, ms, facing) turns a facing change over 180 ms (the old side at the change, edge-on half way, the new side after), carries no facing when given none, and snaps under reduced motion', (() => { const st = {}; const a = CH.tween(st, 'idle', 1000, null, 1), b = CH.tween(st, 'idle', 1050, null, -1), c = CH.tween(st, 'idle', 1050 + 90, null, -1), d = CH.tween(st, 'idle', 1050 + 400, null, -1), e = CH.tween({}, 'idle', 5, null); const R = load({ reduce: true }).CH, rs = {}; R.tween(rs, 'idle', 1, null, 1); return CH.TURN_MS === 180 && a.facing === 1 && b.facing === 1 && Math.abs(c.facing) < 1e-9 && d.facing === -1 && e.facing === undefined && R.tween(rs, 'idle', 2, null, -1).facing === -1 && a.pose === 'idle'; })());
 ok('wave 24: a loop hands each frame\'s facing to its tween and draws the eased one; the street\'s keyed characters (the rep, the rival, the doorway, the crew) turn the same way', /var tp = tween\(tw, pick\(POSES, o\.pose, 'idle'\), now, null, o\.facing\); o\.pose = tp\.pose; o\.from = tp\.from; o\.mix = tp\.mix; if \(tp\.facing != null\) o\.facing = tp\.facing;/.test(read('docs/pro/js/chibi.js')) && /var tw = key \? CH\.tween\(TWEENS\[key\] \|\| \(TWEENS\[key\] = \{\}\), p, t, null, facing\) : null;/.test(rrjs) && /facing: tw && tw\.facing != null \? tw\.facing : facing, shadow: false/.test(rrjs));
 ok('wave 24: hoodie strings swing with the hair; every pose draws at every facing of the turn on two builds without throwing', /ctx\.lineTo\(45 \+ p\.hair \* 0\.25, 90\); ctx\.moveTo\(54, 76\); ctx\.lineTo\(55 \+ p\.hair \* 0\.25, 90\);/.test(read('docs/pro/js/chibi.js')) && (() => { try { [1, 0.5, 0.08, -0.5, -1].forEach((facing) => CH.POSES.forEach((pose) => CH.draw(makeCtx().ctx, { build: pose.length % 2 ? 'stocky' : 'tall', hair: 'ponytail', top: 'hoodie', extra: 'glasses', beard: 'full' }, { h: 90, t: 333, pose, facing, cold: 1, wind: 1 }))); return true; } catch (e) { return false; } })());
+
+console.log('25. Wave 25: landing dust, the shadow under a squash, off-screen loops rest');
+ok('wave 25: dust rises from the feet as a cheer lands (strongest at contact, gone a third of the way up; none on the way down, at the top, or under reduced motion)', (() => { const up = P('cheer', 20), down = P('cheer', Math.round(170 * Math.PI) - 20), top = P('cheer', 267), R = load({ reduce: true }).CH.poseOf('cheer', 20, {}); return up.dust > 0.5 && up.dust < 1 && down.dust === 0 && top.dust === 0 && R.dust === 0 && P('cheer', 2).dust > up.dust; })());
+ok('wave 25: the dust is drawn as four puffs (two a side) on the ground, and nothing when there is none', (() => { const fills = (t) => { const m = makeCtx(); CH.draw(m.ctx, {}, { h: 120, t, pose: 'cheer', blink: false }); return m.log.fills; }; return fills(20) === fills(267) + 4 && /118 \+ p\.jump - dk \* 4/.test(read('docs/pro/js/chibi.js')); })());
+ok('wave 25: the ground shadow spreads with the body\'s squash (its x radius follows sx)', /22 \* s \* \(1 - p\.jump \/ 40\) \* popX \* p\.sx, 5 \* s \* popX/.test(read('docs/pro/js/chibi.js')));
+ok('wave 25: a loop whose canvas sits below (or above) the viewport paints nothing and polls twice a second; once scrolled into view it paints, popping in from its first frame; a canvas partly in view paints; a window with no innerHeight never rests', (() => {
+  const mk = (top, innerHeight) => { const L = load({ innerHeight }); const cv = fakeCanvas(64, 64); cv.getBoundingClientRect = () => ({ width: 64, height: 64, top, bottom: top + 64, left: 0 }); L.CH.animate(cv, {}, () => ({ pose: 'idle', blink: false, seed: 0 })); return { L, cv }; };
+  const below = mk(900, 500), above = mk(-200, 500), partly = mk(480, 500), stub = mk(900, undefined), inView = mk(100, 500);
+  const rested = below.cv._log.fills === 0 && below.L.timers.length === 1 && below.L.timers[0][1] === 500 && above.cv._log.fills === 0 && above.L.timers.length === 1;
+  below.cv.getBoundingClientRect = () => ({ width: 64, height: 64, top: 100, bottom: 164, left: 0 }); below.L.timers[0][0]();
+  return rested && below.cv._log.fills > 0 && below.cv._log.scale[0][1] === inView.cv._log.scale[0][1] && partly.cv._log.fills > 0 && stub.cv._log.fills > 0 && stub.L.timers.length === 0;
+})());
 
 async function wave11() {
   const tnSrc = read('docs/pro/js/team-names.js');

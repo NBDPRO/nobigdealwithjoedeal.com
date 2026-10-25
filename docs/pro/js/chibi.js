@@ -51,8 +51,10 @@
  *          the walk looks ahead with a cap that lifts on each footfall, the cheer squashes on the ground and stretches at
  *          the top, hoodie strings swing with the hair, and tween(state, pose, now, ms, facing) turns a facing change
  *          over TURN_MS (the body squeezes toward edge-on while the head stays round and the features slide round it)
- *          instead of mirroring in a frame; draw takes any facing in -1..1 for callers that turn by hand.
- *   NBDChibi.POSES                    — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
+ *          instead of mirroring in a frame; draw takes any facing in -1..1 for callers that turn by hand. Wave 25: dust
+ *          puffs from the feet when a cheer lands, the ground shadow spreads under a squash, and a loop whose canvas is
+ *          scrolled out of the viewport rests (no paint, a poll twice a second) and pops in when it scrolls into view.
+ *   NBDChibi.POSES                   — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
  *                                         thumbs · cringe (wave 17) · cross (wave 18)
  *
@@ -146,6 +148,9 @@
       // wave 24: squash and stretch. The body flattens while the feet are on the ground (the bottom third of the arc:
       // the crouch before a jump and the landing after it) and stretches toward the top; a still frame stands plain.
       if (m) { p.sy = air < 0.3 ? 1 - (1 - air / 0.3) * 0.07 : 1 + (air - 0.3) / 0.7 * 0.035; p.sx = 2 - p.sy; }
+      // wave 25: dust at the feet on a landing. Strongest as the feet meet the ground, gone by the time the body is a
+      // third of the way back up (the rising half of the bottom of the arc, so the crouch before the jump stays clean).
+      p.dust = m && air < 0.3 && c(t / 170) * (j < 0 ? -1 : 1) > 0 ? 1 - air / 0.3 : 0;
       p.hat = Math.max(0, c(t / 170)) * 2.2 * m; p.hair = -c(t / 170) * 6 * m; p.emote = 'sparkle';
     }
     else if (pose === 'sad') { p.tilt = 7; p.browDown = 1; p.mouth = 'frown'; p.bob = 3; p.armL = 6; p.armR = -6; p.elbowL = -2; p.elbowR = -2; p.look = 1; p.emote = 'sweat'; p.sy = 0.985; }
@@ -298,7 +303,7 @@
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
-    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX * p.sx, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); } // × sx: the shadow spreads under a squash (wave 25)
     ctx.translate(x, y - p.jump * s);
     ctx.scale(facing * s * p.sx * popX, s * p.sy * popY * (1 + turnK * 0.04)); // a turning body lifts a touch (wave 24)
     ctx.translate(-50, -120);
@@ -386,6 +391,8 @@
     }
 
     ctx.restore(); // body group
+    // wave 25: landing dust, two puffs a side that spread and fade from the feet (on the ground, not with the body)
+    if (p.dust > 0 && !reduce) { var dk = 1 - p.dust; ctx.save(); ctx.globalAlpha = p.dust * 0.55; ctx.fillStyle = '#C9CDD2'; [-1, 1].forEach(function (sg) { ctx.beginPath(); ctx.arc(50 + sg * (15 + dk * 10), 118 + p.jump - dk * 4, 2.2 + dk * 2.4, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(50 + sg * (22 + dk * 12), 119.5 + p.jump - dk * 2, 1.4 + dk * 1.6, 0, Math.PI * 2); ctx.fill(); }); ctx.restore(); }
 
     // head: a soft circle with a chin, ears, shading and a highlight
     ctx.save(); ctx.translate(hx, hy); ctx.scale(1 / fab, 1); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy); // 1 / fab: round mid-turn (wave 24)
@@ -581,6 +588,9 @@
       var now = Date.now();
       if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
       if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
+      // wave 25: a canvas scrolled out of the viewport (40 px of grace) rests the same way, and pops in when it scrolls
+      // into view, since its first paint is its birth. A page with no innerHeight (a stub) never rests.
+      if (box && typeof box.top === 'number' && (box.bottom < -40 || box.top > (window.innerHeight || Infinity) + 40)) { box = null; timer = setTimeout(frame, 500); return; }
       if (!last || now - last >= 32) {
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
         // wave 19: a staggered arrival. The canvas stays blank until its turn, then pops in like any other.

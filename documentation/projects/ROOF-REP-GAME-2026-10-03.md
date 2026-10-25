@@ -306,3 +306,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   squeezing toward edge-on while the head stays round (counter-scaled) and the features slide round it; every loop and
   the street's keyed characters (the rep, the rival, the doorway, the crew) get it, and `draw` takes any facing in
   -1..1 for callers that turn by hand. `chibi.js` v12. Guard grows to 121.
+- **Wave 25, landing dust, and loops that rest off-screen.** Four dust puffs (two a side) spread and fade from the
+  feet as a cheer lands (strongest at contact, gone a third of the way back up; the crouch before a jump stays clean);
+  the ground shadow spreads under a squash. A loop whose canvas is scrolled out of the viewport (40 px of grace) rests
+  like a hidden one (no paint, a poll twice a second) and pops in when it scrolls into view, since its first paint is
+  its birth: a dashboard with the Team Leaderboard below the fold no longer draws eight faces nobody can see. Guard
+  grows to 125.
