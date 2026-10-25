@@ -92,6 +92,16 @@
 [data-ui="quest"] .qb-q.done .qb-xp { color: var(--grn, #34d399); }
 [data-ui="quest"] .qb-done { margin-top: 8px; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--grn, #34d399); }
 [data-ui="quest"] .qb-left { margin-top: 8px; text-align: center; font-size: 12px; color: var(--on-dark, #c3cfdf); }
+[data-ui="quest"] .qb-tree { margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 6px; }
+[data-ui="quest"] .qb-tree summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--on-dark, #c3cfdf); list-style: none; }
+[data-ui="quest"] .qb-tree summary::-webkit-details-marker { display: none; }
+[data-ui="quest"] .qb-tree summary::before { content: "▸"; margin-right: 8px; transition: transform .15s; }
+[data-ui="quest"] .qb-tree[open] summary::before { transform: rotate(90deg); }
+[data-ui="quest"] .qb-nodes { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-ui="quest"] .qb-node { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18); font-size: 13px; color: #fff; background: rgba(255, 255, 255, .06); }
+[data-ui="quest"] .qb-node.mastered { border-color: #f59e0b; color: #fcd34d; background: rgba(245, 158, 11, .12); }
+[data-ui="quest"] .qb-node.locked { opacity: .55; }
+[data-ui="quest"] .qb-tree-note { margin: 6px 0 0; font-size: 12px; color: var(--on-dark, #c3cfdf); }
 [data-ui="quest"] .qb-w0 { width: 0%; } [data-ui="quest"] .qb-w5 { width: 5%; } [data-ui="quest"] .qb-w10 { width: 10%; } [data-ui="quest"] .qb-w15 { width: 15%; } [data-ui="quest"] .qb-w20 { width: 20%; } [data-ui="quest"] .qb-w25 { width: 25%; } [data-ui="quest"] .qb-w30 { width: 30%; } [data-ui="quest"] .qb-w35 { width: 35%; } [data-ui="quest"] .qb-w40 { width: 40%; } [data-ui="quest"] .qb-w45 { width: 45%; } [data-ui="quest"] .qb-w50 { width: 50%; }
 [data-ui="quest"] .qb-w55 { width: 55%; } [data-ui="quest"] .qb-w60 { width: 60%; } [data-ui="quest"] .qb-w65 { width: 65%; } [data-ui="quest"] .qb-w70 { width: 70%; } [data-ui="quest"] .qb-w75 { width: 75%; } [data-ui="quest"] .qb-w80 { width: 80%; } [data-ui="quest"] .qb-w85 { width: 85%; } [data-ui="quest"] .qb-w90 { width: 90%; } [data-ui="quest"] .qb-w95 { width: 95%; } [data-ui="quest"] .qb-w100 { width: 100%; }
 

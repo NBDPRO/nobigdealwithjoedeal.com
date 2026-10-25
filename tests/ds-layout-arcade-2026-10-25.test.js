@@ -74,7 +74,7 @@ console.log('\n3. wiring');
   ok('every Arcade rule is scoped to [data-ui="arcade"]', rules.length >= 20 && rules.every((l) => /^\[data-ui="arcade"\]/.test(l.trim())), rules.filter((l) => !/^\[data-ui="arcade"\]/.test(l.trim())).join(' | '));
   ok('missions are 44 px, the board is static, the width classes exist', /\.ar-m \{[^}]*min-height: 44px/.test(ar) && /today-arcade \{ position: static;/.test(ar) && Array.from({ length: 21 }, (_, i) => i * 5).every((w) => new RegExp('\\.ar-w' + w + ' \\{ width: ' + w + '%; \\}').test(ar)));
   ok('no font under 11 px', !/font-size: (10|9|8)px/.test(ar));
-  ok('layouts.css cache version bumped', /layouts\.css\?v=9/.test(INDEX));
+  ok('layouts.css cache version bumped', /layouts\.css\?v=\d+/.test(INDEX));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

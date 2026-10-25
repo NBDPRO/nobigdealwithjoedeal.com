@@ -48,6 +48,18 @@ console.log('\n1. questBoard');
   ok('daysFrom reads floormet-<id> flags per page, skips a page with no date', days.length === 2 && days[0].met === 2 && days[0].total === 2 && days[1].met === 1);
 }
 
+console.log('\n1b. the skill tree');
+{
+  const s = (date, ids) => ({ id: 's' + date + ids.join(''), date, split: 'push', startedAt: 1, finishedAt: 2, exercises: ids.map((exId, i) => ({ exId, name: exId.toUpperCase(), slot: i, sets: [{ weight: 100, reps: 5, done: true }] })) });
+  const hist = ['2026-10-01', '2026-10-03', '2026-10-05', '2026-10-07', '2026-10-09'].map((d) => s(d, ['bench', 'squat'])).concat([s('2026-10-11', ['curl'])]);
+  const tree = Q.skillTree(hist, [{ id: 'bench', name: 'Bench' }, { id: 'row', name: 'Row' }, { id: 'ohp', name: 'Press' }, { id: 'dl', name: 'Deadlift' }], 2);
+  ok('five sessions master a lift, one unlocks it; most-trained first', tree.nodes.slice(0, 3).map((n) => n.exId + ':' + n.tier).join() === 'bench:mastered,squat:mastered,curl:unlocked');
+  ok('library lifts never logged show as locked, capped', tree.nodes.filter((n) => n.tier === 'locked').map((n) => n.exId).join() === 'row,ohp' && tree.unlocked === 3 && tree.mastered === 2);
+  ok('a session with only warm-ups or undone sets does not count', Q.skillTree([{ id: 'x', date: '2026-10-01', finishedAt: 2, exercises: [{ exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5, warm: true }, { weight: 100, reps: 5, done: false }] }] }]).nodes.length === 0);
+  ok('a lift twice in one session counts once', Q.skillTree([{ id: 'x', date: '2026-10-01', finishedAt: 2, exercises: [{ exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5 }] }, { exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5 }] }] }]).nodes[0].sessions === 1);
+  ok('no sessions, no library: empty tree, no throw', Q.skillTree().nodes.length === 0 && Q.skillTree(null, null).unlocked === 0);
+}
+
 console.log('\n2. the board markup');
 {
   const sandbox = { window: { NBDQuest: Q }, document: { addEventListener() {} }, localStorage: { _s: {}, getItem(k) { return this._s[k] == null ? null : this._s[k]; }, setItem(k, v) { this._s[k] = String(v); } }, console };
@@ -60,6 +72,7 @@ console.log('\n2. the board markup');
   ok('the bonus row is not a button; the open workout quest carries data-quest="workout"', /<div class="qb-q bonus">/.test(h) && /class="qb-q workout" data-quest="workout"/.test(h));
   ok('streak and today XP lines', /🔥 1-day streak/.test(h) && /\+0 XP today/.test(h));
   ok('"3 quests left today" (one of four done)', /3 quests left today/.test(h));
+  ok('the skill tree is a folded <details> under the board, naming the unlocked lift', /<details class="qb-tree"><summary>Skill tree · 1 lift unlocked<\/summary>/.test(h) && /<span class="qb-node unlocked" title="1 session">Bench<\/span>/.test(h));
   ok('no inline style attribute', !/style="/.test(h));
   ok('the high-water mark is written to storage', Number(sandbox.localStorage._s.nbd_ds_xp_high) > 0);
   const evil = html({ floors: [{ id: 'x', label: '<img src=x onerror=1>', met: false }], sessions: [], days: [], today: TODAY, xp: X });

@@ -42,7 +42,34 @@
     });
   }
 
-  const api = { questBoard, daysFrom };
+  /**
+   * The skill tree from the brief: every lift ever logged is a node. 1 finished session with it unlocks it, 5 master it; PRs
+   * are not needed (a PR is XP, not identity). -> { nodes: [{ exId, name, sessions, tier: 'locked'|'unlocked'|'mastered' }], unlocked, mastered }
+   * Lifts in `library` (NBDCoach.EXERCISES-like [{ id, name }]) that were never logged show as locked nodes, at most `maxLocked`.
+   */
+  function skillTree(sessions, library, maxLocked) {
+    const count = Object.create(null), names = Object.create(null);
+    for (const s of Array.isArray(sessions) ? sessions : []) {
+      if (!s || s.deleted || !s.finishedAt) continue;
+      const seen = new Set();
+      for (const ex of s.exercises || []) {
+        if (!ex || !ex.exId || seen.has(ex.exId)) continue;
+        const working = (ex.sets || []).some((st) => st && !st.warm && st.done !== false && parseFloat(st.reps) > 0);
+        if (!working) continue;
+        seen.add(ex.exId); count[ex.exId] = (count[ex.exId] || 0) + 1; names[ex.exId] = String(ex.name || ex.exId);
+      }
+    }
+    const nodes = Object.keys(count).map((id) => ({ exId: id, name: names[id], sessions: count[id], tier: count[id] >= 5 ? 'mastered' : 'unlocked' })).sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
+    const cap = Math.max(0, Math.floor(Number(maxLocked)) || 0);
+    let locked = 0;
+    for (const lib of Array.isArray(library) ? library : []) {
+      if (!lib || !lib.id || count[lib.id] || locked >= cap) continue;
+      nodes.push({ exId: lib.id, name: String(lib.name || lib.id), sessions: 0, tier: 'locked' }); locked++;
+    }
+    return { nodes, unlocked: nodes.filter((n) => n.tier !== 'locked').length, mastered: nodes.filter((n) => n.tier === 'mastered').length };
+  }
+
+  const api = { questBoard, daysFrom, skillTree };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDQuest = api;
 })(typeof window !== 'undefined' ? window : null);
