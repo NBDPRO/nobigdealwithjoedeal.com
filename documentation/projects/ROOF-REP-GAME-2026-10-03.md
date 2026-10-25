@@ -246,3 +246,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   through their own `__chibiTap`) or the per-frame options say `poke: false`; so a teammate on the dashboard
   leaderboards waves when you tap them. Every fourth blink is a double blink. Guard grows to 92; the `pop: false`
   check caught the first draft reading `false` as pop 0 (a character squashed at 70% for good).
+- **Wave 15, the season on the street.** Draw option `cold` 0..1 puffs breath from the mouth toward the facing side
+  every 3.2 s (three translucent circles that drift up, grow and fade over 1.1 s); the street passes it in winter for
+  everyone `chibi()` draws (the rep, the rival, the homeowner at the door). `seasonLook(look, h)` dresses the
+  homeowner at the door for the season without touching the saved look: in winter a beanie over bare hair and a
+  hoodie over a tee (most of them; the house index decides, so the same person dresses the same way all day), in
+  summer shades on every other bare-eyed homeowner. Guard grows to 94.

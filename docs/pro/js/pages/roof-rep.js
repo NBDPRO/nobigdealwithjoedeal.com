@@ -155,9 +155,18 @@ function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) 
 var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
 // wave 8: the weather reaches the characters: an umbrella in the rep's and the rival's hand on a wet day, the wind in everyone's hair on a windy one
 function wxLook(look) { return DAY && wet(DAY.wx) ? Object.assign({}, look, { prop: 'umbrella' }) : look; }
+// wave 15: what a homeowner wears to the door this season. Winter: a beanie over bare hair and a hoodie over a tee (most
+// of them; the house index decides, so the same person dresses the same way all day). Summer: shades on every other
+// bare-eyed homeowner. The look itself is not changed, so the Crew board and the saved street keep the person.
+function seasonLook(look, h) {
+  var se = seasonFor(SAVE.day), i = h && typeof h.i === 'number' ? h.i : 0, d = {};
+  if (se === 'winter') { if (look.hat === 'none' && i % 3 !== 2) d.hat = 'beanie'; if (look.top === 'tee' && i % 2 === 0) d.top = 'hoodie'; }
+  else if (se === 'summer' && look.extra === 'none' && i % 2 === 1) d.extra = 'shades';
+  return Object.keys(d).length ? Object.assign({}, look, d) : look;
+}
 function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0 });
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
@@ -1055,7 +1064,7 @@ function drawWorld() {
     g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
-  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, DOOR.look, dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, seasonLook(DOOR.look, DOOR.h), dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
   if (LEAVE) {
     var e = now - LEAVE.since, dl = doorOf(LEAVE.h), lx = dl.x - 3, ly = dl.y - 6, lp = LEAVE.pose, lf = 1, k;
     if (now >= leaveEnd(LEAVE)) LEAVE = null;
@@ -1064,7 +1073,7 @@ function drawWorld() {
       else if (e < 1850) { lx = LEAVE.tx; ly = LEAVE.ty; lp = 'cheer'; lf = WALK.px < lx ? -1 : 1; }
       else { k = (e - 1850) / 450; k = k * (2 - k); lx = LEAVE.tx + (lx - LEAVE.tx) * k; ly = LEAVE.ty + (ly - LEAVE.ty) * k; lp = 'walk'; lf = dl.x < LEAVE.tx ? -1 : 1; }
     }
-    if (LEAVE) { g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(lx), Math.round(ly) + 1, 6, 2, 0, 0, 6.3); g.fill(); chibi(g, LEAVE.look, Math.round(lx), Math.round(ly), lp, lf, now, 22, LEAVE.mood, 'door'); }
+    if (LEAVE) { g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(lx), Math.round(ly) + 1, 6, 2, 0, 0, 6.3); g.fill(); chibi(g, seasonLook(LEAVE.look, LEAVE.h), Math.round(lx), Math.round(ly), lp, lf, now, 22, LEAVE.mood, 'door'); }
   }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;

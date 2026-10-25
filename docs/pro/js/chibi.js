@@ -36,7 +36,8 @@
  *          character in over its first 360 ms (a squash, an overshoot, settle; pop: false opts out), a tap on any
  *          animated canvas gets a wave back for 1.2 s unless the page handles taps itself (poke: false, or a canvas that
  *          already has a __chibiTap handler), and every fourth blink is a double blink. Draw option pop 0..1 is the
- *          pop-in's progress for callers that draw by hand.
+ *          pop-in's progress for callers that draw by hand. Wave 15: draw option cold 0..1 puffs breath from the mouth
+ *          every 3.2 s (the street passes it in winter).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -431,6 +432,9 @@
     }
     // a sweat drop slides down the temple when sad (stays with the head)
     if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
+    var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
+    if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
 
     // the right (front) arm and whatever it holds
@@ -467,7 +471,7 @@
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
     var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
     if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
-    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop });
+    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold });
   }
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per

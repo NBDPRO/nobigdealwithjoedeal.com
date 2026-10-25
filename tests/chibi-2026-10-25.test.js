@@ -226,6 +226,10 @@ ok('wave 14: a tap on an animated canvas gets a wave back for 1.2 s (the next fr
   } finally { Date.now = realNow; }
 })());
 
+console.log('15. Wave 15: cold breath and the season at the door');
+ok('wave 15: cold: 1 adds breath puffs (three fills) for the first 1.1 s of every 3.2 s and nothing after; cold off or unset adds none', (() => { const fills = (t, cold) => { const m = makeCtx(); CH.draw(m.ctx, {}, { h: 120, t, blink: false, cold, seed: 0 }); return m.log.fills; }; return fills(300, 1) === fills(300, 0) + 3 && fills(300, undefined) === fills(300, 0) && fills(2000, 1) === fills(2000, 0) && fills(3200 + 500, 1) === fills(3200 + 500, 0) + 3; })());
+ok('wave 15: the street passes cold in winter to everyone chibi() draws, and dresses the homeowner at the door for the season (a beanie over bare hair and a hoodie over a tee in winter, shades on every other bare-eyed homeowner in summer) without changing the saved look', /cold: DAY && seasonFor\(SAVE\.day\) === 'winter' \? 1 : 0 \}\);/.test(rrjs) && /function seasonLook\(look, h\) \{/.test(rrjs) && /if \(se === 'winter'\) \{ if \(look\.hat === 'none' && i % 3 !== 2\) d\.hat = 'beanie'; if \(look\.top === 'tee' && i % 2 === 0\) d\.top = 'hoodie'; \}/.test(rrjs) && /else if \(se === 'summer' && look\.extra === 'none' && i % 2 === 1\) d\.extra = 'shades';/.test(rrjs) && /return Object\.keys\(d\)\.length \? Object\.assign\(\{\}, look, d\) : look;/.test(rrjs) && /chibi\(g, seasonLook\(DOOR\.look, DOOR\.h\)/.test(rrjs) && /chibi\(g, seasonLook\(LEAVE\.look, LEAVE\.h\)/.test(rrjs));
+
 async function wave11() {
   const tnSrc = read('docs/pro/js/team-names.js');
   const mk = (claims, user, scores) => { let reads = 0; const win = { _userClaims: claims, _user: user, db: {}, collection: (_d, a, b, c) => [a, b, c].filter(Boolean).join('/'), query: (c) => c, where: (f, _o, v) => f + '==' + v, doc: (_d, a, b) => a + '/' + b,
