@@ -21,7 +21,7 @@ body { margin: 0; background: var(--night); color: var(--ink); font-family: var(
 .top canvas { width: 44px; height: 44px; image-rendering: pixelated; background: var(--panel-2); border-radius: 10px; flex: none; }
 .top .t { min-width: 0; flex: 1; }
 h1 { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .12em; margin: 0; color: var(--gold); }
-.lvl { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvl { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .bar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--clay), var(--gold)); width: 0; transition: width .4s; }
 .rr-back { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 2px solid var(--line); background: var(--panel); color: var(--ink); text-decoration: none; font-family: var(--display); font-weight: 700; font-size: 13px; }
