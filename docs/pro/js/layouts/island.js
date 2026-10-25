@@ -540,7 +540,8 @@
       mo.observe(side, { attributes: true, attributeFilter: ['class'], subtree: true });
       observers.push(mo);
     }
-    ['nbd:today-rendered', 'nbd:data-refreshed', 'nbd:photos-loaded'].forEach(function (n) {
+    // nbd:jobs-loaded (2026-10-25): the in-play headline counts every job once jobs-store has loaded; repaint then.
+    ['nbd:today-rendered', 'nbd:data-refreshed', 'nbd:photos-loaded', 'nbd:jobs-loaded'].forEach(function (n) {
       on(W, n, function () { if (S.active === 'home') paintHome(); });
     });
     on(doc, 'leadsChanged', function () { if (S.active === 'home') paintHome(); });

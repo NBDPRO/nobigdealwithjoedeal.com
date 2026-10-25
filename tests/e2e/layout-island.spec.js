@@ -20,6 +20,17 @@ const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require(
 // an absolute http(s) url: renderCoverHero (and the hero) accept nothing else
 const COVER = (process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5000').replace(/[/]$/, '') +'/assets/images/drone-hero-crew-800.webp';
 
+// A second job under a customer, written the way NBDJobs.add would (stamps copied from the tenant), for the
+// "every job counts" money rule.
+async function addSecondJob(leadId, uid, jobValue) {
+  const { initializeApp, getApps } = require('firebase-admin/app');
+  if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
+  const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+  await getFirestore().doc('leads/' + leadId + '/jobs/jisl' + Date.now().toString(36)).set({
+    stage: 'new', stageRole: 'new', title: 'Second roof', jobValue: jobValue, userId: uid, companyId: uid, origin: 'e2e-island', createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 async function resetSettings(email) {
   const { initializeApp, getApps } = require('firebase-admin/app');
   if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
@@ -40,7 +51,7 @@ test.describe.serial('Island Dock @shard2', () => {
   test('pill + dock + in-play headline + stage lanes + hero, across widths and themes', async ({ page }) => {
     test.setTimeout(300_000);
     const creds = requireTestUser();
-    await resetSettings(creds.email);
+    const uidA = await resetSettings(creds.email);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await page.route(/cloudfunctions\.net|\.run\.app/, (route) => route.abort());
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -54,17 +65,26 @@ test.describe.serial('Island Dock @shard2', () => {
     const mk = (last, stage, jobValue, extra) => { n++; return safeEvaluate(page, (a) => window._saveLead(Object.assign({
       firstName: 'ZZIS', lastName: a.last + a.s, address: (40 + a.n) + ' Island Way, Mason, OH 45040', phone: '51355502' + String(10 + a.n), stage: a.stage, jobValue: a.jobValue,
     }, a.extra || {})), { last, s, stage, jobValue, extra, n }); };
-    await mk('OpenA', 'new', 12000);
+    const openAId = await mk('OpenA', 'new', 12000);
     await mk('OpenB', 'new', 8000);
     await mk('Lost', 'lost', 50000);
     const coverId = await mk('Cover', 'new', 1000, { coverPhotoUrl: COVER });
     await safeWaitForFunction(page, (st) => (window._leads || []).filter((l) => (l.lastName || '').endsWith(st)).length >= 4, s, { timeout: 30_000 });
+    // A SECOND open job on OpenA (leads/{id}/jobs, the admin SDK, stamped like the lead): money totals count every
+    // job (jobs-store recordsFor), so the Pipeline header and the Island hero must both include its $3,080. CI
+    // 2026-10-25: the hero painted on the leads alone ($21,900) while the header had the jobs ($24,980) - the jobs
+    // other specs left in the shared emulator. Now the spec carries its own job and waits for jobs-store on both sides.
+    await addSecondJob(openAId, uidA, 3080);
+    await page.reload();
+    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine && !!(window.NBDJobs && window.NBDJobs.loadedAt && window.NBDJobs.loadedAt() > 0), null, { timeout: 40_000 });
 
     // Classic: the sidebar is there
     expect(await safeEvaluate(page, () => !!document.querySelector('.sidebar') && getComputedStyle(document.querySelector('.sidebar')).display !== 'none')).toBe(true);
     const oracle = await (async () => {
       await safeEvaluate(page, () => window.goTo('crm'));
       await page.locator('#crmSubLine .crm-stat-money-full').waitFor({ state: 'attached', timeout: 20_000 });
+      await safeWaitForFunction(page, () => !!(window.NBDJobs && window.NBDJobs.loadedAt && window.NBDJobs.loadedAt() > 0), null, { timeout: 20_000 });
+      await page.waitForTimeout(400); // the post-load renderLeads repaints the header
       return safeEvaluate(page, () => document.querySelector('#crmSubLine .crm-stat-money-full').textContent.trim());
     })();
     expect(oracle).toMatch(/^\$[\d,]+$/);
@@ -96,6 +116,8 @@ test.describe.serial('Island Dock @shard2', () => {
     await page.locator('.isl-hero-num[data-isl="in-play"]').waitFor({ state: 'visible', timeout: 40_000 });
     await expect(page.locator('.isl-hero-k')).toContainText('projected');
     await expect(page.locator('.isl-hero-sub')).toContainText('not money collected');
+    // the hero repaints once jobs-store has loaded (nbd:jobs-loaded); poll rather than read once
+    await expect(page.locator('.isl-hero-num[data-isl="in-play"]')).toHaveText(oracle, { timeout: 20_000 });
     const homeVal = (await page.locator('.isl-hero-num[data-isl="in-play"]').innerText()).trim();
     expect(homeVal).toBe(oracle);
     expect(homeVal).not.toBe('$0');
