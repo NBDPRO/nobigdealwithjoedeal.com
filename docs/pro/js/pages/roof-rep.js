@@ -2405,14 +2405,25 @@ function anatomyCourse() {
   });
   quizCourse('anatomy', 'ROOF ANATOMY', qs, 5, function (cv, Q) { drawAnatomy(cv, Q.part); });
 }
+// What the rep does on each course card (wave 6). The ladder card's climb needs rungs under the hands: paintCourseLadder.
+var COURSE_SHOW = { ladder: { pose: 'climb' }, tools: { pose: 'hammer', tool: 'hammer' }, law: { pose: 'think', clipboard: true, tool: 'none' }, anatomy: { pose: 'point', tool: 'none' }, measure: { pose: 'think', tool: 'tape' }, walk: { pose: 'talk', tool: 'none' } };
+COURSE_SHOW.ladder.aria = 'climbing a ladder'; COURSE_SHOW.tools.aria = 'swinging a hammer'; COURSE_SHOW.law.aria = 'reading the rule book'; COURSE_SHOW.anatomy.aria = 'pointing out a roof part'; COURSE_SHOW.measure.aria = 'measuring with a tape'; COURSE_SHOW.walk.aria = 'explaining the job';
+function paintCourseLadder(c, cv, t) {
+  // A 64x84 CSS box painted at 2x: two rails and rungs the climb pose's hands land on, a sky wash behind, the eave up top.
+  c.setTransform(2, 0, 0, 2, 0, 0); c.clearRect(0, 0, 64, 84);
+  c.fillStyle = '#4a3f37'; c.fillRect(44, 0, 20, 7);
+  c.fillStyle = '#c9b79c'; c.fillRect(48, 7, 16, 30);
+  c.fillStyle = '#B4B2A9'; c.fillRect(24, 2, 3, 82); c.fillRect(41, 2, 3, 82);
+  c.fillStyle = '#8F8D86'; for (var ry = 8; ry < 84; ry += 9) c.fillRect(26, ry, 16, 2.5);
+}
 function renderTrain() {
   var el = document.getElementById('p-train');
   var html = '<div class="card train-hd"><canvas class="face" id="trainDave" width="72" height="72" role="img" aria-label="Big Dave, your foreman"></canvas><div><h2>TRAINING YARD</h2><p class="help">Short courses with Big Dave, your foreman. Pass one to earn its badge and a perk on the job. Refreshers pay a little XP once a day.' + (DAY ? ' Each course takes 20 minutes of your work day.' : ' Train before you clock in, or anytime.') + '</p></div></div>';
   Object.keys(COURSES).forEach(function (k) {
     var C2 = COURSES[k], has = SAVE.badges[k];
-    html += '<div class="card' + (has ? '' : ' hl') + '"><h3>' + esc(C2.name.toUpperCase()) + '</h3>' +
+    html += '<div class="card course-card' + (has ? '' : ' hl') + '"><canvas class="face course-face" data-course-face="' + k + '" width="128" height="168" role="img" aria-label="You, ' + esc(COURSE_SHOW[k].aria || C2.name.toLowerCase()) + '"></canvas><div class="course-body"><h3>' + esc(C2.name.toUpperCase()) + '</h3>' +
       '<p class="help">' + (has ? '<span class="badge-ok">✓ ' + esc(C2.badge) + '</span> · ' : 'Badge: ' + esc(C2.badge) + ' · ') + esc(C2.perk) + '</p>' +
-      '<button type="button" class="btn primary" data-course="' + k + '">' + (has ? 'Refresher' : 'Start course') + '</button></div>';
+      '<button type="button" class="btn primary" data-course="' + k + '">' + (has ? 'Refresher' : 'Start course') + '</button></div></div>';
   });
   html += '<div class="card hl"><h3>STORM RUN · 60 SECONDS</h3><p class="help">Objection after objection, no roof to climb. Best answers score, trap lines strike. Best so far: ' + (st('perfectRuns') ? 'a perfect run' : st('runs') ? st('runs') + ' run' + (st('runs') > 1 ? 's' : '') : 'none yet') + '.' + (DAY ? ' Costs 20 minutes of your day.' : '') + '</p><button type="button" class="btn primary" id="runBtn">Start a Storm Run</button></div>';
   el.innerHTML = html;
@@ -2420,6 +2431,17 @@ function renderTrain() {
   var dave = document.getElementById('trainDave');
   if (CH && dave) { dave.addEventListener('click', function () { dave.__cheerUntil = Date.now() + 1600; sfx('good'); }); CH.animate(dave, FOREMAN, function (now) { return { pose: dave.__cheerUntil > now ? 'cheer' : now % 7000 < 1400 ? 'point' : 'idle', crop: 'bust' }; }); }
   else if (dave) drawStill(dave, FOREMAN);
+  // Wave 6: the rep demonstrates each course on its card (the ladder card draws the ladder behind the climb). An earned
+  // badge cheers every 11 s; a tap cheers. Hidden cards paint nothing (chibi v6), so six loops cost one tab.
+  el.querySelectorAll('[data-course-face]').forEach(function (cv) {
+    var k = cv.dataset.courseFace, show = COURSE_SHOW[k], has = !!SAVE.badges[k];
+    var look = Object.assign({}, SAVE.avatar, show.tool ? { tool: show.tool } : {}, show.clipboard ? { clipboard: true } : {});
+    cv.addEventListener('click', function () { cv.__cheerUntil = Date.now() + 1600; sfx('good'); });
+    var poseAt = function (now) { return cv.__cheerUntil > now ? 'cheer' : has && now % 11000 < 1400 ? 'cheer' : show.pose; };
+    if (!CH) { drawTo(cv, look); return; }
+    if (k === 'ladder') { var tw = {}; sceneLoop(cv, function (c, t) { paintCourseLadder(c, cv, t); var lp = CH.tween(tw, poseAt(t), t); CH.draw(c, look, { x: 34, y: 80, h: 62, t: t, pose: lp.pose, from: lp.from, mix: lp.mix, facing: 1, shadow: false }); }); return; }
+    CH.animate(cv, look, function (now) { return { pose: poseAt(now) }; });
+  });
   document.getElementById('runBtn').addEventListener('click', stormRun);
   el.querySelectorAll('[data-course]').forEach(function (b) {
     b.addEventListener('click', function () {
