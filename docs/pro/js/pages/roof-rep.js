@@ -1242,9 +1242,16 @@ function drive(dest, done) {
   [[1, -1, 1.5, 3, 30], [2, 1, 1.0, 3, 26], [3, -1, 1.9, 2, 44], [5, 1, 1.3, 3, 28], [6, -1, 0.9, 4, 26]].forEach(function (L) {
     var cars = [], gap = 320 / L[3];
     for (var k = 0; k < L[3]; k++) cars.push({ x: k * gap + rnd(Math.max(1, gap - L[4] - 30)), w: L[4], c: pick(carCols), bus: L[4] > 40 });
+    // Wave 5: nothing spawns over the lot's column, so the first move up is a real move and not an instant fender bender.
+    cars.forEach(function (car) { if (car.x < 196 && car.x + car.w > 124) car.x += 72; });
+    cars.sort(function (a, b) { return a.x - b.x; }); for (var q = 1; q < cars.length; q++) if (cars[q].x < cars[q - 1].x + cars[q - 1].w + 14) cars[q].x = cars[q - 1].x + cars[q - 1].w + 14; // no two spawn nose to tail
     lanes.push({ row: L[0], dir: L[1], v: L[2] * sp, cars: cars });
   });
   var T = { x: 154, row: 7, bumps: 0, flash: 0 }, left = 30, over = false, raf = 0;
+  // Wave 5 (2026-10-25): the drawn truck eases toward where the game says it is, tilts into a sideways move, and leaves
+  // exhaust on every lane change and a cloud of skid dust on a bump. Collisions still read T (the logical spot).
+  var D = { x: T.x, y: T.row * ROW + 4, tilt: 0 }, puffs = [];
+  function puff(x, y, n, grey) { for (var k = 0; k < n; k++) puffs.push({ x: x + rnd(8) - 4, y: y + rnd(6) - 3, r: 1.5 + rnd(2), a: grey ? 0.55 : 0.35, vy: grey ? (rnd(2) - 1) * 0.3 : 0.5, g: grey }); }
   overlay('<h2>DRIVE TO ' + esc(dest.name.toUpperCase()) + '</h2><p class="help">Get the truck across town. Move up a lane at a time and dodge traffic. Every bump costs you 10 minutes.</p>' +
     '<canvas class="mg" id="dv" width="320" height="' + ROW * DROWS + '" aria-label="Town traffic: drive the truck to the top"></canvas>' +
     '<div class="dpad"><button type="button" class="btn u" data-dv="u" aria-label="Up">▲</button><button type="button" class="btn l" data-dv="l" aria-label="Left">◀</button><button type="button" class="btn d" data-dv="d" aria-label="Down">▼</button><button type="button" class="btn r" data-dv="r" aria-label="Right">▶</button></div>' +
@@ -1252,7 +1259,7 @@ function drive(dest, done) {
   var cv = document.getElementById('dv'), c = cv.getContext('2d');
   function move(k) {
     if (over) return;
-    if (k === 'u') T.row--; else if (k === 'd') T.row = Math.min(DROWS - 1, T.row + 1);
+    if (k === 'u') { T.row--; puff(D.x + 6, D.y + 20, 3); } else if (k === 'd') T.row = Math.min(DROWS - 1, T.row + 1);
     else if (k === 'l') T.x = Math.max(4, T.x - 22); else if (k === 'r') T.x = Math.min(304, T.x + 22);
     if (T.row <= 0) finish(false);
   }
@@ -1270,7 +1277,7 @@ function drive(dest, done) {
     lanes.forEach(function (L) { L.cars.forEach(function (car) { car.x += L.dir * L.v; if (L.dir > 0 && car.x > 330) car.x = -car.w - rnd(30); if (L.dir < 0 && car.x < -car.w - 10) car.x = 330 + rnd(30); }); });
     var lane = lanes.filter(function (L) { return L.row === T.row; })[0];
     if (lane && T.flash <= 0 && lane.cars.some(function (car) { return T.x + 12 > car.x + 2 && T.x < car.x + car.w - 2; })) {
-      T.bumps++; T.flash = 40; T.row = DROWS - 1; T.x = 154; sfx('bump');
+      T.bumps++; T.flash = 40; puff(D.x + 6, D.y + 10, 9, true); T.row = DROWS - 1; T.x = 154; D.x = T.x; D.y = T.row * ROW + 4; sfx('bump');
       var s = document.getElementById('dvS'); if (s) s.textContent = 'Bumps: ' + T.bumps + ' · fender bender! +10 min';
     }
     if (T.flash > 0) T.flash--;
@@ -1283,7 +1290,11 @@ function drive(dest, done) {
       else { c.fillStyle = '#3b3f47'; c.fillRect(0, y, 320, ROW); if (r !== 3 && r !== 6) { c.fillStyle = '#e8d27a'; for (var dx = 4; dx < 320; dx += 20) c.fillRect(dx, y + ROW - 1, 10, 2); } }
     }
     lanes.forEach(function (L) { L.cars.forEach(function (car) { drawCar(c, car.x, L.row * ROW + 6, car.w, car.bus ? '#f2c200' : car.c, L.dir, car.bus); }); });
-    if (!(T.flash > 0 && Math.floor(T.flash / 5) % 2)) drawTruck(c, T.x, T.row * ROW + 4, 1);
+    puffs = puffs.filter(function (p) { return p.a > 0.02; });
+    puffs.forEach(function (p) { p.r += 0.35; p.a -= p.g ? 0.03 : 0.045; p.y += p.vy; c.fillStyle = (p.g ? 'rgba(150,150,150,' : 'rgba(210,210,210,') + p.a + ')'; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.3); c.fill(); });
+    D.x += (T.x - D.x) * 0.35; var ty = T.row * ROW + 4; D.y += (ty - D.y) * 0.35; D.tilt = (T.x - D.x) * 0.02;
+    var bob = Math.abs(T.x - D.x) + Math.abs(ty - D.y) < 0.5 ? Math.sin(Date.now() / 90) * 0.35 : 0;
+    if (!(T.flash > 0 && Math.floor(T.flash / 5) % 2)) { c.save(); c.translate(D.x + 6, D.y + 10 + bob); c.rotate(D.tilt); drawTruck(c, -6, -10, 1); c.restore(); }
     raf = requestAnimationFrame(frame);
   }
   frame();
@@ -2379,7 +2390,7 @@ function anatomyCourse() {
 }
 function renderTrain() {
   var el = document.getElementById('p-train');
-  var html = '<div class="card"><h2>TRAINING YARD</h2><p class="help">Short courses with Big Dave, your foreman. Pass one to earn its badge and a perk on the job. Refreshers pay a little XP once a day.' + (DAY ? ' Each course takes 20 minutes of your work day.' : ' Train before you clock in, or anytime.') + '</p></div>';
+  var html = '<div class="card train-hd"><canvas class="face" id="trainDave" width="72" height="72" role="img" aria-label="Big Dave, your foreman"></canvas><div><h2>TRAINING YARD</h2><p class="help">Short courses with Big Dave, your foreman. Pass one to earn its badge and a perk on the job. Refreshers pay a little XP once a day.' + (DAY ? ' Each course takes 20 minutes of your work day.' : ' Train before you clock in, or anytime.') + '</p></div></div>';
   Object.keys(COURSES).forEach(function (k) {
     var C2 = COURSES[k], has = SAVE.badges[k];
     html += '<div class="card' + (has ? '' : ' hl') + '"><h3>' + esc(C2.name.toUpperCase()) + '</h3>' +
@@ -2388,6 +2399,10 @@ function renderTrain() {
   });
   html += '<div class="card hl"><h3>STORM RUN · 60 SECONDS</h3><p class="help">Objection after objection, no roof to climb. Best answers score, trap lines strike. Best so far: ' + (st('perfectRuns') ? 'a perfect run' : st('runs') ? st('runs') + ' run' + (st('runs') > 1 ? 's' : '') : 'none yet') + '.' + (DAY ? ' Costs 20 minutes of your day.' : '') + '</p><button type="button" class="btn primary" id="runBtn">Start a Storm Run</button></div>';
   el.innerHTML = html;
+  // Wave 5: Big Dave stands at the yard gate, points the way every 7 s, and cheers when tapped.
+  var dave = document.getElementById('trainDave');
+  if (CH && dave) { dave.addEventListener('click', function () { dave.__cheerUntil = Date.now() + 1600; sfx('good'); }); CH.animate(dave, FOREMAN, function (now) { return { pose: dave.__cheerUntil > now ? 'cheer' : now % 7000 < 1400 ? 'point' : 'idle', crop: 'bust' }; }); }
+  else if (dave) drawStill(dave, FOREMAN);
   document.getElementById('runBtn').addEventListener('click', stormRun);
   el.querySelectorAll('[data-course]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -2560,7 +2575,11 @@ async function renderCrew() {
     var tr = document.createElement('tr'), me = r.id === 'me' || r.id === NET.uid; if (me) tr.className = 'me';
     var td0 = document.createElement('td'); td0.className = 'rk'; td0.textContent = i + 1; tr.appendChild(td0);
     var td1 = document.createElement('td'), w = document.createElement('div'); w.className = 'who2';
-    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; w.appendChild(cv); drawStill(cv, r.avatar || DEFAULTS);
+    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; w.appendChild(cv);
+    // Wave 5 (2026-10-25): the first eight rows breathe (idle, blinking), the leader cheers every 9 s and any row cheers when
+    // tapped; past eight the thumbnails stay still frames so a big team is not thirty animation loops on one phone.
+    if (CH && i < 8) { var lk = r.avatar || DEFAULTS, lead = i === 0; cv.addEventListener('click', function () { cv.__cheerUntil = Date.now() + 1600; sfx('good'); }); cv.__live = function () { CH.animate(cv, lk, function (now) { return { pose: cv.__cheerUntil > now || (lead && now % 9000 < 1400) ? 'cheer' : 'idle', crop: 'bust' }; }); }; }
+    else drawStill(cv, r.avatar || DEFAULTS);
     var nm = document.createElement('div'), p = names[r.id];
     nm.textContent = me ? (p && p.name ? p.name + ' (you)' : 'You') : (p && p.name) || 'A rep';
     var sm = document.createElement('small'); sm.textContent = 'Lv ' + (r.level || 1) + ' · ' + (r.title || 'Apprentice'); nm.appendChild(sm);
@@ -2569,6 +2588,7 @@ async function renderCrew() {
     td1.appendChild(w); tr.appendChild(td1);
     [[r.wk + ' XP', ''], [(r.bestDay || 0) + ' XP', ' hide-sm'], [String(r.days || 0), ' hide-sm']].forEach(function (c) { var td = document.createElement('td'); td.className = 'num' + c[1]; td.textContent = c[0]; tr.appendChild(td); });
     body.appendChild(tr);
+    if (cv.__live) cv.__live(); // the loop starts once the row is on the page (a loop on a detached canvas stops itself)
   });
 }
 function renderAll() { hud(); renderChips(); renderToday(); renderTrain(); renderLocker(); renderCrew(); drawTo(document.getElementById('meFace'), SAVE.avatar); }

@@ -415,10 +415,12 @@
       if (reduce) { alive = false; return; }
       raf = requestAnimationFrame(frame);
     }
-    loops++;
-    frame();
+    // stop exists before the first frame: a canvas animated before it is in the DOM used to hit "stop is not a
+    // function" on that frame (the crew board's rows, 2026-10-25 wave 5) and the loop died without a trace.
     var stop = function () { if (!alive) return; alive = false; loops--; if (raf) cancelAnimationFrame(raf); if (canvas.__chibiStop === stop) canvas.__chibiStop = null; };
     canvas.__chibiStop = stop;
+    loops++;
+    frame();
     return stop;
   }
 

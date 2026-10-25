@@ -160,6 +160,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .lb .who2 small { display: block; color: var(--muted); font-size: 13px; }
 .lb canvas { width: 32px; height: 32px; background: var(--panel-2); border-radius: 6px; flex: none; }
 .lb .num { text-align: right; white-space: nowrap; }
+.train-hd { display: flex; gap: 12px; align-items: flex-start; }
+.train-hd > div { min-width: 0; }
 .fc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .fc div { background: var(--panel-2); border-radius: 10px; padding: 8px; text-align: center; }
 .fc b { display: block; font-size: 22px; }

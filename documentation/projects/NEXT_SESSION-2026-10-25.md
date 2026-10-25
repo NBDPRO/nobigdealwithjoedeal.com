@@ -57,5 +57,7 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
    (per-spec wall time from the line reporter's timestamps) rather than splitting blind. The MCP log tool returns the
    last 5000 lines only and the Actions blob host is off the proxy allow-list, so the head of a 25-minute log is out
    of reach from a cloud session; the per-spec `(retries)` markers in the tail still tell you which specs failed once.
-4. Characters, if Jo wants more: the Train tab cards and the crew board still use still frames; the drive game's truck
-   and traffic are vector but static.
+4. ~~Characters: the Train tab cards and the crew board still use still frames; the drive game's truck and traffic are
+   vector but static~~ (done 10-25, wave 5: Big Dave in the Training Yard, breathing crew rows, an eased truck with
+   exhaust and skid dust; plus the `animate()` stop-ordering bug in chibi.js). Left: the Train course cards themselves
+   carry no character, and the street's homeowners never leave their doorways.

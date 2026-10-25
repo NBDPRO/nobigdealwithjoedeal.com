@@ -159,3 +159,18 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   collar and placket), in the renderer, the Roof Rep locker and the CRM game-card picker. The 32×32 pixel fallback
   draws the new hair as its nearest cousin. Every saved look still reads the same (`top` defaults to tee).
 - Versions: `chibi.js?v=4`, `roof-rep.js?v=6`, `game-sprite.js?v=4`. Guard grows to 59 checks.
+
+### Wave 5 (same day, fifth PR): life everywhere, and a renderer bug
+
+- **Crew board:** the first eight rows breathe (idle, blinking); the leader cheers every 9 s and any row cheers when
+  tapped. Past eight the thumbnails stay still frames (a big team is not thirty loops on one phone). A row's loop starts
+  only once its row is on the page.
+- **Training Yard:** Big Dave stands in the header card, points the way every 7 s, cheers when tapped.
+- **The drive:** the drawn truck eases toward where the game says it is, tilts into a sideways move, idles with a
+  faint bob, puffs exhaust on every lane change and a cloud of skid dust on a bump. Nothing spawns over the lot's
+  column any more (the first move up used to be an instant fender bender when a car drifted into it), and no two cars
+  spawn nose to tail.
+- **Renderer bug (chibi.js v5):** `animate()` defined `stop` after its first frame, so a canvas animated before it
+  was in the DOM hit "stop is not a function" on that frame and the loop died silently. Found by the crew board rows;
+  fixed by defining `stop` first.
+- Versions: `chibi.js?v=5`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 65 checks.
