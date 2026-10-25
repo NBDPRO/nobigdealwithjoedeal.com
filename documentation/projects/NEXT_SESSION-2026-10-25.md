@@ -69,6 +69,13 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   `tests/crm-strip-one-row-2026-10-25.test.js`. Local note: this sandbox's proxy blocks fonts.googleapis, so the
   dashboard renders in a wider fallback font; `loginAs` on the emulators now serves the self-hosted Barlow sheet
   (`nbd-fonts-pro.css`) in its place, so local widths match CI's.
+- **@shard2 on #2735 (the first run with the hosting-log filter): 167 passed, 1 failed, 13.0 min.** Only
+  compact-header test 4 ("the first card starts in the top half") missed; crew-calendar passed. The filter itself
+  missed: on the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address and
+  the fixed string never matched (4851 of the API's 5000-line tail were still GETs, so test 4's new block dump was out
+  of reach again). The pattern now allows up to 20 characters there (this PR); the next @shard2 run is the first whose
+  tail will hold the dump. The traces artifact (playwright-authed-traces-1, 9 MB) is on the run for a reader with
+  blob access.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
