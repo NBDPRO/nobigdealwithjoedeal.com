@@ -332,6 +332,9 @@
    0px until fab-stack-coordinator.js measures a mounted strip, so this is a
    no-op on every view today. */
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--t);height:100vh;height:100dvh;padding-bottom:var(--nbd-bottom-chrome, 0px);overflow:hidden;display:flex;flex-direction:column;touch-action:pan-x pan-y pinch-zoom;-webkit-overflow-scrolling:touch;-webkit-tap-highlight-color:transparent;}
+/* Controls read the page font (2026-10-25 visual sweep): the UA default put Arial on every button, input and select that
+   no class styled - Academy tabs, Draw line types, Stripe buttons, the widget close marks, the board arrows. */
+button,input,select,textarea{font-family:inherit;}
 
 /* HEADER
    OWNERSHIP (2026-07 Phase 2): dashboard-app.css owns the GLOBAL <header>
