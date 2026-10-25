@@ -201,7 +201,11 @@
 
   function draw(canvas, avatar) {
     // The vector chibi (chibi.js, 2026-10-25) when it is on the page; the 32×32 grid below otherwise.
-    if (window.NBDChibi) { window.NBDChibi.animate(canvas, normalize(avatar), function (t) { return { pose: t % 14000 < 1600 ? 'wave' : 'idle' }; }); return; } // a wave every 14 s
+    if (window.NBDChibi) {
+      // a wave every 14 s, and a cheer when the avatar is tapped (the listener is added once per canvas; the loop is replaced per draw)
+      if (!canvas.__chibiTap) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; }); }
+      window.NBDChibi.animate(canvas, normalize(avatar), function (t) { return { pose: canvas.__cheerUntil > t ? 'cheer' : t % 14000 < 1600 ? 'wave' : 'idle' }; }); return;
+    }
     if (!canvas || !canvas.getContext) return;
     var a = normalize(avatar);
     var G = outline(build(a));

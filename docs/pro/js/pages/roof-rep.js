@@ -152,7 +152,7 @@ function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
-  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
 function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }

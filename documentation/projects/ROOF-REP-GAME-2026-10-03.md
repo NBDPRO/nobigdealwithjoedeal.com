@@ -135,4 +135,8 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   iris in the eyes.
 - **Three new poses, wired:** `point` (the rep points up at the roof when a homeowner says go inspect), `nod` (the Storm
   Run homeowner nods at a fair answer instead of going idle), `shrug` (the doorway homeowner shrugs when a door is lost).
-- Versions: `chibi.js?v=2`, `roof-rep.js?v=4`. Guard grows to 51 checks.
+- **Sheets with nobody talking** show a scene in the face box instead of a blank: the wagging dog, the closed door
+  with a hanger, the pickup (`faceScene`, the street's own vector pieces at 3-4x).
+- **Tap to cheer:** the HUD face, the locker preview and the CRM game-card avatar cheer for 1.6 s when tapped (one
+  listener per canvas, same loop).
+- Versions: `chibi.js?v=2`, `roof-rep.js?v=4`, `game-sprite.js?v=3`. Guard grows to 53 checks.
