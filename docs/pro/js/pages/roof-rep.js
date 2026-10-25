@@ -1212,11 +1212,12 @@ function node(h, key, tip) {
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  // wave 17: a hand over the mouth when the loss was the rep's own call; a plain loss hangs the head
+  if (end === 'lose') { setStatus(h, 'lost'); pose(tip && tip.bad ? 'cringe' : 'sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
   if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
-  if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
+  if (end === 'book') { setStatus(h, 'booked'); pose('thumbs', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
   if (end === 'inspect') { pose('point', 1400); inspect(h, SAVE.streetId); }
 }
 

@@ -30,7 +30,8 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   weather, idle fidgets. Waves 10–11: the chibi on the leaderboard page and the dashboard leaderboards. Waves 12–13:
   builds (regular / slim / stocky / tall, an elder stoop) and eyes that follow the pointer. Wave 14: a pop-in on
   arrival, a wave back when tapped, the double blink. Wave 15: cold breath and winter / summer dress on the street.
-  Wave 16: eye colour in both pickers. Guard `tests/chibi-2026-10-25.test.js` (97).
+  Wave 16: eye colour in both pickers. Wave 17: thumbs-up and cringe poses on the street's outcomes. Guard
+  `tests/chibi-2026-10-25.test.js` (100).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the

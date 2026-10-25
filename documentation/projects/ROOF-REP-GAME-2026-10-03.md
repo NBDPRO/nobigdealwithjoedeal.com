@@ -258,3 +258,10 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   in `game-card.css` v5, which the game-xp guard checks against the option table), and the street rolls one per
   homeowner. `chibi.js` v11, `roof-rep.js` v13. Guard grows to 97 (the palette, normalize, the gradient stops and
   fills a blue-eyed and a green-eyed draw use, the pickers, the CSS and the street).
+- **Wave 17, two poses for the street's outcomes.** `thumbs`: the front arm up to chest height as a fist with a thumb
+  that points up whatever the arm's angle, a wink and a grin; the rep gives one when a homeowner books an inspection
+  (was a wave). `cringe`: the hand over the mouth (the arm swung back and up, and drawn over the head so the hand sits
+  on the face), eyes shut, brows down, the head dropped and shaking slowly; the rep does it when a lost door was their
+  own bad call (`tip.bad`), and still hangs the head (`sad`) on a plain loss. A chibi's arm reaches the mouth, not the
+  forehead, so this is the facepalm the body allows. The shipped-bytes ceiling moves 2804 → 2816 KB with a dated note:
+  waves 12–17 grew `chibi.js` from 47 to 56 KB (deferred), and the gate sat at 2804 of 2804. Guard grows to 100.
