@@ -90,6 +90,13 @@ console.log('\n3. turfs');
   ok('every door lands in exactly one turf (cuts do not drop or double)', doors.reduce((a, b) => a + b, 0) === pts.length, doors.join());
   ok('n is clamped 1..8 and junk is 1', ML.splitTurfs([BOX], 99, []).length <= 8 && ML.splitTurfs([BOX], 'x', []).length === 1);
   ok('no area -> no turfs', ML.splitTurfs([], 3, pts).length === 0);
+  // 2026-10-25: four doors on ONE coordinate (the e2e rep's test customers, or a
+  // street of leads geocoded to the same pin) made every quantile cut the same
+  // number; the de-dup kept one and the rep got 2 turfs under a "3 turfs" stepper.
+  const stacked = [1, 2, 3, 4].map(() => ({ lat: 39.1, lng: -84.5 }));
+  const st = ML.splitTurfs([BOX], 3, stacked);
+  ok('doors stacked on one point still yield the N turfs asked for (equal-width fallback)', st.length === 3, String(st.length));
+  ok('…and every stacked door is counted once', st.reduce((a, t) => a + t.doors, 0) === 4, st.map((t) => t.doors).join());
   // a tall box is cut across its LONG side (latitude)
   const tall = [[39.0, -84.5], [39.0, -84.45], [39.6, -84.45], [39.6, -84.5]];
   const tt = ML.splitTurfs([tall], 2, []);

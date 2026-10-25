@@ -84,6 +84,12 @@ function installSaveHelper() {
   };
 }
 
+// Mission remembers its tab, route order and map layers per rep (layoutState.mission
+// through LayoutEngine.saveUser), and the shard shares ONE rep: a previous
+// attempt's Leads toggle came back ON and the day-route click turned it OFF
+// (aria-pressed "false", CI 2026-10-25). Every pick of the layout starts fresh.
+const FRESH_MISSION = { tab: 'watch', mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false } };
+
 function adb() {
   const { initializeApp, getApps } = require('firebase-admin/app');
   const { getFirestore } = require('firebase-admin/firestore');
@@ -118,7 +124,7 @@ test.describe.serial('Mission Control @shard2', () => {
     const s = Date.now();
     await safeEvaluate(page, (a) => window.__mcSaveLead({ firstName: 'ZZMC', lastName: 'InPath' + a.s, address: a.addr, phone: a.phone, stage: 'new', lat: 39.1, lng: -84.5 }), { s, addr: uniqAddr(s, 1), phone: uniqPhone(s, 1) });
     await safeEvaluate(page, (a) => window.__mcSaveLead({ firstName: 'ZZMC', lastName: 'Outside' + a.s, address: a.addr, phone: a.phone, stage: 'new', lat: 39.4, lng: -84.9 }), { s, addr: uniqAddr(s, 2), phone: uniqPhone(s, 2) });
-    const saved = await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'mission', device: 'desktop' }));
+    const saved = await safeEvaluate(page, (f) => window.LayoutEngine.saveUser({ id: 'mission', device: 'desktop', layoutState: { mission: f } }), FRESH_MISSION);
     expect(saved.saved).toBe(true);
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'mission' && !!document.getElementById('nbdMissionRoot'), null, { timeout: 40_000 });
@@ -208,7 +214,7 @@ test.describe.serial('Mission Control @shard2', () => {
     await safeEvaluate(page, installSaveHelper);
     const s = Date.now();
     await safeEvaluate(page, (a) => window.__mcSaveLead({ firstName: 'ZZMC', lastName: 'Phone' + a.s, address: a.addr, phone: a.phone, stage: 'new', lat: 39.1, lng: -84.5 }), { s, addr: uniqAddr(s, 3), phone: uniqPhone(s, 3) });
-    await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'mission', device: 'phone' }));
+    await safeEvaluate(page, (f) => window.LayoutEngine.saveUser({ id: 'mission', device: 'phone', layoutState: { mission: f } }), FRESH_MISSION);
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'mission' && !!document.getElementById('nbdMissionRoot'), null, { timeout: 40_000 });
     await page.locator('.nbd-mv.leaflet-container').waitFor({ state: 'visible', timeout: 40_000 });
@@ -303,7 +309,7 @@ test.describe.serial('Mission Control @shard2', () => {
         startTime: when, endTime: new Date(when.getTime() + 45 * 60 * 1000), status: 'confirmed', location: uniqAddr(s, 5 + defs.indexOf(d)),
       });
     }
-    await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'mission', device: 'desktop' }));
+    await safeEvaluate(page, (f) => window.LayoutEngine.saveUser({ id: 'mission', device: 'desktop', layoutState: { mission: f } }), FRESH_MISSION);
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'mission' && !!document.getElementById('nbdMissionRoot'), null, { timeout: 40_000 });
     await page.locator('.nbd-mv.leaflet-container').waitFor({ state: 'visible', timeout: 40_000 });
