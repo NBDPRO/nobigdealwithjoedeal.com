@@ -43,7 +43,8 @@
  *          Wave 18: cross (arms folded across the chest, brows down, chin up: a homeowner closing off); the walk fits the
  *          body (an elder shuffles, a stocky build sways, a slim one steps quicker); mood 'smug' is a one-sided smirk with
  *          one brow up (the rival). Wave 19: per-frame popDelay (ms) holds a loop's canvas blank that long before its
- *          pop-in, so a list of faces arrives one after another (not under reduced motion).
+ *          pop-in, so a list of faces arrives one after another (not under reduced motion). Wave 20: talking varies the
+ *          mouth's shape (round to wide) and the brows rise and fall with the words, so a long line reads as speech.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands) ·
  *                                         thumbs · cringe (wave 17) · cross (wave 18)
@@ -125,7 +126,9 @@
     else if (pose === 'talk') {
       var v = 0.52 + 0.42 * s(t / 70) * (0.55 + 0.45 * s(t / 190)) + 0.18 * s(t / 310);
       p.mouthOpen = Math.max(0, Math.min(1, v)) * m; if (m === 0) p.mouthOpen = 0.6;
-      p.tilt = s(t / 400) * 2 * m; p.bob = s(t / 400) * -0.6 * m; p.armR = -12 + s(t / 300) * 10 * m; p.elbowR = -30 - s(t / 300) * 18 * m; p.browUp = 1;
+      p.tilt = s(t / 400) * 2 * m; p.bob = s(t / 400) * -0.6 * m; p.armR = -12 + s(t / 300) * 10 * m; p.elbowR = -30 - s(t / 300) * 18 * m;
+      // wave 20: the mouth's shape runs round to wide on its own beat and the brows rise and fall with the words
+      p.mouthW = m ? 0.8 + 0.45 * Math.abs(s(t / 150 + 0.7)) : 1; p.browUp = m ? 0.7 + 0.3 * s(t / 230) : 1;
       p.look = (t + seed) % 4200 > 3600 ? -1 : 0;
     }
     else if (pose === 'cheer') {
@@ -393,8 +396,8 @@
     // mouth
     var my = hy + 19;
     if (p.mouth === 'open' || p.mouthOpen > 0.15) {
-      var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0);
-      pen.ellipse(hx, my + 1, 5 + oh * 0.4, oh, 0, '#6B2A2A');
+      var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0), mw = p.mouthW || 1;
+      pen.ellipse(hx, my + 1, (5 + oh * 0.4) * mw, oh, 0, '#6B2A2A');
       ctx.fillStyle = '#E2707F'; ctx.beginPath(); ctx.ellipse(hx, my + 1 + oh * 0.55, 3.2, oh * 0.4, 0, 0, Math.PI * 2); ctx.fill();
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
     } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }

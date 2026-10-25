@@ -280,3 +280,7 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   which still draws its one still frame). The speech sheet's "big dog" barks: `drawDog` takes a `bark` flag and hops
   on a 480 ms beat with the mouth open (a tongue, a small WOOF), the ear flipping up and a faster wag; the street's
   yard dogs and the reduced-motion frame keep the old drawing. Guard grows to 107.
+- **Wave 20, speech reads as speech, and the HUD face mirrors the street.** Talking varies the mouth's shape (round
+  to wide, on its own beat) and the brows rise and fall with the words, so a long line in the sheet reads as speech
+  rather than a metronome. The HUD face follows the street rep's pose while it lasts: a cheer on a sale, a thumbs-up
+  on a booking, a cringe on a bad call (never the walk; a tap's cheer still wins). Guard grows to 110.
