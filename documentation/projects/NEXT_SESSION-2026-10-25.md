@@ -39,6 +39,16 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   strings swing, and a facing change turns over 180 ms (the head stays round) instead of mirroring in a frame. Wave
   25: dust puffs on a cheer's landing, the shadow spreads under a squash, and loops scrolled out of the viewport rest
   (and pop in when they scroll into view). Guard `tests/chibi-2026-10-25.test.js` (125).
+- **The character style bar (Jo, 15:10 UTC):** two reference images (a cel-shaded hooded robe as pixel art and as
+  clean vector; a hooded lantern-carrier from eight angles) and two sentences: "this level of detail and style or
+  above" and "super clean and no overlapping of items, accessories, outfit etc." Now CLAUDE.md rule g, with the
+  references and what they mean for the renderer in
+  [CHARACTER-STYLE-BAR-2026-10-25](CHARACTER-STYLE-BAR-2026-10-25.md); `scripts/chibi-sheet.js` renders a grid from
+  a JSON spec so a change can be looked at. Two workflows ran the same evening: the clean-up audit (twelve finders by
+  dimension, two sceptics per finding, a fixer per part, a critic over the full matrix) and a prototype panel for the
+  painted style (six attempts, three judges, a plan and a contact sheet). Jo's open decisions: proportions (chibi
+  painted to the bar, or the references' three-and-a-half-head figures), true side and back views, which personas
+  and pickers get hoods, robes, belts, satchels and lanterns.
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
