@@ -213,6 +213,17 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .toast { bottom: calc(var(--tabs-h) + 12px + env(safe-area-inset-bottom, 0px)); }
 }
+/* ── desktop: the street and the speech sheet side by side, the sheet sticky so a long talk never scrolls the street away ── */
+@media (min-width: 900px) {
+  .wrap { max-width: 1080px; }
+  #p-street { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); grid-template-areas: "stage box" "chips box" "help box"; gap: 14px 18px; align-items: start; }
+  #p-street .stage { grid-area: stage; }
+  #p-street .box { grid-area: box; position: sticky; top: 14px; min-height: 0; flex-direction: column; max-height: calc(100vh - 28px); overflow-y: auto; }
+  #p-street .box .face { width: 72px; height: 72px; }
+  #p-street .drive { grid-area: chips; margin: 0; }
+  #p-street .chips { grid-area: chips; margin-top: 22px; }
+  #p-street .row { grid-area: help; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* the XP bar width classes (no inline styles on this page) */
