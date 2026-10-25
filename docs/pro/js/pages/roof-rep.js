@@ -13,8 +13,9 @@
  *
  * Page: /pro/roof-rep.html. Storage: localStorage cache + roofRep/{uid};
  * crew board: roofRepScores (same company). See js/pages/roof-rep-net.js.
- * Source of truth for content: the published claude.ai artifact; this file
- * is generated from it (keep the two in step).
+ * Source of truth: THIS FILE (2026-10-25). The claude.ai artifact it began as
+ * is retired; edit here. Game feel lives in roof-rep-fx.js, the look in
+ * css/roof-rep.css.
  */
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
@@ -731,13 +732,23 @@ function levelToast(before) {
   if (after.level <= before) return;
   var unl = STREETS.filter(function (s) { return s.level === after.level; }).map(function (s) { return s.name; });
   var gear = Object.keys(LOCKS).filter(function (k) { return LOCKS[k] === after.level; });
-  sfx('level');
+  sfx('level'); FX.burst(WALK.px, WALK.py - 24, 40);
   toast('LEVEL UP! ' + after.level + ' · ' + after.title.toUpperCase() + (unl.length ? ' · NEW STREET: ' + unl.join(', ').toUpperCase() : '') + (gear.length ? ' · NEW GEAR IN THE LOCKER' : ''));
   renderChips(); renderLocker(); hud();
+  var lines = [];
+  if (unl.length) lines.push('New street: ' + unl.join(', '));
+  if (gear.length) lines.push('New gear in the Locker');
+  lines.push('+1 skill point to spend');
+  setTimeout(function () {
+    if (!document.getElementById('ov').hidden) return;
+    overlay('<div class="big"><h2>LEVEL UP</h2><div class="huge">' + after.level + '</div><p class="lvlup">' + esc(after.title) + '</p><ul class="report">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul><button type="button" class="btn primary wide" id="lvlOk">Keep going</button></div>');
+    document.getElementById('lvlOk').addEventListener('click', closeOverlay);
+  }, 350);
 }
 function gain(x, why) {
   var before = lvl();
   DAY.xp += x; SAVE.xp += x; DAY.log.push({ xp: x, why: why }); hud();
+  if (x >= 5) FX.float('+' + x + ' XP', WALK.px, WALK.py - 36, x >= 50 ? '#f2a900' : '#f3ede2', x >= 50);
   levelToast(before);
 }
 // XP outside a working day (training before you clock in).
@@ -791,35 +802,53 @@ function agendaLabel(a) {
 // The street.
 // ════════════════════════════════════════════════════════════════════════
 var W = document.getElementById('world'), g = W.getContext('2d');
+var FX = window.RoofRepFX || { float: function () {}, burst: function () {}, shake: function () {}, flash: function () {}, weather: function () {}, tint: function () {}, draw: function () {}, bob: function () { return 0; } };
+// The canvas is 640x400 for crisp lines; every drawing call below thinks in 320x200.
+g.setTransform(W.width / 320, 0, 0, W.height / 200, 0, 0);
 function curStreet() { return streetOf(SAVE.streetId); }
 function doorOf(h) { return { x: h.x + 40, y: h.top ? 74 : 122 }; }
 var FLAG = { rivaled: '#7f4fb0', building: '#d8743a', booked: '#8ec5ff', inspected: '#8ec5ff', signed: '#7bc96f', approved: '#7bc96f', built: '#f3ede2', hanger: '#f2a900', later: '#a9b0bf', lost: '#ef6b6b', fine: '#7bc96f', denied: '#ef6b6b', quiet: '#a9b0bf' };
+function rrect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function drawHouse(h, st) {
-  var y = h.top ? 18 : 122, w = 80;
-  g.fillStyle = seasonFor(SAVE.day) === 'winter' ? '#dfe7ea' : seasonFor(SAVE.day) === 'fall' ? '#5f7a34' : st.yard; g.fillRect(h.x - 4, h.top ? 8 : 116, w + 8, 76);
-  if (st.id === 'oak') { g.fillStyle = '#e8e2d4'; for (var fx = h.x - 2; fx < h.x + 84; fx += 6) g.fillRect(fx, h.top ? 10 : 186, 2, 6); g.fillRect(h.x - 2, h.top ? 12 : 188, 86, 1); }
+  // Illustrated (2026-10-25): soft shapes, a shaded gable roof, framed windows, a path to the door. Same footprint as before
+  // (the click map and door positions in doorOf/walkTo are unchanged).
+  var y = h.top ? 18 : 122, w = 80, se = seasonFor(SAVE.day);
+  g.fillStyle = se === 'winter' ? '#dfe7ea' : se === 'fall' ? '#5f7a34' : st.yard; g.fillRect(h.x - 4, h.top ? 8 : 116, w + 8, 76);
+  if (st.id === 'oak') { g.fillStyle = 'rgba(232,226,212,.9)'; for (var fx = h.x - 2; fx < h.x + 84; fx += 6) g.fillRect(fx, h.top ? 10 : 186, 2, 6); g.fillRect(h.x - 2, h.top ? 12 : 188, 86, 1); }
+  // path and shadow
+  g.fillStyle = 'rgba(0,0,0,.18)'; rrect(h.x + 8, y + 52, w - 12, 6, 3); g.fill();
+  g.fillStyle = '#cfc6b4'; rrect(h.x + 35, h.top ? y + 56 : y - 14, 10, 14, 2); g.fill();
+  // walls
+  g.fillStyle = h.wall; rrect(h.x + 6, y + 22, w - 12, 34, 2); g.fill();
+  g.fillStyle = shade(h.wall, -18); g.fillRect(h.x + 6, y + 50, w - 12, 6);
+  g.fillStyle = shade(h.wall, 10); g.fillRect(h.x + 6, y + 22, 3, 34);
+  // roof: a gable with a lighter near slope and an eave line
   var roofC = h.status === 'built' ? '#3f4a5a' : h.roof;
-  g.fillStyle = h.wall; g.fillRect(h.x + 6, y + 22, w - 12, 34);
-  g.fillStyle = shade(h.wall, -25); g.fillRect(h.x + 6, y + 52, w - 12, 4);
-  for (var i = 0; i < 12; i++) { g.fillStyle = i % 3 === 0 ? shade(roofC, 12) : roofC; g.fillRect(h.x + i * 2, y + 22 - i * 2, w - i * 4, 2); }
-  g.fillStyle = shade(roofC, -25); g.fillRect(h.x, y + 22, w, 2);
+  g.fillStyle = shade(roofC, -10); g.beginPath(); g.moveTo(h.x - 1, y + 23); g.lineTo(h.x + w / 2, y - 2); g.lineTo(h.x + w + 1, y + 23); g.closePath(); g.fill();
+  g.fillStyle = shade(roofC, 14); g.beginPath(); g.moveTo(h.x + 2, y + 21); g.lineTo(h.x + w / 2, y + 1); g.lineTo(h.x + w / 2 + 2, y + 1); g.lineTo(h.x + w / 2 + 2, y + 21); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1; for (var c = 1; c < 4; c++) { g.beginPath(); g.moveTo(h.x + 2 + c * 9, y + 23 - c * 5); g.lineTo(h.x + w - 2 - c * 9, y + 23 - c * 5); g.stroke(); }
+  g.fillStyle = shade(roofC, -30); g.fillRect(h.x - 1, y + 22, w + 2, 2);
   if (h.status !== 'built') {
-    if (h.damage === 'hail') { g.fillStyle = '#1b1b1b'; [[18, 12], [30, 16], [46, 10], [58, 15], [38, 6]].forEach(function (p) { g.fillRect(h.x + p[0], y + p[1], 2, 2); }); }
-    if (h.damage === 'some') { g.fillStyle = '#1b1b1b'; [[24, 14], [50, 12]].forEach(function (p) { g.fillRect(h.x + p[0], y + p[1], 2, 2); }); }
-    if (h.damage === 'gutter') { g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 2, y + 24, 30, 2); g.fillRect(h.x + 32, y + 26, 14, 2); g.fillRect(h.x + 46, y + 24, 32, 2); if (seasonFor(SAVE.day) === 'fall') { g.fillStyle = '#e0b45a'; g.fillRect(h.x + 10, y + 23, 3, 1); g.fillRect(h.x + 56, y + 23, 4, 1); } }
+    g.fillStyle = '#1b1b1b';
+    if (h.damage === 'hail') [[18, 12], [30, 16], [46, 10], [58, 15], [38, 6]].forEach(function (p) { g.beginPath(); g.arc(h.x + p[0], y + p[1], 1.4, 0, 6.3); g.fill(); });
+    if (h.damage === 'some') [[24, 14], [50, 12]].forEach(function (p) { g.beginPath(); g.arc(h.x + p[0], y + p[1], 1.4, 0, 6.3); g.fill(); });
+    if (h.damage === 'gutter') { g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 2, y + 24, 30, 2); g.fillRect(h.x + 32, y + 26, 14, 2); g.fillRect(h.x + 46, y + 24, 32, 2); if (se === 'fall') { g.fillStyle = '#e0b45a'; g.fillRect(h.x + 10, y + 23, 3, 1); g.fillRect(h.x + 56, y + 23, 4, 1); } }
     if (h.damage === 'repair') { g.fillStyle = '#1b1b1b'; g.fillRect(h.x + 52, y + 9, 3, 3); g.fillStyle = '#9aa0a6'; g.fillRect(h.x + 52, y + 4, 2, 4); }
-    if (PERSONA[h.persona].boss && h.status === 'fresh') { g.fillStyle = '#f2a900'; g.fillRect(h.x + 34, y - 8, 12, 4); g.fillRect(h.x + 34, y - 11, 2, 3); g.fillRect(h.x + 39, y - 12, 2, 4); g.fillRect(h.x + 44, y - 11, 2, 3); }
+    if (PERSONA[h.persona].boss && h.status === 'fresh') { g.fillStyle = '#f2a900'; g.beginPath(); g.moveTo(h.x + 34, y - 4); g.lineTo(h.x + 46, y - 4); g.lineTo(h.x + 46, y - 10); g.lineTo(h.x + 43, y - 7); g.lineTo(h.x + 40, y - 12); g.lineTo(h.x + 37, y - 7); g.lineTo(h.x + 34, y - 10); g.closePath(); g.fill(); }
     if (h.damage === 'old') { g.fillStyle = shade(h.roof, 30); for (var j = 0; j < 6; j++) g.fillRect(h.x + 12 + j * 9, y + 14 + (j % 2) * 3, 5, 1); }
   } else { g.fillStyle = '#f2a900'; g.fillRect(h.x + 30, y + 4, 20, 1); }
-  g.fillStyle = '#8ec5ff'; g.fillRect(h.x + 14, y + 30, 12, 10); g.fillRect(h.x + w - 26, y + 30, 12, 10);
-  g.fillStyle = '#2b3442'; g.fillRect(h.x + 19, y + 30, 2, 10); g.fillRect(h.x + w - 21, y + 30, 2, 10);
-  g.fillStyle = '#6b3a24'; g.fillRect(h.x + 35, y + 38, 10, 18); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2);
+  // windows with frames and a warm glow late in the day
+  var glow = DAY && DAY.min >= 16 * 60;
+  [h.x + 14, h.x + w - 26].forEach(function (wx) { g.fillStyle = '#2b3442'; g.fillRect(wx - 1, y + 29, 14, 12); g.fillStyle = glow ? '#ffd98a' : '#8ec5ff'; g.fillRect(wx, y + 30, 12, 10); g.fillStyle = 'rgba(43,52,66,.9)'; g.fillRect(wx + 5, y + 30, 2, 10); g.fillRect(wx, y + 34, 12, 1); });
+  // door
+  g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2);
   if (h.persona === 'nosolicit' || h.persona === 'nightShift') { g.fillStyle = '#fff'; g.fillRect(h.x + 47, y + 40, 10, 6); g.fillStyle = '#c0392b'; g.fillRect(h.x + 48, y + 42, 8, 2); }
-  if (h.status === 'built') { g.fillStyle = '#d8743a'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
-  g.fillStyle = '#b9b0a0'; g.fillRect(h.x + 36, h.top ? y + 56 : y - 14, 8, 14);
-  if (h.dog) { var dx2 = h.x + 58, dy2 = h.top ? y + 60 : y - 10; g.fillStyle = '#1a1512'; g.fillRect(dx2 - 1, dy2 - 1, 10, 6); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2, 8, 4); g.fillRect(dx2 + 6, dy2 - 2, 3, 3); g.fillStyle = '#1a1512'; g.fillRect(dx2 + 8, dy2 - 1, 1, 1); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2 + 4, 1, 2); g.fillRect(dx2 + 6, dy2 + 4, 1, 2); g.fillRect(dx2 - 2, dy2 - 1, 2, 1); }
-  var c = FLAG[h.status];
-  if (c) { g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, h.top ? y + 1 : y + 59, 8, 8); g.fillStyle = c; g.fillRect(h.x + 70, h.top ? y + 2 : y + 60, 6, 6); }
+  if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
+  // bushes
+  g.fillStyle = se === 'winter' ? '#9fb3a6' : shade(st.yard, 22); [[h.x + 9, y + 54], [h.x + w - 9, y + 54]].forEach(function (b) { g.beginPath(); g.arc(b[0], b[1], 4, 0, 6.3); g.arc(b[0] + 4, b[1] + 1, 3, 0, 6.3); g.fill(); });
+  if (h.dog) { var dx2 = h.x + 58, dy2 = h.top ? y + 60 : y - 10; g.fillStyle = '#1a1512'; g.fillRect(dx2 - 1, dy2 - 1, 10, 6); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2, 8, 4); g.fillRect(dx2 + 6, dy2 - 2, 3, 3); g.fillStyle = '#1a1512'; g.fillRect(dx2 + 8, dy2 - 1, 1, 1); g.fillStyle = '#a0612b'; g.fillRect(dx2, dy2 + 4, 1, 2); g.fillRect(dx2 + 6, dy2 + 4, 1, 2); }
+  var c2 = FLAG[h.status];
+  if (c2) { var fy = h.top ? y + 1 : y + 59; g.fillStyle = '#1a1512'; g.fillRect(h.x + 69, fy, 2, 9); g.fillStyle = c2; g.beginPath(); g.moveTo(h.x + 71, fy); g.lineTo(h.x + 79, fy + 2.5); g.lineTo(h.x + 71, fy + 5); g.closePath(); g.fill(); }
   if (SAVE.agenda.some(function (a) { return a.sid === st.id && a.i === h.i && a.due <= SAVE.day; })) { g.fillStyle = '#f2a900'; g.fillRect(h.x + 38, y - 6, 4, 8); g.fillRect(h.x + 38, y + 4, 4, 3); }
 }
 function drawTruck(c, x, y, s) {
@@ -834,24 +863,38 @@ function drawTruck(c, x, y, s) {
   c.fillStyle = '#2a2320'; c.fillRect(x - 1 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 3 * s, 1 * s, 3 * s); c.fillRect(x - 1 * s, y + 14 * s, 1 * s, 3 * s); c.fillRect(x + 12 * s, y + 14 * s, 1 * s, 3 * s);
 }
 function drawWorld() {
-  var st = curStreet();
-  g.fillStyle = seasonFor(SAVE.day) === 'winter' ? '#c9d3d6' : st.ground; g.fillRect(0, 0, 320, 200);
-  g.fillStyle = '#c9c1b2'; g.fillRect(0, 80, 320, 8); g.fillRect(0, 112, 320, 8);
-  g.fillStyle = '#3b3f47'; g.fillRect(0, 88, 320, 24);
+  var st = curStreet(), se = seasonFor(SAVE.day), now = Date.now();
+  g.fillStyle = se === 'winter' ? '#c9d3d6' : st.ground; g.fillRect(0, 0, 320, 200);
+  g.fillStyle = 'rgba(0,0,0,.06)'; for (var gy = 0; gy < 200; gy += 16) g.fillRect(0, gy, 320, 1);
+  g.fillStyle = '#cfc6b4'; g.fillRect(0, 80, 320, 8); g.fillRect(0, 112, 320, 8);
+  g.fillStyle = '#39404b'; g.fillRect(0, 88, 320, 24);
+  g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, 88, 320, 2);
   g.fillStyle = '#e8d27a'; for (var x = 4; x < 320; x += 20) g.fillRect(x, 99, 10, 2);
   if (st.id === 'hollow') { g.fillStyle = '#56606e'; [[40, 104], [180, 92], [260, 106]].forEach(function (p) { g.fillRect(p[0], p[1], 14, 3); }); g.fillStyle = '#5a3a22'; [[96, 84], [210, 116]].forEach(function (p) { g.fillRect(p[0], p[1], 12, 2); g.fillRect(p[0] + 4, p[1] - 2, 2, 2); }); }
   g.save(); g.translate(14, 110); g.rotate(-Math.PI / 2); drawTruck(g, 0, 0, 1); g.restore();
   ensureStreet(st.id).houses.forEach(function (h) { drawHouse(h, st); });
-  var SE = SEASON[seasonFor(SAVE.day)];
-  [[104, 60], [208, 60], [104, 150], [208, 150]].forEach(function (t) { g.fillStyle = '#5a3a22'; g.fillRect(t[0], t[1] + 8, 3, 8); g.fillStyle = SE.tree; g.fillRect(t[0] - 4, t[1], 11, 9); g.fillStyle = SE.leaf; g.fillRect(t[0] - 2, t[1] + 1, 5, 4); });
+  var SE = SEASON[se];
+  [[104, 60], [208, 60], [104, 150], [208, 150]].forEach(function (t) {
+    g.fillStyle = 'rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(t[0] + 2, t[1] + 17, 7, 2, 0, 0, 6.3); g.fill();
+    g.fillStyle = '#5a3a22'; g.fillRect(t[0], t[1] + 8, 3, 8);
+    g.fillStyle = SE.tree; g.beginPath(); g.arc(t[0] + 1, t[1] + 4, 7, 0, 6.3); g.fill();
+    g.fillStyle = SE.leaf; g.beginPath(); g.arc(t[0] - 1, t[1] + 2, 4, 0, 6.3); g.fill();
+  });
   if (DAY && rivalStreet(st.id)) {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
+    g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
     paint(g, RIVAL_LOOK, Math.round(RIVAL.x) - 8, Math.round(RIVAL.y) - 30, 0.5);
     g.fillStyle = '#e24b4a'; g.fillRect(Math.round(RIVAL.x) - 4, Math.round(RIVAL.y) - 36, 8, 4);
   }
-  paint(g, SAVE.avatar, Math.round(WALK.px) - 8, Math.round(WALK.py) - 30, 0.5);
+  var bob = FX.bob(WALK.path.length > 0, now);
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 6, 2, 0, 0, 6.3); g.fill();
+  paint(g, SAVE.avatar, Math.round(WALK.px) - 8, Math.round(WALK.py) - 30 + bob, 0.5);
+  if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
+  if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
+  FX.draw(g);
 }
+var KNOCK = { x: 0, y: 0, until: 0 };
 function walkTo(h) {
   if (!DAY || WALK.busy || !document.getElementById('ov').hidden) return;
   var d = doorOf(h);
@@ -877,7 +920,7 @@ var STATUS_MSG = {
 function arrive() {
   var h = WALK.target; WALK.busy = false;
   spend(Math.max(2, 5 + rnd(4) - 2 * sk('hustle'))); if (!DAY || DAY.over) return;
-  sfx('knock');
+  sfx('knock'); KNOCK = { x: WALK.px, y: WALK.py - 18, until: Date.now() + 500 };
   if (h.status === 'fresh') dayCount('knock');
   if (h.dog && h.status === 'fresh' && h.dogDay !== SAVE.day) {
     sfx('bark');
@@ -913,7 +956,7 @@ function say(look, name, text, choices, tip) {
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
   var p = document.createElement('p'); p.className = 'line'; p.textContent = text; t.appendChild(p);
-  if (tip && tip.text) { var d = document.createElement('div'); d.className = 'tip' + (tip.bad ? ' bad' : tip.good ? ' good' : ''); d.textContent = tip.text; t.appendChild(d); }
+  if (tip && tip.text) { var d = document.createElement('div'); d.className = 'tip' + (tip.bad ? ' bad' : tip.good ? ' good' : ''); d.textContent = tip.text; t.appendChild(d); if (tip.bad) { FX.shake(); FX.flash(true); sfx('bad'); } else if (tip.good) FX.flash(false); }
   var c = document.createElement('div'); c.className = 'choices';
   choices.forEach(function (ch) {
     var b = document.createElement('button'); b.type = 'button'; b.textContent = ch.say;
@@ -1140,6 +1183,7 @@ function tierScore(h, t) {
 function signed(h, sid, t) {
   var price = t.psq * h.sq;
   h.price = price; h.tier = t.key; DAY.signed++; DAY.sold += price; dayCount('sign'); sfx('cash');
+  FX.burst(WALK.px, WALK.py - 24, 28); FX.float(money(price), WALK.px, WALK.py - 48, '#7bc96f', true); FX.flash(false);
   if (PERSONA[h.persona].boss) stat('bosses');
   gain(60 + Math.round(price / 1000), h.name + ' signed: ' + t.name + ' ' + money(price));
   if (h.damage === 'hail' || h.damage === 'some') {
@@ -2060,7 +2104,7 @@ function renderTrain() {
 function hud() {
   var L = levelFor(SAVE.xp);
   document.getElementById('hDay').textContent = SAVE.day + ' ' + SEASON[seasonFor(SAVE.day)].icon;
-  document.getElementById('hTime').textContent = DAY ? clock(Math.min(DAY.min, DAY.end)) + ' ' + WX[DAY.wx].icon : 'Morning';
+  document.getElementById('hTime').textContent = DAY ? clock(Math.min(DAY.min, DAY.end)).replace(' ', '').replace(/M$/, '').toLowerCase() + ' ' + WX[DAY.wx].icon : 'Morning';
   var spf = spFree(), lk = document.getElementById('lkBadge'); lk.hidden = spf <= 0; lk.textContent = spf;
   document.getElementById('hXp').textContent = DAY ? DAY.xp : 0;
   document.getElementById('hSigned').textContent = DAY ? DAY.signed : 0;
