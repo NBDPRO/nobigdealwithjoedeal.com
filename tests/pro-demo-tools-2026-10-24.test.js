@@ -250,8 +250,21 @@ console.log('F. the three AI tools: sample answers, no model, no insurance topic
 console.log('\n+. AI Usage range buttons wire even when DOMContentLoaded already fired');
 {
   const A = require('fs').readFileSync(require('path').join(__dirname, '..', 'docs', 'pro', 'js', 'pages', 'pro-analytics.js'), 'utf8');
-  ok('the range and refresh wiring runs at once on a parsed document, else on DOMContentLoaded (a module whose imports land late would otherwise never wire)', /if \(document\.readyState === 'interactive' \|\| document\.readyState === 'complete'\) wireDom\(\);\nelse document\.addEventListener\('DOMContentLoaded', wireDom\);/.test(A) && /function wireDom\(\)/.test(A) && !/document\.addEventListener\('DOMContentLoaded', \(\) => \{/.test(A));
-  ok('wiring twice never double-binds a button', /btn\.dataset\.wired/.test(A));
+  ok('the range and refresh buttons are handled by one delegated click listener on the document (no DOMContentLoaded, no readyState, no per-button wiring: a module whose imports land late cannot miss a click)', /document\.addEventListener\('click', onDocClick\);/.test(A) && /closest\('\[data-range\], #refreshBtn'\)/.test(A) && !/DOMContentLoaded/.test(A.replace(/\/\/[^\n]*/g, '')));
+  // Behavioural twin: run the delegated handler against stub events.
+  {
+    const vm = require('vm');
+    const fn = (/function onDocClick\(e\) \{[\s\S]*?\n\}/.exec(A) || [])[0];
+    const calls = [];
+    const win = { setRange: (r, b) => calls.push(['range', r, b && b.id]), loadData: () => calls.push(['load']) };
+    const box = { window: win }; vm.createContext(box);
+    const handler = fn ? vm.runInContext('(' + fn + ')', box) : null;
+    const btn = { id: 'r30', dataset: { range: '30d' } }; btn.closest = (sel) => (/data-range/.test(sel) ? btn : null);
+    const refresh = { id: 'refreshBtn', dataset: {} }; refresh.closest = () => refresh;
+    const plain = { closest: () => null };
+    if (handler) { handler({ target: btn }); handler({ target: refresh }); handler({ target: plain }); handler({ target: null }); }
+    ok('a click inside a range button calls setRange(range, button); the refresh button calls loadData; anything else is ignored', !!handler && JSON.stringify(calls) === JSON.stringify([['range', '30d', 'r30'], ['load']]), JSON.stringify(calls));
+  }
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

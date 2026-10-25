@@ -70,6 +70,10 @@ CEILING.localScripts += 1;
 // without the strip. Defer, no boot-time reads. Own line so parallel PRs raising the
 // ceiling above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-25, characters): js/chibi.js, the vector avatar the Home game card
+// draws through (game-sprite.js reads window.NBDChibi synchronously when it draws; a lazy load would
+// paint the pixel fallback first and the vector second). Defer, no boot-time reads. Own line.
+CEILING.localScripts += 1;
 CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
 // +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
 // layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing

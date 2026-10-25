@@ -303,23 +303,13 @@ window.addEventListener('beforeunload', () => { if (autoTimer) clearInterval(aut
 // a listener registered then never runs and the range buttons do nothing (CI
 // 2026-10-25, the zero-network walk, intermittently). Wire now when the document is
 // already parsed, else on DOMContentLoaded.
-function wireDom() {
-  document.querySelectorAll('[data-range]').forEach(btn => {
-    if (btn.dataset.wired) return;
-    btn.dataset.wired = '1';
-    btn.addEventListener('click', () => {
-      if (typeof window.setRange === 'function') window.setRange(btn.dataset.range, btn);
-    });
-  });
-  const refresh = document.getElementById('refreshBtn');
-  if (refresh && !refresh.dataset.wired) {
-    refresh.dataset.wired = '1';
-    refresh.addEventListener('click', () => {
-      if (typeof window.loadData === 'function') window.loadData();
-    });
-  }
+// One delegated listener on the document (2026-10-25, after the walk still missed clicks on CI): it
+// needs no DOMContentLoaded, no readyState and no per-button wiring, so it cannot miss a button
+// however late this module's import graph lands. The handlers are looked up at click time.
+function onDocClick(e) {
+  const t = e.target && e.target.closest ? e.target.closest('[data-range], #refreshBtn') : null;
+  if (!t) return;
+  if (t.id === 'refreshBtn') { if (typeof window.loadData === 'function') window.loadData(); return; }
+  if (typeof window.setRange === 'function') window.setRange(t.dataset.range, t);
 }
-// A parsed document ('interactive' or 'complete') wires now; anything else (still 'loading', or a stub
-// document with no readyState, as the smoke harness evaluates this file) waits for DOMContentLoaded.
-if (document.readyState === 'interactive' || document.readyState === 'complete') wireDom();
-else document.addEventListener('DOMContentLoaded', wireDom);
+document.addEventListener('click', onDocClick);
