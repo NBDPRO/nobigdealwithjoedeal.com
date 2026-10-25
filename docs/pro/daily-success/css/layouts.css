@@ -12,6 +12,18 @@
 #wg-layouts .ui-picks { padding: 0; }
 #wg-layouts h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
 
+/* ── One Thing: the Today bar as one big "do this next" card. Static; one title, one button, one "not now". ── */
+[data-ui="onething"] .today-bar.today-onething { position: static; display: block; white-space: normal; padding: 0; background: transparent; border: 0; }
+[data-ui="onething"] .ot-card { background: var(--bar); border: 1px solid var(--rule); border-radius: 16px; padding: 22px 20px 16px; text-align: center; }
+[data-ui="onething"] .ot-card.done { border-color: var(--grn, #34d399); }
+[data-ui="onething"] .ot-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ac-on-dark, #E4783F); font-weight: 700; }
+[data-ui="onething"] .ot-title { margin: 8px 0 6px; font-size: 28px; line-height: 1.15; font-weight: 800; color: #fff; overflow-wrap: anywhere; }
+[data-ui="onething"] .ot-sub { margin: 0 auto 16px; max-width: 34ch; font-size: 15px; line-height: 1.45; color: var(--on-dark, #c3cfdf); }
+[data-ui="onething"] .ot-btn { display: block; width: 100%; min-height: 56px; border: 0; border-radius: 12px; background: var(--ac, #BD5728); color: #fff; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: .02em; cursor: pointer; }
+[data-ui="onething"] .ot-btn:active { transform: scale(.98); }
+[data-ui="onething"] .ot-skip { display: inline-block; margin-top: 10px; min-height: 44px; padding: 0 14px; border: 0; background: transparent; color: var(--on-dark, #c3cfdf); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+[data-ui="onething"] .ot-left { margin-top: 6px; font-size: 12px; color: var(--on-dark, #c3cfdf); }
+
 /* ── Quest: the Today bar as a quest board. Level and XP bar, the streak, floors as tappable quests, the workout quest. Static. ── */
 [data-ui="quest"] .today-bar.today-quest { position: static; display: block; white-space: normal; padding: 10px 10px 8px; }
 [data-ui="quest"] .qb-head { display: flex; align-items: center; gap: 8px; }

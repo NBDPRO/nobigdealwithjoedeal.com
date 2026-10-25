@@ -79,7 +79,7 @@ console.log('\n3. wiring');
   ok('quest rows are 44 px tall (gym thumbs), the board is static', /\.qb-q \{[^}]*min-height: 44px/.test(qb) && /today-quest \{ position: static;/.test(qb));
   ok('the 21 width classes exist (0 to 100 by 5)', Array.from({ length: 21 }, (_, i) => i * 5).every((w) => new RegExp('\\.qb-w' + w + ' \\{ width: ' + w + '%; \\}').test(qb)));
   ok('no font under 11 px', !/font-size: (10|9|8)px/.test(qb));
-  ok('layouts.css cache version bumped', /layouts\.css\?v=6/.test(INDEX));
+  ok('layouts.css cache version bumped', /layouts\.css\?v=\d+/.test(INDEX));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -293,8 +293,11 @@ let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')|
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
 // Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
-const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest';
-if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);}
+const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething';
+if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);}
+// One Thing layout (data-ui="onething"): one big "do this next" card (onething-ui.js / onething-logic.js).
+if(onething&&window.NBDOneThingUI){const fl2=getFloors(),pd2=(p&&p.data)||{};
+bar.innerHTML=NBDOneThingUI.html({floors:fl2.map(f=>({id:f.id,label:f.label,met:pd2['floormet-'+f.id]==='1'})),workout:s.workout,dk:p&&p.dk,today:todayKey()});return;}
 // Quest layout (data-ui="quest"): the bar is a quest board; floors are quests you tap (quest-ui.js / quest-logic.js).
 if(quest&&window.NBDQuestUI&&window.NBDQuest){const fl=getFloors(),pd=(p&&p.data)||{};
 bar.innerHTML=NBDQuestUI.html({floors:fl.map(f=>({id:f.id,label:f.label,met:pd['floormet-'+f.id]==='1'})),workout:s.workout,sessions:sessions,days:NBDQuest.daysFrom(pages,fl),today:todayKey(),xp:window.NBDXp,coach:window.NBDCoach});return;}

@@ -97,7 +97,7 @@ console.log('\n2. the real screen');
 console.log('\n3. layout readiness and styles');
 {
   ok('Log Book is ready to pick, Classic still the default', L.byId('logbook').ready === true && L.DEFAULT === 'classic' && L.normLayout('logbook') === 'logbook');
-  ok('the other layouts are still not ready (Cockpit and Quest went ready 2026-10-25)', ['arcade', 'onething', 'journal'].every((id) => L.byId(id).ready === false));
+  ok('the other layouts are still not ready (Cockpit, Quest and One Thing went ready 2026-10-25)', ['arcade', 'journal'].every((id) => L.byId(id).ready === false));
   const lbStart = CSS.indexOf('Log Book');
   const lb = CSS.slice(lbStart, CSS.indexOf('/* ', lbStart + 10) > -1 ? CSS.indexOf('/* ', lbStart + 10) : CSS.length); // just this layout's block
   const rules = lb.split('\n').filter((l) => /\{/.test(l));
