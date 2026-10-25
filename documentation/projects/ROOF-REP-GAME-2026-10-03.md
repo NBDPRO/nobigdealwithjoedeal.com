@@ -137,6 +137,8 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   Run homeowner nods at a fair answer instead of going idle), `shrug` (the doorway homeowner shrugs when a door is lost).
 - **Sheets with nobody talking** show a scene in the face box instead of a blank: the wagging dog, the closed door
   with a hanger, the pickup (`faceScene`, the street's own vector pieces at 3-4x).
+- **The door swings open** over 240 ms (eased leaf, the hall light fades in) and the homeowner steps up from 70 % as it
+  opens; once per door, not per line.
 - **Tap to cheer:** the HUD face, the locker preview and the CRM game-card avatar cheer for 1.6 s when tapped (one
   listener per canvas, same loop).
 - Versions: `chibi.js?v=2`, `roof-rep.js?v=4`, `game-sprite.js?v=3`. Guard grows to 53 checks.
