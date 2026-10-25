@@ -625,6 +625,9 @@ function postJob(leads, invoices, nowMs, args, tz) {
 // The owner's own answer to "where did this customer come from" (leads/{id}.confirmedSource,
 // docs/pro/js/lead-source-fixer.js). The intake `source` is only a hint.
 const CONFIRMED_SOURCES = ['yelp', 'thumbtack_paid', 'thumbtack_direct', 'referral', 'repeat', 'door_knock', 'google', 'manufacturer_locator', 'other'];
+// A source is free text from intake forms and expense rows; the bots read these rows as data, so a row key is one
+// printable line, capped (pass-2 item 6, 2026-10-25). The same raw text still lands on the same row.
+function sourceKey(v) { return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
 function leadSources(leads, expenses, nowMs, days) {
   const d = Math.min(Math.max(Math.floor(Number(days)) || 90, 7), 730);
   const cut = nowMs - d * 86400000;
@@ -639,7 +642,7 @@ function leadSources(leads, expenses, nowMs, days) {
       const c = (conf[l.confirmedSource] = conf[l.confirmedSource] || { source: l.confirmedSource, leads: 0, won: 0 });
       c.leads++; if (_SRK.isSale(l)) c.won++;
     } else unconfirmed++;
-    const r = row(String(l.source || '').trim() || 'Unknown'); r.leads++;
+    const r = row(sourceKey(l.source) || 'Unknown'); r.leads++;
     // Won = THE sale test (stage-roles.js isSale: won, in production or
     // Contract Signed), the same set as the CRM's lead-source table — the won
     // role alone counted a signed contract as open.
@@ -649,7 +652,7 @@ function leadSources(leads, expenses, nowMs, days) {
     if (!e || !e.marketingSource || e.deleted === true) return;
     const t = Date.parse(e.date) || ms(e.createdAt);
     if (!t || t < cut) return;
-    row(String(e.marketingSource).trim()).spend += (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+    row(sourceKey(e.marketingSource) || 'Unknown').spend += (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
   });
   const out = Object.values(rows).map((r) => ({
     source: r.source, leads: r.leads, won: r.won, lost: r.lost, open: r.open,

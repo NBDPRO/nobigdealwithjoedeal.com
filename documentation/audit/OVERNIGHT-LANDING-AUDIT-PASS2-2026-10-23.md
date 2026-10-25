@@ -82,7 +82,7 @@ The #2707 sync-pill fix, the #2702 /book fix and the #2695 purge fix are therefo
 | 3 | Storm Outreach tab keeps the previous account's state | Fixed in #2716. |
 | 4 | Storm filing reads opt-out with `.catch(() => null)` | **No change needed**: `textGate` treats a null result as "the Do-Not-Text list could not be checked" and skips the lead (fails closed). #2716 pins it with a failing-read test. |
 | 5 | Storm callables: no age cutoff at filing, no rate limit | Cutoff fixed in #2716. Rate limits added 2026-10-24 (`listStormOutreach` 30/min, `fileStormOutreachDrafts` 10/min via `shared.callableRateLimit`), test section G in `tests/storm-outreach-2026-10-22.test.js`. |
-| 6 | `lead_sources` free-text keys as a prompt-injection surface | Unchanged (existing behaviour; the bots can only draft). |
+| 6 | `lead_sources` free-text keys as a prompt-injection surface | **Hardened 2026-10-25**: `sourceKey()` in `agent-mcp-logic.js` makes every row key one printable line of at most 80 characters (control characters and newlines collapse to a space); a lead and an expense with the same raw text still share a row. The bots still only draft. Pin: `tests/lead-sources-confirmed-2026-10-22.test.js`. |
 | 7 | Lead-source fixer's in-memory patch omits `confirmedSourceAt` | **No failure path found**: the rules only check the four fields when one changes, and no client code writes a whole lead back (the only `setDoc` on `leads/` is the jobs subcollection). Left as is. |
 | - | `/free-tools` `.tool-cta` contrast (same as /book) | Fixed 2026-10-24, `tests/free-tools-contrast-2026-10-24.test.js`. |
 | 8 | Company admins can read the owner digest's revenue lines | Still Jo's question (rules 2622-2625). |
