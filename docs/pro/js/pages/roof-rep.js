@@ -952,6 +952,24 @@ function drawDog(c, x, y, t) {
   c.beginPath(); c.ellipse(x + 7.6, y - 1.6, 1.3, 2, 0.5, 0, 6.3); c.stroke(); blob(furD); // ear
   c.fillStyle = ink; c.fillRect(x + 10.2, y - 1.4, 0.9, 0.9); c.fillRect(x + 12, y - 0.2, 1, 1); // eye, nose
 }
+function drawCar(c, x, y, w, color, dir, bus) {
+  // Top-down traffic (vector since 2026-10-25): a rounded body with a roof panel, glass, lights at both ends, four tyres
+  // and one outline; buses get a row of windows. dir > 0 drives right (nose on the right).
+  var rr = function (px, py, pw, ph, r) { c.beginPath(); c.moveTo(px + r, py); c.arcTo(px + pw, py, px + pw, py + ph, r); c.arcTo(px + pw, py + ph, px, py + ph, r); c.arcTo(px, py + ph, px, py, r); c.arcTo(px, py, px + pw, py, r); c.closePath(); };
+  c.fillStyle = 'rgba(0,0,0,.25)'; rr(x + 1, y + 2, w, 16, 4); c.fill();
+  c.fillStyle = '#1a1512'; [[3, -2], [w - 7, -2], [3, 14], [w - 7, 14]].forEach(function (p) { rr(x + p[0], y + p[1], 4.5, 4, 1); c.fill(); });
+  c.fillStyle = '#1a1512'; rr(x - 1, y - 1, w + 2, 18, 4); c.fill();
+  var g2 = c.createLinearGradient(x, y, x, y + 16); g2.addColorStop(0, shade(color, 26)); g2.addColorStop(1, shade(color, -18)); c.fillStyle = g2; rr(x, y, w, 16, 3.5); c.fill();
+  if (bus) { c.fillStyle = shade(color, -30); c.fillRect(x + 3, y + 7, w - 6, 1.2); c.fillStyle = '#8ec5ff'; for (var wx = 5; wx < w - 6; wx += 7) rr(x + wx, y + 2.5, 4.5, 4, 1), c.fill(); for (var wx2 = 5; wx2 < w - 6; wx2 += 7) rr(x + wx2, y + 9.5, 4.5, 4, 1), c.fill(); }
+  else {
+    var cab = dir > 0 ? x + w * 0.42 : x + w * 0.18, cw = w * 0.4;
+    c.fillStyle = shade(color, -14); rr(cab, y + 1.5, cw, 13, 2.5); c.fill();
+    c.fillStyle = '#8ec5ff'; rr(dir > 0 ? cab + cw - 4.5 : cab + 1.5, y + 2.5, 3, 11, 1); c.fill(); rr(dir > 0 ? cab + 1.5 : cab + cw - 4.5, y + 3.5, 2.2, 9, 1); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(cab + 2, y + 3, cw - 4, 1);
+  }
+  c.fillStyle = '#fff4c2'; c.fillRect(dir > 0 ? x + w - 2.5 : x + 0.5, y + 1.5, 2, 3); c.fillRect(dir > 0 ? x + w - 2.5 : x + 0.5, y + 11.5, 2, 3);
+  c.fillStyle = '#e24b4a'; c.fillRect(dir > 0 ? x + 0.5 : x + w - 2.5, y + 1.5, 2, 3); c.fillRect(dir > 0 ? x + 0.5 : x + w - 2.5, y + 11.5, 2, 3);
+}
 function drawTruck(c, x, y, s) {
   // Top-down pickup, nose up: a white body with a hood line, a glass windshield, the orange stripe, a bed with a
   // ladder rack, four tyres and one dark outline (vector since 2026-10-25; the footprint is the old 12x20 sprite).
@@ -1201,19 +1219,12 @@ function drive(dest, done) {
     // draw
     for (var r = 0; r < DROWS; r++) {
       var y = r * ROW;
-      if (r === 0) { c.fillStyle = dest.ground; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; c.fillRect(120, y + 4, 80, 16); c.fillStyle = '#185fa5'; c.fillRect(122, y + 6, 76, 12); c.fillStyle = '#fff'; c.font = '7px "Press Start 2P", monospace'; c.textAlign = 'center'; c.fillText(dest.name.toUpperCase(), 160, y + 15); c.fillStyle = '#5a3a22'; c.fillRect(158, y + 20, 4, 8); }
+      if (r === 0) { c.fillStyle = dest.ground; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; c.fillRect(120, y + 4, 80, 16); c.fillStyle = '#185fa5'; c.fillRect(122, y + 6, 76, 12); c.fillStyle = '#fff'; c.font = '700 8px Montserrat, "Segoe UI", sans-serif'; c.textAlign = 'center'; c.fillText(dest.name.toUpperCase(), 160, y + 15); c.fillStyle = '#5a3a22'; c.fillRect(158, y + 20, 4, 8); }
       else if (r === 4) { c.fillStyle = '#356b31'; c.fillRect(0, y, 320, ROW); c.fillStyle = '#2f7a35'; for (var bx = 10; bx < 320; bx += 52) c.fillRect(bx, y + 9, 10, 9); }
       else if (r === DROWS - 1) { c.fillStyle = '#6b6f78'; c.fillRect(0, y, 320, ROW); c.fillStyle = '#e8e2d4'; for (var px = 20; px < 320; px += 40) c.fillRect(px, y + 2, 2, ROW - 4); }
       else { c.fillStyle = '#3b3f47'; c.fillRect(0, y, 320, ROW); if (r !== 3 && r !== 6) { c.fillStyle = '#e8d27a'; for (var dx = 4; dx < 320; dx += 20) c.fillRect(dx, y + ROW - 1, 10, 2); } }
     }
-    lanes.forEach(function (L) { L.cars.forEach(function (car) {
-      var y = L.row * ROW + 6;
-      c.fillStyle = '#1a1512'; c.fillRect(car.x - 1, y - 1, car.w + 2, 18);
-      c.fillStyle = car.bus ? '#f2c200' : car.c; c.fillRect(car.x, y, car.w, 16);
-      c.fillStyle = '#8ec5ff';
-      if (car.bus) { for (var wx = 4; wx < car.w - 4; wx += 7) c.fillRect(car.x + wx, y + 3, 4, 4); }
-      else c.fillRect(L.dir > 0 ? car.x + car.w - 9 : car.x + 3, y + 3, 6, 10);
-    }); });
+    lanes.forEach(function (L) { L.cars.forEach(function (car) { drawCar(c, car.x, L.row * ROW + 6, car.w, car.bus ? '#f2c200' : car.c, L.dir, car.bus); }); });
     if (!(T.flash > 0 && Math.floor(T.flash / 5) % 2)) drawTruck(c, T.x, T.row * ROW + 4, 1);
     raf = requestAnimationFrame(frame);
   }
