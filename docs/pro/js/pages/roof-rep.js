@@ -1059,7 +1059,7 @@ function arrive() {
   if (h.status === 'fresh') dayCount('knock');
   if (h.dog && h.status === 'fresh' && h.dogDay !== SAVE.day) {
     sfx('bark');
-    return say(null, 'A big dog', 'WOOF! A big dog is barking behind the gate, and the latch looks loose.', [
+    return say('dog', 'A big dog', 'WOOF! A big dog is barking behind the gate, and the latch looks loose.', [
       { say: 'Stay outside the gate and wave the homeowner to the door.', act: function () { h.dogDay = SAVE.day; spend(3); if (!DAY || DAY.over) return; h.trust = Math.min(100, h.trust + 5); stat('dogs'); arrive2(h, { good: true, text: 'Smart. Never walk into a yard with a loose dog. The owner appreciated you waiting.' }); } },
       owns('treats') ? { say: 'Toss a treat from the truck stash and wait for the owner.', act: function () { h.dogDay = SAVE.day; spend(3); if (!DAY || DAY.over) return; h.trust = Math.min(100, h.trust + 12); stat('dogs'); arrive2(h, { good: true, text: 'Best friends now. Dog people love a rep who loves dogs.' }); } } : null,
       { say: 'Open the gate and walk up. Dogs love me.', act: function () { h.dogDay = SAVE.day; spend(20); if (!DAY || DAY.over) return; h.trust = Math.max(0, h.trust - 15); arrive2(h, { bad: true, text: 'This one did not love you. Twenty minutes to get your pant leg back. Wait at the gate, always.' }); } },
@@ -1070,7 +1070,7 @@ function arrive() {
 function arrive2(h, dogTip) {
   if (h.status !== 'fresh') { say(h.persona === 'empty' ? null : h.look, h.name, (STATUS_MSG[h.status] || 'Nothing to do here today.').replace(/\{n\}/g, h.name), []); return; }
   if (h.persona === 'empty') {
-    say(null, 'Nobody home', 'No answer. There are ' + (h.damage === 'hail' || h.damage === 'some' ? 'hail marks on the gutters, though.' : 'leaves in the gutters, at least.'), [
+    say('door', 'Nobody home', 'No answer. There are ' + (h.damage === 'hail' || h.damage === 'some' ? 'hail marks on the gutters, though.' : 'leaves in the gutters, at least.'), [
       { say: 'Leave a door hanger with your number', act: function () { setStatus(h, 'hanger'); gain(5, 'Door hanger left'); idle(); } },
       { say: 'Walk away', act: function () { idle(); } },
     ]);
@@ -1084,11 +1084,38 @@ function arrive2(h, dogTip) {
 
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
+// The sheet's face box when nobody is talking: a big wagging dog, a closed door with a hanger, or the pickup. Drawn with
+// the street's own vector pieces at 4x, on the same stop hook the chibi loops use, so say() always replaces it cleanly.
+function faceScene(kind) {
+  if (faceCv.__chibiStop) faceCv.__chibiStop();
+  var alive = true, raf = 0, reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function paint() {
+    if (!alive) return;
+    if (faceCv.isConnected === false) { stop(); return; }
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)), r = faceCv.getBoundingClientRect(), w = Math.round(r.width) || 72, hh = Math.round(r.height) || 72;
+    if (faceCv.width !== w * dpr || faceCv.height !== hh * dpr) { faceCv.width = w * dpr; faceCv.height = hh * dpr; }
+    var c = faceCv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); var t = Date.now();
+    c.save(); c.translate(w / 2, hh / 2);
+    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t); }
+    else if (kind === 'truck') { c.scale(2.4, 2.4); drawTruck(c, -6, -10, 1); }
+    else { // a closed door, a knob, a hanger on it
+      c.scale(3, 3); c.fillStyle = '#5a2f1c'; c.beginPath(); c.moveTo(-4, -11); c.arcTo(6, -11, 6, 11, 2); c.arcTo(6, 11, -6, 11, 2); c.arcTo(-6, 11, -6, -11, 2); c.arcTo(-6, -11, 6, -11, 2); c.closePath(); c.fill(); c.fillStyle = '#6b3a24'; c.fillRect(-5, -10, 10, 20);
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-4, -8, 8, 7); c.fillRect(-4, 1, 8, 7); c.fillStyle = '#f2a900'; c.fillRect(3, 0, 1.4, 2);
+      c.fillStyle = '#f3ede2'; c.fillRect(1, -8, 4, 6); c.fillStyle = '#bd5728'; c.fillRect(1.7, -6, 2.6, 0.8); c.fillRect(1.7, -4.6, 1.8, 0.8); c.strokeStyle = '#f3ede2'; c.lineWidth = 0.6; c.beginPath(); c.arc(3, -8.6, 1.2, Math.PI, 0); c.stroke();
+    }
+    c.restore();
+    if (reduce || kind !== 'dog') { alive = false; return; }
+    raf = requestAnimationFrame(function () { paint(); });
+  }
+  var stop = function () { alive = false; if (raf) cancelAnimationFrame(raf); if (faceCv.__chibiStop === stop) faceCv.__chibiStop = null; };
+  faceCv.__chibiStop = stop; paint();
+}
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function say(look, name, text, choices, tip, meter) {
   var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
-  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: mood } : null;
-  if (look) drawTo(faceCv, look, 'talk', mood);
+  DOOR = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood } : null;
+  if (typeof look === 'string') faceScene(look); // no homeowner in the sheet: the dog, the closed door or the truck (2026-10-25 wave 2)
+  else if (look) drawTo(faceCv, look, 'talk', mood);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
@@ -1104,11 +1131,11 @@ function say(look, name, text, choices, tip, meter) {
   t.appendChild(c);
 }
 function idle(tip) {
-  if (!DAY) { say(null, curStreet().name, 'Start your day from the Today tab.', [{ say: 'Go to Today', act: function () { showTab('today'); } }]); return; }
+  if (!DAY) { say('truck', curStreet().name, 'Start your day from the Today tab.', [{ say: 'Go to Today', act: function () { showTab('today'); } }]); return; }
   var due = agendaDue(SAVE.day).length;
   rivalMove();
   maybeRing();
-  say(null, curStreet().name, (WX[DAY.wx] ? WX[DAY.wx].icon + ' ' : '') + 'Pick a door.' + (due ? ' You also have ' + due + ' thing' + (due > 1 ? 's' : '') + ' on your Today list.' : ''), due ? [{ say: 'Open my Today list', act: function () { showTab('today'); } }] : [], tip);
+  say('truck', curStreet().name, (WX[DAY.wx] ? WX[DAY.wx].icon + ' ' : '') + 'Pick a door.' + (due ? ' You also have ' + due + ' thing' + (due > 1 ? 's' : '') + ' on your Today list.' : ''), due ? [{ say: 'Open my Today list', act: function () { showTab('today'); } }] : [], tip);
 }
 function fill(s, h) { return String(s).replace(/\{n\}/g, h.name); }
 function node(h, key, tip) {
