@@ -48,6 +48,7 @@ marked below). Verified against `main` `ef666ca` and the Actions deploy list on 
       CI-rendered and committed by a person from the `visual-regression-output` artifact (`ci.yml`, the bless step).
     - CI lessons from the PR: the `:where()` wrapper on floor rules; `build-projects.mjs` must list every partial it carries over;
       `ensure-nav-responsive-css.js` keeps a canonical body that must change with the stylesheet.
+  - **Daily Success notebook** (Jo, 10-25, same PR): the tab row is Dash · Today · open page · Notebook (n) · +; every page files by month in a drawer. Note: [DAILY-SUCCESS-NOTEBOOK-2026-10-25](DAILY-SUCCESS-NOTEBOOK-2026-10-25.md).
   - **Claims:** Jo confirmed James Hardie and American Operator. **IKO is parked:** commit `9384d8c` (IKO in the job-closeout credentials) is not pushed. Jo needs IKO's written OK for public use and the member number.
 - **GitHub access lapsed this session**: every push and GitHub-app write returned 403 ("Resource not
   accessible by integration") until Jo fixed the Claude GitHub App's install on the NBDPRO org
