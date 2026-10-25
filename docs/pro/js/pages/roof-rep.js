@@ -145,12 +145,14 @@ var CH = window.NBDChibi || null;
 var POSE = { name: null, until: 0 };
 var DOOR = null; // the homeowner standing in the doorway while the speech sheet is open
 function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
-function chibi(ctx, look, cx, feetY, p, facing, t, h, mood) {
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood });
+var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
+function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
+  var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix });
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
-  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s
+  if (CH) { var start = Date.now(), crop = canvas.id === 'lkPrev' || canvas.id === 'lvlFace' ? undefined : 'bust'; if (!canvas.__chibiTap && (canvas.id === 'meFace' || canvas.id === 'lkPrev')) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; sfx('good'); }); } CH.animate(canvas, look, function (now) { var pz = p === 'talk' && now - start > 1800 ? 'idle' : (p || 'idle'); if (canvas.__cheerUntil > now) pz = 'cheer'; else if (pz === 'idle' && canvas.id === 'meFace' && now % 16000 < 1500) pz = 'wave'; return { pose: pz, mood: mood, crop: crop }; }); return; } // the HUD face waves every 16 s; the HUD and locker faces cheer when tapped
   var g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); paint(g, look, 0, 0, canvas.width / 32);
 }
 function drawStill(canvas, look) { if (CH) CH.paintCanvas(canvas, look, { pose: 'idle', t: 0, blink: false }); else drawTo(canvas, look); }
@@ -930,9 +932,10 @@ function drawHouse(h, st) {
   var glow = DAY && DAY.min >= 16 * 60;
   [h.x + 14, h.x + w - 26].forEach(function (wx) { g.fillStyle = '#2b3442'; g.fillRect(wx - 1, y + 29, 14, 12); g.fillStyle = glow ? '#ffd98a' : '#8ec5ff'; g.fillRect(wx, y + 30, 12, 10); g.fillStyle = 'rgba(43,52,66,.9)'; g.fillRect(wx + 5, y + 30, 2, 10); g.fillRect(wx, y + 34, 12, 1); });
   // door
-  if (DOOR && DOOR.h === h) { // the door stands open while the homeowner is in it (2026-10-25)
-    g.fillStyle = '#2b1d14'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = 'rgba(255,217,138,.25)'; g.fillRect(h.x + 35, y + 38, 10, 17);
-    g.fillStyle = '#5a2f1c'; rrect(h.x + 30, y + 36, 5, 20, 2); g.fill(); g.fillStyle = '#6b3a24'; g.fillRect(h.x + 31, y + 37, 3, 18);
+  if (DOOR && DOOR.h === h) { // the door swings open over 240 ms and stands open while the homeowner is in it (2026-10-25)
+    var dk = DOOR.since ? Math.min(1, (Date.now() - DOOR.since) / 240) : 1; dk = dk * (2 - dk);
+    g.fillStyle = '#2b1d14'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = 'rgba(255,217,138,' + (0.25 * dk).toFixed(3) + ')'; g.fillRect(h.x + 35, y + 38, 10, 17);
+    var lx = h.x + 34 - 4 * dk, lw = 12 - 7 * dk; g.fillStyle = '#5a2f1c'; rrect(lx, y + 36, lw, 20, 2); g.fill(); g.fillStyle = '#6b3a24'; g.fillRect(lx + 1, y + 37, Math.max(1, lw - 2), 18);
   } else { g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2); }
   if (h.persona === 'nosolicit' || h.persona === 'nightShift') { g.fillStyle = '#fff'; g.fillRect(h.x + 47, y + 40, 10, 6); g.fillStyle = '#c0392b'; g.fillRect(h.x + 48, y + 42, 8, 2); }
   if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
@@ -1013,16 +1016,16 @@ function drawWorld() {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
-    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now);
+    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now, 0, 0, 'rival');
     // a small STORM BROS tag over the rival's head (2026-10-25; was a red rectangle)
     g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
-  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); chibi(g, DOOR.look, dd.x - 3, dd.y - 6, 'talk', 1, now, 22, DOOR.mood); }
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, DOOR.look, dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
-  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now);
+  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now, 0, 0, 'rep');
   if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
   if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
   FX.draw(g);
@@ -1057,7 +1060,7 @@ function arrive() {
   if (h.status === 'fresh') dayCount('knock');
   if (h.dog && h.status === 'fresh' && h.dogDay !== SAVE.day) {
     sfx('bark');
-    return say(null, 'A big dog', 'WOOF! A big dog is barking behind the gate, and the latch looks loose.', [
+    return say('dog', 'A big dog', 'WOOF! A big dog is barking behind the gate, and the latch looks loose.', [
       { say: 'Stay outside the gate and wave the homeowner to the door.', act: function () { h.dogDay = SAVE.day; spend(3); if (!DAY || DAY.over) return; h.trust = Math.min(100, h.trust + 5); stat('dogs'); arrive2(h, { good: true, text: 'Smart. Never walk into a yard with a loose dog. The owner appreciated you waiting.' }); } },
       owns('treats') ? { say: 'Toss a treat from the truck stash and wait for the owner.', act: function () { h.dogDay = SAVE.day; spend(3); if (!DAY || DAY.over) return; h.trust = Math.min(100, h.trust + 12); stat('dogs'); arrive2(h, { good: true, text: 'Best friends now. Dog people love a rep who loves dogs.' }); } } : null,
       { say: 'Open the gate and walk up. Dogs love me.', act: function () { h.dogDay = SAVE.day; spend(20); if (!DAY || DAY.over) return; h.trust = Math.max(0, h.trust - 15); arrive2(h, { bad: true, text: 'This one did not love you. Twenty minutes to get your pant leg back. Wait at the gate, always.' }); } },
@@ -1068,7 +1071,7 @@ function arrive() {
 function arrive2(h, dogTip) {
   if (h.status !== 'fresh') { say(h.persona === 'empty' ? null : h.look, h.name, (STATUS_MSG[h.status] || 'Nothing to do here today.').replace(/\{n\}/g, h.name), []); return; }
   if (h.persona === 'empty') {
-    say(null, 'Nobody home', 'No answer. There are ' + (h.damage === 'hail' || h.damage === 'some' ? 'hail marks on the gutters, though.' : 'leaves in the gutters, at least.'), [
+    say('door', 'Nobody home', 'No answer. There are ' + (h.damage === 'hail' || h.damage === 'some' ? 'hail marks on the gutters, though.' : 'leaves in the gutters, at least.'), [
       { say: 'Leave a door hanger with your number', act: function () { setStatus(h, 'hanger'); gain(5, 'Door hanger left'); idle(); } },
       { say: 'Walk away', act: function () { idle(); } },
     ]);
@@ -1082,11 +1085,39 @@ function arrive2(h, dogTip) {
 
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
+// The sheet's face box when nobody is talking: a big wagging dog, a closed door with a hanger, or the pickup. Drawn with
+// the street's own vector pieces at 4x, on the same stop hook the chibi loops use, so say() always replaces it cleanly.
+function faceScene(kind) {
+  if (faceCv.__chibiStop) faceCv.__chibiStop();
+  var alive = true, raf = 0, reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function paint() {
+    if (!alive) return;
+    if (faceCv.isConnected === false) { stop(); return; }
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)), r = faceCv.getBoundingClientRect(), w = Math.round(r.width) || 72, hh = Math.round(r.height) || 72;
+    if (faceCv.width !== w * dpr || faceCv.height !== hh * dpr) { faceCv.width = w * dpr; faceCv.height = hh * dpr; }
+    var c = faceCv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); var t = Date.now();
+    c.save(); c.translate(w / 2, hh / 2);
+    if (kind === 'dog') { c.scale(3.2, 3.2); drawDog(c, -5, -1.5, reduce ? 0 : t); }
+    else if (kind === 'truck') { c.scale(2.4, 2.4); drawTruck(c, -6, -10, 1); }
+    else { // a closed door, a knob, a hanger on it
+      c.scale(3, 3); c.fillStyle = '#5a2f1c'; c.beginPath(); c.moveTo(-4, -11); c.arcTo(6, -11, 6, 11, 2); c.arcTo(6, 11, -6, 11, 2); c.arcTo(-6, 11, -6, -11, 2); c.arcTo(-6, -11, 6, -11, 2); c.closePath(); c.fill(); c.fillStyle = '#6b3a24'; c.fillRect(-5, -10, 10, 20);
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-4, -8, 8, 7); c.fillRect(-4, 1, 8, 7); c.fillStyle = '#f2a900'; c.fillRect(3, 0, 1.4, 2);
+      c.fillStyle = '#f3ede2'; c.fillRect(1, -8, 4, 6); c.fillStyle = '#bd5728'; c.fillRect(1.7, -6, 2.6, 0.8); c.fillRect(1.7, -4.6, 1.8, 0.8); c.strokeStyle = '#f3ede2'; c.lineWidth = 0.6; c.beginPath(); c.arc(3, -8.6, 1.2, Math.PI, 0); c.stroke();
+    }
+    c.restore();
+    if (reduce || kind !== 'dog') { alive = false; return; }
+    raf = requestAnimationFrame(function () { paint(); });
+  }
+  var stop = function () { alive = false; if (raf) cancelAnimationFrame(raf); if (faceCv.__chibiStop === stop) faceCv.__chibiStop = null; };
+  faceCv.__chibiStop = stop; paint();
+}
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function say(look, name, text, choices, tip, meter) {
   var mood = meter ? (meter.pct < 35 ? 'frown' : meter.pct >= 70 ? 'happy' : undefined) : undefined; // the face follows the trust meter
-  DOOR = look && WALK.target ? { look: look, h: WALK.target, mood: mood } : null;
-  if (look) drawTo(faceCv, look, 'talk', mood);
+  var wasOpen = DOOR && WALK.target && DOOR.h === WALK.target ? DOOR.since : 0;
+  DOOR = look && typeof look === 'object' && WALK.target ? { look: look, h: WALK.target, mood: mood, since: wasOpen || Date.now() } : null; // since: the door only swings on the first line
+  if (typeof look === 'string') faceScene(look); // no homeowner in the sheet: the dog, the closed door or the truck (2026-10-25 wave 2)
+  else if (look) drawTo(faceCv, look, 'talk', mood);
   else { if (faceCv.__chibiStop) faceCv.__chibiStop(); faceCv.getContext('2d').clearRect(0, 0, faceCv.width, faceCv.height); }
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
@@ -1102,11 +1133,11 @@ function say(look, name, text, choices, tip, meter) {
   t.appendChild(c);
 }
 function idle(tip) {
-  if (!DAY) { say(null, curStreet().name, 'Start your day from the Today tab.', [{ say: 'Go to Today', act: function () { showTab('today'); } }]); return; }
+  if (!DAY) { say('truck', curStreet().name, 'Start your day from the Today tab.', [{ say: 'Go to Today', act: function () { showTab('today'); } }]); return; }
   var due = agendaDue(SAVE.day).length;
   rivalMove();
   maybeRing();
-  say(null, curStreet().name, (WX[DAY.wx] ? WX[DAY.wx].icon + ' ' : '') + 'Pick a door.' + (due ? ' You also have ' + due + ' thing' + (due > 1 ? 's' : '') + ' on your Today list.' : ''), due ? [{ say: 'Open my Today list', act: function () { showTab('today'); } }] : [], tip);
+  say('truck', curStreet().name, (WX[DAY.wx] ? WX[DAY.wx].icon + ' ' : '') + 'Pick a door.' + (due ? ' You also have ' + due + ' thing' + (due > 1 ? 's' : '') + ' on your Today list.' : ''), due ? [{ say: 'Open my Today list', act: function () { showTab('today'); } }] : [], tip);
 }
 function fill(s, h) { return String(s).replace(/\{n\}/g, h.name); }
 function node(h, key, tip) {
@@ -1124,12 +1155,12 @@ function node(h, key, tip) {
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
-  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); idle(tip || { bad: true, text: 'That one is gone.' }); return; }
+  if (end === 'lose') { setStatus(h, 'lost'); pose('sad', 1800); if (DOOR) DOOR.pose = 'shrug'; idle(tip || { bad: true, text: 'That one is gone.' }); return; }
   if (end === 'owner') { setStatus(h, 'later'); gain(10, "Got the owner's number from " + h.name); idle({ good: true, text: "Owners sign contracts, not tenants. You've got the owner's number to call." }); return; }
   if (end === 'later') { setStatus(h, 'later'); pose('wave', 1200); gain(2, 'Left a card with ' + h.name); idle(tip); return; }
   if (end === 'hanger') { setStatus(h, 'hanger'); gain(5, 'Door hanger, sign respected'); idle(tip); return; }
   if (end === 'book') { setStatus(h, 'booked'); pose('wave', 1400); h.trust = Math.max(h.trust, 55); addAgenda('inspect', SAVE.streetId, h.i, SAVE.day + 1); gain(25, 'Booked an inspection with ' + h.name); idle(tip || { good: true, text: "It's on tomorrow's list." }); return; }
-  if (end === 'inspect') inspect(h, SAVE.streetId);
+  if (end === 'inspect') { pose('point', 1400); inspect(h, SAVE.streetId); }
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2100,7 +2131,7 @@ function stormRun() {
       b.addEventListener('click', function () {
         if (over || c.dataset.done) return; c.dataset.done = '1'; r[a.kind]++;
         b.classList.add(a.kind === 'best' ? 'right' : a.kind === 'trap' ? 'wrong' : 'on');
-        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'idle', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
+        var rf = document.getElementById('runFace'); if (rf) drawTo(rf, who, a.kind === 'best' ? 'cheer' : a.kind === 'trap' ? 'sad' : 'nod', a.kind === 'best' ? 'happy' : a.kind === 'trap' ? 'frown' : undefined);
         if (a.kind === 'best') sfx('good'); else if (a.kind === 'trap') { sfx('bad'); FX.shake(); }
         var st2 = document.getElementById('runS'); if (st2) st2.textContent = r.best + ' best · ' + r.trap + ' strike' + (r.trap === 1 ? '' : 's');
         if (r.trap >= RR.RUN.strikes) return end();

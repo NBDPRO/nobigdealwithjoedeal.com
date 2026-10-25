@@ -74,6 +74,9 @@ CEILING.localScripts += 1;
 // draws through (game-sprite.js reads window.NBDChibi synchronously when it draws; a lazy load would
 // paint the pixel fallback first and the vector second). Defer, no boot-time reads. Own line.
 CEILING.localScripts += 1;
+// +8 KB, deliberate (2026-10-25, characters wave 2): chibi.js 28 -> 36 KB (jointed limbs, pose cross-fades,
+// secondary motion, emotes, three poses). Deferred; blockingBytes does not move. Own line.
+CEILING.localBytes += 8 * 1024;
 CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
 // +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
 // layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing
@@ -222,7 +225,7 @@ CEILING.localBytes += 16 * 1024;
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
   blockingBytes: 84 * 1024,   // deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
-  localBytes: 2790 * 1024,
+  localBytes: 2798 * 1024, // deliberate raise 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred
   templateBytes: 73 * 1024,
 };
 
