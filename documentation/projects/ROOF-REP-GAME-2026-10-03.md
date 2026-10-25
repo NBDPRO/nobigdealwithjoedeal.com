@@ -106,6 +106,10 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   a lost door, waves when leaving a card or booking (`pose(name, ms)` in `roof-rep.js`); the rival walks.
 - **Speech sheet:** the homeowner talks for 1.8 s then idles, frowning under 35 % trust; the HUD and tutorial faces are
   head-and-shoulders crops (`crop: 'bust'`); the locker preview is full body; crew board rows are still frames.
+- **Later the same day:** the door stands open and lit while the homeowner is in it; the rival wears a STORM BROS tag;
+  moods follow the trust meter (frown under 35 %, a grin from 70 %); Storm Run puts a different homeowner on every
+  objection (talking, then cheering a best answer or slumping at a trap); the HUD face waves every 16 s and the game card
+  every 14 s; the pickup, the traffic in the drive game and the yard dog are vector too.
 - **Game card (CRM Home):** `game-sprite.js` draws through the chibi when it is on the page; its 32×32 builder stays as
   the fallback and for `game-xp`'s pins.
 - Bitmaps size to the CSS box × devicePixelRatio (crisp on phones); loops end when a canvas leaves the page; reduced
