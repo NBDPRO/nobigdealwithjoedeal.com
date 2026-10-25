@@ -38,6 +38,7 @@ var OPTIONS = {
   beard: { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
   shirt: { label: 'Shirt', colors: C.shirt },
   top: { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
+  build: { label: 'Build', values: [['regular', 'Regular'], ['slim', 'Slim'], ['stocky', 'Stocky'], ['tall', 'Tall']] }, // wave 12 (chibi.js)
   vest: { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
   pants: { label: 'Pants', colors: C.pants },
   tool: { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -59,7 +60,7 @@ function normalize(a) {
     beard: pickv(vals('beard'), a.beard, DEFAULTS.beard), shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
     vest: pickv(vals('vest'), a.vest, DEFAULTS.vest), pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
     tool: pickv(vals('tool'), a.tool, DEFAULTS.tool), extra: pickv(vals('extra'), a.extra, DEFAULTS.extra),
-    top: pickv(vals('top'), a.top, 'tee'),
+    top: pickv(vals('top'), a.top, 'tee'), build: pickv(vals('build'), a.build, 'regular'),
   };
 }
 function shade(hex, amt) {
@@ -154,9 +155,18 @@ function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) 
 var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
 // wave 8: the weather reaches the characters: an umbrella in the rep's and the rival's hand on a wet day, the wind in everyone's hair on a windy one
 function wxLook(look) { return DAY && wet(DAY.wx) ? Object.assign({}, look, { prop: 'umbrella' }) : look; }
+// wave 15: what a homeowner wears to the door this season. Winter: a beanie over bare hair and a hoodie over a tee (most
+// of them; the house index decides, so the same person dresses the same way all day). Summer: shades on every other
+// bare-eyed homeowner. The look itself is not changed, so the Crew board and the saved street keep the person.
+function seasonLook(look, h) {
+  var se = seasonFor(SAVE.day), i = h && typeof h.i === 'number' ? h.i : 0, d = {};
+  if (se === 'winter') { if (look.hat === 'none' && i % 3 !== 2) d.hat = 'beanie'; if (look.top === 'tee' && i % 2 === 0) d.top = 'hoodie'; }
+  else if (se === 'summer' && look.extra === 'none' && i % 2 === 1) d.extra = 'shades';
+  return Object.keys(d).length ? Object.assign({}, look, d) : look;
+}
 function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0 });
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0, cold: DAY && seasonFor(SAVE.day) === 'winter' ? 1 : 0 }); // wave 15: breath shows in winter
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
@@ -225,7 +235,7 @@ var PERSONA = {
   exadjuster: { want: 'best', boss: true, tag: 'retired adjuster', look: { skin: 1, hair: 'bald', hairColor: 5, eyes: 'sleepy', hat: 'cap', hatColor: 1, beard: 'mustache', shirt: 5, vest: 'none', pants: 0, tool: 'none', extra: 'none', clipboard: true } },
 };
 var ADJUSTER = { skin: 2, hair: 'short', hairColor: 0, eyes: 'round', hat: 'cap', hatColor: 5, beard: 'mustache', shirt: 2, vest: 'none', pants: 2, tool: 'none', extra: 'glasses', clipboard: true };
-var FOREMAN = { skin: 4, hair: 'buzz', hairColor: 0, eyes: 'happy', hat: 'hardhat', hatColor: 4, beard: 'full', shirt: 1, vest: 'yes', pants: 1, tool: 'tape', extra: 'glasses' };
+var FOREMAN = { skin: 4, hair: 'buzz', hairColor: 0, eyes: 'happy', hat: 'hardhat', hatColor: 4, beard: 'full', shirt: 1, vest: 'yes', pants: 1, tool: 'tape', extra: 'glasses', build: 'stocky' }; // Big Dave is built like a foreman (wave 12)
 
 // The talks. {n} is the homeowner's name. A choice: say, then go (next node) or end,
 // trust (+/-), tip ({good|bad, text}), dirty (breaks the clean-day rule).
@@ -608,6 +618,8 @@ function migrate(s) {
   if (!streetOf(s.streetId)) s.streetId = 'maple';
   s.badges = s.badges || {}; s.trained = s.trained || {}; s.usedNames = s.usedNames || []; s.skills = s.skills || {}; s.reviews = s.reviews || []; s.stats = s.stats || {}; s.trophies = s.trophies || {}; s.seasons = s.seasons || {}; s.cleanStreak = s.cleanStreak || 0; s.owned = s.owned || {}; if (s.bank == null) s.bank = s.collected || 0; s.seed = s.seed || 1 + Math.floor(Math.random() * 997); return s; }
 // wave 7: what a homeowner carries to the door (chibi.js props); most of a persona's doors, not all
+// wave 12: a persona's build, where one fits the part; everyone else rolls one (most people are regular)
+var PERSONA_BUILD = { retiredCop: 'stocky', veteran: 'tall', farmer: 'stocky', flipper: 'slim', realtor: 'tall', ceo: 'tall', lawyer: 'slim', nightShift: 'stocky' };
 var PERSONA_PROP = { busy: 'phone', realtor: 'phone', flipper: 'phone', nightShift: 'mug', retiredCop: 'mug', skeptic: 'mug', elder: 'cane', caregiver: 'cane', landlord: 'keys', newBaby: 'baby', diy: 'brush', threeQuotes: 'papers', claimDenied: 'papers', deductible: 'papers' };
 function makeLook(persona) {
   var p = PERSONA[persona] || {};
@@ -616,7 +628,8 @@ function makeLook(persona) {
     hairColor: p.elder ? 5 : rnd(5), eyes: pick(['round', 'round', 'happy', 'sleepy']), hat: p.elder && Math.random() < .5 ? 'cap' : 'none',
     hatColor: rnd(5), beard: Math.random() < .25 ? pick(['stubble', 'mustache', 'full']) : 'none', shirt: rnd(6), vest: 'none', pants: rnd(4),
     tool: 'none', extra: Math.random() < .25 ? 'glasses' : 'none', mouth: p.mood || '', mood: p.mood || '', elder: !!p.elder,
-    prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none' };
+    prop: PERSONA_PROP[persona] && Math.random() < .65 ? PERSONA_PROP[persona] : 'none',
+    build: PERSONA_BUILD[persona] || pick(['regular', 'regular', 'regular', 'slim', 'stocky', 'tall']) };
 }
 function newName() {
   var free = NAMES.filter(function (n) { return SAVE.usedNames.indexOf(n) < 0; });
@@ -1051,7 +1064,7 @@ function drawWorld() {
     g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
-  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, DOOR.look, dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
+  if (DOOR && DOOR.h && !WALK.busy && !WALK.path.length) { var dd = doorOf(DOOR.h); var dk2 = DOOR.since ? Math.min(1, (now - DOOR.since) / 240) : 1; chibi(g, seasonLook(DOOR.look, DOOR.h), dd.x - 3, dd.y - 6, DOOR.pose || 'talk', 1, now, 22 * (0.7 + 0.3 * dk2), DOOR.mood, 'door'); } // the homeowner steps up as the door opens
   if (LEAVE) {
     var e = now - LEAVE.since, dl = doorOf(LEAVE.h), lx = dl.x - 3, ly = dl.y - 6, lp = LEAVE.pose, lf = 1, k;
     if (now >= leaveEnd(LEAVE)) LEAVE = null;
@@ -1060,7 +1073,7 @@ function drawWorld() {
       else if (e < 1850) { lx = LEAVE.tx; ly = LEAVE.ty; lp = 'cheer'; lf = WALK.px < lx ? -1 : 1; }
       else { k = (e - 1850) / 450; k = k * (2 - k); lx = LEAVE.tx + (lx - LEAVE.tx) * k; ly = LEAVE.ty + (ly - LEAVE.ty) * k; lp = 'walk'; lf = dl.x < LEAVE.tx ? -1 : 1; }
     }
-    if (LEAVE) { g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(lx), Math.round(ly) + 1, 6, 2, 0, 0, 6.3); g.fill(); chibi(g, LEAVE.look, Math.round(lx), Math.round(ly), lp, lf, now, 22, LEAVE.mood, 'door'); }
+    if (LEAVE) { g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(lx), Math.round(ly) + 1, 6, 2, 0, 0, 6.3); g.fill(); chibi(g, seasonLook(LEAVE.look, LEAVE.h), Math.round(lx), Math.round(ly), lp, lf, now, 22, LEAVE.mood, 'door'); }
   }
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;

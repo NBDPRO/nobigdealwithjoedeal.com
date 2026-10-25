@@ -1056,7 +1056,9 @@ jobs:
         run: |
           set -o pipefail
           cd tests
-          npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -v ' hosting: 127.0.0.1 - - '
+          # On the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address
+          # (#2735's @shard2 run kept every GET): the pattern allows up to 20 characters there.
+          npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -Ev 'hosting:.{0,20}127\.0\.0\.1 - - \['
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7

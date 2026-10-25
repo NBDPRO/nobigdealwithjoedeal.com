@@ -26,7 +26,11 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 - **The characters** ([ROOF-REP-GAME](ROOF-REP-GAME-2026-10-03.md), updates 10-25): one vector chibi draws every
   avatar on Roof Rep and the CRM game card. Wave 2: jointed limbs, 220 ms cross-fades, hair/hat motion, emotes, point /
   nod / shrug, scenes in the empty speech box, tap-to-cheer, the door swing. Wave 3: hammer / climb, crews working in
-  the build, nailing and ladder mini-games. Wave 4: the looks above. Guard `tests/chibi-2026-10-25.test.js` (60).
+  the build, nailing and ladder mini-games. Wave 4: the looks above. Waves 6–9: course-card demos, homeowner props,
+  weather, idle fidgets. Waves 10–11: the chibi on the leaderboard page and the dashboard leaderboards. Waves 12–13:
+  builds (regular / slim / stocky / tall, an elder stoop) and eyes that follow the pointer. Wave 14: a pop-in on
+  arrival, a wave back when tapped, the double blink. Wave 15: cold breath and winter / summer dress on the street.
+  Guard `tests/chibi-2026-10-25.test.js` (94).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -65,6 +69,13 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   `tests/crm-strip-one-row-2026-10-25.test.js`. Local note: this sandbox's proxy blocks fonts.googleapis, so the
   dashboard renders in a wider fallback font; `loginAs` on the emulators now serves the self-hosted Barlow sheet
   (`nbd-fonts-pro.css`) in its place, so local widths match CI's.
+- **@shard2 on #2735 (the first run with the hosting-log filter): 167 passed, 1 failed, 13.0 min.** Only
+  compact-header test 4 ("the first card starts in the top half") missed; crew-calendar passed. The filter itself
+  missed: on the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address and
+  the fixed string never matched (4851 of the API's 5000-line tail were still GETs, so test 4's new block dump was out
+  of reach again). The pattern now allows up to 20 characters there (this PR); the next @shard2 run is the first whose
+  tail will hold the dump. The traces artifact (playwright-authed-traces-1, 9 MB) is on the run for a reader with
+  blob access.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and

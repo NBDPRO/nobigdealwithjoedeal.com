@@ -28,7 +28,16 @@
  *          prop phone · mug · cane · keys · baby · brush · papers in the back hand (wave 7: what a homeowner carries);
  *          umbrella (wave 8: the back arm goes up and a canopy sits over the head). Draw option wind 0..1 gusts the hair,
  *          lifts the hat and leans the body (wave 8). Idle fidgets every 9 s: a weight shift, hands on the hips, a
- *          stretch and yawn (wave 9), so a character that is doing nothing still looks alive.
+ *          stretch and yawn (wave 9), so a character that is doing nothing still looks alive. Builds (wave 12): regular ·
+ *          slim · stocky · tall scale the body and the head apart (what the hands hold keeps its shape); an elder look
+ *          stoops. Gaze (wave 13): draw option gaze { x, y } (-1..1, screen space) turns the eyes and tilts the head toward
+ *          a point; animate() feeds it the pointer, so every avatar on a page watches the cursor or a finger for a few
+ *          seconds after it moves (gaze: false in the per-frame options opts a canvas out). Wave 14: a loop pops its
+ *          character in over its first 360 ms (a squash, an overshoot, settle; pop: false opts out), a tap on any
+ *          animated canvas gets a wave back for 1.2 s unless the page handles taps itself (poke: false, or a canvas that
+ *          already has a __chibiTap handler), and every fourth blink is a double blink. Draw option pop 0..1 is the
+ *          pop-in's progress for callers that draw by hand. Wave 15: draw option cold 0..1 puffs breath from the mouth
+ *          every 3.2 s (the street passes it in winter).
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -51,6 +60,10 @@
   var HATS = ['hardhat', 'cap', 'beanie', 'none'], BEARDS = ['none', 'stubble', 'mustache', 'full'];
   var TOOLS = ['hammer', 'tape', 'ladder', 'none'], EXTRAS = ['none', 'glasses', 'shades', 'belt'], PROPS = ['none', 'phone', 'mug', 'cane', 'keys', 'baby', 'brush', 'papers', 'umbrella'];
   var POSES = ['idle', 'walk', 'knock', 'talk', 'cheer', 'sad', 'wave', 'think', 'point', 'nod', 'shrug', 'hammer', 'climb'];
+  // wave 12: builds. w and h scale the body group (legs, torso, arms) from the feet; head scales the head on its own, so
+  // a tall rep reads as tall (smaller head, longer body) and a stocky one as stocky (wider body, same head).
+  var BUILDS = { regular: { w: 1, h: 1, head: 1 }, slim: { w: 0.88, h: 1.04, head: 0.96 }, stocky: { w: 1.2, h: 0.97, head: 1 }, tall: { w: 0.96, h: 1.12, head: 0.93 } };
+  var BUILD_NAMES = ['regular', 'slim', 'stocky', 'tall'];
   var INK = '#1f1a17', WHITE = '#FFFFFF', BLUSH = 'rgba(242,120,120,.45)', VEST = '#C6E11C', VESTD = '#9DB51A';
   var TWEEN_MS = 220;
   var reduce = false;
@@ -66,9 +79,13 @@
       beard: pick(BEARDS, a.beard, 'none'), shirt: idx(a.shirt, C.shirt.length, 0), vest: a.vest === 'yes' ? 'yes' : 'none',
       pants: idx(a.pants, C.pants.length, 0), tool: pick(TOOLS, a.tool, 'hammer'), extra: pick(EXTRAS, a.extra, 'none'),
       clipboard: !!a.clipboard, mood: a.mood === 'frown' ? 'frown' : a.mood === 'happy' ? 'happy' : 'smile', elder: !!a.elder,
-      top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'),
+      top: pick(TOPS, a.top, 'tee'), prop: pick(PROPS, a.prop, 'none'), build: pick(BUILD_NAMES, a.build, 'regular'),
     };
   }
+  // The body's height scale for a look (an elder stoops: a shorter body, the head carried lower) and how far that lifts
+  // the head off its regular spot, in character units (negative when it drops). paintCanvas's bust crop uses the same number.
+  function bodyH(a) { return BUILDS[a.build].h * (a.elder ? 0.96 : 1); }
+  function headRise(a) { return 46 * (bodyH(a) - 1) - (a.elder ? 2 : 0); }
   function shade(hex, amt) {
     var n = parseInt(hex.slice(1), 16);
     var r = Math.max(0, Math.min(255, (n >> 16) + amt)), g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt)), b = Math.max(0, Math.min(255, (n & 255) + amt));
@@ -84,7 +101,8 @@
       jump: 0, sx: 1, sy: 1, hair: 0, hat: 0, mouth: 'smile', browUp: 0, browDown: 0, eyesClosed: false, look: 0, fist: false,
       point: false, mouthOpen: 0, emote: null, swing: false };
     var m = reduce ? 0 : 1, s = Math.sin, c = Math.cos, seed = o.seed || 0;
-    if (o.blink !== false) { var cyc = (t + seed) % 3600; p.eyesClosed = !!(cyc > 3450 && m); }
+    // a blink in the last 150 ms of every 3.6 s; every fourth one is a double blink (two 90 ms closes) (wave 14)
+    if (o.blink !== false) { var cyc = (t + seed) % 3600, dbl = Math.floor((t + seed) / 3600) % 4 === 3; p.eyesClosed = !!(m && (dbl ? (cyc > 3300 && cyc < 3390) || (cyc > 3480 && cyc < 3570) : cyc > 3450)); }
     if (pose === 'walk') {
       var w = s(t / 95) * m, w2 = c(t / 95) * m;
       p.legL = w * 24; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
@@ -201,13 +219,24 @@
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
     if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
     var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h, facing = o.facing === -1 ? -1 : 1;
+    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 106%
+    // and settles, from the feet. Nothing at 1 (or when unset).
+    var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
+    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.06 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
+    // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
+    // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
+    var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
+    if (gz) { var gx = Math.max(-1, Math.min(1, gz.x)) * facing, gy = Math.max(-1, Math.min(1, Number(gz.y) || 0)); p.look = Math.max(-1.3, Math.min(1.3, p.look + gx * 1.3)); p.lookY = gy < 0 ? gy * 2 : gy * 0.5; p.tilt += gx * 3; }
+    // wave 12: the build, and an elder's stoop (the head carried forward)
+    var B = BUILDS[a.build], bw = B.w, bh = bodyH(a), bhead = B.head;
+    if (a.elder) p.lean += 3;
     var skin = C.skin[a.skin], hair = C.hair[a.hairColor], hatC = C.color[a.hatColor], shirt = C.shirt[a.shirt], pants = C.pants[a.pants];
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
-    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40), 5 * s, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.translate(x, y - p.jump * s);
-    ctx.scale(facing * s * p.sx, s * p.sy);
+    ctx.scale(facing * s * p.sx * popX, s * p.sy * popY);
     ctx.translate(-50, -120);
     // breathing / walking bob moves the whole body
     ctx.translate(0, p.bob);
@@ -217,15 +246,20 @@
     var skinG = pen.grad(25, 15, 75, 70, shade(skin, 14), shade(skin, -12));
     var hairG = pen.grad(25, 5, 75, 50, shade(hair, 26), shade(hair, -18));
     var hatG = pen.grad(25, 0, 75, 40, shade(hatC, 34), shade(hatC, -22));
-    var hx = 50, hy = 42, hr = 29;
+    var hx = 50, hy = 42 - headRise(a), hr = 29;
+    function headXf() { ctx.translate(hx, hy); ctx.scale(bhead, bhead); ctx.translate(-hx, -hy); }
 
     // back hair (behind the head): long hair sways from the crown, the ponytail swings from its root
+    ctx.save(); headXf();
     if (a.hair === 'long') { ctx.save(); ctx.translate(hx, hy - 10); ctx.rotate(p.hair * 0.35 * Math.PI / 180); ctx.translate(-hx, -(hy - 10)); pen.rrect(21, 30, 58, 50, 14, hairG); ctx.restore(); }
     if (a.hair === 'afro') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.1 * Math.PI / 180); ctx.translate(-hx, -hy); pen.shape(function (c) { for (var i = 0; i < 14; i++) { var an = -Math.PI * 0.95 + i * (Math.PI * 1.9 / 13), rr = hr + 10 + (i % 2) * 3; var px = hx + Math.cos(an) * rr, py = hy - 6 + Math.sin(an) * rr * 0.92; if (i === 0) c.moveTo(px, py); else c.quadraticCurveTo(hx + Math.cos(an - 0.12) * (rr + 7), hy - 6 + Math.sin(an - 0.12) * (rr + 7) * 0.92, px, py); } }, hairG); ctx.restore(); }
     if (a.hair === 'bun') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.4 * Math.PI / 180); ctx.translate(-hx, -hy); pen.circle(hx - 8, hy - hr - 2, 10, hairG); pen.circle(hx - 11, hy - hr - 5, 3.5, shade(hair, 30), true); ctx.restore(); }
-    if (a.top === 'hoodie') { pen.shape(function (c) { c.moveTo(26, 78); c.quadraticCurveTo(22, 52, 50, 46); c.quadraticCurveTo(78, 52, 74, 78); c.quadraticCurveTo(50, 70, 26, 78); }, pen.grad(26, 46, 74, 78, shade(shirt, 10), shade(shirt, -26))); }
     if (a.hair === 'ponytail') { ctx.save(); ctx.translate(70, 30); ctx.rotate(p.hair * Math.PI / 180); ctx.translate(-70, -30); pen.shape(function (c) { c.moveTo(70, 30); c.quadraticCurveTo(92, 36, 86, 66); c.quadraticCurveTo(80, 60, 74, 48); c.quadraticCurveTo(76, 40, 70, 30); }, hairG); ctx.restore(); }
+    ctx.restore(); // head frame (back hair)
 
+    // wave 12: the body group (the hood, legs, torso, arms and what the hands hold) is scaled from the feet by the build
+    ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120);
+    if (a.top === 'hoodie') { pen.shape(function (c) { c.moveTo(26, 78); c.quadraticCurveTo(22, 52, 50, 46); c.quadraticCurveTo(78, 52, 74, 78); c.quadraticCurveTo(50, 70, 26, 78); }, pen.grad(26, 46, 74, 78, shade(shirt, 10), shade(shirt, -26))); }
     // legs (hips at 42 and 58, y 98): thigh + shin with a knee, boots on the shin
     function leg(dx, ang, knee) {
       ctx.save(); ctx.translate(50 + dx, 98);
@@ -260,7 +294,7 @@
       ctx.restore();
     }
     // whatever the hand holds sits at the end of the forearm
-    function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); fn(); ctx.restore(); }
+    function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); ctx.scale(1 / bw, 1 / bh); fn(); ctx.restore(); }
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
     if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
@@ -285,8 +319,10 @@
       else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
     }
 
+    ctx.restore(); // body group
+
     // head: a soft circle with a chin, ears, shading and a highlight
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.tilt * Math.PI / 180); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy);
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy);
     pen.circle(hx - hr + 1, hy + 4, 5, skinG); pen.circle(hx + hr - 1, hy + 4, 5, skinG);
     pen.shape(function (c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }, skinG);
     // highlight on the forehead, and the hat brim's shadow across it
@@ -297,23 +333,23 @@
     if (p.mouth !== 'frown') { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
 
     // eyes (centres 50±12, hy+4): a white, an iris with a darker rim, a pupil, two catchlights, a lid shadow
-    var eyL = hx - 12, eyR = hx + 12, ey = hy + 4, lookX = p.look * 1.5;
+    var eyL = hx - 12, eyR = hx + 12, ey = hy + 4, lookX = p.look * 1.5, lookY = p.lookY || 0;
     function roundEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey, 6, 7.5, 0, WHITE);
-      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5, 0.5, cx + lookX, ey + 1.5, 5.5); ir.addColorStop(0, '#6A5248'); ir.addColorStop(0.7, '#3A2A26'); ir.addColorStop(1, '#241915');
-      ctx.fillStyle = ir; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 1.5, 4, 5.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1A1210'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.6, 2.3, 2.8, 0, 0, Math.PI * 2); ctx.fill();
+      var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, '#6A5248'); ir.addColorStop(0.7, '#3A2A26'); ir.addColorStop(1, '#241915');
+      ctx.fillStyle = ir; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 1.5 + lookY, 4, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1A1210'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.6 + lookY, 2.3, 2.8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(cx, ey - 5, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.6 + lookX, ey - 1.2, 1.9, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(cx + 1.8 + lookX, ey + 3.4, 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.6 + lookX, ey - 1.2 + lookY, 1.9, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 1.8 + lookX, ey + 3.4 + lookY, 0.9, 0, Math.PI * 2); ctx.fill();
     }
     function happyEye(cx) { ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(cx, ey + 3, 5.5, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
     function sleepyEye(cx, closed) {
       if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
       pen.ellipse(cx, ey + 1, 6, 5, 0, WHITE);
-      ctx.fillStyle = '#3A2A26'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1, 1.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3A2A26'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1 + lookY * 0.6, 1.3, 0, Math.PI * 2); ctx.fill();
       pen.shape(function (c) { c.moveTo(cx - 7, ey - 6); c.quadraticCurveTo(cx, ey - 1, cx + 7, ey - 6); c.lineTo(cx + 7, ey - 1.5); c.quadraticCurveTo(cx, ey - 3, cx - 7, ey - 1.5); }, skinG, true);
       pen.line(cx - 6, ey - 1.5, cx + 6, ey - 1.5, 2);
     }
@@ -396,6 +432,9 @@
     }
     // a sweat drop slides down the temple when sad (stays with the head)
     if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
+    var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
+    if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
 
     // the right (front) arm and whatever it holds
@@ -431,8 +470,8 @@
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
     var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
-    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + 128 * us; shadow = false; } // hat brim to mid-torso fills the box
-    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix });
+    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
+    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold });
   }
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
@@ -441,9 +480,25 @@
   // the loop polls it twice a second until it has one again (wave 5, 2026-10-25: the crew board's rows and Big Dave
   // kept drawing behind the Street tab).
   var paints = 0;
+  // wave 13: one passive pointer listener for every loop on the page. A loop turns the character's eyes toward the
+  // pointer (or the finger) for four seconds after it last moved, easing in and back out, unless its per-frame options
+  // say gaze: false or set a gaze of their own.
+  var PTR = { x: 0, y: 0, at: 0 };
+  function onPointer(e) { if (e && typeof e.clientX === 'number') { PTR.x = e.clientX; PTR.y = e.clientY; PTR.at = Date.now(); } }
+  try { if (!reduce && typeof window.addEventListener === 'function') { window.addEventListener('pointermove', onPointer, { passive: true }); window.addEventListener('pointerdown', onPointer, { passive: true }); } } catch (_) {}
+  function gazeAt(box, crop, g) {
+    // the head sits near the top of a full-figure box and around 40% down a bust; a pointer two boxes away is a full look
+    var hxp = box.left + box.width / 2, hyp = box.top + box.height * (crop === 'bust' ? 0.42 : 0.3);
+    var tx = Math.max(-1, Math.min(1, (PTR.x - hxp) / (box.width * 2))), ty = Math.max(-1, Math.min(1, (PTR.y - hyp) / (box.height * 2)));
+    g.x += (tx - g.x) * 0.18; g.y += (ty - g.y) * 0.18;
+  }
+  var POP_MS = 360, POKE_MS = 1200;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {};
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
+    // wave 14: a tap on the canvas gets a wave back, unless the page already answers taps on it (the game card, the
+    // locker and the HUD cheer on their own through __chibiTap) or the first frame's options say poke: false
+    if (!canvas.__chibiTap && !canvas.__chibiPoke && typeof canvas.addEventListener === 'function') { canvas.__chibiPoke = function () { if (canvas.__pokeOff) return; canvas.__pokeUntil = Date.now() + POKE_MS; }; canvas.addEventListener('click', canvas.__chibiPoke); }
     function frame() {
       if (!alive) return;
       raf = 0; timer = 0;
@@ -454,7 +509,14 @@
       if (!last || now - last >= 32) {
         last = now;
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
+        if (o.poke === false) canvas.__pokeOff = true;
+        if (canvas.__pokeUntil > now && !canvas.__chibiTap && (o.pose == null || o.pose === 'idle')) o.pose = 'wave';
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;
+        if (!reduce && o.pop == null && o.pop !== false) { if (!born) born = now; if (now - born < POP_MS) o.pop = (now - born) / POP_MS; }
+        if (o.gaze == null && !reduce) {
+          if (box && box.width && PTR.at && now - PTR.at < 4000 && typeof box.left === 'number') gazeAt(box, o.crop, gzs); else { gzs.x *= 0.88; gzs.y *= 0.88; }
+          if (Math.abs(gzs.x) > 0.01 || Math.abs(gzs.y) > 0.01) o.gaze = { x: gzs.x, y: gzs.y };
+        }
         paintCanvas(canvas, look, o); paints++;
       }
       if (reduce) { alive = false; return; }
@@ -469,5 +531,5 @@
     return stop;
   }
 
-  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
+  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, BUILDS: BUILDS, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _pointer: PTR, headRise: headRise, POP_MS: POP_MS, POKE_MS: POKE_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
 })();

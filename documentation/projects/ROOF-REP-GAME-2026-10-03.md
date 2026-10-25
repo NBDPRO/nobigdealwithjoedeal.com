@@ -218,3 +218,37 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   (`dashboard-api.js` v9) shows each rep's chibi beside the medal, initials for a rep who has never opened Roof Rep;
   the Team Leaderboard widget (`widgets.js` v19) draws one beside the name and redraws itself once the read lands.
   Guard grows to 79.
+
+### Waves 12 and 13 (same day, eighth PR): builds, and eyes that follow you
+
+- **Wave 12, builds.** Every character had the same body. `chibi.js` (v10) knows four builds (`BUILDS`: regular ·
+  slim · stocky · tall): the body group (legs, torso, arms, and what the hands hold) is scaled from the feet by the
+  build's width and height, the head is scaled on its own, and the head sits on the scaled neck (`headRise`), so a
+  tall rep reads as tall (longer body, smaller head) and a stocky one as stocky (wider body, same head). Props and
+  tools are counter-scaled inside the hand so a mug stays a mug. An elder look stoops: a 4% shorter body, the head
+  carried 2 units lower and 3 forward. The bust crop moves the feet by the same rise, so a leaderboard face stays
+  centred whatever the build. Both pickers (the locker and the Home game card, `game-sprite.js` v5) grew a **Build**
+  row; the street rolls a build per homeowner (most people regular; `PERSONA_BUILD` gives the retired cop, the farmer
+  and the night-shift worker a stocky one, the veteran, the realtor and the CEO a tall one, the flipper and the
+  attorney a slim one), and Big Dave is stocky. `roof-rep.js?v=12`.
+- **Wave 13, gaze.** A draw option `gaze { x, y }` (-1..1, screen space) turns the irises toward a point (the iris has
+  more room to climb than to drop, so looking down is gentler) and tilts the head three degrees after them; facing
+  -1 mirrors it. `animate()` keeps one passive `pointermove` / `pointerdown` listener for the page and, for four
+  seconds after the pointer (or a finger) last moved, eases every loop's gaze toward it and back out after, so the
+  locker preview, the HUD face, the game card and every leaderboard face watch the cursor. A per-frame `gaze: false`
+  opts a canvas out; a per-frame gaze of its own wins; reduced motion draws none. The street draws by hand and keeps
+  its own glances. Guard grows to 88 (builds, head rise, every pose per build, the pickers and the street; the gaze
+  geometry, the clamps, and a frozen-clock loop with the pointer to each side).
+- **Wave 14, alive on arrival and to the touch.** A loop pops its character in over its first 360 ms (70% tall and
+  wider, up through a 6% overshoot, settle; the ground shadow grows with it; `pop: false` opts out, and a draw
+  option `pop` 0..1 lets the street do the same by hand). A tap on any animated canvas gets a wave back for 1.2 s,
+  unless the page already answers taps on that canvas (the game card, the locker preview and the HUD face cheer
+  through their own `__chibiTap`) or the per-frame options say `poke: false`; so a teammate on the dashboard
+  leaderboards waves when you tap them. Every fourth blink is a double blink. Guard grows to 92; the `pop: false`
+  check caught the first draft reading `false` as pop 0 (a character squashed at 70% for good).
+- **Wave 15, the season on the street.** Draw option `cold` 0..1 puffs breath from the mouth toward the facing side
+  every 3.2 s (three translucent circles that drift up, grow and fade over 1.1 s); the street passes it in winter for
+  everyone `chibi()` draws (the rep, the rival, the homeowner at the door). `seasonLook(look, h)` dresses the
+  homeowner at the door for the season without touching the saved look: in winter a beanie over bare hair and a
+  hoodie over a tee (most of them; the house index decides, so the same person dresses the same way all day), in
+  summer shades on every other bare-eyed homeowner. Guard grows to 94.
