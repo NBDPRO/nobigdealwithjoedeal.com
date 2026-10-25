@@ -49,9 +49,8 @@
 .plx-mb6 { margin-bottom: 6px; }
 .plx-mt8 { margin-top: 8px; }
 .plx-h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--t); }
-.plx-h1 { margin: 0; font-size: 28px; font-weight: 700; color: var(--t); }
 .plx-sub12 { margin: 4px 0 0; font-size: 12px; color: var(--m); }
-.plx-sub13 { margin: 6px 0 0; font-size: 13px; color: var(--m); }
+.plx-sub13 { margin: 0; font-size: 13px; color: var(--m); }
 .plx-dim6 { opacity: .6; font-weight: 400; }
 .plx-dim7b { opacity: .7; font-weight: 400; }
 .plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: inherit; /* the dashboard font (Barlow), not the OS stack - 2026-10-25 */ }

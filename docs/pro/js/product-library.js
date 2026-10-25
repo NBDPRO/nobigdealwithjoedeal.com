@@ -685,7 +685,7 @@
         <!-- Header -->
         <div class="plx-head">
           <div>
-            <h1 class="plx-h1">Product Library</h1>
+            <!-- The view header above already reads PRODUCT LIBRARY (2026-10-25): no second title here. -->
             <p class="plx-sub13">Materials, labor, and pricing for your estimates — ${activeCount} products across ${categoryCount} categories</p>
             ${editable ? '' : '<p class="plx-sub12">🔒 Your company’s shared library — only the owner or an admin can change it.</p>'}
           </div>
