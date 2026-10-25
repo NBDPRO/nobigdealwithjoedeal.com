@@ -247,5 +247,12 @@ console.log('F. the three AI tools: sample answers, no model, no insurance topic
   ok('the hiding runs on framed pages too (not only where the strip mounts)', /hideInsuranceTopics\(\)/.test(dm) && !/function mountStrip\(\) \{[^}]*hideInsuranceTopics/.test(dm));
 }
 
+console.log('\n+. AI Usage range buttons wire even when DOMContentLoaded already fired');
+{
+  const A = require('fs').readFileSync(require('path').join(__dirname, '..', 'docs', 'pro', 'js', 'pages', 'pro-analytics.js'), 'utf8');
+  ok('the range and refresh wiring runs at once on a parsed document, else on DOMContentLoaded (a module whose imports land late would otherwise never wire)', /if \(document\.readyState === 'loading'\) document\.addEventListener\('DOMContentLoaded', wireDom\);\nelse wireDom\(\);/.test(A) && /function wireDom\(\)/.test(A) && !/document\.addEventListener\('DOMContentLoaded', \(\) => \{/.test(A));
+  ok('wiring twice never double-binds a button', /btn\.dataset\.wired/.test(A));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

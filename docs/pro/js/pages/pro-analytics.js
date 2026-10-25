@@ -298,14 +298,26 @@ window.addEventListener('beforeunload', () => { if (autoTimer) clearInterval(aut
 // ─────────────────────────────────────────────────
 // Wire DOM events in place of inline onclick= handlers.
 // ─────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// A module script runs deferred, and when its import graph (the SDK through the demo
+// worker in the sample account) lands late, DOMContentLoaded can already have fired:
+// a listener registered then never runs and the range buttons do nothing (CI
+// 2026-10-25, the zero-network walk, intermittently). Wire now when the document is
+// already parsed, else on DOMContentLoaded.
+function wireDom() {
   document.querySelectorAll('[data-range]').forEach(btn => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
     btn.addEventListener('click', () => {
       if (typeof window.setRange === 'function') window.setRange(btn.dataset.range, btn);
     });
   });
   const refresh = document.getElementById('refreshBtn');
-  if (refresh) refresh.addEventListener('click', () => {
-    if (typeof window.loadData === 'function') window.loadData();
-  });
-});
+  if (refresh && !refresh.dataset.wired) {
+    refresh.dataset.wired = '1';
+    refresh.addEventListener('click', () => {
+      if (typeof window.loadData === 'function') window.loadData();
+    });
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireDom);
+else wireDom();
