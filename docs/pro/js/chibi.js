@@ -293,12 +293,12 @@
   function animate(canvas, look, fn) {
     var alive = true, raf = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
-    function frame(ts) {
+    function frame() {
       if (!alive) return;
       if (canvas.isConnected === false) { stop(); return; }
       var now = Date.now();
-      if (ts == null || ts - last >= 32 || !last) {
-        last = ts || now;
+      if (!last || now - last >= 32) {
+        last = now;
         if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
         paintCanvas(canvas, look, o);
