@@ -233,6 +233,14 @@ Motion explains a change; it never decorates. All durations are tokens:
 - No hard-coded shadow: use `--ui-elev-*` (or the Shape role tokens).
 - No duration literal and no `transition: all`.
 - No text under 11px on a phone, and no tap target under 44px.
+  The 44px floor for every button-like control in a view lives at the end of
+  `dashboard-app.css` (`@media (max-width:600px)`); a new control gets it for
+  free, and a compact exception needs its own `!important` like the board cards.
+- Controls inherit the page font: `button,input,select,textarea{font-family:inherit}`
+  sits in `dashboard-app.css`, `customer.html` and the Success Tracker, so an
+  un-classed button never renders in the OS font (the 2026-10-25 sweep found
+  5,682 such elements on one view). `tests/dashboard-font-consistency-2026-10-25.test.js`
+  pins both rules.
 
 **NBD Pro, customer-facing (portal, estimate view, documents)**
 - Don't theme it: it stays on `nbd-brand.css` (warm paper, Barlow).
