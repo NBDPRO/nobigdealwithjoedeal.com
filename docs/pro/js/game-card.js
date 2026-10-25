@@ -84,8 +84,16 @@
         window._httpsCallable = mod.httpsCallable;
       }
       var res = await window._httpsCallable(window._functions, 'getGameCard')({});
-      st.card = res && res.data;
-      try { sessionStorage.setItem(cacheKey(), JSON.stringify({ at: Date.now(), card: st.card })); } catch (_) {}
+      var card = res && res.data;
+      // Only a card is a card: an answer without the two weeks (a stub, an
+      // { ok: false, reason } reply) used to be rendered and threw on c.week.xp.
+      if (card && card.week && card.lastWeek) {
+        st.card = card;
+        try { sessionStorage.setItem(cacheKey(), JSON.stringify({ at: Date.now(), card: st.card })); } catch (_) {}
+      } else {
+        st.card = null;
+        st.error = (card && typeof card.reason === 'string' && card.reason) || 'Couldn\'t load your XP right now.';
+      }
     } catch (e) {
       st.error = 'Couldn\'t load your XP right now.';
     }

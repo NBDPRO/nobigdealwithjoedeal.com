@@ -149,6 +149,18 @@ Total: roughly 4 to 5 weeks. Wave 1 alone (dashboard + customer card) is a demo-
 - **Kentucky rules**: the real deposit rule and KY hold run in the demo too; tests assert no KY insurance sample shows money due at signing, no AOB, no claim-outcome copy (same checks as phase 1, `tests/pro-demo-story-2026-10-06.test.js`).
 - **Perf**: dashboard.html is heavy. The demo should not ship a second copy of it; the SW/import-map route keeps one.
 
+## Update 2026-10-25: the Home game card is on in the sample account
+
+The card is opt-in per rep (`userSettings/{uid}.game.enabled`) and the seed never
+set it, so a visitor saw no card and no avatar editor on Home. Seed v7 adds
+`userSettings/demo-owner` with the card on and an avatar; the fake functions SDK
+answers `getGameCard` with a fixed sample week (185 XP vs a 140 XP ghost, a 3-day
+streak, level 5 "Installer" on the real `50·L·(L+1)` ladder, the real rule
+labels, `sample: true`). `game-card.js` v5 also stops rendering an answer that is
+not a card. Pinned in `tests/pro-demo-game-card-2026-10-25.test.js`; the
+zero-network walk still passes (119) with the card on. See the
+[10-25 handoff](NEXT_SESSION-2026-10-25.md).
+
 ## Open questions for Jo
 
 1. Keep the demo on `/pro/explore` (same origin), or put it on its own subdomain later for full isolation?

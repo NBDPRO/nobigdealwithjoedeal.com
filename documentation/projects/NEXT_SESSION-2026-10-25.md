@@ -32,9 +32,12 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   first failures of that run (1–4) are not in the readable tail of the log; read the next `@shard2` run on a PR.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
-- **The sample account's Home game card** renders hidden/empty on `/pro/explore` (its `init()` waits on `getDoc`/`db`
-  and the card is opt-in): not a regression, but the only avatar picker a visitor could see is the Roof Rep locker.
-  Worth a look if the sample account should show the card.
+- **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
+  the seed never set it, so the only avatar picker a visitor could see was the Roof Rep locker. Done the same day: the
+  seed (v7) turns it on for the sample owner with an avatar (curly hair, ball cap, hoodie), the canned `getGameCard`
+  answers a whole sample week on the server's own XP ladder, and `game-card.js` (v5) no longer treats an answer
+  without the two weeks as a card (the old `{ ok: false }` stub would have thrown on `c.week.xp`). Guard:
+  `tests/pro-demo-game-card-2026-10-25.test.js` (16); the zero-network walk 119/0 with the card on.
 
 ## Needs Jo
 
@@ -49,7 +52,7 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 ## Next lanes (engineering, no Jo needed)
 
 1. Watch #2731 to merge; push wave 4 + this handoff as the next PR.
-2. The game card in the sample account (above).
+2. ~~The game card in the sample account~~ (done 10-25, above).
 3. `@shard2` runtime after the retry fix: if it still cannot finish, profile the CI log the way the 10-25 session did
    (per-spec wall time from the line reporter's timestamps) rather than splitting blind. The MCP log tool returns the
    last 5000 lines only and the Actions blob host is off the proxy allow-list, so the head of a 25-minute log is out
