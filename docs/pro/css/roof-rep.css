@@ -224,6 +224,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   #p-street .chips { grid-area: chips; margin-top: 22px; }
   #p-street .row { grid-area: help; }
 }
+/* the narrowest phones: five stats across clipped the time and the money; three across, two below */
+@media (max-width: 360px) { .hud { grid-template-columns: repeat(3, minmax(0, 1fr)); } .stat b { font-size: 13px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* the XP bar width classes (no inline styles on this page) */
