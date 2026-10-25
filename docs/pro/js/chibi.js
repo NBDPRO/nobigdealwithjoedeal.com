@@ -32,7 +32,11 @@
  *          slim · stocky · tall scale the body and the head apart (what the hands hold keeps its shape); an elder look
  *          stoops. Gaze (wave 13): draw option gaze { x, y } (-1..1, screen space) turns the eyes and tilts the head toward
  *          a point; animate() feeds it the pointer, so every avatar on a page watches the cursor or a finger for a few
- *          seconds after it moves (gaze: false in the per-frame options opts a canvas out).
+ *          seconds after it moves (gaze: false in the per-frame options opts a canvas out). Wave 14: a loop pops its
+ *          character in over its first 360 ms (a squash, an overshoot, settle; pop: false opts out), a tap on any
+ *          animated canvas gets a wave back for 1.2 s unless the page handles taps itself (poke: false, or a canvas that
+ *          already has a __chibiTap handler), and every fourth blink is a double blink. Draw option pop 0..1 is the
+ *          pop-in's progress for callers that draw by hand.
  *   NBDChibi.POSES                     — idle · walk · knock · talk · cheer · sad · wave · think · point · nod · shrug ·
  *                                         hammer (a swing, the tool stays in hand) · climb (a ladder, rungs in both hands)
  *
@@ -96,7 +100,8 @@
       jump: 0, sx: 1, sy: 1, hair: 0, hat: 0, mouth: 'smile', browUp: 0, browDown: 0, eyesClosed: false, look: 0, fist: false,
       point: false, mouthOpen: 0, emote: null, swing: false };
     var m = reduce ? 0 : 1, s = Math.sin, c = Math.cos, seed = o.seed || 0;
-    if (o.blink !== false) { var cyc = (t + seed) % 3600; p.eyesClosed = !!(cyc > 3450 && m); }
+    // a blink in the last 150 ms of every 3.6 s; every fourth one is a double blink (two 90 ms closes) (wave 14)
+    if (o.blink !== false) { var cyc = (t + seed) % 3600, dbl = Math.floor((t + seed) / 3600) % 4 === 3; p.eyesClosed = !!(m && (dbl ? (cyc > 3300 && cyc < 3390) || (cyc > 3480 && cyc < 3570) : cyc > 3450)); }
     if (pose === 'walk') {
       var w = s(t / 95) * m, w2 = c(t / 95) * m;
       p.legL = w * 24; p.legR = -p.legL; p.kneeL = Math.max(0, p.legL) * 1.1; p.kneeR = Math.max(0, p.legR) * 1.1;
@@ -213,6 +218,10 @@
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
     if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
     var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h, facing = o.facing === -1 ? -1 : 1;
+    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 106%
+    // and settles, from the feet. Nothing at 1 (or when unset).
+    var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
+    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.06 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
     // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
     // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
     var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
@@ -224,9 +233,9 @@
     var pen = new Pen(ctx, s);
     ctx.save();
     // ground shadow (never bobs: the character leaves it when jumping)
-    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40), 5 * s, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (o.shadow !== false) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y - 1 * s, 22 * s * (1 - p.jump / 40) * popX, 5 * s * popX, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.translate(x, y - p.jump * s);
-    ctx.scale(facing * s * p.sx, s * p.sy);
+    ctx.scale(facing * s * p.sx * popX, s * p.sy * popY);
     ctx.translate(-50, -120);
     // breathing / walking bob moves the whole body
     ctx.translate(0, p.bob);
@@ -458,7 +467,7 @@
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
     var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
     if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
-    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind });
+    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop });
   }
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
@@ -479,9 +488,13 @@
     var tx = Math.max(-1, Math.min(1, (PTR.x - hxp) / (box.width * 2))), ty = Math.max(-1, Math.min(1, (PTR.y - hyp) / (box.height * 2)));
     g.x += (tx - g.x) * 0.18; g.y += (ty - g.y) * 0.18;
   }
+  var POP_MS = 360, POKE_MS = 1200;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 };
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {}, gzs = { x: 0, y: 0 }, born = 0;
     if (canvas.__chibiStop) canvas.__chibiStop();
+    // wave 14: a tap on the canvas gets a wave back, unless the page already answers taps on it (the game card, the
+    // locker and the HUD cheer on their own through __chibiTap) or the first frame's options say poke: false
+    if (!canvas.__chibiTap && !canvas.__chibiPoke && typeof canvas.addEventListener === 'function') { canvas.__chibiPoke = function () { if (canvas.__pokeOff) return; canvas.__pokeUntil = Date.now() + POKE_MS; }; canvas.addEventListener('click', canvas.__chibiPoke); }
     function frame() {
       if (!alive) return;
       raf = 0; timer = 0;
@@ -492,7 +505,10 @@
       if (!last || now - last >= 32) {
         last = now;
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
+        if (o.poke === false) canvas.__pokeOff = true;
+        if (canvas.__pokeUntil > now && !canvas.__chibiTap && (o.pose == null || o.pose === 'idle')) o.pose = 'wave';
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;
+        if (!reduce && o.pop == null && o.pop !== false) { if (!born) born = now; if (now - born < POP_MS) o.pop = (now - born) / POP_MS; }
         if (o.gaze == null && !reduce) {
           if (box && box.width && PTR.at && now - PTR.at < 4000 && typeof box.left === 'number') gazeAt(box, o.crop, gzs); else { gzs.x *= 0.88; gzs.y *= 0.88; }
           if (Math.abs(gzs.x) > 0.01 || Math.abs(gzs.y) > 0.01) o.gaze = { x: gzs.x, y: gzs.y };
@@ -511,5 +527,5 @@
     return stop;
   }
 
-  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, BUILDS: BUILDS, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _pointer: PTR, headRise: headRise, _loops: function () { return loops; }, _paints: function () { return paints; } };
+  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, BUILDS: BUILDS, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _pointer: PTR, headRise: headRise, POP_MS: POP_MS, POKE_MS: POKE_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
 })();

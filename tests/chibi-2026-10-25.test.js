@@ -188,12 +188,41 @@ ok('wave 13: a gaze turns the irises sideways (x), lifts them (y) and tilts the 
 ok('wave 13: the irises stay inside the whites (look is clamped to ±1.3 and the drop to half the climb)', /p\.look = Math\.max\(-1\.3, Math\.min\(1\.3, p\.look \+ gx \* 1\.3\)\); p\.lookY = gy < 0 \? gy \* 2 : gy \* 0\.5; p\.tilt \+= gx \* 3;/.test(read('docs/pro/js/chibi.js')));
 ok('wave 13: animate() listens for the pointer once (passive), eases every loop\'s gaze toward it for 4 s after it moved and back out after, and a per-frame gaze (or gaze: false) wins', (() => { const js = read('docs/pro/js/chibi.js'); return /window\.addEventListener\('pointermove', onPointer, \{ passive: true \}\)/.test(js) && /window\.addEventListener\('pointerdown', onPointer, \{ passive: true \}\)/.test(js) && /if \(o\.gaze == null && !reduce\) \{/.test(js) && /now - PTR\.at < 4000/.test(js) && /else \{ gzs\.x \*= 0\.88; gzs\.y \*= 0\.88; \}/.test(js) && /g\.x \+= \(tx - g\.x\) \* 0\.18; g\.y \+= \(ty - g\.y\) \* 0\.18;/.test(js); })());
 ok('wave 13: in a loop, a pointer that moved inside the last 4 s turns the eyes toward it (a stub canvas at the left of the page, the pointer to its right); a per-frame gaze: false leaves the picture alone', (() => {
-  // the clock is frozen so the four loops draw the same instant of the idle cycle and only the gaze can differ
-  const realNow = Date.now; Date.now = () => 1700000000000;
+  // the clock is frozen (an instant clear of the idle glance and fidget windows, which would close the eyes) and the seed fixed so the four loops draw the same instant of the idle cycle and only the gaze can differ
+  const realNow = Date.now; Date.now = () => 1700000001000;
   try {
-    const run = (ptr, perFrame) => { const L = load(); const cv = fakeCanvas(64, 64); cv.getBoundingClientRect = () => ({ width: 64, height: 64, left: 0, top: 0 }); if (ptr) { L.CH._pointer.x = ptr[0]; L.CH._pointer.y = ptr[1]; L.CH._pointer.at = Date.now(); } const stop = L.CH.animate(cv, { eyes: 'round' }, () => Object.assign({ pose: 'idle', blink: false }, perFrame || {})); stop(); return JSON.stringify(cv._log.pts); };
+    const run = (ptr, perFrame) => { const L = load(); const cv = fakeCanvas(64, 64); cv.getBoundingClientRect = () => ({ width: 64, height: 64, left: 0, top: 0 }); if (ptr) { L.CH._pointer.x = ptr[0]; L.CH._pointer.y = ptr[1]; L.CH._pointer.at = Date.now(); } const stop = L.CH.animate(cv, { eyes: 'round' }, () => Object.assign({ pose: 'idle', blink: false, seed: 0 }, perFrame || {})); stop(); return JSON.stringify(cv._log.pts); };
     const quiet = run(null), right = run([600, 20]), left = run([-600, 20]), off = run([600, 20], { gaze: false });
     return right !== quiet && left !== quiet && left !== right && off === quiet;
+  } finally { Date.now = realNow; }
+})());
+
+console.log('14. Wave 14: pop-in, a wave back when tapped, the double blink');
+ok('wave 14: every fourth blink cycle is a double blink (closed at 3350 and 3500 ms into it, open between); the other cycles close once in their last 150 ms', (() => { const d = 3 * 3600; return P('idle', d + 3350).eyesClosed === true && P('idle', d + 3440).eyesClosed === false && P('idle', d + 3500).eyesClosed === true && P('idle', d + 3600 + 3350).eyesClosed === false && P('idle', 3500).eyesClosed === true && P('idle', 3300).eyesClosed === false; })());
+ok('wave 14: the pop-in scales the body from the feet: 70% tall and wider at 0, over 100% half way (the overshoot), back to 1 at the end; unset is 1', (() => { const sc = (pop) => { const m = makeCtx(); CH.draw(m.ctx, {}, { h: 120, t: 5, blink: false, pop }); return m.log.scale[0]; }; const s0 = sc(0), s8 = sc(0.5), s1 = sc(1), sn = sc(undefined); return Math.abs(s0[1] / s1[1] - 0.7) < 1e-9 && s0[0] / s1[0] > 1.1 && s8[1] / s1[1] > 1.02 && s8[0] / s1[0] < 1 && sn[0] === s1[0] && sn[1] === s1[1]; })());
+ok('wave 14: a loop pops its character in over its first 360 ms (the first frame draws at 70%, a frame 500 ms later at 100%); pop: false skips it (and is not read as pop 0)', (() => {
+  const realNow = Date.now; let T = 1700000001000; Date.now = () => T;
+  try {
+    const L = load(); const cv = fakeCanvas(64, 64); L.CH.animate(cv, {}, () => ({ pose: 'idle', blink: false, seed: 0 }));
+    const first = cv._log.scale[0], n1 = cv._log.scale.length; T += 500; L.rafs[L.rafs.length - 1](); const second = cv._log.scale[n1];
+    const L2 = load(); const cv2 = fakeCanvas(64, 64); L2.CH.animate(cv2, {}, () => ({ pose: 'idle', blink: false, seed: 0, pop: false }));
+    return Math.abs(first[1] / second[1] - 0.7) < 0.02 && cv2._log.scale[0][1] === second[1] && L.CH.POP_MS === 360;
+  } finally { Date.now = realNow; }
+})());
+ok('wave 14: a tap on an animated canvas gets a wave back for 1.2 s (the next frame draws the wave pose); a canvas the page already answers taps on (__chibiTap) is left alone, and poke: false opts out', (() => {
+  const realNow = Date.now; let T = 1700000001000; Date.now = () => T;
+  try {
+    const mk = (opts) => { const L = load(); const cv = fakeCanvas(64, 64); cv.handlers = {}; cv.addEventListener = (k, f) => { cv.handlers[k] = f; }; if (opts && opts.owned) cv.__chibiTap = true; L.CH.animate(cv, {}, () => Object.assign({ pose: 'idle', blink: false, pop: false, seed: 0 }, opts && opts.frame || {})); return { L, cv }; };
+    const idle = mk(), poked = mk(), owned = mk({ owned: true }), off = mk({ frame: { poke: false } });
+    T += 1000; // past the pop and the tween of the first frame
+    [idle, poked, owned, off].forEach((x) => { x.L.rafs[x.L.rafs.length - 1](); }); const base = [idle, poked, owned, off].map((x) => x.cv._log.pts.length);
+    poked.cv.handlers.click(); if (off.cv.handlers.click) off.cv.handlers.click();
+    T += 100; [idle, poked, owned, off].forEach((x) => { x.L.rafs[x.L.rafs.length - 1](); }); // the cross-fade starts here
+    const mid = [idle, poked, owned, off].map((x) => x.cv._log.pts.length);
+    T += 300; [idle, poked, owned, off].forEach((x) => { x.L.rafs[x.L.rafs.length - 1](); }); // and is done here (220 ms)
+    const after = (x, i) => JSON.stringify(x.cv._log.pts.slice(mid[i]));
+    const wavePts = after(poked, 1), idlePts = after(idle, 0);
+    return wavePts !== idlePts && after(off, 3) === idlePts && !owned.cv.handlers.click && typeof poked.cv.handlers.click === 'function' && poked.L.CH.POKE_MS === 1200;
   } finally { Date.now = realNow; }
 })());
 

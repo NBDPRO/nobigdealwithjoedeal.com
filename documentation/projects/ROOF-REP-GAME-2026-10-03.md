@@ -239,3 +239,10 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   opts a canvas out; a per-frame gaze of its own wins; reduced motion draws none. The street draws by hand and keeps
   its own glances. Guard grows to 88 (builds, head rise, every pose per build, the pickers and the street; the gaze
   geometry, the clamps, and a frozen-clock loop with the pointer to each side).
+- **Wave 14, alive on arrival and to the touch.** A loop pops its character in over its first 360 ms (70% tall and
+  wider, up through a 6% overshoot, settle; the ground shadow grows with it; `pop: false` opts out, and a draw
+  option `pop` 0..1 lets the street do the same by hand). A tap on any animated canvas gets a wave back for 1.2 s,
+  unless the page already answers taps on that canvas (the game card, the locker preview and the HUD face cheer
+  through their own `__chibiTap`) or the per-frame options say `poke: false`; so a teammate on the dashboard
+  leaderboards waves when you tap them. Every fourth blink is a double blink. Guard grows to 92; the `pop: false`
+  check caught the first draft reading `false` as pop 0 (a character squashed at 70% for good).
