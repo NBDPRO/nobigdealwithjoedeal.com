@@ -5542,9 +5542,10 @@ body {
   .logo{font-size:0;letter-spacing:0;}
   .logo span{font-size:14px;letter-spacing:.06em;}
 }
-/* Under 400 px the header's five tools leave the wordmark no room and "PRO" clipped to "PR" (audit row 12,
-   re-measured 2026-10-25 at 360). The mark alone carries the brand there; the text stays in the DOM. */
-@media (max-width:400px){
+/* Under 380 px the header's five tools leave the wordmark no room and "PRO" clipped to "PR" (audit row 12,
+   re-measured 2026-10-25 at 360; 390 still fits and keeps the wordmark the visual audit measures). The mark alone
+   carries the brand there; the text stays in the DOM. */
+@media (max-width:380px){
   .logo span{font-size:0;}
 }
 
