@@ -196,4 +196,9 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
   from `PERSONA_PROP` on about two doors in three: busy / realtor / flipper phones, night-shift / retired-cop /
   skeptic mugs, elder and caregiver canes, the landlord's keys, the new baby, the DIY brush, three-quotes /
   claim-denied / deductible papers. Props are homeowner-only; the avatar editor does not offer them.
-- Versions: `chibi.js?v=7`, `roof-rep.js?v=9`, `roof-rep.css?v=6`. Guard grows to 71 checks.
+- **Weather on the characters (wave 8, chibi.js v8):** a `prop: 'umbrella'` raises the back arm and holds an orange
+  canopy over the head (the hand frame is squared back up so the canopy sits over the head whatever the arm angle);
+  the street's `wxLook()` puts one in the rep's and the rival's hand on a rain or snow day. A draw option `wind`
+  (0..1) gusts the hair, lifts the hat and leans the body; `chibi()` passes 1 on a windy day for every street
+  character.
+- Versions: `chibi.js?v=8`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 74 checks.

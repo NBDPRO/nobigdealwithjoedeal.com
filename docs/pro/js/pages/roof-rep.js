@@ -152,9 +152,11 @@ var LEAVE = null;
 function leaveEnd(L) { return L.since + (L.out ? 2300 : 900); }
 function pose(name, ms) { POSE = { name: name, until: Date.now() + (ms || 1200) }; }
 var TWEENS = {}; // one tween state per street character, so a pose change cross-fades instead of popping (2026-10-25 wave 2)
+// wave 8: the weather reaches the characters: an umbrella in the rep's and the rival's hand on a wet day, the wind in everyone's hair on a windy one
+function wxLook(look) { return DAY && wet(DAY.wx) ? Object.assign({}, look, { prop: 'umbrella' }) : look; }
 function chibi(ctx, look, cx, feetY, p, facing, t, h, mood, key) {
   var tw = key ? CH.tween(TWEENS[key] || (TWEENS[key] = {}), p, t) : null;
-  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix });
+  if (CH) CH.draw(ctx, look, { x: cx, y: feetY, h: h || 26, t: t, pose: p, facing: facing, shadow: false, mood: mood, from: tw && tw.from, mix: tw && tw.mix, wind: DAY && DAY.wx === 'wind' ? 1 : 0 });
   else paint(ctx, look, cx - 8, feetY - 16, 0.5);
 }
 function drawTo(canvas, look, p, mood) {
@@ -1044,7 +1046,7 @@ function drawWorld() {
     var rdx = RIVAL.tx - RIVAL.x, rdy = RIVAL.ty - RIVAL.y, rd = Math.hypot(rdx, rdy);
     if (rd > 1.6) { RIVAL.x += rdx / rd * 1.6; RIVAL.y += rdy / rd * 1.6; }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(Math.round(RIVAL.x), Math.round(RIVAL.y) - 13, 6, 2, 0, 0, 6.3); g.fill();
-    chibi(g, RIVAL_LOOK, Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now, 0, 0, 'rival');
+    chibi(g, wxLook(RIVAL_LOOK), Math.round(RIVAL.x), Math.round(RIVAL.y) - 12, rd > 1.6 ? 'walk' : 'idle', rdx < -0.5 ? -1 : 1, now, 0, 0, 'rival');
     // a small STORM BROS tag over the rival's head (2026-10-25; was a red rectangle)
     g.fillStyle = '#e24b4a'; rrect(Math.round(RIVAL.x) - 14, Math.round(RIVAL.y) - 45, 28, 7, 2); g.fill();
     g.fillStyle = '#fff'; g.font = '700 5px Montserrat, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('STORM BROS', Math.round(RIVAL.x), Math.round(RIVAL.y) - 41.3); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
@@ -1063,7 +1065,7 @@ function drawWorld() {
   var walking = WALK.path.length > 0, p0 = POSE.until > now ? POSE.name : KNOCK.until > now ? 'knock' : walking ? 'walk' : 'idle';
   if (walking && Math.abs(WALK.path[0].x - WALK.px) > 0.5) WALK.face = WALK.path[0].x < WALK.px ? -1 : 1;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(Math.round(WALK.px), Math.round(WALK.py) - 13, 7, 2.2, 0, 0, 6.3); g.fill();
-  chibi(g, SAVE.avatar, Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now, 0, 0, 'rep');
+  chibi(g, wxLook(SAVE.avatar), Math.round(WALK.px), Math.round(WALK.py) - 12, p0, WALK.face || 1, now, 0, 0, 'rep');
   if (KNOCK.until > now) { var kp = (KNOCK.until - now) / 500; g.strokeStyle = 'rgba(243,237,226,' + kp + ')'; g.lineWidth = 1.5; g.beginPath(); g.arc(KNOCK.x, KNOCK.y, 4 + (1 - kp) * 10, 0, 6.3); g.stroke(); }
   if (DAY) { FX.weather(g, DAY.wx, 320, 200); FX.tint(g, DAY.min, 320, 200); }
   FX.draw(g);
