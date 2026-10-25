@@ -178,4 +178,8 @@ avatar is the same person drawn properly; spiky hair tucks under a hat.
 - **Renderer bug (chibi.js v5):** `animate()` defined `stop` after its first frame, so a canvas animated before it
   was in the DOM hit "stop is not a function" on that frame and the loop died silently. Found by the crew board rows;
   fixed by defining `stop` first.
-- Versions: `chibi.js?v=5`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 65 checks.
+- **Hidden loops paint nothing (chibi.js v6):** a loop whose canvas has no box (its tab or panel is hidden) skips
+  the paint and polls twice a second until it has one. Measured on the page: 5 loops live, 30 paints/s on the Street
+  tab (the HUD face), 60 on Train (HUD + Big Dave), 59 on Crew (HUD + the row); before, every loop painted behind
+  every tab.
+- Versions: `chibi.js?v=6`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 67 checks.

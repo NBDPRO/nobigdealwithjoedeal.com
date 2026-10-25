@@ -397,32 +397,37 @@
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
   // frame on every avatar on the page is what a slow phone notices), it cross-fades every pose change, and it stops
-  // itself when the canvas leaves the page.
+  // itself when the canvas leaves the page. A canvas with no box (its tab or panel is hidden) is not painted at all:
+  // the loop polls it twice a second until it has one again (wave 5, 2026-10-25: the crew board's rows and Big Dave
+  // kept drawing behind the Street tab).
+  var paints = 0;
   function animate(canvas, look, fn) {
-    var alive = true, raf = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {};
+    var alive = true, raf = 0, timer = 0, seed = Math.floor(Math.random() * 3000), last = 0, box = null, measured = 0, tw = {};
     if (canvas.__chibiStop) canvas.__chibiStop();
     function frame() {
       if (!alive) return;
+      raf = 0; timer = 0;
       if (canvas.isConnected === false) { stop(); return; }
       var now = Date.now();
+      if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
+      if (box && !box.width && !box.height) { box = null; timer = setTimeout(frame, 500); return; } // hidden: no paint, poll
       if (!last || now - last >= 32) {
         last = now;
-        if (!box || now - measured > 1000) { box = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null; measured = now; }
         var o = fn ? (fn(now) || {}) : {}; o.t = now; if (o.seed == null) o.seed = seed; if (box && box.width) o.box = box;
         var tp = tween(tw, pick(POSES, o.pose, 'idle'), now); o.pose = tp.pose; o.from = tp.from; o.mix = tp.mix;
-        paintCanvas(canvas, look, o);
+        paintCanvas(canvas, look, o); paints++;
       }
       if (reduce) { alive = false; return; }
       raf = requestAnimationFrame(frame);
     }
     // stop exists before the first frame: a canvas animated before it is in the DOM used to hit "stop is not a
     // function" on that frame (the crew board's rows, 2026-10-25 wave 5) and the loop died without a trace.
-    var stop = function () { if (!alive) return; alive = false; loops--; if (raf) cancelAnimationFrame(raf); if (canvas.__chibiStop === stop) canvas.__chibiStop = null; };
+    var stop = function () { if (!alive) return; alive = false; loops--; if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); if (canvas.__chibiStop === stop) canvas.__chibiStop = null; };
     canvas.__chibiStop = stop;
     loops++;
     frame();
     return stop;
   }
 
-  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _loops: function () { return loops; } };
+  window.NBDChibi = { draw: draw, paintCanvas: paintCanvas, animate: animate, normalize: normalize, poseOf: poseOf, tween: tween, mixPose: mixPose, POSES: POSES, C: C, reduce: reduce, TWEEN_MS: TWEEN_MS, _loops: function () { return loops; }, _paints: function () { return paints; } };
 })();
