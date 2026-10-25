@@ -64,6 +64,7 @@ console.log('\n2. wording');
   ok('heroHtml located', html.length > 100);
   ok('headline is labelled projected', /In play &middot; projected/.test(html));
   ok('says it is not money collected', /projected value, not money collected/.test(html));
+  ok('the hero repaints when jobs-store finishes loading (nbd:jobs-loaded), so second jobs count like the Pipeline header', /\['nbd:today-rendered', 'nbd:data-refreshed', 'nbd:photos-loaded', 'nbd:jobs-loaded'\]/.test(JS));
   ok('never labels the number "revenue"', !/revenue/i.test(JS_CODE) && !/revenue/i.test(strip(read('docs/pro/css/layouts/island.css'))));
 }
 

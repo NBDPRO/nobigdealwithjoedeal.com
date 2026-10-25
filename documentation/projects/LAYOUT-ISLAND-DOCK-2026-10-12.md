@@ -77,6 +77,23 @@ minted. The name card floats over its lower edge; panels become islands.
   `nbd-emulator-connect.js`, so parallel lanes cannot run it at the same time;
   retry until "port taken" clears.
 
+### Update 2026-10-25: the in-play headline and the jobs store
+
+CI run 40168418082 (`@shard2`): the hero read **$21,900** while the Pipeline header read **$24,980**. Both sum
+`NBDJobs.recordsFor(window._leads)` with the same stage rule and money reader, so the gap was the jobs
+themselves: the hero painted at `_leadsLoaded` (leads alone; `recordsFor` returns the leads as-is until the jobs
+have loaded) and nothing repainted it when `NBDJobs.load()` finished, while the bootstrap re-renders the Pipeline
+after that load. The $3,080 was the second jobs other specs had left in the shared emulator.
+
+- **Fix:** `jobs-store.js` `load()` dispatches `nbd:jobs-loaded` on the window once the jobs are in; `island.js`
+  repaints Home on it (next to `nbd:data-refreshed` and friends). Pinned in `jobs-stage1` and `layout-island`.
+- **Spec:** `layout-island.spec.js` now writes its own second job (admin SDK, stamped like the lead) and waits for
+  `NBDJobs.loadedAt()` before reading the Pipeline oracle and polls the hero (`toHaveText`) instead of reading it
+  once. Passes alone in 34 s. A control run with the hero listener removed still passed locally: with one tenant on
+  an idle emulator the jobs land before the hero's first paint, so the spec cannot force the CI ordering; the
+  listener is what covers it when the jobs are slow.
+- This spec's 3 × 300 s timeout is what has been cancelling `@shard2` at its 25-min cap since the layouts fix.
+
 ## Tests
 
 - `tests/layout-island-2026-10-12.test.js` — in-play rule (positive control,
