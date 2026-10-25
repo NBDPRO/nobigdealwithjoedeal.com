@@ -59,7 +59,10 @@
         seen.add(ex.exId); count[ex.exId] = (count[ex.exId] || 0) + 1; names[ex.exId] = String(ex.name || ex.exId);
       }
     }
-    const nodes = Object.keys(count).map((id) => ({ exId: id, name: names[id], sessions: count[id], tier: count[id] >= 5 ? 'mastered' : 'unlocked' })).sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
+    const libName = Object.create(null);
+    for (const lib of Array.isArray(library) ? library : []) if (lib && lib.id && lib.name) libName[lib.id] = String(lib.name);
+    // the library's name wins over a session's (a session may carry the raw id)
+    const nodes = Object.keys(count).map((id) => ({ exId: id, name: libName[id] || names[id], sessions: count[id], tier: count[id] >= 5 ? 'mastered' : 'unlocked' })).sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
     const cap = Math.max(0, Math.floor(Number(maxLocked)) || 0);
     let locked = 0;
     for (const lib of Array.isArray(library) ? library : []) {

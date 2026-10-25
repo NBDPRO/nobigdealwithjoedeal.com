@@ -11,8 +11,9 @@
   const e1rm = (w, r) => { const reps = Math.min(12, Math.max(0, Math.round(num(r)))); return reps > 0 && num(w) > 0 ? num(w) * (1 + reps / 30) : 0; };
 
   /** -> [{ exId, name, weight, reps, e1rm, date }] best per lift, highest first, at most `n`. */
-  function hiScores(sessions, n) {
-    const best = Object.create(null);
+  function hiScores(sessions, n, library) {
+    const best = Object.create(null), libName = Object.create(null);
+    for (const lib of Array.isArray(library) ? library : []) if (lib && lib.id && lib.name) libName[lib.id] = String(lib.name);
     for (const s of Array.isArray(sessions) ? sessions : []) {
       if (!s || s.deleted || !s.finishedAt) continue;
       for (const ex of s.exercises || []) {
@@ -22,7 +23,7 @@
           const v = e1rm(st.weight, st.reps);
           if (v <= 0) continue;
           const cur = best[ex.exId];
-          if (!cur || v > cur.e1rm) best[ex.exId] = { exId: ex.exId, name: String(ex.name || ex.exId), weight: num(st.weight), reps: Math.round(num(st.reps)), e1rm: Math.round(v), date: s.date };
+          if (!cur || v > cur.e1rm) best[ex.exId] = { exId: ex.exId, name: libName[ex.exId] || String(ex.name || ex.exId), weight: num(st.weight), reps: Math.round(num(st.reps)), e1rm: Math.round(v), date: s.date };
         }
       }
     }
@@ -34,7 +35,7 @@
     const opt = o || {};
     const Q = opt.quest;
     const b = Q ? Q.questBoard(opt) : { totalXp: 0, level: { level: 1, pct: 0, into: 0, need: 100 }, streak: { current: 0, best: 0 }, quests: [], todayXp: 0, allDone: false };
-    return { score: b.totalXp, level: b.level.level, pct: b.level.pct, into: b.level.into, need: b.level.need, combo: b.streak.current, bestCombo: b.streak.best, todayXp: b.todayXp, quests: b.quests, hi: hiScores(opt.sessions, 3), cleared: b.allDone };
+    return { score: b.totalXp, level: b.level.level, pct: b.level.pct, into: b.level.into, need: b.level.need, combo: b.streak.current, bestCombo: b.streak.best, todayXp: b.todayXp, quests: b.quests, hi: hiScores(opt.sessions, 3, opt.coach && opt.coach.EXERCISES), cleared: b.allDone };
   }
 
   const api = { e1rm, hiScores, arcade };

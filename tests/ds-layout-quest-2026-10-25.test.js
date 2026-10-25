@@ -57,6 +57,7 @@ console.log('\n1b. the skill tree');
   ok('library lifts never logged show as locked, capped', tree.nodes.filter((n) => n.tier === 'locked').map((n) => n.exId).join() === 'row,ohp' && tree.unlocked === 3 && tree.mastered === 2);
   ok('a session with only warm-ups or undone sets does not count', Q.skillTree([{ id: 'x', date: '2026-10-01', finishedAt: 2, exercises: [{ exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5, warm: true }, { weight: 100, reps: 5, done: false }] }] }]).nodes.length === 0);
   ok('a lift twice in one session counts once', Q.skillTree([{ id: 'x', date: '2026-10-01', finishedAt: 2, exercises: [{ exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5 }] }, { exId: 'bench', name: 'B', sets: [{ weight: 100, reps: 5 }] }] }]).nodes[0].sessions === 1);
+  ok('the library name wins over a session that carries the raw id', Q.skillTree([s('2026-10-01', ['bench'])], [{ id: 'bench', name: 'Barbell bench press' }]).nodes[0].name === 'Barbell bench press');
   ok('no sessions, no library: empty tree, no throw', Q.skillTree().nodes.length === 0 && Q.skillTree(null, null).unlocked === 0);
 }
 

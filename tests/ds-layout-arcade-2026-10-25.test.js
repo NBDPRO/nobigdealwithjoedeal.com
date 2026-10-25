@@ -38,6 +38,7 @@ console.log('\n1. hi-scores and the board');
   ok('the best set per lift, highest first, top three: squat, bench, curl', hi.map((h) => h.name).join() === 'Back squat,Bench press,Curl', hi.map((h) => h.name).join());
   ok('bench\'s best is the 185x3 (its e1rm beats 155x5 and 135x8)', hi[1].weight === 185 && hi[1].reps === 3 && hi[1].e1rm === 204 && hi[1].date === '2026-10-24');
   ok('warm-up sets and undone sets never post a score (Row is absent)', !hi.some((h) => h.exId === 'row'));
+  ok('a library name wins over the raw id a session may carry', A.hiScores([sess('2026-10-24', [['bb_bench', 'bb_bench', [{ weight: 100, reps: 5, done: true }]]])], 3, [{ id: 'bb_bench', name: 'Barbell bench press' }])[0].name === 'Barbell bench press');
   ok('no sessions: an empty list, no throw', A.hiScores([]).length === 0 && A.hiScores().length === 0 && A.hiScores(null).length === 0);
   const b = A.arcade({ floors, workout: false, sessions: hist, days: [{ date: '2026-10-24', met: 2, total: 2 }], today: TODAY, xp: X, quest: Q });
   ok('score is the Quest total XP, level and combo from xp-logic, missions are the quests', b.score === Q.questBoard({ floors, workout: false, sessions: hist, days: [{ date: '2026-10-24', met: 2, total: 2 }], today: TODAY, xp: X }).totalXp && b.level >= 1 && typeof b.combo === 'number' && b.quests.map((q) => q.id).join() === 'floor:sleep,floor:task,all-floors,workout');
