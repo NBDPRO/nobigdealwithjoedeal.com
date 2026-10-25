@@ -104,13 +104,20 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 
 ## Next lanes (engineering, no Jo needed)
 
-1. Watch #2731 to merge; push wave 4 + this handoff as the next PR.
-2. ~~The game card in the sample account~~ (done 10-25, above).
-3. `@shard2` runtime after the retry fix: if it still cannot finish, profile the CI log the way the 10-25 session did
-   (per-spec wall time from the line reporter's timestamps) rather than splitting blind. The MCP log tool returns the
-   last 5000 lines only and the Actions blob host is off the proxy allow-list, so the head of a 25-minute log is out
-   of reach from a cloud session; the per-spec `(retries)` markers in the tail still tell you which specs failed once.
-4. ~~Characters: the Train tab cards and the crew board still use still frames; the drive game's truck and traffic are
-   vector but static~~ (done 10-25, wave 5: Big Dave in the Training Yard, breathing crew rows, an eased truck with
-   exhaust and skid dust; plus the `animate()` stop-ordering bug in chibi.js). Also the LEAVE scene: a signed homeowner steps out to the rep and cheers,
-   a lost one shrugs, the rest wave, then the door swings shut. ~~Left: the Train course cards themselves carry no character.~~ (done, waves 6 and 7 in the same PR as the strip fix: the rep demonstrates each course on its card, and homeowners carry persona props.)
+Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
+characters ran to wave 23). What is left, and what is new:
+
+1. **compact-header test 4 on `@shard2`** (`phone-crm-header-compact-2026-10-13.spec.js`, "the first card starts in the
+   top half"): the only miss on the last two full runs (167/168 and 165/168), green alone. #2735 made its failure
+   message list every visible block above the first card; #2736 fixed the log filter that was hiding it (the runner
+   colours firebase-tools' prefix). Read the dump on the next `@shard2` run that fails, fix the cover it names, and
+   stop guessing. The traces artifact on each failed run holds the screenshot for a reader with blob access.
+2. **`@shard2` / `@shard3` in the required set** waits on Jo (Needs Jo, item 2): the leg runs in about 13 minutes now.
+3. **Characters, left on the table:** the leaderboard page (`/pro/leaderboard`) is a single-rep board, so only your own
+   face shows there (wave 10); if it ever lists teammates, `team-names.js` `loadAvatars()` is the read to reuse. A kid
+   build, night tint on the street's characters and seasonal dress for the rep's own look were considered and not
+   built. The shipped-bytes ceiling has about 9 KB of slack (2807 of 2816 KB); the next renderer wave that needs more
+   raises it with a dated note, as waves 12–17 did.
+4. **The sample account** carries the owner's Roof Rep row (seed v8) so its leaderboards show a face; a second sample
+   rep (a real team on `/pro/explore`) would make the Team Leaderboard widget and the staggered arrival visible to a
+   prospect. Seed v9 if wanted: a member doc, a few leads under the second uid, a `roofRepScores` row.
