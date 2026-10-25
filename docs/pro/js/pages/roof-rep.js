@@ -718,9 +718,10 @@ function startDay() {
   applyMorning(plan);
   WALK = { px: 160, py: 100, path: [], target: null, busy: false };
   renderAll(); showTab('street'); var wxTip = wet(plan.wx) ? 'Rain today: roofs are wet, so no climbing. Book inspections for tomorrow and work the phone.' : plan.wx === 'wind' ? 'Windy today: ladders are touchy' + (SAVE.badges.ladder || owns('drone') ? ', but your training has you covered.' : '. Inspections run 4 seconds shorter without the ladder badge.') : '';
-  var chs = CHALLENGES.filter(function (c) { return !c.when || c.when(); }); var ch = pick(chs); DAY.ch = { k: ch.k, need: ch.need, text: ch.text }; DAY.counts = {};
+  var chs = CHALLENGES.filter(function (c) { return !c.when || c.when(); }); DAY.quests = RR.pickQuests(chs, 3, (SAVE.seed || 1) * 1000 + SAVE.day); DAY.ch = DAY.quests[0]; DAY.counts = {};
+  if (!SAVE.weekly || SAVE.weekly.week !== RR.weekFor(SAVE.day)) SAVE.weekly = Object.assign(RR.pickWeekly(SAVE.day, SAVE.seed || 0), { counts: {} });
   SAVE.seasons = SAVE.seasons || {}; SAVE.seasons[seasonFor(SAVE.day)] = 1; checkTrophies();
-  wxTip = 'Today\'s challenge: ' + ch.text + ' (+40 XP). ' + wxTip;
+  wxTip = 'Three quests on your Today list (+40 XP each, all three pays a $500 bonus). ' + wxTip;
   if (DAY.canvassed) wxTip = 'Your canvasser booked ' + DAY.canvassed + ' for today. ' + wxTip;
   if (DAY.rivalLost) wxTip = 'Storm Bros signed ' + DAY.rivalLost + ' door' + (DAY.rivalLost > 1 ? 's' : '') + ' you left hanging. Get to rival-visited doors fast. ' + wxTip;
   idle(plan.builds.length ? { good: true, text: 'Build day! The crew is on ' + plan.builds.map(function (b) { return b.h.name; }).join(' and ') + (plan.builds.length > 1 ? "'s roofs" : "'s roof") + '. Run the build from your Today list, or they finish by 6 PM without you. ' + wxTip } : plan.waiting.length && wet(plan.wx) ? { text: 'Rain pushed ' + plan.waiting.length + ' build' + (plan.waiting.length > 1 ? 's' : '') + ' to tomorrow. ' + wxTip } : wxTip ? { text: wxTip } : null);
@@ -767,8 +768,9 @@ function endDay() {
 function finishDay() {
   if (DAY.clean && DAY.xp > 0) { gain(50, 'Clean day: no shady promises'); SAVE.cleanDays++; SAVE.cleanStreak = (SAVE.cleanStreak || 0) + 1; } else SAVE.cleanStreak = 0;
   checkTrophies();
-  SAVE.weekXp += DAY.xp; SAVE.bestDay = Math.max(SAVE.bestDay, DAY.xp); SAVE.sold += DAY.sold;
-  var done = DAY, dayNo = SAVE.day;
+  SAVE.weekXp += DAY.xp; SAVE.bestDay = Math.max(SAVE.bestDay, DAY.xp); SAVE.sold += DAY.sold; SAVE.seasonXp = (SAVE.seasonXp || 0) + DAY.xp;
+  if (DAY.clean && DAY.xp > 0) weekCount('clean');
+  var done = DAY, dayNo = SAVE.day, seasonOver = RR.seasonEndsOn(dayNo);
   SAVE.day++; DAY = null;
   persist();
   var L = levelFor(SAVE.xp), ag = agendaDue(SAVE.day).length;
@@ -780,8 +782,18 @@ function finishDay() {
     '<ul class="report">' + done.log.slice(-7).map(function (l) { return '<li>+' + l.xp + ' · ' + esc(l.why) + '</li>'; }).join('') + '</ul>' +
     '<p class="help">Sold isn\'t collected: the money comes in when the roof is built. ' + (ag ? 'Tomorrow you have ' + ag + ' thing' + (ag > 1 ? 's' : '') + ' on your list.' : '') + '</p>' +
     '<button type="button" class="btn primary wide" id="nextDay">On to day ' + SAVE.day + '</button>');
-  document.getElementById('nextDay').addEventListener('click', function () { closeOverlay(); renderAll(); showTab('today'); });
+  document.getElementById('nextDay').addEventListener('click', function () { closeOverlay(); if (seasonOver) return seasonCard(); renderAll(); showTab('today'); });
   renderAll();
+}
+// A season is 28 days. Its card ranks the rep on the XP earned in it, then the counter resets.
+function seasonCard() {
+  var n = RR.seasonOf(SAVE.day - 1), xp = SAVE.seasonXp || 0, rank = RR.seasonRank(xp);
+  SAVE.seasonsDone = (SAVE.seasonsDone || 0) + 1; SAVE.seasonBest = Math.max(SAVE.seasonBest || 0, xp); SAVE.seasonXp = 0;
+  checkTrophies(); persist(); sfx('trophy'); FX.burst(160, 100, 50);
+  overlay('<div class="big"><h2>SEASON ' + n + ' COMPLETE</h2><div class="huge">' + esc(rank) + '</div><p>' + xp.toLocaleString('en-US') + ' XP this season · ' + SAVE.cleanDays + ' clean days all time · ' + money(SAVE.collected) + ' collected</p>' +
+    '<p class="help">Next rank: ' + (RR.SEASON_RANKS.filter(function (r) { return r[0] > xp; }).slice(-1).map(function (r) { return r[1] + ' at ' + r[0].toLocaleString('en-US') + ' XP'; })[0] || 'you are at the top') + '. Season ' + (n + 1) + ' starts tomorrow.</p>' +
+    '<button type="button" class="btn primary wide" id="seasonOk">On to season ' + (n + 1) + '</button></div>');
+  document.getElementById('seasonOk').addEventListener('click', function () { closeOverlay(); renderAll(); showTab('today'); });
 }
 
 // ── The agenda (things you said you'd do) ──
@@ -802,6 +814,7 @@ function agendaLabel(a) {
 // The street.
 // ════════════════════════════════════════════════════════════════════════
 var W = document.getElementById('world'), g = W.getContext('2d');
+var RR = window.RoofRepRules;
 var FX = window.RoofRepFX || { float: function () {}, burst: function () {}, shake: function () {}, flash: function () {}, weather: function () {}, tint: function () {}, draw: function () {}, bob: function () { return 0; } };
 // The canvas is 640x400 for crisp lines; every drawing call below thinks in 320x200.
 g.setTransform(W.width / 320, 0, 0, W.height / 200, 0, 0);
@@ -950,11 +963,12 @@ function arrive2(h, dogTip) {
 // ── Dialogue ──
 var faceCv = document.getElementById('face');
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function say(look, name, text, choices, tip) {
+function say(look, name, text, choices, tip, meter) {
   faceCv.getContext('2d').clearRect(0, 0, 32, 32);
   if (look) drawTo(faceCv, look);
   var t = document.getElementById('talk'); t.innerHTML = '';
   var n = document.createElement('div'); n.className = 'who'; n.textContent = name; t.appendChild(n);
+  if (meter) { var m = document.createElement('div'); m.className = 'meter'; var ml = document.createElement('span'); ml.textContent = (meter.label || 'Trust') + ' ' + Math.round(meter.pct) + '%'; var mb = document.createElement('div'); mb.className = 'bar'; var mi = document.createElement('i'); mi.className = 'rr-w' + Math.round(Math.max(0, Math.min(100, meter.pct)) / 5) * 5; mb.appendChild(mi); m.appendChild(ml); m.appendChild(mb); t.appendChild(m); }
   var p = document.createElement('p'); p.className = 'line'; p.textContent = text; t.appendChild(p);
   if (tip && tip.text) { var d = document.createElement('div'); d.className = 'tip' + (tip.bad ? ' bad' : tip.good ? ' good' : ''); d.textContent = tip.text; t.appendChild(d); if (tip.bad) { FX.shake(); FX.flash(true); sfx('bad'); } else if (tip.good) FX.flash(false); }
   var c = document.createElement('div'); c.className = 'choices';
@@ -984,7 +998,7 @@ function node(h, key, tip) {
       if (ch.go) return node(h, ch.go, t2);
       finish(h, ch.end, t2);
     } };
-  }), tip);
+  }), tip, { label: 'Trust', pct: h.trust });
 }
 function setStatus(h, s) { h.status = s; h.since = SAVE.day; if (DAY && !DAY.over) { DAY.events = DAY.events || {}; DAY.events[h.name + h.i + h.persona] = { h: h }; } }
 function finish(h, end, tip) {
@@ -1167,6 +1181,7 @@ function honesty(h, sid) {
 }
 function pitch(h, sid) { if (h.measured) return pitchTiers(h, sid); return measureStep(h, sid); }
 function pitchTiers(h, sid, mTip) {
+  if (!h.dueled && h.persona !== 'empty') return duel(h, sid, function (tip) { pitchTiers(h, sid, tip || mTip); });
   var lead = h.damage === 'old' ? 'You show ' + h.name + ' the worn shingles. They nod slowly.' :
     h.found >= 0.7 ? 'Your photos show clear hail hits. ' + h.name + ' leans in.' : 'You only got a few photos. ' + h.name + ' looks unsure.';
   say(h.look, h.name, lead + ' (' + h.sq + ' squares.) Which option do you recommend?', TIERS.map(function (t) {
@@ -1175,6 +1190,29 @@ function pitchTiers(h, sid, mTip) {
     setStatus(h, 'inspected'); addAgenda('followup', sid, h.i, SAVE.day + 1, { tries: 0 }); gain(5, 'Estimate left with ' + h.name);
     idle({ text: 'Estimate left. Their follow-up is on tomorrow\'s list.' });
   } }]), mTip || (SAVE.badges.walk ? { good: true, text: 'Job explainer badge: you walk them through the whole job, start to finish (+5 trust).' } : null));
+}
+// ── The objection duel (2026-10-25): two pushbacks before the price, answered the NBD way. The trap answers are the
+// Kentucky rules; they lose the door. The trust meter is the HP bar. Content: roof-rep-rules.js OBJECTIONS.
+function duel(h, sid, then) {
+  h.objDone = h.objDone || [];
+  var picks = RR.pickObjections(2, (SAVE.seed || 1) * 131 + h.i * 17 + SAVE.day * 3 + (h.sq || 0), h.objDone), k = 0, lastTip = null;
+  stat('duels');
+  function ask() {
+    if (k >= picks.length) { h.dueled = true; return then(lastTip); }
+    var o = picks[k], round = k + 1;
+    say(h.look, h.name + (h.tag ? ' · ' + h.tag : ''), o.text, RR.answersShuffled(o, (SAVE.seed || 1) * 7 + h.i + k).map(function (a) {
+      return { say: a.say, act: function () {
+        h.objDone.push(o.k); h.trust = Math.max(0, Math.min(100, h.trust + (a.trust || 0)));
+        if (a.dirty) DAY.clean = false;
+        spend(4); if (!DAY || DAY.over) return;
+        if (a.kind === 'best') { stat('duelBest'); dayCount('duelBest'); gain(8, 'Handled "' + o.text.slice(0, 28) + '…" the right way'); }
+        lastTip = a.tip ? { good: a.tip.good, bad: a.tip.bad, text: fill(a.tip.text, h) } : null;
+        if (a.lose) { setStatus(h, 'lost'); return idle(lastTip || { bad: true, text: 'That line ended it. ' + h.name + ' closed the door.' }); }
+        k++; ask();
+      } };
+    }), k === 0 ? { text: 'Objection ' + round + ' of ' + picks.length + '. Pick the line you would really say.' } : lastTip, { label: 'Trust', pct: h.trust });
+  }
+  ask();
 }
 function tierScore(h, t) {
   var order = ['good', 'better', 'best'], d = Math.abs(order.indexOf(t.key) - order.indexOf(PERSONA[h.persona].want));
@@ -1312,6 +1350,9 @@ var TROPHIES = [
   { k: 'phone', ico: '📞', name: 'Phone pro', what: 'Handle 10 calls the right way', test: function () { return st('calls') >= 10; } },
   { k: 'six', ico: '💰', name: 'Six figures', what: 'Collect $100,000', test: function () { return SAVE.collected >= 100000; } },
   { k: 'seasons', ico: '🗓', name: 'Four seasons', what: 'Work a day in every season', test: function () { return Object.keys(SAVE.seasons || {}).length >= 4; } },
+  { k: 'duelist', ico: '🎯', name: 'Objection handler', what: 'Give the best answer to 25 objections', test: function () { return st('duelBest') >= 25; } },
+  { k: 'runner', ico: '⚡', name: 'Storm runner', what: 'A perfect Storm Run', test: function () { return st('perfectRuns') >= 1; } },
+  { k: 'season', ico: '🏁', name: 'Season finisher', what: 'Finish a 28-day season', test: function () { return (SAVE.seasonsDone || 0) >= 1; } },
   { k: 'class', ico: '🎓', name: 'Top of the class', what: 'Earn all six training badges', test: function () { return Object.keys(SAVE.badges).length >= 6; } },
   { k: 'allBosses', ico: '🏆', name: 'Boss of bosses', what: 'Sign all six boss doors', test: function () { return st('bosses') >= 6; } },
   { k: 'cat', ico: '🌪', name: 'Eye of the storm', what: 'Work a catastrophe storm day', test: function () { return st('cat') >= 1; } },
@@ -1352,6 +1393,7 @@ var CHALLENGES = [
   { k: 'knock', need: 8, text: 'Knock 8 doors' },
   { k: 'insp', need: 3, text: 'Inspect 3 roofs' },
   { k: 'sign', need: 2, text: 'Sign 2 jobs' },
+  { k: 'duelBest', need: 3, text: 'Answer 3 objections the best way' },
   { k: 'calls', need: 2, text: 'Handle 2 calls the right way' },
   { k: 'drives', need: 2, text: 'Make 2 drives without a scratch' },
   { k: 'rivals', need: 1, text: 'Beat Storm Bros at a door', when: function () { return STREETS.some(function (x) { return lvl() >= x.level && rivalStreet(x.id); }); } },
@@ -1362,14 +1404,33 @@ var CHALLENGES = [
   { k: 'review', need: 1, text: 'Earn a 5★ review', when: function () { return allHouses().some(function (x) { return x.h.status === 'approved' && x.h.buildDay === SAVE.day; }); } },
 ];
 function dayCount(k) {
-  if (!DAY || !DAY.ch) return;
+  if (!DAY || !DAY.quests) return;
   DAY.counts = DAY.counts || {}; DAY.counts[k] = (DAY.counts[k] || 0) + 1;
-  if (DAY.ch.k === k && !DAY.ch.done && DAY.counts[k] >= DAY.ch.need) { DAY.ch.done = true; sfx('good'); toast('CHALLENGE DONE: ' + DAY.ch.text.toUpperCase() + ' · +40 XP'); gain(40, 'Daily challenge: ' + DAY.ch.text); }
+  DAY.quests.forEach(function (q) {
+    if (q.k !== k || q.done || DAY.counts[k] < q.need) return;
+    q.done = true; sfx('good'); toast('QUEST DONE: ' + q.text.toUpperCase() + ' · +40 XP'); gain(40, 'Quest: ' + q.text); FX.burst(WALK.px, WALK.py - 24, 16);
+    if (DAY.quests.every(function (x) { return x.done; })) { SAVE.bank += 500; gain(60, 'All three quests done'); toast('QUEST BOARD CLEARED · +$500 BONUS · +60 XP'); }
+  });
+  weekCount(k);
+}
+function weekCount(k) {
+  var w = SAVE.weekly; if (!w || w.done) return;
+  w.counts = w.counts || {}; w.counts[k] = (w.counts[k] || 0) + 1;
+  if (w.k === k && w.counts[k] >= w.need) { w.done = true; SAVE.bank += w.cash; gainAny(w.xp, 'Weekly quest: ' + w.text); sfx('trophy'); toast('WEEKLY QUEST DONE: ' + w.text.toUpperCase() + ' · ' + money(w.cash) + ' · +' + w.xp + ' XP'); }
+}
+function questRow(q, counts, reward) {
+  var have = Math.min(q.need, (counts && counts[q.k]) || 0), pct = Math.round(have / q.need * 100);
+  return '<div class="quest' + (q.done ? ' done' : '') + '"><div class="chal"><span>' + (q.done ? '✓ ' : '') + esc(q.text) + '</span><b>' + have + '/' + q.need + '</b></div><div class="bar"><i class="rr-w' + Math.round(pct / 5) * 5 + '"></i></div><small>' + esc(reward) + '</small></div>';
 }
 function challengeHtml() {
-  if (!DAY || !DAY.ch) return '';
-  var have = Math.min(DAY.ch.need, (DAY.counts && DAY.counts[DAY.ch.k]) || 0), pct = Math.round(have / DAY.ch.need * 100);
-  return '<div class="card' + (DAY.ch.done ? '' : ' hl') + '"><h3>TODAY\'S CHALLENGE · +40 XP</h3><div class="chal"><span>' + esc(DAY.ch.text) + '</span><b>' + have + '/' + DAY.ch.need + '</b></div><div class="bar"><i class="rr-w' + Math.round(pct / 5) * 5 + '"></i></div></div>';
+  var html = '';
+  if (DAY && DAY.quests) {
+    var left = DAY.quests.filter(function (q) { return !q.done; }).length;
+    html += '<div class="card' + (left ? ' hl' : '') + '"><h3>QUEST BOARD · ' + (left ? left + ' TO GO' : 'CLEARED') + '</h3>' + DAY.quests.map(function (q) { return questRow(q, DAY.counts, '+40 XP'); }).join('') + '<p class="help">All three in one day: +$500 to the bank and +60 XP.</p></div>';
+  }
+  var w = SAVE.weekly;
+  if (w) html += '<div class="card"><h3>WEEKLY QUEST · WEEK ' + w.week + '</h3>' + questRow(w, w.counts, money(w.cash) + ' + ' + w.xp + ' XP') + '</div>';
+  return html;
 }
 
 // ── End of day: log it in the CRM ──
@@ -1897,6 +1958,47 @@ function ring() {
 // ════════════════════════════════════════════════════════════════════════
 // Training.
 // ════════════════════════════════════════════════════════════════════════
+// ── Storm Run (2026-10-25): a 60-second objection gauntlet. GameForce's "dungeon run", NBD style. ──
+function stormRun() {
+  var left = RR.RUN.seconds, r = { best: 0, ok: 0, weak: 0, trap: 0 }, over = false, seed = Date.now() % 100000, n = 0;
+  overlay('<h2>STORM RUN</h2><p class="help">Sixty seconds of pushback, one objection after another. Best answers score, traps strike, three strikes and you\'re out.</p>' +
+    '<div class="run"><b id="runT">' + left + 's</b><span id="runS">0 best · 0 strikes</span></div><div id="runQ"></div>');
+  var timer = setInterval(function () { left--; var el = document.getElementById('runT'); if (el) el.textContent = left + 's'; if (left <= 0) end(); }, 1000);
+  function next() {
+    if (over) return;
+    var o = RR.pickObjections(1, seed + n * 97, [])[0]; n++;
+    var box = document.getElementById('runQ'); if (!box) return;
+    box.innerHTML = '<p class="line">' + esc(o.text) + '</p>';
+    var c = document.createElement('div'); c.className = 'choices';
+    RR.answersShuffled(o, seed + n).forEach(function (a) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = a.say;
+      b.addEventListener('click', function () {
+        if (over || c.dataset.done) return; c.dataset.done = '1'; r[a.kind]++;
+        b.classList.add(a.kind === 'best' ? 'right' : a.kind === 'trap' ? 'wrong' : 'on');
+        if (a.kind === 'best') sfx('good'); else if (a.kind === 'trap') { sfx('bad'); FX.shake(); }
+        var st2 = document.getElementById('runS'); if (st2) st2.textContent = r.best + ' best · ' + r.trap + ' strike' + (r.trap === 1 ? '' : 's');
+        if (r.trap >= RR.RUN.strikes) return end();
+        setTimeout(next, 350);
+      });
+      c.appendChild(b);
+    });
+    box.appendChild(c);
+  }
+  function end() {
+    if (over) return; over = true; clearInterval(timer);
+    var sc = RR.runScore(r);
+    stat('runs'); if (sc.grade === 'Perfect run') stat('perfectRuns');
+    if (DAY) spend(20);
+    if (sc.xp) gainAny(sc.xp, 'Storm Run: ' + sc.grade);
+    checkTrophies();
+    overlay('<div class="big"><h2>' + esc(sc.grade.toUpperCase()) + '</h2><div class="huge">+' + sc.xp + '</div><p>XP · ' + r.best + ' best answers, ' + r.ok + ' fine, ' + r.weak + ' weak, ' + r.trap + ' trap' + (r.trap === 1 ? '' : 's') + '</p>' +
+      (r.trap ? '<div class="tip bad">A trap line in real life is a lost customer and a lawsuit. Train it out here.</div>' : '<div class="tip good">Not one trap line. That is how a pro sounds at the door.</div>') +
+      '<div class="row"><button type="button" class="btn primary grow" id="runAgain">Run it again</button><button type="button" class="btn" id="runOk">Done</button></div></div>');
+    document.getElementById('runAgain').addEventListener('click', stormRun);
+    document.getElementById('runOk').addEventListener('click', function () { closeOverlay(); renderTrain(); });
+  }
+  next();
+}
 function trainDone(key, passed, detail) {
   var first = passed && !SAVE.badges[key], again = passed && !first && SAVE.trained[key] !== SAVE.day;
   if (first) { SAVE.badges[key] = SAVE.day; SAVE.trained[key] = SAVE.day; gainAny(60, 'Earned the ' + COURSES[key].badge + ' badge'); }
@@ -2088,7 +2190,9 @@ function renderTrain() {
       '<p class="help">' + (has ? '<span class="badge-ok">✓ ' + esc(C2.badge) + '</span> · ' : 'Badge: ' + esc(C2.badge) + ' · ') + esc(C2.perk) + '</p>' +
       '<button type="button" class="btn primary" data-course="' + k + '">' + (has ? 'Refresher' : 'Start course') + '</button></div>';
   });
+  html += '<div class="card hl"><h3>STORM RUN · 60 SECONDS</h3><p class="help">Objection after objection, no roof to climb. Best answers score, trap lines strike. Best so far: ' + (st('perfectRuns') ? 'a perfect run' : st('runs') ? st('runs') + ' run' + (st('runs') > 1 ? 's' : '') : 'none yet') + '.' + (DAY ? ' Costs 20 minutes of your day.' : '') + '</p><button type="button" class="btn primary" id="runBtn">Start a Storm Run</button></div>';
   el.innerHTML = html;
+  document.getElementById('runBtn').addEventListener('click', stormRun);
   el.querySelectorAll('[data-course]').forEach(function (b) {
     b.addEventListener('click', function () {
       var k = b.dataset.course;
@@ -2109,7 +2213,7 @@ function hud() {
   document.getElementById('hXp').textContent = DAY ? DAY.xp : 0;
   document.getElementById('hSigned').textContent = DAY ? DAY.signed : 0;
   document.getElementById('hColl').textContent = money(SAVE.collected);
-  document.getElementById('lvlText').textContent = 'Level ' + L.level + ' · ' + L.title + ' · ' + SAVE.xp.toLocaleString('en-US') + ' / ' + L.next.toLocaleString('en-US') + ' XP';
+  document.getElementById('lvlText').textContent = 'Level ' + L.level + ' · ' + L.title + ' · ' + SAVE.xp.toLocaleString('en-US') + ' / ' + L.next.toLocaleString('en-US') + ' XP' + ((SAVE.cleanStreak || 0) >= 2 ? ' · 🔥 ' + SAVE.cleanStreak + '-day clean streak' : '');
   var pct = Math.round((SAVE.xp - L.floor) / (L.next - L.floor) * 100);
   document.getElementById('lvlFill').style.width = pct + '%';
   document.getElementById('lvlBar').setAttribute('aria-valuenow', pct);
@@ -2241,12 +2345,19 @@ async function renderCrew() {
   }
   rows.forEach(function (r) { r.wk = r.weekKey === wk ? (r.weekXp || 0) : 0; });
   rows.sort(function (a, b) { return b.wk - a.wk || (b.xp || 0) - (a.xp || 0); });
+  var myId = online ? NET.uid : 'me', rk = RR.crewRanks(rows, myId, wk), duelHtml = '';
+  if (SAVE.duel && online) {
+    var d = RR.duelState(rows, myId, SAVE.duel.id, wk);
+    duelHtml = '<div class="card hl duel"><h3>DUEL · THIS WEEK</h3><div class="duel-row"><b>You</b><span class="duel-score">' + d.me + ' – ' + d.them + '</span><b>' + esc(d.name) + '</b></div><p class="help">' + (d.gone ? 'They have not played this week yet.' : d.lead === 'me' ? 'You are ahead. Keep the pressure on.' : d.lead === 'them' ? 'They are ahead. Knock more doors.' : 'Dead even.') + ' Most week XP by Monday wins. Bragging rights only.</p><button type="button" class="btn" id="duelEnd">End the duel</button></div>';
+  }
   var names = {};
   rows.forEach(function (r) { names[r.id] = { name: r.name || '' }; });
   if (seq !== crewSeq) return;
   el.innerHTML = '<div class="card"><h2>CREW BOARD · THIS WEEK</h2><p class="help">Ranked by XP earned this week (resets Monday). Everyone on your NBD Pro team shows up once they play a day.</p>' +
     '<table class="lb"><thead><tr><th></th><th>Rep</th><th class="num">Week</th><th class="num hide-sm">Best day</th><th class="num hide-sm">Days</th></tr></thead><tbody id="lbBody"></tbody></table>' +
-    (!online ? '<p class="help">Sign in to NBD Pro to see your team\'s board. For now it\'s just you.</p>' : '') + '</div>';
+    (!online ? '<p class="help">Sign in to NBD Pro to see your team\'s board. For now it\'s just you.</p>' : '<p class="help">You: #' + rk.week + ' this week · #' + rk.all + ' all time · ' + rk.of + ' rep' + (rk.of === 1 ? '' : 's') + ' on the board.' + (SAVE.duel ? '' : ' Tap Duel beside a crewmate to race them this week.') + '</p>') + '</div>';
+  el.insertAdjacentHTML('afterbegin', duelHtml);
+  var de = document.getElementById('duelEnd'); if (de) de.addEventListener('click', function () { SAVE.duel = null; persist(); renderCrew(); });
   el.insertAdjacentHTML('beforeend', trophiesHtml());
   var body = document.getElementById('lbBody');
   rows.forEach(function (r, i) {
@@ -2257,7 +2368,9 @@ async function renderCrew() {
     var nm = document.createElement('div'), p = names[r.id];
     nm.textContent = me ? (p && p.name ? p.name + ' (you)' : 'You') : (p && p.name) || 'A rep';
     var sm = document.createElement('small'); sm.textContent = 'Lv ' + (r.level || 1) + ' · ' + (r.title || 'Apprentice'); nm.appendChild(sm);
-    w.appendChild(nm); td1.appendChild(w); tr.appendChild(td1);
+    w.appendChild(nm);
+    if (online && !me && !(SAVE.duel && SAVE.duel.id === r.id)) { var db = document.createElement('button'); db.type = 'button'; db.className = 'btn duel-btn'; db.textContent = 'Duel'; db.setAttribute('aria-label', 'Duel ' + ((p && p.name) || 'this rep') + ' this week'); db.addEventListener('click', function () { SAVE.duel = { id: r.id, name: (p && p.name) || 'A rep', week: wk }; persist(); renderCrew(); toast('DUEL ON: YOU VS ' + (((p && p.name) || 'A REP').toUpperCase()) + ' THIS WEEK'); }); w.appendChild(db); }
+    td1.appendChild(w); tr.appendChild(td1);
     [[r.wk + ' XP', ''], [(r.bestDay || 0) + ' XP', ' hide-sm'], [String(r.days || 0), ' hide-sm']].forEach(function (c) { var td = document.createElement('td'); td.className = 'num' + c[1]; td.textContent = c[0]; tr.appendChild(td); });
     body.appendChild(tr);
   });
