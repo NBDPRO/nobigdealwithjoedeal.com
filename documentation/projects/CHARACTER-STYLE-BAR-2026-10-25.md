@@ -61,7 +61,8 @@ signature canvases, the 3D roof viewer.
   paint it to this fidelity, or move to the references' three-and-a-half-head figures. A prototype panel
   (six Canvas 2D attempts: cel, painterly and crisp-vector techniques, each in both proportions) and a
   judged contact sheet were produced for this choice on 2026-10-25; the plan that came out of it is
-  folded into this note once Jo has picked.
+  [CHARACTER-STYLE-PLAN-2026-10-25](CHARACTER-STYLE-PLAN-2026-10-25.md) (all three judges: keep the chibi,
+  ship the crisp cel recipe; the decisions are its section 5) and is folded into this note once Jo has picked.
 - **Views:** add true side and back views (a turnaround like reference 2) on top of the front view and
   the three-quarter head turn (wave 24).
 - **Outfits:** which personas and pickers get the new pieces (hood, robe or cloak, rope belt, satchel,
@@ -75,7 +76,10 @@ signature canvases, the 3D roof viewer.
   crisp-tall > cel-chibi > paint-tall > cel-tall > paint-chibi and kept the chibi proportions with the head at about
   38–40 %). A third workflow drew the street dog to the bar (three cel-shaded attempts, two judges, the winner
   `animation-first` integrated into `roof-rep.js`). All three stalled on the account's session limit after their
-  first phases and were resumed from cache at 22:03 UTC. Both notes that log them: the
+  first phases and were resumed from cache at 22:03 UTC. Outcomes: the dog landed (one commit, `roof-rep.js` v14,
+  gates green, renders looked at); the panel's synthesis is
+  [CHARACTER-STYLE-PLAN-2026-10-25](CHARACTER-STYLE-PLAN-2026-10-25.md) with the contact sheet in
+  `brand/character-style/`. Both notes that log them: the
   [10-25 handoff](NEXT_SESSION-2026-10-25.md) and the [Roof Rep game note](ROOF-REP-GAME-2026-10-03.md).
 - 2026-10-25, the sprite packs Jo uploaded (Mana Seed base demo, Mana Seed Farmer sample, Craftpix tiny heroes) were
   measured against this bar and the renderer: the recommendation is to keep the procedural renderer and redraw it
