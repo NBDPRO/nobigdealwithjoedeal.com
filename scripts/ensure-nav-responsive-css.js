@@ -58,7 +58,7 @@ const CANONICAL_BODY = `@media(max-width:1024px){
 @media(min-width:1025px) and (max-width:1440px){
   nav{padding-left:24px!important;padding-right:24px!important}
   nav .nav-links{gap:14px!important}
-  nav .nav-links > li > a{font-size:.7rem!important;letter-spacing:.05em!important;padding:4px 0!important}
+  nav .nav-links > li > a{font-size:.7rem!important;letter-spacing:.05em!important;padding:5px 0!important}
   nav .nav-cta{padding:8px 14px!important;font-size:.7rem!important}
   nav .nav-logo img{height:50px!important}
   nav .nav-logo-text .brand{font-size:.9rem!important}
