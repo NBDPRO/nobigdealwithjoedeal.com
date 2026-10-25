@@ -83,6 +83,19 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   of reach again). The pattern now allows up to 20 characters there (this PR); the next @shard2 run is the first whose
   tail will hold the dump. The traces artifact (playwright-authed-traces-1, 9 MB) is on the run for a reader with
   blob access.
+- **@shard2 on #2737 (the first run whose tail held the dumps): 165 passed, 2 failed, 1 flaky, 11.5 min.** Zero hosting
+  lines in the tail, so both misses were read from their dumps and fixed in the same evening:
+  - compact-header test 4: the first card sat at 548px (65%) and the dump named two data-driven blocks the shared rep's
+    earlier specs leave behind, the follow-up alerts (124px) and the sort-customers banner (60px). Neither is the
+    header's doing, so the test now subtracts their heights (`#followUpAlertsWrap`, `#sortCustomersWrap`) before the
+    52% rule and logs them. Alone: 424px with 60px of data blocks.
+  - crew-calendar's drag test: a strict-mode violation on `.cw-lane` with `hasText: 'ZZCW Alpha'`, because a retry's
+    first attempt had left its own crew behind and two lanes matched. The lanes are now matched by this attempt's
+    stamp (`'ZZCW Alpha ' + s`), the drag starts on the Week view (the pill is clicked if not pressed, the placed job
+    re-asserted, 600 ms for the re-render) and the dump adds the pill's state and the cell count.
+  - The flaky one (call-center-view) passed on retry; its layout-leak reset landed in #2734.
+  Both specs together on the emulators after the fix: 7 passed in 36.0 s. The next @shard2 run is the first that can
+  go 168/168.
 - **The zero-network walk's AI Usage click** missed twice today and passed four times since; the step now records what
   the parent dashboard has at the click point, so the next miss names the cover.
 - **The sample account's Home game card** was hidden on `/pro/explore`: the card is opt-in (`userSettings.game`) and
@@ -107,11 +120,11 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
 characters ran to wave 23). What is left, and what is new:
 
-1. **compact-header test 4 on `@shard2`** (`phone-crm-header-compact-2026-10-13.spec.js`, "the first card starts in the
-   top half"): the only miss on the last two full runs (167/168 and 165/168), green alone. #2735 made its failure
-   message list every visible block above the first card; #2736 fixed the log filter that was hiding it (the runner
-   colours firebase-tools' prefix). Read the dump on the next `@shard2` run that fails, fix the cover it names, and
-   stop guessing. The traces artifact on each failed run holds the screenshot for a reader with blob access.
+1. **`@shard2` to 168/168:** both misses on #2737's run were read from their dumps and fixed (the bullet above):
+   compact-header test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's
+   stamp. Watch the next full run; if test 4 still misses, the dump names the next cover (the traces artifact holds
+   the screenshot for a reader with blob access). If it goes green, lane 2 is the only thing between the leg and the
+   required set.
 2. **`@shard2` / `@shard3` in the required set** waits on Jo (Needs Jo, item 2): the leg runs in about 13 minutes now.
 3. **Characters, left on the table:** the leaderboard page (`/pro/leaderboard`) is a single-rep board, so only your own
    face shows there (wave 10); if it ever lists teammates, `team-names.js` `loadAvatars()` is the read to reuse. A kid
