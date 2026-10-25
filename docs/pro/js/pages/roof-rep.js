@@ -930,7 +930,10 @@ function drawHouse(h, st) {
   var glow = DAY && DAY.min >= 16 * 60;
   [h.x + 14, h.x + w - 26].forEach(function (wx) { g.fillStyle = '#2b3442'; g.fillRect(wx - 1, y + 29, 14, 12); g.fillStyle = glow ? '#ffd98a' : '#8ec5ff'; g.fillRect(wx, y + 30, 12, 10); g.fillStyle = 'rgba(43,52,66,.9)'; g.fillRect(wx + 5, y + 30, 2, 10); g.fillRect(wx, y + 34, 12, 1); });
   // door
-  g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2);
+  if (DOOR && DOOR.h === h) { // the door stands open while the homeowner is in it (2026-10-25)
+    g.fillStyle = '#2b1d14'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = 'rgba(255,217,138,.25)'; g.fillRect(h.x + 35, y + 38, 10, 17);
+    g.fillStyle = '#5a2f1c'; rrect(h.x + 30, y + 36, 5, 20, 2); g.fill(); g.fillStyle = '#6b3a24'; g.fillRect(h.x + 31, y + 37, 3, 18);
+  } else { g.fillStyle = '#5a2f1c'; rrect(h.x + 34, y + 37, 12, 19, 3); g.fill(); g.fillStyle = '#6b3a24'; rrect(h.x + 35, y + 38, 10, 18, 2); g.fill(); g.fillStyle = '#f2a900'; g.fillRect(h.x + 43, y + 47, 1, 2); }
   if (h.persona === 'nosolicit' || h.persona === 'nightShift') { g.fillStyle = '#fff'; g.fillRect(h.x + 47, y + 40, 10, 6); g.fillStyle = '#c0392b'; g.fillRect(h.x + 48, y + 42, 8, 2); }
   if (h.status === 'built') { g.fillStyle = '#bd5728'; g.fillRect(h.x + 62, y + 44, 10, 7); g.fillStyle = '#fff'; g.fillRect(h.x + 64, y + 46, 6, 1); g.fillRect(h.x + 64, y + 48, 4, 1); g.fillStyle = '#5a3a22'; g.fillRect(h.x + 66, y + 51, 2, 5); }
   // bushes
