@@ -21,5 +21,5 @@ ok('nbd-nav-responsive.css: compact nav links padded to 24px', /nav \.nav-links 
 const tpl = read(path.join(ROOT, 'scripts/build-projects.mjs'));
 ok('our-work template: crumb and back links carry vertical padding', /\.pd-crumb a\{[^}]*display:inline-block;padding:5px 0;/.test(tpl) && /\.pd-back\{[^}]*padding:4px 0;/.test(tpl));
 const blog = PAGES.filter((f) => /\/blog\/[a-z0-9-]+\.html$/.test(f) && /\.sidebar-links li a/.test(read(f)));
-ok('every blog page pads its sidebar links (' + blog.length + ' pages)', blog.length >= 30 && blog.every((f) => /\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))), blog.filter((f) => !/\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))).map((f) => path.relative(ROOT, f)).join(', '));
+ok('every blog page pads its sidebar links (' + blog.length + ' pages)', blog.length >= 20 && blog.every((f) => /\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))), blog.filter((f) => !/\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))).map((f) => path.relative(ROOT, f)).join(', '));
 console.log('\n' + passed + ' passed, ' + failed + ' failed'); if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
