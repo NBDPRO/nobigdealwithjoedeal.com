@@ -31,7 +31,8 @@
   __NBD_LOADED['smart-followup-briefing'] = true;
 
   const PATH = window.location.pathname || '';
-  if (!/\/pro\/dashboard(?:\.html)?$/.test(PATH)) return;
+  // /pro/explore/dashboard is the sample account's copy of the same page.
+  if (!/\/pro\/(?:explore\/)?dashboard(?:\.html)?$/.test(PATH)) return;
 
   const TOP_N = 5;
   const TERMINAL_STAGES = new Set(['closed', 'lost', 'complete']);
@@ -105,7 +106,10 @@
     // W115 + W114: enrich the top 5 via AI in the background.
     // Bounded — exactly 5 API calls max per render. Re-render
     // each row in place when AI returns.
-    if (typeof window.SmartFollowup.enrichSuggestionAI === 'function') {
+    // Not in the sample account: its callClaude has no model and answers each
+    // call with an "AI features run on NBD Pro servers" toast, five a visit.
+    if (typeof window.SmartFollowup.enrichSuggestionAI === 'function'
+        && !(window.__NBD_DEMO__ && window.__NBD_DEMO__.active)) {
       candidates.forEach(({ lead, sug }) => {
         window.SmartFollowup.enrichSuggestionAI(lead).then(enriched => {
           if (!enriched || !enriched._aiEnriched) return;

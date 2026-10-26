@@ -61,18 +61,8 @@ const diff = (got, want) => 'new: [' + got.filter((x) => !want.includes(x)).join
 // ── KNOWN violations on origin/main, 2026-10-05 ─────────────────────────
 const KNOWN = {
   // A. pages
-  dupTags: {
-    'KNOWN BUG R1-10-1 (reported 2026-10-05): dashboard.html links three stylesheets twice, the old ?v=1 tag kept next to the ?v=2 bump (keep-both residue of #2068/#2084, #2075/#2089) — expected one <link> each, at ?v=2': [
-      '/pro/dashboard.html /pro/css/templates-library-view.css',
-      '/pro/dashboard.html /pro/css/data-import-view.css',
-      '/pro/dashboard.html /pro/css/lead-snooze-view.css',
-    ],
-    'KNOWN BUG R1-10-2 (reported 2026-10-05): customer.html links three stylesheets twice, ?v=1 next to ?v=2 (keep-both residue of #2040/a5a1f4eb, #2075/#2089, #2069/#2084) — expected one <link> each, at ?v=2': [
-      '/pro/customer.html /pro/css/customer-tasks.css',
-      '/pro/customer.html /pro/css/lead-snooze-view.css',
-      '/pro/customer.html /pro/css/templates-library-view.css',
-    ],
-  },
+  // R1-10-1 / R1-10-2 (dashboard.html and customer.html each linked three stylesheets twice) were fixed 2026-10-26: one <link> each, at ?v=2.
+  dupTags: {},
   crossPageV: {
     'KNOWN BUG R1-10-3 (reported 2026-10-05): the same file carries a different ?v on dashboard.html and customer.html (google-calendar.css 7 vs 5 after a5a1f4eb changed it; customer-checklist.js 2 vs 3; icons.js 4 vs none; theme-system.css 10 vs none) — expected one ?v per file across both pages': [
       '/pro/css/google-calendar.css',
@@ -437,7 +427,7 @@ ok(refsByPage['/pro/dashboard.html'].length > 100 && refsByPage['/pro/customer.h
   ok(same(el, ALLOWED_EAGER_LAZY), 'no NEW file is both eager on a page and in a lazy bundle (ScriptLoader dedupes, but the listing is drift)', diff(el, ALLOWED_EAGER_LAZY));
 
   const dups = PAGES.flatMap((pg) => dupTags(refsByPage[pg], pg));
-  ok(same(dups, known('dupTags')), knownName('dupTags') + ' — and no other file is tagged twice on either page', diff(dups, known('dupTags')));
+  ok(same(dups, known('dupTags')), 'no file is tagged twice on either page', diff(dups, known('dupTags')));
 
   const vmis = [];
   const d = {}; refsByPage['/pro/dashboard.html'].forEach((r) => { (d[r.p] = d[r.p] || new Set()).add(r.v); });
