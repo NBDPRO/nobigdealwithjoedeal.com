@@ -491,6 +491,7 @@
     "coach-volume-map-2026-10-22.test.js",
     "ds-layout-switch-2026-10-22.test.js",
     "ds-layout-logbook-2026-10-22.test.js",
+    "orange-on-navy-headings-2026-10-26.test.js",
     "ds-layout-rings-2026-10-22.test.js",
     "ds-accent-picker-2026-10-22.test.js",
     "ds-xp-logic-2026-10-22.test.js",
@@ -770,7 +771,7 @@
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
-    "orange-on-navy-headings-2026-10-26.test.js"
+    "blog-callout-links-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
