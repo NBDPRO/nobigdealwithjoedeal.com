@@ -62,8 +62,8 @@ ok('estimate wizard: computes no payment (no APR constants, no amortization)',
   !/0\.1149|0\.1999|finPay|resultMonthlyFigs/.test(wizard) && /function renderFinancingLink\(min\)/.test(wizard));
 ok('estimate wizard: hides the link for storm claims and projects under $3,000',
   /wrap\.hidden = funnelData\.service === 'storm-damage' \|\| !min \|\| min < FIN_MIN_PROJECT;/.test(wizard) && /const FIN_MIN_PROJECT = 3000;/.test(wizard));
-ok('estimate wizard cache-bust: loader ?v=5 on the page, wizard ?v=6 in the loader',
-  est.includes('/assets/js/estimate-wizard-loader.js?v=5') && read('docs/assets/js/estimate-wizard-loader.js').includes("/assets/js/inline/4053149b2f.js?v=6"));
+ok('estimate wizard cache-bust: loader ?v=6 on the page, wizard ?v=7 in the loader (2026-10-26: step focus, email error)',
+  est.includes('/assets/js/estimate-wizard-loader.js?v=6') && read('docs/assets/js/estimate-wizard-loader.js').includes("/assets/js/inline/4053149b2f.js?v=7"));
 
 console.log('B. Elite is a package name, not an invented product line');
 ok('/estimate: no "Lifetime Designer" (page or wizard)', !/lifetime designer/i.test(est) && !/lifetime designer/i.test(wizard));
