@@ -542,3 +542,13 @@ footer .nbd-social a {
 .mobile-nav.open{animation:nbdRevealIn .18s ease}
 .faq-item.open .faq-a{animation:nbdRevealIn .22s ease}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+/* ─── BLOG INDEX AT 320px (2026-10-26) ───────────────────────────────────── */
+/* /blog was 32 px wider than a 320 px screen: the post grid asked for a 320 px track inside 288 px
+   of room and the one-column .blog-main is `1fr` (= minmax(auto,1fr)), so it grew to fit it; the
+   body{overflow-x:clip} above then cut the right border off every card. min(320px,100%) lets a
+   track shrink to its box and minmax(0,1fr) lets the column shrink below its content. `body` out-ranks
+   the page's own inline #blog-posts-grid / .blog-main rules (blog/index.html, hand-authored) whatever
+   their order. */
+body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+@media(max-width:900px){body .blog-main{grid-template-columns:minmax(0,1fr)}}

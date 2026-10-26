@@ -12,11 +12,13 @@
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/images/home-icon-512.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
 <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <style>
-:root{--navy:#1a3057;--navy-dark:#12223d;--orange:#bd5728;--white:#fff;--off-white:#f5f3ef}
+:root{--navy:#1a3057;--navy-dark:#12223d;--orange:#bd5728;--orange-light:#dd875f;--white:#fff;--off-white:#f5f3ef}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(--white);min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,6vw,2.8rem);letter-spacing:1px;margin-bottom:8px;color:var(--white)}
@@ -51,10 +53,34 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .mobile-nav > a:hover{color:var(--orange-light,#dd875f);background:rgba(255,255,255,.04)}
 .hamburger{display:none;flex-direction:column;gap:6px;cursor:pointer;padding:10px;background:transparent;border:none;z-index:1001}
 .hamburger span{display:block;width:26px;height:3px;background:#fff;border-radius:2px;transition:all .3s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+/* ── FOOTER (the footer-extended partial ships markup only; these are the rules about.html and the other pages carry.
+   This page had none, so its footer links rendered default blue on navy (1.69:1) and its lists bulleted — 2026-10-26) ── */
+footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 28px}
+footer a{text-decoration:none} /* the other pages reset this globally; here the nav keeps its underline, so the reset is scoped to the footer */
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+.footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
+.footer-badges{display:flex;gap:8px;flex-wrap:wrap}
+.footer-badge{background:rgba(255,255,255,.08);font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:20px;color:rgba(255,255,255,.7)}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light);margin-bottom:16px}
+.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
+.footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65);transition:color .2s}
+.footer-col ul li a:hover{color:var(--orange)}
+.footer-contact-item{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.footer-contact-item .label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);font-weight:700}
+.footer-contact-item .val{font-size:.85rem;color:rgba(255,255,255,.8)}
+.footer-contact-item .val a{color:rgba(255,255,255,.8)}
+.footer-contact-item .val a:hover{color:var(--orange)}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.1);padding-top:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.footer-bottom p{font-size:.75rem;color:rgba(255,255,255,.4)}
+.footer-bottom a{color:rgba(255,255,255,.5);font-size:.75rem}
+.footer-bottom a:hover{color:var(--orange)}
+@media(max-width:900px){.footer-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){.footer-grid{grid-template-columns:1fr}}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-social.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-responsive.css">
 <link rel="stylesheet" href="/assets/css/nbd-readability.css">
+<link rel="stylesheet" href="/assets/css/nbd-footer-contrast.css">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-logo-mobile.css">
 <style>.nbd-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:#BD5728;color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 6px 0}.nbd-skip:focus{left:0}</style>
