@@ -234,7 +234,7 @@
 
   // ── drawing helpers (every part: stroke the outline first, then fill, so overlaps stay clean) ───────────────────
   function Pen(ctx, s) {
-    this.c = ctx; this.s = s; this.lw = Math.max(1.0 / s, 2.6 * s); this.tiny = s < 0.3; // clean-up 2026-10-25: the outline floor is 1 CSS px at every size (1.1 character units drew 0.22 px at the street); tiny (a street figure) drops the sub-pixel detail
+    this.c = ctx; this.s = s; this.lw = Math.max(1.0 / s, 2.6); this.tiny = s < 0.3; // clean-up 2026-10-25: the outline floor is 1 CSS px at every size (1.1 character units drew 0.22 px at the street) and above that a constant 2.6 character units, since draw() scales the context by s (2.6 * s doubled the ink at 240 px and swallowed the vest); tiny (a street figure) drops the sub-pixel detail
   }
   Pen.prototype.fw = function (w) { return Math.max(w, 0.8 / this.s); }; // clean-up 2026-10-25: a feature stroke (brow, mouth, eye line, frame) never thins under 0.8 CSS px
   Pen.prototype.path = function (fn) { this.c.beginPath(); fn(this.c); this.c.closePath(); };
@@ -342,16 +342,16 @@
 
     // torso
     pen.shape(function (c) { c.moveTo(32, 74); c.quadraticCurveTo(50, 68, 68, 74); c.lineTo(72, 100); c.quadraticCurveTo(50, 106, 28, 100); c.closePath(); }, shirtG);
+    if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); if (!pen.tiny) { ctx.strokeStyle = a.shirt === 5 ? shade(shirt, -70) : '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45 + p.hair * 0.25, 90); ctx.moveTo(54, 76); ctx.lineTo(55 + p.hair * 0.25, 90); ctx.stroke(); } } // the strings swing with the hair (wave 24); wave 26: the pouch and strings lie under the vest and the belt (they were drawn over both), and the white hoodie's strings are grey (#F5F5F0 on #E8E4DA vanished)
     if (a.vest === 'yes') {
       pen.poly([[33, 75], [43, 72], [45, 100], [31, 100]], VEST); pen.poly([[57, 72], [67, 75], [69, 100], [55, 100]], VEST);
       ctx.fillStyle = '#D7D7D7'; ctx.fillRect(32, 86, 12, 3); ctx.fillRect(56, 86, 12, 3);
       ctx.fillStyle = VESTD; ctx.fillRect(32, 97, 12, 2); ctx.fillRect(56, 97, 12, 2);
     }
     if (a.extra === 'belt') { pen.rrect(29, 96, 42, 6, 2, '#7A4A22'); ctx.fillStyle = '#E0B45A'; ctx.fillRect(46, 97, 8, 4); ctx.fillStyle = '#9AA0A6'; ctx.fillRect(33, 101, 6, 4); ctx.fillStyle = '#7A4A22'; ctx.fillRect(60, 101, 5, 4); }
-    // a collar line and the head's shadow on the chest; the hoodie's pouch and strings; the polo's collar and placket
+    // a collar line and the head's shadow on the chest; the polo's collar and placket
     if (a.top === 'polo') { pen.shape(function (c) { c.moveTo(40, 72); c.lineTo(50, 84); c.lineTo(60, 72); c.lineTo(56, 70); c.lineTo(50, 78); c.lineTo(44, 70); }, shade(shirt, 28)); ctx.fillStyle = shade(shirt, -30); ctx.fillRect(49, 80, 2, 2); ctx.fillRect(49, 85, 2, 2); }
-    else if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); if (!pen.tiny) { ctx.strokeStyle = '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45 + p.hair * 0.25, 90); ctx.moveTo(54, 76); ctx.lineTo(55 + p.hair * 0.25, 90); ctx.stroke(); } } // the strings swing with the hair (wave 24)
-    else if (!pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
+    else if (a.top !== 'hoodie' && !pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
     ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.ellipse(50 + p.lean * 0.4, 73 + p.bob * 0.2, 17, 4.5, 0, 0, Math.PI * 2); ctx.fill();
 
     // arms: shoulder pivots at (34,78) and (66,78); upper arm 11, forearm 11, a hand (or a fist, or a pointing finger)
