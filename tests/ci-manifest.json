@@ -661,6 +661,7 @@
     "leads-loaded-account-switch.test.js",
     "failopen-destructive-false-success-2026-09-18.test.js",
     "close-board-per-uid-storage-2026-09-18.test.js",
+    "no-duplicate-stylesheets-2026-10-26.test.js",
     "close-board-deferred-auth-repaint.test.js",
     "pipeline-builder-hydration.test.js",
     "map-views-hydration.test.js",
@@ -770,7 +771,7 @@
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
-    "no-duplicate-stylesheets-2026-10-26.test.js"
+    "blog-callout-links-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
