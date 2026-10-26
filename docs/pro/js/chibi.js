@@ -503,8 +503,6 @@
       ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(hx - 14, top - 6, 7, 3, -0.4, 0, Math.PI * 2); ctx.fill();
     } else if (a.hat === 'cap') {
       pen.shape(function (c) { c.moveTo(hx - hr - 2, hy - 8); c.quadraticCurveTo(hx - hr, top - 10, hx, top - 11); c.quadraticCurveTo(hx + hr, top - 10, hx + hr + 2, hy - 8); c.quadraticCurveTo(hx, hy - 4, hx - hr - 2, hy - 8); }, hatG);
-      ctx.save(); ctx.translate(hx, 0); ctx.scale(fab, 1); ctx.translate(-hx, 0); // wave 26: the brim turns with the body and sits 3 higher, clear of the front eye
-      pen.shape(function (c) { c.moveTo(hx + 2, hy - 10); c.quadraticCurveTo(hx + hr + 8, hy - 13, hx + hr + 16, hy - 5); c.quadraticCurveTo(hx + hr + 4, hy - 3, hx + 2, hy - 7); }, shade(hatC, -28)); ctx.restore();
       pen.circle(hx, top - 11, 2.5, shade(hatC, 30), true);
       ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(hx - 12, top - 4, 7, 2.6, -0.3, 0, Math.PI * 2); ctx.fill();
     } else if (a.hat === 'beanie') {
@@ -515,19 +513,20 @@
     }
     ctx.restore();
 
-    // eyewear (over the hair and hat brims, turned with the features)
+    // a sweat drop slides down the temple when sad (stays with the head; wave 26: under the eyewear and the cap's brim, so a frame passes over the drop)
+    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    // eyewear (over the hair and the hats, turned with the features; the cap's brim comes after it)
     ctx.save(); ctx.translate(fx, 0);
     if (a.extra === 'glasses') {
       ctx.strokeStyle = '#4A5A6B'; ctx.lineWidth = pen.fw(2); [eyL, eyR].forEach(function (cx) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 8.5, ey - 7.5, 17, 15, 4) : ctx.rect(cx - 8.5, ey - 7.5, 17, 15); ctx.stroke(); if (!pen.tiny) { ctx.fillStyle = 'rgba(156,211,240,.28)'; ctx.fill(); } });
       ctx.beginPath(); ctx.moveTo(eyL + 8.5, ey - 1); ctx.lineTo(eyR - 8.5, ey - 1); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(eyL - 8.5, ey - 1); ctx.lineTo(hx - hr + 2, ey - 3); ctx.moveTo(eyR + 8.5, ey - 1); ctx.lineTo(hx + hr - 2, ey - 3); ctx.stroke();
+      ctx.beginPath(); if (eyL - 8.5 > hx - hr + 2 - fx) { ctx.moveTo(eyL - 8.5, ey - 1); ctx.lineTo(hx - hr + 2 - fx, ey - 3); } if (eyR + 8.5 < hx + hr - 2 - fx) { ctx.moveTo(eyR + 8.5, ey - 1); ctx.lineTo(hx + hr - 2 - fx, ey - 3); } ctx.stroke(); // clean-up 2026-10-25: the temples end at the ears (head space: fx is taken back out of the slid frame) and only while the lens edge is short of that ear, so the far one never points backwards or out of the head mid-turn
     } else if (shades) {
       [eyL, eyR].forEach(function (cx) { pen.rrect(cx - 9, ey - 7, 18, 13, 5, pen.grad(cx - 9, ey - 7, cx + 9, ey + 6, '#3A3F4A', '#0E1116')); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(cx - 3, ey - 3, 4, 1.6, -0.4, 0, Math.PI * 2); ctx.fill(); });
-      pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, pen.fw(2.4)); pen.line(eyL - 9, ey - 3, hx - hr + 1, ey - 5, pen.fw(2.4)); pen.line(eyR + 9, ey - 3, hx + hr - 1, ey - 5, pen.fw(2.4));
+      pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, pen.fw(2.4)); if (eyL - 9 > hx - hr + 1 - fx) pen.line(eyL - 9, ey - 3, hx - hr + 1 - fx, ey - 5, pen.fw(2.4)); if (eyR + 9 < hx + hr - 1 - fx) pen.line(eyR + 9, ey - 3, hx + hr - 1 - fx, ey - 5, pen.fw(2.4)); // the same for the shades' arms
     }
     ctx.restore(); // eyewear
-    // a sweat drop slides down the temple when sad (stays with the head)
-    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    if (a.hat === 'cap') { ctx.save(); ctx.translate(hx, -p.hat); ctx.scale(fab, 1); ctx.translate(-hx, 0); pen.shape(function (c) { c.moveTo(hx + 2, hy - 10); c.quadraticCurveTo(hx + hr + 8, hy - 13, hx + hr + 16, hy - 5); c.quadraticCurveTo(hx + hr + 4, hy - 3, hx + 2, hy - 7); }, shade(hatC, -28)); ctx.restore(); } // wave 26: the brim turns with the body and sits 3 higher, clear of the front eye; clean-up 2026-10-25: it is drawn over the frames (they cut its outline) and lifts with the hat
     // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
     var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
     if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + fx + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
