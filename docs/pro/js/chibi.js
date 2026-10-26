@@ -143,7 +143,7 @@
     }
     else if (pose === 'cheer') {
       var j = s(t / 170) * m, air = Math.abs(j);
-      p.armLUp = 1; p.armRUp = 1; p.armL = 128 + j * 8; p.armR = -128 - j * 8; p.elbowL = j * 4; p.elbowR = -j * 4; // clean-up 2026-10-25: the hands end beside the jaw, not behind the head (what the back hand holds shows; the front hand is off the cheek)
+      p.armLUp = 1; p.armRUp = 1; p.armL = 118 + air * 6; p.armR = -118 - air * 6; p.elbowL = 0; p.elbowR = 0; // clean-up 2026-10-25: straight arms in a V that reach up with the jump, the hands beside the chin: the front hand (unscaled by the build) ends at (84.2, 65.7) at the top, clear of the jaw on every build and the elder's lower head (128 + 8 with the elbow bent in sat on the jaw outline, 150 + 14 behind the head)
       p.jump = air * 7; p.mouth = 'open'; p.mouthOpen = 1; p.browUp = 1;
       // wave 24: squash and stretch. The body flattens while the feet are on the ground (the bottom third of the arc:
       // the crouch before a jump and the landing after it) and stretches toward the top; a still frame stands plain.
