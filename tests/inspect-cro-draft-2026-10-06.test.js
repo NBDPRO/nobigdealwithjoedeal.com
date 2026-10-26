@@ -60,7 +60,7 @@ ok('hidden referralCode input on the form, empty by default', /<input type="hidd
 ok('"code applied" note ships hidden', /<p class="ins-ref-note" id="insRefNote" hidden>/.test(FORM));
 ok('details-step referral field folds behind "Have a referral code?"',
   /<details class="ins-ref" id="insRefWrap">\s*<summary>Have a referral code\?<\/summary>[\s\S]*?id="f-referral"[\s\S]*?<\/details>/.test(HTML));
-ok('inspect-form.js cache-buster bumped (v=6 since the optional-consent change, 2026-10-15; v=7 since the thank-you focus, 2026-10-26)', /inspect-form\.js\?v=[67]/.test(HTML));
+ok('inspect-form.js cache-buster bumped (v=6 since the optional-consent change, 2026-10-15; v=7 since the thank-you focus; v=8 since the error placement, 2026-10-26)', /inspect-form\.js\?v=[678]/.test(HTML));
 ok('no innerHTML in inspect-form.js kicker/ref code', !/insKicker[\s\S]{0,200}innerHTML|insRefNoteCode[\s\S]{0,200}innerHTML/.test(JS));
 
 console.log('\n#7 / #8 executed');
