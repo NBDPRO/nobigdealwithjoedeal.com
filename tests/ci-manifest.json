@@ -51,6 +51,7 @@
     "claim-cleanups-2026-10-16.test.js",
     "free-guide-honesty-2026-10-16.test.js",
     "pro-playbook-2026-10-16.test.js",
+    "storm-report-honest-failure-2026-10-26.test.js",
     "homeowner-guides-2026-10-16.test.js",
     "guide-pdfs-2026-10-16.test.js",
     "handle-optout-controls-2026-10-13.test.js",
@@ -769,8 +770,8 @@
     "project-codex-quick-actions-2026-10-24.test.js",
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
-    "storm-report-honest-failure-2026-10-26.test.js",
-    "scroll-padding-2026-10-26.test.js"
+    "scroll-padding-2026-10-26.test.js",
+    "blog-callout-links-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
