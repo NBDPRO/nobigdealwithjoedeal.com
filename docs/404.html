@@ -67,6 +67,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
    This page had none, so its footer links rendered default blue on navy (1.69:1) and its lists bulleted — 2026-10-26) ── */
 footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 28px}
 footer a{text-decoration:none} /* the other pages reset this globally; here the nav keeps its underline, so the reset is scoped to the footer */
+footer p{max-width:none;margin-bottom:0} /* the page's own p{max-width:440px;margin-bottom:32px} must not reach the footer's copyright and legal lines; .footer-desc (0,1,0) still wins for its own cap */
 .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
 .footer-badges{display:flex;gap:8px;flex-wrap:wrap}

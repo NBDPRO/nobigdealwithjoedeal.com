@@ -552,3 +552,5 @@ footer .nbd-social a {
    their order. */
 body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
 @media(max-width:900px){body .blog-main{grid-template-columns:minmax(0,1fr)}}
+/* At 320 px the page now fits (288 px), which shrinks the sidebar's Call button to 232 px around a 212 px label; give the card and the button room. */
+@media(max-width:340px){body .cta-sidebar{padding-left:16px;padding-right:16px}body .cta-sidebar a{padding-left:12px;padding-right:12px}}
