@@ -38,7 +38,7 @@ ok('/estimate: step eyebrow, active progress label, consent links, footer links 
   est.includes('.progress-label.active{color:' + L + ';}') && /\.step-eyebrow\{[^}]*color:var\(--orange-light\)/.test(est) && est.includes('.tcpa-check label a{color:' + L + ';') && est.includes('.foot a{color:' + L + ';'));
 ok('/about: credential chip, photo caption, "us" header and footer titles use the light orange',
   /\.cred\.hl \{[^}]*color:var\(--orange-light\)/.test(about) && about.includes('.about-photo-caption span { color:' + L + '; }') && about.includes('.vs-header.us-h { color:' + L + '; }') && /\.footer-col \.footer-col-title \{[^}]*color: var\(--orange-light\)/.test(about));
-ok('hail-season blog: callout headings use the light orange (both style blocks)', (blog.match(/\.callout h3\{[^}]*color:var\(--orange-light\)/g) || []).length === 2 && !/\.callout h3\{[^}]*color:var\(--orange\)/.test(blog));
+ok('hail-season blog: callout headings use the light orange (both style blocks)', (blog.match(/\.callout h3\{[^}]*color:var\(--orange-light(?:,#dd875f)?\)/g) || []).length === 2 && !/\.callout h3\{[^}]*color:var\(--orange\)/.test(blog));
 ok('nbd-readability.css: footer.foot / review-footer links and footer-bottom hover use #dd875f, not #bd5728', /footer\.foot a,\.review-footer a\{color:#dd875f!important\}/.test(rd) && /footer \.footer-bottom a:hover\{color:#dd875f!important\}/.test(rd) && !/footer\.foot a,\.review-footer a\{color:#bd5728/.test(rd));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
