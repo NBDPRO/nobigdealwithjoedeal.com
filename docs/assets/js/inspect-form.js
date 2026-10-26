@@ -168,6 +168,12 @@
     mountDetails(res && res.photoToken, data);
     if (ok) {
       ok.classList.add('visible');
+      // Focus the confirmation (2026-10-26): it used to leave focus on <body>,
+      // and the status region inside it never changes for the default
+      // "contact me" choice, so a screen reader announced nothing. Same as the
+      // homepage's #formSuccess.
+      ok.setAttribute('tabindex', '-1');
+      try { ok.focus({ preventScroll: true }); } catch (e) {}
       try { ok.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     }
   }
