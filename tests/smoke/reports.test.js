@@ -176,8 +176,8 @@ section('CRM API Analytics (2026-09-30, Jo: "the api analytics page seems extrem
   // 2. Embedded, the page drops its own (duplicate) top nav; standalone, the
   //    bar grows with its wrapped links instead of covering the title.
   const page = read(path.join(ROOT, 'docs/pro/analytics.html'));
-  const gate = read(path.join(PRO_JS, 'pages/pro-analytics-gate.js'));
-  assert('framed → html.nbd-embedded hides the page nav', /window\.self !== window\.top\) document\.documentElement\.classList\.add\('nbd-embedded'\)/.test(gate) && /html\.nbd-embedded \.topbar\{display:none\}/.test(page));
+  const embedMode = read(path.join(PRO_JS, 'pages/pro-embed-mode.js'));
+  assert('framed → html.nbd-embedded hides the page nav', /window\.self !== window\.top\) root\.classList\.add\('nbd-embedded'\)/.test(embedMode) && /html\.nbd-embedded \.topbar\{display:none\}/.test(page));
   assert('the standalone top bar is not a fixed 56px (wrapped links covered the title)', /\.topbar\{min-height:56px;flex-wrap:wrap;/.test(page) && !/\.topbar\{height:56px/.test(page));
   // 3. Haiku 4.5 at its published $1/$5 (was Haiku 3.5's $0.80/$4) — page,
   //    pricing card, and the server's vision spend constants.
@@ -206,6 +206,33 @@ section('CRM API Analytics (2026-09-30, Jo: "the api analytics page seems extrem
     && day30.find((e) => e[0] === '9/28')[1] === 2 && day30.find((e) => e[0] === '9/29')[1] === 0 && day30.find((e) => e[0] === '9/2')[1] === 1);
   const today = ctx2.__cb([at(30, 9), at(30, 9), at(30, 14)], 'today', now);
   assert('today → one bar per hour up to now, in order', today.length === 16 && today[0][0] === '0:00' && today[15][0] === '15:00' && today[9][1] === 2);
+}
+
+section('AI tool panes inside the dashboard (2026-10-26 overnight audit: crm-1)');
+{
+  // The dashboard shows AI Usage, Decision Engine, Understand and Project Codex in iframes. Each page's own
+  // "Back to Dashboard" / nav links navigated the FRAME to /pro/dashboard or /pro/login, which firebase.json serves
+  // frame-ancestors 'none': a blank pane. One shared marker script now sets html.nbd-embedded when framed and each
+  // page hides that chrome under it. (Painted check: tests/layouts-visual-audit/crm-ai-tool-panes.section.js.)
+  const embed = read(path.join(PRO_JS, 'pages/pro-embed-mode.js'));
+  const gate = read(path.join(PRO_JS, 'pages/pro-analytics-gate.js'));
+  assert('pro-embed-mode.js marks a framed page, including when reading window.top throws',
+    /try \{ if \(window\.self !== window\.top\) root\.classList\.add\('nbd-embedded'\); \} catch \(_\) \{ root\.classList\.add\('nbd-embedded'\); \}/.test(embed));
+  assert('the analytics gate no longer carries its own copy of the detection', !/nbd-embedded/.test(gate.replace(/\/\/.*$/gm, '')));
+  const css = {
+    'docs/pro/analytics.html': /html\.nbd-embedded \.topbar\{display:none\}/,
+    'docs/pro/understand.html': /html\.nbd-embedded \.tb-back,html\.nbd-embedded \.tb-brand\{display:none\}/,
+    'docs/pro/project-codex.html': /html\.nbd-embedded \.topbar\{display:none\}/,
+    'docs/pro/ai-tree.html': /html\.nbd-embedded #nbd-pro-nav,\s*html\.nbd-embedded #nbd-nav-drawer,\s*html\.nbd-embedded \.back-link \{ display: none; \}/,
+  };
+  for (const [p, re] of Object.entries(css)) {
+    const src = read(path.join(ROOT, p));
+    assert(p + ' loads pro-embed-mode.js as an external deferred script (strict CSP: no inline script)',
+      /<script src="\/pro\/js\/pages\/pro-embed-mode\.js" defer><\/script>/.test(src));
+    assert(p + ' hides its standalone chrome under html.nbd-embedded', re.test(src));
+  }
+  assert('Understand keeps its Saved button when framed (only the Back link and the brand are hidden)',
+    !/html\.nbd-embedded[^{]*\.tb-saved/.test(read(path.join(ROOT, 'docs/pro/understand.html'))));
 }
 
 };

@@ -5,6 +5,7 @@
      (Decision Engine inside the sample dashboard) it arms the browser-only sample
      account. First and synchronous so its network tripwire is in place first. -->
 <script src="/pro/js/demo-mode.js?v=7"></script>
+<script src="/pro/js/pages/pro-embed-mode.js" defer></script>
 <link rel="stylesheet" href="css/theme-system.css">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -26,9 +27,10 @@
   --br: #2a2f3a;
   --br2: #353b4a;
   --t: #e5e7eb;
-  --t2: #9ca3af;
-  --t3: #6b7280;
+  --t2: color-mix(in srgb, var(--t, #e5e7eb) 40%, var(--m, #acb2bc));
+  --t3: var(--m, #acb2bc);
   --orange: #BD5728;
+  --orange-text: #DD875F;
   --og: rgba(189,87,40,0.1);
   --og2: rgba(189,87,40,0.2);
   --og3: rgba(189,87,40,0.06);
@@ -194,6 +196,13 @@ body::after {
   #nbd-pro-nav .nnav-burger { display: flex; }
 }
 
+/* Inside the dashboard (an iframe) this bar and the Back link only repeat the dashboard's own chrome, and each of
+   their links navigates the frame to a page that refuses framing (a blank pane). pro-embed-mode.js sets the class. */
+html.nbd-embedded { --nbd-nav-h: 0px; }
+html.nbd-embedded #nbd-pro-nav,
+html.nbd-embedded #nbd-nav-drawer,
+html.nbd-embedded .back-link { display: none; }
+
 /* ── MAIN LAYOUT ──────────────────────────────────────── */
 .app-wrap {
   position: relative; z-index: 1;
@@ -213,7 +222,7 @@ body::after {
 .page-title-group { display: flex; flex-direction: column; gap: 4px; }
 .page-eyebrow {
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--orange);
+  letter-spacing: 2px; text-transform: uppercase; color: var(--orange-text);
 }
 .page-title {
   font-family: 'Barlow Condensed', sans-serif; font-size: clamp(28px, 5vw, 42px);
@@ -226,7 +235,7 @@ body::after {
   background: var(--s2); color: var(--t2); font-size: 13px; font-weight: 600;
   text-decoration: none; transition: all .15s;
 }
-.back-link:hover { border-color: var(--orange); color: var(--orange); }
+.back-link:hover { border-color: var(--orange); color: var(--orange-text); }
 
 /* ── CATEGORY GRID ────────────────────────────────────── */
 .cat-grid {
@@ -273,7 +282,7 @@ body::after {
 .flow-cat-label {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
-  letter-spacing: 1.5px; text-transform: uppercase; color: var(--orange);
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--orange-text);
   padding: 4px 10px; border: 1px solid var(--orange); border-radius: var(--radius);
   background: var(--og);
 }
@@ -308,7 +317,7 @@ body::after {
   font-family: 'Barlow', sans-serif; font-size: 15px; font-weight: 500;
 }
 .opt-btn:hover { border-color: var(--orange); background: var(--og3); }
-.opt-btn.selected { border-color: var(--orange); background: var(--og); color: var(--orange); }
+.opt-btn.selected { border-color: var(--orange); background: var(--og); color: var(--orange-text); }
 .opt-letter {
   width: 28px; height: 28px; border-radius: 6px; background: var(--s3);
   display: flex; align-items: center; justify-content: center;
@@ -334,7 +343,7 @@ body::after {
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(189,87,40,0.3); }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn-ghost { background: transparent; color: var(--t2); border: 1px solid var(--br); }
-.btn-ghost:hover { border-color: var(--orange); color: var(--orange); }
+.btn-ghost:hover { border-color: var(--orange); color: var(--orange-text); }
 .btn-reset { background: transparent; color: var(--t3); border: 1px solid var(--br); font-size: 12px; padding: 7px 14px; }
 .btn-reset:hover { color: var(--red); border-color: var(--red); }
 
@@ -372,7 +381,7 @@ body::after {
 .result-title-group { flex: 1; min-width: 0; }
 .result-label {
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
-  letter-spacing: 1.5px; text-transform: uppercase; color: var(--orange); margin-bottom: 4px;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--orange-text); margin-bottom: 4px;
 }
 .result-decision {
   font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900;
@@ -422,7 +431,7 @@ body::after {
   width: 24px; height: 24px; border-radius: 6px; background: var(--og);
   display: flex; align-items: center; justify-content: center;
   font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
-  color: var(--orange);
+  color: var(--orange-text);
 }
 
 .result-footer {
@@ -463,7 +472,7 @@ body::after {
 .history-info { flex: 1; min-width: 0; }
 .history-cat {
   font-family: 'JetBrains Mono', monospace; font-size: 9px;
-  letter-spacing: 1px; text-transform: uppercase; color: var(--orange);
+  letter-spacing: 1px; text-transform: uppercase; color: var(--orange-text);
 }
 .history-decision {
   font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700;

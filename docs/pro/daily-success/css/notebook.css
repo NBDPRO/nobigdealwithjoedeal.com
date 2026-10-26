@@ -45,4 +45,4 @@ body.nbk-open{overflow:hidden;}
 .prd-month{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ac-text,var(--ac));padding:12px 0 4px;border-bottom:2px solid var(--rule);}
 .prd-month:first-child{padding-top:0;}
 .prd-month small{font-weight:400;letter-spacing:.04em;color:var(--muted);}
-.dct-act{margin-left:auto;font-size:11px;padding:6px 10px;min-height:32px;}
+.dct-act{margin-left:auto;flex-shrink:0;font-size:11px;padding:6px 10px;min-height:32px;}
