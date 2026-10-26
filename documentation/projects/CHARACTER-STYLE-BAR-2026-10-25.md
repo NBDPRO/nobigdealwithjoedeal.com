@@ -49,7 +49,7 @@ level:
 | The 32×32 pixel avatar | `docs/pro/js/game-sprite.js` | The game card's fallback when `chibi.js` is not on the page, and both pickers' option tables; still shipped, so it is held to the bar or retired |
 | The Roof Rep scene sprites | `docs/pro/js/pages/roof-rep.js` | the yard dogs and the sheet's barking dog (`drawDog`), the cars and the pickup (`drawCar`, `drawTruck`), the houses and their doors (`drawHouse`), the build scene (`drawBuild`), the ladder card (`drawLadder`), the roof-anatomy diagram (`drawAnatomy`), and the old pixel painter fallback (`paint`) |
 | Pixel World | `docs/pro/js/pixel-world.js` (+ `pixel-world-logic.js`) | the player, the townspeople (the user's open leads), the six buildings and the town tiles, drawn from string patterns |
-| Pixel Mode | `docs/pro/js/pixel-mode-core.js` | the Party and Trainer Card figures and badges |
+| Pixel Mode | `docs/pro/js/pixel-mode-core.js` | the Crew and Rep Card figures and badges |
 | Weather and effects on the street | `docs/pro/js/pages/roof-rep-fx.js` | rain, snow, leaves, the evening tint, bursts (these frame the characters and are judged with them) |
 
 Not characters (not under this bar): the theme art tiles (`scripts/build-theme-art.mjs`), the photo, e-sign and

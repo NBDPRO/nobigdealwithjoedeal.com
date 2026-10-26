@@ -8,7 +8,7 @@
  *   - body.px-scanlines   optional static scanline overlay
  *   - dialog notifications  toasts redrawn as a dialog box with a typewriter
  *                           (any theme; independent of the skin)
- *   - Home "Party" + "Trainer Card": the open leads closest to going cold,
+ *   - Home "Crew" + "Rep Card": the open leads closest to going cold,
  *     each with an HP bar, and your numbers with achievement badges
  *
  * Settings:  userSettings/{uid}.pixelMode = { skin, scanlines, dialog }.
@@ -53,8 +53,8 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = { normalize: normalize, worldOn: worldOn, canSetCompany: canSetCompany }; }
   if (!w || !doc || (w.NBDPixelMode && !w.NBDPixelMode.__stub)) return;   // pixel-mode.js leaves a __stub
 
-  var CSS_URL = '/pro/css/pixel-mode.css?v=1';
-  var LOGIC_URL = '/pro/js/pixel-logic.js?v=1';
+  var CSS_URL = '/pro/css/pixel-mode.css?v=2';
+  var LOGIC_URL = '/pro/js/pixel-logic.js?v=2';
   var FONT_URL = 'https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap';
 
   var cfg = normalize(null);
@@ -67,12 +67,12 @@
   var wildEl = null;
 
   // Pixel World (E2): lazy. Nothing below runs until someone opens it.
-  var WORLD_LOGIC_URL = '/pro/js/pixel-world-logic.js?v=1';
-  var WORLD_JS_URL = '/pro/js/pixel-world.js?v=1';
+  var WORLD_LOGIC_URL = '/pro/js/pixel-world-logic.js?v=2';
+  var WORLD_JS_URL = '/pro/js/pixel-world.js?v=2';
   var WORLD_CSS_URL = '/pro/css/pixel-world.css?v=1';
   var OUTLOOK_URL = '/pro/js/storm-outlook.js?v=1';
   var worldUser = { enabled: false };        // userSettings.pixelWorld (enabled flag)
-  var worldSeen = [];                        // userSettings.pixelWorld.seen (Lead Dex)
+  var worldSeen = [];                        // userSettings.pixelWorld.seen (Lead Book)
   var worldCompany = null;                   // companyProfile/{id}.pixelWorld, read lazily
   var worldCompanyAsked = false;
   var worldGame = null;                      // the running game handle
@@ -166,7 +166,7 @@
     b.classList.toggle('px-scanlines', cfg.skin && cfg.scanlines);
     b.classList.toggle('px-dialog-notify', cfg.dialog);
     watchToasts(cfg.dialog);
-    if (any) withLogic().then(renderHome).catch(function () { /* skin still works without the party card */ });
+    if (any) withLogic().then(renderHome).catch(function () { /* skin still works without the crew card */ });
     else renderHome();
     renderPanel();
   }
@@ -230,7 +230,7 @@
     book.focus();
   }
 
-  // ── Home: Trainer Card + Party ───────────────────────────────────────
+  // ── Home: Rep Card + Crew ────────────────────────────────────────────
   function el(tag, cls, text) {
     var n = doc.createElement(tag);
     if (cls) n.className = cls;
@@ -274,11 +274,11 @@
 
     var frag = doc.createDocumentFragment();
 
-    // Trainer Card
+    // Rep Card
     var t = el('div', 'px-card px-trainer');
-    t.setAttribute('aria-label', 'Trainer card');
+    t.setAttribute('aria-label', 'Rep card');
     var hdr = el('div', 'px-card-hdr');
-    hdr.appendChild(el('h3', 'px-h', 'TRAINER CARD'));
+    hdr.appendChild(el('h3', 'px-h', 'REP CARD'));
     hdr.appendChild(el('span', 'px-sub', 'LV ' + card.level));
     t.appendChild(hdr);
     var stats = el('div', 'px-stats');
@@ -306,11 +306,11 @@
     t.appendChild(badges);
     frag.appendChild(t);
 
-    // Party
+    // Crew
     var p = el('div', 'px-card px-party');
-    p.setAttribute('aria-label', 'Party: leads closest to going cold');
+    p.setAttribute('aria-label', 'Crew: leads closest to going cold');
     var ph = el('div', 'px-card-hdr');
-    ph.appendChild(el('h3', 'px-h', 'PARTY'));
+    ph.appendChild(el('h3', 'px-h', 'CREW'));
     ph.appendChild(el('span', 'px-sub', 'HP = days before a lead goes cold (' + L.COLD_DAYS + ')'));
     if (worldEnabled()) {
       var enter = el('button', 'btn btn-ghost px-enter', 'ENTER TOWN');
@@ -320,7 +320,7 @@
     }
     p.appendChild(ph);
     var ul = el('ul', 'px-party-list');
-    if (!party.length) ul.appendChild(el('li', 'px-empty', 'No open leads in your party.'));
+    if (!party.length) ul.appendChild(el('li', 'px-empty', 'No open leads on your crew.'));
     party.forEach(function (m) {
       var li = el('li', 'px-mon');
       li.setAttribute('data-px-lead', m.id);

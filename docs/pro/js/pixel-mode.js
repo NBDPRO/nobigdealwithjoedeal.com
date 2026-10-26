@@ -2,7 +2,7 @@
  * pixel-mode.js — the only Pixel Mode / Pixel World tag on the dashboard: a
  * boot LOADER (2026-10-11, CRM style roadmap E1 + E2).
  *
- * The skin, the Party card, the dialog notifications and the town launcher
+ * The skin, the Crew card, the dialog notifications and the town launcher
  * live in pixel-mode-core.js, which this file fetches only when it is needed:
  *   - the person's settings say the skin or dialog notifications are on, or
  *   - the Pixel Mode card in Settings > Appearance scrolls into view, or
@@ -34,7 +34,7 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = { wantsCore: wantsCore }; }
   if (!w || !doc || w.NBDPixelMode) return;
 
-  var CORE_URL = '/pro/js/pixel-mode-core.js?v=1';
+  var CORE_URL = '/pro/js/pixel-mode-core.js?v=2';
   var corePromise = null;
 
   function loadCore() {

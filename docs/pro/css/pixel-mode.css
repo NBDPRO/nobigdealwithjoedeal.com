@@ -95,7 +95,7 @@ body.skin-pixel.px-scanlines::after {
   body.skin-pixel.px-scanlines::after { display: none; }
 }
 
-/* ── Party + Trainer Card (Home) ────────────────────────────────────────── */
+/* ── Crew + Rep Card (Home) ─────────────────────────────────────────────── */
 .px-card {
   background: var(--s);
   color: var(--t);
