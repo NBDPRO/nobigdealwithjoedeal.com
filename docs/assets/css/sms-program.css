@@ -61,7 +61,7 @@ nav .nav-logo img{height:60px;width:auto;border-radius:6px;flex-shrink:0}
 .highlight-box p:last-child{margin-bottom:0}
 
 /* ── FOOTER (footer-extended; careers.html rules) ── */
-a{text-decoration:none}
+a{text-decoration:none;overflow-wrap:anywhere} /* the long nobigdealwithjoedeal.com/... links ran 14 px past a 320 px screen (2026-10-26) */
 .terms-section a{text-decoration:underline}
 footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 56px 5% 28px; }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
