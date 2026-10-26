@@ -143,7 +143,7 @@
     }
     else if (pose === 'cheer') {
       var j = s(t / 170) * m, air = Math.abs(j);
-      p.armLUp = 1; p.armRUp = 1; p.armL = 150 + j * 14; p.armR = -150 - j * 14; p.elbowL = 14 + j * 6; p.elbowR = -14 - j * 6;
+      p.armLUp = 1; p.armRUp = 1; p.armL = 128 + j * 8; p.armR = -128 - j * 8; p.elbowL = j * 4; p.elbowR = -j * 4; // clean-up 2026-10-25: the hands end beside the jaw, not behind the head (what the back hand holds shows; the front hand is off the cheek)
       p.jump = air * 7; p.mouth = 'open'; p.mouthOpen = 1; p.browUp = 1;
       // wave 24: squash and stretch. The body flattens while the feet are on the ground (the bottom third of the arc:
       // the crouch before a jump and the landing after it) and stretches toward the top; a still frame stands plain.
@@ -365,29 +365,35 @@
     }
     // whatever the hand holds sits at the end of the forearm
     function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); ctx.scale(1 / bw, 1 / bh); fn(); ctx.restore(); }
+    // clean-up 2026-10-25: upright(k) squares the hand frame back up by k (1 for the umbrella and the cane: always vertical); a back hand raised past 80 degrees eases to 1 over 30 more, so a cheer, a shrug or the hips fidget holds its prop upright and a tween never pops
+    var raised = Math.max(0, Math.min(1, (p.armL + p.elbowL - 80) / 30));
+    function upright(k) { ctx.rotate(-(p.armL + p.elbowL) * k * Math.PI / 180); }
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
+    if (o.crop === 'bust' && (a.prop !== 'umbrella' || a.clipboard)) p.noProp = true; // clean-up 2026-10-25: a bust ends above the hanging hand, so its prop showed as a sliver (the umbrella is the one prop a bust keeps)
     if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
-    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
-    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
+    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { upright(raised); pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { upright(a.prop === 'umbrella' || a.prop === 'cane' ? 1 : raised); prop(a.prop); });
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
       if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
       else if (k === 'mug') { pen.circle(3, -1, 4, '#F5F5F0'); pen.circle(3, -1, 1.6, '#C9CDD2', true); pen.rrect(-9, -7, 11, 12, 2, '#F5F5F0'); pen.ellipse(-3.5, -7, 5, 1.6, 0, '#6B4A2B', true); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -11); ctx.quadraticCurveTo(-4, -13, -6, -15); ctx.moveTo(-2, -11); ctx.quadraticCurveTo(0, -13, -2, -15); ctx.stroke(); }
-      else if (k === 'cane') { pen.rrect(-1.5, -8, 3, 30, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, 20, 4, 2.5); }
+      else if (k === 'cane') { var reach = Math.min(22.5, (120 - (78 + 11 * Math.cos(p.armL * Math.PI / 180) + 11 * Math.cos((p.armL + p.elbowL) * Math.PI / 180))) * bh); pen.rrect(-1.5, -8, 3, reach + 8, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, reach - 2.5, 4, 2.5); } // clean-up 2026-10-25: planted (upright(1)) and reaching the sole line from wherever the hand is, capped so a raised hand keeps a normal cane; it used to swing with the forearm
       else if (k === 'keys') { pen.circle(0, -3, 4.5, '#B4B8BD'); pen.circle(0, -3, 2, '#6F747A', true); pen.rrect(-3, 1, 3.5, 10, 1, '#E0B45A'); pen.rrect(0.5, 1.5, 3, 9, 1, '#B4B8BD'); ctx.fillStyle = INK; ctx.fillRect(-3, 8, 1.5, 1.5); ctx.fillRect(2.5, 7, 1.5, 1.5); }
       else if (k === 'baby') { pen.ellipse(-4, -3, 9.5, 6.5, 0.35, '#F2C6DC'); pen.circle(-10, -7, 4.2, '#F2C6A0'); ctx.fillStyle = INK; ctx.fillRect(-12, -7.5, 1.6, 1); ctx.fillRect(-9, -7.5, 1.6, 1); ctx.fillStyle = BLUSH; ctx.fillRect(-12.5, -5.5, 2, 1.2); ctx.fillRect(-8.5, -5.5, 2, 1.2); ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -8); ctx.quadraticCurveTo(0, -4, -2, 2); ctx.stroke(); }
-      else if (k === 'brush') { pen.rrect(-1.5, -16, 3, 17, 1.5, '#8B5A2B'); pen.rrect(-4.5, 0, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 3.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 9, 8, 2.5); }
+      else if (k === 'brush') { pen.rrect(-1.5, -11, 3, 13, 1.5, '#8B5A2B'); pen.rrect(-4.5, 2, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 5.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 11, 8, 2.5); } // clean-up 2026-10-25: the fist grips the handle, not the ferrule; it used to run 16 up the sleeve
       else if (k === 'umbrella') {
-        // the hand frame turns with the arm; square it back up so the canopy sits over the head (body to +x, up is -y)
-        ctx.rotate(-(p.armL + p.elbowL) * Math.PI / 180);
+        // the hand frame is squared up by upright(1), so the shaft stands over the head (body to +x, up is -y); the canopy is drawn after the head (clean-up 2026-10-25)
         pen.line(0, 2, 18, -58, 2.6 + pen.lw * 0.6, INK); pen.line(0, 2, 18, -58, 2.2, '#2C2C2A'); pen.circle(0, 4, 2.4, '#2C2C2A');
+      }
+      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
+    }
+    // clean-up 2026-10-25: the canopy, in the shaft's frame but drawn after the head and the hat, so a hat crown, a pompom or a spike that reaches its edge tucks under it, not over it
+    function canopy() {
         pen.shape(function (c) { c.moveTo(-24, -58); c.quadraticCurveTo(-18, -92, 18, -96); c.quadraticCurveTo(54, -92, 60, -58); for (var si = 0; si < 6; si++) c.quadraticCurveTo(53 - si * 14, -52, 46 - si * 14, -58); }, '#BD5728');
         ctx.fillStyle = '#DD875F'; [[-10, -60], [18, -94], [46, -60]].forEach(function (pt, i) { ctx.beginPath(); ctx.moveTo(18, -58); if (i === 1) { ctx.lineTo(4, -90); ctx.lineTo(32, -90); } else { ctx.lineTo(pt[0], pt[1]); ctx.lineTo(pt[0] + (i ? -6 : 6), -84); } ctx.closePath(); ctx.fill(); });
         ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; [-10, 46].forEach(function (rx) { ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(rx, -60); ctx.stroke(); }); ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(18, -94); ctx.stroke();
         pen.circle(18, -97, 2.2, '#2C2C2A');
-      }
-      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
     }
 
     ctx.restore(); // body group
@@ -515,6 +521,7 @@
     if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + fx + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
     if (p.cover) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); frontArm(); ctx.restore(); } // the hand over the mouth sits on top of the face
+    if (a.prop === 'umbrella' && !p.noProp && !a.clipboard) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); inHand(34, 78, p.armL, p.elbowL, function () { upright(1); canopy(); }); ctx.restore(); } // the canopy over the head and the hat (clean-up 2026-10-25)
 
     // the right (front) arm and whatever it holds (drawn here, or over the head when the pose covers the mouth: wave 17)
     function frontArm() {
@@ -553,7 +560,7 @@
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
     var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
     if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
-    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold });
+    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold, crop: o.crop });
   }
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
