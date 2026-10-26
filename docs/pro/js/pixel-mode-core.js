@@ -205,7 +205,7 @@
     toastObserver.observe(c, { childList: true });
   }
 
-  // ── "A wild LEAD appeared!" ──────────────────────────────────────────
+  // ── New-lead prompt ──────────────────────────────────────────────────
   function closeWild() {
     if (wildEl) { wildEl.remove(); wildEl = null; }
   }
@@ -218,7 +218,7 @@
     wildEl.className = 'px-wild';
     wildEl.setAttribute('role', 'alertdialog');
     wildEl.setAttribute('aria-label', 'New lead');
-    var t = doc.createElement('div'); t.className = 'px-wild-title'; t.textContent = 'A wild LEAD appeared!';
+    var t = doc.createElement('div'); t.className = 'px-wild-title'; t.textContent = 'NEW LEAD!';
     var who = doc.createElement('div'); who.textContent = name + ' just came in. What now?';
     var opts = doc.createElement('div'); opts.className = 'px-wild-opts';
     var book = doc.createElement('button'); book.type = 'button'; book.setAttribute('data-px-wild', 'book'); book.textContent = 'BOOK IT';

@@ -29,39 +29,27 @@ One wording note: "Crew" for the at-risk leads now sits beside the real job crew
 (Roof Rep's Crew board and the crews in its build scene, the CRM's Crew Calendar and
 the Crew Scheduled stage). Jo's choice, kept. The sections
 below were rewritten to the new names where they describe how the feature works
-today; "A wild LEAD appeared!" (the new-lead dialog) was not part of this decision
-and is unchanged (see the open question below).
+today; the new-lead dialog's encounter line was reworded to "NEW LEAD!" by a
+separate decision on 2026-10-26 (see below).
 
-### Open question for Jo: the encounter line and the Pokemon-named themes (not decided)
+### Decided (Jo, 2026-10-26): reword the new-lead dialog only
 
-Review of the rename found two more places that still carry the creature-game
-flavour. Nothing was changed, because neither was in Jo's answer; the default is
-option (a) until Jo picks.
+Review of the rename found two more places that carried the creature-game
+flavour. Jo picked "reword the dialog only":
 
-- The new-lead dialog title "A wild LEAD appeared!" (`wildLead` in
-  `pixel-mode-core.js`), the classic encounter line. Its class `px-wild` and the
-  `data-px-wild` hooks are identifiers and would stay either way.
-- The CRM theme catalog (not Pixel Mode): `poke-center` ("Poké Center") and
-  `pokemon` ("Pokemon") in `theme-engine.js`, plus the "Pokémon" entry in the
-  `maps.js` map-theme list. They sit in the same pop-culture category as
-  Batman, Darth Vader, Lightsaber, Mario, Zelda, Superman and others, which
-  My Skin (2026-10-01) was built around on purpose.
-
-Pick one:
-
-1. (a) Leave both as they are. Current state.
-2. (b) Reword the dialog only, for example "NEW LEAD!".
-3. (c) Reword the dialog and rename only the two Pokemon themes. This leaves the
-   other pop-culture themes, so it removes the Pokemon names but not the wider
-   question.
-4. (d) Reword the dialog and review the whole pop-culture theme catalog as its own task.
-
-If (b), (c) or (d): the dialog change is the title string in `pixel-mode-core.js`
-plus its comment, the comment in `pixel-mode.css` ("A wild LEAD appeared!" prompt),
-the `?v=2` on `CORE_URL` in `pixel-mode.js` (to 3), the two lines in this note
-that quote it, and one pin in `tests/pixel-rename-2026-10-25.test.js`. A theme
-rename is the display `name` only (theme ids are stored in settings and stay);
-no test asserts the display names today (the tests use the ids).
+- The new-lead prompt title is now "NEW LEAD!" (it was the classic encounter
+  line). Its class `px-wild`, the `data-px-wild` hooks and the `wildLead`
+  function are identifiers and stay. `pixel-mode-core.js` is at `?v=3` and
+  `pixel-mode.js` at `?v=4`; the rename guard pins both the new title and the
+  absence of the old line.
+- The CRM theme catalog (not Pixel Mode) is unchanged by choice: `poke-center`
+  ("Poké Center") and `pokemon` ("Pokemon") in `theme-engine.js`, plus the
+  "Pokémon" entry in the `maps.js` map-theme list. They sit in the same
+  pop-culture category as Batman, Darth Vader, Lightsaber, Mario, Zelda,
+  Superman and others, which My Skin (2026-10-01) was built around on purpose.
+  If the wider trademark question is ever taken up, it is its own task: a theme
+  rename is the display `name` only (theme ids are stored in settings and stay),
+  and no test asserts the display names today (the tests use the ids).
 
 ## E1 — Pixel Mode skin + dialog-box notifications (shipped with this note)
 

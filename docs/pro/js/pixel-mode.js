@@ -34,7 +34,7 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = { wantsCore: wantsCore }; }
   if (!w || !doc || w.NBDPixelMode) return;
 
-  var CORE_URL = '/pro/js/pixel-mode-core.js?v=2';
+  var CORE_URL = '/pro/js/pixel-mode-core.js?v=3';
   var corePromise = null;
 
   function loadCore() {

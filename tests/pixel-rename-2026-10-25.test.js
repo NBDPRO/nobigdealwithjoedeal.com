@@ -360,8 +360,8 @@ function decisionEngine() {
   console.log('\n4. Decision Engine: the .dex- prefix is a different feature and is untouched');
   const css = read('docs/pro/css/decision-engine-view.css');
   const js = read('docs/pro/js/decision-engine.js');
-  ok('decision-engine-view.css still carries the .dex- class prefix', (css.match(/\.dex-/g) || []).length >= 10, String((css.match(/\.dex-/g) || []).length));
-  ok('decision-engine.js still emits dex- classes', (js.match(/\bdex-/g) || []).length >= 10, String((js.match(/\bdex-/g) || []).length));
+  ok('decision-engine-view.css still carries the .dex- class prefix', (css.match(/\.dex-/g) || []).length >= 50, String((css.match(/\.dex-/g) || []).length));
+  ok('decision-engine.js still emits dex- classes', (js.match(/\bdex-/g) || []).length >= 15, String((js.match(/\bdex-/g) || []).length));
   ok('the Decision Engine files do not use the new Pixel labels (no accidental search-and-replace)',
     !/Lead Book|LEAD BOOK|Rep Card|REP CARD/.test(css + js));
   const pixelSrc = JS_FILES.concat(CSS_FILES).map(read).join('\n');
@@ -377,18 +377,22 @@ function originalityAndVersions() {
   const all = JS_FILES.concat(CSS_FILES);
   const hit = all.filter((f) => banned.test(read(f)));
   ok('no other game\'s name in any Pixel Mode / Pixel World file, comments included', hit.length === 0, hit.join(', '));
+  // Jo's pick, 2026-10-26: the new-lead prompt says NEW LEAD!, not the creature-game encounter line.
+  const encounter = all.filter((f) => /wild\s+\w+\s+appeared/i.test(read(f)));
+  ok('the new-lead prompt no longer uses the creature-game encounter line (code and comments)', encounter.length === 0, encounter.join(', '));
+  ok('the new-lead prompt title is NEW LEAD!', /t\.textContent = 'NEW LEAD!';/.test(read('docs/pro/js/pixel-mode-core.js')));
 
   const ver = (text, re) => { const m = text.match(re); return m ? Number(m[1]) : null; };
   const core = read('docs/pro/js/pixel-mode-core.js');
   const loader = read('docs/pro/js/pixel-mode.js');
   const html = read('docs/pro/dashboard.html');
   const checks = [
-    [ver(loader, /pixel-mode-core\.js\?v=(\d+)'/), 2, 'pixel-mode-core.js (CORE_URL in pixel-mode.js)'],
+    [ver(loader, /pixel-mode-core\.js\?v=(\d+)'/), 3, 'pixel-mode-core.js (CORE_URL in pixel-mode.js)'],
     [ver(core, /pixel-mode\.css\?v=(\d+)'/), 2, 'pixel-mode.css (CSS_URL)'],
     [ver(core, /pixel-logic\.js\?v=(\d+)'/), 2, 'pixel-logic.js (LOGIC_URL)'],
     [ver(core, /pixel-world-logic\.js\?v=(\d+)'/), 2, 'pixel-world-logic.js (WORLD_LOGIC_URL)'],
     [ver(core, /pixel-world\.js\?v=(\d+)'/), 2, 'pixel-world.js (WORLD_JS_URL)'],
-    [ver(html, /<script defer src="js\/pixel-mode\.js\?v=(\d+)"><\/script>/), 3, 'pixel-mode.js (the dashboard tag)'],
+    [ver(html, /<script defer src="js\/pixel-mode\.js\?v=(\d+)"><\/script>/), 4, 'pixel-mode.js (the dashboard tag)'],
   ];
   checks.forEach(([v, min, name]) => ok('cache-bust: ' + name + ' is at v=' + min + ' or later (a changed file must not be served from the old cache)', v != null && v >= min, 'found ' + v));
   ok('WORLD_JS_URL still appears exactly twice in the core (the lazy-load guard in pixel-world-2026-10-11 counts it)', (core.match(/WORLD_JS_URL/g) || []).length === 2);

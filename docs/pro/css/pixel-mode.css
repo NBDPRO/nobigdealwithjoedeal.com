@@ -183,7 +183,7 @@ html[data-motion="reduce"] .px-hp > i { transition: none; }
 html[data-motion="reduce"] .toast.px-dialog::after { animation: none; }
 @media (prefers-reduced-motion: reduce) { .toast.px-dialog::after { animation: none; } }
 
-/* "A wild LEAD appeared!" prompt: BOOK IT / TEXT LATER. */
+/* New-lead prompt: BOOK IT / TEXT LATER. */
 .px-wild {
   position: fixed;
   left: 0;
