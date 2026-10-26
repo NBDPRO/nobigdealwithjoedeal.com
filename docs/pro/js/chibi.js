@@ -277,16 +277,17 @@
     var wind = Math.max(0, Math.min(1, Number(o.wind) || 0));
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
     if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
+    if (o.crop === 'bust') { p.jump = 0; p.sy = 1; p.sx = 1; } // clean-up 2026-10-25: a bust keeps the face in its frame (the cheer's jump and stretch only pushed the hat past the top edge; the arms, mouth, eyes and sparkles still read)
     // wave 24: facing is 1 or -1, or any number between while a tween turns the body (never thinner than 8%, so the
     // edge-on frame still reads as a figure); the sign decides which way the eyes and the face turn
     var fv = Number(o.facing), facing = isFinite(fv) && fv !== 0 ? Math.max(-1, Math.min(1, fv)) : 1;
     if (Math.abs(facing) < 0.08) facing = facing < 0 ? -0.08 : 0.08;
     var fab = Math.abs(facing), fsign = facing < 0 ? -1 : 1, turnK = 1 - fab;
     var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h;
-    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 106%
-    // and settles, from the feet. Nothing at 1 (or when unset).
+    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 103%
+    // (clean-up 2026-10-25: 106% lifted a beanie's pompom past a bust's top edge) and settles, from the feet. Nothing at 1 (or when unset).
     var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
-    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.06 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
+    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.03 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
     // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
     // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
     var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
@@ -565,8 +566,8 @@
     var cw = Math.round(rect.width) || canvas.width || 64, ch = Math.round(rect.height) || canvas.height || 64;
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
-    var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
-    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
+    var h = (o.fit || 0.79) * ch, y = ch - (ch - h) * 0.2, shadow = o.shadow !== false; // clean-up 2026-10-25: 80% of the slack over the head (25.5 units above the 120 box, 6.4 under the feet for the shadow): at 0.86 split evenly the cheer's apex and the pop overshoot cut every hat top flat (a tall beanie's pompom reaches -24.5 at the top of the jump; 11.3 units were left)
+    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (134 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build (clean-up 2026-10-25: 134, not 128, so a beanie's pompom clears the top at 90 px; the crop line moves from ~97 to ~91 units)
     draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold, crop: o.crop });
   }
   var loops = 0;
