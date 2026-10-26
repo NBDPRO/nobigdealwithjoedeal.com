@@ -1206,6 +1206,14 @@ jobs:
         run: |
           cd tests
           node ds-layouts-phone-fit-2026-10-25.test.js
+      # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
+      # the "This Week" tiles populate on a first visit, the sample estimates show
+      # an address / squares / sent / signed, the Door-to-Door tab labels stay
+      # inside their tabs at 320-430 px. Same server, same Chromium.
+      - name: Run the CRM dashboard sample-data check
+        run: |
+          cd tests
+          node crm-dashboard-sample-render-2026-10-26.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange

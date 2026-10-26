@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 8; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22)
+const SEED_VERSION = 9; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt)
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -214,21 +214,35 @@ function build() {
   });
 
   // Estimates: the story's good/better/best on Jordan Avery, plus three more.
+  // Each carries the fields the builders write and the Estimates list, its
+  // status band and Reports read (estimate-v2-ui.js, estimates.js: addr, sq,
+  // roofType, tierName, sentAt, signedAt) beside the older address / squares /
+  // status ones. Without them (seed 8) every card read "No address · — · — SQ",
+  // the band counted 0 sent / 0 signed (estimate-analytics.js classifies on
+  // sentAt and signedAt, not on status) and Reports showed a $0 average ticket
+  // beside an 89% close rate. sq is the square count the retail package's
+  // per-square rate implies for the total, so sq x rate stays the price.
   const tiersOut = S.tiers.map((t) => ({ key: t.key, label: t.label, product: t.shingle, total: t.priceCents / 100, includes: t.items.slice() }));
   add('estimates/sample-est-01', {
     leadId: 'sample-lead-01', userId: UID, companyId: UID, isSample: true,
     owner: 'Jordan Avery', address: S.street + ', ' + S.cityLine, name: 'Roof replacement: three options',
     package: 'Better', selectedTier: 'better', total: preferred.priceCents / 100, grandTotal: preferred.priceCents / 100,
     squares: S.squares, pitch: S.pitch, tiers: tiersOut, warrantyNote: S.systemPlus + ' (Standard and up)',
-    status: 'sent', createdAt: ts(-2, 14), updatedAt: ts(-2, 14)
+    status: 'sent', createdAt: ts(-2, 14), updatedAt: ts(-2, 14),
+    addr: S.street + ', ' + S.cityLine, sq: S.squares, roofType: 'Hip & Gable', tierName: preferred.label, sentAt: ts(-2, 14)
   });
-  [[7, 15800, 'Better'], [13, 14300, 'Better'], [16, 20400, 'Best']].forEach(([n, total, pkg], k) => {
+  [[7, 15800, 'Better', 'Hip'], [13, 14300, 'Better', 'Gable'], [16, 20400, 'Best', 'Hip & Gable']].forEach(([n, total, pkg, roofType], k) => {
     const L = ROWS[n - 1];
+    const address = L[2] + ', ' + L[3] + ', ' + L[4] + ' ' + L[5];
+    const tier = S.tiers.find((t) => t.key === pkg.toLowerCase());
     add('estimates/sample-est-0' + (k + 2), {
       leadId: 'sample-lead-' + String(n).padStart(2, '0'), userId: UID, companyId: UID, isSample: true,
-      owner: L[0] + ' ' + L[1], address: L[2] + ', ' + L[3] + ', ' + L[4] + ' ' + L[5], name: 'Roof replacement',
+      owner: L[0] + ' ' + L[1], address, name: 'Roof replacement',
       package: pkg, total, grandTotal: total, status: n === 16 ? 'accepted' : 'sent', createdAt: ts(-5 - k, 13), updatedAt: ts(-4 - k, 13),
-      tier: pkg.toLowerCase(), lineItems: [{ description: 'Roof replacement, ' + pkg + ' package (sample price)', qty: 1, unit: 'job', rate: total, total }]
+      tier: pkg.toLowerCase(), lineItems: [{ description: 'Roof replacement, ' + pkg + ' package (sample price)', qty: 1, unit: 'job', rate: total, total }],
+      addr: address, sq: Number((total / (tier.priceCents / 100 / S.squares)).toFixed(2)), roofType, tierName: tier.label, sentAt: ts(-4 - k, 13),
+      // Grace Holm's contract was signed the day her lead entered contract_signed (stageStartedAt: 3 days ago, noon).
+      ...(n === 16 ? { signedAt: ts(-3, 12) } : {})
     });
   });
 
