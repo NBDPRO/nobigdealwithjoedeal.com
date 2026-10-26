@@ -1004,6 +1004,23 @@ const MOBILE_CTA_STRIP = `<!-- STICKY MOBILE CTA STRIP (site-wide, conversion au
   <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
 </div>`;
 
+// Search snippets and share cards show about 155 characters. A longer
+// description ends at its last full sentence when that still fills most of the
+// budget, else at the last whole word with an ellipsis. It was a bare
+// .slice(0, 155) until 2026-10-26, which ended 46 of 48 pages mid-word. The
+// result is always the start of the source text, so no wording is added.
+const META_DESC_MAX = 155;
+const trimMetaDescription = (text, max = META_DESC_MAX) => {
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  let sentenceEnd = 0;
+  for (const m of t.slice(0, max + 1).matchAll(/[.!?](?=\s|$)/g)) if (m.index < max) sentenceEnd = m.index + 1;
+  if (sentenceEnd >= Math.round(max * 0.6)) return t.slice(0, sentenceEnd);
+  let cut = t.slice(0, max - 1); // room for the ellipsis
+  if (/\S/.test(t[max - 1]) && cut.includes(' ')) cut = cut.slice(0, cut.lastIndexOf(' ')); // never mid-word
+  return `${cut.replace(/[\s.,;:–—-]+$/, '')}…`;
+};
+
 const detailPage = (p) => {
   const price = priceLine(p);
   const metaBits = [esc(p.city)];
@@ -1015,7 +1032,7 @@ const detailPage = (p) => {
   const crumbArea = areaHref(townOf(p)) || '/areas/cincinnati-oh';
   const crumbCity = crumbArea === '/areas/cincinnati-oh' ? 'Cincinnati, OH' : esc(p.city);
   // A pre-NBD job's search snippet carries the label too.
-  const descMeta = `${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`.slice(0, 155);
+  const descMeta = trimMetaDescription(`${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1040,6 +1057,8 @@ const detailPage = (p) => {
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=3">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
