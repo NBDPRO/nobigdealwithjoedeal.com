@@ -590,7 +590,7 @@
     // today-home.js at Home boot; it loads storm-mode.js like Mission Control.
     stormstrip: [
       'css/storm-strip.css?v=1',
-      'js/storm-strip.js?v=1'
+      'js/storm-strip.js?v=2'
     ],
     // Layout usage (2026-10-16): an anonymous, company-scoped "this layout was
     // used today" count, one per device per day. Kicked by today-home.js.

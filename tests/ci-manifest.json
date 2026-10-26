@@ -768,7 +768,8 @@
     "pro-demo-tools-2026-10-24.test.js",
     "project-codex-quick-actions-2026-10-24.test.js",
     "lead-form-feedback-2026-10-26.test.js",
-    "wizard-validation-focus-2026-10-26.test.js"
+    "wizard-validation-focus-2026-10-26.test.js",
+    "scroll-padding-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1363,6 +1364,7 @@
     "crm-layouts-render-2026-10-15.test.js",
     "ds-layouts-phone-fit-2026-10-25.test.js",
     "crm-dashboard-sample-render-2026-10-26.test.js",
+    "crm-home-boot-layout-shift-2026-10-26.test.js",
     "crm-overlay-keyboard-2026-10-26.test.js",
     "layouts-visual-audit-2026-10-19.test.js",
     "public-intake.test.js",
