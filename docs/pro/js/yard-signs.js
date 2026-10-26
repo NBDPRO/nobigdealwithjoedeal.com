@@ -367,6 +367,8 @@
       '</div>';
     document.body.appendChild(ov);
     updateDue();
+    // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+    if (window.nbdOverlay) window.nbdOverlay.attach(ov, { label: sign ? 'Edit yard sign' : 'Place a yard sign', close: closePlace });
   }
   function closePlace() { const m = document.getElementById('ysPlaceModal'); if (m) m.remove(); _form = null; }
 

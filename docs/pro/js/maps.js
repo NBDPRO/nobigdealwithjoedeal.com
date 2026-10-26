@@ -266,6 +266,8 @@ function nbdPickerOpen()  {
     });
   }
   document.getElementById('nbd-picker-modal').classList.add('open'); _nbdSyncActiveLabels(); nbdRenderCats(); nbdRenderThemes();
+  // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+  if (window.nbdOverlay) window.nbdOverlay.attach(document.getElementById('nbd-picker-modal'), { label: 'Appearance', close: nbdPickerClose });
 }
 // Re-sync the header sub-label + footer "Active:" label to the LIVE applied
 // theme. On the dashboard (window.ThemeEngine) the saved theme is applied
@@ -442,7 +444,10 @@ function nbdCopyClass() { const c=_nbd_activeTheme==='default'?'(default — no 
 function nbdCopyFS()    { const c=`await db.collection('users').doc(uid).update({ theme: '${_nbd_activeTheme}', font: '${_nbd_activeFont}' });`; navigator.clipboard?.writeText(c); nbdToast('Firestore write copied'); }
 
 /* ── HOW-TO MODAL ─────────────────────────────────────────────────── */
-function nbdHowtoOpen()  { document.getElementById('nbd-howto-modal').classList.add('open'); }
+function nbdHowtoOpen()  {
+  document.getElementById('nbd-howto-modal').classList.add('open');
+  if (window.nbdOverlay) window.nbdOverlay.attach(document.getElementById('nbd-howto-modal'), { label: 'Theme guide', close: nbdHowtoClose });
+}
 function nbdHowtoClose() { document.getElementById('nbd-howto-modal').classList.remove('open'); }
 document.addEventListener('DOMContentLoaded', function() {
   const _howtoModal = document.getElementById('nbd-howto-modal');

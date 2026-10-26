@@ -1362,6 +1362,7 @@
     "crm-layouts-render-2026-10-15.test.js",
     "ds-layouts-phone-fit-2026-10-25.test.js",
     "crm-dashboard-sample-render-2026-10-26.test.js",
+    "crm-overlay-keyboard-2026-10-26.test.js",
     "layouts-visual-audit-2026-10-19.test.js",
     "public-intake.test.js",
     "referral-rewards.test.js",

@@ -203,6 +203,10 @@ CEILING.localBytes += 16 * 1024;
 // estimateFollowBoard, absent = off). No boot-time reads; with the flag off it only keeps the toolbar button hidden. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 16 * 1024;
+// +1 local tag, deliberate (2026-10-26, CRM overlay keyboard): js/overlay-a11y.js (window.nbdOverlay, ~9 KB readable / ~3 KB
+// shipped). Deferred, no boot-time reads: it adds one keydown listener and does nothing until a dialog calls attach(). The
+// dialogs that call it open on a user action, but the call must exist by then, so it cannot ride a lazy bundle. Own line.
+CEILING.localScripts += 1;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:

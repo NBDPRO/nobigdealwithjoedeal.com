@@ -799,7 +799,7 @@
 
   <!-- TIER 2: TOOLS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="tools">
+    <div class="nav-section-header" data-action="navSection" data-target="tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-tools">
       <span>TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-tools">▶</span>
     </div>
@@ -819,7 +819,7 @@
 
   <!-- TIER 3: INSIGHTS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="insights">
+    <div class="nav-section-header" data-action="navSection" data-target="insights" role="button" tabindex="0" aria-expanded="true" aria-controls="section-insights">
       <span>INSIGHTS</span>
       <span class="nav-section-toggle open" id="toggle-insights">▶</span>
     </div>
@@ -851,7 +851,7 @@
 
   <!-- AI TOOLS (Collapsible — matches TOOLS + INSIGHTS pattern) -->
   <div class="nav-section" style="margin-top:4px;">
-    <div class="nav-section-header" data-action="navSection" data-target="ai-tools">
+    <div class="nav-section-header" data-action="navSection" data-target="ai-tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-ai-tools">
       <span>AI TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-ai-tools">▶</span>
     </div>
@@ -7360,6 +7360,9 @@
 <script defer src="js/numbers-logic.js?v=2"></script>
 <script defer src="js/numbers-data.js?v=2"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
+<!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
+     Called by widgets.js, maps.js, whats-new.js and the lazy d2d / hd-import / yard-signs / decision-engine bundles. -->
+<script defer src="js/overlay-a11y.js?v=1"></script>
 <script defer src="js/widgets.js?v=20"></script>
 <script defer src="js/today-home.js?v=24"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->

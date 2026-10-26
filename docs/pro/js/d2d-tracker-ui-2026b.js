@@ -433,6 +433,19 @@
     });
     _fitKnockSheetToViewport(overlay);
     renderDoorGate();
+    // Keyboard contract (js/overlay-a11y.js). Escape is the × button and the tap beside the sheet,
+    // with two guards: a save in flight owns the sheet (closing it nulls currentKnockEntry under
+    // handleSubmitKnock), and an open address-suggestion list takes the first Escape.
+    if (window.nbdOverlay) window.nbdOverlay.attach(overlay, {
+      label: 'New knock',
+      isOpen: (el) => el.classList.contains('open'),
+      close: () => {
+        if (_knockSubmitInFlight) return;
+        const ac = document.getElementById('d2d-qk-address-ac');
+        if (ac && ac.style.display === 'block') { ac.style.display = 'none'; return; }
+        closeQuickKnock();
+      }
+    });
 
     // Setup autocomplete after DOM insertion
     setTimeout(() => state.setupAddressAutocomplete('d2d-qk-address'), 100);
