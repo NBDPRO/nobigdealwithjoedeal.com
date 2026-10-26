@@ -161,7 +161,7 @@
     else if (pose === 'hammer') {
       // Wind up over the shoulder, strike down fast, hold a beat: a 520 ms cycle the tool rides along.
       var cyc2 = (t % 520) / 520, k = cyc2 < 0.6 ? cyc2 / 0.6 : 1 - (cyc2 - 0.6) / 0.4; k = k * k;
-      p.armRUp = 1; p.swing = true; p.armR = -150 + k * 120 * m; p.elbowR = -40 + k * 30 * m; p.lean = 3 + k * 3 * m; p.tilt = -2 + k * 4 * m;
+      p.armRUp = 1; p.swing = true; p.armR = -100 + k * 70 * m; p.elbowR = -35 + k * 25 * m; p.lean = 3 + k * 3 * m; p.tilt = -2 + k * 4 * m; // clean-up 2026-10-25: the windup is beside the head (the hand near (85, 68), the handle up past the ear), not over it (-150/-40 put the hand on the cheek and the handle across the eye); the strike at k = 1 is -30/-10 as before
       p.armL = 10; p.elbowL = -20; p.browUp = 0.6; p.mouth = cyc2 > 0.6 && m ? 'open' : 'flat'; p.mouthOpen = cyc2 > 0.6 && m ? 0.4 : 0; p.sy = 1 - k * 0.02 * m;
     }
     else if (pose === 'climb') {
@@ -188,6 +188,7 @@
       var fc = (t + seed * 7) % 9000;
       if (m && fc > 7800) {
         var fe = s((fc - 7800) / 1200 * Math.PI), kind = (seed + Math.floor((t + seed * 7) / 9000)) % 3;
+        if (o.tool === 'ladder') kind = 0; // clean-up 2026-10-25: a ladder carrier only shifts their weight (the hips and the stretch swung the ladder across the face)
         if (kind === 0) { p.lean = fe * 4; p.tilt = fe * 3; p.legL = fe * 3; p.kneeL = fe * 4; p.bob -= fe * 1.5; }
         else if (kind === 1) { p.armL = 46 * fe; p.armR = -46 * fe; p.elbowL = 112 * fe; p.elbowR = -112 * fe; p.tilt = fe * 5; p.look = -1; p.browUp = fe * 0.6; }
         else { p.armL = 24 * fe; p.armR = -24 * fe; p.elbowL = 46 * fe; p.elbowR = -46 * fe; p.sy = 1 + fe * 0.035; p.bob -= fe * 2; if (fe > 0.45) { p.mouth = 'open'; p.mouthOpen = 0.55; p.eyesClosed = true; } }
@@ -269,7 +270,7 @@
     o = o || {};
     var a = normalize(look), pose = pick(POSES, o.pose, 'idle'), t = o.t == null ? 0 : o.t;
     if (a.hair === 'spiky' && a.hat !== 'none') a.hair = 'short'; // spikes tuck under a hat
-    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder };
+    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder, tool: a.tool }; // clean-up 2026-10-25: the tool, so a ladder carrier skips the raised-hand fidgets
     var p = poseOf(pose, t, po);
     if (o.from && o.mix != null && o.mix < 1 && POSES.indexOf(o.from) >= 0 && o.from !== pose) p = mixPose(poseOf(o.from, t, po), p, Math.max(0, o.mix));
     // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
@@ -532,7 +533,7 @@
         if (p.swing) { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); return; } // a hammer swings whatever the look holds
         if (a.tool === 'hammer') { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
         else if (a.tool === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
-        else if (a.tool === 'ladder') { ctx.translate(10, -40); pen.rrect(0, 0, 4, 62, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 62, 2, '#B4B2A9'); for (var ry = 6; ry < 60; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); }
+        else if (a.tool === 'ladder') { if (Math.abs(p.armR + p.elbowR) > 60) return; ctx.rotate(-(p.armR + p.elbowR) * Math.PI / 180); ctx.translate(-2, -26); pen.rrect(0, 0, 4, 46, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 46, 2, '#B4B2A9'); for (var ry = 6; ry < 44; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); pen.circle(2, 26, 5, skinG); } // clean-up 2026-10-25: the ladder hangs plumb from the hand (squared up like the umbrella), the near rail under the grip, 46 tall so the top (hand - 26) clears the jaw and a beard and the foot meets the ground; it used to float 10 off the hand and swing with the forearm across the face. A hand raised past 60 degrees carries none
       });
     }
     }

@@ -2599,7 +2599,7 @@ function renderTrain() {
     var poseAt = function (now) { return cv.__cheerUntil > now ? 'cheer' : has && now % 11000 < 1400 ? 'cheer' : show.pose; };
     if (!CH) { drawTo(cv, look); return; }
     if (k === 'ladder') { var tw = {}; sceneLoop(cv, function (c, t) { paintCourseLadder(c, cv, t); var lp = CH.tween(tw, poseAt(t), t); CH.draw(c, look, { x: 34, y: 80, h: 62, t: t, pose: lp.pose, from: lp.from, mix: lp.mix, facing: 1, shadow: false }); }); return; }
-    CH.animate(cv, look, function (now) { return { pose: poseAt(now) }; });
+    CH.animate(cv, look, function (now) { return { pose: poseAt(now), fit: k === 'tools' ? 0.75 : undefined }; }); // clean-up 2026-10-25: the hammer swing reaches 110 units wide (the handle levels mid-swing), so the tools card draws its figure at 0.75 of the box to keep the handle tip inside its 64 px; the default 0.86 cut it at the edge
   });
   document.getElementById('runBtn').addEventListener('click', stormRun);
   el.querySelectorAll('[data-course]').forEach(function (b) {
