@@ -131,6 +131,7 @@
     "events-not-open-tasks-2026-09-28.test.js",
     "stripe-payoff-advance-guard-2026-09-28.test.js",
     "job-spine-2026-10-03.test.js",
+    "active-leads-open-only-2026-10-26.test.js",
     "paid-in-full-not-on-deposit-2026-10-05.test.js",
     "remote-signing-record-and-path-2026-10-05.test.js",
     "r3-security-fixes-2026-10-06.test.js",
@@ -770,7 +771,7 @@
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
-    "active-leads-open-only-2026-10-26.test.js"
+    "blog-callout-links-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
