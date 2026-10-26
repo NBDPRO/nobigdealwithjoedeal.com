@@ -167,7 +167,7 @@
     else if (pose === 'climb') {
       // Hands on the rungs, one leg stepping up at a time, the body close to the ladder.
       var st = s(t / 240) * m;
-      p.armLUp = 1; p.armRUp = 1; p.armL = 165 + st * 6; p.armR = -165 + st * 6; p.elbowL = 10; p.elbowR = -10;
+      p.armLUp = 1; p.armRUp = 1; p.armL = 116 + st * 4; p.armR = -116 + st * 4; p.elbowL = 16; p.elbowR = -16; // clean-up 2026-10-25: the hands grip beside the jaw at (84, 66) and (16, 66), outside the head on every build (165/10 put the front hand on the cheek and the eye, drawn after the head, and hid the back hand behind it); the ladder course card's rails sit under them
       p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
     }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }

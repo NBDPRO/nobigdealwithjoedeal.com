@@ -2567,13 +2567,14 @@ function anatomyCourse() {
 // What the rep does on each course card (wave 6). The ladder card's climb needs rungs under the hands: paintCourseLadder.
 var COURSE_SHOW = { ladder: { pose: 'climb' }, tools: { pose: 'hammer', tool: 'hammer' }, law: { pose: 'think', clipboard: true, tool: 'none' }, anatomy: { pose: 'point', tool: 'none' }, measure: { pose: 'think', tool: 'tape' }, walk: { pose: 'talk', tool: 'none' } };
 COURSE_SHOW.ladder.aria = 'climbing a ladder'; COURSE_SHOW.tools.aria = 'swinging a hammer'; COURSE_SHOW.law.aria = 'reading the rule book'; COURSE_SHOW.anatomy.aria = 'pointing out a roof part'; COURSE_SHOW.measure.aria = 'measuring with a tape'; COURSE_SHOW.walk.aria = 'explaining the job';
-function paintCourseLadder(c, cv, t) {
+function paintCourseLadder(c, cv, t, bw) {
   // A 64x84 CSS box painted at 2x: two rails and rungs the climb pose's hands land on, a sky wash behind, the eave up top.
   c.setTransform(2, 0, 0, 2, 0, 0); c.clearRect(0, 0, 64, 84);
   c.fillStyle = '#4a3f37'; c.fillRect(44, 0, 20, 7);
   c.fillStyle = '#c9b79c'; c.fillRect(48, 7, 16, 30);
-  c.fillStyle = '#B4B2A9'; c.fillRect(24, 2, 3, 82); c.fillRect(41, 2, 3, 82);
-  c.fillStyle = '#8F8D86'; for (var ry = 8; ry < 84; ry += 9) c.fillRect(26, ry, 16, 2.5);
+  var rx = 17.6 * (bw || 1); // clean-up 2026-10-25: the rails sit under the climb's hands, which chibi.js now holds beside the jaw at body x 50 ± 34 (× the build's width) instead of 50 ± 20 on the cheeks: at the card's h 62 that is 34 ± 17.6 × bw, not 25.5 / 42.5
+  c.fillStyle = '#B4B2A9'; c.fillRect(32.5 - rx, 2, 3, 82); c.fillRect(32.5 + rx, 2, 3, 82);
+  c.fillStyle = '#8F8D86'; for (var ry = 8; ry < 84; ry += 9) c.fillRect(34.5 - rx, ry, 2 * rx - 1, 2.5);
 }
 function renderTrain() {
   var el = document.getElementById('p-train');
@@ -2598,7 +2599,7 @@ function renderTrain() {
     cv.addEventListener('click', function () { cv.__cheerUntil = Date.now() + 1600; sfx('good'); });
     var poseAt = function (now) { return cv.__cheerUntil > now ? 'cheer' : has && now % 11000 < 1400 ? 'cheer' : show.pose; };
     if (!CH) { drawTo(cv, look); return; }
-    if (k === 'ladder') { var tw = {}; sceneLoop(cv, function (c, t) { paintCourseLadder(c, cv, t); var lp = CH.tween(tw, poseAt(t), t); CH.draw(c, look, { x: 34, y: 80, h: 62, t: t, pose: lp.pose, from: lp.from, mix: lp.mix, facing: 1, shadow: false }); }); return; }
+    if (k === 'ladder') { var tw = {}, bwx = CH.BUILDS[CH.normalize(look).build].w; sceneLoop(cv, function (c, t) { paintCourseLadder(c, cv, t, bwx); var lp = CH.tween(tw, poseAt(t), t); CH.draw(c, look, { x: 34, y: 80, h: 62, t: t, pose: lp.pose, from: lp.from, mix: lp.mix, facing: 1, shadow: false }); }); return; }
     CH.animate(cv, look, function (now) { return { pose: poseAt(now), fit: k === 'tools' ? 0.75 : undefined }; }); // clean-up 2026-10-25: the hammer swing reaches 110 units wide (the handle levels mid-swing), so the tools card draws its figure at 0.75 of the box to keep the handle tip inside its 64 px; the default 0.86 cut it at the edge
   });
   document.getElementById('runBtn').addEventListener('click', stormRun);
