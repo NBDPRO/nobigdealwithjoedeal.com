@@ -311,6 +311,7 @@
     "lowes-import-2026-10-18.test.js",
     "hd-aliases-2026-10-18.test.js",
     "receipt-sorter-logic-2026-10-18.test.js",
+    "inspect-error-placement-2026-10-26.test.js",
     "receipt-filter-logic-2026-10-19.test.js",
     "notify-new-lead-email-escape-2026-09-29.test.js",
     "escape-user-text-sinks-2026-09-29.test.js",
@@ -770,7 +771,7 @@
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
-    "inspect-error-placement-2026-10-26.test.js"
+    "blog-callout-links-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
