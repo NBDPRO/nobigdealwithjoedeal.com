@@ -519,10 +519,53 @@
 
   var _t = 0;
   function schedule() { clearTimeout(_t); _t = setTimeout(render, 120); }
+
+  // ── Boot hold (perf-1, 2026-10-26) ───────────────────────────────────
+  // Home used to build itself in front of you: a "Loading your day" card, a Next stop
+  // card inserted above it, a storm warning above that, then the list growing and
+  // shoving every card under it off the screen (CLS .4 to 1.6 on a phone). The Home
+  // template now starts as .tp-booting (today-home.css): the strips above the list, the
+  // list and everything below it are held and one placeholder card stands in. They show
+  // in the same frame, once the list is ready AND what feeds the strips has answered
+  // (appointments for Next stop, the storm read), so nothing that was on screen moves.
+  // Bounded twice so Home can never stay bare: STRIP_WAIT_MS after the list is ready
+  // (a slow storm feed shows up late, as it always did) and HOLD_MAX_MS after boot.
+  var HOLD_MAX_MS = 8000, STRIP_WAIT_MS = 700;
+  var hold = { over: false, readyAt: 0, timer: 0, rows: true, ns: false, storm: false };
+  function stripsSettled() {
+    if (appts.busy || appts.checking || !(appts.at || appts.failed)) return false;
+    if (!hold.ns || !hold.storm) return false;   // the strips' lazy bundles are still arriving
+    var SS = w.NBDStormStrip;
+    return !(SS && typeof SS.settled === 'function' && !SS.settled());
+  }
+  // Paint the strips from what they hold NOW (they repaint on a 250 ms debounce otherwise).
+  function flushStrips() {
+    try { if (w.NBDNextStop && typeof w.NBDNextStop.render === 'function') w.NBDNextStop.render(); } catch (_) { /* optional surface */ }
+    try { if (w.NBDStormStrip && typeof w.NBDStormStrip.render === 'function') w.NBDStormStrip.render(); } catch (_) { /* optional surface */ }
+  }
+  function held() {
+    try { return Array.prototype.slice.call(doc.querySelectorAll('.view-scroll.tp-booting')); } catch (_) { return []; }
+  }
+  function holdCheck() {
+    hold.timer = 0;
+    var els = held();
+    if (!els.length) return;
+    if (!hold.over) {
+      if (!hold.readyAt) return;   // the list is not ready: render() calls back when it is
+      if (!stripsSettled() && Date.now() - hold.readyAt < STRIP_WAIT_MS) { hold.timer = setTimeout(holdCheck, 50); return; }
+    }
+    flushStrips();
+    els.forEach(function (vs) {
+      vs.classList.remove('tp-booting');
+      if (hold.readyAt) vs.classList.toggle('tp-has-rows', hold.rows);
+    });
+  }
+
   function render() {
     var el = doc.getElementById('todayPlan');
     if (!el) return;
     if (!ready()) {
+      if (hold.over) holdCheck();
       el.hidden = false;
       if (!el.getAttribute('data-tp-state')) { el.innerHTML = '<div class="tp-hd"><div class="tp-title">Today</div><div class="tp-sub">Loading your day…</div></div>'; el.setAttribute('data-tp-state', 'loading'); }
       return;
@@ -535,7 +578,12 @@
     // Phone chrome (today-home.css): welcome block shrinks; strip drops duplicates.
     try {
       var vs = el.closest ? el.closest('.view-scroll') : null;
-      if (vs && vs.classList) vs.classList.toggle('tp-has-rows', p.total > 0);
+      hold.rows = p.total > 0;
+      if (!hold.readyAt) hold.readyAt = Date.now();
+      if (held().length) {
+        // Still held: the welcome block keeps its boot shape and steps down together with the reveal.
+        if (!hold.timer) holdCheck();
+      } else if (vs && vs.classList) vs.classList.toggle('tp-has-rows', p.total > 0);
       var stripEl = doc.getElementById('homeAttention');
       if (stripEl && stripEl.setAttribute) stripEl.setAttribute('data-ha-today', '1');
     } catch (_) { /* cosmetic */ }
@@ -921,6 +969,17 @@
         if (el && !el.getAttribute('data-tp-mounted')) { el.setAttribute('data-tp-mounted', '1'); render(); }
       }).observe(doc.body, { childList: true, subtree: true });
     } catch (_) { /* no observer: events still paint */ }
+    // The strips' lazy bundles: the hold waits for them to arrive (or fail), not for their data.
+    var bundled = function (name, key) {
+      var done = function () { hold[key] = true; };
+      try {
+        if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') { w.ScriptLoader.loadBundle(name).then(done, done); return; }
+      } catch (_) { /* optional surface */ }
+      done();
+    };
+    bundled('nextstop', 'ns');
+    bundled('stormstrip', 'storm');
+    setTimeout(function () { hold.over = true; holdCheck(); }, HOLD_MAX_MS);
     var tries = 0;
     (function kick() {
       if (uid() && w._leadsLoaded === true) {

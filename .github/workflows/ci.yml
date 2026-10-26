@@ -1214,6 +1214,14 @@ jobs:
         run: |
           cd tests
           node crm-dashboard-sample-render-2026-10-26.test.js
+      # The CRM Home boot on the same sample account (overnight pass 2026-10-26, perf-1):
+      # the layout shifts of the whole boot add up to under 0.1 on a phone and a desktop (they
+      # were 1.4-1.6 and 0.4-0.6), nothing but the header and a placeholder shows while Home
+      # is held, and a list that never becomes ready is released, never left bare.
+      - name: Run the CRM Home boot layout-shift check
+        run: |
+          cd tests
+          node crm-home-boot-layout-shift-2026-10-26.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
