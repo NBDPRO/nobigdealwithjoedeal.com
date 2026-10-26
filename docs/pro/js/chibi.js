@@ -277,7 +277,7 @@
     // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
     var wind = Math.max(0, Math.min(1, Number(o.wind) || 0));
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
-    if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
+    if (a.prop === 'umbrella' && !p.noProp) { p.armLUp = 1; p.armL = 150; p.elbowL = 10; } // clean-up 2026-10-26: folded arms hold nothing, so the other arm stays folded too
     if (o.crop === 'bust') { p.jump = 0; p.sy = 1; p.sx = 1; } // clean-up 2026-10-25: a bust keeps the face in its frame (the cheer's jump and stretch only pushed the hat past the top edge; the arms, mouth, eyes and sparkles still read)
     // wave 24: facing is 1 or -1, or any number between while a tween turns the body (never thinner than 8%, so the
     // edge-on frame still reads as a figure); the sign decides which way the eyes and the face turn
@@ -580,7 +580,7 @@
     var cw = Math.round(rect.width) || canvas.width || 64, ch = Math.round(rect.height) || canvas.height || 64;
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
-    var h = (o.fit || 0.79) * ch, y = ch - (ch - h) * 0.2, shadow = o.shadow !== false; // clean-up 2026-10-25: 80% of the slack over the head (25.5 units above the 120 box, 6.4 under the feet for the shadow): at 0.86 split evenly the cheer's apex and the pop overshoot cut every hat top flat (a tall beanie's pompom reaches -24.5 at the top of the jump; 11.3 units were left)
+    var h = (o.fit || (!o.crop && normalize(look).prop === 'umbrella' && !normalize(look).clipboard ? 0.56 : 0.79)) * ch, y = ch - (ch - h) * 0.2, shadow = o.shadow !== false; // clean-up 2026-10-25: 80% of the slack over the head (25.5 units above the 120 box, 6.4 under the feet for the shadow): at 0.86 split evenly the cheer's apex and the pop overshoot cut every hat top flat (a tall beanie's pompom reaches -24.5 at the top of the jump; 11.3 units were left)
     if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (134 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build (clean-up 2026-10-25: 134, not 128, so a beanie's pompom clears the top at 90 px; the crop line moves from ~97 to ~91 units)
     draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold, crop: o.crop });
   }
