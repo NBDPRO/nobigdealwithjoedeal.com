@@ -74,7 +74,15 @@ async function submitAlert() {
 
   if (saved) {
     document.getElementById('formState').style.display = 'none';
-    document.getElementById('successState').style.display = 'block';
+    const success = document.getElementById('successState');
+    success.style.display = 'block';
+    // On a phone the card landed above the viewport and focus fell to <body>
+    // (2026-10-26): announce it, focus it, and bring it to the middle of the
+    // screen (not "start": the sticky nav would cover its top).
+    success.setAttribute('role', 'status');
+    success.setAttribute('tabindex', '-1');
+    success.focus({ preventScroll: true });
+    success.scrollIntoView({ block: 'center' });
   } else {
     btn.disabled = false;
     btn.textContent = '🔔 Sign Me Up — Free';

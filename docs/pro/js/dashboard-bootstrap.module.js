@@ -3665,6 +3665,11 @@
     _setStat('weekRevenue',   '$' + weekRevenue.toLocaleString());
     _setStat('weekTasks',     weekTasks);
   }
+  // This module's own callers reach it by name; dashboard-widgets.js
+  // (renderEstimatesList) and goTo('dash') in dashboard-actions.js are classic
+  // scripts that only see window. Unexposed, their `typeof calculateWeeklyStats`
+  // was always 'undefined' and the "This Week" tiles stayed 0 on a first visit.
+  window.calculateWeeklyStats = calculateWeeklyStats;
 
   // The stageRole a lead write should carry for `stage`, or null when it can't
   // be known (R5-8-3, 2026-10-06). Tenant-aware: window.stageRole is the
