@@ -17,6 +17,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { nyDay, nyAt } = require('./fixtures/ny-time');
 
 // a warning polygon around the test customers (lat, lng) and the NWS GeoJSON shape (lng, lat)
 const RING = [[-84.62, 39.02], [-84.62, 39.18], [-84.38, 39.18], [-84.38, 39.02], [-84.62, 39.02]];
@@ -111,6 +112,18 @@ async function emptyToday(uid) {
 }
 
 test.describe.serial('Mission Control @shard2', () => {
+  // A failed test never reaches its own "clean up" line, and the layout pick and the day's appointments are
+  // the rep's, shared by every spec after this one: the next login at desktop width booted into Mission
+  // Control (CI 2026-10-26 00:11 UTC: phone-dashnav's #nav-dash click was "intercepted" by #nbdMissionRoot).
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status === testInfo.expectedStatus) return;
+    const uid = await page.evaluate(() => (window._user && window._user.uid) || null).catch(() => null);
+    for (const device of ['desktop', 'phone']) {
+      await page.evaluate((d) => window.LayoutEngine && window.LayoutEngine.saveUser({ id: null, device: d }), device).catch(() => {});
+    }
+    if (uid) await emptyToday(uid).catch(() => {});
+  });
+
   test('war room: swath, in the path, customer, canvass draft, themes, switch back', async ({ page }) => {
     test.setTimeout(240_000);
     const creds = requireTestUser();
@@ -291,19 +304,21 @@ test.describe.serial('Mission Control @shard2', () => {
     await emptyToday(uid);
 
     // three stops: A near, B far north, C right beside A. By time the order is A, B, C
-    // (two long hops); shortest is A, C, B.
+    // (two long hops); shortest is A, C, B. 11:00, 12:30 and 14:00 Eastern today: the Day route keeps only
+    // today's Eastern-day appointments, and "now + 240 minutes" is tomorrow's from 8 pm ET (fixtures/ny-time.js).
     const s = Date.now();
+    const day = nyDay();
     const defs = [
-      { n: 'Aaa', lat: 39.10, lng: -84.50, mins: 60 },
-      { n: 'Bbb', lat: 39.30, lng: -84.50, mins: 150 },
-      { n: 'Ccc', lat: 39.11, lng: -84.51, mins: 240 },
+      { n: 'Aaa', lat: 39.10, lng: -84.50, at: [11, 0] },
+      { n: 'Bbb', lat: 39.30, lng: -84.50, at: [12, 30] },
+      { n: 'Ccc', lat: 39.11, lng: -84.51, at: [14, 0] },
     ];
     for (const d of defs) {
       const id = await safeEvaluate(page, (a) => window.__mcSaveLead({ firstName: 'ZZRT', lastName: a.n + a.s, address: a.addr, phone: a.phone, stage: 'new', lat: a.lat, lng: a.lng }), { n: d.n, s, lat: d.lat, lng: d.lng, addr: uniqAddr(s, 5 + defs.indexOf(d)), phone: uniqPhone(s, 5 + defs.indexOf(d)) });
       expect(id).toBeTruthy();
       // the save path may geocode over the coordinates; pin them for a deterministic route
       await adb().doc('leads/' + id).update({ lat: d.lat, lng: d.lng });
-      const when = new Date(Date.now() + d.mins * 60 * 1000);
+      const when = nyAt(day, d.at[0], d.at[1]);
       await adb().doc('appointments/rt-' + s + '-' + d.n).set({
         repUid: uid, userId: uid, leadId: id, title: 'Roof inspection', attendeeName: 'ZZRT ' + d.n + s,
         startTime: when, endTime: new Date(when.getTime() + 45 * 60 * 1000), status: 'confirmed', location: uniqAddr(s, 5 + defs.indexOf(d)),
