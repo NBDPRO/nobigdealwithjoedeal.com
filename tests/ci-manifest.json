@@ -764,7 +764,8 @@
     "coach-overlay-keyboard-2026-10-24.test.js",
     "agent-inbox-keyboard-2026-10-24.test.js",
     "pro-demo-tools-2026-10-24.test.js",
-    "project-codex-quick-actions-2026-10-24.test.js"
+    "project-codex-quick-actions-2026-10-24.test.js",
+    "scroll-padding-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
