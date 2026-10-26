@@ -72,6 +72,8 @@ body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-ser
 @media(min-width:720px){.g-toc ul{columns:2}}
 
 /* ── Chapters ── */
+/* Anchor jumps clear the sticky header. Same rule as nbd-nav.css (same element, same value, so it does not stack on the guides that load both); /pro/playbook loads this sheet but not nbd-nav.css. Do not add a scroll-margin-top to chapters: it adds to this. */
+html{scroll-padding-top:84px}
 .g-chapter{background:#fff;border:1px solid var(--light-gray);border-radius:8px;padding:24px 18px;margin-bottom:22px}
 .g-ch-title{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:clamp(1.9rem,5vw,2.6rem);line-height:1.05;letter-spacing:.02em;color:var(--navy-dark);margin-bottom:12px;display:flex;gap:12px;align-items:baseline}
 .g-ch-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:2.1rem;height:2.1rem;padding:0 6px;border-radius:100px;background:var(--orange);color:#fff;font-size:1.3rem;line-height:1}

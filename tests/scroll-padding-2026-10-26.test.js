@@ -26,6 +26,14 @@
  * carried by BOTH stylesheets and the coverage group below proves every page
  * with a bar reaches one of them.
  *
+ * The top rule is carried by TWO stylesheets, same property, same element, same
+ * value, so they do not stack where a page loads both: nbd-nav.css (every site
+ * page) and nbd-guide.css. /pro/playbook links nbd-guide.css but not nbd-nav.css
+ * (its header is its own sticky .g-pro-head, 60-70px), so with .g-chapter's
+ * scroll-margin-top gone and no padding there, every playbook chapter landed at
+ * top 0 under that header. The "Coverage: top" group below fails for any page
+ * that lost a scroll-margin and gets no padding from anywhere.
+ *
  * Source-level only (geometry needs a browser); the rendered check is the
  * Playwright sweep described in the PR.
  *
@@ -121,13 +129,25 @@ function bottomValue(css) {
   }
 }
 
+/* The pixel value of a depth-0 `html{...scroll-padding-top:Npx...}` rule (not
+   the #mobileNav one further down nbd-nav.css), or null. */
+function topValue(css) {
+  const rule = topLevelRules(css).find((r) => r.sel === 'html' && /scroll-padding-top:\d+px/.test(r.body));
+  return rule ? Number(/scroll-padding-top:(\d+)px/.exec(rule.body)[1]) : null;
+}
+const guideCss = compact(read(path.join(DOCS, 'assets/css/nbd-guide.css')));
+
 group('Top: nbd-nav.css clears the sticky header for anchors and focus', () => {
-  /* A depth-0 `html{...}` rule, not the #mobileNav one further down. */
-  const rule = topLevelRules(navCss).find((r) => r.sel === 'html' && /scroll-padding-top:\d+px/.test(r.body));
-  const top = rule ? Number(/scroll-padding-top:(\d+)px/.exec(rule.body)[1]) : null;
+  const top = topValue(navCss);
   ok('a top-level html{scroll-padding-top:Npx} rule exists', top !== null);
   ok('...and N clears the tallest header (>= ' + MIN_TOP + 'px)', top !== null && top >= MIN_TOP, top);
   ok('...but leaves the heading visible (<= 120px)', top !== null && top <= 120, top);
+});
+
+group('Top: nbd-guide.css carries the same rule for /pro/playbook (it does not load nbd-nav.css)', () => {
+  const g = topValue(guideCss);
+  ok('a top-level html{scroll-padding-top:Npx} rule exists', g !== null);
+  ok('...and it equals nbd-nav.css (same property, same element: no stacking, no drift)', g !== null && g === topValue(navCss), g + ' vs ' + topValue(navCss));
 });
 
 group('Bottom: the phone Book/Call/Text bar does not cover the focused control', () => {
@@ -150,6 +170,24 @@ group('Coverage: every page with a Book/Call/Text bar loads a stylesheet that ca
   const uncovered = withBar.filter((p) => !pageCss(p).sheets.some((s) => carriers.has(s)));
   ok('no bar page is left without the rule', uncovered.length === 0,
     uncovered.length + ' uncovered, e.g. ' + uncovered.slice(0, 5).map(rel).join(', '));
+});
+
+group('Coverage: top: every page whose sheet lost a scroll-margin still gets the top padding', () => {
+  /* Sheets whose own scroll-margin-top was removed because the padding replaces it. */
+  const LOST = ['/assets/css/nbd-guide.css', '/assets/css/sms-program.css', '/assets/css/credentials.css'];
+  const carriers = new Set();
+  const inRange = (v) => v !== null && v >= MIN_TOP && v <= 120;
+  if (inRange(topValue(navCss))) carriers.add('/assets/css/nbd-nav.css');
+  if (inRange(topValue(guideCss))) carriers.add('/assets/css/nbd-guide.css');
+  const affected = pages.filter((p) => pageCss(p).sheets.some((s) => LOST.includes(s)));
+  ok('the scan found the affected pages (>= 10)', affected.length >= 10, affected.length);
+  ok('the playbook is among them', affected.some((p) => rel(p) === 'docs/pro/playbook.html'));
+  const bare = affected.filter((p) => {
+    const { sheets, inline } = pageCss(p);
+    return !sheets.some((s) => carriers.has(s)) && !inline.some((t) => inRange(topValue(compact(t))));
+  });
+  ok('no such page is left without a depth-0 html{scroll-padding-top} (chapters would land under the header)',
+    bare.length === 0, bare.length + ' bare, e.g. ' + bare.slice(0, 5).map(rel).join(', '));
 });
 
 group('No stacking: a page that loads nbd-nav.css declares no scroll-margin-top of its own', () => {
