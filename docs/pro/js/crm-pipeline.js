@@ -452,7 +452,19 @@ function renderLeads(leads, filtered){
         : '');
   }
   // dashboard cards
-  setEl('statLeads', all.length);
+  // Active Leads = deals still in play (not won, not lost). It used to be
+  // all.length, so won and lost jobs inflated it and it disagreed with the
+  // Pipeline, Leaderboard and Ask Joe (overnight finding crm-8, Jo 2026-10-26).
+  // Counted per customer (all), not per job record, with the same lost/won
+  // tests the pipeline value above uses.
+  const openCount = all.filter(l => {
+    const sk = l._stageKey || l.stage || 'new';
+    const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
+    const lost = _lostKeys.includes(sk) || role === 'lost';
+    const closed = (window.isJobStage && window.isJobStage(sk)) || role === 'won' || role === 'job';
+    return !lost && !closed;
+  }).length;
+  setEl('statLeads', openCount);
   setEl('statVal',   '$'+pipeVal.toLocaleString());
   setEl('statClosed','$'+closedRev.toLocaleString());
   const lb=document.getElementById('leadBadge'); if(lb) lb.textContent=all.length;

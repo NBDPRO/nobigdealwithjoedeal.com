@@ -769,7 +769,8 @@
     "project-codex-quick-actions-2026-10-24.test.js",
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
-    "scroll-padding-2026-10-26.test.js"
+    "scroll-padding-2026-10-26.test.js",
+    "active-leads-open-only-2026-10-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
