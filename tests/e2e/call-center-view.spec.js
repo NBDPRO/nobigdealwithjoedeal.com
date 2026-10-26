@@ -116,7 +116,20 @@ test.describe.serial('Call Center view @shard2', () => {
 
     const s = Date.now();
     const leadId = await seedLead(page, admin().db, { firstName: 'ZZCV', lastName: 'Cust' + s, address: '1 Call Ct, Mason OH 45040', phone: '5135557' + String(s).slice(-3), stage: 'new', jobType: 'cash' });
-    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); });
+    // A lead read issued within milliseconds of the Admin-SDK write above can come back WITHOUT it (seen: _leadsRawCount 2
+    // with the customer written 4 ms earlier, not from cache), so window._leads lacks the customer and, with another customer
+    // on the rep (the two call-center-card.spec.js leaves), fileTarget() drops the "Looks like" row for a lead it cannot find
+    // (3 of 6 runs in CI order, 2026-10-26). Re-read until three reads in a row list the new customer.
+    const listed = await safeEvaluate(page, async (id) => {
+      let seen = 0;
+      for (let i = 0; i < 60 && seen < 3; i++) {
+        if (typeof window._loadLeads === 'function') await window._loadLeads();
+        seen = (window._leads || []).some((l) => l.id === id) ? seen + 1 : 0;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return seen >= 3;
+    }, leadId);
+    expect(listed, 'the new customer is on the lead list the page holds').toBe(true);
     const { db, bucket } = admin();
     const uid = (await db.doc('leads/' + leadId).get()).data().userId;
     const path = 'calls/' + uid + '/cube-acr/2026-09-30/cube_zzcv' + s + 'a.wav';

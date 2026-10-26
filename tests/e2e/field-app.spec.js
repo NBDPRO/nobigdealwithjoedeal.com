@@ -16,6 +16,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { nyDay, nyAt } = require('./fixtures/ny-time');
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -69,7 +70,8 @@ test.describe.serial('Field App @shard2', () => {
     }), s);
     expect(leadId).toBeTruthy();
     const uid = await safeEvaluate(page, () => window._user.uid);
-    const when = new Date(Date.now() + 40 * 60 * 1000);
+    // 11:00 Eastern today, not now + 40 minutes: that is tomorrow's row from 11:20 pm ET (fixtures/ny-time.js)
+    const when = nyAt(nyDay(), 11, 0);
     await adb().doc('appointments/fa-' + s).set({
       repUid: uid, userId: uid, leadId, title: 'Roof inspection', attendeeName: 'ZZFA Stop' + s,
       startTime: when, endTime: new Date(when.getTime() + 60 * 60 * 1000), status: 'confirmed', location: '14 Field Ct, Florence, KY 41042',
