@@ -83,17 +83,47 @@
     }
     show('sr-loading');
     fetch(API + '?lat=' + S.lat + '&lon=' + S.lon)
-      .then(function (r) { return r.json(); })
-      .then(function (j) { S.data = j; renderTeaser(); show('sr-teaser'); })
+      .then(function (r) { if (!r.ok) throw new Error('storm-lookup-' + r.status); return r.json(); })
+      .then(function (j) {
+        // The server's own empty:true fallback, a body with no counts and a partial
+        // lookup that found nothing are all "we could not check", not "no storms".
+        if (!j || !j.counts || j.empty || (j.partial && !j.counts.total)) throw new Error('storm-lookup-unavailable');
+        S.data = j; renderTeaser(); show('sr-teaser');
+      })
       .catch(function () {
-        // graceful fail — still let them request an inspection
+        // Say so (_err: renderTeaser / verdict / renderReport read it, Retry re-runs
+        // generate) and still let them request an inspection.
         S.data = { counts: { total: 0, hail: 0, wind: 0, tornado: 0, stormDays: 0 }, events: [], _err: true };
         renderTeaser(); show('sr-teaser');
       });
     if (window.gtag) window.gtag('event', 'storm_report_generate');
   }
   function nearWithin(mi) { return (S.data.events || []).filter(function (e) { return e.distanceMi <= mi; }); }
+  /* Gate copy while the lookup failed: the usual heading promises "every event, a
+     map" and an emailed copy, which a failed lookup cannot deliver. The shipped
+     text is read from the page once and put back when a lookup works. */
+  var GATE_FAILED = {
+    'sr-gate-lead': 'Want Joe to take a look instead?',
+    'sr-gate-sub': 'Leave your name and number and he’ll follow up about a free roof inspection. No spam, no pressure.',
+    'sr-unlock': 'Send my request →'
+  };
+  var gateShipped = null;
+  function gateCopy(failed) {
+    if (!gateShipped) { gateShipped = {}; Object.keys(GATE_FAILED).forEach(function (id) { gateShipped[id] = $(id).textContent; }); }
+    Object.keys(GATE_FAILED).forEach(function (id) { $(id).textContent = failed ? GATE_FAILED[id] : gateShipped[id]; });
+  }
   function renderTeaser() {
+    if (S.data._err) {
+      // A failed lookup is not "no storms": no zero counts, no all-clear line.
+      $('sr-teaser-headline').textContent = 'We couldn’t check storm records right now';
+      $('sr-teaser-sub').textContent = 'The lookup didn’t finish, so this is not a “no storms” result. Try again in a moment, or have Joe check your roof for free: an inspection is the only way to be sure.';
+      $('sr-teaser-chips').innerHTML = '';
+      $('sr-retry').hidden = false;
+      gateCopy(true);
+      return;
+    }
+    gateCopy(false);
+    $('sr-retry').hidden = !S.data.partial;
     var c = S.data.counts || {};
     var within10 = nearWithin(10);
     var h10 = within10.filter(function (e) { return e.type === 'hail'; }).length;
@@ -104,7 +134,8 @@
     $('sr-teaser-sub').textContent = (c.total > 0)
       ? 'Over the last ' + (S.data.years || 5) + ' years within ' + (S.data.radiusMi || 30) + ' miles — ' +
         (c.hail || 0) + ' hail, ' + (c.wind || 0) + ' wind, ' + (c.tornado || 0) + ' tornado' +
-        (S.data.maxHail ? ' · hail up to ' + S.data.maxHail + '″' : '') + '.'
+        (S.data.maxHail ? ' · hail up to ' + S.data.maxHail + '″' : '') + '.' +
+        (S.data.partial ? ' Some of the records couldn’t be checked just now, so there may be more.' : '')
       : 'That doesn’t rule out damage — a free inspection is the only way to be sure.';
     $('sr-teaser-chips').innerHTML =
       chip('🧊 ' + (c.hail || 0) + ' hail') + chip('💨 ' + (c.wind || 0) + ' wind') +
@@ -145,9 +176,11 @@
     S.intake = intake;
     S.firstName = fn; S.phone = ph; S.email = em;
     $('sr-gate-err').textContent = '';
-    var btn = $('sr-unlock'); btn.disabled = true; btn.textContent = 'Building your report…';
+    var btn = $('sr-unlock'); btn.disabled = true; btn.textContent = S.data._err ? 'Sending…' : 'Building your report…';
     var c = S.data.counts || {};
-    var story = 'STORM REPORT | ' + (c.total || 0) + ' events/' + (S.data.years || 5) + 'yr (' +
+    // A failed lookup says so (never "0 events/5yr"); a partial one counts only the years that were checked.
+    var story = S.data._err ? 'STORM REPORT | storm records unavailable' :
+      'STORM REPORT | ' + (c.total || 0) + ' events/' + ((S.data.years || 5) - (S.data.failedYears || 0)) + 'yr (' +
       (c.hail || 0) + ' hail, ' + (c.wind || 0) + ' wind, ' + (c.tornado || 0) + ' tornado, max ' + (S.data.maxHail || 0) + '″)';
     // tcpaConsent: the checkbox's real value, persisted server-side so the SMS ack
     // gates on a stored record (TCPA fix, 2026-09-04; see #1377).
@@ -163,17 +196,19 @@
   }
   function verdict() {
     var c = S.data.counts || {}, near = nearWithin(10);
+    if (S.data._err) return { h: 'We couldn’t check storm records right now', d: 'The storm-records lookup didn’t finish, so this report has no storm data in it. That is not a “no storms” result. Try the lookup again in a few minutes, or have Joe look at your roof: a free inspection is the only way to be sure.' };
     var hailNear = near.filter(function (e) { return e.type === 'hail'; }).length;
     var sev = (S.data.events || []).some(function (e) { return e.severity === 'severe'; });
     if ((hailNear || c.tornado) && sev) return { h: 'Severe storm activity near you — worth a free inspection.', d: 'Severe storm activity this close to your home is worth a trained eye on the roof — only an inspection can show whether there’s real damage. Joe inspects free and documents anything he finds; if you file, he meets your adjuster on the roof — the claim stays yours.' };
     if (c.hail || c.tornado || c.wind > 3) return { h: 'Worth a free inspection.', d: 'There’s real storm history here. Joe will get on the roof and document what he finds so you can decide your next step.' };
+    if (S.data.partial) return { h: 'A free inspection is the only way to be sure.', d: 'Part of the storm history couldn’t be checked just now, so we can’t call it light — damage isn’t always obvious from the ground. Joe checks it free, no obligation.' };
     return { h: 'A free inspection is the only way to be sure.', d: 'Light storm history on record near you — but damage isn’t always obvious from the ground. Joe checks it free, no obligation.' };
   }
   function renderReport(saved) {
-    var c = S.data.counts || {}, v = verdict();
+    var c = S.data.counts || {}, v = verdict(), failed = S.data._err === true;
     $('sr-rep-headline').textContent = v.h;
     $('sr-rep-detail').textContent = v.d;
-    $('sr-rep-summary').innerHTML =
+    $('sr-rep-summary').innerHTML = failed ? '' :
       stat(c.total || 0, 'storm events') + stat(c.hail || 0, 'hail') + stat(c.wind || 0, 'wind') +
       stat(c.tornado || 0, 'tornado') + stat((S.data.maxHail || 0) + '″', 'max hail');
     // notable events: hail + tornado + severe/significant wind, newest first, cap 25
@@ -182,12 +217,17 @@
     $('sr-rep-rows').innerHTML = notable.map(function (e) {
       return '<tr><td>' + fmtDate(e.date) + '</td><td><span class="sr-tag sr-' + e.type + '">' + e.type + '</span></td><td>' +
         (e.magnitude ? e.magnitude + (e.unit ? e.unit : '') : '—') + '</td><td>' + e.distanceMi + ' mi</td></tr>';
-    }).join('') || '<tr><td colspan="4" style="text-align:center;color:#5d6673">No individual reports on file near this address.</td></tr>';
+    }).join('') || '<tr><td colspan="4" style="text-align:center;color:#5d6673">' +
+      (failed ? 'Storm records couldn’t be checked right now, so no events are listed.' : 'No individual reports on file near this address.') + '</td></tr>';
     renderGusts();
-    $('sr-rep-source').textContent = 'Source: ' + (S.data.source || 'NWS Local Storm Reports (NOAA)') + '. Report range: ' + (S.data.years || 5) + ' years within ' + (S.data.radiusMi || 30) + ' miles.';
+    $('sr-rep-source').textContent = failed ? 'Storm records for this address could not be checked just now.' :
+      'Source: ' + (S.data.source || 'NWS Local Storm Reports (NOAA)') + '. Report range: ' + (S.data.years || 5) + ' years within ' + (S.data.radiusMi || 30) + ' miles.' +
+      (S.data.partial ? ' Some years could not be checked just now, so this list may be incomplete.' : '');
+    // No map of an address we could not look up: an empty one reads as "nothing nearby".
+    ['sr-map', 'sr-map-legend'].forEach(function (id) { var m = $(id); if (m) m.style.display = failed ? 'none' : ''; });
     if (!saved) { var w = $('sr-rep-warn'); w.style.display = 'block'; w.textContent = 'Note: we couldn’t auto-save your info — please call/text Joe at (859) 420-7382 so your report request isn’t lost.'; }
     show('sr-report');
-    initMap();
+    if (!failed) initMap();
     if (window.gtag) window.gtag('event', 'storm_report_complete', { events: c.total || 0 });
   }
   /* "Wind measured nearby" (2026-10-06): the nearest weather station's
@@ -250,6 +290,7 @@
       var act = e.target.closest('[data-action]'); if (!act) return;
       var a = act.dataset.action;
       if (a === 'generate') generate();
+      else if (a === 'retry') generate();
       else if (a === 'unlock') unlock();
       else if (a === 'print') window.print();
       else if (a === 'restart') { S.data = null; show('sr-step1'); }

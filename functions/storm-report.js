@@ -74,13 +74,14 @@ async function fetchYear(startISO, endISO) {
 
 async function buildReport(lat, lon) {
   const events = [];
+  let failedYears = 0;                                    // yearly IEM fetches that did not come back
   const now = new Date();
   for (let y = 0; y < YEARS; y++) {
     const end = new Date(Date.UTC(now.getUTCFullYear() - y, now.getUTCMonth(), now.getUTCDate()));
     const start = new Date(Date.UTC(now.getUTCFullYear() - y - 1, now.getUTCMonth(), now.getUTCDate()));
     let feats;
     try { feats = await fetchYear(iso(start), iso(end)); }
-    catch (e) { logger.warn('stormReport: year fetch failed', { y, err: e.message }); continue; }
+    catch (e) { failedYears++; logger.warn('stormReport: year fetch failed', { y, err: e.message }); continue; }
     for (const f of feats) {
       const c = f.geometry && f.geometry.coordinates; const p = f.properties || {};
       const kind = normType(p.typetext || p.type);
@@ -111,6 +112,7 @@ async function buildReport(lat, lon) {
     maxHail: events.filter(e => e.type === 'hail' && e.magnitude).reduce((m, e) => Math.max(m, e.magnitude), 0) || null,
     events: events.slice(0, 200),                          // cap payload
     source: 'NWS Local Storm Reports (NOAA) via Iowa Environmental Mesonet',
+    ...(failedYears ? { failedYears } : {}),               // only on an incomplete lookup, which is never cached
   };
 }
 
@@ -142,12 +144,24 @@ exports.stormReport = onRequest(
     }
     try {
       const fresh = await buildReport(lat, lon);
+      // A lookup that lost years is not the five-year history. Every year lost
+      // is a failure (the catch below serves a stale copy or the empty:true
+      // fallback, as for any thrown error); some lost returns what was found,
+      // flagged, and neither is cached: a 24 h TTL turned a short IEM blip into
+      // a day of "0 events" for the cell (2026-10-26).
+      if (fresh.failedYears >= YEARS) throw new Error('IEM unavailable: all ' + YEARS + ' yearly fetches failed');
+      if (fresh.failedYears) {
+        res.set('Cache-Control', 'no-store');
+        const out = await withWindGusts(fresh, lat, lon, db);
+        return res.status(200).json({ ...out, partial: true, cached: false, stale: false, fetchedAt: now });
+      }
       await ref.set({ data: fresh, fetchedAt: now }, { merge: true });
       res.set('Cache-Control', 'public, max-age=3600');
       const out = await withWindGusts(fresh, lat, lon, db);
       return res.status(200).json({ ...out, cached: false, stale: false, fetchedAt: now });
     } catch (err) {
       logger.error('stormReport: build failed', err);
+      res.set('Cache-Control', 'no-store');                // a failure is retried, never held by a browser or the CDN
       if (cached && cached.data) {
         const out = await withWindGusts(cached.data, lat, lon, db);
         return res.status(200).json({ ...out, cached: true, stale: true, fetchedAt: cached.fetchedAt || 0 });
