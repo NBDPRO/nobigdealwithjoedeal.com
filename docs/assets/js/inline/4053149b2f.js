@@ -185,6 +185,20 @@ function updateProgress(step) {
 }
 
 /* ── Step Navigation ── */
+/* The button that was just pressed lives on the step being hidden, so focus
+   used to fall to <body>: a keyboard user had to Tab from the top of the page
+   after every Continue, and a screen reader announced nothing. The new step's
+   heading takes focus instead (tabindex -1: reachable by script, never by Tab,
+   and not a control, so no focus ring is drawn around the title).
+   preventScroll: the caller already scrolls to the top. */
+function _focusStepHeading(stepEl) {
+  var h = stepEl && stepEl.querySelector('.step-title, .loading-text');
+  if (!h) return;
+  h.setAttribute('tabindex', '-1');
+  h.style.outline = 'none';
+  h.focus({ preventScroll: true });
+}
+
 function goToStep(step) {
   // Validate before advancing
   if (step > currentStep) {
@@ -211,6 +225,7 @@ function goToStep(step) {
     currentStep = step;
     updateProgress(step);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    _focusStepHeading(target);
     trackStep(step);
   }
 }
@@ -1103,6 +1118,20 @@ function checkSubmitReady() {
   document.getElementById(id).addEventListener('input', checkSubmitReady);
 });
 document.getElementById('tcpaConsent').addEventListener('change', checkSubmitReady);
+// The email is optional, but a typed one that does not look like one holds
+// Submit back (checkSubmitReady), so say why instead of just dimming the
+// button: shown when the field is left, kept in step while it is edited, and
+// cleared as soon as the address is fixed or emptied.
+function _syncEmailError(onBlur) {
+  const el = document.getElementById('emailAddress');
+  const group = el.parentElement;
+  const bad = !_emailOk(el.value.trim());
+  if (bad && !onBlur && !group.classList.contains('has-error')) return; // not while still typing
+  group.classList.toggle('has-error', bad);
+  el.setAttribute('aria-invalid', bad ? 'true' : 'false');
+}
+document.getElementById('emailAddress').addEventListener('input', function () { _syncEmailError(false); });
+document.getElementById('emailAddress').addEventListener('blur', function () { _syncEmailError(true); });
 // Step-1 error marks clear as soon as the visitor fixes the field.
 ['firstName', 'phoneNumber'].forEach(function (id) {
   document.getElementById(id).addEventListener('input', function () { _clearContactError(id); });
@@ -1159,6 +1188,7 @@ async function submitAndGetEstimate() {
   // Show loading
   document.querySelectorAll('.step').forEach(function(s) { s.classList.remove('active'); });
   document.getElementById('stepLoading').classList.add('active');
+  _focusStepHeading(document.getElementById('stepLoading'));
   updateProgress(5);
 
   // Animate loading steps
@@ -1582,6 +1612,7 @@ function showResults(est) {
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  _focusStepHeading(document.getElementById('stepResults'));
 }
 
 // GBB audit, 2026-09-09: was '3-Tab (Good)' — NBD never installs 3-tab

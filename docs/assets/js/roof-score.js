@@ -32,7 +32,20 @@
   }
   function showOnly(id) {
     document.querySelectorAll('.sc-step').forEach(function (s) { s.classList.remove('active'); });
-    var t = $(id); if (t) t.classList.add('active');
+    var t = $(id);
+    if (t) { t.classList.add('active'); focusEl(t.querySelector('h2, .rs-band')); }
+  }
+  /* The button just pressed sits on the step being hidden, so focus used to
+     fall to <body> and nothing was announced (Tab restarted at the top of the
+     page). The new step's heading takes focus instead (the score screens have
+     no h2: their band label). tabindex -1 makes it reachable by script, never
+     by Tab, and it is not a control, so no focus ring is drawn around the
+     title. preventScroll: the callers already scroll to the top. */
+  function focusEl(el) {
+    if (!el) return;
+    el.setAttribute('tabindex', '-1');
+    el.style.outline = 'none';
+    el.focus({ preventScroll: true });
   }
   function setProgress(pct) { var f = $('rs-progress-fill'); if (f) f.style.width = pct + '%'; }
   function validate(step) {
@@ -45,23 +58,54 @@
       }
       return true;
     }
-    if (step === 2) {
-      if (!S.roofAge) { flashLabel('roofAge'); return false; }
-      return true;
-    }
-    if (step === 4) {
-      if (!S.moisture || !S.lastInspect) {
-        if (!S.moisture) flashLabel('moisture'); else flashLabel('lastInspect');
-        return false;
-      }
-      return true;
-    }
+    if (step === 2) return needAnswers(2);
+    if (step === 4) return needAnswers(4);
     return true; // step 3 (signs) is optional
+  }
+  /* ── required answers ──
+     A missing answer used to be a red border for 0.9 s: no text, nothing for a
+     screen reader. Now a role=alert line under the step's subtitle says what to
+     pick, the page scrolls to it (the questions are right below) and focus lands
+     on the first unanswered group; the border flash stays as decoration. The
+     line sits above the questions, not by the buttons: on a phone the sticky
+     call bar covers what is below the fold. It is created empty at load so a
+     screen reader already watches it when text arrives, and it follows the
+     answers as they land (afterPick). */
+  var NEED = {
+    2: [['roofAge', 'how old the roof is']],
+    4: [['moisture', 'whether you have seen water stains or drips'], ['lastInspect', 'when a pro last looked at the roof']]
+  };
+  function missing(step) { return (NEED[step] || []).filter(function (q) { return !S[q[0]]; }); }
+  function needText(step) {
+    var m = missing(step);
+    return m.length ? 'Pick ' + m.map(function (q) { return q[1]; }).join(' and ') + '.' : '';
+  }
+  function needNote(step) { return document.querySelector('#rs-step' + step + ' .sc-need'); }
+  function mountNeedNotes() {
+    Object.keys(NEED).forEach(function (n) {
+      var st = $('rs-step' + n), first = st && st.querySelector('.sc-label');
+      if (!first || needNote(n)) return;
+      var note = document.createElement('div');
+      note.className = 'sc-err sc-need';
+      note.setAttribute('role', 'alert');
+      note.style.minHeight = '0'; // empty = no height: the step looks as before until it is needed
+      st.insertBefore(note, first);
+    });
+  }
+  function needAnswers(step) {
+    var m = missing(step);
+    if (!m.length) return true;
+    var note = needNote(step);
+    if (note) note.textContent = needText(step);
+    flashLabel(m[0][0]);
+    var first = document.querySelector('#rs-step' + step + ' [data-group="' + m[0][0] + '"] .sc-tile');
+    if (first) first.focus({ preventScroll: true });
+    if (note) note.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
   }
   function flashLabel(group) {
     var g = document.querySelector('[data-group="' + group + '"]');
     if (!g) return;
-    g.scrollIntoView({ block: 'center', behavior: 'smooth' });
     g.querySelectorAll('.sc-tile').forEach(function (t) {
       t.style.borderColor = '#c23a2b';
       setTimeout(function () { t.style.borderColor = ''; }, 900);
@@ -220,12 +264,25 @@
         S.signs = [].slice.call(document.querySelectorAll('[data-group="signs"] .sc-tile.selected'))
           .map(function (t) { return t.getAttribute('data-value'); });
       }
+      afterPick(tile);
       return;
     }
     var parent = tile.closest('.sc-tiles');
     if (parent) parent.querySelectorAll('.sc-tile').forEach(function (t) { t.classList.remove('selected'); });
     tile.classList.add('selected');
     S[group] = tile.getAttribute('data-value');
+    afterPick(tile);
+  }
+  // The tiles are buttons whose state was only a CSS class: expose it
+  // (aria-pressed) so assistive tech can tell which options are chosen, and
+  // shrink the "Pick ..." line to what is still missing.
+  function afterPick(tile) {
+    var box = tile.closest('.sc-tiles');
+    if (box) box.querySelectorAll('.sc-tile').forEach(function (t) {
+      t.setAttribute('aria-pressed', t.classList.contains('selected') ? 'true' : 'false');
+    });
+    var note = needNote(S.step);
+    if (note && note.textContent) note.textContent = needText(S.step);
   }
 
   /* ── scoring model ──
@@ -440,7 +497,8 @@
 
   /* ── delegated clicks (CSP-safe, no inline handlers) ── */
   function wire() {
-    wireAddress(); wirePhone();
+    wireAddress(); wirePhone(); mountNeedNotes();
+    document.querySelectorAll('.sc-tile').forEach(function (t) { t.setAttribute('type', 'button'); t.setAttribute('aria-pressed', 'false'); });
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
     document.addEventListener('click', function (e) {
       var ac = e.target.closest('.sc-ac-item[data-idx]'); if (ac) { pickAddr(+ac.dataset.idx); return; }
