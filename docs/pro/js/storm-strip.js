@@ -174,5 +174,6 @@
   var tries = 0;
   (function kick() { if (w._leadsLoaded === true) { render(); poll(true); return; } if (++tries < 120) setTimeout(kick, 500); })();
 
-  w.NBDStormStrip = { render: render, poll: poll, _stripHtml: stripHtml, _set: function (v) { warnings = v; render(); } };
+  // settled(): the warning read has answered (a list, or null = failed). today-home.js holds Home's first reveal for it, briefly.
+  w.NBDStormStrip = { render: render, poll: poll, settled: function () { return warnings !== undefined; }, _stripHtml: stripHtml, _set: function (v) { warnings = v; render(); } };
 })(typeof window !== 'undefined' ? window : null);
