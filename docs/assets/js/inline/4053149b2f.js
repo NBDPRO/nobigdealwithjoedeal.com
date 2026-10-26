@@ -1129,6 +1129,10 @@ function _syncEmailError(onBlur) {
   if (bad && !onBlur && !group.classList.contains('has-error')) return; // not while still typing
   group.classList.toggle('has-error', bad);
   el.setAttribute('aria-invalid', bad ? 'true' : 'false');
+  // Point at the message only while it is showing: a hidden description is
+  // still read out as the field's description by screen readers.
+  if (bad) el.setAttribute('aria-describedby', 'emailAddress-err');
+  else el.removeAttribute('aria-describedby');
 }
 document.getElementById('emailAddress').addEventListener('input', function () { _syncEmailError(false); });
 document.getElementById('emailAddress').addEventListener('blur', function () { _syncEmailError(true); });

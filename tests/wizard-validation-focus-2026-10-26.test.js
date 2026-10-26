@@ -252,28 +252,33 @@ function isFocusedHeading(d, el) { return !!el && d.activeElement === el && el.g
     const submit = d.getElementById('btnSubmit');
     const type = (v, ev) => { email.value = v; email.dispatch(ev || 'input'); };
 
-    ok('the markup already carries the message: a role=alert line the email field points at',
-      !!err && err.getAttribute('role') === 'alert' && email.getAttribute('aria-describedby') === 'emailAddress-err' && group.classList.contains('input-group'));
+    ok('the markup already carries the message: a role=alert line in the email field\'s group',
+      !!err && err.getAttribute('role') === 'alert' && group.classList.contains('input-group'));
+    ok('...and the field does not point at it until it shows (a hidden description is still read out)',
+      !email.getAttribute('aria-describedby') && !/id="emailAddress"[^>]*aria-describedby/.test(html));
     ok('...and the page CSS shows it when the group has .has-error',
       /\.input-group\.has-error \.error-msg\{display:block;\}/.test(html));
-    type('pat@gmail');
+    type('pat@example');
     ok('mid-typing is not nagged: no error before the field is left', !group.classList.contains('has-error'));
-    ok('(control) the address "pat@gmail" still holds Submit back', submit.disabled === true);
-    type('pat@gmail', 'blur');
-    ok('leaving the field with "pat@gmail" marks the group .has-error', group.classList.contains('has-error'));
+    ok('(control) the address "pat@example" still holds Submit back', submit.disabled === true);
+    type('pat@example', 'blur');
+    ok('leaving the field with "pat@example" marks the group .has-error', group.classList.contains('has-error'));
+    ok('...and the field now points at the message (aria-describedby)', email.getAttribute('aria-describedby') === 'emailAddress-err', email.getAttribute('aria-describedby'));
     ok('...and sets aria-invalid="true" on the field', email.getAttribute('aria-invalid') === 'true', email.getAttribute('aria-invalid'));
     ok('...the message says what to do, including that the field can be left blank', /blank/i.test(err.textContent), err.textContent);
-    type('pat@gmail.', 'input');
+    type('pat@example.', 'input');
     ok('still wrong while editing: the error stays up', group.classList.contains('has-error'));
-    type('pat@gmail.com', 'input');
+    type('pat@example.com', 'input');
     ok('a fixed address clears the error as it is typed', !group.classList.contains('has-error') && email.getAttribute('aria-invalid') === 'false');
+    ok('...and drops the aria-describedby again, so a valid address is not described as wrong', !email.getAttribute('aria-describedby'), email.getAttribute('aria-describedby'));
     ok('...and Submit is enabled again', submit.disabled === false);
-    type('pat @gmail.com', 'blur');
+    type('pat @example.com', 'blur');
     ok('an address with a space is flagged too', group.classList.contains('has-error'));
     type('', 'input');
     ok('emptying the optional field clears the error', !group.classList.contains('has-error') && submit.disabled === false);
     type('', 'blur');
     ok('an empty optional email is never an error', !group.classList.contains('has-error'));
+    ok('...and an empty optional email has no aria-describedby', !email.getAttribute('aria-describedby'), email.getAttribute('aria-describedby'));
   }
 
   // ═══════════════════════════════════════════════════════════════════════
