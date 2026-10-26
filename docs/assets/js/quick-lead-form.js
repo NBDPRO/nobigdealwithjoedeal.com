@@ -152,8 +152,18 @@
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
           err.textContent = intake.error;
-          // The scheduling fieldset isn't focusable; its first radio is.
-          reveal(err, intake.el && intake.el.querySelector ? (intake.el.querySelector('input') || intake.el) : null);
+          // The thing to fix is the choice, not the message: the form is tall,
+          // so on a phone the message and the options are ~400px apart. Scroll
+          // the fieldset (red border, legend) into view and focus its first
+          // radio (the fieldset itself isn't focusable). The message is still
+          // announced: err is the role=alert slot.
+          if (intake.el && intake.el.scrollIntoView) {
+            try { intake.el.scrollIntoView({ block: 'center' }); } catch (e) {}
+            var firstRadio = intake.el.querySelector ? intake.el.querySelector('input') : null;
+            try { (firstRadio || err).focus({ preventScroll: true }); } catch (e) {}
+          } else {
+            reveal(err);
+          }
           return;
         }
       }

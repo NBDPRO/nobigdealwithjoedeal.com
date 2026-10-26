@@ -194,11 +194,13 @@ function fakeEls(ids) {
   console.log('\nfunnel-1 — the scheduling-choice error is also shown where it can be seen');
   {
     const radio = fakeEls(['radio']).radio;
-    const fs1 = { classList: { add() {} }, querySelector: (s) => (s === 'input' ? radio : null) };
+    const fs1 = { calls: [], classList: { add() {} }, scrollIntoView(o) { this.calls.push(['scrollIntoView', o]); }, querySelector: (s) => (s === 'input' ? radio : null) };
     const q = loadQuickForm({ values: GOOD, submitPublicLead: async () => ({ ok: true }), intake: { read: () => ({ error: 'Choose how you’d like to schedule: pick a time now, or ask us to contact you.', el: fs1 }), afterSubmit: async () => {} } });
     q.el('fn').value = GOOD.fn; q.el('ph').value = GOOD.ph; q.el('ad').value = GOOD.ad;
     await q.submit();
-    ok('the error text is set, scrolled to, and the first radio takes focus', /Choose how/.test(q.el('err').textContent) && centered(q.el('err')) && radio.calls.some((c) => c[0] === 'focus'), q.el('err').textContent);
+    ok('the error text is set and the first radio takes focus', /Choose how/.test(q.el('err').textContent) && radio.calls.some((c) => c[0] === 'focus'), q.el('err').textContent);
+    ok('the fieldset (the thing to fix), not the message, is scrolled to the middle', centered(fs1) && !q.el('err').calls.some((c) => c[0] === 'scrollIntoView'), fs1.calls);
+    ok('the radio is focused without scrolling (the fieldset scroll already placed it)', radio.calls.some((c) => c[0] === 'focus' && c[1] && c[1].preventScroll === true), radio.calls);
   }
   console.log('\nfunnel-1 — success and failure are scrolled to and focused');
   {
