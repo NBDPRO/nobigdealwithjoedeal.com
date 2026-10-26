@@ -273,6 +273,8 @@
       '</div>';
     wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
     document.body.appendChild(wrap);
+    // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+    if (window.nbdOverlay) window.nbdOverlay.attach(wrap, { label: "What's new", close });
 
     wrap.querySelector('#nbd-wn-close').addEventListener('click', close);
     wrap.querySelector('#nbd-wn-mark-all').addEventListener('click', () => {

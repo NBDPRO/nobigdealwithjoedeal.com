@@ -1226,6 +1226,14 @@ jobs:
         run: |
           cd tests
           node crm-home-boot-layout-shift-2026-10-26.test.js
+      # The CRM's self-built dialogs and small controls on the same sample account
+      # (overnight pass 2026-10-26): eight dialogs close on Escape, take focus in, keep
+      # Tab inside and give focus back; hot-lead actions and the photo Share pill have
+      # their hit areas; sidebar section headers are keyboard controls. Same server.
+      - name: Run the CRM overlay keyboard check
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
@@ -1261,6 +1269,10 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      - name: Run the CRM overlay keyboard check against the minified build
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       - name: Run the CRM layouts render check against the minified build
         run: |
           cd tests

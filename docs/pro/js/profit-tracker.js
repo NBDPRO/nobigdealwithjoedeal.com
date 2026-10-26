@@ -271,7 +271,7 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           </div>
         </div>
         <div class="ptx-mb16px">
-          <label class="ptx-fs11px-cm-ttuppercas">Cost Notes</label>
+          <label class="ptx-fs11px-cm-ttuppercas" for="ptNotes">Cost Notes</label>
           <textarea id="ptNotes" rows="2" class="ptx-wd100-p10px-bgs2">${escT(lead.costNotes)}</textarea>
         </div>
 
