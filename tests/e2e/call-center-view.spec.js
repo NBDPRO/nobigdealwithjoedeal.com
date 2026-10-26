@@ -160,7 +160,11 @@ test.describe.serial('Call Center view @shard2', () => {
     // Reachable from the nav; lazy bundle.
     expect(await safeEvaluate(page, () => !!window.NBDCallCenter)).toBe(false);
     await safeEvaluate(page, () => window.goTo('calls'));
-    await safeWaitForFunction(page, () => !!window.NBDCallCenter && window.NBDCallCenter._state.loaded, null, { timeout: 20_000 });
+    // goTo('calls') runs NBDCallCenter.init() twice, 4 ms apart (dashboard-actions.js), so a second read of the list starts the moment
+    // the first ends and _state.loaded is already true while it is in flight. A read that began before "Handled all" and lands during
+    // it swaps state.calls for the old rows: call e keeps its open flag, stays on the list as a lone card, and the tab says 6, not 5
+    // ("one person fewer", CI 2026-10-26 00:00 UTC). _state.loading stays true across both reads: wait for it to end.
+    await safeWaitForFunction(page, () => !!window.NBDCallCenter && window.NBDCallCenter._state.loaded && !window.NBDCallCenter._state.loading, null, { timeout: 20_000 });
     const card = (k) => page.locator('#view-calls .cc-card[data-call-id="cube_zzcv' + s + k + '"]');
 
     // Needs attention is grouped by PERSON (Jo, 2026-10-02): the customer's
