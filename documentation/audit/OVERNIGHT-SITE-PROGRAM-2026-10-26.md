@@ -82,3 +82,23 @@ signature text.
 The discovery, verification and review agents ran with read-only worktrees and measured instead of guessing: layout shift
 with a `PerformanceObserver`, contrast by compositing ancestor backgrounds, Tab order by walking focus. The fixers wrote
 their guard test first and proved it fails on `main`. Reviewers were given the diff, not the fixer's reasoning.
+
+## Update, later 2026-10-26: what moved after the first write-up
+
+Merged or queued since (each with a red-first guard test; the PR body has the detail):
+
+| PR | Finding | State when written |
+|---|---|---|
+| #2756 | crm-5 (dialogs ignore Escape / focus), crm-10 | merged |
+| #2758 | funnel-3 (`/storm-report` false "no storms", 24 h poisoned cache) | queued with auto-merge |
+| #2762 | the invisible blog callout links (found while fixing) | queued with auto-merge |
+| #2763 | perf-5 (six duplicate stylesheet links on the CRM pages); retires the R1-10-1 / R1-10-2 pins in `merge-leftovers-guard` | queued |
+| #2764 | funnel-9, `/inspect` half (validation message under the first bad field) | queued |
+| #2765 | crm-8 (Active Leads counts open deals only) | queued |
+| #2766 | marketing-6 (light orange `#DD875F` for stat numbers and headings on navy; 81 elements measured, all at least 4.5:1) | queued |
+
+Jo's calls on 2026-10-26: Active Leads = open deals only; brand orange text on navy becomes `#DD875F` (orange on light backgrounds stays `#BD5728`); the 69 KB latin-ext font on `/review` stays (perf-3, one "ș" in a reviewer's name).
+
+Still open, still Jo's: the copy and insurance-wording findings (copy-001 to copy-010), marketing-10 (GAF Timberline photo probes), funnel-10 (30 s AI note wait), crm-6 (held in #2755), crm-7 follow-ups, perf-1, perf-2, perf-4, perf-6. The homepage form's error line already sits above its button, so the homepage half of funnel-9 needs no change.
+
+Lessons worth keeping: a hand-written regex test can pin the exact form of a rule (`orange-text-on-navy` pinned `var(--orange-light)`), so a fallback form needs its pin widened; and a KNOWN BUG pin must be removed in the PR that fixes the bug.
