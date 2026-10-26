@@ -229,7 +229,7 @@ CEILING.localScripts += 1;
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
   blockingBytes: 84 * 1024,   // deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
-  localBytes: 2816 * 1024, // deliberate raise 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard; (2804 -> 2816 KB, same day): character waves 12-17 (builds, gaze, pop-in, cold breath, eye colour, two poses) grew chibi.js from 47 to 56 KB and game-sprite.js by 0.4 KB, all deferred; measured 2804 of 2804 before the raise leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
+  localBytes: 2820 * 1024, // deliberate raise 2026-10-26 (2816 -> 2820 KB): overlay-a11y.js (the crm-5 dialog contract, deferred) plus the Home boot hold (#2760) measured 2817 KB when the two overnight PRs met; the earlier raises: 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard; (2804 -> 2816 KB, same day): character waves 12-17 (builds, gaze, pop-in, cold breath, eye colour, two poses) grew chibi.js from 47 to 56 KB and game-sprite.js by 0.4 KB, all deferred; measured 2804 of 2804 before the raise leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
   templateBytes: 73 * 1024,
 };
 
