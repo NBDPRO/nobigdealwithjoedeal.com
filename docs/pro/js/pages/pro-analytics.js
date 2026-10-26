@@ -235,7 +235,7 @@ function renderModels(docs) {
   const sorted = Object.entries(models).sort((a, b) => b[1].cost - a[1].cost);
   if (!sorted.length) { el.innerHTML = '<div class="empty"><div class="empty-desc">No model data yet</div></div>'; return; }
 
-  const colors = { 'claude-opus-4-6': 'var(--blue)', 'claude-sonnet-4-6': 'var(--orange)', 'claude-haiku-4-5-20251001': 'var(--green)' };
+  const colors = { 'claude-opus-4-6': 'var(--blue)', 'claude-sonnet-4-6': 'var(--orange-text)', 'claude-haiku-4-5-20251001': 'var(--green)' };
 
   el.innerHTML = '<table class="tbl"><thead><tr><th>Model</th><th>Calls</th><th>Input</th><th>Output</th><th>Cost</th></tr></thead><tbody>' +
     sorted.map(([name, d]) => {

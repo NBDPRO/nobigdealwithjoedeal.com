@@ -81,12 +81,13 @@ module.exports = {
 
     // ── crm-3: text on the navy ──
     const PAGES = {
-      analytics: { path: 'analytics', sel: ['.tt:not(.active)', '#lReq', '#mReq', '.sc-label', '.ph-sub', '.ph-eyebrow', '.tbl th', '.chart-label', '.price-row', '#lastRefresh'] },
+      analytics: { path: 'analytics', sel: ['.tt:not(.active)', '#lReq', '#mReq', '.sc-label', '.ph-sub', '.ph-eyebrow', '.tbl th', '.chart-label', '.price-row', '.price-card:nth-child(2) .price-model', '#lastRefresh'] },
       'ai-tree': { path: 'ai-tree', sel: ['.page-eyebrow', '.cat-desc', '.history-title', '.history-empty'] },
       understand: { path: 'understand', sel: ['.hero-ey', '.path-desc', '.hero-sub', '.tb-back', '.tb-saved'] },
       'project-codex': { path: 'project-codex', sel: ['.sec-ey', '.sec-sub', '.tab', '.tl-empty'], after: 'codex' },
     };
-    for (const scheme of ['dark', 'light']) {
+    // The four pages pin data-theme="nbd-original" and carry no prefers-color-scheme rule, so a light pass would only repeat this one.
+    for (const scheme of ['dark']) {
       await page.emulateMedia({ colorScheme: scheme });
       for (const [name, def] of Object.entries(PAGES)) {
         await page.goto(ORIGIN + '/pro/explore/' + def.path);
