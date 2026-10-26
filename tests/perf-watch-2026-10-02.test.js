@@ -56,5 +56,29 @@ ok('workflow is read-only', /permissions:\s*\n\s*contents: read/.test(wf));
 const book = fs.readFileSync(path.join(__dirname, '..', 'docs', 'book', 'index.html'), 'utf8');
 ok('/book preloads its two above-the-fold fonts (the CLS fix)', /rel="preload" href="\/assets\/fonts\/bebas-neue-400-latin\.woff2" as="font"/.test(book) && /rel="preload" href="\/assets\/fonts\/montserrat-400-latin\.woff2" as="font"/.test(book));
 
+// marketing-1 (2026-10-26): the /book fix was never generalised, so ~290 pages swapped fonts after first paint
+// (hero text and buttons jumped ~35px, CLS 0.10-0.29 at phone width). Every public page that links nbd-fonts.css
+// preloads the two fonts it paints above the fold.
+console.log('\n4. Above-the-fold fonts are preloaded on every public page');
+const DOCS = path.join(__dirname, '..', 'docs');
+const FP = require(path.join(__dirname, '..', 'scripts', 'add-font-preloads.js')); // the codemod owns the skip lists
+const pages = FP.publicPages();
+const linked = pages.filter((r) => fs.readFileSync(path.join(DOCS, r), 'utf8').includes(FP.ANCHOR));
+const lacking = linked.filter((r) => { const h = fs.readFileSync(path.join(DOCS, r), 'utf8'); return !FP.FONT_PRELOADS.every((l) => h.includes(l)); });
+ok('the sweep reaches the public pages (guards against the walker matching nothing)', linked.length > 250, linked.length + ' pages');
+ok('every public page linking nbd-fonts.css preloads both fonts (' + linked.length + ' pages)', lacking.length === 0, lacking.length + ' lack them, e.g. ' + lacking.slice(0, 4).join(', '));
+ok('the only exemption (the offline fallback) names a real page', FP.NOT_MARKETING.every((r) => fs.existsSync(path.join(DOCS, r))));
+ok('the money pages perf-watch measures (/estimate, /storm-check) are in the sweep, not exempt', ['estimate.html', 'storm-check.html'].every((r) => pages.includes(r)));
+ok('docs/pro, admin, dev and sites stay out of the sweep', pages.every((r) => !/^(pro|admin|dev|sites)\//.test(r)));
+const LINK = '<link rel="stylesheet" href="/assets/css/nbd-fonts.css">';
+const stamped = FP.stamp('<head>\n  ' + LINK + '\n<style></style>\n');
+ok('the codemod keeps the anchor line\'s indentation and puts both hints right after it', stamped === '<head>\n  ' + LINK + '\n  ' + FP.FONT_PRELOADS[0] + '\n  ' + FP.FONT_PRELOADS[1] + '\n<style></style>\n');
+ok('the codemod is idempotent and only fills in what is missing', FP.stamp(stamped) === null && FP.stamp(LINK + '\n' + FP.FONT_PRELOADS[0]) === LINK + '\n' + FP.FONT_PRELOADS[1] + '\n' + FP.FONT_PRELOADS[0] && FP.stamp('<head></head>') === null);
+ok('the codemod keeps CRLF files CRLF (no lone CR)', FP.stamp('<head>\r\n' + LINK + '\r\n</head>\r\n') === '<head>\r\n' + LINK + '\r\n' + FP.FONT_PRELOADS.join('\r\n') + '\r\n</head>\r\n');
+const heroCodemod = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'add-template-hero-preloads.js'), 'utf8');
+ok('the hero-preload codemod looks for an image preload, so the font hints cannot suppress a hero preload', !/src\.includes\('rel="preload"'\)/.test(heroCodemod) && /as="image"/.test(heroCodemod.split('\n').find((l) => /skipped\+\+/.test(l)) || ''));
+const buildProjects = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-projects.mjs'), 'utf8');
+ok('build-projects.mjs (the one generator that emits a head with nbd-fonts.css) emits the font hints, so a restamp keeps them', buildProjects.includes(LINK + '\n' + FP.FONT_PRELOADS.join('\n')));
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
