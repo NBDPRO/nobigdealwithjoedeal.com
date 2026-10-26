@@ -75,13 +75,24 @@ async function fetchYear(startISO, endISO) {
 async function buildReport(lat, lon) {
   const events = [];
   let failedYears = 0;                                    // yearly IEM fetches that did not come back
+  let streak = 0;                                         // consecutive failures: two in a row = IEM is down
   const now = new Date();
   for (let y = 0; y < YEARS; y++) {
     const end = new Date(Date.UTC(now.getUTCFullYear() - y, now.getUTCMonth(), now.getUTCDate()));
     const start = new Date(Date.UTC(now.getUTCFullYear() - y - 1, now.getUTCMonth(), now.getUTCDate()));
     let feats;
     try { feats = await fetchYear(iso(start), iso(end)); }
-    catch (e) { failedYears++; logger.warn('stormReport: year fetch failed', { y, err: e.message }); continue; }
+    catch (e) {
+      failedYears++; streak++;
+      logger.warn('stormReport: year fetch failed', { y, err: e.message });
+      // Two years in a row lost (up to 20 s each) means IEM is down or timing out:
+      // stop, and count the years never asked for as lost, so a failed lookup holds
+      // a maxInstances:5 slot for ~40 s instead of ~100 s. What was fetched before
+      // the streak still comes back as partial.
+      if (streak >= 2) { failedYears += YEARS - y - 1; break; }
+      continue;
+    }
+    streak = 0;
     for (const f of feats) {
       const c = f.geometry && f.geometry.coordinates; const p = f.properties || {};
       const kind = normType(p.typetext || p.type);

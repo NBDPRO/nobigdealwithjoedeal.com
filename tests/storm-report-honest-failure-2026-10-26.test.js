@@ -108,9 +108,9 @@ const textOf = (id) => {
   const m = HTML.match(new RegExp('id="' + id + '"[^>]*>([^<]*)<'));
   return m ? m[1].replace(/&amp;/g, '&').trim() : null;
 };
-function loadPage(fetchImpl) {
+function loadPage(fetchImpl, extra) {
   const els = {}; let active = null; let clickHandler = null; let posted = null;
-  const fetches = [];
+  const fetches = [], fetchOpts = [];
   function el(id) {
     if (!els[id]) {
       let text = '', html = '';
@@ -145,15 +145,16 @@ function loadPage(fetchImpl) {
   win.window = win;
   const sandbox = {
     window: win, document: doc, console,
-    fetch: (u) => { fetches.push(u); return fetchImpl(u); },
+    fetch: (u, o) => { fetches.push(u); fetchOpts.push(o); return fetchImpl(u, o); },
     setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
   };
+  Object.assign(sandbox, extra || {});
   vm.runInNewContext(read('docs/assets/js/storm-report-page.js'), sandbox, { filename: 'storm-report-page.js' });
   const click = (action) => clickHandler({ target: { closest: (sel) => (sel === '[data-action]' ? { dataset: { action } } : null) } });
   win._srAc = [{ display_name: '123 Main St, Cincinnati, OH', lat: String(LAT), lon: String(LON) }];
   clickHandler({ target: { closest: (sel) => (sel.indexOf('sr-ac-item') >= 0 ? { dataset: { idx: '0' } } : null) } });
   return {
-    el, click, fetches,
+    el, click, fetches, fetchOpts,
     get active() { return active; },
     get posted() { return posted; },
     async generate() { click('generate'); await settle(); },
@@ -180,7 +181,7 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     const { handler, sets } = loadServer(store);
     const iem = stubIem(['500']);
     const down = await callServer(handler);
-    ok('IEM down: five yearly requests were tried', iem.calls === 5, iem.calls);
+    ok('IEM down: gives up after two yearly requests in a row fail (not five x 20 s)', iem.calls === 2, iem.calls);
     ok('IEM down: the response says the lookup failed (empty:true), zero counts, no events', down.code === 200 && down.body.empty === true && down.body.counts.total === 0 && down.body.events.length === 0, down.body);
     ok('IEM down: nothing is written to public_cache', sets.length === 0 && store[CACHE_PATH] === undefined, sets);
     ok('IEM down: not allowed to sit in a browser/CDN cache (no-store)', down.headers['Cache-Control'] === 'no-store', down.headers);
@@ -235,6 +236,33 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     global.fetch = async () => (n++ === 0 ? { ok: true, json: async () => ({ features: [] }) } : { ok: false, status: 502, json: async () => ({}) });
     const r = await callServer(handler);
     ok('4 of 5 years failed, 0 events in the one that worked: partial:true, not a cached zero', r.body.partial === true && r.body.failedYears === 4 && r.body.counts.total === 0 && sets.length === 0, r.body);
+  }
+  {
+    // 8. Fail fast: two years lost in a row stop the lookup; the years never asked for count as lost.
+    const store = {};
+    const { handler, sets } = loadServer(store);
+    const iem = stubIem(['ok', '500', 'throw', 'ok', 'ok']);
+    const r = await callServer(handler);
+    ok('a good year, then two lost in a row: stops after 3 requests (the last 2 years are never asked for)', iem.calls === 3, iem.calls);
+    ok('…returns the year that worked as partial, with the 2 lost + 2 never-asked years counted as lost', r.body.partial === true && r.body.counts.total === 1 && r.body.failedYears === 4 && !r.body.empty, { partial: r.body.partial, failedYears: r.body.failedYears, total: r.body.counts.total });
+    ok('…never cached, no-store', sets.length === 0 && r.headers['Cache-Control'] === 'no-store', { sets: sets.length, h: r.headers });
+  }
+  {
+    // 9. Lost years that are not back to back do not stop the lookup (the streak resets on a good year).
+    const store = {};
+    const { handler, sets } = loadServer(store);
+    const iem = stubIem(['500', 'ok', '500', 'ok', '500']);
+    const r = await callServer(handler);
+    ok('alternating lost / good years: all 5 are tried', iem.calls === 5, iem.calls);
+    ok('…3 lost, 2 found, partial, not cached', r.body.partial === true && r.body.failedYears === 3 && r.body.counts.total === 2 && sets.length === 0, r.body);
+  }
+  {
+    // 10. The same cell asked again while IEM is still down costs two requests each time, not five.
+    const store = {};
+    const { handler } = loadServer(store);
+    const iem = stubIem(['throw']);
+    const a = await callServer(handler), b = await callServer(handler);
+    ok('two failed lookups of one cell: 2 + 2 IEM requests, both answered empty:true', iem.calls === 4 && a.body.empty === true && b.body.empty === true, iem.calls);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -296,6 +324,52 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     ok('Retry fetched the same point again', p.fetches.length === 2 && p.fetches[0] === p.fetches[1] && /lat=39\.087&lon=-84\.39/.test(p.fetches[1]), p.fetches);
     ok('…and the teaser now shows the real result, Retry hidden, gate copy back', p.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address' && p.el('sr-retry').hidden === true
       && p.el('sr-gate-lead').textContent === textOf('sr-gate-lead') && p.el('sr-gate-sub').textContent === textOf('sr-gate-sub') && p.el('sr-unlock').textContent === textOf('sr-unlock'));
+  }
+
+  console.log('\nPAGE — a hung lookup times out into the "couldn\'t check" state instead of spinning forever');
+  {
+    const mk = () => {
+      const timers = [];
+      return {
+        timers,
+        extra: {
+          AbortController,
+          setTimeout: (fn, ms) => { timers.push({ fn, ms, cleared: false }); return timers.length; },
+          clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].cleared = true; },
+        },
+      };
+    };
+    // a request that never answers and rejects when it is aborted
+    const hung = (u, o) => new Promise((resolve, reject) => {
+      o.signal.addEventListener('abort', () => reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })));
+    });
+    const t = mk();
+    const p = loadPage(hung, t.extra);
+    p.click('generate'); await settle();
+    const lookupTimers = t.timers.filter((x) => x.ms === 60000);
+    ok('the lookup carries an abort signal and arms one 60 s timer', !!(p.fetchOpts[0] && p.fetchOpts[0].signal) && lookupTimers.length === 1, { opts: !!p.fetchOpts[0], timers: t.timers.map((x) => x.ms) });
+    ok('…while it is pending the page is on the loading panel', p.active === 'sr-loading', p.active);
+    lookupTimers[0].fn(); await settle();
+    ok('the timer firing aborts the request and opens the failed teaser with Retry', p.active === 'sr-teaser' && /couldn.t check storm records/i.test(p.el('sr-teaser-headline').textContent) && p.el('sr-retry').hidden === false, p.active);
+    ok('…never the false all-clear', !FALSE_ALL_CLEAR.test(p.el('sr-teaser-headline').textContent + ' ' + p.el('sr-teaser-sub').textContent));
+
+    // a lookup that answers in time clears the timer, so a late abort cannot hit a finished request
+    const t2 = mk();
+    const q = loadPage(respond(200, GOOD), t2.extra);
+    await q.generate();
+    const armed = t2.timers.filter((x) => x.ms === 60000);
+    ok('an answered lookup clears its timer', armed.length === 1 && armed[0].cleared === true, armed);
+    ok('…and shows the real result', q.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address');
+    // a failed one clears it too
+    const t3 = mk();
+    const r = loadPage(respond(500, {}), t3.extra);
+    await r.generate();
+    const armed3 = t3.timers.filter((x) => x.ms === 60000);
+    ok('a failed lookup clears its timer too', armed3.length === 1 && armed3[0].cleared === true, armed3);
+    // no AbortController (old browser): the plain fetch still runs, no timer
+    const u = loadPage(respond(200, GOOD));
+    await u.generate();
+    ok('without AbortController the lookup still works (no signal passed)', u.fetchOpts[0] === undefined && u.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address', u.fetchOpts[0]);
   }
 
   console.log('\nPAGE — a partial lookup that did find storms keeps them and says it may be incomplete');

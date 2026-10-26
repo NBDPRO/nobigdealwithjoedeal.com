@@ -9,6 +9,10 @@
 (function () {
   'use strict';
   var API = window.__NBD_STORM_API || '/api/storm-report';
+  // A cold lookup is five IEM calls; an IEM outage now fails fast server-side in
+  // about 40 s. This is the backstop for a hung connection: after 60 s the page
+  // lands in the "couldn't check" state with Retry instead of spinning forever.
+  var LOOKUP_TIMEOUT_MS = 60000;
   var $ = function (id) { return document.getElementById(id); };
   var S = { address: '', lat: null, lon: null, data: null };
 
@@ -82,15 +86,19 @@
       h.textContent = 'Type your address and pick it from the dropdown.'; h.style.display = 'block'; return;
     }
     show('sr-loading');
-    fetch(API + '?lat=' + S.lat + '&lon=' + S.lon)
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, LOOKUP_TIMEOUT_MS) : 0;
+    fetch(API + '?lat=' + S.lat + '&lon=' + S.lon, ctl ? { signal: ctl.signal } : undefined)
       .then(function (r) { if (!r.ok) throw new Error('storm-lookup-' + r.status); return r.json(); })
       .then(function (j) {
+        clearTimeout(timer);
         // The server's own empty:true fallback, a body with no counts and a partial
         // lookup that found nothing are all "we could not check", not "no storms".
         if (!j || !j.counts || j.empty || (j.partial && !j.counts.total)) throw new Error('storm-lookup-unavailable');
         S.data = j; renderTeaser(); show('sr-teaser');
       })
       .catch(function () {
+        clearTimeout(timer);
         // Say so (_err: renderTeaser / verdict / renderReport read it, Retry re-runs
         // generate) and still let them request an inspection.
         S.data = { counts: { total: 0, hail: 0, wind: 0, tornado: 0, stormDays: 0 }, events: [], _err: true };
