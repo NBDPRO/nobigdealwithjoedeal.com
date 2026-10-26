@@ -67,7 +67,8 @@ const linked = pages.filter((r) => fs.readFileSync(path.join(DOCS, r), 'utf8').i
 const lacking = linked.filter((r) => { const h = fs.readFileSync(path.join(DOCS, r), 'utf8'); return !FP.FONT_PRELOADS.every((l) => h.includes(l)); });
 ok('the sweep reaches the public pages (guards against the walker matching nothing)', linked.length > 250, linked.length + ' pages');
 ok('every public page linking nbd-fonts.css preloads both fonts (' + linked.length + ' pages)', lacking.length === 0, lacking.length + ' lack them, e.g. ' + lacking.slice(0, 4).join(', '));
-ok('the exemptions (other overnight PRs, the offline fallback) name real pages', FP.OWNED_BY_OTHER_PRS.concat(FP.NOT_MARKETING).every((r) => fs.existsSync(path.join(DOCS, r))));
+ok('the only exemption (the offline fallback) names a real page', FP.NOT_MARKETING.every((r) => fs.existsSync(path.join(DOCS, r))));
+ok('the money pages perf-watch measures (/estimate, /storm-check) are in the sweep, not exempt', ['estimate.html', 'storm-check.html'].every((r) => pages.includes(r)));
 ok('docs/pro, admin, dev and sites stay out of the sweep', pages.every((r) => !/^(pro|admin|dev|sites)\//.test(r)));
 const LINK = '<link rel="stylesheet" href="/assets/css/nbd-fonts.css">';
 const stamped = FP.stamp('<head>\n  ' + LINK + '\n<style></style>\n');

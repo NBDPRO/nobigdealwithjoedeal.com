@@ -37,13 +37,9 @@ const FONT_FILES = ['bebas-neue-400-latin.woff2', 'montserrat-400-latin.woff2'];
 const fontPreload = (file) => `<link rel="preload" href="/assets/fonts/${file}" as="font" type="font/woff2" crossorigin>`;
 const FONT_PRELOADS = FONT_FILES.map(fontPreload);
 
-// Pages another overnight PR edits (its own change adds the same two lines), so
-// this codemod leaves them alone to avoid a merge conflict. Drop an entry once
-// that page carries the lines.
-const OWNED_BY_OTHER_PRS = ['estimate.html', 'storm-check.html', 'roof-score.html', 'inspect.html', 'storm-alerts.html', '404.html', 'search.html'];
 // Not a marketing page: the service-worker offline fallback has no network to preload from.
 const NOT_MARKETING = ['offline.html'];
-const SKIP_PATHS = OWNED_BY_OTHER_PRS.concat(NOT_MARKETING);
+const SKIP_PATHS = NOT_MARKETING;
 // Top-level docs/ folders that are not public marketing pages.
 const SKIP_DIRS = ['pro', 'admin', 'dev', 'sites', 'assets', 'tools'];
 
@@ -101,4 +97,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { ANCHOR, FONT_PRELOADS, OWNED_BY_OTHER_PRS, NOT_MARKETING, SKIP_DIRS, publicPages, stamp };
+module.exports = { ANCHOR, FONT_PRELOADS, NOT_MARKETING, SKIP_DIRS, publicPages, stamp };
