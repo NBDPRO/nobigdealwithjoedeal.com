@@ -373,7 +373,7 @@
     if (o.crop === 'bust' && (a.prop !== 'umbrella' || a.clipboard)) p.noProp = true; // clean-up 2026-10-25: a bust ends above the hanging hand, so its prop showed as a sliver (the umbrella is the one prop a bust keeps)
     if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
     else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { upright(raised); pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
-    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { upright(a.prop === 'umbrella' || a.prop === 'cane' ? 1 : raised); prop(a.prop); });
+    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { upright(a.prop === 'umbrella' || a.prop === 'cane' || a.prop === 'mug' || a.prop === 'baby' ? 1 : raised); prop(a.prop); }); // wave 26: a mug and a baby are carried level at any arm angle (the walk's forward swing tilted them 44 degrees)
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
       if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
@@ -390,6 +390,7 @@
     }
     // clean-up 2026-10-25: the canopy, in the shaft's frame but drawn after the head and the hat, so a hat crown, a pompom or a spike that reaches its edge tucks under it, not over it
     function canopy() {
+        ctx.translate(18, -58); ctx.scale(1 / fab, 1); ctx.translate(-18, 58); // wave 26: the canopy keeps its width mid-turn (counter-scaled about the shaft top, as the head is about its centre), not a flag squeezed with the body over a round head
         pen.shape(function (c) { c.moveTo(-24, -58); c.quadraticCurveTo(-18, -92, 18, -96); c.quadraticCurveTo(54, -92, 60, -58); for (var si = 0; si < 6; si++) c.quadraticCurveTo(53 - si * 14, -52, 46 - si * 14, -58); }, '#BD5728');
         ctx.fillStyle = '#DD875F'; [[-10, -60], [18, -94], [46, -60]].forEach(function (pt, i) { ctx.beginPath(); ctx.moveTo(18, -58); if (i === 1) { ctx.lineTo(4, -90); ctx.lineTo(32, -90); } else { ctx.lineTo(pt[0], pt[1]); ctx.lineTo(pt[0] + (i ? -6 : 6), -84); } ctx.closePath(); ctx.fill(); });
         ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; [-10, 46].forEach(function (rx) { ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(rx, -60); ctx.stroke(); }); ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(18, -94); ctx.stroke();
