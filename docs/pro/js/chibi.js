@@ -429,11 +429,15 @@
     // head: a soft circle with a chin, ears, shading and a highlight
     ctx.save(); ctx.translate(hx, hy); ctx.scale(1 / fab, 1); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy); // 1 / fab: round mid-turn (wave 24)
     pen.circle(hx - hr + 1, hy + 4, 5 * (1 + 0.12 * turn), skinG); pen.circle(hx + hr - 1, hy + 4, 5 * (1 - 0.12 * turn), skinG);
-    pen.shape(function (c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }, skinG);
+    function headPath(c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }
+    // wave 26: clipHead() clips what follows (in the slid features frame) to the head, pulled in 4% so it stops at the ink's inner edge: the features slide up to 10 across a head that stays round, and at an edge-on facing the far blush, eye white, wrinkle and lens hung outside the outline; the caller's restore() lifts it
+    function clipHead() { ctx.save(); ctx.save(); ctx.translate(hx - fx, hy); ctx.scale(0.96, 0.96); ctx.translate(-hx, -hy); pen.path(headPath); ctx.restore(); ctx.clip(); }
+    pen.shape(headPath, skinG);
     // highlight on the forehead, and the hat brim's shadow across it
     ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.ellipse(hx - 10, hy - 14, 9, 5, -0.5, 0, Math.PI * 2); ctx.fill();
     if (a.hat === 'hardhat' || a.hat === 'cap') { ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.beginPath(); ctx.ellipse(hx, hy - 9, hr - 1, a.hat === 'cap' ? 5 : 3.5, 0, 0, Math.PI); ctx.fill(); }
     ctx.save(); ctx.translate(fx, 0); // the features, turned (wave 24)
+    clipHead(); // wave 26: the wrinkles, the stubble and the cheeks stop at the head
     if (a.elder && !pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; [[-16, 20], [16, 20]].forEach(function (w) { ctx.beginPath(); ctx.moveTo(hx + w[0], hy + w[1] - 3); ctx.quadraticCurveTo(hx + w[0] * 1.1, hy + w[1], hx + w[0] * 0.9, hy + w[1] + 4); ctx.stroke(); }); }
     // clean-up 2026-10-25: the stubble and the full beard's body go on here, under the eyes and the mouth (every mouth state now paints over the beard: the open mouth, the grin, flat, smirk and frown all went under it and a two-way smile/frown line stood in) and in head space (counter-translated out of the slid features frame, so the beard stays on the jaw mid-turn instead of sliding past the head outline); only the mustache rides the features, after the mouth
     // wave 26: the stubble wash goes under the cheeks (its corners at hy + 10 sit inside the blush ellipses and cut a grey wedge from each; both are translucent, so the blush now paints over it); the full beard stays over them, since a blush over hair would tint it
@@ -441,8 +445,10 @@
     if (a.beard === 'stubble') { ctx.save(); ctx.translate(-fx, 0); ctx.fillStyle = 'rgba(0,0,0,' + (0.16 + Math.max(0, a.skin - 2) * 0.06).toFixed(2) + ')'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); ctx.restore(); } // the wash deepens from skin 3 up (.16 on skins 0-2 as before, .22 / .28 / .34 on 3-5: .16 vanished on the two darkest skins)
     // cheeks
     if (p.mouth !== 'frown' && !pen.tiny) { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
+    ctx.restore(); // wave 26: the full beard hangs 2 past the chin on purpose, so it is drawn outside the clip
     if (a.beard === 'full') { ctx.save(); ctx.translate(-fx, 0); pen.shape(function (c) { c.moveTo(hx - 24, hy + 6); c.quadraticCurveTo(hx - 27, hy + 27, hx, hy + 33); c.quadraticCurveTo(hx + 27, hy + 27, hx + 24, hy + 6); c.quadraticCurveTo(hx + 14, hy + 18, hx + 9, my - 3); c.lineTo(hx - 9, my - 3); c.quadraticCurveTo(hx - 14, hy + 18, hx - 24, hy + 6); }, hairG); ctx.restore(); } // the tip ends 2 under the chin (hy + 33, the sides at hy + 27; hy + 36 / 30 hung over the collar, the polo's V and the hoodie strings)
 
+    clipHead(); // wave 26: the eyes and the brows stop at the head
     // eyes (centres 50±12, hy+4): a white, an iris with a darker rim, a pupil, two catchlights, a lid shadow
     var eyL = hx - 12, eyR = hx + 12, ey = hy + 4, lookX = p.look * 1.5, lookY = p.lookY || 0;
     function roundEye(cx, closed) {
@@ -477,6 +483,7 @@
     ctx.strokeStyle = browC; ctx.lineWidth = pen.fw(2.6); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(eyL - 6, ey - 11 - bUp + bDn * 2); ctx.quadraticCurveTo(eyL, ey - 14 - bUp + bDn * 1, eyL + 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUpR - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUpR + bDn * 1, eyR + 6, ey - 11 - bUpR + bDn * 2); ctx.stroke();
+    ctx.restore(); // wave 26: the nose, the mouth and the mustache sit well inside the face
     // nose
     if (!pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke(); }
     // mouth (clean-up 2026-10-25: over a black full beard the line states are stroked in a lifted hair tone, since INK had no contrast on it: hair 0 scores 38 on the luminance, hair 1 scores 65 and keeps INK)
@@ -497,7 +504,7 @@
 
     // front hair (sways a touch with the body, and follows the turned face a little)
     var top = hy - hr - 2;
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx + fx * 0.4, -hy);
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx + Math.max(-1.5, Math.min(1.5, fx * 0.4)), -hy); // wave 26: the slide follows the look (at most 1.25) but mid-turn, where fx reaches 10, it stops at 1.5, inside the ink on both sides: the hair left bare skin above the ear on the leading side and a wing past the head on the trailing one
     if (a.hair === 'short') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 2, top - 4, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + hr - 4, hy - 10, hx + 12, hy - 16); c.quadraticCurveTo(hx, hy - 8, hx - 10, hy - 17); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'spiky') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.lineTo(hx - hr - 6, top - 10); c.lineTo(hx - 16, top - 5); c.lineTo(hx - 10, top - 16); c.lineTo(hx - 3, top - 6); c.lineTo(hx + 4, top - 17); c.lineTo(hx + 10, top - 5); c.lineTo(hx + 20, top - 14); c.lineTo(hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 12, hy - 14, hx, hy - 12); c.quadraticCurveTo(hx - 12, hy - 14, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'long') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy + 2); c.quadraticCurveTo(hx - hr - 3, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 3, top - 4, hx + hr + 1, hy + 2); c.quadraticCurveTo(hx + hr - 6, hy - 10, hx + 8, hy - 14); c.quadraticCurveTo(hx - 4, hy - 6, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 4, hy - 12, hx - hr - 1, hy + 2); }, hairG); }
@@ -531,7 +538,7 @@
     ctx.restore();
 
     // eyewear (over the hair and the hats, turned with the features; the cap's brim comes after it)
-    ctx.save(); ctx.translate(fx, 0);
+    ctx.save(); ctx.translate(fx, 0); clipHead(); // wave 26: a lens or a frame never leaves the head
     if (a.extra === 'glasses') {
       ctx.strokeStyle = '#4A5A6B'; ctx.lineWidth = pen.fw(2); [eyL, eyR].forEach(function (cx) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 8.5, ey - 7.5, 17, 15, 4) : ctx.rect(cx - 8.5, ey - 7.5, 17, 15); ctx.stroke(); if (!pen.tiny) { ctx.fillStyle = 'rgba(156,211,240,.28)'; ctx.fill(); } });
       ctx.beginPath(); ctx.moveTo(eyL + 8.5, ey - 1); ctx.lineTo(eyR - 8.5, ey - 1); ctx.stroke();
@@ -540,6 +547,7 @@
       [eyL, eyR].forEach(function (cx) { pen.rrect(cx - 9, ey - 7, 18, 13, 5, pen.grad(cx - 9, ey - 7, cx + 9, ey + 6, '#3A3F4A', '#0E1116')); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(cx - 3, ey - 3, 4, 1.6, -0.4, 0, Math.PI * 2); ctx.fill(); });
       pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, pen.fw(2.4)); if (eyL - 9 > hx - hr + 1 - fx) pen.line(eyL - 9, ey - 3, hx - hr + 1 - fx, ey - 5, pen.fw(2.4)); if (eyR + 9 < hx + hr - 1 - fx) pen.line(eyR + 9, ey - 3, hx + hr - 1 - fx, ey - 5, pen.fw(2.4)); // the same for the shades' arms
     }
+    ctx.restore(); // wave 26: the eyewear's clip
     ctx.restore(); // eyewear
     if (a.hat === 'cap') { ctx.save(); ctx.translate(hx, -p.hat); ctx.scale(fab, 1); ctx.translate(-hx, 0); pen.shape(function (c) { c.moveTo(hx + 2, hy - 10); c.quadraticCurveTo(hx + hr + 8, hy - 13, hx + hr + 16, hy - 5); c.quadraticCurveTo(hx + hr + 4, hy - 3, hx + 2, hy - 7); }, shade(hatC, -28)); ctx.restore(); } // wave 26: the brim turns with the body and sits 3 higher, clear of the front eye; clean-up 2026-10-25: it is drawn over the frames (they cut its outline) and lifts with the hat
     // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
