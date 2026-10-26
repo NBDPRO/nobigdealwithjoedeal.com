@@ -288,7 +288,7 @@
     // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 103%
     // (clean-up 2026-10-25: 106% lifted a beanie's pompom past a bust's top edge) and settles, from the feet. Nothing at 1 (or when unset).
     var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
-    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.03 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
+    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.03 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; if (p.jump) { p.jump *= pop; p.sy = 1 + (p.sy - 1) * pop; p.sx = 1 + (p.sx - 1) * pop; p.hat *= pop; } } // clean-up 2026-10-25: a cheer's jump, stretch and hat lift ease in with the pop (they stacked on the overshoot and cut a beanie's pompom)
     // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
     // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
     var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
@@ -320,6 +320,21 @@
     var hatG = pen.grad(25, 0, 75, 40, shade(hatC, 34), shade(hatC, -22));
     var hx = 50, hy = 42 - headRise(a), hr = 29;
     function headXf() { ctx.translate(hx, hy); ctx.scale(bhead / fab, bhead); ctx.translate(-hx, -hy); } // the head stays round mid-turn (wave 24)
+
+    // emotes that float free of the head: sparkles on a cheer, thought dots when thinking
+    // clean-up 2026-10-25: drawn first, behind the hair, body, head, hat and arms, so a star or a dot that crosses them tucks behind (it sat on top like a decal); the orbit is wider and lower and the dots nearer, so the third clears a bust's edge
+    if (p.emote === 'sparkle' && !reduce) {
+      ctx.save();
+      for (var si = 0; si < 3; si++) {
+        var ph = t / 600 + si * 2.1, sx = hx + Math.cos(ph) * 47, sy = hy - 10 + Math.sin(ph * 1.3) * 26, sr = 2.4 + Math.sin(t / 120 + si) * 1.2;
+        ctx.fillStyle = si === 1 ? '#FFD98A' : '#FFF4C2'; ctx.beginPath();
+        ctx.moveTo(sx, sy - sr * 2); ctx.quadraticCurveTo(sx, sy, sx + sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy + sr * 2); ctx.quadraticCurveTo(sx, sy, sx - sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy - sr * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (p.emote === 'dots') {
+      var dn = reduce ? 3 : Math.floor((t % 1800) / 600) + 1;
+      for (var di = 0; di < 3; di++) { if (di < dn) pen.circle(hx + 35 + di * 6, hy - 32 - di * 5, 2.2 + di * 0.9, '#F6F7F8'); }
+    }
 
     // back hair (behind the head): long hair sways from the crown, the ponytail swings from its root
     ctx.save(); headXf();
@@ -494,6 +509,8 @@
     if (a.hair !== 'bald' && a.hair !== 'buzz') { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(hx - 12, top + 2, 8, 2.6, -0.3, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
 
+    // a sweat drop slides down the temple when sad (stays with the head; wave 26: under the eyewear and the cap's brim, so a frame passes over the drop; clean-up 2026-10-25: under the hat too, and a hat wearer's drop starts 10 lower and 2 further out, below the brim and beside the eye)
+    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400, hw = a.hat === 'none' ? 0 : 1; ctx.save(); ctx.translate(hx + hr - 6 + hw * 2, hy - 14 + hw * 10 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     // hats (lift a touch on a jump)
     ctx.save(); ctx.translate(0, -p.hat);
     if (a.hat === 'hardhat') {
@@ -513,8 +530,6 @@
     }
     ctx.restore();
 
-    // a sweat drop slides down the temple when sad (stays with the head; wave 26: under the eyewear and the cap's brim, so a frame passes over the drop)
-    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     // eyewear (over the hair and the hats, turned with the features; the cap's brim comes after it)
     ctx.save(); ctx.translate(fx, 0);
     if (a.extra === 'glasses') {
@@ -547,17 +562,6 @@
     }
     if (!p.cover) frontArm();
 
-    // emotes that float free of the head: sparkles on a cheer, thought dots when thinking
-    if (p.emote === 'sparkle' && !reduce) {
-      for (var si = 0; si < 3; si++) {
-        var ph = t / 600 + si * 2.1, sx = hx + Math.cos(ph) * 44, sy = hy - 22 + Math.sin(ph * 1.3) * 14, sr = 2.4 + Math.sin(t / 120 + si) * 1.2;
-        ctx.fillStyle = si === 1 ? '#FFD98A' : '#FFF4C2'; ctx.beginPath();
-        ctx.moveTo(sx, sy - sr * 2); ctx.quadraticCurveTo(sx, sy, sx + sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy + sr * 2); ctx.quadraticCurveTo(sx, sy, sx - sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy - sr * 2); ctx.fill();
-      }
-    } else if (p.emote === 'dots') {
-      var dn = reduce ? 3 : Math.floor((t % 1800) / 600) + 1;
-      for (var di = 0; di < 3; di++) { if (di < dn) pen.circle(hx + 36 + di * 7, hy - 30 - di * 5, 2.2 + di * 0.9, '#F6F7F8'); }
-    }
     ctx.restore();
   }
 
