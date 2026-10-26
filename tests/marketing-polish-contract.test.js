@@ -607,6 +607,194 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
   ok('blog gaf-vs-oc-vs-atlas: per-square figures are installed retail (>= $500)', perSq.every((n) => n >= 500), perSq.join(','));
 }
 
+// ── Blog, 404 and search pages: a readable mid-post card, a styled footer, and nothing clipped at
+// 320 px (overnight pass 2026-10-26). Three defects, one shape: a page-level rule beat, or was
+// missing from, the shared sheet.
+//  1. The injected "Joe answers his own phone" card (blog-midpost-cta.js + blog-midpost-cta.css)
+//     computed navy-on-navy (1.21:1) on four posts, because their inline `.prose h3` / `.prose p`
+//     tied the card's `.blog-midpost-cta h3` / `p` on specificity and came later in the file.
+//  2. /404 and /search carried the footer-extended markup and none of its CSS: 29 default-blue
+//     links on navy (1.69:1) and bulleted lists.
+//  3. At 320 px the blog index, 14 posts, one guide and /sms-program were wider than the screen
+//     (a 1fr grid track keeps its min-content, a flex child needs min-width:0, long URLs need
+//     overflow-wrap) and `body{overflow-x:clip}` cut the overflow off instead of scrolling it.
+// The zero-dep suite has no browser, so this is a small cascade: it reads the page's own <style>
+// blocks and linked /assets/css sheets in document order, builds the element's ancestry from the
+// markup, and resolves one property by !important, specificity, then source order, at a 360 px
+// viewport by default (max-width media on, min-width >= 992 off). Selectors it cannot decide statically
+// (attribute, :hover, :nth-child, +, ~) are skipped. Cross-checked against Chromium for every post.
+{
+  const PHONE = 360, DESKTOP = 1280;
+  const mediaOn = (q, vw) => !/print/i.test(q) && [...q.matchAll(/\(([^)]*)\)/g)].every((m) => {
+    const w = m[1].match(/^\s*(min|max)-width\s*:\s*([\d.]+)px\s*$/);
+    return w && (w[1] === 'min' ? vw >= +w[2] : vw <= +w[2]);
+  });
+  function rulesOf(css, vw) {
+    const s = css.replace(/\/\*[\s\S]*?\*\//g, ''), out = [];
+    (function walk(from, to) {
+      for (let i = from; ;) {
+        const open = s.indexOf('{', i);
+        if (open < 0 || open >= to) return;
+        let depth = 1, j = open + 1;
+        while (j < to && depth) { const c = s[j++]; depth += c === '{' ? 1 : c === '}' ? -1 : 0; }
+        const head = s.slice(i, open).split(';').pop().trim();
+        if (head[0] !== '@') out.push({ sel: head, body: s.slice(open + 1, j - 1) });
+        else if (/^@supports\b/.test(head) || (/^@media\b/.test(head) && mediaOn(head, vw))) walk(open + 1, j - 1);
+        i = j;
+      }
+    })(0, s.length);
+    return out;
+  }
+  function parseSel(sel) {
+    const tok = /\s*([>+~])\s*|(\s+)|(\*)|([a-zA-Z][\w-]*)|#([\w-]+)|\.([\w-]+)|:not\(([^()]*)\)/y;
+    const fresh = () => ({ comb: ' ', tag: '', id: '', cls: [], not: [] });
+    const parts = [], spec = [0, 0, 0];
+    let cur = fresh();
+    sel = sel.trim();
+    while (tok.lastIndex < sel.length) {
+      const m = tok.exec(sel);
+      if (!m) return null;
+      if (m[1]) { if (m[1] !== '>') return null; parts.push(cur); cur = fresh(); cur.comb = '>'; }
+      else if (m[2]) { parts.push(cur); cur = fresh(); }
+      else if (m[4]) { cur.tag = m[4].toLowerCase(); spec[2]++; }
+      else if (m[5]) { cur.id = m[5]; spec[0]++; }
+      else if (m[6]) { cur.cls.push(m[6]); spec[1]++; }
+      else if (m[7] !== undefined) {
+        const n = parseSel(m[7]);
+        if (!n || n.parts.length !== 1) return null;
+        cur.not.push(n.parts[0]); n.spec.forEach((v, k) => { spec[k] += v; });
+      }
+    }
+    parts.push(cur);
+    return { parts, spec };
+  }
+  const same = (el, p) => (!p.tag || el.tag === p.tag) && (!p.id || el.id === p.id)
+    && p.cls.every((c) => el.cls.includes(c)) && !p.not.some((n) => same(el, n));
+  function hits(parts, chain, ci = chain.length - 1, pi = parts.length - 1) {
+    if (!same(chain[ci], parts[pi])) return false;
+    if (!pi) return true;
+    if (parts[pi].comb === '>') return ci > 0 && hits(parts, chain, ci - 1, pi - 1);
+    for (let k = ci - 1; k >= 0; k--) if (hits(parts, chain, k, pi - 1)) return true;
+    return false;
+  }
+  // The winning declared value of `prop` for the last element of `chain`, or null when no rule sets it.
+  function resolve(sheets, chain, prop, vw = PHONE) {
+    const want = new RegExp('(?:^|;)\\s*' + prop + '\\s*:\\s*([^;]+)', 'gi');
+    let best = null, n = 0;
+    for (const css of sheets) {
+      for (const r of rulesOf(css, vw)) {
+        n++;
+        const hit = [...r.body.matchAll(want)].pop();
+        if (!hit) continue;
+        for (const sel of r.sel.split(',')) {
+          const p = parseSel(sel);
+          if (!p || !hits(p.parts, chain)) continue;
+          const key = [/!important/i.test(hit[1]) ? 1 : 0, ...p.spec, n];
+          const wins = !best || (() => { for (let k = 0; k < 5; k++) if (key[k] !== best.key[k]) return key[k] > best.key[k]; return true; })();
+          if (wins) best = { key, val: hit[1].replace(/!important/i, '').replace(/\s+/g, '').toLowerCase() };
+        }
+      }
+    }
+    return best && best.val;
+  }
+  // The stylesheets a page applies, in document order: inline <style> text and local /assets/css links.
+  function sheetsOf(html) {
+    const out = [];
+    for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>|<link\b[^>]*>/gi)) {
+      if (m[1] !== undefined) { out.push(m[1]); continue; }
+      const href = /\brel="stylesheet"/i.test(m[0]) && m[0].match(/\bhref="(\/assets\/css\/[^"?]+)/);
+      if (href && fs.existsSync(path.join(DOCS, href[1]))) out.push(read(path.join(DOCS, href[1])));
+    }
+    return out;
+  }
+  // The ancestry (html ... element) of the first element `stop` accepts, from the page markup.
+  function chainTo(html, stop) {
+    const stack = [];
+    const src = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, '');
+    for (const m of src.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/gi)) {
+      const tag = m[2].toLowerCase();
+      if (m[1]) { const k = stack.map((e) => e.tag).lastIndexOf(tag); if (k >= 0) stack.length = k; continue; }
+      if (/^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/.test(tag) || /\/\s*$/.test(m[3])) continue;
+      const attr = (a) => (m[3].match(new RegExp('(?:^|\\s)' + a + '="([^"]*)"')) || [0, ''])[1];
+      stack.push({ tag, id: attr('id'), cls: attr('class').split(/\s+/).filter(Boolean) });
+      if (stop(stack[stack.length - 1], stack)) return stack.slice();
+    }
+    return null;
+  }
+  const el = (tag, ...cls) => ({ tag, id: '', cls });
+  const hasCls = (c) => (e) => e.cls.includes(c);
+
+  const postNames = fs.readdirSync(path.join(DOCS, 'blog')).filter((f) => f.endsWith('.html') && f !== 'index.html').map((f) => f.slice(0, -5));
+  const postHtml = (n) => read(path.join(DOCS, 'blog', n + '.html'));
+  const withCard = postNames.filter((n) => postHtml(n).includes('/assets/css/blog-midpost-cta.css'));
+
+  // 1. The mid-post card is white-on-navy on every post that carries it (the JS injects it after the 2nd h2 of the first .prose).
+  const cardColour = (n, tag) => {
+    const html = postHtml(n);
+    const host = chainTo(html, (e) => e.cls.includes('prose') || e.cls.includes('blog-post-body'));
+    return host && resolve(sheetsOf(html), [...host, el('aside', 'blog-midpost-cta'), el(tag)], 'color');
+  };
+  const FOUR = ['the-pipe-boot-fork', 'why-roofivent-is-on-my-roofs', 'why-i-install-lumanail-on-every-elite-roof', 'how-roof-financing-actually-works'];
+  ok('blog: >= 30 posts link blog-midpost-cta.css', withCard.length >= 30, withCard.length);
+  for (const n of FOUR) {
+    ok('blog/' + n + ' links the card sheet', withCard.includes(n));
+    ok('blog/' + n + ': mid-post card headline resolves to white', cardColour(n, 'h3') === '#fff', cardColour(n, 'h3'));
+    ok('blog/' + n + ': mid-post card paragraph resolves to 85% white', cardColour(n, 'p') === 'rgba(255,255,255,.85)', cardColour(n, 'p'));
+  }
+  {
+    const bad = withCard.filter((n) => { const h = cardColour(n, 'h3'), p = cardColour(n, 'p'); return h !== null && (h !== '#fff' || p !== 'rgba(255,255,255,.85)'); });
+    ok('blog: every post with the mid-post card keeps its headline and paragraph light on the navy card', bad.length === 0, bad.slice(0, 4).join(', '));
+  }
+
+  // 3. 320 px: the shared sheets out-rank the posts' own inline rules at phone width.
+  const OVER = ['why-i-install-lumanail-on-every-elite-roof', 'why-roofivent-is-on-my-roofs', 'the-pipe-boot-fork', 'free-homeowner-guides-printable-pdfs',
+    'gaf-timberline-hdz-vs-tamko-stormfighter-flex', 'gaf-timberline-vs-tamko-storm-series', 'how-a-roof-works-layer-by-layer', 'how-roof-financing-actually-works',
+    'is-the-class-4-upgrade-worth-it', 'owens-corning-duration-vs-tamko-hailguard', 'tamko-hailguard-first-shingle-with-hail-warranty',
+    'vinyl-vs-lp-smartside-vs-fiber-cement-siding', 'why-wont-roofing-suppliers-sell-to-homeowners', 'why-class-4-impact-shingles'];
+  ok('blog: all 14 posts measured at 320 px carry the shared card sheet', OVER.every((n) => withCard.includes(n)));
+  for (const n of withCard) {
+    const html = postHtml(n), sheets = sheetsOf(html);
+    const wrap = chainTo(html, hasCls('article-wrap')), info = chainTo(html, hasCls('author-info'));
+    ok('blog/' + n + ': the byline text can shrink and wrap a long email or URL',
+      !info || (resolve(sheets, info, 'min-width') === '0' && resolve(sheets, info, 'overflow-wrap') === 'anywhere'));
+    const box = chainTo(html, hasCls('author-box'));
+    ok('blog/' + n + ': the author box stacks on a phone (the email stays on one line) and keeps its row on desktop',
+      !box || (resolve(sheets, box, 'flex-direction') === 'column' && resolve(sheets, box, 'flex-direction', DESKTOP) !== 'column'),
+      box && resolve(sheets, box, 'flex-direction'));
+    if (!wrap) continue;
+    ok('blog/' + n + ': the article grid track can shrink below its content at phone width', resolve(sheets, wrap, 'grid-template-columns') === 'minmax(0,1fr)', resolve(sheets, wrap, 'grid-template-columns'));
+    ok('blog/' + n + ': desktop keeps the content + sidebar columns', resolve(sheets, wrap, 'grid-template-columns', DESKTOP) === '1fr300px', resolve(sheets, wrap, 'grid-template-columns', DESKTOP));
+  }
+  {
+    const html = read(path.join(DOCS, 'blog', 'index.html')), sheets = sheetsOf(html);
+    const grid = chainTo(html, (e) => e.id === 'blog-posts-grid'), main = chainTo(html, hasCls('blog-main'));
+    ok('blog index: the post-card grid never asks for a track wider than its box', !!grid && resolve(sheets, grid, 'grid-template-columns') === 'repeat(auto-fit,minmax(min(320px,100%),1fr))', grid && resolve(sheets, grid, 'grid-template-columns'));
+    ok('blog index: the single-column phone layout can shrink below its content', !!main && resolve(sheets, main, 'grid-template-columns') === 'minmax(0,1fr)', main && resolve(sheets, main, 'grid-template-columns'));
+  }
+  {
+    const guide = read(path.join(DOCS, 'guides', 'roof-financing-explained.html')), sms = read(path.join(DOCS, 'sms-program.html'));
+    const gb = chainTo(guide, (e) => e.tag === 'body'), sb = chainTo(sms, (e) => e.tag === 'body');
+    ok('guides/roof-financing-explained: a long URL link wraps instead of widening the page', !!gb && resolve(sheetsOf(guide), [...gb, el('a')], 'overflow-wrap') === 'anywhere');
+    ok('sms-program: a long URL link wraps instead of widening the page', !!sb && resolve(sheetsOf(sms), [...sb, el('a')], 'overflow-wrap') === 'anywhere');
+  }
+
+  // 2. /404 and /search carry the footer-extended markup, so they need its CSS too.
+  for (const f of ['404', 'search']) {
+    const html = read(path.join(DOCS, f + '.html')), sheets = sheetsOf(html);
+    const ul = chainTo(html, (e, st) => e.tag === 'ul' && st.some(hasCls('footer-col')));
+    const grid = chainTo(html, hasCls('footer-grid'));
+    ok(f + ': footer lists have no bullets', !!ul && resolve(sheets, ul, 'list-style') === 'none', ul && resolve(sheets, ul, 'list-style'));
+    ok(f + ': footer links are light on the navy footer, not the browser-default blue', !!ul && /^rgba\(255,255,255,\.[6-9]/.test(resolve(sheets, [...ul, el('li'), el('a')], 'color') || ''), ul && resolve(sheets, [...ul, el('li'), el('a')], 'color'));
+    ok(f + ': footer columns sit in a grid', !!grid && resolve(sheets, grid, 'display') === 'grid');
+    ok(f + ': preloads its two above-the-fold fonts', /rel="preload" href="\/assets\/fonts\/bebas-neue-400-latin\.woff2" as="font"/.test(html) && /rel="preload" href="\/assets\/fonts\/montserrat-400-latin\.woff2" as="font"/.test(html));
+  }
+  {
+    const html = read(path.join(DOCS, '404.html'));
+    const phone = chainTo(html, hasCls('phone'));
+    ok('404: the call link is the lighter on-navy orange (brand orange measured 3.44:1)', !!phone && resolve(sheetsOf(html), [...phone, el('a')], 'color') === 'var(--orange-light)', phone && resolve(sheetsOf(html), [...phone, el('a')], 'color'));
+  }
+}
+
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) {
