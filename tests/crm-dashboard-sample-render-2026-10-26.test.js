@@ -116,6 +116,9 @@ const FONT_HOST = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
     const sent = /Estimate sent\s+(\d+)/i.exec(rep);
     ok('the Reports funnel counts estimates sent (not "Estimate sent 0") beside the close rate', !!sent && Number(sent[1]) > 0 && /CLOSE RATE\s+\d+%/i.test(rep), rep.replace(/\s+/g, ' ').slice(0, 500));
     ok('Reports shows an average ticket, not $0', /AVG TICKET\s+\$(?!0\b)[\d.,]+k?/i.test(rep), rep.replace(/\s+/g, ' ').slice(0, 500));
+    // The funnel counts leads created in the window; the signed sample lead is 28 days old, so "Signed" is 1 beside the signed revenue.
+    const signedRow = /\bSigned\s+(\d+)/i.exec(rep.slice(rep.search(/CONVERSION FUNNEL/i)));
+    ok('the Reports funnel\'s Signed row is not 0 beside the signed revenue and avg ticket', !!signedRow && Number(signedRow[1]) >= 1, rep.replace(/\s+/g, ' ').slice(0, 600));
 
     // ── 3. the Door-to-Door tabs on a phone ─────────────────────────────
     console.log('3. Door-to-Door tabs: each label stays inside its own tab (crm-4)');

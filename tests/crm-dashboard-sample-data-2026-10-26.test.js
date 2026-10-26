@@ -66,6 +66,13 @@ ok('exactly one sample estimate is accepted, and it carries signedAt after sentA
   accepted.length === 1 && hours(accepted[0].signedAt) > hours(accepted[0].sentAt),
   accepted[0] && JSON.stringify([accepted[0].sentAt, accepted[0].signedAt]));
 ok('only the accepted estimate carries signedAt', ests.filter((e) => e.signedAt).length === 1);
+// Reports' funnel counts leads CREATED in its window (reports-dashboard.js leadsInWindow), so the
+// signed lead behind the accepted estimate must be younger than the default 30 days or "Signed" reads 0
+// beside a $20k avg ticket. It also has to predate its own estimate (the story reads in order).
+const signedLead = accepted[0] && D['leads/' + accepted[0].leadId];
+ok('the signed lead behind the accepted estimate was created inside Reports\' 30-day window, before its estimate',
+  !!signedLead && isTs(signedLead.createdAt) && signedLead.createdAt.__ts.days > -30 && hours(signedLead.createdAt) < hours(accepted[0].createdAt),
+  signedLead && JSON.stringify([signedLead.createdAt, accepted[0].createdAt]));
 // The older fields stay (other readers: the customer card, the story, the contract).
 ok('the older fields are kept (address, name, package, total, grandTotal, status, leadId, tier, lineItems)',
   ests.every((e) => e.address && e.name && e.package && e.total > 0 && e.grandTotal === e.total && e.status && e.leadId && e.tier && Array.isArray(e.lineItems) && e.lineItems.length));
