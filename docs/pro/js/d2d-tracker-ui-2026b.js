@@ -434,8 +434,19 @@
     _fitKnockSheetToViewport(overlay);
     renderDoorGate();
     // Keyboard contract (js/overlay-a11y.js). Escape is the × button and the tap beside the sheet,
-    // with two guards: a save in flight owns the sheet (closing it nulls currentKnockEntry under
-    // handleSubmitKnock), and an open address-suggestion list takes the first Escape.
+    // with three guards: a save in flight owns the sheet (closing it nulls currentKnockEntry under
+    // handleSubmitKnock), an open address-suggestion list takes the first Escape, and a sheet the
+    // rep has put something into asks before it throws the knock away (Escape is easy to hit by
+    // accident; the × and the tap beside the sheet are deliberate and stay as they were).
+    // "Put something into" = the rep touched a field (an 'input' event: the address a pin, the GPS fix
+    // or the last knock here fills in by itself fires none), picked a disposition, or added a photo
+    // or a voice memo.
+    let touched = false;
+    overlay.addEventListener('input', () => { touched = true; });
+    const hasInput = () => {
+      const k = state.currentKnockEntry || {};
+      return touched || !!k.disposition || !!(k.photoFiles && k.photoFiles.length) || !!state.voiceBlob;
+    };
     if (window.nbdOverlay) window.nbdOverlay.attach(overlay, {
       label: 'New knock',
       isOpen: (el) => el.classList.contains('open'),
@@ -443,7 +454,15 @@
         if (_knockSubmitInFlight) return;
         const ac = document.getElementById('d2d-qk-address-ac');
         if (ac && ac.style.display === 'block') { ac.style.display = 'none'; return; }
-        closeQuickKnock();
+        if (!hasInput() || !window.nbdModal) { closeQuickKnock(); return; }
+        const mine = state.currentKnockEntry;
+        window.nbdModal.confirm({
+          title: 'Discard this knock?',
+          body: 'What you entered on this knock will be lost.',
+          okLabel: 'Discard',
+          cancelLabel: 'Keep editing',
+          danger: true
+        }).then((discard) => { if (discard && !_knockSubmitInFlight && state.currentKnockEntry === mine) closeQuickKnock(); });
       }
     });
 

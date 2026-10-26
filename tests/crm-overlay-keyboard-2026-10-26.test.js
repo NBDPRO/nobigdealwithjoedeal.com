@@ -16,7 +16,12 @@
  *      "n" over the knock sheet opened Add Lead behind it), and Escape is
  *      layered: a confirm opened over a dialog closes first, the dialog next;
  *      the knock sheet's address suggestions close before the sheet does.
- *      Also: the visible × gives focus back, a dialog that re-renders itself
+ *      Tab and Shift+Tab inside that confirm stay in the confirm (they used to
+ *      jump to the dialog behind it), and a Tab from a lower dialog is still
+ *      pulled up to the top one. Escape on a knock sheet the rep has typed into
+ *      asks "Discard this knock?" first (Keep editing / Escape keeps it, Discard
+ *      closes it and frees the opener); an untouched or pre-filled sheet closes
+ *      at once. Also: the visible × gives focus back, a dialog that re-renders itself
  *      (Ask Joe scenarios: picker -> detail -> Back) keeps its opener, and the
  *      Theme guide opened over Appearance closes first (a closed Appearance
  *      holds no aria-modal that would read as "a modal is open").
@@ -134,6 +139,10 @@ function isShowing(arg) {
 
     const activeInside = (sel) => page.evaluate((s) => { const o = document.querySelector(s); const a = document.activeElement; return !!o && !!a && o !== a && o.contains(a); }, sel);
 
+    const focusDesc = () => page.evaluate(() => { const a = document.activeElement; return a ? a.tagName + '#' + a.id + '.' + String(a.className).slice(0, 30) + '|' + (a.getAttribute('data-ovk') || '') : 'none'; });
+    const mark = (s, v) => page.evaluate(([sel, val]) => { document.querySelectorAll('[data-ovk]').forEach((e) => e.removeAttribute('data-ovk')); document.querySelector(sel).setAttribute('data-ovk', val); }, [s, v]);
+    const focusIs = async (v) => { try { await page.waitForFunction((val) => { const a = document.activeElement; return !!a && a.getAttribute && a.getAttribute('data-ovk') === val; }, v, { timeout: 2000, polling: 50 }); return true; } catch (_) { return false; } };
+
     // ── 1. each dialog, driven by the keyboard ──────────────────────────
     console.log('1. the eight dialogs: named, focus in, Tab stays in, Escape closes, focus returns (crm-5)');
     for (const o of OVERLAYS) {
@@ -217,7 +226,75 @@ function isShowing(arg) {
     ok('Escape with the address suggestions showing closes the suggestions, not the knock sheet', ac.dd === 'none' && ac.sheet, JSON.stringify(ac));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
-    ok('a second Escape closes the knock sheet', await page.evaluate(() => !document.querySelector('#d2d-quick-knock-overlay.open')));
+    ok('a second Escape closes the knock sheet', await page.evaluate(() => !document.querySelector('#d2d-quick-knock-overlay.open')), await page.evaluate(() => { const v = (id) => (document.getElementById(id) || {}).value; return JSON.stringify({ a: v('d2d-qk-address'), h: v('d2d-qk-homeowner'), n: v('d2d-qk-notes'), confirm: !!document.querySelector('#nbdConfirmModal.open') }); }));
+    await sweepOverlays(page);
+
+    // Escape on a knock the rep has typed into asks before it discards the knock.
+    console.log('2a. Escape on a knock sheet with input asks before discarding it (crm-5)');
+    const knockOpen = () => page.evaluate(() => !!document.querySelector('#d2d-quick-knock-overlay.open'));
+    const confirmOpen = () => page.evaluate(() => !!document.querySelector('#nbdConfirmModal.open'));
+    const knockState = () => page.evaluate(() => ({ entry: !!(window._D2DState && window._D2DState.currentKnockEntry), who: (document.getElementById('d2d-qk-homeowner') || {}).value, note: (document.getElementById('d2d-qk-notes') || {}).value }));
+    // homeowner / notes sit in the sheet's collapsed "more details" block
+    const openKnockDetails = () => page.evaluate(() => document.querySelectorAll('#d2d-quick-knock-overlay details').forEach((d) => d.setAttribute('open', '')));
+    const clickConfirm = async (cls) => { await page.click('#nbdConfirmModal .' + cls); await page.waitForTimeout(300); };
+    // pre-filled and untouched: closes at once
+    await page.evaluate(() => window.D2D.openQuickKnock({ address: '12 Elm St, Cincinnati, OH' }));
+    await page.waitForSelector('#d2d-quick-knock-overlay.open', { timeout: 10000 });
+    await page.waitForTimeout(300);
+    ok('harness check: the sheet opened with the address pre-filled', await page.evaluate(() => document.getElementById('d2d-qk-address').value === '12 Elm St, Cincinnati, OH'));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    ok('Escape on a pre-filled sheet nobody typed into closes it with no question', !(await knockOpen()) && !(await confirmOpen()));
+    await sweepOverlays(page);
+    // typed into: asks
+    await page.evaluate(() => window.goTo('d2d'));
+    await page.waitForSelector('button.d2d-big-btn[data-d2d-action="openQuickKnock"]', { state: 'visible', timeout: 20000 });
+    await mark('button.d2d-big-btn[data-d2d-action="openQuickKnock"]', 'KNOCKQ');
+    await page.focus('button.d2d-big-btn[data-d2d-action="openQuickKnock"]');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#d2d-quick-knock-overlay.open', { timeout: 10000 });
+    await page.waitForTimeout(300);
+    await openKnockDetails();
+    await page.fill('#d2d-qk-homeowner', 'Pat Test');
+    await page.fill('#d2d-qk-notes', 'Back door, dog in yard');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    const q1 = await page.evaluate(() => ({ title: ((document.querySelector('#nbdConfirmModal.open .nbd-confirm-title') || {}).textContent || ''), ok: ((document.querySelector('#nbdConfirmModal .nbd-confirm-ok') || {}).textContent || ''), keep: ((document.querySelector('#nbdConfirmModal .nbd-confirm-cancel') || {}).textContent || ''), sheet: !!document.querySelector('#d2d-quick-knock-overlay.open') }));
+    ok('Escape on a sheet with input asks "Discard this knock?" and leaves the sheet open', q1.title === 'Discard this knock?' && q1.ok === 'Discard' && q1.keep === 'Keep editing' && q1.sheet, JSON.stringify(q1));
+    ok('the question has the keyboard (focus inside it)', await activeInside('#nbdConfirmModal'));
+    const qStrays = [];
+    for (let i = 0; i < 5; i++) { await page.keyboard.press('Tab'); if (!(await activeInside('#nbdConfirmModal'))) qStrays.push('Tab#' + (i + 1)); }
+    for (let i = 0; i < 5; i++) { await page.keyboard.press('Shift+Tab'); if (!(await activeInside('#nbdConfirmModal'))) qStrays.push('Shift+Tab#' + (i + 1)); }
+    ok('Tab and Shift+Tab stay on the question, not the sheet behind it', qStrays.length === 0, qStrays.join(', '));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    const q2 = await knockState();
+    ok('Escape on the question keeps the knock: sheet open, entry alive, text still there', (await knockOpen()) && !(await confirmOpen()) && q2.entry && q2.who === 'Pat Test' && q2.note === 'Back door, dog in yard', JSON.stringify(q2));
+    ok('focus is back inside the sheet', await activeInside('#d2d-quick-knock-overlay'), await focusDesc());
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#nbdConfirmModal.open', { timeout: 5000 });
+    await clickConfirm('nbd-confirm-cancel');
+    const q3 = await knockState();
+    ok('"Keep editing" keeps the knock', (await knockOpen()) && !(await confirmOpen()) && q3.entry && q3.who === 'Pat Test', JSON.stringify(q3));
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#nbdConfirmModal.open', { timeout: 5000 });
+    await clickConfirm('nbd-confirm-ok');
+    await page.waitForTimeout(400);
+    const q4 = await knockState();
+    ok('"Discard" closes the sheet and drops the entry', !(await knockOpen()) && !(await confirmOpen()) && !q4.entry, JSON.stringify(q4));
+    ok('and focus is back on the Knock button that opened it', await focusIs('KNOCKQ'), await focusDesc());
+    await sweepOverlays(page);
+    // the × stays a deliberate close, as before
+    await page.evaluate(() => window.goTo('d2d'));
+    await page.waitForSelector('button.d2d-big-btn[data-d2d-action="openQuickKnock"]', { state: 'visible', timeout: 20000 });
+    await page.focus('button.d2d-big-btn[data-d2d-action="openQuickKnock"]');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#d2d-quick-knock-overlay.open', { timeout: 10000 });
+    await openKnockDetails();
+    await page.fill('#d2d-qk-homeowner', 'Pat Test');
+    await page.click('#d2d-quick-knock-overlay .d2d-modal-close');
+    await page.waitForTimeout(300);
+    ok('the × still closes a typed-into sheet at once (unchanged)', !(await knockOpen()) && !(await confirmOpen()));
     await sweepOverlays(page);
 
     await page.evaluate(() => window.goTo('home'));
@@ -228,10 +305,18 @@ function isShowing(arg) {
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__ovkRes = 'pending'; window.nbdModal.confirm({ title: 'Layer check', body: 'x' }).then((v) => { window.__ovkRes = v; }); });
     await page.waitForSelector('#nbdConfirmModal.open', { timeout: 5000 });
+    ok('a confirm opened over a dialog takes focus', await activeInside('#nbdConfirmModal'));
+    const confirmStrays = [];
+    for (let i = 0; i < 6; i++) { await page.keyboard.press('Tab'); if (!(await activeInside('#nbdConfirmModal'))) confirmStrays.push('Tab#' + (i + 1)); }
+    for (let i = 0; i < 6; i++) { await page.keyboard.press('Shift+Tab'); if (!(await activeInside('#nbdConfirmModal'))) confirmStrays.push('Shift+Tab#' + (i + 1)); }
+    ok('Tab and Shift+Tab over a confirm stay inside the confirm (not on the dialog behind it)', confirmStrays.length === 0, confirmStrays.join(', '));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     const l1 = await page.evaluate(() => ({ res: window.__ovkRes, confirmOpen: !!document.querySelector('#nbdConfirmModal.open'), picker: !!document.querySelector('#wPickerOverlay') }));
     ok('Escape over a confirm closes the confirm and leaves the dialog under it open', l1.res === false && !l1.confirmOpen && l1.picker, JSON.stringify(l1));
+    const backStrays = [];
+    for (let i = 0; i < 4; i++) { await page.keyboard.press('Tab'); if (!(await activeInside('#wPickerOverlay'))) backStrays.push('Tab#' + (i + 1)); }
+    ok('once the confirm is gone the dialog keeps its own Tab trap', backStrays.length === 0, backStrays.join(', '));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     ok('the next Escape closes the dialog', await page.evaluate(() => !document.querySelector('#wPickerOverlay')));
@@ -239,9 +324,6 @@ function isShowing(arg) {
 
     // The same contract on the paths the loop above does not take.
     console.log('2b. the visible × returns focus; a re-rendered dialog keeps its opener; stacked dialogs unwind in order (crm-5)');
-    const focusDesc = () => page.evaluate(() => { const a = document.activeElement; return a ? a.tagName + '#' + a.id + '.' + String(a.className).slice(0, 30) + '|' + (a.getAttribute('data-ovk') || '') : 'none'; });
-    const mark = (s, v) => page.evaluate(([sel, val]) => { document.querySelectorAll('[data-ovk]').forEach((e) => e.removeAttribute('data-ovk')); document.querySelector(sel).setAttribute('data-ovk', val); }, [s, v]);
-    const focusIs = async (v) => { try { await page.waitForFunction((val) => { const a = document.activeElement; return !!a && a.getAttribute && a.getAttribute('data-ovk') === val; }, v, { timeout: 2000, polling: 50 }); return true; } catch (_) { return false; } };
     // × on the knock sheet
     await page.evaluate(() => window.goTo('d2d'));
     await page.waitForSelector('button.d2d-big-btn[data-d2d-action="openQuickKnock"]', { state: 'visible', timeout: 20000 });
@@ -284,6 +366,10 @@ function isShowing(arg) {
     await page.waitForSelector('#nbd-picker-modal.open', { timeout: 10000 });
     await page.click('#nbd-picker-modal [data-fn="nbdHowtoOpen"]');
     await page.waitForSelector('#nbd-howto-modal.open', { timeout: 5000 });
+    await page.evaluate(() => { const b = [...document.querySelectorAll('#nbd-picker-modal button')].find((x) => !x.closest('#nbd-howto-modal')); if (b) b.focus(); });
+    ok('harness check: focus is on a control of Appearance, behind the Theme guide', await page.evaluate(() => { const a = document.activeElement; return !!a && !!a.closest('#nbd-picker-modal') && !a.closest('#nbd-howto-modal'); }));
+    await page.keyboard.press('Tab');
+    ok('a Tab from the lower dialog (Appearance) lands in the top one (Theme guide)', await activeInside('#nbd-howto-modal'), await focusDesc());
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     const two = await page.evaluate(() => ({ guide: document.querySelector('#nbd-howto-modal').classList.contains('open'), picker: document.querySelector('#nbd-picker-modal').classList.contains('open') }));

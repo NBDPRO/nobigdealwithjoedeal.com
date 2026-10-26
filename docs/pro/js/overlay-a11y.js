@@ -30,7 +30,9 @@
      Engine: picker -> detail -> picker) keeps the opener of the one it replaced.
    • ONE window keydown listener, for the top-most attached dialog only:
      Escape runs close(); Tab / Shift+Tab wrap inside it, and a Tab from behind
-     it lands inside.
+     it lands inside. A modal opened OVER an attached dialog (nbdModal.confirm, a
+     <dialog>) has no Tab trap of its own: while focus is in it, Tab / Shift+Tab
+     wrap inside THAT modal, never to the dialog behind.
    • Watches the dialog (class / hidden / style, and removal). The moment it is
      no longer open, by ANY path (close button, backdrop, Escape, code), it takes
      back the attributes it added and returns focus to the opener, unless focus
@@ -76,6 +78,17 @@
 
   function focusNode(n) {
     try { n.focus({ preventScroll: true }); } catch (_) { try { n.focus(); } catch (__) { /* detached */ } }
+  }
+
+  // The modal focus is in, when it is not one of ours: a confirm or <dialog> opened over an
+  // attached dialog. Anything inside (or around) an attached dialog is ours, so a stray focus
+  // in a lower dialog is still pulled up to the top one.
+  var OTHER_MODAL = '.modal-bg.open, dialog[open], [role="alertdialog"], [aria-modal="true"]';
+  function layerOf(top, a) {
+    var m = a && a.closest ? a.closest(OTHER_MODAL) : null;
+    if (!m) return top.el;
+    for (var i = 0; i < entries.length; i++) if (entries[i].el.contains(m) || m.contains(entries[i].el)) return top.el;
+    return m;
   }
 
   function find(el) {
@@ -161,10 +174,10 @@
       try { e.close(); } catch (err) { console.warn('[nbdOverlay] close failed:', err && err.message); }
       return;
     }
-    var list = tabbables(e.el), a = document.activeElement;
-    if (!list.length) { ev.preventDefault(); focusNode(e.el); return; }
+    var a = document.activeElement, scope = layerOf(e, a), list = tabbables(scope);
+    if (!list.length) { ev.preventDefault(); focusNode(scope); return; }
     var first = list[0], last = list[list.length - 1];
-    if (!e.el.contains(a) || a === e.el) { ev.preventDefault(); focusNode(ev.shiftKey ? last : first); }
+    if (!scope.contains(a) || a === scope) { ev.preventDefault(); focusNode(ev.shiftKey ? last : first); }
     else if (ev.shiftKey && a === first) { ev.preventDefault(); focusNode(last); }
     else if (!ev.shiftKey && a === last) { ev.preventDefault(); focusNode(first); }
   });
