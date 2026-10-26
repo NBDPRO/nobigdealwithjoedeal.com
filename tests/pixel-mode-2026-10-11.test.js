@@ -3,7 +3,7 @@
  * notifications (CRM style integration roadmap, slice E1).
  *
  *   1. pixel-logic.js: settings normalisation, HP (days before cold), the
- *      overdue follow-up rule, open-lead filtering, party ordering, trainer
+ *      overdue follow-up rule, open-lead filtering, crew ordering, rep
  *      card + badges, box-shadow sprite, typewriter
  *   2. pixel-mode-core.js: its inline normalize agrees with the logic module;
  *      settings live on userSettings (not localStorage); no innerHTML; the
@@ -64,7 +64,7 @@ console.log('\n1. pixel-logic');
 
   const stageRole = (k) => ({ signed: 'won', lost: 'lost', install: 'job' }[k] || 'active');
   const env = { stageRole };
-  ok('open: deleted / lost / won / job are not in the party',
+  ok('open: deleted / lost / won / job are not in the crew',
     !L.isOpenLead({ id: 'a', stage: 'new', deleted: true }, env) && !L.isOpenLead({ id: 'b', stage: 'lost' }, env)
     && !L.isOpenLead({ id: 'c', stage: 'signed' }, env) && !L.isOpenLead({ id: 'd', stage: 'install' }, env)
     && L.isOpenLead({ id: 'e', stage: 'new' }, env));
@@ -79,13 +79,13 @@ console.log('\n1. pixel-logic');
     { id: 'blank', name: 'No Dates', stage: 'new' },
   ];
   const party = L.partyOf(leads, env, NOW);
-  ok('party: closest to cold first, lost excluded, unknown HP last',
+  ok('crew: closest to cold first, lost excluded, unknown HP last',
     party.map((p) => p.id).join(',') === 'cold,mid2,mid,fresh,blank', party.map((p) => p.id).join(','));
-  ok('party: ties break by pipeline value (bigger first)', party[1].id === 'mid2');
-  ok('party: limit honoured', L.partyOf(leads, env, NOW, 2).length === 2);
-  ok('party: names come from first+last, then name', party[0].name === 'Cal Cold' && party[2].name === 'Mid Lead');
-  ok('party: overdue carried onto the member', party[0].overdue === 10 && party[3].overdue === 0);
-  ok('party: env.visible filters', L.partyOf(leads, Object.assign({}, env, { visible: (l) => l.id === 'fresh' }), NOW).length === 1);
+  ok('crew: ties break by pipeline value (bigger first)', party[1].id === 'mid2');
+  ok('crew: limit honoured', L.partyOf(leads, env, NOW, 2).length === 2);
+  ok('crew: names come from first+last, then name', party[0].name === 'Cal Cold' && party[2].name === 'Mid Lead');
+  ok('crew: overdue carried onto the member', party[0].overdue === 10 && party[3].overdue === 0);
+  ok('crew: env.visible filters', L.partyOf(leads, Object.assign({}, env, { visible: (l) => l.id === 'fresh' }), NOW).length === 1);
 
   const card = L.trainerCard(leads.concat([
     { id: 'won1', name: 'W1', stage: 'signed', stageStartedAt: ago(3) },

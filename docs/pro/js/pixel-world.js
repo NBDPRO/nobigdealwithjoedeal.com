@@ -15,7 +15,7 @@
  *     (env.fileDraft -> callable fileLeadTextDraft); the game sends a template
  *     key, never words, and says FILED / ALREADY FILED / NOT ALLOWED. Nothing
  *     is ever texted from here.
- *   - Lead Dex, day/night tint from the real local clock, and a hail event
+ *   - Lead Book, day/night tint from the real local clock, and a hail event
  *     when today's SPC outlook puts a lead's address in a hail-risk area.
  *
  * The map is drawn on a <canvas> in original pixel art built here from small
@@ -416,11 +416,11 @@
     }
 
     function dexPanel() {
-      openPanel('LEAD DEX', function (host) {
+      openPanel('LEAD BOOK', function (host) {
         var rows = WL.dexEntries(allLeads(), state.seen, leadEnv());
         var caught = rows.filter(function (r) { return r.state === 'caught'; }).length;
         var seen = rows.filter(function (r) { return r.state !== 'unknown'; }).length;
-        host.appendChild(el('p', 'pxw-note', 'Signed: ' + caught + '. Met: ' + seen + ' of ' + rows.length + '. Talk to townspeople to fill the Dex.'));
+        host.appendChild(el('p', 'pxw-note', 'Signed: ' + caught + '. Met: ' + seen + ' of ' + rows.length + '. Talk to townspeople to fill the Lead Book.'));
         rows.slice(0, 200).forEach(function (r) {
           var line = row('No. ' + String(r.no).padStart(3, '0') + '  ' + r.name, r.state === 'caught' ? 'SIGNED' : (r.state === 'seen' ? 'MET' : '???'), r.state === 'caught' ? 'pxw-earned' : '');
           host.appendChild(line);
@@ -428,7 +428,7 @@
       });
     }
     function partyPanel() {
-      openBuilding({ id: 'leads', name: 'PARTY' });
+      openBuilding({ id: 'leads', name: 'CREW' });
     }
     function helpPanel() {
       openPanel('HOW TO PLAY', function (host) {
@@ -437,7 +437,7 @@
           'Step on a building\'s door to open that part of the CRM.',
           'Red "!" over a head: that lead\'s follow-up date has passed.',
           'The bar over a head is HP: days before the lead goes cold.',
-          'Esc / B: back. MENU: Party, Lead Dex, Trophies.',
+          'Esc / B: back. MENU: Crew, Lead Book, Trophies.',
           'Move stage uses the CRM\'s own rules. Draft text only files a draft in your Agent inbox. Nothing is texted from here.',
         ].forEach(function (t) { host.appendChild(el('p', 'pxw-note', t)); });
       });
@@ -445,7 +445,7 @@
     function menu() {
       state.menuOpen = true;
       openPanel('MENU', function (host) {
-        [['PARTY', partyPanel], ['LEAD DEX', dexPanel], ['TROPHIES', function () { openBuilding(WL.BUILDINGS.filter(function (b) { return b.id === 'trophy'; })[0], true); }], ['HOW TO PLAY', helpPanel], ['EXIT PIXEL WORLD', exit]].forEach(function (it) {
+        [['CREW', partyPanel], ['LEAD BOOK', dexPanel], ['TROPHIES', function () { openBuilding(WL.BUILDINGS.filter(function (b) { return b.id === 'trophy'; })[0], true); }], ['HOW TO PLAY', helpPanel], ['EXIT PIXEL WORLD', exit]].forEach(function (it) {
           var b = el('button', 'pxw-row pxw-menurow', it[0]);
           b.type = 'button';
           b.addEventListener('click', function () { it[1](); });

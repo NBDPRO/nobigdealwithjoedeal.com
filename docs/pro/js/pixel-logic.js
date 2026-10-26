@@ -9,7 +9,7 @@
  * Game words map to real CRM facts, never invented ones:
  *   HP        days since the lead was last touched, against COLD_DAYS
  *   "!"       the lead's own followUp date is before today
- *   Party     the open leads most likely to go cold
+ *   Crew      the open leads most likely to go cold
  *   Level     1 + floor(sqrt(deals signed this month))
  *
  * Revenue stays "projected" wherever it is shown: this module never sums
@@ -134,7 +134,7 @@
     };
   }
 
-  /** The party: open leads closest to going cold first (unknown HP last). */
+  /** The crew: open leads closest to going cold first (unknown HP last). */
   function partyOf(leads, env, now, limit) {
     var out = [];
     (leads || []).forEach(function (l) {
@@ -150,7 +150,7 @@
     return typeof limit === 'number' ? out.slice(0, limit) : out;
   }
 
-  // ── trainer card ───────────────────────────────────────────────────────
+  // ── rep card ───────────────────────────────────────────────────────────
   var THEME_BADGES = {
     'gold-rush': 'Gold Rush', 'road-warrior': 'Road Warrior', 'eternal-flame': 'Eternal Flame',
     'iron-door': 'Iron Door', 'night-owl': 'Night Owl', 'diamond': 'Diamond',
