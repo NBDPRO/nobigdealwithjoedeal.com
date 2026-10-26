@@ -338,6 +338,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## Audits
 
+- [OVERNIGHT-SITE-PROGRAM-2026-10-26](audit/OVERNIGHT-SITE-PROGRAM-2026-10-26.md) — Jo's "keep working overnight" run: five read-only discovery lanes (46 findings, 45 verified), seven fix PRs (#2746, #2748 to #2753) each with a red-first guard and an independent review, the 22 findings that need Jo's call (copy and claims, brand-orange text on navy, storm-report false "no storms", dialogs ignoring Escape, CRM Home layout shift) and what was found on the side (invisible callout links on seven posts).
 - [OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md) — second pass: deploy coverage, #2684 purge re-test (logout path passes, account-switch race still High), reviewer findings on the later merges, and which fix PRs own what.
 - [REVIEWS-STRIP-2026-10-24](projects/REVIEWS-STRIP-2026-10-24.md) — recent Google reviews, with their dates, on every homeowner page: one `reviews-strip` partial on 229 pages (+48 our-work pages from the template), dates on every card, a test naming the pages that carry none.
 - [DAILY-SUCCESS-NOTEBOOK-2026-10-25](projects/DAILY-SUCCESS-NOTEBOOK-2026-10-25.md) - the Daily Success pages file by month in a notebook drawer; the tab row stops growing
