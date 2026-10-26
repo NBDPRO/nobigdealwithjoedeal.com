@@ -420,6 +420,12 @@
     if (a.elder) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; [[-16, 20], [16, 20]].forEach(function (w) { ctx.beginPath(); ctx.moveTo(hx + w[0], hy + w[1] - 3); ctx.quadraticCurveTo(hx + w[0] * 1.1, hy + w[1], hx + w[0] * 0.9, hy + w[1] + 4); ctx.stroke(); }); }
     // cheeks
     if (p.mouth !== 'frown') { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
+    // clean-up 2026-10-25: the stubble and the full beard's body go on here, under the eyes and the mouth (every mouth state now paints over the beard: the open mouth, the grin, flat, smirk and frown all went under it and a two-way smile/frown line stood in) and in head space (counter-translated out of the slid features frame, so the beard stays on the jaw mid-turn instead of sliding past the head outline); only the mustache rides the features, after the mouth
+    var my = hy + 19;
+    ctx.save(); ctx.translate(-fx, 0);
+    if (a.beard === 'stubble') { ctx.fillStyle = 'rgba(0,0,0,' + (0.16 + Math.max(0, a.skin - 2) * 0.06).toFixed(2) + ')'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); } // the wash deepens from skin 3 up (.16 on skins 0-2 as before, .22 / .28 / .34 on 3-5: .16 vanished on the two darkest skins)
+    else if (a.beard === 'full') pen.shape(function (c) { c.moveTo(hx - 24, hy + 6); c.quadraticCurveTo(hx - 27, hy + 27, hx, hy + 33); c.quadraticCurveTo(hx + 27, hy + 27, hx + 24, hy + 6); c.quadraticCurveTo(hx + 14, hy + 18, hx + 9, my - 3); c.lineTo(hx - 9, my - 3); c.quadraticCurveTo(hx - 14, hy + 18, hx - 24, hy + 6); }, hairG); // the tip ends 2 under the chin (hy + 33, the sides at hy + 27; hy + 36 / 30 hung over the collar, the polo's V and the hoodie strings)
+    ctx.restore();
 
     // eyes (centres 50±12, hy+4): a white, an iris with a darker rim, a pupil, two catchlights, a lid shadow
     var eyL = hx - 12, eyR = hx + 12, ey = hy + 4, lookX = p.look * 1.5, lookY = p.lookY || 0;
@@ -456,26 +462,20 @@
     ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUpR - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUpR + bDn * 1, eyR + 6, ey - 11 - bUpR + bDn * 2); ctx.stroke();
     // nose
     ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke();
-    // mouth
-    var my = hy + 19;
+    // mouth (clean-up 2026-10-25: over a black full beard the line states are stroked in a lifted hair tone, since INK had no contrast on it: hair 0 scores 38 on the luminance, hair 1 scores 65 and keeps INK)
+    var hn = parseInt(hair.slice(1), 16), mInk = a.beard === 'full' && ((hn >> 16) * 299 + ((hn >> 8) & 255) * 587 + (hn & 255) * 114) / 1000 < 50 ? shade(hair, 70) : INK;
     if (p.mouth === 'open' || p.mouthOpen > 0.15) {
       var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0), mw = p.mouthW || 1;
       pen.ellipse(hx, my + 1, (5 + oh * 0.4) * mw, oh, 0, '#6B2A2A');
       ctx.fillStyle = '#E2707F'; ctx.beginPath(); ctx.ellipse(hx, my + 1 + oh * 0.55, 3.2, oh * 0.4, 0, 0, Math.PI * 2); ctx.fill();
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
-    } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
-    else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4); }
-    else if (p.mouth === 'smirk') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
+    } else if (p.mouth === 'frown') { ctx.strokeStyle = mInk; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
+    else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4, mInk); }
+    else if (p.mouth === 'smirk') { ctx.strokeStyle = mInk; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
     else if (p.mouth === 'grin') { pen.shape(function (c) { c.moveTo(hx - 8, my - 2); c.quadraticCurveTo(hx, my + 9, hx + 8, my - 2); c.quadraticCurveTo(hx, my + 2, hx - 8, my - 2); }, '#6B2A2A'); ctx.fillStyle = WHITE; ctx.fillRect(hx - 5, my - 1, 10, 1.8); }
-    else { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
-    // beard
-    if (a.beard === 'stubble') { ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); }
-    else if (a.beard === 'mustache') { pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG); }
-    else if (a.beard === 'full') {
-      pen.shape(function (c) { c.moveTo(hx - 24, hy + 6); c.quadraticCurveTo(hx - 27, hy + 30, hx, hy + 36); c.quadraticCurveTo(hx + 27, hy + 30, hx + 24, hy + 6); c.quadraticCurveTo(hx + 14, hy + 18, hx + 9, my - 3); c.lineTo(hx - 9, my - 3); c.quadraticCurveTo(hx - 14, hy + 18, hx - 24, hy + 6); }, hairG);
-      pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG);
-      if (!(p.mouth === 'open' || p.mouthOpen > 0.15)) { if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my + 3); ctx.quadraticCurveTo(hx, my, hx + 5, my + 3); ctx.stroke(); } else { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my); ctx.quadraticCurveTo(hx, my + 4, hx + 5, my); ctx.stroke(); } }
-    }
+    else { ctx.strokeStyle = mInk; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
+    // the mustache (a full beard's too), over the mouth's top lip; the stubble and the beard's body are drawn before the eyes (clean-up 2026-10-25)
+    if (a.beard === 'mustache' || a.beard === 'full') { pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG); }
     ctx.restore(); // the features
 
     // front hair (sways a touch with the body, and follows the turned face a little)
