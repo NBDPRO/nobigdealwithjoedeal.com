@@ -369,12 +369,14 @@
     // clean-up 2026-10-25: upright(k) squares the hand frame back up by k (1 for the umbrella and the cane: always vertical); a back hand raised past 80 degrees eases to 1 over 30 more, so a cheer, a shrug or the hips fidget holds its prop upright and a tween never pops
     var raised = Math.max(0, Math.min(1, (p.armL + p.elbowL - 80) / 30));
     function upright(k) { ctx.rotate(-(p.armL + p.elbowL) * k * Math.PI / 180); }
+    var up = p.armRUp > 0.5, held = !p.fist && !p.point && (!up || p.swing); // clean-up 2026-10-25: the front hand keeps the tool until it is raised past half way (a tween interpolates armRUp but flips swing at 0.5: the hammer vanished for half of every idle/hammer cross-fade)
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
     if (o.crop === 'bust' && (a.prop !== 'umbrella' || a.clipboard)) p.noProp = true; // clean-up 2026-10-25: a bust ends above the hanging hand, so its prop showed as a sliver (the umbrella is the one prop a bust keeps)
     if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
     else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { upright(raised); pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
     else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { upright(a.prop === 'umbrella' || a.prop === 'cane' || a.prop === 'mug' || a.prop === 'baby' ? 1 : raised); prop(a.prop); }); // wave 26: a mug and a baby are carried level at any arm angle (the walk's forward swing tilted them 44 degrees)
+    else if (!held && !p.swing && !p.armLUp && (a.tool === 'hammer' || a.tool === 'tape')) inHand(34, 78, p.armL, p.elbowL, function () { tool(a.tool); }); // clean-up 2026-10-25: a raised front hand passes the hammer or the tape to the free back hand (the measure card's think showed no tape); the ladder stays put
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
       if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
@@ -388,6 +390,11 @@
         pen.line(0, 2, 18, -58, 2.6 + pen.lw * 0.6, INK); pen.line(0, 2, 18, -58, 2.2, '#2C2C2A'); pen.circle(0, 4, 2.4, '#2C2C2A');
       }
       else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
+    }
+    // the tool, held at its head, in either hand (clean-up 2026-10-25: an 18 handle; 24 hung past the boot soles in the idle and reached x 109 mid-swing, past the box)
+    function tool(k) {
+      if (k === 'hammer') { pen.rrect(-2, -2, 4, 18, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
+      else if (k === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
     }
     // clean-up 2026-10-25: the canopy, in the shaft's frame but drawn after the head and the hat, so a hat crown, a pompom or a spike that reaches its edge tucks under it, not over it
     function canopy() {
@@ -528,11 +535,10 @@
     // the right (front) arm and whatever it holds (drawn here, or over the head when the pose covers the mouth: wave 17)
     function frontArm() {
     arm(66, 78, p.armR, p.elbowR, p.fist, p.point, p.thumb);
-    if (!p.fist && !p.point && (!p.armRUp || p.swing)) {
+    if (held) {
       inHand(66, 78, p.armR, p.elbowR, function () {
-        if (p.swing) { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); return; } // a hammer swings whatever the look holds
-        if (a.tool === 'hammer') { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
-        else if (a.tool === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
+        if (p.swing) { tool('hammer'); return; } // a hammer swings whatever the look holds
+        if (a.tool === 'hammer' || a.tool === 'tape') tool(a.tool);
         else if (a.tool === 'ladder') { if (Math.abs(p.armR + p.elbowR) > 60) return; ctx.rotate(-(p.armR + p.elbowR) * Math.PI / 180); ctx.translate(-2, -26); pen.rrect(0, 0, 4, 46, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 46, 2, '#B4B2A9'); for (var ry = 6; ry < 44; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); pen.circle(2, 26, 5, skinG); } // clean-up 2026-10-25: the ladder hangs plumb from the hand (squared up like the umbrella), the near rail under the grip, 46 tall so the top (hand - 26) clears the jaw and a beard and the foot meets the ground; it used to float 10 off the hand and swing with the forearm across the face. A hand raised past 60 degrees carries none
       });
     }
