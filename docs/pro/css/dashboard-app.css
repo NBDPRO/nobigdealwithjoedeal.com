@@ -1669,8 +1669,9 @@ a.ni, a.mm-item{text-decoration:none;}
 .nav-section-header:hover{background:var(--s2);}
 .nav-section-toggle{font-size:11px;transition:transform .25s cubic-bezier(0.4, 0, 0.2, 1);opacity:.7;}
 .nav-section-toggle.open{transform:rotate(90deg);opacity:1;}
-.nav-section-content{max-height:0;overflow:hidden;transition:max-height .3s cubic-bezier(0.4, 0, 0.2, 1);}
-.nav-section-content.open{max-height:600px;}
+/* A collapsed section is also visibility:hidden (flipped after the slide-up), so its items leave the tab order. */
+.nav-section-content{max-height:0;overflow:hidden;visibility:hidden;transition:max-height .3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear .3s;}
+.nav-section-content.open{max-height:600px;visibility:visible;transition-delay:0s;}
 .nav-divider{height:1px;background:var(--br);margin:16px 0;opacity:.5;}
 
 /* CONTENT */
@@ -2100,6 +2101,15 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
     white-space:normal !important;
     display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2;
   }
+}
+/* Hot Leads action buttons on a phone: the 36px look stays, the hit area is 44 x 44 (DESIGN.md's floor).
+   The cluster has its own full-width row there, so there is room for an 8px gap (36 + 8 = the 44px pitch):
+   each ::after tiles against its neighbour with no overlap and no row-height change. The inline
+   `gap:4px` needs the !important. Same media condition as the Wave 81 36px rule above. */
+@media (hover:none) and (max-width:600px){
+  #hot-leads-body .hl-actions{ gap:8px !important; }
+  #hot-leads-body .hl-action{ position:relative; }
+  #hot-leads-body .hl-action::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; }
 }
 /* Toggle switch component */
 .ob-toggle{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0;}

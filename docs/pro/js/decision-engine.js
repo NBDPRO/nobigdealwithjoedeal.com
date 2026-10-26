@@ -984,6 +984,8 @@
     }
     _bindScenarioClicks(overlay);
     document.body.appendChild(overlay);
+    // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+    if (window.nbdOverlay) window.nbdOverlay.attach(overlay, { close: () => overlay.remove() });
     return overlay;
   }
 
@@ -1079,6 +1081,7 @@
       }
     };
     document.body.appendChild(overlay);
+    if (window.nbdOverlay) window.nbdOverlay.attach(overlay, { close: () => overlay.remove() });
   }
 
   function openPicker() { _renderPicker(); }
