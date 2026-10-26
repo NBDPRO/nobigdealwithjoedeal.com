@@ -50,7 +50,7 @@
     if (window.NBDIntake) return Promise.resolve();
     return new Promise(function (resolve) {
       var s = document.createElement('script');
-      s.src = '/assets/js/intake-extras.js?v=2';
+      s.src = '/assets/js/intake-extras.js?v=5';
       s.onload = resolve;
       s.onerror = function () { resolve(); }; // form still works without it
       document.head.appendChild(s);

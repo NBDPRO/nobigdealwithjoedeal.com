@@ -280,7 +280,7 @@ function fakeEls(ids) {
     ok('intake-extras.js asks for the stylesheet under a bumped ?v= (the 24 h cache would otherwise hide the fix)', cssV >= 2, cssV);
     const qf = read('docs/assets/js/quick-lead-form.js');
     const jsV = +((qf.match(/intake-extras\.js\?v=(\d+)/) || [])[1] || 0);
-    ok('quick-lead-form.js loads intake-extras.js under a bumped ?v= (so the 185 pages pick up the new ?v= above)', jsV >= 2, jsV);
+    ok('quick-lead-form.js loads intake-extras.js under a ?v= no page pins today (2 and 4 are pinned by the homepage, estimate, roof-score, storm-check, storm-report and sites/t), so a copy cached from one of those pages cannot answer for it', jsV >= 5, jsV);
   }
 
   // ═══ funnel-4 — /storm-alerts and /inspect confirmations ═══
