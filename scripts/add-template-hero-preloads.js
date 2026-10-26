@@ -31,7 +31,8 @@ for (const dir of ['services', 'areas']) {
     const desktop = imgs.find((i) => !i.includes('-800'));
     const mobile = imgs.find((i) => i.includes('-800'));
     if (!desktop || !mobile) { console.warn(`WARN no pair: ${dir}/${name} [${imgs.join(', ')}]`); warned++; continue; }
-    if (src.includes('rel="preload"')) { skipped++; continue; }
+    // An image preload only: the font preloads add-font-preloads.js stamps on the same pages must not read as a hero preload.
+    if (/<link rel="preload"[^>]*\bas="image"/.test(src)) { skipped++; continue; }
     if (!src.includes(ANCHOR)) { console.warn(`WARN no anchor: ${dir}/${name}`); warned++; continue; }
     const hints =
       `${ANCHOR}\n` +

@@ -45,7 +45,7 @@
   // Stylesheet, once per page.
   if (!document.querySelector('link[data-nbd-intake-css]')) {
     const l = document.createElement('link');
-    l.rel = 'stylesheet'; l.href = '/assets/css/intake-extras.css?v=1'; l.setAttribute('data-nbd-intake-css', '');
+    l.rel = 'stylesheet'; l.href = '/assets/css/intake-extras.css?v=2'; l.setAttribute('data-nbd-intake-css', '');
     document.head.appendChild(l);
   }
 

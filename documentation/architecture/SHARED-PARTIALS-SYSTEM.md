@@ -121,6 +121,7 @@ originalBlob` per page before writing. The extracted link, the existing
 `nbd-fonts.css` link and the **2 woff2 font preloads** go in a `head-assets`
 partial region — which also fixes the "1 of 213 pages preloads fonts" finding at
 a single edit point. Hero-image preloads stay per-page, outside the region.
+*Update 2026-10-26:* the two font preloads shipped ahead of this phase as the `scripts/add-font-preloads.js` codemod (stamped on every public page that links `nbd-fonts.css`; `build-projects.mjs` emits them; the perf-watch test guards them), so the `head-assets` region only has to absorb them.
 No FOUC: a render-blocking `<link>` replaces inline bytes at the same cascade
 position.
 

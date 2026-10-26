@@ -5,6 +5,7 @@
      (Understand inside the sample dashboard) it arms the browser-only sample
      account. First and synchronous so its network tripwire is in place first. -->
 <script src="/pro/js/demo-mode.js?v=7"></script>
+<script src="/pro/js/pages/pro-embed-mode.js" defer></script>
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <link rel="stylesheet" href="css/theme-system.css">
@@ -25,7 +26,8 @@ html{scroll-behavior:smooth}
   --blue:#3B82F6;--blue-dim:rgba(59,130,246,0.1);
   --purp:#A855F7;--purp-dim:rgba(168,85,247,0.1);
   --gold:#F59E0B;--gold-dim:rgba(245,158,11,0.1);
-  --tx:#F0F2F8;--tx2:#8892A4;--tx3:#4A5568;
+  --tx:#F0F2F8;--tx2:color-mix(in srgb,var(--t, #e2e8f0) 40%,var(--m, #acb2bc));--tx3:var(--m, #acb2bc);
+  --or-text:#DD875F;
   --bdr:rgba(255,255,255,0.07);--bdr2:rgba(255,255,255,0.12);
   --ease:cubic-bezier(0.22,1,0.36,1);--r:8px;--rl:12px;
 }
@@ -35,19 +37,23 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* ── TOPBAR ── */
 .topbar{height:54px;background:rgba(10,12,15,0.97);border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);position:sticky;top:0;z-index:200;display:flex;align-items:center;padding:0 20px;gap:14px}
 .tb-back{color:var(--tx3);text-decoration:none;font-size:13px;font-weight:500;transition:color .15s}
-.tb-back:hover{color:var(--or)}
+.tb-back:hover{color:var(--or-text)}
 .tb-brand{display:flex;align-items:center;gap:9px}
 .tb-mark{width:30px;height:30px;background:var(--or);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:#fff}
 .tb-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx)}
 .tb-title span{color:var(--or)}
 .tb-spacer{flex:1}
 .tb-saved{background:none;border:1px solid var(--bdr2);color:var(--tx3);padding:6px 14px;border-radius:var(--r);font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
-.tb-saved:hover{color:var(--or);border-color:var(--or)}
+.tb-saved:hover{color:var(--or-text);border-color:var(--or)}
 .tb-saved .count{background:var(--or);color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+/* Inside the dashboard (an iframe) the dashboard's own header is on screen: the Back link navigates the frame to a
+   page that refuses framing (a blank pane) and the brand repeats. Saved is this page's own tool and stays.
+   pro-embed-mode.js sets the class. */
+html.nbd-embedded .tb-back,html.nbd-embedded .tb-brand{display:none}
 
 /* ── HERO ── */
 .hero{padding:48px 20px 32px;text-align:center;position:relative;z-index:1;max-width:820px;margin:0 auto}
-.hero-ey{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--or);margin-bottom:10px}
+.hero-ey{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--or-text);margin-bottom:10px}
 .hero-h{font-family:'Barlow Condensed',sans-serif;font-size:clamp(40px,6.5vw,72px);font-weight:800;letter-spacing:2px;text-transform:uppercase;line-height:.92;color:var(--tx);margin-bottom:14px}
 .hero-h .hl{color:var(--or)}
 .hero-sub{font-size:16px;color:var(--tx2);line-height:1.65;max-width:520px;margin:0 auto 36px}
@@ -69,9 +75,9 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 
 .cv-hd{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--bdr)}
 .cv-back{background:none;border:1px solid var(--bdr2);color:var(--tx3);padding:6px 14px;border-radius:var(--r);font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.cv-back:hover{color:var(--or);border-color:var(--or)}
+.cv-back:hover{color:var(--or-text);border-color:var(--or)}
 .cv-domain-badge{padding:4px 12px;border-radius:20px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
-.cv-domain-badge.ins{color:var(--or);background:var(--or-dim);border:1px solid var(--or-glow)}
+.cv-domain-badge.ins{color:var(--or-text);background:var(--or-dim);border:1px solid var(--or-glow)}
 .cv-domain-badge.tech{color:var(--blue);background:var(--blue-dim);border:1px solid rgba(59,130,246,0.2)}
 .cv-domain-badge.biz{color:var(--grn);background:var(--grn-dim);border:1px solid rgba(34,197,94,0.2)}
 .cv-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:1px;text-transform:uppercase;flex:1}
@@ -79,7 +85,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* ── TOPIC PILLS ── */
 .topic-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
 .topic-pill{padding:6px 14px;border-radius:20px;border:1px solid var(--bdr2);background:none;color:var(--tx3);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s}
-.topic-pill:hover{border-color:var(--or);color:var(--or);background:var(--or-dim)}
+.topic-pill:hover{border-color:var(--or);color:var(--or-text);background:var(--or-dim)}
 
 /* ── CHAT MESSAGES ── */
 .chat-box{background:var(--s1);border:1px solid var(--bdr2);border-radius:var(--rl);overflow:hidden;margin-bottom:20px}
@@ -93,7 +99,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .chat-msg.ai ul,.chat-msg.ai ol{margin:6px 0 6px 18px}
 .chat-msg.ai li{margin-bottom:4px}
 .chat-msg.ai code{background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:12px}
-.chat-msg.ai h3{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--or);margin:10px 0 6px;letter-spacing:.5px}
+.chat-msg.ai h3{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--or-text);margin:10px 0 6px;letter-spacing:.5px}
 .chat-typing{display:flex;gap:4px;align-items:center;padding:10px 16px;align-self:flex-start}
 .chat-typing span{width:6px;height:6px;border-radius:50%;background:var(--or);animation:blink 1.2s infinite}
 .chat-typing span:nth-child(2){animation-delay:.2s}
@@ -112,7 +118,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 
 /* ── CONTEXT BAR ── */
 .ctx-bar{background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:18px;font-size:12px;color:var(--tx3)}
-.ctx-bar .ctx-val{color:var(--or);font-weight:600}
+.ctx-bar .ctx-val{color:var(--or-text);font-weight:600}
 
 /* ── SAVED INSIGHTS PANEL ── */
 .si-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:500;display:none}
@@ -127,7 +133,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .si-card{background:var(--s2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-bottom:10px;cursor:pointer;transition:all .15s}
 .si-card:hover{border-color:var(--or)}
 .si-card-domain{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px}
-.si-card-domain.ins{color:var(--or)}
+.si-card-domain.ins{color:var(--or-text)}
 .si-card-domain.tech{color:var(--blue)}
 .si-card-domain.biz{color:var(--grn)}
 .si-card-q{font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px;line-height:1.4}

@@ -22,6 +22,13 @@
 .dk-row6 { display: flex; gap: 6px; align-items: center; }
 .dk-head-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .dk-tabs { display: flex; margin-bottom: 12px; border-bottom: 2px solid var(--br); }
+/* Phones: the four tabs split the row (~60-100 px each), and the base .stab-btn
+   type (13px, .06em tracking, nowrap) is wider than that for "Challenges" (and
+   "Routes" at 320 px), so the label painted over its neighbour. Smaller, tighter
+   type; the label may wrap, and the icon drops to its own line when it must. */
+@media (max-width: 480px) {
+  .dk-tab.dk-tab { white-space: normal; overflow-wrap: anywhere; font-size: 12px; letter-spacing: 0; line-height: 1.15; padding: 8px 1px; }
+}
 .dk-grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 10px; }
 .dk-meta { font-size: 10px; color: var(--m); margin-top: 2px; }
 .dk-sub { font-size: 11px; color: var(--m); margin-top: 4px; }
