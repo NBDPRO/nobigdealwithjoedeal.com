@@ -1218,6 +1218,14 @@ jobs:
         run: |
           cd tests
           node crm-dashboard-sample-render-2026-10-26.test.js
+      # The sample account's boot (overnight pass 2 2026-10-26, crm-6): the Dashboard's
+      # Today / Next best actions and Pipeline engagement panels render instead of
+      # "Loading…", and the Call Center opens with no failure banner. Same server,
+      # same Chromium.
+      - name: Run the sample account boot check
+        run: |
+          cd tests
+          node crm-sample-boot-render-2026-10-26.test.js
       # The CRM Home boot on the same sample account (overnight pass 2026-10-26, perf-1):
       # the layout shifts of the whole boot add up to under 0.1 on a phone and a desktop (they
       # were 1.4-1.6 and 0.4-0.6), nothing but the header and a placeholder shows while Home

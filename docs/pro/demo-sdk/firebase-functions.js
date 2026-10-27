@@ -70,7 +70,17 @@ const CANNED = {
   resolveAddress: () => ({ sample: true }),
   // Wave 3: the hail lookup behind the map's Hail and Storm-zone buttons:
   // the seed's sample hail reports (the story's storm), with its swath.
-  getHailHistory: (p) => hailHistory(p || {})
+  getHailHistory: (p) => hailHistory(p || {}),
+  // Call Center (2026-10-26): the pipeline-health strip and the "said you'd do"
+  // list read the owner's recorded phone calls (Cube ACR, then Drive, then the
+  // server), and the sample has no phone. They used to refuse like any server
+  // callable, so the screen opened on two red "Could not ... just now" banners
+  // whose Try again could never work. call-center-view.js already has a quiet
+  // path for an owner-only panel that is not this account's (a permission-denied
+  // answer hides the strip and the Match / Said-you'd-do buttons, no banner):
+  // the sample takes it, instead of canning a "healthy" it does not have.
+  callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
+  callPromisesList: () => { throw noPhoneInSample('callPromisesList'); }
 };
 
 function haversineMi(la1, lo1, la2, lo2) {
@@ -282,6 +292,16 @@ export function sampleCallableMessage(name) {
 function callableError(name) {
   const e = new Error(sampleCallableMessage(name));
   e.code = 'functions/failed-precondition';
+  e.name = 'FirebaseError';
+  e.details = { sampleAccount: true, callable: name };
+  return e;
+}
+
+// The answer for a panel that reads recorded phone calls (see CANNED): "not
+// this account's", in the code the real server uses for an owner-only panel.
+function noPhoneInSample(name) {
+  const e = new Error('The sample account has no phone recordings, so there is no call pipeline or promise list here.');
+  e.code = 'functions/permission-denied';
   e.name = 'FirebaseError';
   e.details = { sampleAccount: true, callable: name };
   return e;
