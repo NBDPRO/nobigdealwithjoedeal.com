@@ -287,11 +287,24 @@ const avifFor = (src) => {
   const a = src.replace(/\.(jpg|jpeg|png)$/, '.avif');
   return a !== src && existsSync(path.join(ROOT, 'docs', a)) ? a : null;
 };
+// A card shown well under 800 px wide can also offer a smaller copy, <name>-640.<ext>, when that file exists. `sizes` says how wide the
+// home strip's card is at each breakpoint (80% of the screen on a phone, two columns, then four of about 276 px), so a phone is never
+// handed a copy smaller than the slot needs.
+const CARD_SIZES = '(max-width: 767px) 80vw, (max-width: 1024px) 45vw, 276px';
+const smallFor = (u, w) => {
+  const s = u.replace(/\.(avif|webp)$/, `-${w}.$1`);
+  return s !== u && existsSync(path.join(ROOT, 'docs', s)) ? s : null;
+};
 // <picture> with whichever modern siblings exist, AVIF first; the original
 // stays the <img> fallback.
-const pictureFor = (src, img) => {
+const pictureFor = (src, img, smallWidth = 0) => {
   const sources = [[avifFor(src), 'image/avif'], [webpFor(src), 'image/webp']]
-    .filter(([u]) => u).map(([u, t]) => `<source srcset="${esc(u)}" type="${t}">`).join('');
+    .filter(([u]) => u).map(([u, t]) => {
+      const small = smallWidth ? smallFor(u, smallWidth) : null;
+      return small
+        ? `<source srcset="${esc(small)} ${smallWidth}w, ${esc(u)} 800w" sizes="${CARD_SIZES}" type="${t}">`
+        : `<source srcset="${esc(u)}" type="${t}">`;
+    }).join('');
   return sources ? `<picture>${sources}${img}</picture>` : img;
 };
 
@@ -299,10 +312,10 @@ const heroAlt = (p) => (p.photos.find((ph) => ph.src === p.hero) || p.photos[0])
 
 // `lcp`: the case-study page's own hero is its largest paint, so it loads
 // eagerly at high priority; every listing/strip card stays lazy.
-const heroImg = (p, cls, lcp = false) => {
+const heroImg = (p, cls, lcp = false, smallWidth = 0) => {
   const load = lcp ? 'fetchpriority="high"' : 'loading="lazy"';
   const img = `<img src="${esc(p.hero)}" alt="${esc(heroAlt(p))}" class="${cls}" ${load} decoding="async" width="800" height="600">`;
-  return pictureFor(p.hero, img);
+  return pictureFor(p.hero, img, smallWidth);
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
@@ -711,7 +724,7 @@ const homeCard = (p) => {
   const ctx = dated(p);
   const meta = [esc(p.city), p.year ? esc(String(p.year)) : null].filter(Boolean).join(' · ');
   return `      <a class="hj-card" href="/our-work/${esc(p.slug)}">
-        ${heroImg(p, 'hj-img')}
+        ${heroImg(p, 'hj-img', false, 640)}
         <span class="hj-body"><b>${esc(p.title)}</b><span class="hj-meta">${meta}</span>${isPreNbd(p) ? `<span class="hj-note">${esc(PRE_NBD_LABEL)}</span>` : ''}<span class="hj-price">${esc(priceLine(p))}</span>${ctx ? `<span class="hj-note" data-price-context="${ctx.year}">${esc(ctx.short)}</span>` : ''}</span>
       </a>`;
 };
