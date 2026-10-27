@@ -59,7 +59,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('the default thank-you headline is the same-day one (no "within 24 hours" there)', /<h3 id="insThanksTitle">Joe will reach out, usually the same day<\/h3>/.test(SUCCESS) && !/24 hours|within the hour/.test(SUCCESS));
     ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
-    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=[456]/.test(HTML));
+    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=[45678]/.test(HTML));
   }
 
   console.log('\n2. intake-extras: the block splits in two, the popup is opt-out');

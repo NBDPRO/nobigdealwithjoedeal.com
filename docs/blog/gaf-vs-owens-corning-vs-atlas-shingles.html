@@ -23,6 +23,8 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="apple-mobile-web-app-title" content="No Big Deal">
   <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+  <link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <script type="application/ld+json">{
     "@context":"https://schema.org","@type":"BlogPosting",
     "headline":"GAF vs Owens Corning vs Atlas: Which Shingle Brand Is Best?",
@@ -103,14 +105,14 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0;}
 .callout{background:var(--navy-dark);color:var(--white);border-radius:12px;padding:28px 32px;margin:32px 0;}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px;}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px;}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px;}
 /* Button styling ONLY for direct-child CTA anchors — bare `.callout a`
    also hit inline links inside <p>/<li>, rendering pill buttons
    mid-sentence that broke paragraph flow (fixed 2026-08-11). */
 .callout > a{display:inline-block;background:#BD5728;color:var(--white);padding:11px 22px;border-radius:8px;font-weight:800;font-size:.85rem;transition:background .2s;}
 .callout > a:hover{background:#A14A22;}
-.callout p a,.callout li a{color:var(--orange);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.callout p a,.callout li a{color:var(--orange-light,#DD875F);font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .callout p a:hover,.callout li a:hover{color:var(--white,#fff)}
 .fact-box{background:var(--off-white);border:1px solid var(--light-gray);border-radius:12px;padding:24px 28px;margin:28px 0;}
 .fact-box h3{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#A14A22;margin-bottom:14px;}
@@ -245,10 +247,8 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0;}
 .callout{background:var(--navy-dark);color:var(--white);border-radius:12px;padding:28px 32px;margin:32px 0;}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px;}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px;}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px;}
-.callout a{display:inline-block;background:#BD5728;color:var(--white);padding:11px 22px;border-radius:8px;font-weight:800;font-size:.85rem;transition:background .2s;}
-.callout a:hover{background:#A14A22;}
 .fact-box{background:var(--off-white);border:1px solid var(--light-gray);border-radius:12px;padding:24px 28px;margin:28px 0;}
 .fact-box h3{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#A14A22;margin-bottom:14px;}
 .fact-box ul{margin:0 0 0 18px;}

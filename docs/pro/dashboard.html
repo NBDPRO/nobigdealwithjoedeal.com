@@ -166,18 +166,15 @@
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=2">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=3">
 <link rel="stylesheet" href="css/field-sunlight.css?v=1">
-<link rel="stylesheet" href="css/today-home.css?v=7">
+<link rel="stylesheet" href="css/today-home.css?v=8">
 <link rel="stylesheet" href="css/away-mode.css?v=1">
 <link rel="stylesheet" href="css/prod-flags.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
-<link rel="stylesheet" href="css/templates-library-view.css?v=1">
-<link rel="stylesheet" href="css/data-import-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
 <link rel="stylesheet" href="css/admin-manager-view.css?v=1">
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
-<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/dashboard-widgets-view.css?v=3">
@@ -799,7 +796,7 @@
 
   <!-- TIER 2: TOOLS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="tools">
+    <div class="nav-section-header" data-action="navSection" data-target="tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-tools">
       <span>TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-tools">▶</span>
     </div>
@@ -819,7 +816,7 @@
 
   <!-- TIER 3: INSIGHTS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="insights">
+    <div class="nav-section-header" data-action="navSection" data-target="insights" role="button" tabindex="0" aria-expanded="true" aria-controls="section-insights">
       <span>INSIGHTS</span>
       <span class="nav-section-toggle open" id="toggle-insights">▶</span>
     </div>
@@ -851,7 +848,7 @@
 
   <!-- AI TOOLS (Collapsible — matches TOOLS + INSIGHTS pattern) -->
   <div class="nav-section" style="margin-top:4px;">
-    <div class="nav-section-header" data-action="navSection" data-target="ai-tools">
+    <div class="nav-section-header" data-action="navSection" data-target="ai-tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-ai-tools">
       <span>AI TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-ai-tools">▶</span>
     </div>
@@ -887,7 +884,7 @@
        boot (line ~490) is idempotent on the hydrated DOM. -->
   <div class="view active" id="view-home" data-view-template="tpl-view-home"></div>
   <template id="tpl-view-home">
-    <div class="view-scroll">
+    <div class="view-scroll tp-has-rows tp-booting">
       <div class="page-hdr">
         <div>
           <div class="page-title" id="homeGreeting" data-user-greeting>Welcome Back</div>
@@ -928,6 +925,7 @@
       <!-- Today (js/today-plan.js + js/today-home.js, 2026-10-03): the ONE
            list of what is on Jo's plate — appointments, calls owed, promised
            follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
+      <section class="tp tp-skel" id="todayPlanSkel" role="status" aria-label="Today"><div class="tp-hd"><div class="tp-title">Today</div><div class="tp-sub">Loading your day…</div></div></section>
       <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
       <!-- What closes this week (js/closes-week.js, lazy bundle 'closesweek',
            2026-10-15): open estimates and deals ranked by likelihood x
@@ -937,9 +935,9 @@
       <!-- Roof Rep game card: off by default — a rep who turned it on in
            Settings chose to see it, so it stays out of the fold below. -->
       <div id="homeGameCard" class="mb-md" hidden></div>
-      <!-- Pixel Mode Party + Trainer Card (js/pixel-mode.js). Empty and hidden unless
+      <!-- Pixel Mode Crew + Rep Card (js/pixel-mode.js). Empty and hidden unless
            the person turned the Pixel Mode skin on in Settings > Appearance. -->
-      <section id="homePixelParty" class="px-home mb-md" aria-label="Pixel Mode party" hidden></section>
+      <section id="homePixelParty" class="px-home mb-md" aria-label="Pixel Mode crew" hidden></section>
 
       <!-- More on Home (2026-10-08, phone audit #6): on a phone everything
            else below the Today list folds behind one "More on Home" tap — the
@@ -3876,7 +3874,7 @@
         <div class="panel mb-md" id="pixelModePanel">
           <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Pixel Mode</div></div></div>
           <div class="panel-body">
-            <p class="myskin-note">Redraws the CRM like a handheld game menu: stepped pixel frames, a retro type face, and your leads as a Party with an HP bar showing how many days are left before each one goes cold. Works on top of any color theme. Nothing is sent to anyone.</p>
+            <p class="myskin-note">Redraws the CRM like a handheld game menu: stepped pixel frames, a retro type face, and your leads as a Crew with an HP bar showing how many days are left before each one goes cold. Works on top of any color theme. Nothing is sent to anyone.</p>
             <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
             <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
             <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
@@ -7360,14 +7358,17 @@
 <script defer src="js/numbers-logic.js?v=2"></script>
 <script defer src="js/numbers-data.js?v=2"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
+<!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
+     Called by widgets.js, maps.js, whats-new.js and the lazy d2d / hd-import / yard-signs / decision-engine bundles. -->
+<script defer src="js/overlay-a11y.js?v=1"></script>
 <script defer src="js/widgets.js?v=20"></script>
-<script defer src="js/today-home.js?v=24"></script>
+<script defer src="js/today-home.js?v=25"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=7"></script>
 <script defer src="js/my-skin.js?v=11"></script>
 <script defer src="js/layout-system.js?v=5"></script>
-<script defer src="js/pixel-mode.js?v=2"></script>
+<script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
@@ -7544,7 +7545,7 @@
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->
-<script defer src="js/visit-recorder-launcher.js?v=3"></script>
+<script defer src="js/visit-recorder-launcher.js?v=4"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=2"></script>

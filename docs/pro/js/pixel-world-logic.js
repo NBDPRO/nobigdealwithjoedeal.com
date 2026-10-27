@@ -2,7 +2,7 @@
  * pixel-world-logic.js — pure rules for Pixel World, the walkable town
  * (2026-10-11, CRM style roadmap slice E2). No DOM, no canvas, no network:
  * movement and collision, where townspeople stand, what "!" means, the day
- * and night tint, the Lead Dex, area gates. require()d by tests; the browser
+ * and night tint, the Lead Book, area gates. require()d by tests; the browser
  * half is pixel-world.js (window.NBDPixelWorldLogic).
  *
  * Town art is original and drawn in pixel-world.js from small string
@@ -253,7 +253,7 @@
     return { r: 10, g: 20, b: 70, a: 0.5, name: 'NIGHT' };
   }
 
-  // ── Lead Dex ───────────────────────────────────────────────────────────
+  // ── Lead Book ──────────────────────────────────────────────────────────
   var DEX_SEEN_CAP = 400;
   /**
    * Every lead gets a number (oldest first). "caught" = a signed (won) lead,

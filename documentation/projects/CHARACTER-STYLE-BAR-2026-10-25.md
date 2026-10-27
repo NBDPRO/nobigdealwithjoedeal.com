@@ -49,27 +49,39 @@ level:
 | The 32×32 pixel avatar | `docs/pro/js/game-sprite.js` | The game card's fallback when `chibi.js` is not on the page, and both pickers' option tables; still shipped, so it is held to the bar or retired |
 | The Roof Rep scene sprites | `docs/pro/js/pages/roof-rep.js` | the yard dogs and the sheet's barking dog (`drawDog`), the cars and the pickup (`drawCar`, `drawTruck`), the houses and their doors (`drawHouse`), the build scene (`drawBuild`), the ladder card (`drawLadder`), the roof-anatomy diagram (`drawAnatomy`), and the old pixel painter fallback (`paint`) |
 | Pixel World | `docs/pro/js/pixel-world.js` (+ `pixel-world-logic.js`) | the player, the townspeople (the user's open leads), the six buildings and the town tiles, drawn from string patterns |
-| Pixel Mode | `docs/pro/js/pixel-mode-core.js` | the Party and Trainer Card figures and badges |
+| Pixel Mode | `docs/pro/js/pixel-mode-core.js` | the Crew and Rep Card figures and badges |
 | Weather and effects on the street | `docs/pro/js/pages/roof-rep-fx.js` | rain, snow, leaves, the evening tint, bursts (these frame the characters and are judged with them) |
 
 Not characters (not under this bar): the theme art tiles (`scripts/build-theme-art.mjs`), the photo, e-sign and
 signature canvases, the 3D roof viewer.
 
-## Open decisions (Jo)
+## Decisions (Jo)
 
-- **Proportions:** keep the chibi (the whole cast, both pickers and the street are built around it) and
-  paint it to this fidelity, or move to the references' three-and-a-half-head figures. A prototype panel
-  (six Canvas 2D attempts: cel, painterly and crisp-vector techniques, each in both proportions) and a
-  judged contact sheet were produced for this choice on 2026-10-25; the plan that came out of it is
-  folded into this note once Jo has picked.
-- **Views:** add true side and back views (a turnaround like reference 2) on top of the front view and
-  the three-quarter head turn (wave 24).
-- **Outfits:** which personas and pickers get the new pieces (hood, robe or cloak, rope belt, satchel,
-  lantern, boots), and how dark the palette may go against the brand's navy and orange.
+- **2026-10-25 23:40 UTC:** the HD cast (Grabber's original pixel art) replaces the old procedural characters. The
+  questions this note carried (proportions, views, outfits) are closed as moot: the painted restyle in
+  [the plan](CHARACTER-STYLE-PLAN-2026-10-25.md) is cancelled, and the old chibi gets overlap and clipping fixes only
+  until layered HD avatar sheets (hair, cap, shirt) exist and a cast loader can draw the saved looks. **The bar itself
+  stands for the HD cast:** every sprite wired in is rendered and looked at before it ships (rule g), and art changes
+  go through Jo to Grabber, who owns the art.
 
 ## Status
 
-- 2026-10-25: the clean-up audit ran as a workflow (twelve finders by dimension, two sceptics per finding,
-  one fixer per part, a critic over the full 576-look matrix); its fixes land on the renderer with guard
-  pins. The prototype panel ran the same evening. Both are logged in the
+- 2026-10-25: the clean-up audit ran as a workflow (twelve finders by dimension, a sceptic per body part over the
+  127 findings, one fixer per part, a critic over the full 576-look matrix); its fixes land on the renderer with guard
+  pins. The prototype panel ran the same evening (six attempts; the art and product judges ranked crisp-chibi >
+  crisp-tall > cel-chibi > paint-tall > cel-tall > paint-chibi and kept the chibi proportions with the head at about
+  38–40 %). A third workflow drew the street dog to the bar (three cel-shaded attempts, two judges, the winner
+  `animation-first` integrated into `roof-rep.js`). All three stalled on the account's session limit after their
+  first phases and were resumed from cache at 22:03 UTC. Outcomes: the dog landed (one commit, `roof-rep.js` v14,
+  gates green, renders looked at); the panel's synthesis is
+  [CHARACTER-STYLE-PLAN-2026-10-25](CHARACTER-STYLE-PLAN-2026-10-25.md) with the contact sheet in
+  `brand/character-style/`. Both notes that log them: the
   [10-25 handoff](NEXT_SESSION-2026-10-25.md) and the [Roof Rep game note](ROOF-REP-GAME-2026-10-03.md).
+- 2026-10-25, the sprite packs Jo uploaded (Mana Seed base demo, Mana Seed Farmer sample, Craftpix tiny heroes) were
+  measured against this bar and the renderer: the recommendation is to keep the procedural renderer and redraw it
+  pixel-crisp at Mana Seed proportions (route R3 in the handoff), and to use the Mana Seed demo as-is in Pixel World,
+  the one surface where a 29-px four-direction walk is the whole need. The Pixel World lane runs as a fourth workflow
+  (`pw-local`); the Mana Seed sheets are held to the same bar (hair under hat, outfit under hair, nothing through the
+  HP bar or the "!" bubble, feet on the tile) and judged by rendering before they ship.
+- 2026-10-25 23:40 UTC: Jo chose the HD cast. The Mana Seed Pixel World lane was stopped (its worktree `pw-local`
+  stays unmerged) and Grabber's games handoff took its place (see the 10-25 handoff).

@@ -14,8 +14,9 @@ suite. Strict CSP: no inline scripts, no inline handlers
   Cloud Functions gen2 in `functions/` (exports in `functions/index.js`, catalog
   in `functions/FUNCTIONS_INDEX.md`), Storage (`storage.rules`), Auth + App Check.
 - **Hosting: Firebase Hosting.** `firebase.json` serves `docs/`; a push to `main`
-  deploys (`.github/workflows/firebase-deploy.yml`). Cloudflare appears only as
-  Turnstile (`challenges.cloudflare.com`) in the CSP. It is not the host.
+  deploys (`.github/workflows/firebase-deploy.yml`). Cloudflare is the DNS host for the
+  domain (records only, it does not serve the site) and appears as Turnstile
+  (`challenges.cloudflare.com`) in the CSP.
 - **Anthropic API: server-side only.** The browser calls `claudeProxy`
   (`functions/handlers/ai.js`); server callers include `call-center.js`,
   `dictate.js`, `handlers/ai-texting.js`, `handlers/photo.js`. The key is the

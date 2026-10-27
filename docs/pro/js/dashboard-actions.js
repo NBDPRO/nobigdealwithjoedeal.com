@@ -499,6 +499,11 @@ function goTo(name, params = {}) {
     try {
       if (typeof window.renderEstimatesList === 'function') window.renderEstimatesList(window._estimates || []);
       if (typeof window.renderLeads === 'function' && Array.isArray(window._leads)) window.renderLeads(window._leads, window._filteredLeads);
+      // The "This Week" tiles (weekNewLeads / weekEstimates / weekRevenue /
+      // weekTasks) are written only at lead load, when this template is not
+      // yet hydrated and calculateWeeklyStats() no-ops, so they showed 0 until
+      // the next lead load. Recompute now that the template is mounted.
+      if (typeof window.calculateWeeklyStats === 'function') window.calculateWeeklyStats();
     } catch (e) { console.warn('dash KPI refresh failed:', e); }
     // QA 2026-06-21 #9b: the dashboard widget SECTIONS (hot-leads, smart-followup
     // briefing, almost-there, stale-shares, engagement-cohort, bottleneck) render

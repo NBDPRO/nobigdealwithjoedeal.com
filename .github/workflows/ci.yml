@@ -1182,7 +1182,11 @@ jobs:
     runs-on: ubuntu-latest
     # 12 -> 20 (2026-10-16): the walk and the layouts check now run twice,
     # on the readable tree and on the minified build the deploy ships.
-    timeout-minutes: 20
+    # 20 -> 30 (2026-10-26): the job gained the CRM dashboard, Home-boot and
+    # dialog-keyboard checks and ran into its cap three times in one evening
+    # (9-17 min on a quiet runner, past 20 on a busy one). A cap still only
+    # has to catch a hung install, not police the suite.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -1206,6 +1210,30 @@ jobs:
         run: |
           cd tests
           node ds-layouts-phone-fit-2026-10-25.test.js
+      # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
+      # the "This Week" tiles populate on a first visit, the sample estimates show
+      # an address / squares / sent / signed, the Door-to-Door tab labels stay
+      # inside their tabs at 320-430 px. Same server, same Chromium.
+      - name: Run the CRM dashboard sample-data check
+        run: |
+          cd tests
+          node crm-dashboard-sample-render-2026-10-26.test.js
+      # The CRM Home boot on the same sample account (overnight pass 2026-10-26, perf-1):
+      # the layout shifts of the whole boot add up to under 0.1 on a phone and a desktop (they
+      # were 1.4-1.6 and 0.4-0.6), nothing but the header and a placeholder shows while Home
+      # is held, and a list that never becomes ready is released, never left bare.
+      - name: Run the CRM Home boot layout-shift check
+        run: |
+          cd tests
+          node crm-home-boot-layout-shift-2026-10-26.test.js
+      # The CRM's self-built dialogs and small controls on the same sample account
+      # (overnight pass 2026-10-26): eight dialogs close on Escape, take focus in, keep
+      # Tab inside and give focus back; hot-lead actions and the photo Share pill have
+      # their hit areas; sidebar section headers are keyboard controls. Same server.
+      - name: Run the CRM overlay keyboard check
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
@@ -1241,6 +1269,10 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      - name: Run the CRM overlay keyboard check against the minified build
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       - name: Run the CRM layouts render check against the minified build
         run: |
           cd tests

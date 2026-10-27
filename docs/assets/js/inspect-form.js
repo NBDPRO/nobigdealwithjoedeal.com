@@ -168,6 +168,12 @@
     mountDetails(res && res.photoToken, data);
     if (ok) {
       ok.classList.add('visible');
+      // Focus the confirmation (2026-10-26): it used to leave focus on <body>,
+      // and the status region inside it never changes for the default
+      // "contact me" choice, so a screen reader announced nothing. Same as the
+      // homepage's #formSuccess.
+      ok.setAttribute('tabindex', '-1');
+      try { ok.focus({ preventScroll: true }); } catch (e) {}
       try { ok.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     }
   }
@@ -246,7 +252,9 @@
     });
   }
 
-  function showError(btn, msg) {
+  // anchor (optional): the first invalid field. The message sits right under
+  // it so it is on screen where the focus lands, not at the form's far end.
+  function showError(btn, msg, anchor) {
     if (btn) { btn.disabled = false; btn.textContent = 'Request Free Inspection'; }
     var form = document.getElementById('inspectForm');
     if (!form) return;
@@ -257,7 +265,12 @@
     p.setAttribute('role', 'alert');
     p.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:8px;color:#7f1d1d;font-size:.9rem;line-height:1.4';
     p.textContent = msg || 'Something went wrong. Please call or text Joe at (859) 420-7382.';
-    form.appendChild(p);
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(p, anchor.nextSibling);
+      try { anchor.setAttribute('aria-describedby', 'inspectFormError'); } catch (e) {}
+    } else {
+      form.appendChild(p);
+    }
   }
 
   function onReady() {
@@ -275,7 +288,7 @@
 
       var bad = invalidFields();
       if (bad.length) {
-        showError(btn, invalidMessage(bad));
+        showError(btn, invalidMessage(bad), bad[0]);
         try { bad[0].focus(); } catch (e) {}
         return;
       }

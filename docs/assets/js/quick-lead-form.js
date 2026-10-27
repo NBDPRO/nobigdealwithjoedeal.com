@@ -50,7 +50,7 @@
     if (window.NBDIntake) return Promise.resolve();
     return new Promise(function (resolve) {
       var s = document.createElement('script');
-      s.src = '/assets/js/intake-extras.js?v=1';
+      s.src = '/assets/js/intake-extras.js?v=5';
       s.onload = resolve;
       s.onerror = function () { resolve(); }; // form still works without it
       document.head.appendChild(s);
@@ -69,8 +69,8 @@
       '<form class="qlf" novalidate aria-labelledby="' + uid + '-h">' +
         '<h3 class="qlf-title" id="' + uid + '-h">' + heading + '</h3>' +
         '<p class="qlf-sub">' + sub + '</p>' +
-        '<div class="qlf-msg qlf-err" id="' + uid + '-err" role="alert"></div>' +
-        '<div class="qlf-msg qlf-ok" id="' + uid + '-ok" role="status"></div>' +
+        '<div class="qlf-msg qlf-err" id="' + uid + '-err" role="alert" tabindex="-1"></div>' +
+        '<div class="qlf-msg qlf-ok" id="' + uid + '-ok" role="status" tabindex="-1"></div>' +
         '<div class="qlf-row">' +
           '<label class="qlf-field"><span>First name *</span><input id="' + uid + '-fn" type="text" name="given-name" autocomplete="given-name" required></label>' +
           '<label class="qlf-field"><span>Mobile phone *</span><input id="' + uid + '-ph" type="tel" name="tel" autocomplete="tel" inputmode="tel" required></label>' +
@@ -103,18 +103,44 @@
     // (public-lead-submit.js preloads on the focused field).
     form.addEventListener('focusin', function () { ensureGateway().catch(function () {}); }, { once: true });
 
+    // Show the visitor what happened, where they can see it (2026-10-26). The
+    // status slots are the first children of an ~890px form and Send is the
+    // last, so a message set in place sat above the viewport on a phone: an
+    // empty submit looked like a dead button and "Got it" was never seen.
+    function reveal(slot, field) {
+      try { slot.scrollIntoView({ block: 'center' }); } catch (e) {}
+      try { (field || slot).focus({ preventScroll: true }); } catch (e) {}
+    }
+    function list(parts) {
+      return parts.length < 3 ? parts.join(' and ') : parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
+    }
+    // A marked field stops being marked as soon as it is edited.
+    form.addEventListener('input', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('aria-invalid')) t.removeAttribute('aria-invalid');
+    });
+
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       err.textContent = ''; ok.textContent = '';
-      var firstName = document.getElementById(uid + '-fn').value.trim();
-      var phone = document.getElementById(uid + '-ph').value.trim();
-      var address = document.getElementById(uid + '-ad').value.trim();
+      var fnEl = document.getElementById(uid + '-fn');
+      var phEl = document.getElementById(uid + '-ph');
+      var adEl = document.getElementById(uid + '-ad');
+      var firstName = fnEl.value.trim();
+      var phone = phEl.value.trim();
+      var address = adEl.value.trim();
       var email = document.getElementById(uid + '-em').value.trim();
       // Shared public-form phone rule: digits only, leading 1 dropped, exactly 10.
       var phoneOk = phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
       var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
-      if (!firstName || !phoneOk || !addressOk) {
-        err.textContent = 'Please add your first name, a 10-digit phone number, and your street address.';
+      var bad = [];
+      [[fnEl, !!firstName, 'your first name'], [phEl, phoneOk, 'a 10-digit phone number'], [adEl, addressOk, 'your street address']].forEach(function (c) {
+        if (c[1]) c[0].removeAttribute('aria-invalid');
+        else { c[0].setAttribute('aria-invalid', 'true'); bad.push(c); }
+      });
+      if (bad.length) {
+        err.textContent = 'Please add ' + list(bad.map(function (c) { return c[2]; })) + '.';
+        reveal(err, bad[0][0]);
         return;
       }
       var consentEl = document.getElementById(uid + '-consent');
@@ -126,6 +152,18 @@
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
           err.textContent = intake.error;
+          // The thing to fix is the choice, not the message: the form is tall,
+          // so on a phone the message and the options are ~400px apart. Scroll
+          // the fieldset (red border, legend) into view and focus its first
+          // radio (the fieldset itself isn't focusable). The message is still
+          // announced: err is the role=alert slot.
+          if (intake.el && intake.el.scrollIntoView) {
+            try { intake.el.scrollIntoView({ block: 'center' }); } catch (e) {}
+            var firstRadio = intake.el.querySelector ? intake.el.querySelector('input') : null;
+            try { (firstRadio || err).focus({ preventScroll: true }); } catch (e) {}
+          } else {
+            reveal(err);
+          }
           return;
         }
       }
@@ -143,11 +181,16 @@
           source: 'page-form:' + (window.location.pathname || '')
         }, intake.fields));
       }).then(function (out) {
-        if (!out || !out.ok) throw new Error((out && out.reason) || 'failed');
+        if (!out || !out.ok) { var fail = new Error((out && out.reason) || 'failed'); fail.friendly = !!(out && out.friendly); throw fail; }
         ok.textContent = 'Got it! Joe will reach out shortly — usually same day.';
         btn.textContent = 'Sent ✓';
+        reveal(ok);
         if (window.NBDIntake) {
-          window.NBDIntake.afterSubmit(ok.parentNode, {
+          // Right under the message (not at the bottom of the form) so the
+          // calendar button and photo status are on screen with it.
+          var after = document.createElement('div');
+          form.insertBefore(after, ok.nextSibling);
+          window.NBDIntake.afterSubmit(after, {
             prefix: uid + 'i', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
             firstName: firstName, phone: phone, email: email, address: address, service: service
           }).then(function () { form.reset(); });
@@ -155,8 +198,12 @@
           form.reset();
         }
       }).catch(function (e2) {
-        err.textContent = 'Could not send — please call or text (859) 420-7382. (' + (e2.message || 'error') + ')';
+        // The gateway's plain-language reason already says what to do; any
+        // other failure gets the generic line. The raw text is console-only.
+        console.warn('[quick-lead-form] send failed:', e2 && e2.message);
+        err.textContent = e2 && e2.friendly ? e2.message : 'Could not send — please call or text (859) 420-7382.';
         btn.disabled = false; btn.textContent = 'Send — Joe calls you back';
+        reveal(err);
       });
     });
   }

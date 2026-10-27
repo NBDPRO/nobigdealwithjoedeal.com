@@ -48,7 +48,30 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
   dimension, two sceptics per finding, a fixer per part, a critic over the full matrix) and a prototype panel for the
   painted style (six attempts, three judges, a plan and a contact sheet). Jo's open decisions: proportions (chibi
   painted to the bar, or the references' three-and-a-half-head figures), true side and back views, which personas
-  and pickers get hoods, robes, belts, satchels and lanterns.
+  and pickers get hoods, robes, belts, satchels and lanterns. **How the evening went (22:00 UTC):** the finders,
+  the six prototypes and the art and product judges finished; then every agent died on the account's session limit
+  ("resets 8pm UTC"), so the audit's verify/fix/critic, the panel's engineering judge and synthesis, and the dog's
+  integration were resumed from their cached runs at 22:03 UTC (the audit on a restructured script: one sceptic per
+  body part instead of two per finding). Their outcomes are item 0 under "Next lanes" below and in the
+  [style bar note](CHARACTER-STYLE-BAR-2026-10-25.md)'s status section.
+- **Jo's sprite packs (16:00 UTC):** the Mana Seed Character Base demo 2.0, the Mana Seed Farmer free sample and
+  Craftpix's tiny heroes, "free models and designs we can use and base off of … might be easier and cleaner". Measured,
+  not blurbed: 64-px cells, a 14×29 px figure, four drawn directions; the free demo covers 2 of our 16 poses (stand,
+  walk) and the paid Farmer system 9 (four of them front-only); option parity would be ~30 new layers × 32–64 cells
+  each (416–1,920 cells, 6–27 artist days) and loses eye colour, builds, moods, gaze, the turn, speech shapes and
+  cross-fades (waves 12–25). The mapping (poses, options, fit per surface, licence text, three routes with days) is in
+  the session scratchpad (`render/sprites/MAPPING.md`, contact sheet `keymap/sheet-3x.png`); the recommendation given to
+  Jo: **R3**, keep the procedural renderer and redraw it pixel-crisp at Mana Seed proportions (head ≈ 35–38 %, 3–4 tone
+  ramps, 1-px ink, 135 ms walk), plus the one free win: **the Mana Seed demo into Pixel World as-is** (16-px tiles, a
+  two-tile-tall figure, walk in four directions is the whole need, the demo's licence allows commercial use). **Jo's decision (23:40 UTC): the HD cast
+  replaces the old characters**, so none of R1, R2 or R3 is taken: the painted restyle is cancelled, the Mana Seed
+  swap into Pixel World was stopped (Grabber's v8b replaces that surface and Grabber owns the art), and the old
+  chibi gets overlap and clipping fixes only until layered HD avatar sheets exist.
+- **American Operator's official kit (16:00 UTC, "you can decide"):** PR #2740 (draft): the dark "Locally Owned &
+  Operated / Certified by American Operator" banner replaces the shield-and-text tile in every footer cert bar (287
+  pages: four partials restamped plus 13 hand-edited pages), the orange banner under the About page's credential chips.
+  Verified by an independent agent; blocked only by the two landing visual baselines (mobile, tablet) that the sandbox
+  cannot bless (Needs Jo, item 5).
 - **`@shard2`** ([the 10-24 lanes](NEXT_SESSION-2026-10-24.md), lane 5): every spec passes alone on the emulators. The
   leg hit its cap twice today. First `layout-island.spec.js` burned 3 × 300 s on a real product gap (#2731). On #2731's
   own run the burner moved to `mission-control.spec.js` (3 × 240 s, spec 45 of 168 at the cap), and the log named the
@@ -129,11 +152,37 @@ Verified against `main` `43e213a` (#2730) on 2026-10-25 08:20 UTC.
 2. **`@shard2` / `@shard3` in the required set** once `@shard2` finishes on `main` after #2731.
 3. **Clay mascot** (Canva media `MAHY-9Hts18`): export + licence call; the vector chibi stays for every customisable avatar.
 4. Everything else on the 10-24 list (flags to flip, claims to confirm, the real-iPhone pass, contracts, data, CI policy).
+5. **#2740's landing baselines** (`landing-mobile` and `landing-tablet` in `tests/e2e/visual-regression.spec.js-snapshots/`):
+   the footer banner moves every pixel below the fold, so the two full-page baselines have to be re-blessed from CI's
+   renderer (local renders differ on 9 of 12 baselines). Either allow `*.blob.core.windows.net` in the environment's
+   network settings so the sandbox can pull the `visual-regression-output` artifact, or drop the two `-actual.png`
+   files from that artifact into the snapshots folder on the PR branch.
+6. **Decided 2026-10-25 23:40 UTC (Jo): the HD cast replaces the old characters.** The sprite routes R1 to R3, the
+   Mana Seed swap and the painted restyle ([the plan](CHARACTER-STYLE-PLAN-2026-10-25.md), waves 1 to 8) are moot or
+   cancelled. The old chibi keeps overlap and clipping fixes until Grabber's layered HD avatar sheets (hair, cap,
+   shirt) exist. Art asks go through Jo to Grabber: those layered sheets, and the poses the street needs (talk,
+   cheer, sad, point, knock) per facing.
+7. **Branches and PRs (decided 23:40 UTC):** one pushable branch per piece of work (`claude/games-proto-2026-10-25`,
+   `claude/characters-2026-10-25` and so on), each its own draft PR; the games prototype PR is never merged or
+   auto-merged without Jo. Build order: the Pixel World port behind a flag and the Roof Rep file split in parallel,
+   as separate PRs.
+8. **Still open for Jo:** Grabber's PLAN section 9 (merge the two Pixel Worlds into one, who sees real-job XP,
+   real-lead practice in Roof Rep, renaming Dex, Party and Trainer Card), asked in multiple choice; and uploading
+   `nbd-sprites-v8b.zip` and `NBD-Pro-Games-Handoff-v8b.zip` to the chat (the Drive connector cannot move files that
+   large). For #2740 (item 5) Jo asked for help: environment menu in the session's title bar, Edit, Network access,
+   add `*.blob.core.windows.net` under Allowed domains and leave Allow package managers ticked.
 
 ## Next lanes (engineering, no Jo needed)
 
 Refreshed 2026-10-25 (late): lanes 1, 2 and 4 of the morning list are done (#2731–#2737 merged or open; the
 characters ran to wave 23). What is left, and what is new:
+
+0. **The character workflows resumed at 22:03 UTC, and what Jo's 23:40 UTC decision did to them** (each on its own
+   worktree and local branch): the clean-up audit's fixes (`wave24-local`, `scratchpad/audit`) continue, because they
+   repair the live renderer; the street dog drawn to the bar landed (`dog-local`) and rides the characters PR; the
+   painted panel's plan and contact sheet are in the vault but cancelled (the HD cast replaces the old characters);
+   the Mana Seed Pixel World swap (`pw-local`) was stopped. New: Grabber's handoff (above) runs as the games prototype
+   branch (`games-proto-local`) and, after review, the Pixel World port and the Roof Rep file split.
 
 1. **`@shard2` went green on #2738's run** (both misses on #2737's run were read from their dumps and fixed: compact-header
    test 4 discounts the shared rep's data blocks, crew-calendar's lanes are matched by this attempt's stamp). Watch the

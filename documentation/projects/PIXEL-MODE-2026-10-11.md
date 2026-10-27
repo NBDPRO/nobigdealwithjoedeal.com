@@ -5,20 +5,66 @@ on main when this was written). Jo approved building Pixel World in the same
 effort as the rest of the style work. This note is the running log for both
 slices; each slice appends a dated section.
 
+## Update 2026-10-25 — the game words are NBD words now (Jo's decision)
+
+Jo chose, answering a multiple-choice question on 2026-10-25, to drop the
+Pokemon-style names from the live Pixel Mode and Pixel World so there is no
+chance of a trademark confusion. What the person sees changed, nothing else:
+
+| Was | Now | Where it shows |
+| --- | --- | --- |
+| Lead Dex | **Lead Book** (menu LEAD BOOK) | Pixel World menu entry, panel title, How to play line, "fill the Lead Book" note |
+| Party | **Crew** (heading CREW) | Home card heading and aria-label, empty state "No open leads on your crew.", Pixel World menu entry, Settings > Appearance > Pixel Mode blurb, the Home host's aria-label |
+| Trainer Card | **Rep Card** (heading REP CARD) | Home card heading and aria-label |
+
+Kept on purpose, so a saved setting and every hook still work byte for byte:
+identifiers and exports (`partyOf`, `trainerCard`, `dexEntries`, `DEX_SEEN_CAP`, `dexPanel`,
+`partyPanel`), CSS classes (`px-party`, `px-party-list`, `px-trainer*`), the element id
+`#homePixelParty`, and everything stored (`userSettings/{uid}.pixelMode`,
+`userSettings/{uid}.pixelWorld.seen`, `companyProfile/{id}.pixelWorld.enabled`). The Decision
+Engine's `.dex-*` classes are an unrelated prefix and are untouched.
+`tests/pixel-rename-2026-10-25.test.js` pins all of this (the old words are gone from
+the Pixel strings and comments, the new labels exist, the stored keys are unchanged).
+One wording note: "Crew" for the at-risk leads now sits beside the real job crews
+(Roof Rep's Crew board and the crews in its build scene, the CRM's Crew Calendar and
+the Crew Scheduled stage). Jo's choice, kept. The sections
+below were rewritten to the new names where they describe how the feature works
+today; the new-lead dialog's encounter line was reworded to "NEW LEAD!" by a
+separate decision on 2026-10-26 (see below).
+
+### Decided (Jo, 2026-10-26): reword the new-lead dialog only
+
+Review of the rename found two more places that carried the creature-game
+flavour. Jo picked "reword the dialog only":
+
+- The new-lead prompt title is now "NEW LEAD!" (it was the classic encounter
+  line). Its class `px-wild`, the `data-px-wild` hooks and the `wildLead`
+  function are identifiers and stay. `pixel-mode-core.js` is at `?v=3` and
+  `pixel-mode.js` at `?v=4`; the rename guard pins both the new title and the
+  absence of the old line.
+- The CRM theme catalog (not Pixel Mode) is unchanged by choice: `poke-center`
+  ("Poké Center") and `pokemon` ("Pokemon") in `theme-engine.js`, plus the
+  "Pokémon" entry in the `maps.js` map-theme list. They sit in the same
+  pop-culture category as Batman, Darth Vader, Lightsaber, Mario, Zelda,
+  Superman and others, which My Skin (2026-10-01) was built around on purpose.
+  If the wider trademark question is ever taken up, it is its own task: a theme
+  rename is the display `name` only (theme ids are stored in settings and stay),
+  and no test asserts the display names today (the tests use the ids).
+
 ## E1 — Pixel Mode skin + dialog-box notifications (shipped with this note)
 
 **What it is.** A skin, not a theme: `body.skin-pixel` layered over whichever
 theme is active. It sets no colours of its own (every colour is a theme token),
 so all 195 themes re-colour it. It changes frames (stepped pixel borders via
 four hard box-shadows, no radius), type (Press Start 2P headings, VT323 body)
-and adds a ▶ cursor on nav rows, optional static scanlines, a Home **Party**
-and a **Trainer Card**.
+and adds a ▶ cursor on nav rows, optional static scanlines, a Home **Crew**
+and a **Rep Card**.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| Pure rules | `docs/pro/js/pixel-logic.js` (`window.NBDPixelLogic`) | HP, overdue, open lead, party order, trainer card, box-shadow sprite, typewriter. Shared with Pixel World (E2). |
+| Pure rules | `docs/pro/js/pixel-logic.js` (`window.NBDPixelLogic`) | HP, overdue, open lead, crew order, rep card, box-shadow sprite, typewriter. Shared with Pixel World (E2). |
 | Boot loader | `docs/pro/js/pixel-mode.js` | The only boot tag (~3 KB). One settings read; fetches the core only when skin/dialog is on or the Settings card scrolls into view. Leaves a `__stub` on `window.NBDPixelMode`. |
-| Skin + wiring | `docs/pro/js/pixel-mode-core.js` (`window.NBDPixelMode`) | Lazy. Skin classes, Party/Trainer Card, dialog toasts, settings panel, `userSettings` read/write. |
+| Skin + wiring | `docs/pro/js/pixel-mode-core.js` (`window.NBDPixelMode`) | Lazy. Skin classes, Crew/Rep Card, dialog toasts, settings panel, `userSettings` read/write. |
 | Stylesheet | `docs/pro/css/pixel-mode.css` | Lazy: injected only when something is on. Tokens only, every selector under `body.skin-pixel` / `.px-*` / `.toast.px-dialog`. |
 | Settings card | `dashboard.html` `#pixelModePanel` | Settings > Appearance, under My Skin. Three switches: skin, scanlines, dialog notifications. |
 | Home host | `dashboard.html` `#homePixelParty` | Hidden unless the skin is on. |
@@ -32,9 +78,9 @@ and a **Trainer Card**.
   a made-up number. `COLD_DAYS` (14) is one constant in `pixel-logic.js`.
 - **Overdue "!"** = the lead's own `followUp` date (local `YYYY-MM-DD`) is
   before today. Today itself is not overdue.
-- **Party** = open leads (not deleted, not won/lost/job role) sorted closest to
+- **Crew** = open leads (not deleted, not won/lost/job role) sorted closest to
   cold first, then by `jobValue`.
-- **Trainer Card** level = `1 + floor(sqrt(signed this month))`; "signed this
+- **Rep Card** level = `1 + floor(sqrt(signed this month))`; "signed this
   month" = won-role leads whose `stageStartedAt` (else `updatedAt`) is in this
   calendar month. Pipeline is labelled **projected** (sum of `jobValue` of open
   leads) — it is never presented as collected revenue.
@@ -85,7 +131,7 @@ copied — the town's art is drawn here from small string patterns).
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| Rules | `docs/pro/js/pixel-world-logic.js` (`NBDPixelWorldLogic`) | Map, collision, camera, deterministic placement, wander limits, hail flags, day/night tint, Lead Dex, gates, on/off switch. Pure, tested. |
+| Rules | `docs/pro/js/pixel-world-logic.js` (`NBDPixelWorldLogic`) | Map, collision, camera, deterministic placement, wander limits, hail flags, day/night tint, Lead Book, gates, on/off switch. Pure, tested. |
 | Game | `docs/pro/js/pixel-world.js` (`NBDPixelWorldGame.start(env)`) | Canvas renderer + HTML frame. Read-only: no Firestore write API, no network. |
 | Frame | `docs/pro/css/pixel-world.css` | HUD chips, dialog, panels, touch D-pad. Theme tokens only. |
 | Launcher | `pixel-mode-core.js` (`NBDPixelMode.open/close/world`) + the `pixel-mode.js` boot loader | Switch check, lazy assets, company flag read; the loader owns the layout-registry seam. |
@@ -101,7 +147,7 @@ hidden for everyone else. Nothing is downloaded until the switch is on AND the
 person opens it.
 
 **Entry points.** Settings > Appearance > Pixel Mode > "Open Pixel World", the
-"ENTER TOWN" button on the Home Party card (skin on), and
+"ENTER TOWN" button on the Home Crew card (skin on), and
 `NBDPixelMode.open()`. The layout registry (lane "layouts") had not merged when
 this was built, so there is a **seam**, not a hard registration: the
 `pixel-mode.js` boot loader calls `window.LayoutRegistry.register({ id: 'pixel',
@@ -119,12 +165,12 @@ When the registry lands, confirm its `register` shape and the id/flag names.
   Storm Watch Tower: leads whose coordinates fall in today's SPC hail-risk
   polygons (`StormOutlook.summarizeAt`; loaded lazily; "roof not verified").
   Bank: **projected** pipeline + signed this month (never called revenue).
-  Trophy Hall: trainer card + the nine achievement themes with live
+  Trophy Hall: rep card + the nine achievement themes with live
   `ThemeEngine.isUnlocked`. Office: overdue / about-to-go-cold.
 - Achievement gates plug into `ThemeEngine.isUnlocked`: **Gold Vault**
   (Bank, needs Gold Rush) and **Summit Radar** (Tower, needs Road Warrior).
   Gates fail closed. `ThemeEngine.unlock` is not called by the game.
-- Lead Dex numbers every lead oldest-first: SIGNED (won stage), MET (talked to),
+- Lead Book numbers every lead oldest-first: SIGNED (won stage), MET (talked to),
   ??? (unmet, name hidden). "Met" is the only state the game stores
   (`userSettings/{uid}.pixelWorld.seen`, newest 400).
 - Day/night tint from the real local clock; hail rain overlay only while an

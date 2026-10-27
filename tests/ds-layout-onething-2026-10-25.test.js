@@ -46,20 +46,28 @@ console.log('\n2. the card markup (real check-in and wrap-up rules)');
 {
   const K = require(path.join(DS, 'js', 'checkin-logic.js'));
   const E = require(path.join(DS, 'js', 'eod-logic.js'));
-  const store = {};
-  const sandbox = { window: { NBDOneThing: O, NBDCheckin: K, NBDEod: E, addEventListener() {} }, document: { addEventListener() {}, querySelector() { return null; } }, localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, console, Date };
-  vm.createContext(sandbox);
-  vm.runInContext(UI, sandbox);
-  const html = (o) => sandbox.window.NBDOneThingUI.html(o);
+  // The card reads new Date().getHours() (the check-in is asked until 5 pm, the wrap-up takes over after), so the suite
+  // used to fail for any run from 17:00 local on (2026-10-25: red on a clean main at 19:46 ET). Each sandbox now gets a
+  // clock frozen at one hour of TODAY, and the evening rule has its own assertion below.
+  const clockAt = (hour) => { const base = new Date(2026, 9, 25, hour, 0, 0).getTime(); return class extends Date { constructor(...a) { if (a.length) super(...a); else super(base); } static now() { return base; } }; };
+  const boxAt = (hour) => {
+    const store = {};
+    const sandbox = { window: { NBDOneThing: O, NBDCheckin: K, NBDEod: E, addEventListener() {} }, document: { addEventListener() {}, querySelector() { return null; } }, localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, console, Date: clockAt(hour) };
+    vm.createContext(sandbox);
+    vm.runInContext(UI, sandbox);
+    return { store, html: (o) => sandbox.window.NBDOneThingUI.html(o) };
+  };
+  const { store, html } = boxAt(10);
   const TODAY = '2026-10-25';
   const h = html({ floors, workout: false, dk: TODAY, today: TODAY });
-  const hour = new Date().getHours();
+  const hour = 10; // the sandbox clock above
   const expectCheckin = hour < K.ASK_UNTIL;
   ok('today before ' + K.ASK_UNTIL + ':00 the card is the check-in, later it is the first open floor (now ' + hour + ':00)', expectCheckin ? /class="ot-card checkin"/.test(h) && /data-onething="checkin"/.test(h) : /class="ot-card floor"/.test(h));
   store.nbd_ds_coach_ready = JSON.stringify({ [TODAY]: { sleep: 2, sore: 2, energy: 2 } });
   const h2 = html({ floors, workout: false, dk: TODAY, today: TODAY });
   ok('check-in done: the floor card, its button carries the toggle-floor action app.js handles', /class="ot-card floor"/.test(h2) && /<button type="button" class="ot-btn" data-action="toggle-floor" data-floor-id="task">Done<\/button>/.test(h2));
   ok('the eyebrow, a big title, the sub line, "Not now" and the open count', /Do this next/.test(h2) && /<h2 class="ot-title">1 Big Task<\/h2>/.test(h2) && /data-onething="skip" data-id="floor:task"/.test(h2) && /3 things open today/.test(h2));
+  ok('from ' + K.ASK_UNTIL + ':00 the check-in is gone and the first open floor leads (clock frozen at 19:00)', (() => { const ev = boxAt(19).html({ floors, workout: false, dk: TODAY, today: TODAY }); return /class="ot-card floor"/.test(ev) && !/data-onething="checkin"/.test(ev); })());
   const allMet = floors.map((f) => Object.assign({}, f, { met: true }));
   const h3 = html({ floors: allMet, workout: false, dk: TODAY, today: TODAY });
   ok('the workout card opens the coach and has no "Not now" when it is the only thing', /class="ot-card workout"/.test(h3) && /data-onething="workout"/.test(h3) && !/data-onething="skip"/.test(h3));
