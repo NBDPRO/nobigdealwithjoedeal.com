@@ -130,7 +130,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@firebase/rules-unit-testing": "^5.0.2",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "firebase": "^12.18.0",
     "firebase-tools": "^15.28.2",
     "puppeteer-core": "^25.4.0"
