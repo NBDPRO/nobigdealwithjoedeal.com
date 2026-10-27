@@ -92,7 +92,7 @@ if (!body) {
   // 2026-10-16: the deploy-time minify and its source-map upload sit between them on purpose: the
   // minify must run AFTER the stamp, whose sed matches the readable source. No other step may.
   // 2026-10-27: so does the homepage head-CSS inlining (scripts/inline-head-css.js), which only rewrites docs/index.html.
-  const ALLOWED_BETWEEN = ["- name: Minify the CRM's JS and CSS for this deploy", "- name: Inline the homepage head CSS for this deploy", "- name: Keep the deploy's source maps (artifact, not served)"];
+  const ALLOWED_BETWEEN = ["- name: Minify the CRM's JS and CSS for this deploy", "- name: Inline the head CSS of the homepage, service and area pages for this deploy", "- name: Keep the deploy's source maps (artifact, not served)"];
   ok('the stamp step runs immediately before Deploy Hosting (only the deploy-time minify steps between them)',
     stampAt > -1 && deployAt > stampAt
     && !lines.slice(stampAt + 1, deployAt).some((l) => /^\s*- name:/.test(l) && ALLOWED_BETWEEN.indexOf(l.trim()) === -1),

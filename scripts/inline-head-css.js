@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * scripts/inline-head-css.js — put the homepage's head stylesheets inline at
+ * scripts/inline-head-css.js — put the head stylesheets of the listed pages inline at
  * DEPLOY time (PageSpeed mobile 2026-10-27: Performance 84, LCP 4.3 s,
  * "Render-blocking requests, est. savings 850 ms": 11 stylesheets in the head).
  *
@@ -34,9 +34,22 @@ const fs = require('fs');
 const path = require('path');
 
 const DOCS = path.join(__dirname, '..', 'docs');
-// Homepage first (the page PageSpeed was run on). Add a page here only after
-// re-measuring it; each one grows by the size of its head CSS.
-const PAGES = ['index.html'];
+// The homepage (the page PageSpeed was run on), then the .html files directly
+// in docs/services and docs/areas (local Lighthouse, mobile, 2026-10-27: service
+// ~85 -> 95, area ~81 -> 95; a blog post only 96 -> 98, so blog is not listed).
+// A name without .html is a folder, top level only. Add a page or folder only
+// after re-measuring it; each one grows by the size of its head CSS.
+const PAGES = ['index.html', 'services', 'areas'];
+
+/** The files a PAGES entry names, relative to docs/. */
+function expandPages(pages = PAGES, dir = DOCS) {
+  const out = [];
+  for (const entry of pages) {
+    if (entry.endsWith('.html')) { out.push(entry); continue; }
+    for (const name of fs.readdirSync(path.join(dir, entry)).sort()) if (name.endsWith('.html')) out.push(entry + '/' + name);
+  }
+  return out;
+}
 const LINK = /<link rel="stylesheet" href="\/assets\/css\/([A-Za-z0-9._-]+\.css)(?:\?[^"]*)?">\n?/g;
 
 // readCss(name) -> string | null. Returns { html, count, skipped }.
@@ -61,12 +74,12 @@ function readFromDocs(file) {
 function main() {
   const write = process.argv.includes('--write');
   let total = 0;
-  for (const rel of PAGES) {
+  for (const rel of expandPages()) {
     const p = path.join(DOCS, rel);
     const before = fs.readFileSync(p, 'utf8');
     const r = inlineHeadCss(before, readFromDocs);
     total += r.count;
-    console.log((write ? 'inlined ' : 'would inline ') + r.count + ' stylesheet(s) in ' + rel +
+    if (r.count || r.skipped) console.log((write ? 'inlined ' : 'would inline ') + r.count + ' stylesheet(s) in ' + rel +
       (r.skipped ? ' (' + r.skipped + ' left as links)' : '') + ': ' + before.length + ' -> ' + r.html.length + ' bytes');
     if (write && r.count) fs.writeFileSync(p, r.html);
   }
@@ -74,4 +87,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { inlineHeadCss, PAGES };
+module.exports = { inlineHeadCss, expandPages, PAGES };

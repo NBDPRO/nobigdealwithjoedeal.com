@@ -348,11 +348,11 @@ jobs:
       # order and position, so the cascade is unchanged; runs AFTER the minify
       # above so the inlined text is the minified one. Soft-fail: on any error
       # the page keeps its <link>s. docs/index.html is restored below.
-      - name: Inline the homepage head CSS for this deploy
+      - name: Inline the head CSS of the homepage, service and area pages for this deploy
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/inline-head-css.js --write \
-            || echo "::warning::Inline head CSS failed - the homepage keeps its stylesheet links."
+            || echo "::warning::Inline head CSS failed - the pages keep their stylesheet links."
 
       - name: Keep the deploy's source maps (artifact, not served)
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
@@ -417,7 +417,7 @@ jobs:
       # read the code as committed. always(): restore even if Hosting failed.
       - name: Restore readable docs/pro and docs/assets after the Hosting deploy
         if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
-        run: git checkout -- docs/pro docs/assets docs/index.html
+        run: git checkout -- docs/pro docs/assets docs/index.html docs/services docs/areas
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting
@@ -600,7 +600,7 @@ jobs:
       # silently broke EVERY deploy after #551 merged. Pin Temurin 21 here.
       - name: Set up JDK 21 (firebase-tools 15 emulator requirement)
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'rules' }}
-        uses: actions/setup-java@v6.0.1
+        uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
