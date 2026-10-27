@@ -465,6 +465,7 @@
     "css-no-js-escapes-2026-10-03.test.js",
     "dashboard-boot-budget-2026-10-03.test.js",
     "minify-shipped-2026-10-16.test.js",
+    "inline-head-css-2026-10-27.test.js",
     "pdf-libs-2026-10-16.test.js",
     "ops-audit-2026-10-03.test.js",
     "client-error-reporting-2026-10-04.test.js",
