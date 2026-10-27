@@ -15,7 +15,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { inlineHeadCss, PAGES } = require('../scripts/inline-head-css.js');
+const { inlineHeadCss, expandPages, PAGES } = require('../scripts/inline-head-css.js');
 
 const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -38,7 +38,9 @@ function headCssSequence(html, linkText) {
 }
 
 console.log('\nHOMEPAGE');
-ok('only the homepage is listed (add a page after re-measuring it)', PAGES.length === 1 && PAGES[0] === 'index.html');
+ok('only the homepage, services and areas are listed (add a page after re-measuring it)', PAGES.join() === 'index.html,services,areas');
+const listed = expandPages();
+ok('every listed page exists and the list covers the service and area pages', listed.length > 150 && listed.every((p) => fs.existsSync(path.join(DOCS, p))) && listed.some((p) => p.startsWith('services/')) && listed.some((p) => p.startsWith('areas/')));
 const orig = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
 const headLinks = (orig.slice(0, orig.indexOf('</head>')).match(LINK) || []);
 ok('the homepage head links at least 11 local stylesheets', headLinks.length >= 11, 'found ' + headLinks.length);
@@ -88,7 +90,7 @@ const iDeploy = wf.indexOf('firebase-tools deploy --only hosting');
 ok('the inline step runs after the minify', iMin > 0 && iInline > iMin);
 ok('the inline step runs before the Hosting deploy', iInline > 0 && iDeploy > iInline);
 ok('the inline step is soft-fail (the page keeps its links)', /inline-head-css\.js --write[^\n]*\\\n\s*\|\| echo "::warning::/.test(wf));
-ok('the restore step puts docs/index.html back', /git checkout -- docs\/pro docs\/assets docs\/index\.html/.test(wf));
+ok('the restore step puts the listed pages back', /git checkout -- docs\/pro docs\/assets docs\/index\.html docs\/services docs\/areas/.test(wf));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
