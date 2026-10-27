@@ -318,7 +318,7 @@ jobs:
           fi
 
       # Minify the CRM's first-party JS + CSS (docs/pro, vendor and service
-      # workers excluded) for THIS deploy only — repos report 2026-10-16:
+      # workers excluded) and the public site's docs/assets/{css,js} for THIS deploy only — repos report 2026-10-16:
       # the dashboard's 202 boot scripts go from 4.8 MB readable to ~2.7 MB.
       # scripts/minify-shipped.js documents exactly what changes (whitespace +
       # syntax, no renaming, keepNames, esbuild pinned). Runs AFTER the Sentry
@@ -401,12 +401,12 @@ jobs:
           echo "::error::Hosting deploy failed after 3 attempts."
           exit 1
 
-      # Put the readable docs/pro back. Hosting already has the minified copy;
+      # Put the readable docs/pro and docs/assets/{css,js} back. Hosting already has the minified copy;
       # every gate below (the function smoke suite greps docs/pro source) must
       # read the code as committed. always(): restore even if Hosting failed.
-      - name: Restore readable docs/pro after the Hosting deploy
+      - name: Restore readable docs/pro and docs/assets after the Hosting deploy
         if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
-        run: git checkout -- docs/pro
+        run: git checkout -- docs/pro docs/assets
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting

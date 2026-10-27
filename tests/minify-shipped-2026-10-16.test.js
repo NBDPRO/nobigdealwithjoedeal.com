@@ -3,7 +3,7 @@
  * (scripts/minify-shipped.js, repos report 2026-10-16 item 1).
  *
  * Guards: what is in scope (vendor, *.min, service workers and anything
- * outside docs/pro stay untouched), that esbuild is pinned to one exact
+ * outside docs/pro and docs/assets/{css,js} stay untouched), that esbuild is pinned to one exact
  * version, that the deploy runs the minify after the Sentry stamp and before
  * Hosting and restores docs/pro afterwards, that CI walks the minified build,
  * and (when the pinned esbuild is installed) that a real CRM file minifies
@@ -24,9 +24,10 @@ function ok(name, cond, detail) {
 }
 
 console.log('\nSCOPE');
-const yes = ['pro/js/crm-leads.js', 'pro/js/dashboard-bootstrap.module.js', 'pro/css/dashboard-app.css', 'pro/js/layouts/routeplan.js', 'pro/demo-sdk/firebase-auth.js', 'pro/deal-room.js'];
+const yes = ['pro/js/crm-leads.js', 'pro/js/dashboard-bootstrap.module.js', 'pro/css/dashboard-app.css', 'pro/js/layouts/routeplan.js', 'pro/demo-sdk/firebase-auth.js', 'pro/deal-room.js',
+  'assets/js/nav.js', 'assets/css/nbd-nav.css'];
 const no = ['pro/sw.js', 'pro/firebase-messaging-sw.js', 'pro/explore/demo-sw.js', 'assets/vendor/jspdf/jspdf.umd.min.js',
-  'pro/js/vendor/x.js', 'pro/css/thing.min.css', 'assets/js/nav.js', 'index.html', 'pro/dashboard.html', 'pro/manifest.json'];
+  'pro/js/vendor/x.js', 'pro/css/thing.min.css', 'assets/js/inline/0214ed5eea.js', 'assets/js/vendor/x.js', 'assets/fonts/x.woff2', 'assets/images/x.js', 'assets/data/projects.json', 'index.html', 'pro/dashboard.html', 'pro/manifest.json'];
 for (const r of yes) ok('minified: ' + r, M.shouldMinify(r));
 for (const r of no) ok('left alone: ' + r, !M.shouldMinify(r));
 ok('backslash paths are normalised', M.shouldMinify('pro\\js\\crm.js') && !M.shouldMinify('pro\\sw.js'));
@@ -46,7 +47,7 @@ const at = (s) => deploy.indexOf(s);
 const iSentry = at('- name: Stamp Sentry release with git SHA');
 const iMin = at('- name: Minify the CRM\'s JS and CSS for this deploy');
 const iHost = at('- name: Deploy Hosting');
-const iRestore = at('- name: Restore readable docs/pro after the Hosting deploy');
+const iRestore = at('- name: Restore readable docs/pro and docs/assets after the Hosting deploy');
 const iSmoke = at('- name: Gate — function smoke suite must pass before deploy');
 ok('deploy: minify step exists', iMin > 0);
 ok('deploy: minify runs after the Sentry stamp (its sed matches the readable source)', iSentry > 0 && iMin > iSentry);
@@ -56,7 +57,7 @@ const minStep = deploy.slice(iMin, deploy.indexOf('\n      - name:', iMin + 10))
 ok('deploy: the minify step installs the pin, writes, keeps maps out of docs/ and parse-checks the result',
   /minify-shipped\.js --install/.test(minStep) && /--write --maps-dir "\$RUNNER_TEMP\//.test(minStep) && /check-js-syntax\.js --shipped-only/.test(minStep));
 const restoreStep = deploy.slice(iRestore, deploy.indexOf('\n      - name:', iRestore + 10));
-ok('deploy: the restore runs even when Hosting failed', /always\(\)/.test(restoreStep) && /git checkout -- docs\/pro/.test(restoreStep));
+ok('deploy: the restore runs even when Hosting failed', /always\(\)/.test(restoreStep) && /git checkout -- docs\/pro docs\/assets/.test(restoreStep));
 const ci = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8').replace(/\r/g, '');
 const demo = ci.slice(ci.indexOf('  pro-demo-zero-network:'), ci.indexOf('\n  public-e2e:'));
 const iMinCi = demo.indexOf('minify-shipped.js --write');
