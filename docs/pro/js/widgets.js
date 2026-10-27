@@ -1372,6 +1372,8 @@ function openWidgetPicker() {
   container.id = 'wPickerContainer';
   container.innerHTML = html;
   document.body.appendChild(container);
+  // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+  if (window.nbdOverlay) window.nbdOverlay.attach(container.querySelector('#wPickerOverlay'), { label: 'Widget library', close: closePicker });
 }
 
 function closePicker() {

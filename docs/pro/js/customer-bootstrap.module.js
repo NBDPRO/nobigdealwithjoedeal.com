@@ -1529,7 +1529,7 @@ async function loadTimeline(leadId, lead) {
           <div class="timeline-icon">${item.icon}</div>
           <div class="timeline-content">
             <div class="timeline-title cbx-row8">
-              <input type="checkbox" ${item.taskDone ? 'checked' : ''} class="nbd-tl-task-check cbx-check" data-task-id="${esc(item.taskId)}"
+              <input type="checkbox" ${item.taskDone ? 'checked' : ''} class="nbd-tl-task-check cbx-check" data-task-id="${esc(item.taskId)}" aria-label="Mark done: ${esc(item.title || 'task')}"
                >
               <span style="${item.taskDone ? 'text-decoration:line-through;opacity:0.6;' : ''}">${esc(item.title)}</span>
             </div>

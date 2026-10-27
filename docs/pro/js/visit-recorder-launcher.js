@@ -175,6 +175,7 @@
   // ── the Home bar ────────────────────────────────────────────────────────
   var bar = null;
   var unfiledBtn = null;
+  var barWait = false;   // the bar's stylesheet is still on its way (see mountBar)
   // ONE Record visit entry per layout (2026-10-15). The floating bar is
   // Classic's and Bento's. Island puts Record visit in its dock, and the
   // full-screen layouts (Field, Focus, Inbox, Mission, Crew) draw it in their
@@ -188,7 +189,7 @@
   function paintBar() {
     if (!bar) return;
     var home = document.getElementById('view-home');
-    var show = !!(home && home.classList.contains('active')) && layoutWantsBar();
+    var show = !!(home && home.classList.contains('active')) && layoutWantsBar() && !barWait;
     bar.hidden = !show;
     // visit-recorder.css reserves room under Home's content while the bar shows
     document.documentElement.classList.toggle('nbd-vr-bar-on', show);
@@ -199,10 +200,21 @@
   function mountBar() {
     if (bar || !document.getElementById('view-home')) return;
     // the bar needs its stylesheet at boot: one small link, the rest stays lazy
-    if (!document.querySelector('[data-nbd-vr-src="/pro/css/visit-recorder.css"]')) {
-      var l = document.createElement('link');
-      l.rel = 'stylesheet'; l.href = BAR_CSS; l.setAttribute('data-nbd-vr-src', '/pro/css/visit-recorder.css');
-      document.head.appendChild(l);
+    var barLink = document.querySelector('[data-nbd-vr-src="/pro/css/visit-recorder.css"]');
+    if (!barLink) {
+      barLink = document.createElement('link');
+      barLink.rel = 'stylesheet'; barLink.href = BAR_CSS; barLink.setAttribute('data-nbd-vr-src', '/pro/css/visit-recorder.css');
+      document.head.appendChild(barLink);
+    }
+    // Shown before that sheet applies, the bar paints as a bare row at the foot of the page and then jumps to its
+    // fixed place (a layout shift on every Home boot, perf-1 2026-10-26): it stays hidden until the sheet is in.
+    // A link still loading has sheet === null; a failed or slow one is not waited for past 2 s.
+    if (barLink.sheet === null) {
+      barWait = true;
+      var barGo = function () { if (barWait) { barWait = false; paintBar(); } };
+      barLink.addEventListener('load', barGo);
+      barLink.addEventListener('error', barGo);
+      setTimeout(barGo, 2000);
     }
     bar = document.createElement('div');
     bar.className = 'nbd-vr-bar';

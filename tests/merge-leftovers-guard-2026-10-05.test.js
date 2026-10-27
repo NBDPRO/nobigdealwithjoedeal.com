@@ -61,7 +61,8 @@ const diff = (got, want) => 'new: [' + got.filter((x) => !want.includes(x)).join
 // ── KNOWN violations on origin/main, 2026-10-05 ─────────────────────────
 const KNOWN = {
   // A. pages
-  // R1-10-1 / R1-10-2 (dashboard.html and customer.html each linked three stylesheets twice) were fixed 2026-10-26: one <link> each, at ?v=2.
+  // R1-10-1 and R1-10-2 (the doubled ?v=1 stylesheet links) were fixed 2026-10-26;
+  // their pins are removed per the "gone (fixed? remove its KNOWN pin)" rule.
   dupTags: {},
   crossPageV: {
     'KNOWN BUG R1-10-3 (reported 2026-10-05): the same file carries a different ?v on dashboard.html and customer.html (google-calendar.css 7 vs 5 after a5a1f4eb changed it; customer-checklist.js 2 vs 3; icons.js 4 vs none; theme-system.css 10 vs none) — expected one ?v per file across both pages': [
@@ -427,7 +428,7 @@ ok(refsByPage['/pro/dashboard.html'].length > 100 && refsByPage['/pro/customer.h
   ok(same(el, ALLOWED_EAGER_LAZY), 'no NEW file is both eager on a page and in a lazy bundle (ScriptLoader dedupes, but the listing is drift)', diff(el, ALLOWED_EAGER_LAZY));
 
   const dups = PAGES.flatMap((pg) => dupTags(refsByPage[pg], pg));
-  ok(same(dups, known('dupTags')), 'no file is tagged twice on either page', diff(dups, known('dupTags')));
+  ok(same(dups, known('dupTags')), knownName('dupTags') + ' — and no other file is tagged twice on either page', diff(dups, known('dupTags')));
 
   const vmis = [];
   const d = {}; refsByPage['/pro/dashboard.html'].forEach((r) => { (d[r.p] = d[r.p] || new Set()).add(r.v); });

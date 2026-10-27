@@ -67,6 +67,7 @@ section.tp{padding-left:var(--ui-space-5) !important;padding-right:var(--ui-spac
 .tp-hd-btn{padding:0 var(--ui-space-1);min-height:32px;}
 /* Loading: a skeleton of the list instead of a blank card. Static (no
    shimmer) — it shows for well under a second. */
+.tp-skel::after,
 .tp[data-tp-state="loading"]::after{
   content:"";display:block;height:132px;margin-top:var(--ui-space-2);
   --tp-sk:color-mix(in srgb, var(--t) 8%, transparent);
@@ -160,3 +161,22 @@ section.tp{padding-left:var(--ui-space-5) !important;padding-right:var(--ui-spac
 .tp-row.tp-leave{opacity:.4;transition:opacity var(--ui-dur-hover) var(--ui-ease);}
 .tp.tp-lock{pointer-events:none;}
 @media (prefers-reduced-motion:reduce){.tp-row.tp-leave{transition:none;}}
+
+/* ── Boot hold (2026-10-26, overnight perf-1: Home reflowed 3-6 times, CLS .4-1.6) ──
+   Home used to build itself in front of you: the "Loading your day" card, then a
+   Next stop card inserted above it, then a storm warning above that, then the
+   list growing from 211px to its real height and shoving every card under it off
+   the screen. Until the Today list has its rows, the strips above it, the list
+   and everything below it are held (display:none, not removed: their scripts
+   still fill them) and one placeholder card stands in. When the list is ready
+   they all show in the same frame, so nothing that was on screen moves.
+   today-home.js drops .tp-booting when the list is ready and the strips have
+   answered (at most 0.7 s later), or 8 s after boot, so a slow read can never
+   keep Home bare.
+   A new card on Home joins the first selector below (the second catches whatever
+   a script adds after the list), or it shoves the list down when it arrives.
+   tests/crm-home-boot-layout-shift-2026-10-26.test.js holds the boot under CLS 0.1. */
+.tp-skel{display:none;}
+.view-scroll.tp-booting > .tp-skel{display:block;}
+.view-scroll.tp-booting > :is(#awayStatus,#homeStorm,#homeNextStop,#homeDocExpiry,#homeAttention,#todayPlan,#homeClosesWeek,#homeGameCard,#homePixelParty,.home-more),
+.view-scroll.tp-booting > #todayPlan ~ *{display:none !important;}

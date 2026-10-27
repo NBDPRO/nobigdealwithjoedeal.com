@@ -143,7 +143,7 @@
     }
     else if (pose === 'cheer') {
       var j = s(t / 170) * m, air = Math.abs(j);
-      p.armLUp = 1; p.armRUp = 1; p.armL = 150 + j * 14; p.armR = -150 - j * 14; p.elbowL = 14 + j * 6; p.elbowR = -14 - j * 6;
+      p.armLUp = 1; p.armRUp = 1; p.armL = 118 + air * 6; p.armR = -118 - air * 6; p.elbowL = 0; p.elbowR = 0; // clean-up 2026-10-25: straight arms in a V that reach up with the jump, the hands beside the chin: the front hand (unscaled by the build) ends at (84.2, 65.7) at the top, clear of the jaw on every build and the elder's lower head (128 + 8 with the elbow bent in sat on the jaw outline, 150 + 14 behind the head)
       p.jump = air * 7; p.mouth = 'open'; p.mouthOpen = 1; p.browUp = 1;
       // wave 24: squash and stretch. The body flattens while the feet are on the ground (the bottom third of the arc:
       // the crouch before a jump and the landing after it) and stretches toward the top; a still frame stands plain.
@@ -161,13 +161,13 @@
     else if (pose === 'hammer') {
       // Wind up over the shoulder, strike down fast, hold a beat: a 520 ms cycle the tool rides along.
       var cyc2 = (t % 520) / 520, k = cyc2 < 0.6 ? cyc2 / 0.6 : 1 - (cyc2 - 0.6) / 0.4; k = k * k;
-      p.armRUp = 1; p.swing = true; p.armR = -150 + k * 120 * m; p.elbowR = -40 + k * 30 * m; p.lean = 3 + k * 3 * m; p.tilt = -2 + k * 4 * m;
+      p.armRUp = 1; p.swing = true; p.armR = -100 + k * 70 * m; p.elbowR = -35 + k * 25 * m; p.lean = 3 + k * 3 * m; p.tilt = -2 + k * 4 * m; // clean-up 2026-10-25: the windup is beside the head (the hand near (85, 68), the handle up past the ear), not over it (-150/-40 put the hand on the cheek and the handle across the eye); the strike at k = 1 is -30/-10 as before
       p.armL = 10; p.elbowL = -20; p.browUp = 0.6; p.mouth = cyc2 > 0.6 && m ? 'open' : 'flat'; p.mouthOpen = cyc2 > 0.6 && m ? 0.4 : 0; p.sy = 1 - k * 0.02 * m;
     }
     else if (pose === 'climb') {
       // Hands on the rungs, one leg stepping up at a time, the body close to the ladder.
       var st = s(t / 240) * m;
-      p.armLUp = 1; p.armRUp = 1; p.armL = 165 + st * 6; p.armR = -165 + st * 6; p.elbowL = 10; p.elbowR = -10;
+      p.armLUp = 1; p.armRUp = 1; p.armL = 116 + st * 4; p.armR = -116 + st * 4; p.elbowL = 16; p.elbowR = -16; // clean-up 2026-10-25: the hands grip beside the jaw at (84, 66) and (16, 66), outside the head on every build (165/10 put the front hand on the cheek and the eye, drawn after the head, and hid the back hand behind it); the ladder course card's rails sit under them
       p.legL = -st * 16; p.legR = st * 16; p.kneeL = Math.max(0, -p.legL) * 1.6; p.kneeR = Math.max(0, -p.legR) * 1.6; p.bob = -Math.abs(st) * 1.5; p.browUp = 0.8; p.mouth = 'flat';
     }
     else if (pose === 'shrug') { p.armL = 38; p.armR = -38; p.elbowL = 74; p.elbowR = -74; p.browUp = 1; p.tilt = 5; p.mouth = 'flat'; p.bob = -1 + s(t / 500) * 0.5 * m; }
@@ -188,6 +188,7 @@
       var fc = (t + seed * 7) % 9000;
       if (m && fc > 7800) {
         var fe = s((fc - 7800) / 1200 * Math.PI), kind = (seed + Math.floor((t + seed * 7) / 9000)) % 3;
+        if (o.tool === 'ladder') kind = 0; // clean-up 2026-10-25: a ladder carrier only shifts their weight (the hips and the stretch swung the ladder across the face)
         if (kind === 0) { p.lean = fe * 4; p.tilt = fe * 3; p.legL = fe * 3; p.kneeL = fe * 4; p.bob -= fe * 1.5; }
         else if (kind === 1) { p.armL = 46 * fe; p.armR = -46 * fe; p.elbowL = 112 * fe; p.elbowR = -112 * fe; p.tilt = fe * 5; p.look = -1; p.browUp = fe * 0.6; }
         else { p.armL = 24 * fe; p.armR = -24 * fe; p.elbowL = 46 * fe; p.elbowR = -46 * fe; p.sy = 1 + fe * 0.035; p.bob -= fe * 2; if (fe > 0.45) { p.mouth = 'open'; p.mouthOpen = 0.55; p.eyesClosed = true; } }
@@ -233,8 +234,9 @@
 
   // ── drawing helpers (every part: stroke the outline first, then fill, so overlaps stay clean) ───────────────────
   function Pen(ctx, s) {
-    this.c = ctx; this.s = s; this.lw = Math.max(1.1, 2.6 * s);
+    this.c = ctx; this.s = s; this.lw = Math.max(1.0 / s, 2.6); this.tiny = s < 0.3; // clean-up 2026-10-25: the outline floor is 1 CSS px at every size (1.1 character units drew 0.22 px at the street) and above that a constant 2.6 character units, since draw() scales the context by s (2.6 * s doubled the ink at 240 px and swallowed the vest); tiny (a street figure) drops the sub-pixel detail
   }
+  Pen.prototype.fw = function (w) { return Math.max(w, 0.8 / this.s); }; // clean-up 2026-10-25: a feature stroke (brow, mouth, eye line, frame) never thins under 0.8 CSS px
   Pen.prototype.path = function (fn) { this.c.beginPath(); fn(this.c); this.c.closePath(); };
   Pen.prototype.shape = function (fn, fill, noLine) {
     var c = this.c; this.path(fn);
@@ -269,23 +271,24 @@
     o = o || {};
     var a = normalize(look), pose = pick(POSES, o.pose, 'idle'), t = o.t == null ? 0 : o.t;
     if (a.hair === 'spiky' && a.hat !== 'none') a.hair = 'short'; // spikes tuck under a hat
-    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder };
+    var po = { mood: o.mood || a.mood, blink: o.blink, seed: o.seed, build: a.build, elder: a.elder, tool: a.tool }; // clean-up 2026-10-25: the tool, so a ladder carrier skips the raised-hand fidgets
     var p = poseOf(pose, t, po);
     if (o.from && o.mix != null && o.mix < 1 && POSES.indexOf(o.from) >= 0 && o.from !== pose) p = mixPose(poseOf(o.from, t, po), p, Math.max(0, o.mix));
     // wave 8: weather. A gust (0..1) swings the hair, lifts the hat and leans the body; an umbrella raises the back arm.
     var wind = Math.max(0, Math.min(1, Number(o.wind) || 0));
     if (wind) { var gust = wind * (0.55 + 0.45 * Math.sin(t / 230 + Math.sin(t / 1700) * 2)) * (reduce ? 0.6 : 1); p.hair += gust * 9; p.hat += gust * 1.6; p.lean += gust * 2; p.tilt += gust * 1.2; }
-    if (a.prop === 'umbrella') { p.armLUp = 1; p.armL = 150; p.elbowL = 10; }
+    if (a.prop === 'umbrella' && !p.noProp) { p.armLUp = 1; p.armL = 150; p.elbowL = 10; } // clean-up 2026-10-26: folded arms hold nothing, so the other arm stays folded too
+    if (o.crop === 'bust') { p.jump = 0; p.sy = 1; p.sx = 1; } // clean-up 2026-10-25: a bust keeps the face in its frame (the cheer's jump and stretch only pushed the hat past the top edge; the arms, mouth, eyes and sparkles still read)
     // wave 24: facing is 1 or -1, or any number between while a tween turns the body (never thinner than 8%, so the
     // edge-on frame still reads as a figure); the sign decides which way the eyes and the face turn
     var fv = Number(o.facing), facing = isFinite(fv) && fv !== 0 ? Math.max(-1, Math.min(1, fv)) : 1;
     if (Math.abs(facing) < 0.08) facing = facing < 0 ? -0.08 : 0.08;
     var fab = Math.abs(facing), fsign = facing < 0 ? -1 : 1, turnK = 1 - fab;
     var h = o.h || 120, s = h / 120, x = o.x || 0, y = o.y || h;
-    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 106%
-    // and settles, from the feet. Nothing at 1 (or when unset).
+    // wave 14: pop-in. pop 0..1 is the arrival's progress: the character rises from 70% with a squash, overshoots to 103%
+    // (clean-up 2026-10-25: 106% lifted a beanie's pompom past a bust's top edge) and settles, from the feet. Nothing at 1 (or when unset).
     var pop = o.pop == null || o.pop === false ? 1 : Math.max(0, Math.min(1, Number(o.pop) || 0)), popX = 1, popY = 1;
-    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.06 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; }
+    if (pop < 1) { var k2 = 1 - Math.pow(1 - pop, 2.4); popY = 0.7 + 0.3 * Math.min(1, k2 / 0.6) + (k2 > 0.6 ? 0.03 * Math.sin((k2 - 0.6) / 0.4 * Math.PI) : 0); popX = 1 + (1 - popY) * 0.5; if (p.jump) { p.jump *= pop; p.sy = 1 + (p.sy - 1) * pop; p.sx = 1 + (p.sx - 1) * pop; p.hat *= pop; } } // clean-up 2026-10-25: a cheer's jump, stretch and hat lift ease in with the pop (they stacked on the overshoot and cut a beanie's pompom)
     // wave 13: gaze. o.gaze { x, y } in -1..1 (screen space: +x is to the right, +y is down) turns the eyes toward a point
     // and tilts the head a touch after them. The iris has more room to climb than to drop, so looking down is gentler.
     var gz = o.gaze && typeof o.gaze.x === 'number' ? o.gaze : null;
@@ -316,14 +319,29 @@
     var hairG = pen.grad(25, 5, 75, 50, shade(hair, 26), shade(hair, -18));
     var hatG = pen.grad(25, 0, 75, 40, shade(hatC, 34), shade(hatC, -22));
     var hx = 50, hy = 42 - headRise(a), hr = 29;
-    function headXf() { ctx.translate(hx, hy); ctx.scale(bhead / fab, bhead); ctx.translate(-hx, -hy); } // the head stays round mid-turn (wave 24)
+    function headXf() { ctx.translate(hx, hy); ctx.scale(1 / fab, 1); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy); } // the head stays round mid-turn (wave 24); clean-up 2026-10-25: tilts and leans like the head's own frame, so the back hair stays on a tilted head
+
+    // emotes that float free of the head: sparkles on a cheer, thought dots when thinking
+    // clean-up 2026-10-25: drawn first, behind the hair, body, head, hat and arms, so a star or a dot that crosses them tucks behind (it sat on top like a decal); the orbit is wider and lower and the dots nearer, so the third clears a bust's edge
+    if (p.emote === 'sparkle' && !reduce) {
+      ctx.save();
+      for (var si = 0; si < 3; si++) {
+        var ph = t / 600 + si * 2.1, sx = hx + Math.cos(ph) * 47, sy = hy - 10 + Math.sin(ph * 1.3) * 26, sr = 2.4 + Math.sin(t / 120 + si) * 1.2;
+        ctx.fillStyle = si === 1 ? '#FFD98A' : '#FFF4C2'; ctx.beginPath();
+        ctx.moveTo(sx, sy - sr * 2); ctx.quadraticCurveTo(sx, sy, sx + sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy + sr * 2); ctx.quadraticCurveTo(sx, sy, sx - sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy - sr * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (p.emote === 'dots') {
+      var dn = reduce ? 3 : Math.floor((t % 1800) / 600) + 1;
+      for (var di = 0; di < 3; di++) { if (di < dn) pen.circle(hx + 35 + di * 6, hy - 32 - di * 5, 2.2 + di * 0.9, '#F6F7F8'); }
+    }
 
     // back hair (behind the head): long hair sways from the crown, the ponytail swings from its root
     ctx.save(); headXf();
     if (a.hair === 'long') { ctx.save(); ctx.translate(hx, hy - 10); ctx.rotate(p.hair * 0.35 * Math.PI / 180); ctx.translate(-hx, -(hy - 10)); pen.rrect(21, 30, 58, 50, 14, hairG); ctx.restore(); }
     if (a.hair === 'afro') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.1 * Math.PI / 180); ctx.translate(-hx, -hy); pen.shape(function (c) { for (var i = 0; i < 14; i++) { var an = -Math.PI * 0.95 + i * (Math.PI * 1.9 / 13), rr = hr + 10 + (i % 2) * 3; var px = hx + Math.cos(an) * rr, py = hy - 6 + Math.sin(an) * rr * 0.92; if (i === 0) c.moveTo(px, py); else c.quadraticCurveTo(hx + Math.cos(an - 0.12) * (rr + 7), hy - 6 + Math.sin(an - 0.12) * (rr + 7) * 0.92, px, py); } }, hairG); ctx.restore(); }
-    if (a.hair === 'bun') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.4 * Math.PI / 180); ctx.translate(-hx, -hy); pen.circle(hx - 8, hy - hr - 2, 10, hairG); pen.circle(hx - 11, hy - hr - 5, 3.5, shade(hair, 30), true); ctx.restore(); }
-    if (a.hair === 'ponytail') { ctx.save(); ctx.translate(70, 30); ctx.rotate(p.hair * Math.PI / 180); ctx.translate(-70, -30); pen.shape(function (c) { c.moveTo(70, 30); c.quadraticCurveTo(92, 36, 86, 66); c.quadraticCurveTo(80, 60, 74, 48); c.quadraticCurveTo(76, 40, 70, 30); }, hairG); ctx.restore(); }
+    if (a.hair === 'bun') { ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.4 * Math.PI / 180); ctx.translate(-hx, -hy); pen.circle(hx - 8 * fab, hy - hr - 2, 10, hairG); pen.circle(hx - 11 * fab, hy - hr - 5, 3.5, shade(hair, 30), true); ctx.restore(); } // wave 26: slides with the turn
+    if (a.hair === 'ponytail') { ctx.save(); ctx.translate(hx, 0); ctx.scale(fab, 1); ctx.translate(-hx, 0); ctx.translate(70, 30); ctx.rotate(p.hair * Math.PI / 180); ctx.translate(-70, -30); pen.shape(function (c) { c.moveTo(70, 30); c.quadraticCurveTo(92, 36, 86, 66); c.quadraticCurveTo(80, 60, 74, 48); c.quadraticCurveTo(76, 40, 70, 30); }, hairG); ctx.restore(); } // wave 26: turns with the body
     ctx.restore(); // head frame (back hair)
 
     // wave 12: the body group (the hood, legs, torso, arms and what the hands hold) is scaled from the feet by the build
@@ -339,23 +357,23 @@
 
     // torso
     pen.shape(function (c) { c.moveTo(32, 74); c.quadraticCurveTo(50, 68, 68, 74); c.lineTo(72, 100); c.quadraticCurveTo(50, 106, 28, 100); c.closePath(); }, shirtG);
+    if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); if (!pen.tiny) { ctx.strokeStyle = a.shirt === 5 ? shade(shirt, -70) : '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45 + p.hair * 0.25, 90); ctx.moveTo(54, 76); ctx.lineTo(55 + p.hair * 0.25, 90); ctx.stroke(); } } // the strings swing with the hair (wave 24); wave 26: the pouch and strings lie under the vest and the belt (they were drawn over both), and the white hoodie's strings are grey (#F5F5F0 on #E8E4DA vanished)
     if (a.vest === 'yes') {
       pen.poly([[33, 75], [43, 72], [45, 100], [31, 100]], VEST); pen.poly([[57, 72], [67, 75], [69, 100], [55, 100]], VEST);
       ctx.fillStyle = '#D7D7D7'; ctx.fillRect(32, 86, 12, 3); ctx.fillRect(56, 86, 12, 3);
       ctx.fillStyle = VESTD; ctx.fillRect(32, 97, 12, 2); ctx.fillRect(56, 97, 12, 2);
     }
     if (a.extra === 'belt') { pen.rrect(29, 96, 42, 6, 2, '#7A4A22'); ctx.fillStyle = '#E0B45A'; ctx.fillRect(46, 97, 8, 4); ctx.fillStyle = '#9AA0A6'; ctx.fillRect(33, 101, 6, 4); ctx.fillStyle = '#7A4A22'; ctx.fillRect(60, 101, 5, 4); }
-    // a collar line and the head's shadow on the chest; the hoodie's pouch and strings; the polo's collar and placket
+    // a collar line and the head's shadow on the chest; the polo's collar and placket
     if (a.top === 'polo') { pen.shape(function (c) { c.moveTo(40, 72); c.lineTo(50, 84); c.lineTo(60, 72); c.lineTo(56, 70); c.lineTo(50, 78); c.lineTo(44, 70); }, shade(shirt, 28)); ctx.fillStyle = shade(shirt, -30); ctx.fillRect(49, 80, 2, 2); ctx.fillRect(49, 85, 2, 2); }
-    else if (a.top === 'hoodie') { pen.rrect(38, 90, 24, 11, 4, shade(shirt, -14)); ctx.strokeStyle = '#F5F5F0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(46, 76); ctx.lineTo(45 + p.hair * 0.25, 90); ctx.moveTo(54, 76); ctx.lineTo(55 + p.hair * 0.25, 90); ctx.stroke(); } // the strings swing with the hair (wave 24)
-    else { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
+    else if (a.top !== 'hoodie' && !pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(44, 74); ctx.lineTo(50, 80); ctx.lineTo(56, 74); ctx.stroke(); }
     ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.ellipse(50 + p.lean * 0.4, 73 + p.bob * 0.2, 17, 4.5, 0, 0, Math.PI * 2); ctx.fill();
 
     // arms: shoulder pivots at (34,78) and (66,78); upper arm 11, forearm 11, a hand (or a fist, or a pointing finger)
     function hand(pn, fist, point, thumbAng) {
       pn.circle(0, 11, fist ? 5.5 : 5, skinG);
       if (thumbAng != null) { ctx.save(); ctx.translate(0, 11); ctx.rotate(-thumbAng * Math.PI / 180); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(2.5, -3); ctx.lineTo(2.5, -11); ctx.lineWidth = 4 + pn.lw * 2; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = skin; ctx.stroke(); ctx.restore(); }
-      if (fist) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 11, 3, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke(); }
+      if (fist && !pn.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 11, 3, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke(); }
       if (point) { ctx.save(); ctx.translate(0, 11); ctx.rotate(-0.1); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 9); ctx.lineCap = 'round'; ctx.lineWidth = 4 + pn.lw * 2; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = skin; ctx.stroke(); ctx.restore(); }
     }
     function arm(sx, sy, ang, bend, fist, point, thumb) {
@@ -365,29 +383,43 @@
     }
     // whatever the hand holds sits at the end of the forearm
     function inHand(sx, sy, ang, bend, fn) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang * Math.PI / 180); ctx.translate(0, 11); ctx.rotate(bend * Math.PI / 180); ctx.translate(0, 11); ctx.scale(1 / bw, 1 / bh); fn(); ctx.restore(); }
+    // clean-up 2026-10-25: upright(k) squares the hand frame back up by k (1 for the umbrella and the cane: always vertical); a back hand raised past 80 degrees eases to 1 over 30 more, so a cheer, a shrug or the hips fidget holds its prop upright and a tween never pops
+    var raised = Math.max(0, Math.min(1, (p.armL + p.elbowL - 80) / 30));
+    function upright(k) { ctx.rotate(-(p.armL + p.elbowL) * k * Math.PI / 180); }
+    var up = p.armRUp > 0.5, held = !p.fist && !p.point && (!up || p.swing); // clean-up 2026-10-25: the front hand keeps the tool until it is raised past half way (a tween interpolates armRUp but flips swing at 0.5: the hammer vanished for half of every idle/hammer cross-fade)
     // the left (back) arm
     arm(34, 78, p.armL, p.elbowL, false, false);
+    if (o.crop === 'bust' && (a.prop !== 'umbrella' || a.clipboard)) p.noProp = true; // clean-up 2026-10-25: a bust ends above the hanging hand, so its prop showed as a sliver (the umbrella is the one prop a bust keeps)
     if (p.noProp) { /* folded arms hold nothing (wave 18) */ }
-    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
-    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { prop(a.prop); });
+    else if (a.clipboard) { inHand(34, 78, p.armL, p.elbowL, function () { upright(raised); pen.rrect(-12, -11, 14, 18, 2, '#B98A4E'); pen.rrect(-10, -8, 10, 13, 1, '#F5F5F0', true); ctx.fillStyle = '#8A8F96'; ctx.fillRect(-8, -12, 6, 3); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var li = 0; li < 3; li++) { ctx.beginPath(); ctx.moveTo(-8, -5 + li * 3); ctx.lineTo(-2, -5 + li * 3); ctx.stroke(); } }); }
+    else if (a.prop !== 'none') inHand(34, 78, p.armL, p.elbowL, function () { upright(a.prop === 'umbrella' || a.prop === 'cane' || a.prop === 'mug' || a.prop === 'baby' ? 1 : raised); prop(a.prop); }); // wave 26: a mug and a baby are carried level at any arm angle (the walk's forward swing tilted them 44 degrees)
+    else if (!held && !p.swing && !p.armLUp && (a.tool === 'hammer' || a.tool === 'tape')) inHand(34, 78, p.armL, p.elbowL, function () { tool(a.tool); }); // clean-up 2026-10-25: a raised front hand passes the hammer or the tape to the free back hand (the measure card's think showed no tape); the ladder stays put
     // wave 7: what the back hand carries, drawn at the hand (y down, the body to +x)
     function prop(k) {
       if (k === 'phone') { pen.rrect(-6, -9, 9, 15, 2, '#2C2C2A'); pen.rrect(-5, -7, 7, 11, 1, '#8EC5FF', true); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-4, -6, 2, 4); }
       else if (k === 'mug') { pen.circle(3, -1, 4, '#F5F5F0'); pen.circle(3, -1, 1.6, '#C9CDD2', true); pen.rrect(-9, -7, 11, 12, 2, '#F5F5F0'); pen.ellipse(-3.5, -7, 5, 1.6, 0, '#6B4A2B', true); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -11); ctx.quadraticCurveTo(-4, -13, -6, -15); ctx.moveTo(-2, -11); ctx.quadraticCurveTo(0, -13, -2, -15); ctx.stroke(); }
-      else if (k === 'cane') { pen.rrect(-1.5, -8, 3, 30, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, 20, 4, 2.5); }
+      else if (k === 'cane') { var reach = Math.min(22.5, (120 - (78 + 11 * Math.cos(p.armL * Math.PI / 180) + 11 * Math.cos((p.armL + p.elbowL) * Math.PI / 180))) * bh); pen.rrect(-1.5, -8, 3, reach + 8, 1.5, '#8B5A2B'); pen.rrect(-7, -10, 9, 3.5, 1.5, '#8B5A2B'); ctx.fillStyle = '#2C2C2A'; ctx.fillRect(-2, reach - 2.5, 4, 2.5); } // clean-up 2026-10-25: planted (upright(1)) and reaching the sole line from wherever the hand is, capped so a raised hand keeps a normal cane; it used to swing with the forearm
       else if (k === 'keys') { pen.circle(0, -3, 4.5, '#B4B8BD'); pen.circle(0, -3, 2, '#6F747A', true); pen.rrect(-3, 1, 3.5, 10, 1, '#E0B45A'); pen.rrect(0.5, 1.5, 3, 9, 1, '#B4B8BD'); ctx.fillStyle = INK; ctx.fillRect(-3, 8, 1.5, 1.5); ctx.fillRect(2.5, 7, 1.5, 1.5); }
       else if (k === 'baby') { pen.ellipse(-4, -3, 9.5, 6.5, 0.35, '#F2C6DC'); pen.circle(-10, -7, 4.2, '#F2C6A0'); ctx.fillStyle = INK; ctx.fillRect(-12, -7.5, 1.6, 1); ctx.fillRect(-9, -7.5, 1.6, 1); ctx.fillStyle = BLUSH; ctx.fillRect(-12.5, -5.5, 2, 1.2); ctx.fillRect(-8.5, -5.5, 2, 1.2); ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -8); ctx.quadraticCurveTo(0, -4, -2, 2); ctx.stroke(); }
-      else if (k === 'brush') { pen.rrect(-1.5, -16, 3, 17, 1.5, '#8B5A2B'); pen.rrect(-4.5, 0, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 3.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 9, 8, 2.5); }
+      else if (k === 'brush') { pen.rrect(-1.5, -11, 3, 13, 1.5, '#8B5A2B'); pen.rrect(-4.5, 2, 9, 4, 1, '#B4B8BD'); pen.rrect(-4.5, 5.5, 9, 8, 1.5, '#E8E4DA'); ctx.fillStyle = '#BD5728'; ctx.fillRect(-4, 11, 8, 2.5); } // clean-up 2026-10-25: the fist grips the handle, not the ferrule; it used to run 16 up the sleeve
       else if (k === 'umbrella') {
-        // the hand frame turns with the arm; square it back up so the canopy sits over the head (body to +x, up is -y)
-        ctx.rotate(-(p.armL + p.elbowL) * Math.PI / 180);
+        // the hand frame is squared up by upright(1), so the shaft stands over the head (body to +x, up is -y); the canopy is drawn after the head (clean-up 2026-10-25)
         pen.line(0, 2, 18, -58, 2.6 + pen.lw * 0.6, INK); pen.line(0, 2, 18, -58, 2.2, '#2C2C2A'); pen.circle(0, 4, 2.4, '#2C2C2A');
+      }
+      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
+    }
+    // the tool, held at its head, in either hand (clean-up 2026-10-25: an 18 handle; 24 hung past the boot soles in the idle and reached x 109 mid-swing, past the box)
+    function tool(k) {
+      if (k === 'hammer') { pen.rrect(-2, -2, 4, 18, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
+      else if (k === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
+    }
+    // clean-up 2026-10-25: the canopy, in the shaft's frame but drawn after the head and the hat, so a hat crown, a pompom or a spike that reaches its edge tucks under it, not over it
+    function canopy() {
+        ctx.translate(18, -58); ctx.scale(1 / fab, 1); ctx.translate(-18, 58); // wave 26: the canopy keeps its width mid-turn (counter-scaled about the shaft top, as the head is about its centre), not a flag squeezed with the body over a round head
         pen.shape(function (c) { c.moveTo(-24, -58); c.quadraticCurveTo(-18, -92, 18, -96); c.quadraticCurveTo(54, -92, 60, -58); for (var si = 0; si < 6; si++) c.quadraticCurveTo(53 - si * 14, -52, 46 - si * 14, -58); }, '#BD5728');
         ctx.fillStyle = '#DD875F'; [[-10, -60], [18, -94], [46, -60]].forEach(function (pt, i) { ctx.beginPath(); ctx.moveTo(18, -58); if (i === 1) { ctx.lineTo(4, -90); ctx.lineTo(32, -90); } else { ctx.lineTo(pt[0], pt[1]); ctx.lineTo(pt[0] + (i ? -6 : 6), -84); } ctx.closePath(); ctx.fill(); });
         ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; [-10, 46].forEach(function (rx) { ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(rx, -60); ctx.stroke(); }); ctx.beginPath(); ctx.moveTo(18, -58); ctx.lineTo(18, -94); ctx.stroke();
         pen.circle(18, -97, 2.2, '#2C2C2A');
-      }
-      else if (k === 'papers') { pen.rrect(-13, -9, 13, 17, 1, '#EAE6DA'); pen.rrect(-11, -10, 13, 17, 1, '#F5F5F0'); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (var pi = 0; pi < 4; pi++) { ctx.beginPath(); ctx.moveTo(-9, -6 + pi * 3); ctx.lineTo(-1, -6 + pi * 3); ctx.stroke(); } ctx.fillStyle = '#BD5728'; ctx.fillRect(-9, -8, 4, 1.5); }
     }
 
     ctx.restore(); // body group
@@ -397,35 +429,47 @@
     // head: a soft circle with a chin, ears, shading and a highlight
     ctx.save(); ctx.translate(hx, hy); ctx.scale(1 / fab, 1); ctx.rotate(p.tilt * Math.PI / 180); ctx.scale(bhead, bhead); ctx.translate(p.lean * 0.4, 0); ctx.translate(-hx, -hy); // 1 / fab: round mid-turn (wave 24)
     pen.circle(hx - hr + 1, hy + 4, 5 * (1 + 0.12 * turn), skinG); pen.circle(hx + hr - 1, hy + 4, 5 * (1 - 0.12 * turn), skinG);
-    pen.shape(function (c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }, skinG);
+    function headPath(c) { c.moveTo(hx - hr, hy - 4); c.quadraticCurveTo(hx - hr, hy - hr - 2, hx, hy - hr - 2); c.quadraticCurveTo(hx + hr, hy - hr - 2, hx + hr, hy - 4); c.quadraticCurveTo(hx + hr + 1, hy + 26, hx, hy + 31); c.quadraticCurveTo(hx - hr - 1, hy + 26, hx - hr, hy - 4); }
+    // wave 26: clipHead() clips what follows (in the slid features frame) to the head, pulled in 4% so it stops at the ink's inner edge: the features slide up to 10 across a head that stays round, and at an edge-on facing the far blush, eye white, wrinkle and lens hung outside the outline; the caller's restore() lifts it
+    function clipHead() { ctx.save(); ctx.save(); ctx.translate(hx - fx, hy); ctx.scale(0.96, 0.96); ctx.translate(-hx, -hy); pen.path(headPath); ctx.restore(); ctx.clip(); }
+    pen.shape(headPath, skinG);
     // highlight on the forehead, and the hat brim's shadow across it
     ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.ellipse(hx - 10, hy - 14, 9, 5, -0.5, 0, Math.PI * 2); ctx.fill();
     if (a.hat === 'hardhat' || a.hat === 'cap') { ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.beginPath(); ctx.ellipse(hx, hy - 9, hr - 1, a.hat === 'cap' ? 5 : 3.5, 0, 0, Math.PI); ctx.fill(); }
     ctx.save(); ctx.translate(fx, 0); // the features, turned (wave 24)
-    if (a.elder) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; [[-16, 20], [16, 20]].forEach(function (w) { ctx.beginPath(); ctx.moveTo(hx + w[0], hy + w[1] - 3); ctx.quadraticCurveTo(hx + w[0] * 1.1, hy + w[1], hx + w[0] * 0.9, hy + w[1] + 4); ctx.stroke(); }); }
+    clipHead(); // wave 26: the wrinkles, the stubble and the cheeks stop at the head
+    if (a.elder && !pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; [[-16, 20], [16, 20]].forEach(function (w) { ctx.beginPath(); ctx.moveTo(hx + w[0], hy + w[1] - 3); ctx.quadraticCurveTo(hx + w[0] * 1.1, hy + w[1], hx + w[0] * 0.9, hy + w[1] + 4); ctx.stroke(); }); }
+    // clean-up 2026-10-25: the stubble and the full beard's body go on here, under the eyes and the mouth (every mouth state now paints over the beard: the open mouth, the grin, flat, smirk and frown all went under it and a two-way smile/frown line stood in) and in head space (counter-translated out of the slid features frame, so the beard stays on the jaw mid-turn instead of sliding past the head outline); only the mustache rides the features, after the mouth
+    // wave 26: the stubble wash goes under the cheeks (its corners at hy + 10 sit inside the blush ellipses and cut a grey wedge from each; both are translucent, so the blush now paints over it); the full beard stays over them, since a blush over hair would tint it
+    var my = hy + 19;
+    if (a.beard === 'stubble') { ctx.save(); ctx.translate(-fx, 0); ctx.fillStyle = 'rgba(0,0,0,' + (0.16 + Math.max(0, a.skin - 2) * 0.06).toFixed(2) + ')'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); ctx.restore(); } // the wash deepens from skin 3 up (.16 on skins 0-2 as before, .22 / .28 / .34 on 3-5: .16 vanished on the two darkest skins)
     // cheeks
-    if (p.mouth !== 'frown') { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
+    if (p.mouth !== 'frown' && !pen.tiny) { ctx.fillStyle = BLUSH; [[-19, 12], [19, 12]].forEach(function (b) { ctx.beginPath(); ctx.ellipse(hx + b[0], hy + b[1], 6, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }); }
+    ctx.restore(); // wave 26: the full beard hangs 2 past the chin on purpose, so it is drawn outside the clip
+    if (a.beard === 'full') { ctx.save(); ctx.translate(-fx, 0); pen.shape(function (c) { c.moveTo(hx - 24, hy + 6); c.quadraticCurveTo(hx - 27, hy + 27, hx, hy + 33); c.quadraticCurveTo(hx + 27, hy + 27, hx + 24, hy + 6); c.quadraticCurveTo(hx + 14, hy + 18, hx + 9, my - 3); c.lineTo(hx - 9, my - 3); c.quadraticCurveTo(hx - 14, hy + 18, hx - 24, hy + 6); }, hairG); ctx.restore(); } // the tip ends 2 under the chin (hy + 33, the sides at hy + 27; hy + 36 / 30 hung over the collar, the polo's V and the hoodie strings)
 
+    clipHead(); // wave 26: the eyes and the brows stop at the head
     // eyes (centres 50±12, hy+4): a white, an iris with a darker rim, a pupil, two catchlights, a lid shadow
     var eyL = hx - 12, eyR = hx + 12, ey = hy + 4, lookX = p.look * 1.5, lookY = p.lookY || 0;
     function roundEye(cx, closed) {
-      if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
+      if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, pen.fw(2.4)); return; }
       pen.ellipse(cx, ey, 6, 7.5, 0, WHITE);
       var ir = ctx.createRadialGradient(cx + lookX, ey + 2.5 + lookY, 0.5, cx + lookX, ey + 1.5 + lookY, 5.5); ir.addColorStop(0, shade(eyeC, 44)); ir.addColorStop(0.7, eyeC); ir.addColorStop(1, shade(eyeC, -24));
       ctx.fillStyle = ir; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 1.5 + lookY, 4, 5.5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#1A1210'; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.6 + lookY, 2.3, 2.8, 0, 0, Math.PI * 2); ctx.fill();
+      if (pen.tiny) return; // clean-up 2026-10-25: the lid shadow and both catchlights are sub-pixel specks at the street
       ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(cx, ey - 5, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.6 + lookX, ey - 1.2 + lookY, 1.9, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(cx + 1.8 + lookX, ey + 3.4 + lookY, 0.9, 0, Math.PI * 2); ctx.fill();
     }
-    function happyEye(cx) { ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(cx, ey + 3, 5.5, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+    function happyEye(cx) { ctx.strokeStyle = INK; ctx.lineWidth = pen.fw(2.6); ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(cx, ey + 3, 5.5, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
     function sleepyEye(cx, closed) {
-      if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, 2.4); return; }
+      if (closed) { pen.line(cx - 5, ey + 1, cx + 5, ey + 1, pen.fw(2.4)); return; }
       pen.ellipse(cx, ey + 1, 6, 5, 0, WHITE);
       ctx.fillStyle = eyeC; ctx.beginPath(); ctx.ellipse(cx + lookX, ey + 2.5 + lookY * 0.6, 3.6, 3.6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1 + lookY * 0.6, 1.3, 0, Math.PI * 2); ctx.fill();
+      if (!pen.tiny) { ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx - 1.4 + lookX, ey + 1 + lookY * 0.6, 1.3, 0, Math.PI * 2); ctx.fill(); }
       pen.shape(function (c) { c.moveTo(cx - 7, ey - 6); c.quadraticCurveTo(cx, ey - 1, cx + 7, ey - 6); c.lineTo(cx + 7, ey - 1.5); c.quadraticCurveTo(cx, ey - 3, cx - 7, ey - 1.5); }, skinG, true);
-      pen.line(cx - 6, ey - 1.5, cx + 6, ey - 1.5, 2);
+      pen.line(cx - 6, ey - 1.5, cx + 6, ey - 1.5, pen.fw(2));
     }
     var shades = a.extra === 'shades';
     if (!shades) {
@@ -436,47 +480,44 @@
     }
     // brows
     var browC = a.hair === 'bald' ? shade(skin, -40) : shade(hair, -10), bUp = p.browUp * 2.5, bDn = p.browDown, bUpR = bUp + (p.smug ? 2.6 : 0); // one brow up for a smirk (wave 18)
-    ctx.strokeStyle = browC; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    ctx.strokeStyle = browC; ctx.lineWidth = pen.fw(2.6); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(eyL - 6, ey - 11 - bUp + bDn * 2); ctx.quadraticCurveTo(eyL, ey - 14 - bUp + bDn * 1, eyL + 6, ey - 11 - bUp - bDn * 2 + bDn * 4); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(eyR - 6, ey - 11 - bUpR - bDn * 2 + bDn * 4); ctx.quadraticCurveTo(eyR, ey - 14 - bUpR + bDn * 1, eyR + 6, ey - 11 - bUpR + bDn * 2); ctx.stroke();
+    ctx.restore(); // wave 26: the nose, the mouth and the mustache sit well inside the face
     // nose
-    ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke();
-    // mouth
-    var my = hy + 19;
+    if (!pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(hx + 1, ey + 6); ctx.quadraticCurveTo(hx + 3, ey + 9, hx, ey + 10); ctx.stroke(); }
+    // mouth (clean-up 2026-10-25: over a black full beard the line states are stroked in a lifted hair tone, since INK had no contrast on it: hair 0 scores 38 on the luminance, hair 1 scores 65 and keeps INK)
+    var hn = parseInt(hair.slice(1), 16), mInk = a.beard === 'full' && ((hn >> 16) * 299 + ((hn >> 8) & 255) * 587 + (hn & 255) * 114) / 1000 < 50 ? shade(hair, 70) : INK;
     if (p.mouth === 'open' || p.mouthOpen > 0.15) {
       var oh = 2 + 5 * Math.max(p.mouthOpen, p.mouth === 'open' ? 0.9 : 0), mw = p.mouthW || 1;
       pen.ellipse(hx, my + 1, (5 + oh * 0.4) * mw, oh, 0, '#6B2A2A');
       ctx.fillStyle = '#E2707F'; ctx.beginPath(); ctx.ellipse(hx, my + 1 + oh * 0.55, 3.2, oh * 0.4, 0, 0, Math.PI * 2); ctx.fill();
       if (oh > 4) { ctx.fillStyle = WHITE; ctx.fillRect(hx - 4, my + 1 - oh + 1.2, 8, 2.2); }
-    } else if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
-    else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, 2.4); }
-    else if (p.mouth === 'smirk') { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
+    } else if (p.mouth === 'frown') { ctx.strokeStyle = mInk; ctx.lineWidth = pen.fw(2.4); ctx.beginPath(); ctx.moveTo(hx - 6, my + 3); ctx.quadraticCurveTo(hx, my - 2, hx + 6, my + 3); ctx.stroke(); }
+    else if (p.mouth === 'flat') { pen.line(hx - 5, my + 1, hx + 5, my + 1, pen.fw(2.4), mInk); }
+    else if (p.mouth === 'smirk') { ctx.strokeStyle = mInk; ctx.lineWidth = pen.fw(2.4); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 5, my + 1); ctx.quadraticCurveTo(hx + 2, my + 4, hx + 8, my - 3); ctx.stroke(); } // one corner up (wave 18)
     else if (p.mouth === 'grin') { pen.shape(function (c) { c.moveTo(hx - 8, my - 2); c.quadraticCurveTo(hx, my + 9, hx + 8, my - 2); c.quadraticCurveTo(hx, my + 2, hx - 8, my - 2); }, '#6B2A2A'); ctx.fillStyle = WHITE; ctx.fillRect(hx - 5, my - 1, 10, 1.8); }
-    else { ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
-    // beard
-    if (a.beard === 'stubble') { ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.moveTo(hx - 22, hy + 10); ctx.quadraticCurveTo(hx - 24, hy + 28, hx, hy + 31); ctx.quadraticCurveTo(hx + 24, hy + 28, hx + 22, hy + 10); ctx.quadraticCurveTo(hx + 10, hy + 22, hx, hy + 24); ctx.quadraticCurveTo(hx - 10, hy + 22, hx - 22, hy + 10); ctx.fill(); }
-    else if (a.beard === 'mustache') { pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG); }
-    else if (a.beard === 'full') {
-      pen.shape(function (c) { c.moveTo(hx - 24, hy + 6); c.quadraticCurveTo(hx - 27, hy + 30, hx, hy + 36); c.quadraticCurveTo(hx + 27, hy + 30, hx + 24, hy + 6); c.quadraticCurveTo(hx + 14, hy + 18, hx + 9, my - 3); c.lineTo(hx - 9, my - 3); c.quadraticCurveTo(hx - 14, hy + 18, hx - 24, hy + 6); }, hairG);
-      pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG);
-      if (!(p.mouth === 'open' || p.mouthOpen > 0.15)) { if (p.mouth === 'frown') { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my + 3); ctx.quadraticCurveTo(hx, my, hx + 5, my + 3); ctx.stroke(); } else { ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx - 5, my); ctx.quadraticCurveTo(hx, my + 4, hx + 5, my); ctx.stroke(); } }
-    }
+    else { ctx.strokeStyle = mInk; ctx.lineWidth = pen.fw(2.4); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx - 7, my - 1); ctx.quadraticCurveTo(hx, my + 6, hx + 7, my - 1); ctx.stroke(); }
+    // the mustache (a full beard's too), over the mouth's top lip; the stubble and the beard's body are drawn before the eyes (clean-up 2026-10-25)
+    if (a.beard === 'mustache' || a.beard === 'full') { pen.shape(function (c) { c.moveTo(hx - 12, my - 2); c.quadraticCurveTo(hx - 6, my - 8, hx, my - 4); c.quadraticCurveTo(hx + 6, my - 8, hx + 12, my - 2); c.quadraticCurveTo(hx + 6, my - 1, hx, my - 3); c.quadraticCurveTo(hx - 6, my - 1, hx - 12, my - 2); }, hairG); }
     ctx.restore(); // the features
 
     // front hair (sways a touch with the body, and follows the turned face a little)
     var top = hy - hr - 2;
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx + fx * 0.4, -hy);
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(p.hair * 0.12 * Math.PI / 180); ctx.translate(-hx + Math.max(-1.5, Math.min(1.5, fx * 0.4)), -hy); // wave 26: the slide follows the look (at most 1.25) but mid-turn, where fx reaches 10, it stops at 1.5, inside the ink on both sides: the hair left bare skin above the ear on the leading side and a wing past the head on the trailing one
     if (a.hair === 'short') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 2, top - 4, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + hr - 4, hy - 10, hx + 12, hy - 16); c.quadraticCurveTo(hx, hy - 8, hx - 10, hy - 17); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'spiky') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.lineTo(hx - hr - 6, top - 10); c.lineTo(hx - 16, top - 5); c.lineTo(hx - 10, top - 16); c.lineTo(hx - 3, top - 6); c.lineTo(hx + 4, top - 17); c.lineTo(hx + 10, top - 5); c.lineTo(hx + 20, top - 14); c.lineTo(hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 12, hy - 14, hx, hy - 12); c.quadraticCurveTo(hx - 12, hy - 14, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'long') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy + 2); c.quadraticCurveTo(hx - hr - 3, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 3, top - 4, hx + hr + 1, hy + 2); c.quadraticCurveTo(hx + hr - 6, hy - 10, hx + 8, hy - 14); c.quadraticCurveTo(hx - 4, hy - 6, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 4, hy - 12, hx - hr - 1, hy + 2); }, hairG); }
     else if (a.hair === 'buzz') { pen.shape(function (c) { c.moveTo(hx - hr + 1, hy - 6); c.quadraticCurveTo(hx - hr, top, hx, top - 1); c.quadraticCurveTo(hx + hr, top, hx + hr - 1, hy - 6); c.quadraticCurveTo(hx, hy - 12, hx - hr + 1, hy - 6); }, shade(hair, -14), true); ctx.strokeStyle = INK; ctx.lineWidth = pen.lw * 0.6; ctx.beginPath(); ctx.moveTo(hx - hr + 1, hy - 6); ctx.quadraticCurveTo(hx, hy - 12, hx + hr - 1, hy - 6); ctx.stroke(); }
-    else if (a.hair === 'curly') { pen.shape(function (c) { c.moveTo(hx - hr - 2, hy); for (var i = 0; i <= 8; i++) { var ang = Math.PI + i * (Math.PI / 8), r1 = hr + 4; var ex = hx + Math.cos(ang) * r1, ey2 = hy - 4 + Math.sin(ang) * (r1 + 2); var mx = hx + Math.cos(ang - Math.PI / 16) * (r1 + 7), my2 = hy - 4 + Math.sin(ang - Math.PI / 16) * (r1 + 9); if (i) c.quadraticCurveTo(mx, my2, ex, ey2); } c.quadraticCurveTo(hx + 16, hy - 12, hx + 4, hy - 16); c.quadraticCurveTo(hx - 8, hy - 8, hx - 16, hy - 15); c.quadraticCurveTo(hx - hr + 3, hy - 10, hx - hr - 2, hy); }, hairG); }
-    else if (a.hair === 'afro') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 4); c.quadraticCurveTo(hx - hr - 2, top - 6, hx, top - 7); c.quadraticCurveTo(hx + hr + 2, top - 6, hx + hr + 1, hy - 4); c.quadraticCurveTo(hx + hr - 6, hy - 12, hx + 6, hy - 15); c.quadraticCurveTo(hx - 6, hy - 9, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 4); }, hairG); }
+    else if (a.hair === 'curly') { pen.shape(function (c) { c.moveTo(hx - hr - 2, hy); for (var i = 0; i <= 8; i++) { var ang = Math.PI + i * (Math.PI / 8), r1 = hr + (a.hat === 'none' ? 4 : 1), q1 = a.hat === 'none' ? 7 : 3, q2 = a.hat === 'none' ? 9 : 4; var ex = hx + Math.cos(ang) * r1, ey2 = hy - 4 + Math.sin(ang) * (r1 + 2); var mx = hx + Math.cos(ang - Math.PI / 16) * (r1 + q1), my2 = hy - 4 + Math.sin(ang - Math.PI / 16) * (r1 + q2); if (i) c.quadraticCurveTo(mx, my2, ex, ey2); } c.quadraticCurveTo(hx + 16, hy - 12, hx + 4, hy - 16); c.quadraticCurveTo(hx - 8, hy - 8, hx - 16, hy - 15); c.quadraticCurveTo(hx - hr + 3, hy - 10, hx - hr - 2, hy); }, hairG); } // wave 26: tucked under a hat
+    else if (a.hair === 'afro') { ctx.strokeStyle = INK; ctx.lineWidth = pen.lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(hx + hr - 1.3, hy - 6.6); ctx.quadraticCurveTo(hx + hr - 8.9, hy - 12.5, hx + 6, hy - 15); ctx.quadraticCurveTo(hx - 6, hy - 9, hx - 14, hy - 16); ctx.quadraticCurveTo(hx - hr + 5.25, hy - 13, hx - hr, hy - 7.75); ctx.stroke(); pen.shape(function (c) { c.moveTo(hx - hr - 3, hy - 4); c.quadraticCurveTo(hx - hr - 4, top - 6, hx, top - 7); c.quadraticCurveTo(hx + hr + 4, top - 6, hx + hr + 3, hy - 4); c.quadraticCurveTo(hx + hr - 6, hy - 12, hx + 6, hy - 15); c.quadraticCurveTo(hx - 6, hy - 9, hx - 14, hy - 16); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 3, hy - 4); }, hairG, true); } // clean-up 2026-10-25: no outer outline (it ran as a dark arc across the afro, a headband); only the hairline is inked, before the fill, edge to edge; the fill's tips reach 2 past the head so the slide leaves no sliver of the head's outline
     else if (a.hair === 'bun') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 3, hx, top - 4); c.quadraticCurveTo(hx + hr + 2, top - 3, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 18, hy - 12, hx + 2, hy - 18); c.quadraticCurveTo(hx - 10, hy - 8, hx - 18, hy - 16); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     else if (a.hair === 'ponytail') { pen.shape(function (c) { c.moveTo(hx - hr - 1, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 4, hx, top - 5); c.quadraticCurveTo(hx + hr + 2, top - 4, hx + hr + 1, hy - 2); c.quadraticCurveTo(hx + 20, hy - 12, hx + 6, hy - 20); c.quadraticCurveTo(hx - 6, hy - 10, hx - 16, hy - 18); c.quadraticCurveTo(hx - hr + 2, hy - 12, hx - hr - 1, hy - 2); }, hairG); }
     if (a.hair !== 'bald' && a.hair !== 'buzz') { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(hx - 12, top + 2, 8, 2.6, -0.3, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
 
+    // a sweat drop slides down the temple when sad (stays with the head; wave 26: under the eyewear and the cap's brim, so a frame passes over the drop; clean-up 2026-10-25: under the hat too, and a hat wearer's drop starts 10 lower and 2 further out, below the brim and beside the eye)
+    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400, hw = a.hat === 'none' ? 0 : 1; ctx.save(); ctx.translate(hx + hr - 6 + hw * 2, hy - 14 + hw * 10 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     // hats (lift a touch on a jump)
     ctx.save(); ctx.translate(0, -p.hat);
     if (a.hat === 'hardhat') {
@@ -486,61 +527,49 @@
       ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(hx - 14, top - 6, 7, 3, -0.4, 0, Math.PI * 2); ctx.fill();
     } else if (a.hat === 'cap') {
       pen.shape(function (c) { c.moveTo(hx - hr - 2, hy - 8); c.quadraticCurveTo(hx - hr, top - 10, hx, top - 11); c.quadraticCurveTo(hx + hr, top - 10, hx + hr + 2, hy - 8); c.quadraticCurveTo(hx, hy - 4, hx - hr - 2, hy - 8); }, hatG);
-      pen.shape(function (c) { c.moveTo(hx + 2, hy - 7); c.quadraticCurveTo(hx + hr + 8, hy - 10, hx + hr + 16, hy - 2); c.quadraticCurveTo(hx + hr + 4, hy, hx + 2, hy - 4); }, shade(hatC, -28));
       pen.circle(hx, top - 11, 2.5, shade(hatC, 30), true);
       ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(hx - 12, top - 4, 7, 2.6, -0.3, 0, Math.PI * 2); ctx.fill();
     } else if (a.hat === 'beanie') {
-      pen.shape(function (c) { c.moveTo(hx - hr - 2, hy - 2); c.quadraticCurveTo(hx - hr - 2, top - 12, hx, top - 14); c.quadraticCurveTo(hx + hr + 2, top - 12, hx + hr + 2, hy - 2); c.lineTo(hx + hr + 2, hy + 2); c.quadraticCurveTo(hx, hy - 1, hx - hr - 2, hy + 2); }, hatG);
-      pen.rrect(hx - hr - 3, hy - 6, hr * 2 + 6, 8, 3, shade(hatC, -22));
-      ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; for (var bx = hx - hr + 2; bx < hx + hr; bx += 5) { ctx.beginPath(); ctx.moveTo(bx, hy - 5); ctx.lineTo(bx + 2, hy + 1); ctx.stroke(); }
+      pen.shape(function (c) { c.moveTo(hx - hr - 2, hy - 10); c.quadraticCurveTo(hx - hr - 2, top - 12, hx, top - 14); c.quadraticCurveTo(hx + hr + 2, top - 12, hx + hr + 2, hy - 10); c.lineTo(hx + hr + 2, hy - 6); c.quadraticCurveTo(hx, hy - 9, hx - hr - 2, hy - 6); }, hatG);
+      pen.rrect(hx - hr - 3, hy - 14, hr * 2 + 6, 8, 3, shade(hatC, -22)); // wave 26: the band clears the eyes (hy - 6..hy + 2 covered their tops)
+      if (!pen.tiny) { ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; for (var bx = hx - hr + 2; bx < hx + hr; bx += 5) { ctx.beginPath(); ctx.moveTo(bx, hy - 13); ctx.lineTo(bx + 2, hy - 7); ctx.stroke(); } }
       pen.circle(hx + p.hair * 0.3, top - 15, 5, shade(hatC, 30));
     }
     ctx.restore();
 
-    // eyewear (over the hair and hat brims, turned with the features)
-    ctx.save(); ctx.translate(fx, 0);
+    // eyewear (over the hair and the hats, turned with the features; the cap's brim comes after it)
+    ctx.save(); ctx.translate(fx, 0); clipHead(); // wave 26: a lens or a frame never leaves the head
     if (a.extra === 'glasses') {
-      ctx.strokeStyle = '#4A5A6B'; ctx.lineWidth = 2; [eyL, eyR].forEach(function (cx) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 8.5, ey - 7.5, 17, 15, 4) : ctx.rect(cx - 8.5, ey - 7.5, 17, 15); ctx.stroke(); ctx.fillStyle = 'rgba(156,211,240,.28)'; ctx.fill(); });
+      ctx.strokeStyle = '#4A5A6B'; ctx.lineWidth = pen.fw(2); [eyL, eyR].forEach(function (cx) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 8.5, ey - 7.5, 17, 15, 4) : ctx.rect(cx - 8.5, ey - 7.5, 17, 15); ctx.stroke(); if (!pen.tiny) { ctx.fillStyle = 'rgba(156,211,240,.28)'; ctx.fill(); } });
       ctx.beginPath(); ctx.moveTo(eyL + 8.5, ey - 1); ctx.lineTo(eyR - 8.5, ey - 1); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(eyL - 8.5, ey - 1); ctx.lineTo(hx - hr + 2, ey - 3); ctx.moveTo(eyR + 8.5, ey - 1); ctx.lineTo(hx + hr - 2, ey - 3); ctx.stroke();
+      ctx.beginPath(); if (eyL - 8.5 > hx - hr + 2 - fx) { ctx.moveTo(eyL - 8.5, ey - 1); ctx.lineTo(hx - hr + 2 - fx, ey - 3); } if (eyR + 8.5 < hx + hr - 2 - fx) { ctx.moveTo(eyR + 8.5, ey - 1); ctx.lineTo(hx + hr - 2 - fx, ey - 3); } ctx.stroke(); // clean-up 2026-10-25: the temples end at the ears (head space: fx is taken back out of the slid frame) and only while the lens edge is short of that ear, so the far one never points backwards or out of the head mid-turn
     } else if (shades) {
       [eyL, eyR].forEach(function (cx) { pen.rrect(cx - 9, ey - 7, 18, 13, 5, pen.grad(cx - 9, ey - 7, cx + 9, ey + 6, '#3A3F4A', '#0E1116')); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(cx - 3, ey - 3, 4, 1.6, -0.4, 0, Math.PI * 2); ctx.fill(); });
-      pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, 2.4); pen.line(eyL - 9, ey - 3, hx - hr + 1, ey - 5, 2.4); pen.line(eyR + 9, ey - 3, hx + hr - 1, ey - 5, 2.4);
+      pen.line(eyL + 9, ey - 3, eyR - 9, ey - 3, pen.fw(2.4)); if (eyL - 9 > hx - hr + 1 - fx) pen.line(eyL - 9, ey - 3, hx - hr + 1 - fx, ey - 5, pen.fw(2.4)); if (eyR + 9 < hx + hr - 1 - fx) pen.line(eyR + 9, ey - 3, hx + hr - 1 - fx, ey - 5, pen.fw(2.4)); // the same for the shades' arms
     }
+    ctx.restore(); // wave 26: the eyewear's clip
     ctx.restore(); // eyewear
-    // a sweat drop slides down the temple when sad (stays with the head)
-    if (p.emote === 'sweat' && !reduce) { var sw = (t % 1400) / 1400; ctx.save(); ctx.translate(hx + hr - 6, hy - 14 + sw * 16); ctx.globalAlpha = sw < 0.8 ? 1 : (1 - sw) * 5; pen.shape(function (c) { c.moveTo(0, -5); c.quadraticCurveTo(4, 1, 0, 4); c.quadraticCurveTo(-4, 1, 0, -5); }, '#8EC5FF'); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-1, 0.5, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    if (a.hat === 'cap') { ctx.save(); ctx.translate(hx, -p.hat); ctx.scale(fab, 1); ctx.translate(-hx, 0); pen.shape(function (c) { c.moveTo(hx + 2, hy - 10); c.quadraticCurveTo(hx + hr + 8, hy - 13, hx + hr + 16, hy - 5); c.quadraticCurveTo(hx + hr + 4, hy - 3, hx + 2, hy - 7); }, shade(hatC, -28)); ctx.restore(); } // wave 26: the brim turns with the body and sits 3 higher, clear of the front eye; clean-up 2026-10-25: it is drawn over the frames (they cut its outline) and lifts with the hat
     // wave 15: cold breath. A puff leaves the mouth toward the facing side every 3.2 s and drifts up as it grows and fades.
     var cold = Math.max(0, Math.min(1, Number(o.cold) || 0));
     if (cold && !reduce) { var bc = (t + (o.seed || 0) * 11) % 3200; if (bc < 1100) { var bk = bc / 1100; ctx.save(); ctx.globalAlpha = cold * 0.7 * (bk < 0.15 ? bk / 0.15 : 1 - (bk - 0.15) / 0.85); ctx.fillStyle = '#F6F7F8'; for (var bi = 0; bi < 3; bi++) { var br = (2.6 + bi * 1.3) * (0.6 + bk), bxp = hx + 9 + fx + bk * (15 + bi * 4), byp = my + 1 - bk * (11 + bi * 3) + Math.sin(bk * 6 + bi) * 1.2; ctx.beginPath(); ctx.arc(bxp, byp, br, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); } }
     ctx.restore(); // head
     if (p.cover) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); frontArm(); ctx.restore(); } // the hand over the mouth sits on top of the face
+    if (a.prop === 'umbrella' && !p.noProp && !a.clipboard) { ctx.save(); ctx.translate(50, 120); ctx.scale(bw, bh); ctx.translate(-50, -120); inHand(34, 78, p.armL, p.elbowL, function () { upright(1); canopy(); }); ctx.restore(); } // the canopy over the head and the hat (clean-up 2026-10-25)
 
     // the right (front) arm and whatever it holds (drawn here, or over the head when the pose covers the mouth: wave 17)
     function frontArm() {
     arm(66, 78, p.armR, p.elbowR, p.fist, p.point, p.thumb);
-    if (!p.fist && !p.point && (!p.armRUp || p.swing)) {
+    if (held) {
       inHand(66, 78, p.armR, p.elbowR, function () {
-        if (p.swing) { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); return; } // a hammer swings whatever the look holds
-        if (a.tool === 'hammer') { pen.rrect(-2, -2, 4, 24, 2, '#8B5A2B'); pen.rrect(-9, -8, 18, 8, 2, pen.grad(-9, -8, 9, 0, '#B4B8BD', '#6F747A')); }
-        else if (a.tool === 'tape') { pen.rrect(-7, -3, 14, 13, 4, '#F2C200'); pen.circle(0, 3.5, 3.2, '#2C2C2A', true); ctx.fillStyle = '#E8E4DA'; ctx.fillRect(6, 1, 8, 2.5); }
-        else if (a.tool === 'ladder') { ctx.translate(10, -40); pen.rrect(0, 0, 4, 62, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 62, 2, '#B4B2A9'); for (var ry = 6; ry < 60; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); }
+        if (p.swing) { tool('hammer'); return; } // a hammer swings whatever the look holds
+        if (a.tool === 'hammer' || a.tool === 'tape') tool(a.tool);
+        else if (a.tool === 'ladder') { if (Math.abs(p.armR + p.elbowR) > 60) return; ctx.rotate(-(p.armR + p.elbowR) * Math.PI / 180); ctx.translate(-2, -26); pen.rrect(0, 0, 4, 46, 2, '#B4B2A9'); pen.rrect(14, 0, 4, 46, 2, '#B4B2A9'); for (var ry = 6; ry < 44; ry += 9) pen.rrect(2, ry, 14, 3.5, 1.5, '#8F8D86'); pen.circle(2, 26, 5, skinG); } // clean-up 2026-10-25: the ladder hangs plumb from the hand (squared up like the umbrella), the near rail under the grip, 46 tall so the top (hand - 26) clears the jaw and a beard and the foot meets the ground; it used to float 10 off the hand and swing with the forearm across the face. A hand raised past 60 degrees carries none
       });
     }
     }
     if (!p.cover) frontArm();
 
-    // emotes that float free of the head: sparkles on a cheer, thought dots when thinking
-    if (p.emote === 'sparkle' && !reduce) {
-      for (var si = 0; si < 3; si++) {
-        var ph = t / 600 + si * 2.1, sx = hx + Math.cos(ph) * 44, sy = hy - 22 + Math.sin(ph * 1.3) * 14, sr = 2.4 + Math.sin(t / 120 + si) * 1.2;
-        ctx.fillStyle = si === 1 ? '#FFD98A' : '#FFF4C2'; ctx.beginPath();
-        ctx.moveTo(sx, sy - sr * 2); ctx.quadraticCurveTo(sx, sy, sx + sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy + sr * 2); ctx.quadraticCurveTo(sx, sy, sx - sr * 2, sy); ctx.quadraticCurveTo(sx, sy, sx, sy - sr * 2); ctx.fill();
-      }
-    } else if (p.emote === 'dots') {
-      var dn = reduce ? 3 : Math.floor((t % 1800) / 600) + 1;
-      for (var di = 0; di < 3; di++) { if (di < dn) pen.circle(hx + 36 + di * 7, hy - 30 - di * 5, 2.2 + di * 0.9, '#F6F7F8'); }
-    }
     ctx.restore();
   }
 
@@ -551,9 +580,9 @@
     var cw = Math.round(rect.width) || canvas.width || 64, ch = Math.round(rect.height) || canvas.height || 64;
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
     var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
-    var h = (o.fit || 0.86) * ch, y = ch - (ch - h) / 2 + 2, shadow = o.shadow !== false;
-    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (128 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build
-    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold });
+    var h = (o.fit || (!o.crop && normalize(look).prop === 'umbrella' && !normalize(look).clipboard ? 0.56 : 0.79)) * ch, y = ch - (ch - h) * 0.2, shadow = o.shadow !== false; // clean-up 2026-10-25: 80% of the slack over the head (25.5 units above the 120 box, 6.4 under the feet for the shadow): at 0.86 split evenly the cheer's apex and the pop overshoot cut every hat top flat (a tall beanie's pompom reaches -24.5 at the top of the jump; 11.3 units were left)
+    if (o.crop === 'bust') { var us = (ch - 4) / 100; h = 120 * us; y = 2 + (134 + headRise(normalize(look))) * us; shadow = false; } // hat brim to mid-torso fills the box, whatever the build (clean-up 2026-10-25: 134, not 128, so a beanie's pompom clears the top at 90 px; the crop line moves from ~97 to ~91 units)
+    draw(ctx, look, { x: cw / 2, y: y, h: h, t: o.t == null ? 0 : o.t, pose: o.pose, facing: o.facing, shadow: shadow, mood: o.mood, blink: o.blink, seed: o.seed, from: o.from, mix: o.mix, gaze: o.gaze, wind: o.wind, pop: o.pop, cold: o.cold, crop: o.crop });
   }
   var loops = 0;
   // A loop paints at most 30 times a second and measures its canvas once a second (not every frame: a layout read per
