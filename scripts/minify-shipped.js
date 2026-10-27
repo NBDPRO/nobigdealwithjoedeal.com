@@ -37,14 +37,16 @@
  *     (/*! … *\/, @license) kept inline.
  *   - If minifying would not make a file smaller, the file is left alone.
  *
- * Scope: docs/pro/**\/*.{js,mjs,css}, except
+ * Scope: docs/pro/**\/*.{js,mjs,css}, and docs/assets/{css,js}/**\/*.{js,css} (the public site), except
  *   - anything under a vendor/ or node_modules/ directory, and *.min.js/css
  *     (third-party, already minified);
  *   - the three service workers (docs/pro/sw.js, firebase-messaging-sw.js,
  *     explore/demo-sw.js): browsers update a worker when its bytes change and
- *     their cache-version constants are read by tests; they are small.
- * Nothing outside docs/pro is touched (the public site's assets keep their
- * own 24 h cache rules and budgets).
+ *     their cache-version constants are read by tests; they are small;
+ *   - docs/assets/js/inline/*.js, named by a hash of their source.
+ * Nothing else is touched: pages, images, fonts, docs/assets/vendor and data
+ * stay as committed. The public CSS/JS keep their 24 h cache rule
+ * (firebase.json); a changed file revalidates by ETag like any other deploy.
  *
  * Cache-busting: pages keep their ?v= query strings. JS/CSS are served
  * `max-age=0, must-revalidate` with ETags (firebase.json), and the CRM's
@@ -78,7 +80,8 @@ const zlib = require('zlib');
 const ESBUILD_VERSION = '0.28.2';
 const REPO = path.join(__dirname, '..');
 const DOCS = path.join(REPO, 'docs');
-const SCOPE = path.join(DOCS, 'pro');
+// The CRM, and (2026-10-27, PageSpeed mobile 86: "Minify CSS 52 KiB / JS 9 KiB") the public site's own CSS and JS.
+const SCOPES = [path.join(DOCS, 'pro'), path.join(DOCS, 'assets', 'css'), path.join(DOCS, 'assets', 'js')];
 const SERVICE_WORKERS = new Set(['pro/sw.js', 'pro/firebase-messaging-sw.js', 'pro/explore/demo-sw.js']);
 
 function defaultInstallDir() { return path.join(os.tmpdir(), 'nbd-esbuild-' + ESBUILD_VERSION); }
@@ -110,7 +113,9 @@ function install(dir) {
 // rel is relative to docs/, forward slashes ("pro/js/crm.js").
 function shouldMinify(rel) {
   rel = rel.replace(/\\/g, '/');
-  if (!rel.startsWith('pro/')) return false;
+  if (!/^(pro\/|assets\/(css|js)\/)/.test(rel)) return false;
+  // assets/js/inline/<hash>.js are the externalised inline scripts, named by a hash of their source.
+  if (rel.startsWith('assets/js/inline/')) return false;
   if (!/\.(m?js|css)$/.test(rel)) return false;
   if (/\.min\.(js|css)$/.test(rel)) return false;
   if (/(^|\/)(vendor|node_modules)\//.test(rel)) return false;
@@ -166,7 +171,7 @@ function main(argv) {
   const esbuild = loadEsbuild();
   if (!esbuild) { console.error('esbuild ' + ESBUILD_VERSION + ' not found. Run: node scripts/minify-shipped.js --install'); return 2; }
 
-  const files = listFiles(SCOPE, []).filter((f) => shouldMinify(path.relative(DOCS, f)));
+  const files = SCOPES.reduce((all, dir) => listFiles(dir, all), []).filter((f) => shouldMinify(path.relative(DOCS, f)));
   const tot = { files: 0, skipped: 0, before: { raw: 0, gzip: 0, brotli: 0 }, after: { raw: 0, gzip: 0, brotli: 0 } };
   const failures = [];
   const pending = [];
@@ -194,7 +199,7 @@ function main(argv) {
     }
   }
   const kb = (n) => (n / 1024).toFixed(0) + ' KB';
-  console.log((write ? 'Minified ' : 'Would minify ') + tot.files + ' files under docs/pro (' + tot.skipped + ' left as-is) with esbuild ' + esbuild.version);
+  console.log((write ? 'Minified ' : 'Would minify ') + tot.files + ' files under docs/pro and docs/assets/{css,js} (' + tot.skipped + ' left as-is) with esbuild ' + esbuild.version);
   for (const k of ['raw', 'gzip', 'brotli']) {
     console.log('  ' + k.padEnd(6) + ' ' + kb(tot.before[k]).padStart(9) + ' -> ' + kb(tot.after[k]).padStart(9) +
       '  (-' + Math.round(100 - (100 * tot.after[k]) / tot.before[k]) + '%)');
