@@ -372,9 +372,17 @@
   // (Cincinnati + Northern Kentucky) and the default; a tenant profile may
   // carry its own IANA zone as `timezone` / `timeZone`.
   var DEFAULT_TIME_ZONE = 'America/New_York';
+  // Building an Intl.DateTimeFormat costs milliseconds and this runs once per
+  // owed invoice on every render, so the answer (and the formatter) is cached per zone.
+  var _zoneOk = {};
+  var _dayFmt = {};
   function _validZone(z) {
     if (!z || typeof z !== 'string') return false;
-    try { new Intl.DateTimeFormat('en-US', { timeZone: z }).format(0); return true; } catch (_) { return false; }
+    if (_zoneOk[z] !== undefined) return _zoneOk[z];
+    var ok;
+    try { new Intl.DateTimeFormat('en-US', { timeZone: z }).format(0); ok = true; } catch (_) { ok = false; }
+    _zoneOk[z] = ok;
+    return ok;
   }
   /** The tenant's timezone from a company profile (or brand), else America/New_York. */
   function resolveTimeZone(profile) {
@@ -386,8 +394,10 @@
   }
   /** The calendar date of an instant in a timezone → UTC-midnight ms. */
   function _dayInZone(ms, tz) {
-    var parts = new Intl.DateTimeFormat('en-US', { timeZone: _validZone(tz) ? tz : DEFAULT_TIME_ZONE,
-      year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date(ms));
+    var zone = _validZone(tz) ? tz : DEFAULT_TIME_ZONE;
+    var fmt = _dayFmt[zone] || (_dayFmt[zone] = new Intl.DateTimeFormat('en-US', { timeZone: zone,
+      year: 'numeric', month: 'numeric', day: 'numeric' }));
+    var parts = fmt.formatToParts(new Date(ms));
     var get = function (type) { for (var i = 0; i < parts.length; i++) if (parts[i].type === type) return +parts[i].value; return NaN; };
     return Date.UTC(get('year'), get('month') - 1, get('day'));
   }

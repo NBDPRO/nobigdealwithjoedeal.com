@@ -619,7 +619,11 @@
 
   function isPaletteOpen() {
     const palette = document.getElementById('cmdPalette');
-    return palette && palette.style.display !== 'none';
+    // 'flex' is what openPalette() sets. It used to read `!== 'none'`, which is also
+    // true for the never-opened palette (hidden by its .dn class, inline display ''),
+    // so until the first Escape every Enter / Arrow / Escape keydown on the page was
+    // preventDefault()ed: Enter on a focused button did nothing.
+    return !!palette && palette.style.display === 'flex';
   }
 
   // ─── Keybindings ─────────────────────────────────────────────────

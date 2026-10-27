@@ -1,8 +1,9 @@
 /* Mobile-only mid-article CTA injected by /assets/js/blog-midpost-cta.js */
 .blog-midpost-cta{display:block;margin:2.5rem 0;padding:1.75rem 1.5rem;background:var(--navy-dark,#12223d);color:#fff;border-radius:12px;border-left:6px solid var(--orange,#bd5728);text-align:center}
 .blog-midpost-cta .bmc-eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.14em;color:var(--orange-light,#dd875f);/* brand orange on the navy card read 3.45:1 (2026-10-24) */text-transform:uppercase;margin-bottom:.5rem}
-.blog-midpost-cta h3{color:#fff;font-size:1.4rem;margin:0 0 .75rem;font-weight:800;font-family:'Bebas Neue',sans-serif;letter-spacing:.02em}
-.blog-midpost-cta p{color:rgba(255,255,255,.85);font-size:1rem;line-height:1.55;margin:0 0 1.25rem}
+/* The type rules carry the element (aside.blog-midpost-cta h3 / p, 0,1,2) because four posts declare `.prose h3` and `.prose p` (0,1,1) in an inline <style> AFTER this link: on a tie the page won, and the card's headline computed navy on navy (1.21:1) and its paragraph grey (1.79:1) (2026-10-26). */
+aside.blog-midpost-cta h3{color:#fff;font-size:1.4rem;margin:0 0 .75rem;font-weight:800;font-family:'Bebas Neue',sans-serif;letter-spacing:.02em}
+aside.blog-midpost-cta p{color:rgba(255,255,255,.85);font-size:1rem;line-height:1.55;margin:0 0 1.25rem}
 .blog-midpost-cta .bmc-actions{display:flex;flex-direction:column;gap:.75rem}
 .blog-midpost-cta .bmc-btn{display:block;padding:13px 18px;border-radius:8px;text-decoration:none;font-weight:800;font-size:.88rem;letter-spacing:.04em;transition:background .2s ease,color .2s ease}
 .blog-midpost-cta .bmc-btn-primary{background:#BD5728;color:#fff}
@@ -13,3 +14,7 @@
 /* Byline credential strip (injected by JS) */
 .author-credentials{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.85rem}
 .author-credentials .author-cred{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.04em;color:var(--navy,#1a3057);background:rgba(189,87,40,.08);border:1px solid rgba(189,87,40,.25);border-radius:100px;padding:4px 10px}
+/* 320 px fit (2026-10-26). Posts were 37 px wider than a 320 px screen and body{overflow-x:clip} cut the bio card's email and URL off at the right edge. The byline is a flex child holding an unbroken string, so it needs min-width:0 to shrink and overflow-wrap to break; the one-column article grid is `1fr` (= minmax(auto,1fr)), which kept the byline's min-content width as its track. Under 480px the box stacks (avatar above the text, 24px padding, and the name drops the .prose h3 top margin it inherits) so the email fits on one line down to 320 px instead of breaking mid-address in a 130 px column. `body` prefixes out-rank each post's own inline .author-info / .article-wrap rules whatever their order; the grid rule sits in the same 900px query the posts use, so the desktop content + sidebar columns are untouched. */
+body .author-info{min-width:0;overflow-wrap:anywhere}
+@media(max-width:480px){body .author-box{flex-direction:column;padding:24px}body .author-info h3{margin-top:0}}
+@media(max-width:900px){body .article-wrap{grid-template-columns:minmax(0,1fr)}}

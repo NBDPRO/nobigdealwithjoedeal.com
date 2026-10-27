@@ -29,7 +29,59 @@
     var pct = ((n - 1) / 4) * 100;
     var fill = $('sc-progress-fill'); if (fill) fill.style.width = pct + '%';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    focusEl(t.querySelector('h2'));
     if (n === 5) {} // contact step
+  }
+  /* The Continue/Back button just pressed sits on the step being hidden, so
+     focus used to fall to <body> and nothing was announced (Tab restarted at
+     the top of the page). The new step's heading takes focus instead:
+     tabindex -1 makes it reachable by script, never by Tab, and it is not a
+     control, so no focus ring is drawn around the title. preventScroll: the
+     caller already scrolls to the top. */
+  function focusEl(el) {
+    if (!el) return;
+    el.setAttribute('tabindex', '-1');
+    el.style.outline = 'none';
+    el.focus({ preventScroll: true });
+  }
+  /* ── required answers ──
+     Continue on steps 2 and 3 used to do nothing when an answer was missing.
+     Now a role=alert line under the step's subtitle says what to pick, the
+     page scrolls to it (the questions are right below), and focus lands on the
+     first unanswered group. It sits above the questions, not by the buttons:
+     on a phone the sticky call bar covers what is below the fold. The line is
+     created empty at load so a screen reader already watches it when text
+     arrives, and it follows the answers as they land (afterPick). */
+  var NEED = {
+    2: [['stormWhen', 'when the storm hit'], ['stormType', 'what kind of storm it was']],
+    3: [['roofAge', 'how old the roof is']]
+  };
+  function missing(step) { return (NEED[step] || []).filter(function (q) { return !S[q[0]]; }); }
+  function needText(step) {
+    var m = missing(step);
+    return m.length ? 'Pick ' + m.map(function (q) { return q[1]; }).join(' and ') + '.' : '';
+  }
+  function needNote(step) { return document.querySelector('#sc-step' + step + ' .sc-need'); }
+  function mountNeedNotes() {
+    Object.keys(NEED).forEach(function (n) {
+      var st = $('sc-step' + n), first = st && st.querySelector('.sc-label');
+      if (!first || needNote(n)) return;
+      var note = document.createElement('div');
+      note.className = 'sc-err sc-need';
+      note.setAttribute('role', 'alert');
+      note.style.minHeight = '0'; // empty = no height: the step looks as before until it is needed
+      st.insertBefore(note, first);
+    });
+  }
+  function needAnswers(step) {
+    var m = missing(step);
+    if (!m.length) return true;
+    var note = needNote(step);
+    if (note) note.textContent = needText(step);
+    var first = document.querySelector('#sc-step' + step + ' [data-group="' + m[0][0] + '"] .sc-tile');
+    if (first) first.focus({ preventScroll: true });
+    if (note) note.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
   }
   function validate(step) {
     if (step === 1) {
@@ -45,8 +97,8 @@
       }
       return true;
     }
-    if (step === 2) return !!(S.stormWhen && S.stormType);
-    if (step === 3) return !!(S.roofAge);
+    if (step === 2) return needAnswers(2);
+    if (step === 3) return needAnswers(3);
     return true;
   }
   function hint(msg) {
@@ -210,12 +262,25 @@
         S.signs = [].slice.call(document.querySelectorAll('[data-group="signs"] .sc-tile.selected'))
           .map(function (t) { return t.getAttribute('data-value'); });
       }
+      afterPick(tile);
       return;
     }
     var parent = tile.closest('.sc-tiles');
     if (parent) parent.querySelectorAll('.sc-tile').forEach(function (t) { t.classList.remove('selected'); });
     tile.classList.add('selected');
     S[group] = tile.getAttribute('data-value');
+    afterPick(tile);
+  }
+  // The tiles are buttons whose state was only a CSS class: expose it
+  // (aria-pressed) so assistive tech can tell which options are chosen, and
+  // shrink the "Pick ..." line to what is still missing.
+  function afterPick(tile) {
+    var box = tile.closest('.sc-tiles');
+    if (box) box.querySelectorAll('.sc-tile').forEach(function (t) {
+      t.setAttribute('aria-pressed', t.classList.contains('selected') ? 'true' : 'false');
+    });
+    var note = needNote(S.step);
+    if (note && note.textContent) note.textContent = needText(S.step);
   }
 
   /* ── IEM storm data (best-effort) ── */
@@ -373,6 +438,7 @@
     $('sc-result').classList.add('active');
     var fill = $('sc-progress-fill'); if (fill) fill.style.width = '100%';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    focusEl($('sc-result-headline'));
     if (window.gtag) window.gtag('event', 'storm_check_complete', { has_storm_data: !!v.dataLine });
   }
 
@@ -391,7 +457,8 @@
 
   /* ── delegated clicks (CSP-safe, no inline handlers) ── */
   function wire() {
-    wireAddress(); wirePhone();
+    wireAddress(); wirePhone(); mountNeedNotes();
+    document.querySelectorAll('.sc-tile').forEach(function (t) { t.setAttribute('type', 'button'); t.setAttribute('aria-pressed', 'false'); });
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
     document.addEventListener('click', function (e) {
       var ac = e.target.closest('.sc-ac-item[data-idx]'); if (ac) { pickAddr(+ac.dataset.idx); return; }

@@ -12,7 +12,7 @@
 <meta property="og:url" content="https://nobigdealwithjoedeal.com/estimate">
 <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Free Roof Estimate | Personalized Cost">
+<meta name="twitter:title" content="Free Roof Estimate | Personalized Cost Breakdown">
 <meta name="twitter:description" content="Get a free personalized roof estimate for your Cincinnati-area home. See your ballpark cost, material options, and connect with Joe — no pressure.">
 <meta name="twitter:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Free Roof Estimate Tool","description":"Get a free personalized roof estimate with material options for your Cincinnati-area home.","url":"https://nobigdealwithjoedeal.com/estimate","applicationCategory":"HomeImprovement","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
@@ -732,7 +732,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div class="tile-group" id="roofTypeGroup" data-group="roofType" style="display:none;" role="group" aria-label="Roof Material">
       <div class="tile-group-label">Roof Material</div>
       <div class="tiles">
-        <div class="tile selected" data-value="asphalt">
+        <div class="tile selected" role="button" tabindex="0" aria-pressed="true" data-value="asphalt">
           <div class="tile-icon">&#127968;</div>
           <div class="tile-label">Asphalt Shingle</div>
           <div class="tile-desc">Most common</div>
@@ -763,7 +763,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           <div class="tile-label">Small</div>
           <div class="tile-desc">Under 1,500 sq ft</div>
         </div>
-        <div class="tile selected" data-value="typical">
+        <div class="tile selected" role="button" tabindex="0" aria-pressed="true" data-value="typical">
           <div class="tile-icon">&#127968;</div>
           <div class="tile-label">Typical</div>
           <div class="tile-desc">1,500 – 2,500 sq ft</div>
@@ -873,8 +873,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 
     <div class="input-group">
       <label for="emailAddress">Email Address <span class="field-optional">(optional)</span></label>
-      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email" aria-describedby="emailAddress-err">
-      <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">Valid email required</div>
+      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email">
+      <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">That email doesn't look right. Fix it, or leave it blank.</div>
     </div>
 
     <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>
@@ -1077,7 +1077,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=5"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=6"></script>
 
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

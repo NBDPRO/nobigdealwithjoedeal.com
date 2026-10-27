@@ -12,7 +12,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth;font-size:16px;-webkit-text-size-adjust:100%}
 body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);background:var(--off-white);line-height:1.7;-webkit-font-smoothing:antialiased}
-.g-page a{color:var(--orange-dark);text-underline-offset:2px}
+.g-page a{color:var(--orange-dark);text-underline-offset:2px;overflow-wrap:anywhere} /* a long URL used as link text (roof-financing-explained) pushed the page 60 px past a 320 px screen (2026-10-26) */
 .g-page a.g-skip{color:#fff} /* the link rule above outranked .g-skip and painted the focused skip link dark orange on orange, 1.3:1 (2026-10-24) */
 .g-page a:hover{color:var(--orange)}
 .g-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:var(--orange);color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 8px 0}
@@ -72,7 +72,9 @@ body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-ser
 @media(min-width:720px){.g-toc ul{columns:2}}
 
 /* ── Chapters ── */
-.g-chapter{background:#fff;border:1px solid var(--light-gray);border-radius:8px;padding:24px 18px;margin-bottom:22px;scroll-margin-top:80px}
+/* Anchor jumps clear the sticky header. Same rule as nbd-nav.css (same element, same value, so it does not stack on the guides that load both); /pro/playbook loads this sheet but not nbd-nav.css. Do not add a scroll-margin-top to chapters: it adds to this. */
+html{scroll-padding-top:84px}
+.g-chapter{background:#fff;border:1px solid var(--light-gray);border-radius:8px;padding:24px 18px;margin-bottom:22px}
 .g-ch-title{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:clamp(1.9rem,5vw,2.6rem);line-height:1.05;letter-spacing:.02em;color:var(--navy-dark);margin-bottom:12px;display:flex;gap:12px;align-items:baseline}
 .g-ch-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:2.1rem;height:2.1rem;padding:0 6px;border-radius:100px;background:var(--orange);color:#fff;font-size:1.3rem;line-height:1}
 .g-chapter h3{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:1.55rem;letter-spacing:.02em;color:var(--navy);margin:24px 0 8px;line-height:1.1}
