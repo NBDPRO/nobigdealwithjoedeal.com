@@ -343,6 +343,17 @@ jobs:
           fi
           node scripts/check-js-syntax.js --shipped-only
 
+      # Inline the homepage's head stylesheets for THIS deploy only (PageSpeed
+      # mobile 2026-10-27: 11 render-blocking CSS requests, LCP 4.3 s). Same
+      # order and position, so the cascade is unchanged; runs AFTER the minify
+      # above so the inlined text is the minified one. Soft-fail: on any error
+      # the page keeps its <link>s. docs/index.html is restored below.
+      - name: Inline the homepage head CSS for this deploy
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        run: |
+          node scripts/inline-head-css.js --write \
+            || echo "::warning::Inline head CSS failed - the homepage keeps its stylesheet links."
+
       - name: Keep the deploy's source maps (artifact, not served)
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         uses: actions/upload-artifact@v7
@@ -401,12 +412,12 @@ jobs:
           echo "::error::Hosting deploy failed after 3 attempts."
           exit 1
 
-      # Put the readable docs/pro and docs/assets/{css,js} back. Hosting already has the minified copy;
+      # Put the readable docs/pro, docs/assets/{css,js} and docs/index.html back. Hosting already has the minified copy;
       # every gate below (the function smoke suite greps docs/pro source) must
       # read the code as committed. always(): restore even if Hosting failed.
       - name: Restore readable docs/pro and docs/assets after the Hosting deploy
         if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
-        run: git checkout -- docs/pro docs/assets
+        run: git checkout -- docs/pro docs/assets docs/index.html
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting
