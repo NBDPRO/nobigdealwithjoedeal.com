@@ -17,5 +17,11 @@ on the About page, a sharp re-encode (metadata stripped) of banner-orange.png
   american-operator-banner-orange-1040.png/.webp  1040x176 About page, under the
                                                            credential chips
                                                            (520px max, 2x)
-The kit's dark, light and white banners and the print PDFs stay uncommitted
-for now (the dark banner for the footer cert bar waits on visual baselines).
+
+2026-10-25 (Jo's go): the kit's dark banner is the footer cert bar on every
+page, a sharp re-encode (metadata stripped) of banner-dark.png (1194x202),
+png + webp siblings:
+  american-operator-banner-dark-520.png/.webp     520x88   footer cert bar on
+                                                           every page (44px
+                                                           tall, 2x)
+The kit's light and white banners and the print PDFs stay uncommitted (unused).

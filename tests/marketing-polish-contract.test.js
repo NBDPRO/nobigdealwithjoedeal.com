@@ -347,11 +347,13 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
   // 3. Cert bar carries all badge verify links + the full independent-contractor
   //    disclaimer with the license IDs (the legal reason the bar exists).
   //    american-operator (Locally Owned & Operated cert, added 2026-08-13) has
-  //    no ID number — the badge + link is the whole credential.
+  //    no ID number — the badge + link is the whole credential. Since 2026-10-25
+  //    the tile is the kit's dark banner (american-operator-banner-dark-520), not
+  //    the shield badge-120.
   const bad = certBarTargets.filter((f) => {
     const s = read(f);
     return !(s.includes('gaf-certified-badge-120.png') && s.includes('tamko-pro-gold-badge-120.png')
-      && s.includes('american-operator-badge-120.png')
+      && s.includes('american-operator-banner-dark-520.png')
       && s.includes('GAF ID 1162011') && s.includes('TAMKO Pro ID 181382')
       && s.includes('Independent Contractor'));
   }).map(rel);
@@ -374,7 +376,7 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
   const bad = withGafBadge.filter((f) => {
     const s = read(f);
     return !(s.includes('tamko-pro-gold-badge-120.png')
-      && s.includes('american-operator-badge-120.png')
+      && s.includes('american-operator-banner-dark-520.png')
       && s.includes('data-nbd-certbar="v1"'));
   }).map(rel);
   ok(`cert bar is complete WHEREVER it appears (${withGafBadge.length} pages)`, bad.length === 0,
