@@ -370,7 +370,7 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     // Trigger path, then the reconcile.
     const g9 = fakeGoogle();
     M._internal.setClient(g9.client);
-    const fut = (d) => new Date(Date.parse(future(d) + 'T04:00:00Z')).toISOString();
+    const fut = (d) => new Date(Date.parse(future(d) + 'T12:00:00Z')).toISOString();   // noon UTC is the same New York date in EDT and EST (04:00Z is the day before once clocks fall back)
     const db9 = fakeDb({
       'knocks/A1': K('A1', { createdAt: 100, followUpDate: fut(3), followUpTime: '17:30' }),
       'knocks/X1': { companyId: 'someone-else', userId: 'someone-else', address: '9 Other Rd', createdAt: 1, followUpDate: fut(3), followUpTime: '09:00' },
