@@ -132,7 +132,7 @@
     "@firebase/rules-unit-testing": "^6.0.0",
     "@playwright/test": "^1.64.1",
     "firebase": "^13.1.0",
-    "firebase-tools": "^15.28.2",
+    "firebase-tools": "^15.34.2",
     "puppeteer-core": "^25.4.0"
   }
 }
