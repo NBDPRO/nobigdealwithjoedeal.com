@@ -207,6 +207,11 @@ CEILING.localBytes += 16 * 1024;
 // shipped). Deferred, no boot-time reads: it adds one keydown listener and does nothing until a dialog calls attach(). The
 // dialogs that call it open on a user action, but the call must exist by then, so it cannot ride a lazy bundle. Own line.
 CEILING.localScripts += 1;
+// +2 local tags / +25 KB, deliberate (2026-11-03, Follow-up board): js/follow-up-board-logic.js (~10 KB) and js/follow-up-board.js
+// (~14 KB), both deferred, flag followUpBoard, absent = off. No boot-time reads; with the flag off the screen file only keeps the
+// toolbar button hidden. Own line.
+CEILING.localScripts += 2;
+CEILING.localBytes += 25 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:
