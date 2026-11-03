@@ -1602,12 +1602,11 @@ service cloud.firestore {
     // OWN dated row; amountCents stays POSITIVE (the sign lives in entryType), and the original
     // cost is never touched. relatedExpenseId points at the cost a credit answers: a short
     // id (<= 128), a row that EXISTS, and in the SAME tenant (so a credit can never be aimed
-    // at another company's ledger). An id with a '/' builds an invalid path, which the
-    // evaluator rejects, so no separate '/' check is needed.
+    // at another company's ledger). get() of a missing row, or of an id with a '/', is an
+    // evaluation error, which denies, so one get() covers exists + tenant + path safety.
     function relatedExpenseOk(d) {
       return d.relatedExpenseId is string
         && d.relatedExpenseId.size() <= 128
-        && exists(/databases/$(database)/documents/expenses/$(d.relatedExpenseId))
         && get(/databases/$(database)/documents/expenses/$(d.relatedExpenseId)).data.companyId == d.companyId;
     }
     function validExpenseEntryType() {
