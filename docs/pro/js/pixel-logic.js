@@ -69,7 +69,7 @@
   }
 
   function lastTouchMs(lead) {
-    return Math.max(toMs(lead.updatedAt), toMs(lead.stageStartedAt), toMs(lead.lastContactedAt), toMs(lead.createdAt));
+    return Math.max(toMs(lead.updatedAt), toMs(lead.stageStartedAt), toMs(lead.lastContactedAt), toMs(lead.lastInboundAt), toMs(lead.createdAt));
   }
 
   /** Whole days since the last touch, or null when the lead carries no timestamp. */
