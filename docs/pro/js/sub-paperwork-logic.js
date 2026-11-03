@@ -186,7 +186,9 @@
     var ms = toMs(v);
     return ms == null ? null : new Date(ms).getFullYear();
   }
-  function centsOf(e) { return int(e && e.amountCents) + int(e && e.taxCents); }
+  // Signed: a refund / credit from a sub (entryType 'credit', flag costCredits) is stored positive and
+  // SUBTRACTS from that sub's year total, so the 1099 prep is net of it.
+  function centsOf(e) { return (e && e.entryType === 'credit' ? -1 : 1) * (int(e && e.amountCents) + int(e && e.taxCents)); }
   function methodOf(e) {
     var m = str(e && e.paymentMethod).toLowerCase();
     for (var i = 0; i < METHODS.length; i++) if (METHODS[i].key === m) return m;
@@ -227,7 +229,7 @@
     var list = roster || [];
     list.forEach(function (r) { subs[r.id] = blankTotals(); });
     (expenses || []).forEach(function (e) {
-      if (!e || e.deleted === true || e.category !== CATEGORY || centsOf(e) <= 0) return;
+      if (!e || e.deleted === true || e.category !== CATEGORY || centsOf(e) === 0) return;
       if (yearOf(e.date) !== year) return;
       if (e.estimated === true) { est.cents += centsOf(e); est.count += 1; return; }
       all.cents += centsOf(e); all.count += 1;
@@ -248,7 +250,7 @@
   function paymentsFor(expenses, roster, subId, year, max) {
     var list = roster || [], out = [];
     (expenses || []).forEach(function (e) {
-      if (!e || e.deleted === true || e.category !== CATEGORY || centsOf(e) <= 0 || e.estimated === true) return;
+      if (!e || e.deleted === true || e.category !== CATEGORY || centsOf(e) === 0 || e.estimated === true) return;
       if (yearOf(e.date) !== year) return;
       var r = resolveSub(e, list);
       if (r && r.id === subId) out.push(e);
