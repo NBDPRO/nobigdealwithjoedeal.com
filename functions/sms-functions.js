@@ -60,6 +60,7 @@ const StormGuard = require('./storm-sms-guard');
 // and refuse to guess across tenants. Pure module — decision table lives (and
 // is unit-tested) there, not here.
 const { pickLeadForInbound } = require('./inbound-sms-route-logic');
+const { inboundLeadPatch } = require('./inbound-stamp');
 // Offline outbox (docs/pro/js/sms-outbox.js): the checks a QUEUED send must
 // pass before it goes — idempotency, quiet hours, staleness, competing
 // activity. Pure; the Firestore reads that feed it live in queuedSendGate().
@@ -1874,7 +1875,8 @@ exports.incomingSMS = onRequest(
           userId: data.userId || null,
           firstOutboundAt: null,
           lastOutboundAt: null,
-          lastContactedAt: tsMillis(data.lastContactedAt),
+          // an inbound text used to move lastContactedAt; it now moves lastInboundAt, so route recency reads both
+          lastContactedAt: Math.max(tsMillis(data.lastContactedAt) || 0, tsMillis(data.lastInboundAt) || 0) || tsMillis(data.lastContactedAt),
           createdAt: tsMillis(data.createdAt),
         });
       }
@@ -1961,10 +1963,10 @@ exports.incomingSMS = onRequest(
         }
         const incomingNoteRef = await db.collection('leads').doc(leadId).collection('notes').add(incomingNote);
 
-        // Update lead's lastContactedAt
-        await db.doc(`leads/${leadId}`).update({
-          lastContactedAt: FieldValue.serverTimestamp()
-        });
+        // Stamp the CUSTOMER's message (lastInboundAt), never lastContactedAt: that is Jo's own touch,
+        // and a reply must not make the lead look contacted (inbound-stamp.js, Follow-up board).
+        const inboundPatch = inboundLeadPatch({ via: 'sms', possibleStop }, FieldValue);
+        if (inboundPatch) await db.doc(`leads/${leadId}`).update(inboundPatch);
 
         // T-1 step 2: generate an AI-suggested reply draft. Best-effort:
         // generateAIDraft() handles its own errors and returns null on

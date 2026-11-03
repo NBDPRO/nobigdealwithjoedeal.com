@@ -2392,6 +2392,9 @@ exports.sendPortalMessage = onRequest(
           updatedAt: FieldValue.serverTimestamp(),
           lastHomeownerMessageAt: FieldValue.serverTimestamp(),
           unreadHomeownerMessages: FieldValue.increment(1),
+          // one field the Follow-up board reads for "the customer wrote" (inbound-stamp.js)
+          lastInboundAt: FieldValue.serverTimestamp(),
+          lastInboundVia: 'portal',
         }, { merge: true });
       } catch (_) { /* non-critical */ }
 
