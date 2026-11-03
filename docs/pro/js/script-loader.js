@@ -109,13 +109,13 @@
     // window.ProfitTracker.computeJobPLWithExpenses at render — so it must ride
     // this bundle or the margin silently degrades to "set Job Value".
     expenses: [
-      'js/expense-config.js?v=3',
+      'js/expense-config.js?v=4',
       // Same ?v as customer.html, which keeps this file EAGER: its
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
-      'js/profit-tracker.js?v=6',
-      'js/expenses.js?v=16',
+      'js/profit-tracker.js?v=7',
+      'js/expenses.js?v=17',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',
       // Job cost auditor (2026-10-19): inert until the jobCostAuditor flag is on.

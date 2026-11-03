@@ -197,7 +197,39 @@
     return null;
   }
 
+  // ── How a cost was paid (flag costsPaidFrom; mirrors firestore.rules) ──
+  // `paidFrom` on expenses/{id}. Required on new expenses when the flag is on.
+  var PAID_FROM = [
+    { key: 'business_credit_card', label: 'Business credit card' },
+    { key: 'business_debit_card',  label: 'Business debit card' },
+    { key: 'personal_card',        label: 'Personal card' },
+    { key: 'cash',                 label: 'Cash' },
+    { key: 'atm',                  label: 'ATM' },
+    { key: 'check',                label: 'Check' },
+    { key: 'other',                label: 'Other' }
+  ];
+  var RECEIPT_URL_MAX = 500;
+  function _norm(s) { return String(s == null ? '' : s).trim().toLowerCase().replace(/[\s\-]+/g, '_'); }
+  // Accepts the key ('business_credit_card') or the label ('Business credit card').
+  // Returns the key, or '' when it is not one of the seven.
+  function paidFromKey(v) {
+    var n = _norm(v);
+    for (var i = 0; i < PAID_FROM.length; i++) {
+      if (PAID_FROM[i].key === n || _norm(PAID_FROM[i].label) === n) return PAID_FROM[i].key;
+    }
+    return '';
+  }
+  // https only (a Drive link, say), no spaces, max 500 chars. '' / null = none.
+  function receiptUrlOk(v) {
+    if (v == null || v === '') return true;
+    return typeof v === 'string' && v.length <= RECEIPT_URL_MAX && /^https:\/\/[^\s\/$.?#][^\s]*$/i.test(v);
+  }
+
   window.ExpenseConfig = {
+    PAID_FROM: PAID_FROM,
+    RECEIPT_URL_MAX: RECEIPT_URL_MAX,
+    paidFromKey: paidFromKey,
+    receiptUrlOk: receiptUrlOk,
     COST_TYPE: COST_TYPE,
     CATEGORIES: CATEGORIES,
     byKey: BY_KEY,

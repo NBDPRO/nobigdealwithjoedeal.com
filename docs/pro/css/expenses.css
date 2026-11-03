@@ -65,3 +65,11 @@
   #expFormOverlay .exp-receipt-row > input[type=file] { flex:1 1 100%; min-width:0; }
   #expFormOverlay .exp-receipt-row > .btn { flex:1 1 100%; justify-content:center; min-height:44px; }
 }
+
+/* Bulk cost CSV import preview (flag costsPaidFrom) */
+.exx-imp-modal { max-width: 980px; width: 96vw; }
+.exx-imp-scroll { overflow: auto; max-height: 50vh; margin-top: 10px; }
+.exx-imp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.exx-imp-table th { text-align: left; padding: 4px 6px; }
+.exx-imp-table td { padding: 4px 6px; vertical-align: top; border-top: 1px solid var(--br,#2a2f3a); }
+.exx-imp-table td.exx-imp-nowrap { white-space: nowrap; }
