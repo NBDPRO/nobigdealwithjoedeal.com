@@ -225,7 +225,56 @@
     return typeof v === 'string' && v.length <= RECEIPT_URL_MAX && /^https:\/\/[^\s\/$.?#][^\s]*$/i.test(v);
   }
 
+  // ── Entry types: credits, refunds, returns, adjustments (flag costCredits) ──
+  // Append-only ledger: a credit memo / refund / return is its OWN dated row, it
+  // never edits or deletes the original cost. Amounts are ALWAYS stored POSITIVE
+  // (amountCents > 0); `entryType` says which way the row moves the totals.
+  //   cost        (default; field absent = cost)  adds to spend
+  //   credit      refund / return / credit memo / vendor rebate  SUBTRACTS from spend
+  //   adjustment  a correction that ADDS to spend (e.g. a supplemental charge the
+  //               original entry missed). A correction downward is a credit.
+  // The sign is data-driven (not flag-driven) on purpose: if the flag is turned
+  // off after a credit exists, the totals must still net it, or spend is overstated.
+  var ENTRY_TYPES = ['cost', 'credit', 'adjustment'];
+  var ENTRY_TYPE_LABELS = { cost: 'Cost', credit: 'Credit / refund', adjustment: 'Adjustment' };
+  var RELATED_ID_MAX = 128, CREDIT_REF_MAX = 80, REASON_MAX = 500;
+  // 'cost' for absent or unknown values (rules only let the three words in).
+  function entryTypeOf(e) {
+    var t = e && e.entryType;
+    return (t === 'credit' || t === 'adjustment') ? t : 'cost';
+  }
+  function isCredit(e) { return entryTypeOf(e) === 'credit'; }
+  // Accepts 'credit', 'Credit / refund', 'refund', 'return'... -> a key, or ''.
+  function entryTypeKey(v) {
+    var n = _norm(v);
+    if (!n) return '';
+    if (n === 'cost' || n === 'expense' || n === 'charge') return 'cost';
+    if (n === 'credit' || n === 'credit_refund' || n === 'refund' || n === 'return' || n === 'credit_memo' || n === 'rebate') return 'credit';
+    if (n === 'adjustment' || n === 'adjust' || n === 'correction') return 'adjustment';
+    return '';
+  }
+  // +1 for a cost / adjustment, -1 for a credit.
+  function signOf(e) { return isCredit(e) ? -1 : 1; }
+  // Signed money of one row in cents. withTax (default true) adds taxCents: a
+  // credit memo returns the tax too, so tax follows the sign.
+  function signedCents(e, withTax) {
+    if (!e) return 0;
+    var c = parseInt(e.amountCents, 10) || 0;
+    if (withTax !== false) c += parseInt(e.taxCents, 10) || 0;
+    return signOf(e) * c;
+  }
+
   window.ExpenseConfig = {
+    ENTRY_TYPES: ENTRY_TYPES,
+    ENTRY_TYPE_LABELS: ENTRY_TYPE_LABELS,
+    RELATED_ID_MAX: RELATED_ID_MAX,
+    CREDIT_REF_MAX: CREDIT_REF_MAX,
+    REASON_MAX: REASON_MAX,
+    entryTypeOf: entryTypeOf,
+    entryTypeKey: entryTypeKey,
+    isCredit: isCredit,
+    signOf: signOf,
+    signedCents: signedCents,
     PAID_FROM: PAID_FROM,
     RECEIPT_URL_MAX: RECEIPT_URL_MAX,
     paidFromKey: paidFromKey,
