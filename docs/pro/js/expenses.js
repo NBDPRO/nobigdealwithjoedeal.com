@@ -1086,7 +1086,7 @@
               '<option value="credit">Credit / refund / return (reduces cost)</option>' +
               '<option value="adjustment">Adjustment (extra cost the original missed)</option></select>' +
               '<div class="exx-fs11px-cm-mt4px">Enter the amount as a positive number. A credit is saved as its own dated entry; the original cost is never changed.</div></div>' +
-            '<div id="expCreditRow" style="display:none;margin-bottom:12px;">' +
+            '<div id="expCreditRow" class="exp-credit-row">' +
               '<label class="ui-label-caps" for="expCreditRef">Credit memo # / reference (optional)</label><input id="expCreditRef" type="text" maxlength="80" class="ui-input-lg">' +
               '<label class="ui-label-caps exx-mt12px" for="expRelated">Related cost (optional)</label><select id="expRelated" class="ui-input-lg"><option value="">— Not tied to one cost —</option>' +
                 _expenses.filter(function (x) { return x && x.id && (!c || c.entryTypeOf(x) === 'cost'); }).slice(0, 100).map(function (x) {
@@ -1164,7 +1164,7 @@
     function syncEntryType() {
       var et = document.getElementById('expEntryType');
       var cr = document.getElementById('expCreditRow');
-      if (cr) cr.style.display = (et && et.value !== 'cost') ? '' : 'none';
+      if (cr) cr.style.display = (et && et.value !== 'cost') ? 'block' : 'none';
       // Mileage is computed from miles; it cannot be a credit.
       if (et && catSel && catSel.value === 'mileage' && et.value !== 'cost') et.value = 'cost';
     }
