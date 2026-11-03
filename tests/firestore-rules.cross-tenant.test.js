@@ -452,6 +452,21 @@ async function run() {
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/imp-a'), impCost('alice', 'co-a')); });
   await check('expenses import: other tenant cannot rewrite paidFrom',  'deny',  updateDoc(doc(bob, 'expenses/imp-a'), { paidFrom: 'check' }));
   await check('expenses import: other tenant cannot read it',           'deny',  getDoc(doc(bob, 'expenses/imp-a')));
+  // Credits (flag costCredits, 2026-11-03): a credit may only point at a cost in the caller's OWN
+  // tenant, and a co-a cost can neither be flipped to a credit nor read through one.
+  const crCost = (uid, co, extra) => impCost(uid, co, Object.assign({ entryType: 'credit', amountCents: 101784 }, extra || {}));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/cr-b-orig'), impCost('bob', 'co-b')); });
+  await check('expenses credit: own tenant, no related',                    'allow', setDoc(doc(bob, 'expenses/cr-own'), crCost('bob', 'co-b')));
+  await check('expenses credit: own tenant, related to own cost',           'allow', setDoc(doc(bob, 'expenses/cr-own-rel'), crCost('bob', 'co-b', { relatedExpenseId: 'cr-b-orig' })));
+  await check('expenses credit: related to ANOTHER tenant\'s cost (co-a)',  'deny',  setDoc(doc(bob, 'expenses/cr-x-rel'), crCost('bob', 'co-b', { relatedExpenseId: 'imp-a' })));
+  await check('expenses credit: foreign companyId (co-a)',                  'deny',  setDoc(doc(bob, 'expenses/cr-foreign'), crCost('bob', 'co-a')));
+  await check('expenses credit: uid as companyId (claim-carrier)',          'deny',  setDoc(doc(bob, 'expenses/cr-uid'), crCost('bob', 'bob')));
+  await check('expenses credit: bad entryType',                             'deny',  setDoc(doc(bob, 'expenses/cr-badtype'), crCost('bob', 'co-b', { entryType: 'rebate' })));
+  await check('expenses credit: other tenant cannot flip a co-a cost to a credit', 'deny', updateDoc(doc(bob, 'expenses/imp-a'), { entryType: 'credit' }));
+  await check('expenses credit: other tenant cannot re-point a co-a row',   'deny',  updateDoc(doc(bob, 'expenses/imp-a'), { relatedExpenseId: 'cr-b-orig' }));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/cr-a'), crCost('alice', 'co-a')); });
+  await check('expenses credit: other tenant cannot read a co-a credit',    'deny',  getDoc(doc(bob, 'expenses/cr-a')));
+  await check('expenses credit: other tenant cannot delete a co-a credit',  'deny',  deleteDoc(doc(bob, 'expenses/cr-a')));
   await check('knocks create: foreign companyId (co-a)',      'deny',  setDoc(doc(bob, 'knocks/k-foreign'),      { userId: 'bob', companyId: 'co-a' }));
   await check('knocks create: own companyId (co-b)',          'allow', setDoc(doc(bob, 'knocks/k-own'),          { userId: 'bob', companyId: 'co-b' }));
   await check('knocks create: companyId omitted (degrades)',  'allow', setDoc(doc(bob, 'knocks/k-none'),         { userId: 'bob' }));

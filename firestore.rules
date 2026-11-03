@@ -1598,9 +1598,31 @@ service cloud.firestore {
         && proofPathAt(p, 0) && proofPathAt(p, 1) && proofPathAt(p, 2) && proofPathAt(p, 3) && proofPathAt(p, 4)
         && proofPathAt(p, 5) && proofPathAt(p, 6) && proofPathAt(p, 7) && proofPathAt(p, 8) && proofPathAt(p, 9);
     }
+    // Credits / refunds / returns / adjustments (flag costCredits, 2026-11-03). A credit is its
+    // OWN dated row; amountCents stays POSITIVE (the sign lives in entryType), and the original
+    // cost is never touched. relatedExpenseId points at the cost a credit answers: a short
+    // id (<= 128), a row that EXISTS, and in the SAME tenant (so a credit can never be aimed
+    // at another company's ledger). An id with a '/' builds an invalid path, which the
+    // evaluator rejects, so no separate '/' check is needed.
+    function relatedExpenseOk(d) {
+      return d.relatedExpenseId is string
+        && d.relatedExpenseId.size() <= 128
+        && exists(/databases/$(database)/documents/expenses/$(d.relatedExpenseId))
+        && get(/databases/$(database)/documents/expenses/$(d.relatedExpenseId)).data.companyId == d.companyId;
+    }
+    function validExpenseEntryType() {
+      let d = request.resource.data;
+      return (!('entryType' in d) || (d.entryType is string && d.entryType in ['cost', 'credit', 'adjustment']))
+        // a credit or adjustment must carry money: > 0, never 0 and never negative
+        && (!('entryType' in d) || d.entryType == 'cost' || d.amountCents > 0)
+        && (!('relatedExpenseId' in d) || relatedExpenseOk(d))
+        && (!('creditRef' in d) || (d.creditRef is string && d.creditRef.size() <= 80))
+        && (!('reason' in d) || (d.reason is string && d.reason.size() <= 500));
+    }
     function validExpenseMoney() {
       let d = request.resource.data;
       return d.amountCents is int && d.amountCents >= 0 && d.amountCents < 1000000000
+        && validExpenseEntryType()
         && (!('taxCents' in d) || (d.taxCents is int && d.taxCents >= 0))
         && (!('costType' in d) || d.costType in ['direct', 'overhead'])
         // Receipt sorter (2026-10-18): the kept line items are a bounded list and
@@ -1664,6 +1686,10 @@ service cloud.firestore {
     //   paidFrom      (flag costsPaidFrom)  business_credit_card | business_debit_card | personal_card
     //                                       | cash | atm | check | other
     //   receiptUrl    (flag costsPaidFrom)  optional https link, <= 500 chars (e.g. a Google Drive link)
+    //   entryType     (flag costCredits)    cost | credit | adjustment; absent = cost. amountCents stays
+    //                                       POSITIVE; a credit (refund / return / credit memo) SUBTRACTS in
+    //                                       every total, an adjustment adds. Write-once on update.
+    //   relatedExpenseId, creditRef (<=80), reason (<=500)   optional; related must be a same-tenant row that exists
     //   receiptStoragePath, items, reviewState, editLog, proofPaths, notJobCost, deleted ...  see validExpenseMoney
     match /expenses/{expenseId} {
       allow read: if isOwner(resource.data.userId)
@@ -1694,7 +1720,10 @@ service cloud.firestore {
       // have no role claim), which would permission-deny their own edits.
       allow update: if (isOwner(resource.data.userId)
             && notViewer()
-            && didNotChange(['userId', 'companyId', 'createdAt', 'createdBy'])
+            // entryType / relatedExpenseId are write-once: turning a cost into a credit (or
+            // re-pointing a credit) after the fact would silently rewrite history. To correct
+            // one, add a new dated entry.
+            && didNotChange(['userId', 'companyId', 'createdAt', 'createdBy', 'entryType', 'relatedExpenseId'])
             && validExpenseMoney())
         || isAdmin();
       allow delete: if (isOwner(resource.data.userId) && notViewer())
