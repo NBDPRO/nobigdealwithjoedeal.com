@@ -1615,7 +1615,13 @@ service cloud.firestore {
         // Storage PATHS (receipts/{uid}/sub-proofs/...), a bounded list, and the
         // "Not a job cost" answer is a plain boolean.
         && (!('proofPaths' in d) || (d.proofPaths is list && (isAdmin() || proofPathsOk(d.proofPaths))))
-        && (!('notJobCost' in d) || d.notJobCost is bool);
+        && (!('notJobCost' in d) || d.notJobCost is bool)
+        // How the cost was paid + an optional https receipt link (flag
+        // costsPaidFrom, 2026-11-03). Both optional here: the "paidFrom is
+        // required" rule is client-side behind the flag (old rows have neither),
+        // but when present they must be one of the seven words / a short https URL.
+        && (!('paidFrom' in d) || d.paidFrom in ['business_credit_card', 'business_debit_card', 'personal_card', 'cash', 'atm', 'check', 'other'])
+        && (!('receiptUrl' in d) || (d.receiptUrl is string && d.receiptUrl.size() <= 500 && d.receiptUrl.matches('https://[^ ]+')));
     }
     // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
     // placed / pickup dates. The rep who placed it owns it; the company
@@ -1645,6 +1651,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // expenses/{id} shape (company-shared cost ledger; no allowlist of keys, the
+    // value rules live in validExpenseMoney above):
+    //   userId, companyId, createdBy        owner + tenant (create-pinned, frozen on update)
+    //   leadId, jobId                       the job the cost belongs to (nullable)
+    //   category, costType                  expense-config.js; costType 'direct' | 'overhead'
+    //   supplier (<=120), note (<=500)      free text
+    //   amountCents (int >= 0), taxCents    money in cents
+    //   date, createdAt, updatedAt          timestamps
+    //   source                              'manual' | 'ocr' | 'import' (bulk CSV import) | 'cash_payout' | ...
+    //   paymentMethod                       cash-payouts.js: cash | zelle | check | other
+    //   paidFrom      (flag costsPaidFrom)  business_credit_card | business_debit_card | personal_card
+    //                                       | cash | atm | check | other
+    //   receiptUrl    (flag costsPaidFrom)  optional https link, <= 500 chars (e.g. a Google Drive link)
+    //   receiptStoragePath, items, reviewState, editLog, proofPaths, notJobCost, deleted ...  see validExpenseMoney
     match /expenses/{expenseId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()

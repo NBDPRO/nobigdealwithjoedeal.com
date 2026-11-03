@@ -27,6 +27,13 @@
   function uid() { return (window._user && window._user.uid) || null; }
   function claims() { return window._userClaims || {}; }
   function companyId() { return claims().companyId || uid(); }
+  // Flag `costsPaidFrom` (feature_flags/_default; absent = off, "ship dark"). On: paidFrom is
+  // required on new costs, the receipt link + CSV columns appear, zero-cost jobs show
+  // "no costs entered", and the bulk CSV import is available.
+  var COSTS_FLAG = 'costsPaidFrom';
+  function costsFlagOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled(COSTS_FLAG));
+  }
   function isStaff() {
     var r = claims().role;
     return r === 'company_admin' || r === 'manager' || r === 'admin';
@@ -395,6 +402,15 @@
     var category = (form.category && c.byKey[form.category]) ? form.category : 'materials';
     var costType = c.costTypeFor(category);
 
+    // Flag costsPaidFrom: how it was paid is required, the receipt link must be https.
+    var paidFlag = costsFlagOn();
+    var paidFrom = paidFlag ? c.paidFromKey(form.paidFrom) : '';
+    var receiptUrl = paidFlag ? String(form.receiptUrl == null ? '' : form.receiptUrl).trim() : '';
+    if (paidFlag) {
+      if (!paidFrom) { if (!form.quiet) toast('Pick how this was paid', 'error'); return false; }
+      if (!c.receiptUrlOk(receiptUrl)) { if (!form.quiet) toast('Receipt link must start with https:// (max ' + c.RECEIPT_URL_MAX + ' characters)', 'error'); return false; }
+    }
+
     // Mileage: the amount is COMPUTED (miles x the IRS rate snapshotted by the
     // entry's tax year), not typed.
     var miles = null, mileageRateCents = null, amountCents;
@@ -451,22 +467,27 @@
       miles: miles,
       mileageRateCents: mileageRateCents,
       marketingSource: (category === 'marketing' && form.marketingSource) ? String(form.marketingSource).trim().slice(0, 60) : null,
-      source: form.source === 'ocr' ? 'ocr' : 'manual',
+      source: form.source === 'ocr' ? 'ocr' : (form.source === 'import' ? 'import' : 'manual'),
       ocrConfidence: typeof form.ocrConfidence === 'number' ? form.ocrConfidence : null,
       needsReview: !!form.needsReview,
       createdAt: window.serverTimestamp(),
       createdBy: u,
       updatedAt: window.serverTimestamp()
     };
+    if (paidFlag) {
+      docData.paidFrom = paidFrom;
+      if (receiptUrl) docData.receiptUrl = receiptUrl;
+    }
     try {
       await window.addDoc(window.collection(window.db, 'expenses'), docData);
+      if (form.quiet) return true;
       toast(unassignedDirect
         ? 'Expense logged — not linked to a job, so it won’t count toward job margin'
         : 'Expense logged', unassignedDirect ? 'warn' : 'ok');
       return true;
     } catch (e) {
       console.error('[expenses] create failed', e);
-      toast('Failed to save expense', 'error');
+      if (!form.quiet) toast('Failed to save expense', 'error');
       return false;
     }
   }
@@ -712,6 +733,7 @@
       '<div class="exx-fs12px-cm-mt2px">' + (isStaff() && claims().companyId ? 'Team-wide (all reps)' : 'Your expenses') + ' · ' + _expenses.length + ' logged</div></div>' +
       '<div class="exx-dflex-gap8px">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
+        (costsFlagOn() ? '<button type="button" class="btn btn-ghost" data-exp-action="open-import" title="Import many costs from a CSV; you approve each row">⬆ Import costs (CSV)</button>' : '') +
         (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') +
         (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
         (window.NBDJobCostAuditor ? window.NBDJobCostAuditor.buttonHtml() : '') +
@@ -829,8 +851,8 @@
         var pl = jobMargin(lead, jobExp);
         return { jid: jid, jb: jb, lead: lead, pl: pl };
       }).sort(function (a, b) { return b.jb.cents - a.jb.cents; }).forEach(function (row) {
-        var mColor = !row.pl ? 'var(--m,#9ca3af)' : row.pl.grossMargin >= 40 ? 'var(--green,#16a34a)' : row.pl.grossMargin >= 25 ? 'var(--gold,#eab308)' : 'var(--red,#dc2626)';
-        var marginTxt = row.pl ? (row.pl.grossMargin + '% margin') : (row.lead ? 'set Job Value' : 'job not found');
+        var mColor = (!row.pl || row.pl.noCosts) ? 'var(--m,#9ca3af)' : row.pl.grossMargin >= 40 ? 'var(--green,#16a34a)' : row.pl.grossMargin >= 25 ? 'var(--gold,#eab308)' : 'var(--red,#dc2626)';
+        var marginTxt = row.pl && row.pl.noCosts ? 'no costs entered' : row.pl ? (row.pl.grossMargin + '% margin') : (row.lead ? 'set Job Value' : 'job not found');
         // A4: budget / margin-floor flag (direct cost vs contract value)
         var ecB = EC();
         var rev = (ecB && row.lead) ? ecB.getJobRevenue(row.lead) : 0;
@@ -988,6 +1010,11 @@
           '<input id="expSource" type="text" maxlength="60" placeholder="e.g. Door-to-Door, Google, Storm" class="ui-input-lg"></div>' +
         '<div class="exx-mt12px"><label class="ui-label-caps">Supplier / Vendor</label><input id="expSupplier" type="text" maxlength="120" list="expSupplierList" placeholder="e.g. ABC Supply" class="ui-input-lg">' +
           '<datalist id="expSupplierList">' + _suppliers.map(function (s) { return '<option value="' + esc(s.displayName) + '">'; }).join('') + '</datalist></div>' +
+        (costsFlagOn()
+          ? '<div class="exx-mt12px"><label class="ui-label-caps" for="expPaidFrom">Paid from</label><select id="expPaidFrom" class="ui-input-lg"><option value="">— Select how it was paid —</option>' +
+              ((c && c.PAID_FROM) || []).map(function (p) { return '<option value="' + esc(p.key) + '">' + esc(p.label) + '</option>'; }).join('') + '</select></div>' +
+            '<div class="exx-mt12px"><label class="ui-label-caps" for="expReceiptUrl">Receipt link (optional)</label><input id="expReceiptUrl" type="url" maxlength="500" placeholder="https://drive.google.com/…" class="ui-input-lg"></div>'
+          : '') +
         '<div class="exx-mt12px"><label class="ui-label-caps">Job (optional)</label><select id="expLead" class="ui-input-lg">' + leadOpts + '</select></div>' +
         '<div class="exx-mt12px"><label class="ui-label-caps">Note (optional)</label><input id="expNote" type="text" maxlength="500" class="ui-input-lg"></div>' +
         '<div class="exx-mt12px"><label class="ui-label-caps">Repeat (optional)</label><select id="expRepeat" class="ui-input-lg"><option value="none">One-time</option>' +
@@ -1102,6 +1129,8 @@
       category: v('expCategory'),
       leadId: v('expLead'),
       note: v('expNote'),
+      paidFrom: v('expPaidFrom'),
+      receiptUrl: v('expReceiptUrl'),
       miles: v('expMiles'),
       marketingSource: v('expSource'),
       file: fileEl && fileEl.files && fileEl.files[0],
@@ -1145,10 +1174,18 @@
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
+  function paidFromLabel(k) {
+    var c = EC(), key = c && c.paidFromKey ? c.paidFromKey(k) : '';
+    if (!key) return '';
+    for (var i = 0; i < c.PAID_FROM.length; i++) if (c.PAID_FROM[i].key === key) return c.PAID_FROM[i].label;
+    return '';
+  }
   function exportCSV() {
     var c = EC();
     if (!_expenses.length) { toast('No expenses to export', 'warn'); return; }
+    var paidCols = costsFlagOn();
     var cols = ['Date', 'Supplier', 'Category', 'Cost Type', 'Amount', 'Sales Tax', 'Job', 'Note', 'Source', 'Estimated', 'Schedule C (suggested)'];
+    if (paidCols) cols.push('Paid From', 'Receipt Link');
     var rows = _expenses.map(function (e) {
       var d = toDate(e.date);
       var lead = e.leadId ? leadById(e.leadId) : null;
@@ -1165,7 +1202,7 @@
         e.source || 'manual',
         e.estimated === true ? 'Yes' : '',
         hint
-      ].map(csvCell).join(',');
+      ].concat(paidCols ? [paidFromLabel(e.paidFrom), e.receiptUrl || ''] : []).map(csvCell).join(',');
     });
     if (downloadCSV('nbd-expenses-' + new Date().toISOString().slice(0, 10) + '.csv', cols.join(',') + '\n' + rows.join('\n'))) {
       toast('Exported ' + _expenses.length + (_expenses.length === 1 ? ' expense' : ' expenses'), 'ok');
@@ -1259,6 +1296,263 @@
     catch (e) { toast('Could not delete (only the owner can)', 'error'); }
   }
 
+  // ── Bulk cost CSV import (flag costsPaidFrom) ───────────────────────
+  // Upload a CSV, parse it here in the browser, match every row to a job, run it
+  // through findDuplicate, then show a preview where EACH ROW is approved or
+  // rejected on its own (no "approve all"): Jo confirms every money change. Only
+  // approved rows are written, through createExpense (same path as the form, with
+  // source 'import'). Nothing is ever written silently. Columns:
+  // job, vendor, date, amount, category, paidFrom, receiptUrl, note.
+  var IMPORT_MAX_ROWS = 500;
+  var IMPORT_MAX_BYTES = 1024 * 1024;
+
+  // RFC-4180-ish: quoted cells, doubled quotes, CRLF/LF, a leading BOM.
+  function parseCsv(text) {
+    var s = String(text == null ? '' : text).replace(/^﻿/, '');
+    var rows = [], row = [], cell = '', q = false, i = 0, ch;
+    for (; i < s.length; i++) {
+      ch = s.charAt(i);
+      if (q) {
+        if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"' && cell === '') { q = true; }
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && s.charAt(i + 1) === '\n') i++;
+        row.push(cell); cell = '';
+        rows.push(row); row = [];
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ''; }); });
+  }
+
+  var IMPORT_HEADER_ALIASES = {
+    job: 'job', customer: 'job', customername: 'job', jobname: 'job', leadid: 'job', jobid: 'job',
+    vendor: 'vendor', supplier: 'vendor',
+    date: 'date', amount: 'amount', total: 'amount',
+    category: 'category',
+    paidfrom: 'paidFrom', paidwith: 'paidFrom', paymentsource: 'paidFrom',
+    receipturl: 'receiptUrl', receiptlink: 'receiptUrl', receipt: 'receiptUrl',
+    note: 'note', notes: 'note'
+  };
+  var IMPORT_REQUIRED = ['job', 'date', 'amount', 'category', 'paidFrom'];
+
+  function normName(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+  // 'YYYY-MM-DD' or 'M/D/YYYY' -> 'YYYY-MM-DD' for a REAL calendar day, else ''.
+  function parseImportDate(v) {
+    var s = String(v == null ? '' : v).trim(), y, m, d, mt;
+    if ((mt = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) { y = +mt[1]; m = +mt[2]; d = +mt[3]; }
+    else if ((mt = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) { m = +mt[1]; d = +mt[2]; y = +mt[3]; }
+    else return '';
+    var dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d || y < 2000 || y > 2100) return '';
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+  // '$1,234.50' -> 123450; anything that is not a plain positive money amount -> 0.
+  function parseImportAmountCents(v) {
+    var s = String(v == null ? '' : v).trim().replace(/^\$/, '').replace(/,/g, '');
+    if (!/^\d+(\.\d{1,2})?$/.test(s)) return 0;
+    var cents = Math.round(parseFloat(s) * 100);
+    return cents > 0 && cents < 1000000000 ? cents : 0;
+  }
+  function importCategoryKey(v) {
+    var c = EC(), n = normName(v);
+    if (!c || !n) return '';
+    for (var i = 0; i < c.CATEGORIES.length; i++) {
+      if (normName(c.CATEGORIES[i].key) === n || normName(c.CATEGORIES[i].label) === n) return c.CATEGORIES[i].key;
+    }
+    return '';
+  }
+  function matchImportJob(cell, leads) {
+    var raw = String(cell == null ? '' : cell).trim();
+    if (!raw) return { error: 'Job is empty' };
+    var live = (leads || []).filter(function (l) { return l && !l.deleted; });
+    var byId = live.filter(function (l) { return l.id === raw; });
+    if (byId.length === 1) return { lead: byId[0] };
+    var n = normName(raw);
+    var byName = live.filter(function (l) { return normName(leadName(l)) === n || (l.name && normName(l.name) === n); });
+    if (byName.length === 1) return { lead: byName[0] };
+    if (byName.length > 1) return { error: 'Job "' + raw + '" matches ' + byName.length + ' customers; use the lead id' };
+    return { error: 'Unknown job "' + raw + '"' };
+  }
+
+  // Pure: CSV text -> { error } | { rows }. Each row: { line, raw, status: 'ok' | 'duplicate' | 'rejected',
+  // reasons[], jobLabel, draft } where draft is the createExpense() form for rows that can be approved.
+  // `leads` = job list; findDup(vendor, cents, ymd) = duplicate lookup against the loaded ledger.
+  function buildImportPreview(text, leads, findDup) {
+    var c = EC();
+    if (!c) return { error: 'Expense config not loaded' };
+    var table = parseCsv(text);
+    if (table.length < 2) return { error: 'No data rows found. The first row must be the column names.' };
+    var idx = {};
+    table[0].forEach(function (h, i) {
+      var k = IMPORT_HEADER_ALIASES[String(h).toLowerCase().replace(/[^a-z]/g, '')];
+      if (k && idx[k] == null) idx[k] = i;
+    });
+    var missing = IMPORT_REQUIRED.filter(function (k) { return idx[k] == null; });
+    if (missing.length) return { error: 'Missing column(s): ' + missing.join(', ') + '. Expected: job, vendor, date, amount, category, paidFrom, receiptUrl, note.' };
+    if (table.length - 1 > IMPORT_MAX_ROWS) return { error: 'Too many rows (' + (table.length - 1) + '). Import up to ' + IMPORT_MAX_ROWS + ' at a time.' };
+    var get = function (r, k) { return idx[k] == null ? '' : String(r[idx[k]] == null ? '' : r[idx[k]]).trim(); };
+    var seen = [];
+    var rows = table.slice(1).map(function (r, n) {
+      var out = { line: n + 2, raw: { job: get(r, 'job'), vendor: get(r, 'vendor'), date: get(r, 'date'), amount: get(r, 'amount'), category: get(r, 'category'), paidFrom: get(r, 'paidFrom'), receiptUrl: get(r, 'receiptUrl'), note: get(r, 'note') },
+        status: 'ok', reasons: [], jobLabel: '', draft: null };
+      var bad = function (m) { out.reasons.push(m); };
+      var job = matchImportJob(out.raw.job, leads);
+      if (job.error) bad(job.error); else out.jobLabel = leadName(job.lead);
+      var ymd = parseImportDate(out.raw.date);
+      if (!ymd) bad('Bad date "' + out.raw.date + '" (use YYYY-MM-DD or M/D/YYYY)');
+      var cents = parseImportAmountCents(out.raw.amount);
+      if (!cents) bad('Bad amount "' + out.raw.amount + '" (a positive number like 125.50)');
+      var cat = importCategoryKey(out.raw.category);
+      if (!cat) bad('Unknown category "' + out.raw.category + '"');
+      else if (cat === 'mileage') bad('Mileage is computed from miles; log it with the form');
+      var paid = c.paidFromKey(out.raw.paidFrom);
+      if (!paid) bad('Bad paidFrom "' + out.raw.paidFrom + '" (one of: ' + c.PAID_FROM.map(function (p) { return p.key; }).join(', ') + ')');
+      if (out.raw.receiptUrl && !c.receiptUrlOk(out.raw.receiptUrl)) bad('Receipt link must be an https:// URL, max ' + c.RECEIPT_URL_MAX + ' characters');
+      if (out.raw.vendor.length > 120) bad('Vendor is over 120 characters');
+      if (out.raw.note.length > 500) bad('Note is over 500 characters');
+      if (out.reasons.length) { out.status = 'rejected'; return out; }
+      out.draft = { leadId: job.lead.id, supplier: out.raw.vendor, date: ymd, amount: (cents / 100).toFixed(2), category: cat,
+        paidFrom: paid, receiptUrl: out.raw.receiptUrl, note: out.raw.note, source: 'import' };
+      out.cents = cents;
+      var dup = typeof findDup === 'function' ? findDup(out.raw.vendor, cents, ymd) : null;
+      if (dup) { out.status = 'duplicate'; bad('Looks like a duplicate of a cost already logged (same vendor, amount and day)'); }
+      var key = c.normVendor(out.raw.vendor) + '|' + cents + '|' + ymd;
+      var earlier = seen.filter(function (s) { return s.key === key; })[0];
+      if (earlier) { out.status = 'duplicate'; bad('Same vendor, amount and day as row ' + earlier.line + ' in this file'); }
+      seen.push({ key: key, line: out.line });
+      return out;
+    });
+    return { rows: rows };
+  }
+
+  var _imp = null; // { fileName, rows, decision: {rowIndex: 'approved'|'rejected'}, results: {rowIndex: 'saved'|'failed'}, writing, done }
+
+  function importApprovedCount() { return _imp ? Object.keys(_imp.decision).filter(function (k) { return _imp.decision[k] === 'approved' && !_imp.results[k]; }).length : 0; }
+
+  function importBodyHtml() {
+    var c = EC();
+    if (!_imp || !_imp.rows) {
+      return '<div class="ui-note exx-mt12px">Columns: <b>job, vendor, date, amount, category, paidFrom, receiptUrl, note</b>. ' +
+        'Job is a customer name or lead id. Date is YYYY-MM-DD or M/D/YYYY. Category and paidFrom use the names in the Log Expense form. ' +
+        'Every row is shown below and nothing is saved until you approve that row.</div>' +
+        '<div class="exx-mt12px"><input id="expImpFile" type="file" accept=".csv,text/csv" class="ui-input-lg"></div>' +
+        '<div id="expImpError" class="exx-fs11px-cm-mt6px"></div>';
+    }
+    var okCount = _imp.rows.filter(function (r) { return r.status !== 'rejected'; }).length;
+    var html = '<div class="ui-note exx-mt12px">' + esc(_imp.fileName) + ': ' + _imp.rows.length + ' rows, ' + okCount + ' can be approved, ' + (_imp.rows.length - okCount) + ' rejected by checks. Approve or reject each row.</div>';
+    html += '<div class="exx-imp-scroll"><table class="exx-imp-table"><thead><tr>' +
+      ['Row', 'Job', 'Vendor', 'Date', 'Amount', 'Category', 'Paid from', 'Receipt', 'Check', 'Decision'].map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
+    _imp.rows.forEach(function (r, i) {
+      var d = _imp.decision[i], res = _imp.results[i];
+      var chk = r.status === 'ok' ? 'OK' : esc(r.reasons.join('; '));
+      var cell;
+      if (res) cell = res === 'saved' ? '<b>Saved</b>' : '<b>Failed to save</b>';
+      else if (r.status === 'rejected') cell = '<span>Rejected</span>';
+      else if (_imp.writing) cell = esc(d || 'pending');
+      else cell = '<button type="button" class="btn btn-sm ' + (d === 'approved' ? 'btn-orange' : 'btn-ghost') + '" data-exp-action="imp-approve" data-imp-idx="' + i + '">' + (d === 'approved' ? 'Approved' : 'Approve') + '</button> ' +
+        '<button type="button" class="btn btn-sm ' + (d === 'rejected' ? 'btn-orange' : 'btn-ghost') + '" data-exp-action="imp-reject" data-imp-idx="' + i + '">' + (d === 'rejected' ? 'Rejected' : 'Reject') + '</button>';
+      html += '<tr>' +
+        '<td>' + r.line + '</td>' +
+        '<td>' + esc(r.jobLabel || r.raw.job) + '</td>' +
+        '<td>' + esc(r.raw.vendor) + '</td>' +
+        '<td>' + esc(r.draft ? r.draft.date : r.raw.date) + '</td>' +
+        '<td>' + (r.cents ? money(r.cents) : esc(r.raw.amount)) + '</td>' +
+        '<td>' + esc(r.draft && c ? c.labelFor(r.draft.category) : r.raw.category) + '</td>' +
+        '<td>' + esc(r.draft ? paidFromLabel(r.draft.paidFrom) : r.raw.paidFrom) + '</td>' +
+        '<td>' + (r.raw.receiptUrl ? 'link' : '') + '</td>' +
+        '<td>' + chk + '</td>' +
+        '<td class="exx-imp-nowrap">' + cell + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    var n = importApprovedCount();
+    html += '<button type="button" class="btn btn-orange exx-wd100-mt18px-jccenter" data-exp-action="imp-write"' + (n && !_imp.writing && !_imp.done ? '' : ' disabled') + '>' +
+      (_imp.done ? 'Done' : _imp.writing ? 'Saving…' : 'Save ' + n + ' approved ' + (n === 1 ? 'cost' : 'costs')) + '</button>';
+    return html;
+  }
+  function renderImport() {
+    var body = document.getElementById('expImpBody');
+    if (body) body.innerHTML = importBodyHtml();
+    wireImportFile();
+  }
+  function wireImportFile() {
+    var f = document.getElementById('expImpFile');
+    if (f && !f._nbdWired) { f._nbdWired = true; f.addEventListener('change', onImportFile); }
+  }
+  function onImportFile() {
+    var f = document.getElementById('expImpFile');
+    var file = f && f.files && f.files[0];
+    var errEl = document.getElementById('expImpError');
+    var fail = function (m) { if (errEl) errEl.textContent = m; };
+    if (!file) return;
+    if (file.size > IMPORT_MAX_BYTES) { fail('File is over 1 MB.'); return; }
+    var reader = new FileReader();
+    reader.onerror = function () { fail('Could not read that file.'); };
+    reader.onload = function () {
+      var prev = buildImportPreview(String(reader.result || ''), window._leads || [], findDuplicate);
+      if (prev.error) { fail(prev.error); return; }
+      _imp = { fileName: file.name, rows: prev.rows, decision: {}, results: {}, writing: false, done: false };
+      renderImport();
+    };
+    reader.readAsText(file);
+  }
+  function openImport() {
+    if (!costsFlagOn()) return;
+    if (document.getElementById('expImportOverlay')) return;
+    _imp = null;
+    var ov = document.createElement('div');
+    ov.id = 'expImportOverlay';
+    ov.className = 'modal-bg';
+    ov.innerHTML = '<div class="modal exx-imp-modal">' +
+      '<button type="button" class="modal-close" data-exp-action="imp-close" title="Close">✕</button>' +
+      '<h3 class="exx-m0-ffbarlowco-fs26px">Import costs from CSV</h3><div id="expImpBody"></div></div>';
+    document.body.appendChild(ov);
+    if (window.nbdModal) window.nbdModal.open(ov, { onClose: teardownImport });
+    else ov.classList.add('open');
+    renderImport();
+  }
+  function teardownImport() {
+    var ov = document.getElementById('expImportOverlay');
+    if (ov) ov.remove();
+    _imp = null;
+  }
+  function closeImport() {
+    var ov = document.getElementById('expImportOverlay');
+    if (ov && window.nbdModal) window.nbdModal.close(ov);
+    teardownImport();
+  }
+  function decideImport(i, what) {
+    if (!_imp || _imp.writing || _imp.done || _imp.results[i]) return;
+    var r = _imp.rows[i];
+    if (!r || r.status === 'rejected') return; // failed checks can never be approved
+    if (_imp.decision[i] === what) delete _imp.decision[i]; else _imp.decision[i] = what;
+    renderImport();
+  }
+  // Writes ONLY the rows Jo approved, one at a time, through createExpense.
+  async function writeImport() {
+    if (!_imp || _imp.writing || _imp.done || !costsFlagOn()) return;
+    var todo = Object.keys(_imp.decision).filter(function (k) { return _imp.decision[k] === 'approved' && !_imp.results[k]; }).map(Number).sort(function (a, b) { return a - b; });
+    if (!todo.length) return;
+    _imp.writing = true; renderImport();
+    var saved = 0, failed = 0;
+    for (var j = 0; j < todo.length; j++) {
+      var i = todo[j];
+      var form = Object.assign({}, _imp.rows[i].draft, { source: 'import', quiet: true });
+      var ok = false;
+      try { ok = await createExpense(form); } catch (e) { ok = false; }
+      _imp.results[i] = ok ? 'saved' : 'failed';
+      if (ok) saved++; else failed++;
+    }
+    _imp.writing = false; _imp.done = true;
+    renderImport();
+    toast('Imported ' + saved + (saved === 1 ? ' cost' : ' costs') + (failed ? ', ' + failed + ' failed' : ''), failed ? 'warn' : 'ok');
+    await refresh();
+    try { window.dispatchEvent(new CustomEvent('nbd:expenses-changed')); } catch (_) { /* old browser */ }
+  }
+
   // ── CSP-safe delegated events ───────────────────────────────────────
   if (!window._NBD_EXP_DELEGATE) {
     window._NBD_EXP_DELEGATE = true;
@@ -1270,6 +1564,11 @@
       if (a === 'open-form') openForm();
       else if (a === 'close-form') closeForm();
       else if (a === 'export-csv') exportCSV();
+      else if (a === 'open-import') openImport();
+      else if (a === 'imp-close') closeImport();
+      else if (a === 'imp-approve') decideImport(parseInt(t.dataset.impIdx, 10), 'approved');
+      else if (a === 'imp-reject') decideImport(parseInt(t.dataset.impIdx, 10), 'rejected');
+      else if (a === 'imp-write') writeImport();
       else if (a === 'scan') scanReceipt(t);
       else if (a === 'save') saveFromForm(t);
       else if (a === 'receipt') openReceipt(t.dataset.expPath);
@@ -1309,6 +1608,8 @@
     leadSpendSummary: leadSpendSummary,
     estVsActual: estVsActual,
     findDuplicate: findDuplicate,
+    parseCsv: parseCsv,
+    buildImportPreview: buildImportPreview,
     csvCell: csvCell,
     advanceDate: advanceDate,
     supplierYtdCents: supplierYtdCents,

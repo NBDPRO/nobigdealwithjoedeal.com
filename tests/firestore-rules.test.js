@@ -839,6 +839,26 @@ async function run() {
   // the writer can void with an audit entry; the amount stays a valid int
   await assertSucceeds(updateDoc(doc(alice, 'expenses/payout-ok'), { deleted: true, editLog: [{ at: 1, by: 'alice', what: 'void', note: 'paid twice' }] }));
   await assertFails(updateDoc(doc(alice, 'expenses/payout-nojob'), { paymentMethod: 'barter' }));
+  // ── paidFrom + receiptUrl + bulk import (flag costsPaidFrom, 2026-11-03) ──
+  const paidDoc = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Supply'), { source: 'import', paidFrom: 'business_credit_card', receiptUrl: 'https://drive.google.com/file/d/sample123/view' }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-ok'), paidDoc()));
+  const noUrlDoc = paidDoc(); delete noUrlDoc.receiptUrl;
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-no-url'), noUrlDoc));
+  for (const pf of ['business_credit_card', 'business_debit_card', 'personal_card', 'cash', 'atm', 'check', 'other']) {
+    await assertSucceeds(setDoc(doc(alice, 'expenses/paid-enum-' + pf), paidDoc({ paidFrom: pf })));
+  }
+  await assertFails(setDoc(doc(alice, 'expenses/paid-bad-enum'), paidDoc({ paidFrom: 'venmo' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-bad-type'), paidDoc({ paidFrom: 7 })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-http'), paidDoc({ receiptUrl: 'http://drive.google.com/x' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-js'), paidDoc({ receiptUrl: 'javascript:alert(1)' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-long'), paidDoc({ receiptUrl: 'https://example.com/' + 'a'.repeat(490) })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-url-max'), paidDoc({ receiptUrl: 'https://example.com/' + 'a'.repeat(480) })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-num'), paidDoc({ receiptUrl: 42 })));
+  // update path validates too
+  await assertFails(updateDoc(doc(alice, 'expenses/paid-ok'), { paidFrom: 'bitcoin' }));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/paid-ok'), { paidFrom: 'cash' }));
+  // a rep still cannot import into a foreign tenant
+  await assertFails(setDoc(doc(alice, 'expenses/paid-foreign'), paidDoc({ companyId: 'co-b' })));
   // ── Sub payments sorter (2026-10-19): proof paths + "Not a job cost" ──
   const subPay = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Crew'),
     { category: 'subcontractor', source: 'sub_payments', paymentMethod: 'check', subId: 'sub1', notJobCost: false, proofPaths: ['receipts/alice/sub-proofs/1_a.jpg'], editLog: [] }, extra || {});

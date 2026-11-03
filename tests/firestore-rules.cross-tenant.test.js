@@ -439,6 +439,19 @@ async function run() {
   await check('leads create: own uid as companyId (claim-carrier — rollup evasion)', 'deny', setDoc(doc(bob, 'leads/x-uid'), { userId: 'bob', companyId: 'bob',  name: 'x', meter: 'manual' }));
   await check('leads create: solo (no claim) pins own uid',   'allow', setDoc(doc(noClaim, 'leads/x-solo'),      { userId: 'nc', companyId: 'nc', name: 'x', meter: 'manual' }));
   await check('leads create: missing companyId (required)',   'deny',  setDoc(doc(bob, 'leads/x-none'),          { userId: 'bob', name: 'x', meter: 'manual' }));
+  // Cost import / paidFrom (flag costsPaidFrom, 2026-11-03): the new fields must not open a
+  // cross-tenant door. Bob cannot stamp co-a on an imported cost, cannot hide it under his uid,
+  // and cannot rewrite or read the paidFrom of a co-a cost.
+  const impCost = (uid, co, extra) => Object.assign({ userId: uid, companyId: co, leadId: null, category: 'materials', costType: 'direct',
+    supplier: 'Sample Supply', amountCents: 5000, source: 'import', paidFrom: 'cash', receiptUrl: 'https://drive.google.com/file/d/sample/view' }, extra || {});
+  await check('expenses import: own tenant with paidFrom + receiptUrl', 'allow', setDoc(doc(bob, 'expenses/imp-own'), impCost('bob', 'co-b')));
+  await check('expenses import: foreign companyId (co-a)',              'deny',  setDoc(doc(bob, 'expenses/imp-foreign'), impCost('bob', 'co-a')));
+  await check('expenses import: uid as companyId (claim-carrier)',      'deny',  setDoc(doc(bob, 'expenses/imp-uid'), impCost('bob', 'bob')));
+  await check('expenses import: bad paidFrom enum',                     'deny',  setDoc(doc(bob, 'expenses/imp-badpf'), impCost('bob', 'co-b', { paidFrom: 'gift_card' })));
+  await check('expenses import: non-https receiptUrl',                  'deny',  setDoc(doc(bob, 'expenses/imp-badurl'), impCost('bob', 'co-b', { receiptUrl: 'ftp://x.test/r' })));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/imp-a'), impCost('alice', 'co-a')); });
+  await check('expenses import: other tenant cannot rewrite paidFrom',  'deny',  updateDoc(doc(bob, 'expenses/imp-a'), { paidFrom: 'check' }));
+  await check('expenses import: other tenant cannot read it',           'deny',  getDoc(doc(bob, 'expenses/imp-a')));
   await check('knocks create: foreign companyId (co-a)',      'deny',  setDoc(doc(bob, 'knocks/k-foreign'),      { userId: 'bob', companyId: 'co-a' }));
   await check('knocks create: own companyId (co-b)',          'allow', setDoc(doc(bob, 'knocks/k-own'),          { userId: 'bob', companyId: 'co-b' }));
   await check('knocks create: companyId omitted (degrades)',  'allow', setDoc(doc(bob, 'knocks/k-none'),         { userId: 'bob' }));

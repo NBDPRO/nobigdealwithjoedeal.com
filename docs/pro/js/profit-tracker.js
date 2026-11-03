@@ -57,6 +57,14 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
+  // Flag `costsPaidFrom` (feature_flags/_default, absent = off). On: a job with
+  // revenue but NO direct costs reports a null margin + noCosts:true instead of
+  // a near-100% margin that only means "nobody entered the costs yet".
+  var NO_COSTS_LABEL = 'no costs entered';
+  function noCostsFlagOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('costsPaidFrom'));
+  }
+
   /**
    * Compute P&L for a single lead
    */
@@ -73,6 +81,14 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const netProfit = revenue - totalCost;
     const grossMargin = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
     const netMargin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+
+    if (revenue > 0 && materialCost + laborCost + miscCosts <= 0 && noCostsFlagOn()) {
+      return {
+        revenue, materialCost, laborCost, overhead, miscCosts, totalCost,
+        grossProfit: null, netProfit: null, grossMargin: null, netMargin: null,
+        noCosts: true, marginLabel: NO_COSTS_LABEL
+      };
+    }
 
     return {
       revenue,
