@@ -138,8 +138,11 @@ const credit = (o) => cost(Object.assign({ entryType: 'credit' }, o || {}));
   const m2 = PT.computeJobPLWithExpenses(lead, [{ amountCents: 100000, category: 'materials', costType: 'direct' }, { entryType: 'credit', amountCents: 150000, category: 'materials', costType: 'direct' }]);
   eq('credit bigger than costs: material cost is NEGATIVE, not zero', m2.materialCost, -500);
   ok('credit bigger than costs: flagged with the bucket', m2.creditsExceedCosts === true && m2.creditsExceedBuckets.join() === 'materials');
+  win.NBDFlags = { enabled: () => true }; // costsPaidFrom on too: that is the flag that makes "no costs entered" possible
   const m3 = PT.computeJobPLWithExpenses(lead, [{ entryType: 'credit', amountCents: 50000, category: 'materials', costType: 'direct' }]);
   ok('a lone credit is never relabelled "no costs entered"', !m3.noCosts && m3.creditsExceedCosts === true);
+  ok('(control) with costsPaidFrom on, a job with NO rows at all still reads "no costs entered"', PT.computeJobPLWithExpenses(lead, []).noCosts === true);
+  setFlag(true);
   const m4 = PT.computeJobPLWithExpenses(lead, [{ amountCents: 100000, category: 'materials', costType: 'direct' }, { entryType: 'credit', amountCents: 5000, category: 'insurance', costType: 'overhead' }]);
   eq('an overhead credit does not touch a job margin', m4.materialCost, 1000);
   eq('an adjustment adds to job cost', PT.computeJobPLWithExpenses(lead, [{ amountCents: 100000, category: 'materials', costType: 'direct' }, { entryType: 'adjustment', amountCents: 20000, category: 'materials', costType: 'direct' }]).materialCost, 1200);
@@ -225,6 +228,8 @@ const credit = (o) => cost(Object.assign({ entryType: 'credit' }, o || {}));
   ok('relatedExpenseId on a plain cost is rejected', R(7).status === 'rejected' && /only applies to a credit/.test(why(7)));
   ok('adjustment row is ok', R(8).status === 'ok' && R(8).entryType === 'adjustment');
   ok('a repeated credit in the same file is flagged duplicate', R(9).status === 'duplicate' && /row 2 in this file/.test(why(9)));
+  const inFile = EX.buildImportPreview(HEAD + 'lead-001,ABC Supply,2026-11-02,75.00,materials,cash,,,,,,\nlead-001,ABC Supply,2026-11-02,75.00,materials,,,,credit,,,\n', leads, null, exists);
+  ok('in one file, a cost and a credit of the same vendor/amount/day are NOT duplicates of each other', inFile.rows[0].status === 'ok' && inFile.rows[1].status === 'ok');
   const sameDay = HEAD + 'lead-001,ABC Supply,2026-11-02,1017.84,materials,,,,credit,,,\n';
   EX._setData([{ id: 'o3', supplier: 'ABC Supply', amountCents: 101784, taxCents: 0, category: 'materials', date: new Date(2026, 10, 2, 12) }]);
   ok('import: a credit matching a COST of the same amount/day is NOT a duplicate', EX.buildImportPreview(sameDay, leads, EX.findDuplicate, exists).rows[0].status === 'ok');
@@ -334,10 +339,10 @@ const credit = (o) => cost(Object.assign({ entryType: 'credit' }, o || {}));
   {
     const N = require(JS('numbers-logic.js'));
     const wonLead = { id: 'W1', stage: 'closed', jobValue: 5000, name: 'Sample Won' };
-    if (N.costsNeeded) {
-      const withCredit = N.costsNeeded([wonLead], [{ leadId: 'W1', entryType: 'credit', costType: 'direct', amountCents: 5000 }], () => 'won');
-      ok('Costs needed: a lone credit does not make a won job "costed"', withCredit.total === 1 ? withCredit.costed === 0 : true);
-    }
+    const cn = (exps) => N.costsNeeded([wonLead], exps);
+    const aCost = { leadId: 'W1', costType: 'direct', category: 'materials', amountCents: 5000 };
+    eq('Costs needed: a real cost makes the won job costed', cn([aCost]).costed, 1);
+    eq('Costs needed: a lone credit does NOT make a won job "costed"', cn([Object.assign({ entryType: 'credit' }, aCost)]).costed, 0);
     const RH = fs.readFileSync(JS('receipt-health.js'), 'utf8');
     ok('Receipt health: a credit row is skipped when deciding a job has a cost', /entryType === 'credit'\) return;/.test(RH));
   }
