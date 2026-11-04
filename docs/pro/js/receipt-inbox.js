@@ -216,20 +216,25 @@
   function openDraft(id) {
     const d = S && S.drafts.find((x) => x.id === id);
     if (!d) return;
-    S.curId = id; S.choice = startChoice(d); S.confirmNB = false; S.imgUrl = '';
+    S.curId = id; S.choice = startChoice(d); S.confirmNB = false; S.imgUrl = ''; S.imgFor = '';
     render();
-    loadImage(d);
+  }
+  // The picture (or PDF link) comes from a private download URL fetched when the card shows. The card
+  // re-renders on every pick, so the URL is cached per draft and re-applied after each render.
+  function showImage(url, d) {
+    const img = document.getElementById('riImg');
+    const a = document.getElementById('riPdf');
+    if (img && !/pdf/i.test(d.mime || '')) img.src = url;
+    if (a) { a.href = url; a.hidden = false; }
   }
   async function loadImage(d) {
     if (!d || !d.storagePath || d.fileDeleted || !w.getDownloadURL || !w.ref || !w.storage) return;
+    if (S && S.imgFor === d.id && S.imgUrl) { showImage(S.imgUrl, d); return; }
     try {
       const url = await w.getDownloadURL(w.ref(w.storage, d.storagePath));
       if (!S || S.curId !== d.id) return;
-      S.imgUrl = url;
-      const img = document.getElementById('riImg');
-      const a = document.getElementById('riPdf');
-      if (img && !/pdf/i.test(d.mime || '')) img.src = url;
-      if (a) { a.href = url; a.hidden = false; }
+      S.imgUrl = url; S.imgFor = d.id;
+      showImage(url, d);
     } catch (e) { /* the picture is a help, not a gate */ }
   }
 
@@ -438,6 +443,7 @@
     const m = overlay();
     const d = S.curId ? S.drafts.find((x) => x.id === S.curId) : null;
     m.innerHTML = d ? cardHtml(d) : listHtml();
+    if (d && d.read) loadImage(d);
   }
   // Re-evaluate only the money line and the Approve button while typing (keeps focus in the field).
   function refreshLive() {
@@ -539,7 +545,7 @@
   // ── open / close ────────────────────────────────────────────────────
   async function open() {
     if (!enabled()) return;
-    S = { drafts: [], filter: 'waiting', curId: '', choice: null, spend: { spentUsd: 0, capUsd: LG().INBOX_MONTHLY_USD_CAP }, busy: false, uploading: false, notice: '', aliases: {}, confirmNB: false, imgUrl: '' };
+    S = { drafts: [], filter: 'waiting', curId: '', choice: null, spend: { spentUsd: 0, capUsd: LG().INBOX_MONTHLY_USD_CAP }, busy: false, uploading: false, notice: '', aliases: {}, confirmNB: false, imgUrl: '', imgFor: '' };
     try { if (w.NBDHdImport && typeof w.NBDHdImport.loadAliases === 'function') S.aliases = await w.NBDHdImport.loadAliases(); } catch (e) { S.aliases = {}; }
     render();
     await refreshAll();
@@ -564,7 +570,7 @@
     else if (f === 'total') { ch.total = el.value; ch.totalEdited = true; }
     else if (f === 'tax') { ch.tax = el.value; ch.taxEdited = true; }
     else if (f === 'vendor' || f === 'date' || f === 'category' || f === 'paidFrom' || f === 'note') ch[f] = el.value;
-    if (live) refreshLive(); else { render(); const d = S.drafts.find((x) => x.id === S.curId); if (d) loadImage(d); }
+    if (live) refreshLive(); else render();
   }
   function pick(kind, leadId) {
     const ch = S && S.choice; if (!ch) return;
@@ -572,7 +578,6 @@
     else if (kind === 'overhead') { ch.sort = 'overhead'; ch.leadId = ''; }
     else { ch.sort = 'unsorted'; ch.leadId = ''; }
     render();
-    const d = S.drafts.find((x) => x.id === S.curId); if (d) loadImage(d);
   }
 
   if (!w._NBD_RI_DELEGATE) {
@@ -594,8 +599,8 @@
       else if (a === 'pick-park') pick('park');
       else if (a === 'approve') approve();
       else if (a === 'skip') skip();
-      else if (a === 'not-business') { S.confirmNB = true; render(); const d = S.drafts.find((x) => x.id === S.curId); if (d) loadImage(d); }
-      else if (a === 'not-business-no') { S.confirmNB = false; render(); const d = S.drafts.find((x) => x.id === S.curId); if (d) loadImage(d); }
+      else if (a === 'not-business') { S.confirmNB = true; render(); }
+      else if (a === 'not-business-no') { S.confirmNB = false; render(); }
       else if (a === 'not-business-yes') notBusiness();
     });
     document.addEventListener('input', (ev) => {

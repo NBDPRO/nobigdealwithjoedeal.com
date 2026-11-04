@@ -95,7 +95,8 @@ const region = (src) => { const a = src.indexOf('// ---- BEGIN SHARED'); const b
   win.getDocs = async () => ({ forEach: (fn) => drafts.forEach((d) => fn({ id: d.id, data: () => { const c = Object.assign({}, d); delete c.id; return c; } })) });
   win.storage = {}; win.ref = (s, p) => ({ p });
   win.uploadBytes = async (r, f) => { uploads.push(r.p); };
-  win.getDownloadURL = async () => 'https://example.invalid/pic';
+  let urlCalls = 0;
+  win.getDownloadURL = async () => { urlCalls++; return 'https://example.invalid/pic'; };
   win.deleteObject = async (r) => { deleted.push(r.p); };
   win._httpsCallable = () => async (payload) => { calls.push(payload); return callReply; };
   win._functions = {};
@@ -234,6 +235,7 @@ ok('the card started with the suggested card (3537 = Business debit card), so Ap
   ok('switching to Overhead updates the line', /to Overhead \(no job\)/.test(decode(moneyLine())) && writes.length === 0);
   await click('pick-park');
   ok('Park as unsorted updates the line and is still an explicit pick', /to Unsorted \(no job yet\)/.test(decode(moneyLine())) && approveDisabled() === false);
+  ok('the private picture URL is fetched once per card, not on every pick', urlCalls >= 1 && urlCalls <= 2, urlCalls);
   await click('pick-job', { riLead: 'L-stith' });
 
   // edits
