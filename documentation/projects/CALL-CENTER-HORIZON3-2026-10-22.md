@@ -1,5 +1,7 @@
 # Call Center Horizon 3 - build log (2026-10-22)
 
+> **Status 2026-11-04 (recon against `origin/main`):** the filters this log describes are on main: the status filters (#2664), the date / range, direction and order filters (#2620) and the follow-up that renamed "Missed" to "Short calls" and explains Handled (#2698). Saved views and the call-to-job loop were not re-checked here; the inbox review path for calls is described below as an open question.
+
 Part of [the Daily Success roadmap](DAILY-SUCCESS-ROADMAP-2026-10-21.md), Horizon 3. One small PR per step, in order.
 Code: `docs/pro/js/call-center-filters-logic.js` (pure) and `docs/pro/js/call-center-view.js`.
 

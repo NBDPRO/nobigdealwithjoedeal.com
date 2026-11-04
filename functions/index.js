@@ -457,6 +457,19 @@ exports.docLinkFollowupSweep = require('./doc-link-followup').docLinkFollowupSwe
 const pixelDraft = require('./pixel-draft');
 exports.fileLeadTextDraft = pixelDraft.fileLeadTextDraft;
 
+// Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark): the owner files what was
+// seen; scored by the pure shortlist logic, one opp_seen record per Opportunity. Reads nothing from Thumbtack
+// and sends nothing. See functions/opp-shortlist.js.
+const oppShortlist = require('./opp-shortlist');
+exports.oppShortlistFile = oppShortlist.oppShortlistFile;
+// ...and the first-message draft for one shortlisted Opportunity (fixed templates, never sent). See functions/opp-draft.js.
+const oppDraft = require('./opp-draft');
+exports.oppDraftFile = oppDraft.oppDraftFile;
+// ...and the approval screen's two callables: read the cards, approve / edit / skip / snooze ONE draft. Approve only marks a draft approved. See functions/opp-decide.js.
+const oppDecide = require('./opp-decide');
+exports.oppDraftList = oppDecide.oppDraftList;
+exports.oppDraftDecide = oppDecide.oppDraftDecide;
+
 // NBD CRM connection for the Grok Bot team (2026-10-02): MCP at /api/mcp with
 // per-bot keys; bots read minimized CRM data and FILE notes / reminders /
 // reports into the Agent inbox. See functions/agent-mcp.js.

@@ -99,7 +99,7 @@ console.log('\n5. inline colours that were fixed colours on theme surfaces');
   ok('the floor-row target (≥7 hrs) is muted ink, not #334455', /color:var\(--muted\);">≥\$\{E\(f\.targetValue\)\}/.test(APP) && !/color:#334455;">≥/.test(APP));
   ok('"FLOORS MET" uses the accent text token', /'#4caf82':'var\(--ac-text,var\(--gold\)\)'\};margin-bottom:8px/.test(APP));
   ok('"No previous day" sits on the dark comparison panel with the on-dark accent', /color:var\(--ac-on-dark,var\(--gold\)\);letter-spacing:\.08em;">\$\{prev\?'vs '/.test(APP));
-  ok('the week-glance letters use on-dark inks', /color:\$\{isToday\?'var\(--ac-on-dark,var\(--ac-text\)\)':'var\(--on-dark,var\(--muted\)\)'\};letter-spacing:\.1em/.test(APP));
+  ok('the week-glance letters use on-dark inks', /color:\$\{c\.isToday\?'var\(--ac-on-dark,var\(--ac-text\)\)':'var\(--on-dark,var\(--muted\)\)'\};letter-spacing:\.1em/.test(APP));
   ok('the streak numbers fall back to muted ink, not #8fa1b8, on their light cards', /: 'var\(--muted\)'};line-height:1;">\$\{workoutStreak\}/.test(APP) && /: 'var\(--muted\)'};line-height:1;">\$\{habitPct\}%/.test(APP) && /streak >= 1 \? 'var\(--ac\)' : 'var\(--muted\)'/.test(APP));
   ok('the → on a day row is muted ink, not the hairline colour', /<span style="color:var\(--muted\);flex-shr/.test(APP));
   ok('the sync pill is 11 px (the type floor) and follows the skin\'s accent text', /font-size:11px;font-weight:700;[^']*color:var\(--ac-text,#E4783F\);/.test(SYNC) && /color \|\| 'var\(--ac-text,#E4783F\)'/.test(SYNC) && !/font-size:10px/.test(SYNC));

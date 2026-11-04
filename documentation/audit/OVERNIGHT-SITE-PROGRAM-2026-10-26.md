@@ -70,7 +70,12 @@ signature text.
   gaf-vs-owens-corning-vs-atlas-shingles, how-long-does-roof-replacement-take-cincinnati,
   how-to-choose-a-roofer-after-a-storm. Higher impact than the contrast finding; not fixed yet.
 - `/storm-alerts` and `/inspect`: on an empty submit the error box lands 950 to 1250 px below the focused field.
+  **Fixed:** `/inspect` in #2764; `/storm-alerts` on 2026-11-04 (`claude/site-fixes-2026-11-04`). The box now sits
+  14 px under the bad field, and just above the consent checkbox, because under it the phone's Book/Call/Text bar
+  hid it. Guard: `tests/storm-alerts-error-placement-2026-11-04.test.js`.
 - Reports `_delta(cur, prev)` returns +100% whenever the previous period is zero, so the sample shows "$20k up +100%".
+  **Fixed 2026-11-04** (same branch): a change from zero shows no badge. Guard:
+  `tests/reports-delta-from-zero-2026-11-04.test.js`.
 - The Reports funnel counts leads created in the window, the Estimates band counts estimates: 89% close rate beside 25%
   on the same sample, by design, until the sample has estimates for the other seven won leads.
 - CI: `Pro demo zero-network walk` (20 min cap) and `Public-surface E2E (mobile WebKit)` (15 min cap) were each

@@ -8,6 +8,14 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/color-matching-paint-why-it-takes-so-long",
+    tag: "Home Tips",
+    title: "Why Paint Color Matching Takes So Long (and How to Skip a Trip)",
+    meta: "By Joe Deal · November 2026 · 4 min read",
+    excerpt: "A good paint color match takes about ten minutes. A hard one can take forty-five. Here is why, and what to bring so you only make the trip once.",
+    published: "2026-11-04",
+  },
+  {
     url: "/blog/how-a-roof-works-layer-by-layer",
     tag: "How It Works",
     title: "How a Roof Actually Works, Layer by Layer",

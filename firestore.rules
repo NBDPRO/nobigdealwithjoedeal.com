@@ -4227,6 +4227,35 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark).
+    // opp_seen/{companyId}_{oppId}: one record per Opportunity seen (decision, score, fixed
+    // tags, ZIP, miles; no name, phone or free text). opp_rules/_default: the owner's rules
+    // override and kill switch. Admin-SDK only: the oppShortlistFile callable is the sole
+    // writer of opp_seen (create(), first sighting wins) and the owner reads through
+    // callables, never straight from the browser. A client that reaches these paths is
+    // denied for read AND write, whoever it is (owner, platform admin, another tenant).
+    match /opp_seen/{docId} {
+      allow read, write: if false;
+    }
+    match /opp_rules/{docId} {
+      allow read, write: if false;
+    }
+    // opp_drafts/{companyId}_{oppId}: the first-message draft for one shortlisted Opportunity.
+    // CREATE-ONLY for clients, which means no client at all: oppDraftFile files it with the Admin
+    // SDK's create() (a second filing never overwrites the first), and the only later writer is the
+    // owner-only oppDraftDecide callable (Admin SDK: approve, edit, skip, snooze one pending draft;
+    // approve only marks it approved, nothing sends). Nothing deletes it. No client can read, create,
+    // update or delete it: the rules deny every client operation, whoever the client is.
+    match /opp_drafts/{docId} {
+      allow read, write: if false;
+    }
+    // opp_caps/{companyId}: the approval counter behind the 8-a-day / 25-a-week caps (day key, week
+    // key, two counts). Written only inside oppDraftDecide's transaction (Admin SDK). A client that
+    // could write it could reset the caps, so every client operation is denied, whoever the client is.
+    match /opp_caps/{docId} {
+      allow read, write: if false;
+    }
+
     // Thursday — the Bland AI receptionist's call log (integrations/thursday.js).
     // One doc per call (id bland_calls__{call_id}): transcript, extraction,
     // route, notification state. Admin-SDK only for writes — the webhook, the

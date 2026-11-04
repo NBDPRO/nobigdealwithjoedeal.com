@@ -2111,6 +2111,19 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
   #hot-leads-body .hl-action{ position:relative; }
   #hot-leads-body .hl-action::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; }
 }
+/* Recent Activity (.activity-row, a flex line: icon, title, action cluster, time) on phones (crm-10 leftover, Jo
+   2026-11-04: "own row"). Up to five 36px actions left the title one letter wide at 390, so below 600px the cluster
+   wraps to a full-width row of its own under the title, right-aligned (order puts it after the time). On a touch
+   phone it gets Hot Leads' 8px gap and centred 44 x 44 hit area. Desktop keeps the one-line row. */
+@media (max-width:600px){
+  .activity-row{ flex-wrap:wrap; row-gap:8px; }
+  .activity-row > .af-actions{ order:1; flex-basis:100%; justify-content:flex-end; flex-wrap:wrap; }
+}
+@media (hover:none) and (max-width:600px){
+  .activity-row > .af-actions{ gap:8px !important; }
+  .activity-row .af-action{ position:relative; }
+  .activity-row .af-action::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; }
+}
 /* Toggle switch component */
 .ob-toggle{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0;}
 .ob-toggle input{opacity:0;width:0;height:0;position:absolute;}
