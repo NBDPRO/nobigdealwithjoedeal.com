@@ -235,6 +235,15 @@
   // to 0px on a phone and pushed the ✕ past a 360px screen. The generated
   // row's View button rendered 16px beside the 11px View links for the
   // same reason.
+  // Secure Document Link (2026-11-04, dark): client flag `secureDocLink` shows the buttons and chip.
+  function secureFlagOn() {
+    return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('secureDocLink'));
+  }
+  // The newest secure link's summary (lead.docTrack), when it is THIS row's link.
+  function secureTrackFor(doc) {
+    var tr = ((typeof window !== 'undefined' && window._currentLead) || {}).docTrack;
+    return (tr && doc && doc.reviewToken && tr.tokenRef === doc.reviewToken.slice(0, 10)) ? tr : null;
+  }
   function rowHtml(doc) {
     var label = esc(doc.name);
     return '<div class="doc-item" data-doc-id="' + esc(doc.id) + '">'
@@ -819,14 +828,7 @@
   // buttons; the server refuses unless SECURE_DOC_LINK_ENABLED=true. The code
   // (when we generate one) is shown to Jo once in a dialog and is never put in
   // the message, the URL, a toast, a log or the lead.
-  function secureFlagOn() {
-    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('secureDocLink'));
-  }
-  // The newest secure link's summary (lead.docTrack), when it is THIS row's link.
-  function secureTrackFor(doc) {
-    var tr = (window._currentLead || {}).docTrack;
-    return (tr && doc && doc.reviewToken && tr.tokenRef === doc.reviewToken.slice(0, 10)) ? tr : null;
-  }
+  // (secureFlagOn / secureTrackFor live above rowHtml, which uses them.)
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('nbd:flags-loaded', function () { try { render(); } catch (e) { /* page not ready */ } });
   }
