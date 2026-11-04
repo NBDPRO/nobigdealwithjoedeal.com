@@ -590,6 +590,7 @@
     "admin-tenants-site-address-2026-10-23.test.js",
     "tenant-ready-2026-10-04.test.js",
     "theme-contrast.test.js",
+    "crm-logo-accent-contrast-2026-11-04.test.js",
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
     "thursday-ui-wiring.test.js",
