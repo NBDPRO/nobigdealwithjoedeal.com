@@ -596,7 +596,7 @@ function rankSuggestions({ capture, transcript, callerFacts, leads, appointments
   // creates a chip, never outranks a stronger signal)
   cand.forEach((c) => {
     const l = byId.get(c.leadId);
-    const t = toMs(l && (l.lastContactedAt != null ? l.lastContactedAt : l.updatedAt));
+    const t = Math.max(toMs(l && (l.lastContactedAt != null ? l.lastContactedAt : l.updatedAt)), toMs(l && l.lastInboundAt));
     c.recent = !!(t && nowMs && nowMs - t >= 0 && nowMs - t < 14 * 86400000);
   });
 

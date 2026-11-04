@@ -370,6 +370,7 @@ const CASES = [
   { fn: 'createEstimateReviewLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1' } },
   { fn: 'recordEstimateShared', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1', token: 'ABCDEFGHJKLMNPQRSTUV2345' } },
   { fn: 'freshEstimateLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1' } },
+  { fn: 'revokeDocumentLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', token: 'ABCDEFGHJKLMNPQRSTUV2345' } },
   { fn: 'transcribeVoiceMemo', file: 'integrations/voice-memo.js', kind: 'call', data: { leadId: 'lead-1', audioBase64: 'A'.repeat(400), mimeType: 'audio/webm' } },
   { fn: 'analyzePhotoVision', file: 'photo-vision.js', kind: 'call', data: { photoId: 'photo-1' } },
   { fn: 'backfillAnalytics', file: 'handlers/migrations.js', kind: 'call', data: {} },
@@ -463,7 +464,7 @@ const VERDICTS = {
   // "Use it" on the homeowner's accepted tier (2026-10-07, R6-2-4): rebuilds the estimate.
   useAcceptedTier: 'refused',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
-  createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
+  createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused', revokeDocumentLink: 'refused',
   // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.
   getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
@@ -494,6 +495,15 @@ const VERDICTS = {
   // Pixel World DRAFT TEXT (2026-10-11): assertNotViewer + viewer / member refused,
   // a sales_rep only for a lead they own (functions/pixel-draft.js).
   fileLeadTextDraft: 'role-gated',
+  // Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark): OWNER ONLY (opp-access.js
+  // ownerOf: assertNotViewer, then the caller must be the NBD owner account), so a viewer is refused twice.
+  // Proven in tests/opp-shortlist-callable-2026-11-04.test.js section 1.
+  oppShortlistFile: 'role-gated',
+  // oppDraftFile (same gate, functions/opp-draft.js): owner only; proven in tests/opp-draft-callable-2026-11-04.test.js section 1.
+  oppDraftFile: 'role-gated',
+  // oppDraftList / oppDraftDecide (functions/opp-decide.js): the same owner-only gate; proven in tests/opp-decide-callable-2026-11-04.test.js section 1.
+  oppDraftList: 'role-gated',
+  oppDraftDecide: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', transferCompanyOwnership: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
@@ -573,7 +583,7 @@ const VERDICTS = {
   saveFunnelProgress: 'public', sendD2DSMS: 'refused', sendEmail: 'already', sendPortalMessage: 'public',
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
-  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', dealPrequalStarted: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
+  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', docLinkPing: 'public', dealPrequalStarted: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', referralLinkOpened: 'public', submitSignature: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',

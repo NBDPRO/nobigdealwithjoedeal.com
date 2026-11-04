@@ -109,28 +109,28 @@
     // window.ProfitTracker.computeJobPLWithExpenses at render — so it must ride
     // this bundle or the margin silently degrades to "set Job Value".
     expenses: [
-      'js/expense-config.js?v=3',
+      'js/expense-config.js?v=5',
       // Same ?v as customer.html, which keeps this file EAGER: its
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
-      'js/profit-tracker.js?v=6',
-      'js/expenses.js?v=16',
+      'js/profit-tracker.js?v=8',
+      'js/expenses.js?v=18',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',
       // Job cost auditor (2026-10-19): inert until the jobCostAuditor flag is on.
-      'css/job-cost-audit.css?v=1', 'js/job-cost-audit-logic.js?v=2', 'js/job-cost-audit.js?v=3',
+      'css/job-cost-audit.css?v=1', 'js/job-cost-audit-logic.js?v=3', 'js/job-cost-audit.js?v=3',
       // Sub payments sorter (2026-10-19): inert until the subPaymentsSorter flag is on.
       'css/proof-photos.css?v=1', 'js/proof-photos.js?v=1',
-      'css/sub-payments.css?v=2', 'js/sub-payments-logic.js?v=1', 'js/sub-payments.js?v=2',
+      'css/sub-payments.css?v=2', 'js/sub-payments-logic.js?v=2', 'js/sub-payments.js?v=2',
       // Month close (2026-10-19): inert until the monthClose flag is on.
-      'css/month-close.css?v=1', 'js/month-close-logic.js?v=1', 'js/month-close.js?v=1',
+      'css/month-close.css?v=1', 'js/month-close-logic.js?v=2', 'js/month-close.js?v=1',
       // Customer payment backfill (2026-10-19): inert until the paymentBackfill flag is on (owner only).
       'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=1', 'js/payment-backfill.js?v=1',
       // Sub paperwork tracker (2026-10-19): inert until the subPaperwork flag is on (owner / company_admin write).
-      'css/sub-paperwork.css?v=1', 'js/sub-paperwork-logic.js?v=3', 'js/sub-paperwork.js?v=3',
+      'css/sub-paperwork.css?v=1', 'js/sub-paperwork-logic.js?v=4', 'js/sub-paperwork.js?v=3',
       // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.
-      'css/receipt-health.css?v=1', 'js/receipt-health.js?v=2',
+      'css/receipt-health.css?v=1', 'js/receipt-health.js?v=3',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=4',
@@ -150,7 +150,7 @@
       'js/stripe-ledger-panel.js?v=5',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
-      'js/money-dashboard.js?v=12'
+      'js/money-dashboard.js?v=13'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -222,7 +222,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=9',
+      'js/customer-documents.js?v=10',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.

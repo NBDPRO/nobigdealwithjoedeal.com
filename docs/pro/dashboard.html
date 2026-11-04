@@ -37,6 +37,7 @@
 <link rel="stylesheet" href="css/reputation.css?v=1">
 <link rel="stylesheet" href="css/speed-to-lead.css?v=1">
 <link rel="stylesheet" href="css/estimate-follow-board.css?v=1">
+<link rel="stylesheet" href="css/follow-up-board.css?v=2">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
 <link rel="stylesheet" href="css/phone-calls.css?v=13">
@@ -162,7 +163,7 @@
 <link rel="stylesheet" href="css/money-dashboard.css?v=3">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
-<link rel="stylesheet" href="css/expenses.css?v=3">
+<link rel="stylesheet" href="css/expenses.css?v=5">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=2">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=3">
 <link rel="stylesheet" href="css/field-sunlight.css?v=1">
@@ -228,7 +229,7 @@
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=5">
-<link rel="stylesheet" href="css/estimate-send.css?v=1">
+<link rel="stylesheet" href="css/estimate-send.css?v=2">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
@@ -2008,6 +2009,11 @@
             <button class="btn btn-ghost crm-hdr-btn" id="estimateFollowBoardBtn" type="button" hidden
               title="Open estimates that have gone quiet, with a one-tap draft follow-up for you to send">
               📨 <span class="crm-hdr-btn-label">Estimate follow-ups</span><span class="stl-badge" id="estimateFollowBoardBadge" hidden>0</span>
+            </button>
+            <!-- Follow-ups (js/follow-up-board.js, flag followUpBoard): shown only with the flag on. -->
+            <button class="btn btn-ghost crm-hdr-btn" id="followUpBoardBtn" type="button" hidden
+              title="Who needs you next: customers waiting on a reply, promised estimates, quiet estimates, untouched new leads">
+              📋 <span class="crm-hdr-btn-label">Follow-ups</span><span class="stl-badge" id="followUpBoardBadge" hidden>0</span>
             </button>
             <!-- Reputation (js/reputation.js, flag reputationLoop): owner / company_admin only, shown only with the flag on. -->
             <button class="btn btn-ghost crm-hdr-btn" id="reputationBtn" type="button" hidden
@@ -7343,6 +7349,11 @@
 <script defer src="js/estimate-followups.js?v=3"></script>
 <!-- "Estimate follow-ups" board (2026-10-19): flag estimateFollowBoard, absent = off. Reads window.NBDEstimateFollowups, so it loads after estimate-followups.js. -->
 <script defer src="js/estimate-follow-board.js?v=1"></script>
+<!-- "Follow-ups" board (2026-11-03): flag followUpBoard, absent = off. Extends the board above, so it loads after it. -->
+<script defer src="js/follow-up-board-logic.js?v=1"></script>
+<script defer src="js/follow-up-board.js?v=2"></script>
+<script defer src="js/opp-approval-logic.js?v=1"></script>
+<script defer src="js/opp-approval.js?v=1"></script>
 <script defer src="js/chibi.js?v=12"></script>
 <script defer src="js/game-sprite.js?v=6"></script>
 <script defer src="js/game-card.js?v=6"></script>
@@ -7355,7 +7366,7 @@
      spend + cost per lead, the required lost reason. numbers-logic.js is the
      pure rules; numbers-data.js the owner-only reads/writes; the picker is
      the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
-<script defer src="js/numbers-logic.js?v=2"></script>
+<script defer src="js/numbers-logic.js?v=3"></script>
 <script defer src="js/numbers-data.js?v=2"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
@@ -7468,7 +7479,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=12"></script>
+<script defer src="js/analytics-kpi.js?v=13"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7507,7 +7518,7 @@
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
 <script defer src="js/prospects.js?v=6"></script>
-<script defer src="js/lead-source-roi.js?v=4"></script>
+<script defer src="js/lead-source-roi.js?v=5"></script>
 <!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
 <script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
