@@ -4200,12 +4200,19 @@ service cloud.firestore {
     match /opp_rules/{docId} {
       allow read, write: if false;
     }
-    // opp_drafts/{companyId}_{oppId}: the first-message draft for one shortlisted Opportunity
-    // (status pending until a later PR's approval step). CREATE-ONLY: the oppDraftFile callable
-    // writes it with the Admin SDK's create(), so a second filing never overwrites the first, and
-    // no code path in this series updates or deletes it. No client can read, create, update or
-    // delete it: the rules deny every client operation, whoever the client is.
+    // opp_drafts/{companyId}_{oppId}: the first-message draft for one shortlisted Opportunity.
+    // CREATE-ONLY for clients, which means no client at all: oppDraftFile files it with the Admin
+    // SDK's create() (a second filing never overwrites the first), and the only later writer is the
+    // owner-only oppDraftDecide callable (Admin SDK: approve, edit, skip, snooze one pending draft;
+    // approve only marks it approved, nothing sends). Nothing deletes it. No client can read, create,
+    // update or delete it: the rules deny every client operation, whoever the client is.
     match /opp_drafts/{docId} {
+      allow read, write: if false;
+    }
+    // opp_caps/{companyId}: the approval counter behind the 8-a-day / 25-a-week caps (day key, week
+    // key, two counts). Written only inside oppDraftDecide's transaction (Admin SDK). A client that
+    // could write it could reset the caps, so every client operation is denied, whoever the client is.
+    match /opp_caps/{docId} {
       allow read, write: if false;
     }
 

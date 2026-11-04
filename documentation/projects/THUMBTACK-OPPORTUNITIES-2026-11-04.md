@@ -1,13 +1,13 @@
 # Thumbtack Opportunities watcher (2026-11-04)
 
-Server and data pieces for shortlisting Thumbtack Opportunities and drafting a first reply. It ships **dark** behind the flag `thumbtackOpportunities` and it **reads nothing from Thumbtack, logs in to nothing, sends nothing and runs no browser step**. Everything here takes plain item objects (what a page read produced, or what Jo pasted) and returns a decision. The design and Jo's answers live in the vault note `Money/Design - Thumbtack Opportunities Watcher 2026-11-04` (private, not in this repo).
+Server, data and approval-screen pieces for shortlisting Thumbtack Opportunities, drafting a first reply, and letting Jo approve it. It ships **dark** behind the flag `thumbtackOpportunities` and it **reads nothing from Thumbtack, logs in to nothing, sends nothing and runs no browser step**. Everything here takes plain item objects (what a page read produced, or what Jo pasted) and returns a decision. The design and Jo's answers live in the vault note `Money/Design - Thumbtack Opportunities Watcher 2026-11-04` (private, not in this repo).
 
 **Flags** (Firestore `feature_flags/_default`, or per user in `feature_flags/{uid}`; absent or anything but the boolean `true` = off):
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `thumbtackOpportunities` | false | Every watcher callable refuses and files nothing while it is off. |
-| `thumbtackOppSend` | false | RESERVED for the sender (a later PR, not built). Nothing reads it. |
+| `thumbtackOppSend` | false | RESERVED for the sender (a later PR, not built). Nothing reads it, including the approval screen. |
 
 Both are registered in `functions/flags-registry.js` (`FIRESTORE_FLAGS`, a separate list from the env flags) and pinned by `tests/flags-registry-drift.test.js`.
 
@@ -46,10 +46,11 @@ One record per Opportunity seen, one per draft, and a rules doc. Customer contac
 |---|---|---|
 | `opp_seen/{companyId}_{oppId}` | `seenAt`, `postedAgeMin`, `category`, `tradeKey`, `zip`, `city`, `milesNearestBase`, `baseUsed`, `prosAlready`, `photos` (count), `summary` (fixed tags only, 200 chars max), `score`, `decision`, `reasons[]`, `flags[]`, `rulesVersion`, `expireAt` | `oppId` is Thumbtack's id if visible, else a hash of category + place + posted time rounded to 30 minutes. `expireAt` is 90 days out (the delete job is not built). No names, no phone, no free text. |
 | `opp_rules/_default` | numeric overrides, `killSwitch`, `history`, `rulesVersion` | Owner-edited only through `sanitizeOverride` (bounded numbers; a cap can only be lowered). |
-| `opp_drafts/{companyId}_{oppId}` | `oppId`, `tradeKey`, `templateKey`, `draftText`, `usedQuote`, `status` (`pending`), `createdAt`, `createdBy`, `expireAt` | Create-only. One per opportunity. Approval, edit, skip and send fields come with later PRs. |
+| `opp_drafts/{companyId}_{oppId}` | `oppId`, `tradeKey`, `templateKey`, `draftText`, `usedQuote`, `status` (`pending`), `createdAt`, `createdBy`, `expireAt`; from PR 4 also `approvedAt`, `approvedBy`, `approvedText`, `editedText`, `editedByJo`, `approvedInSendHours`, `sendLabel`, `skipReason`, `skippedAt`, `snoozedUntil` | Created once by `oppDraftFile` (`create()`), one per opportunity; the only later writer is `oppDraftDecide`. The `sent` / `failed` fields come with the sender PR. |
+| `opp_caps/{companyId}` | `dayKey`, `dayCount`, `weekKey`, `weekCount` | PR 4. The approval counter behind the caps. Admin-SDK only, written only inside `oppDraftDecide`'s transaction. |
 | `feature_flags/_default.thumbtackOpportunities` | boolean | Absent or false = off. |
 
-Not built here: the approval screen (inside the Follow-up board, a later PR), the sender, outreach tracking (`thumbtack_outreach`), the weekly report (`opp_weekly`) and rule tuning. No auto-send exists or is planned in this series.
+Not built here: the sender, outreach tracking (`thumbtack_outreach`), the weekly report (`opp_weekly`) and rule tuning. No auto-send exists or is planned in this series.
 
 ## Storage and the filing callable (PR 2)
 
@@ -71,6 +72,34 @@ A draft is a **fixed template plus three facts** (company name, city, one saniti
 - **`opp_drafts/{companyId}_{oppId}`** is CREATE-ONLY: the callable writes it with `create()` (a second filing answers `already_filed`, never overwrites), nothing in this series updates or deletes it, and `firestore.rules` denies every client read and write.
 - **`oppDraftFile`** (`functions/opp-draft.js`): OWNER ONLY, App Check, 60 an hour, dark behind the flag and the kill switch. Only an `opp_seen` record the shortlist marked SHOW (and not flagged `instruction_text`) gets a draft. Files status `pending`. It sends nothing, approves nothing and has no approve or send path.
 
+## Approval screen (PR 4)
+
+**What it is.** One more section at the top of the Follow-up board overlay, "Thumbtack Opportunities to approve", drawn by `docs/pro/js/opp-approval.js` (DOM) and `opp-approval-logic.js` (pure HTML strings, run under node in the tests). It shows only when BOTH the `followUpBoard` and the `thumbtackOpportunities` flags are on, and never to a viewer, member or sales rep. Flag off = nothing renders, reads or writes. The Follow-up board itself changed by a few lines: it asks the module for a section and repaints.
+
+**What a card shows:** trade, city and ZIP, how long ago it was posted, miles from the nearer base, pros already in, photos yes/no, the score, **the plain-language reasons it was shortlisted** (the shortlist's own sentences), any flag, and the draft in a box Jo can edit. Today's approvals against the caps are at the top ("Approved today 3 of 8 · this week 9 of 25"). Price per reply is not shown: nothing records it yet.
+
+**Buttons, each on the one card it sits on (there is no approve-all):**
+
+- **Approve** sends the text exactly as it is on the card (or in the open edit box). The server refuses the whole call if that text fails the PR 3 finished-text gate, whether Jo edited it or not.
+- **Edit** opens a box; **Save edit** keeps it on a still-pending draft without approving; **Cancel edit** drops it.
+- **Skip** asks for one of four reasons (wrong trade, too far, too small, too crowded); the reason is stored on the draft for the later learning loop and changes no rule.
+- **Snooze 1h** hides the card for an hour (it is only hidden: it comes back by itself and can still be approved).
+
+**Approve only MARKS the draft `approved`.** There is no sender in this PR, no Thumbtack access, no browser step, and nothing is sent to anyone. The screen says so on every approved card. Approved is final here: it cannot be skipped, snoozed or edited afterwards.
+
+**The two callables** (`functions/opp-decide.js`, pure half `opp-decide-logic.js`; OWNER ONLY through the same `opp-access.js` gate, App Check, dark behind the flag and the `opp_rules/_default` kill switch, 240 calls an hour per uid):
+
+- `oppDraftList` reads the company's `pending` and `approved` drafts, joins each to its `opp_seen` record, and returns whitelisted cards plus the caps counts. A read error is `unavailable` (fail closed). Browsers cannot read these collections directly.
+- `oppDraftDecide` `{ oppId, action: approve|edit|skip|snooze, text?, reason? }` does one action on one draft in one Firestore transaction. Another company's draft and a missing one both answer the same `not_found`.
+
+**Caps and hours, enforced at approve time.** 8 approvals a day and 25 a week, counted in `opp_caps/{companyId}` (Eastern calendar day; the week starts Monday). The check and the counter bump happen in the same transaction as the status change, so two taps at once cannot both take the last slot, and a second approve of the same draft answers `already_approved` without counting again. A counter that is not a whole number fails closed (nothing is approved). A rules override can only lower a cap. Approval is allowed at any hour; outside 8am to 8pm Eastern the draft is stored and shown as **will send 8am**. The hours do not block anything yet, because nothing sends.
+
+**The cap counts approvals, not sends.** There is no sender, so "approved" is the only event there is; when the sender arrives it should decide whether a failed send gives its slot back (today it does not).
+
+**The phone rule on edits.** `textProblem` is the PR 3 `draftProblem` itself (digits, number words, "text me", links, emails, Kentucky claim wording, banned claim words, emoji, length), run on every text that is approved or saved, including an unchanged stored draft. There is no second copy of the refuser and none in the browser.
+
+**Opportunity text is data.** The only words of a stranger that can reach a card are the sanitized quote inside the draft; the client escapes every string it draws (text, city, reasons, flags, ids) and uses no inline handler, inline style or inline script. The reasons and flags are the shortlist's own sentences and fixed tags.
+
 ## May be wrong
 
 - **The 3x expected-value test blocks everything on Jo's own numbers.** Roof repair: 6 hires per 33 leads (18.2%) x about $790 collected per hire is about $144 per reply against a $49.15 price ceiling; 3x that is $147.45, so it fails by a hair (2.9x). Siding repair, gutter repair and roof install fail by a wide margin. The design note's "2.7x to 3.5x collected-to-spend" for the whole channel says the same thing: a 3x bar sits at the channel average. The multiple is a data field; Jo should pick the multiple (or confirm the definition) before anyone passes the seed history in.
@@ -83,5 +112,7 @@ A draft is a **fixed template plus three facts** (company name, city, one saniti
 ## Files
 
 `functions/opp-rules.js` (data, flag names, override whitelist), `functions/opp-shortlist-logic.js` (pure scoring, shortlist, hours, caps), `functions/flags-registry.js` (`FIRESTORE_FLAGS`), `tests/opp-shortlist-2026-11-04.test.js`, `tests/flags-registry-drift.test.js`; PR 2: `functions/opp-access.js`, `functions/opp-shortlist.js`, `functions/index.js` + `function-map.json` + `FUNCTIONS_INDEX.md` entries, `firestore.rules`, `tests/opp-shortlist-callable-2026-11-04.test.js`, `tests/firestore-rules.opp-2026-11-04.test.js` (emulator, wired in `.github/workflows/ci.yml`).
+
+PR 4: `functions/opp-decide.js`, `functions/opp-decide-logic.js`, `docs/pro/js/opp-approval.js`, `docs/pro/js/opp-approval-logic.js`, a few lines in `docs/pro/js/follow-up-board.js`, `docs/pro/css/follow-up-board.css`, two script tags in `docs/pro/dashboard.html`, `opp_caps` in `firestore.rules`, `tests/opp-decide-2026-11-04.test.js`, `tests/opp-decide-callable-2026-11-04.test.js`, `tests/opp-approval-ui-2026-11-04.test.js`, rules test extended.
 
 PR 3: `functions/opp-draft-templates.js`, `functions/opp-draft-logic.js`, `functions/opp-draft.js`, `opp_drafts` rules entry, `tests/opp-draft-2026-11-04.test.js`, `tests/opp-draft-callable-2026-11-04.test.js`, rules test extended.

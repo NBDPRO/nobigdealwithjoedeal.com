@@ -63,10 +63,12 @@ async function run() {
   const SEEN = 'opp_seen/co-a_ZZ_QA_1';
   const RULES_DOC = 'opp_rules/_default';
   const DRAFT = 'opp_drafts/co-a_ZZ_QA_1';
+  const CAPS = 'opp_caps/co-a';
   await env.withSecurityRulesDisabled(async (c) => {
     await setDoc(doc(c.firestore(), SEEN), { companyId: 'co-a', oppId: 'ZZ_QA_1', decision: 'SHOW', score: 80 });
     await setDoc(doc(c.firestore(), RULES_DOC), { killSwitch: false });
     await setDoc(doc(c.firestore(), DRAFT), { companyId: 'co-a', oppId: 'ZZ_QA_1', status: 'pending', draftText: 'ZZ_QA first draft' });
+    await setDoc(doc(c.firestore(), CAPS), { companyId: 'co-a', dayKey: '2026-11-04', dayCount: 8, weekKey: '2026-11-02', weekCount: 8 });
     await setDoc(doc(c.firestore(), 'feature_flags/_default'), { thumbtackOpportunities: false });
   });
 
@@ -91,6 +93,10 @@ async function run() {
     await check(name + ' CANNOT approve a draft (update status)', 'deny', updateDoc(doc(db, DRAFT), { status: 'approved' }));
     await check(name + ' CANNOT overwrite a draft (set over the existing doc)', 'deny', setDoc(doc(db, DRAFT), { companyId: 'co-a', oppId: 'ZZ_QA_1', status: 'sent', draftText: 'changed' }));
     await check(name + ' CANNOT delete a draft', 'deny', deleteDoc(doc(db, DRAFT)));
+    await check(name + ' CANNOT read the approval caps counter', 'deny', getDoc(doc(db, CAPS)));
+    await check(name + ' CANNOT reset the approval caps counter (set)', 'deny', setDoc(doc(db, CAPS), { companyId: 'co-a', dayKey: '2026-11-04', dayCount: 0, weekKey: '2026-11-02', weekCount: 0 }));
+    await check(name + ' CANNOT reset the approval caps counter (update)', 'deny', updateDoc(doc(db, CAPS), { dayCount: 0 }));
+    await check(name + ' CANNOT delete the approval caps counter', 'deny', deleteDoc(doc(db, CAPS)));
   }
   await check('another opp_rules doc id is denied too', 'deny', setDoc(doc(owner, 'opp_rules/co-a'), { killSwitch: false }));
   await check('a sub-path under opp_seen is denied (default deny)', 'deny', setDoc(doc(owner, 'opp_seen/co-a_ZZ_QA_1/notes/n1'), { x: 1 }));
@@ -106,6 +112,8 @@ async function run() {
     const dn = await getDoc(doc(c.firestore(), 'opp_drafts/co-a_ZZ_QA_2'));
     results.push({ label: 'seeded opp_drafts doc is untouched (still pending, text unchanged)', ok: dr.exists() && dr.data().status === 'pending' && dr.data().draftText === 'ZZ_QA first draft' });
     results.push({ label: 'no opp_drafts doc was created by a denied write', ok: !dn.exists() });
+    const cp = await getDoc(doc(c.firestore(), CAPS));
+    results.push({ label: 'seeded opp_caps counter is untouched (still 8 / 8)', ok: cp.exists() && cp.data().dayCount === 8 && cp.data().weekCount === 8 });
     results.push({ label: 'no doc was created by a denied write', ok: !n.exists() });
   });
 

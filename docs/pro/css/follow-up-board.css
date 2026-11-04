@@ -43,3 +43,18 @@
   .fub-box { padding: 10px; }
   .fub-acts .fub-btn { flex: 1 1 140px; }
 }
+
+/* Thumbtack Opportunities approval cards (js/opp-approval.js, 2026-11-04, flag thumbtackOpportunities).
+   They reuse the .fub-* card, button and input rules above. */
+.opp-section { margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid var(--br, #2a2d35); }
+.opp-caps { font-size: 13px; font-weight: 800; margin: 6px 0 8px; }
+.opp-card { display: flex; flex-direction: column; }
+.opp-why { margin-top: 8px; font-size: 13px; }
+.opp-why ul { margin: 4px 0 0; padding-left: 18px; color: var(--m); }
+.opp-flag { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--orange); }
+.opp-label { margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--m); }
+.opp-text { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.opp-ta { min-height: 120px; resize: vertical; padding: 8px 10px; line-height: 1.4; }
+.opp-skip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.opp-sub { margin: 12px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+.opp-done { opacity: .85; }
