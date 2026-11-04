@@ -59,6 +59,8 @@ const CRON_GATES = [
   { name: 'LEAD_ALERT_WATCHDOG_DISABLED', polarity: 'disabled', file: 'lead-alert-watchdog.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
+  // Receipt inbox reader (2026-11-04): submitInboxReceipt is a dry run (reads and spends nothing) until Jo says go. Not a cron.
+  { name: 'RECEIPT_INBOX_ENABLED', polarity: 'enabled', file: 'receipt-inbox.js' },
   // Text notes (AI per conversation-day): dry-run until texts flow and Jo says go.
   { name: 'TEXT_NOTES_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },

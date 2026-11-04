@@ -122,8 +122,8 @@ console.log('\nthe literal each flag is compared with in its own file');
   }
 }
 const nonGate = FLAGS.filter((f) => !gateNames.has(f.name)).map((f) => f.name).sort();
-ok('the non-gate flags are exactly CARE_PLAN_MODE, TURNSTILE_REQUIRED, the three NBD_* off-switches, the QA test-mode flag, the receipt inbox and the review-ask photo',
-  JSON.stringify(nonGate) === JSON.stringify(['CARE_PLAN_MODE', 'NBD_CONNECT_ALLOW_TEST_MODE', 'NBD_CRM_STRIPE_INVOICES', 'NBD_INVOICE_OVERDUE', 'NBD_MONEY_PAPER', 'RECEIPT_INBOX_ENABLED', 'REVIEW_ASK_EMAIL_PHOTO_ENABLED', 'TURNSTILE_REQUIRED']),
+ok('the non-gate flags are exactly CARE_PLAN_MODE, TURNSTILE_REQUIRED, the three NBD_* off-switches, the QA test-mode flag and the review-ask photo',
+  JSON.stringify(nonGate) === JSON.stringify(['CARE_PLAN_MODE', 'NBD_CONNECT_ALLOW_TEST_MODE', 'NBD_CRM_STRIPE_INVOICES', 'NBD_INVOICE_OVERDUE', 'NBD_MONEY_PAPER', 'REVIEW_ASK_EMAIL_PHOTO_ENABLED', 'TURNSTILE_REQUIRED']),
   JSON.stringify(nonGate));
 
 // ── row quality ──────────────────────────────────────────────────────────
