@@ -145,6 +145,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [BUILD-PLAN-2026-10-18](projects/BUILD-PLAN-2026-10-18.md) — locked phased plan for personal, business and home network: two Grok critique rounds plus a repo cross-check, what already exists vs genuinely new, guardrails, corrections to Grok's advice, and the seven phases
+- [CRM-SPEED-UP-PHASE2-DESIGN-2026-11-04](projects/CRM-SPEED-UP-PHASE2-DESIGN-2026-11-04.md) — design (for Jo's go-ahead) for deploy-time concatenation of the CRM dashboard's boot scripts/CSS: grouping rules, the JS differences joining introduces and a refusing guard for each, Sentry index maps, rollback switch, 5 steps
 - [START-HERE-BUILD-MAP-2026-10-18](projects/START-HERE-BUILD-MAP-2026-10-18.md) — public orientation: read-in-order list, where each current feature is explained, how work is built and tracked, and what never goes in this public repo
 - [NOTIFICATION-POLICY-2026-10-18](projects/NOTIFICATION-POLICY-2026-10-18.md) — draft policy for how much the system tells Jo: three tiers (interrupt, one morning brief, Sunday review), delta-only briefs, caps, and the four build steps
 - [WEEKLY_CADENCE](projects/WEEKLY_CADENCE.md) — standing weekly checklist (see "Standing notes" above)
