@@ -46,6 +46,7 @@ console.log('\n2. the week streak');
   const broke = S.weekStreak([...wk('2026-10-19', 2), ...wk('2026-10-26', 1), ...wk('2026-11-02', 2)], TODAY, 2);
   ok('a missed week breaks it: only this week counts', broke.count === 1, JSON.stringify(broke));
   ok('no goal set means one workout a week', S.weekStreak([w('2026-11-02'), w('2026-10-27')], TODAY, undefined).count === 2 && S.weekStreak([], TODAY, 0).goal === 1);
+  ok('a goal under 0.5 is still at least one workout, so an empty week never counts', S.weekStreak([w('2026-10-27')], TODAY, 0.4).goal === 1 && S.weekStreak([w('2026-10-27')], TODAY, 0.4).count === 1 && S.weekStreak([], TODAY, 0.4).count === 0);
   ok('a goal of 3 needs 3', S.weekStreak(wk('2026-11-02', 2), TODAY, 3).count === 0);
   ok('Sunday belongs to the week that started Monday', S.weekStreak([w('2026-11-01'), w('2026-10-26')], TODAY, 2).count === 1 && S.weekStreak([w('2026-11-02'), w('2026-10-26')], TODAY, 2).count === 0);
   const junk = [w('2026-11-02'), w('2026-11-03', { deleted: true }), w('2026-11-04', { finishedAt: 0 }), w('2026-11-06')];
@@ -60,6 +61,8 @@ console.log('\n3. weight');
   ok('down 1.4 shows a real minus', tile(run(hist, { trend: { change30: -1.4 } }), 'weight30').value === '−1.4 lb');
   ok('up shows a plus', tile(run(hist, { trend: { change30: 2 } }), 'weight30').value === '+2.0 lb');
   ok('no change shows 0.0', tile(run(hist, { trend: { change30: 0 } }), 'weight30').value === '0.0 lb');
+  ok('a change that rounds to zero reads 0.0 with no sign (never "−0.0")', ['-0.04', '0.04', -0.049, 0.049].every((v) => tile(run(hist, { trend: { change30: v } }), 'weight30').value === '0.0 lb') && tile(run(hist, { trend: { change30: -0.06 } }), 'weight30').value === '−0.1 lb');
+  ok('a junk change reads as no data', tile(run(hist, { trend: { change30: 'x' } }), 'weight30').value === '—' && tile(run(hist, { trend: { change30: NaN } }), 'weight30').value === '—');
   ok('no trend: a dash and a nudge', tile(run(hist, {}), 'weight30').value === '—' && /weigh in/.test(tile(run(hist, {}), 'weight30').sub));
   ok('weight alone is enough to show the row', run([], { trend: { change30: -1 } }).enough && !run([], {}).enough);
 }

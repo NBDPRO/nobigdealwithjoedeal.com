@@ -18,7 +18,7 @@
 
   /** Consecutive weeks (Mon-Sun) with at least `goal` workouts, ending now. -> { count, thisWeek, goal } */
   function weekStreak(sessions, todayYmd, goal) {
-    const g = goal > 0 ? Math.round(goal) : 1;
+    const g = goal > 0 ? Math.max(1, Math.round(goal)) : 1;   // 0.4 would round to 0, and an empty week would then "hit" it
     const perWeek = new Map();
     let oldest = null;
     for (const s of sessions || []) {
@@ -46,7 +46,8 @@
     const monthKey = todayYmd.slice(0, 7);
     const thisMonth = fin.filter((s) => s.date.slice(0, 7) === monthKey).length;
     const st = weekStreak(sessions, todayYmd, Number(opt.target));
-    const ch = opt.trend && opt.trend.change30 != null ? opt.trend.change30 : null;
+    const raw = opt.trend && opt.trend.change30 != null ? Number(opt.trend.change30) : null;
+    const ch = raw != null && Number.isFinite(raw) ? Math.round(raw * 10) / 10 : null;   // sign and text both come from the rounded value, so -0.04 reads 0.0, not "−0.0"
     const tiles = [
       { id: 'workouts', label: 'Workouts', value: String(fin.length), sub: 'all time' },
       { id: 'month', label: 'This month', value: String(thisMonth), sub: MONTHS[parse(todayYmd).getMonth()] },
