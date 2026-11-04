@@ -38,6 +38,18 @@ The vetting pass removed these before they became work:
 
   The org default token is already `read`, which is good.
 
+  **First-run baseline (run 41888874562):**
+  - zizmor found 58 *unpinned action reference* errors. The SHA pinning PR NBDPRO/nobigdealwithjoedeal.com#2833 fixes these.
+  - zizmor also flagged 2 *overly broad permissions* warnings: `firebase-deploy.yml` has no `permissions:` block. The org default is `read`, so this is low risk, but the deploy workflow should still declare its own block.
+  - actionlint reported only shellcheck info/style notes (SC2086 quoting, SC2001, SC2016) in `copycat-watch.yml` and `firebase-deploy.yml`. No syntax or expression errors.
+
+## Follow-ups started the same day
+- **CI hardening:** SHA pins, `persist-credentials: false`, and trufflehog + osv-scanner in report-only mode. PR NBDPRO/nobigdealwithjoedeal.com#2833.
+- **Site:** `Speculation-Rules` header + view transitions, plus a weekly lychee job. In progress in its own session.
+- **CRM calendar engine trial:** EventCalendar, draft PR NBDPRO/nobigdealwithjoedeal.com#2835 (`documentation/projects/CALENDAR-ENGINE-TRIAL-2026-11-04.md` on that branch).
+  - It passed both the enforced and the stricter Report-Only `/pro` CSP with zero violations.
+  - Recommendation: a read-only Month/Week/List Schedule panel. Keep `crew.js`.
+
 ## Adopt next, ranked
 
 ### CI and security (cheapest first)
@@ -98,6 +110,76 @@ The server is an enrichment layer: Firebase stays the system of record, and bots
 5. Later: [Langfuse](https://github.com/langfuse/langfuse) self-hosted traces (MIT core, avoid `ee/`), and [garak](https://github.com/NVIDIA/garak) before any bot reads email or the web.
 
 *Rejected:* llm-guard (archived), smolagents (executes code, which goes against draft-only), LangGraph (too heavy), Arize Phoenix (Elastic License).
+
+## Second sweep, different angles (same day)
+
+Jo asked for a second pass from a different angle, plus Grok's own research. It
+ran three ways:
+1. **Feature mining:** what the best open-source CRM, field-service and booking apps do that we don't (features, not libraries).
+2. **Problem-first:** ten concrete NBD problems, the best repo, dataset or API for each.
+3. **Grok** (grok.com, Expert mode): a fresh chat with no repo access and no private data in the prompt. Its answer is treated as leads.
+
+Every claim below was checked against `origin/main` or GitHub before it went
+in.
+
+### The strongest new finding: radar hail-size swaths (MRMS MESH)
+All three sources picked this independently.
+
+**Today** the storm layers use point and track sources:
+- IEM local storm reports (`mesonet.agron.iastate.edu/geojson/lsr`)
+- NCEI SWDI `nx3hail` radar hail detections
+- NWS alerts
+- NEXRAD reflectivity tiles
+
+**Missing:** NOAA MRMS **MESH** (Maximum Estimated Size of Hail), a continuous gridded hail-size field. `s3://noaa-mrms-pds/CONUS/MESH_Max_1440min_00.50/YYYYMMDD/` is public with no key, and its GRIB2 files are about 350 KB.
+
+**Plan:** a nightly GitHub Action (Linux, GDAL), not a Cloud Function.
+1. Fetch the 23:30Z daily max.
+2. Clip it to the OH/KY service area.
+3. Run `gdal_contour -p` at 0.75 / 1 / 1.5 / 2 in.
+4. Commit or upload the GeoJSON for the existing Leaflet hail layer.
+
+Effort M. **Caveat:** MESH underestimates hail in some storms. Overlay the storm-report points, never claim a size to a homeowner, and keep the Kentucky claim-wording rules.
+
+### Already built (the sweep proposed them, `origin/main` has them)
+| Proposed | What exists |
+|---|---|
+| Speed-to-lead clock | Speed-to-lead feature (PR #2575), merged **dark**, flag `speedToLead` off. Jo's flag to flip. |
+| Merge duplicate leads | `docs/pro/js/dup-review.js` duplicate review screen |
+| Invoice reminder ladder | `docs/pro/js/invoice-reminder.js` |
+| Roof maintenance schedule | Roof Care Plan (`care-plan-crm.js`, `functions/care-plan*.js`) |
+| No-show handling | `smart-calendar.js` flags past bookings with no outcome. Cal.com's own no-show webhook is unverified. |
+
+### New feature ideas worth a build card (ranked)
+1. **Cal.com routing form before booking.** Storm/insurance vs. retail vs. leak vs. gutters, each routing to the right event type and length. It's mostly Cal.com setup plus mapping in the existing webhook. Insurance wording must pass the KY claim gate. S.
+2. **Completion worksheet with homeowner sign-off.** A checklist with required photo slots (ice and water, flashing, nailing), then the homeowner signs on the existing e-sign and a PDF is saved to the job. It's warranty evidence and the trigger for the review ask. M.
+3. **Expiring photo-share links.** View-only or upload, with an expiry, so a homeowner can send leak photos or an adjuster can see a set. Never a Storage `?token=` URL; serve EXIF-stripped copies. M.
+4. **Parcel lookup on a lead.**
+   - Ohio has one statewide parcel FeatureServer (`gis.ohiodnr.gov/.../Statewide_Parcels_ODNR_WebMerc/FeatureServer`, checked: it responds, max 2,000 records per query).
+   - Boone County has its own REST server; Kenton and Campbell go through LINK-GIS, which may charge for bulk data.
+   - Read-only, through a Cloud Function proxy so the CSP stays tight. M.
+5. **Saved replies with `/shortcode`** in the Call Center and Agent-inbox drafts. Insert only, never send. S.
+6. **Job timer with pause** for Jo's own hours per job, so margin includes the owner's time. Cost data stays out of `docs/`. S–M.
+7. **Offline photo queue on iPhone.** Firestore's offline cache covers documents but **not** Storage uploads. Queue the blob in IndexedDB (Dexie) and retry on `online`, `visibilitychange` and launch. iOS gives no background upload once the app is closed. M.
+
+### Data and tools worth knowing (lower priority)
+- **Lead de-dup at NBD volume:** block on the exact E.164 phone or normalized address, then fuzzy-match names in Node with [talisman](https://github.com/Yomguithereal/talisman) (MIT). [Splink](https://github.com/moj-analytical-services/splink) (MIT, v5.0.0 2026-09-18) only if volume grows; it's Python.
+- **Footprints:** [Overture Maps buildings](https://github.com/OvertureMaps/overturemaps-py) (MIT). Microsoft USBuildingFootprints is archived. Neither has year built.
+- **Roof pitch from LiDAR:** KyFromAbove (KY statewide, STAC on S3) and USGS 3DEP + [PDAL](https://github.com/PDAL/PDAL) for Ohio. [3DBAG/roofer](https://github.com/3DBAG/roofer) (GPL-3, run as a separate tool) fits roof planes. Effort L; a research spike, not a build.
+- **Call → CRM fields:** NuExtract 2.0 (2B/4B, MIT) or GLiNER as a cheap first pass. No public eval set exists, so label 30–50 of our own transcripts and score them with promptfoo.
+- **Dead code:** `c8` on node tests, plus Playwright V8 coverage merged with monocart. Don't use knip on `docs/`: `window.X` globals make everything look unused.
+- **Google reviews:** the official v4 reviews API (list + reply) can draft replies into the Agent inbox once the GBP API case is approved.
+- **Weather:** keep weather.gov. Its gridpoints endpoint has hourly rain chance and gusts for rain-day warnings. **Open-Meteo's free tier bans commercial use.**
+
+### Rejected in the second pass
+- MRMS-browser (1 star, no license)
+- node-spc-storm-reports (2017)
+- recordlinkage (stale)
+- Pelias / self-hosted Nominatim (overkill)
+- Cincinnati permits data for roof age: 0 permits mention "roof", so re-roofs don't show up
+- MapLibre GL: it's real and active, but we already run Leaflet everywhere
+
+Grok also named the site "qdeal.com". That's a hallucination, and a reminder that its lists are leads, not facts.
 
 ## Decisions for Jo
 - Google Solar API for roof measurements (costs per call).
