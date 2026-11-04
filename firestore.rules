@@ -4121,6 +4121,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // MRMS MESH radar hail swaths, one doc per storm day (2026-11-04,
+    // functions/integrations/mesh-hail.js). Public NOAA data cut to the
+    // service area — no tenant data inside — so any signed-in, non-anonymous
+    // user may read it for the storm maps. Written only by meshHailCron via
+    // the admin SDK; no client can write, overwrite or delete a day.
+    match /hail_mesh/{ymd} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
     // ── STRIPE WEBHOOK IDEMPOTENCY (admin-SDK only) ──
     // F-07 + invoiceWebhook idempotency: stripe.js atomic-creates a
     // doc here keyed by event.id to block duplicate deliveries. The
