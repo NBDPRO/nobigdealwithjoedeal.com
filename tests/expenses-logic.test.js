@@ -373,6 +373,167 @@ console.log('\nATTACH RECEIPT — photo or PDF onto an expense that has none');
   win.updateDoc = async () => { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; };
   const denied = await EX.saveAttachedReceipt('e1', pdf);
   ok('someone else\'s expense: refused cleanly (false, no throw)', denied === false);
+
+  // ══ flag costsPaidFrom (2026-11-03): paidFrom, receiptUrl, null margin, CSV import ══
+  const FLAG = 'costsPaidFrom';
+  const setFlag = (on) => { win.NBDFlags = { enabled: (n) => !!on && n === FLAG }; };
+  const writes = [];
+  win.collection = (db, name) => ({ name });
+  win.addDoc = async (colRef, data) => { writes.push({ col: colRef.name, data }); return { id: 'new' + writes.length }; };
+  win._userClaims = { companyId: 'co1' };
+
+  console.log('\nPAID FROM — expense-config helpers');
+  eq('paidFromKey accepts the key', EC.paidFromKey('business_credit_card'), 'business_credit_card');
+  eq('paidFromKey accepts the label', EC.paidFromKey('Business debit card'), 'business_debit_card');
+  eq('paidFromKey accepts ATM in any case', EC.paidFromKey(' atm '), 'atm');
+  eq('paidFromKey rejects venmo', EC.paidFromKey('venmo'), '');
+  eq('paidFromKey rejects empty', EC.paidFromKey(''), '');
+  eq('seven paidFrom options', EC.PAID_FROM.length, 7);
+  ok('receiptUrlOk: https drive link', EC.receiptUrlOk('https://drive.google.com/file/d/sample/view') === true);
+  ok('receiptUrlOk: empty is fine (optional)', EC.receiptUrlOk('') === true);
+  ok('receiptUrlOk: http refused', EC.receiptUrlOk('http://drive.google.com/x') === false);
+  ok('receiptUrlOk: javascript: refused', EC.receiptUrlOk('javascript:alert(1)') === false);
+  ok('receiptUrlOk: 501 chars refused', EC.receiptUrlOk('https://e.test/' + 'a'.repeat(486)) === false);
+  ok('receiptUrlOk: spaces refused', EC.receiptUrlOk('https://e.test/a b') === false);
+
+  console.log('\nPAID FROM — createExpense, flag OFF (ship dark)');
+  setFlag(false);
+  writes.length = 0;
+  const offOk = await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', leadId: 'L1' });
+  ok('flag off: a cost with no paidFrom still saves', offOk === true && writes.length === 1);
+  ok('flag off: no paidFrom / receiptUrl keys are written', !('paidFrom' in writes[0].data) && !('receiptUrl' in writes[0].data));
+  writes.length = 0;
+  await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'cash', receiptUrl: 'https://e.test/r' });
+  ok('flag off: a paidFrom passed in is ignored (old behaviour)', !('paidFrom' in writes[0].data));
+
+  console.log('\nPAID FROM — createExpense, flag ON');
+  setFlag(true);
+  writes.length = 0;
+  const noPaid = await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials' });
+  ok('flag on: paidFrom is REQUIRED (no write without it)', noPaid === false && writes.length === 0);
+  const badPaid = await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'venmo' });
+  ok('flag on: unknown paidFrom refused', badPaid === false && writes.length === 0);
+  const badUrl = await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'cash', receiptUrl: 'http://x.test/r' });
+  ok('flag on: non-https receiptUrl refused', badUrl === false && writes.length === 0);
+  const good = await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'Personal card', receiptUrl: ' https://drive.google.com/file/d/sample/view ' });
+  ok('flag on: valid cost saves with the paidFrom KEY and trimmed receiptUrl',
+    good === true && writes.length === 1 && writes[0].data.paidFrom === 'personal_card' && writes[0].data.receiptUrl === 'https://drive.google.com/file/d/sample/view');
+  writes.length = 0;
+  await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'cash' });
+  ok('flag on: no receiptUrl key when none given', writes[0].data.paidFrom === 'cash' && !('receiptUrl' in writes[0].data));
+  writes.length = 0;
+  await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'cash', source: 'import' });
+  ok("source 'import' is kept (not collapsed to manual)", writes[0].data.source === 'import');
+  writes.length = 0;
+  await EX.createExpense({ amount: '10.00', date: '2026-11-01', supplier: 'Sample Supply', category: 'materials', paidFrom: 'cash', source: 'something_else' });
+  ok('an unknown source still falls back to manual', writes[0].data.source === 'manual');
+
+  console.log('\nMARGIN — a job with no direct costs is "no costs entered", not ~100%');
+  const jobLead = { id: 'L9', jobValue: 10000, overheadPct: 10 };
+  setFlag(true);
+  const none = PT.computeJobPLWithExpenses(jobLead, []);
+  ok('flag on: zero expenses -> grossMargin null', none.grossMargin === null);
+  ok('flag on: zero expenses -> netMargin / profits null', none.netMargin === null && none.grossProfit === null && none.netProfit === null);
+  ok('flag on: zero expenses -> noCosts + label', none.noCosts === true && none.marginLabel === 'no costs entered');
+  const overheadOnly = PT.computeJobPLWithExpenses(jobLead, [{ amountCents: 5000, taxCents: 0, category: 'marketing', costType: 'overhead' }]);
+  ok('flag on: only overhead-type expenses still means no direct costs', overheadOnly.noCosts === true && overheadOnly.grossMargin === null);
+  const voided = PT.computeJobPLWithExpenses(jobLead, [{ amountCents: 400000, category: 'materials', costType: 'direct', deleted: true }]);
+  ok('flag on: only a voided cost -> no costs entered', voided.noCosts === true);
+  const costedPl = PT.computeJobPLWithExpenses(jobLead, [{ amountCents: 400000, taxCents: 0, category: 'materials', costType: 'direct' }]);
+  ok('flag on: a costed job keeps its real margin (60%)', costedPl.grossMargin === 60 && !costedPl.noCosts);
+  const noRev = PT.computeJobPLWithExpenses({ id: 'L0', jobValue: 0 }, []);
+  ok('flag on: a job with no revenue is unchanged (0%, not "no costs")', noRev.grossMargin === 0 && !noRev.noCosts);
+  const manualNone = PT.computeJobPL({ jobValue: 10000 });
+  ok('flag on: computeJobPL on manual fields with no costs -> null margin', manualNone.grossMargin === null && manualNone.noCosts === true);
+  setFlag(false);
+  const offNone = PT.computeJobPLWithExpenses(jobLead, []);
+  ok('flag OFF: zero costs keeps the old 100% gross margin (ship dark)', offNone.grossMargin === 100 && !('noCosts' in offNone));
+  ok('flag OFF: 90% net margin as before', offNone.netMargin === 90);
+  const offJob = EX.jobMargin(jobLead, []);
+  ok('flag OFF: Expenses.jobMargin unchanged', offJob.grossMargin === 100);
+  setFlag(true);
+  ok('flag on: Expenses.jobMargin surfaces noCosts', EX.jobMargin(jobLead, []).noCosts === true);
+
+  console.log('\nCSV IMPORT — parse + preview (fake sample data only)');
+  const leads = [
+    { id: 'lead-001', name: 'Sample Homeowner' },
+    { id: 'lead-002', firstName: 'Pat', lastName: 'Example' },
+    { id: 'lead-003', name: 'Twin Name' },
+    { id: 'lead-004', name: 'Twin Name' },
+    { id: 'lead-005', name: 'Removed Person', deleted: true }
+  ];
+  const p1 = EX.parseCsv('job,vendor,note\r\n"Smith, Jr",ABC "Supply",x\r\n\r\nb,c,"multi\nline"\r\n');
+  ok('parseCsv: quotes, doubled quotes, commas in cells, blank lines', p1.length === 3 && p1[1][0] === 'Smith, Jr' && p1[1][1] === 'ABC "Supply"');
+  ok('parseCsv: newline inside quotes stays in the cell', p1[2][2] === 'multi\nline');
+  ok('parseCsv: BOM stripped', EX.parseCsv('﻿a,b\n1,2')[0][0] === 'a');
+
+  const HEAD = 'job,vendor,date,amount,category,paidFrom,receiptUrl,note\n';
+  const csv = HEAD + [
+    'lead-001,Sample Supply,2026-10-30,"$1,234.50",Materials,business_credit_card,https://drive.google.com/file/d/sample/view,shingles',
+    'Pat Example,Sample Dumpsters,10/31/2026,300,equipment_dumpster,Cash,,',
+    'Nobody Real,Sample Supply,2026-10-30,10,materials,cash,,',
+    'lead-001,Sample Supply,2026-10-30,10,widgets,cash,,',
+    'lead-001,Sample Supply,2026-10-30,10,materials,bitcoin,,',
+    'Twin Name,Sample Supply,2026-10-30,10,materials,cash,,',
+    'lead-005,Sample Supply,2026-10-30,10,materials,cash,,',
+    'lead-001,Sample Supply,2026-02-31,10,materials,cash,,',
+    'lead-001,Sample Supply,2026-10-30,-5,materials,cash,,',
+    'lead-001,Sample Supply,2026-10-30,10,materials,cash,http://insecure.test/r,',
+    'lead-001,Sample Supply,2026-10-30,10,mileage,cash,,',
+    'lead-001,Sample Supply,2026-10-30,1234.50,materials,business_credit_card,,again'
+  ].join('\n');
+  EX._setData([{ id: 'old1', supplier: 'Sample Supply', amountCents: 5000, taxCents: 0, category: 'materials', date: new Date(2026, 9, 29) }]);
+  const pv = EX.buildImportPreview(csv, leads, EX.findDuplicate);
+  ok('preview has no top-level error', !pv.error && pv.rows.length === 12);
+  const st = (i) => pv.rows[i].status;
+  const why = (i) => pv.rows[i].reasons.join(' | ');
+  ok('row 1 (lead id, label category, $1,234.50) is ok', st(0) === 'ok' && pv.rows[0].cents === 123450 && pv.rows[0].draft.category === 'materials' && pv.rows[0].draft.leadId === 'lead-001');
+  ok('row 2 (customer name, M/D/YYYY, label paidFrom) is ok', st(1) === 'ok' && pv.rows[1].draft.leadId === 'lead-002' && pv.rows[1].draft.date === '2026-10-31' && pv.rows[1].draft.paidFrom === 'cash');
+  ok('unknown job is rejected with a clear message', st(2) === 'rejected' && /Unknown job "Nobody Real"/.test(why(2)));
+  ok('unknown category is rejected with a clear message', st(3) === 'rejected' && /Unknown category "widgets"/.test(why(3)));
+  ok('bad paidFrom is rejected and lists the allowed values', st(4) === 'rejected' && /Bad paidFrom "bitcoin"/.test(why(4)) && /business_credit_card/.test(why(4)));
+  ok('a name shared by two customers is rejected (use the lead id)', st(5) === 'rejected' && /matches 2 customers/.test(why(5)));
+  ok('a deleted job is not matched', st(6) === 'rejected' && /Unknown job/.test(why(6)));
+  ok('an impossible date (Feb 31) is rejected', st(7) === 'rejected' && /Bad date/.test(why(7)));
+  ok('a negative amount is rejected', st(8) === 'rejected' && /Bad amount/.test(why(8)));
+  ok('a non-https receipt link is rejected', st(9) === 'rejected' && /https/.test(why(9)));
+  ok('mileage rows are rejected (amount is computed from miles)', st(10) === 'rejected' && /Mileage/.test(why(10)));
+  ok('same vendor/amount/day as an earlier row in the file is flagged duplicate', st(11) === 'duplicate' && /row 2 in this file/.test(why(11)));
+  ok('a rejected row has no draft (cannot be written)', pv.rows[2].draft === null && pv.rows[3].draft === null);
+  ok('every row carries its 1-based file line (header is line 1)', pv.rows[0].line === 2 && pv.rows[11].line === 13);
+
+  const dupCsv = HEAD + 'lead-001,Sample Supply,2026-10-29,50.00,materials,cash,,\n';
+  const dpv = EX.buildImportPreview(dupCsv, leads, EX.findDuplicate);
+  ok('findDuplicate is run per row: matches the logged cost -> duplicate', dpv.rows[0].status === 'duplicate' && /already logged/.test(dpv.rows[0].reasons.join(' ')));
+  ok('a duplicate keeps its draft so Jo can still approve it on purpose', !!dpv.rows[0].draft);
+
+  const missing = EX.buildImportPreview('job,vendor,amount\nlead-001,x,5\n', leads, EX.findDuplicate);
+  ok('missing required columns -> clear top-level error, no rows', /Missing column\(s\): date, category, paidFrom/.test(missing.error) && !missing.rows);
+  const aliased = EX.buildImportPreview('Customer,Supplier,Date,Total,Category,Paid From,Receipt Link,Notes\nlead-001,Sample Supply,2026-10-30,5,materials,check,,n\n', leads, EX.findDuplicate);
+  ok('header aliases (Customer, Supplier, Paid From, Receipt Link) are understood', aliased.rows && aliased.rows[0].status === 'ok' && aliased.rows[0].draft.paidFrom === 'check');
+  ok('empty file -> error', !!EX.buildImportPreview('', leads, EX.findDuplicate).error);
+  const many = HEAD + new Array(502).join('lead-001,V,2026-10-30,5,materials,cash,,\n');
+  ok('over 500 rows -> refused with a message', /Too many rows/.test(EX.buildImportPreview(many, leads, EX.findDuplicate).error || ''));
+  ok('formula-style cell is kept as plain text on import (csvCell guards the export)', EX.csvCell('=1+1') === "'=1+1");
+
+  console.log('\nCSV IMPORT — approved rows go through createExpense, nothing else is written');
+  setFlag(true);
+  writes.length = 0;
+  const okRows = pv.rows.filter((r) => r.status === 'ok');
+  const results = [];
+  for (const r of okRows) results.push(await EX.createExpense(Object.assign({}, r.draft, { source: 'import', quiet: true })));
+  ok('approved rows write one /expenses doc each with source import', results.every(Boolean) && writes.length === 2 && writes.every((w) => w.col === 'expenses' && w.data.source === 'import'));
+  ok('imported docs carry paidFrom key, job link and trimmed receipt link',
+    writes[0].data.paidFrom === 'business_credit_card' && writes[0].data.leadId === 'lead-001' && writes[0].data.amountCents === 123450 && /^https:\/\//.test(writes[0].data.receiptUrl));
+  ok('the preview itself never writes (only the 2 approved rows above did)', writes.length === 2);
+  const src = require('fs').readFileSync(path.join(__dirname, '..', 'docs/pro/js/expenses.js'), 'utf8');
+  ok('no approve-all control exists in the import UI', !/imp-approve-all|approveAll/i.test(src));
+  ok('import write loop only reads rows decided as approved', /_imp\.decision\[k\] === 'approved'/.test(src));
+  ok('a rejected-by-checks row can never be approved (decideImport guard)', /r\.status === 'rejected'\) return/.test(src));
+  ok('import entry points are gated by the flag', /function openImport\(\) \{\s*if \(!costsFlagOn\(\)\) return;/.test(src) && /async function writeImport\(\) \{\s*if \([^\n]*!costsFlagOn\(\)/.test(src));
+
+  console.log('\nCSV EXPORT — Paid From + Receipt Link columns behind the flag');
+  ok('export source adds the two columns only when the flag is on', /if \(paidCols\) cols\.push\('Paid From', 'Receipt Link'\)/.test(src) && /paidCols \? \[paidFromLabel\(e\.paidFrom\), e\.receiptUrl \|\| ''\] : \[\]/.test(src));
   finish();
 })();
 function finish() {

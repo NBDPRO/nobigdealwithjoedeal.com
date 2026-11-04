@@ -55,6 +55,7 @@
     const withCost = {};
     (expenses || []).forEach((e) => {
       if (!e || e.deleted === true || e.estimated === true || !e.leadId || e.costType !== 'direct') return; // an estimate is not a receipt
+      if (e.entryType === 'credit') return; // a credit / refund (flag costCredits) is not a cost on the books
       if ((Number(e.amountCents) || 0) + (Number(e.taxCents) || 0) > 0) withCost[e.leadId] = true;
     });
     return (leads || []).filter((l) => l && l.id && !l.deleted && isWon(l) && !withCost[l.id]);

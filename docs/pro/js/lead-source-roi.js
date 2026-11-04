@@ -108,7 +108,8 @@
         if (!e || e.category !== 'marketing') return;
         const c = parseInt(e.amountCents, 10) || 0;
         const k = N().spendKey(e.marketingSource);
-        if (k && c > 0) out[k] = (out[k] || 0) + c;
+        // A marketing credit / refund row (flag costCredits, stored positive) nets the source's spend down.
+        if (k && c > 0) out[k] = (out[k] || 0) + (e.entryType === 'credit' ? -c : c);
       });
     } catch (e) { /* no expenses → no fallback */ }
     return out;

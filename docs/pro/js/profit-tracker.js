@@ -57,6 +57,14 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
+  // Flag `costsPaidFrom` (feature_flags/_default, absent = off). On: a job with
+  // revenue but NO direct costs reports a null margin + noCosts:true instead of
+  // a near-100% margin that only means "nobody entered the costs yet".
+  var NO_COSTS_LABEL = 'no costs entered';
+  function noCostsFlagOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('costsPaidFrom'));
+  }
+
   /**
    * Compute P&L for a single lead
    */
@@ -73,6 +81,16 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const netProfit = revenue - totalCost;
     const grossMargin = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
     const netMargin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+
+    // (`_creditsCents` is set by computeJobPLWithExpenses: a job with credits is not "no costs",
+    // its costs are netted, possibly to zero or below, and that must be shown, not relabelled.)
+    if (revenue > 0 && materialCost + laborCost + miscCosts <= 0 && !(lead._creditsCents > 0) && noCostsFlagOn()) {
+      return {
+        revenue, materialCost, laborCost, overhead, miscCosts, totalCost,
+        grossProfit: null, netProfit: null, grossMargin: null, netMargin: null,
+        noCosts: true, marginLabel: NO_COSTS_LABEL
+      };
+    }
 
     return {
       revenue,
@@ -109,7 +127,7 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
    */
   function computeJobPLWithExpenses(lead, expenses) {
     expenses = expenses || [];
-    var matCents = 0, laborCents = 0, miscCents = 0;
+    var matCents = 0, laborCents = 0, miscCents = 0, creditCents = 0;
     expenses.forEach(function(e) {
       if (!e || e.deleted === true) return; // voided (cash payout) rows never count
       // COGS = the tax-INCLUDED total (amount + tax): sales tax on materials
@@ -117,16 +135,36 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // decision 2026-07-08). Kept dependency-free — same amount+tax rule is
       // inlined in money-dashboard.js computePnL and expenses.js aggregate().
       var c = (parseInt(e.amountCents, 10) || 0) + (parseInt(e.taxCents, 10) || 0);
-      if (e.category === 'materials') matCents += c;
-      else if (e.category === 'direct_labor') laborCents += c;
-      else if (e.costType === 'direct') miscCents += c;
+      // Credit / refund / return rows (entryType 'credit', flag costCredits) are stored
+      // POSITIVE and SUBTRACT here. Data-driven, not flag-driven (see expense-config.js).
+      var isCredit = e.entryType === 'credit';
+      var s = isCredit ? -c : c;
+      var counted = true;
+      if (e.category === 'materials') matCents += s;
+      else if (e.category === 'direct_labor') laborCents += s;
+      else if (e.costType === 'direct') miscCents += s;
+      else counted = false;
+      if (isCredit && counted) creditCents += c;
     });
     var merged = Object.assign({}, lead, {
       materialCost: matCents / 100,
       laborCost: laborCents / 100,
-      miscCosts: miscCents / 100
+      miscCosts: miscCents / 100,
+      _creditsCents: creditCents
     });
-    return computeJobPL(merged);
+    var pl = computeJobPL(merged);
+    if (creditCents > 0) {
+      // Say how much was netted. If credits outrun the costs (in a bucket or overall) the cost
+      // stays NEGATIVE and is flagged; it is never clamped to $0 or hidden.
+      var over = [];
+      if (matCents < 0) over.push('materials');
+      if (laborCents < 0) over.push('direct_labor');
+      if (miscCents < 0) over.push('other_direct');
+      pl.creditsCents = creditCents;
+      pl.creditsExceedBuckets = over;
+      pl.creditsExceedCosts = over.length > 0 || (matCents + laborCents + miscCents) < 0;
+    }
+    return pl;
   }
 
   /**

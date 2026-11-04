@@ -1600,7 +1600,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/customer-tasks.css?v=2">
 <link rel="stylesheet" href="css/lead-brief.css?v=1">
 <link rel="stylesheet" href="css/review-handoff.css?v=1">
-<link rel="stylesheet" href="css/estimate-send.css?v=1">
+<link rel="stylesheet" href="css/estimate-send.css?v=2">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
@@ -2886,7 +2886,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/accepted-tier-chip.js?v=3"></script>
 <!-- Knowing your numbers (2026-10-04): the Numbers panel (sold package, real
      close date, why it was lost, storm) — rules in numbers-logic.js. -->
-<script defer src="js/numbers-logic.js?v=2"></script>
+<script defer src="js/numbers-logic.js?v=3"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
 <script defer src="js/customer-tasks-ui.js?v=41"></script>
@@ -2906,7 +2906,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      Reads leads/{leadId}/documents and publishes window.loadDocuments, which
      the bootstrap calls from loadCustomerData once the lead resolves. Must
      load before the upload modules that call NBDCustomerDocs.refresh(). -->
-<script defer src="js/customer-documents.js?v=9"></script>
+<script defer src="js/feature-flags.js?v=2"></script>
+<script defer src="js/doc-link-copy.js?v=1"></script>
+<script defer src="js/customer-documents.js?v=10"></script>
 <!-- Send for review (2026-10-03): the share sheet + the message copy. -->
 <script defer src="js/phone-share.js?v=3"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
@@ -2919,7 +2921,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/yard-signs-logic.js?v=3"></script>
 <script defer src="js/customer-yard-sign-chip.js?v=2"></script>
 <script defer src="js/jobs-store.js?v=5"></script>
-<script defer src="js/customer-jobs.js?v=2"></script>
+<script defer src="js/customer-jobs.js?v=3"></script>
 <script defer src="js/stripe-ledger-customer.js?v=1"></script>
 <!-- PR 2b3: html2pdf is LAZY — NBDDocViewer.handlePdf loads the `pdfexport`
      ScriptLoader bundle on demand (~1.1 MB off the customer-page boot path). -->
@@ -2956,7 +2958,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). -->
 <script defer src="js/qr-code.js?v=1"></script>
 <script defer src="js/review-handoff.js?v=1"></script>
-<script defer src="js/profit-tracker.js?v=6"></script>
+<script defer src="js/profit-tracker.js?v=8"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
 <script defer src="js/post-job-drafts-logic.js?v=1"></script>
@@ -2978,6 +2980,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/customer-snooze-banner.js?v=2"></script>
 <script defer src="js/customer-consent-declined-banner.js?v=1"></script>
+<script defer src="js/lien-clock.js?v=1"></script>
+<script defer src="js/customer-lien-clock.js?v=1"></script>
 <!-- Wave 42: shared portal-link helpers — used by the W40 + W41
      buttons on this page and by the kanban context menu on the
      dashboard. Loading on customer.html so _resolvePortalUrl can

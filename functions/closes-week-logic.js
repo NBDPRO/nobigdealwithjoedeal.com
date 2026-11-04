@@ -98,7 +98,7 @@
     return n || String(l.name || l.customerName || '').trim() || 'Customer';
   }
   function lastTouchMs(l) {
-    return Math.max(toMs(l.updatedAt), toMs(l.stageStartedAt), toMs(l.lastContactedAt), toMs(l.createdAt));
+    return Math.max(toMs(l.updatedAt), toMs(l.stageStartedAt), toMs(l.lastContactedAt), toMs(l.lastInboundAt), toMs(l.createdAt));
   }
   // The homeowner's own last word (an inbound text / call / portal message),
   // when the CRM stamps one; else our own last touch.

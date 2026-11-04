@@ -106,6 +106,7 @@ async function run() {
     await setDoc(doc(db, 'leads/leadA/recordings/recA'),{ userId: 'alice', companyId: 'co-a', transcript: 'confidential call notes' });
     await setDoc(doc(db, 'leads/leadA/documents/docA'), { userId: 'alice', name: 'Signed Contract.pdf' });
     await setDoc(doc(db, 'leads/leadA/documents/docDel'), { userId: 'alice', name: 'Old Draft.html', status: 'draft' });
+    await setDoc(doc(db, 'leads/leadA/docViews/viewA'), { tokenRef: 'ABCDEFGHJK', companyId: 'co-a', ownerUid: 'alice', device: 'mobile', readSeconds: 42 }); // Secure Document Link view row (2026-11-04)
     await setDoc(doc(db, 'leads/leadA/warrantyClaims/claimA'),   { status: 'open', reason: 'workmanship' });
     await setDoc(doc(db, 'leads/leadA/warrantyClaims/claimDel'), { status: 'resolved', reason: 'material' });
     // 2026-09-25: rows only a company_admin deletes (decision A), and a lead
@@ -171,6 +172,16 @@ async function run() {
   await check('users: B reads A user profile',        'deny',  getDoc(doc(bob, 'users/alice')));
   await check('recordings: B reads A call transcript','deny',  getDoc(doc(bob, 'leads/leadA/recordings/recA')));
   await check('lead documents: B reads A contract',   'deny',  getDoc(doc(bob, 'leads/leadA/documents/docA')));
+  // Secure Document Link view rows (2026-11-04): lead owner and same-company staff read; no other tenant; nobody writes.
+  await check('docViews: lead owner reads',                       'allow', getDoc(doc(alice, 'leads/leadA/docViews/viewA')));
+  await check('docViews: same-tenant manager reads',              'allow', getDoc(doc(eveMgr, 'leads/leadA/docViews/viewA')));
+  await check('docViews: B (other tenant) cannot read',           'deny',  getDoc(doc(bob, 'leads/leadA/docViews/viewA')));
+  await check('docViews: cross-tenant manager cannot read',       'deny',  getDoc(doc(bobMgr, 'leads/leadA/docViews/viewA')));
+  await check('docViews: anonymous cannot read',                  'deny',  getDoc(doc(anon, 'leads/leadA/docViews/viewA')));
+  await check('docViews: lead owner cannot write a view row',     'deny',  setDoc(doc(alice, 'leads/leadA/docViews/viewX'), { readSeconds: 9999 }));
+  await check('docViews: lead owner cannot edit a view row',      'deny',  updateDoc(doc(alice, 'leads/leadA/docViews/viewA'), { readSeconds: 1 }));
+  await check('docViews: company_admin cannot write or delete',   'deny',  deleteDoc(doc(aliceCA, 'leads/leadA/docViews/viewA')));
+  await check('report_share_tokens: lead owner still cannot read a token (password hash lives there)', 'deny', getDoc(doc(alice, 'report_share_tokens/ABCDEFGHJKLMNPQRSTUV2345')));
   // 2026-09-25: documents + warrantyClaims got their own `allow delete` (the
   // old `allow write` read request.resource, null on a delete, so it denied
   // every client delete). The owner control proves the fix; the rest prove a
@@ -439,6 +450,34 @@ async function run() {
   await check('leads create: own uid as companyId (claim-carrier — rollup evasion)', 'deny', setDoc(doc(bob, 'leads/x-uid'), { userId: 'bob', companyId: 'bob',  name: 'x', meter: 'manual' }));
   await check('leads create: solo (no claim) pins own uid',   'allow', setDoc(doc(noClaim, 'leads/x-solo'),      { userId: 'nc', companyId: 'nc', name: 'x', meter: 'manual' }));
   await check('leads create: missing companyId (required)',   'deny',  setDoc(doc(bob, 'leads/x-none'),          { userId: 'bob', name: 'x', meter: 'manual' }));
+  // Cost import / paidFrom (flag costsPaidFrom, 2026-11-03): the new fields must not open a
+  // cross-tenant door. Bob cannot stamp co-a on an imported cost, cannot hide it under his uid,
+  // and cannot rewrite or read the paidFrom of a co-a cost.
+  const impCost = (uid, co, extra) => Object.assign({ userId: uid, companyId: co, leadId: null, category: 'materials', costType: 'direct',
+    supplier: 'Sample Supply', amountCents: 5000, source: 'import', paidFrom: 'cash', receiptUrl: 'https://drive.google.com/file/d/sample/view' }, extra || {});
+  await check('expenses import: own tenant with paidFrom + receiptUrl', 'allow', setDoc(doc(bob, 'expenses/imp-own'), impCost('bob', 'co-b')));
+  await check('expenses import: foreign companyId (co-a)',              'deny',  setDoc(doc(bob, 'expenses/imp-foreign'), impCost('bob', 'co-a')));
+  await check('expenses import: uid as companyId (claim-carrier)',      'deny',  setDoc(doc(bob, 'expenses/imp-uid'), impCost('bob', 'bob')));
+  await check('expenses import: bad paidFrom enum',                     'deny',  setDoc(doc(bob, 'expenses/imp-badpf'), impCost('bob', 'co-b', { paidFrom: 'gift_card' })));
+  await check('expenses import: non-https receiptUrl',                  'deny',  setDoc(doc(bob, 'expenses/imp-badurl'), impCost('bob', 'co-b', { receiptUrl: 'ftp://x.test/r' })));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/imp-a'), impCost('alice', 'co-a')); });
+  await check('expenses import: other tenant cannot rewrite paidFrom',  'deny',  updateDoc(doc(bob, 'expenses/imp-a'), { paidFrom: 'check' }));
+  await check('expenses import: other tenant cannot read it',           'deny',  getDoc(doc(bob, 'expenses/imp-a')));
+  // Credits (flag costCredits, 2026-11-03): a credit may only point at a cost in the caller's OWN
+  // tenant, and a co-a cost can neither be flipped to a credit nor read through one.
+  const crCost = (uid, co, extra) => impCost(uid, co, Object.assign({ entryType: 'credit', amountCents: 101784 }, extra || {}));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/cr-b-orig'), impCost('bob', 'co-b')); });
+  await check('expenses credit: own tenant, no related',                    'allow', setDoc(doc(bob, 'expenses/cr-own'), crCost('bob', 'co-b')));
+  await check('expenses credit: own tenant, related to own cost',           'allow', setDoc(doc(bob, 'expenses/cr-own-rel'), crCost('bob', 'co-b', { relatedExpenseId: 'cr-b-orig' })));
+  await check('expenses credit: related to ANOTHER tenant\'s cost (co-a)',  'deny',  setDoc(doc(bob, 'expenses/cr-x-rel'), crCost('bob', 'co-b', { relatedExpenseId: 'imp-a' })));
+  await check('expenses credit: foreign companyId (co-a)',                  'deny',  setDoc(doc(bob, 'expenses/cr-foreign'), crCost('bob', 'co-a')));
+  await check('expenses credit: uid as companyId (claim-carrier)',          'deny',  setDoc(doc(bob, 'expenses/cr-uid'), crCost('bob', 'bob')));
+  await check('expenses credit: bad entryType',                             'deny',  setDoc(doc(bob, 'expenses/cr-badtype'), crCost('bob', 'co-b', { entryType: 'rebate' })));
+  await check('expenses credit: other tenant cannot flip a co-a cost to a credit', 'deny', updateDoc(doc(bob, 'expenses/imp-a'), { entryType: 'credit' }));
+  await check('expenses credit: other tenant cannot re-point a co-a row',   'deny',  updateDoc(doc(bob, 'expenses/imp-a'), { relatedExpenseId: 'cr-b-orig' }));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'expenses/cr-a'), crCost('alice', 'co-a')); });
+  await check('expenses credit: other tenant cannot read a co-a credit',    'deny',  getDoc(doc(bob, 'expenses/cr-a')));
+  await check('expenses credit: other tenant cannot delete a co-a credit',  'deny',  deleteDoc(doc(bob, 'expenses/cr-a')));
   await check('knocks create: foreign companyId (co-a)',      'deny',  setDoc(doc(bob, 'knocks/k-foreign'),      { userId: 'bob', companyId: 'co-a' }));
   await check('knocks create: own companyId (co-b)',          'allow', setDoc(doc(bob, 'knocks/k-own'),          { userId: 'bob', companyId: 'co-b' }));
   await check('knocks create: companyId omitted (degrades)',  'allow', setDoc(doc(bob, 'knocks/k-none'),         { userId: 'bob' }));

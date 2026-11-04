@@ -45,6 +45,7 @@ const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestor
 const { getStorage } = require('firebase-admin/storage');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const L = require('./estimate-send-logic');
+const DLL = require('./doc-link-logic');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -137,10 +138,13 @@ async function resolveReviewPdf(db, { uid, isAdmin, lead, leadId, documentId }, 
   return { row, storagePath, contentType: String(meta.contentType), size: Number(meta.size || 0) || 0, name };
 }
 
-async function mintReviewToken(db, { uid, lead, leadId, documentId, pdf }, nowMs) {
-  const expiresAt = Timestamp.fromMillis(nowMs + L.REVIEW_LINK_TTL_DAYS * L.DAY_MS);
+// `opts` (Secure Document Link, 2026-11-04): { ttlDays, extra } — absent for the
+// legacy "Send for review" mint, which writes exactly what it always did.
+async function mintReviewToken(db, { uid, lead, leadId, documentId, pdf }, nowMs, opts) {
+  const o = opts || {};
+  const expiresAt = Timestamp.fromMillis(nowMs + (o.ttlDays || L.REVIEW_LINK_TTL_DAYS) * L.DAY_MS);
   const token = mintToken();
-  await db.doc(`report_share_tokens/${token}`).set({
+  await db.doc(`report_share_tokens/${token}`).set(Object.assign({
     kind: 'lead_document',
     purpose: 'estimate_review',
     reportId: null,
@@ -159,7 +163,7 @@ async function mintReviewToken(db, { uid, lead, leadId, documentId, pdf }, nowMs
     filename: pdf.name,
     reportNumber: '',
     docLabel: pdf.name.slice(0, 160),
-  });
+  }, o.extra || {}));
   await db.doc(`leads/${leadId}/documents/${documentId}`).set({
     shareToken: token,
     shareUrl: REPORT_URL_BASE + token,
@@ -167,6 +171,68 @@ async function mintReviewToken(db, { uid, lead, leadId, documentId, pdf }, nowMs
     shareExpiresAt: expiresAt,
   }, { merge: true }).catch((e) => logger.warn('[estimateSend] row write-back failed', { leadId, documentId, err: e.message }));
   return { token, expiresAt };
+}
+
+/**
+ * Secure link mint. The password (generated or typed) is hashed with scrypt and
+ * a per-link salt; the PLAIN value goes back to Jo once, only when WE generated
+ * it, and is never stored, logged, or put in a URL. Always a fresh token:
+ * a reused one could not show its password again.
+ */
+async function _secureLink(db, request, { uid, lead, leadId, documentId, pdf, now }) {
+  const d = request.data || {};
+  const days = DLL.expiryDays(d.expiryDays);
+  const extra = {
+    purpose: 'secure_doc',
+    trackingNoticeShown: true,
+    passwordRequired: false,
+    unlockKey: require('crypto').randomBytes(32).toString('base64'),
+    openCount: 0, fetchCount: 0, readSeconds: 0, followUpDueAtMs: null,
+  };
+  let generated = '';
+  let plain = '';
+  if (d.password === 'generate') { generated = DLL.generatePassword(); plain = generated; }
+  else if (typeof d.password === 'string' && d.password.trim()) {
+    if (!DLL.passwordOk(d.password)) throw new HttpsError('invalid-argument', `The password must be ${DLL.PW_MIN} to ${DLL.PW_MAX} characters.`);
+    plain = d.password;
+  }
+  if (plain) {
+    Object.assign(extra, await DLL.hashPassword(plain), { passwordRequired: true, passwordSetAt: FieldValue.serverTimestamp() });
+  }
+  // Another tenant's customers see THEIR name in the tracking notice; NBD keeps the approved wording.
+  try {
+    const key = lead.companyId || lead.userId || uid;
+    const cp = await db.doc(`companyProfile/${key}`).get();
+    const ln = cp.exists ? String(((cp.data() || {}).brand || {}).legalName || '').trim().slice(0, 60) : '';
+    if (ln && ln !== 'No Big Deal Home Solutions') {
+      extra.noticeBrand = ln;
+      extra.noticeRep = String((request.auth.token || {}).name || '').trim().split(/\s+/)[0].slice(0, 40) || 'your contractor';
+    }
+  } catch (_) { /* default wording */ }
+  const { token, expiresAt } = await mintReviewToken(db, { uid, lead, leadId, documentId, pdf }, now, { ttlDays: days, extra });
+  // Summary for the Files row chip (lead.docTrack = the newest secure link). Best-effort.
+  await db.doc(`leads/${leadId}`).update({
+    docTrack: {
+      tokenRef: token.slice(0, 10), docId: documentId, docName: pdf.name.slice(0, 160),
+      openCount: 0, readSeconds: 0, expiresAt, passwordSet: !!plain,
+    },
+  }).catch((e) => logger.warn('[createEstimateReviewLink] docTrack write failed', { leadId, err: e.message }));
+  const a2pApproved = await _smsA2pApproved(db);
+  logger.info('[createEstimateReviewLink] secure ready', { leadId, documentId, days, passwordSet: !!plain });
+  return {
+    token,
+    shareUrl: REPORT_URL_BASE + token,
+    expiresAt: expiresAt.toMillis(),
+    reused: false,
+    docName: pdf.name,
+    a2pApproved,
+    secure: true,
+    expiryDays: days,
+    passwordRequired: !!plain,
+    password: generated || null,
+    noticeBrand: extra.noticeBrand || null,
+    noticeRep: extra.noticeRep || null,
+  };
 }
 
 exports.createEstimateReviewLink = onCall(OPTS, async (request) => {
@@ -181,6 +247,12 @@ exports.createEstimateReviewLink = onCall(OPTS, async (request) => {
   const pdf = await resolveReviewPdf(db, { uid, isAdmin, lead, leadId, documentId });
   const now = Date.now();
 
+  // Secure Document Link (2026-11-04): password, own expiry, tracked viewer.
+  if ((request.data || {}).secure === true) {
+    if (!DLL.secureLinkEnabled()) throw new HttpsError('failed-precondition', 'Secure links are not turned on.');
+    return _secureLink(db, request, { uid, lead, leadId, documentId, pdf, now });
+  }
+
   // Reuse the row's live token for the SAME file: tapping Send twice hands
   // out one URL, so revoking the one Jo sent revokes the right thing.
   let token = '';
@@ -189,7 +261,7 @@ exports.createEstimateReviewLink = onCall(OPTS, async (request) => {
   if (prior && /^[A-Z0-9]{10,64}$/.test(prior)) {
     try {
       const t = await db.doc(`report_share_tokens/${prior}`).get();
-      if (t.exists && L.reusableReviewToken(t.data(), pdf.storagePath, now)) {
+      if (t.exists && L.reusableReviewToken(t.data(), pdf.storagePath, now) && t.data().purpose !== 'secure_doc') {
         token = prior; expiresAt = t.data().expiresAt || null;
       }
     } catch (e) { logger.warn('[estimateSend] prior token read failed', { leadId, err: e.message }); }
@@ -366,8 +438,32 @@ exports.freshEstimateLink = onCall(OPTS, async (request) => {
   return out;
 });
 
-// For tests only — index.js copies the three callables above BY NAME.
+// Just revoke (2026-11-04). Fresh link revokes only as a side effect of minting
+// a new one; this is the plain "stop this link" for a secure document link.
+exports.revokeDocumentLink = onCall(OPTS, async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+  assertNotViewer(request.auth.token);
+  await callableRateLimit(request, 'revokeDocumentLink', 20, 60_000);
+  const d = request.data || {};
+  const { leadId } = _ids(d, false);
+  const token = typeof d.token === 'string' ? d.token : '';
+  if (!/^[A-Z0-9]{10,64}$/.test(token)) throw new HttpsError('invalid-argument', 'token required');
+  const db = getFirestore();
+  await _loadLeadForShare(db, request, leadId);
+  const ref = db.doc(`report_share_tokens/${token}`);
+  const snap = await ref.get();
+  const tok = snap.exists ? (snap.data() || {}) : null;
+  if (!tok || tok.leadId !== leadId || tok.purpose !== 'secure_doc') {
+    throw new HttpsError('failed-precondition', 'That link does not belong to this customer');
+  }
+  await ref.update(Object.assign(L.revokedTokenPatch(uid, Date.now(), Timestamp, FieldValue), { status: 'revoked', followUpDueAtMs: null }));
+  logger.info('[revokeDocumentLink] revoked', { leadId });
+  return { ok: true };
+});
+
+// For tests only — index.js copies the callables above BY NAME.
 Object.defineProperty(exports, '_internals', {
   enumerable: false,
-  value: { resolveReviewPdf, mintReviewToken, _freshDealLink, _freshReviewLink, mintToken },
+  value: { resolveReviewPdf, mintReviewToken, _freshDealLink, _freshReviewLink, mintToken, _secureLink },
 });

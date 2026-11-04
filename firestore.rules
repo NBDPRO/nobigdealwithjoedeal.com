@@ -1056,6 +1056,19 @@ service cloud.firestore {
         allow write: if false; // admin SDK only
       }
 
+      // ── DOC VIEWS (Secure Document Link, 2026-11-04) ───
+      // One row per time a customer's secure document link was fetched/opened:
+      // device class and time with the page open, no IP, no raw user-agent.
+      // Same read audience as `documents` (admin, lead owner, same-company
+      // staff); never writable by a client (the viewer functions write with the
+      // admin SDK). Rows expire through the Firestore TTL policy on `expireAt`.
+      match /docViews/{viewId} {
+        allow read: if isAuth() && (isAdmin()
+          || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          || parentLeadInMyCompany(leadId));
+        allow write: if false;
+      }
+
       // ── DOCUMENTS attached to a lead ──────────────────
       // Generated proposals/contracts/invoices/etc. that the rep
       // attaches to a customer record. Same auth shape as notes/tasks
@@ -1598,9 +1611,30 @@ service cloud.firestore {
         && proofPathAt(p, 0) && proofPathAt(p, 1) && proofPathAt(p, 2) && proofPathAt(p, 3) && proofPathAt(p, 4)
         && proofPathAt(p, 5) && proofPathAt(p, 6) && proofPathAt(p, 7) && proofPathAt(p, 8) && proofPathAt(p, 9);
     }
+    // Credits / refunds / returns / adjustments (flag costCredits, 2026-11-03). A credit is its
+    // OWN dated row; amountCents stays POSITIVE (the sign lives in entryType), and the original
+    // cost is never touched. relatedExpenseId points at the cost a credit answers: a short
+    // id (<= 128), a row that EXISTS, and in the SAME tenant (so a credit can never be aimed
+    // at another company's ledger). get() of a missing row, or of an id with a '/', is an
+    // evaluation error, which denies, so one get() covers exists + tenant + path safety.
+    function relatedExpenseOk(d) {
+      return d.relatedExpenseId is string
+        && d.relatedExpenseId.size() <= 128
+        && get(/databases/$(database)/documents/expenses/$(d.relatedExpenseId)).data.companyId == d.companyId;
+    }
+    function validExpenseEntryType() {
+      let d = request.resource.data;
+      return (!('entryType' in d) || (d.entryType is string && d.entryType in ['cost', 'credit', 'adjustment']))
+        // a credit or adjustment must carry money: > 0, never 0 and never negative
+        && (!('entryType' in d) || d.entryType == 'cost' || d.amountCents > 0)
+        && (!('relatedExpenseId' in d) || relatedExpenseOk(d))
+        && (!('creditRef' in d) || (d.creditRef is string && d.creditRef.size() <= 80))
+        && (!('reason' in d) || (d.reason is string && d.reason.size() <= 500));
+    }
     function validExpenseMoney() {
       let d = request.resource.data;
       return d.amountCents is int && d.amountCents >= 0 && d.amountCents < 1000000000
+        && validExpenseEntryType()
         && (!('taxCents' in d) || (d.taxCents is int && d.taxCents >= 0))
         && (!('costType' in d) || d.costType in ['direct', 'overhead'])
         // Receipt sorter (2026-10-18): the kept line items are a bounded list and
@@ -1615,7 +1649,13 @@ service cloud.firestore {
         // Storage PATHS (receipts/{uid}/sub-proofs/...), a bounded list, and the
         // "Not a job cost" answer is a plain boolean.
         && (!('proofPaths' in d) || (d.proofPaths is list && (isAdmin() || proofPathsOk(d.proofPaths))))
-        && (!('notJobCost' in d) || d.notJobCost is bool);
+        && (!('notJobCost' in d) || d.notJobCost is bool)
+        // How the cost was paid + an optional https receipt link (flag
+        // costsPaidFrom, 2026-11-03). Both optional here: the "paidFrom is
+        // required" rule is client-side behind the flag (old rows have neither),
+        // but when present they must be one of the seven words / a short https URL.
+        && (!('paidFrom' in d) || d.paidFrom in ['business_credit_card', 'business_debit_card', 'personal_card', 'cash', 'atm', 'check', 'other'])
+        && (!('receiptUrl' in d) || (d.receiptUrl is string && d.receiptUrl.size() <= 500 && d.receiptUrl.matches('https://[^ ]+')));
     }
     // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
     // placed / pickup dates. The rep who placed it owns it; the company
@@ -1645,6 +1685,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // expenses/{id} shape (company-shared cost ledger; no allowlist of keys, the
+    // value rules live in validExpenseMoney above):
+    //   userId, companyId, createdBy        owner + tenant (create-pinned, frozen on update)
+    //   leadId, jobId                       the job the cost belongs to (nullable)
+    //   category, costType                  expense-config.js; costType 'direct' | 'overhead'
+    //   supplier (<=120), note (<=500)      free text
+    //   amountCents (int >= 0), taxCents    money in cents
+    //   date, createdAt, updatedAt          timestamps
+    //   source                              'manual' | 'ocr' | 'import' (bulk CSV import) | 'cash_payout' | ...
+    //   paymentMethod                       cash-payouts.js: cash | zelle | check | other
+    //   paidFrom      (flag costsPaidFrom)  business_credit_card | business_debit_card | personal_card
+    //                                       | cash | atm | check | other
+    //   receiptUrl    (flag costsPaidFrom)  optional https link, <= 500 chars (e.g. a Google Drive link)
+    //   entryType     (flag costCredits)    cost | credit | adjustment; absent = cost. amountCents stays
+    //                                       POSITIVE; a credit (refund / return / credit memo) SUBTRACTS in
+    //                                       every total, an adjustment adds. Write-once on update.
+    //   relatedExpenseId, creditRef (<=80), reason (<=500)   optional; related must be a same-tenant row that exists
+    //   receiptStoragePath, items, reviewState, editLog, proofPaths, notJobCost, deleted ...  see validExpenseMoney
     match /expenses/{expenseId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()
@@ -1674,7 +1732,10 @@ service cloud.firestore {
       // have no role claim), which would permission-deny their own edits.
       allow update: if (isOwner(resource.data.userId)
             && notViewer()
-            && didNotChange(['userId', 'companyId', 'createdAt', 'createdBy'])
+            // entryType / relatedExpenseId are write-once: turning a cost into a credit (or
+            // re-pointing a credit) after the fact would silently rewrite history. To correct
+            // one, add a new dated entry.
+            && didNotChange(['userId', 'companyId', 'createdAt', 'createdBy', 'entryType', 'relatedExpenseId'])
             && validExpenseMoney())
         || isAdmin();
       allow delete: if (isOwner(resource.data.userId) && notViewer())
@@ -4123,6 +4184,35 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /thumbtack_events/{docId} {
+      allow read, write: if false;
+    }
+
+    // Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark).
+    // opp_seen/{companyId}_{oppId}: one record per Opportunity seen (decision, score, fixed
+    // tags, ZIP, miles; no name, phone or free text). opp_rules/_default: the owner's rules
+    // override and kill switch. Admin-SDK only: the oppShortlistFile callable is the sole
+    // writer of opp_seen (create(), first sighting wins) and the owner reads through
+    // callables, never straight from the browser. A client that reaches these paths is
+    // denied for read AND write, whoever it is (owner, platform admin, another tenant).
+    match /opp_seen/{docId} {
+      allow read, write: if false;
+    }
+    match /opp_rules/{docId} {
+      allow read, write: if false;
+    }
+    // opp_drafts/{companyId}_{oppId}: the first-message draft for one shortlisted Opportunity.
+    // CREATE-ONLY for clients, which means no client at all: oppDraftFile files it with the Admin
+    // SDK's create() (a second filing never overwrites the first), and the only later writer is the
+    // owner-only oppDraftDecide callable (Admin SDK: approve, edit, skip, snooze one pending draft;
+    // approve only marks it approved, nothing sends). Nothing deletes it. No client can read, create,
+    // update or delete it: the rules deny every client operation, whoever the client is.
+    match /opp_drafts/{docId} {
+      allow read, write: if false;
+    }
+    // opp_caps/{companyId}: the approval counter behind the 8-a-day / 25-a-week caps (day key, week
+    // key, two counts). Written only inside oppDraftDecide's transaction (Admin SDK). A client that
+    // could write it could reset the caps, so every client operation is denied, whoever the client is.
+    match /opp_caps/{docId} {
       allow read, write: if false;
     }
 

@@ -77,11 +77,15 @@ function summarizeOverhead(docs, lastKey, priorKey) {
     if (!cid) continue;
     const mk = monthKeyOf(etYmd(e.date));
     if (mk !== lastKey && mk !== priorKey) continue;
-    const cents = parseInt(e.amountCents, 10) || 0;
-    if (cents <= 0) continue;
+    const raw = parseInt(e.amountCents, 10) || 0;
+    if (raw <= 0) continue;
+    // A credit / refund row (entryType 'credit', flag costCredits) is stored positive and SUBTRACTS.
+    const isCredit = e.entryType === 'credit';
+    const cents = isCredit ? -raw : raw;
     let row = perCompany.get(cid);
     if (!row) { row = { totalCents: 0, count: 0, byCategory: {}, priorTotalCents: 0 }; perCompany.set(cid, row); }
     if (mk === lastKey) {
+      if (isCredit) row.creditsCents = (row.creditsCents || 0) + raw; // already netted into totalCents
       row.totalCents += cents;
       row.count += 1;
       const cat = e.category || 'uncategorized';
@@ -103,11 +107,18 @@ function buildEmail(summary, lastLabel) {
     ? (deltaCents >= 0 ? '+' : '−') + fmtCents(Math.abs(deltaCents)) + ' vs the month before (' + fmtCents(summary.priorTotalCents) + ')'
     : 'no overhead recorded the month before';
 
+  // Credits / refunds (flag costCredits) are already netted into the total. Say so, and say it
+  // loudly when they outrun the costs (the total is then negative, never shown as $0).
+  const creditTxt = summary.creditsCents
+    ? 'Includes ' + fmtCents(summary.creditsCents) + ' of credits / refunds netted out.' +
+      (summary.totalCents < 0 ? ' Credits are larger than the overhead costs logged this month; check the credits and their dates.' : '')
+    : '';
   const subject = 'Overhead spend — ' + fmtCents(summary.totalCents) + ' in ' + lastLabel;
   const bodyPlain = [
     'Monthly overhead summary for ' + lastLabel + ':',
     'Total: ' + fmtCents(summary.totalCents) + ' across ' + summary.count + ' expense' + (summary.count === 1 ? '' : 's'),
     deltaTxt,
+    ...(creditTxt ? [creditTxt] : []),
     '',
     ...cats.map(c => '  ' + c.label + ': ' + fmtCents(c.cents)),
     '',
@@ -118,6 +129,7 @@ function buildEmail(summary, lastLabel) {
     '<h2 style="margin:0 0 4px;">Overhead spend — ' + escapeHtml(lastLabel) + '</h2>',
     '<div style="font-size:24px;font-weight:700;margin:8px 0;">' + fmtCents(summary.totalCents) + '</div>',
     '<div style="color:#555;margin-bottom:14px;">' + escapeHtml(deltaTxt) + ' · ' + summary.count + ' expense' + (summary.count === 1 ? '' : 's') + '</div>',
+    ...(creditTxt ? ['<div style="color:#92400e;margin-bottom:14px;">' + escapeHtml(creditTxt) + '</div>'] : []),
     '<table style="border-collapse:collapse;width:100%;font-size:13px;">',
     ...cats.map(c =>
       '<tr><td style="padding:4px 8px;border-top:1px solid #eee;">' + escapeHtml(c.label) + '</td>' +
