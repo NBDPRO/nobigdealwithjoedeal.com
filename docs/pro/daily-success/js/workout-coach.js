@@ -58,29 +58,39 @@
   function weekBalance() { const s = settings(); return C().balance(sessions(), today(), { equip: s.equip, avoid: s.avoid }); }
   // Weekly volume map: a bar per muscle (this week), a tick for last week, the 10-20 band shaded.
   // Drawn as SVG attributes (no inline style, so it is CSP-proof).
+  // The window (week / 30d / 90d / all) is a per-device viewing choice (volume-range-logic.js); the chips only show once there is anything to read.
+  const VOL_RANGE = 'nbd_ds_vol_range';
+  const volRange = () => { try { const r = localStorage.getItem(VOL_RANGE); return window.NBDVolumeRange && window.NBDVolumeRange.RANGES.some((x) => x.id === r) ? r : 'week'; } catch (_) { return 'week'; } };
+  const RANGE_TXT = { week: 'sets this week', '30d': 'sets a week, last 30 days', '90d': 'sets a week, last 90 days', all: 'sets a week, all time' };
   function volumeHtml() {
     const s = settings();
-    const v = C().volumeMap(sessions(), today(), { equip: s.equip, avoid: s.avoid });
-    if (!v.enough) return '';
-    const cap = Math.max(v.band.max + 4, ...v.rows.map((r) => Math.max(r.now, r.prev)));
+    const VR = window.NBDVolumeRange, o = { equip: s.equip, avoid: s.avoid };
+    const range = VR ? volRange() : 'week';
+    const v = VR ? VR.volumeRange(sessions(), today(), range, Object.assign({ coach: C() }, o)) : C().volumeMap(sessions(), today(), o);
+    const anything = VR ? (range === 'all' ? v : VR.volumeRange(sessions(), today(), 'all', Object.assign({ coach: C() }, o))).enough : v.enough;
+    if (!anything) return '';
+    const chips = VR ? '<div class="pg-chips">' + VR.RANGES.map((r) => '<button type="button" class="pg-chip' + (r.id === range ? ' on' : '') + '" data-coach-action="vol-range" data-range="' + r.id + '" aria-pressed="' + (r.id === range) + '">' + esc(r.label) + '</button>').join('') + '</div>' : '';
+    if (!v.enough) return '<div class="wc-vol"><div class="wc-bal-h">Volume map</div>' + chips + '<div class="wc-bal-note">Not enough finished sets in this window yet.</div></div>';
+    const cap = Math.max(v.band.max + 4, ...v.rows.map((r) => Math.max(r.now, r.prev || 0)));
     const pc = (n) => Math.min(100, Math.round(n / cap * 100));
     const rows = v.rows.map((r) => {
-      const diff = r.delta === 0 ? 'same as last week' : (r.delta > 0 ? '+' : '') + r.delta + ' vs last week';
-      const label = esc(r.label + ' ' + r.now + ' sets, ' + diff);
+      const vs = range === 'week' ? 'last week' : 'the window before';
+      const diff = r.delta == null ? '' : ', ' + (r.delta === 0 ? 'same as ' + vs : (r.delta > 0 ? '+' : '') + r.delta + ' vs ' + vs);
+      const label = esc(r.label + ' ' + r.now + (range === 'week' ? ' sets' : ' sets a week') + diff);
       return '<div class="wc-vol-row"><span class="wc-vol-l">' + esc(r.label) + '</span>'
         + '<svg class="wc-vol-bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="' + label + '">'
         + '<rect class="wc-vol-track" x="0" y="0" width="100" height="10"/>'
         + '<rect class="wc-vol-band" x="' + pc(v.band.min) + '" y="0" width="' + (pc(v.band.max) - pc(v.band.min)) + '" height="10"/>'
         + '<rect class="wc-vol-fill ' + r.status + '" x="0" y="2" width="' + pc(r.now) + '" height="6"/>'
-        + '<rect class="wc-vol-prev" x="' + Math.max(0, pc(r.prev) - 1) + '" y="0" width="1.5" height="10"/></svg>'
+        + (r.prev == null ? '' : '<rect class="wc-vol-prev" x="' + Math.max(0, pc(r.prev) - 1) + '" y="0" width="1.5" height="10"/>') + '</svg>'
         + '<span class="wc-vol-n">' + r.now + '</span></div>';
     }).join('');
-    return '<div class="wc-vol"><div class="wc-bal-h">Volume map, sets this week</div>' + rows
-      + '<div class="wc-bal-note">Shaded: ' + v.band.min + '-' + v.band.max + ' sets a week. Tick: last week.</div></div>';
+    return '<div class="wc-vol"><div class="wc-bal-h">Volume map, ' + RANGE_TXT[range] + '</div>' + chips + rows
+      + '<div class="wc-bal-note">Shaded: ' + v.band.min + '-' + v.band.max + ' sets a week.' + (v.hasPrev === false ? '' : ' Tick: ' + (range === 'week' ? 'last week' : 'the window before') + '.') + '</div></div>';
   }
   function balanceHtml() {
     const b = weekBalance();
-    if (!b.enough) return '';
+    if (!b.enough) { const vh = volumeHtml(); return vh ? '<div class="wc-bal">' + vh + '</div>' : ''; }
     const chips = C().MUSCLES.map((m) => `<span class="wc-bal-chip${b.zero.includes(m) ? ' none' : b.low.includes(m) ? ' low' : ''}">${esc(C().MUSCLE_LABELS[m])} ${b.byMuscle[m]}</span>`).join('');
     const rot = C().ROTATIONS[settings().rotation];
     const needs = b.neglected.slice(0, 3).map((m) => {
@@ -754,6 +764,7 @@
     if (a !== 'discard' && !String(a).startsWith('split') && a !== 'swap-to' && a !== 'avoid-ex') armed = '';
     switch (a) {
       case 'start': start(); return;
+      case 'vol-range': try { localStorage.setItem(VOL_RANGE, String(t.dataset.range || 'week')); } catch (_) { /* the choice just is not remembered */ } refreshCard(); return;
       case 'repeat': repeatLast(); return;
       case 'open': histView = false; open(); return;
       case 'hist-open': histView = true; histId = null; summary = null; open(); return;
