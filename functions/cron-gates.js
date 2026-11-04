@@ -97,6 +97,10 @@ const CRON_GATES = [
   // on-switch is the Firestore doc system/healthShortcut {enabled:true} (dark
   // until Jo flips it in the console); this env var is the emergency kill switch.
   { name: 'HEALTH_SHORTCUT_DISABLED', polarity: 'disabled', file: 'health-shortcut.js' },
+  // Not a cron: the Secure Document Link master switch (2026-11-04). Off = /report/<token> behaves exactly as before and a secure link is unavailable. DARK until Jo says go.
+  { name: 'SECURE_DOC_LINK_ENABLED', polarity: 'enabled', file: 'doc-link-logic.js' },
+  // Hourly secure-link follow-up sweep (2026-11-04): ONE Agent-inbox reminder to the owner 24h after a first open. Never the customer. Dry-run until Jo says go.
+  { name: 'DOC_LINK_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'doc-link-followup.js' },
 ];
 
 /**
