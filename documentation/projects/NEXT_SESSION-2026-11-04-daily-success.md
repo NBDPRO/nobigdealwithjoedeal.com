@@ -93,5 +93,8 @@ could not be matched to a commit (unclear, not stale). CHARACTER-STYLE-PLAN is c
 
 ## Local clean-up (after the PRs merge)
 
-Scratch worktrees under `C:\Users\jonat\`: `nbd-wt-sunday-review`, `nbd-wt-heatmap`, `nbd-wt-range`, `nbd-wt-stats`, `nbd-wt-dots`,
-`nbd-wt-roadmap`, `nbd-wt-handoff`. Remove each with `git worktree remove` once its PR merges.
+Scratch worktrees under `C:\Users\jonat\` that belong to this lane (every other `nbd-wt-*` folder belongs to another session):
+`nbd-wt-sunday-review`, `nbd-wt-heatmap`, `nbd-wt-range`, `nbd-wt-stats`, `nbd-wt-dots`, `nbd-wt-dashstrip`, `nbd-wt-supchip`,
+`nbd-wt-ownerlog`, `nbd-wt-staledocs`, `nbd-wt-handoff`. Remove each with `git worktree remove` once its PR merges (the roadmap
+one, `nbd-wt-roadmap`, is already gone: #2809 merged). `nbd-wt-ownerlog` holds an untracked `functions/node_modules` from a local
+`npm ci`; removing the worktree with `--force` clears it.
