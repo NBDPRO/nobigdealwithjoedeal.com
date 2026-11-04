@@ -335,7 +335,7 @@
     var SIGN_TXT = {
       shingles: ['bad', 'Missing / cracked / curling shingles', 'Damaged shingles let water reach the deck.'],
       granules: ['warn', 'Granules in the gutters', 'A sign the shingles are wearing out.'],
-      dents: ['warn', 'Impact dents (hail)', 'Often claimable — worth documenting before it ages out.'],
+      dents: ['warn', 'Impact dents (hail)', 'Worth documenting soon, while the marks are fresh and easy to date.'],
       sagging: ['bad', 'Sagging / soft spots', 'Can indicate deck or structural moisture damage.'],
       flashing: ['warn', 'Flashing rust or gaps', 'A common, fixable leak source around chimneys and valleys.'],
       moss: ['warn', 'Moss / algae / dark streaks', 'Traps moisture and can shorten shingle life.']
