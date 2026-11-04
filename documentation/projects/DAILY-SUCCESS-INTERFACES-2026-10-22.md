@@ -98,3 +98,19 @@ Already built (Daily Success coach): **ghost of last session** (the Previous col
 
 Rule from Grok, which matches the research: anything done mid-set is one or two taps with last performance visible; navigation, typing and decisions happen between sets or after. Grok's claim that hard-reset streaks are the most common gamification complaint is unverified here; the design (XP never breaks, streak secondary) holds either way.
 
+## Status 2026-11-04 (end of the 10-22 session; pick up here)
+
+**Live on main:** the layout switch (`data-ui`, picker in the appearance modal's Layouts tab and on the first-run welcome; per-device, no sync); **Log Book** (flat coach screen, 48 px inputs, a Last / Best e1RM / Today row above each lift); **Rings** (the day page's Today bar as four rings, floors / calories / protein / workout, "All rings closed" note, not sticky); the weekly **volume map** on the coach card; and two pure modules that are **not wired to any screen yet**: `js/xp-logic.js` (XP, levels, streak: window.NBDXp) and `js/cockpit-logic.js` (the Cockpit tile numbers: window.NBDCockpit). Rings was checked live in a phone-sized browser; Log Book and Rings still need a real-iPhone look (ring size 68 px was a guess).
+
+**Still "coming" in the picker:** Cockpit, Quest, Arcade, One Thing, Journal. A layout only becomes pickable when its `ready` flag in `js/layout-logic.js` is set true in the same PR that ships its CSS.
+
+**Next, in this order:**
+1. **Cockpit screen** on `cockpit-logic.js`: tile row (workouts, hard sets vs last week, training streak, level) plus the volume map as the main block and a "behind this week" line. Scope CSS under `[data-ui="cockpit"]`.
+2. **Quest screen** on `xp-logic.js`: level and XP bar, streak (can break, rest day bridged, two empty days break it), daily quests. It needs floors data for floors XP: the day page's `pages` live in `app.js`, so hand them over through a small accessor (like `NBDFoodLogUI.targets()`), not by reading globals.
+3. Arcade (Quest data, louder styling), One Thing, Journal. Phase 3's Sunday review page is still on the roadmap and can ship between layouts.
+
+**How these PRs were built (keep doing it):** each layout is its own PR; pure logic first with a mutation-checked test (break the code on purpose and confirm the test goes red); a layout switch redraws an open screen through the `nbd-layout` window event; no inline style or handler (CSP); bump the `?v=` on every changed asset in `index.html`.
+
+**Merge-queue lessons from this session:** two PRs that add a line to the same place in `tests/ci-manifest.json` or the `index.html` version lines conflict in the queue; queue one at a time, or put a new manifest entry away from the other PR's line. A queue run that shows every emulator job failing at about 90 seconds is a cancelled run, not a real failure. `@shard3` (and `@shard2`) are not required checks and fail often.
+
+**Open for Jo:** the paint-counter blog draft (its PR was closed; the draft HTML is on the branch `docs/blog-paint-color-match-draft`, not published; it still needs Jo's lines for "What I Do While I Wait"); the Drive screenshot folder is sorted into Jo's private vault note (not in this repo).
