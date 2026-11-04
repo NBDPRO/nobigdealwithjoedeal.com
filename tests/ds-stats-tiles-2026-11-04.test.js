@@ -13,6 +13,11 @@ const path = require('path');
 const DS = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
 const S = require(path.join(DS, 'js', 'stats-logic.js'));
 
+const smallFonts = (css) => (css.replace(/\/\*[\s\S]*?\*\//g, '').match(/font-size:\s*[\d.]+(px|rem|em)/g) || []).filter((d) => {
+  const m = /([\d.]+)(px|rem|em)/.exec(d);
+  return Number(m[1]) * (m[2] === 'px' ? 1 : 16) < 11;
+});
+
 let passed = 0, failed = 0;
 function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
@@ -87,7 +92,8 @@ console.log('\n5. wired in, CSP-safe');
     && (html.match(/<script src="\/pro\/daily-success\/js\/stats-ui\.js\?v=\d+" defer><\/script>/g) || []).length === 1 && at('stats-ui.js') > at('progress-charts-ui.js'));
   ok('stylesheet linked once', (html.match(/css\/stats\.css\?v=\d+/g) || []).length === 1);
   const css = fs.readFileSync(path.join(DS, 'css', 'stats.css'), 'utf8');
-  ok('no font under 11px', !/font-size:\s*(\d|10)px/.test(css));
+  ok('the sheet has font sizes, and none is under 11px (px, rem or em, decimals included)', /font-size/.test(css) && smallFonts(css).length === 0, smallFonts(css).join());
+  ok('the size check itself catches 9.5px, .6rem and 10px', smallFonts('a{font-size:9.5px}b{font-size:.6rem}c{font-size:10px}d{font-size:11px}').length === 3);
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
