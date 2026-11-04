@@ -654,10 +654,13 @@
     // computed over won jobs that have logged direct costs — never paid-invoice
     // revenue (that would be a different basis and lie).
     var directByJob = {};       // leadId -> direct cents
-    var expTotalCents = 0, expDirectCents = 0, expOverheadCents = 0, expMonthCents = 0;
+    var expTotalCents = 0, expDirectCents = 0, expOverheadCents = 0, expMonthCents = 0, expCreditsCents = 0;
     var supplierCents = {};
     expenses.forEach(function (e) {
-      var c = parseInt(e.amountCents, 10) || 0;
+      // Credit / refund rows (flag costCredits) are stored positive and SUBTRACT below.
+      var cSign = e.entryType === 'credit' ? -1 : 1;
+      var c = cSign * (parseInt(e.amountCents, 10) || 0);
+      if (cSign < 0) expCreditsCents += -c;
       expTotalCents += c;
       var direct = e.costType === 'direct';
       if (direct) expDirectCents += c; else expOverheadCents += c;
@@ -668,7 +671,7 @@
       // Job cost is tax-INCLUDED (amount + tax — you paid the tax to the
       // supplier), the Money dashboard's and expenses.js's rule, so the two
       // margins agree (review R6-2-12).
-      if (direct && e.leadId) directByJob[e.leadId] = (directByJob[e.leadId] || 0) + c + (parseInt(e.taxCents, 10) || 0);
+      if (direct && e.leadId) directByJob[e.leadId] = (directByJob[e.leadId] || 0) + c + cSign * (parseInt(e.taxCents, 10) || 0);
     });
     // Won-job gross margin (jobValue basis). ONLY count jobs that have logged
     // direct costs — including uncosted jobs (revenue, $0 cost) would inflate
@@ -706,6 +709,9 @@
       expDirectDollars: expDirectCents / 100,
       expOverheadDollars: expOverheadCents / 100,
       expMonthDollars: expMonthCents / 100,
+      // Credits already netted into the figures above; true when they outrun the costs.
+      expCreditsDollars: expCreditsCents / 100,
+      expCreditsExceed: expCreditsCents > 0 && (expTotalCents < 0 || expDirectCents < 0 || expOverheadCents < 0),
       expGrossMargin: expGrossMargin,
       expCostedJobs: costedJobs,
       expWonJobs: wonJobs.length,

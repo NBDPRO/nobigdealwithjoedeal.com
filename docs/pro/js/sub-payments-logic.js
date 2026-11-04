@@ -40,7 +40,8 @@
   var PROOF_RE = /^receipts\/[A-Za-z0-9_-]{1,128}\/sub-proofs\/[A-Za-z0-9._-]{1,160}$/;
 
   function int(v) { var n = parseInt(v, 10); return isFinite(n) ? n : 0; }
-  function centsOf(e) { return int(e && e.amountCents) + int(e && e.taxCents); }
+  // Signed: a credit / refund row (entryType 'credit', flag costCredits) is stored positive and SUBTRACTS.
+  function centsOf(e) { return (e && e.entryType === 'credit' ? -1 : 1) * (int(e && e.amountCents) + int(e && e.taxCents)); }
   function toMs(v) {
     if (v == null || v === '') return null;
     if (typeof v === 'number') return v;
@@ -91,7 +92,7 @@
   }
 
   // ── which rows are in play ────────────────────────────────────────────
-  function isLive(e) { return !!e && e.deleted !== true && centsOf(e) > 0; }
+  function isLive(e) { return !!e && e.deleted !== true && centsOf(e) !== 0; }
   /** A sub / crew payment: category subcontractor, live (any cost type). */
   function isSubPayment(e) { return isLive(e) && e.category === CATEGORY; }
   /** Flag B: a direct sub payment with no job, not answered "Not a job cost". */

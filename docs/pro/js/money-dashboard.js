@@ -254,7 +254,7 @@
     });
     collectionsQueue.sort(function (a, b) { return b.daysPastDue - a.daysPastDue; });
 
-    var spentCents = 0, cogsCents = 0, overheadCents = 0;
+    var spentCents = 0, cogsCents = 0, overheadCents = 0, creditsCents = 0;
     var directByLead = {}, supplierCents = {};
     expenses.forEach(function (e) {
       var d = toJSDate(e.date);
@@ -264,6 +264,8 @@
       // (product decision 2026-07-08). Same rule in profit-tracker.js +
       // expenses.js aggregate(). NOTE: the 1099 YTD below stays PRE-tax.
       var c = (parseInt(e.amountCents, 10) || 0) + (parseInt(e.taxCents, 10) || 0);
+      // A credit / refund row (flag costCredits) is stored positive and SUBTRACTS (tax included).
+      if (e.entryType === 'credit') { c = -c; creditsCents += -c; }
       spentCents += c;
       if (e.costType === 'direct') { cogsCents += c; if (e.leadId) directByLead[e.leadId] = (directByLead[e.leadId] || 0) + c; }
       else overheadCents += c;
@@ -315,7 +317,8 @@
         // 1099 box 1 = amounts paid for SERVICES, PRE-tax (sales tax is not
         // nonemployee compensation) — deliberately amountCents only, unlike the
         // cash/COGS totals above which include tax.
-        return (etYear(toJSDate(e.date)) === year) ? sum + (parseInt(e.amountCents, 10) || 0) : sum;
+        // A refund/credit from the sub nets the 1099 total down (flag costCredits).
+        return (etYear(toJSDate(e.date)) === year) ? sum + (e.entryType === 'credit' ? -1 : 1) * (parseInt(e.amountCents, 10) || 0) : sum;
       }, 0);
       if (ytd >= th) { due1099 += 1; due1099Cents += ytd; }
     });
@@ -324,6 +327,9 @@
       year: year,
       collectedCents: collectedCents, spentCents: spentCents, netCashCents: netCashCents,
       cogsCents: cogsCents, overheadCents: overheadCents, outstandingCents: outstandingCents,
+      // Credits are already netted into spent/cogs/overhead above; shown, and flagged when they outrun costs.
+      creditsCents: creditsCents,
+      creditsExceed: creditsCents > 0 && (spentCents < 0 || cogsCents < 0 || overheadCents < 0),
       agingCents: agingCents, collectionsQueue: collectionsQueue,
       wonContractCents: wonContractCents, wonDirectCents: wonDirectCents, grossMargin: grossMargin,
       costedJobs: costedJobs, wonJobs: wonLeads.length,
@@ -364,7 +370,8 @@
     var base = (e.amountCents != null && e.amountCents !== '')
       ? (parseInt(e.amountCents, 10) || 0)
       : Math.round((parseFloat(e.amount) || 0) * 100);
-    return base + (parseInt(e.taxCents, 10) || 0);
+    // Credit / refund rows (flag costCredits) are stored positive and SUBTRACT.
+    return (e.entryType === 'credit' ? -1 : 1) * (base + (parseInt(e.taxCents, 10) || 0));
   }
   function isUncategorized(cat) {
     var c = String(cat == null ? '' : cat).trim().toLowerCase();

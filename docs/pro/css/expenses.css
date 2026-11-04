@@ -73,3 +73,6 @@
 .exx-imp-table th { text-align: left; padding: 4px 6px; }
 .exx-imp-table td { padding: 4px 6px; vertical-align: top; border-top: 1px solid var(--br,#2a2f3a); }
 .exx-imp-table td.exx-imp-nowrap { white-space: nowrap; }
+
+/* Credit / refund fields in the Log Expense form (flag costCredits): hidden until the entry type is not "cost". */
+#expFormOverlay .exp-credit-row { display: none; margin-bottom: 12px; }

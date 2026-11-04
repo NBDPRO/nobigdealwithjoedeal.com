@@ -628,6 +628,14 @@ const CONFIRMED_SOURCES = ['yelp', 'thumbtack_paid', 'thumbtack_direct', 'referr
 // A source is free text from intake forms and expense rows; the bots read these rows as data, so a row key is one
 // printable line, capped (pass-2 item 6, 2026-10-25). The same raw text still lands on the same row.
 function sourceKey(v) { return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
+// Signed money of one /expenses row, in cents, tax included. A credit / refund / return row
+// (entryType 'credit', flag costCredits; stored POSITIVE) SUBTRACTS; a cost, an adjustment and
+// an old row with no entryType ADD. Mirrors docs/pro/js/expense-config.js signedCents.
+// Data-driven (not flag-driven): a credit that exists is always netted.
+function expenseSignedCents(e) {
+  const c = (Number(e && e.amountCents) || 0) + (Number(e && e.taxCents) || 0);
+  return e && e.entryType === 'credit' ? -c : c;
+}
 function leadSources(leads, expenses, nowMs, days) {
   const d = Math.min(Math.max(Math.floor(Number(days)) || 90, 7), 730);
   const cut = nowMs - d * 86400000;
@@ -652,7 +660,7 @@ function leadSources(leads, expenses, nowMs, days) {
     if (!e || !e.marketingSource || e.deleted === true) return;
     const t = Date.parse(e.date) || ms(e.createdAt);
     if (!t || t < cut) return;
-    row(sourceKey(e.marketingSource) || 'Unknown').spend += (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+    row(sourceKey(e.marketingSource) || 'Unknown').spend += expenseSignedCents(e);
   });
   const out = Object.values(rows).map((r) => ({
     source: r.source, leads: r.leads, won: r.won, lost: r.lost, open: r.open,
@@ -683,8 +691,8 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
   const jobOf = (r) => r._jobId || r.activeJobId || null;
   const known = {};
   recs.forEach((r) => { const j = jobOf(r); if (j) known[r.id + '/' + j] = 1; });
-  const got = {}, cost = {};
-  const add = (map, leadId, jobId, cents) => {
+  const got = {}, cost = {}, credit = {};
+  const add =(map, leadId, jobId, cents) => {
     const k = (jobId && known[leadId + '/' + jobId]) ? leadId + '/' + jobId : leadId;
     map[k] = (map[k] || 0) + cents;
   };
@@ -694,7 +702,8 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
   });
   (expenses || []).forEach((e) => {
     if (!e || !e.leadId || e.deleted === true || e.costType !== DIRECT) return;
-    add(cost, e.leadId, e.jobId, (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0));
+    add(cost, e.leadId, e.jobId, expenseSignedCents(e));
+    if (e.entryType === 'credit') add(credit, e.leadId, e.jobId, (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0));
   });
   // A non-card job's finish date is its own (stage start / close), not the
   // customer's latest edit.
@@ -710,13 +719,18 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
     const shared = home[r.id] === r;
     const c = (own ? got[own] || 0 : 0) + (shared ? got[r.id] || 0 : 0);
     const k = (own ? cost[own] || 0 : 0) + (shared ? cost[r.id] || 0 : 0);
-    return { lead_id: r.id, job_id: j, name: minimalLead(r).name, finished: nyDay(finishedMs(r), tz),
+    const cr = (own ? credit[own] || 0 : 0) + (shared ? credit[r.id] || 0 : 0);
+    const row = { lead_id: r.id, job_id: j, name: minimalLead(r).name, finished: nyDay(finishedMs(r), tz),
       collected: c / 100, direct_costs: k / 100, profit: (c - k) / 100, margin_pct: c > 0 ? Math.round((c - k) / c * 100) : null,
       costs_logged: k > 0 };
+    // direct_costs is already NET of credits / refunds. Said out loud when there are any, and
+    // flagged when they outrun the costs (direct_costs then stays negative; never clamped).
+    if (cr > 0) { row.credits = cr / 100; row.credits_exceed_costs = k < 0; }
+    return row;
   }).sort((x, y) => String(y.finished).localeCompare(String(x.finished))).slice(0, clampLimit(a.limit));
   const tc = jobs.reduce((s, j) => s + Math.round(j.collected * 100), 0), tk = jobs.reduce((s, j) => s + Math.round(j.direct_costs * 100), 0);
   return { jobs, totals: { collected: tc / 100, direct_costs: tk / 100, profit: (tc - tk) / 100, margin_pct: tc > 0 ? Math.round((tc - tk) / tc * 100) : null },
-    note: 'INTERNAL. Collected money minus direct job costs. A job with no costs logged (costs_logged false) overstates profit until its receipts are added.' };
+    note: 'INTERNAL. Collected money minus direct job costs, net of any credits / refunds. A job with no costs logged (costs_logged false) overstates profit until its receipts are added. credits_exceed_costs true means credits are larger than the costs logged so far.' };
 }
 // Weekly margin review (Jo queue item 5, 2026-10-23). Built on jobProfit so it
 // can never disagree with it. Money in cents; the output rounds to whole
@@ -746,7 +760,7 @@ function marginReview(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
       if (!e || e.deleted === true || e.costType !== DIRECT || e.leadId !== j.lead_id) return;
       if (j.job_id && e.jobId && e.jobId !== j.job_id) return;
       const k = String(e.category || 'other_direct');
-      byCat[k] = (byCat[k] || 0) + (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+      byCat[k] = (byCat[k] || 0) + expenseSignedCents(e);
     });
     const top = Object.keys(byCat).sort((x, y) => byCat[y] - byCat[x])[0];
     out.flagged.push({ lead_id: j.lead_id, job_id: j.job_id, name: j.name, finished: j.finished, collected: j.collected,
@@ -1544,7 +1558,7 @@ module.exports = {
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
