@@ -154,9 +154,9 @@ const PKG_STUBS = {
   'firebase-admin': { initializeApp: () => ({}), apps: [{}], firestore: Object.assign(() => DB, { FieldValue, Timestamp }) },
   stripe: vendorSpy('stripe'), twilio: vendorSpy('twilio'), resend: { Resend: vendorSpy('resend') },
 };
-// Rate limiter: unlimited unless a test sets W.rl = (namespace, key) => bool(allowed).
+// Rate limiter: unlimited unless a test sets W.rl = (namespace, key, limit, windowMs) => bool(allowed).
 const limiter = {
-  enforceRateLimit: async (ns, key) => { if (W.rl && !W.rl(ns, key)) { const e = new Error('rate_limited'); e.rateLimited = true; throw e; } return { count: 1 }; },
+  enforceRateLimit: async (ns, key, limit, windowMs) => { if (W.rl && !W.rl(ns, key, limit, windowMs)) { const e = new Error('rate_limited'); e.rateLimited = true; throw e; } return { count: 1 }; },
   httpRateLimit: async () => true,
   clientIp: () => '203.0.113.9', hashKey: (k) => String(k), provider: 'firestore', _upstashConfigured: false,
 };

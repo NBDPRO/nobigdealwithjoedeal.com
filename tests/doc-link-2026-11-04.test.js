@@ -403,10 +403,16 @@ function beacon(token, viewId, k, s, ua, extra) {
     ok('crossing 10 s fires ONE "viewing your estimate right now" bell + push (reusing fresh-view-logic)', !!fv && /viewing their estimate right now/.test(fv.message) && fv.type === 'estimate_viewed' && W.pushes.length === 2);
     W.now += 15000;
     await beacon(m.token, vid, 'ping', 15);
+    ok('…the view is marked so it can alert only once', W.docs['leads/lead-1/docViews/' + vid].readingAlerted === true);
     ok('…a further ping in the same view does not alert again', W.pushes.length === 2 && W.docs['leads/lead-1/docViews/' + vid].readSeconds === 35);
     W.now += 5000;
     await beacon(m.token, vid, 'ping', 60);
     ok('a claimed 60 s after 5 s of wall clock is clamped to 10 s', W.docs['leads/lead-1/docViews/' + vid].readSeconds === 45);
+    {
+      W.now += 15000;
+      const again = await PING.applyBeacon(DB, { token: m.token, viewId: vid, kind: 'ping', seconds: 15, ua: IPHONE, nowMs: W.now });
+      ok('…and a later ping in that view reports no new "reading now"', again.ok === true && again.reading === false);
+    }
 
     // a second visit 7 hours later, a fresh view
     W.now += 7 * H;
@@ -471,6 +477,13 @@ function beacon(token, viewId, k, s, ua, extra) {
     await beacon(m1.token, v1, 'open', 5);
     ok('tenant: a lead now owned by someone else gets no open, no alert', !W.docs['report_share_tokens/' + m1.token].openCount && W.pushes.length === 0);
     W.docs['leads/lead-1'].userId = 'u1';
+    // same lead, two secure links: a view of link A is no view of link B
+    const mB = (await mintSecure()).value;
+    const mA = (await mintSecure()).value;
+    const vA = viewIdOf(await fetchShell(mA.token));
+    W.now += 10000;
+    await beacon(mB.token, vA, 'open', 5);
+    ok('tenant: a view row of link A cannot be opened through link B (same lead, different token)', !W.docs['report_share_tokens/' + mB.token].openCount && !W.docs['report_share_tokens/' + mA.token].openCount);
     // revoked / expired token: beacon ignored
     W.docs['report_share_tokens/' + m1.token].status = 'revoked';
     await beacon(m1.token, v1, 'open', 5);
@@ -480,14 +493,25 @@ function beacon(token, viewId, k, s, ua, extra) {
     const leg = (await call(SEND.createEstimateReviewLink, { leadId: 'lead-1', documentId: 'doc-1' }, OWNER)).value;
     await beacon(leg.token, v1, 'open', 5);
     ok('a legacy review token is not a beacon target', !W.docs['report_share_tokens/' + leg.token].openCount);
+    // even with a view row that matches the legacy token in every other way
+    W.docs['leads/lead-1/docViews/legacyviewabcde0'] = { tokenRef: leg.token.slice(0, 10), companyId: 'u1', ownerUid: 'u1', fetchedAt: Timestamp.fromMillis(W.now - 60000), openedAt: null, readSeconds: 0, botSuspect: false };
+    await beacon(leg.token, 'legacyviewabcde0', 'open', 5);
+    ok('…not even with a matching view row (secure_doc only)', !W.docs['report_share_tokens/' + leg.token].openCount && !W.docs['leads/lead-1/docViews/legacyviewabcde0'].openedAt);
     // GET, junk, unauthenticated
     const get = mkRes();
     await PING.handle(mkReq({ method: 'GET' }), get, { db: DB, now: () => W.now });
     ok('GET is 405', get.statusCode === 405);
     // per-view throttle
-    let n = 0; W.rl = (ns) => { if (ns === 'doclink-ping:view') { n++; return n <= 10; } return true; };
-    for (let i = 0; i < 14; i++) await beacon(m1.token, v1, 'open', 5);
-    ok('the per-view ping limit answers 204 and stops processing after 10 a minute', n === 14);
+    W.rl = null;
+    W.docs['report_share_tokens/' + m1.token].status = 'active';
+    W.docs['report_share_tokens/' + m1.token].companyId = 'u1';
+    W.docs['leads/lead-1'].userId = 'u1';
+    const counts = {};
+    W.rl = (ns, key, limit) => { const k = ns + key; counts[k] = (counts[k] || 0) + 1; return counts[k] <= limit; };
+    await beacon(m1.token, v1, 'open', 5);
+    for (let i = 0; i < 14; i++) { W.now += 1000; await beacon(m1.token, v1, 'ping', 1); }
+    ok('the per-view ping limit (10 a minute) answers 204 and stops processing: 1 open + 9 pings counted, the rest ignored',
+      W.docs['leads/lead-1/docViews/' + v1].readSeconds === 9, String(W.docs['leads/lead-1/docViews/' + v1].readSeconds));
     W.rl = null;
   }
   {
