@@ -262,4 +262,17 @@ function buildResponse(env, committedText, extra) {
   };
 }
 
-module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };
+// ── Firestore feature flags (feature_flags/_default merged with feature_flags/{uid}) ──
+// A DIFFERENT kind of flag from the env flags above: no process.env, nothing here is read by
+// flagStatus, and FLAGS (and its pin in tests/flags-registry-drift.test.js) is unchanged. These are
+// listed so every new dark flag has one registered name and an explicit default. Absent = the default.
+// `default` must stay false for anything that ships dark. tests/flags-registry-drift.test.js checks
+// the rows (name shape, default false, doc exists, the code that reads the name).
+const FIRESTORE_FLAGS = [
+  { name: 'thumbtackOpportunities', default: false, dark: true, file: 'opp-rules.js', doc: 'documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md',
+    meaning: 'Thumbtack Opportunities watcher: scoring, storage and draft filing. Off = every watcher callable refuses and files nothing. Reads and sends nothing on Thumbtack either way.' },
+  { name: 'thumbtackOppSend', default: false, dark: true, file: 'opp-rules.js', doc: 'documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md',
+    meaning: 'RESERVED for the Thumbtack Opportunities sender (a later PR). Nothing reads it yet and no sender exists.' },
+];
+
+module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

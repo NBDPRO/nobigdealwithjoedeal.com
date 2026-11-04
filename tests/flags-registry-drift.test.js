@@ -95,6 +95,21 @@ for (const f of FLAGS) {
 ok('registry pins 51 flags (2026-11-04: +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
   FLAGS.length === 51,String(FLAGS.length));
 
+// ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
+console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');
+{
+  const FF = REG.FIRESTORE_FLAGS || [];
+  const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
+  ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
+  ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
+  ok('the code agrees with the registry: opp-rules.js exports the same names and the same false defaults',
+    optRules.FLAG_NAME === 'thumbtackOpportunities' && optRules.SEND_FLAG_NAME === 'thumbtackOppSend' && optRules.FLAG_DEFAULT === false && optRules.SEND_FLAG_DEFAULT === false);
+  ok('each registered file really names its flag (a stale row fails)', FF.every((f) => fs.readFileSync(path.join(FN_DIR, f.file), 'utf8').includes("'" + f.name + "'")));
+  ok('the env-flag status payload is untouched by the new list', !JSON.stringify(REG.buildResponse({}, null).flags).includes('thumbtackOpp'));
+}
+
 // ── cron-gates.js stays the single polarity source ────────────────────────
 const gateNames = new Set(CRON_GATES.map((g) => g.name));
 ok('every CRON_GATES gate has a registry row', CRON_GATES.every((g) => regNames.has(g.name)),
