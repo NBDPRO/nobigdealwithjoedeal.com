@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Calendar engine trial — NBD Pro</title>
+<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+<!-- Calendar-engine trial (2026-11-04): EventCalendar v5.18.1 on SAMPLE data
+     only. Nothing reads or writes Firestore; dragging an event only reports
+     what WOULD save. Not linked from the CRM. Findings:
+     documentation/projects/CALENDAR-ENGINE-TRIAL-2026-11-04.md -->
+<link rel="stylesheet" href="/assets/vendor/event-calendar/event-calendar.min.css">
+<link rel="stylesheet" href="/pro/css/calendar-trial.css">
+</head>
+<body class="ec-auto-dark">
+<main class="ct">
+  <header class="ct-hdr">
+    <a class="ct-back" href="/pro/dashboard.html">&#8592; Dashboard</a>
+    <h1>Calendar engine trial</h1>
+    <p class="ct-sub">Sample jobs, adjuster meetings and Cal.com bookings for this week and next. Nothing here is real, and nothing saves.</p>
+  </header>
+
+  <nav class="ct-views" aria-label="Calendar view">
+    <button type="button" data-view="dayGridMonth">Month</button>
+    <button type="button" data-view="timeGridWeek">Week</button>
+    <button type="button" data-view="timeGridDay">Day</button>
+    <button type="button" data-view="listWeek">List</button>
+    <button type="button" data-view="resourceTimelineWeek">Crews</button>
+  </nav>
+
+  <ul class="ct-legend" aria-label="Colour key">
+    <li><span class="ct-dot ct-k-job"></span>Job</li>
+    <li><span class="ct-dot ct-k-week"></span>Week plan</li>
+    <li><span class="ct-dot ct-k-adjuster"></span>Adjuster</li>
+    <li><span class="ct-dot ct-k-appointment"></span>Cal.com booking</li>
+  </ul>
+
+  <div id="ctCal" class="ct-cal"></div>
+
+  <p id="ctStatus" class="ct-status" role="status" aria-live="polite"></p>
+</main>
+
+<script defer src="/assets/vendor/event-calendar/event-calendar.min.js"></script>
+<script defer src="/pro/js/schedule-window.js"></script>
+<script defer src="/pro/js/schedule-ec-events.js"></script>
+<script defer src="/pro/js/calendar-trial.js"></script>
+</body>
+</html>
