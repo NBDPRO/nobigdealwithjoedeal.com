@@ -82,7 +82,7 @@ ok('the title is escaped', /esc\(bk\.title\)/.test(pjs));
 ok('no self-serve → a message to the rep instead', /Need to change it\? Send ' \+ esc\(repName\) \+ ' a message below\./.test(pjs));
 ok('times shown in Eastern time', /timeZone: 'America\/New_York'/.test(pjs));
 ok('while booked: no "book" action and no booking embed', /view\.bookingUrl && !view\.booking && copy\.bookLink/.test(pjs) && /if \(view\.bookingUrl && !view\.booking\) \{/.test(pjs));
-ok('reschedule / cancel metrics allowlisted', /METRIC_ACTIONS = new Set\(\[[^\]]*'reschedule', 'cancel'\]\)/.test(read('functions/customer-audit.js')));
+ok('reschedule / cancel metrics allowlisted', /METRIC_ACTIONS = new Set\(\[[^\]]*'reschedule', 'cancel'[,\]]/.test(read('functions/customer-audit.js')));
 ok('portal.js cache-buster bumped (v>=23)', Number((read('docs/pro/portal.html').match(/js\/portal\.js\?v=(\d+)/) || [])[1]) >= 23);
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
