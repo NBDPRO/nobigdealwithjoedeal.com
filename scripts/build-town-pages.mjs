@@ -66,7 +66,11 @@ const fdate = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `$
 const mi = (km) => { const v = km * 0.621371; return v < 1 ? v.toFixed(1) : String(Math.round(v * 10) / 10); };
 const radiusMi = (t) => String(Math.round(t.storms.radiusKm * 0.621371 * 2) / 2);
 const mph = (kt) => Math.round(kt * 1.15078);
-const noaaUrl = (id) => `https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=${id}`;
+// NOAA moved the Storm Events Database to ncei.noaa.gov (2026). The old
+// ncdc eventdetails.jsp?id= links now redirect to the database HOME page, not
+// the event — checked in a browser 2026-11-04; /event-details/<id> shows it.
+const noaaUrl = (id) => `https://www.ncei.noaa.gov/access/storm-events-database/event-details/${id}`;
+const NOAA_DB = 'https://www.ncei.noaa.gov/access/storm-events-database/';
 const HAIL = { 1: 'quarter', 1.25: 'half-dollar', 1.5: 'ping-pong-ball', 1.75: 'golf-ball', 2: 'hen-egg', 2.5: 'tennis-ball', 2.75: 'baseball', 3: 'teacup' };
 const hailIn = (x) => (x === 1 ? '1-inch' : `${x}-inch`);
 const inches = (x) => (x === 1 ? '1 inch' : `${x} inches`);
@@ -173,7 +177,7 @@ function housingParagraph(t) {
 function stormBox(t) {
   const T = esc(t.town), n = t.storms.nearbyCount, r = radiusMi(t), s = t.storms;
   const h3 = pick(t, 'sh', [`⛈️ Storm record near ${T} since 2019`, `⛈️ What NOAA logged around ${T}`, `⛈️ ${T} storm history, 2019–2026`, '⛈️ Recent storms on the record']);
-  const noaa = link('https://www.ncdc.noaa.gov/stormevents/', 'Storm Events Database');
+  const noaa = link(NOAA_DB, 'Storm Events Database');
   const lead = pick(t, 'sl', [
     `NOAA’s ${noaa} has ${n} reports of damaging wind, hail an inch or larger, or tornadoes within about ${r} miles of ${T} between January 2019 and June 2026. The biggest:`,
     `Between 2019 and mid-2026, the National Weather Service logged ${n} severe reports within roughly ${r} miles of town (NOAA ${noaa}). The ones I’d point to:`,
@@ -567,7 +571,7 @@ function stormCard(t, service) {
   const T = esc(t.town), s = t.storms, r = radiusMi(t), k = 'sv-' + service;
   const evs = [...s.events].sort((a, b) => score(b) - score(a)).slice(0, 3).sort((a, b) => b.date.localeCompare(a.date));
   const h = pick(t, k + 'h', [`⛈️ What NOAA logged near ${T}`, `⛈️ ${T}’s storm record since 2019`, `⛈️ Storms on the record near ${T}`]);
-  const lead = `NOAA’s ${ext('https://www.ncdc.noaa.gov/stormevents/', 'Storm Events Database')} has ${s.nearbyCount} reports of damaging wind, 1-inch-plus hail or tornadoes within about ${r} miles of ${T} from January 2019 through June 2026. The ${evs.length === 1 ? 'strongest' : `${evs.length} strongest`}:`;
+  const lead = `NOAA’s ${ext(NOAA_DB, 'Storm Events Database')} has ${s.nearbyCount} reports of damaging wind, 1-inch-plus hail or tornadoes within about ${r} miles of ${T} from January 2019 through June 2026. The ${evs.length === 1 ? 'strongest' : `${evs.length} strongest`}:`;
   const items = evs.map((e) => `<strong>${fdate(e.date)}</strong>: ${esc(describe(t, e))} (${ext(noaaUrl(e.noaa), 'NOAA')})`);
   const why = {
     'roof-inspection': pick(t, k + 'w', [

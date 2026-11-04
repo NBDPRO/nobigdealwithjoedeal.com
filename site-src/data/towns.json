@@ -681,7 +681,7 @@
    ]},
    "permit": {"status":"unknown","authority":"Boone County Building Department","url":"https://www.boonecountyky.org/services/building_department/building_permits/building_permit_exemptions.php","summary":"Boone County's building-permit exemption list does not include roofing, and its permits page never names it either; permits are required for changes to \"the structure, size or safety\" of a home.","ask":"the Boone County Building Department in Burlington"},
    "facts": [
-    {"cat":"growth","text":"Florence grew from 1,325 residents in 1950 to 5,837 in 1960 and 11,661 by 1970. Subdivisions went up around the old town, and much of today's housing dates from that boom.","url":"https://cbc.bcplhistory.org/doku.php?id=florence_kentucky_in_the_1960_s"},
+    {"cat":"growth","text":"Florence grew from 1,325 residents in 1950 to 5,837 in 1960 and 11,661 by 1970. Subdivisions went up around the old town, and much of today's housing dates from that boom.","url":"https://web.archive.org/web/20220626141946/https://cbc.bcplhistory.org/doku.php?id=florence_kentucky_in_the_1960_s"},
     {"cat":"trees","text":"Florence has been a Tree City USA for 34 consecutive years.","url":"https://linknky.com/press-releases/2026/09/15/press-release-celebrate-arbor-day-with-the-city-of-florence/"}
    ]
   },
