@@ -170,6 +170,7 @@ const WOULD = {
   dictate: 'transcribe a voice note',
   transcribeVoiceMemo: 'transcribe a voice memo',
   extractReceiptData: 'read a receipt with AI',
+  submitInboxReceipt: 'read a receipt into your inbox with AI',
   renderPdf: 'render the PDF on the server',
   getDocumentPdfUrl: 'render the PDF on the server',
   exportMyData: 'export your company data',
