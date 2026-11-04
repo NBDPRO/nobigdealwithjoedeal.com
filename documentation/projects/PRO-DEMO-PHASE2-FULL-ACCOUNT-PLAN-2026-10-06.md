@@ -1,5 +1,7 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Correction 2026-11-04 (recon against `origin/main`): this plan is built, and both "Next" lines further down are done.** Waves 1-4 merged together in #2294 (the browser-only sample account at `/pro/explore`: invoices, payments, Settings, maps, Agent inbox, Ask Joe, estimates, the e-sign preview). The `/pro/sandbox` end screen now links "Explore the sample account" to `/pro/explore` (`docs/pro/sandbox.html`). The tool pages joined the sample account, starting with #2725 (AI Usage) and #2726 (every dashboard tool, the Success Tracker week), with fixes in #2748, #2752 and #2755. **Still open:** "save as my real account" (no match in `docs/pro/explore`, `docs/pro/sandbox.html` or `demo-mode.js`).
+
 > **Update 2026-10-24: the tool pages join the sample account, one PR per tool** (Jo: "build something similar for all the rest of the tools pages"). Until now `demo-mode.js` hid Decision Engine, Understand, Project Codex, AI Usage and Success Tracker, because they opened the REAL `/pro/` pages (outside the demo worker, refused by `frame-ancestors`, App Check).
 >
 > **How a tool joins:**

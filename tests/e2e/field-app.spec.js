@@ -46,7 +46,10 @@ async function emptyToday(uid) {
   const leads = await db.collection('leads').where('userId', '==', uid).get();
   for (const d of leads.docs) {
     const x = d.data();
-    if (x.e2eTestData === true && x.scheduledDate) await d.ref.update({ scheduledDate: FieldValue.delete() });
+    // crew-calendar.spec.js leaves a two-day job (scheduledDate + scheduledEndDate) on this rep, so clear the end date too
+    if (x.e2eTestData === true && (x.scheduledDate || x.scheduledEndDate)) {
+      await d.ref.update({ scheduledDate: FieldValue.delete(), scheduledEndDate: FieldValue.delete() });
+    }
   }
   const appts = await db.collection('appointments').where('repUid', '==', uid).get();
   for (const d of appts.docs) await d.ref.delete();
