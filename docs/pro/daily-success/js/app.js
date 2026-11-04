@@ -871,30 +871,19 @@ toast('🏆 ALL FLOORS HIT — GOLDEN GOOSE EARNED!');
 // WEEK-AT-A-GLANCE MINI CALENDAR
 // ═══════════════════════════════════════════
 function buildWeekGlance(){
-const floors=getFloors();
-const today=new Date();
-const dayOfWeek=today.getDay();
-const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
-const days=['M','T','W','T','F','S','S'];
+if(typeof NBDDayLayout==='undefined'||!NBDDayLayout.weekStrip)return '';
+let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')||'[]');}catch(e){}
+const cells=NBDDayLayout.weekStrip(pages,getFloors(),sessions,todayKey());
 let html='<div style="display:flex;gap:5px;align-items:center;justify-content:center;">';
-for(let i=0;i<7;i++){
-const d=new Date(monday);d.setDate(monday.getDate()+i);
-const dk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const pg=pages.find(p=>p.dk===dk);
-const pd=pg?pg.data||{}:{};
-const metCount=floors.filter(f=>pd['floormet-'+f.id]==='1').length;
-const total=floors.length;
-const isToday=dk===todayKey();
+cells.forEach(c=>{
 let bg='transparent',border='#334455',color='#8fa1b8';
-if(pg&&total>0){
-const pct=metCount/total;
-if(pct>=1){bg='var(--grn)';border='var(--grn)';color='#fff';}
-else if(pct>=.5){bg='var(--gold)';border='var(--gold)';color='#fff';}
-else if(pct>0){bg='rgba(249,115,22,.3)';border='var(--ac)';color='var(--ac)';}
-}
-const ring=isToday?'box-shadow:0 0 0 2px var(--ac);':'';
-html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${pages.indexOf(pg)}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${isToday?'var(--ac-on-dark,var(--ac-text))':'var(--on-dark,var(--muted))'};letter-spacing:.1em;font-weight:${isToday?'700':'400'}">${days[i]}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${color};${ring}">${pg&&total>0?metCount:d.getDate()}</div></div>`;
-}
+if(c.level==='full'){bg='var(--grn)';border='var(--grn)';color='#fff';}
+else if(c.level==='half'){bg='var(--gold)';border='var(--gold)';color='#fff';}
+else if(c.level==='some'){bg='rgba(249,115,22,.3)';border='var(--ac)';color='var(--ac)';}
+const ring=c.isToday?'box-shadow:0 0 0 2px var(--ac);':'';
+const pg=c.pageIdx>=0;
+html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${c.pageIdx}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${c.isToday?'var(--ac-on-dark,var(--ac-text))':'var(--on-dark,var(--muted))'};letter-spacing:.1em;font-weight:${c.isToday?'700':'400'}">${c.label}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${color};${ring}">${pg&&c.total>0?c.met:c.day}</div><span class="wg-dot${c.trained?' on':''}" role="img" aria-label="${c.trained?'Workout done':'No workout'}"></span></div>`;
+});
 html+='</div>';
 return html;
 }
