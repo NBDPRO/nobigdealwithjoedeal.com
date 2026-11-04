@@ -111,6 +111,7 @@
       { "source": "/api/deal-accept", "function": { "functionId": "submitDealAcceptance", "region": "us-central1" } },
       { "source": "/api/mcp", "function": { "functionId": "crmMcp", "region": "us-central1" } },
       { "source": "/api/deal-read", "function": { "functionId": "dealRoomReadPing", "region": "us-central1" } },
+      { "source": "/api/doc-link-ping", "function": { "functionId": "docLinkPing", "region": "us-central1" } },
       { "source": "/api/deal-prequal", "function": { "functionId": "dealPrequalStarted", "region": "us-central1" } },
       { "_comment": "NBD's Twilio line (2026-10-06, functions/twilio-line.js). Twilio posts here once the number's Messaging + Voice webhooks are pointed at these URLs (runbook documentation/runbooks/TWILIO-LINE-GO-LIVE.md). Every request is X-Twilio-Signature verified; DARK until TWILIO_INBOUND_ENABLED=true (fixed TwiML, nothing written). Exact sources, no wildcard.",
         "source": "/api/twilio/sms", "function": { "functionId": "twilioSmsWebhook", "region": "us-central1" } },
@@ -559,6 +560,15 @@
           { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
           { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+        ]
+      },
+      {
+        "_comment": "Secure Document Link (2026-11-04, dark behind SECURE_DOC_LINK_ENABLED). The viewer page frames /report/<token>/file (the PDF, same origin) so time with the page open can be measured. The site-wide DENY / frame-ancestors none would block that frame; this lets OUR OWN pages frame ONLY the /file path. UNVERIFIED on a deployed rewrite: whether Hosting applies header rules to function-served responses, and which duplicate wins. If it does not work the viewer shows an Open full document button instead. See documentation/projects/DOC-TRACKER-2026-11-04.md.",
+        "source": "/report/*/file",
+        "headers": [
+          { "key": "Content-Security-Policy", "value": "default-src 'none'; frame-ancestors 'self'; form-action 'self'" },
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+          { "key": "Cache-Control", "value": "no-store" }
         ]
       }
     ]
