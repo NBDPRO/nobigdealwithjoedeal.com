@@ -1,0 +1,8 @@
+/* Week-at-a-glance strip: a dot under each day, filled when a workout was finished that day (day-layout-logic.js weekStrip, app.js buildWeekGlance). */
+.wg-dot { display: block; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #334455; box-sizing: border-box; }
+.wg-dot.on { background: var(--ac, #BD5728); border-color: var(--ac, #BD5728); }
+/* The same strip at the top of the dashboard (js/weekstrip-ui.js): the day circles and letters use on-dark inks, so the panel is the
+   fixed dark the day page's cover uses (#0a1018). */
+.ws-dash { margin: 0 0 14px; }
+.ws-panel { background: #0a1018; border: 1px solid #1e2d40; border-radius: 8px; padding: 12px 18px; max-width: 760px; }
+.ws-h { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: #8fa1b8; margin-bottom: 8px; text-align: center; }

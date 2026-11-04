@@ -620,9 +620,10 @@ function beacon(token, viewId, k, s, ua, extra) {
     ok('firebase.json: only /report/*/file is frameable by our own pages', hdr && hdr.headers.some((h) => h.key === 'X-Frame-Options' && h.value === 'SAMEORIGIN') && hdr.headers.some((h) => h.key === 'Cache-Control' && h.value === 'no-store'));
     const gates = require(fnPath('cron-gates.js')).CRON_GATES;
     const reg = require(fnPath('flags-registry.js')).FLAGS;
-    ok('both flags are registered, polarity enabled (default OFF), dark', ['SECURE_DOC_LINK_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED'].every((n) => gates.some((g) => g.name === n && g.polarity === 'enabled') && reg.some((f) => f.name === n && f.dark === true)));
+    ok('both flags are registered with polarity enabled (default OFF)', ['SECURE_DOC_LINK_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED'].every((n) => gates.some((g) => g.name === n && g.polarity === 'enabled') && reg.some((f) => f.name === n)));
+    ok('the master switch is on (Jo go 2026-11-04) and no longer dark; the 24h reminder is still dark', reg.some((f) => f.name === 'SECURE_DOC_LINK_ENABLED' && !f.dark) && reg.some((f) => f.name === 'DOC_LINK_FOLLOWUP_ENABLED' && f.dark === true));
     const env = fs.readFileSync(path.join(FUNCTIONS, '.env.nobigdeal-pro'), 'utf8');
-    ok('neither flag is turned on in the committed env file', !/SECURE_DOC_LINK_ENABLED\s*=\s*true/.test(env) && !/DOC_LINK_FOLLOWUP_ENABLED\s*=\s*true/.test(env));
+    ok('the master switch is on in the committed env file and the 24h reminder is NOT', /^SECURE_DOC_LINK_ENABLED\s*=\s*true\s*$/m.test(env) && !/^\s*DOC_LINK_FOLLOWUP_ENABLED\s*=\s*true/m.test(env));
     const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
     ok('rules: docViews is never client-writable', /match \/docViews\/\{viewId\}[\s\S]{0,500}allow write: if false;/.test(rules));
     const idx = fs.readFileSync(path.join(FUNCTIONS, 'FUNCTIONS_INDEX.md'), 'utf8');

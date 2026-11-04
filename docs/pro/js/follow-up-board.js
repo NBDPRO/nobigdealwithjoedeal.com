@@ -13,6 +13,10 @@
  * lead field ("I replied" = lastOutboundAt, "I promised an estimate" =
  * estimatePromisedAt) or snooze the lead.
  *
+ * The Thumbtack Opportunities approval cards (flag thumbtackOpportunities, opp-approval.js) render as
+ * one more section at the top of this overlay when that second flag is on; this file only asks for
+ * the section and repaints. Approving there only marks a draft approved: nothing sends.
+ *
  * Ships DARK behind the `followUpBoard` feature flag (feature_flags/_default).
  * Absent / false = the toolbar button stays hidden and nothing is read or
  * written. Strict CSP: no inline handlers, one delegated listener.
@@ -171,6 +175,8 @@
     h += '<button type="button" class="fub-btn fub-promise" data-fub-act="promisepanel">I promised an estimate</button>';
     if (st.picking) h += pickerHtml();
     if (st.msg) h += '<div class="fub-result" role="status">' + esc(st.msg) + '</div>';
+    var opp = w.NBDOppApproval;
+    if (opp && typeof opp.html === 'function') h += opp.html();   // '' unless thumbtackOpportunities is on
     if (!d.total) h += '<p class="fub-empty">Nobody needs a follow-up right now.</p>';
     else h += '<div class="fub-total">' + d.total + ' to follow up · ' + esc(fmt(d.valueCents)) + ' <span class="fub-proj">projected, not revenue</span></div>';
     d.sections.forEach(function (s) {
@@ -203,11 +209,13 @@
     overlay.setAttribute('data-fub-overlay', '1');
     doc.body.appendChild(overlay);
     paint();
+    if (w.NBDOppApproval && typeof w.NBDOppApproval.open === 'function') w.NBDOppApproval.open(paint);   // loads its own cards, repaints when they land
     await loadWaiting();
     paint();
     return true;
   }
   function close() {
+    if (w.NBDOppApproval && typeof w.NBDOppApproval.close === 'function') w.NBDOppApproval.close();
     if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
     overlay = null;
   }

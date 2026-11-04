@@ -593,21 +593,51 @@
     el.style.color = kind === 'warn' ? 'var(--gold,#eab308)' : kind === 'error' ? 'var(--red,#dc2626)' : kind === 'ok' ? 'var(--green,#16a34a)' : 'var(--m,#9ca3af)';
   }
 
+  // What the scan puts in the Amount and Sales Tax fields. Every cost rollup counts
+  // Amount + Tax, and the Home Depot import stores pre-tax in Amount, so Amount here is
+  // the PRE-TAX figure (grand total minus tax) and Amount + Tax equals what was paid.
+  // Also the subtotal + tax = total check; a mismatch means the reader got a number wrong.
+  function receiptPrefill(ex) {
+    ex = ex || {};
+    var total = parseInt(ex.totalCents, 10) || 0;
+    var tax = Math.max(0, parseInt(ex.taxCents, 10) || 0);
+    var sub = (ex.subtotalCents == null || ex.subtotalCents === '') ? null : parseInt(ex.subtotalCents, 10);
+    var out = { amountCents: 0, taxCents: 0, reconciled: true, reason: '' };
+    if (total > 0) {
+      if (tax > 0 && tax < total) { out.amountCents = total - tax; out.taxCents = tax; }
+      else {
+        // No tax, or tax >= total (nonsense): keep the total in Amount, leave Tax blank.
+        out.amountCents = total;
+        if (tax >= total) { out.reconciled = false; out.reason = 'the tax is not smaller than the total'; }
+      }
+      if (sub != null && !isNaN(sub) && Math.abs(sub + tax - total) > 2) {
+        out.reconciled = false; out.reason = 'subtotal + tax doesn’t equal the total';
+      }
+    } else if (sub != null && !isNaN(sub) && sub > 0) {
+      // Total unreadable: subtotal + tax is the amount paid, so the rollup still lands on it.
+      out.amountCents = sub; out.taxCents = tax;
+    }
+    return out;
+  }
+
   function applyExtraction(d) {
     var ex = (d && d.extracted) || {};
     _scanExtraction = d || null;
     var setVal = function (id, v) { var el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
-    if (ex.totalCents) setVal('expAmount', (ex.totalCents / 100).toFixed(2)); // skip $0 — would dead-end Save
-    if (ex.taxCents) setVal('expTax', (ex.taxCents / 100).toFixed(2));
+    var pf = receiptPrefill(ex);
+    if (!pf.reconciled && d) d.needsReview = true; // saved as needsReview; the user must look before Save
+    if (pf.amountCents > 0) setVal('expAmount', (pf.amountCents / 100).toFixed(2)); // skip $0 — would dead-end Save
+    if (pf.taxCents > 0) setVal('expTax', (pf.taxCents / 100).toFixed(2));
     if (ex.vendor) setVal('expSupplier', ex.vendor);
     if (ex.date) setVal('expDate', ex.date);
     if (ex.suggestedCategory) { var sel = document.getElementById('expCategory'); if (sel) sel.value = ex.suggestedCategory; }
     var conf = Math.round((ex.confidence || 0) * 100);
     if (d && d.needsReview) {
-      var why = (d.reconcile && !d.reconcile.matched) ? ' — line items don’t sum to the total' : '';
+      var why = (d.reconcile && !d.reconcile.matched) ? ' — line items don’t sum to the total'
+        : (!pf.reconciled ? ' — ' + pf.reason : '');
       setScanStatus('⚠ Review the fields' + why + ' (confidence ' + conf + '%). Correct anything off, then Save.', 'warn');
     } else {
-      setScanStatus('✓ Scanned (confidence ' + conf + '%). Double-check, then Save.', 'ok');
+      setScanStatus('✓ Scanned (confidence ' + conf + '%). Amount is before tax; tax is in Sales Tax. Double-check, then Save.', 'ok');
     }
   }
 
@@ -1781,6 +1811,8 @@
     supplierYtdCents: supplierYtdCents,
     needs1099: needs1099,
     is1099EligibleFromClass: is1099EligibleFromClass,
+    receiptPrefill: receiptPrefill,
+    _applyExtraction: applyExtraction,                                     // test hook
     _setData: function (list) { _expenses = list || []; _loaded = true; }, // test/seed hook
     _setEstCosts: function (map) { _estCostByLead = map || {}; },           // test/seed hook
     _setSuppliers: function (list) { _suppliers = list || []; },            // test/seed hook

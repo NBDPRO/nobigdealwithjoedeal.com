@@ -620,6 +620,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-canvass-test 'node firestore-rules.canvassers.test.js'
+      # Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark): opp_seen / opp_rules (and opp_drafts) are Admin-SDK only. Own file (positive controls inside).
+      - name: Run Thumbtack Opportunities rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-opp-test 'node firestore-rules.opp-2026-11-04.test.js'
       - name: Run Storage rules tests under emulator
         run: |
           cd tests

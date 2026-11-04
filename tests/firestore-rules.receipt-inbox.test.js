@@ -99,6 +99,17 @@ async function run() {
   await check('the uploader can list her own drafts (a query constrained to ownerUid)', 'allow', getDocs(query(collection(solo, 'receipt_inbox'), where('ownerUid', '==', 'co-a'))));
   await check('a list that is not constrained to the caller is refused', 'deny', getDocs(query(collection(solo, 'receipt_inbox'), where('companyId', '==', 'co-a'))));
 
+  // ── the company-wide spend meter (security review 2026-11-04) ──
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'receiptInboxMeter/co-a__2026-11'), { companyId: 'co-a', monthKey: '2026-11', inboxUsd: 1.5, inboxCount: 3 });
+  });
+  const meter = (db) => doc(db, 'receiptInboxMeter/co-a__2026-11');
+  await check('the solo owner can read the company inbox meter', 'allow', getDoc(meter(solo)));
+  await check('a member of the company can read the same meter (the cap is shared)', 'allow', getDoc(meter(rep)));
+  await check('another tenant cannot read the meter', 'deny', getDoc(meter(eve)));
+  await check('anonymous cannot read the meter', 'deny', getDoc(meter(anon)));
+  await check('nobody can write the meter from a browser (not even the owner)', 'deny', setDoc(meter(solo), { companyId: 'co-a', inboxUsd: 0 }));
+
   // ── create / delete: server only ──
   await check('the owner cannot create a draft (a browser can never plant a read)', 'deny', setDoc(ref(solo, 'co-a__rcpt_new'), draft('co-a', { fileHash: '8'.repeat(64) })));
   await check('a member cannot create a draft', 'deny', setDoc(ref(rep, 'co-a__rcpt_new2'), draft('rep1')));

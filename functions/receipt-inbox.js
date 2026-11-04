@@ -56,6 +56,9 @@ const MAX_RECEIPT_BYTES = 25 * 1024 * 1024;
 const CLAUDE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 // A draft stuck in 'reading' (instance died) can be taken over after this long.
 const READING_STALE_MS = 5 * 60 * 1000;
+// Booked on the company meter before each read, then settled to the real cost. Above a typical
+// read (a phone photo is ~$0.005, a long PDF a few cents) so the cap can only be undershot.
+const RESERVE_USD = 0.25;
 
 // Dry-run unless the literal 'true' (kind 'enabled' in flags-registry.js).
 const enabled = () => process.env.RECEIPT_INBOX_ENABLED === 'true';
@@ -70,7 +73,9 @@ exports.submitInboxReceipt = onCall({
   timeoutSeconds: 90,
   memory: '1GiB', // HEIC decode inflates a 12MP photo to a ~40-50MB raw buffer
   maxInstances: 10,
-  concurrency: 20,
+  // 4, not 20 (security review 2026-11-04): each read can hold ~25MB raw + a ~50MB decoded HEIC +
+  // two ~33MB base64/JSON copies, so 20 at once could run a 1GiB instance out of memory.
+  concurrency: 4,
 }, withSentry('submitInboxReceipt', async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
@@ -92,19 +97,25 @@ exports.submitInboxReceipt = onCall({
   const companyId = (request.auth.token && request.auth.token.companyId) || uid;
   const db = getFirestore();
   const monthKey = L.inboxMonthKey(Date.now());
-  const userMeterRef = db.doc(`userCostMeter/${uid}__${monthKey}`);
+  // The cap is per COMPANY (security review 2026-11-04): a per-uid meter gave a company of N
+  // seats N x the cap, and a stranger N accounts x the cap.
+  const meterRef = db.doc(`receiptInboxMeter/${companyId}__${monthKey}`);
   const cfgRef = db.doc(configPath(companyId));
-  const [meterSnap, cfgSnap] = await Promise.all([userMeterRef.get(), cfgRef.get()]);
+  const [meterSnap, cfgSnap] = await Promise.all([meterRef.get(), cfgRef.get()]);
   const meter = meterSnap.exists ? (meterSnap.data() || {}) : {};
   const cfg = cfgSnap.exists ? (cfgSnap.data() || {}) : {};
   const cap = L.inboxCapState({ spentUsd: meter.inboxUsd, capUsd: cfg.monthlyCapUsd, count: meter.inboxCount, countCap: cfg.monthlyCountCap });
   const capInfo = { spentUsd: cap.spentUsd, capUsd: cap.capUsd };
+  // Server-side allowlist: the reader only runs for a company whose server-only config doc says
+  // `enabled: true`. The client `receiptInbox` flag only shows the screen; it is not a gate.
+  const companyEnabled = cfg.enabled === true;
 
   if (cfg.paused === true) return { skipped: true, reason: 'paused', ...capInfo };
   if (!enabled()) {
     // DRY RUN: nothing read, nothing spent, nothing written.
-    return { skipped: true, dryRun: true, reason: 'dry-run', wouldBlock: cap.blocked, ...capInfo };
+    return { skipped: true, dryRun: true, reason: 'dry-run', wouldBlock: cap.blocked, companyEnabled, ...capInfo };
   }
+  if (!companyEnabled) return { skipped: true, reason: 'not-enabled', ...capInfo };
 
   // ── Read the file ──
   let buf, contentType;
@@ -158,6 +169,30 @@ exports.submitInboxReceipt = onCall({
   if (!isPdf && !isImage) throw new HttpsError('invalid-argument', 'Unsupported receipt type');
   if (isImage && !CLAUDE_IMAGE_TYPES.has(contentType)) return { skipped: true, reason: 'unsupported-format', ...capInfo };
 
+  // ── Reserve before paying (security review 2026-11-04) ──
+  // The check above is a cheap early-out; this transaction is the real gate. It re-reads the
+  // company meter and books RESERVE_USD before the reader is called, so 20 parallel taps at
+  // $9.99 cannot all pass. The reservation is settled to the real cost after the call, released
+  // when nothing was billed, and KEPT when billing is unknown (a network error).
+  const reserved = await db.runTransaction(async (tx) => {
+    const s = await tx.get(meterRef);
+    const m = s.exists ? (s.data() || {}) : {};
+    const c = L.inboxCapState({ spentUsd: (Number(m.inboxUsd) || 0) + RESERVE_USD, capUsd: cfg.monthlyCapUsd, count: m.inboxCount, countCap: cfg.monthlyCountCap });
+    if (c.blocked) return null;
+    tx.set(meterRef, { companyId, monthKey, inboxUsd: FieldValue.increment(RESERVE_USD), inboxCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { spentUsd: Number(m.inboxUsd) || 0 };
+  });
+  if (!reserved) {
+    logger.info('receipt-inbox.cap', { companyId, monthKey, reason: 'reserve' });
+    return { skipped: true, reason: 'inbox-cap', capReason: 'usd', ...capInfo };
+  }
+  const settleMeter = async (usd, count) => {
+    try {
+      await meterRef.set({ inboxUsd: FieldValue.increment(usd), ...(count ? { inboxCount: FieldValue.increment(count) } : {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    } catch (e) { logger.warn('receipt-inbox.meter_settle_failed', { code: 'meter' }); }
+  };
+  const releaseReservation = () => settleMeter(-RESERVE_USD, -1);
+
   // Claim the draft (so two taps on the same file read it once).
   const claimed = await db.runTransaction(async (tx) => {
     const s = await tx.get(ref);
@@ -173,7 +208,7 @@ exports.submitInboxReceipt = onCall({
     });
     return true;
   });
-  if (!claimed) return { inboxId, existing: true, status: 'reading', ...capInfo };
+  if (!claimed) { await releaseReservation(); return { inboxId, existing: true, status: 'reading', ...capInfo }; }
 
   const failDraft = async (reason) => {
     try { await ref.set({ status: 'failed', failReason: reason, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); } catch (_) { /* best effort */ }
@@ -205,21 +240,19 @@ exports.submitInboxReceipt = onCall({
   }
   if (!response.ok) {
     logger.warn('receipt-inbox.api_error', { status: response.status });
+    await releaseReservation();   // a refused request is not billed
     await failDraft('ocr-unavailable');
     return { skipped: true, reason: 'ocr-unavailable', status: response.status, ...capInfo };
   }
 
   const usage = data.usage || {};
   const callCostUsd = ((usage.input_tokens || 0) * COST_INPUT_PER_TOKEN) + ((usage.output_tokens || 0) * COST_OUTPUT_PER_TOKEN);
+  // Settle the reservation to the real cost FIRST, so a failing spend log cannot leave the call unmetered.
+  await settleMeter(callCostUsd - RESERVE_USD, 0);
   const aiSpend = require('./ai-spend');
-  await aiSpend.recordAiSpend(aiSpend.rowFromAnthropic('receipt-inbox', MODEL, data), { log: logger });
-  await userMeterRef.set({
-    uid, monthKey,
-    inboxUsd: FieldValue.increment(callCostUsd),
-    inboxCount: FieldValue.increment(1),
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
-  const spentAfter = cap.spentUsd + callCostUsd;
+  try { await aiSpend.recordAiSpend(aiSpend.rowFromAnthropic('receipt-inbox', MODEL, data), { log: logger }); }
+  catch (e) { logger.warn('receipt-inbox.ai_spend_failed', { code: 'ai-spend' }); }
+  const spentAfter = reserved.spentUsd + callCostUsd;
 
   // ── Parse + re-validate (extra keys are dropped; nothing is logged) ──
   const textBlock = Array.isArray(data.content) ? data.content.find((b) => b && b.type === 'text') : null;

@@ -40,6 +40,9 @@ let W;
 const LOGS = [];
 function reset() {
   W = { docs: {}, files: {}, effects: [], fetches: [], seq: 0, aiDisabled: false, limiterCalls: 0, aiSpendRows: [] };
+  // Server-side allowlist: both test companies are switched on unless a test says otherwise.
+  W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true };
+  W.docs['integrations/receiptInbox/companies/co-b'] = { enabled: true };
   LOGS.length = 0;
 }
 const fx = (t) => { W.effects.push(t); };
@@ -71,12 +74,18 @@ function docRef(p) {
     delete: async () => { fx('delete:' + p); delete W.docs[p]; },
   };
 }
+let TX_CHAIN = Promise.resolve();
 const DB = {
   doc: docRef,
   collection: (n) => ({ doc: (id) => docRef(n + '/' + (id || 'auto' + (++W.seq))), add: async (v) => { fx('add:' + n); W.docs[n + '/auto' + (++W.seq)] = v; return docRef(n + '/auto' + W.seq); }, where: () => ({ get: async () => ({ empty: true, docs: [], size: 0 }), limit: () => ({ get: async () => ({ empty: true, docs: [], size: 0 }) }) }) }),
-  runTransaction: async (fn) => {
-    const tx = { get: (r) => r.get(), set: (r, v, o) => { r.set(v, o); return tx; }, update: (r, v) => { r.update(v); return tx; } };
-    return fn(tx);
+  // Serialized, like Firestore's retry of contended transactions: two never interleave.
+  runTransaction: (fn) => {
+    const run = TX_CHAIN.then(() => {
+      const tx = { get: (r) => r.get(), set: (r, v, o) => { r.set(v, o); return tx; }, update: (r, v) => { r.update(v); return tx; } };
+      return fn(tx);
+    });
+    TX_CHAIN = run.catch(() => {});
+    return run;
   },
 };
 const bucket = {
@@ -211,7 +220,7 @@ const goodReply = () => ({ json: { documentType: 'invoice', vendor: 'Acme Roof S
     ok('amounts in cents; credit flag false; paid-from suggested from 3537', d.read.totalCents === 132098 && d.read.taxCents === 8642 && d.read.isCredit === false && d.suggestedPaidFrom === 'business_debit_card', d.read);
     ok('the hash is the sha256 of the bytes', d.fileHash === crypto.createHash('sha256').update(PNG('a')).digest('hex'));
     ok('NO EXPENSE is written and no draft key names a job or a decision (a draft never touches totals)', expenseWrites().length === 0 && !('leadId' in d) && !('decision' in d) && d.status !== 'approved');
-    ok('spend lands on the inbox meter, not the shared vision meter', W.docs[Object.keys(W.docs).find((k) => /^userCostMeter\//.test(k))].inboxUsd > 0 && W.docs[Object.keys(W.docs).find((k) => /^userCostMeter\//.test(k))].inboxCount === 1 && W.docs[Object.keys(W.docs).find((k) => /^userCostMeter\//.test(k))].visionUsd === undefined);
+    ok('spend lands on the inbox meter, not the shared vision meter', W.docs[Object.keys(W.docs).find((k) => /^receiptInboxMeter\//.test(k))].inboxUsd > 0 && W.docs[Object.keys(W.docs).find((k) => /^receiptInboxMeter\//.test(k))].inboxCount === 1 && W.docs[Object.keys(W.docs).find((k) => /^receiptInboxMeter\//.test(k))].visionUsd === undefined);
     ok('AI spend row recorded under feature receipt-inbox', W.aiSpendRows.length === 1 && W.aiSpendRows[0].feature === 'receipt-inbox');
     // INJECTION WRAPPER on the real request
     const b = W.fetches[0].body;
@@ -264,31 +273,31 @@ const goodReply = () => ({ json: { documentType: 'invoice', vendor: 'Acme Roof S
   reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
   {
     const month = L.inboxMonthKey(Date.now());
-    W.docs['userCostMeter/co-a__' + month] = { uid: 'co-a', inboxUsd: 10, inboxCount: 20 };
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 10, inboxCount: 20 };
     const p = 'receipts/co-a/inbox/cap.png'; put(p, PNG('cap')); W.reply = goodReply();
     const r = await call('owner', { storagePath: p });
     ok('CAP: at $10 spent the read stops with inbox-cap, says how much, and calls nothing', r.value && r.value.skipped && r.value.reason === 'inbox-cap' && r.value.spentUsd === 10 && r.value.capUsd === 10 && W.fetches.length === 0 && draftDocs().length === 0, r.value);
-    W.docs['userCostMeter/co-a__' + month] = { uid: 'co-a', inboxUsd: 9.99, inboxCount: 20 };
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 9.7, inboxCount: 20 };
     const r2 = await call('owner', { storagePath: p });
-    ok('CAP: just under the cap still reads', r2.value && r2.value.status === 'ready' && W.fetches.length === 1);
-    ok('after that read the meter moved by the call cost and the return shows spent-so-far', W.docs['userCostMeter/co-a__' + month].inboxUsd > 9.99 && r2.value.spentUsd > 9.99);
+    ok('CAP: under the cap by more than the $0.25 reservation still reads', r2.value && r2.value.status === 'ready' && W.fetches.length === 1);
+    ok('after that read the meter moved by the call cost and the return shows spent-so-far', W.docs['receiptInboxMeter/co-a__' + month].inboxUsd > 9.7 && W.docs['receiptInboxMeter/co-a__' + month].inboxUsd < 9.95 && r2.value.spentUsd > 9.7);
     // a same-file repeat still returns the existing draft even when the cap is hit
-    W.docs['userCostMeter/co-a__' + month].inboxUsd = 50;
+    W.docs['receiptInboxMeter/co-a__' + month].inboxUsd = 50;
     const r3 = await call('owner', { storagePath: p });
     ok('a file already read is returned for free even at the cap', r3.value && r3.value.existing === true);
     // count cap + company config
     reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
-    W.docs['userCostMeter/co-a__' + month] = { uid: 'co-a', inboxUsd: 2, inboxCount: 2 };
-    W.docs['integrations/receiptInbox/companies/co-a'] = { monthlyCapUsd: 1 };
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 2, inboxCount: 2 };
+    W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true, monthlyCapUsd: 1 };
     put(p, PNG('cap2')); W.reply = goodReply();
     const r4 = await call('owner', { storagePath: p });
     ok('a lower company cap applies', r4.value && r4.value.reason === 'inbox-cap' && r4.value.capUsd === 1);
-    W.docs['integrations/receiptInbox/companies/co-a'] = { monthlyCapUsd: 999 };
-    W.docs['userCostMeter/co-a__' + month] = { uid: 'co-a', inboxUsd: 60 };
+    W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true, monthlyCapUsd: 999 };
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 60 };
     const r5 = await call('owner', { storagePath: p });
     ok('a company cap can never be raised past $50', r5.value && r5.value.reason === 'inbox-cap' && r5.value.capUsd === 50);
-    W.docs['integrations/receiptInbox/companies/co-a'] = { paused: true };
-    W.docs['userCostMeter/co-a__' + month] = { uid: 'co-a', inboxUsd: 0 };
+    W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true, paused: true };
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 0 };
     const r6 = await call('owner', { storagePath: p });
     ok('paused in the company config = skipped, nothing read', r6.value && r6.value.reason === 'paused' && W.fetches.length === 0);
   }
@@ -324,11 +333,11 @@ const goodReply = () => ({ json: { documentType: 'invoice', vendor: 'Acme Roof S
     const p = 'receipts/co-a/inbox/f.png'; put(p, PNG('fail'));
     W.reply = { httpStatus: 529 };
     const r = await call('owner', { storagePath: p });
-    ok('a provider error is skipped / failed, nothing billed, no raw provider text returned', r.value && r.value.skipped && r.value.reason === 'ocr-unavailable' && W.docs[draftDocs()[0]].status === 'failed' && !Object.keys(W.docs).some((k) => /userCostMeter/.test(k)));
+    ok('a provider error is skipped / failed, nothing billed, no raw provider text returned', r.value && r.value.skipped && r.value.reason === 'ocr-unavailable' && W.docs[draftDocs()[0]].status === 'failed' && Object.keys(W.docs).filter((k) => /receiptInboxMeter/.test(k)).every((k) => Math.abs(W.docs[k].inboxUsd) < 1e-9 && W.docs[k].inboxCount === 0));
     W.reply = { text: 'sorry, I cannot do that, here is some prose with Acme 1234' };
     const r2 = await call('owner', { storagePath: p });
     const d = W.docs[draftDocs()[0]];
-    ok('a failed draft can be retried; unparseable output = failed, no raw text stored or logged, cost still counted', r2.value && r2.value.status === 'failed' && d.status === 'failed' && !/Acme|prose/.test(JSON.stringify(d)) && !LOGS.some((l) => /Acme|prose/.test(l)) && Object.keys(W.docs).some((k) => /userCostMeter/.test(k)));
+    ok('a failed draft can be retried; unparseable output = failed, no raw text stored or logged, cost still counted', r2.value && r2.value.status === 'failed' && d.status === 'failed' && !/Acme|prose/.test(JSON.stringify(d)) && !LOGS.some((l) => /Acme|prose/.test(l)) && Object.keys(W.docs).some((k) => /receiptInboxMeter/.test(k)));
     W.reply = goodReply();
     const r3 = await call('owner', { storagePath: p });
     ok('and a later try on a failed draft reads it', r3.value && r3.value.status === 'ready' && W.docs[draftDocs()[0]].status === 'ready');
@@ -350,6 +359,45 @@ const goodReply = () => ({ json: { documentType: 'invoice', vendor: 'Acme Roof S
     put('receipts/co-a/inbox/i.pdf', Buffer.from('%PDF-1.4 synthetic'), 'application/pdf'); W.reply = goodReply();
     await call('owner', { storagePath: 'receipts/co-a/inbox/i.pdf' });
     ok('a PDF is sent as a document block', W.fetches[0].body.messages[0].content[0].type === 'document' && W.fetches[0].body.messages[0].content[0].source.media_type === 'application/pdf');
+  }
+
+  // ── security review 2026-11-04: company allowlist, company-wide cap, atomic reservation ──
+  console.log('\nK. company switch, shared cap, parallel taps');
+  reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
+  {
+    const month = L.inboxMonthKey(Date.now());
+    W.docs['integrations/receiptInbox/companies/co-a'] = {};
+    put('receipts/co-a/inbox/k0.png', PNG('k0')); W.reply = goodReply();
+    const r0 = await call('owner', { storagePath: 'receipts/co-a/inbox/k0.png' });
+    ok('ALLOWLIST: a company whose server-only config is not enabled is skipped, nothing read or billed', r0.value && r0.value.reason === 'not-enabled' && W.fetches.length === 0 && !W.effects.some((e) => /storage:download/.test(e)) && draftDocs().length === 0, r0.value);
+    delete process.env.RECEIPT_INBOX_ENABLED;
+    const r0b = await call('owner', { storagePath: 'receipts/co-a/inbox/k0.png' });
+    ok('the dry run says whether this company is switched on', r0b.value && r0b.value.dryRun === true && r0b.value.companyEnabled === false);
+    process.env.RECEIPT_INBOX_ENABLED = 'true';
+    W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true };
+
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 10, inboxCount: 1 };
+    put('receipts/u-rep/inbox/k1.png', PNG('k1'));
+    const r1 = await call('rep', { storagePath: 'receipts/u-rep/inbox/k1.png' });
+    ok('SHARED CAP: a second person in the same company hits the company cap the owner used up', r1.value && r1.value.reason === 'inbox-cap' && W.fetches.length === 0, r1.value);
+
+    W.docs['receiptInboxMeter/co-a__' + month] = { companyId: 'co-a', inboxUsd: 9.7, inboxCount: 1 };
+    const paths = [];
+    for (let i = 0; i < 10; i++) { const p = 'receipts/co-a/inbox/par' + i + '.png'; put(p, PNG('par' + i)); paths.push(p); }
+    const rs = await Promise.all(paths.map((p) => call('owner', { storagePath: p })));
+    const read = rs.filter((x) => x.value && x.value.status === 'ready').length;
+    ok('ATOMIC: 10 parallel taps with $0.30 left read exactly one file; the rest stop at the cap', read === 1 && W.fetches.length === 1 && rs.filter((x) => x.value && x.value.reason === 'inbox-cap').length === 9, rs.map((x) => x.value && (x.value.status || x.value.reason)));
+    ok('ATOMIC: the meter ends at the real spend (reservations settled), still under the cap', W.docs['receiptInboxMeter/co-a__' + month].inboxUsd > 9.7 && W.docs['receiptInboxMeter/co-a__' + month].inboxUsd < 9.75 && W.docs['receiptInboxMeter/co-a__' + month].inboxCount === 2, W.docs['receiptInboxMeter/co-a__' + month]);
+
+    reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
+    const spendStub = FILE_STUBS[fnPath('ai-spend.js')];
+    const realRecord = spendStub.recordAiSpend;
+    spendStub.recordAiSpend = async () => { throw new Error('ai-spend down'); };
+    put('receipts/co-a/inbox/k2.png', PNG('k2')); W.reply = goodReply();
+    const r2 = await call('owner', { storagePath: 'receipts/co-a/inbox/k2.png' });
+    spendStub.recordAiSpend = realRecord;
+    const m2 = W.docs['receiptInboxMeter/co-a__' + month];
+    ok('a failing spend log still leaves the call metered at its real cost, and the draft is filed', r2.value && r2.value.status === 'ready' && m2 && m2.inboxUsd > 0 && m2.inboxUsd < 0.25 && m2.inboxCount === 1, m2);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -822,6 +822,8 @@ window.loadInvoices = async function(leadId) {
     // chip + Open in Stripe / PDF links (stripe-ledger-ui-logic.js, escaped
     // and http(s)-only). '' when the rules module is absent.
     const stripeBadge = (inv) => (window.NBDStripeLedgerLogic ? window.NBDStripeLedgerLogic.stripeInvoiceBadgeHtml(inv) : '');
+    // "Includes $X in supplements" (invoice-supplement-chip-logic.js): only reads the invoice's stored supplementTotal; '' when absent.
+    const supChip = (inv) => (window.NBDInvoiceSupplement ? window.NBDInvoiceSupplement.chipHtml(inv, esc) : '');
     let totalAmount = 0;
     let totalPaid = 0;
     // Total Owed counts only invoices someone owes (owedDollarsOf above): not
@@ -896,6 +898,7 @@ window.loadInvoices = async function(leadId) {
             <div class="invoice-date">${esc(dateStr)}</div>
             <div class="invoice-desc">${esc(inv.description || 'Invoice')}</div>
             ${stripeBadge(inv)}
+            ${supChip(inv)}
             ${depDraft ? '<span class="ipx-draft-chip" data-deposit-draft>Draft deposit — review &amp; send</span>' : ''}
           </div>
           <div class="invoice-right">
