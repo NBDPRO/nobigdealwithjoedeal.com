@@ -5,6 +5,9 @@ were "Needs Jo" because the words are his. This session drafted the ones that a 
 the DRAFT branch `claude/copy-wording-drafts-2026-11-04`. Nothing ships until Jo approves. The rest are below as
 questions, each with the variants found and a suggested answer.
 
+**Update 2026-11-04: Jo approved the drafted wording as written ("Approve as written"). It ships in #2820.** The
+questions section below is still open.
+
 Measured against `main` `72fe9466`. File counts exclude `docs/llms-full.txt`, which is regenerated at deploy.
 
 ## Drafted (on the branch, waiting on Jo's yes)
