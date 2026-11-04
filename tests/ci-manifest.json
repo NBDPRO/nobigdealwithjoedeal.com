@@ -241,6 +241,7 @@
     "receipt-inbox-logic-2026-11-04.test.js",
     "receipt-inbox-server-2026-11-04.test.js",
     "receipt-inbox-client-2026-11-04.test.js",
+    "doc-link-2026-11-04.test.js",
     "receipt-health-2026-10-18.test.js",
     "cash-payouts-2026-10-19.test.js",
     "messaging-center-2026-10-19.test.js",

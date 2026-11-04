@@ -1195,6 +1195,13 @@
       "indexes": []
     },
     {
+      "_comment": "Secure Document Link (2026-11-04): leads/{id}/docViews rows (device class, time with the page open, no IP / raw UA) carry expireAt = fetch time + 180 days; TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "docViews",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "_comment": "GDPR erasure/export (2026-07-17): confirmAccountErasure + exportMyData sweep collectionGroup('recordings').where('userId','==') (equality-only, no orderBy → ordered by __name__). The composite [userId, recordedAt] does NOT serve this; a single-field COLLECTION_GROUP index on userId does. Without it the sweep throws FAILED_PRECONDITION, compliance.js swallows it, and a user's Voice-Intelligence recordings survive right-to-be-forgotten. COLLECTION asc/desc kept so the default single-parent indexing is preserved.",
       "collectionGroup": "recordings",
       "fieldPath": "userId",
