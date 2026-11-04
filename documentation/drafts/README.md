@@ -14,7 +14,7 @@ Projects gallery was checked and covers only the chalk-square figure:
 |---|---|---|
 | `what-hail-damage-looks-like-cincinnati.html` | `/blog/what-hail-damage-looks-like-cincinnati` | **3 photos** from his inspection archive: (1) close-up hail bruise on a shingle, (2) granules collecting in a gutter/downspout, (3) dents on soft metal (gutter lip, AC fins, or window capping). The chalk-square figure can be filled from the published gallery (`damage-chalk-marked.jpg`). Photos must go through the EXIF-strip pipeline before use. Plus: real storm anecdote (date, town, what he found) or approve de-specifying it. |
 | `what-a-real-roof-inspection-report-looks-like.html` | `/blog/what-a-real-roof-inspection-report-looks-like` | 3 redacted report screenshots (cover, photo page, measurements page) + confirm section names/order, cover-page fields, and condition-rating codes |
-| `color-matching-paint-why-it-takes-so-long.html` (finished 2026-11-04) | `/blog/color-matching-paint-why-it-takes-so-long` | Nothing to fill in. Waiting for Jo's go to publish (and a read of the five tips, which are general paint-counter advice). Written from his words: ten minutes for a good match, thirty to forty-five for a bad one, take a sample however small. No store named. |
+| ~~`color-matching-paint-why-it-takes-so-long.html`~~ | `/blog/color-matching-paint-why-it-takes-so-long` | ✅ **Published 2026-11-04** (Jo's go). Rebuilt on the current post template (shared nav/footer partials), indexed in the POSTS array, sitemap written. |
 | ~~`roof-financing-cincinnati-explained.html`~~ | `/blog/roof-financing-cincinnati-explained` | ✅ **Published 2026-08-17** (PR #1224) |
 
 ## How Jo reviews these
