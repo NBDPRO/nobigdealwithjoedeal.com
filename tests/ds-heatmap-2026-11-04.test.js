@@ -14,6 +14,9 @@ const DIR = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
 const H = require(path.join(DIR, 'js', 'heatmap-logic.js'));
 const C = require(path.join(DIR, 'js', 'workout-coach-logic.js'));
 
+// Wiring checks read source text: strip comments first so a commented-out line can never satisfy one.
+const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+
 let passed = 0, failed = 0;
 function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
@@ -78,9 +81,9 @@ console.log('\n3. missing inputs and purity');
 
 console.log('\n4. wired in, CSP-safe');
 {
-  const ui = fs.readFileSync(path.join(DIR, 'js', 'heatmap-ui.js'), 'utf8');
-  const pg = fs.readFileSync(path.join(DIR, 'js', 'progress-charts-ui.js'), 'utf8');
-  const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+  const ui = stripComments(fs.readFileSync(path.join(DIR, 'js', 'heatmap-ui.js'), 'utf8'));
+  const pg = stripComments(fs.readFileSync(path.join(DIR, 'js', 'progress-charts-ui.js'), 'utf8'));
+  const html = stripComments(fs.readFileSync(path.join(DIR, 'index.html'), 'utf8'));
   const at = (s) => html.indexOf(s);
   ok('the grid has a text label for screen readers', /role="img" aria-label="/.test(ui));
   ok('the grid keeps its real size inside a scroll box (labels stay readable)', /class="hm-scroll"><svg class="hm-svg" width=/.test(ui));

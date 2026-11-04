@@ -13,6 +13,9 @@ const DIR = path.join(__dirname, '..', 'docs', 'pro', 'daily-success', 'js');
 const W = require(path.join(DIR, 'week-training-logic.js'));
 const C = require(path.join(DIR, 'workout-coach-logic.js'));
 
+// Wiring checks read source text: strip comments first so a commented-out line can never satisfy one.
+const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+
 let passed = 0, failed = 0;
 function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
@@ -85,8 +88,8 @@ console.log('\n4. scorecard lines');
 console.log('\n5. wired into the review screen');
 {
   const fs = require('fs');
-  const ui = fs.readFileSync(path.join(DIR, 'review-ui.js'), 'utf8');
-  const html = fs.readFileSync(path.join(DIR, '..', 'index.html'), 'utf8');
+  const ui = stripComments(fs.readFileSync(path.join(DIR, 'review-ui.js'), 'utf8'));
+  const html = stripComments(fs.readFileSync(path.join(DIR, '..', 'index.html'), 'utf8'));
   ok('the sheet shows the training section', /trainingHtml\(w\) \+/.test(ui));
   ok('the copied scorecard and the bot snapshot both carry the training lines', (ui.match(/\.concat\(trainingLines\(x\.week\)\)/g) || []).length === 2);
   ok('the page loads the logic once, versioned', (html.match(/week-training-logic\.js\?v=\d+/g) || []).length === 1);

@@ -14,6 +14,9 @@ const DS = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
 const V = require(path.join(DS, 'js', 'volume-range-logic.js'));
 const C = require(path.join(DS, 'js', 'workout-coach-logic.js'));
 
+// Wiring checks read source text: strip comments first so a commented-out line can never satisfy one.
+const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+
 let passed = 0, failed = 0;
 function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
@@ -76,8 +79,8 @@ console.log('\n4. missing inputs and purity');
 
 console.log('\n5. wired into the coach card');
 {
-  const ui = fs.readFileSync(path.join(DS, 'js', 'workout-coach.js'), 'utf8');
-  const html = fs.readFileSync(path.join(DS, 'index.html'), 'utf8');
+  const ui = stripComments(fs.readFileSync(path.join(DS, 'js', 'workout-coach.js'), 'utf8'));
+  const html = stripComments(fs.readFileSync(path.join(DS, 'index.html'), 'utf8'));
   const at = (s) => html.indexOf(s);
   ok('chips use the delegated coach action, 44px chip class, no inline style', /data-coach-action="vol-range"/.test(ui) && /pg-chip/.test(ui) && !/volumeHtml[\s\S]{0,2500}style=/.test(ui));
   ok('the click is handled and redraws the card', /case 'vol-range':/.test(ui));
