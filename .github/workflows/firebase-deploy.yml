@@ -343,6 +343,28 @@ jobs:
           fi
           node scripts/check-js-syntax.js --shipped-only
 
+      # Join the dashboard's boot `defer` scripts for THIS deploy only (CRM speed-up Phase 2,
+      # documentation/projects/CRM-SPEED-UP-PHASE2-DESIGN-2026-11-04.md): about 205 boot script tags become about 34,
+      # same files, same run order. AFTER minify, so it joins the minified text. Soft-fail like minify: on a refusal or
+      # any error the joined files and the dashboard.html rewrite are undone and the separate files deploy (they work,
+      # just with more requests). ci.yml's pro-demo-zero-network job walks the joined build before anything merges, and
+      # tests/concat-shipped-2026-11-04.test.js keeps the committed tree joinable. OFF SWITCH: set the repository
+      # variable NBD_CONCAT to 0 (Settings → Secrets and variables → Actions → Variables); the next deploy ships the
+      # separate files. No revert needed: docs/ is never changed.
+      - name: Join the dashboard's boot scripts for this deploy
+        if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && vars.NBD_CONCAT != '0' }}
+        run: |
+          set +e
+          node scripts/concat-shipped.js --write
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            echo "::warning::Join step failed (exit $rc) — undone; deploying the separate files."
+            rm -f docs/pro/js/_concat-*.js
+            git checkout -- docs/pro/dashboard.html
+          fi
+          node scripts/check-js-syntax.js --shipped-only
+
       # Inline the homepage's head stylesheets for THIS deploy only (PageSpeed
       # mobile 2026-10-27: 11 render-blocking CSS requests, LCP 4.3 s). Same
       # order and position, so the cascade is unchanged; runs AFTER the minify
@@ -417,7 +439,10 @@ jobs:
       # read the code as committed. always(): restore even if Hosting failed.
       - name: Restore readable docs/pro and docs/assets after the Hosting deploy
         if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
-        run: git checkout -- docs/pro docs/assets docs/index.html docs/services docs/areas
+        # The joined files are new (untracked), so checkout alone would leave them for the source greps below.
+        run: |
+          git checkout -- docs/pro docs/assets docs/index.html docs/services docs/areas
+          rm -f docs/pro/js/_concat-*.js
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting

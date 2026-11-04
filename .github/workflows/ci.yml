@@ -1273,10 +1273,14 @@ jobs:
       # again, so the code that ships is the code a browser test ran. Only
       # behavioural suites run against it: grep-shaped tests read the readable
       # source by design.
-      - name: Minify docs/pro exactly as the deploy does
+      # 2026-11-04 (CRM speed-up Phase 2): the deploy also JOINS the dashboard's boot defer scripts after minifying
+      # (scripts/concat-shipped.js), so every walk below runs the joined build too. Hard here (no soft-fail): a refusal
+      # or a broken join must stop the merge, not just warn at deploy.
+      - name: Minify and join docs/pro exactly as the deploy does
         run: |
           node scripts/minify-shipped.js --install
           node scripts/minify-shipped.js --write
+          node scripts/concat-shipped.js --write
           node scripts/check-js-syntax.js --shipped-only
       - name: Run the zero-network walk against the minified build
         run: |

@@ -105,6 +105,19 @@ console.log('\n1. grouping and refusals (fixture)');
   ok('ineligible tags are untouched', ['js/cfg.js', 'js/lazy.js', 'js/e.js', 'js/f.js', 'js/strict.js', '/assets/js/other.js'].every((s) => out.includes(`src="${s}"`)));
 }
 
+console.log('\n1b. a minified script-loader.js is still read (the deploy joins AFTER minify)');
+{
+  const dir = fixture({ 'docs/pro/js/a.js': iife('window.A=1;'), 'docs/pro/js/lazy.js': 'window.L=1;', 'docs/pro/js/b.js': iife('window.B=1;') },
+    '<html><body>' + tag('js/a.js') + tag('js/lazy.js') + tag('js/b.js') + '</body></html>');
+  const filler = Array.from({ length: 12 }, (_, i) => `"js/f${i}.js?v=1"`).join(',');
+  fs.writeFileSync(path.join(dir, 'docs/pro/js/script-loader.js'), `(function(){const BUNDLES={lazy:["js/lazy.js?v=1"],x:[${filler}]};window.ScriptLoader={}})();`);
+  const p = C.plan(dir);
+  ok('a bundle file listed in a one-line minified loader still stays separate', p.kept.some((k) => C.key(k.src) === 'js/lazy.js' && /ScriptLoader/.test(k.why)) && p.groups.length === 0, JSON.stringify(p.kept));
+  fs.writeFileSync(path.join(dir, 'docs/pro/js/script-loader.js'), 'window.ScriptLoader={};');
+  let threw = false; try { C.plan(dir); } catch (e) { threw = /refusing to guess/.test(e.message); }
+  ok('a loader it cannot read is refused, never treated as "no bundles"', threw);
+}
+
 console.log('\n2. refusals (fixture)');
 {
   const refusalsFor = (files) => C.plan(fixture(files, '<html><body>' + Object.keys(files).filter((f) => f.startsWith('docs/pro/js/')).map((f) => tag(f.replace('docs/pro/', ''))).join('\n') + '</body></html>')).refusals;
@@ -125,6 +138,26 @@ console.log('\n3. the real dashboard');
   ok('--check passes on the committed dashboard (no refusal)', r.status === 0 && j && j.refusals.length === 0, (r.stderr || '').slice(0, 400));
   ok('…and cuts the boot script tags by at least 70 %', j && j.scriptTagsAfter <= j.scriptTags * 0.3, j && `${j.scriptTags} → ${j.scriptTagsAfter}`);
   ok('…without touching the source tree (no joined file committed)', !fs.readdirSync(path.join(ROOT, 'docs/pro/js')).some((f) => f.startsWith('_concat-')));
+}
+
+console.log('\n4. the wiring (step 3)');
+{
+  const dep = fs.readFileSync(path.join(ROOT, '.github/workflows/firebase-deploy.yml'), 'utf8');
+  const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const iMin = dep.indexOf('node scripts/minify-shipped.js --write');
+  const iJoin = dep.indexOf('node scripts/concat-shipped.js --write');
+  const iHost = dep.indexOf('deploy --only hosting');
+  ok('the deploy joins AFTER minify and BEFORE the Hosting deploy', iMin > -1 && iJoin > iMin && iHost > iJoin, [iMin, iJoin, iHost].join(','));
+  ok('the deploy step has the NBD_CONCAT off switch', dep.includes("vars.NBD_CONCAT != '0'"));
+  const joinStep = dep.slice(iJoin, iJoin + 400);
+  ok('a failed join is undone (joined files removed, dashboard.html restored) and the separate files deploy',
+    joinStep.includes('rm -f docs/pro/js/_concat-*.js') && joinStep.includes('git checkout -- docs/pro/dashboard.html'));
+  ok('the post-deploy restore also removes the joined files', /git checkout -- docs\/pro docs\/assets[^\n]*\n\s*rm -f docs\/pro\/js\/_concat-\*\.js/.test(dep));
+  const demoJob = ci.slice(ci.indexOf('pro-demo-zero-network:'));
+  const iMinCi = demoJob.indexOf('node scripts/minify-shipped.js --write');
+  const iJoinCi = demoJob.indexOf('node scripts/concat-shipped.js --write');
+  const iWalk = demoJob.indexOf('against the minified build');
+  ok('the pro-demo job joins after minify, before the walks on the built copy', iMinCi > -1 && iJoinCi > iMinCi && iWalk > iJoinCi, [iMinCi, iJoinCi, iWalk].join(','));
 }
 
 console.log('\n──────────────────────');

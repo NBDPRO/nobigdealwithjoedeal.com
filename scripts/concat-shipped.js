@@ -79,8 +79,12 @@ function exclusionSets(root) {
     for (const m of String(block || '').matchAll(/'\/pro\/(js\/[^']+)'/g)) demo.add(key(m[1]));
   }
   const loaderSrc = fs.readFileSync(path.join(proJs, 'script-loader.js'), 'utf8');
-  const bundlesBody = (loaderSrc.match(/const BUNDLES = \{([\s\S]*?)\n  \};/) || [])[1] || '';
-  const bundled = new Set([...bundlesBody.matchAll(/'((?:\.\/)?js\/[^']+\.js[^']*)'/g)].map((m) => key(m[1])));
+  // Every js/… path quoted anywhere in script-loader.js counts as a bundle file. Deliberately not tied to the BUNDLES
+  // literal's layout: a minified script-loader.js once made a layout-bound regex read an EMPTY list, which would have
+  // joined loader files (2026-11-04). Over-matching only keeps a file separate, which is always safe. An empty result
+  // is refused outright.
+  const bundled = new Set([...loaderSrc.matchAll(/["'`]((?:\.\/)?js\/[\w./-]+\.js(?:\?[^"'`]*)?)["'`]/g)].map((m) => key(m[1])));
+  if (bundled.size === 0) throw new Error(`concat-shipped: read only ${bundled.size} ScriptLoader bundle files from script-loader.js; refusing to guess`);
   const selectorNames = new Set();
   for (const f of fs.readdirSync(proJs).filter((x) => x.endsWith('.js'))) {
     for (const m of fs.readFileSync(path.join(proJs, f), 'utf8').matchAll(/script\[src\*=\\?["']([^"'\\]+)\\?["']\]/g)) selectorNames.add(m[1]);
