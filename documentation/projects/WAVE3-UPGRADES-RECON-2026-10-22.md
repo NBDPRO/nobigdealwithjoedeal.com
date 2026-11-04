@@ -1,5 +1,7 @@
 # Wave 3 upgrades recon (2026-10-22)
 
+> **Status 2026-11-04 (recon against `origin/main`):** the Messaging Center fix described below as "fixed on this branch" (a provider-accepted `sent` no longer shown green like `delivered`) is on main as #2678. The SEO pass was not re-checked.
+
 Recon for three items: Pro demo refresh, SEO pass, messaging-center honesty. Base: `origin/main` at `4536ddc8`. No prod reads, no writes, no flags, no credentials. PRs #2662-#2668 were all still open and blocked when this was written, so no PR is open from this branch yet.
 
 ## 1. Pro demo refresh - nothing broken

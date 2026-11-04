@@ -1,5 +1,7 @@
 # Business queue recon (2026-10-22)
 
+> **Status 2026-11-04 (recon against `origin/main`):** item 1 (the confirmed source into `lead_sources`) shipped as #2676, restored in #2694 after a stale squash reverted it; item 5 (the weekly margin review) shipped as #2701 (`margin_review`, Frank only, internal). Items 4 and 7 were not re-checked.
+
 Recon only, for the seven-item business-side queue. Method: `origin/main` at `4536ddc8`, the 10-19 project notes, and a grep of `docs/pro/` and `functions/`. No prod reads, no writes, no flags touched. Plan docs go stale, so each item is shrunk to its real gap. **Headline: items 1, 2, 3 and 4 were already built on 10-19 and ship dark; most of the queue is "Jo flips a flag", not new code.**
 
 ## Per item
