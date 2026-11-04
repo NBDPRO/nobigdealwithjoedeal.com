@@ -162,6 +162,8 @@ const region = (src) => { const a = src.indexOf('// ---- BEGIN SHARED'); const b
     const shipOnly = CL.rankInboxJobs(read({ poText: '', shipTo: '6907 Jefferson Ave Cincinnati OH' }), leads, {});
     ok('a ship-to address alone is a SUGGESTION, never HIGH', shipOnly.candidates[0] && shipOnly.candidates[0].leadId === 'L-stith' && shipOnly.candidates[0].level === 'suggested' && shipOnly.high === null, shipOnly);
     ok('the ship-to evidence is labelled as the ship-to address', shipOnly.candidates[0].evidence.some((e) => /^Ship-to address:/.test(e)));
+    const shipNum = CL.rankInboxJobs(read({ poText: '', shipTo: 'NBD-0042' }), leads, {});
+    ok('even a customer number only in the ship-to field is a SUGGESTION, never HIGH (HIGH comes from the PO text alone)', shipNum.high === null && shipNum.candidates.every((c) => c.level !== 'high'), shipNum);
     const none = CL.rankInboxJobs(read({ poText: 'misc', shipTo: '' }), leads, {});
     ok('nothing stands out = no candidates and no preselect', none.candidates.length === 0 && none.high === null);
     const disagree = CL.rankInboxJobs(read({ poText: 'Jen Stith', shipTo: '12 Maple Ct Cincinnati' }), leads, {});
@@ -272,8 +274,16 @@ ok('the card started with the suggested card (3537 = Business debit card), so Ap
   ok('if the decision write fails, the cost was added once and the user is told NOT to approve again', expenseWrites().length === 1 && toasts.some((t) => /Do not approve it again/.test(t.m)));
   EX._setData([{ id: 'exp1', inboxId: 'r1', supplier: 'Acme Roof Supply', amountCents: 123456, taxCents: 8642, date: new Date(2026, 4, 29) }]);
   win.__updateFails = false;
+  await field('dupOk', true, { type: 'checkbox', tagName: 'INPUT', checked: true });   // the new row is in the ledger now, so the existing-cost box shows
   await click('approve');
-  ok('a draft that already made an expense NEVER makes a second one (only the decision is retried)', expenseWrites().length === 1 && writes.filter((x) => x.kind === 'update' && x.patch.status === 'approved').length === 1);
+  ok('a draft that already made an expense NEVER makes a second one (only the decision is retried)', expenseWrites().length === 1 && writes.filter((x) => x.kind === 'update' && x.patch.status === 'approved').length === 2 && writes.filter((x) => x.kind === 'update').pop().patch.decision.expenseId === 'exp1');
+
+  console.log('\n   double tap');
+  // two taps in the same instant (a double tap) on a fresh draft add ONE cost
+  reset([draft('t1')]);
+  await INBOX.open(); await flush(); await click('review', { riId: 't1' }); await click('pick-overhead'); await field('paidFrom', 'cash');
+  { const el = { dataset: { riAction: 'approve' }, disabled: false }; const ev = { target: { closest: () => el } }; (listeners.click || []).forEach((f) => f(ev)); (listeners.click || []).forEach((f) => f(ev)); await flush(); }
+  ok('a DOUBLE TAP on Approve adds exactly one cost', expenseWrites().length === 1 && writes.filter((x) => x.kind === 'update' && x.patch.status === 'approved').length === 1, writes.map((x) => x.kind + ':' + x.col));
 
   // ═══ 8. duplicates ═══
   console.log('\n8. duplicates');
