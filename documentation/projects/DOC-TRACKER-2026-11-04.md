@@ -1,6 +1,7 @@
 # Secure Document Link (document tracker), 2026-11-04
 
 Flags: `SECURE_DOC_LINK_ENABLED` (master) and `DOC_LINK_FOLLOWUP_ENABLED` (24h reminder), both OFF by default, plus the client flag `secureDocLink` (`feature_flags/_default`) that shows the buttons. Design: Jo's vault note "Design - Document Tracker 2026-11-03" (off-repo). Ships dark; with the master flag off `/report/<token>` is byte-identical to before (golden test).
+**Status 2026-11-04 (Jo's go, "Yes, do it"): `SECURE_DOC_LINK_ENABLED=true` is committed in `functions/.env.nobigdeal-pro`; deploys on merge to main.** It does nothing for anyone but Jo until a user has the client flag `secureDocLink` (set for Jo's uid only). `DOC_LINK_FOLLOWUP_ENABLED` (24h reminder) stays OFF until Jo's phone test. Emergency off: set the master flag to false and redeploy.
 
 ## What it is
 
