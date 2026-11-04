@@ -101,4 +101,12 @@ Jo's calls on 2026-10-26: Active Leads = open deals only; brand orange text on n
 
 Still open, still Jo's: the copy and insurance-wording findings (copy-001 to copy-010), marketing-10 (GAF Timberline photo probes), funnel-10 (30 s AI note wait), crm-6 (held in #2755), crm-7 follow-ups, perf-1, perf-2, perf-4, perf-6. The homepage form's error line already sits above its button, so the homepage half of funnel-9 needs no change.
 
+**Update 2026-11-04, perf-4: no longer reproduces; nothing to change.** I measured it on `main` `118fd358`: the
+sample account (`/pro/explore/dashboard`, 25 leads, 390 px touch, headless Chromium, every `new Intl.DateTimeFormat`
+and every `Date#toLocale*String` with options counted by call site for 15 s of boot). Total: **15** builds and none
+per row. They were `closes-week-logic.js:89` ×5 (one per close this week), `storm-strip.js:94` ×4, and one each
+from the cached formatters in `today-plan.js` (2), `estimate-followups.js`, `schedule-window.js` and
+`ky-insurance-law.js` (2). Those modules now build once and reuse, which is what perf-4 asked for. The leftovers:
+the `crm-10` `.af-action` row went to #2818 (Jo: "own row").
+
 Lessons worth keeping: a hand-written regex test can pin the exact form of a rule (`orange-text-on-navy` pinned `var(--orange-light)`), so a fallback form needs its pin widened; and a KNOWN BUG pin must be removed in the PR that fixes the bug.
