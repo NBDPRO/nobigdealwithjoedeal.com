@@ -109,7 +109,12 @@ this as leads, not requirements; Jo's own gym use outranks it.
 
 - Sunday review page: floors hit, workouts, calories vs target, PRs, volume by muscle (sets per week, this week vs last),
   one thing to change. Uses stored data only; no new collection.
+  **Update 2026-11-04 (recon):** the weekly review sheet already existed (2026-10-02, `review-logic.js` / `review-ui.js`: floors,
+  weigh-in rule, next-week targets for workouts and calories, day wrap-ups, hard thing). The missing piece was the training
+  section: workouts, PRs and hard sets per muscle vs last week, now `week-training-logic.js` shown in that sheet and added to the
+  copied scorecard and the bot snapshot (draft PR). Nothing else of this item is open.
 - Muscle-volume map: weekly working sets per muscle group as bars with the target band, building on the balance card.
+  (Shipped, #2653.)
 
 ### Phase 4 - Measurements and photos (last)
 

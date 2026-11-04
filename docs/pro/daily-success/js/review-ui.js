@@ -72,6 +72,22 @@
   // The week's day wrap-ups (eod-logic.js), or [] when the module or notes are absent.
   function eodSummary() { try { return window.NBDEod && window.NBDEodUI ? window.NBDEod.weekSummary(window.NBDEodUI.load(), today()) : null; } catch (_) { return null; } }
   function eodLines() { const s = eodSummary(); return s ? window.NBDEod.scorecardLines(s) : []; }
+  // The week's training (week-training-logic.js): workouts, PRs, hard sets per muscle vs last week. Stored sessions only.
+  function trainingWeek(w) {
+    const T = window.NBDWeekTraining;
+    if (!T || !window.NBDCoach) return null;
+    try { return T.weekTraining(readJson('nbd_ds_workouts', []), w, { coach: window.NBDCoach, target: (readJson(COACH, {}) || {}).workoutsPerWeek }); } catch (_) { return null; }
+  }
+  function trainingLines(w) { const t = trainingWeek(w); return t ? window.NBDWeekTraining.scorecardLines(t) : []; }
+  function trainingHtml(w) {
+    const t = trainingWeek(w);
+    if (!t) return '';
+    if (!t.enough) return '<div class="wc-lbl">Training</div><div class="wc-meta">No finished workouts this week.</div>';
+    const d = t.sets - t.prevSets;
+    return '<div class="wc-lbl">Training</div><div class="wc-sum"><div><b>' + t.workouts + (t.target ? '/' + t.target : '') + '</b> workouts</div><div><b>' + t.sets + '</b> hard sets</div><div><b>' + (d > 0 ? '+' + d : d) + '</b> vs last week</div></div>' +
+      t.prs.map((p) => '<div class="rv-row"><span>PR · ' + esc(p.name) + '</span><span>' + esc(p.text) + '</span></div>').join('') +
+      t.muscles.map((m) => '<div class="rv-row"><span>' + esc(m.label) + '</span><b>' + m.now + ' <small>(' + (m.delta > 0 ? '+' + m.delta : m.delta) + ')</small></b></div>').join('');
+  }
   function eodHtml() {
     const s = eodSummary();
     if (!s || !s.days) return '';
@@ -108,7 +124,7 @@
         from: x.week.from, to: x.week.to, floors: x.fl.length ? x.week : null, taxMoved: !!saved.taxMoved, streak: x.streak,
         weight: x.weight, goal: x.goal,
         lastScary: x.last && x.last.scary ? { text: x.last.scary, done: typeof saved.lastDone === 'boolean' ? saved.lastDone : null } : null,
-        kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue, eodLines: eodLines(),
+        kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue, eodLines: eodLines().concat(trainingLines(x.week)),
       });
       const doc = R().snapshotDoc({ floors: x.fl, byDayToday: R().metByDay(allPages(), x.fl).get(today()), todayDk: today(),
         streak: x.streak, week: x.week, trend: x.t, rule: x.weight, goal: x.goal, scorecard: card,
@@ -170,6 +186,7 @@
         (w.missTaxCents ? '<label class="rv-check"><input type="checkbox" id="rvTaxMoved"' + (saved.taxMoved ? ' checked' : '') + '> I moved it to savings</label>' : '<div class="wc-meta">Nothing owed. Clean week.</div>') + '</div>'
         : '<div class="wc-meta">No daily floors set yet — set them under ⚙️ Customize.</div>') +
       eodHtml() +
+      trainingHtml(w) +
       '<div class="wc-lbl">2 · Weigh-in</div><div class="wc-meta rv-wt rv-wt-' + esc(wt.verdict) + '">' + esc(wt.text) + '</div>' +
       (wt.verdict === 'adjust' && wt.newCalories ? '<button type="button" class="btn btn-ghost" data-rv-action="cut">Set calories to ' + esc(wt.newCalories) + '</button>' : '') +
       '<div class="rv-goalset"><label>Start <input class="wc-in" id="rvGoalStart" inputmode="decimal" value="' + esc(x.s.goal.start || '') + '" placeholder="375"></label>' +
@@ -210,7 +227,7 @@
     return R().scorecardText({
       from: x.week.from, to: x.week.to, floors: x.fl.length ? x.week : null, taxMoved: c.taxMoved, streak: x.streak,
       weight: x.weight, goal: x.goal, lastScary: x.last && x.last.scary ? { text: x.last.scary, done: c.lastDone } : null,
-      kept: c.kept, bailed: c.bailed, scary: c.scary, scaryDue: c.scaryDue, eodLines: eodLines(),
+      kept: c.kept, bailed: c.bailed, scary: c.scary, scaryDue: c.scaryDue, eodLines: eodLines().concat(trainingLines(x.week)),
     });
   }
   function doSave() {
