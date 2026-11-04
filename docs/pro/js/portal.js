@@ -846,6 +846,47 @@
 
     const parts = [];
 
+    // ── Install-day "Today" card (2026-11-04, CUSTOMER-PORTAL-PLAN Phase 2) ──
+    // The server (functions/portal-today.js) decides when it shows and every
+    // word: crew COMPANY only, the cached weather.gov forecast for the job's
+    // days, and the rep's optional one-line note. First on the page, because
+    // on a build day it is the question ("are they coming? is it raining?").
+    // Install-day changes are a message, never self-serve.
+    const tdy = view.today;
+    if (tdy && tdy.copy) {
+      const tc = tdy.copy;
+      const fillT = (t) => _fillCopy(t || '', { rep: tdy.rep || 'your rep', crew: tdy.crew || '' });
+      const heading = tdy.when === 'today' ? tc.headingToday
+        : tdy.when === 'tomorrow' ? tc.headingTomorrow
+        : tdy.when === 'working' ? tc.headingWorking
+        : tc.headingSoon;
+      const p0 = view.progress || {};
+      const sched0 = _scheduleLine(p0.scheduledDate, _localToday());
+      const schedText = sched0 ? sched0.text + _scheduleWindowSuffix(p0.scheduledDate, p0.scheduleWindow, sched0.when) : '';
+      const wx = Array.isArray(tdy.weather) ? tdy.weather : [];
+      const worst = wx.some((d) => d.level === 'warn') ? 'warn' : (wx.some((d) => d.level === 'watch') ? 'watch' : 'ok');
+      const wxRows = wx.map((d) =>
+        '<li class="today-wx" data-level="' + esc(d.level) + '"><span class="today-wx-day">' + esc(_buildDayLabel(d.date) || d.date) + '</span> ' + esc(d.label) + '</li>'
+      ).join('');
+      // The newest photo the rep shared (never the homeowner's own uploads).
+      const shared = (view.photos || []).filter((ph) => ph && ph.source !== 'homeowner' && ph.urls && ph.urls.thumb)
+        .sort((x, y) => (Number(y.atMs) || 0) - (Number(x.atMs) || 0));
+      const latest = shared[0] || null;
+      parts.push(
+        '<div class="card today-card" id="today-card" data-when="' + esc(tdy.when) + '">' +
+          '<div class="card-label">' + esc(heading) + '</div>' +
+          (schedText ? '<div class="card-title">' + esc(schedText) + '</div>' : '') +
+          (tdy.crew ? '<p class="today-crew">' + esc(fillT(tc.crewLine)) + '</p>' : '') +
+          (wxRows ? '<div class="today-wx-wrap"><div class="today-wx-label">' + esc(tc.weatherLabel) + '</div><ul class="today-wx-list">' + wxRows + '</ul>' +
+            (worst !== 'ok' ? '<p class="today-wx-note" data-level="' + worst + '">' + esc(fillT(worst === 'warn' ? tc.weatherWarn : tc.weatherWatch)) + '</p>' : '') +
+          '</div>' : '') +
+          (tdy.note ? '<div class="today-note"><div class="today-note-from">' + esc(fillT(tc.noteFrom)) + '</div><p>' + esc(tdy.note.text) + '</p></div>' : '') +
+          (latest ? '<img class="today-photo" src="' + esc(safeUrl(latest.urls.thumb)) + '" alt="Latest photo from your job" width="96" height="96" loading="lazy">' : '') +
+          '<p class="today-change"><a href="#pm-card">' + esc(fillT(tc.changeAsk)) + '</a></p>' +
+        '</div>'
+      );
+    }
+
     // ── Project progress tracker ──
     // 9 steps (2026-10-03): Inspection → Estimate → Signed → Build day set →
     // Build → Final walkthrough → Final payment → Warranty → Review. The

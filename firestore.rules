@@ -556,6 +556,19 @@ service cloud.firestore {
           && _hmOk('adjusterMeetingStart');
     }
 
+    // 2026-11-04 (portal Phase 2) — the rep's one-line note on the homeowner
+    // portal's Today card. Absent/null clears it; otherwise exactly
+    // {text: string 1..160, atMs: number}. The server re-checks wording and
+    // freshness before showing it (functions/portal-today.js noteFor).
+    function portalNoteOk() {
+      let n = request.resource.data.get('portalNote', null);
+      return n == null
+          || (n is map
+              && n.keys().hasOnly(['text', 'atMs'])
+              && n.text is string && n.text.size() >= 1 && n.text.size() <= 160
+              && n.atMs is number);
+    }
+
     // 2026-09-15 (Warranty Claim lane) — shape validator for the claim
     // subdoc itself (leads/{leadId}/warrantyClaims/{claimId}), modeled on
     // stageWriteOk()'s enum-check style. status/reason are the only fields
@@ -820,6 +833,7 @@ service cloud.firestore {
           && confirmedSourceWriteOk()
           && openClaimIdOk()
           && scheduleWindowOk()
+          && portalNoteOk()
         );
       allow delete: if (isOwner(resource.data.userId) && notViewer())
         || isAdmin()

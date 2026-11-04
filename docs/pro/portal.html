@@ -458,6 +458,30 @@
     display:block; font-size: var(--nbd-text-xs); font-weight:500;
     color: var(--nbd-ink-subtle); margin-top:2px;
   }
+  /* Install-day "Today" card (2026-11-04, Phase 2). States ride on data
+     attributes; no inline style (CSP + the inline-style ratchet). */
+  .today-card{ border-color: var(--nbd-orange); border-width:2px; }
+  .today-crew{ margin: var(--nbd-space-2) 0 0; font-weight:700; color: var(--nbd-ink); }
+  .today-wx-wrap{ margin-top: var(--nbd-space-3); }
+  .today-wx-label{
+    font-size:10px; font-weight:700; letter-spacing: var(--nbd-tracking-widest);
+    text-transform: uppercase; color: var(--nbd-ink-subtle);
+  }
+  .today-wx-list{ list-style:none; margin: var(--nbd-space-1) 0 0; padding:0; }
+  .today-wx{ font-size: var(--nbd-text-sm); color: var(--nbd-ink); padding:2px 0; }
+  .today-wx-day{ font-weight:700; }
+  .today-wx[data-level="warn"]{ color: var(--nbd-danger, #b42318); font-weight:700; }
+  .today-wx-note{ margin: var(--nbd-space-2) 0 0; font-size: var(--nbd-text-sm); line-height:1.5; }
+  .today-wx-note[data-level="warn"]{ font-weight:700; }
+  .today-note{
+    margin-top: var(--nbd-space-3); padding: var(--nbd-space-3);
+    background: var(--nbd-orange-soft); border-radius: var(--nbd-radius-md);
+  }
+  .today-note-from{ font-size: var(--nbd-text-xs); font-weight:800; color: var(--nbd-orange-deep); }
+  .today-note p{ margin: var(--nbd-space-1) 0 0; color: var(--nbd-ink); }
+  .today-photo{ display:block; margin-top: var(--nbd-space-3); border-radius: var(--nbd-radius-md); object-fit:cover; }
+  .today-change{ margin: var(--nbd-space-3) 0 0; font-size: var(--nbd-text-sm); }
+  .today-change a{ color: var(--nbd-orange-deep); font-weight:700; text-decoration:underline; min-height:44px; display:inline-flex; align-items:center; }
   .sr-only{
     position:absolute; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
@@ -630,6 +654,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=19" defer></script>
+<script src="js/portal.js?v=20" defer></script>
 </body>
 </html>

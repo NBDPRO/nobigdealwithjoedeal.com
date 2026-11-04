@@ -68,7 +68,7 @@ function ok(label, cond, detail) {
   const html = read('docs/pro/portal.html');
   ok('CSS: primary action is full width on a phone, 52px tall', /\.progress-action-primary\{[\s\S]*?flex: 1 1 100%; min-height:52px/.test(html));
   ok('CSS: .sr-only is visually hidden', /\.sr-only\{[\s\S]*?clip:rect\(0,0,0,0\)/.test(html));
-  ok('portal.js cache-buster bumped (v=19)', /js\/portal\.js\?v=19/.test(html));
+  ok('portal.js cache-buster bumped (v>=19)', Number((html.match(/js\/portal\.js\?v=(\d+)/) || [])[1]) >= 19);
   ok('metrics go through the ONE guarded emitter (no second fetch)', (code.match(/recordCustomerEvent/g) || []).length === 1 && /function _emitMetric\(type, kind\) \{\s*_emitAuditEvent\(type, null, \{ kind: kind \|\| null \}\);/.test(code));
   ok('the open metric fires once, next to portal_open', /_emitAuditEvent\('portal_open'\);\s*_emitMetric\('m_open'\);/.test(code));
 

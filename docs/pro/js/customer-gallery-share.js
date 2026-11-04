@@ -239,6 +239,40 @@ window.quickPreviewPortalLink = async function () {
   }
 };
 
+// Portal Phase 2 (2026-11-04): the rep's one-line note on the homeowner
+// portal's Today card. 160 characters, shown for 7 days from when it was
+// saved; blank clears it. The KY claim-wording check runs here so the rep
+// hears why, and again on the server (functions/portal-today.js noteFor),
+// which drops a flagged note rather than show it.
+const PORTAL_NOTE_MAX = 160;
+window.editPortalNote = async function () {
+  const toast = (m, t) => { if (typeof showToast === 'function') showToast(m, t); };
+  const leadId = window._customerId;
+  if (!leadId || !window.db || typeof window.updateDoc !== 'function') { toast('Customer not loaded yet', 'error'); return; }
+  const lead = window._currentLead || {};
+  const cur = lead.portalNote && typeof lead.portalNote.text === 'string' ? lead.portalNote.text : '';
+  const ask = typeof window.nbdPrompt === 'function'
+    ? window.nbdPrompt('Note for the homeowner\'s portal (shows for 7 days, ' + PORTAL_NOTE_MAX + ' characters). Leave blank to clear.', cur)
+    : Promise.resolve(window.prompt('Note for the homeowner\'s portal. Leave blank to clear.', cur));
+  const raw = await ask;
+  if (raw === null || raw === undefined) return;
+  const text = String(raw).replace(/\s+/g, ' ').trim();
+  if (text.length > PORTAL_NOTE_MAX) { toast('Keep it to ' + PORTAL_NOTE_MAX + ' characters (' + text.length + ' now)', 'error'); return; }
+  if (text && window.NBDClaimWording && typeof window.NBDClaimWording.scanText === 'function') {
+    const hits = window.NBDClaimWording.scanText(text);
+    if (hits.length) { toast('Not saved: that wording breaks the KY claim rules (' + hits[0].rule + '). Reword it.', 'error'); return; }
+  }
+  const note = text ? { text, atMs: Date.now() } : null;
+  try {
+    await window.updateDoc(window.doc(window.db, 'leads', leadId), { portalNote: note });
+    if (window._currentLead) window._currentLead.portalNote = note;
+    toast(note ? 'Portal note saved' : 'Portal note cleared', 'success');
+  } catch (e) {
+    console.warn('[portal-note]', e && e.message);
+    toast('Could not save the note', 'error');
+  }
+};
+
 // Wave 43: same flow on the email channel. Delegates to
 // PortalLinkHelpers.emailForLead for the resolve + mailto: build.
 // The button-specific UI bits (label restoration, "⏳ Preparing…"

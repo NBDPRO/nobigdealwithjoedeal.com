@@ -548,6 +548,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-jobconf-test 'node firestore-rules.job-conflict-notice.test.js'
+      # Homeowner portal note (2026-11-04, portal Phase 2): leads/{id}.portalNote shape. Own file (positive controls inside).
+      - name: Run portal-note rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-pnote-test 'node firestore-rules.portal-note.test.js'
       # Company documents (own-document expiry, 2026-10-18): companies/{cid}/companyDocs. Own file.
       - name: Run company-docs rules tests under emulator
         run: |
