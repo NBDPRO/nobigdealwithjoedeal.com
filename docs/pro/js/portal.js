@@ -69,6 +69,77 @@
   // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
   // server says charges what is due now; a sent link that no longer fits
   // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
+  // ── Photo viewer (Phase 7 polish, 2026-11-04) ────────────────────
+  // A tap on a project photo opened the full image in a new tab, which on a
+  // phone dropped the homeowner out of the portal. Now it opens in a native
+  // <dialog>: swipe or arrow keys between the photos currently shown, Esc /
+  // ✕ / backdrop to close, "Open full size" keeps the old new-tab view.
+  // ctrl/cmd/shift/middle clicks still open a new tab. The grid's own click
+  // listener (photo_view event) runs first and is untouched.
+  function _photoViewer() {
+    let dlg = document.getElementById('ph-viewer');
+    if (dlg) return dlg;
+    dlg = document.createElement('dialog');
+    dlg.id = 'ph-viewer';
+    dlg.className = 'ph-viewer';
+    dlg.setAttribute('aria-label', 'Project photos');
+    dlg.innerHTML =
+      '<div class="ph-viewer-bar">' +
+        '<span class="ph-viewer-count" aria-live="polite"></span>' +
+        '<a class="ph-viewer-full" target="_blank" rel="noopener">Open full size</a>' +
+        '<button type="button" class="ph-viewer-close" aria-label="Close">✕</button>' +
+      '</div>' +
+      '<div class="ph-viewer-stage"><img class="ph-viewer-img" alt=""></div>' +
+      '<div class="ph-viewer-nav">' +
+        '<button type="button" class="ph-viewer-prev" aria-label="Previous photo">‹</button>' +
+        '<button type="button" class="ph-viewer-next" aria-label="Next photo">›</button>' +
+      '</div>';
+    document.body.appendChild(dlg);
+    dlg.querySelector('.ph-viewer-close').addEventListener('click', function () { dlg.close(); });
+    dlg.querySelector('.ph-viewer-prev').addEventListener('click', function () { _photoStep(-1); });
+    dlg.querySelector('.ph-viewer-next').addEventListener('click', function () { _photoStep(1); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); _photoStep(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); _photoStep(1); }
+    });
+    let x0 = null;
+    dlg.addEventListener('pointerdown', function (e) { x0 = e.clientX; });
+    dlg.addEventListener('pointerup', function (e) {
+      if (x0 == null) return;
+      const dx = e.clientX - x0; x0 = null;
+      if (Math.abs(dx) > 40) _photoStep(dx < 0 ? 1 : -1);
+    });
+    return dlg;
+  }
+  let _photoIdx = 0;
+  function _photoTiles() { return Array.prototype.slice.call(document.querySelectorAll('#portalPhotoGrid .ph-tile')); }
+  function _photoShow(i) {
+    const tiles = _photoTiles();
+    if (!tiles.length) return;
+    _photoIdx = (i + tiles.length) % tiles.length;
+    const t = tiles[_photoIdx];
+    const dlg = _photoViewer();
+    const img = dlg.querySelector('.ph-viewer-img');
+    img.src = t.getAttribute('href');
+    img.alt = t.getAttribute('aria-label') || 'Project photo';
+    dlg.querySelector('.ph-viewer-full').setAttribute('href', t.getAttribute('href'));
+    dlg.querySelector('.ph-viewer-count').textContent = (_photoIdx + 1) + ' of ' + tiles.length;
+    const many = tiles.length > 1;
+    dlg.querySelector('.ph-viewer-prev').hidden = !many;
+    dlg.querySelector('.ph-viewer-next').hidden = !many;
+  }
+  function _photoStep(d) { _photoShow(_photoIdx + d); }
+  document.addEventListener('click', function (e) {
+    const tile = e.target && e.target.closest ? e.target.closest('#portalPhotoGrid .ph-tile') : null;
+    if (!tile || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (typeof HTMLDialogElement !== 'function') return; // very old browser: keep the new-tab link
+    e.preventDefault();
+    const dlg = _photoViewer();
+    _photoShow(_photoTiles().indexOf(tile));
+    if (!dlg.open) dlg.showModal();
+  });
+
   // ── Add to Home Screen (Phase 7, 2026-11-04) ─────────────────────
   // The manifest has NO start_url on purpose: the browser then uses this
   // page's own address, token included, so the icon opens this homeowner's
