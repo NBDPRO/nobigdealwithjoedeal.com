@@ -114,3 +114,9 @@ Rule from Grok, which matches the research: anything done mid-set is one or two 
 **Merge-queue lessons from this session:** two PRs that add a line to the same place in `tests/ci-manifest.json` or the `index.html` version lines conflict in the queue; queue one at a time, or put a new manifest entry away from the other PR's line. A queue run that shows every emulator job failing at about 90 seconds is a cancelled run, not a real failure. `@shard3` (and `@shard2`) are not required checks and fail often.
 
 **Open for Jo:** the paint-counter blog draft (its PR was closed; the draft HTML is on the branch `docs/blog-paint-color-match-draft`, not published; it still needs Jo's lines for "What I Do While I Wait"); the Drive screenshot folder is sorted into Jo's private vault note (not in this repo).
+
+## Correction 2026-11-04 (supersedes "Next, in this order" above)
+
+Recon on main after writing the status section above showed the rest of the lineup is **already live**: the notebook / layouts session (#2727, see [DAILY-SUCCESS-NOTEBOOK-2026-10-25](DAILY-SUCCESS-NOTEBOOK-2026-10-25.md)) shipped the Cockpit, Quest, Arcade, One Thing and Journal screens, and `js/layout-logic.js` now has **all eight layouts `ready: true`**. The pure modules `xp-logic.js` and `cockpit-logic.js` from this session are the ones those screens use. So there is no Cockpit or Quest screen left to build; ignore that list.
+
+**What is actually left:** a real-iPhone pass over all eight layouts in the installed app (Log Book and Rings were only checked in a phone-sized browser; the others by the other session's tests), and anything Jo reports. The phase 3 Sunday review page and phase 4 (measurements, photos) are still on [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md). Lesson: recon `origin/main` before building from a plan; a parallel session had already built the next steps.
