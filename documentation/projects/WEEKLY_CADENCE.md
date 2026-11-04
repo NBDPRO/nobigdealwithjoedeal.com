@@ -307,7 +307,12 @@
       **sell** prices are missing.
 - [ ] **kie.ai visualizer flip** (config-only) —
       [VISUALIZER-KIE-PROVIDER](../runbooks/VISUALIZER-KIE-PROVIDER.md)
-- [ ] **DMARC** `p=none` + rua, tighten after
+- [x] **DMARC** `p=none` + rua, tighten after
+      *(**Update 2026-11-04: DMARC DONE** — `_dmarc` TXT published in
+      Cloudflare DNS: `v=DMARC1; p=none; rua=mailto:jd@nobigdealwithjoedeal.com`,
+      verified live via Cloudflare DoH and Google DoH. Next step: review the
+      aggregate reports and tighten to `p=quarantine` on **2026-12-02**
+      (reminders set). The 2026-09-23 note below is kept as history.)*
       *(**the `www → apex 301` half is DONE** — verified 2026-09-23:
       `https://www.nobigdealwithjoedeal.com/` returns **301** to the apex.
       DMARC is still absent: no `_dmarc` TXT record resolves.)*
