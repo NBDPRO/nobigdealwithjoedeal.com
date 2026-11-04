@@ -70,6 +70,7 @@
     "toast-style-leak-2026-10-25.test.js",
     "draw-tools-drawer-2026-10-25.test.js",
     "crm-strip-one-row-2026-10-25.test.js",
+    "speed-fixes-2026-11-04.test.js",
     "activity-actions-own-row-2026-11-04.test.js",
     "layout-field-2026-10-11.test.js",
     "layout-focus-2026-10-11.test.js",
