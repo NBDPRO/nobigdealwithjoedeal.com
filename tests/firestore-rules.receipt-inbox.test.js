@@ -75,12 +75,14 @@ async function run() {
   await seed('co-b__rcpt_theirs', draft('co-b', { fileHash: '5'.repeat(64) }));
   await seed('co-a__rcpt_viewers', draft('vera', { companyId: 'co-a', fileHash: '6'.repeat(64) }));
   await seed('co-a__rcpt_ten', draft('co-a', { fileHash: '7'.repeat(64) }));
+  await seed('co-a__rcpt_seven', draft('co-a', { fileHash: '9'.repeat(64) }));
   const exp = (uid, inboxId, over) => Object.assign({ userId: uid, companyId: uid === 'rep1' ? 'co-a' : uid, createdBy: uid, amountCents: 123456, taxCents: 8642, supplier: 'Acme Roof Supply', category: 'materials', costType: 'direct', source: 'inbox', inboxId, externalRef: 'rcpt_x' }, over || {});
   await seedExp('e-one', exp('co-a', 'co-a__rcpt_one'));
   await seedExp('e-other-draft', exp('co-a', 'co-a__rcpt_zzz'));
   await seedExp('e-notmine', exp('someone-else', 'co-a__rcpt_two'));
   await seedExp('e-cob', exp('co-b', 'co-b__x', { companyId: 'co-b' }));
   await seedExp('e-coa-cost', exp('co-a', 'co-a__rcpt_cost'));
+  await seedExp('e-seven', exp('co-a', 'co-a__rcpt_seven'));
 
   const now = () => serverTimestamp();
   const decide = (status, expenseId, uid, extra) => Object.assign({ status, decidedBy: uid, decidedAt: now(), decision: expenseId ? { expenseId, edited: false } : { note: 'skipped' } }, extra || {});
@@ -112,6 +114,10 @@ async function run() {
   await check('approve naming an expense made by someone else is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_two'), decide('approved', 'e-notmine', 'co-a')));
   await check('approve naming another company\'s expense is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_two'), decide('approved', 'e-cob', 'co-a')));
   await check('approve without decidedBy = the caller is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_two'), Object.assign(decide('approved', 'e-one', 'co-a'), { decidedBy: 'someone-else' })));
+  // the expense is the caller's and carries THIS draft's id, so only the decidedBy clause can refuse the next one
+  await check('approve with decidedBy set to someone else is refused (everything else valid)', 'deny', updateDoc(ref(solo, 'co-a__rcpt_seven'), Object.assign(decide('approved', 'e-seven', 'co-a'), { decidedBy: 'someone-else' })));
+  await check('approve with decidedBy missing is refused (everything else valid)', 'deny', updateDoc(ref(solo, 'co-a__rcpt_seven'), { status: 'approved', decidedAt: now(), decision: { expenseId: 'e-seven' } }));
+  await check('the same approval with decidedBy = the caller is allowed', 'allow', updateDoc(ref(solo, 'co-a__rcpt_seven'), decide('approved', 'e-seven', 'co-a')));
   await check('approved is final: it cannot be skipped afterwards', 'deny', updateDoc(ref(solo, 'co-a__rcpt_approved'), decide('skipped', null, 'co-a')));
   await check('approved is final: it cannot be undone to ready', 'deny', updateDoc(ref(solo, 'co-a__rcpt_approved'), { status: 'ready' }));
   await check('a viewer cannot approve', 'deny', updateDoc(ref(vera, 'co-a__rcpt_viewers'), decide('skipped', null, 'vera')));
