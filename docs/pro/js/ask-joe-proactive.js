@@ -47,7 +47,9 @@
     return isNaN(d) ? null : d;
   }
   function _lastTouch(lead) {
-    return _toDate(lead && (lead.lastContactedAt || lead.lastActivityAt || lead.updatedAt || lead.createdAt));
+    var a = _toDate(lead && (lead.lastContactedAt || lead.lastActivityAt || lead.updatedAt || lead.createdAt));
+    var b = _toDate(lead && lead.lastInboundAt); // the customer's own last message (inbound-stamp.js)
+    return b && (!a || b > a) ? b : a;
   }
   function _stageStarted(lead) {
     return _toDate(lead && (lead.stageStartedAt || lead.updatedAt || lead.createdAt));

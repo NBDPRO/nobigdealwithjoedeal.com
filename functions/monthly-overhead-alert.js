@@ -71,7 +71,9 @@ exports.monthlyOverheadAlertCron = onSchedule(
 
     let queued = 0, skippedZero = 0, noEmail = 0, alreadySent = 0;
     for (const [cid, summary] of perCompany) {
-      if (summary.totalCents <= 0) { skippedZero++; continue; }
+      // Not `<= 0`: credits that outrun the month's overhead make the total NEGATIVE, and that
+      // must reach the owner (buildEmail flags it), not be skipped as "nothing to report".
+      if (summary.totalCents === 0) { skippedZero++; continue; }
       let ownerUid = cid;
       try {
         const co = await db.collection('companies').doc(cid).get();

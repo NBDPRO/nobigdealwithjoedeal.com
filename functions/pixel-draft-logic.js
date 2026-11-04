@@ -53,7 +53,9 @@ const TEMPLATE_KEYS = Object.freeze(Object.keys(TEMPLATES));
 // fixed wordings, same builder and same gates. TEMPLATE_KEYS stays Pixel World's
 // own four; the callable accepts either set.
 const EstimateFollow = require('./estimate-follow-templates');
-const ALL_TEMPLATES = Object.freeze(Object.assign({}, TEMPLATES, EstimateFollow.TEMPLATES));
+// 2026-11-03 (Follow-up board, flag followUpBoard): three more, same builder and gates.
+const FollowUp = require('./follow-up-templates');
+const ALL_TEMPLATES = Object.freeze(Object.assign({}, TEMPLATES, EstimateFollow.TEMPLATES, FollowUp.TEMPLATES));
 const ALL_TEMPLATE_KEYS = Object.freeze(Object.keys(ALL_TEMPLATES));
 
 /** The words no template line may contain (see the header). Tested, not run on a finished body. */

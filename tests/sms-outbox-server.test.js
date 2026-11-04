@@ -243,7 +243,7 @@ function makeWorld(opts) {
         info: (...a) => logs.info.push(a),
       },
     },
-    'firebase-admin/firestore': { getFirestore: () => db, FieldValue: { serverTimestamp: () => TS } },
+    'firebase-admin/firestore': { getFirestore: () => db, FieldValue: { serverTimestamp: () => TS, increment: (n) => ({ __increment: n }) } },
     'firebase-admin/auth': {
       getAuth: () => ({
         verifyIdToken: async () => {

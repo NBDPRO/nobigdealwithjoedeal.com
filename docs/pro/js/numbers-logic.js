@@ -353,6 +353,8 @@
     (expenses || []).forEach(function (e) {
       if (!e || e.deleted || !e.leadId) return;
       if (e.costType === 'overhead' || e.category === 'marketing') return;
+      // A credit / refund row (flag costCredits) is not a cost: it can never make a job "costed".
+      if (e.entryType === 'credit') return;
       var c = Number(e.amountCents) || dollarsToCents(e.amount);
       if (c > 0) costed[e.leadId] = (costed[e.leadId] || 0) + c;
     });

@@ -142,8 +142,10 @@
   }
 
   // ── costs ────────────────────────────────────────────────────────────
-  function costCents(e) { return int(e && e.amountCents) + int(e && e.taxCents); }
-  function liveCost(e) { return !!e && e.deleted !== true && costCents(e) > 0; }
+  // Signed: a credit / refund row (entryType 'credit', flag costCredits) is stored positive and
+  // SUBTRACTS. A live cost is any row with money on it, either direction.
+  function costCents(e) { return (e && e.entryType === 'credit' ? -1 : 1) * (int(e && e.amountCents) + int(e && e.taxCents)); }
+  function liveCost(e) { return !!e && e.deleted !== true && costCents(e) !== 0; }
 
   /**
    * Costs dated in the month. Direct = job costs; overhead = what the CRM has
@@ -151,10 +153,11 @@
    * -> { directCents, directCount, estimatedCents, noJobCents, noJobCount, loggedOverheadCents, byLead{} }
    */
   function costsForMonth(expenses, range) {
-    var out = { directCents: 0, directCount: 0, estimatedCents: 0, noJobCents: 0, noJobCount: 0, loggedOverheadCents: 0, byLead: {} };
+    var out = { directCents: 0, directCount: 0, estimatedCents: 0, noJobCents: 0, noJobCount: 0, loggedOverheadCents: 0, creditsCents: 0, byLead: {} };
     (expenses || []).forEach(function (e) {
       if (!liveCost(e) || !inRange(toMs(e.date), range)) return;
       var c = costCents(e);
+      if (c < 0) out.creditsCents += -c; // already netted into the totals below
       if (e.costType === 'direct') {
         out.directCents += c; out.directCount++;
         if (e.estimated === true) out.estimatedCents += c;
@@ -171,7 +174,8 @@
   function jobsWithRealCost(expenses) {
     var m = {};
     (expenses || []).forEach(function (e) {
-      if (liveCost(e) && e.costType === 'direct' && e.estimated !== true && e.leadId) m[e.leadId] = true;
+      // A credit is not proof a cost was ever logged: only real cost rows count.
+      if (liveCost(e) && e.entryType !== 'credit' && e.costType === 'direct' && e.estimated !== true && e.leadId) m[e.leadId] = true;
     });
     return m;
   }

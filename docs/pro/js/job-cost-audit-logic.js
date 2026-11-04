@@ -73,10 +73,12 @@
   function conf(c) { return Object.assign({}, CONFIG, c || {}); }
 
   // ── the cost rows ─────────────────────────────────────────────────────
-  function centsOf(e) { return int(e && e.amountCents) + int(e && e.taxCents); }
-  // A live DIRECT cost: not voided, not overhead, more than $0.
+  // Signed: a credit / refund row (entryType 'credit', flag costCredits) is stored positive and
+  // SUBTRACTS, so a job's direct cost and margin are net of it.
+  function centsOf(e) { return (e && e.entryType === 'credit' ? -1 : 1) * (int(e && e.amountCents) + int(e && e.taxCents)); }
+  // A live DIRECT cost: not voided, not overhead, money on it (a credit is live too).
   function isLiveDirect(e) {
-    return !!e && e.deleted !== true && e.costType === 'direct' && centsOf(e) > 0;
+    return !!e && e.deleted !== true && e.costType === 'direct' && centsOf(e) !== 0;
   }
   function kindOf(e) {
     var ak = e && e.auditKind;

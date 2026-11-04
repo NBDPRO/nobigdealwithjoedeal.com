@@ -105,7 +105,7 @@
   }
 
   function lastTouchMs(lead) {
-    return Math.max(toMs(lead.updatedAt), toMs(lead.stageStartedAt), toMs(lead.lastContactedAt), toMs(lead.createdAt));
+    return Math.max(toMs(lead.updatedAt), toMs(lead.stageStartedAt), toMs(lead.lastContactedAt), toMs(lead.lastInboundAt), toMs(lead.createdAt));
   }
   function nameOf(lead) {
     var n = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || String(lead.name || '').trim();
