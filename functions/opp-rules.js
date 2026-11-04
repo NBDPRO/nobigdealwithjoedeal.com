@@ -83,7 +83,7 @@ const DEFAULT_RULES = Object.freeze({
   killSwitch: false,                       // true = the watcher refuses to file anything
   // The two bases. COORDINATES ARE APPROXIMATE (village / downtown centres, not the street addresses): Jo to confirm.
   bases: Object.freeze([
-    Object.freeze({ key: 'goshen', label: 'Goshen OH (warehouse, Manila Rd)', lat: 39.2337, lng: -84.1583 }),
+    Object.freeze({ key: 'goshen', label: 'Goshen OH (warehouse)', lat: 39.2337, lng: -84.1583 }),
     Object.freeze({ key: 'cincinnati', label: 'Cincinnati (home)', lat: 39.1031, lng: -84.5120 }),
   ]),
   distance: Object.freeze({
