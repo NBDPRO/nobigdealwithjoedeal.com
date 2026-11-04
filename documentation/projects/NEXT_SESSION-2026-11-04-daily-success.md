@@ -20,25 +20,37 @@ Daily Success tracker lane only. The repo-wide live brief is still [NEXT_SESSION
 | #2804 | Volume map range chips Week / 30d / 90d / All (weekly averages vs the 10-20 band) in the coach card | `volume-range-logic.js`, `ds-volume-range-2026-11-04.test.js` |
 | #2806 | Stats tile row (workouts, this month, week streak, 30-day weight) | `stats-logic.js`, `ds-stats-tiles-2026-11-04.test.js` |
 | #2808 | A workout dot under each day of the week-at-a-glance strip (strip maths moved into `weekStrip()`) | `day-layout-logic.js`, `ds-week-strip-2026-11-04.test.js` |
+| #2814 | The same strip at the top of the dashboard (**stacked on #2808**: base branch is #2808's; retarget to `main` when #2808 merges) | `weekstrip-ui.js`, `ds-dash-week-strip-2026-11-04.test.js` |
+| #2813 | CRM: read-only "Includes $X in supplements" chip on the customer page's invoice rows (reads the stored `supplementTotal`; never compares with the estimate, because a deposit + final job would make that misleading) | `invoice-supplement-chip-logic.js`, `invoice-supplement-chip-2026-11-04.test.js` |
+| #2812 | `functions/`: log-only. One `owner_fallback_used` warning (uid, never the email) when the deprecated email fallback in `isOwnerCaller()` is the only reason an owner passes. No behaviour change. **Production auth code: Jo's go.** | `owner-fallback-log-2026-11-04.test.js` |
 
   Every test was mutation-checked (a deliberate break of the code fails it). `ds-layouts-phone-fit` needs Playwright, which the
   local checkout lacks; CI runs it.
 
 ## Needs Jo
 
-1. **A real-iPhone pass** over the five drafts (Weekly review, Progress, the Workout Coach card, a day page) and the eight layouts.
-   Report what looks wrong; one small PR each. Mark the good drafts ready.
-2. **Demo images/animations for lifts: parked.** openGym's media is licensed to openGym only (gymvisual.com). The free exercise
-   dataset (Unlicense) traces back to `wrkout/exercises.json`, which names no image source, and its README sells a separate set as
-   the commercial one: not used. Jo's options: shoot his own (build an empty image slot in the coach first) or buy a licence.
-3. **Dependabot PRs (#2773, #2780, #2781, #2783, #2786):** see the next section. Merging anything under `functions/` is Jo's go.
-4. The lemo-opuscar plugin (film styles made in code) is installed at user scope; it downloads to `~/lemo-opuscar` and runs
+1. **A real-iPhone pass** over the drafts (Weekly review, Progress, the Workout Coach card, a day page, the dashboard, a customer
+   with an approved supplement) and the eight layouts. Report what looks wrong; one small PR each. Mark the good drafts ready.
+2. **Demo images/animations for lifts: ON HOLD (Jo, 2026-11-04: "skip for now").** openGym's media is licensed to openGym only
+   (gymvisual.com). The free exercise dataset (Unlicense) traces back to `wrkout/exercises.json`, which names no image source, and its
+   README sells a separate set as the commercial one: not used. A second research pass found nothing free, animated, commercial-safe
+   and customizable: wger images are CC-BY-SA per image (attribution); RepDB's free tier is static (animations are paid, hosting
+   terms unverified); `hasaneyldrm/exercises-dataset` is non-commercial; Posecode's renderer is AGPL-3.0. Revisit only if Jo shoots
+   his own or buys a licence; the empty image slot in the coach was deliberately not built.
+3. **Owner claims (for #2812):** are both owner accounts carrying the `owner: true` claim? Jo was not sure. After #2812 ships, search
+   the function logs for `owner_fallback_used`; zero entries for a week means the fallback can be retired in its own PR.
+4. **Dependabot PRs:** see the next section. Merging anything under `functions/` is Jo's go.
+5. The lemo-opuscar plugin (film styles made in code) is installed at user scope; it downloads to `~/lemo-opuscar` and runs
    commands on first use. Use it only with a named topic. Uninstall: `claude plugin uninstall lemo-opuscar@lemolab`, then delete
    `~/lemo-opuscar`.
 
-## Dependency PRs, checked 2026-11-04 (nothing merged)
+## Dependency PRs, checked 2026-11-04
 
-- The red checks on #2781 and #2783 are from old runs on stale bases: a `follow-redirects` 1.16.0-1.16.1 HIGH advisory in the
+- **Update (end of session):** Jo said go. `@dependabot rebase` was posted on #2781 and #2783 (their checks then ran green); #2786
+  (`@sentry/node` 11.10, `google-auth-library` 11.3.2, `resend` 6.37, `stripe` 23.1: minor and patch only) has auto-merge on and
+  lands through the queue when its checks are green. #2773 and #2780 were not touched. The roadmap and three stale plan docs below
+  were corrected in #2809 and #2811.
+- Original check: the red checks on #2781 and #2783 are from old runs on stale bases: a `follow-redirects` 1.16.0-1.16.1 HIGH advisory in the
   dependency audit and `google-calendar-sync-2026-09-29.test.js`. Main already has `follow-redirects` 1.16.2 and main CI is green,
   so a rebase should clear them. #2773 (gcp-metadata patch bump, lockfile only) is clean; #2786 is a 16-package non-major group
   in `functions/` and needs a read of the version jumps before it merges. The branches are 15 to 25 commits behind main.
