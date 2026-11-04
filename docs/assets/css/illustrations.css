@@ -75,5 +75,5 @@
 .illus-wrap{max-width:900px;margin:0 auto}
 .illus-lede{font-size:1rem;line-height:1.65;color:#3a4352;max-width:720px;margin:0 0 8px}
 .illus-more{margin:8px 0 0;font-weight:700;font-size:.92rem}
-.illus-more a{color:#a14a22}
+.illus-more a{color:#a14a22;text-decoration:underline;text-underline-offset:2px}
 .hw-wrap{max-width:960px}
