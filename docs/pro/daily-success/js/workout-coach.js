@@ -25,6 +25,7 @@
   const CUSTOM = 'nbd_ds_coach_custom';   // [{ id, name, pattern, equip, compound }] - Jo's own lifts, this device
   const ROUTINES = 'nbd_ds_coach_routines';   // [{ id, name, split, lifts: [{ exId, name, slot, sets }] }] - this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
+  const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -45,6 +46,7 @@
       plates: C().normPlates(s.plates),
       warmups: s.warmups !== false,
       restAlert: C().normRestAlert(s.restAlert),
+      workoutsPerWeek: window.NBDWeeklyTargets ? window.NBDWeeklyTargets.normWeekly(s.workoutsPerWeek) : (s.workoutsPerWeek == null ? null : s.workoutsPerWeek),
     };
   }
   function saveSettings(s) {
@@ -54,6 +56,28 @@
   const sessions = () => readJson(SESS, []) || [];
   // Hard sets per muscle group over the last 7 days (warm-ups excluded), for the nudge.
   function weekBalance() { const s = settings(); return C().balance(sessions(), today(), { equip: s.equip, avoid: s.avoid }); }
+  // Weekly volume map: a bar per muscle (this week), a tick for last week, the 10-20 band shaded.
+  // Drawn as SVG attributes (no inline style, so it is CSP-proof).
+  function volumeHtml() {
+    const s = settings();
+    const v = C().volumeMap(sessions(), today(), { equip: s.equip, avoid: s.avoid });
+    if (!v.enough) return '';
+    const cap = Math.max(v.band.max + 4, ...v.rows.map((r) => Math.max(r.now, r.prev)));
+    const pc = (n) => Math.min(100, Math.round(n / cap * 100));
+    const rows = v.rows.map((r) => {
+      const diff = r.delta === 0 ? 'same as last week' : (r.delta > 0 ? '+' : '') + r.delta + ' vs last week';
+      const label = esc(r.label + ' ' + r.now + ' sets, ' + diff);
+      return '<div class="wc-vol-row"><span class="wc-vol-l">' + esc(r.label) + '</span>'
+        + '<svg class="wc-vol-bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="' + label + '">'
+        + '<rect class="wc-vol-track" x="0" y="0" width="100" height="10"/>'
+        + '<rect class="wc-vol-band" x="' + pc(v.band.min) + '" y="0" width="' + (pc(v.band.max) - pc(v.band.min)) + '" height="10"/>'
+        + '<rect class="wc-vol-fill ' + r.status + '" x="0" y="2" width="' + pc(r.now) + '" height="6"/>'
+        + '<rect class="wc-vol-prev" x="' + Math.max(0, pc(r.prev) - 1) + '" y="0" width="1.5" height="10"/></svg>'
+        + '<span class="wc-vol-n">' + r.now + '</span></div>';
+    }).join('');
+    return '<div class="wc-vol"><div class="wc-bal-h">Volume map, sets this week</div>' + rows
+      + '<div class="wc-bal-note">Shaded: ' + v.band.min + '-' + v.band.max + ' sets a week. Tick: last week.</div></div>';
+  }
   function balanceHtml() {
     const b = weekBalance();
     if (!b.enough) return '';
@@ -68,7 +92,7 @@
     if (needs.length) lines.push('Behind this week: ' + needs.join(', ') + '.');
     if (b.tilt === 'push') lines.push('Pushing ' + b.push + ' sets vs pulling ' + b.pull + ' — add some pulling.');
     if (b.tilt === 'pull') lines.push('Pulling ' + b.pull + ' sets vs pushing ' + b.push + ' — add some pressing.');
-    return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}</div>`;
+    return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}${volumeHtml()}</div>`;
   }
   let live = readJson(LIVE, null);
   let routines = [];           // saved routines (device-local)
@@ -83,7 +107,7 @@
   let showSettings = false;
   let armed = '';              // two-tap confirms ('discard' | 'split:legs')
   let rest = null;             // { until, label }
-  let restTick = null;
+  let restTimer = null;
 
   function persistLive() { if (live) writeJson(LIVE, live); else try { localStorage.removeItem(LIVE); } catch (_) {} }
 
@@ -135,7 +159,7 @@
       return `<div class="wc-ready done"><span>${esc(msg)}</span>${undo}<button class="btn btn-ghost wc-ready-btn" data-coach-action="ready-reset">Change</button></div>`;
     }
     if (setsDone(live)) return '';
-    const rows = READY_ROWS.map((row) => `<div class="wc-ready-row"><span class="wc-ready-l">${row.label}</span>${row.opts.map((o, n) => `<button class="wc-chip${r && r[row.k] === n + 1 ? ' on' : ''}" data-coach-action="ready-set" data-k="${row.k}" data-v="${n + 1}">${esc(o)}</button>`).join('')}</div>`).join('');
+    const rows = READY_ROWS.map((row) => `<div class="wc-ready-row" role="group" aria-label="${row.label}"><span class="wc-ready-l" aria-hidden="true">${row.label}</span>${row.opts.map((o, n) => `<button class="wc-chip${r && r[row.k] === n + 1 ? ' on' : ''}" aria-pressed="${r && r[row.k] === n + 1 ? 'true' : 'false'}" data-coach-action="ready-set" data-k="${row.k}" data-v="${n + 1}">${esc(o)}</button>`).join('')}</div>`).join('');
     return `<div class="wc-ready"><div class="wc-ready-h">How are you today? <button class="wc-link" data-coach-action="ready-skip">Skip</button></div>${rows}<div class="wc-hint">Optional. A rough day trims a set and holds the weight — nothing else changes.</div></div>`;
   }
 
@@ -170,6 +194,12 @@
     }
     if (!live && routines.length) body += `<div class="wc-routines"><div class="wc-lbl">My routines</div>${routines.map((r) => `<button class="btn btn-ghost wc-routine" data-coach-action="routine-start" data-id="${esc(r.id)}">▶ ${esc(r.name)} <small>${esc(r.lifts.length)} lifts</small></button>`).join('')}</div>`;
     const meta = [];
+    if (s.workoutsPerWeek && window.NBDWeeklyTargets) {
+      const WT = window.NBDWeeklyTargets, d7 = new Date();
+      const from = new Date(d7.getFullYear(), d7.getMonth(), d7.getDate() - 6);
+      const fk = from.getFullYear() + '-' + String(from.getMonth() + 1).padStart(2, '0') + '-' + String(from.getDate()).padStart(2, '0');
+      meta.push('Week: ' + WT.countWorkouts(all, fk, today()) + '/' + s.workoutsPerWeek + ' workouts');
+    }
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
     // A variety score over one or two workouts is noise — show it once there's a pattern to read.
     if (v.total >= 12) meta.push('Variety (4 wks): ' + v.pct + '%');
@@ -196,13 +226,47 @@
       el.id = 'wcOverlay';
       el.className = 'wc-ov';
       el.setAttribute('role', 'dialog');
+      el.setAttribute('aria-modal', 'true');
       el.setAttribute('aria-label', 'Workout Coach');
+      el.tabIndex = -1;
       document.body.appendChild(el);
     }
     return el;
   }
-  function open() { overlay().classList.add('open'); document.body.classList.add('wc-lock'); render(); }
-  function close() { overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard(); }
+  // Keyboard dialog contract (audit 2026-10-23): focus moves in on open, Tab
+  // wraps inside, Escape closes (same as the Close button: the live workout is
+  // already saved), and focus goes back to whatever opened it.
+  const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let opener = null;
+  const isOpen = () => { const el = document.getElementById('wcOverlay'); return !!(el && el.classList.contains('open')); };
+  function open() {
+    const el = overlay();
+    const was = isOpen();
+    if (!was) opener = document.activeElement;
+    el.classList.add('open'); document.body.classList.add('wc-lock'); render();
+    if (!was) (el.querySelector(FOCUSABLE) || el).focus();
+  }
+  function close() {
+    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard();
+    const o = opener; opener = null;
+    let back = o && document.contains(o) ? o : null;
+    // The card is re-drawn on close, so the opener may be gone: use the new button with the same action.
+    if (!back && o && o.dataset && /^[\w-]+$/.test(o.dataset.coachAction || '')) back = document.querySelector('[data-coach-action="' + o.dataset.coachAction + '"]');
+    if (back && typeof back.focus === 'function') back.focus();
+  }
+  function onKey(ev) {
+    if (!isOpen()) return;
+    const el = overlay();
+    if (ev.key === 'Escape') { ev.preventDefault(); close(); return; }
+    if (ev.key !== 'Tab') return;
+    const f = el.querySelectorAll(FOCUSABLE);
+    const a = document.activeElement;
+    if (!f.length) { ev.preventDefault(); el.focus(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!el.contains(a)) { ev.preventDefault(); first.focus(); }
+    else if (ev.shiftKey && (a === first || a === el)) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && a === last) { ev.preventDefault(); first.focus(); }
+  }
 
   function render() {
     const el = overlay();
@@ -215,14 +279,14 @@
     const chips = Object.keys(C().SPLITS).map((k) => {
       const on = k === live.split;
       const inRot = rot.includes(k);
-      return `<button class="wc-chip${on ? ' on' : ''}${inRot ? '' : ' off-rot'}" data-coach-action="split" data-split="${k}">${esc(C().SPLITS[k].label)}${armed === 'split:' + k ? ' — tap again' : ''}</button>`;
+      return `<button class="wc-chip${on ? ' on' : ''}${inRot ? '' : ' off-rot'}" aria-pressed="${on ? 'true' : 'false'}" data-coach-action="split" data-split="${k}">${esc(C().SPLITS[k].label)}${armed === 'split:' + k ? ' — tap again' : ''}</button>`;
     }).join('');
     const cards = cardsHtml();
     el.innerHTML = `<div class="wc-box">
       <div class="wc-top">
         <button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
         <div class="wc-title">${esc(live.label)} day <small>${setsDone(live)}/${setsTotal(live)} sets</small></div>
-        <button class="wc-gear${showSettings ? ' on' : ''}" data-coach-action="settings" aria-label="Coach settings">⚙</button>
+        <button class="wc-gear${showSettings ? ' on' : ''}" data-coach-action="settings" aria-label="Coach settings" aria-expanded="${showSettings ? 'true' : 'false'}">⚙</button>
       </div>
       ${showSettings ? settingsHtml(s) : ''}
       <div class="wc-chips">${chips}</div>
@@ -284,7 +348,7 @@
         <select class="wc-rpe" aria-label="RPE, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
           <option value="">RPE</option>${RPES.map((r) => `<option value="${r}"${String(st.rpe) === r ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
-        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>${prevHtml}${pr}
+        <button class="wc-check${st.done ? ' on' : ''}" aria-pressed="${st.done ? 'true' : 'false'}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>${prevHtml}${pr}
       </div>`;
   }
 
@@ -352,6 +416,25 @@
     return (lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '') + (rt ? `<div class="wc-last wc-rpe-trend">${esc(rt)}</div>` : '');
   }
 
+  // Per-lift note: last time's note comes back as a line, and one field for today's (saved on change, offline).
+  function noteHtml(x) {
+    const N = window.NBDExNotes;
+    if (!N) return '';
+    const map = readJson(NOTES, {});
+    const prev = N.lastBefore(map, x.exId, today());
+    return (prev ? `<div class="wc-last wc-note-prev">📝 Last time (${esc(fmtDay(prev.dk))}): ${esc(prev.text)}</div>` : '') +
+      `<input class="wc-in wc-note" maxlength="${N.MAX}" placeholder="Note for next time" aria-label="Note for ${esc(x.name)}" autocomplete="off" value="${esc(N.on(map, x.exId, today()))}" data-coach-field="exnote" data-ex="${esc(x.exId)}">`;
+  }
+
+  // Log Book layout: Last / Best / Today in one row above the sets. Other layouts get nothing (and the same markup as ever).
+  function uiLayout() { try { return (document.documentElement && document.documentElement.getAttribute('data-ui')) || ''; } catch (_) { return ''; } }
+  function logbookRowHtml(x) {
+    if (uiLayout() !== 'logbook') return '';
+    const r = C().snapshotRow(x.exId, x.target, sessions());
+    const cell = (label, v, unit) => '<span class="wc-lb-c"><span class="wc-lb-l">' + label + '</span><span class="wc-lb-v">' + (v ? esc(v) + (unit || '') : '\u2014') + '</span></span>';
+    return '<div class="wc-lbrow">' + cell('Last', r.last) + cell('Best e1RM', r.best, r.best ? ' lb' : '') + cell('Today', r.today) + '</div>';
+  }
+
   function exerciseHtml(x, i, role) {
     const ex = C().BY_ID[x.exId] || {};
     let workN = 0;
@@ -378,10 +461,11 @@
         <div class="wc-ex-sub">${esc(x.repRange[0])}–${esc(x.repRange[1])} reps · ${esc(ex.equip || '')}</div></div>
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
-      <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
+      ${logbookRowHtml(x)}<div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
       ${lastTimeHtml(x)}
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
+      ${noteHtml(x)}
       ${swaps}${rows}
       ${role ? '' : `<button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>${pairBtn}`}
     </div>`;
@@ -458,16 +542,16 @@
   }
 
   function settingsHtml(s) {
-    const radio = (name, val, label, cur) => `<button class="wc-chip${cur === val ? ' on' : ''}" data-coach-action="set-${name}" data-val="${val}">${label}</button>`;
+    const radio = (name, val, label, cur) => `<button class="wc-chip${cur === val ? ' on' : ''}" aria-pressed="${cur === val ? 'true' : 'false'}" data-coach-action="set-${name}" data-val="${val}">${label}</button>`;
     return `<div class="wc-settings">
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
-      <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
+      <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" aria-pressed="${s.equip.includes(e) ? 'true' : 'false'}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
       <div class="wc-lbl">Warm-up sets (first lift of the day)</div><div class="wc-chips">${radio('warmups', 'on', 'On', s.warmups ? 'on' : 'off')}${radio('warmups', 'off', 'Off', s.warmups ? 'on' : 'off')}</div>
       <div class="wc-lbl">When the rest timer ends</div><div class="wc-chips">${radio('restalert', 'both', 'Sound + vibrate', s.restAlert)}${radio('restalert', 'sound', 'Sound', s.restAlert)}${radio('restalert', 'vibrate', 'Vibrate', s.restAlert)}${radio('restalert', 'off', 'Off', s.restAlert)}</div>
       <div class="wc-hint">iPhone Safari cannot vibrate a web page, so Sound is the one that works there (and your ringer switch must be on).</div>
-      <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
-      <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
+      <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" aria-pressed="${s.plates.bar === b ? 'true' : 'false'}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" aria-pressed="${s.plates.plates.includes(p) ? 'true' : 'false'}" aria-label="${p} lb plate" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
+      <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" aria-pressed="${s.avoid.patterns.includes(p) ? 'true' : 'false'}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" aria-label="Stop avoiding ${esc((C().BY_ID[id] || {}).name || id)}" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
       ${customHtml()}
       ${routinesHtml()}
@@ -519,24 +603,44 @@
   }
 
   // ── rest timer ───────────────────────────────────────────────────────
-  function restText() {
-    const left = Math.max(0, Math.round((rest.until - Date.now()) / 1000));
+  const restLeft = () => Math.max(0, Math.round((rest.until - Date.now()) / 1000));
+  function restLine() {
+    const left = restLeft();
     const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, '0');
-    return left > 0
-      ? `Rest ${mm}:${ss} <small>${esc(rest.label)}</small> <button class="btn btn-ghost" data-coach-action="skip-rest">Skip</button>`
-      : `Go — next set <button class="btn btn-ghost" data-coach-action="skip-rest">OK</button>`;
+    return left > 0 ? `Rest ${mm}:${ss} <small>${esc(rest.label)}</small>` : 'Go — next set';
+  }
+  // The timer text is its own element (role=timer, never announced per tick) next to a button that is built once, so a
+  // keyboard / VoiceOver user sitting on Skip is not thrown off it every second.
+  function restText() {
+    return `<span class="wc-rest-t" id="wcRestT" role="timer" aria-live="off">${restLine()}</span> <button class="btn btn-ghost" id="wcRestBtn" data-coach-action="skip-rest">${restLeft() > 0 ? 'Skip' : 'OK'}</button>`;
+  }
+  // One persistent polite live region (the sheet itself is redrawn, a region inside it would be re-created and missed).
+  function say(text) {
+    if (!text) return;
+    let el = document.getElementById('wcSay');
+    if (!el) { el = document.createElement('div'); el.id = 'wcSay'; el.className = 'wc-sr'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true'); document.body.appendChild(el); }
+    el.textContent = '';
+    setTimeout(() => { el.textContent = text; }, 60);
+  }
+  function restTick() {
+    if (!rest) return;
+    const t = document.getElementById('wcRestT'), b = document.getElementById('wcRestBtn');
+    if (t) t.innerHTML = restLine();
+    if (b) b.textContent = restLeft() > 0 ? 'Skip' : 'OK';
+    const A = window.NBDA11yLogic;
+    if (A) { const r = A.restSay(restLeft(), rest.said || ''); rest.said = r.said; say(r.say); }
   }
   function startRest(seconds, label) {
-    rest = { until: Date.now() + seconds * 1000, label, buzzed: false };
-    clearInterval(restTick);
-    restTick = setInterval(() => {
-      if (!rest) { clearInterval(restTick); return; }
-      const el = document.getElementById('wcRest');
-      if (el) el.innerHTML = restText();
+    rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
+    clearInterval(restTimer);
+    restTick();
+    restTimer = setInterval(() => {
+      if (!rest) { clearInterval(restTimer); return; }
+      restTick();
       if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
     }, 1000);
   }
-  function stopRest() { rest = null; clearInterval(restTick); }
+  function stopRest() { rest = null; clearInterval(restTimer); }
 
   // Rest-over alert. iPhone Safari has no navigator.vibrate, so the default also beeps; WebAudio only plays after a tap,
   // so the audio context is unlocked inside the set's checkmark tap (unlockAudio) and reused when the timer ends.
@@ -842,6 +946,12 @@
       if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toast(SAVE_FAILED); }
       return;
     }
+    if (el && el.dataset && el.dataset.coachField === 'exnote') {
+      if (ev.type !== 'change' || !window.NBDExNotes) return;
+      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toast(SAVE_FAILED); return; }
+      if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(NOTES);
+      return;
+    }
     if (el && el.dataset && el.dataset.coachField === 'cx') { if (el.dataset.k in cxDraft) cxDraft[el.dataset.k] = el.value; return; }
     if (!el || !el.dataset || !el.dataset.coachField || !live) return;
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
@@ -851,8 +961,11 @@
   }
 
   document.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKey);
   document.addEventListener('input', onField);
   document.addEventListener('change', onField);
+  // A layout switch re-draws an open workout so the Log Book row appears or goes away at once.
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd-layout', () => { if (live && overlay().innerHTML) render(); });
 
   function boot() {
     if (!C()) return;

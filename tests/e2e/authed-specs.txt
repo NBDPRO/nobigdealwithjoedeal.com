@@ -99,3 +99,4 @@ visit-recorder.spec.js
 phone-receipt-sorter.spec.js
 phone-job-cost-audit.spec.js
 phone-receipt-health.spec.js
+account-switch-purge.spec.js

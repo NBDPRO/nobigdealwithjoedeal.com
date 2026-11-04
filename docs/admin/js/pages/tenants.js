@@ -39,6 +39,7 @@
         '<div><div class="t-k">Stripe Connect</div><div class="t-v ' + cls(t.connect, ['ready'], ['not started']) + '">' + esc(t.connect) + '</div></div>' +
         '<div><div class="t-k">Last active</div><div class="t-v">' + esc(fmtDate(t.lastActive)) + '</div></div>' +
         '<div><div class="t-k">Site published</div><div class="t-v ' + cls(t.sitePublished, ['yes', 'yes (legacy)'], []) + '">' + esc(t.sitePublished) + '</div></div>' +
+        '<div><div class="t-k">Site address</div><div class="t-v">' + esc(t.siteSlug ? '/sites/t/' + t.siteSlug : '—') + '</div></div>' +
         '<div><div class="t-k">Signed up</div><div class="t-v">' + esc(fmtDate(t.createdAt)) + '</div></div>' +
         (t.readOnlyUntil ? '<div><div class="t-k">Read-only until</div><div class="t-v warn">' + esc(fmtDate(t.readOnlyUntil)) + '</div></div>' : '') +
       '</div></div>';

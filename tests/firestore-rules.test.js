@@ -69,6 +69,9 @@ async function run() {
   // withSecurityRulesDisabled again.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    // Credits (flag costCredits): a co-a cost whose id is 129 chars, so the relatedExpenseId
+    // LENGTH rule is tested on its own (the row exists and is in-tenant; only the length is wrong).
+    await setDoc(doc(db, 'expenses/' + 'L'.repeat(129)), { userId: 'alice', companyId: 'co-a', leadId: 'leadA', category: 'materials', costType: 'direct', supplier: 'Sample Supply', amountCents: 100, source: 'manual' });
     // Original fixture
     // §40 Stripe ledger rows (written only by the admin SDK in production).
     // §50 Social Studio posts (companies/co-49/social_posts), one per state.
@@ -615,6 +618,16 @@ async function run() {
   await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ✅ admin SDK path (publishTenantSite)
   await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing' }));          // ✅ unrelated owner edit still fine with the flag present
 
+  // 23e-3. siteSlug / siteSlugUpdatedAt (2026-10-23): only the setSiteSlug callable
+  //        (format, reserved names, siteSlugs/{slug} uniqueness claim) may write
+  //        them. A direct owner write skipped all of it and could duplicate a slug.
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlug: 'someone-elses' }));            // ❌ owner sets a slug directly
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlugUpdatedAt: 'now' }));              // ❌ forged slug stamp
+  await assertFails(setDoc(doc(alice, 'companies/co-a'), { siteSlug: '<img src=x>' }, { merge: true })); // ❌ merge-set same
+  await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { siteSlug: 'alice-roofing' }, { merge: true })); // ✅ platform-admin path (the callable itself uses the admin SDK, which skips rules)
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlug: 'another-one' }));              // ❌ still frozen once a slug exists
+  await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing 2' }));            // ✅ unrelated owner edit still fine with a slug present
+
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
   //      right above only guards UPDATE, so a self-serve owner could squat
@@ -829,6 +842,61 @@ async function run() {
   // the writer can void with an audit entry; the amount stays a valid int
   await assertSucceeds(updateDoc(doc(alice, 'expenses/payout-ok'), { deleted: true, editLog: [{ at: 1, by: 'alice', what: 'void', note: 'paid twice' }] }));
   await assertFails(updateDoc(doc(alice, 'expenses/payout-nojob'), { paymentMethod: 'barter' }));
+  // ── paidFrom + receiptUrl + bulk import (flag costsPaidFrom, 2026-11-03) ──
+  const paidDoc = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Supply'), { source: 'import', paidFrom: 'business_credit_card', receiptUrl: 'https://drive.google.com/file/d/sample123/view' }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-ok'), paidDoc()));
+  const noUrlDoc = paidDoc(); delete noUrlDoc.receiptUrl;
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-no-url'), noUrlDoc));
+  for (const pf of ['business_credit_card', 'business_debit_card', 'personal_card', 'cash', 'atm', 'check', 'other']) {
+    await assertSucceeds(setDoc(doc(alice, 'expenses/paid-enum-' + pf), paidDoc({ paidFrom: pf })));
+  }
+  await assertFails(setDoc(doc(alice, 'expenses/paid-bad-enum'), paidDoc({ paidFrom: 'venmo' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-bad-type'), paidDoc({ paidFrom: 7 })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-http'), paidDoc({ receiptUrl: 'http://drive.google.com/x' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-js'), paidDoc({ receiptUrl: 'javascript:alert(1)' })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-long'), paidDoc({ receiptUrl: 'https://example.com/' + 'a'.repeat(490) })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/paid-url-max'), paidDoc({ receiptUrl: 'https://example.com/' + 'a'.repeat(480) })));
+  await assertFails(setDoc(doc(alice, 'expenses/paid-url-num'), paidDoc({ receiptUrl: 42 })));
+  // update path validates too
+  await assertFails(updateDoc(doc(alice, 'expenses/paid-ok'), { paidFrom: 'bitcoin' }));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/paid-ok'), { paidFrom: 'cash' }));
+  // a rep still cannot import into a foreign tenant
+  await assertFails(setDoc(doc(alice, 'expenses/paid-foreign'), paidDoc({ companyId: 'co-b' })));
+  // ── credits / refunds / returns / adjustments (flag costCredits, 2026-11-03) ──
+  // A credit is its own row; amountCents stays positive; entryType is a 3-word enum;
+  // relatedExpenseId must be a short id of a row that exists in the SAME tenant; entryType
+  // and relatedExpenseId are write-once (no rewriting a cost into a credit after the fact).
+  const crDoc = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Supply'), { source: 'import', entryType: 'credit', amountCents: 101784, creditRef: 'CM-90001', reason: 'returned bundles' }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-orig'), expDoc('alice', 'co-a', 'leadA', 'Sample Supply')));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-ok'), crDoc()));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-related-ok'), crDoc({ relatedExpenseId: 'cr-orig' })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-adjustment'), crDoc({ entryType: 'adjustment' })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-cost-word'), crDoc({ entryType: 'cost' })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-bad-enum'), crDoc({ entryType: 'refund' })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-bad-type'), crDoc({ entryType: 7 })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-zero'), crDoc({ amountCents: 0 })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-negative'), crDoc({ amountCents: -101784 })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-adj-zero'), crDoc({ entryType: 'adjustment', amountCents: 0 })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-rel-missing'), crDoc({ relatedExpenseId: 'no-such-expense' })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-rel-num'), crDoc({ relatedExpenseId: 42 })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-rel-empty'), crDoc({ relatedExpenseId: '' })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-rel-long'), crDoc({ relatedExpenseId: 'L'.repeat(129) })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-rel-slash'), crDoc({ relatedExpenseId: 'cr-orig/x' })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-ref-max'), crDoc({ creditRef: 'a'.repeat(80) })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-ref-long'), crDoc({ creditRef: 'a'.repeat(81) })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-ref-num'), crDoc({ creditRef: 5 })));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-reason-max'), crDoc({ reason: 'r'.repeat(500) })));
+  await assertFails(setDoc(doc(alice, 'expenses/cr-reason-long'), crDoc({ reason: 'r'.repeat(501) })));
+  // write-once on update: a cost cannot be turned into a credit, a credit cannot be re-pointed
+  await assertFails(updateDoc(doc(alice, 'expenses/cr-orig'), { entryType: 'credit' }));
+  await assertFails(updateDoc(doc(alice, 'expenses/cr-orig'), { relatedExpenseId: 'cr-ok' }));
+  await assertFails(updateDoc(doc(alice, 'expenses/cr-ok'), { entryType: 'cost' }));
+  await assertFails(updateDoc(doc(alice, 'expenses/cr-related-ok'), { relatedExpenseId: 'cr-ok' }));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/cr-ok'), { reason: 'returned 12 bundles' }));
+  await assertFails(updateDoc(doc(alice, 'expenses/cr-ok'), { amountCents: 0 }));
+  // an old row with none of the new keys still saves and edits exactly as before
+  await assertSucceeds(setDoc(doc(alice, 'expenses/cr-legacy'), expDoc('alice', 'co-a', 'leadA', 'Sample Supply')));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/cr-legacy'), { note: 'edited' }));
   // ── Sub payments sorter (2026-10-19): proof paths + "Not a job cost" ──
   const subPay = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Crew'),
     { category: 'subcontractor', source: 'sub_payments', paymentMethod: 'check', subId: 'sub1', notJobCost: false, proofPaths: ['receipts/alice/sub-proofs/1_a.jpg'], editLog: [] }, extra || {});

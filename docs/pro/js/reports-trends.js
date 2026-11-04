@@ -216,7 +216,7 @@
       ? ((totalThisWeek - totalLastWeek) / totalLastWeek) * 100
       : 0;
     const wowBadge = isFinite(wow) && Math.abs(wow) >= 1
-      ? '<span style="font-size:11px;color:' + (wow > 0 ? '#10b981' : '#ef4444') + ';font-weight:700;margin-left:6px;">' +
+      ? '<span style="font-size:11px;color:' + (wow > 0 ? 'var(--ui-success-text, #10b981)' : 'var(--ui-danger-text, #ef4444)') + ';font-weight:700;margin-left:6px;">' +
         (wow > 0 ? '↑ +' : '↓ ') + Math.round(wow) + '% vs last wk</span>'
       : '';
 

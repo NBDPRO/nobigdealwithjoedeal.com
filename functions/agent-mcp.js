@@ -45,7 +45,9 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
+const { callableRateLimit } = require('./shared');
 const L = require('./agent-mcp-logic');
+const SO = require('./storm-outreach-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
@@ -144,6 +146,18 @@ async function companyJobsByLead(companyId) {
 // fields (solo accounts own by uid, team accounts by companyId), de-duplicated.
 async function companyDocs(collection, companyId, fields) {
   const snaps = await Promise.all(fields.map((f) => db().collection(collection).where(f, '==', companyId).limit(5000).get()));
+  const byId = {};
+  snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
+  return Object.values(byId);
+}
+
+// A deal room carries only its creator's uid (no companyId), so a team's rooms are the ones its reps created: the
+// reps are the distinct userIds on the company's leads (one query each; a uid that owns none of the company's leads
+// is never read). Same rule as owner-weekly-digest.js (pass-2 item 2, 2026-10-25).
+async function companyDealRooms(companyId, leads) {
+  const uids = new Set([String(companyId)]);
+  (leads || []).forEach((l) => { if (l && l.userId && uids.size < 51) uids.add(String(l.userId)); });
+  const snaps = await Promise.all(Array.from(uids).map((u) => db().collection('deal_rooms').where('userId', '==', u).limit(5000).get()));
   const byId = {};
   snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
   return Object.values(byId);
@@ -283,8 +297,9 @@ async function runTool(name, args, key) {
   }
 
   if (name === 'estimates_status') {
-    const [leads, estimates, deals] = await Promise.all([
-      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
+    const leads = await companyLeads(company);
+    const [estimates, deals] = await Promise.all([
+      companyDocs('estimates', company, ['companyId', 'userId']), companyDealRooms(company, leads),
     ]);
     return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now(), tz),
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
@@ -296,8 +311,9 @@ async function runTool(name, args, key) {
     const viewsP = db().collection('notifications').where('userId', '==', company).where('type', '==', 'estimate_viewed').limit(500).get()
       .then((s) => s.docs.map((d) => { const n = d.data() || {}; return { leadId: n.leadId, atMs: L.ms(n.createdAt) }; }))
       .catch(() => []);
-    const [leads, estimates, deals, views] = await Promise.all([
-      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']), viewsP,
+    const leads = await companyLeads(company);
+    const [estimates, deals, views] = await Promise.all([
+      companyDocs('estimates', company, ['companyId', 'userId']), companyDealRooms(company, leads), viewsP,
     ]);
     return L.toolText({ customers: L.closesThisWeek(leads, estimates, deals, views, args, Date.now(), tz),
       note: 'projected_value is the job value (else the latest estimate total), customer-facing. likelihood_pct is a heuristic (stage, last touch, estimate opens, prequal / deposit, follow-up), not a forecast. Next actions are for the owner; nothing is sent.' });
@@ -345,6 +361,14 @@ async function runTool(name, args, key) {
   if (name === 'lead_sources') {
     const [leads, expenses] = await Promise.all([companyLeads(company), companyDocs('expenses', company, ['companyId', 'userId'])]);
     return L.toolText(L.leadSources(leads, expenses, Date.now(), args.days));
+  }
+
+  if (name === 'margin_review') {
+    const [leads, invoices, expenses, jobsByLead] = await Promise.all([
+      companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+      companyJobsByLead(company),
+    ]);
+    return L.toolText(L.marginReview(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
   }
 
   if (name === 'job_profit') {
@@ -889,12 +913,87 @@ async function stormDrafts(request) {
   return { ok: true, filed, skipped };
 }
 
+// ── Storm REPORT outreach (2026-10-22, storm-and-demand queue) ───────────────
+// storm_events (storm-watch.js) is server-only, so the CRM reads it through
+// these two owner/admin callables. listStormOutreach is read-only: recent
+// storm reports with the past customers and open leads near each, and the
+// fixed-wording draft for each (no phone or email is ever returned).
+// fileStormOutreachDrafts files the ones the owner ticks as pending
+// draft_text items in the Agent inbox, exactly like fileStormDrafts: nothing
+// is texted from here; agentDraftAction 'sent' re-checks STOP / Do Not Text /
+// consent / the texting switch / quiet hours in the homeowner's time. The
+// client sends an event key + lead ids; the server re-reads the event, re-
+// measures the distance and builds the wording, so none of it is trusted.
+async function listStormOutreach(request) {
+  const c = requireKeyAdmin(request);
+  await callableRateLimit(request, 'listStormOutreach', 30, 60_000);
+  const a = SO.clampArgs(request.data);
+  const [leads, ev, profile] = await Promise.all([
+    companyLeads(c.company),
+    db().collection('storm_events').where('processedAt', '>=', new Date(Date.now() - a.days * 86400000)).limit(500).get(),
+    readDoc('companyProfile/' + c.company),
+  ]);
+  const events = ev.docs.map((d) => Object.assign({}, d.data(), { key: d.id }));
+  return SO.planStormOutreach(events, leads, L.companyNames(profile, c.isNbd), Date.now(), a);
+}
+
+async function fileStormOutreachDrafts(request) {
+  const c = requireKeyAdmin(request);
+  // Up to MAX_PER_EVENT lead reads + inbox writes per call (audit pass 2, finding 5).
+  await callableRateLimit(request, 'fileStormOutreachDrafts', 10, 60_000);
+  const data = request.data || {};
+  const eventKey = String(data.eventKey || '');
+  if (!/^[\w.|-]{6,240}$/.test(eventKey)) throw new HttpsError('invalid-argument', 'eventKey is required.');
+  const seen = {};
+  const ids = (Array.isArray(data.leadIds) ? data.leadIds : []).map((id) => cleanId(id, /[^A-Za-z0-9_-]/g)).filter((id) => {
+    if (!id || seen[id]) return false;
+    seen[id] = true; return true;
+  }).slice(0, SO.MAX_PER_EVENT);
+  if (!ids.length) throw new HttpsError('invalid-argument', 'leadIds is required.');
+  const ev = await readDoc('storm_events/' + eventKey);
+  if (!ev) throw new HttpsError('not-found', 'That storm report is no longer on file.');
+  if (!SO.reportAgeOk(ev, Date.now())) throw new HttpsError('failed-precondition', 'That storm report is too old to draft from. Reload the tab for recent reports.');
+  const miles = SO.clampArgs(data).miles;
+  const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
+  const tag = require('crypto').createHash('sha1').update(eventKey).digest('hex').slice(0, 16);
+  const skipped = {};
+  const skip = (why) => { skipped[why] = (skipped[why] || 0) + 1; };
+  let filed = 0;
+  for (const id of ids) {
+    const lead = await readDoc('leads/' + id);
+    if (!lead || lead.deleted === true || lead.e2eTestData || (lead.companyId !== c.company && lead.userId !== c.company)) { skip('not_on_board'); continue; }
+    const d = SO.milesTo(ev, lead);
+    if (d == null || d > miles) { skip('out_of_range'); continue; }
+    if (!SO.cohortOf(lead)) { skip('not_a_target'); continue; }
+    const built = SO.buildStormReportCheckIn(lead, names, ev);
+    if (built.error) { skip('text_refused'); continue; }
+    const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(c.company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+    const gate = L.textGate(lead, optOut);
+    if (gate.error) { skip('cannot_text'); continue; }
+    try {
+      await db().doc('agent_inbox/stormrep_' + tag + '_' + id).create({
+        companyId: c.company, bot: 'Storm report', botId: 'storm-report', status: 'pending', verified: false,
+        createdAt: FieldValue.serverTimestamp(), keyId: 'storm-report',
+        kind: 'draft_text', leadId: id, title: '', text: built.body, reason: built.reason,
+        consentOnFile: gate.consentOnFile, dueDate: null, stormEvent: tag,
+      });
+      filed++;
+    } catch (e) {
+      if (e && (e.code === 6 || /already exists/i.test(String(e.message)))) skip('already_filed');
+      else { logger.warn('[stormOutreach] write failed', { msg: e && e.message }); skip('write_failed'); }
+    }
+  }
+  return { ok: true, filed, skipped };
+}
+
 const CALL_OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' };
 // Every callable below is refused for a claim-less former owner whose uid is
 // another owner's company id (tenant-guard.js, owner hand-off 2026-10-12).
 const { wrapCallable: ghostGuarded } = require('./tenant-guard');
 exports.agentDraftAction = onCall(CALL_OPTS, ghostGuarded(draftAction));
 exports.fileStormDrafts = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), ghostGuarded(stormDrafts));
+exports.listStormOutreach = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), ghostGuarded(listStormOutreach));
+exports.fileStormOutreachDrafts = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), ghostGuarded(fileStormOutreachDrafts));
 exports.createAgentKey = onCall(CALL_OPTS, ghostGuarded(createKey));
 exports.listAgentKeys = onCall(CALL_OPTS, ghostGuarded(listKeys));
 exports.revokeAgentKey = onCall(CALL_OPTS, ghostGuarded(revokeKey));

@@ -6,9 +6,8 @@
  */
 import { NBDAuth } from '/pro/js/nbd-auth.js';
 
-// Inside the dashboard (AI Usage view) the page is an iframe: drop its own
-// top nav, which only duplicated the dashboard's (analytics.html CSS).
-try { if (window.self !== window.top) document.documentElement.classList.add('nbd-embedded'); } catch (_) { document.documentElement.classList.add('nbd-embedded'); }
+// The html.nbd-embedded marker (the AI Usage pane inside the dashboard drops
+// its own top nav) is set by pro-embed-mode.js, shared with the other tool pages.
 
 window._nbdAuth = NBDAuth.init({
   requiredPlan: 'starter',

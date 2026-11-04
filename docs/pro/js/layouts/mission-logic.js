@@ -184,6 +184,13 @@
     }
     // equal-load cuts can collide when many doors share a coordinate: de-dup, keep order
     cuts = cuts.filter(function (c, i) { return c > lo && c < hi && (i === 0 || c > cuts[i - 1]); });
+    // 2026-10-25: when that collapse loses a cut (four leads geocoded to one pin
+    // made all three cuts the same number), the rep asked for N turfs and the
+    // stepper says N: fall back to equal-width cuts rather than hand back fewer.
+    if (cuts.length < count - 1) {
+      cuts = [];
+      for (var q = 1; q < count; q++) cuts.push(lo + (hi - lo) * q / count);
+    }
     var edges = [null].concat(cuts).concat([null]);
     var turfs = [];
     for (var t = 0; t < edges.length - 1; t++) {

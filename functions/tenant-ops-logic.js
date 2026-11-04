@@ -138,6 +138,9 @@ function tenantRow(input) {
     connect: connectStatus(i.connect),
     lastActive: i.lastActive || null,
     sitePublished: sitePublishedState(co),
+    // Same shape setSiteSlug enforces; rules do not freeze the field, so a
+    // directly-written value that does not match shows as blank, not as an address.
+    siteSlug: /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/.test(String(co.siteSlug || '')) ? co.siteSlug : '',
     createdAt: plain(co.createdAt) || null,
     readOnlyUntil: plain(sub.readOnlyUntil) || null,
   };

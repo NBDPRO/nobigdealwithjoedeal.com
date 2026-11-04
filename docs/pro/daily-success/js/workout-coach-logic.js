@@ -753,6 +753,32 @@
       neglected: enough ? zero.concat(low) : [], tilt };
   }
 
+  // ── weekly volume map ─────────────────────────────────────────────────
+  // Hard sets per muscle group, the last 7 days against the 7 before, with the
+  // common 10-20 sets/week working band. Stored sessions only; a group that
+  // can't be trained (equipment / avoid list) is left off, as in balance().
+  const VOLUME_BAND = { min: 10, max: 20 };
+  const addDays = (ymd, n) => {
+    const [y, m, d] = String(ymd).split('-').map(Number);
+    const t = new Date(y, m - 1, d + n);
+    return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  };
+  function volumeMap(sessions, todayYmd, opts) {
+    const now = balance(sessions, todayYmd, opts);
+    const prev = balance(sessions, addDays(todayYmd, -7), opts);
+    const o = opts || {};
+    const equip = new Set((o.equip && o.equip.length) ? o.equip : EQUIP);
+    const rows = MUSCLES
+      .filter((m) => EXERCISES.some((e) => e.muscle === m && equip.has(e.equip) && !isAvoided(e, o.avoid)))
+      .map((m) => {
+        const n = now.byMuscle[m], p = prev.byMuscle[m];
+        const status = n === 0 ? 'none' : n < VOLUME_BAND.min ? 'under' : n > VOLUME_BAND.max ? 'over' : 'in';
+        return { muscle: m, label: MUSCLE_LABELS[m], now: n, prev: p, delta: n - p, status };
+      });
+    return { band: VOLUME_BAND, rows, nowTotal: now.total, prevTotal: prev.total, nowSessions: now.sessions, prevSessions: prev.sessions,
+      enough: now.sessions > 0 && now.total >= 6 };
+  }
+
   /** Split days that train a muscle group (for "Legs day covers that"). */
   function splitsFor(muscle) {
     return Object.keys(SPLITS).filter((k) => SPLITS[k].slots.some((sl) => patternsOf(sl).some((p) => MUSCLE_OF_PATTERN[p] === muscle)));
@@ -833,6 +859,26 @@
     const when = m >= 1 && m <= 12 && d ? MON[m - 1] + ' ' + d : String(h.date);
     const text = sets.map((s) => (s.weight > 0 ? fmtW(s.weight) + '\u00d7' + s.reps : s.reps + ' reps')).join(', ');
     return { date: h.date, sets, text: 'Last time (' + when + '): ' + text };
+  }
+
+  /**
+   * The Log Book's three-cell row above a lift's sets: Last (top working set last time), Best (best estimated 1RM ever)
+   * and Today (the target). Empty strings when there is nothing to show; read-only, never fills a number.
+   */
+  function snapshotRow(exId, target, sessions) {
+    const lt = lastTime(exId, sessions);
+    let last = '';
+    if (lt && lt.sets.length) {
+      const top = lt.sets.reduce((a, s) => (s.weight > a.weight || (s.weight === a.weight && s.reps > a.reps) ? s : a));
+      last = top.weight > 0 ? fmtW(top.weight) + '\u00d7' + top.reps : top.reps + ' reps';
+    }
+    const best = Math.round(bestE1rm(exId, sessions));
+    let today = '';
+    if (target) {
+      const w = num(target.weight);
+      today = w > 0 ? fmtW(w) + '\u00d7' + target.reps : (target.reps ? target.reps + ' reps' : '');
+    }
+    return { last, best: best > 0 ? String(best) : '', today };
   }
 
   /**
@@ -1001,9 +1047,9 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
-    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
+    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, volumeMap, VOLUME_BAND, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, topRpe, rpeTrend, rpeTrendText, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, snapshotRow, SET_KINDS, nextSetKind, setKindLabel, topRpe, rpeTrend, rpeTrendText, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;

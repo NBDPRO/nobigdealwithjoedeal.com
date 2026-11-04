@@ -24,6 +24,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"BlogPosting","headline":"My Roof Is Too Old — Will Insurance Still Pay?","author":{"@id":"https://nobigdealwithjoedeal.com/#joe"},"publisher":{"@id":"https://nobigdealwithjoedeal.com/#org"},"datePublished":"2026-01-12","mainEntityOfPage":"https://nobigdealwithjoedeal.com/blog/my-roof-is-too-old-will-insurance-still-pay","keywords":"roof insurance claim ohio, old roof insurance, roof age insurance coverage, hail damage old roof"}
 </script>
@@ -91,7 +93,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0;}
 .callout{background:var(--navy-dark);color:var(--white);border-radius:12px;padding:28px 32px;margin:32px 0;}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px;}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px;}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px;}
 /* Button styling ONLY for direct-child CTA anchors — bare `.callout a`
    also hit inline links inside <p>/<li>, rendering pill buttons
@@ -149,7 +151,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px;}
 .footer-badges{display:flex;gap:8px;flex-wrap:wrap;}
 .footer-badge{background:rgba(255,255,255,.08);font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:20px;color:rgba(255,255,255,.7);}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px;}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px;}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65);transition:color .2s;}
 .footer-col ul li a:hover{color:var(--orange);}
@@ -251,7 +253,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0;}
 .callout{background:var(--navy-dark);color:var(--white);border-radius:12px;padding:28px 32px;margin:32px 0;}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px;}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px;}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px;}
 .callout a{display:inline-block;background:#BD5728;color:var(--white);padding:11px 22px;border-radius:8px;font-weight:800;font-size:.85rem;transition:background .2s;}
 .callout a:hover{background:#A14A22;}
@@ -304,7 +306,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px;}
 .footer-badges{display:flex;gap:8px;flex-wrap:wrap;}
 .footer-badge{background:rgba(255,255,255,.08);font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:20px;color:rgba(255,255,255,.7);}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px;}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px;}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65);transition:color .2s;}
 .footer-col ul li a:hover{color:var(--orange);}
@@ -411,7 +413,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -870,6 +872,25 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
   <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;text-decoration:none"><img src="/assets/gaf/gaf-certified-badge-120.png" alt="GAF Certified&trade; Residential Roofing Contractor" width="32" height="32" loading="lazy" style="display:block"><span style="color:rgba(255,255,255,.7);font-size:.66rem;font-weight:700;letter-spacing:.04em">Verify on GAF.com &rarr;</span></a>
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-blog -->
 <footer>

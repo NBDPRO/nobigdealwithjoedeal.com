@@ -574,11 +574,11 @@
             <!-- Date range -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
               <div>
-                <label style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Period Start</label>
+                <label for="reportRangeStart" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Period Start</label>
                 <input type="date" id="reportRangeStart" value="${fmtInput(thirtyDaysAgo)}" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
               </div>
               <div>
-                <label style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Period End</label>
+                <label for="reportRangeEnd" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Period End</label>
                 <input type="date" id="reportRangeEnd" value="${fmtInput(now)}" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
               </div>
             </div>
@@ -596,7 +596,7 @@
             <!-- Comparison + AI toggles -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 0 4px;border-top:1px solid var(--br);border-bottom:1px solid var(--br);">
               <div>
-                <label style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Compare Against</label>
+                <label for="reportCompareMode" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:block;margin-bottom:6px;">Compare Against</label>
                 <select id="reportCompareMode" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:12px;">
                   <option value="none">No comparison</option>
                   <option value="prior">vs Prior period (same length)</option>

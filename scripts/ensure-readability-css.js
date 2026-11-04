@@ -73,9 +73,9 @@ footer .footer-desc{color:rgba(255,255,255,.82)!important}
 footer .footer-col-title,footer h4,footer .label{font-size:.72rem!important;letter-spacing:.14em!important;text-transform:uppercase!important;color:rgba(255,255,255,.95)!important;font-weight:800!important;margin-bottom:14px!important}
 footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pro-door{font-size:.82rem!important;line-height:1.6!important}
 footer .footer-bottom a{color:rgba(255,255,255,.7)!important}
-footer .footer-bottom a:hover{color:#bd5728!important}
+footer .footer-bottom a:hover{color:#dd875f!important}
 footer.foot,.review-footer{font-size:.9rem!important;padding:24px 5%!important;line-height:1.6!important}
-footer.foot a,.review-footer a{color:#bd5728!important}
+footer.foot a,.review-footer a{color:#dd875f!important}
 
 /* Announcement bar legibility floor */
 .ann-bar{font-size:.8rem!important;letter-spacing:.04em!important}

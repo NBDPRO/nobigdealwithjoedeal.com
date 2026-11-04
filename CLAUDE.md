@@ -14,8 +14,9 @@ suite. Strict CSP: no inline scripts, no inline handlers
   Cloud Functions gen2 in `functions/` (exports in `functions/index.js`, catalog
   in `functions/FUNCTIONS_INDEX.md`), Storage (`storage.rules`), Auth + App Check.
 - **Hosting: Firebase Hosting.** `firebase.json` serves `docs/`; a push to `main`
-  deploys (`.github/workflows/firebase-deploy.yml`). Cloudflare appears only as
-  Turnstile (`challenges.cloudflare.com`) in the CSP. It is not the host.
+  deploys (`.github/workflows/firebase-deploy.yml`). Cloudflare is the DNS host for the
+  domain (records only, it does not serve the site) and appears as Turnstile
+  (`challenges.cloudflare.com`) in the CSP.
 - **Anthropic API: server-side only.** The browser calls `claudeProxy`
   (`functions/handlers/ai.js`); server callers include `call-center.js`,
   `dictate.js`, `handlers/ai-texting.js`, `handlers/photo.js`. The key is the
@@ -82,6 +83,14 @@ e. Run the tests before calling any change to pricing logic done:
    Jo's OK.
 f. Agents never run a prod script with `--apply` (or `--write`) unless Jo approved
    that specific run in chat; a script that writes prod defaults to a dry run.
+g. Characters, sprites and animations are held to the bar in
+   `documentation/projects/CHARACTER-STYLE-BAR-2026-10-25.md` (Jo, 2026-10-25): the
+   detail and style of the two reference images there, or above, and super clean:
+   no overlapping parts, accessories or outfit pieces, nothing clipped or detached,
+   legible at every shipped size. It covers every surface in that note's inventory
+   (the chibi and all its consumers, the 32×32 pixel avatar, the Roof Rep scene
+   sprites, Pixel World, Pixel Mode). Render the combinations a change touches
+   (`node scripts/chibi-sheet.js`) and look at the sheet before calling it done.
 
 ## Read first
 

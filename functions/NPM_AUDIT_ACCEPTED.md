@@ -8,6 +8,22 @@ minimatch@^10.2.5 half of the pin pair is unchanged and 5.0.9 keeps
 the 5.x export shape, so no runtime re-verification was needed beyond
 the smoke suite.)
 
+**2026-10-23 — zod (HIGH, GHSA-mrhx-c7xc-m3w5, zod < 4.6.6) fixed by an
+`overrides` pin, not accepted.** zod arrived only through
+`puppeteer-core@25.11.0 -> chromium-bidi@17.0.2` (zod ^3) and turned the
+"Dependency audit (high and above)" job red on every new PR. `overrides`
+now pins `chromium-bidi` to `157.0.8090-0` (zod ^4.6.5, resolves 4.6.7),
+the version `puppeteer-core@25.13+` ships. `puppeteer-core` itself stays on
+25.11.0 so the CDP client behind `render-pdf.js` does not move (the sparticuz
+148->149 break once failed every server PDF silently for eleven weeks).
+Verified in a scratch install: `require('puppeteer-core')` loads, `BidiMapper`
+is exported, `BidiOverCdp` loads, `npm audit --audit-level=high` is clean,
+`npm ci --dry-run` accepts the lockfile. Not verified: a real Chrome launch
+(no Chromium binary in the sandbox). chromium-bidi is only exercised on
+puppeteer's WebDriver-BiDi path, which `render-pdf.js` never opts into
+(guarded by `tests/functions-zod-audit-pin-2026-10-23.test.js`). Remaining
+`npm audit`: 2 MODERATE (uuid, via gaxios), covered below.
+
 `npm audit` currently reports **7 MODERATE** vulnerabilities in
 `functions/` (0 LOW, 0 HIGH, 0 CRITICAL). Every one is transitive
 through the Google Cloud / Firebase Admin SDK chain — we do not

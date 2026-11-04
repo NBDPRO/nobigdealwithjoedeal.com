@@ -23,7 +23,11 @@ const CANNED = {
   integrationAvailability: () => ({ configured: {}, sample: true }),
   // Live feature flags are an owner/admin readout of the real deploy; the sample has none.
   flagStatus: () => ({ flags: [], groups: [], committedAvailable: false, sample: true }),
-  getGameCard: () => ({ ok: false, sample: true, reason: 'Leaderboards fill in from a real team.' }),
+  // The Home game card (game-card.js). The real callable scores the rep's own
+  // tasks, calls, leads and payments (functions/game-logic.js); the sample
+  // owner's week is fixed here, on the same ladder (50·L·(L+1) XP per level,
+  // the same rule labels), and the card says it is a sample.
+  getGameCard: () => sampleGameCard(),
   // Wave 2: reopening a generated document from the customer's Documents
   // list. The real callable reads the saved HTML out of Storage after an
   // ownership check; here the CRM's own upload is still in this tab's fake
@@ -66,7 +70,17 @@ const CANNED = {
   resolveAddress: () => ({ sample: true }),
   // Wave 3: the hail lookup behind the map's Hail and Storm-zone buttons:
   // the seed's sample hail reports (the story's storm), with its swath.
-  getHailHistory: (p) => hailHistory(p || {})
+  getHailHistory: (p) => hailHistory(p || {}),
+  // Call Center (2026-10-26): the pipeline-health strip and the "said you'd do"
+  // list read the owner's recorded phone calls (Cube ACR, then Drive, then the
+  // server), and the sample has no phone. They used to refuse like any server
+  // callable, so the screen opened on two red "Could not ... just now" banners
+  // whose Try again could never work. call-center-view.js already has a quiet
+  // path for an owner-only panel that is not this account's (a permission-denied
+  // answer hides the strip and the Match / Said-you'd-do buttons, no banner):
+  // the sample takes it, instead of canning a "healthy" it does not have.
+  callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
+  callPromisesList: () => { throw noPhoneInSample('callPromisesList'); }
 };
 
 function haversineMi(la1, lo1, la2, lo2) {
@@ -177,7 +191,59 @@ const WOULD = {
   createConnectOnboardingLink: 'open Stripe to finish setting up payouts',
   createConnectDashboardLink: 'open your Stripe dashboard',
   createAgentKey: 'make an API key for a bot',
-  getJobWeather: 'check the weather.gov forecast for each scheduled job'
+  getJobWeather: 'check the weather.gov forecast for each scheduled job',
+  // UI sweep (2026-10-24): every callable the CRM names, so a visitor never sees a function name.
+  callPipelineHealth: 'check your pipeline for stuck leads',
+  getAdjusterTacticBoard: 'load the adjuster tactic board',
+  listTeamMembers: 'list your team',
+  activateInvitedRep: 'activate an invited rep',
+  alertRecipients: 'look up who gets alerts',
+  backfillAnalytics: 'rebuild your analytics',
+  getEsignEnvelopeForOwner: 'open this signing request',
+  getGameCard: 'load your rep scorecard',
+  manageAway: 'turn Away mode on or off',
+  manageSmsCompliance: 'change your texting compliance settings',
+  markEmailUnsubscribed: 'mark this email unsubscribed',
+  messagingCenter: 'load your text threads',
+  mintOwnerClaims: 'refresh your sign-in permissions',
+  resolveAddress: 'look up this address',
+  revokeMySessions: 'sign you out everywhere',
+  revokePortalToken: "turn off this customer's portal link",
+  routeDrive: "plan the drive between today's stops",
+  saveEsignFields: 'save the signature fields on this document',
+  voidEsignEnvelope: 'void this signing request',
+  callCenterAction: 'file this call on a customer',
+  callPromisesList: 'list the promises you made on calls',
+  callTaggedMatch: 'match this call to a customer',
+  carePlanAdmin: 'change a Roof Care Plan membership',
+  convertUnmatchedSms: 'file this text on a customer',
+  createCalendarFeedToken: 'make your calendar feed link',
+  createTeamMember: 'add a team member',
+  deactivateUser: 'deactivate a team member',
+  deleteAgentBot: 'remove a bot',
+  exportCompanyData: 'export your company data',
+  fileStormDrafts: 'file storm outreach drafts into your Agent inbox',
+  fileStormOutreachDrafts: 'file storm outreach drafts into your Agent inbox',
+  freshEstimateLink: 'make a fresh estimate link',
+  getAdminAnalytics: 'load admin analytics',
+  getAiTextingStats: 'load your AI texting stats',
+  getBusyTimes: 'read your calendar busy times',
+  getGoogleCalendarStatus: 'check your Google Calendar connection',
+  getThursdayRecording: "load Thursday's recording",
+  leadBrief: 'write a brief on this customer',
+  listStormOutreach: 'list your storm outreach',
+  recordEstimateShared: 'note that this estimate was shared',
+  reserveCompanyPrefix: 'reserve your company web address',
+  revokeAgentKey: "revoke a bot's API key",
+  rotateAccessCodes: 'rotate your access codes',
+  runMigrations: 'run data migrations',
+  saveAgentBot: 'save a bot',
+  saveAgentSettings: 'save your bot settings',
+  setupGoogleCalendar: 'connect your Google Calendar',
+  thursdayCallAction: 'file a Thursday call',
+  updateUserRole: "change a team member's role",
+  uploadCompanyLogo: 'upload your company logo',
+  validateAccessCode: 'check an access code'
 };
 
 // Wave 4: callables that a screen the sample account covers with an
@@ -187,18 +253,55 @@ const WOULD = {
 // that it is not in the sample account). They still refuse, but without a
 // second notice on top of the card: nothing to tell the visitor that the
 // screen does not already say.
-const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather']);
+const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage', 'trackUsage', 'flagStatus']); // trackUsage / flagStatus: background pings, nothing to tell the visitor
+
+function sampleGameCard() {
+  // Mondays, Eastern-agnostic: the card never shows the dates, the ladder only
+  // needs them to be real week starts.
+  const d = new Date(); const day = (d.getUTCDay() + 6) % 7;
+  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day));
+  const ymd = (t) => t.toISOString().slice(0, 10);
+  const lastMonday = new Date(monday.getTime() - 7 * 86400000);
+  const breakdown = [
+    { kind: 'task', label: 'Follow-ups done', count: 6, xp: 60 },
+    { kind: 'filed', label: 'Calls filed on a customer', count: 3, xp: 30 },
+    { kind: 'handled', label: 'Calls handled', count: 5, xp: 15 },
+    { kind: 'lead', label: 'New leads', count: 2, xp: 20 },
+    { kind: 'review', label: 'Review asks sent', count: 2, xp: 30 },
+    { kind: 'collected', label: 'Money collected', count: 3000, xp: 30 },
+  ];
+  const week = breakdown.reduce((s, b) => s + b.xp, 0); // 185
+  // 1,240 XP all time: level 5 "Installer" (floor 1,000, next 1,500)
+  return {
+    sample: true,
+    totalXp: 1240, level: 5, title: 'Installer', levelFloor: 1000, levelNext: 1500,
+    week: { start: ymd(monday), xp: week }, lastWeek: { start: ymd(lastMonday), xp: 140 },
+    streak: { current: 3, best: 9, activeToday: true },
+    breakdown,
+  };
+}
 
 export function sampleCallableMessage(name) {
   const doing = WOULD[name];
   return doing
     ? 'In your real account this would ' + doing + '. The sample account never contacts anyone.'
-    : '"' + name + '" runs on NBD Pro servers, so it is not in the sample account.';
+    // Plain words, no function name (UI sweep 2026-10-24: visitors saw '"getAdjusterTacticBoard" runs on…').
+    : 'That runs on NBD Pro servers, so it is not in the sample account.';
 }
 
 function callableError(name) {
   const e = new Error(sampleCallableMessage(name));
   e.code = 'functions/failed-precondition';
+  e.name = 'FirebaseError';
+  e.details = { sampleAccount: true, callable: name };
+  return e;
+}
+
+// The answer for a panel that reads recorded phone calls (see CANNED): "not
+// this account's", in the code the real server uses for an owner-only panel.
+function noPhoneInSample(name) {
+  const e = new Error('The sample account has no phone recordings, so there is no call pipeline or promise list here.');
+  e.code = 'functions/permission-denied';
   e.name = 'FirebaseError';
   e.details = { sampleAccount: true, callable: name };
   return e;

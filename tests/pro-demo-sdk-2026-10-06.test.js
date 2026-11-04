@@ -82,7 +82,9 @@ for (const p of DEMO_PATHS) {
   ok(p + ' is noindex', robots && /noindex/.test(robots.value));
 }
 const demoBlockIdx = hosting.headers.findIndex((b) => b.source === '/pro/explore/**');
-const lastProBlock = hosting.headers.map((b, i) => (/^\/(@\(pro|pro)/.test(b.source) || b.source === '**') ? i : -1).filter((i) => i >= 0 && i !== demoBlockIdx && hosting.headers[i].source !== '/pro/explore');
+// The sample account's own blocks (/pro/explore, /pro/explore/** and the tool-page
+// block /pro/explore/@(...), 2026-10-24) are not competitors: only real /pro blocks are.
+const lastProBlock = hosting.headers.map((b, i) => (/^\/(@\(pro|pro)/.test(b.source) || b.source === '**') ? i : -1).filter((i) => i >= 0 && !/^\/pro\/explore(\/|$)/.test(hosting.headers[i].source));
 ok('the /pro/explore/** block comes after every /pro and ** block (last match wins)', demoBlockIdx > Math.max.apply(null, lastProBlock));
 // The real CRM keeps its own policy (the demo block must not leak onto it).
 for (const p of ['/pro/dashboard', '/pro/customer']) {
@@ -403,7 +405,7 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
   const fetchFn = (/window\.fetch = function \(input, init\) \{([\s\S]*?)\n {4}\};/.exec(dm2) || ['', ''])[1];
   ok('demo-mode.js: the fetch wrapper answers the maps\' reads offline BEFORE the block check (never made, never blocked)',
     fetchFn.indexOf('offlineKey(url, method)') !== -1 && fetchFn.indexOf('offlineKey(url, method)') < fetchFn.indexOf('allowed(url, method)'));
-  ok('demo-mode.js: only GET/HEAD of the listed weather / geocoder / storm-report reads go offline', /var OFFLINE = \/\^\(https:\\\/\\\/\(nominatim\\\.openstreetmap\\\.org\\\/\(reverse\|search\)\\b\|api\\\.weather\\\.gov\\\/\(points\\\/\|alerts\\b\)\|www\\\.spc\\\.noaa\\\.gov\\\/products\\\/outlook\\\/\)\|\\\/api\\\/storm-report\\b\)\/;/.test(dm2) && /if \(m !== 'GET' && m !== 'HEAD'\) return null;/.test(dm2));
+  ok('demo-mode.js: only GET/HEAD of the listed weather / geocoder / storm-report / food-search reads go offline', /var OFFLINE = \/\^\(https:\\\/\\\/\(nominatim\\\.openstreetmap\\\.org\\\/\(reverse\|search\)\\b\|api\\\.weather\\\.gov\\\/\(points\\\/\|alerts\\b\)\|www\\\.spc\\\.noaa\\\.gov\\\/products\\\/outlook\\\/\|world\\\.openfoodfacts\\\.org\\\/\)\|\\\/api\\\/storm-report\\b\)\/;/.test(dm2) && /if \(m !== 'GET' && m !== 'HEAD'\) return null;/.test(dm2));
   ok('demo-mode.js: traps window.L and swaps the tiles the moment Leaflet loads', /Object\.defineProperty\(window, 'L', \{[\s\S]*?set: function \(v\) \{ leaflet = v; swapTiles\(v\); \}/.test(dm2) && /NBD_DEMO_BASEMAP\.install\(L\)/.test(dm2));
   ok('demo-mode.js: loads the sample map and the offline answers', /loadScript\('\/pro\/demo-sdk\/basemap\.js\?v=\d+', false\)/.test(dm2) && /loadScript\('\/pro\/demo-sdk\/offline\.js\?v=\d+', true\)/.test(dm2));
   ok('demo-mode.js: the maps get the sample location, never the visitor\'s', /geo\.getCurrentPosition = function/.test(dm2) && /geo\.watchPosition = function/.test(dm2));
@@ -572,14 +574,31 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
     !/<script(?![^>]*\bsrc=)[^>]*>/i.test(pay) && /<script defer src="\/pro\/explore\/explore-pay\.js\?v=\d+"><\/script>/.test(pay));
   ok('…its script is one the demo worker serves from /pro/explore/ itself (explore-*.js)', /explore-\[\\w-\]\+\\\.\(js\|css\)/.test(read('docs/pro/explore/demo-sw.js')) && !NET.test(stripComments(read('docs/pro/explore/explore-pay.js'))));
   const fnsSrc = stripComments(read('docs/pro/demo-sdk/firebase-functions.js'));
-  ok('screens behind a card refuse quietly (no second notice): payout status, bot keys, AI persona, Stripe balance', /const QUIET = new Set\(\['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather'\]\);/.test(fnsSrc) && /if \(!shown && !QUIET\.has\(name\)\) demoNotice/.test(fnsSrc));
+  ok('screens behind a card refuse quietly (no second notice): payout status, bot keys, AI persona, Stripe balance, the dark Apple Health card', /const QUIET = new Set\(\['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather', 'healthShortcutManage'[^\]]*\]\);/.test(fnsSrc) && /if \(!shown && !QUIET\.has\(name\)\) demoNotice/.test(fnsSrc));
 
   // ── G. sandbox placeholder ──────────────────────────────────────────────
   console.log('G. /pro/sandbox placeholder');
   const sb = read('docs/pro/sandbox.html');
-  const ph = (/<div class="sx-next-phase"[\s\S]*?<\/div>/.exec(sb) || [''])[0];
-  ok('"Explore the whole sample account" is still a disabled placeholder, not a link', /aria-disabled="true"/.test(ph) && !/<a\b|href=/.test(ph));
-  ok('nothing on /pro/sandbox links to /pro/explore yet', !/\/pro\/explore/.test(sb) && !/\/pro\/explore/.test(read('docs/pro/js/sandbox-story.js')));
+  const ph = (/<a class="sx-next-phase"[\s\S]*?<\/a>/.exec(sb) || [''])[0];
+  ok('"Explore the sample account" is a real link to /pro/explore (it is live), not a disabled placeholder', /href="\/pro\/explore"/.test(ph) && !/coming next|aria-disabled/i.test(ph));
+  ok('control: the sandbox end card was found (the link check above is not vacuous)', ph.length > 20);
+
+  // Live-only screens: the sample account must not open real production pages (reCAPTCHA / App Check / frame-ancestors blank).
+  {
+    const dash = read('docs/pro/dashboard.html'), dm = stripComments(read('docs/pro/js/demo-mode.js'));
+    const tpls = [...dash.matchAll(/<template id="(tpl-view-[\w-]+)">\s*<iframe[^>]*data-src="(\/pro\/[^"]+)"/g)].map((m) => m[1]);
+    ok('control: dashboard.html embeds several /pro/ iframes in view templates', tpls.length >= 4, String(tpls.length));
+    const listed = (/LIVE_ONLY_TPL = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
+    // 2026-10-24: a tool joins the sample account through SANDBOX_TOOLS (its view
+    // loads /pro/explore/<tool>); every other real /pro/ iframe is still stripped.
+    const routed = (/SANDBOX_TOOLS = \{([^}]*)\}/.exec(dm) || ['', ''])[1];
+    ok('every iframe view template pointing at a real /pro/ page is either routed into /pro/explore/ or stripped', tpls.length > 0 && tpls.every((t) => listed.indexOf("'" + t + "'") !== -1 || new RegExp("'" + t + "': '/pro/explore/[\\w-]+'").test(routed)), tpls.join(','));
+    const navs = (/LIVE_ONLY_NAV = \[([^\]]*)\]/.exec(dm) || ['', ''])[1];
+    const tplNav = { 'tpl-view-aitree': 'nav-aitree', 'tpl-view-understand': 'nav-understand', 'tpl-view-projectcodex': 'nav-projectcodex', 'tpl-view-aiusage': 'nav-aiusage' };
+    // 2026-10-24: the Success Tracker window-opener (nav-daily) now opens /pro/explore/daily-success (tests/pro-demo-tools-2026-10-24.test.js).
+    ok('the sidebar entry of every stripped view is hidden, and exists on the page', Object.keys(tplNav).filter((t) => listed.indexOf("'" + t + "'") !== -1).map((t) => tplNav[t]).every((id) => navs.indexOf("'" + id + "'") !== -1 && dash.indexOf('id="' + id + '"') !== -1));
+    ok('the blocked-request toast is plain words, no raw "fetch GET to /api/..." dev text', !/Blocked in the sample account: ' \+/.test(dm) && /That live data is not in the sample account/.test(dm));
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

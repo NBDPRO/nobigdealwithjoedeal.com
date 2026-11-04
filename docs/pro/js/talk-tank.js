@@ -223,7 +223,7 @@
       </div>
       <div class="tt-controls">
         <button class="tt-detail-btn" data-tt-action="openUnfiled" type="button">🎧 Unfiled visits</button>
-        <input class="tt-search" type="search" placeholder="Search transcripts, summaries, customers…"
+        <input class="tt-search" type="search" aria-label="Search visits" placeholder="Search transcripts, summaries, customers…"
                data-tt-action="search" value="${_esc(state.search)}" />
         <div class="tt-chips">
           ${chip('all', 'All', state.items.filter(i => !i.archived).length)}

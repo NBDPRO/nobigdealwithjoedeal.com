@@ -75,6 +75,16 @@
   .nbd-demo-strip { bottom: calc(84px + env(safe-area-inset-bottom)); }
   .nbd-demo-toast { bottom: calc(128px + env(safe-area-inset-bottom)); }
 }
+/* Home's Record visit bar (visit-recorder.css: 56px tall, 74px up) sat under
+   the strip on phones (2026-10-23 audit): while it shows, the strip goes
+   above it, and Home's content gets the strip's room too. */
+@media (max-width: 900px) {
+  html.nbd-demo.nbd-vr-bar-on body:has(#view-home.active) .nbd-demo-strip { bottom: calc(138px + env(safe-area-inset-bottom)); }
+  html.nbd-demo.nbd-vr-bar-on body:has(#view-home.active) .nbd-demo-toast { bottom: calc(182px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 768px) {
+  html.nbd-demo.nbd-vr-bar-on #view-home .view-scroll { padding-bottom: calc(80px + 74px + 50px + env(safe-area-inset-bottom, 0px)) !important; }
+}
 @media (max-width: 560px) {
   .nbd-demo-long { display: none; }
 }

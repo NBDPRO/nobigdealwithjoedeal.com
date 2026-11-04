@@ -23,6 +23,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"GAF Timberline vs. TAMKO Impact-Resistant Shingles: Which Roof for Hail Country?","description":"A roofer's honest comparison of the two shingle lanes — GAF Timberline (NS/HDZ/UHDZ) and TAMKO's lineup (Heritage, plus the impact-rated Titan XT, StormFighter Flex and HailGuard) — and how to pick between them for an Ohio or Kentucky home.","datePublished":"2026-06-23","dateModified":"2026-08-17","author":{"@id":"https://nobigdealwithjoedeal.com/#joe"},"publisher":{"@id":"https://nobigdealwithjoedeal.com/#org"},"url":"https://nobigdealwithjoedeal.com/blog/gaf-timberline-vs-tamko-storm-series","image":"https://nobigdealwithjoedeal.com/assets/images/drone-hero-curb.jpg"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://nobigdealwithjoedeal.com/blog/"},{"@type":"ListItem","position":3,"name":"GAF Timberline vs. TAMKO Impact-Resistant Shingles","item":"https://nobigdealwithjoedeal.com/blog/gaf-timberline-vs-tamko-storm-series"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is TAMKO as good as GAF?","acceptedAnswer":{"@type":"Answer","text":"They're both major, established manufacturers with strong shingles — this isn't a name-brand-vs-off-brand question. GAF Timberline is my proven default; TAMKO's impact-resistant shingles are purpose-built for impact and hail. The \"better\" one is the one that fits your priority. For classic and broadly proven, GAF. For hail-tough with a written hail warranty at the top, TAMKO."}},{"@type":"Question","name":"Can I get a Class 4 impact roof in either lane?","acceptedAnswer":{"@type":"Answer","text":"Yes. GAF Timberline UHDZ is Class 4, and on the TAMKO side both StormFighter Flex and HailGuard are Class 4 (HailGuard tested beyond). Any of them can qualify you for an insurance premium discount with the right documentation."}},{"@type":"Question","name":"Do I lose the GAF warranty if I go TAMKO?","acceptedAnswer":{"@type":"Answer","text":"You get the TAMKO warranty system instead — the manufacturer warranty follows the shingle you install. And because I'm a TAMKO Pro Gold™ certified contractor, qualifying TAMKO installs can register the enhanced ProShield® warranty (20-year non-prorated Full Start®), just like GAF's System Plus on the GAF lane. Either way you still get my written labor warranty (up to 20 years, by package) and the NBD Pledge: for as long as you own the home, we'll come back and make it right. Both are independent of the manufacturer."}},{"@type":"Question","name":"Is GAF Timberline or a TAMKO impact-resistant shingle more expensive?","acceptedAnswer":{"@type":"Answer","text":"It depends entirely on the rung you pick, not the brand — a value shingle in either lane costs less than a premium one in the other. I'll give you real per-square numbers for both at your free estimate so you're comparing actual prices, not guesses."}}]}</script>
@@ -128,7 +130,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -588,6 +590,25 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
 </article>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-blog -->
 <footer>

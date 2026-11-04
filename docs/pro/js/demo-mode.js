@@ -52,7 +52,11 @@
 
   var NS = 'nbd_demo:';
   var IDB_NAME = 'nbd-demo-account';
-  var DEMO_PAGES = { dashboard: true, customer: true };
+  var DEMO_PAGES = { dashboard: true, customer: true, analytics: true };
+  // A tool page embedded in the sample dashboard (AI Usage today): same guards,
+  // but no second strip; its notices and blocked records go to the dashboard's.
+  var FRAMED = (function () { try { return window.self !== window.top; } catch (_) { return true; } })();
+  var parentDemo = function () { try { return FRAMED && window.parent.__NBD_DEMO__ && window.parent.__NBD_DEMO__.active ? window.parent.__NBD_DEMO__ : null; } catch (_) { return null; } };
   // Leaving the CRM for these is fine: they are public pages.
   var EXIT_OK = /^\/(pro\/(register|pricing|sandbox|terms|index)?(\.html)?|pro\/?|privacy(\.html)?)$/;
   var FUNCTION_PATHS = /^\/(api\/|cspReport|share\/|deal\/|report\/|calendar\/|unsubscribe\/|hooks\/|tenant-logo\/|__\/|pro\/account-erasure)/;
@@ -73,6 +77,8 @@
   function notice(msg, isBlock) {
     var text = String(msg || '').slice(0, 240);
     state.notices.push({ at: Date.now(), message: text, blocked: !!isBlock });
+    var up = parentDemo();
+    if (up && typeof up.say === 'function') { up.say(text); return; }
     if (!toastEl) { pending.push([text, isBlock]); return; }
     toastEl.textContent = text;
     toastEl.className = 'nbd-demo-toast' + (isBlock ? ' is-block' : '') + ' is-on';
@@ -90,8 +96,11 @@
   function block(url, how, fromSw) {
     var rec = { url: String(url || '').slice(0, 300), how: how, at: Date.now() };
     state.blocked.push(rec);
+    var up = parentDemo();
+    if (up && up.blocked) up.blocked.push(Object.assign({ frame: location.pathname }, rec));
     try { console.warn('[sample account] blocked ' + how + ': ' + rec.url); } catch (_) {}
-    notice('Blocked in the sample account: ' + (fromSw ? 'a request' : how) + ' to ' + shortUrl(rec.url) + '. Nothing left your browser.', true);
+    // Plain words for the visitor; the technical record stays in state.blocked and the console.
+    notice('That live data is not in the sample account. Nothing left your browser.', true);
     return rec;
   }
   function shortUrl(u) {
@@ -109,7 +118,7 @@
   // Wave 3: the maps' weather, storm-report and geocoder reads are answered
   // from sample data (/pro/demo-sdk/offline.js) BEFORE they could leave the
   // browser: the request is never made, so it is not "blocked" either.
-  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/)|\/api\/storm-report\b)/;
+  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/|world\.openfoodfacts\.org\/)|\/api\/storm-report\b)/;
   var offlineApi = null, offlineWaiters = [];
   state.offlineLoaded = function (api) {
     offlineApi = api;
@@ -236,7 +245,7 @@
     (document.head || document.documentElement).appendChild(s);
   }
   loadScript('/pro/demo-sdk/basemap.js?v=1', false);
-  loadScript('/pro/demo-sdk/offline.js?v=1', true);
+  loadScript('/pro/demo-sdk/offline.js?v=2', true);
   // Wave 4.
   loadScript('/pro/demo-sdk/endpoints.js?v=2', true);
   loadScript('/pro/demo-sdk/real-account.js?v=1', false);
@@ -323,6 +332,9 @@
     Object.defineProperty(SP, 'length', { configurable: true, get: function () { return ownKeys(this).length; } });
     state.clearStorage = function () { [localStorage, sessionStorage].forEach(function (s) { ownKeys(s).forEach(function (k) { ri.call(s, k); }); }); };
   } catch (_) { /* storage blocked: nothing to protect */ }
+  // The Success Tracker's first-visit welcome talks about the visitor's own
+  // NBD Pro backup and home-screen install: not true of the sample account.
+  try { if (/^\/pro\/explore\/daily-success\/?$/.test(location.pathname)) localStorage.setItem('nbd-welcome-seen', '1'); } catch (_) {}
 
   // ── service workers: the demo worker stays, /pro/sw.js stays out ───────
   try {
@@ -341,6 +353,8 @@
     if (p.indexOf(PREFIX) === 0) return null;
     var m = /^\/pro\/([\w-]+?)(\.html)?$/.exec(p);
     if (m && DEMO_PAGES[m[1]]) return PREFIX + m[1] + x.search + x.hash;
+    // Success Tracker (2026-10-24) lives in a folder: /pro/daily-success/.
+    if (/^\/pro\/daily-success(\/(index\.html)?)?$/.test(p)) return PREFIX + 'daily-success' + x.search + x.hash;
     if (/^\/pro\/login(\.html)?$/.test(p)) return '/pro/sandbox';
     if (EXIT_OK.test(p) || p === '/') return null;
     if (p.indexOf('/pro/') === 0) return '';
@@ -380,6 +394,19 @@
     location.assign(to);
   }, true);
 
+  // window.open (the dashboard's "Success Tracker" button opens a tab with it):
+  // same rule as links. A same-origin CRM page opens its sample copy, or not at all.
+  try {
+    var realOpen = window.open;
+    window.open = function (url) {
+      var to = url == null ? null : remap(String(url));
+      if (to === null) return realOpen.apply(window, arguments);
+      if (to === '') { stayNotice(); return null; }
+      var args = Array.prototype.slice.call(arguments); args[0] = to;
+      return realOpen.apply(window, args);
+    };
+  } catch (_) {}
+
   if (window.navigation && typeof window.navigation.addEventListener === 'function') {
     window.navigation.addEventListener('navigate', function (e) {
       if (!e.cancelable || e.hashChange || e.downloadRequest) return;
@@ -406,10 +433,11 @@
     } catch (_) { done(); }
   }
   function mountStrip() {
+    if (FRAMED) return;
     if (document.getElementById('nbd-demo-strip')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/pro/css/demo-mode.css?v=5';
+    link.href = '/pro/css/demo-mode.css?v=6';
     document.head.appendChild(link);
     var bar = document.createElement('div');
     bar.id = 'nbd-demo-strip';
@@ -435,6 +463,39 @@
     var q = pending; pending = [];
     q.forEach(function (n) { notice(n[0], n[1]); });
     sampleJoeFootnote();
+    hideLiveOnlyScreens();
+  }
+  // Tool pages that run in the sample account (2026-10-24): the dashboard's
+  // view loads the page under /pro/explore/, where the demo worker answers its
+  // SDK imports and firebase.json lets the sample dashboard frame it.
+  var SANDBOX_TOOLS = {
+    'tpl-view-aiusage': '/pro/explore/analytics',
+    'tpl-view-aitree': '/pro/explore/ai-tree',
+    'tpl-view-understand': '/pro/explore/understand',
+    'tpl-view-projectcodex': '/pro/explore/project-codex'
+  };
+  // Not in the sample account: views that would open a real production page
+  // (reCAPTCHA / App Check, outside the demo worker). Every tool has joined
+  // (2026-10-24); a new one starts here until it does.
+  // Success Tracker (nav-daily) opens in a window, not a view: remap() and
+  // the window.open wrapper send it to /pro/explore/daily-success.
+  var LIVE_ONLY_NAV = [];
+  var LIVE_ONLY_TPL = [];
+  function hideLiveOnlyScreens() {
+    Object.keys(SANDBOX_TOOLS).forEach(function (id) {
+      var tpl = document.getElementById(id);
+      var frames = tpl && tpl.content ? tpl.content.querySelectorAll('iframe[data-src]') : [];
+      for (var i = 0; i < frames.length; i++) frames[i].setAttribute('data-src', SANDBOX_TOOLS[id]);
+    });
+    LIVE_ONLY_NAV.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); el.setAttribute('tabindex', '-1'); }
+    });
+    LIVE_ONLY_TPL.forEach(function (id) {
+      var tpl = document.getElementById(id);
+      var frames = tpl && tpl.content ? tpl.content.querySelectorAll('iframe[data-src]') : [];
+      for (var i = 0; i < frames.length; i++) frames[i].removeAttribute('data-src');
+    });
   }
   // Ask Joe's footnote names the model and offers "Change Key" (it clears a
   // stored API key). Neither is true here: no model is called and there is
@@ -457,4 +518,16 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountStrip);
   else mountStrip();
+
+  // Insurance topics stay out of the sample account (Jo, 2026-10-24): the
+  // Decision Engine's Insurance vs Cash and Supplement Strategy, Understand's
+  // Insurance Deep Dive, and Project Codex's Supplement Strategy card. Their
+  // sample answers refuse too (demo-sdk/tools-canned.js).
+  var SANDBOX_HIDE = '[data-cat="insurance"], [data-cat="supplement"], [data-action="select-domain"][data-domain="insurance"], [data-pc-action="runAction"][data-arg="supplement"]';
+  function hideInsuranceTopics() {
+    var els = document.querySelectorAll(SANDBOX_HIDE);
+    for (var i = 0; i < els.length; i++) { els[i].style.display = 'none'; els[i].setAttribute('aria-hidden', 'true'); els[i].setAttribute('tabindex', '-1'); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hideInsuranceTopics);
+  else hideInsuranceTopics();
 })();

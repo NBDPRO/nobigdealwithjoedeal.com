@@ -23,6 +23,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"He Tried to Buy His Own Shingles. Every Counter Said No.","description":"A Lexington homeowner tried to buy TAMKO HailGuard himself and hire labor separately. SRS and QXO don't carry it; ABC Supply carries it but sells to account customers only. A roofer explains the two walls he hit — exclusive distribution and the contractor-only counter — what owner-supplied materials really cost you, and the honest way to get a premium shingle on your roof.","datePublished":"2026-08-25","dateModified":"2026-08-25","author":{"@id":"https://nobigdealwithjoedeal.com/#joe"},"publisher":{"@id":"https://nobigdealwithjoedeal.com/#org"},"url":"https://nobigdealwithjoedeal.com/blog/why-wont-roofing-suppliers-sell-to-homeowners","image":"https://nobigdealwithjoedeal.com/assets/images/drone-hero-curb.jpg"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://nobigdealwithjoedeal.com/blog/"},{"@type":"ListItem","position":3,"name":"Why Roofing Suppliers Won't Sell to Homeowners","item":"https://nobigdealwithjoedeal.com/blog/why-wont-roofing-suppliers-sell-to-homeowners"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can a homeowner buy shingles directly from ABC Supply, SRS, or QXO?","acceptedAnswer":{"@type":"Answer","text":"Generally not anymore. These are wholesale houses built around contractor accounts, and homeowners are increasingly told \"account customers only\" — that's what a Lexington caller heard from ABC in August 2026, with no cash sales. Policies vary by branch and change without notice, but the direction is clear: the wholesale counter is for accounts."}},{"@type":"Question","name":"Where can you buy TAMKO HailGuard shingles?","acceptedAnswer":{"@type":"Answer","text":"As of this writing, HailGuard moves through ABC Supply, which sells to account customers — so in practice, you get it by hiring a contractor who can order it. TAMKO's locator at tamko.com lists credentialed installers, and the enhanced ProShield® warranty tier requires a TAMKO Pro Gold™ contractor specifically."}},{"@type":"Question","name":"Can I buy my own materials and pay a roofer for labor only?","acceptedAnswer":{"@type":"Answer","text":"Some roofers will, on standard materials; many won't. On system-warranty products it defeats the point — warranties register through the installing contractor, and you'd own the takeoff, shortages, returns, and every \"whose fault is this\" argument afterward. If you want to try it, ask the roofer before you buy anything."}},{"@type":"Question","name":"Is supplying your own shingles actually cheaper?","acceptedAnswer":{"@type":"Answer","text":"On paper, sometimes. In practice the savings assume a perfect takeoff and nothing going wrong, and the arrangement usually costs you the system warranty and single-point accountability. On a premium roof: no. Get an itemized quote instead — that's how you keep a material line honest."}}]}</script>
@@ -128,7 +130,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -584,6 +586,25 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
 </article>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-blog -->
 <footer>

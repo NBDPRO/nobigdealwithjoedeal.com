@@ -65,3 +65,250 @@ upgrades; 26 trophies; daily challenge; first-day tutorial; chiptune sound.
 - `tests/firestore-rules.test.js` (roofRep owner-only; roofRepScores same-company)
 - `tests/e2e/roof-rep.spec.js` (iPhone first: More tab, tutorial, a full day,
   Firestore save, wiped-cache reload; then desktop sidebar tab + "← CRM")
+
+## Update 2026-10-25: the revamp (Jo: "seriously revamp Roof Rep")
+
+**The repo is the source now.** `docs/pro/js/pages/roof-rep.js` is edited directly; the claude.ai artifact above is
+retired and the split script is no longer used. GameForce (gameforce.ai, Jo's original gamification inspiration) was
+read again for the mechanic list: XP levels, leaderboards, achievements, daily quests, duel arena, guilds, tournaments,
+token shop, boss battles, dungeon runs, streaks, "#n this week / all time". Roof Rep already had half; the rest landed
+the Roof Rep way (no loot boxes, no stakes, the Kentucky rules still the core).
+
+| Piece | What changed |
+| --- | --- |
+| Look | NBD palette (navy, brand orange, light orange on navy) and Montserrat / Lato replace the retro arcade skin. The street is drawn as a clean illustration at 2x (gable roofs, framed windows that glow after 4 PM, paths, bushes, pennant flags). Characters stay the pixel sprites shared with the CRM game card. `css/roof-rep.css` rewritten. |
+| Phone layout | One-strip HUD, tabs as a fixed bottom bar (safe-area aware), the street edge to edge with the homeowner's speech sheet tucked under it, "Drive to" as a scroller. |
+| Feel | `js/pages/roof-rep-fx.js`: floating +XP / cash text, confetti and flash on a signed job, shake and red flash on a bad call, a knock ring, walk bob, rain / snow / leaves, evening tint, staggered choice buttons, a LEVEL UP card. Reduced motion keeps particles, drops shakes and bobs. |
+| Objection duel | Every pitch opens with two pushbacks from a 25-objection pool (17 in the first pass, eight more the same evening: a five-year-old roof, an adjuster who said no, rates, patching, selling, matching a quote, financing, solar panels) (`js/pages/roof-rep-rules.js` OBJECTIONS) written in NBD's voice. One best answer each (+trust, a lesson tip), an ok one, a weak one; the Kentucky-rule traps (deductible, AOB / "I'll handle your claim", cash up front, skip the permit, sign the check over, pad the scope) are dirty and lose the door. A trust meter is the HP bar. |
+| Quest board | Three daily quests (seeded per day) replace the single challenge; all three in a day pays $500 + 60 XP. A weekly quest rotates with the week (sign 5, inspect 10, knock 30, 3 honest calls, 5 clean days) and pays cash + XP. |
+| Storm Run | Train tab: a 60-second objection gauntlet. Best answers score, traps strike, three strikes end it; a perfect run pays a bonus. 20 minutes of the day if played mid-day. |
+| Seasons | 28 days. After the day-28 summary a season card ranks the rep on the season's XP (Rookie, Door Knocker, Estimator, Closer, Roof Boss, Storm Legend) and resets. |
+| Crew | "#n this week · #m all time" on the board, and **Duel** beside any crewmate: most week XP by Monday, bragging rights only (client-side from `roofRepScores`; no new writes). |
+| Trophies | Objection handler (25 best answers), Storm runner (a perfect run), Season finisher. Clean-streak counter in the header. |
+
+Tests: `tests/roof-rep-revamp-2026-10-25.test.js` (46: traps never win, one best answer each, forbidden lines only on
+traps, seeded picks, scoring, seasons, crew ranks, wiring) alongside the original `roof-rep-game-2026-10-03` pins.
+
+Not done yet (next): new homeowner personas and streets from NBD's playbook; a rooftop inspection mini-game with photo
+evidence (the grid game stays); crew guild / team goals; the e2e spec (`tests/e2e/roof-rep.spec.js`) still drives the
+same ids and passes the same flow.
+
+## Update 2026-10-25, later: the characters (Jo: "make the characters, sprites and animations as high quality as we can")
+
+The 32×32 pixel grid is retired from every screen. `docs/pro/js/chibi.js` (`window.NBDChibi`) draws one vector chibi
+with Canvas 2D paths at any size: a big round head with gradient shading and a forehead highlight, big shiny eyes that
+blink on a 3.6 s cycle, rosy cheeks, a small body, a clean dark outline around every part, and eight animated poses:
+idle (breathing), walk (leg and arm swing, a bob), knock (a fist at the door), talk (the mouth moves), cheer (both arms
+up, a jump with squash and stretch), sad, wave and think. Same parts and palette as the pixel sprite, so every saved
+avatar is the same person drawn properly; spiky hair tucks under a hat.
+
+- **Street:** the rep walks and faces its direction, knocks, cheers on a signed job / level-up / trophy / quest, slumps on
+  a lost door, waves when leaving a card or booking (`pose(name, ms)` in `roof-rep.js`); the rival walks.
+- **Speech sheet:** the homeowner talks for 1.8 s then idles, frowning under 35 % trust; the HUD and tutorial faces are
+  head-and-shoulders crops (`crop: 'bust'`); the locker preview is full body; crew board rows are still frames.
+- **Later the same day:** the door stands open and lit while the homeowner is in it; the rival wears a STORM BROS tag;
+  moods follow the trust meter (frown under 35 %, a grin from 70 %); Storm Run puts a different homeowner on every
+  objection (talking, then cheering a best answer or slumping at a trap); the HUD face waves every 16 s and the game card
+  every 14 s; the pickup, the traffic in the drive game and the yard dog are vector too.
+- **Game card (CRM Home):** `game-sprite.js` draws through the chibi when it is on the page; its 32×32 builder stays as
+  the fallback and for `game-xp`'s pins.
+- Bitmaps size to the CSS box × devicePixelRatio (crisp on phones); loops end when a canvas leaves the page; reduced
+  motion draws one still frame. Guard: `tests/chibi-2026-10-25.test.js` (35).
+- **The clay-render direction, for Jo:** a trial through the Canva connector produced a usable 3D clay chibi foreman
+  (hard hat, hi-vis, hammer, waving) at https://www.canva.com/M/MAHY-9Hts18 (Canva media id `MAHY-9Hts18`), but the
+  connector returns only a 200 px preview; a full-size export needs a Canva design + export from Jo's account, and the
+  licence call is Jo's. If approved: strip EXIF, vendor under `docs/pro/img/roof-rep/`, use it on the tutorial and Train
+  cards (the foreman) and keep the vector chibi for every customisable avatar.
+
+### Wave 2 (same day, second PR): motion quality
+
+- **Jointed limbs.** Arms are an upper arm + forearm (elbow), legs a thigh + shin (knee), drawn as two capsules whose
+  outlines go down before either fill so the joint has no seam. The knock pumps the forearm, the wave swings beside the
+  head, think rests the hand at the chin, the walk bends the forward elbow and the trailing knee.
+- **Cross-fades.** Every pose change blends over 220 ms (`NBDChibi.tween` keeps the state; `mixPose` interpolates
+  numbers and switches shapes half way). `animate` does it for every canvas loop; the street passes a tween key per
+  character (`'rep'`, `'rival'`, `'door'`) to `chibi()`. Reduced motion snaps.
+- **Secondary motion.** Ponytails swing from the root, long hair sways, the front hair follows; hats lift on a cheer
+  jump; the walk squashes on each footfall; talking varies the mouth like speech (three overlapping sines, a glance away).
+- **Emotes.** Sparkles orbit on a cheer, a sweat drop slides down the temple when sad, thought dots fill in when thinking.
+- **Grounding.** A neck shadow on the chest, a brim shadow under hard hats and caps, an upper-lid shadow and a two-tone
+  iris in the eyes.
+- **Three new poses, wired:** `point` (the rep points up at the roof when a homeowner says go inspect), `nod` (the Storm
+  Run homeowner nods at a fair answer instead of going idle), `shrug` (the doorway homeowner shrugs when a door is lost).
+- **Sheets with nobody talking** show a scene in the face box instead of a blank: the wagging dog, the closed door
+  with a hanger, the pickup (`faceScene`, the street's own vector pieces at 3-4x).
+- **The door swings open** over 240 ms (eased leaf, the hall light fades in) and the homeowner steps up from 70 % as it
+  opens; once per door, not per line.
+- **Tap to cheer:** the HUD face, the locker preview and the CRM game-card avatar cheer for 1.6 s when tapped (one
+  listener per canvas, same loop).
+- Versions: `chibi.js?v=2`, `roof-rep.js?v=4`, `game-sprite.js?v=3`. Guard grows to 53 checks.
+
+### Wave 3 (same day, third PR): the crews in the mini-games
+
+- Two poses: `hammer` (a 520 ms wind-up and strike; the tool stays in hand through the swing) and `climb` (hands on
+  the rungs, legs stepping).
+- `sceneLoop(cv, paint)` keeps a mini-game canvas painting while it is on the page, on the same stop hook the chibi
+  loops use. The build cross-section has Big Dave on the ground pointing out the next layer and a roofer on the deck
+  hammering (both cheer when the ridge cap goes on); the nailing roofer swings on every tap; the rep stands at the
+  ladder's foot sizing it up, then cheers at 4 ft or slumps at 2 / 7. The ladder label drops the last pixel font.
+- Versions: `chibi.js?v=3`, `roof-rep.js?v=5`. Guard grows to 57 checks.
+
+### Wave 4 (same day, fourth PR): more people
+
+- Three hair styles (curly, afro, bun) and a **Top** option (tee, hoodie with hood / pouch / drawstrings, polo with
+  collar and placket), in the renderer, the Roof Rep locker and the CRM game-card picker. The 32×32 pixel fallback
+  draws the new hair as its nearest cousin. Every saved look still reads the same (`top` defaults to tee).
+- Versions: `chibi.js?v=4`, `roof-rep.js?v=6`, `game-sprite.js?v=4`. Guard grows to 59 checks.
+
+### Wave 5 (same day, fifth PR): life everywhere, and a renderer bug
+
+- **Crew board:** the first eight rows breathe (idle, blinking); the leader cheers every 9 s and any row cheers when
+  tapped. Past eight the thumbnails stay still frames (a big team is not thirty loops on one phone). A row's loop starts
+  only once its row is on the page.
+- **Training Yard:** Big Dave stands in the header card, points the way every 7 s, cheers when tapped.
+- **The drive:** the drawn truck eases toward where the game says it is, tilts into a sideways move, idles with a
+  faint bob, puffs exhaust on every lane change and a cloud of skid dust on a bump. Nothing spawns over the lot's
+  column any more (the first move up used to be an instant fender bender when a car drifted into it), and no two cars
+  spawn nose to tail.
+- **Homeowners leave on their own terms (the LEAVE scene):** when the speech sheet lets a homeowner go they no longer
+  vanish with the door. A signed homeowner steps out to the rep's side (450 ms), cheers with them (1.4 s) and walks
+  back in; a lost door shrugs; a booked or carded door waves; then the door swings shut over its last 240 ms. One
+  state (`LEAVE`), created where `say()` used to drop `DOOR`, drawn in `drawWorld` on the street canvas, and
+  `drawHouse` keeps the leaf open for it.
+- **Renderer bug (chibi.js v5):** `animate()` defined `stop` after its first frame, so a canvas animated before it
+  was in the DOM hit "stop is not a function" on that frame and the loop died silently. Found by the crew board rows;
+  fixed by defining `stop` first.
+- **Hidden loops paint nothing (chibi.js v6):** a loop whose canvas has no box (its tab or panel is hidden) skips
+  the paint and polls twice a second until it has one. Measured on the page: 5 loops live, 30 paints/s on the Street
+  tab (the HUD face), 60 on Train (HUD + Big Dave), 59 on Crew (HUD + the row); before, every loop painted behind
+  every tab.
+- Versions: `chibi.js?v=6`, `roof-rep.js?v=7`, `roof-rep.css?v=5`. Guard grows to 67 checks.
+
+### Waves 6 and 7 (same day, sixth PR): the course cards, and what homeowners carry
+
+- **Training Yard course cards (wave 6):** each card shows the player's own avatar doing the course beside its
+  text: climbing a drawn ladder (`paintCourseLadder` on `sceneLoop`), swinging a hammer, reading the rule book
+  (clipboard, think), pointing out a roof part, measuring with the tape, explaining the job (talk). An earned badge
+  cheers every 11 s; a tap cheers. Six loops, but hidden cards paint nothing (v6), so a tab costs one tab.
+  `.course-card` lays the 64×84 canvas beside the text.
+- **Persona props (wave 7, chibi.js v7):** a `prop` look field drawn in the back hand (the clipboard still wins
+  it): phone, coffee mug, cane to the ground, key ring, swaddled baby, paintbrush, fan of papers. `makeLook` rolls one
+  from `PERSONA_PROP` on about two doors in three: busy / realtor / flipper phones, night-shift / retired-cop /
+  skeptic mugs, elder and caregiver canes, the landlord's keys, the new baby, the DIY brush, three-quotes /
+  claim-denied / deductible papers. Props are homeowner-only; the avatar editor does not offer them.
+- **Weather on the characters (wave 8, chibi.js v8):** a `prop: 'umbrella'` raises the back arm and holds an orange
+  canopy over the head (the hand frame is squared back up so the canopy sits over the head whatever the arm angle);
+  the street's `wxLook()` puts one in the rep's and the rival's hand on a rain or snow day. A draw option `wind`
+  (0..1) gusts the hair, lifts the hat and leans the body; `chibi()` passes 1 on a windy day for every street
+  character.
+- **Idle fidgets (wave 9, chibi.js v9):** in the last 1.2 s of every 9 s an idle character fidgets, a different one
+  each cycle: a weight shift onto one foot, hands on the hips with a head tilt, a stretch with a yawn (eyes shut,
+  mouth open). Each eases in and out. A chibi's arms cannot reach its hat, so there is no hat tip.
+- Versions: `chibi.js?v=9`, `roof-rep.js?v=10`, `roof-rep.css?v=6`. Guard grows to 75 checks.
+
+### Wave 10 (same day, seventh PR): the leaderboard page
+
+- `/pro/leaderboard` drew a gradient circle with the rep's initials. It now loads `chibi.js` and reads the rep's own
+  `userSettings/{uid}.game.avatar` (the Home game card's look; owner-only read), and the rep's row shows that avatar
+  as a bust-crop chibi that waves every 14 s like the game card. A rep without a game card, or a failed read, keeps
+  the initials. `leaderboard.js?v=4`; the pin rides the chibi guard (76).
+- **Wave 11, the dashboard's two leaderboards:** `team-names.js` (v2) also maps uid to the Roof Rep look from
+  `roofRepScores` (`loadAvatars()` / `avatarFor()`: one company read behind the companyId claim, or the viewer's own
+  doc for a solo owner; readable across the company by `firestore.rules`). The Dashboard view's Leaderboard
+  (`dashboard-api.js` v9) shows each rep's chibi beside the medal, initials for a rep who has never opened Roof Rep;
+  the Team Leaderboard widget (`widgets.js` v19) draws one beside the name and redraws itself once the read lands.
+  Guard grows to 79.
+
+### Waves 12 and 13 (same day, eighth PR): builds, and eyes that follow you
+
+- **Wave 12, builds.** Every character had the same body. `chibi.js` (v10) knows four builds (`BUILDS`: regular ·
+  slim · stocky · tall): the body group (legs, torso, arms, and what the hands hold) is scaled from the feet by the
+  build's width and height, the head is scaled on its own, and the head sits on the scaled neck (`headRise`), so a
+  tall rep reads as tall (longer body, smaller head) and a stocky one as stocky (wider body, same head). Props and
+  tools are counter-scaled inside the hand so a mug stays a mug. An elder look stoops: a 4% shorter body, the head
+  carried 2 units lower and 3 forward. The bust crop moves the feet by the same rise, so a leaderboard face stays
+  centred whatever the build. Both pickers (the locker and the Home game card, `game-sprite.js` v5) grew a **Build**
+  row; the street rolls a build per homeowner (most people regular; `PERSONA_BUILD` gives the retired cop, the farmer
+  and the night-shift worker a stocky one, the veteran, the realtor and the CEO a tall one, the flipper and the
+  attorney a slim one), and Big Dave is stocky. `roof-rep.js?v=12`.
+- **Wave 13, gaze.** A draw option `gaze { x, y }` (-1..1, screen space) turns the irises toward a point (the iris has
+  more room to climb than to drop, so looking down is gentler) and tilts the head three degrees after them; facing
+  -1 mirrors it. `animate()` keeps one passive `pointermove` / `pointerdown` listener for the page and, for four
+  seconds after the pointer (or a finger) last moved, eases every loop's gaze toward it and back out after, so the
+  locker preview, the HUD face, the game card and every leaderboard face watch the cursor. A per-frame `gaze: false`
+  opts a canvas out; a per-frame gaze of its own wins; reduced motion draws none. The street draws by hand and keeps
+  its own glances. Guard grows to 88 (builds, head rise, every pose per build, the pickers and the street; the gaze
+  geometry, the clamps, and a frozen-clock loop with the pointer to each side).
+- **Wave 14, alive on arrival and to the touch.** A loop pops its character in over its first 360 ms (70% tall and
+  wider, up through a 6% overshoot, settle; the ground shadow grows with it; `pop: false` opts out, and a draw
+  option `pop` 0..1 lets the street do the same by hand). A tap on any animated canvas gets a wave back for 1.2 s,
+  unless the page already answers taps on that canvas (the game card, the locker preview and the HUD face cheer
+  through their own `__chibiTap`) or the per-frame options say `poke: false`; so a teammate on the dashboard
+  leaderboards waves when you tap them. Every fourth blink is a double blink. Guard grows to 92; the `pop: false`
+  check caught the first draft reading `false` as pop 0 (a character squashed at 70% for good).
+- **Wave 15, the season on the street.** Draw option `cold` 0..1 puffs breath from the mouth toward the facing side
+  every 3.2 s (three translucent circles that drift up, grow and fade over 1.1 s); the street passes it in winter for
+  everyone `chibi()` draws (the rep, the rival, the homeowner at the door). `seasonLook(look, h)` dresses the
+  homeowner at the door for the season without touching the saved look: in winter a beanie over bare hair and a
+  hoodie over a tee (most of them; the house index decides, so the same person dresses the same way all day), in
+  summer shades on every other bare-eyed homeowner. Guard grows to 94.
+- **Wave 16, eye colour.** `C.eye` (brown · blue · green · hazel · grey; brown first, so every saved look keeps its
+  eyes) colours the iris gradient of the round eye and the fill of the chill eye; the pupil stays dark. Both pickers
+  grew an **Eye color** swatch row (the locker; the game card through `game-sprite.js` v6 with the five swatch classes
+  in `game-card.css` v5, which the game-xp guard checks against the option table), and the street rolls one per
+  homeowner. `chibi.js` v11, `roof-rep.js` v13. Guard grows to 97 (the palette, normalize, the gradient stops and
+  fills a blue-eyed and a green-eyed draw use, the pickers, the CSS and the street).
+- **Wave 17, two poses for the street's outcomes.** `thumbs`: the front arm up to chest height as a fist with a thumb
+  that points up whatever the arm's angle, a wink and a grin; the rep gives one when a homeowner books an inspection
+  (was a wave). `cringe`: the hand over the mouth (the arm swung back and up, and drawn over the head so the hand sits
+  on the face), eyes shut, brows down, the head dropped and shaking slowly; the rep does it when a lost door was their
+  own bad call (`tip.bad`), and still hangs the head (`sad`) on a plain loss. A chibi's arm reaches the mouth, not the
+  forehead, so this is the facepalm the body allows. The shipped-bytes ceiling moves 2804 → 2816 KB with a dated note:
+  waves 12–17 grew `chibi.js` from 47 to 56 KB (deferred), and the gate sat at 2804 of 2804. Guard grows to 100.
+- **Wave 18, body language in the sheet, a walk that fits the body, the smirk.** `cross`: arms folded across the
+  chest (each upper arm in at 65°, each forearm level across it so the two overlap at upper-chest height with the
+  front one on top; brows down, chin up; nothing in the hands). The speech sheet keeps the trust each homeowner showed
+  on their last line (`SAY_PCT`): five points down or more opens the next line with 1.6 s of folded arms, five up or
+  more with a 1.1 s nod, then the talk; the doorway figure on the street holds the same pose until the next line
+  (`drawTo` takes an `intro { pose, ms }`). The walk fits the body: an elder shuffles (half the stride on a slower
+  beat, more lean), a stocky build sways more on a slightly slower beat, a slim one steps on a quicker one; `draw`
+  hands the look's build and elder flag to `poseOf`. Mood `smug` is a one-sided smirk with one brow up (never when
+  sad or cheering); Chad from Storm Bros wears it. Guard grows to 105.
+- **Wave 19, a staggered arrival, and the dog barks.** A per-frame `popDelay` (ms) holds a loop's canvas blank that
+  long before its pop-in, so the Dashboard view's Leaderboard and the Team Leaderboard widget bring their faces in one
+  after another down the list, 90 ms apart (`dashboard-api.js` v10, `widgets.js` v20; not under reduced motion,
+  which still draws its one still frame). The speech sheet's "big dog" barks: `drawDog` takes a `bark` flag and hops
+  on a 480 ms beat with the mouth open (a tongue, a small WOOF), the ear flipping up and a faster wag; the street's
+  yard dogs and the reduced-motion frame keep the old drawing. Guard grows to 107.
+- **Wave 20, speech reads as speech, and the HUD face mirrors the street.** Talking varies the mouth's shape (round
+  to wide, on its own beat) and the brows rise and fall with the words, so a long line in the sheet reads as speech
+  rather than a metronome. The HUD face follows the street rep's pose while it lasts: a cheer on a sale, a thumbs-up
+  on a booking, a cringe on a bad call (never the walk; a tap's cheer still wins). Guard grows to 110.
+- **Wave 21, the mood colours the idle.** A frowning character (a skeptic at the door, a homeowner under 35% trust)
+  shakes their head slowly with a sigh in the last 1.3 s of every 7 s (eyes shut, the mouth a touch open, the body
+  dips) and glances away twice as often; a happy one rocks gently on a 520 ms beat with the hair swinging along.
+  Reduced motion keeps both still. Guard grows to 112.
+- **Wave 22, the sample account shows a face.** The demo seed (v8) carries `roofRepScores/demo-owner` with the game
+  card's look (plus an eye colour and a build) in the rules' key shape, so the Dashboard view's Leaderboard and the
+  Team Leaderboard widget on `/pro/explore` show Sam's chibi instead of initials (checked on the static server: one
+  row, one face, no initials). Guard grows to 113.
+- **Wave 23, the game card cheers for the week.** The Home game card remembers the week's XP it last showed (per
+  browser and uid, in localStorage, failures tolerated); when the card comes back higher the avatar cheers for 1.8 s and
+  the ghost line adds "+N XP since you last looked." `game-card.js` v6. Checked on the sample account through the demo's
+  namespaced storage: a refresh after lowering the remembered value cheers and says "+85 XP since you last looked.";
+  the next refresh is quiet. Guard grows to 114.
+- **Wave 24, animation principles.** The face turns with the look: the features slide across the head toward where
+  the eyes point, the ear on that side tucks behind and the other comes forward, the front hair follows a little, so a
+  frontal head reads as a three-quarter one whenever a character looks aside (a knock, a glance, the pointer). The
+  walk looks ahead and the cap lifts on each footfall; the cheer squashes with the feet on the ground and stretches at
+  the top of the jump; hoodie strings swing with the hair. A facing change turns instead of mirroring in a frame:
+  `tween(state, pose, now, ms, facing)` eases the body from one side to the other over 180 ms (`TURN_MS`), the body
+  squeezing toward edge-on while the head stays round (counter-scaled) and the features slide round it; every loop and
+  the street's keyed characters (the rep, the rival, the doorway, the crew) get it, and `draw` takes any facing in
+  -1..1 for callers that turn by hand. `chibi.js` v12. Guard grows to 121.
+- **Wave 25, landing dust, and loops that rest off-screen.** Four dust puffs (two a side) spread and fade from the
+  feet as a cheer lands (strongest at contact, gone a third of the way back up; the crouch before a jump stays clean);
+  the ground shadow spreads under a squash. A loop whose canvas is scrolled out of the viewport (40 px of grace) rests
+  like a hidden one (no paint, a poll twice a second) and pops in when it scrolls into view, since its first paint is
+  its birth: a dashboard with the Team Leaderboard below the fold no longer draws eight faces nobody can see. Guard
+  grows to 125.

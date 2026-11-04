@@ -171,8 +171,9 @@ ok('unpaid invoice links to its customer page', html.indexOf('/pro/customer.html
 ok('expenses link to the Expenses view', html.indexOf('href="#/expenses"') !== -1);
 ok('close button wired via data-action="module" (no inline handler)', html.indexOf('data-target="MoneyDashboard.markMonthClosed" data-arg="2026-09"') !== -1 && !/\son[a-z]+=/i.test(html.replace(/&lt;img src=x onerror=alert\(1\)&gt;/g, '')));
 ok('button copy', html.indexOf('Looks good — mark September closed') !== -1);
-ok('net colored by sign (green here)', /Net<\/div><div style="[^"]*color:var\(--green\)/.test(html));
-ok('net red when negative', /Net<\/div><div style="[^"]*color:var\(--red\)/.test(MD.monthCloseHtml(neg)));
+// 2026-10-24 (UI sweep pass 3): the sign colour is the status TEXT token (the colour pulled toward --t), not the plain fill token.
+ok('net colored by sign (green here)', /Net<\/div><div style="[^"]*color:var\(--ui-success-text,var\(--green\)\)/.test(html));
+ok('net red when negative', /Net<\/div><div style="[^"]*color:var\(--ui-danger-text,var\(--red\)\)/.test(MD.monthCloseHtml(neg)));
 ok('no old orange literal', !/#E8720C/i.test(html));
 const closedHtml = MD.monthCloseHtml(closedMc);
 ok('closed state shows "September closed ✓" and no button', closedHtml.indexOf('September closed ✓') !== -1 && closedHtml.indexOf('markMonthClosed') === -1);

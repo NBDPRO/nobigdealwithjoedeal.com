@@ -232,7 +232,7 @@
     }
     html +=   '</div>';
     html +=   '<div>';
-    html +=     '<div class="ev-doc-title">Estimate</div>';
+    html +=     '<h1 class="ev-doc-title">Estimate</h1>';
     html +=     '<div class="ev-doc-meta">' + escHtml(est.number || '') + '</div>';
     html +=   '</div>';
     html += '</div>';

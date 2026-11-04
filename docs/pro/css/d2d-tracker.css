@@ -22,6 +22,13 @@
 .dk-row6 { display: flex; gap: 6px; align-items: center; }
 .dk-head-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .dk-tabs { display: flex; margin-bottom: 12px; border-bottom: 2px solid var(--br); }
+/* Phones: the four tabs split the row (~60-100 px each), and the base .stab-btn
+   type (13px, .06em tracking, nowrap) is wider than that for "Challenges" (and
+   "Routes" at 320 px), so the label painted over its neighbour. Smaller, tighter
+   type; the label may wrap, and the icon drops to its own line when it must. */
+@media (max-width: 480px) {
+  .dk-tab.dk-tab { white-space: normal; overflow-wrap: anywhere; font-size: 12px; letter-spacing: 0; line-height: 1.15; padding: 8px 1px; }
+}
 .dk-grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 10px; }
 .dk-meta { font-size: 10px; color: var(--m); margin-top: 2px; }
 .dk-sub { font-size: 11px; color: var(--m); margin-top: 4px; }
@@ -45,11 +52,11 @@
 .dk-followup.dk-followup { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--s); border: 1px solid var(--br); border-radius: 6px; margin-bottom: 4px; cursor: pointer; }
 .dk-scroll.dk-scroll { max-height: 300px; overflow-y: auto; }
 .dk-mb12.dk-mb12 { margin-bottom: 12px; }
-.dk-c-blue.dk-c-blue { color: var(--blue, #4A9EFF); }
-.dk-c-gold.dk-c-gold { color: var(--gold, #EAB308); }
-.dk-c-green.dk-c-green { color: var(--green, #2ECC8A); }
-.dk-c-orange.dk-c-orange { color: var(--orange, #BD5728); }
-.dk-c-purple.dk-c-purple { color: var(--purple,#9B6DFF); }
+.dk-c-blue.dk-c-blue { color: var(--ui-info-text, var(--blue, #4A9EFF)); }
+.dk-c-gold.dk-c-gold { color: var(--ui-warn-text, var(--gold, #EAB308)); }
+.dk-c-green.dk-c-green { color: var(--ui-success-text, var(--green, #2ECC8A)); }
+.dk-c-orange.dk-c-orange { color: var(--ui-accent-text, var(--orange, #BD5728)); }
+.dk-c-purple.dk-c-purple { color: color-mix(in srgb, var(--purple,#9B6DFF) 50%, var(--t, #e8eaf0)); }
 .dk-prompt.dk-prompt { text-align: center; padding: 28px 20px; }
 .dk-empty-sm.dk-empty-sm { padding: 20px; }
 .dk-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 2px solid var(--green); margin: 2px; }

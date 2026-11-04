@@ -18,7 +18,7 @@
  * @shard2 - runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
-const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction, ensureClassicLayout } = require('./fixtures/auth');
 
 const IPHONE = {
   isMobile: true, hasTouch: true, serviceWorkers: 'block',
@@ -65,6 +65,7 @@ async function boot(page) {
   });
   await page.route(/cloudfunctions\.net|\.run\.app|api\.weather\.gov/, (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"result":{}}' }));
   await loginAs(page, creds);
+  await ensureClassicLayout(page); // the shard shares one rep; a Crew pick from crew-calendar.spec put #nbdCrewRoot over Today (2026-10-25)
   expect(await forceStandalone(page)).toBeGreaterThan(200);
   await expect(page.locator('#view-home #todayPlan')).toBeVisible({ timeout: 30_000 });
 }
@@ -88,6 +89,8 @@ test.describe('never-forget client findings @shard2', () => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) { /* none */ }
       actions.push(body);
+      // Anything but a promise with a kind (a plain 'handled', say) is answered, not crashed on; the assertion below names it (2026-10-25).
+      if (body.action !== 'promise' || !body.kind) return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ result: { ok: true, on: 'none', sample: 'spec: not a promise' } }) });
       // What the server writes: the promise task + the call handled.
       const taskId = 'promise-' + body.id;
       await db.doc('leads/' + leadId + '/tasks/' + taskId).set({ kind: 'promise', promiseKind: body.kind, text: 'Call back', title: 'Call back', done: false, dueDate: body.dueYmd, madeYmd: body.dueYmd, missCount: 0, rescheduleCount: 0, leadId, userId: uid, companyId: co, createdAt: new Date() });
@@ -98,13 +101,14 @@ test.describe('never-forget client findings @shard2', () => {
     const plan = page.locator('#view-home #todayPlan');
     const row = plan.locator('[data-tp-sec="promised"] [data-tp-row], [data-tp-sec="promises"] [data-tp-row], [data-tp-sec="calls"] [data-tp-row]', { hasText: 'ZZNFProm Cust' + s });
     await expect(row.first(), 'the call is on Today first').toBeVisible({ timeout: 30_000 });
-    await row.first().locator('[data-tp-act="handled"]').tap();
+    // Handled is one tap with an Undo since #2668 (UX walk H3); the sheet opens from "I promised something".
+    await row.first().locator('[data-tp-act="promised"]').tap();
     const sheet = page.locator('#prSheet');
     await expect(sheet).toBeVisible({ timeout: 10_000 });
     await sheet.locator('[data-pr-act="kind"][data-pr-val="callback"]').tap();
     await sheet.locator('[data-pr-act="save"]').tap();
     await expect(sheet).toBeHidden({ timeout: 15_000 });
-    expect(actions.some((a) => a.action === 'promise')).toBe(true);
+    expect(actions.some((a) => a.action === 'promise' && a.kind === 'callback'), 'the sheet sent a callback promise; got ' + JSON.stringify(actions)).toBe(true);
     // The promise is a row in the Promises section NOW (same page, no reload, no leads refresh).
     const prom = plan.locator('[data-tp-sec="promises"] [data-tp-row]', { hasText: 'ZZNFProm Cust' + s });
     await expect(prom, 'the saved promise is on Today at once').toHaveCount(1, { timeout: 8_000 });

@@ -139,9 +139,9 @@
           --rda-dark: #111418;
           --rda-dark2: #181C22;
           --rda-light: #E8EAF0;
-          --rda-muted: #6B7280;
+          --rda-muted: #9CA3AF; /* was #6B7280: 3.5:1 on this dark surface as 12px text (UI sweep 2026-10-24) */
           --rda-border: rgba(255,255,255,.07);
-          --rda-orange: #A14A22;
+          --rda-orange: #DD875F; /* the brand light orange: this surface stays dark on every theme, and #A14A22 read 3.1:1 on it as text (UI sweep 2026-10-24); fills use #BD5728 below */
           --rda-green: #10b981;
           --rda-red: #ef4444;
         }
@@ -473,7 +473,7 @@
 
         .rda-progress-fill {
           height: 100%;
-          background: linear-gradient(90deg, var(--rda-orange), #ff9800);
+          background: linear-gradient(90deg, #BD5728, #ff9800);
           transition: width 0.3s ease;
         }
 
@@ -641,7 +641,7 @@
         .rda-button {
           display: inline-block;
           padding: 12px 24px;
-          background: var(--rda-orange);
+          background: var(--orange, #BD5728);
           color: white;
           border: none;
           border-radius: 6px;

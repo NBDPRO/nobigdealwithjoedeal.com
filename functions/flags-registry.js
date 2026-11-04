@@ -92,6 +92,12 @@ const ROWS = {
     meaning: 'Daily 9 AM: a note in your Agent inbox when your own insurance certificate, license or certification is 30, 14 or 7 days from expiring, or has expired. Never goes to a customer. Off = dry run, logs only.' },
   SUB_PAPERWORK_WATCH_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/SUB-PAPERWORK-2026-10-19.md',
     meaning: 'Daily 9:15 AM: a note in your Agent inbox when a sub insurance certificate or license is 30, 14 or 7 days from ending, or has ended. Never goes to a sub or customer. Off = dry run, logs only.' },
+  OWNER_WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/WAVE3-ADDONS-RECON-2026-10-22.md',
+    meaning: 'Monday 7:30 AM: one note in your Agent inbox with last week collected money, estimates awaiting signature (projected), calls to return and the jobs this week. Never goes to a customer or a rep. Off = dry run, logs only.' },
+  SECURE_DOC_LINK_ENABLED: { group: 'Customer follow-ups', doc: 'documentation/projects/DOC-TRACKER-2026-11-04.md',
+    meaning: 'Master switch for Secure Document Link: password, tracked viewer page, open count and time with the page open. Off = links behave as before.' },
+  DOC_LINK_FOLLOWUP_ENABLED: { group: 'Customer follow-ups', dark: true, doc: 'documentation/projects/DOC-TRACKER-2026-11-04.md',
+    meaning: 'Hourly: a note in your Agent inbox 24 hours after a customer first opens a secure link. Never goes to a customer. Off = dry run, logs only.' },
   WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
     meaning: 'The weekly roll-up email. Off = dry run, not sent.' },
   MONTHLY_OVERHEAD_ALERT_DISABLED: { group: 'Alerts & away', doc: 'documentation/projects/WEEKLY_CADENCE.md',
@@ -256,4 +262,17 @@ function buildResponse(env, committedText, extra) {
   };
 }
 
-module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };
+// ── Firestore feature flags (feature_flags/_default merged with feature_flags/{uid}) ──
+// A DIFFERENT kind of flag from the env flags above: no process.env, nothing here is read by
+// flagStatus, and FLAGS (and its pin in tests/flags-registry-drift.test.js) is unchanged. These are
+// listed so every new dark flag has one registered name and an explicit default. Absent = the default.
+// `default` must stay false for anything that ships dark. tests/flags-registry-drift.test.js checks
+// the rows (name shape, default false, doc exists, the code that reads the name).
+const FIRESTORE_FLAGS = [
+  { name: 'thumbtackOpportunities', default: false, dark: true, file: 'opp-rules.js', doc: 'documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md',
+    meaning: 'Thumbtack Opportunities watcher: scoring, storage and draft filing. Off = every watcher callable refuses and files nothing. Reads and sends nothing on Thumbtack either way.' },
+  { name: 'thumbtackOppSend', default: false, dark: true, file: 'opp-rules.js', doc: 'documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md',
+    meaning: 'RESERVED for the Thumbtack Opportunities sender (a later PR). Nothing reads it yet and no sender exists.' },
+];
+
+module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

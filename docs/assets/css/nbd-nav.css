@@ -291,3 +291,24 @@ html body footer a[data-nbd-sms][href]:hover { color: inherit; text-decoration: 
 #navLinks .nav-search:hover,#navLinks .nav-search:focus-visible{color:var(--orange-light,#dd875f)}
 #navLinks .nav-search-ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
 #mobileNav .mnav-search{display:block;padding:12px 24px;color:#fff;text-decoration:none;font-size:.82rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)}
+
+/* ── Fixed chrome vs. anchor jumps and keyboard focus (2026-10-26) ──────────
+   TOP. The header is sticky and 60-70px tall. With no scroll-padding-top a
+   table-of-contents link (five blog posts) scrolled its target heading to
+   top:0, entirely behind the header, and Shift+Tab up a page parked the
+   focused control there too. 84px clears the tallest header with a little air.
+   scroll-padding and an element's own scroll-margin ADD: do not give a target
+   a scroll-margin-top to compensate for the header, it lands that far lower
+   (tests/scroll-padding-2026-10-26.test.js fails if one comes back).
+   BOTTOM. On phones the fixed Book/Call/Text bar is up to 95px tall (the Book
+   label wraps at 320-360 wide) and covered the control a Tab press had just
+   focused. 104px stops focus and anchor scrolling above it; the bar's height
+   already includes the home-indicator inset, so the inset is added here too.
+   The homepage links this file but not mobile-cta.css (its bar CSS is inline),
+   so the rule is carried here as well as in mobile-cta.css; the test proves
+   every page with a bar reaches one of them. :has() needs iOS 15.4+; an older
+   Safari drops just this rule and falls back to today's behaviour. */
+html { scroll-padding-top: 84px; }
+@media (max-width: 768px) {
+  html:has(.mobile-cta-strip) { scroll-padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+}

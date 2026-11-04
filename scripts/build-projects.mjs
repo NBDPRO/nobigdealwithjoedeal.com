@@ -287,11 +287,24 @@ const avifFor = (src) => {
   const a = src.replace(/\.(jpg|jpeg|png)$/, '.avif');
   return a !== src && existsSync(path.join(ROOT, 'docs', a)) ? a : null;
 };
+// A card shown well under 800 px wide can also offer a smaller copy, <name>-640.<ext>, when that file exists. `sizes` says how wide the
+// home strip's card is at each breakpoint (80% of the screen on a phone, two columns, then four of about 276 px), so a phone is never
+// handed a copy smaller than the slot needs.
+const CARD_SIZES = '(max-width: 767px) 80vw, (max-width: 1024px) 45vw, 276px';
+const smallFor = (u, w) => {
+  const s = u.replace(/\.(avif|webp)$/, `-${w}.$1`);
+  return s !== u && existsSync(path.join(ROOT, 'docs', s)) ? s : null;
+};
 // <picture> with whichever modern siblings exist, AVIF first; the original
 // stays the <img> fallback.
-const pictureFor = (src, img) => {
+const pictureFor = (src, img, smallWidth = 0) => {
   const sources = [[avifFor(src), 'image/avif'], [webpFor(src), 'image/webp']]
-    .filter(([u]) => u).map(([u, t]) => `<source srcset="${esc(u)}" type="${t}">`).join('');
+    .filter(([u]) => u).map(([u, t]) => {
+      const small = smallWidth ? smallFor(u, smallWidth) : null;
+      return small
+        ? `<source srcset="${esc(small)} ${smallWidth}w, ${esc(u)} 800w" sizes="${CARD_SIZES}" type="${t}">`
+        : `<source srcset="${esc(u)}" type="${t}">`;
+    }).join('');
   return sources ? `<picture>${sources}${img}</picture>` : img;
 };
 
@@ -299,10 +312,10 @@ const heroAlt = (p) => (p.photos.find((ph) => ph.src === p.hero) || p.photos[0])
 
 // `lcp`: the case-study page's own hero is its largest paint, so it loads
 // eagerly at high priority; every listing/strip card stays lazy.
-const heroImg = (p, cls, lcp = false) => {
+const heroImg = (p, cls, lcp = false, smallWidth = 0) => {
   const load = lcp ? 'fetchpriority="high"' : 'loading="lazy"';
   const img = `<img src="${esc(p.hero)}" alt="${esc(heroAlt(p))}" class="${cls}" ${load} decoding="async" width="800" height="600">`;
-  return pictureFor(p.hero, img);
+  return pictureFor(p.hero, img, smallWidth);
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
@@ -711,7 +724,7 @@ const homeCard = (p) => {
   const ctx = dated(p);
   const meta = [esc(p.city), p.year ? esc(String(p.year)) : null].filter(Boolean).join(' · ');
   return `      <a class="hj-card" href="/our-work/${esc(p.slug)}">
-        ${heroImg(p, 'hj-img')}
+        ${heroImg(p, 'hj-img', false, 640)}
         <span class="hj-body"><b>${esc(p.title)}</b><span class="hj-meta">${meta}</span>${isPreNbd(p) ? `<span class="hj-note">${esc(PRE_NBD_LABEL)}</span>` : ''}<span class="hj-price">${esc(priceLine(p))}</span>${ctx ? `<span class="hj-note" data-price-context="${ctx.year}">${esc(ctx.short)}</span>` : ''}</span>
       </a>`;
 };
@@ -1004,6 +1017,23 @@ const MOBILE_CTA_STRIP = `<!-- STICKY MOBILE CTA STRIP (site-wide, conversion au
   <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
 </div>`;
 
+// Search snippets and share cards show about 155 characters. A longer
+// description ends at its last full sentence when that still fills most of the
+// budget, else at the last whole word with an ellipsis. It was a bare
+// .slice(0, 155) until 2026-10-26, which ended 46 of 48 pages mid-word. The
+// result is always the start of the source text, so no wording is added.
+const META_DESC_MAX = 155;
+const trimMetaDescription = (text, max = META_DESC_MAX) => {
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  let sentenceEnd = 0;
+  for (const m of t.slice(0, max + 1).matchAll(/[.!?](?=\s|$)/g)) if (m.index < max) sentenceEnd = m.index + 1;
+  if (sentenceEnd >= Math.round(max * 0.6)) return t.slice(0, sentenceEnd);
+  let cut = t.slice(0, max - 1); // room for the ellipsis
+  if (/\S/.test(t[max - 1]) && cut.includes(' ')) cut = cut.slice(0, cut.lastIndexOf(' ')); // never mid-word
+  return `${cut.replace(/[\s.,;:–—-]+$/, '')}…`;
+};
+
 const detailPage = (p) => {
   const price = priceLine(p);
   const metaBits = [esc(p.city)];
@@ -1015,7 +1045,7 @@ const detailPage = (p) => {
   const crumbArea = areaHref(townOf(p)) || '/areas/cincinnati-oh';
   const crumbCity = crumbArea === '/areas/cincinnati-oh' ? 'Cincinnati, OH' : esc(p.city);
   // A pre-NBD job's search snippet carries the label too.
-  const descMeta = `${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`.slice(0, 155);
+  const descMeta = trimMetaDescription(`${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1040,6 +1070,8 @@ const detailPage = (p) => {
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=3">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
@@ -1069,7 +1101,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 @media(max-width:640px){.nbd-social{margin-left:0;margin-top:8px;display:flex;gap:8px}}
 .pd-wrap{max-width:1000px;margin:0 auto;padding:32px 5% 64px;}
 .pd-crumb{font-size:.78rem;margin-bottom:18px;}
-.pd-crumb a{color:var(--orange);text-decoration:none;font-weight:700;}
+.pd-crumb a{color:var(--orange);text-decoration:none;font-weight:700;display:inline-block;padding:5px 0;}
 .pd-hero{width:100%;max-height:480px;object-fit:cover;border-radius:14px;display:block;margin-bottom:24px;}
 .pd-title{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--navy-dark);letter-spacing:.5px;margin-bottom:8px;}
 .pd-price{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#A14A22;margin-bottom:14px;}
@@ -1077,7 +1109,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .pd-era{font-size:.9rem;line-height:1.6;color:#333;background:var(--off-white);border-left:3px solid var(--navy-dark);padding:10px 14px;border-radius:0 8px 8px 0;margin:4px 0 14px;max-width:720px;}
 .pd-desc{font-size:1rem;line-height:1.7;color:#333;margin-bottom:32px;max-width:720px;}
 .pd-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;}
-.pd-back{display:inline-block;margin-top:8px;font-weight:700;color:#A14A22;text-decoration:none;}
+.pd-back{display:inline-block;margin-top:8px;padding:4px 0;font-weight:700;color:#A14A22;text-decoration:none;}
 .pd-h2{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;color:var(--navy-dark);letter-spacing:.5px;margin:8px 0 12px;}
 .pd-text{font-size:1rem;line-height:1.7;color:#333;margin-bottom:28px;max-width:720px;}
 .pd-list{margin:0 0 28px 1.2em;max-width:720px;line-height:1.7;color:#333;}
@@ -1123,6 +1155,8 @@ ${linksOutHtml(p)}
     <div class="pd-book pd-book-end">${BOOK_LIKE_THIS}</div>
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
+<!-- nbd:partial reviews-strip -->
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="${crumbArea}" crumb_city_name="${crumbCity}" -->
 <!-- /nbd:partial footer-standard -->
@@ -1206,7 +1240,8 @@ const stampFile = (file, transform, required) => {
 // to empty and every run of apply-partials.js would refill it, forever.
 // schema-entity is the one definition of the business/Joe the page's JSON-LD
 // references by @id; like the chrome, apply-partials.js owns its content.
-const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard', 'schema-entity'];
+// reviews-strip (2026-10-24): the recent-reviews section every homeowner page carries.
+const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard', 'schema-entity', 'reviews-strip'];
 function carryOverPartials(freshHtml, existingHtml) {
   if (!existingHtml) return freshHtml;
   let out = freshHtml;

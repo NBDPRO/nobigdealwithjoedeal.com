@@ -5,8 +5,8 @@
    Numbers panel (js/customer-numbers.js). Phone first: 390 px wide, 44 px tap
    targets, no horizontal page scroll (wide tables scroll inside their wrap). */
 
-.nb-green { color: var(--green, #22c55e); }
-.nb-red { color: var(--red, #E5484D); }
+.nb-green { color: var(--ui-success-text, var(--green, #22c55e)); }
+.nb-red { color: var(--ui-danger-text, var(--red, #E5484D)); }
 .nb-dim { color: var(--m, #8892A4); font-weight: normal; }
 .nb-xs { font-size: 10px; }
 .nb-home-link { font-size: 11px; padding: 8px 14px; }

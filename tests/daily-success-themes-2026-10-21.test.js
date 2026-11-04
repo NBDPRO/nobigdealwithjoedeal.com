@@ -109,7 +109,8 @@ console.log('\n9. sweep fixes: tab-close x and the week-strip letters follow the
   ok('the tab-close x takes the muted token (it was a fixed #445, 1.9:1 on the dark card)', /:root \.tx\{color:var\(--muted,#8793a4\);\}/.test(HTML));
   ok('control: no fixed colour is left on the base .tx rule', !/(^|\n)\.tx\{[^}]*color:#445/.test(HTML) || /:root \.tx\{color:var\(--muted/.test(HTML));
   const strip = (APP.match(/const days=\['M','T','W','T','F','S','S'\];[\s\S]{0,1800}/) || [''])[0];
-  ok('the week-strip letters use theme tokens (today: --ac-text, others: --muted)', /color:\$\{isToday\?'var\(--ac-text\)':'var\(--muted\)'\}/.test(strip));
+  // 2026-10-22: the panel behind the letters is a fixed dark (#0a1018), so they use the on-dark tokens (muted failed in Light / Paper)
+  ok('the week-strip letters use theme tokens (today: --ac-on-dark, others: --on-dark)', /color:\$\{isToday\?'var\(--ac-on-dark,var\(--ac-text\)\)':'var\(--on-dark,var\(--muted\)\)'\}/.test(strip));
   ok('control: the strip block was found and no longer hard-codes #8fa1b8 for its letters', strip.length > 200 && !/color:\$\{isToday\?'var\(--ac\)':'#8fa1b8'\}/.test(strip));
 }
 

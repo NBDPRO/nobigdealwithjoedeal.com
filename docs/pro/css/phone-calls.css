@@ -106,6 +106,7 @@
    decks, the grouped Said-you'd-do card's rows, the owner's "Match my tagged
    contacts" preview, and the customer page's "Wrong customer → move to…". */
 .cc-suggest { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); display: flex; flex-direction: column; gap: 6px; }
+.cc-suggest-note { font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
 .cc-suggest-btn { align-self: flex-start; max-width: 100%; overflow-wrap: anywhere; }
 .cc-deck-item + .cc-deck-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br, #2a2f35); }
 .cc-tagmatch { margin-bottom: 12px; }
@@ -120,3 +121,9 @@
 .pc-move { margin-top: 10px; }
 .pc-move-picks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .pc-notice { margin-bottom: 12px; padding: 10px 14px; font-size: 14px; }
+
+/* Accessibility (2026-10-23 audit): a visible keyboard focus ring on the Call Center controls, and a visually hidden line
+   the screen reader reads after the list changes (js/call-center-view.js, #ccLive). */
+.cc-tab:focus-visible, .cc-search:focus-visible, .cc-date:focus-visible, .cc-clear:focus-visible, .pc-play:focus-visible { outline: 2px solid var(--orange, #BD5728); outline-offset: 2px; }
+#ccPanel:focus { outline: none; }
+.cc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

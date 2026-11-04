@@ -47,6 +47,8 @@ const CRON_GATES = [
   { name: 'COMPANY_DOC_EXPIRY_ENABLED', polarity: 'enabled', file: 'company-doc-expiry.js' },
   // Daily independent-sub paperwork watch (2026-10-19): Agent-inbox reports to the owner when a sub's insurance certificate or license is near its end. Never a sub or customer. Dark until Jo says go.
   { name: 'SUB_PAPERWORK_WATCH_ENABLED', polarity: 'enabled', file: 'sub-paperwork-watch.js' },
+  // Monday owner digest (2026-10-22): ONE Agent-inbox report to the owner (collected last week, estimates awaiting signature, calls to return, jobs this week). Never a customer or rep. Dark until Jo says go.
+  { name: 'OWNER_WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'owner-weekly-digest.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },
@@ -95,6 +97,10 @@ const CRON_GATES = [
   // on-switch is the Firestore doc system/healthShortcut {enabled:true} (dark
   // until Jo flips it in the console); this env var is the emergency kill switch.
   { name: 'HEALTH_SHORTCUT_DISABLED', polarity: 'disabled', file: 'health-shortcut.js' },
+  // Not a cron: the Secure Document Link master switch (2026-11-04). Off = /report/<token> behaves exactly as before and a secure link is unavailable. DARK until Jo says go.
+  { name: 'SECURE_DOC_LINK_ENABLED', polarity: 'enabled', file: 'doc-link-logic.js' },
+  // Hourly secure-link follow-up sweep (2026-11-04): ONE Agent-inbox reminder to the owner 24h after a first open. Never the customer. Dry-run until Jo says go.
+  { name: 'DOC_LINK_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'doc-link-followup.js' },
 ];
 
 /**

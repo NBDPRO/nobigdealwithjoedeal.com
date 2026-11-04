@@ -24,6 +24,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BlogPosting", "headline": "How Roof Financing Actually Works (No Gimmicks Edition)", "description": "Joe Deal explains roof financing straight: what a lending marketplace is, what a soft credit pull means, when financing makes sense \u2014 and when it doesn't.", "author": {"@id": "https://nobigdealwithjoedeal.com/#joe"}, "publisher": {"@id": "https://nobigdealwithjoedeal.com/#org"}, "datePublished": "2026-07-13", "dateModified": "2026-07-13", "mainEntityOfPage": "https://nobigdealwithjoedeal.com/blog/how-roof-financing-actually-works", "keywords": "roof financing, Acorn Finance, lending marketplace, soft credit pull, roof payment options, Cincinnati roofing", "url": "https://nobigdealwithjoedeal.com/blog/how-roof-financing-actually-works"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://nobigdealwithjoedeal.com/blog/"},{"@type":"ListItem","position":3,"name":"How Roof Financing Actually Works","item":"https://nobigdealwithjoedeal.com/blog/how-roof-financing-actually-works"}]}</script>
 <style>
@@ -77,7 +79,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0}
 .callout{background:var(--navy-dark);color:#fff;border-radius:12px;padding:28px 32px;margin:32px 0}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px}
 /* Button styling ONLY for the callout's direct-child CTA anchors — the old
    bare `.callout a` also hit inline links inside <p>, rendering giant
@@ -104,7 +106,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .sidebar-card{background:var(--off-white);border-radius:14px;padding:28px;border:1px solid var(--light-gray)}
 .sidebar-card h3{font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
 .sidebar-links{list-style:none;display:flex;flex-direction:column;gap:10px}
-.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px}
+.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px;padding:4px 0}
 .sidebar-links li a:hover{color:var(--orange)}
 .sidebar-links li a::before{content:'→';color:var(--orange);font-weight:700}
 .cta-sidebar{background:var(--navy-dark);color:#fff;border-radius:14px;padding:28px;text-align:center}
@@ -117,7 +119,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -180,7 +182,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .prose blockquote p{font-size:.95rem;font-weight:600;color:var(--navy);font-style:italic;margin:0}
 .callout{background:var(--navy-dark);color:#fff;border-radius:12px;padding:28px 32px;margin:32px 0}
 .callout strong,.prose .callout p strong,.prose .callout li strong{color:#fff}
-.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange);letter-spacing:.04em;margin-bottom:10px}
+.callout h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--orange-light,#dd875f);letter-spacing:.04em;margin-bottom:10px}
 .callout p{font-size:.88rem;color:rgba(255,255,255,.82);line-height:1.65;margin:0 0 14px}
 .callout a{display:inline-block;background:#BD5728;color:#fff;padding:11px 22px;border-radius:8px;font-weight:800;font-size:.85rem}
 .callout a:hover{background:#A14A22}
@@ -202,7 +204,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .sidebar-card{background:var(--off-white);border-radius:14px;padding:28px;border:1px solid var(--light-gray)}
 .sidebar-card h3{font-size:.9rem;font-weight:800;color:var(--navy);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
 .sidebar-links{list-style:none;display:flex;flex-direction:column;gap:10px}
-.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px}
+.sidebar-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px;padding:4px 0}
 .sidebar-links li a:hover{color:var(--orange)}
 .sidebar-links li a::before{content:'→';color:var(--orange);font-weight:700}
 .cta-sidebar{background:var(--navy-dark);color:#fff;border-radius:14px;padding:28px;text-align:center}
@@ -215,7 +217,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 .footer-logo-text{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:4px}
 .footer-logo-sub{font-family:'Dancing Script',cursive;font-size:1rem;color:var(--orange);margin-bottom:14px}
 .footer-desc{font-size:.82rem;line-height:1.65;margin-bottom:20px;max-width:260px}
-.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:16px}
+.footer-col .footer-col-title{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange-light,#dd875f);margin-bottom:16px}
 .footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-col ul li a{font-size:.83rem;color:rgba(255,255,255,.65)}
 .footer-col ul li a:hover{color:var(--orange)}
@@ -673,6 +675,25 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
   </aside>
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-blog -->
 <footer>

@@ -187,20 +187,22 @@ function dsRefreshView(){if(cur>=pages.length)cur=pages.length-1;renderTabs();if
 function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();}
 
 function renderTabs(){
+// Notebook (2026-10-25): the row is Dash · Today · the open page · Notebook (n) · +, never one tab per page. Every page is filed
+// in the notebook drawer (notebook-logic.js / notebook-ui.js) by month, newest first.
 const w=document.getElementById('tabrow');w.innerHTML='';
-const d=document.createElement('div');d.className='tab dtab'+(cur===-1?' active':'');
-d.dataset.action='switch-to';d.dataset.pageIdx='-1';
-d.innerHTML='<span class="tlbl">📊 DASH</span>';w.appendChild(d);
-pages.forEach((p,i)=>{
-const t=document.createElement('div');t.className='tab'+(i===cur?' active':'');
-t.dataset.action='switch-to';t.dataset.pageIdx=i;
-const td=isToday(p.dk)?'<span class="today-dot"></span>':'';
-t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}<button class="tx" data-action="trigger-del-tab" data-tab-idx="${i}">×</button>`;
+NBDNotebook.tabSet(pages,cur,todayKey()).forEach(tab=>{
+if(tab.kind==='new'){const plus=document.createElement('div');plus.className='tplus';plus.textContent='+';plus.title='New / jump to today';plus.dataset.action='smart-new-page';w.appendChild(plus);return;}
+const t=document.createElement('div');
+if(tab.kind==='dash'){t.className='tab dtab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx='-1';t.innerHTML='<span class="tlbl">📊 DASH</span>';w.appendChild(t);return;}
+if(tab.kind==='notebook'){t.className='tab ntab';t.dataset.action='notebook-open';t.setAttribute('role','button');t.tabIndex=0;t.title='All pages, filed by month';t.innerHTML=`<span class="tlbl">📓 NOTEBOOK</span><span class="ntab-n">${tab.count}</span>`;w.appendChild(t);return;}
+const p=pages[tab.idx];if(!p)return;
+t.className='tab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx=tab.idx;
+const td=tab.kind==='today'?'<span class="today-dot"></span>':'';
+t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}<button class="tx" data-action="trigger-del-tab" data-tab-idx="${tab.idx}">×</button>`;
 w.appendChild(t);
 });
-const plus=document.createElement('div');plus.className='tplus';plus.textContent='+';plus.title='New / jump to today';
-plus.dataset.action='smart-new-page';w.appendChild(plus);
-setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});},50);
+setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior(),block:'nearest',inline:'nearest'});},50);
+try{window.dispatchEvent(new CustomEvent('nbd-pages-changed'));}catch(e){}
 }
 
 function buildCover(p,qi){
@@ -290,8 +292,32 @@ const txt=(id)=>{const e=document.getElementById(id);return e?e.textContent:'';}
 let sessions=[];try{sessions=JSON.parse(localStorage.getItem('nbd_ds_workouts')||'[]');}catch(e){}
 const p=pages[cur];
 const s=NBDDayLayout.todaySummary({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),workout:NBDDayLayout.workoutDone(sessions,p&&p.dk)});
+// Rings layout (data-ui="rings"): the same numbers drawn as four rings instead of the one-line bar.
+const ui=document.documentElement.getAttribute('data-ui'),rings=ui==='rings',cockpit=ui==='cockpit',quest=ui==='quest',onething=ui==='onething',journal=ui==='journal',arcade=ui==='arcade';
+if(bar.classList){bar.classList.toggle('today-rings',rings);bar.classList.toggle('today-cockpit',cockpit);bar.classList.toggle('today-quest',quest);bar.classList.toggle('today-onething',onething);bar.classList.toggle('today-journal',journal);bar.classList.toggle('today-arcade',arcade);}
+// Arcade layout (data-ui="arcade"): Quest's data as a scoreboard (arcade-ui.js / arcade-logic.js).
+if(arcade&&window.NBDArcadeUI&&window.NBDQuest){const fl3=getFloors(),pd3=(p&&p.data)||{};
+bar.innerHTML=NBDArcadeUI.html({floors:fl3.map(f=>({id:f.id,label:f.label,met:pd3['floormet-'+f.id]==='1'})),workout:s.workout,sessions:sessions,days:NBDQuest.daysFrom(pages,fl3),today:todayKey(),xp:window.NBDXp,coach:window.NBDCoach});return;}
+// Journal layout (data-ui="journal"): a paper page with an intention and a note; both are page fields (data-k), so they save
+// with the page. Read what is typed back before re-rendering, or a floor toggle would wipe it (journal-ui.js).
+if(journal&&window.NBDJournalUI&&p){p.data=p.data||{};bar.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
+bar.innerHTML=NBDJournalUI.html({dk:p.dk,isToday:isToday(p.dk),intention:p.data['journal-intention']||'',note:p.data['journal-note']||'',floorsMet:hit,floorsTotal:total,workout:s.workout,recent:NBDJournalUI.recentIntentions(pages,p.dk,5)});return;}
+// One Thing layout (data-ui="onething"): one big "do this next" card (onething-ui.js / onething-logic.js).
+if(onething&&window.NBDOneThingUI){const fl2=getFloors(),pd2=(p&&p.data)||{};
+bar.innerHTML=NBDOneThingUI.html({floors:fl2.map(f=>({id:f.id,label:f.label,met:pd2['floormet-'+f.id]==='1'})),workout:s.workout,dk:p&&p.dk,today:todayKey()});return;}
+// Quest layout (data-ui="quest"): the bar is a quest board; floors are quests you tap (quest-ui.js / quest-logic.js).
+if(quest&&window.NBDQuestUI&&window.NBDQuest){const fl=getFloors(),pd=(p&&p.data)||{};
+bar.innerHTML=NBDQuestUI.html({floors:fl.map(f=>({id:f.id,label:f.label,met:pd['floormet-'+f.id]==='1'})),workout:s.workout,sessions:sessions,days:NBDQuest.daysFrom(pages,fl),today:todayKey(),xp:window.NBDXp,coach:window.NBDCoach});return;}
+// Cockpit layout (data-ui="cockpit"): one dense HUD of today's numbers plus the training week (cockpit-ui.js).
+if(cockpit&&window.NBDCockpitUI){let tg2={};try{tg2=(window.NBDFoodLogUI&&window.NBDFoodLogUI.targets&&window.NBDFoodLogUI.targets())||{};}catch(e){}
+bar.innerHTML=NBDCockpitUI.html({summary:s,targets:tg2,sessions:sessions,today:todayKey(),coach:window.NBDCoach,xp:window.NBDXp});return;}
+if(rings){let tg={};try{tg=(window.NBDFoodLogUI&&window.NBDFoodLogUI.targets&&window.NBDFoodLogUI.targets())||{};}catch(e){}
+bar.innerHTML=NBDDayLayout.ringsHtml(NBDDayLayout.ringsFor({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),calTarget:tg.calories,proteinTarget:tg.protein,workout:s.workout}));return;}
 bar.innerHTML='<span class="tb-i'+(s.allMet?' ok':'')+'">\u{1F525} <b>'+s.floors+'</b> floors</span><span class="tb-i">\u{1F37D} <b>'+s.cal+'</b> cal</span><span class="tb-i"><b>'+s.protein+'</b> g protein</span><span class="tb-i'+(s.workout?' ok':'')+'">\u{1F3CB} '+(s.workout?'done':'\u2014')+'</span>';
 }
+
+// A layout switch redraws the bar at once.
+window.addEventListener('nbd-layout',updateTodayBar);
 
 function addExercise(data,isDynamic){
 data=data||{};const i=exCount++;const tb=document.getElementById('ex-tbody');if(!tb)return;
@@ -489,19 +515,19 @@ function buildIntelligenceBrief(p){
 
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
 
-  const streakColor = streak >= 7 ? 'var(--grn)' : streak >= 3 ? 'var(--gold)' : streak >= 1 ? 'var(--ac)' : '#8fa1b8';
+  const streakColor = streak >= 7 ? 'var(--grn)' : streak >= 3 ? 'var(--gold)' : streak >= 1 ? 'var(--ac)' : 'var(--muted)';
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${streakColor};line-height:1;">${streak}</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">FLOOR STREAK</div>
   </div>`;
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${workoutStreak >= 3 ? 'var(--grn)' : '#8fa1b8'};line-height:1;">${workoutStreak}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${workoutStreak >= 3 ? 'var(--grn)' : 'var(--muted)'};line-height:1;">${workoutStreak}</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">WORKOUT STREAK</div>
   </div>`;
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${habitPct >= 70 ? 'var(--grn)' : habitPct >= 40 ? 'var(--gold)' : '#8fa1b8'};line-height:1;">${habitPct}%</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${habitPct >= 70 ? 'var(--grn)' : habitPct >= 40 ? 'var(--gold)' : 'var(--muted)'};line-height:1;">${habitPct}%</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">HABIT RATE (7D)</div>
   </div>`;
 
@@ -599,7 +625,7 @@ document.querySelectorAll('.pc[data-sec]').forEach(card=>{let st={};try{st=JSON.
 
 calcMacros();
 updateTodayBar();
-window.scrollTo({top:0,behavior:'smooth'});
+window.scrollTo({top:0,behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior()});
 }
 
 function toggleSection(ph){
@@ -673,17 +699,17 @@ let floorsStatusHtml='';
 const todayD=todayPage?todayPage.data||{}:{};
 const floorRows=floors.map(f=>{
 const met=todayD['floormet-'+f.id]==='1';
-return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--rule);"> <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${met?'var(--grn)':'transparent'};border:1.5px solid ${met?'var(--grn)':'#8fa1b8'};"></div> <span style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${met?'#4caf82':'var(--muted)'};">${E(f.label)}</span> <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#334455;">≥${E(f.targetValue)} ${E(f.unit)}</span> </div>`;
+return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--rule);"> <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${met?'var(--grn)':'transparent'};border:1.5px solid ${met?'var(--grn)':'#8fa1b8'};"></div> <span style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${met?'#4caf82':'var(--muted)'};">${E(f.label)}</span> <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);">≥${E(f.targetValue)} ${E(f.unit)}</span> </div>`;
 }).join('');
 const metToday=todayPage?floors.filter(f=>todayD['floormet-'+f.id]==='1').length:0;
-floorsStatusHtml=`<div class="dc"><div class="dct">Daily Floors <small>TODAY'S STATUS</small></div> ${todayPage?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${metToday===floors.length?'#4caf82':'var(--gold)'};margin-bottom:8px;letter-spacing:.1em;">${metToday}/${floors.length} FLOORS MET</div>`:`<div class="de">No entry for today yet</div>`} ${floorRows} <button class="btn btn-ghost" style="margin-top:12px;width:100%;justify-content:center;font-size:12px;" data-action="quick-start-defaults">↺ Reset to Quick Start Defaults</button> </div>`;
+floorsStatusHtml=`<div class="dc"><div class="dct">Daily Floors <small>TODAY'S STATUS</small></div> ${todayPage?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${metToday===floors.length?'#4caf82':'var(--ac-text,var(--gold))'};margin-bottom:8px;letter-spacing:.1em;">${metToday}/${floors.length} FLOORS MET</div>`:`<div class="de">No entry for today yet</div>`} ${floorRows} <button class="btn btn-ghost" style="margin-top:12px;width:100%;justify-content:center;font-size:12px;" data-action="quick-start-defaults">↺ Reset to Quick Start Defaults</button> </div>`;
 }
 
 let salesPref=null;try{salesPref=localStorage.getItem('nbd_ds_show_sales');}catch(e){}
 const showSales=NBDDayLayout.salesVisible(salesPref,{doors:totD,contacts:totCon,appts:totA,closes:totC,revenue:totR,goals:gt});
 window._dsShowSales=showSales;
 const wrap=document.createElement('div');wrap.className='dw';
-wrap.innerHTML=` <div class="dhero"><div><div class="dhero-t">Program Dashboard</div><div class="dhero-s">${pc} PAGE${pc!==1?'S':''} · ALL-TIME AGGREGATES</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-action="export-csv">CSV</button><button class="btn btn-gold" data-action="do-print">PDF</button><button class="btn btn-ghost" data-action="toggle-sales" aria-pressed="${showSales?'true':'false'}">🚪 Door stats: ${showSales?'on':'off'}</button><button class="btn btn-ghost" data-action="open-onboard">⚙️ CUSTOMIZE</button></div></div> <div class="dgrid"> ${northStarHtml} ${showSales?`<div class="dc"><div class="dct">Activity Totals <small>ALL PAGES</small></div><div class="srow2"><div class="sb"><div class="sv">${totD}${dbadge(lastD,prevD)}</div><div class="sl">Doors</div></div><div class="sb"><div class="sv">${avgD}</div><div class="sl">Avg/Day</div></div><div class="sb"><div class="sv">${totC}</div><div class="sl">Closes</div></div></div><div class="srow2"><div class="sb"><div class="sv">${totA}</div><div class="sl">Appts</div></div><div class="sb" style="flex:2"><div class="sv" style="font-size:22px">$${totR.toLocaleString()}${dbadge(lastR,prevR)}</div><div class="sl">Revenue</div></div></div></div>`:''} ${floorsStatusHtml} <div class="dc"><div class="dct">Streaks & Records</div>${showSales&&bDI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bDI}"><div class="best-ico">🚪</div><div class="best-info"><div class="best-lbl">Best Door Day</div><div class="best-val">${E(tlbl(pages[bDI]))} · ${bDV} doors</div></div></div>`:''} ${showSales&&bRI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bRI}"><div class="best-ico">💰</div><div class="best-info"><div class="best-lbl">Best Revenue Day</div><div class="best-val">${E(tlbl(pages[bRI]))} · $${bRV.toLocaleString()}</div></div></div>`:''}<div class="sk-row">${showSales?`<div class="sk ${runD>=3?'gold':''}"><div class="sk-icon">🚪</div><div class="sk-val">${runD}</div><div class="sk-lbl">Door Streak</div></div>`:''}<div class="sk ${runW>=3?'gold':''}"><div class="sk-icon">💪</div><div class="sk-val">${runW}</div><div class="sk-lbl">Workout Streak</div></div><div class="sk ${runWin>=3?'gold':''}"><div class="sk-icon">⭐</div><div class="sk-val">${runWin}</div><div class="sk-lbl">Win Streak</div></div></div></div> ${showSales?`<div class="dc"><div class="dct">Monthly Goals <small>SET TARGETS</small></div><div class="gpw">${gpRow('Doors',totD,gt.d,'d','var(--blu)')}${gpRow('Revenue ($)',totR,gt.r,'r','var(--grn)')}${gpRow('Closes',totC,gt.c,'c','var(--ac)')}</div></div> <div class="dc wide"><div class="dct">Revenue Pace <small>VS MONTHLY GOAL</small></div><div class="pace-wrap"><div class="pace-row"><span class="pace-lbl">Actual</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div><div class="pace-msg ${!gt.r?'none':isAhead?'ahead':'behind'}">${paceMsg}</div>${gt.r?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:3px;">Day ${dom} of ${dim} · ${dl} days remaining</div>`:''}</div></div> <div class="dc wide"><div class="dct">Doors Knocked <small>PER PAGE</small></div><canvas id="c-doors" height="60"></canvas></div> <div class="dc"><div class="dct">Revenue <small>PER PAGE</small></div><canvas id="c-rev" height="100"></canvas></div> <div class="dc"><div class="dct">Closes <small>PER PAGE</small></div><canvas id="c-close" height="100"></canvas></div> `:''} <div class="dc wide"><div class="dct">Habit Compliance <small>CUMULATIVE</small></div>${HABITS.map((h,i)=>{const tot=habTot[i],max=pc*7,pct=max?Math.round(tot/max*100):0;return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule)"><span style="flex:1;font-size:12px;color:var(--ink)">${h}</span><div style="width:80px;height:5px;background:var(--rule);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${pct}%;background:var(--grn);border-radius:3px"></div></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:24px;text-align:right">${tot}</span></div>`;}).join('')}</div> <div class="dc wide"><div class="dct">All Pages <small>CLICK TO NAVIGATE</small></div>${!pages.length?`<div class="de">No pages yet</div>`:pages.map((p,i)=>{const rev=parseFloat(p.data?.['s-revenue']||0)||0;const td=isToday(p.dk)?'<span class="today-dot" style="margin-left:4px"></span>':'';return `<div class="prd" data-action="switch-to" data-page-idx="${i}"><div class="prd-l"><span class="prd-d">${E(tlbl(p))}${td} · ${dkFull(p.dk).split(',')[0]}</span>${showSales?`<span class="prd-s">Doors: ${p.kpi?.doors||0} · Closes: ${p.kpi?.closes||0} · Rev: $${rev.toLocaleString()}${p.data?.['s-territory']?' · '+E(p.data['s-territory']):''}</span>`:''}</div><span style="color:var(--rule);flex-shrink:0">→</span></div>`;}).join('')}</div> </div>`;
+wrap.innerHTML=` <div class="dhero"><div><div class="dhero-t">Program Dashboard</div><div class="dhero-s">${pc} PAGE${pc!==1?'S':''} · ALL-TIME AGGREGATES</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-action="export-csv">CSV</button><button class="btn btn-gold" data-action="do-print">PDF</button><button class="btn btn-ghost" data-action="toggle-sales" aria-pressed="${showSales?'true':'false'}">🚪 Door stats: ${showSales?'on':'off'}</button><button class="btn btn-ghost" data-action="open-onboard">⚙️ CUSTOMIZE</button></div></div> <div class="dgrid"> ${northStarHtml} ${showSales?`<div class="dc"><div class="dct">Activity Totals <small>ALL PAGES</small></div><div class="srow2"><div class="sb"><div class="sv">${totD}${dbadge(lastD,prevD)}</div><div class="sl">Doors</div></div><div class="sb"><div class="sv">${avgD}</div><div class="sl">Avg/Day</div></div><div class="sb"><div class="sv">${totC}</div><div class="sl">Closes</div></div></div><div class="srow2"><div class="sb"><div class="sv">${totA}</div><div class="sl">Appts</div></div><div class="sb" style="flex:2"><div class="sv" style="font-size:22px">$${totR.toLocaleString()}${dbadge(lastR,prevR)}</div><div class="sl">Revenue</div></div></div></div>`:''} ${floorsStatusHtml} <div class="dc"><div class="dct">Streaks & Records</div>${showSales&&bDI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bDI}"><div class="best-ico">🚪</div><div class="best-info"><div class="best-lbl">Best Door Day</div><div class="best-val">${E(tlbl(pages[bDI]))} · ${bDV} doors</div></div></div>`:''} ${showSales&&bRI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bRI}"><div class="best-ico">💰</div><div class="best-info"><div class="best-lbl">Best Revenue Day</div><div class="best-val">${E(tlbl(pages[bRI]))} · $${bRV.toLocaleString()}</div></div></div>`:''}<div class="sk-row">${showSales?`<div class="sk ${runD>=3?'gold':''}"><div class="sk-icon">🚪</div><div class="sk-val">${runD}</div><div class="sk-lbl">Door Streak</div></div>`:''}<div class="sk ${runW>=3?'gold':''}"><div class="sk-icon">💪</div><div class="sk-val">${runW}</div><div class="sk-lbl">Workout Streak</div></div><div class="sk ${runWin>=3?'gold':''}"><div class="sk-icon">⭐</div><div class="sk-val">${runWin}</div><div class="sk-lbl">Win Streak</div></div></div></div> ${showSales?`<div class="dc"><div class="dct">Monthly Goals <small>SET TARGETS</small></div><div class="gpw">${gpRow('Doors',totD,gt.d,'d','var(--blu)')}${gpRow('Revenue ($)',totR,gt.r,'r','var(--grn)')}${gpRow('Closes',totC,gt.c,'c','var(--ac)')}</div></div> <div class="dc wide"><div class="dct">Revenue Pace <small>VS MONTHLY GOAL</small></div><div class="pace-wrap"><div class="pace-row"><span class="pace-lbl">Actual</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div><div class="pace-msg ${!gt.r?'none':isAhead?'ahead':'behind'}">${paceMsg}</div>${gt.r?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:3px;">Day ${dom} of ${dim} · ${dl} days remaining</div>`:''}</div></div> <div class="dc wide"><div class="dct">Doors Knocked <small>PER PAGE</small></div><canvas id="c-doors" height="60"></canvas></div> <div class="dc"><div class="dct">Revenue <small>PER PAGE</small></div><canvas id="c-rev" height="100"></canvas></div> <div class="dc"><div class="dct">Closes <small>PER PAGE</small></div><canvas id="c-close" height="100"></canvas></div> `:''} <div class="dc wide"><div class="dct">Habit Compliance <small>CUMULATIVE</small></div>${HABITS.map((h,i)=>{const tot=habTot[i],max=pc*7,pct=max?Math.round(tot/max*100):0;return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule)"><span style="flex:1;font-size:12px;color:var(--ink)">${h}</span><div style="width:80px;height:5px;background:var(--rule);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${pct}%;background:var(--grn);border-radius:3px"></div></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:24px;text-align:right">${tot}</span></div>`;}).join('')}</div> <div class="dc wide"><div class="dct">All Pages <small>FILED BY MONTH · NEWEST FIRST</small><button class="btn btn-ghost dct-act" data-action="notebook-open">📓 Open notebook</button></div>${!pages.length?`<div class="de">No pages yet</div>`:NBDNotebook.groupByMonth(pages,todayKey()).map(sec=>`<div class="prd-month">${E(sec.label)} <small>${sec.count}</small></div>`+sec.entries.map(en=>{const i=en.idx,p=pages[i];const rev=parseFloat(p.data?.['s-revenue']||0)||0;const td=isToday(p.dk)?'<span class="today-dot" style="margin-left:4px"></span>':'';return `<div class="prd" data-action="switch-to" data-page-idx="${i}"><div class="prd-l"><span class="prd-d">${E(tlbl(p))}${td} · ${dkFull(p.dk).split(',')[0]}</span>${showSales?`<span class="prd-s">Doors: ${p.kpi?.doors||0} · Closes: ${p.kpi?.closes||0} · Rev: ${rev.toLocaleString()}${p.data?.['s-territory']?' · '+E(p.data['s-territory']):''}</span>`:''}</div><span style="color:var(--muted);flex-shrink:0">→</span></div>`;}).join('')).join('')}</div> </div>`;
 main.appendChild(wrap);
 // Debounce localStorage writes on goal-target keystrokes — one write per
 // 250ms idle beats one write per keystroke (the old behavior burned CPU
@@ -867,7 +893,7 @@ else if(pct>=.5){bg='var(--gold)';border='var(--gold)';color='#fff';}
 else if(pct>0){bg='rgba(249,115,22,.3)';border='var(--ac)';color='var(--ac)';}
 }
 const ring=isToday?'box-shadow:0 0 0 2px var(--ac);':'';
-html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${pages.indexOf(pg)}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${isToday?'var(--ac-text)':'var(--muted)'};letter-spacing:.1em;font-weight:${isToday?'700':'400'}">${days[i]}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${color};${ring}">${pg&&total>0?metCount:d.getDate()}</div></div>`;
+html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${pages.indexOf(pg)}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${isToday?'var(--ac-on-dark,var(--ac-text))':'var(--on-dark,var(--muted))'};letter-spacing:.1em;font-weight:${isToday?'700':'400'}">${days[i]}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${color};${ring}">${pg&&total>0?metCount:d.getDate()}</div></div>`;
 }
 html+='</div>';
 return html;
@@ -902,7 +928,7 @@ const pCl=prev?(prev.kpi?.closes||0):null;
 return `<div style="background:#0a1018;width:100%;max-width:760px;border-radius:4px;padding:14px 22px;border:1px solid #1e2d40;border-left:4px solid var(--blu);">
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
 <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;">TODAY VS YESTERDAY</span>
-<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gold);letter-spacing:.08em;">${prev?'vs '+E(tlbl(prev)):'No previous day'}</span>
+<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--ac-on-dark,var(--gold));letter-spacing:.08em;">${prev?'vs '+E(tlbl(prev)):'No previous day'}</span>
 </div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
 <div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${doors}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#8fa1b8;letter-spacing:.1em;">DOORS</div><div style="font-size:12px;margin-top:2px;">${delta(doors,pD)}</div></div>
@@ -1266,7 +1292,7 @@ function nbdRenderThemes() {
     const ok = _nbdUnlocked(t.plan) || t.cat === 'custom';
     const isAct = t.id === _nbd_activeTheme;
     const hexLum = h => { const n=parseInt((h||'#000').replace('#',''),16); const r=((n>>16)&255)/255,g=((n>>8)&255)/255,b=(n&255)/255; const tl=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4); return 0.2126*tl(r)+0.7152*tl(g)+0.0722*tl(b); };
-    const textCol = hexLum(t.bg||'#000') > 0.12 ? '#1a1208' : '#e8eaf0';
+    const textCol = hexLum(t.s||'#13171d') > 0.12 ? '#1a1208' : '#e8eaf0';
     const d = document.createElement('div');
     d.className = 'npm-bubble' + (isAct ? ' active' : '') + (ok ? '' : ' locked');
     d.onclick = () => { if (ok) nbdApplyTheme(t.id); else nbdToast('🔒 ' + t.plan + ' required'); };

@@ -19,6 +19,10 @@
  * Return shape:
  *   { ok: true, id: 'firestore-doc-id' }
  *   { ok: false, reason: '...', status: <http status> }
+ *   friendly: true on a failure means `reason` is plain language a form can
+ *   show as written (offline, timeout, 403, 429, 5xx); without it `reason` is
+ *   the server's own text (a 400's field message, or the opaque "Invalid
+ *   submission" the calling form translates).
  *
  * The function URL comes from window.__NBD_FUNCTIONS_BASE so each
  * host page can override for staging/prod without touching this file.
@@ -240,6 +244,27 @@
   }
   window.nbdLeadFailFallback = showLeadFallback;
 
+  // ─── Plain-language failures (2026-10-26) ──────────────────────────
+  // `reason` used to be the browser's or the server's own string ("Network
+  // error: Failed to fetch", "Rate limit exceeded", "Verification failed",
+  // "Submission failed") and the forms printed it to homeowners as is. The
+  // ones a visitor can't act on are replaced here, once, by what happened and
+  // what to do, with `friendly: true` so a form knows it can show the reason
+  // as written; the raw text goes to console.warn only. A 400 keeps the
+  // server's words (the phone message is an instruction; "Invalid submission"
+  // is translated by the form that knows its own fields). The call/text
+  // number follows fallbackAllowed(), so a tenant microsite gets the same
+  // sentences without NBD's number.
+  function orCallJoe() {
+    return fallbackAllowed() ? ', or call or text Joe at ' + JOE_DISPLAY : '';
+  }
+  function plainReason(status) {
+    if (status === 400) return '';
+    if (status === 429) return 'Lots of requests are coming in right now. Wait a minute and try again' + orCallJoe() + '.';
+    if (status === 403) return 'We couldn\u2019t verify this request. Try again' + orCallJoe() + '.';
+    return 'Something went wrong on our end. Try again in a moment' + orCallJoe() + '.';
+  }
+
   const SUBMIT_TIMEOUT_MS = 20000;
   const FOLLOW_UP_TYPES = ['estimate_result', 'cta_click', 'email_estimate_request'];
 
@@ -277,6 +302,11 @@
       if (abortTimer) clearTimeout(abortTimer);
       if (!res.ok) {
         showLeadFallback();
+        const plain = plainReason(res.status);
+        if (plain) {
+          console.warn('[submitPublicLead] ' + res.status + ': ' + (data.error || 'no message'));
+          return { ok: false, friendly: true, reason: plain, status: res.status };
+        }
         return { ok: false, reason: data.error || 'Submission failed', status: res.status };
       }
       // Central conversion event: every public lead form routes through
@@ -303,9 +333,10 @@
       if (abortTimer) clearTimeout(abortTimer);
       showLeadFallback();
       if (e && e.name === 'AbortError') {
-        return { ok: false, timedOut: true, reason: 'This is taking too long. Check your connection and try again.' };
+        return { ok: false, timedOut: true, friendly: true, reason: 'This is taking too long. Check your connection and try again' + orCallJoe() + '.' };
       }
-      return { ok: false, reason: 'Network error: ' + (e.message || 'unknown') };
+      console.warn('[submitPublicLead] could not reach the server: ' + ((e && e.message) || 'unknown'));
+      return { ok: false, network: true, friendly: true, reason: 'We couldn\u2019t reach our server. Check your connection and try again' + orCallJoe() + '.' };
     }
   }
 

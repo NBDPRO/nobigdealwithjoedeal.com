@@ -54,6 +54,11 @@
 .ct-badge-purple.ct-badge-purple { background: rgba(168,85,247,.15); color: #a855f7; }
 .ct-badge-share.ct-badge-share { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); cursor: pointer; }
 .ct-badge-shared.ct-badge-shared { background: rgba(34,197,94,.85); color: #fff; border: 0; cursor: pointer; font-weight: 600; }
+/* Share / Shared is its own action inside the photo tile's tap area. The pill is 14px tall, which is a miss on a
+   phone, so its hit box grows 4px each way: 44 wide, and as tall as the badge strip (22px). The strip's own padding
+   is the limit on purpose: reaching further would turn a tap on the photo into a share. */
+.nbd-share-toggle.nbd-share-toggle { position: relative; }
+.nbd-share-toggle::after { content: ''; position: absolute; inset: -4px; }
 .ct-field-ta { resize: vertical; }
 .ct-bb { box-sizing: border-box; }
 /* Deal-room pick chip (js/accepted-tier-chip.js, 2026-10-03). 44px taps. */

@@ -42,7 +42,11 @@ const HOUR = 3600000, DAY = 86400000;
 // Tue 2026-10-20 15:00 UTC = 11:00 ET (inside the 8am-9pm window).
 const NOW = Date.UTC(2026, 9, 20, 15, 0, 0);
 const at = (hAgo) => NOW - hAgo * HOUR;
-const ev = (o) => Object.assign({ id: 'e' + Math.random().toString(36).slice(2), channel: 'sms', automation: 'rep_text', atMs: at(1), outcome: 'sent', errorCode: '', toKey: '8595550101', toDisplay: '(•••) •••-0101', name: 'Pat L.', templateId: 'x', text: 'hello', consent: 'form', state: 'OH', internal: false, blockedReason: '', source: 't' }, o);
+// Deterministic, digit-free ids: a random base-36 id holds a 7+ digit run about 1 time in 2,200 (measured),
+// which the "no raw 7+ digit run" assertions below read as a leaked phone number, so the suite flaked at that rate.
+let _evSeq = 0;
+const _evId = () => { let n = _evSeq++, out = ''; do { out = String.fromCharCode(97 + (n % 26)) + out; n = Math.floor(n / 26); } while (n > 0); return 'evt-' + out; };
+const ev = (o) => Object.assign({ id: _evId(), channel: 'sms', automation: 'rep_text', atMs: at(1), outcome: 'sent', errorCode: '', toKey: '8595550101', toDisplay: '(•••) •••-0101', name: 'Pat L.', templateId: 'x', text: 'hello', consent: 'form', state: 'OH', internal: false, blockedReason: '', source: 't' }, o);
 
 console.log('\nMASKING');
 ok('maskPhone shows last 4 only', L.maskPhone('(859) 555-0142') === '(•••) •••-0142');
@@ -55,8 +59,10 @@ ok('scrubText masks an e-mail typed into a reply', !/pat\.lee/.test(L.scrubText(
 const leaky = ev({ text: 'Reply from 859-555-0142 or pat@example.com ' + 'z'.repeat(200), name: 'Pat 8595550142', toDisplay: L.maskPhone('8595550142') });
 const pub = L.publicEvent(leaky, {});
 ok('publicEvent: first line <= 80 chars', pub.firstLine.length <= 80);
-ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"atMs":\d+/, '')) && !/pat@example/.test(JSON.stringify(pub)), JSON.stringify(pub));
+ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"(atMs|generatedAtMs|ageMs|lastSendAtMs)":\d+/g, '')) && !/pat@example/.test(JSON.stringify(pub)), JSON.stringify(pub));
 ok('publicEvent never carries the raw recipient key', !('toKey' in pub));
+ok('control: the 7+ digit scan can fail (a leaked number or a 7-digit id trips it)', /\d{7,}/.test(JSON.stringify({ id: 'e12345678z' })) && /\d{7,}/.test(JSON.stringify({ recipient: '8595550142' })));
+ok('ev() ids hold no digits, so the scan only ever sees real leaks', Array.from({ length: 300 }, () => ev({}).id).every((id) => !/\d/.test(id)));
 
 console.log('\nNORMALISERS (one ledger row -> one event)');
 {
@@ -402,7 +408,7 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   ok('watch: inbox items are reports for the owner company, pending, create-only ids', filed.length === live1.filed && filed.every((k) => wdb.data.agent_inbox[k].kind === 'report' && wdb.data.agent_inbox[k].companyId === OWNER && wdb.data.agent_inbox[k].status === 'pending'));
   ok('watch: only ever writes agent_inbox + the bell (never a customer collection)', wdb.log.writes.every((w) => /^(agent_inbox|notifications)\//.test(w.path)), JSON.stringify(wdb.log.writes.map((w) => w.path)));
   const pushedBefore = calls.pushes.length;
-  const live2 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 5 * 60000, live: true, push });
+  const live2 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 1000, live: true, push }); // 1 s, not 5 min: T0 is the real clock, and +5 min crosses ET midnight at 23:55-00:00 (CI flaked 2026-10-22 23:55)
   ok('watch: a second run the same day files nothing new and pushes nothing (no spam)', live2.filed === 0 && live2.alreadyFiled === live1.filed && calls.pushes.length === pushedBefore, JSON.stringify(live2));
   const live3 = await S._internal.runWatch({ db: wdb, nowMs: T0 + 26 * HOUR, live: true, push });
   ok('watch: a new day starts fresh dedupe keys', typeof live3.filed === 'number');
@@ -540,6 +546,15 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   {
     const unread = C.viewHtml({ enabled: false, flagsUnread: true }, 'all'), off = C.viewHtml({ enabled: false }, 'all');
     ok('#/messaging says "flags could not be read" differently from "switched off"', /could not be read/.test(unread) && !/switched off/.test(unread) && /switched off/.test(off) && !/could not be read/.test(off));
+  }
+
+  // client: 'sent' (provider accepted) must never look like 'delivered'
+  {
+    const oh = C.outcomesHtml({ outcomes: { sms: { sent: 3, delivered: 1, failed: 0, undelivered: 0, unknown: 0 }, email: {}, push: {} } });
+    ok('outcomes: accepted-not-confirmed is amber, delivered is green', /mc-warn">accepted, not confirmed 3/.test(oh) && /mc-ok">delivered 1/.test(oh), oh.slice(0, 400));
+    ok('outcomes: no green chip claims plain "sent"', !/mc-ok">sent/.test(oh));
+    const evh = (outcome) => C.eventHtml(L.publicEvent(ev({ automation: 'lead_ack_text', consent: 'form', text: 'Got your estimate request', atMs: NOW - 1000, outcome }), {}), 'America/New_York');
+    ok('row: sent shows amber accepted-not-confirmed; delivered shows green', /mc-warn">accepted, not confirmed/.test(evh('sent')) && /mc-ok">delivered/.test(evh('delivered')));
   }
 
   // client: status strip wording and colours

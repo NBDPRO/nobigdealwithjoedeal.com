@@ -64,9 +64,9 @@
 /* Schedule tap targets (2026-10-13, phone audit 2026-10-07 #8): "Back to CRM"
    and "Open lead" were 12px tall, "Show all open leads" a 13px box, the lead
    names 19px, the inputs / Save / Clear 31-38px. 44px on a phone. */
-.sched-back { display: inline-flex; align-items: center; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .08em; color: var(--orange); cursor: pointer; }
+.sched-back { display: inline-flex; align-items: center; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .08em; color: var(--ui-accent-text, var(--orange)); cursor: pointer; }
 .sc-lead-open { background: none; border: none; padding: 0; color: var(--orange); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; white-space: nowrap; }
-.sched-inline-link { color: var(--orange); text-decoration: underline; }
+.sched-inline-link { color: var(--ui-accent-text, var(--orange)); text-decoration: underline; }
 @media (max-width: 768px) {
   #view-schedule .sched-back { min-height: 44px; padding-right: 12px; }
   #view-schedule .sc-outcome-open { min-height: 44px; }

@@ -35,7 +35,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Recorded from the plain logger before the superset code existed.
 // Re-blessed 2026-10-21 for the RPE wording in target notes ("(last 135 × 8/8 at RPE 8)"). Proven: with that one string switched
 // off the run still hashes to the previous digest d663f225bf4888e3ff4b9fc35ddb609793c56412, so nothing else moved.
-const GOLDEN_DIGEST = 'bae7a95a1537781fdf9cdfaa2e03bcff07d4571e';
+// Re-blessed 2026-10-23 for the a11y audit: the rest bar's text moved into a role=timer span next to a button that is no longer
+// rebuilt each second. Proven: with tags stripped from the hashed rest HTML, the run on origin/main and on this code both hash to
+// d476fa7d8bf5ffa4e83c05378a2e41deddc596f1, so only that markup moved.
+const GOLDEN_DIGEST = 'd5fb43905d78b6b00a307ccc54190a15a7ea40e6';
 
 console.log('\n1. the plain logger is unchanged (nothing paired)');
 {

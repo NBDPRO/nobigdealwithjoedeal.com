@@ -1,0 +1,45 @@
+/* follow-up-board.css - "Follow-ups" board (js/follow-up-board.js, 2026-11-03,
+   flag followUpBoard). One column, 44px+ targets, no horizontal scroll. */
+
+#followUpBoardBtn[hidden] { display: none; }
+
+.fub-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .6); overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; align-items: flex-start; justify-content: center; }
+.fub-box { width: 100%; max-width: 640px; margin: 8px 0; background: var(--s, #1a1d23); color: var(--t); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.fub-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fub-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.fub-x { font: inherit; font-size: 22px; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+
+.fub-sub { margin: 8px 0 10px; font-size: 13px; color: var(--m); }
+.fub-result { padding: 8px 10px; margin: 10px 0; border-radius: 8px; background: var(--s2, #22252c); font-size: 13px; overflow-wrap: anywhere; }
+.fub-empty { padding: 18px 0; text-align: center; color: var(--m); }
+.fub-total { font-size: 16px; font-weight: 800; margin: 10px 0 6px; }
+.fub-proj, .fub-gv { font-size: 12px; font-weight: 600; color: var(--m); }
+
+.fub-group { margin-top: 12px; }
+.fub-gh { margin: 0 0 6px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.fub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fub-row { padding: 10px; border: 1px solid var(--br, #2a2d35); border-radius: 10px; background: var(--s2, #22252c); min-width: 0; }
+.fub-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.fub-name { font-size: 17px; font-weight: 800; color: var(--t); text-decoration: none; overflow-wrap: anywhere; min-width: 0; }
+.fub-val { flex: none; font-size: 16px; font-weight: 800; color: var(--orange); }
+.fub-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 12px; color: var(--m); }
+.fub-chip { font-weight: 700; color: var(--t); }
+.fub-step { font-weight: 700; color: var(--t); }
+.fub-note { margin-top: 8px; font-size: 12px; color: var(--m); }
+.fub-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.fub-chan { flex: 1 1 100%; font-size: 12px; color: var(--m); }
+.fub-btn { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s, #1a1d23); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.fub-go { background: var(--orange); border-color: var(--orange); color: #fff; }
+.fub-btn:disabled { opacity: .45; cursor: not-allowed; }
+.fub-promise { width: 100%; }
+.fub-pick { margin: 8px 0; }
+.fub-in { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s, #1a1d23); color: var(--t); }
+.fub-pickbtn { width: 100%; text-align: left; }
+.fub-hint, .fub-foot { margin: 6px 0; font-size: 12px; color: var(--m); }
+.fub-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+@media (max-width: 480px) {
+  .fub-overlay { padding: 6px; }
+  .fub-box { padding: 10px; }
+  .fub-acts .fub-btn { flex: 1 1 140px; }
+}

@@ -861,6 +861,7 @@
 
   function setTab(tab) {
     currentTab = tab;
+    if (tab === 'outreach' && window.StormOutreachUI) window.StormOutreachUI.load();
     render();
   }
 
@@ -934,6 +935,7 @@
           ${tabBtn('alerts', 'Live Alerts', '📡')}
           ${tabBtn('zones', 'Storm Zones', '🗺️')}
           ${tabBtn('canvass', 'Canvass Plans', '🚪')}
+          ${tabBtn('outreach', 'Outreach', '✉️')}
           ${tabBtn('analytics', 'Storm Analytics', '📊')}
         </div>
       </div>
@@ -951,6 +953,8 @@
       html += renderZonesTab();
     } else if (currentTab === 'canvass') {
       html += renderCanvassTab();
+    } else if (currentTab === 'outreach') {
+      html += window.StormOutreachUI ? window.StormOutreachUI.html() : '<div class="nbd-empty"><div class="ne-sub">Loading…</div></div>';
     } else if (currentTab === 'analytics') {
       html += renderAnalyticsTab();
     }
@@ -1019,10 +1023,10 @@
                 </div>
                 <div class="stc-card-sub">${esc(a.areaDesc?.split(';').slice(0, 3).join(', ') || 'Unknown area')}</div>
                 <div class="stc-tags">
-                  <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${severityColor(a.severity)} 13%, transparent);color:${severityColor(a.severity)};font-weight:600;">${a.severity}</span>
+                  <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${severityColor(a.severity)} 13%, transparent);color:color-mix(in srgb, ${severityColor(a.severity)} 50%, var(--t, #e8eaf0));font-weight:600;">${a.severity}</span>
                   ${a.hailSize ? `<span class="stx-fs10px-p2px8px-r10px">🧊 ${a.hailSize}" Hail</span>` : ''}
                   ${a.windSpeed ? `<span class="stx-fs10px-p2px8px-r10px-2">💨 ${a.windSpeed}mph</span>` : ''}
-                  <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'} 13%, transparent);color:${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'};font-weight:600;">
+                  <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'} 13%, transparent);color:color-mix(in srgb, ${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'} 50%, var(--t, #e8eaf0));font-weight:600;">
                     ${Math.round(a.damageProb * 100)}% damage prob
                   </span>
                 </div>

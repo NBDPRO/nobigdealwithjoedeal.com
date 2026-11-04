@@ -146,7 +146,7 @@ console.log('E. wiring');
   const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
   ok('kicked once the claims are known, for reps / owners / managers', /window\._userClaims = tokenResult\.claims \|\| \{\};\n[\s\S]{0,1200}window\.ScriptLoader\.loadBundle\('canvasser'\)/.test(boot) && /\['sales_rep', 'company_admin', 'manager', 'admin'\]\.includes\(_cvRole\)/.test(boot));
   const dash = read('docs/pro/dashboard.html');
-  ok('the Team tab has the panel mount; bootstrap and script-loader cache-busted', /<div class="panel mb-md" id="canvasserPanel" hidden><\/div>/.test(dash) && /dashboard-bootstrap\.module\.js\?v=42/.test(dash) && /script-loader\.js\?v=209/.test(dash));
+  ok('the Team tab has the panel mount; bootstrap and script-loader cache-busted', /<div class="panel mb-md" id="canvasserPanel" hidden><\/div>/.test(dash) && /dashboard-bootstrap\.module\.js\?v=42/.test(dash) && /script-loader\.js\?v=(209|2[1-9]\d|[3-9]\d\d)(?!\d)/.test(dash));
   ok('no new boot <script> tag for canvasser mode', !/<script[^>]+canvasser/.test(dash));
   const css = read('docs/pro/css/canvasser.css');
   ok('44 px targets, accent / danger text tokens, the rep menu hidden by class', /\.cv-btn \{ min-height: 44px;/.test(css) && /\.cv-chip \{ min-height: 44px;/.test(css) && /\.cv-item \{[^}]*min-height: 44px;/.test(css) && /var\(--ui-accent-text/.test(css) && /var\(--ui-danger-text/.test(css) && /html\.nbd-canvasser \.ni\[data-target\]:not\(\[data-target="d2d"\]\)/.test(css));

@@ -622,9 +622,13 @@ console.log('\nWiring');
 
   ok('the Connect webhook uses its OWN signing secret',
     /defineSecret\('STRIPE_CONNECT_WEBHOOK_SECRET'\)/.test(HANDLER));
+  // \b, not the literal backspace bytes this regex held until 2026-10-24 (it could never match).
+  const PLATFORM_SECRET = /\bSTRIPE_WEBHOOK_SECRET\b/;
   ok('it does NOT fall back to the platform webhook secret',
-    !/STRIPE_WEBHOOK_SECRET/.test(CODE),
+    !PLATFORM_SECRET.test(CODE),
     'accepting a platform-signed payload here would let a replayed event write account state');
+  ok('control: that check catches a platform-secret fallback and ignores the Connect secret',
+    PLATFORM_SECRET.test("defineSecret('STRIPE_WEBHOOK_SECRET')") && !PLATFORM_SECRET.test("defineSecret('STRIPE_CONNECT_WEBHOOK_SECRET')"));
   ok('an unset webhook secret fails CLOSED (never "skip verification")',
     /startsWith\('whsec_'\)/.test(HANDLER) && /webhook not configured/.test(HANDLER));
   ok('signature verification pins an explicit 300s tolerance',

@@ -44,7 +44,7 @@ The date / range / Today / Last 24 hours / direction / order system is live. Nex
 1. **Status and missed-call filters** (Jo to confirm which statuses matter).
 2. **Saved views** ("Missed today", "Unhandled this week") on top of the one saved-filter record already persisted.
 3. **Follow-up reminders from a call** that write a note / reminder into the Agent inbox path (never auto-texting;
-   outbound texting is off until A2P approval).
+   outbound texts stay owner-approved and flag-gated; A2P is Verified, 2026-10-19).
 4. **Counts that match the screen everywhere** (people, not rows, on Needs attention - already the rule).
 
 ## Cross-cutting (every horizon)

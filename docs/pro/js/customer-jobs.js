@@ -68,7 +68,9 @@
     const first = list[0].id;
     for (const e of expenses || []) {
       if (!e || e.costType !== 'direct') continue;
-      const c = parseInt(e.amountCents, 10) || 0;
+      // A credit / refund row (flag costCredits, stored positive) nets the job's cost down.
+      const raw = parseInt(e.amountCents, 10) || 0;
+      const c = e.entryType === 'credit' ? -raw : raw;
       if (!c) continue;
       const jid = e.jobId && ids.has(e.jobId) ? e.jobId : first;
       out[jid] = (out[jid] || 0) + c;
@@ -79,6 +81,8 @@
 
   /** "costs $1,200 · 38% margin" for one job, or '' when it has no costs. */
   function costLine(valueDollars, cents) {
+    // Credits bigger than the costs: say so, never show nothing (or a flattering margin).
+    if (cents < 0) return 'credits exceed costs (-$' + (Math.abs(cents) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }) + ')';
     if (!(cents > 0)) return '';
     const v = Number(valueDollars) || 0;
     const parts = ['costs $' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })];

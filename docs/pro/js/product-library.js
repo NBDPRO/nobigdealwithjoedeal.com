@@ -601,7 +601,7 @@
           <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
             <span class="plx-caret">${chevron}</span>
             <span class="plx-fs20">${catIcon(catId)}</span>
-            <h3 style="margin:0;font-size:16px;font-weight:700;color:${catColor(catId)};flex:1;">${escapeHtml(catLabel(catId))}</h3>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:color-mix(in srgb, ${catColor(catId)} 50%, var(--t, #e8eaf0));flex:1;">${escapeHtml(catLabel(catId))}</h3>
             <span class="plx-t12-w5">${catProds.length} product${catProds.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="pl-product-grid" style="display:${isCollapsed ? 'none' : 'grid'};margin-top:${isCollapsed ? '0' : '12px'};">
@@ -623,7 +623,7 @@
                 <div class="plx-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
                 <div class="plx-t11-mt">${escapeHtml(p.manufacturer || '')} ${p.sku ? '• ' + escapeHtml(p.sku) : ''}</div>
               </div>
-              <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${catColor(p.category)}18;color:${catColor(p.category)};white-space:nowrap;">${escapeHtml(p.unit)}</span>
+              <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${catColor(p.category)}18;color:color-mix(in srgb, ${catColor(p.category)} 50%, var(--t, #e8eaf0));white-space:nowrap;">${escapeHtml(p.unit)}</span>
             </div>
 
             <div class="plx-desc">${escapeHtml(p.description)}</div>
@@ -633,7 +633,7 @@
               ${TIERS.map(t => {
                 const isHighlighted = currentFilter.tier === t;
                 return `<div style="background:${isHighlighted ? TIER_COLORS[t]+'20' : TIER_COLORS[t]+'0a'};border-radius:6px;padding:6px 8px;text-align:center;border:${isHighlighted ? '2px' : '1px'} solid ${isHighlighted ? TIER_COLORS[t] : TIER_COLORS[t]+'20'};${isHighlighted ? 'transform:scale(1.03);box-shadow:0 2px 8px '+TIER_COLORS[t]+'30;' : ''}">
-                  <div style="font-size:10px;font-weight:600;color:${TIER_COLORS[t]};text-transform:uppercase;">${TIER_LABELS[t]}</div>
+                  <div style="font-size:10px;font-weight:600;color:color-mix(in srgb, ${TIER_COLORS[t]} 50%, var(--t, #e8eaf0));text-transform:uppercase;">${TIER_LABELS[t]}</div>
                   <div class="plx-t14">${formatCurrency(p.pricing?.[t]?.sell)}</div>
                   <div class="plx-t10">${hasCost(p, t) ? 'Profit ' + grossMargin(p.pricing[t].sell||0, p.pricing[t].cost, laborCost) + '%' : 'Profit —'}</div>
                 </div>`;
@@ -659,7 +659,7 @@
             <!-- Footer -->
             <div class="plx-card-foot">
               <div class="plx-t12"><strong>Gross Profit <span class="plx-dim7">(${TIER_LABELS[tierForMargin]})</span>:</strong> ${costKnown
-                ? `<span style="color:${m >= 40 ? '#10b981' : m >= 25 ? '#f59e0b' : '#ef4444'};font-weight:700;">${formatCurrency(sellPrice - myCost)}/${p.unit} (${m}%)</span>`
+                ? `<span style="color:${m >= 40 ? 'var(--ui-success-text, #10b981)' : m >= 25 ? 'var(--ui-warn-text, #f59e0b)' : 'var(--ui-danger-text, #ef4444)'};font-weight:700;">${formatCurrency(sellPrice - myCost)}/${p.unit} (${m}%)</span>`
                 : NOT_SET}</div>
               <div class="plx-row6">${editable ? `
                 <button class="pl-card-btn plx-btn-edit" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}">Edit</button>
@@ -685,7 +685,7 @@
         <!-- Header -->
         <div class="plx-head">
           <div>
-            <h1 class="plx-h1">Product Library</h1>
+            <!-- The view header above already reads PRODUCT LIBRARY (2026-10-25): no second title here. -->
             <p class="plx-sub13">Materials, labor, and pricing for your estimates — ${activeCount} products across ${categoryCount} categories</p>
             ${editable ? '' : '<p class="plx-sub12">🔒 Your company’s shared library — only the owner or an admin can change it.</p>'}
           </div>
@@ -693,8 +693,8 @@
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
             <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
-            <button data-pl-action="exportCSV" class="plx-btn-green">Export CSV</button>
-            ${editable ? `<button data-pl-action="resetDefaults" class="plx-btn-red">Reset</button>` : ''}
+            <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
+            ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>
         </div>
 
@@ -726,12 +726,12 @@
 
         <!-- Search & Filter -->
         <div class="plx-filterbox">
-          <input type="text" id="product-search" placeholder="Search by name, brand, tag..." value="${escapeHtml(currentFilter.search)}"
+          <input type="text" id="product-search" aria-label="Search products" placeholder="Search by name, brand, tag..." value="${escapeHtml(currentFilter.search)}"
             class="plx-search">
 
           <!-- Tier Filter Buttons -->
           <div class="plx-row6-mb">
-            <button data-pl-action="setTierFilter" data-pl-id="" style="flex:1;padding:8px 12px;border-radius:8px;border:2px solid ${!currentFilter.tier ? '#BD5728' : 'var(--br)'};background:${!currentFilter.tier ? '#BD572818' : 'var(--s)'};color:${!currentFilter.tier ? '#BD5728' : 'var(--m)'};cursor:pointer;font-size:12px;font-weight:600;">All Tiers</button>
+            <button data-pl-action="setTierFilter" data-pl-id="" style="flex:1;padding:8px 12px;border-radius:8px;border:2px solid ${!currentFilter.tier ? '#BD5728' : 'var(--br)'};background:${!currentFilter.tier ? '#BD572818' : 'var(--s)'};color:${!currentFilter.tier ? 'var(--ui-accent-text, #BD5728)' : 'var(--m)'};cursor:pointer;font-size:12px;font-weight:600;">All Tiers</button>
             ${TIERS.map(t => {
               const isActive = currentFilter.tier === t;
               return `<button data-pl-action="setTierFilter" data-pl-id="${t}" style="flex:1;padding:8px 12px;border-radius:8px;border:2px solid ${isActive ? TIER_COLORS[t] : 'var(--br)'};background:${isActive ? TIER_COLORS[t]+'18' : 'var(--s)'};color:${isActive ? TIER_COLORS[t] : 'var(--m)'};cursor:pointer;font-size:12px;font-weight:600;">${TIER_LABELS[t]}</button>`;
@@ -740,7 +740,7 @@
 
           <!-- Category Filter Pills -->
           <div class="plx-wrap6">
-            <button data-pl-action="setFilter" data-pl-id="" style="padding:6px 12px;border-radius:20px;border:2px solid ${!currentFilter.category ? '#BD5728' : 'var(--br)'};background:${!currentFilter.category ? '#BD572818' : 'var(--s)'};color:${!currentFilter.category ? '#BD5728' : 'var(--t)'};cursor:pointer;font-size:12px;font-weight:${!currentFilter.category?'600':'500'};">All (${activeCount})</button>
+            <button data-pl-action="setFilter" data-pl-id="" style="padding:6px 12px;border-radius:20px;border:2px solid ${!currentFilter.category ? '#BD5728' : 'var(--br)'};background:${!currentFilter.category ? '#BD572818' : 'var(--s)'};color:${!currentFilter.category ? 'var(--ui-accent-text, #BD5728)' : 'var(--t)'};cursor:pointer;font-size:12px;font-weight:${!currentFilter.category?'600':'500'};">All (${activeCount})</button>
             ${catPills}
           </div>
         </div>

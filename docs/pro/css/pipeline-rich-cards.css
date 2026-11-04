@@ -110,7 +110,10 @@ body.crm-list-mode .kr-strip { display: none; }
      when a narrow phone cannot hold all four. */
   .kr-strip { padding: 6px 10px; gap: 0 6px; flex-wrap: wrap; justify-content: space-between; }
   .kr-stats { flex-wrap: nowrap; gap: 4px; flex: 0 1 auto; }
-  .kr-stat { position: relative; padding: 4px 7px; gap: 4px; white-space: nowrap; }
+  .kr-stat { position: relative; padding: 4px 6px; gap: 3px; white-space: nowrap; }
+  /* 9px keys: with the self-hosted Barlow blocked (a wide fallback font) the three chips plus the cycle
+     button ran 386px at 390 and wrapped; 298 + 63 holds the one row (2026-10-25). */
+  .kr-stat-k { font-size: 9px; }
   .kr-stat::after, .kr-cycle::after { content: ""; position: absolute; left: -1px; right: -1px; top: -7px; bottom: -7px; }
   .kr-switch { width: auto; margin-left: auto; }
   .kr-switch .kr-sw.ui-seg { display: none; }

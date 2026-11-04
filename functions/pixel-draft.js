@@ -51,6 +51,7 @@ const { assertNotViewer } = require('./shared');
 const L = require('./agent-mcp-logic');
 const P = require('./pixel-draft-logic');
 const EstimateFollow = require('./estimate-follow-templates');
+const FollowUp = require('./follow-up-templates');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 
@@ -117,6 +118,15 @@ async function fileLeadTextDraft(request) {
     const flagDocId = c.uid;
     const [flagsDefault, flagsMine] = await Promise.all([readDoc('feature_flags/_default'), readDoc('feature_flags/' + flagDocId)]);
     if (!Object.assign({}, flagsDefault || {}, flagsMine || {}).estimateFollowBoard) {
+      logger.info('[fileLeadTextDraft] skipped', { template, why: 'feature_off' });
+      return notAllowed('feature_off');
+    }
+  }
+  // The Follow-up board wordings (fu_*) are dark behind their own flag, followUpBoard, checked the same way.
+  if (FollowUp.TEMPLATE_KEYS.indexOf(template) !== -1) {
+    const fuFlagDocId = c.uid;
+    const [fuDefault, fuMine] = await Promise.all([readDoc('feature_flags/_default'), readDoc('feature_flags/' + fuFlagDocId)]);
+    if (!Object.assign({}, fuDefault || {}, fuMine || {}).followUpBoard) {
       logger.info('[fileLeadTextDraft] skipped', { template, why: 'feature_off' });
       return notAllowed('feature_off');
     }

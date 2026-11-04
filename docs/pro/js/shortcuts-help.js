@@ -58,6 +58,9 @@
     // Don't intercept keys when the user is mid-flow in another modal.
     // Cmd palette, dedup overlay, slow-load overlay, etc.
     if (document.getElementById('cmdPalette')?.style.display === 'flex') return true;
+    // Any nbdModal / dialog that is showing: .modal-bg.open, <dialog open>, a visible aria-modal
+    // overlay (the knock sheet, the widget picker ...). "n" / "e" used to open Add Lead / New Estimate behind them.
+    if (window.nbdModal && typeof window.nbdModal.anyOpen === 'function' && window.nbdModal.anyOpen()) return true;
     if (document.getElementById('nbd-dedup-overlay')) return true;
     if (document.getElementById('slow-load-hint')) return true;
     if (document.getElementById('nbd-pwa-ios-modal')) return true;

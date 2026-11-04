@@ -198,7 +198,7 @@ body.theme-frosted {
 .d2d-rev-primary { min-width:0; }
 .d2d-revenue-amount { font-size:34px; font-weight:900; color:var(--t); font-family:'Barlow Condensed',sans-serif; line-height:1; letter-spacing:-.01em; }
 .d2d-revenue-label { font-size:10px; color:var(--m); font-weight:700; margin-bottom:2px; text-transform:uppercase; letter-spacing:.1em; }
-.d2d-rev-tag { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:10px; font-weight:700; color:var(--green); letter-spacing:.03em; }
+.d2d-rev-tag { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:10px; font-weight:700; color:var(--ui-success-text, var(--green)); letter-spacing:.03em; }
 .d2d-rev-foot { position:relative; display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
 .d2d-rev-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; background:color-mix(in srgb, var(--t) 6%, transparent); border:1px solid var(--br); border-radius:20px; font-size:11px; font-weight:700; color:var(--t); font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em; }
 .d2d-rev-chip-k { font-size:9px; font-weight:700; color:var(--m); text-transform:uppercase; letter-spacing:.08em; }
@@ -225,7 +225,7 @@ body.theme-frosted {
 .d2d-streak-num { font-size:22px; font-weight:900; color:var(--orange); font-family:'Barlow Condensed',sans-serif; line-height:1; margin-top:1px; }
 .d2d-streak-lbl { font-size:8px; color:var(--m); font-weight:700; text-transform:uppercase; letter-spacing:.09em; margin-top:1px; }
 .d2d-followups-banner { background:color-mix(in srgb, var(--gold) 12%, var(--s2)); border:1px solid color-mix(in srgb, var(--gold) 30%, var(--br)); border-radius:10px; padding:12px; margin-bottom:14px; }
-.d2d-followups-title { font-size:13px; font-weight:700; color:var(--gold); margin-bottom:8px; }
+.d2d-followups-title { font-size:13px; font-weight:700; color:var(--ui-warn-text, var(--gold)); margin-bottom:8px; }
 .d2d-followups-list { display:flex; flex-direction:column; gap:4px; }
 .d2d-followup-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; transition:background .15s; }
 .d2d-followup-item:hover { background:rgba(255,255,255,.05); }
@@ -634,7 +634,7 @@ body.theme-frosted {
 .tc-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--m); }
 .tc-best { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
 .tc-attempts { font-size: 11px; color: var(--m); }
-.tc-new { font-size: 11px; font-weight: 700; color: var(--green); letter-spacing: .1em; }
+.tc-new { font-size: 11px; font-weight: 700; color: var(--ui-success-text, var(--green)); letter-spacing: .1em; }
 
 /* Rapid Fire Banner */
 /* The banner and the drill card (.rapid-card below) paint a HARD-CODED navy

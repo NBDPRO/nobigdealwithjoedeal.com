@@ -45,7 +45,52 @@ function requireTestUser() {
  * @param {import('@playwright/test').Page} page
  * @param {{ email: string, password: string }} creds
  */
+// The dashboard pulls Barlow / Barlow Condensed from fonts.googleapis.com. A
+// sandbox whose proxy refuses that host renders the fallback sans-serif, which
+// is wider: the CRM header's seven view tabs wrapped locally and not on CI
+// (2026-10-25), so a local run could not reproduce what CI measured. On the
+// emulators the Google CSS is answered with the repo's own font stylesheet
+// (the /pro auth pages already load it), its font URLs made absolute so they
+// resolve against the hosting emulator, not fonts.googleapis.com.
+let _fontCss = null;
+function localFontCss(base) {
+  if (_fontCss == null) {
+    try { _fontCss = require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', 'docs', 'assets', 'css', 'nbd-fonts-pro.css'), 'utf8'); }
+    catch (_) { _fontCss = ''; }
+  }
+  return _fontCss.replace(/url\(\/assets\//g, 'url(' + base.replace(/\/$/, '') + '/assets/');
+}
+
 async function loginAs(page, creds) {
+  if (/localhost|127\.0\.0\.1/.test(process.env.PLAYWRIGHT_BASE_URL || '') && !page.__nbdFontsRouted) {
+    page.__nbdFontsRouted = true;
+    const base = process.env.PLAYWRIGHT_BASE_URL;
+    await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/css; charset=utf-8', body: localFontCss(base) }));
+  }
+  // ── Emulator-only: answer LeadDedup's possible-duplicate modal. A CI retry
+  // runs against the same emulator as the attempt before it, and
+  // LeadDedup.normName strips digits, so 'Hail1761380000' and 'Hail1761380400'
+  // on the same street are "the same name on the same street": _saveLead then
+  // awaits promptUser() — a click nobody makes — and the retry burns its whole
+  // test timeout (3 × 240 s in mission-control alone; the @shard2 25-minute
+  // cap, 2026-10-25). "Create anyway" is the rep's own answer for a separate
+  // household, so the spec gets the fresh lead it asked for and dedup itself
+  // is untouched. An init script, not an evaluate: specs reload after saving.
+  if (/localhost|127\.0\.0\.1/.test(process.env.PLAYWRIGHT_BASE_URL || '') && !page.__nbdDedupArmed) {
+    page.__nbdDedupArmed = true;
+    await page.addInitScript(() => {
+      window.__nbdDedupAutoCreated = 0;
+      const answer = () => {
+        const btn = document.querySelector('#nbd-dedup-overlay #nbd-dedup-create');
+        if (!btn) return;
+        window.__nbdDedupAutoCreated++;
+        console.warn('[e2e] LeadDedup prompt answered "Create anyway" (' + window.__nbdDedupAutoCreated + ')');
+        btn.click();
+      };
+      // document, not documentElement: an init script runs before <html> exists.
+      new MutationObserver(answer).observe(document, { childList: true, subtree: true });
+    });
+  }
   await page.goto('/pro/login.html');
   // Login.js wires the form once the Firebase SDK has loaded; wait
   // for the button to be enabled rather than time-boxing. The page
@@ -233,9 +278,36 @@ async function cleanupE2EData(page) {
   return callCallableInPage(page, 'cleanupE2ETestData');
 }
 
+/**
+ * The shard shares ONE rep, and a layout pick is a per-rep setting
+ * (userSettings.layout): crew-calendar.spec.js picks the Crew layout for the
+ * desktop and the phone and never puts Classic back, so every spec after it
+ * booted into Crew: never-forget's "Handled" tap landed on #nbdCrewRoot,
+ * the compact CRM header measured the wrong board, call-center-view found the
+ * crew week wider than the phone (@shard2, the first leg that ever finished,
+ * 2026-10-25). Clears the rep's pick on every surface and waits for Classic.
+ * Call it after login in any spec that reads the Classic Home / CRM / view.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function ensureClassicLayout(page) {
+  await safeWaitForFunction(page, () => !!(window.LayoutEngine && window.LayoutEngine.saveUser && window.LayoutEngine.prefs && window._user && window._user.uid), null, { timeout: 30_000 });
+  const r = await safeEvaluate(page, async () => {
+    const E = window.LayoutEngine, p = E.prefs(), u = p && p.user;
+    const picked = !!(u && (u.id || Object.keys(u.byDevice || {}).some((k) => u.byDevice[k])));
+    if (!picked) return 'classic';
+    await E.saveUser({ id: null });
+    for (const d of ['phone', 'tablet', 'desktop']) await E.saveUser({ id: null, device: d });
+    return 'reset';
+  });
+  if (r === 'reset') await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'classic', null, { timeout: 20_000 });
+  return r;
+}
+
 module.exports = {
   requireTestUser,
   loginAs,
+  ensureClassicLayout,
   logout,
   callCallableInPage,
   cleanupE2EData,

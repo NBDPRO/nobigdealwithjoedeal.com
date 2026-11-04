@@ -146,7 +146,7 @@ console.log('the four wordings (server) and the copy-only email');
 {
   const NAMES = ['No Big Deal Home Solutions'];
   ok('exactly four keys, matching the client list', T.TEMPLATE_KEYS.join() === 'est_follow_d3,est_follow_d7,est_follow_d14,est_follow_d30' && T.TEMPLATE_KEYS.join() === B.TEMPLATE_KEYS.join() && T.CADENCE_DAYS.join() === B.CADENCE.join());
-  ok('Pixel World keeps its own four (TEMPLATE_KEYS unchanged); the callable accepts all eight', PD.TEMPLATE_KEYS.length === 4 && PD.ALL_TEMPLATES && Object.keys(PD.ALL_TEMPLATES).length === 8 && T.TEMPLATE_KEYS.every((k) => PD.isTemplateKey(k)));
+  ok('Pixel World keeps its own four (TEMPLATE_KEYS unchanged); the callable accepts all eight (plus the three Follow-up board keys, 2026-11-03)', PD.TEMPLATE_KEYS.length === 4 && PD.ALL_TEMPLATES && Object.keys(PD.ALL_TEMPLATES).length === 11 && T.TEMPLATE_KEYS.every((k) => PD.isTemplateKey(k)));
   ok('prototype keys are still refused', ['__proto__', 'constructor', 'toString', 'hasOwnProperty'].every((k) => !PD.isTemplateKey(k)));
 
   // Extra words beyond the Pixel list: employment claims, "licensed", insurance-claim talk.

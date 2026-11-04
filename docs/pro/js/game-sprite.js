@@ -24,16 +24,20 @@
     color: ['#F2A900', '#378ADD', '#E24B4A', '#639922', '#F5F5F0', '#2C2C2A'],   // headwear
     shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56', '#7F4FB0', '#E8E4DA'],
     pants: ['#2E3A59', '#5C4A32', '#3D3D3A', '#6B7B8C'],
+    eye: ['#3A2A26', '#2F6FB3', '#3E7F4C', '#8A6A3A', '#5E6670'],   // wave 16: the iris (chibi.js); the 32-px grid below keeps its one dark eye
   };
   var OPTIONS = {
     skin:   { label: 'Skin', colors: C.skin },
-    hair:   { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald']] },
+    hair:   { label: 'Hair', values: [['short', 'Short'], ['spiky', 'Spiky'], ['long', 'Long'], ['buzz', 'Buzz'], ['ponytail', 'Ponytail'], ['bald', 'Bald'], ['curly', 'Curly'], ['afro', 'Afro'], ['bun', 'Bun']] },
     hairColor: { label: 'Hair color', colors: C.hair },
     eyes:   { label: 'Eyes', values: [['round', 'Bright'], ['happy', 'Happy'], ['wink', 'Wink'], ['sleepy', 'Chill']] },
+    eyeColor: { label: 'Eye color', colors: C.eye },
     hat:    { label: 'Headwear', values: [['hardhat', 'Hard hat'], ['cap', 'Ball cap'], ['beanie', 'Beanie'], ['none', 'None']] },
     hatColor: { label: 'Headwear color', colors: C.color },
     beard:  { label: 'Beard', values: [['none', 'None'], ['stubble', 'Stubble'], ['mustache', 'Mustache'], ['full', 'Full']] },
     shirt:  { label: 'Shirt', colors: C.shirt },
+    top:    { label: 'Top', values: [['tee', 'Tee'], ['hoodie', 'Hoodie'], ['polo', 'Polo']] },
+    build:  { label: 'Build', values: [['regular', 'Regular'], ['slim', 'Slim'], ['stocky', 'Stocky'], ['tall', 'Tall']] }, // wave 12: drawn by chibi.js; the 32-px grid below ignores it
     vest:   { label: 'Hi-vis vest', values: [['none', 'No'], ['yes', 'Yes']] },
     pants:  { label: 'Pants', colors: C.pants },
     tool:   { label: 'Tool', values: [['hammer', 'Hammer'], ['tape', 'Tape'], ['ladder', 'Ladder'], ['none', 'None']] },
@@ -53,10 +57,13 @@
       hair: pick(vals('hair'), a.hair, DEFAULTS.hair),
       hairColor: idx(a.hairColor, C.hair.length, DEFAULTS.hairColor),
       eyes: pick(vals('eyes'), a.eyes, DEFAULTS.eyes),
+      eyeColor: idx(a.eyeColor, C.eye.length, 0),
       hat: pick(vals('hat'), typeof a.hat === 'number' ? 'hardhat' : a.hat, DEFAULTS.hat),
       hatColor: idx(hatColor, C.color.length, DEFAULTS.hatColor),
       beard: pick(vals('beard'), a.beard, DEFAULTS.beard),
       shirt: idx(a.shirt, C.shirt.length, DEFAULTS.shirt),
+      top: pick(vals('top'), a.top, 'tee'),
+      build: pick(vals('build'), a.build, 'regular'),
       vest: pick(vals('vest'), a.vest, DEFAULTS.vest),
       pants: idx(a.pants, C.pants.length, DEFAULTS.pants),
       tool: pick(vals('tool'), a.tool, DEFAULTS.tool),
@@ -115,14 +122,14 @@
 
     // ── hair ──
     var top = function () { row(4, 11, 20, hair); row(5, 9, 22, hair); rect(8, 6, 23, 8, hair); set(12, 4, hairL); set(13, 5, hairL); };
-    if (a.hair === 'short') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); row(9, 9, 11, hair); row(9, 20, 22, hair); set(14, 9, hairD); }
+    if (a.hair === 'short' || a.hair === 'curly' || a.hair === 'bun') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); row(9, 9, 11, hair); row(9, 20, 22, hair); set(14, 9, hairD); }
     else if (a.hair === 'spiky') {
       top();
       // Spikes only when nothing is on the head — a hat flattens them.
       if (a.hat === 'none') [10, 13, 16, 19].forEach(function (x) { set(x, 3, hair); set(x + 1, 2, hair); set(x + 1, 3, hair); });
       rect(8, 9, 8, 10, hair); rect(23, 9, 23, 10, hair);
     }
-    else if (a.hair === 'long') { top(); rect(7, 8, 8, 19, hair); rect(23, 8, 24, 19, hair); rect(7, 18, 8, 19, hairD); rect(23, 18, 24, 19, hairD); row(9, 9, 13, hair); }
+    else if (a.hair === 'long' || a.hair === 'afro') { top(); rect(7, 8, 8, 19, hair); rect(23, 8, 24, 19, hair); rect(7, 18, 8, 19, hairD); rect(23, 18, 24, 19, hairD); row(9, 9, 13, hair); }
     else if (a.hair === 'buzz') { row(5, 11, 20, hairD); rect(9, 6, 22, 7, hairD); }
     else if (a.hair === 'ponytail') { top(); rect(8, 9, 8, 11, hair); rect(23, 9, 23, 11, hair); rect(24, 6, 26, 8, hair); rect(25, 9, 26, 13, hair); set(26, 14, hairD); set(24, 6, hairL); }
     // bald: nothing
@@ -200,6 +207,12 @@
   }
 
   function draw(canvas, avatar) {
+    // The vector chibi (chibi.js, 2026-10-25) when it is on the page; the 32×32 grid below otherwise.
+    if (window.NBDChibi) {
+      // a wave every 14 s, and a cheer when the avatar is tapped (the listener is added once per canvas; the loop is replaced per draw)
+      if (!canvas.__chibiTap) { canvas.__chibiTap = true; canvas.addEventListener('click', function () { canvas.__cheerUntil = Date.now() + 1600; }); }
+      window.NBDChibi.animate(canvas, normalize(avatar), function (t) { return { pose: canvas.__cheerUntil > t ? 'cheer' : t % 14000 < 1600 ? 'wave' : 'idle' }; }); return;
+    }
     if (!canvas || !canvas.getContext) return;
     var a = normalize(avatar);
     var G = outline(build(a));

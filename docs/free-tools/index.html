@@ -21,6 +21,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 :root{
   --navy:#1a3057;--navy-dark:#12223d;--navy-mid:#1a3260;--navy-light:#243f7a;
@@ -51,8 +53,8 @@ a:hover{color:var(--orange-light)}
 .tool-icon svg{width:22px;height:22px;stroke:var(--card-accent,var(--orange));stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .tool-name{font-family:'Bebas Neue',sans-serif;font-size:1.35rem;letter-spacing:.02em;color:var(--navy-dark)}
 .tool-desc{font-size:.92rem;line-height:1.62;color:var(--gray)}
-.tool-cta{margin-top:auto;font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--card-accent,var(--orange));display:inline-flex;align-items:center;gap:6px}
-.tool-card:hover .tool-cta{color:var(--card-accent,var(--orange-light))}
+.tool-cta{margin-top:auto;font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--card-accent-text,var(--card-accent,var(--orange)));display:inline-flex;align-items:center;gap:6px}
+.tool-card:hover .tool-cta{color:var(--card-accent-text,var(--card-accent,var(--orange-dark)))}
 
 .guides{padding:8px 5% 24px;max-width:1080px;margin:0 auto}
 .guides-head{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.7rem,3vw,2.3rem);color:var(--navy-dark);letter-spacing:.02em;margin:24px 0 6px}
@@ -90,9 +92,9 @@ nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:
 nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
 nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
 nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
-nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
 nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
-nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:4px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
 nav.tool-nav .nav-cta:hover{background:#A14A22}
 @media(max-width:560px){
   /* Hide the top-nav Back/Call cluster on small phones — it collided with the
@@ -349,7 +351,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <span class="tool-cta">Pull My Report &rarr;</span>
     </a>
 
-    <a href="/storm-alerts" class="tool-card" style="--card-accent:#dd875f;--card-accent-dim:rgba(221,135,95,.12)">
+    <a href="/storm-alerts" class="tool-card" style="--card-accent:#a14a22;--card-accent-dim:rgba(161,74,34,.12)">
       <div class="tool-icon"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a1.99 1.99 0 0 1-3.4 0"/></svg></div>
       <div class="tool-name">Storm Alerts</div>
       <div class="tool-desc">Free text the moment hail or severe storms hit your zip code — so you know to check your roof before small damage becomes a big leak.</div>
@@ -370,7 +372,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <span class="tool-cta">See My Home &rarr;</span>
     </a>
 
-    <a href="/inspect" class="tool-card" style="--card-accent:#dd875f;--card-accent-dim:rgba(221,135,95,.12)">
+    <a href="/inspect" class="tool-card" style="--card-accent:#a14a22;--card-accent-dim:rgba(161,74,34,.12)">
       <div class="tool-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></div>
       <div class="tool-name">Free Inspection — reply within 24 hrs</div>
       <div class="tool-desc">Book a free roof inspection with Joe. He replies within 24 hours to set a time. No obligation, no sales pressure, no call center.</div>
@@ -389,7 +391,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 
 <section class="guides" id="guides" aria-labelledby="guides-h">
   <h2 class="guides-head" id="guides-h">Free guides &amp; checklists</h2>
-  <p class="guides-intro">Plain-English guides you can read right here, free, with no sign-up. Each one has a printable version on the way.</p>
+  <p class="guides-intro">Plain-English guides you can read right here, free, with no sign-up. Six of these also have a printable PDF, linked on the guide itself.</p>
   <div class="tool-grid">
     <!-- GUIDE-CARDS: one card per docs/guides page (tests/homeowner-guides-2026-10-16.test.js) -->
     <a href="/guides/kentucky-ohio-storm-claim-guide" class="tool-card">
@@ -447,6 +449,25 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
   <h2>Not sure which one fits?</h2>
   <p>Text or call and I'll point you at the right one — <a href="tel:+18594207382">(859) 420-7382</a>.</p>
 </section>
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <!-- nbd:partial footer-slim link1_href="/about" link1_name="About Joe" link2_href="/blog" link2_name="Blog" -->
 <footer class="foot-slim">

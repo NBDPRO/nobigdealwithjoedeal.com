@@ -1,0 +1,10 @@
+/* Morning readiness check-in card (js/checkin-ui.js). Builds on workout-coach.css (.wc-card, .wc-chip, .wc-link); follows the active skin. */
+.ck-wrap { margin: 0 0 12px; }
+.ck-card small { font-weight: 400; letter-spacing: 0; text-transform: none; opacity: .7; margin-left: 6px; }
+.ck-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.ck-l { flex: 0 0 76px; font-size: 13px; }
+.ck-msg { margin: 0 0 4px; overflow-wrap: anywhere; }
+.ck-foot { display: flex; justify-content: flex-end; }
+.ck-card .ck-chip { flex: 1 1 0; min-width: 0; background: transparent; color: inherit; border: 1px solid var(--rule, currentColor); }
+.ck-card .ck-chip.on { background: var(--ac, #BD5728); border-color: var(--ac, #BD5728); color: #fff; }
+.ck-card .wc-link { color: var(--ac-text, var(--ac, #BD5728)); font-size: 14px; }

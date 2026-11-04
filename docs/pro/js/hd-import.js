@@ -463,6 +463,8 @@
   function open() {
     _state = { rows: [], summaryText: '', detailsText: '', aliases: {} };
     renderPick();
+    // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+    if (window.nbdOverlay) window.nbdOverlay.attach(document.getElementById('hdImportModal'), { label: 'Import Home Depot purchases', close });
   }
   function close() { const m = document.getElementById('hdImportModal'); if (m) m.remove(); _state = null; }
 

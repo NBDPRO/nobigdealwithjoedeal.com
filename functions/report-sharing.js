@@ -58,6 +58,7 @@ const { callableRateLimit, assertNotViewer } = require('./shared');
 const ESL = require('./estimate-send-logic');
 const EVA = require('./estimate-view-alert');
 const DV = require('./deal-view-logic');
+const DLL = require('./doc-link-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -344,7 +345,8 @@ async function resolveLeadDocumentSubject(db, { uid, isAdmin, leadId, documentId
         const t = tokSnap.data() || {};
         const active = !t.status || t.status === 'active';
         const unexpired = !t.expiresAt || !t.expiresAt.toMillis || t.expiresAt.toMillis() > Date.now();
-        if (active && unexpired && t.storagePath === storagePath) {
+        // A secure link (password, own expiry) is never handed out as a plain share link.
+        if (active && unexpired && t.storagePath === storagePath && t.purpose !== 'secure_doc') {
           existingToken = prior;
           existingExpiresAt = t.expiresAt || null;
         }
@@ -583,6 +585,65 @@ exports.createReportShareToken = onCall(
   }
 );
 
+/**
+ * Stream a lead-document PDF (R3-4 rules, unchanged): PDF content type AND %PDF
+ * bytes, both read off ONE generation, fixed application/pdf + nosniff.
+ * Returns null once the stream has been written, or { code, msg } for the
+ * caller's error page. Shared by the legacy link and the secure link
+ * (doc-link-serve.js); `opts.csp` is the only thing that differs.
+ */
+async function streamLeadPdf(res, tok, token, path, opts) {
+  let file, meta;
+  try {
+    const bucket = getStorage().bucket();
+    [meta] = await bucket.file(path).getMetadata();
+    file = meta && meta.generation != null ? bucket.file(path, { generation: meta.generation }) : bucket.file(path);
+  } catch (e) {
+    logger.error('[getSharedReport] document fetch failed', { token: token.slice(0, 6), err: e.message });
+    return { code: 404, msg: 'This report is no longer available.' };
+  }
+  let head = '';
+  if (ESL.isPdfContentType(meta && meta.contentType)) {
+    try {
+      const [buf] = await file.download({ start: 0, end: 4 });
+      head = Buffer.from(buf || '').subarray(0, 4).toString('latin1');
+    } catch (e) {
+      logger.error('[getSharedReport] document head read failed', { token: token.slice(0, 6), err: e.message });
+      return { code: 404, msg: 'This report is no longer available.' };
+    }
+  }
+  if (head !== '%PDF') {
+    logger.warn('[getSharedReport] refused a non-PDF lead document', {
+      token: token.slice(0, 6), contentType: String((meta && meta.contentType) || '').slice(0, 80),
+    });
+    return { code: 415, msg: 'This report is no longer available.' };
+  }
+  // Headers before the first byte; once the stream starts there is no way
+  // to send an error page, so a mid-stream failure can only end the
+  // response.
+  res.status(200)
+    .set('Content-Type', 'application/pdf')
+    .set('X-Content-Type-Options', 'nosniff')
+    .set('Content-Security-Policy', opts.csp)
+    .set('Content-Length', String(meta.size || 0))
+    // inline, so a phone opens it in the browser's PDF viewer instead of
+    // downloading a file the homeowner then has to find.
+    .set('Content-Disposition', 'inline; filename="' + sanitizeFilename(tok.filename) + '"')
+    .set('X-Robots-Tag', 'noindex, nofollow')
+    .set('Cache-Control', 'no-store');
+  if (opts.frameable) res.set('X-Frame-Options', 'SAMEORIGIN');
+  await new Promise((resolve) => {
+    const stream = file.createReadStream();
+    stream.on('error', (e) => {
+      logger.error('[getSharedReport] stream failed', { token: token.slice(0, 6), err: e.message });
+      res.destroy(); resolve();
+    });
+    stream.on('end', resolve);
+    stream.pipe(res);
+  });
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // getSharedReport — /report/<token> → serve the report HTML (view-only).
 // ═══════════════════════════════════════════════════════════════
@@ -605,7 +666,15 @@ exports.getSharedReport = onRequest(
         .send(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Inspection Report</title><body style="font-family:system-ui,-apple-system,sans-serif;background:#0f1115;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px"><div><div style="font-size:44px">📋</div><p style="max-width:420px;line-height:1.6;font-size:16px">${escHtml(msg)}</p></div></body>`);
     };
     // token is the last path segment: /report/<token>
-    const m = (req.path || '').match(/\/report\/([A-Za-z0-9]{10,64})\/?$/);
+    let m = (req.path || '').match(/\/report\/([A-Za-z0-9]{10,64})\/?$/);
+    // Secure Document Link sub-paths (/unlock, /file), only while the master
+    // flag is on: with it off the route table is exactly what it was.
+    let sub = '';
+    const secureOn = DLL.secureLinkEnabled();
+    if (!m && secureOn) {
+      const m2 = (req.path || '').match(/\/report\/([A-Za-z0-9]{10,64})\/(unlock|file)\/?$/);
+      if (m2) { m = m2; sub = m2[2]; }
+    }
     const token = m ? m[1] : '';
     if (!token) { errPage(400, 'This report link is invalid.'); return; }
     // Per-IP rate limit — stops token brute-forcing.
@@ -621,6 +690,19 @@ exports.getSharedReport = onRequest(
     if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
       errPage(410, 'This report link has expired. Ask your rep for a fresh one.'); return;
     }
+
+    // Secure Document Link (2026-11-04). A secure_doc token is NEVER served by
+    // the legacy path below: with the master flag off it is unavailable (fail
+    // closed, so a password link cannot be read without its password), and
+    // with it on it goes to doc-link-serve.js. Every other token is untouched.
+    if (tok.purpose === 'secure_doc') {
+      if (!secureOn) { errPage(503, 'This link is not available right now. Ask your rep for a fresh one.'); return; }
+      await require('./doc-link-serve').serveSecureDoc({
+        req, res, db, token, tok, sub, errPage, streamLeadPdf, awaitBriefly,
+      });
+      return;
+    }
+    if (sub) { errPage(400, 'This report link is invalid.'); return; }
 
     // Viewed stamp. R4-10 (2026-10-06): awaited briefly before the response
     // (awaitBriefly) so Cloud Run's post-response CPU throttle can't drop it.
@@ -674,53 +756,8 @@ exports.getSharedReport = onRequest(
       // %PDF; read both off ONE generation so a swap between the check and
       // the stream is not served; and always send a fixed application/pdf
       // with nosniff and a sandbox CSP (PDF_ONLY_CSP).
-      let file, meta;
-      try {
-        const bucket = getStorage().bucket();
-        [meta] = await bucket.file(path).getMetadata();
-        file = meta && meta.generation != null ? bucket.file(path, { generation: meta.generation }) : bucket.file(path);
-      } catch (e) {
-        logger.error('[getSharedReport] document fetch failed', { token: token.slice(0, 6), err: e.message });
-        errPage(404, 'This report is no longer available.'); return;
-      }
-      let head = '';
-      if (ESL.isPdfContentType(meta && meta.contentType)) {
-        try {
-          const [buf] = await file.download({ start: 0, end: 4 });
-          head = Buffer.from(buf || '').subarray(0, 4).toString('latin1');
-        } catch (e) {
-          logger.error('[getSharedReport] document head read failed', { token: token.slice(0, 6), err: e.message });
-          errPage(404, 'This report is no longer available.'); return;
-        }
-      }
-      if (head !== '%PDF') {
-        logger.warn('[getSharedReport] refused a non-PDF lead document', {
-          token: token.slice(0, 6), contentType: String((meta && meta.contentType) || '').slice(0, 80),
-        });
-        errPage(415, 'This report is no longer available.'); return;
-      }
-      // Headers before the first byte; once the stream starts there is no way
-      // to send an error page, so a mid-stream failure can only end the
-      // response.
-      res.status(200)
-        .set('Content-Type', 'application/pdf')
-        .set('X-Content-Type-Options', 'nosniff')
-        .set('Content-Security-Policy', PDF_ONLY_CSP)
-        .set('Content-Length', String(meta.size || 0))
-        // inline, so a phone opens it in the browser's PDF viewer instead of
-        // downloading a file the homeowner then has to find.
-        .set('Content-Disposition', 'inline; filename="' + sanitizeFilename(tok.filename) + '"')
-        .set('X-Robots-Tag', 'noindex, nofollow')
-        .set('Cache-Control', 'no-store');
-      await new Promise((resolve) => {
-        const stream = file.createReadStream();
-        stream.on('error', (e) => {
-          logger.error('[getSharedReport] stream failed', { token: token.slice(0, 6), err: e.message });
-          res.destroy(); resolve();
-        });
-        stream.on('end', resolve);
-        stream.pipe(res);
-      });
+      const fail = await streamLeadPdf(res, tok, token, path, { csp: PDF_ONLY_CSP });
+      if (fail) errPage(fail.code, fail.msg);
       return;
     }
 

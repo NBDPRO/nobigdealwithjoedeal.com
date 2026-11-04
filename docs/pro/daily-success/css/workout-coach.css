@@ -138,6 +138,8 @@ body.wc-lock { overflow: hidden; }
 .wc-swap-opt.wc-avoided { border-color: rgba(245, 158, 11, .6); background: rgba(245, 158, 11, .1); color: #fcd9a0; }
 .wc-plates { font-size: 12px; color: #cfd8e3; margin: -2px 0 8px; }
 .wc-last { font-size: 12px; color: #9fb0c3; margin: -2px 0 8px; }
+.wc-note-prev { overflow-wrap: anywhere; }
+.wc-note { margin: 0 0 8px; font-size: 16px; }
 .wc-hist-btn { margin-top: 8px; min-height: 44px; }
 .wc-routines { margin-top: 10px; display: grid; gap: 6px; }
 .wc-routine { min-height: 44px; height: auto; padding-top: 8px; padding-bottom: 8px; justify-content: flex-start; text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }   /* .btn is nowrap + 32px tall: a long routine name ran out of the card */
@@ -184,6 +186,18 @@ button.wc-kind.k-fail { color: #fda4af; font-weight: 700; }
 .wc-bal-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(0, 0, 0, .06); color: var(--ink, #1a1a1a); }
 .wc-bal-chip.low { background: rgba(245, 158, 11, .22); }
 .wc-bal-chip.none { background: rgba(220, 38, 38, .16); font-weight: 700; }
+.wc-vol { margin-top: 8px; }
+.wc-vol-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.wc-vol-l { flex: 0 0 92px; font-size: 12px; }
+.wc-vol-bar { flex: 1; height: 10px; min-width: 0; }
+.wc-vol-track { fill: rgba(0, 0, 0, .06); }
+.wc-vol-band { fill: rgba(22, 163, 74, .22); }
+.wc-vol-fill { fill: #2563eb; }
+.wc-vol-fill.under { fill: #f59e0b; }
+.wc-vol-fill.over { fill: #dc2626; }
+.wc-vol-fill.in { fill: #16a34a; }
+.wc-vol-prev { fill: var(--ink, #1a1a1a); opacity: .6; }
+.wc-vol-n { flex: 0 0 22px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
 .wc-bal-note { font-size: 12px; margin-top: 6px; color: var(--ink, #1a1a1a); }
 .wc-behind { margin: 0 0 8px; color: #f5c27a; }
 .wc-ready { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
@@ -201,3 +215,8 @@ button.wc-kind.k-fail { color: #fda4af; font-weight: 700; }
 .wc-set.next { box-shadow: -3px 0 0 var(--ac, #BD5728); padding-left: 2px; }
 .wc-ss-add { display: flex; gap: 6px; }
 .wc-ss-add .wc-add { margin-top: 0; }
+
+/* Accessibility (2026-10-23): the rest-timer text is its own element so the Skip button next to it is never redrawn; the
+   announcer is visually hidden but read by screen readers. */
+.wc-rest-t { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
+.wc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -107,10 +107,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ── sidebar keyboard nav (consolidation 2026-07-19) ─────────────────────
 // .ni items are divs with a click delegate — unreachable by keyboard until
-// the markup sweep added tabindex. Enter/Space activates like a click.
+// the markup sweep added tabindex. Enter/Space activates like a click. The three
+// collapsible section headers (TOOLS / INSIGHTS / AI TOOLS) are the same kind of div.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
-  const ni = e.target && e.target.closest && e.target.closest('.ni[data-action]');
+  const ni = e.target && e.target.closest && e.target.closest('.ni[data-action], .nav-section-header[data-action]');
   if (!ni) return;
   e.preventDefault();
   ni.click();

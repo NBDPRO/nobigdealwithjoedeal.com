@@ -240,8 +240,8 @@ console.log('\nEND SCREEN — Start free (primary), Book a demo (secondary), pha
     /href="\/pro\/register\.html" data-pl-action="goRegister">Start free — no card</.test(primary));
   ok('the secondary CTA is Book a demo through the one demo-link constant', /class="pl-btn pl-btn-ghost[^"]*" href="https:\/\/cal\.com\/nobigdeal" data-demo-link[^>]*>Book a demo</.test(end)
     && /var DEMO_URL = 'https:\/\/cal\.com\/nobigdeal\/nbd-pro-demo';/.test(read('docs/pro/js/landing-page.js')) && !HTML.includes('nbd-pro-demo'));
-  const ph = (end.match(/<div class="sx-next-phase"[\s\S]*?<\/div>/) || [''])[0];
-  ok('"Explore the whole sample account" is a disabled-looking placeholder, not a link', /aria-disabled="true"/.test(ph) && /coming next/i.test(ph) && !/<a\b|href=/.test(ph));
+  const ph = (end.match(/<a class="sx-next-phase"[\s\S]*?<\/a>/) || [''])[0];
+  ok('"Explore the sample account" links to /pro/explore, not a disabled placeholder', /href="\/pro\/explore"/.test(ph) && !/coming next|aria-disabled/i.test(ph) && ph.length > 20);
   const free = (read('docs/pro/js/billing-gate.js').match(/free:\s*\{ label: 'Free',\s*leads: (\d+),[^}]*reps: (\d+)/) || []);
   ok('the Free-plan line matches billing-gate.js PLANS.free (' + free[1] + ' leads, ' + free[2] + ' user)',
     free[1] && end.includes('The Free plan: ' + free[1] + ' new leads a month, ' + free[2] + ' user. No card, no timer.'));

@@ -499,6 +499,11 @@ function goTo(name, params = {}) {
     try {
       if (typeof window.renderEstimatesList === 'function') window.renderEstimatesList(window._estimates || []);
       if (typeof window.renderLeads === 'function' && Array.isArray(window._leads)) window.renderLeads(window._leads, window._filteredLeads);
+      // The "This Week" tiles (weekNewLeads / weekEstimates / weekRevenue /
+      // weekTasks) are written only at lead load, when this template is not
+      // yet hydrated and calculateWeeklyStats() no-ops, so they showed 0 until
+      // the next lead load. Recompute now that the template is mounted.
+      if (typeof window.calculateWeeklyStats === 'function') window.calculateWeeklyStats();
     } catch (e) { console.warn('dash KPI refresh failed:', e); }
     // QA 2026-06-21 #9b: the dashboard widget SECTIONS (hot-leads, smart-followup
     // briefing, almost-there, stale-shares, engagement-cohort, bottleneck) render
@@ -576,6 +581,10 @@ function goTo(name, params = {}) {
       }
       renderLeads(window._leads || [], window._filteredLeads);
     }
+    // The Pipeline template is hydrated by now. Header buttons that live inside it (the Follow-ups
+    // button, flag followUpBoard) may have run their first sync while it was still an inert
+    // <template>, so tell them it is mounted. Narrower than re-emitting nbd:data-refreshed.
+    try { window.dispatchEvent(new CustomEvent('nbd:view-entered', { detail: { name: 'crm' } })); } catch (e) {}
   }
   // These views' modules are lazy-loaded — chain init onto the preload
   // promise so the init call runs AFTER the module has defined the
@@ -633,12 +642,17 @@ function goTo(name, params = {}) {
     // on first load after a cache-version bump (poor connectivity + empty
     // nbd-cdn cache). In that case we surface a retry button instead of
     // leaving the spinner up forever.
+    // The map vendor bundle loads in PARALLEL with the tracker (VIEW_BUNDLES
+    // d2d: ['mapvendor', 'd2d']), so window.D2D can exist before
+    // leaflet.markercluster.js has run; the tracker's init then threw on
+    // L.markerClusterGroup and the view stuck on "Loading…" (2026-10-23 audit).
     function waitForD2D(cb) {
-      if (window.D2D) { cb(); return; }
+      const ready = () => !!(window.D2D && window.L && typeof window.L.markerClusterGroup === 'function');
+      if (ready()) { cb(); return; }
       let t2 = 0;
       const iv = setInterval(()=> {
         t2++;
-        if (window.D2D) {
+        if (ready()) {
           clearInterval(iv);
           cb();
         } else if (t2 > 160) { // 8 seconds

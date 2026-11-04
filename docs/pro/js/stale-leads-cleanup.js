@@ -65,7 +65,7 @@
   /** Latest moment anything touched the lead (0 = no usable date at all). */
   function lastActivityMs(lead) {
     var l = lead || {};
-    return Math.max(toMs(l.updatedAt), toMs(l.stageStartedAt), toMs(l.lastContactedAt), toMs(l.lastActivityAt), toMs(l.createdAt));
+    return Math.max(toMs(l.updatedAt), toMs(l.stageStartedAt), toMs(l.lastContactedAt), toMs(l.lastInboundAt), toMs(l.lastActivityAt), toMs(l.createdAt));
   }
 
   function stageKeyOf(lead, normalize) {

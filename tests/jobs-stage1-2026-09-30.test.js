@@ -118,6 +118,7 @@ ok('the customer page loads jobs-store.js, then customer-jobs.js (stage 2b)', /j
       JS.records([{ id: 'D', activeJobId: 'j9', jobValue: 10 }], () => [{ id: 'j2', jobValue: 5 }], norm, roleOf).length === 2);
     ok('before jobs load, recordsFor is the leads as they are', JSON.stringify(JS.recordsFor([two])) === JSON.stringify([two]));
     const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8');
+  ok('load() announces nbd:jobs-loaded on the window once the jobs are in (the Island hero repaints its in-play headline on it)', /loadedAt = Date\.now\(\);[\s\S]{0,600}dispatchEvent\(new w\.CustomEvent\('nbd:jobs-loaded'/.test(read('jobs-store.js')));
     ok('the KPI row, analytics, Home pipeline + leaderboard tiles, the leaderboard and the rep report use it',
       /var recs = _jobRecs\(leads\);/.test(read('analytics-kpi.js')) && (read('widgets.js').match(/NBDJobs\.recordsFor\(window\._leads/g) || []).length === 2
       && /NBDJobs\.recordsFor\(leads\)/.test(read('dashboard-api.js')) && /NBDJobs\.recordsFor\(leads\)/.test(read('rep-report-generator.js')));

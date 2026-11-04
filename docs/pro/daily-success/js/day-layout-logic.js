@@ -48,6 +48,47 @@
   }
 
   /**
+   * The Rings layout's four rings: Floors (met of total), Calories and Protein (eaten of target) and Workout (done today).
+   * pct is 0-1; a ring with no target stays empty and says so. Calories has no "done" (whether eating more or less is the goal is
+   * Jo's call); it only turns amber when over the target. "closed" = floors, protein (if a target is set) and workout all done.
+   * o = todaySummary's inputs plus calTarget / proteinTarget. -> { rings: [{ id, label, value, sub, pct, done, over }], closed }
+   */
+  function ringsFor(o) {
+    o = o || {};
+    const s = todaySummary(o);
+    const cal = num(o.cal), pro = num(o.protein);
+    const calT = num(o.calTarget) > 0 ? num(o.calTarget) : null;
+    const proT = num(o.proteinTarget) > 0 ? num(o.proteinTarget) : null;
+    const frac = (v, t) => (t && v != null ? Math.max(0, Math.min(1, v / t)) : 0);
+    const proDone = !!proT && pro != null && pro >= proT;
+    const rings = [
+      { id: 'floors', label: 'Floors', value: s.floors, sub: '', pct: s.floorsPct / 100, done: s.allMet, over: false },
+      { id: 'cal', label: 'Calories', value: s.cal, sub: calT ? 'of ' + fmt(calT) : 'no target', pct: frac(cal, calT), done: false, over: !!calT && cal != null && cal > calT },
+      { id: 'protein', label: 'Protein', value: s.protein, sub: proT ? 'of ' + fmt(proT) + ' g' : 'no target', pct: frac(pro, proT), done: proDone, over: false },
+      { id: 'workout', label: 'Workout', value: s.workout ? 'Done' : '\u2014', sub: '', pct: s.workout ? 1 : 0, done: s.workout, over: false },
+    ];
+    return { rings, closed: s.allMet && s.workout && (!proT || proDone) };
+  }
+
+  const escH = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  /** Markup for ringsFor()'s result. Drawn with SVG attributes only (no inline style), so it is CSP-safe. */
+  function ringsHtml(r) {
+    const rings = (r && r.rings) || [];
+    const one = (g) => {
+      const pct = Math.round(Math.max(0, Math.min(1, g.pct)) * 1000) / 10;
+      const say = g.label + ' ' + g.value + (g.sub ? ' ' + g.sub : '');
+      return '<div class="rg-r' + (g.done ? ' done' : '') + (g.over ? ' over' : '') + '" role="img" aria-label="' + escH(say) + '">'
+        + '<div class="rg-c"><svg class="rg-svg" viewBox="0 0 36 36" aria-hidden="true">'
+        + '<circle class="rg-t" cx="18" cy="18" r="15.9155" fill="none" stroke-width="3.2"/>'
+        + (pct > 0 ? '<circle class="rg-p" cx="18" cy="18" r="15.9155" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="' + pct + ' 100" transform="rotate(-90 18 18)"/>' : '')
+        + '</svg><span class="rg-v">' + escH(g.value) + '</span></div>'
+        + '<span class="rg-l">' + escH(g.label) + '</span></div>';
+    };
+    return '<div class="rg-wrap' + (r && r.closed ? ' closed' : '') + '">' + rings.map(one).join('') + '</div>'
+      + (r && r.closed ? '<div class="rg-note">All rings closed</div>' : '');
+  }
+
+  /**
    * Door-knocking / sales stats (Activity Totals, Revenue Pace, Doors / Revenue / Closes charts, monthly sales goals) are
    * hidden for someone who has never used them. pref is Jo's explicit switch ('1' on, '0' off) and always wins; with no
    * switch they appear on their own as soon as there is anything to show: a logged door, contact, appointment, close or
@@ -60,7 +101,7 @@
     return [t.doors, t.contacts, t.appts, t.closes, t.revenue, g.d, g.r, g.c].some((v) => (num(v) || 0) > 0);
   }
 
-  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, todaySummary, salesVisible };
+  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, todaySummary, ringsFor, ringsHtml, salesVisible };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDayLayout = api;
 })(typeof window !== 'undefined' ? window : null);

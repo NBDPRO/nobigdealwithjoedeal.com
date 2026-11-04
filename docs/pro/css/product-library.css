@@ -16,7 +16,7 @@
 .plx-wrap6-mb { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .plx-row6 { display: flex; gap: 6px; }
 .plx-row6-mb { display: flex; gap: 6px; margin-bottom: 12px; }
-.plx-row8 { display: flex; gap: 8px; }
+.plx-row8 { display: flex; gap: 8px; flex-wrap: wrap; } /* wrap: the four header buttons ran 421px wide on phones (phone-fit, 2026-10-24) */
 .plx-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .plx-card-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--br); }
 .plx-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
@@ -49,16 +49,16 @@
 .plx-mb6 { margin-bottom: 6px; }
 .plx-mt8 { margin-top: 8px; }
 .plx-h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--t); }
-.plx-h1 { margin: 0; font-size: 28px; font-weight: 700; color: var(--t); }
 .plx-sub12 { margin: 4px 0 0; font-size: 12px; color: var(--m); }
-.plx-sub13 { margin: 6px 0 0; font-size: 13px; color: var(--m); }
+.plx-sub13 { margin: 0; font-size: 13px; color: var(--m); }
 .plx-dim6 { opacity: .6; font-weight: 400; }
 .plx-dim7b { opacity: .7; font-weight: 400; }
-.plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
-.plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
-.plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
-.plx-btn-green.plx-btn-green { padding: 8px 14px; background: #10b981; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
-.plx-btn-red.plx-btn-red { padding: 8px 14px; background: #ef4444; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
+.plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: inherit; /* the dashboard font (Barlow), not the OS stack - 2026-10-25 */ }
+.plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #4b5563; /* was #6b7280: 4.4:1 (UI sweep 2026-10-24) */ border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
+.plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #1d4ed8; color: #fff; /* was #3b82f6: 3.7:1 under white (UI sweep 2026-10-24) */ border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+/* UI sweep 2026-10-24: Export CSV and Reset were a green and a red fill beside the orange Add Product.
+   Both are quiet .btn-ghost buttons now, like Price book; Reset keeps danger-coloured text (it asks first). */
+.plx-btn-reset.plx-btn-reset { color: var(--ui-danger-text, #dc2626); }
 .plx-btn-delete.plx-btn-delete { padding: 8px 16px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .plx-btn-add.plx-btn-add { padding: 8px 16px; background: var(--orange,#BD5728); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
 .plx-btn-cancel.plx-btn-cancel { padding: 8px 16px; background: var(--s2); color: var(--t); border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }

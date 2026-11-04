@@ -62,8 +62,8 @@ ok('estimate wizard: computes no payment (no APR constants, no amortization)',
   !/0\.1149|0\.1999|finPay|resultMonthlyFigs/.test(wizard) && /function renderFinancingLink\(min\)/.test(wizard));
 ok('estimate wizard: hides the link for storm claims and projects under $3,000',
   /wrap\.hidden = funnelData\.service === 'storm-damage' \|\| !min \|\| min < FIN_MIN_PROJECT;/.test(wizard) && /const FIN_MIN_PROJECT = 3000;/.test(wizard));
-ok('estimate wizard cache-bust: loader ?v=5 on the page, wizard ?v=6 in the loader',
-  est.includes('/assets/js/estimate-wizard-loader.js?v=5') && read('docs/assets/js/estimate-wizard-loader.js').includes("/assets/js/inline/4053149b2f.js?v=6"));
+ok('estimate wizard cache-bust: loader ?v=6 on the page, wizard ?v=7 in the loader (2026-10-26: step focus, email error)',
+  est.includes('/assets/js/estimate-wizard-loader.js?v=6') && read('docs/assets/js/estimate-wizard-loader.js').includes("/assets/js/inline/4053149b2f.js?v=7"));
 
 console.log('B. Elite is a package name, not an invented product line');
 ok('/estimate: no "Lifetime Designer" (page or wizard)', !/lifetime designer/i.test(est) && !/lifetime designer/i.test(wizard));
@@ -74,7 +74,7 @@ console.log('C. /pro: no unverifiable claims-volume figure');
 const pro = read('docs/pro/index.html');
 ok('/pro: no "$10M+" and no "claims experience"', !/\$10M|10 million|claims experience/i.test(pro), firstMatch(pro, /\$10M|claims experience/i));
 ok('/pro: the proof row still shows the checkable figures', /<strong>7 years<\/strong>/.test(pro) && /<strong>Every price<\/strong>/.test(pro));
-ok('/pro: landing.css cache-busted for the 4-up proof row', pro.includes('/pro/css/landing.css?v=3') && /\.pl-proof-row \{ display: grid; grid-template-columns: repeat\(4, 1fr\); \}/.test(read('docs/pro/css/landing.css')));
+ok('/pro: landing.css cache-busted for the 4-up proof row', /\/pro\/css\/landing\.css\?v=([3-9]|\d\d)(?!\d)/.test(pro) && /\.pl-proof-row \{ display: grid; grid-template-columns: repeat\(4, 1fr\); \}/.test(read('docs/pro/css/landing.css')));
 
 console.log('D. CRM login: the free playbook, not a Masterclass');
 const login = read('docs/pro/login.html');

@@ -147,7 +147,7 @@ function tsMs(v) {
  */
 function matchLead(phoneDigits, index) {
   if (!phoneDigits || !index || !index.has(phoneDigits)) return { leadId: null, alternates: [] };
-  const recent = (l) => Math.max(tsMs(l.updatedAt), tsMs(l.lastContactedAt), tsMs(l.createdAt));
+  const recent = (l) => Math.max(tsMs(l.updatedAt), tsMs(l.lastContactedAt), tsMs(l.lastInboundAt), tsMs(l.createdAt));
   const ranked = index.get(phoneDigits).slice().sort((a, b) => recent(b) - recent(a));
   return { leadId: ranked[0].id, alternates: ranked.slice(1).map((l) => l.id) };
 }

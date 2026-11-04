@@ -123,6 +123,20 @@ async function waitFor(page, fn, arg, ms) {
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e).slice(0, 300)));
 
+    console.log('0. the guided story (/pro/sandbox): keyboard starts at the top');
+    // 2026-10-23 audit: the story wrote #storm into the URL while loading, the
+    // browser took that as a jump to the first step, and the first Tab skipped
+    // the skip link and the header. A deep link (#estimate) still works.
+    await page.goto(ORIGIN + '/pro/sandbox');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    await page.keyboard.press('Tab');
+    const firstTab = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    ok('the first Tab on the story page reaches "Skip to the demo"', /\bpl-skip\b/.test(firstTab || ''), firstTab);
+    await page.goto('about:blank');   // a fresh load, not a same-page hash change
+    await page.goto(ORIGIN + '/pro/sandbox#estimate');
+    await page.waitForFunction(() => document.querySelector('.sx-chip[aria-current="step"]'), null, { timeout: 15000 });
+    ok('a deep link to a step still opens that step', await page.evaluate(() => /Estimate/.test(document.querySelector('.sx-chip[aria-current="step"]').textContent) && location.hash === '#estimate'));
+
     console.log('1. open the sample account');
     await page.goto(ORIGIN + '/pro/explore');
     await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });
@@ -623,6 +637,150 @@ async function waitFor(page, fn, arg, ms) {
     ok('"Send to sub" shows the job sheet in "Nothing was sent" (no share sheet, no Messages), with no dollar figure',
       /Nothing was sent/.test(sheet) && /JOB SHEET/.test(sheet) && /402 Example Hill Rd/.test(sheet) && !/\$\d/.test(sheet) && page.url() === urlProd, sheet.slice(0, 500));
     await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+
+    console.log('25. AI Usage: the real page inside the sample dashboard, on sample usage');
+    await page.evaluate(() => { window.location.href = '/pro/dashboard.html'; });
+    await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });
+    await waitFor(page, () => Array.isArray(window._leads) && window._leads.length >= 20 && typeof window.goTo === 'function');
+    ok('the AI Usage entry is in the sample sidebar', await page.evaluate(() => { const n = document.getElementById('nav-aiusage'); return !!n && n.style.display !== 'none' && n.getAttribute('aria-hidden') !== 'true'; }));
+    await page.evaluate(() => window.goTo('aiusage'));
+    await waitFor(page, () => { const f = document.getElementById('iframe-aiusage'); return !!f && /\/pro\/explore\/analytics$/.test(f.getAttribute('src') || ''); }, null, 15000);
+    const usageFrame = page.frames().find((f) => /\/pro\/explore\/analytics$/.test(f.url())) ||
+      await (async () => { await page.waitForTimeout(1500); return page.frames().find((f) => /\/pro\/explore\/analytics$/.test(f.url())); })();
+    ok('the view loads /pro/explore/analytics (inside the sample account, not the real /pro/analytics)', !!usageFrame, page.frames().map((f) => f.url()).join(' | '));
+    if (usageFrame) {
+      await usageFrame.waitForFunction(() => { const v = document.getElementById('vReq'); return v && /^[1-9][\d,]*$/.test(v.textContent.trim()); }, null, { timeout: 30000, polling: 200 });
+      // The first render also draws the chart after the stats; on a fast runner the
+      // click could land while that layout was still settling (CI 2026-10-25: the
+      // 30-day label never came, twice, while every local run passed). Wait for the
+      // chart to be drawn first, then click, and on a miss report the frame's
+      // state instead of dying on the timeout.
+      await usageFrame.waitForFunction(() => { const c = document.getElementById('chart'); return !!c && !/Loading chart/.test(c.textContent || ''); }, null, { timeout: 30000, polling: 200 });
+      const frameErrors = [];
+      usageFrame.page().on('pageerror', (e) => frameErrors.push(String(e).slice(0, 200)));
+      // A real click on the page's own range button. Playwright proves the button is the hit target INSIDE
+      // the frame, not that nothing in the parent dashboard covers the frame at that point (the sample strip,
+      // a header): a covered point swallows the click silently (CI 2026-10-25, the 30-day label never came
+      // while the frame itself was fine). So first read the point the click will land on, and make the parent
+      // bring the frame to it; record what the parent has at that point either way for the diagnosis.
+      const rangeBtn = usageFrame.locator('[data-range="30d"]');
+      await rangeBtn.scrollIntoViewIfNeeded();
+      const parentHit = await (async () => {
+        const box = await rangeBtn.boundingBox();
+        if (!box) return 'no box';
+        const fbox = await page.locator('#iframe-aiusage').boundingBox();
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        return page.evaluate(([px, py, fb]) => {
+          const el = document.elementFromPoint(px, py);
+          return (el ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : '') : 'null') + ' at ' + Math.round(px) + ',' + Math.round(py) + ' frame ' + JSON.stringify(fb && { x: Math.round(fb.x), y: Math.round(fb.y), w: Math.round(fb.width), h: Math.round(fb.height) });
+        }, [x, y, fbox]);
+      })();
+      await rangeBtn.click();
+      let rangeTook = true;
+      try {
+        await usageFrame.waitForFunction(() => /30 Days/.test((document.getElementById('lReq') || {}).textContent || ''), null, { timeout: 15000, polling: 200 });
+      } catch (e) { rangeTook = false; }
+      if (!rangeTook) {
+        const diag = await usageFrame.evaluate(() => ({
+          url: location.href, ready: document.readyState, lReq: (document.getElementById('lReq') || {}).textContent,
+          active: [...document.querySelectorAll('.tt.active')].map((b) => b.dataset.range), setRange: typeof window.setRange,
+          chart: ((document.getElementById('chart') || {}).textContent || '').slice(0, 60),
+        })).catch((e) => String(e));
+        ok('the 30 Days range button took the click (label says Last 30 Days)', false, JSON.stringify(diag) + ' | parent hit: ' + parentHit + ' | errors: ' + frameErrors.join(' || '));
+      }
+      const u = await usageFrame.evaluate(() => ({
+        req: document.getElementById('vReq').textContent.trim(), cost: document.getElementById('vCost').textContent.trim(),
+        features: (document.getElementById('featureBody') || document.body).innerText,
+        demo: !!(window.__NBD_DEMO__ && window.__NBD_DEMO__.active), strip: !!document.getElementById('nbd-demo-strip'),
+        embedded: document.documentElement.classList.contains('nbd-embedded')
+      }));
+      ok('it shows the sample month: requests, a cost, and the sample features', /^[1-9]/.test(u.req) && /^\$\d/.test(u.cost) && /ask-joe/.test(u.features) && /decision-engine/.test(u.features), JSON.stringify(u).slice(0, 400));
+      ok('the framed page runs in the sample account (demo-mode armed) with no second strip, embedded', u.demo && !u.strip && u.embedded, JSON.stringify({ demo: u.demo, strip: u.strip, embedded: u.embedded }));
+    }
+    ok('the server served AI Usage through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/analytics' && e.kind === 'rewrite'));
+
+    console.log('26. Success Tracker: the sidebar entry opens its sample copy, on a sample week');
+    ok('the Success Tracker entry is in the sample sidebar', await page.evaluate(() => { const n = document.getElementById('nav-daily'); return !!n && n.style.display !== 'none' && n.getAttribute('aria-hidden') !== 'true'; }));
+    const [ds] = await Promise.all([ctx.waitForEvent('page', { timeout: 20000 }), page.locator('#nav-daily').click()]);
+    ds.on('pageerror', (e) => pageErrors.push('daily-success: ' + String(e && e.message || e).slice(0, 300)));
+    await ds.waitForLoadState('domcontentloaded');
+    ok('it opens /pro/explore/daily-success (the sample copy, not the real /pro/daily-success/)', new URL(ds.url()).pathname === '/pro/explore/daily-success', ds.url());
+    await ds.waitForFunction(() => { try { return (JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]')).length >= 7; } catch (_) { return false; } }, null, { timeout: 30000, polling: 250 });
+    const dsState = await ds.evaluate(() => ({
+      demo: !!(window.__NBD_DEMO__ && window.__NBD_DEMO__.active), strip: !!document.getElementById('nbd-demo-strip'),
+      welcome: (document.getElementById('welcomeModal') || { style: {} }).style.display,
+      pages: JSON.parse(localStorage.getItem('nbd_dsp_v1') || '[]').length, text: document.body.innerText
+    }));
+    ok('the tracker runs in the sample account (demo-mode armed, its strip shown, no first-visit welcome)', dsState.demo && dsState.strip && dsState.welcome !== 'flex', JSON.stringify({ demo: dsState.demo, strip: dsState.strip, welcome: dsState.welcome }));
+    ok('the sample week loaded from the sample account: six days plus today, a five-day floor streak, a weight trend',
+      dsState.pages === 7 && /FLOOR STREAK\s*5\b/i.test(dsState.text) && /\d{3}\.\d lb on/.test(dsState.text), dsState.text.slice(0, 600));
+    // Food search: a real search, answered by the sample account, not Open Food Facts.
+    const searched = await ds.evaluate(async () => {
+      const r = await window.fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=yogurt&json=1');
+      return { status: r.status, body: await r.json(), notice: (window.__NBD_DEMO__.notices || []).some((n) => /real account/.test(n.message || n)) };
+    });
+    ok('food search is answered in the sample account ("in your real account"), never fetched', searched.status === 503 && searched.body.sample === true && searched.notice, JSON.stringify(searched));
+    const dsBlocked = await ds.evaluate(() => window.__NBD_DEMO__.blocked.slice());
+    ok('the tracker blocked nothing (no attempt was made)', dsBlocked.length === 0, JSON.stringify(dsBlocked));
+    ok('the server served the tracker through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/daily-success' && e.kind === 'rewrite'));
+    await ds.close();
+
+    console.log('27. Decision Engine, Understand, Project Codex: sample answers, no model, no insurance topics');
+    const toolFrame = async (view, re) => {
+      await page.evaluate((v) => window.goTo(v), view);
+      for (let i = 0; i < 60; i++) { const f = page.frames().find((x) => re.test(x.url())); if (f) return f; await page.waitForTimeout(250); }
+      return null;
+    };
+    const tree = await toolFrame('aitree', /\/pro\/explore\/ai-tree$/);
+    ok('Decision Engine loads /pro/explore/ai-tree inside the sample dashboard', !!tree, page.frames().map((f) => f.url()).join(' | '));
+    if (tree) {
+      await tree.waitForSelector('[data-cat="pricing"]', { timeout: 20000 });
+      const cats = await tree.evaluate(() => [...document.querySelectorAll('.cat-card')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.cat).join(','));
+      ok('only Pricing Strategy and Damage Assessment are offered (the insurance categories are hidden)', cats === 'pricing,damage', cats);
+      await tree.click('[data-cat="pricing"]');
+      for (let q = 0; q < 8; q++) {   // the page's own flow: pick the first option, Next
+        const done = await tree.evaluate(() => document.getElementById('resultPanel').classList.contains('active') || document.getElementById('errorPanel').classList.contains('active'));
+        if (done) break;
+        await tree.locator('#optionsGrid > *').first().click();
+        await tree.locator('#btnNext:not([disabled])').click();
+      }
+      await tree.waitForFunction(() => document.getElementById('resultPanel').classList.contains('active') || document.getElementById('errorPanel').classList.contains('active'), null, { timeout: 10000 });
+      const r = await tree.evaluate(() => ({ ok: document.getElementById('resultPanel').classList.contains('active'), decision: document.getElementById('resultDecision').textContent, body: document.getElementById('resultBody').innerText, err: document.getElementById('errorMsg').textContent }));
+      ok('a Pricing run gives a sample recommendation in the page\'s own layout, labelled "no AI model was called"',
+        r.ok && /^Lead with the (Good|Better|Best) option/.test(r.decision) && /KEY REASONING/i.test(r.body) && /no AI model was called/.test(r.body), JSON.stringify(r).slice(0, 400));
+    }
+    const und = await toolFrame('understand', /\/pro\/explore\/understand$/);
+    ok('Understand loads /pro/explore/understand inside the sample dashboard', !!und);
+    if (und) {
+      await und.waitForSelector('[data-domain="technical"]', { timeout: 20000 });
+      const doms = await und.evaluate(() => [...document.querySelectorAll('[data-domain]')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.domain).join(','));
+      ok('Understand offers Technical and Business (Insurance Deep Dive is hidden)', doms === 'technical,business', doms);
+      await und.click('[data-domain="business"]');
+      await und.evaluate(() => { document.getElementById('chatInput').value = 'How to get more Google reviews and rank higher'; });
+      await und.locator('#chatSend').click();
+      await und.waitForFunction(() => /Sample answer/.test(document.getElementById('chatMsgs').innerText), null, { timeout: 10000, polling: 200 });
+      const msg = await und.evaluate(() => document.getElementById('chatMsgs').innerText);
+      ok('a starter topic gets its sample answer, labelled', /Ask at the right moment/.test(msg) && /no AI model was called/.test(msg), msg.slice(0, 300));
+    }
+    const cx = await toolFrame('projectcodex', /\/pro\/explore\/project-codex$/);
+    ok('Project Codex loads /pro/explore/project-codex inside the sample dashboard', !!cx);
+    if (cx) {
+      await cx.waitForFunction(() => { const s = document.getElementById('projSelect'); return s && s.options.length > 2; }, null, { timeout: 20000, polling: 200 });
+      const pick = await cx.evaluate(() => { const o = [...document.getElementById('projSelect').options].find((x) => x.value); return { value: o.value, label: o.textContent }; });
+      await cx.selectOption('#projSelect', pick.value);
+      await cx.locator('.tab[data-tab="ask"]').click();
+      await cx.locator('.ai-chip').first().click();
+      await cx.waitForFunction(() => /no AI model was called/.test(document.getElementById('aiMsgs').innerText), null, { timeout: 10000, polling: 200 });
+      const st = await cx.evaluate(() => document.getElementById('aiMsgs').innerText);
+      ok('Status check answers from the selected sample job\'s own record', /Stage:/.test(st) && /Address:/.test(st) && /built from this sample job's record/.test(st), st.slice(0, 300));
+      await cx.locator('.tab[data-tab="actions"]').click();
+      const cards = await cx.evaluate(() => [...document.querySelectorAll('[data-pc-action="runAction"]')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.arg).join(','));
+      ok('Quick Actions offer everything but Supplement Strategy', cards === 'scope,followup,checklist,closeout,review', cards);
+      await cx.locator('[data-arg="checklist"]').click();   // threw on every click before 2026-10-24 (event.currentTarget)
+      await cx.waitForFunction(() => /Pre-Build Checklist/.test((document.getElementById('modalBody') || {}).innerText || ''), null, { timeout: 10000, polling: 200 });
+      ok('a Quick Action card opens its sample document (the card click works)', true);
+    }
+    for (const t of ['ai-tree', 'understand', 'project-codex']) ok('the server served ' + t + ' through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/' + t && e.kind === 'rewrite'));
 
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');

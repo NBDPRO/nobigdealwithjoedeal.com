@@ -5935,7 +5935,11 @@
     // (computed from accentFinal), and it wins the cascade over the static
     // list. Gate strictly on MEASURED contrast against the FINAL accent so a
     // dark-accent mode keeps white text and never under-contrasts.
-    const accentFg = (contrastRatio('#ffffff', accentFinal) < 3 || luminance(accentFinal) > 0.7)
+    // Whichever ink reads better on the FINAL accent (UI sweep 2026-10-24: the
+    // old "white unless under 3:1" rule kept white on obsidian's light-mode grey
+    // accent at 3.38:1; dark ink there is 5.9:1). Brand orange, and every accent
+    // white already read best on, keep white.
+    const accentFg = contrastRatio('#0a0a0a', accentFinal) > contrastRatio('#ffffff', accentFinal)
       ? '#0a0a0a'
       : '#ffffff';
 

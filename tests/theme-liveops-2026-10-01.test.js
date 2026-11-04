@@ -105,7 +105,7 @@ if (entry) {
   ok(`muted text holds AA on a translucent card over the brightest stop (${worstCard.toFixed(2)}:1)`, worstCard >= AA);
 }
 ok('engine bundle version bumped in script-loader', +((read('docs/pro/js/script-loader.js').match(/'js\/theme-engine\.js\?v=(\d+)'/) || [])[1] || 0) >= 4
-  && /'js\/theme-overlays\.js\?v=3'/.test(read('docs/pro/js/script-loader.js')));
+  && /'js\/theme-overlays\.js\?v=([3-9]|\d\d)'/.test(read('docs/pro/js/script-loader.js'))   /* >= 3: 4 since overlay 'none' (2026-10-24) */);
 
 // ── 3. shader-gradient behaviour in a stub DOM ───────────────────────────
 console.log('\n3. theme-overlays.js shader-gradient (stub DOM + stub WebGL)');

@@ -71,6 +71,9 @@ function esc(s) {
 // storm-report-page.js writes; anything else gets the generic sentence.
 const GENERIC_SUMMARY = 'a multi-year history of hail and wind storms';
 const STORY_RE = /^\s*STORM\s*REPORT\s*\|\s*(\d{1,4}) events\/(\d{1,2})yr \((\d{1,4}) hail, (\d{1,4}) wind, (\d{1,4}) tornado, max (\d{1,2}(?:\.\d{1,2})?)″\)\s*$/;
+// The line storm-report-page.js writes when the storm-data lookup failed
+// (2026-10-26). There is no storm history to email, so no email goes out.
+const LOOKUP_FAILED_STORY_RE = /^\s*STORM\s*REPORT\s*\|\s*storm records unavailable\s*$/;
 function summaryLine(story) {
   const m = STORY_RE.exec(String(story || ''));
   if (!m) return GENERIC_SUMMARY;
@@ -209,6 +212,14 @@ exports.stormReportEmail = onDocumentCreated(
     // no outbound email to a typed address either.
     if (d.alertSuppressed === 'duplicate' || d.alertSuppressed === 'volume') {
       logger.info('stormReportEmail: skip — suppressed at intake', { leadId, reason: d.alertSuppressed });
+      return;
+    }
+
+    // The page could not look up this address's storm records: no "verified
+    // storm history" email. Before the claim below, so nothing is marked sent.
+    if (LOOKUP_FAILED_STORY_RE.test(String(d.story || ''))) {
+      logger.info('stormReportEmail: skip — storm lookup failed', { leadId });
+      await snap.ref.update({ reportEmailHeld: 'storm_lookup_failed' }).catch(() => {});
       return;
     }
 

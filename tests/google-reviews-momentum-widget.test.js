@@ -54,6 +54,7 @@ const pieces = {
   stars: lift(WIDGET_SRC, 'function stars(n)'),
   recentText: lift(WIDGET_SRC, 'function recentText(data)'),
   truncate: lift(WIDGET_SRC, 'function truncate(text, limit)'),
+  reviewDate: lift(WIDGET_SRC, 'function reviewDate(review)'),
   renderReviewCard: lift(WIDGET_SRC, 'function renderReviewCard(review)'),
   renderFallback: lift(WIDGET_SRC, 'function renderFallback(container)'),
   renderAll: lift(WIDGET_SRC, 'function renderAll(container, data)'),

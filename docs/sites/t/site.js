@@ -179,7 +179,7 @@
           siteKey: cfg.siteKey || cfg.companyId,
           source: 'tenant-site:' + (cfg.siteKey || cfg.companyId)
         }, intake.fields));
-        if (!out || !out.ok) throw new Error((out && out.reason) || 'submission failed');
+        if (!out || !out.ok) { var fail = new Error((out && out.reason) || 'submission failed'); fail.friendly = !!(out && out.friendly); throw fail; }
         okEl.textContent = "Got it! " + (cfg.displayName || cfg.name) + " will reach out shortly.";
         btn.textContent = 'Sent ✓';
         if (window.NBDIntake) {
@@ -190,7 +190,10 @@
         }
         form.reset();
       } catch (err) {
-        errEl.textContent = 'Could not send your request — ' + (err.message || 'try again') +
+        // A friendly reason (public-lead-submit.js) is a whole sentence with no
+        // NBD number on a tenant page; anything else is a clause for the lead-in.
+        var why = String(err.message || 'try again').replace(/[.\s]+$/, '');
+        errEl.textContent = (err.friendly ? why : 'Could not send your request — ' + why) +
           (cfg.contact && cfg.contact.phone ? '. Or call ' + cfg.contact.phone + '.' : '.');
         btn.disabled = false; btn.textContent = 'Send my request';
       }

@@ -192,7 +192,8 @@ const WIDGETS = [
       if(!leads.length) { el.innerHTML = '<div class="w-empty">No hot leads right now</div>'; return; }
       el.innerHTML = leads.map(l => {
         const k = _normStage(l);
-        const color = k === 'contacted' ? '#A855F7' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? '#F97316' : 'var(--m)';
+        // Text tokens (UI sweep 2026-10-24): the plain purple and orange read 3.8:1 and 2.7:1 as 10px text on a light theme.
+        const color = k === 'contacted' ? 'color-mix(in srgb, var(--purple, #A855F7) 50%, var(--t, #e8eaf0))' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? 'var(--ui-accent-text, #F97316)' : 'var(--m)';
         return `
         <div class="w-lead-row" data-w-goto="crm">
           <div class="w-lead-name">${esc(_leadName(l, 'Unknown'))}</div>
@@ -495,7 +496,7 @@ const WIDGETS = [
           <span style="${t.d?'text-decoration:line-through;opacity:.5;':''}font-size:12px;color:var(--t);">${esc(t.t)}</span>
         </label>`).join('') + `</div>
         <div class="wg-row4 wg-mt6">
-          <input type="text" id="w-task-input" placeholder="Add task..." class="wg-input-flex-sm">
+          <input type="text" id="w-task-input" aria-label="New task" placeholder="Add task..." class="wg-input-flex-sm">
           <button class="w-mini-btn" data-w-action="addTask">+</button>
         </div>`;
     }},
@@ -595,6 +596,7 @@ const WIDGETS = [
       });
       const reps = Object.entries(byRep)
         .map(([owner, r]) => ({
+          owner,
           // Fall back to the signed-in user's own name for their own row, then
           // a neutral label — never an invented person.
           name: r.name
@@ -613,12 +615,18 @@ const WIDGETS = [
           + 'No closed jobs yet — reps appear here once deals start closing.</div>';
         return;
       }
+      // Each rep's Roof Rep look beside the name (characters wave 11): drawn from the cached roofRepScores read;
+      // the first render kicks the read and redraws itself once it lands. No look, no slot.
+      const TN = window.NBDTeamNames;
+      if (TN && TN.loadAvatars && !TN.avatarsReady() && !el.__avatarsAsked) { el.__avatarsAsked = true; TN.loadAvatars().then(() => { const w = WIDGETS.find(x => x.id === 'team-leaderboard'); if (w && document.contains(el)) w.render(el); }).catch(() => {}); }
+      const face = (r) => { const look = TN && TN.avatarFor ? TN.avatarFor(r.owner) : null; return (look && window.NBDChibi) ? `<canvas class="wg-face" data-wg-face="${esc(r.owner)}" width="56" height="56" aria-hidden="true"></canvas>` : ''; };
       el.innerHTML = '<div class="wg-tiny">Booked (all time)</div>' + reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
-          <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
+          <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>${face(r)}
           <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
           <div class="wg-right"><div class="wg-orange-12">$${(r.rev/1000).toFixed(1)}k</div><div class="wg-tiny">${r.deals} deals</div></div>
         </div>`).join('');
+      if (window.NBDChibi && typeof el.querySelectorAll === 'function') el.querySelectorAll('canvas[data-wg-face]').forEach((cv, i) => { const look = TN.avatarFor(cv.getAttribute('data-wg-face')); if (look) window.NBDChibi.animate(cv, window.NBDChibi.normalize(look), function () { return { pose: 'idle', crop: 'bust', popDelay: i * 90 }; }); }); // the faces arrive one after another (chibi wave 19)
     }},
 
   // ═══ TOOLS & QUICK ACTIONS ═══
@@ -626,10 +634,10 @@ const WIDGETS = [
     render(el){
       el.innerHTML = `
         <div class="wg-col6">
-          <input type="text" id="w-ql-name" placeholder="Homeowner name" class="wg-input">
-          <input type="text" id="w-ql-addr" placeholder="Property address" class="wg-input">
+          <input type="text" id="w-ql-name" aria-label="Homeowner name" placeholder="Homeowner name" class="wg-input">
+          <input type="text" id="w-ql-addr" aria-label="Property address" placeholder="Property address" class="wg-input">
           <div class="wg-row6">
-            <select id="w-ql-damage" class="wg-select">
+            <select id="w-ql-damage" class="wg-select" aria-label="Damage type">
               <option value="Roof - Hail">Roof - Hail</option><option value="Roof - Wind">Roof - Wind</option><option value="Siding - Hail">Siding - Hail</option><option value="Siding - Wind">Siding - Wind</option><option value="Full Exterior">Full Exterior</option>
             </select>
             <button class="btn btn-orange wg-btn-p816" data-w-action="quickAddLead">Add →</button>
@@ -1364,6 +1372,8 @@ function openWidgetPicker() {
   container.id = 'wPickerContainer';
   container.innerHTML = html;
   document.body.appendChild(container);
+  // Keyboard contract (js/overlay-a11y.js): Escape closes, focus moves in and comes back.
+  if (window.nbdOverlay) window.nbdOverlay.attach(container.querySelector('#wPickerOverlay'), { label: 'Widget library', close: closePicker });
 }
 
 function closePicker() {

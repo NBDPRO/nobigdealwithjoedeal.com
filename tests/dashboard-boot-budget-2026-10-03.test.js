@@ -70,6 +70,13 @@ CEILING.localScripts += 1;
 // without the strip. Defer, no boot-time reads. Own line so parallel PRs raising the
 // ceiling above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-25, characters): js/chibi.js, the vector avatar the Home game card
+// draws through (game-sprite.js reads window.NBDChibi synchronously when it draws; a lazy load would
+// paint the pixel fallback first and the vector second). Defer, no boot-time reads. Own line.
+CEILING.localScripts += 1;
+// +8 KB, deliberate (2026-10-25, characters wave 2): chibi.js 28 -> 36 KB (jointed limbs, pose cross-fades,
+// secondary motion, emotes, three poses). Deferred; blockingBytes does not move. Own line.
+CEILING.localBytes += 8 * 1024;
 CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
 // +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
 // layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing
@@ -84,7 +91,7 @@ CEILING.localBytes += 24 * 1024;
 // files already loaded; promise-ui.js (lazy) and the CSS are not counted here. Own line.
 CEILING.localBytes += 15 * 1024;
 // +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
-// Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
+// Deferred; on boot it reads one settings doc and stops. The skin/Crew/dialog code (pixel-mode-core.js), its CSS, the
 // fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
 // view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
 // whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
@@ -196,6 +203,15 @@ CEILING.localBytes += 16 * 1024;
 // estimateFollowBoard, absent = off). No boot-time reads; with the flag off it only keeps the toolbar button hidden. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 16 * 1024;
+// +1 local tag, deliberate (2026-10-26, CRM overlay keyboard): js/overlay-a11y.js (window.nbdOverlay, ~9 KB readable / ~3 KB
+// shipped). Deferred, no boot-time reads: it adds one keydown listener and does nothing until a dialog calls attach(). The
+// dialogs that call it open on a user action, but the call must exist by then, so it cannot ride a lazy bundle. Own line.
+CEILING.localScripts += 1;
+// +2 local tags / +25 KB, deliberate (2026-11-03, Follow-up board): js/follow-up-board-logic.js (~10 KB) and js/follow-up-board.js
+// (~14 KB), both deferred, flag followUpBoard, absent = off. No boot-time reads; with the flag off the screen file only keeps the
+// toolbar button hidden. Own line.
+CEILING.localScripts += 2;
+CEILING.localBytes += 25 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:
@@ -217,8 +233,8 @@ CEILING.localBytes += 16 * 1024;
 // Without it the shipped gates fail under CI (process.env.CI) and are skipped
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
-  blockingBytes: 82 * 1024,
-  localBytes: 2790 * 1024,
+  blockingBytes: 84 * 1024,   // deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
+  localBytes: 2840 * 1024, // deliberate raise 2026-11-03 (2820 -> 2840 KB): Follow-up board, follow-up-board-logic.js + follow-up-board.js, deferred, flag followUpBoard (measured 2818 -> 2835 KB). Earlier: 2026-10-26 (2816 -> 2820 KB): overlay-a11y.js (the crm-5 dialog contract, deferred) plus the Home boot hold (#2760) measured 2817 KB when the two overnight PRs met; the earlier raises: 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard; (2804 -> 2816 KB, same day): character waves 12-17 (builds, gaze, pop-in, cold breath, eye colour, two poses) grew chibi.js from 47 to 56 KB and game-sprite.js by 0.4 KB, all deferred; measured 2804 of 2804 before the raise leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
   templateBytes: 73 * 1024,
 };
 

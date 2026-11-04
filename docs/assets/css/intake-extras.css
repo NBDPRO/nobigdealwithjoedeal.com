@@ -11,7 +11,7 @@
 .nbd-intake-choice small{opacity:.75;font-size:.8rem}
 .nbd-intake-row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
 .nbd-intake-field{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;flex:1 1 160px;min-width:0}
-.nbd-intake-field select{font:inherit;font-weight:400;font-size:.95rem;min-height:44px;padding:8px 10px;border-radius:8px;border:1px solid rgba(127,127,127,.45);background:#fff;color:#12223d;width:100%}
+.nbd-intake-field select{font:inherit;font-weight:400;font-size:16px;min-height:44px;padding:8px 10px;border-radius:8px;border:1px solid rgba(127,127,127,.45);background:#fff;color:#12223d;width:100%}
 .nbd-intake-photos{display:flex;flex-direction:column;gap:6px;font-size:.85rem;font-weight:600;margin:10px 0}
 .nbd-intake-photos small{font-weight:400;opacity:.8}
 .nbd-intake-photos input[type=file]{font:inherit;font-size:.9rem;min-height:44px}

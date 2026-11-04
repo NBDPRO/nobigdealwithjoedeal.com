@@ -159,6 +159,10 @@
       byLead.set(leadId, arr);
     });
     loadedAt = Date.now();
+    // Tell the screens that total MONEY (recordsFor counts every job) that the jobs are in: the Island
+    // hero painted its in-play headline on the leads alone and had nothing to repaint on until now
+    // (CI 2026-10-25: hero $21,900 vs the Pipeline header's $24,980, the second jobs' value).
+    try { if (w.dispatchEvent && typeof w.CustomEvent === 'function') w.dispatchEvent(new w.CustomEvent('nbd:jobs-loaded', { detail: { customers: byLead.size } })); } catch (_) { /* best-effort */ }
     return byLead;
   }
 

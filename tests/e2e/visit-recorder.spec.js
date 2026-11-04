@@ -23,6 +23,7 @@
 // Nothing here sends anything to anyone.
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { nyDay, nyAt } = require('./fixtures/ny-time');
 const Logic = require('../../docs/pro/js/visit-recorder-logic.js');
 
 const IPHONE = {
@@ -67,6 +68,8 @@ async function seed(stamp) {
   const user = await auth.getUserByEmail(creds.email);
   const uid = user.uid;
   const co = ((user.customClaims || {}).companyId) || uid;
+  const old = await db.collection('users/' + uid + '/visit_captures').get();
+  await Promise.all(old.docs.map((d) => d.ref.delete()));
   const lead = (await db.collection('leads').add({
     userId: uid, companyId: co, e2eTestData: true, deleted: false, createdAt: new Date(),
     firstName: 'ZZVisit', lastName: 'Reyes' + stamp, stage: 'inspected', jobType: 'cash', jobValue: 12000,
@@ -262,6 +265,10 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
     test('today\'s appointment row has Record visit, pre-attached with the appointment', async ({ page }) => {
       test.setTimeout(180_000);
       if (!S) S = await seed(stamp);
+      // Home lists only today's Eastern-day appointments, and the seed's "now + 15 minutes" (what the evidence chip above
+      // needs) is tomorrow's row from 11:45 pm ET: for this row, 11:00 Eastern today (fixtures/ny-time.js).
+      const at = nyAt(nyDay(), 11, 0);
+      await S.db.doc('appointments/' + S.appt).update({ startTime: at, endTime: new Date(at.getTime() + 3600000) });
       await page.addInitScript(initStorage);
       await loginAs(page, creds);
       await safeEvaluate(page, () => window.goTo('home'));

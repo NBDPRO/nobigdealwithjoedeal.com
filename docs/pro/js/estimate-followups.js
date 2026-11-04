@@ -113,11 +113,18 @@
     return b === 'd10' && nowMs - nudge >= 7 * DAY;
   }
 
+  // One formatter for every row: toLocaleDateString builds a new one per call.
+  let _nyDay = null;
+  function nyToday(nowMs) {
+    if (!_nyDay) _nyDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+    return _nyDay.format(new Date(nowMs));
+  }
+
   function isSnoozed(l, nowMs) {
     if (toMs(l.snoozedUntil) > nowMs) return true;
     const f = typeof l.followUp === 'string' ? l.followUp.slice(0, 10) : '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(f)) {
-      const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const today = nyToday(nowMs);
       return f > today; // Jo already picked a day — respect it
     }
     return false;

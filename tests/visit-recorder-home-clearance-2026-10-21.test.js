@@ -113,7 +113,9 @@ ok('the desktop rule (min-width:769px, 96px) and the base rule are unchanged',
 console.log('\n4. phones refetch the stylesheet');
 const launcher = read('docs/pro/js/visit-recorder-launcher.js');
 ok('the launcher asks for visit-recorder.css?v=4 in both places', (launcher.match(/visit-recorder\.css\?v=4/g) || []).length === 2 && !/visit-recorder\.css\?v=3/.test(launcher));
-ok('dashboard.html and customer.html load the bumped launcher (?v=3)', /visit-recorder-launcher\.js\?v=3/.test(read('docs/pro/dashboard.html')) && /visit-recorder-launcher\.js\?v=3/.test(read('docs/pro/customer.html')));
+// v=3 since this fix; v=4 since the bar waits for its stylesheet (perf-1 2026-10-26). One URL on both pages, never behind v=3.
+const launcherV = (f) => Number((/visit-recorder-launcher\.js\?v=(\d+)/.exec(read(f)) || [])[1] || 0);
+ok('dashboard.html and customer.html load the same bumped launcher (?v=3 or later)', launcherV('docs/pro/dashboard.html') >= 3 && launcherV('docs/pro/dashboard.html') === launcherV('docs/pro/customer.html'));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

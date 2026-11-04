@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 4; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production)
+const SEED_VERSION = 9; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt)
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -85,7 +85,9 @@ function build() {
     ['Caleb', 'Ross', '612 Sample Valley Rd', 'Anderson Township', 'OH', '45244', 'estimate_sent_cash', 'cash', 'Roof - Age', 'website', '', 14300, 8, 2, 39.0851, -84.3516, 'Retail estimate sent: Standard, Preferred, Elite. Leaning Preferred.'],
     ['Ivy', 'Chen', '19 Example Grove Ct', 'Burlington', 'KY', '41005', 'negotiating', 'cash', 'Siding', 'referral', '', 11200, 14, 0, 39.0276, -84.7241, 'Siding on two elevations. Asked about financing; sent the monthly options.'],
     ['Ruben', 'Diaz', '233 Placeholder Blvd', 'Fairfield', 'OH', '45014', 'prequal_sent', 'finance', 'Roof - Age', 'website', '', 16100, 11, 2, 39.3454, -84.5603, 'Financing pre-qualification link sent.'],
-    ['Grace', 'Holm', '81 Sample Terrace', 'Fort Wright', 'KY', '41011', 'contract_signed', 'insurance', 'Roof - Hail', 'door_knock', 'Example Home & Auto', 20400, 34, 3, 39.0517, -84.5341, 'Signed. Kentucky insurance job: nothing collected at signing; deductible after the carrier decision.'],
+    // Grace's lead is 28 days old (not older than Reports' default 30-day window): the Reports funnel counts leads
+    // CREATED in the window that reached a stage, so the one signed sample lead has to be inside it for Signed to read 1.
+    ['Grace', 'Holm', '81 Sample Terrace', 'Fort Wright', 'KY', '41011', 'contract_signed', 'insurance', 'Roof - Hail', 'door_knock', 'Example Home & Auto', 20400, 28, 3, 39.0517, -84.5341, 'Signed. Kentucky insurance job: nothing collected at signing; deductible after the carrier decision.'],
     ['Ezra', 'Lane', '402 Example Hill Rd', 'Blue Ash', 'OH', '45242', 'materials_ordered', 'cash', 'Roof - Age', 'referral', '', 17600, 40, 2, 39.2320, -84.3783, 'Materials ordered for delivery Tuesday. Preferred, Charcoal.'],
     ['Sofia', 'Marsh', '57 Sample Lake Dr', 'Hebron', 'KY', '41048', 'crew_scheduled', 'insurance', 'Roof - Hail', 'storm_alert', 'Sample Mutual Insurance', 18200, 45, 4, 39.0659, -84.7010, 'Crew scheduled. Weather looks clear; dumpster drop the day before.'],
     ['Ben', 'Albright', '1180 Placeholder Way', 'Montgomery', 'OH', '45242', 'install_in_progress', 'cash', 'Roof - Age', 'website', '', 15400, 50, 0, 39.2281, -84.3541, 'Tear-off day one done. Two sheets of decking replaced, photos logged.'],
@@ -104,6 +106,22 @@ function build() {
     uid: UID, email: 'owner@sample-roofing.example', displayName: owner, role: 'company_admin',
     companyId: UID, company: S.company, phone: '(859) 555-0100', calcomUsername: '', calcomEventSlug: 'roof-inspection',
     isSample: true, createdAt: ts(-120)
+  });
+  // The Home game card is opt-in (game-card.js reads userSettings.game); the
+  // sample owner has it on, with an avatar, so a visitor sees the card and the
+  // avatar editor on Home (2026-10-25). The canned getGameCard supplies the week.
+  add('userSettings/' + UID, {
+    game: { enabled: true, avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none' } },
+    isSample: true,
+  });
+  // The owner's Roof Rep row (2026-10-25, character wave 22): the dashboard's Leaderboard view and the Team Leaderboard
+  // widget read roofRepScores for each rep's look (team-names.js), so the sample owner's row shows the same face as the
+  // game card instead of initials. Numbers are the game's own shape (firestore.rules keys); the week is not current,
+  // so weekXp counts for nothing this week.
+  add('roofRepScores/' + UID, {
+    xp: 1240, level: 5, title: 'Installer', weekKey: '2026-W40', weekXp: 0, bestDay: 180, days: 12, cleanDays: 9, collected: 38600,
+    badges: { ladder: 1, tools: 1 }, name: owner, companyId: UID, at: ts(-1), isSample: true,
+    avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none', eyeColor: 1, build: 'regular' },
   });
   add('subscriptions/' + UID, { plan: 'growth', status: 'active', isSample: true, currentPeriodEnd: ts(25) });
   add('companies/' + UID, {
@@ -198,21 +216,35 @@ function build() {
   });
 
   // Estimates: the story's good/better/best on Jordan Avery, plus three more.
+  // Each carries the fields the builders write and the Estimates list, its
+  // status band and Reports read (estimate-v2-ui.js, estimates.js: addr, sq,
+  // roofType, tierName, sentAt, signedAt) beside the older address / squares /
+  // status ones. Without them (seed 8) every card read "No address · — · — SQ",
+  // the band counted 0 sent / 0 signed (estimate-analytics.js classifies on
+  // sentAt and signedAt, not on status) and Reports showed a $0 average ticket
+  // beside an 89% close rate. sq is the square count the retail package's
+  // per-square rate implies for the total, so sq x rate stays the price.
   const tiersOut = S.tiers.map((t) => ({ key: t.key, label: t.label, product: t.shingle, total: t.priceCents / 100, includes: t.items.slice() }));
   add('estimates/sample-est-01', {
     leadId: 'sample-lead-01', userId: UID, companyId: UID, isSample: true,
     owner: 'Jordan Avery', address: S.street + ', ' + S.cityLine, name: 'Roof replacement: three options',
     package: 'Better', selectedTier: 'better', total: preferred.priceCents / 100, grandTotal: preferred.priceCents / 100,
     squares: S.squares, pitch: S.pitch, tiers: tiersOut, warrantyNote: S.systemPlus + ' (Standard and up)',
-    status: 'sent', createdAt: ts(-2, 14), updatedAt: ts(-2, 14)
+    status: 'sent', createdAt: ts(-2, 14), updatedAt: ts(-2, 14),
+    addr: S.street + ', ' + S.cityLine, sq: S.squares, roofType: 'Hip & Gable', tierName: preferred.label, sentAt: ts(-2, 14)
   });
-  [[7, 15800, 'Better'], [13, 14300, 'Better'], [16, 20400, 'Best']].forEach(([n, total, pkg], k) => {
+  [[7, 15800, 'Better', 'Hip'], [13, 14300, 'Better', 'Gable'], [16, 20400, 'Best', 'Hip & Gable']].forEach(([n, total, pkg, roofType], k) => {
     const L = ROWS[n - 1];
+    const address = L[2] + ', ' + L[3] + ', ' + L[4] + ' ' + L[5];
+    const tier = S.tiers.find((t) => t.key === pkg.toLowerCase());
     add('estimates/sample-est-0' + (k + 2), {
       leadId: 'sample-lead-' + String(n).padStart(2, '0'), userId: UID, companyId: UID, isSample: true,
-      owner: L[0] + ' ' + L[1], address: L[2] + ', ' + L[3] + ', ' + L[4] + ' ' + L[5], name: 'Roof replacement',
+      owner: L[0] + ' ' + L[1], address, name: 'Roof replacement',
       package: pkg, total, grandTotal: total, status: n === 16 ? 'accepted' : 'sent', createdAt: ts(-5 - k, 13), updatedAt: ts(-4 - k, 13),
-      tier: pkg.toLowerCase(), lineItems: [{ description: 'Roof replacement, ' + pkg + ' package (sample price)', qty: 1, unit: 'job', rate: total, total }]
+      tier: pkg.toLowerCase(), lineItems: [{ description: 'Roof replacement, ' + pkg + ' package (sample price)', qty: 1, unit: 'job', rate: total, total }],
+      addr: address, sq: Number((total / (tier.priceCents / 100 / S.squares)).toFixed(2)), roofType, tierName: tier.label, sentAt: ts(-4 - k, 13),
+      // Grace Holm's contract was signed the day her lead entered contract_signed (stageStartedAt: 3 days ago, noon).
+      ...(n === 16 ? { signedAt: ts(-3, 12) } : {})
     });
   });
 
@@ -259,6 +291,8 @@ function build() {
 
   const offline = addWave3({ S, ROWS, docs, add, owner });
   addWave4({ S, ROWS, docs, add });
+  addToolPages({ add });
+  addTrackerWeek({ add });
 
   return {
     '//': 'GENERATED by scripts/build-demo-seed.js from docs/pro/js/sandbox-story.js SAMPLE. Do not edit by hand; run `node scripts/build-demo-seed.js`. All people, streets, phones and emails are invented. Retail prices only.',
@@ -623,6 +657,85 @@ function addWave4({ S, ROWS, docs, add }) {
       });
     });
   });
+}
+
+// ── Tool pages (2026-10-24): what the sample account's tool screens read ──
+// AI Usage (/pro/analytics.html) lists the signed-in user's api_usage docs,
+// the shape functions/handlers/ai.js writes per successful claudeProxy call.
+// A month of the owner's own usage; deterministic (unit()), sample-flagged.
+function addToolPages({ add }) {
+  const FEATURES = [
+    // [feature, model, share of calls, typical input tokens, typical output tokens]
+    ['ask-joe', 'claude-haiku-4-5-20251001', 0.45, 1800, 420],
+    ['smart-followup', 'claude-haiku-4-5-20251001', 0.2, 900, 260],
+    ['decision-engine', 'claude-haiku-4-5-20251001', 0.15, 1200, 640],
+    ['rep-coach', 'claude-sonnet-4-6', 0.12, 2600, 900],
+    ['rep-report', 'claude-sonnet-4-6', 0.08, 3400, 1200]
+  ];
+  let n = 0;
+  for (let day = 0; day >= -29; day--) {
+    // 0 to 4 calls a day, a few more on weekdays; today always has one.
+    const calls = day === 0 ? 2 : Math.floor(unit('calls:' + day) * 4) + ((-day % 7) < 5 ? 1 : 0);
+    for (let c = 0; c < calls; c++) {
+      const r = unit('pick:' + day + ':' + c);
+      let acc = 0;
+      const f = FEATURES.find((x) => (acc += x[2]) >= r) || FEATURES[0];
+      const jitter = (k) => 0.7 + unit(k + ':' + day + ':' + c) * 0.6;
+      n++;
+      add('api_usage/sample-usage-' + String(n).padStart(3, '0'), {
+        uid: UID, companyId: UID, feature: f[0], model: f[1], plan: 'growth', leadId: null,
+        inputTokens: Math.round(f[3] * jitter('in')), outputTokens: Math.round(f[4] * jitter('out')),
+        isSample: true, timestamp: ts(day, 8 + Math.floor(unit('hour:' + day + ':' + c) * 10))
+      });
+    }
+  }
+}
+
+// ── Success Tracker (2026-10-24): the owner's last six days ──────────────
+// /pro/daily-success reads users/{uid}/ds_pages (ds-firebase-sync.js pulls
+// them on sign-in), one doc per day page in app.js mkPage()'s shape. Today is
+// left out on purpose: the tracker makes today's page itself, blank, for the
+// visitor to fill in. Floors use the default ids (qs1-qs5, getDefaultFloors);
+// one missed floor six days ago, so the streak reads 5, not a perfect run.
+function addTrackerWeek({ add }) {
+  const WORKOUTS = [
+    ['Push', [['Bench Press', 4, 8, 185], ['OHP', 3, 8, 115], ['Dips', 3, 12, 0]]],
+    ['Pull', [['Deadlift', 3, 5, 275], ['Barbell Row', 4, 8, 155], ['Pull-Ups', 3, 10, 0]]],
+    ['Legs', [['Squat', 4, 6, 225], ['Hip Thrust', 3, 10, 205], ['Walking lunges', 3, 12, 40]]]
+  ];
+  const MEALS = [
+    ['Eggs and oatmeal', 38, 52, 18], ['Chicken rice bowl', 52, 64, 14], ['Steak, potatoes, green beans', 58, 48, 24], ['Greek yogurt and berries', 24, 22, 4]
+  ];
+  const WINS = ['Signed a full re-roof', 'Two inspections booked off one street', 'Got the supplement approved', 'Finished the crew schedule early', 'Best door day this month', 'Closed out the gutter job, paid same day'];
+  for (let day = -6; day <= -1; day++) {
+    const i = day + 6;
+    const doors = 45 + Math.floor(unit('doors:' + day) * 40);
+    const contacts = Math.round(doors * (0.28 + unit('contacts:' + day) * 0.12));
+    const appts = Math.max(1, Math.round(contacts * 0.18));
+    const closes = unit('close:' + day) > 0.55 ? 1 : 0;
+    const w = WORKOUTS[i % WORKOUTS.length];
+    const data = {
+      'floormet-qs1': '1', 'floormet-qs2': '1', 'floormet-qs3': day === -6 ? '0' : '1', 'floormet-qs4': '1', 'floormet-qs5': '1',
+      'l-win': WINS[i], 'l-fo': 'Follow up on every inspection within a day',
+      'fit-focus': w[0], 'fit-dur': String(50 + Math.floor(unit('dur:' + day) * 25)), 'fit-int': String(7 + Math.floor(unit('int:' + day) * 3)), 'fit-rate': String(7 + Math.floor(unit('rate:' + day) * 3)),
+      'bm-wt': (192.4 - i * 0.3).toFixed(1),
+      's-hours': String(8 + Math.floor(unit('hours:' + day) * 3)), 's-territory': 'Sample neighborhood ' + (1 + (i % 3)),
+      ['habit-' + (i % 8) + '-' + (i % 7)]: '1', ['habit-1-' + (i % 7)]: '1'
+    };
+    MEALS.forEach((m, mi) => {
+      data['diet-m' + mi + '-name'] = m[0];
+      data['diet-m' + mi + '-p'] = String(m[1]); data['diet-m' + mi + '-c'] = String(m[2]); data['diet-m' + mi + '-f'] = String(m[3]);
+      data['diet-m' + mi + '-cal'] = String(m[1] * 4 + m[2] * 4 + m[3] * 9);
+    });
+    if (closes) data['s-revenue'] = String(9000 + Math.floor(unit('rev:' + day) * 8) * 1000);
+    const id = 'sample-day-' + (i + 1);
+    add('users/' + UID + '/ds_pages/' + id, {
+      id, dk: date(day), suf: 1, name: '', mt: 1, isSample: true, data,
+      kpi: { doors, contacts, appts, closes, noshow: unit('noshow:' + day) > 0.8 ? 1 : 0 },
+      exercises: w[1].map(([name, sets, reps, weight]) => ({ name, sets: String(sets), reps: String(reps), weight: weight ? String(weight) : 'BW', notes: '' })),
+      objections: [], commissions: []
+    });
+  }
 }
 
 function main() {

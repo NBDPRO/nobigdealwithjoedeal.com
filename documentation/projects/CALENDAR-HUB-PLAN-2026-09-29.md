@@ -379,3 +379,53 @@ silences it. Test: [calendar-booking-conflict](../../tests/calendar-booking-conf
 Not built, by design: the reverse direction (a job moved onto an existing
 booking). Jo's date picker already warns there, and Cal.com bookings sit on his
 main calendar, which the free/busy read covers when it is shared.
+
+## Update 2026-10-22 — recon, and the last gap in answer #4 (job moved onto a booking)
+
+Asked to "build the calendar hub", recon of `origin/main` found nothing left of
+the plan except the one thing the 10-20 update listed as not built. What exists
+(checked in the tree, not from this doc):
+
+| Plan item | Where it lives |
+|---|---|
+| Start + length windows, week-first | `schedule-window.js`, `schedule-planner*.js` |
+| Deal → lead install date | deal-room sync (Phase 0) |
+| NBD Jobs sync: jobs, other jobs, adjuster, signs, timed follow-ups, CRM events, deliveries | `functions/google-calendar.js` + `google-calendar-logic.js` |
+| Free/busy warning on all three date forms, 7-day busy strip | `google-calendar-ui.js`, `schedule-planner.js` |
+| Cal.com booking lands on a job → bell row | `calcom.js` → `bookingConflicts` (#2588) |
+| Portal window / week | `portal.js` |
+| ICS feed | `calendar-feed.js` (kept as fallback) |
+
+**The gap:** a job saved or moved onto an existing booking was silent unless
+Jo happened to be on a screen that warns. Jo's answer #4 names exactly this
+case ("a job moved onto an existing booking later … the CRM alerts Jo").
+
+**Built:** `alertJobOverlapsBookings` (`google-calendar.js`) runs at the end of
+`onLeadCalendarWrite` and `onJobCalendarWrite`, after the sync, only when a
+calendar field changed. It reads `appointments` by a `startTime` window
+(single field, so no composite index — CI does not deploy indexes), filters to
+Jo's live bookings in code, and compares them with the job's BUSY blocks through
+the pure `jobBookingOverlaps` (`google-calendar-logic.js`). A hit creates one
+bell row, "Job overlaps a booking", with `create()` on the id
+`job-conflict-<lead>-<booking>-<jobStartMs>`, so re-saving the same job does not
+re-alert and moving it to a new time does. Warn only: nothing is blocked,
+nothing goes to the customer; free date-only reminders never count; the
+existing `GOOGLE_CALENDAR_SYNC_DISABLED` switch silences it; any failure is
+logged and swallowed. No rules, auth or index changes; no prod writes.
+Test: [calendar-job-booking-conflict](../../tests/calendar-job-booking-conflict-2026-10-22.test.js)
+(26 checks, positive and negative controls; 10 mutations, all caught).
+
+**Not built, by design (still Jo's call):** per-rep calendars and crew-facing
+views (Phase 4: Jo said one calendar, just for him, for now); any automatic
+"we may need to move your time" message to the customer.
+
+**Handoff:** nothing in this hub is waiting on code. Jo-side items: Cal.com ↔
+Google connection (Phase 1) and sharing his main calendar free/busy with the
+service-account email, both shown in the Schedule view's Google Calendar panel.
+Next session: nothing to pick up here unless Jo wants Phase 4.
+
+### Follow-up 2026-10-23 (overnight audit of #2666)
+
+- The alert now runs as its own step AFTER the Google sync in both triggers, so a Google outage (sync throws) no longer swallows it; the job trigger reads the lead in its own try.
+- The tests drive the real `onLeadCalendarWrite.run` / `onJobCalendarWrite.run` handlers (fake Firestore + fake Google, up and down) instead of matching source text; 7 trigger mutations all caught. `_internal.setDb` is the test hook.
+- New rules test [firestore-rules.job-conflict-notice](../../tests/firestore-rules.job-conflict-notice.test.js) (14 checks, positive controls; a loosened create rule turns the spoof check red), wired into ci.yml. No rules changed.

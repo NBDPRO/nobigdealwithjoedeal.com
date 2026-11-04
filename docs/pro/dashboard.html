@@ -5,7 +5,7 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=4"></script>
+<script src="/pro/js/demo-mode.js?v=7"></script>
 <!-- The ?legacy=1 rollback twin (dashboard.legacy.html + js/dashboard-legacy-redirect.js)
      was retired 2026-09-02: it had become byte-identical to this file and was being
      updated by every dashboard commit, so it provided no rollback and doubled the edit
@@ -25,21 +25,22 @@
 <!-- Rock 4 Phase 2: theme system extracted to css/theme-system.css.
      Same content (80 themes + trial-banner CSS) the inline <style id="theme-system">
      used to carry. Customer/vault/login already loaded the file; dashboard now joins. -->
-<link rel="stylesheet" href="css/theme-system.css?v=10">
+<link rel="stylesheet" href="css/theme-system.css?v=12">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
 <link rel="stylesheet" href="css/agent-inbox.css?v=5">
 <link rel="stylesheet" href="css/agent-bots.css?v=1">
 <link rel="stylesheet" href="css/sort-customers.css?v=2">
-<link rel="stylesheet" href="css/triage-deck.css?v=2">
+<link rel="stylesheet" href="css/triage-deck.css?v=3">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
 <link rel="stylesheet" href="css/stale-leads-cleanup.css?v=1">
 <link rel="stylesheet" href="css/lead-source-fixer.css?v=1">
 <link rel="stylesheet" href="css/reputation.css?v=1">
 <link rel="stylesheet" href="css/speed-to-lead.css?v=1">
 <link rel="stylesheet" href="css/estimate-follow-board.css?v=1">
+<link rel="stylesheet" href="css/follow-up-board.css?v=1">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
-<link rel="stylesheet" href="css/phone-calls.css?v=12">
+<link rel="stylesheet" href="css/phone-calls.css?v=13">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
    #theme-system id reachable for any DOM lookup that still expects a
@@ -63,7 +64,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=21" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=22" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
@@ -128,7 +129,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=209"></script>
+<script src="js/script-loader.js?v=210"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -152,48 +153,45 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=15">
-<link rel="stylesheet" href="css/ui-primitives.css?v=15">
+<link rel="stylesheet" href="css/dashboard-app.css?v=28">
+<link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=2">
-<link rel="stylesheet" href="css/money-dashboard.css?v=1">
+<link rel="stylesheet" href="css/money-dashboard.css?v=3">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
-<link rel="stylesheet" href="css/expenses.css?v=3">
-<link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
-<link rel="stylesheet" href="css/pipeline-rich-cards.css?v=2">
+<link rel="stylesheet" href="css/expenses.css?v=5">
+<link rel="stylesheet" href="css/crm-pipeline-view.css?v=2">
+<link rel="stylesheet" href="css/pipeline-rich-cards.css?v=3">
 <link rel="stylesheet" href="css/field-sunlight.css?v=1">
-<link rel="stylesheet" href="css/today-home.css?v=6">
+<link rel="stylesheet" href="css/today-home.css?v=8">
 <link rel="stylesheet" href="css/away-mode.css?v=1">
 <link rel="stylesheet" href="css/prod-flags.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
-<link rel="stylesheet" href="css/templates-library-view.css?v=1">
-<link rel="stylesheet" href="css/data-import-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
 <link rel="stylesheet" href="css/admin-manager-view.css?v=1">
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
-<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
-<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
+<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=3">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/voicemail-view.css?v=1">
-<link rel="stylesheet" href="css/reports-trends-view.css?v=1">
+<link rel="stylesheet" href="css/reports-trends-view.css?v=2">
 <link rel="stylesheet" href="css/supplement.css?v=1">
-<link rel="stylesheet" href="css/product-library.css?v=1">
-<link rel="stylesheet" href="css/widgets-home.css?v=1">
-<link rel="stylesheet" href="css/d2d-tracker.css?v=3">
-<link rel="stylesheet" href="css/storm-center.css?v=2">
+<link rel="stylesheet" href="css/product-library.css?v=6">
+<link rel="stylesheet" href="css/widgets-home.css?v=2">
+<link rel="stylesheet" href="css/d2d-tracker.css?v=4">
+<link rel="stylesheet" href="css/storm-center.css?v=7">
 <link rel="stylesheet" href="css/my-skin.css?v=6">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
-<link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
+<link rel="stylesheet" href="css/kanban-force.css?v=8" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=4" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=7" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -227,15 +225,15 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=8">
+<link rel="stylesheet" href="css/google-calendar.css?v=9">
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
-<link rel="stylesheet" href="css/game-card.css?v=2">
-<link rel="stylesheet" href="css/estimate-send.css?v=1">
+<link rel="stylesheet" href="css/game-card.css?v=5">
+<link rel="stylesheet" href="css/estimate-send.css?v=2">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
-<link rel="stylesheet" href="css/numbers.css?v=2">
+<link rel="stylesheet" href="css/numbers.css?v=3">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
@@ -799,7 +797,7 @@
 
   <!-- TIER 2: TOOLS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="tools">
+    <div class="nav-section-header" data-action="navSection" data-target="tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-tools">
       <span>TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-tools">▶</span>
     </div>
@@ -819,7 +817,7 @@
 
   <!-- TIER 3: INSIGHTS (Collapsible) -->
   <div class="nav-section">
-    <div class="nav-section-header" data-action="navSection" data-target="insights">
+    <div class="nav-section-header" data-action="navSection" data-target="insights" role="button" tabindex="0" aria-expanded="true" aria-controls="section-insights">
       <span>INSIGHTS</span>
       <span class="nav-section-toggle open" id="toggle-insights">▶</span>
     </div>
@@ -851,7 +849,7 @@
 
   <!-- AI TOOLS (Collapsible — matches TOOLS + INSIGHTS pattern) -->
   <div class="nav-section" style="margin-top:4px;">
-    <div class="nav-section-header" data-action="navSection" data-target="ai-tools">
+    <div class="nav-section-header" data-action="navSection" data-target="ai-tools" role="button" tabindex="0" aria-expanded="true" aria-controls="section-ai-tools">
       <span>AI TOOLS</span>
       <span class="nav-section-toggle open" id="toggle-ai-tools">▶</span>
     </div>
@@ -887,7 +885,7 @@
        boot (line ~490) is idempotent on the hydrated DOM. -->
   <div class="view active" id="view-home" data-view-template="tpl-view-home"></div>
   <template id="tpl-view-home">
-    <div class="view-scroll">
+    <div class="view-scroll tp-has-rows tp-booting">
       <div class="page-hdr">
         <div>
           <div class="page-title" id="homeGreeting" data-user-greeting>Welcome Back</div>
@@ -928,6 +926,7 @@
       <!-- Today (js/today-plan.js + js/today-home.js, 2026-10-03): the ONE
            list of what is on Jo's plate — appointments, calls owed, promised
            follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
+      <section class="tp tp-skel" id="todayPlanSkel" role="status" aria-label="Today"><div class="tp-hd"><div class="tp-title">Today</div><div class="tp-sub">Loading your day…</div></div></section>
       <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
       <!-- What closes this week (js/closes-week.js, lazy bundle 'closesweek',
            2026-10-15): open estimates and deals ranked by likelihood x
@@ -937,9 +936,9 @@
       <!-- Roof Rep game card: off by default — a rep who turned it on in
            Settings chose to see it, so it stays out of the fold below. -->
       <div id="homeGameCard" class="mb-md" hidden></div>
-      <!-- Pixel Mode Party + Trainer Card (js/pixel-mode.js). Empty and hidden unless
+      <!-- Pixel Mode Crew + Rep Card (js/pixel-mode.js). Empty and hidden unless
            the person turned the Pixel Mode skin on in Settings > Appearance. -->
-      <section id="homePixelParty" class="px-home mb-md" aria-label="Pixel Mode party" hidden></section>
+      <section id="homePixelParty" class="px-home mb-md" aria-label="Pixel Mode crew" hidden></section>
 
       <!-- More on Home (2026-10-08, phone audit #6): on a phone everything
            else below the Today list folds behind one "More on Home" tap — the
@@ -1226,7 +1225,7 @@
 
         <!-- BREADCRUMB -->
         <div style="padding:0 0 12px;border-bottom:1px solid var(--br);margin-bottom:12px;">
-          <span style="font-size:10px;color:var(--orange);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
+          <span style="font-size:10px;color:var(--ui-accent-text,var(--orange));cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
         </div>
 
         <!-- ADDRESS SEARCH -->
@@ -1405,13 +1404,13 @@
       <div class="map-sidebar" id="map-sidebar-draw">
         <!-- BREADCRUMB -->
         <div style="padding:0 0 12px;border-bottom:1px solid var(--br);margin-bottom:12px;">
-          <span style="font-size:10px;color:var(--orange);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
+          <span style="font-size:10px;color:var(--ui-accent-text,var(--orange));cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
         </div>
 
         <div class="slabel2">Property Address</div>
         <div class="search-row">
           <div class="ac-wrap f1">
-            <input type="text" id="drawSearch" placeholder="Address..." data-enter-action="searchDraw" data-enter-hide-ac="drawSearch" autocomplete="off">
+            <input type="text" id="drawSearch" aria-label="Address" placeholder="Address..." data-enter-action="searchDraw" data-enter-hide-ac="drawSearch" autocomplete="off">
             <div class="ac-drop dn" id="ac-drawSearch"></div>
           </div>
           <button class="btn btn-orange" style="padding:9px 12px;font-size:12px;" data-action="call" data-fn="searchDraw">Go</button>
@@ -1481,7 +1480,7 @@
         <div class="slabel2">Roof Calculator</div>
         <div class="calc-selects">
           <div><div style="font-size:9px;color:var(--m);margin-bottom:4px;letter-spacing:.08em;text-transform:uppercase;">Pitch</div>
-            <select class="calc-select" id="pitchSel" data-on-change="recalc">
+            <select class="calc-select" id="pitchSel" aria-label="Pitch" data-on-change="recalc">
               <option value="1.0">Flat 1.00×</option>
               <option value="1.054">4/12 1.054×</option>
               <option value="1.083">5/12 1.083×</option>
@@ -1495,7 +1494,7 @@
             </select>
           </div>
           <div><div style="font-size:9px;color:var(--m);margin-bottom:4px;letter-spacing:.08em;text-transform:uppercase;">Waste</div>
-            <select class="calc-select" id="wasteSel" data-on-change="recalc">
+            <select class="calc-select" id="wasteSel" aria-label="Waste" data-on-change="recalc">
               <option value="1.10">10%</option>
               <option value="1.15">15%</option>
               <option value="1.17" selected>17%</option>
@@ -1516,17 +1515,17 @@
           Slope-correct rake, hip &amp; valley LF for the estimate
         </label>
         <!-- SMART WASTE -->
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px;margin-bottom:4px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="applySmartWaste" title="Calculate waste based on roof complexity">🧠 Smart Waste (AI)</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px;margin-bottom:4px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="applySmartWaste" title="Calculate waste based on roof complexity">🧠 Smart Waste (AI)</button>
         <div id="smartWasteInfo" style="display:none;font-size:10px;color:var(--m);padding:4px 6px;background:var(--s2);border-radius:5px;margin-bottom:8px;"></div>
 
         <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="importToEstimate">📋 Generate Estimate</button>
-        <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;background:var(--green);border-color:var(--green);" data-action="call" data-fn="saveDrawingToCustomer">💾 Save to Customer</button>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="loadDrawingFromCustomer">📂 Load from Customer</button>
+        <button class="btn btn-orange" style="width:100%;justify-content:center;margin-bottom:6px;background:#15803d;border-color:#15803d;" data-action="call" data-fn="saveDrawingToCustomer">💾 Save to Customer</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="loadDrawingFromCustomer">📂 Load from Customer</button>
         <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="exportDrawReport">📤 Measurement Report</button>
         <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;" data-action="call" data-fn="generateScopeFromDrawing">📋 Scope of Work</button>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--green);" data-action="call" data-fn="showMaterialTakeoff">🧱 Material Takeoff</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--green);color:var(--ui-success-text,var(--green));" data-action="call" data-fn="showMaterialTakeoff">🧱 Material Takeoff</button>
         <div style="font-size:10px;color:var(--m,#888);margin:2px 0 6px;line-height:1.4;">Carrier estimates stay in Xactimate — this tool measures and scopes, it doesn't replace it.</div>
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--gold,#EAB308);color:var(--gold,#EAB308);" data-action="call" data-fn="runSolarAnalysis">☀️ Solar Analysis</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:6px;border-color:var(--gold,#EAB308);color:var(--ui-warn-text,var(--gold,#EAB308));" data-action="call" data-fn="runSolarAnalysis">☀️ Solar Analysis</button>
 
         <!-- ACCESSORIES -->
         <div class="slabel2">Accessories</div>
@@ -1939,7 +1938,7 @@
           <button id="crmSearchClear" class="crm-hdr-search-clear" data-action="call" data-fn="clearCrmSearch" title="Clear search">✕</button>
         </div>
         <span id="crmSearchCount" style="font-size:11px;color:var(--m);white-space:nowrap;"></span>
-        <select id="crmDmgFilter" class="crm-hdr-select" data-on-change="kanbanFilter">
+        <select id="crmDmgFilter" class="crm-hdr-select" aria-label="Filter by job type" data-on-change="kanbanFilter">
           <option value="">All Types</option>
           <option>Roof - Hail</option><option>Roof - Wind</option>
           <option>Roof - Hail &amp; Wind</option><option>Siding - Hail</option>
@@ -2010,6 +2009,11 @@
             <button class="btn btn-ghost crm-hdr-btn" id="estimateFollowBoardBtn" type="button" hidden
               title="Open estimates that have gone quiet, with a one-tap draft follow-up for you to send">
               📨 <span class="crm-hdr-btn-label">Estimate follow-ups</span><span class="stl-badge" id="estimateFollowBoardBadge" hidden>0</span>
+            </button>
+            <!-- Follow-ups (js/follow-up-board.js, flag followUpBoard): shown only with the flag on. -->
+            <button class="btn btn-ghost crm-hdr-btn" id="followUpBoardBtn" type="button" hidden
+              title="Who needs you next: customers waiting on a reply, promised estimates, quiet estimates, untouched new leads">
+              📋 <span class="crm-hdr-btn-label">Follow-ups</span><span class="stl-badge" id="followUpBoardBadge" hidden>0</span>
             </button>
             <!-- Reputation (js/reputation.js, flag reputationLoop): owner / company_admin only, shown only with the flag on. -->
             <button class="btn btn-ghost crm-hdr-btn" id="reputationBtn" type="button" hidden
@@ -2245,7 +2249,7 @@
     <!-- FOLLOW-UP ALERTS (collapsible) -->
     <div id="followUpAlertsWrap" style="display:none;padding:0 16px 8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span id="followUpAlertsLabel" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);">Follow-ups Due</span>
+        <span id="followUpAlertsLabel" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ui-accent-text,var(--orange));">Follow-ups Due</span>
         <button data-action="call" data-fn="hideFollowUpAlerts" style="background:none;border:1px solid var(--br);color:var(--m);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit;">Dismiss</button>
       </div>
       <div id="followUpAlerts"></div>
@@ -2403,9 +2407,9 @@
         </div>
         <div style="position:relative;flex:1;min-width:180px;max-width:320px;">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--m);pointer-events:none;"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>
-          <input class="ui-input" type="text" id="photoSearchInput" placeholder="Search jobs by name or address..." data-on-input="filterPhotoLeads" style="width:100%;padding:8px 10px 8px 30px;font-size:12px;color:var(--t);font-family:inherit;">
+          <input class="ui-input" type="text" id="photoSearchInput" aria-label="Search jobs by name or address" placeholder="Search jobs by name or address..." data-on-input="filterPhotoLeads" style="width:100%;padding:8px 10px 8px 30px;font-size:12px;color:var(--t);font-family:inherit;">
         </div>
-        <select class="ui-input" id="photoLeadSelect" data-on-change="nbdSelectPhotoLead" style="padding:8px 10px;font-size:11px;color:var(--t);max-width:220px;">
+        <select class="ui-input" id="photoLeadSelect" aria-label="Property" data-on-change="nbdSelectPhotoLead" style="padding:8px 10px;font-size:11px;color:var(--t);max-width:220px;">
           <option value="">Select a property...</option>
         </select>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;cursor:pointer;white-space:nowrap;font-size:11px;color:var(--m);">
@@ -2636,12 +2640,12 @@
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">⚡</span>
             <h3 class="tl-cat-title fg-orange">Generators</h3>
-            <span class="tl-cat-badge" style="background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--orange);">Auto-fill from CRM</span>
+            <span class="tl-cat-badge" style="background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--ui-accent-text,var(--orange));">Auto-fill from CRM</span>
             <span class="tl-cat-count">4 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="proposal">
-              <div class="tl-doc-icon" style="background:color-mix(in srgb, var(--orange) 10%, transparent);color:var(--orange);">📊</div>
+              <div class="tl-doc-icon" style="background:color-mix(in srgb, var(--orange) 10%, transparent);color:var(--ui-accent-text,var(--orange));">📊</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Proposal / Estimate</div>
                 <div class="tl-doc-desc">Branded proposal with tiered pricing, warranty details, and project photos</div>
@@ -2657,7 +2661,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="warranty_certificate">
-              <div class="tl-doc-icon" style="background:rgba(218,165,32,.1);color:#DAA520;">🛡️</div>
+              <div class="tl-doc-icon" style="background:rgba(218,165,32,.1);color:color-mix(in srgb, #DAA520 50%, var(--t, #e8eaf0));">🛡️</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Warranty Certificate</div>
                 <div class="tl-doc-desc">Premium tiered warranty certificate with seal — Good, Better, or Best</div>
@@ -2680,8 +2684,8 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">🛡️</span>
-            <h3 class="tl-cat-title" style="color:var(--blue);">Insurance Documents</h3>
-            <span class="tl-cat-badge" style="background:rgba(74,158,255,.12);color:var(--blue);">Claims & Supplements</span>
+            <h3 class="tl-cat-title" style="color:var(--ui-info-text,var(--blue));">Insurance Documents</h3>
+            <span class="tl-cat-badge" style="background:rgba(74,158,255,.12);color:var(--ui-info-text,var(--blue));">Claims & Supplements</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
@@ -2733,8 +2737,8 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📝</span>
-            <h3 class="tl-cat-title" style="color:var(--green);">Contracts & Agreements</h3>
-            <span class="tl-cat-badge" style="background:rgba(46,204,138,.12);color:var(--green);">Signatures Required</span>
+            <h3 class="tl-cat-title" style="color:var(--ui-success-text,var(--green));">Contracts & Agreements</h3>
+            <span class="tl-cat-badge" style="background:rgba(46,204,138,.12);color:var(--ui-success-text,var(--green));">Signatures Required</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
@@ -2786,13 +2790,13 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📂</span>
-            <h3 class="tl-cat-title" style="color:#9C27B0;">Leave-Behind Packets</h3>
-            <span class="tl-cat-badge" style="background:rgba(156,39,176,.12);color:#9C27B0;">Sales & Homeowner</span>
+            <h3 class="tl-cat-title" style="color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">Leave-Behind Packets</h3>
+            <span class="tl-cat-badge" style="background:rgba(156,39,176,.12);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">Sales & Homeowner</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="company_intro">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">🏢</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">🏢</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Company One-Pager</div>
                 <div class="tl-doc-desc">Full-color marketing piece with services, testimonials, and financing CTA</div>
@@ -2800,7 +2804,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="financing_options">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">💳</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">💳</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Financing Options Sheet</div>
                 <div class="tl-doc-desc">Acorn Finance financing plans with monthly payment breakdowns and application steps</div>
@@ -2808,7 +2812,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="inspectionHomeowner">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">🔍</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">🔍</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Inspection Report (Homeowner)</div>
                 <div class="tl-doc-desc">Sales-focused inspection report with condition grades and photo documentation</div>
@@ -2816,7 +2820,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="storm_checklist">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">⛈️</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">⛈️</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Storm Damage Checklist</div>
                 <div class="tl-doc-desc">Printable 5-section checklist covering roof, gutters, siding, windows, and interior</div>
@@ -2824,7 +2828,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="claim_guide">
-              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:#9C27B0;">📖</div>
+              <div class="tl-doc-icon" style="background:rgba(156,39,176,.1);color:color-mix(in srgb, #9C27B0 50%, var(--t, #e8eaf0));">📖</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Insurance Claim Process Guide</div>
                 <div class="tl-doc-desc">7-step process walkthrough with FAQs — builds trust and sets expectations</div>
@@ -2839,13 +2843,13 @@
           <div class="tl-cat-header" data-action="call" data-fn="tlToggleCat" data-pass-el>
             <span class="tl-cat-chevron">▾</span>
             <span class="tl-cat-icon">📣</span>
-            <h3 class="tl-cat-title" style="color:#FF6B35;">Marketing & Mailers</h3>
-            <span class="tl-cat-badge" style="background:rgba(255,107,53,.12);color:#FF6B35;">Print & Distribute</span>
+            <h3 class="tl-cat-title" style="color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">Marketing & Mailers</h3>
+            <span class="tl-cat-badge" style="background:rgba(255,107,53,.12);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">Print & Distribute</span>
             <span class="tl-cat-count">5 docs</span>
           </div>
           <div class="tl-cat-body">
             <div class="tl-doc-row" data-action="docgen" data-target="referral_card">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">🤝</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">🤝</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Referral Card</div>
                 <div class="tl-doc-desc">Postcard-style referral with reward program details and 3-step process</div>
@@ -2853,7 +2857,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="before_after_report">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">📸</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">📸</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Before & After Report</div>
                 <div class="tl-doc-desc">Visual project documentation with before/after photo grids and highlights</div>
@@ -2861,7 +2865,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="door_hanger">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">🚪</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">🚪</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Door Hanger</div>
                 <div class="tl-doc-desc">Print-ready door hanger — "We're in your neighborhood" free inspection offer</div>
@@ -2869,7 +2873,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="neighborhood_mailer">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">📬</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">📬</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Neighborhood Mailer</div>
                 <div class="tl-doc-desc">Targeted mailer for neighborhoods with a recent NBD project and referral CTA</div>
@@ -2877,7 +2881,7 @@
               <div class="tl-doc-arrow">→</div>
             </div>
             <div class="tl-doc-row" data-action="docgen" data-target="testimonial_sheet">
-              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:#FF6B35;">⭐</div>
+              <div class="tl-doc-icon" style="background:rgba(255,107,53,.1);color:color-mix(in srgb, #FF6B35 50%, var(--t, #e8eaf0));">⭐</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Customer Testimonial Sheet</div>
                 <div class="tl-doc-desc">Social proof sheet with 4 real reviews, star ratings, and satisfaction stats</div>
@@ -2987,7 +2991,7 @@
         <button class="joe-quick" data-action="call" data-fn="joeQuick" data-arg="What does my pipeline look like right now?">📊 Pipeline summary</button>
       </div>
       <div class="joe-input-row">
-        <textarea class="joe-input" id="joeInput" placeholder="Ask Joe anything about your leads, claims, estimates, or strategy..." rows="1"
+        <textarea class="joe-input" id="joeInput" aria-label="Ask Joe" placeholder="Ask Joe anything about your leads, claims, estimates, or strategy..." rows="1"
           data-joe-input></textarea>
         <button class="joe-send" id="joeSendBtn" data-action="call" data-fn="sendJoeMessage">SEND</button>
       </div>
@@ -3162,15 +3166,15 @@
           <div class="panel-hdr"><div><div class="panel-label">Account</div><div class="panel-title">Your Profile</div></div></div>
           <div class="panel-body">
             <div class="sf-row">
-              <div class="sf"><label>Display Name</label><input type="text" id="settingsName" placeholder="Your name"></div>
-              <div class="sf"><label>Email</label><input type="text" id="settingsEmail" placeholder="you@email.com" disabled style="opacity:.5;"></div>
+              <div class="sf"><label for="settingsName">Display Name</label><input type="text" id="settingsName" placeholder="Your name"></div>
+              <div class="sf"><label for="settingsEmail">Email</label><input type="text" id="settingsEmail" placeholder="you@email.com" disabled style="opacity:.5;"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Company</label><input type="text" id="settingsCompany" placeholder="No Big Deal Home Solutions"></div>
-              <div class="sf"><label>Phone</label><input type="text" id="settingsPhone" placeholder="(859) 420-7382"></div>
+              <div class="sf"><label for="settingsCompany">Company</label><input type="text" id="settingsCompany" placeholder="No Big Deal Home Solutions"></div>
+              <div class="sf"><label for="settingsPhone">Phone</label><input type="text" id="settingsPhone" placeholder="(859) 420-7382"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Role</label>
+              <div class="sf"><label for="settingsRole">Role</label>
                 <select class="ui-input" id="settingsRole" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--t);outline:none;">
                   <option>Owner / Operator</option>
                   <option>Sales Rep</option>
@@ -3179,11 +3183,11 @@
                   <option>Other</option>
                 </select>
               </div>
-              <div class="sf"><label>License #</label><input type="text" id="settingsLicense" placeholder="OH-12345"></div>
+              <div class="sf"><label for="settingsLicense">License #</label><input type="text" id="settingsLicense" placeholder="OH-12345"></div>
             </div>
             <div class="sf-row">
               <div class="sf f1">
-                <label>Cal.com username <span style="font-size:10px;color:var(--m);font-weight:400;">· optional · homeowners book inspections at cal.com/&lt;username&gt;</span></label>
+                <label for="settingsCalcom">Cal.com username <span style="font-size:10px;color:var(--m);font-weight:400;">· optional · homeowners book inspections at cal.com/&lt;username&gt;</span></label>
                 <input type="text" id="settingsCalcom" placeholder="joedeal" autocomplete="off" spellcheck="false"
                   data-on-input="nbdSettingsUpdateCalcomPreview">
                 <a id="settingsCalcomPreview" target="_blank" rel="noopener"
@@ -3192,7 +3196,7 @@
             </div>
             <div class="sf-row">
               <div class="sf f1">
-                <label>Google review link <span style="font-size:10px;color:var(--m);font-weight:400;">· optional · 4-5★ homeowners get nudged to leave a public review at this link</span></label>
+                <label for="settingsGoogleReview">Google review link <span style="font-size:10px;color:var(--m);font-weight:400;">· optional · 4-5★ homeowners get nudged to leave a public review at this link</span></label>
                 <input type="text" id="settingsGoogleReview" placeholder="https://g.page/r/…/review" autocomplete="off" spellcheck="false">
               </div>
             </div>
@@ -3876,7 +3880,7 @@
         <div class="panel mb-md" id="pixelModePanel">
           <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Pixel Mode</div></div></div>
           <div class="panel-body">
-            <p class="myskin-note">Redraws the CRM like a handheld game menu: stepped pixel frames, a retro type face, and your leads as a Party with an HP bar showing how many days are left before each one goes cold. Works on top of any color theme. Nothing is sent to anyone.</p>
+            <p class="myskin-note">Redraws the CRM like a handheld game menu: stepped pixel frames, a retro type face, and your leads as a Crew with an HP bar showing how many days are left before each one goes cold. Works on top of any color theme. Nothing is sent to anyone.</p>
             <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
             <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
             <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
@@ -5198,7 +5202,7 @@
             <div class="panel-title">Team Members</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input class="ui-input" id="adminRosterFilter" placeholder="Filter by name, email, role..."/ style="font-size:11px;padding:6px 10px;color:var(--t);width:220px;">
+            <input class="ui-input" id="adminRosterFilter" aria-label="Filter the team by name, email or role" placeholder="Filter by name, email, role..."/ style="font-size:11px;padding:6px 10px;color:var(--t);width:220px;">
           </div>
         </div>
         <div class="panel-body" style="padding:0;">
@@ -5449,7 +5453,7 @@
         <div class="panel-hdr"><div><div class="panel-label">Your Booking Link</div><div class="panel-title">Share With Homeowners</div></div></div>
         <div class="panel-body">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <input class="ui-input" type="text" id="calBookingUrl" value="" readonly placeholder="Set your Cal.com username below to generate your link" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
+            <input class="ui-input" type="text" id="calBookingUrl" aria-label="Your booking link" value="" readonly placeholder="Set your Cal.com username below to generate your link" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             <button class="btn btn-orange" style="padding:10px 16px;font-size:12px;white-space:nowrap;" data-action="call" data-fn="copyCalLink">📋 Copy Link</button>
           </div>
           <div class="fwgap-8">
@@ -5470,7 +5474,7 @@
             Puts every appointment and every scheduled job straight into the Calendar app on your phone, refreshing on its own. Anyone with this link can read your schedule — rotate it if it gets out.
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <input class="ui-input" type="text" id="calFeedUrl" value="" readonly placeholder="Tap &quot;Create my link&quot; to generate your feed" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
+            <input class="ui-input" type="text" id="calFeedUrl" aria-label="Your calendar feed link" value="" readonly placeholder="Tap &quot;Create my link&quot; to generate your feed" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             <button type="button" class="btn btn-orange" id="calFeedCreate" style="padding:10px 16px;font-size:12px;white-space:nowrap;">Create my link</button>
           </div>
           <div class="fwgap-8">
@@ -5494,11 +5498,11 @@
         <div class="panel-body">
           <div class="sf-row">
             <div class="sf" style="flex:2;">
-              <label class="eyebrow">Cal.com Username</label>
+              <label class="eyebrow" for="calUsername">Cal.com Username</label>
               <input class="ui-input" type="text" id="calUsername" placeholder="your-cal-username" value="" data-on-input="updateCalEmbed" style="width:100%;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             </div>
             <div class="sf" style="flex:2;">
-              <label class="eyebrow">Event Type Slug</label>
+              <label class="eyebrow" for="calEventSlug">Event Type Slug</label>
               <input class="ui-input" type="text" id="calEventSlug" placeholder="roof-inspection" value="" data-on-input="updateCalEmbed" style="width:100%;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             </div>
             <div class="sf" style="flex:1;display:flex;align-items:flex-end;">
@@ -6286,8 +6290,8 @@
 <script defer src="js/nbd-url.js?v=1"></script>
 <script defer src="js/dashboard-state.js?v=12"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
-<script defer src="js/team-names.js?v=1"></script>
-<script defer src="js/dashboard-api.js?v=8"></script>
+<script defer src="js/team-names.js?v=2"></script>
+<script defer src="js/dashboard-api.js?v=10"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
      opens a photos view, but a photo queued before a bfcache reload has to
@@ -6320,9 +6324,9 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=11"></script>
+<script defer src="js/dashboard-widgets.js?v=12"></script>
 <script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=18"></script>
+<script defer src="js/dashboard-actions.js?v=19"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -7271,7 +7275,7 @@
 <script defer src="js/jobs-store.js?v=5"></script>
 <!-- Rich card density + board strip (2026-10-11, C5): read by crm-pipeline.js at render time. -->
 <script defer src="js/pipeline-rich-cards.js?v=2"></script>
-<script defer src="js/crm-pipeline.js?v=21"></script>
+<script defer src="js/crm-pipeline.js?v=22"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -7289,7 +7293,7 @@
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=8"></script>
-<script defer src="js/agent-inbox.js?v=8"></script>
+<script defer src="js/agent-inbox.js?v=9"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
 <script defer src="js/agent-bots-settings.js?v=6"></script>
@@ -7328,7 +7332,7 @@
      so the menu picks up Copy/Text Portal Link items on first render. -->
 <script defer src="js/portal-link-helpers.js?v=3"></script>
 <script defer src="js/kanban-context-menu.js?v=4"></script>
-<script defer src="js/customer-engagement-score.js?v=2"></script>
+<script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
 <script defer src="js/smart-followup.js?v=4"></script>
@@ -7345,8 +7349,12 @@
 <script defer src="js/estimate-followups.js?v=3"></script>
 <!-- "Estimate follow-ups" board (2026-10-19): flag estimateFollowBoard, absent = off. Reads window.NBDEstimateFollowups, so it loads after estimate-followups.js. -->
 <script defer src="js/estimate-follow-board.js?v=1"></script>
-<script defer src="js/game-sprite.js?v=1"></script>
-<script defer src="js/game-card.js?v=3"></script>
+<!-- "Follow-ups" board (2026-11-03): flag followUpBoard, absent = off. Extends the board above, so it loads after it. -->
+<script defer src="js/follow-up-board-logic.js?v=1"></script>
+<script defer src="js/follow-up-board.js?v=1"></script>
+<script defer src="js/chibi.js?v=12"></script>
+<script defer src="js/game-sprite.js?v=6"></script>
+<script defer src="js/game-card.js?v=6"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
@@ -7356,17 +7364,20 @@
      spend + cost per lead, the required lost reason. numbers-logic.js is the
      pure rules; numbers-data.js the owner-only reads/writes; the picker is
      the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
-<script defer src="js/numbers-logic.js?v=2"></script>
+<script defer src="js/numbers-logic.js?v=3"></script>
 <script defer src="js/numbers-data.js?v=2"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/widgets.js?v=17"></script>
-<script defer src="js/today-home.js?v=24"></script>
+<!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
+     Called by widgets.js, maps.js, whats-new.js and the lazy d2d / hd-import / yard-signs / decision-engine bundles. -->
+<script defer src="js/overlay-a11y.js?v=1"></script>
+<script defer src="js/widgets.js?v=20"></script>
+<script defer src="js/today-home.js?v=25"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=7"></script>
 <script defer src="js/my-skin.js?v=11"></script>
 <script defer src="js/layout-system.js?v=5"></script>
-<script defer src="js/pixel-mode.js?v=2"></script>
+<script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
@@ -7407,7 +7418,7 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=6"></script>
+<script defer src="js/smart-calendar.js?v=7"></script>
 <script defer src="js/calendar-feed-ui.js?v=2"></script>
 <script defer src="js/google-calendar-ui.js?v=7"></script>
 <script defer src="js/d2d-storm-layer.js?v=2"></script>
@@ -7466,7 +7477,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=12"></script>
+<script defer src="js/analytics-kpi.js?v=13"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7497,15 +7508,15 @@
 <script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
-<script defer src="js/reports-dashboard.js?v=3"></script>
+<script defer src="js/reports-dashboard.js?v=5"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
-<script defer src="js/reports-trends.js?v=3"></script>
+<script defer src="js/reports-trends.js?v=4"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
 <!-- LAZY: theme-engine + overlays/sounds/achievements/gx load via the `theme`
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
-<script defer src="js/prospects.js?v=5"></script>
-<script defer src="js/lead-source-roi.js?v=4"></script>
+<script defer src="js/prospects.js?v=6"></script>
+<script defer src="js/lead-source-roi.js?v=5"></script>
 <!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
 <script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
@@ -7515,7 +7526,7 @@
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
 <script defer src="js/mobile-nav-customizer.js?v=7"></script>
-<script defer src="js/connection-status-btn.js?v=4"></script>
+<script defer src="js/connection-status-btn.js?v=5"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
      based on the user's claims. Lazy-loading would hide the nav entry
      until the admin explicitly typed #/admin, defeating the gate UX. -->
@@ -7543,7 +7554,7 @@
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->
-<script defer src="js/visit-recorder-launcher.js?v=3"></script>
+<script defer src="js/visit-recorder-launcher.js?v=4"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=2"></script>

@@ -419,7 +419,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -543,6 +543,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-lusage-test 'node firestore-rules.layout-usage.test.js'
+      # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
+      - name: Run job-conflict notice rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-jobconf-test 'node firestore-rules.job-conflict-notice.test.js'
       # Company documents (own-document expiry, 2026-10-18): companies/{cid}/companyDocs. Own file.
       - name: Run company-docs rules tests under emulator
         run: |
@@ -610,6 +615,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-canvass-test 'node firestore-rules.canvassers.test.js'
+      # Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark): opp_seen / opp_rules (and opp_drafts) are Admin-SDK only. Own file (positive controls inside).
+      - name: Run Thumbtack Opportunities rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-opp-test 'node firestore-rules.opp-2026-11-04.test.js'
       - name: Run Storage rules tests under emulator
         run: |
           cd tests
@@ -641,7 +651,7 @@ jobs:
           node-version: '22'
       # Firestore emulator runs on the JVM; firebase-tools needs a modern JDK
       # (same setup as the @stranger E2E shard that boots the functions emulator).
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -952,6 +962,13 @@ jobs:
         # alphabetically after phone-draw-crosshair.spec.js; neither is in the merge-queue
         # ruleset yet (Jo adds @shard2 and @shard3 once both have passed on main).
         shard: ['@shard1', '@shard2', '@shard3', '@audit', '@stranger', '@gauntlet', '@engines']
+        # 2026-10-23 (Jo, overnight): @shard2 and @shard3 are NOT required and @shard2 has never
+        # finished (cap hit 37 of 37 runs; documentation/qa/ci-runner-minutes-2026-10-23.md). They
+        # run on pull_request only: on merge_group and push these two legs are dropped from the
+        # matrix (NOT skipped by an if:, which would report one unexpanded SKIPPED name), so the
+        # five REQUIRED legs keep producing their exact check names on every event. Saves ~78
+        # runner-min per merged PR. Re-add them to the queue once both pass on main and are required.
+        exclude: ${{ fromJSON(github.event_name == 'pull_request' && '[]' || '[{"shard":"@shard2"},{"shard":"@shard3"}]') }}
     # Rock 3: hermetic authed journey — seed a tenant in the Auth/Firestore
     # emulators, serve docs/ from the hosting emulator (the client SDK
     # auto-connects to emulators on localhost via nbd-emulator-connect.js),
@@ -1006,7 +1023,7 @@ jobs:
           node-version: '22'
       # The Firestore emulator runs on the JVM; firebase-tools 15+ (the tests
       # devDependency) requires JDK 21 — same setup as firebase-deploy.yml.
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -1037,9 +1054,16 @@ jobs:
           # connection-refusals are allowlisted there); widening functions
           # to all shards is future work once boot cost is addressed.
           NBD_EMU_FUNCTIONS: ${{ (matrix.shard == '@stranger' || matrix.shard == '@gauntlet') && '1' || '' }}
+        # The hosting emulator logs every GET (one line per script and stylesheet the dashboard loads); on a long
+        # shard that is ~1.6 MB of access log and the job-log tail the GitHub API serves (last 5000 lines) covered the
+        # final five minutes only, so a failure's error block from earlier in the run was out of reach (2026-10-25).
+        # Drop those lines; pipefail keeps the emulator script's exit code.
         run: |
+          set -o pipefail
           cd tests
-          npm run test:e2e:authed:emu
+          # On the runner firebase-tools colours its prefix, so ANSI codes sit between "hosting:" and the address
+          # (#2735's @shard2 run kept every GET): the pattern allows up to 20 characters there.
+          npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -Ev 'hosting:.{0,20}127\.0\.0\.1 - - \['
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -1163,7 +1187,11 @@ jobs:
     runs-on: ubuntu-latest
     # 12 -> 20 (2026-10-16): the walk and the layouts check now run twice,
     # on the readable tree and on the minified build the deploy ships.
-    timeout-minutes: 20
+    # 20 -> 30 (2026-10-26): the job gained the CRM dashboard, Home-boot and
+    # dialog-keyboard checks and ran into its cap three times in one evening
+    # (9-17 min on a quiet runner, past 20 on a busy one). A cap still only
+    # has to catch a hung install, not police the suite.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -1181,6 +1209,44 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      # The Daily Success layouts (interfaces brief gate, 2026-10-25): every layout x every theme
+      # at 320 px, plus 390 px, on the tracker's day page. Same server, same Chromium, no auth.
+      - name: Run the Daily Success layouts phone-fit check
+        run: |
+          cd tests
+          node ds-layouts-phone-fit-2026-10-25.test.js
+      # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
+      # the "This Week" tiles populate on a first visit, the sample estimates show
+      # an address / squares / sent / signed, the Door-to-Door tab labels stay
+      # inside their tabs at 320-430 px. Same server, same Chromium.
+      - name: Run the CRM dashboard sample-data check
+        run: |
+          cd tests
+          node crm-dashboard-sample-render-2026-10-26.test.js
+      # The sample account's boot (overnight pass 2 2026-10-26, crm-6): the Dashboard's
+      # Today / Next best actions and Pipeline engagement panels render instead of
+      # "Loading…", and the Call Center opens with no failure banner. Same server,
+      # same Chromium.
+      - name: Run the sample account boot check
+        run: |
+          cd tests
+          node crm-sample-boot-render-2026-10-26.test.js
+      # The CRM Home boot on the same sample account (overnight pass 2026-10-26, perf-1):
+      # the layout shifts of the whole boot add up to under 0.1 on a phone and a desktop (they
+      # were 1.4-1.6 and 0.4-0.6), nothing but the header and a placeholder shows while Home
+      # is held, and a list that never becomes ready is released, never left bare.
+      - name: Run the CRM Home boot layout-shift check
+        run: |
+          cd tests
+          node crm-home-boot-layout-shift-2026-10-26.test.js
+      # The CRM's self-built dialogs and small controls on the same sample account
+      # (overnight pass 2026-10-26): eight dialogs close on Escape, take focus in, keep
+      # Tab inside and give focus back; hot-lead actions and the photo Share pill have
+      # their hit areas; sidebar section headers are keyboard controls. Same server.
+      - name: Run the CRM overlay keyboard check
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       # The CRM layouts as painted on the same sample account (layouts audit
       # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
       # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
@@ -1216,6 +1282,10 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      - name: Run the CRM overlay keyboard check against the minified build
+        run: |
+          cd tests
+          node crm-overlay-keyboard-2026-10-26.test.js
       - name: Run the CRM layouts render check against the minified build
         run: |
           cd tests
@@ -1251,15 +1321,16 @@ jobs:
         run: |
           cd tests
           npm install --silent --no-audit --no-fund
-      # webkit as well as chromium since 2026-09-08: nav-drawer.spec.js runs
-      # on the mobile-webkit project because the drawer's failure modes are
-      # iOS-shaped (100vh, fixed overflow scrolling, body scroll locks) and
-      # Chromium hides all of them. Adds ~1 min to a job whose measured max
-      # is 2.3 min against a 20 min cap.
-      - name: Install Playwright chromium + webkit
+      # Chromium ONLY since 2026-10-24 (Jo's call). From 2026-09-08 this job
+      # also installed webkit for the mobile-webkit project, and `--with-deps
+      # webkit` pulls ~180 apt packages from a mirror that crawls: it ran this
+      # REQUIRED job to its 20 min cap in 3 of 3 sampled cancellations and
+      # cancelled #2719's first run (documentation/qa/ci-runner-minutes-2026-10-23.md).
+      # The mobile-webkit specs moved to public-e2e-webkit below (not required).
+      - name: Install Playwright chromium
         run: |
           cd tests
-          npx playwright install --with-deps chromium webkit
+          npx playwright install --with-deps chromium
       # /search needs the Pagefind index the deploy builds (2026-10-16).
       - name: Build the site search index (Pagefind)
         run: |
@@ -1269,12 +1340,55 @@ jobs:
         run: |
           cd tests
           npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
-            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 pro-public.spec.js marketing.spec.js nav-drawer.spec.js site-search.spec.js'
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js marketing.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-public-traces
+          path: tests/test-results/
+          retention-days: 7
+
+  # The mobile-webkit half of public-e2e (split out 2026-10-24): nav-drawer
+  # (the drawer's failure modes are iOS-shaped: 100vh, fixed overflow
+  # scrolling, body scroll locks, all hidden by Chromium) and site-search
+  # (Pagefind's WebAssembly index on iOS Safari), at an iPod-touch viewport.
+  # NOT in the merge-queue ruleset: the webkit apt install is the step that
+  # stalls, so it runs on every PR but can no longer block a merge. Same
+  # hosting-emulator pin as public-e2e (the config defaults to PRODUCTION).
+  # No if: on the event (tests/merge-queue-ready-2026-10-04.test.js); 15 min
+  # bounds a stall below the queue's longest required job.
+  public-e2e-webkit:
+    name: Public-surface E2E (mobile WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install test deps
+        run: |
+          cd tests
+          npm install --silent --no-audit --no-fund
+      - name: Install Playwright webkit
+        run: |
+          cd tests
+          npx playwright install --with-deps webkit
+      - name: Build the site search index (Pagefind)
+        run: |
+          node scripts/build-site-search.mjs --install
+          node scripts/build-site-search.mjs
+      - name: Run mobile-webkit specs against the hosting emulator
+        run: |
+          cd tests
+          npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=mobile-webkit --workers=1 nav-drawer.spec.js site-search.spec.js'
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-public-webkit-traces
           path: tests/test-results/
           retention-days: 7
 

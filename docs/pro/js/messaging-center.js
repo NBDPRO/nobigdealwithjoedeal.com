@@ -93,7 +93,10 @@
   }
   function channelChip(v) { return v === 'on' ? chip('on', 'mc-ok') : (v === 'not_enforced' ? chip('not enforced', 'mc-warn') : chip('OFF', 'mc-bad')); }
   function canaryChip(v) { return v === 'on' ? chip('CANARY: sends go to you, not customers', 'mc-warn') : (v === 'off' ? chip('off (real customers)', 'mc-ok') : chip('unknown', 'mc-unk')); }
-  var OUTCOME_CLS = { sent: 'mc-ok', delivered: 'mc-ok', failed: 'mc-bad', undelivered: 'mc-bad', blocked: 'mc-warn', unknown: 'mc-unk' };
+  // 'sent' = the provider accepted it, NOT that it arrived: amber, never the green of 'delivered'.
+  var OUTCOME_CLS = { sent: 'mc-warn', delivered: 'mc-ok', failed: 'mc-bad', undelivered: 'mc-bad', blocked: 'mc-warn', unknown: 'mc-unk' };
+  var OUTCOME_LABEL = { sent: 'accepted, not confirmed' };
+  function outcomeLabel(k) { return OUTCOME_LABEL[k] || k; }
   var GATE_CLS = { pass: 'mc-ok', warn: 'mc-warn', fail: 'mc-bad', blocked: 'mc-warn' };
   var RISK_CLS = { HIGH: 'mc-bad', MED: 'mc-warn', LOW: 'mc-unk' };
 
@@ -164,13 +167,13 @@
     function line(ch) {
       var b = oc[ch] || {};
       return '<li><b>' + ch.toUpperCase() + '</b> ' + ['sent', 'delivered', 'failed', 'undelivered', 'unknown'].map(function (k) {
-        return chip(k + ' ' + (b[k] || 0), OUTCOME_CLS[k]);
+        return chip(outcomeLabel(k) + ' ' + (b[k] || 0), OUTCOME_CLS[k]);
       }).join('') + '</li>';
     }
     var codes = Object.keys(oc.errorCodes || {}).map(function (k) { return chip('error ' + k + ' × ' + oc.errorCodes[k], 'mc-bad'); }).join('');
     return '<section class="mc-card"><h3>Delivery outcomes (7 days)</h3><ul class="mc-list">' + line('sms') + line('email') + line('push') + '</ul>' +
       (codes ? '<h4>Carrier error codes</h4><div class="mc-chips-wrap">' + codes + '</div>' : '') +
-      '<p class="mc-sub">&ldquo;sent&rdquo; means the provider accepted it. Only &ldquo;delivered&rdquo; means it arrived; the carrier verdict is stamped later when the delivery callback is on.</p></section>';
+      '<p class="mc-sub">&ldquo;Accepted, not confirmed&rdquo; means the provider took the message, which does not prove it arrived. Only &ldquo;delivered&rdquo; (green) does; the carrier verdict is stamped later when the delivery callback is on.</p></section>';
   }
 
   function blockedHtml(o) {
@@ -208,7 +211,7 @@
 
   function eventHtml(e, tz) {
     return '<li class="mc-row"><div class="mc-row-top"><b>' + esc(e.automationLabel || e.automation) + '</b>' +
-      chip(String(e.channel || '').toUpperCase(), 'mc-unk') + (e.canary ? chip('CANARY (went to you)', 'mc-warn') : '') + chip(e.outcome, OUTCOME_CLS[e.outcome]) + (e.errorCode ? chip('err ' + e.errorCode, 'mc-bad') : '') + '</div>' +
+      chip(String(e.channel || '').toUpperCase(), 'mc-unk') + (e.canary ? chip('CANARY (went to you)', 'mc-warn') : '') + chip(outcomeLabel(e.outcome), OUTCOME_CLS[e.outcome]) + (e.errorCode ? chip('err ' + e.errorCode, 'mc-bad') : '') + '</div>' +
       '<div class="mc-row-who">' + esc(scrub(e.name || '')) + (e.name ? ' · ' : '') + esc(scrub(e.recipient || '')) + '</div>' +
       '<div class="mc-sub">' + esc(e.templateId || '') + ' · ' + esc(when(e.atMs, tz)) + '</div>' +
       (e.firstLine ? '<div class="mc-line">“' + esc(clip(e.firstLine, 80)) + '”</div>' : '') +

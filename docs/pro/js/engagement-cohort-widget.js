@@ -44,7 +44,8 @@
   __NBD_LOADED['engagement-cohort-widget'] = true;
 
   const PATH = window.location.pathname || '';
-  if (!/\/pro\/dashboard(?:\.html)?$/.test(PATH)) return;
+  // /pro/explore/dashboard is the sample account's copy of the same page.
+  if (!/\/pro\/(?:explore\/)?dashboard(?:\.html)?$/.test(PATH)) return;
 
   const TIER_DEFS = [
     { tier: 4, key: 'responded', label: 'Responded', icon: '✅', bg: 'rgba(251,191,36,0.18)', color: '#fbbf24', border: 'rgba(251,191,36,0.45)' },

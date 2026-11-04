@@ -1,5 +1,37 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Update 2026-10-24: the tool pages join the sample account, one PR per tool** (Jo: "build something similar for all the rest of the tools pages"). Until now `demo-mode.js` hid Decision Engine, Understand, Project Codex, AI Usage and Success Tracker, because they opened the REAL `/pro/` pages (outside the demo worker, refused by `frame-ancestors`, App Check).
+>
+> **How a tool joins:**
+> 1. A `firebase.json` rewrite `/pro/explore/<tool>` to the real page file.
+> 2. A header block `/pro/explore/@(<tools>)` after `/pro/explore/**`: the sample account's policy, but `frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN`, so only the sample dashboard can frame it.
+> 3. The page loads `demo-mode.js` first. Framed, `demo-mode.js` mounts no strip and sends its notices and blocked records to the dashboard's `__NBD_DEMO__`, so the walk's verdict covers the frame.
+> 4. A `SANDBOX_TOOLS` entry in `demo-mode.js` that points the dashboard view at `/pro/explore/<tool>`, and the tool comes off `LIVE_ONLY_*`.
+> 5. Sample data in the seed.
+>
+> Pinned by `tests/pro-demo-tools-2026-10-24.test.js`. The zero-network walk opens each tool, starting at step 25.
+>
+> **Shipped first: AI Usage**, on 71 sample `api_usage` records (seed v5).
+>
+> **Then the Success Tracker** (seed v6). It opens in a window, not a framed view, so it needs no header block. Its rewrite is `/pro/explore/daily-success` → `/pro/daily-success/index.html`, and every asset on that page is an absolute path. `remap()` and a `window.open` wrapper in `demo-mode.js` send the sidebar entry there.
+> - The sample week is six `users/demo-owner/ds_pages` day pages (the last six days, a five-day floor streak, workouts, meals, door numbers, a weight trend). Today is left blank for the visitor.
+> - Food search (Open Food Facts) is answered by `offline.js` with "in your real account", and the visitor types macros by hand.
+> - `healthShortcutManage` refuses quietly, so the Apple Health card stays dark, as it is in production.
+> - The first-visit welcome is marked seen there, because it promises a real-account backup and a home-screen install.
+> - Walk step 26.
+>
+> **Then the three AI tools** (Decision Engine, Understand, Project Codex), framed like AI Usage (`@(analytics|ai-tree|understand|project-codex)`). Their `callClaude` requests go to `demo-sdk/tools-canned.js`, matched by each page's own system prompt, and checked before Ask Joe's test, since the Decision Engine's prompt says "You are Joe Deal's...". Every answer says "no AI model was called".
+> - **Decision Engine:** Pricing Strategy and Damage Assessment answer from the visitor's own choices. Insurance vs Cash and Supplement Strategy are hidden (Jo: insurance vs cash counts as insurance).
+> - **Understand:** a short answer for each of the 16 Technical and Business starter topics, with no dollar figures and no code section numbers. **Jo reviews this wording.** A typed question gets "answers its starter topics". Insurance Deep Dive is hidden.
+> - **Project Codex:** answers are built only from the selected sample job's record, which the page sends in the request. No number appears that the record did not carry. The Supplement Strategy card is hidden.
+> - **Found on the way, a production bug:** every Codex Quick Action card threw on click (`event.currentTarget` under a delegated listener). A duplicate delegate also ran every action twice. Both are fixed (`tests/project-codex-quick-actions-2026-10-24.test.js`).
+> - Walk step 27. `LIVE_ONLY_NAV` / `LIVE_ONLY_TPL` are now empty: every dashboard tool runs in the sample account.
+>
+> **Jo's decisions for the rest:**
+> - The three AI tools get canned sample answers, labelled, with no AI model called.
+> - Their insurance topics (supplement strategy, carrier tactics, adjuster prep) stay out of the sandbox.
+> - Success Tracker gets a sample week. Food search and Apple Health show "in your real account".
+
 > **Update 2026-10-07 (later): waves 1–4 ship together as #2294** (Jo: "good to go"). #2261, #2265 and #2281 close once it merges. Merging main surfaced three things the sample account has to keep up with. Read these before changing it:
 > - **Self-hosted SDK (#2155).** The CRM imports `/assets/vendor/firebase/<ver>/firebase-*.js` from our own origin. `demo-sw.js` must answer that path (`VENDOR_SDK_RE`). If it doesn't, the real SDK loads and only the CSP stands between the demo and Firestore. The export-parity scan in `tests/pro-demo-sdk-2026-10-06.test.js` reads the vendored URLs.
 > - **"Ok to text?" (#2246).** Phone texts call `phoneTextAction` first; the fake answers `check`. `NBDPhoneShare.share` is answered by `demo-mode.js`, because its `location.assign(sms:)` can't be wrapped. The Agent inbox text button has its `href` removed before the inbox opens it.
@@ -116,6 +148,18 @@ Total: roughly 4 to 5 weeks. Wave 1 alone (dashboard + customer card) is a demo-
 - **Cost privacy**: the seed must carry retail prices only (`tests/catalog-cost-privacy.test.js`).
 - **Kentucky rules**: the real deposit rule and KY hold run in the demo too; tests assert no KY insurance sample shows money due at signing, no AOB, no claim-outcome copy (same checks as phase 1, `tests/pro-demo-story-2026-10-06.test.js`).
 - **Perf**: dashboard.html is heavy. The demo should not ship a second copy of it; the SW/import-map route keeps one.
+
+## Update 2026-10-25: the Home game card is on in the sample account
+
+The card is opt-in per rep (`userSettings/{uid}.game.enabled`) and the seed never
+set it, so a visitor saw no card and no avatar editor on Home. Seed v7 adds
+`userSettings/demo-owner` with the card on and an avatar; the fake functions SDK
+answers `getGameCard` with a fixed sample week (185 XP vs a 140 XP ghost, a 3-day
+streak, level 5 "Installer" on the real `50·L·(L+1)` ladder, the real rule
+labels, `sample: true`). `game-card.js` v5 also stops rendering an answer that is
+not a card. Pinned in `tests/pro-demo-game-card-2026-10-25.test.js`; the
+zero-network walk still passes (119) with the card on. See the
+[10-25 handoff](NEXT_SESSION-2026-10-25.md).
 
 ## Open questions for Jo
 

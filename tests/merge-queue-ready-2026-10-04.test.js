@@ -125,6 +125,20 @@ console.log('\nTHE AUTHED E2E MATRIX IS REQUIRABLE');
   }
 }
 
+console.log('\nONLY NON-REQUIRED SHARDS MAY BE DROPPED OFF THE QUEUE (2026-10-23)');
+{
+  // @shard2/@shard3 run on pull_request only, via a matrix `exclude:` expression (not an if:).
+  // Whatever that expression can exclude must never include a required leg.
+  const REQUIRED_LEGS = ['@shard1', '@audit', '@stranger', '@gauntlet', '@engines'];
+  const line = (yml.match(/^        exclude:\s*(.+)$/m) || [])[1] || '';
+  const dropped = (line.match(/"shard"\s*:\s*"(@[a-z0-9_-]+)"/gi) || []).map((m) => m.replace(/.*"(@[a-z0-9_-]+)"$/i, '$1'));
+  const bad = (d) => d.filter((x) => REQUIRED_LEGS.includes(x) || !['@shard2', '@shard3'].includes(x));
+  ok('the matrix exclude drops only @shard2 / @shard3 off merge_group and push', dropped.length === 2 && bad(dropped).length === 0, dropped.join(','));
+  ok('the exclude is keyed so pull_request keeps every leg', /github\.event_name == 'pull_request' && '\[\]'/.test(line), line);
+  ok('positive control: the checker flags an exclude that would drop a required leg', bad(['@shard2', '@shard1']).length === 1 && bad(['@stranger']).length === 1);
+  for (const leg of REQUIRED_LEGS) ok('required leg ' + leg + ' stays in the literal matrix list', ((js['e2e-authed-emulator'] || { matrix: {} }).matrix.shard || []).includes(leg));
+}
+
 console.log('\nRUNBOOK REQUIRED-CHECK LIST ⊂ CHECKS CI ACTUALLY PRODUCES');
 {
   const md = fs.existsSync(RUNBOOK) ? fs.readFileSync(RUNBOOK, 'utf8') : '';

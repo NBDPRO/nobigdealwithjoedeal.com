@@ -354,7 +354,7 @@ const MTW = [39.087, -84.39];
     win.window = win;
     const sandbox = {
       window: win, document: doc, console,
-      fetch: async () => ({ json: async () => report }),
+      fetch: async () => ({ ok: true, status: 200, json: async () => report }),   // a real Response has ok; the page reads it (2026-10-26)
       setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
     };
     vm.runInNewContext(read('docs/assets/js/storm-report-page.js'), sandbox, { filename: 'storm-report-page.js' });

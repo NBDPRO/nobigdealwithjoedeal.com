@@ -3,7 +3,7 @@
  *
  *   1. pixel-world-logic.js: the map is connected (every door reachable from
  *      the start), movement and collision, camera, deterministic townspeople
- *      placement, wandering limits, hail flags, day/night tint, Lead Dex,
+ *      placement, wandering limits, hail flags, day/night tint, Lead Book,
  *      area gates, the on/off switch, dialog facts
  *   2. contracts: the town is read-only (no Firestore write API, no network,
  *      no message send), lazy (not referenced by dashboard.html), original
@@ -114,7 +114,7 @@ console.log('\n1. pixel-world-logic');
   ok('a crowd fills the plaza without collisions, doors or the start tile (' + crowd.length + ' of ' + spots + ' spots)',
     crowd.length === Math.min(400, spots) && new Set(crowd.map((p) => p.x + ',' + p.y)).size === crowd.length
     && crowd.every((p) => WL.tileAt(world, p.x, p.y) !== WL.T.DOOR && WL.walkable(world, p.x, p.y) && !(p.x === world.start.x && p.y === world.start.y)));
-  ok('empty party places nobody', WL.placePeople(world, [], 40).length === 0);
+  ok('empty crew places nobody', WL.placePeople(world, [], 40).length === 0);
 
   const person = p1[0];
   let moved = 0;
@@ -175,7 +175,7 @@ console.log('\n   day and night');
   ok('the tint changes smoothly through the day (no pops)', maxJump < 0.1, 'max jump ' + maxJump);
 }
 
-console.log('\n   Lead Dex, gates, switch');
+console.log('\n   Lead Book, gates, switch');
 {
   const stageRole = (k) => (k === 'signed' ? 'won' : 'active');
   const leads = [

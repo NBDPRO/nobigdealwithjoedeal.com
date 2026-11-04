@@ -12,7 +12,7 @@
 <meta property="og:url" content="https://nobigdealwithjoedeal.com/estimate">
 <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Free Roof Estimate | Personalized Cost">
+<meta name="twitter:title" content="Free Roof Estimate | Personalized Cost Breakdown">
 <meta name="twitter:description" content="Get a free personalized roof estimate for your Cincinnati-area home. See your ballpark cost, material options, and connect with Joe — no pressure.">
 <meta name="twitter:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Free Roof Estimate Tool","description":"Get a free personalized roof estimate with material options for your Cincinnati-area home.","url":"https://nobigdealwithjoedeal.com/estimate","applicationCategory":"HomeImprovement","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
@@ -23,6 +23,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 :root {
   --navy: #1a3057; --navy-dark: #12223d;
@@ -54,7 +56,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .progress-dot.active{border-color:#BD5728;background:#BD5728;color:var(--white);box-shadow:0 0 16px rgba(189,87,40,.4);}
 .progress-dot.done{border-color:var(--success);background:var(--success);color:var(--white);}
 .progress-label{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.7);white-space:nowrap;transition:color .3s;}
-.progress-label.active{color:var(--orange);}
+.progress-label.active{color:var(--orange-light);}
 .progress-label.done{color:var(--success);}
 
 /* ── Step Container ── */
@@ -64,7 +66,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 @keyframes fadeSlide{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── Step Header ── */
-.step-eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;text-align:center;}
+.step-eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--orange-light);margin-bottom:10px;text-align:center;}
 .step-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,6vw,3.2rem);line-height:1.08;text-align:center;margin-bottom:10px;letter-spacing:1px;}
 .step-title span{color:#BD5728;}
 /* Step 1 page heading (2026-10-03): the H1 names the page for search; the big "What's Your Address?" prompt under it is unchanged, now an h2. */
@@ -93,7 +95,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .ac-item:hover,.ac-item.kb-active{background:rgba(189,87,40,.1);color:var(--white);}
 
 /* ── Primary Button ── */
-.btn-primary{width:100%;padding:16px;background:#BD5728;color:var(--white);border:none;border-radius:10px;font-family:'Montserrat',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-primary{width:100%;padding:16px;background:#BD5728;color:var(--white);border:none;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:8px;}
 .btn-primary:hover:not(:disabled){background:#A14A22;transform:translateY(-1px);box-shadow:0 6px 24px rgba(189,87,40,.4);}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 
@@ -173,7 +175,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .tcpa-check{display:flex;gap:10px;align-items:flex-start;margin:20px 0 8px;}
 .tcpa-check input[type="checkbox"]{width:24px;height:24px;margin-top:2px;accent-color:var(--orange);flex-shrink:0;}
 .tcpa-check label{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;padding:2px 0;}
-.tcpa-check label a{color:var(--orange);text-decoration:none;display:inline-block;padding:10px 2px;margin:-10px 0;}
+.tcpa-check label a{color:var(--orange-light);text-decoration:none;display:inline-block;padding:10px 2px;margin:-10px 0;}
 .tcpa-group{margin:4px 0 10px;}
 .tcpa-group .error-msg{font-size:.7rem;color:var(--error);margin-top:4px;display:none;}
 .tcpa-group.has-error .error-msg{display:block;}
@@ -251,7 +253,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 
 /* Footer */
 .foot{text-align:center;padding:40px 5%;font-size:.75rem;color:rgba(255,255,255,.6);}
-.foot a{color:var(--orange);text-decoration:none;}
+.foot a{color:var(--orange-light);text-decoration:none;}
 .disclaimer{max-width:560px;margin:16px auto 0;text-align:center;font-size:.66rem;color:rgba(255,255,255,.55);line-height:1.6;padding:0 20px;}
 
 /* ── Loading Spinner ── */
@@ -305,9 +307,9 @@ nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:
 nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
 nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
 nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
-nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
 nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
-nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:4px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
 nav.tool-nav .nav-cta:hover{background:#A14A22}
 @media(max-width:560px){
   /* Hide the top-nav Back/Call cluster on small phones — it collided with the
@@ -730,7 +732,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div class="tile-group" id="roofTypeGroup" data-group="roofType" style="display:none;" role="group" aria-label="Roof Material">
       <div class="tile-group-label">Roof Material</div>
       <div class="tiles">
-        <div class="tile selected" data-value="asphalt">
+        <div class="tile selected" role="button" tabindex="0" aria-pressed="true" data-value="asphalt">
           <div class="tile-icon">&#127968;</div>
           <div class="tile-label">Asphalt Shingle</div>
           <div class="tile-desc">Most common</div>
@@ -761,7 +763,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           <div class="tile-label">Small</div>
           <div class="tile-desc">Under 1,500 sq ft</div>
         </div>
-        <div class="tile selected" data-value="typical">
+        <div class="tile selected" role="button" tabindex="0" aria-pressed="true" data-value="typical">
           <div class="tile-icon">&#127968;</div>
           <div class="tile-label">Typical</div>
           <div class="tile-desc">1,500 – 2,500 sq ft</div>
@@ -871,8 +873,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 
     <div class="input-group">
       <label for="emailAddress">Email Address <span class="field-optional">(optional)</span></label>
-      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email" aria-describedby="emailAddress-err">
-      <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">Valid email required</div>
+      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email">
+      <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">That email doesn't look right. Fix it, or leave it blank.</div>
     </div>
 
     <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>
@@ -1033,6 +1035,25 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
   Joe provides free on-site inspections with exact pricing — no obligation.
 </div>
 
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer class="foot">
   &copy; 2026 No Big Deal Home Solutions. No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC. <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> &middot; <a href="/sms-program" data-nbd-sms="1">Text Messages</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
@@ -1050,14 +1071,13 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
 <!-- Live Google rating for the trust line above Submit (data-nbd-gr-rating). -->
-<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
 <script type="module" src="/assets/js/inline/f95015cb84.module.js?v=2"></script>
 
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=5"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=6"></script>
 
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

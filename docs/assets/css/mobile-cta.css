@@ -12,6 +12,8 @@
   .mobile-cta-strip svg{width:16px;height:16px;flex-shrink:0}
   /* Reserve space so the fixed bar never covers footer content / iPhone home indicator. */
   body{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  /* Keyboard focus and anchor jumps stop above the bar, not under it (WCAG 2.2 2.4.11). Tallest bar measured: 95px at 320-360 wide, where the Book label wraps; the bar's own height includes the inset. Same rule lives in nbd-nav.css for the homepage, which does not link this file. */
+  html:has(.mobile-cta-strip){scroll-padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 }
 /* Book-first bar (2026-10-05, homeowner revamp, owner-approved). Pages that
    carry the nbd:partial mobile-cta region (site-src/partials/mobile-cta.html)

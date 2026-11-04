@@ -21,6 +21,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Service","name":"TAMKO Impact-Resistant Shingle Installation","description":"Installation of TAMKO's impact-rated asphalt shingles — Titan XT (UL 2218 Class 3), StormFighter FLEX and HailGuard (UL 2218 Class 4) — plus TAMKO Heritage architectural shingles, for hail-prone roofs in Greater Cincinnati, OH and Northern Kentucky.","provider":{"@id":"https://nobigdealwithjoedeal.com/#org"},"areaServed":"Greater Cincinnati, OH and Northern Kentucky","brand":[{"@type":"Brand","name":"TAMKO Heritage"},{"@type":"Brand","name":"TAMKO Titan XT"},{"@type":"Brand","name":"TAMKO StormFighter FLEX"},{"@type":"Brand","name":"TAMKO HailGuard"}],"url":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Services","item":"https://nobigdealwithjoedeal.com/services/roof-replacement"},{"@type":"ListItem","position":3,"name":"TAMKO Impact-Resistant Shingles","item":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What's the difference between StormFighter Flex and HailGuard?","acceptedAnswer":{"@type":"Answer","text":"Both are UL 2218 Class 4 impact shingles. StormFighter Flex delivers full Class 4 with a 160 mph WindGuard rating and a cold-weather install window; HailGuard sits at the top of the lineup, is tested beyond Class 4, and is the first asphalt shingle to carry a written hail warranty."}},{"@type":"Question","name":"What does the 160 mph TAMKO wind rating require?","acceptedAnswer":{"@type":"Answer","text":"The full TAMKO system — TAMKO starter and TAMKO hip and ridge installed with the shingle. Without the system accessories, the headline wind rating doesn't apply."}},{"@type":"Question","name":"What hail warranty comes with HailGuard?","acceptedAnswer":{"@type":"Answer","text":"Every correctly installed HailGuard roof carries the base HailGuard Limited System Warranty: a 10-year non-prorated Full Start period plus a 7-year hail warranty. Through a TAMKO Pro Gold certified contractor, qualifying systems can register the enhanced ProShield HailGuard warranty: a 20-year non-prorated Full Start plus a 10-year hail warranty."}},{"@type":"Question","name":"Do TAMKO Class 4 shingles qualify for an insurance discount?","acceptedAnswer":{"@type":"Answer","text":"Often, yes — many carriers discount the wind/hail portion of the premium for documented Class 4 installs, commonly $60 to $300+ per year. Confirm your carrier's discount with your agent in writing before you commit."}}]}</script>
@@ -72,7 +74,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .hero h1 span{color:#BD5728}
 .hero .lead{font-size:1.05rem;color:rgba(255,255,255,.85);line-height:1.65;margin-bottom:24px}
 .hero-cta{display:flex;gap:12px;flex-wrap:wrap}
-.btn-primary{background:#BD5728;color:#fff;padding:14px 26px;border-radius:8px;font-weight:800;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none}
+.btn-primary{background:#BD5728;color:#fff;padding:14px 28px;border-radius:8px;font-weight:800;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none}
 .btn-primary:hover{background:#A14A22;transform:translateY(-1px)}
 .btn-ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);padding:14px 26px;border-radius:8px;font-weight:700;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;font-family:inherit;transition:all .2s;text-decoration:none}
 .btn-ghost:hover{border-color:var(--orange);background:rgba(189,87,40,.1)}
@@ -883,6 +885,25 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <!-- nbd:updated -->
 <div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
 <!-- /nbd:updated -->
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
 </main>
 <footer>
   <div class="footer-grid">

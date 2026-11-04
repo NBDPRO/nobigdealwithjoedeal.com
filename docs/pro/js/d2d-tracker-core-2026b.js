@@ -3781,6 +3781,7 @@
     const input = document.createElement('input');
     input.type = 'search';
     input.id = 'd2d-addr-input';
+    input.setAttribute('aria-label', 'Search address');
     input.placeholder = 'Search address…';
     input.style.cssText = 'flex:1;min-width:120px;background:color-mix(in srgb, var(--s) 92%, transparent);color:var(--t);'
       + 'border:1px solid var(--br);border-radius:8px;padding:8px 10px;font-size:13px;outline:none;'

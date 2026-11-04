@@ -44,7 +44,7 @@ Tags: **VERIFIED** = checked against the repo. **LEAD** = unchecked outside clai
 
 ## Built but off or unmerged (finish or switch on)
 
-- **Missed-call auto-text:** dark; A2P not approved (brand resubmitted around 10-14).
+- **Missed-call auto-text:** dark; A2P is Verified (2026-10-19), still off behind the messaging flags.
   See [TWILIO-A2P-REGISTRATION](../runbooks/TWILIO-A2P-REGISTRATION.md) and
   [NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12](../audit/NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12.md).
 - **Dry-run flags:** weekly digest, anniversary touch, dormant-lead nudge, care plan.
@@ -89,7 +89,7 @@ capability map. Business data inventory plus retention, access and encryption po
 for photos, claims, COIs, contracts and call audio. Tested-restore drill and a "server
 died mid-job" card. Price cyber/data-breach liability insurance (LEAD).
 
-**Phase 1 — Unblock value already built.** Finish A2P, then missed-call auto-text.
+**Phase 1 — Unblock value already built.** A2P is done (Verified 2026-10-19); next is missed-call auto-text behind the flags.
 Turn on the weekly digest and any other dry-run job Jo approves. Apply the claim
 wording filter to the supplement letter.
 
@@ -134,7 +134,7 @@ influencers; people-search OSINT; AI-detector evasion rewriters.
   other party in an all-party state; disclose "may be recorded" as practice (LEAD).
 - Camera audio triggers wiretap rules; never aim at private spaces; jobsite cameras
   need customer permission (LEAD).
-- A2P 10DLC is a blocking dependency for automated texting; TCPA applies.
+- A2P 10DLC is Verified (2026-10-19), no longer blocking; TCPA still applies and every send stays flag-gated.
 
 ## Open questions
 

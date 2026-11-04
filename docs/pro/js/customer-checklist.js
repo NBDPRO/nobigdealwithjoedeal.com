@@ -126,6 +126,7 @@
       '</div>' +
       rows;
     panel.style.display = 'block';
+    try { if (window.JobCloseout) window.JobCloseout.render(lead); } catch (e) {}
   }
 
   // data-change-action handler — el is the checkbox (data-pass-el).
