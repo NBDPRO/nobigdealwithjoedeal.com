@@ -1113,6 +1113,11 @@ exports.onPhotoCreatedClassify = photoVision.onPhotoCreatedClassify;
 const receiptVision = require('./receipt-vision');
 exports.extractReceiptData = receiptVision.extractReceiptData;
 
+// Receipt and job-cost inbox, phase 1 (2026-11-04). Reads an uploaded receipt into a DRAFT
+// at receipt_inbox/{id}; never writes an expense. Dry-run unless RECEIPT_INBOX_ENABLED=true.
+const receiptInbox = require('./receipt-inbox');
+exports.submitInboxReceipt = receiptInbox.submitInboxReceipt;
+
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side
 // trackUsage in billing-gate.js silently 403'd because rules block
