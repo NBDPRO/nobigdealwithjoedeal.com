@@ -257,6 +257,7 @@
     "funnel-recovery-hardening.test.js",
     "background-job-reliability-2026-10-03.test.js",
     "ga4-landing-coverage.test.js",
+    "web-vitals-2026-11-04.test.js",
     "gauntlet-brand-guard.test.js",
     "google-reviews-display.test.js",
     "google-reviews-momentum-widget.test.js",
