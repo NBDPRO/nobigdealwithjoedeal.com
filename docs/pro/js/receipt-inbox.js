@@ -97,7 +97,9 @@
     const out = { spentUsd: 0, capUsd: cap };
     if (!w.db || !uid() || !w.getDoc || !w.doc) return out;
     try {
-      const s = await w.getDoc(w.doc(w.db, 'userCostMeter', uid() + '__' + LG().inboxMonthKey(Date.now())));
+      // One meter per COMPANY (security review 2026-11-04), so every member sees the same spend.
+      const companyId = (w._userClaims && w._userClaims.companyId) || uid();
+      const s = await w.getDoc(w.doc(w.db, 'receiptInboxMeter', companyId + '__' + LG().inboxMonthKey(Date.now())));
       if (s.exists()) out.spentUsd = Number((s.data() || {}).inboxUsd) || 0;
     } catch (e) { /* the meter is a nicety; the server enforces the cap either way */ }
     return out;
@@ -131,6 +133,7 @@
   const REASONS = {
     'dry-run': 'The receipt inbox is switched off on the server, so nothing was read.',
     paused: 'The receipt inbox is paused for your company, so nothing was read.',
+    'not-enabled': 'The receipt inbox is not switched on for your company yet, so nothing was read.',
     'inbox-cap': 'The inbox AI limit for this month is reached, so nothing was read.',
     'unsupported-format': 'That picture format cannot be read. Try a JPEG, PNG or PDF.',
     'ocr-unavailable': 'The reader is busy right now. Try again in a minute.',
@@ -171,7 +174,7 @@
         if (d.skipped) {
           toast(REASONS[d.reason] || 'That receipt was not read.', d.reason === 'inbox-cap' ? 'warn' : 'info');
           await deleteFile(path);           // nothing was read, so nothing is kept
-          if (d.reason === 'inbox-cap' || d.reason === 'dry-run' || d.reason === 'paused') break;
+          if (d.reason === 'inbox-cap' || d.reason === 'dry-run' || d.reason === 'paused' || d.reason === 'not-enabled') break;
           continue;
         }
         if (d.existing) toast('That receipt is already in the inbox.', 'info');
