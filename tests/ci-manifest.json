@@ -673,6 +673,7 @@
     "ds-week-strip-2026-11-04.test.js",
     "stage-role-fallback-coverage.test.js",
     "kanban-next-action-chip.test.js",
+    "ds-week-glance-run-2026-11-04.test.js",
     "stage-checklist.test.js",
     "lead-task-writer-shape.test.js",
     "render-pdf-brand-mark-square.test.js",
