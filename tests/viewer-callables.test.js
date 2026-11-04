@@ -494,6 +494,10 @@ const VERDICTS = {
   // Pixel World DRAFT TEXT (2026-10-11): assertNotViewer + viewer / member refused,
   // a sales_rep only for a lead they own (functions/pixel-draft.js).
   fileLeadTextDraft: 'role-gated',
+  // Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark): OWNER ONLY (opp-access.js
+  // ownerOf: assertNotViewer, then the caller must be the NBD owner account), so a viewer is refused twice.
+  // Proven in tests/opp-shortlist-callable-2026-11-04.test.js section 1.
+  oppShortlistFile: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', transferCompanyOwnership: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
