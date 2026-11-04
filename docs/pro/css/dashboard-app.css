@@ -423,7 +423,8 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
 :root[data-mode="light"] #mobile-nav .mn-item:not(.active):not(.mn-fab) .mn-lbl{ color:#9ca3af; }
 .hdr-tool .hdr-tool-badge{
   position:absolute; top:2px; right:2px;
-  background:var(--red); color:var(--t);
+  /* White on the red, not var(--t): dark-theme --t on #dc2626 was 3.69:1 (speed/a11y audit 2026-11-04); white is 4.8:1. */
+  background:var(--red); color:#fff;
   font-size:9px; font-weight:700;
   border-radius:8px; padding:1px 4px;
   min-width:16px; text-align:center; line-height:1.2;
