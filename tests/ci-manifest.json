@@ -96,6 +96,8 @@
     "today-ux-walk-2026-10-13.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "reports-delta-from-zero-2026-11-04.test.js",
+    "storm-alerts-error-placement-2026-11-04.test.js",
     "daily-ledger-2026-10-12.test.js",
     "today-row-and-handled-flow-2026-10-13.test.js",
     "intake-forms-2026-09-30.test.js",

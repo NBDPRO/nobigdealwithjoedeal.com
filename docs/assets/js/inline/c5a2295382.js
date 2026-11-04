@@ -1,14 +1,33 @@
 /* @generated — extracted from inline <script> by audit-homeowner-2026-05-22.
    Hash: c5a2295382.  Edited 2026-07 (T4f): alert() dialogs replaced with the
    inline #sa-error live region + aria-invalid/focus on the offending input. */
+// The box moves under the offending field's row so it is on screen where the
+// focus lands (it sat 950-1250 px below on an empty submit, 2026-10-26); a
+// server error with no field goes back to its home above the button.
+let saErrHome = null;
+function placeAlertError(box, input) {
+  if (!box.parentNode || typeof box.parentNode.insertBefore !== 'function') return;
+  if (!saErrHome) saErrHome = { parent: box.parentNode, next: box.nextSibling };
+  const closest = (sel) => (input && typeof input.closest === 'function' ? input.closest(sel) : null);
+  const spot = closest('.row') || closest('.field');
+  // The consent box sits atop a long paragraph: under it, the message lands
+  // behind the phone's Book/Call/Text bar, so it goes just above instead.
+  const consent = closest('label');
+  if (spot && spot.parentNode) spot.parentNode.insertBefore(box, spot.nextSibling);
+  else if (consent && consent.parentNode) consent.parentNode.insertBefore(box, consent);
+  else saErrHome.parent.insertBefore(box, saErrHome.next);
+}
+
 function showAlertError(msg, input) {
   const box = document.getElementById('sa-error');
   if (box) {
+    placeAlertError(box, input);
     box.textContent = msg;
     box.classList.add('show');
   }
   if (input) {
     input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', 'sa-error');
     input.focus();
   }
 }
@@ -21,7 +40,7 @@ function clearAlertError() {
   }
   ['alertName', 'alertPhone', 'alertZip', 'sa-consent'].forEach(function (id) {
     const el = document.getElementById(id);
-    if (el) el.removeAttribute('aria-invalid');
+    if (el) { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); }
   });
 }
 
