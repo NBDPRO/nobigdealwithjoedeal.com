@@ -49,31 +49,29 @@ function locatePostsFile() {
   return hits[0];
 }
 
-// Seasonal date map: slug → published date (YYYY-MM-DD).
-// Mirrors how a working Cincinnati roofer would actually publish — clusters around
-// storm/insurance/replacement seasons, with longer gaps in slow months.
+// Publish-date map: slug → published date (YYYY-MM-DD), applied by --reschedule.
+// Jo, 2026-11-04 (copy-004): keep the blog spread out, but NEVER date a post before it actually went up. The old map
+// back-dated these to March 2025 – Feb 2026 when the repo began 2026-03-15 and every post here was first committed
+// 2026-03-17 – 2026-06-24. Each date below is on or after the post's first commit (the "first" comment), one a week
+// (Tuesdays), avoiding days another post already holds. Never move a date earlier than its "first".
 const SEASONAL_MAP = {
-  // === 2026 SPRING — Premium Components Series + Pre-Hail-Season ===
-  'the-pipe-boot-fork':                          '2026-04-20', // newest, series finale
-  'why-roofivent-is-on-my-roofs':                '2026-04-06', // series middle
-  'why-i-install-lumanail-on-every-elite-roof':  '2026-03-23', // SERIES ANCHOR (4 wks back)
-  'cincinnati-hail-season-2026':                 '2026-03-09', // pre-season prep
-  // === 2026 WINTER — Post-storm insurance season ===
-  'can-i-keep-insurance-check-not-fix-roof':     '2026-02-16',
-  'state-farm-allstate-roof-claims-ohio':        '2026-01-26',
-  'my-roof-is-too-old-will-insurance-still-pay': '2026-01-12',
-  'how-long-roof-insurance-claim-ohio':          '2025-12-22',
-  // === 2025 LATE FALL — post-storm settlement guidance ===
-  'how-to-file-storm-damage-insurance-claim-ohio': '2025-11-10',
-  'what-to-expect-roof-insurance-adjuster-visit':  '2025-10-13',
-  // === 2025 PEAK SEASON — hail/replacement ===
-  'does-homeowner-insurance-cover-hail-damage-ohio': '2025-07-21',
-  'gaf-vs-owens-corning-vs-atlas-shingles':          '2025-06-09',
-  'how-much-does-roof-cost-cincinnati-2026':         '2025-05-19',
-  'how-long-does-roof-replacement-take-cincinnati':  '2025-05-05',
-  // === 2025 EARLY SPRING — pre-season basics (the OG posts) ===
-  'architectural-shingles-vs-3-tab':             '2025-04-14',
-  'signs-your-roof-needs-replacement-vs-repair': '2025-03-24', // oldest
+  'architectural-shingles-vs-3-tab':                 '2026-03-17', // first 2026-03-17
+  'how-long-does-roof-replacement-take-cincinnati':  '2026-03-24', // first 2026-03-17
+  'my-roof-is-too-old-will-insurance-still-pay':     '2026-03-31', // first 2026-03-17
+  'cincinnati-hail-season-2026':                     '2026-04-07', // first 2026-04-05; pre-season prep
+  'signs-your-roof-needs-replacement-vs-repair':     '2026-04-14', // first 2026-04-04
+  'why-i-install-lumanail-on-every-elite-roof':      '2026-04-21', // first 2026-04-21; premium-components series anchor
+  'why-roofivent-is-on-my-roofs':                    '2026-04-28', // first 2026-04-21; series middle
+  'the-pipe-boot-fork':                              '2026-05-05', // first 2026-04-21; series finale
+  'how-much-does-roof-cost-cincinnati-2026':         '2026-05-12', // first 2026-04-04
+  'does-homeowner-insurance-cover-hail-damage-ohio': '2026-05-19', // first 2026-04-04
+  'what-to-expect-roof-insurance-adjuster-visit':    '2026-05-26', // first 2026-04-04
+  'how-to-file-storm-damage-insurance-claim-ohio':   '2026-06-02', // first 2026-04-04
+  'state-farm-allstate-roof-claims-ohio':            '2026-06-09', // first 2026-03-17
+  'how-long-roof-insurance-claim-ohio':              '2026-06-16', // first 2026-04-04
+  'gaf-vs-owens-corning-vs-atlas-shingles':          '2026-06-30', // first 2026-04-05 (06-23 held; modified 07-03)
+  'can-i-keep-insurance-check-not-fix-roof':         '2026-07-07', // first 2026-04-04
+  'tamko-hailguard-first-shingle-with-hail-warranty': '2026-07-21', // first 2026-06-24
 };
 
 // Tag inference from slug. Order matters — more specific matchers first.
@@ -134,13 +132,19 @@ function rewritePostDatesInHtml(filepath, newDate) {
   html = html.replace(/<meta\s+property="article:published_time"\s+content="\d{4}-\d{2}-\d{2}"\s*\/?>/i,
     `<meta property="article:published_time" content="${newDate}">`);
   html = html.replace(/"datePublished"\s*:\s*"\d{4}-\d{2}-\d{2}"/g, `"datePublished":"${newDate}"`);
-  html = html.replace(/"dateModified"\s*:\s*"\d{4}-\d{2}-\d{2}"/g, `"dateModified":"${newDate}"`);
+  // A real later update date stays; only a modified date earlier than the new publish date is raised to it (it used to
+  // overwrite "Updated Sep 27, 2026" posts with the publish date).
+  const keepLater = (m, pre, old) => `${pre}${old > newDate ? old : newDate}"`;
+  html = html.replace(/("dateModified"\s*:\s*")(\d{4}-\d{2}-\d{2})"/g, keepLater);
+  html = html.replace(/(<meta\s+property="article:modified_time"\s+content=")(\d{4}-\d{2}-\d{2})"/gi, keepLater);
   // Update visible date in article-meta — match common patterns
   const d = new Date(newDate + 'T12:00:00Z');
   const visibleDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   const monthYearOnly = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   // Replace "<span>Month D, YYYY</span>" or "<span>Month YYYY</span>" patterns
-  html = html.replace(/(<span>)(?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{0,2},?\s*\d{4}(<\/span>)/g,
+  // The bylines are <span class="post-date">; matching only a bare <span> missed every one of them, which is how the
+  // byline and the index drifted apart (copy-004, 2026-11-04).
+  html = html.replace(/(<span(?: class="post-date")?>)(?:January|February|March|April|May|June|July|August|September|October|November|December)\s*\d{0,2},?\s*\d{4}(<\/span>)/g,
     `$1${visibleDate}$2`);
   // Also update inline "By Joe Deal · Month YYYY · X min read" strings that aren't inside <span>
   html = html.replace(/By Joe Deal\s*·\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\s*·/g,
