@@ -352,7 +352,7 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
    min-width:0 lets it shrink instead of shoving the wordmark off-square). */
 .brand-wrap{display:flex;align-items:center;gap:10px;min-width:0;}
 .logo{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;}
-.logo span{color:var(--orange);}
+.logo span{color:var(--orange-on-header, var(--orange));}
 .logo-mark{width:36px;height:36px;background:var(--orange);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--accent-fg);letter-spacing:.5px;flex-shrink:0;}
 .hbadge{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);border:1px solid var(--orange);padding:2px 7px;border-radius:2px;margin-left:8px;}
 .hright{display:flex;align-items:center;gap:10px;}
@@ -423,7 +423,8 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
 :root[data-mode="light"] #mobile-nav .mn-item:not(.active):not(.mn-fab) .mn-lbl{ color:#9ca3af; }
 .hdr-tool .hdr-tool-badge{
   position:absolute; top:2px; right:2px;
-  background:var(--red); color:var(--t);
+  /* White on the red, not var(--t): dark-theme --t on #dc2626 was 3.69:1 (speed/a11y audit 2026-11-04); white is 4.8:1. */
+  background:var(--red); color:#fff;
   font-size:9px; font-weight:700;
   border-radius:8px; padding:1px 4px;
   min-width:16px; text-align:center; line-height:1.2;
