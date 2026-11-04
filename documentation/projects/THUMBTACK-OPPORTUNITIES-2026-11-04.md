@@ -51,6 +51,15 @@ One record per Opportunity seen, one per draft, and a rules doc. Customer contac
 
 Not built here: the approval screen (inside the Follow-up board, a later PR), the sender, outreach tracking (`thumbtack_outreach`), the weekly report (`opp_weekly`) and rule tuning. No auto-send exists or is planned in this series.
 
+## Storage and the filing callable (PR 2)
+
+- **`opp_seen` and `opp_rules` are Admin-SDK only** (`firestore.rules`: `allow read, write: if false`, spelled out beside the `thumbtack_*` collections). The owner reads and writes through callables; no browser touches them. `opp_rules/_default` has no writer in this series yet: it is edited by hand with admin tools until a rules screen exists, and everything in it passes `sanitizeOverride` on the way in.
+- **`oppShortlistFile`** (`functions/opp-shortlist.js`, shared gate in `functions/opp-access.js`): OWNER ONLY (the NBD owner account; a company admin, manager, rep, viewer, another tenant or a platform admin who is not the owner is refused), App Check enforced, 30 calls an hour per uid. Takes 1 to 25 plain items, scores them with the pure logic and files one `opp_seen` record each with `create()`: the first sighting wins, a re-scan answers `already_seen`. It reads only the two flag docs and `opp_rules/_default`, writes only `opp_seen`, contacts nobody and reads nothing from Thumbtack. Flag off or `killSwitch` true answers `not_allowed` and files nothing; a settings read error is `unavailable` (fails closed).
+- **What it stores:** decision, score, our own reasons, trade label and key, a validated 5 digit ZIP, a letters-only city, miles to the nearer base, pros already in, photo count, and `summary` made of fixed tags. Nothing a stranger typed is stored or returned: not a name, phone, address, link or sentence. An instruction-shaped item is filed as `Other`, score 0, SKIP, flag `instruction_text`.
+- A caller cannot pass rules or history; only the owner's `opp_rules/_default` and the built-in defaults reach the scoring. The seed history is not applied (see "May be wrong").
+- `expireAt` (90 days) is stamped, but **no TTL policy or delete job exists yet**: nothing deletes old records until one is added.
+- Watcher hours are reported (`inWatcherHours`) and not enforced here: paste mode may be used at any hour, and the freshness rule already holds old items. Send hours and the caps are for the sender PR.
+
 ## May be wrong
 
 - **The 3x expected-value test blocks everything on Jo's own numbers.** Roof repair: 6 hires per 33 leads (18.2%) x about $790 collected per hire is about $144 per reply against a $49.15 price ceiling; 3x that is $147.45, so it fails by a hair (2.9x). Siding repair, gutter repair and roof install fail by a wide margin. The design note's "2.7x to 3.5x collected-to-spend" for the whole channel says the same thing: a 3x bar sits at the channel average. The multiple is a data field; Jo should pick the multiple (or confirm the definition) before anyone passes the seed history in.
@@ -62,4 +71,4 @@ Not built here: the approval screen (inside the Follow-up board, a later PR), th
 
 ## Files
 
-`functions/opp-rules.js` (data, flag names, override whitelist), `functions/opp-shortlist-logic.js` (pure scoring, shortlist, hours, caps), `functions/flags-registry.js` (`FIRESTORE_FLAGS`), `tests/opp-shortlist-2026-11-04.test.js`, `tests/flags-registry-drift.test.js`.
+`functions/opp-rules.js` (data, flag names, override whitelist), `functions/opp-shortlist-logic.js` (pure scoring, shortlist, hours, caps), `functions/flags-registry.js` (`FIRESTORE_FLAGS`), `tests/opp-shortlist-2026-11-04.test.js`, `tests/flags-registry-drift.test.js`; PR 2: `functions/opp-access.js`, `functions/opp-shortlist.js`, `functions/index.js` + `function-map.json` + `FUNCTIONS_INDEX.md` entries, `firestore.rules`, `tests/opp-shortlist-callable-2026-11-04.test.js`, `tests/firestore-rules.opp-2026-11-04.test.js` (emulator, wired in `.github/workflows/ci.yml`).
