@@ -111,9 +111,24 @@ this as leads, not requirements; Jo's own gym use outranks it.
   one thing to change. Uses stored data only; no new collection.
 - Muscle-volume map: weekly working sets per muscle group as bars with the target band, building on the balance card.
 
-### Phase 4 - Measurements and photos (last)
+### Phase 4 - Measurements and photos (last) - SHIPPED
 
 - Body measurements next to weight on the Progress tab; progress photos stay on-device or in the signed-in user's own
   Storage, never a public path (see the public-repo constraint).
+  **Update 2026-11-04 (recon):** already on main. Measurements and on-device progress photos shipped in #2662; photos are
+  owner-stamped and hidden from other accounts, and a shared-phone sign-out purges them (#2719); measurement text survives
+  re-renders (#2724). Photos stay in the phone's IndexedDB as re-encoded JPEGs with EXIF/GPS stripped; there is no Storage path or
+  URL. Tests: `tracker-measurements-photos-2026-10-22`, `tracker-photos-owner-gate-2026-10-23`,
+  `tracker-photos-account-purge-2026-10-23`. Nothing left to build here.
+
+### Status 2026-11-04 (Jo's picks after the interface lineup)
+
+Phases 1-4 are done or in review: the Sunday review's missing training section is draft PR #2802. Ideas taken from a screenshot of
+another app, each its own draft PR waiting on Jo's real-iPhone look: the 12-month activity heatmap (#2803), the volume map's
+Week / 30d / 90d / All range toggle (#2804), the Stats tile row (#2806) and workout dots on the week-at-a-glance strip (#2808).
+Already existed, so not built: the coach's "why this target" line (the target note under every lift) and the week strip itself.
+Demo images and animations for lifts are parked: the other app's media is licensed to that app only, and the free exercise dataset's
+images have no stated origin, so nothing is shipped until Jo shoots his own or buys a licence. The ideas themselves live in Jo's
+private vault note, not in this repo.
 
 Order can change if Jo reports something broken on his phone or a required CI check fails on main.
