@@ -545,6 +545,7 @@
     "product-library-company-2026-09-29.test.js",
     "schedule-window-2026-09-29.test.js",
     "schedule-ec-events-2026-11-04.test.js",
+    "schedule-calendar-panel-2026-11-04.test.js",
     "calendar-phase0-2026-09-29.test.js",
     "sms-optout-key.test.js",
     "sms-stop-intent-2026-10-05.test.js",

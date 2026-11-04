@@ -159,6 +159,35 @@
     };
   }
 
+  // A CRM-booked appointment (leads/{leadId}/tasks/{taskId}, type 'event',
+  // ISO eventAt — docs/pro/js/lead-events.js) → an appointments-shaped doc,
+  // or null. Same rules as calendar-feed-logic.js leadEventToAppointment, so
+  // the board shows these exactly where the .ics feed and Google sync do: an
+  // hour long unless durationMin says 1–1440 minutes.
+  function crmEventToAppointment(task, lead, leadId, taskId) {
+    if (!task || typeof task !== 'object' || task.type !== 'event') return null;
+    if (task.deleted === true || task.cancelled === true || task.status === 'cancelled') return null;
+    if (lead && lead.deleted === true) return null;
+    var startMs = toMs(task.eventAt);
+    if (startMs == null) return null;
+    var dur = Number(task.durationMin);
+    var endMs = startMs + (isFinite(dur) && dur >= 1 && dur <= 1440 ? Math.round(dur) * 60000 : HOUR_MS);
+    var lid = String(leadId || task.leadId || ''), tid = String(taskId || task.id || '');
+    if (!lid || !tid) return null;
+    var name = lead ? personName(lead) : '';
+    var what = String(task.title || task.text || 'Appointment').trim() || 'Appointment';
+    return {
+      id: 'evt-' + lid + '-' + tid,
+      bookingId: 'evt-' + lid + '-' + tid,
+      source: 'crm-event',
+      startTime: startMs,
+      endTime: endMs,
+      title: what + (name && what.indexOf(name) === -1 ? ' — ' + name : ''),
+      leadId: lid,
+      userId: task.userId || null
+    };
+  }
+
   // { leads, appointments, tz } → events[], in a stable order.
   function toEvents(input) {
     var o = input || {};
@@ -183,6 +212,7 @@
     leadEvent: leadEvent,
     adjusterEvent: adjusterEvent,
     appointmentEvent: appointmentEvent,
+    crmEventToAppointment: crmEventToAppointment,
     toEvents: toEvents
   };
 

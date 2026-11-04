@@ -5435,6 +5435,31 @@
         </div>
       </div>
 
+      <!-- CALENDAR — js/schedule-calendar-panel.js (2026-11-04). Month / Week /
+           List of jobs, adjuster meetings, Cal.com and CRM appointments together,
+           READ-ONLY (moves happen in Plan Jobs / the customer page). EventCalendar
+           and the adapter load only when this view opens. -->
+      <div class="panel" id="schedCalPanel">
+        <div class="panel-hdr">
+          <div>
+            <div class="panel-label">Everything booked</div>
+            <div class="panel-title">Calendar</div>
+          </div>
+          <button type="button" class="btn btn-ghost sc2-view" data-sc2-refresh aria-label="Reload the calendar">↻</button>
+        </div>
+        <div class="panel-body">
+          <div class="sc2-views" id="schedCalViews" role="group" aria-label="Calendar view"></div>
+          <ul class="sc2-legend" aria-label="Colour key">
+            <li><span class="sc2-dot is-job"></span>Job</li>
+            <li><span class="sc2-dot is-week"></span>Week plan</li>
+            <li><span class="sc2-dot is-adjuster"></span>Adjuster</li>
+            <li><span class="sc2-dot is-appointment"></span>Appointment</li>
+          </ul>
+          <div class="sc2-host" id="schedCalHost"></div>
+          <p class="sc2-status" id="schedCalStatus" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+
       <!-- PLAN JOBS — js/schedule-planner.js. Jobs that need a date + the next
            30 days, each row saved on its own (2026-09-29). -->
       <div class="panel" id="schedPlanPanel" hidden>
@@ -7428,6 +7453,7 @@
 <script defer src="js/production-logic.js?v=1"></script>
 <script defer src="js/production.js?v=2"></script>
 <script defer src="js/schedule-planner.js?v=5"></script>
+<script defer src="js/schedule-calendar-panel.js?v=1"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.
