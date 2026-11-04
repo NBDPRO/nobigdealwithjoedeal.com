@@ -66,6 +66,17 @@
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=22" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
+<!-- Boot module graph (CRM speed-up plan Phase 1.2, 2026-11-04): dashboard-bootstrap / -auth-gate import these, so
+     without a hint each is discovered only after its importer downloads (Firebase's base file one hop deeper still).
+     URLs match the import specifiers exactly; the vendored SDK is cached immutable for a year. -->
+<link rel="modulepreload" href="/assets/vendor/firebase/10.12.2/firebase-app.js">
+<link rel="modulepreload" href="/assets/vendor/firebase/10.12.2/firebase-auth.js">
+<link rel="modulepreload" href="/assets/vendor/firebase/10.12.2/firebase-firestore.js">
+<link rel="modulepreload" href="/assets/vendor/firebase/10.12.2/firebase-app-check.js">
+<link rel="modulepreload" href="/assets/vendor/firebase/10.12.2/firebase-storage.js">
+<link rel="modulepreload" href="js/nbd-emulator-connect.js">
+<link rel="modulepreload" href="js/crm-stages.js">
+<link rel="modulepreload" href="js/estimate-lead-sync.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
 <link rel="preload" href="js/crm.js?v=36" as="script">
