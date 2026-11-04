@@ -11,7 +11,13 @@ Daily Success tracker lane only. The repo-wide live brief is still [NEXT_SESSION
 - **Phase 4 (measurements and photos):** already shipped (#2662, #2719, #2724). The roadmap said otherwise until
   [#2809](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2809) corrected it.
 - **The Sunday review sheet already existed** (2026-10-02, `review-logic.js` / `review-ui.js`); only its training section was missing.
-- **Draft PRs, each waiting on Jo's real-iPhone look (Auto-fix on, CI green at last look):**
+- **Update, end of session: Jo approved everything ("get everything moving in queue").** All eight PRs below were marked ready and
+  have auto-merge on; they land through the merge queue as their checks pass. To keep them from dequeuing each other on
+  `MERGE_CONFLICT`, each PR's `ci-manifest.json` line was moved to its own spot in the array and the `index.html` script/link
+  tags were moved to lines no other PR touches; a throwaway merge of all eight onto main was clean and their tests plus the older
+  daily-success suites passed. #2814 was retargeted to `main` (it contains #2808's commits, which merge identically). The real-iPhone
+  look still has not happened, so it now happens on main: if something reads wrong, fix it as one small PR.
+- **The PRs (originally drafts, each waiting on Jo's real-iPhone look; Auto-fix on):**
 
 | PR | What | Pure logic + test |
 |---|---|---|
