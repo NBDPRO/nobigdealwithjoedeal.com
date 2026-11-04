@@ -462,6 +462,9 @@ exports.fileLeadTextDraft = pixelDraft.fileLeadTextDraft;
 // and sends nothing. See functions/opp-shortlist.js.
 const oppShortlist = require('./opp-shortlist');
 exports.oppShortlistFile = oppShortlist.oppShortlistFile;
+// ...and the first-message draft for one shortlisted Opportunity (fixed templates, never sent). See functions/opp-draft.js.
+const oppDraft = require('./opp-draft');
+exports.oppDraftFile = oppDraft.oppDraftFile;
 
 // NBD CRM connection for the Grok Bot team (2026-10-02): MCP at /api/mcp with
 // per-bot keys; bots read minimized CRM data and FILE notes / reminders /

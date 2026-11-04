@@ -46,7 +46,7 @@ One record per Opportunity seen, one per draft, and a rules doc. Customer contac
 |---|---|---|
 | `opp_seen/{companyId}_{oppId}` | `seenAt`, `postedAgeMin`, `category`, `tradeKey`, `zip`, `city`, `milesNearestBase`, `baseUsed`, `prosAlready`, `photos` (count), `summary` (fixed tags only, 200 chars max), `score`, `decision`, `reasons[]`, `flags[]`, `rulesVersion`, `expireAt` | `oppId` is Thumbtack's id if visible, else a hash of category + place + posted time rounded to 30 minutes. `expireAt` is 90 days out (the delete job is not built). No names, no phone, no free text. |
 | `opp_rules/_default` | numeric overrides, `killSwitch`, `history`, `rulesVersion` | Owner-edited only through `sanitizeOverride` (bounded numbers; a cap can only be lowered). |
-| `opp_drafts/{id}` | `oppId`, `templateKey`, `draftText`, `status`, `createdAt`, ... | Create-only. One per opportunity. Added with the draft callable. |
+| `opp_drafts/{companyId}_{oppId}` | `oppId`, `tradeKey`, `templateKey`, `draftText`, `usedQuote`, `status` (`pending`), `createdAt`, `createdBy`, `expireAt` | Create-only. One per opportunity. Approval, edit, skip and send fields come with later PRs. |
 | `feature_flags/_default.thumbtackOpportunities` | boolean | Absent or false = off. |
 
 Not built here: the approval screen (inside the Follow-up board, a later PR), the sender, outreach tracking (`thumbtack_outreach`), the weekly report (`opp_weekly`) and rule tuning. No auto-send exists or is planned in this series.
@@ -60,6 +60,17 @@ Not built here: the approval screen (inside the Follow-up board, a later PR), th
 - `expireAt` (90 days) is stamped, but **no TTL policy or delete job exists yet**: nothing deletes old records until one is added.
 - Watcher hours are reported (`inWatcherHours`) and not enforced here: paste mode may be used at any hour, and the freshness rule already holds old items. Send hours and the caps are for the sender PR.
 
+## Draft templates and the message gates (PR 3)
+
+A draft is a **fixed template plus three facts** (company name, city, one sanitized quote). Nobody types words into a template: a caller sends a template KEY (or none and the server picks one from the opportunity id).
+
+- **Templates** (`functions/opp-draft-templates.js`): 3 wordings per trade x 6 trades (the four shortlist trades plus the two install trades) = 18 keys, `opp_<trade>_a|b|c`. Each is 3 to 5 short sentences: says it is fully insured, offers a free look and a time window ("this week, mornings or afternoons"), names the problem, asks for one photo if none was posted, and says they can reply right here in Thumbtack. No price or estimate, no pressure line, no digit, no "call / text / phone / number / email", no insurance claim talk, no "licensed", "in-house", "lifetime", guarantee or warranty, no emoji, no "Dear homeowner". The ban list is proven able to fail.
+- **Phone-shaped-text refuser** (`phoneProblem`, `functions/opp-draft-logic.js`): refuses a run of 7 or more digits (any separators), 10 or more digits spread through the text, number words ("five one three"), "double / triple five", fullwidth and Arabic-Indic digits, zero-width characters between digits, O / I / l standing in for 0 / 1 beside digits, and requests like "text me", "call me", "my cell", "phone number", "area code". `linkProblem` refuses links, email addresses, handles and web addresses. Both run on the FINISHED draft, and the same functions are exported to run unchanged on Jo's edited text at approval (a later PR).
+- **Kentucky wording gate** (`kentuckyProblem`): the existing `claimWordingProblem` (never handle or negotiate the claim, never a claims specialist or expert, never approved by an insurer), applied to every draft. On top of that a draft never mentions claims, insurance (except "fully insured"), adjusters, coverage or deductibles.
+- **Problem-phrase sanitizer** (`sanitizePhrase`): the customer's words become ONE lower-case quote of letters, spaces, apostrophes, commas and hyphens, 120 characters at most. A phrase that is instruction-shaped, phone-shaped, link-shaped, mentions insurance, a quote or a price, is dropped whole and our own fallback phrase is used ("the leak", "the roof repair", picked from the fixed tags). Nothing else from an Opportunity reaches a draft.
+- **`opp_drafts/{companyId}_{oppId}`** is CREATE-ONLY: the callable writes it with `create()` (a second filing answers `already_filed`, never overwrites), nothing in this series updates or deletes it, and `firestore.rules` denies every client read and write.
+- **`oppDraftFile`** (`functions/opp-draft.js`): OWNER ONLY, App Check, 60 an hour, dark behind the flag and the kill switch. Only an `opp_seen` record the shortlist marked SHOW (and not flagged `instruction_text`) gets a draft. Files status `pending`. It sends nothing, approves nothing and has no approve or send path.
+
 ## May be wrong
 
 - **The 3x expected-value test blocks everything on Jo's own numbers.** Roof repair: 6 hires per 33 leads (18.2%) x about $790 collected per hire is about $144 per reply against a $49.15 price ceiling; 3x that is $147.45, so it fails by a hair (2.9x). Siding repair, gutter repair and roof install fail by a wide margin. The design note's "2.7x to 3.5x collected-to-spend" for the whole channel says the same thing: a 3x bar sits at the channel average. The multiple is a data field; Jo should pick the multiple (or confirm the definition) before anyone passes the seed history in.
@@ -72,3 +83,5 @@ Not built here: the approval screen (inside the Follow-up board, a later PR), th
 ## Files
 
 `functions/opp-rules.js` (data, flag names, override whitelist), `functions/opp-shortlist-logic.js` (pure scoring, shortlist, hours, caps), `functions/flags-registry.js` (`FIRESTORE_FLAGS`), `tests/opp-shortlist-2026-11-04.test.js`, `tests/flags-registry-drift.test.js`; PR 2: `functions/opp-access.js`, `functions/opp-shortlist.js`, `functions/index.js` + `function-map.json` + `FUNCTIONS_INDEX.md` entries, `firestore.rules`, `tests/opp-shortlist-callable-2026-11-04.test.js`, `tests/firestore-rules.opp-2026-11-04.test.js` (emulator, wired in `.github/workflows/ci.yml`).
+
+PR 3: `functions/opp-draft-templates.js`, `functions/opp-draft-logic.js`, `functions/opp-draft.js`, `opp_drafts` rules entry, `tests/opp-draft-2026-11-04.test.js`, `tests/opp-draft-callable-2026-11-04.test.js`, rules test extended.

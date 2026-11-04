@@ -340,6 +340,8 @@
     "inbound-stamp-2026-11-03.test.js",
     "opp-shortlist-2026-11-04.test.js",
     "opp-shortlist-callable-2026-11-04.test.js",
+    "opp-draft-2026-11-04.test.js",
+    "opp-draft-callable-2026-11-04.test.js",
     "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",

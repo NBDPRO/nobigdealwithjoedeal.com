@@ -4200,6 +4200,14 @@ service cloud.firestore {
     match /opp_rules/{docId} {
       allow read, write: if false;
     }
+    // opp_drafts/{companyId}_{oppId}: the first-message draft for one shortlisted Opportunity
+    // (status pending until a later PR's approval step). CREATE-ONLY: the oppDraftFile callable
+    // writes it with the Admin SDK's create(), so a second filing never overwrites the first, and
+    // no code path in this series updates or deletes it. No client can read, create, update or
+    // delete it: the rules deny every client operation, whoever the client is.
+    match /opp_drafts/{docId} {
+      allow read, write: if false;
+    }
 
     // Thursday — the Bland AI receptionist's call log (integrations/thursday.js).
     // One doc per call (id bland_calls__{call_id}): transcript, extraction,
