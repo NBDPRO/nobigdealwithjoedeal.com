@@ -313,7 +313,10 @@ group('Server wiring', () => {
   const fn = code(PORTAL_FN);
   assert('the view sends the copy and the step states', /copy:\s+HOMEOWNER_PROGRESS_COPY\.ui,/.test(fn) && /milestones:\s+hp\.steps,/.test(fn));
   assert('the pay link is the EXISTING rep-sent link, only on an unpaid Final payment step',
-    /if \(hp\.currentKey === 'payment' && hp\.pending && _balance && _balance\.stripePaymentLink\) \{\s*progress\.payLink = _balance\.stripePaymentLink;/.test(fn));
+    // _payCard (2026-11-04) is _balance with portal-pay.js extras: a bank
+    // payment in flight blanks the link, so the step cannot offer it either.
+    /if \(hp\.currentKey === 'payment' && hp\.pending && _payCard && _payCard\.stripePaymentLink\) \{\s*progress\.payLink = _payCard\.stripePaymentLink;/.test(fn)
+      && /const _payCard = PortalPay\.withPayExtras\(_balance, _unpaidInvoice\);/.test(fn));
   assert('no Stripe call was added to the view', !/paymentLinks\.create/.test(fn.slice(fn.indexOf('exports.getHomeownerPortalView'), fn.indexOf('exports.', fn.indexOf('exports.getHomeownerPortalView') + 10))));
   assert('the balance card and the payment step share one "owes" predicate', /tenantInvoices\s*\n?\s*\.filter\(invoiceOwes\)/.test(fn));
 });
