@@ -2011,6 +2011,7 @@
             <button class="btn btn-ghost crm-hdr-btn" id="leadSourceFixerBtn" type="button" hidden
               title="Confirm where each paying customer really came from, and see collected dollars per source">
               🎯 <span class="crm-hdr-btn-label">Where customers came from</span>
+            </button>
             <!-- Speed to lead (js/speed-to-lead.js, flag speedToLead): shown only with the flag on. -->
             <button class="btn btn-ghost crm-hdr-btn" id="speedToLeadBtn" type="button" hidden
               title="Mark new leads as replied, and see how fast you answer by source">
@@ -2589,16 +2590,16 @@
 
   <!-- Phase C.1 templates for the iframe stubs. -->
   <template id="tpl-view-aitree">
-    <iframe id="iframe-aitree" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/ai-tree.html"></iframe>
+    <iframe id="iframe-aitree" title="AI decision tree" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/ai-tree.html"></iframe>
   </template>
   <template id="tpl-view-understand">
-    <iframe id="iframe-understand" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/understand.html"></iframe>
+    <iframe id="iframe-understand" title="Understand your numbers" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/understand.html"></iframe>
   </template>
   <template id="tpl-view-projectcodex">
-    <iframe id="iframe-projectcodex" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/project-codex.html"></iframe>
+    <iframe id="iframe-projectcodex" title="Project Codex" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/project-codex.html"></iframe>
   </template>
   <template id="tpl-view-aiusage">
-    <iframe id="iframe-aiusage" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/analytics.html"></iframe>
+    <iframe id="iframe-aiusage" title="AI usage analytics" style="width:100%;height:100%;border:none;flex:1;" data-src="/pro/analytics.html"></iframe>
   </template>
 
   <!-- ══ TEMPLATES ══ -->
@@ -2922,7 +2923,7 @@
       </div>
 
       <!-- UPLOAD AREA -->
-      <div id="docUploadArea" style="display:none;" class="panel" style="margin-top:16px;">
+      <div id="docUploadArea" style="display:none;margin-top:16px;" class="panel">
         <div class="panel-hdr"><div><div class="panel-label">Upload</div><div class="panel-title">Add Document</div></div><button class="btn btn-ghost" data-action="closeModal" data-target="uploadDoc">✕ Cancel</button></div>
         <div class="panel-body">
           <div class="mfield mb-12"><label>Document Name</label><input type="text" id="docName" placeholder="Roofing Contract - Smith 2026"></div>
@@ -5213,7 +5214,7 @@
             <div class="panel-title">Team Members</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input class="ui-input" id="adminRosterFilter" aria-label="Filter the team by name, email or role" placeholder="Filter by name, email, role..."/ style="font-size:11px;padding:6px 10px;color:var(--t);width:220px;">
+            <input class="ui-input" id="adminRosterFilter" aria-label="Filter the team by name, email or role" placeholder="Filter by name, email, role..." style="font-size:11px;padding:6px 10px;color:var(--t);width:220px;">
           </div>
         </div>
         <div class="panel-body" style="padding:0;">
@@ -5267,11 +5268,11 @@
       <div style="display:grid;gap:12px;">
         <div>
           <label class="eyebrow-9">Email</label>
-          <input class="ui-input" id="adminNewEmail" type="email" placeholder="rep@company.com"/ style="width:100%;font-size:13px;padding:10px;color:var(--t);">
+          <input class="ui-input" id="adminNewEmail" type="email" placeholder="rep@company.com" style="width:100%;font-size:13px;padding:10px;color:var(--t);">
         </div>
         <div>
           <label class="eyebrow-9">Display Name</label>
-          <input class="ui-input" id="adminNewName" type="text" placeholder="Jane Doe"/ style="width:100%;font-size:13px;padding:10px;color:var(--t);">
+          <input class="ui-input" id="adminNewName" type="text" placeholder="Jane Doe" style="width:100%;font-size:13px;padding:10px;color:var(--t);">
         </div>
         <div>
           <label class="eyebrow-9">Role</label>
