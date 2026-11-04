@@ -593,6 +593,7 @@
     "tenant-ready-2026-10-04.test.js",
     "theme-contrast.test.js",
     "dashboard-boot-no-duplicate-toplevel-2026-11-04.test.js",
+    "script-loader-parallel-download-2026-11-04.test.js",
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
     "thursday-ui-wiring.test.js",
