@@ -334,6 +334,7 @@
     "estimate-follow-board-2026-10-19.test.js",
     "estimate-follow-callable-2026-10-19.test.js",
     "follow-up-board-2026-11-03.test.js",
+    "follow-up-board-sync-2026-11-04.test.js",
     "inbound-stamp-2026-11-03.test.js",
     "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",

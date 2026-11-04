@@ -581,6 +581,10 @@ function goTo(name, params = {}) {
       }
       renderLeads(window._leads || [], window._filteredLeads);
     }
+    // The Pipeline template is hydrated by now. Header buttons that live inside it (the Follow-ups
+    // button, flag followUpBoard) may have run their first sync while it was still an inert
+    // <template>, so tell them it is mounted. Narrower than re-emitting nbd:data-refreshed.
+    try { window.dispatchEvent(new CustomEvent('nbd:view-entered', { detail: { name: 'crm' } })); } catch (e) {}
   }
   // These views' modules are lazy-loaded — chain init onto the preload
   // promise so the init call runs AFTER the module has defined the

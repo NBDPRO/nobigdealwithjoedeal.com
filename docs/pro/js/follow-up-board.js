@@ -240,6 +240,15 @@
     }
   }
   w.addEventListener('nbd:data-refreshed', function () { syncButton(); if (overlay) paint(); });
+  // The button lives in the lazily-mounted CRM view template, and the flags can land after the first
+  // sync, so a sync that ran before either found no button or no flag and nothing re-ran it (2026-11-04).
+  // 'nbd:flags-loaded' = flags arrived; 'nbd:view-entered' (goTo, after the template is hydrated) = the
+  // Pipeline view just mounted. Leads loading/changing already arrive as 'nbd:data-refreshed' above.
+  w.addEventListener('nbd:flags-loaded', function () { syncButton(); });
+  w.addEventListener('nbd:view-entered', function (ev) {
+    var n = ev && ev.detail && ev.detail.name;
+    if (n === 'crm') syncButton();
+  });
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(init, 2200); });
   else setTimeout(init, 2200);
   setInterval(syncButton, 60000);
