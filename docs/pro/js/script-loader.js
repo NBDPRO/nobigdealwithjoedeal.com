@@ -738,9 +738,64 @@
     } catch (e) {}
   }
 
+  // Deploy-time joined bundles (CRM speed-up Phase 2b; scripts/concat-shipped.js --bundles). When the deploy joined a
+  // bundle, window.__NBD_JOINED_BUNDLES[name] = { steps: [...], parts: { joinedFile: [src, ...] } }: `steps` is the
+  // bundle's own order with each run of joinable JS replaced by one joined file. A plan is used only when NONE of its
+  // joined parts is already loaded, pending or on the page (otherwise a part would run twice); a part is marked loaded
+  // once its joined file runs, so a later load(part) or isLoaded() sees it. No map (source tree, other pages) = the
+  // per-file path below, unchanged.
+  function joinedSteps(name) {
+    const map = window.__NBD_JOINED_BUNDLES;
+    const plan = map && map[name];
+    if (!plan || !Array.isArray(plan.steps) || !plan.parts) return null;
+    let tags = [];
+    try { tags = Array.prototype.map.call(document.querySelectorAll('script[src]'), (t) => cacheKey(t.getAttribute('src'))); } catch (e) {}
+    for (const file of Object.keys(plan.parts)) {
+      for (const part of plan.parts[file]) {
+        const k = cacheKey(part);
+        if (loaded.has(k) || pending.has(k) || tags.indexOf(k) !== -1) return null;
+      }
+    }
+    return plan;
+  }
+
   function loadBundle(name) {
     const bundle = BUNDLES[name];
     if (!bundle) return Promise.resolve();
+    const joined = joinedSteps(name);
+    if (joined) {
+      joined.steps.forEach(warm);
+      // While a joined file is on its way, its parts count as pending, so a direct load(part) waits for it instead of
+      // injecting the part a second time.
+      const gates = {};
+      Object.keys(joined.parts).forEach((file) => {
+        let open;
+        const gate = new Promise((r) => { open = r; });
+        gates[file] = open;
+        joined.parts[file].forEach((s) => pending.set(cacheKey(s), gate));
+      });
+      const runStep = (src) => {
+        const parts = joined.parts[src];
+        if (!parts) return load(src);
+        return load(src).then(() => {
+          parts.forEach((s) => pending.delete(cacheKey(s)));
+          if (loaded.has(cacheKey(src))) {
+            parts.forEach((s) => loaded.add(cacheKey(s)));
+            gates[src]();
+            return undefined;
+          }
+          // The joined file failed (load() never rejects): fall back to its parts, one by one, in order.
+          return parts.reduce((prev, s) => prev.then(() => load(s)), Promise.resolve()).then(() => gates[src]());
+        });
+      };
+      const pj = joined.steps.reduce((prev, src) => prev.then(() => runStep(src)), Promise.resolve());
+      if (name === 'theme') {
+        return pj.then(() => {
+          try { if (window._nbdInitThemeStack) window._nbdInitThemeStack(); } catch (e) {}
+        });
+      }
+      return pj;
+    }
     bundle.forEach(warm);
     // Sequential load to preserve dependency order (engine before UI).
     const p = bundle.reduce((prev, src) => prev.then(() => load(src)), Promise.resolve());

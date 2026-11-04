@@ -146,7 +146,116 @@ function plan(root) {
   return { htmlPath, html, tags, groups, kept, refusals };
 }
 
-function write(root, p) {
+// ── Phase 2b: lazy ScriptLoader bundles (--bundles) ─────────────────────────────────────────────────────────────
+// The bundle list is read by RUNNING script-loader.js in a sandbox (window.ScriptLoader.bundles), so a minified
+// loader reads exactly like the readable one.
+function loaderBundles(root) {
+  const src = fs.readFileSync(path.join(root, 'docs/pro/js/script-loader.js'), 'utf8');
+  const quiet = { log() {}, warn() {}, group() {}, groupEnd() {}, error() {} };
+  const doc = { querySelector: () => null, querySelectorAll: () => [], baseURI: 'https://nobigdealwithjoedeal.com/pro/dashboard', createElement: () => ({ setAttribute() {} }), head: { appendChild() {} } };
+  const win = { document: doc, console: quiet };
+  win.window = win;
+  const ctx = vm.createContext({ window: win, document: doc, console: quiet, URL, setTimeout: () => 0, clearTimeout() {}, Promise });
+  vm.runInContext(src, ctx, { filename: 'script-loader.js' });
+  const b = win.ScriptLoader && win.ScriptLoader.bundles;
+  if (!b || !Object.keys(b).length) throw new Error('concat-shipped: script-loader.js exposed no bundles; refusing to guess');
+  return b;
+}
+
+function groupProblems(root, keys) {
+  const files = keys.map((k) => [k, fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8')]);
+  const problems = [];
+  const decl = files.map(([, t]) => topLevelDecls(t).names);
+  const code = files.map(([, t]) => codeOnly(t));
+  const seen = new Map();
+  decl.forEach((names, i) => { for (const n of names) (seen.get(n) || seen.set(n, []).get(n)).push(files[i][0]); });
+  for (const [n, where] of seen) if (where.length > 1) problems.push(`"${n}" declared in ${where.join(' and ')}`);
+  files.forEach(([name, text], j) => {
+    for (const n of [...decl[j]].filter((x) => new RegExp(`^(?:let|const|class)\\s+${x.replace(/\$/g, '\\$')}\\b`, 'm').test(text))) {
+      const re = new RegExp(`(^|[^\\w$.])${n.replace(/\$/g, '\\$')}(?![\\w$])`);
+      for (let i = 0; i < j; i++) if (re.test(code[i])) problems.push(`${files[i][0]} names "${n}" of the later ${name} (TDZ)`);
+    }
+  });
+  try { new vm.Script(files.map(([, t]) => t).join('\n;\n')); } catch (e) { problems.push('does not compile joined: ' + e.message); }
+  return problems;
+}
+
+/** → { plans: { name: { steps, parts } }, segments: [{ bundle, file, keys }], skipped: [string] } */
+function planBundles(root, pageTags) {
+  const bundles = loaderBundles(root);
+  const ex = exclusionSets(root);
+  const onPage = new Set(pageTags.filter((t) => t.src).map((t) => key(t.src)));
+  const uses = {};
+  for (const list of Object.values(bundles)) for (const s of list) uses[key(s)] = (uses[key(s)] || 0) + 1;
+  const plans = {}, segments = [], skipped = [];
+  for (const [name, list] of Object.entries(bundles)) {
+    const steps = [], parts = {};
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2) {
+        const keys = run.map(key);
+        const problems = groupProblems(root, keys);
+        if (!problems.length) {
+          const seg = { bundle: name, index: segments.filter((s) => s.bundle === name).length + 1, keys, srcs: run.slice() };
+          segments.push(seg);
+          steps.push(seg);
+          run = [];
+          return;
+        }
+        skipped.push(`${name}: kept separate (${problems.slice(0, 2).join('; ')})`);
+      }
+      steps.push(...run);
+      run = [];
+    };
+    for (const src of list) {
+      const k = key(src);
+      let why = null;
+      if (!/^js\/[\w.-]+\.js$/.test(k)) why = 'not a js/ file';
+      else if (uses[k] > 1) why = 'shared with another bundle';
+      else if (onPage.has(k)) why = 'also a tag on the page';
+      else if (ex.demo.has(k)) why = 'demo-swapped';
+      else if ([...ex.selectorNames].some((n) => k.includes(n))) why = 'selector';
+      else if (!fs.existsSync(path.join(root, 'docs/pro', k))) why = 'missing';
+      else {
+        const t = fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8');
+        const scan = topLevelDecls(t);
+        if (/document\.currentScript/.test(t)) why = 'currentScript';
+        else if (scan.useStrict) why = 'use strict';
+        else if (!scan.balanced) why = 'unreadable';
+      }
+      if (why) { flush(); steps.push(src); } else run.push(src);
+    }
+    flush();
+    if (steps.some((s) => typeof s === 'object')) plans[name] = { steps, parts };
+  }
+  return { plans, segments, skipped };
+}
+
+function writeBundles(root, html, bp) {
+  for (const seg of bp.segments) {
+    const body = seg.keys.map((k) => `/*! concat: ${k} */\n${fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8').replace(/\s+$/, '')}\n;\n`).join('');
+    const hash = crypto.createHash('sha256').update(body).digest('hex').slice(0, 10);
+    seg.file = `js/_bundle-${seg.bundle}-${seg.index}-${hash}.js`;
+    fs.writeFileSync(path.join(root, 'docs/pro', seg.file), body);
+  }
+  const map = {};
+  for (const [name, plan] of Object.entries(bp.plans)) {
+    const parts = {};
+    const steps = plan.steps.map((s) => { if (typeof s !== 'object') return s; parts[s.file] = s.srcs; return s.file; });
+    map[name] = { steps, parts };
+  }
+  const mapBody = `/* Deploy-time joined ScriptLoader bundles (scripts/concat-shipped.js --bundles). Read by script-loader.js. */\nwindow.__NBD_JOINED_BUNDLES = ${JSON.stringify(map)};\n`;
+  const mapFile = `js/_bundle-map-${crypto.createHash('sha256').update(mapBody).digest('hex').slice(0, 10)}.js`;
+  fs.writeFileSync(path.join(root, 'docs/pro', mapFile), mapBody);
+  // The map runs just before script-loader.js, with the loader tag's own loading attributes.
+  const tags = scriptTags(html);
+  const loaderTag = tags.find((t) => t.src && key(t.src) === 'js/script-loader.js');
+  if (!loaderTag) throw new Error('concat-shipped: no script-loader.js tag to put the bundle map before');
+  const attrs = loaderTag.text.replace(/^<script\b|><\/script>$/g, '').replace(/\s*src="[^"]*"/, '');
+  return html.slice(0, loaderTag.start) + `<script${attrs} src="${mapFile}"></script>\n` + html.slice(loaderTag.start);
+}
+
+function write(root, p, bp) {
   let html = p.html;
   const edits = []; // [start, end, replacement], applied from the end
   const fileOf = new Map();
@@ -179,6 +288,7 @@ function write(root, p) {
   }
   edits.sort((a, b) => b[0] - a[0]);
   for (const [s, e, r] of edits) html = html.slice(0, s) + r + html.slice(e);
+  if (bp) html = writeBundles(root, html, bp);
   fs.writeFileSync(p.htmlPath, html);
   return html;
 }
@@ -186,12 +296,14 @@ function write(root, p) {
 function main() {
   const root = path.resolve(arg('--root') || path.join(__dirname, '..'));
   const p = plan(root);
+  const bp = process.argv.includes('--bundles') ? planBundles(root, p.tags) : null;
   const grouped = p.groups.reduce((n, g) => n + g.length, 0);
   const summary = {
     scriptTags: p.tags.length,
     groups: p.groups.map((g) => g.length),
     joinedFiles: grouped,
     scriptTagsAfter: p.tags.length - grouped + p.groups.length,
+    bundles: bp ? { joined: bp.segments.map((g) => g.bundle + '#' + g.index + '(' + g.keys.length + ')'), skipped: bp.skipped } : null,
     keptDefer: p.kept,
     refusals: p.refusals,
   };
@@ -199,15 +311,16 @@ function main() {
   else {
     console.log(`concat-shipped: ${p.tags.length} boot script tags; ${p.groups.length} group(s) of ${summary.groups.join(' + ')} defer files → ${summary.scriptTagsAfter} tags.`);
     const why = {}; for (const k of p.kept) why[k.why] = (why[k.why] || 0) + 1;
+    if (bp) console.log(`  bundles (--bundles): ${bp.segments.length} joined segment(s) in ${Object.keys(bp.plans).length} bundle(s), ${bp.segments.reduce((n, g) => n + g.keys.length, 0)} files: ${bp.segments.map((g) => g.bundle + '(' + g.keys.length + ')').join(' ')}${bp.skipped.length ? '; kept separate: ' + bp.skipped.join(' | ') : ''}`);
     console.log('  defer files kept separate: ' + (Object.entries(why).map(([w, n]) => `${n} ${w}`).join('; ') || 'none'));
   }
   if (p.refusals.length) {
     console.error('concat-shipped: REFUSED — nothing written:\n  ' + p.refusals.join('\n  '));
     process.exit(1);
   }
-  if (process.argv.includes('--write')) { write(root, p); console.log(`concat-shipped: wrote ${p.groups.length} joined file(s) and rewrote ${path.relative(root, p.htmlPath)}.`); }
+  if (process.argv.includes('--write')) { write(root, p, bp); console.log(`concat-shipped: wrote ${p.groups.length} joined file(s) and rewrote ${path.relative(root, p.htmlPath)}.`); }
   else if (!process.argv.includes('--check')) { console.log('(dry run: pass --check in CI, --write on the deploy copy)'); }
 }
 
 if (require.main === module) main();
-module.exports = { plan, write, scriptTags, eligibility, exclusionSets, key };
+module.exports = { plan, write, scriptTags, eligibility, exclusionSets, key, planBundles, loaderBundles };
