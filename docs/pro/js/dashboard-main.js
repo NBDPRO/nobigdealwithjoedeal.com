@@ -22,8 +22,7 @@
  *     _revokePortalLink → dashboard-api.js
  *   - renderEstimatesList, viewEstimate, renderPhotoLeads,
  *     renderPhotoGrid, openPhotoFor, uploadPhotos,
- *     renderRecentPhotoFeed, renderIntelCard,
- *     fetchPropertyIntelModal, renderZoneList, updatePinStats,
+ *     renderRecentPhotoFeed, renderZoneList, updatePinStats,
  *     openCardDetailModal, closeCardDetailModal, openMobileJobDetail,
  *     closeMobileJobDetail, populateProspectQuickActions
  *     → dashboard-widgets.js
