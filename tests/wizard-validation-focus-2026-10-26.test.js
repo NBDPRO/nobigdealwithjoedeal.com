@@ -476,8 +476,10 @@ function isFocusedHeading(d, el) { return !!el && d.activeElement === el && el.g
   {
     const est = read('docs/estimate.html'), sc = read('docs/storm-check.html'), rs = read('docs/roof-score.html');
     const meta = (h, attr, name) => ((h.match(new RegExp('<meta ' + attr + '="' + name + '" content="([^"]*)"')) || [])[1]);
-    ok('the edited scripts are re-versioned on their pages: storm-check.js?v=6, roof-score.js?v=5, loader ?v=6 -> wizard ?v=7',
-      sc.includes('/assets/js/storm-check.js?v=6"') && rs.includes('/assets/js/roof-score.js?v=5"')
+    // ">= this version": a later edit re-versions the same script (copy-001 wording, 2026-11-04).
+    const ver = (h, f) => +((h.match(new RegExp('/assets/js/' + f + '\\?v=(\\d+)"')) || [])[1] || 0);
+    ok('the edited scripts are re-versioned on their pages: storm-check.js?v=6+, roof-score.js?v=5+, loader ?v=6 -> wizard ?v=7',
+      ver(sc, 'storm-check\\.js') >= 6 && ver(rs, 'roof-score\\.js') >= 5
       && est.includes('/assets/js/estimate-wizard-loader.js?v=6"') && read('docs/assets/js/estimate-wizard-loader.js').includes('/assets/js/inline/4053149b2f.js?v=7'));
     ok('/estimate: twitter:title equals og:title (no truncated copy)', !!meta(est, 'property', 'og:title') && meta(est, 'name', 'twitter:title') === meta(est, 'property', 'og:title'), meta(est, 'name', 'twitter:title'));
     const pre = (f) => '<link rel="preload" href="/assets/fonts/' + f + '" as="font" type="font/woff2" crossorigin>';

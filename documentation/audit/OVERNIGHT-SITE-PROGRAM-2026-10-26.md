@@ -70,7 +70,12 @@ signature text.
   gaf-vs-owens-corning-vs-atlas-shingles, how-long-does-roof-replacement-take-cincinnati,
   how-to-choose-a-roofer-after-a-storm. Higher impact than the contrast finding; not fixed yet.
 - `/storm-alerts` and `/inspect`: on an empty submit the error box lands 950 to 1250 px below the focused field.
+  **Fixed:** `/inspect` in #2764; `/storm-alerts` on 2026-11-04 (`claude/site-fixes-2026-11-04`). The box now sits
+  14 px under the bad field, and just above the consent checkbox, because under it the phone's Book/Call/Text bar
+  hid it. Guard: `tests/storm-alerts-error-placement-2026-11-04.test.js`.
 - Reports `_delta(cur, prev)` returns +100% whenever the previous period is zero, so the sample shows "$20k up +100%".
+  **Fixed 2026-11-04** (same branch): a change from zero shows no badge. Guard:
+  `tests/reports-delta-from-zero-2026-11-04.test.js`.
 - The Reports funnel counts leads created in the window, the Estimates band counts estimates: 89% close rate beside 25%
   on the same sample, by design, until the sample has estimates for the other seven won leads.
 - CI: `Pro demo zero-network walk` (20 min cap) and `Public-surface E2E (mobile WebKit)` (15 min cap) were each
@@ -100,5 +105,13 @@ Merged or queued since (each with a red-first guard test; the PR body has the de
 Jo's calls on 2026-10-26: Active Leads = open deals only; brand orange text on navy becomes `#DD875F` (orange on light backgrounds stays `#BD5728`); the 69 KB latin-ext font on `/review` stays (perf-3, one "ș" in a reviewer's name).
 
 Still open, still Jo's: the copy and insurance-wording findings (copy-001 to copy-010), marketing-10 (GAF Timberline photo probes), funnel-10 (30 s AI note wait), crm-6 (held in #2755), crm-7 follow-ups, perf-1, perf-2, perf-4, perf-6. The homepage form's error line already sits above its button, so the homepage half of funnel-9 needs no change.
+
+**Update 2026-11-04, perf-4: no longer reproduces; nothing to change.** I measured it on `main` `118fd358`: the
+sample account (`/pro/explore/dashboard`, 25 leads, 390 px touch, headless Chromium, every `new Intl.DateTimeFormat`
+and every `Date#toLocale*String` with options counted by call site for 15 s of boot). Total: **15** builds and none
+per row. They were `closes-week-logic.js:89` ×5 (one per close this week), `storm-strip.js:94` ×4, and one each
+from the cached formatters in `today-plan.js` (2), `estimate-followups.js`, `schedule-window.js` and
+`ky-insurance-law.js` (2). Those modules now build once and reuse, which is what perf-4 asked for. The leftovers:
+the `crm-10` `.af-action` row went to #2818 (Jo: "own row").
 
 Lessons worth keeping: a hand-written regex test can pin the exact form of a rule (`orange-text-on-navy` pinned `var(--orange-light)`), so a fallback form needs its pin widened; and a KNOWN BUG pin must be removed in the PR that fixes the bug.
