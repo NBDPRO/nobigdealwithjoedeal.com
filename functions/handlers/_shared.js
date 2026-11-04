@@ -20,6 +20,7 @@
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { HttpsError } = require('firebase-functions/v2/https');
+const logger = require('firebase-functions/logger');
 
 // ── CORS origins — exact match, no startsWith, no wildcards. ─────────
 const CORS_ORIGINS = [
@@ -176,7 +177,12 @@ function isOwnerCaller(token) {
   // owner claim, so the line above still admits it.
   if (token.email_verified !== true) return false;
   const email = typeof token.email === 'string' ? token.email.trim().toLowerCase() : '';
-  return !!email && OWNER_EMAILS.has(email);
+  const viaEmail = !!email && OWNER_EMAILS.has(email);
+  // Log-only (2026-11-04): count the calls that ONLY the deprecated email fallback admits, so removing it can be decided from data
+  // (zero 'owner_fallback_used' entries over a week = every owner account carries the claim). The uid is logged, never the email;
+  // a logging failure must not change the answer.
+  if (viaEmail) { try { logger.warn('owner_fallback_used', { uid: String(token.uid || token.sub || '') }); } catch (_) { /* never changes the result */ } }
+  return viaEmail;
 }
 
 function _generateE2EPassword() {
