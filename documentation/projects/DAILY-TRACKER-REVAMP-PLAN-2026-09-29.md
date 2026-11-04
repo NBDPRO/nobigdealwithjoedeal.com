@@ -1,6 +1,6 @@
 # Daily tracker revamp plan — 2026-09-29
 
-**Status:** plan only. It needs Jo's sign-off on the §6 questions before building.
+**Status (corrected 2026-11-04):** built. Jo's answers to the §6 questions and what was built are in the dated updates below, which supersede this line, and the coach, food log, weight card, old-page import, progress charts and export are on main. **Still open:** the weight import from Active Era (it needs a few sample rows of the app's export; the Apple Health shortcut path is built, dark). The first sentence of this file was "plan only" until that correction.
 
 **Jo's ask (2026-09-29):** "really revamp the daily program / life tracker side.
 especially the gym / fitness / food log / health tracker / workout trainer /

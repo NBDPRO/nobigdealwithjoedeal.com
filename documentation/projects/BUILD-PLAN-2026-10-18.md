@@ -1,7 +1,14 @@
 # Build plan v4 — personal, business and home network (2026-10-18)
 
-Status: **locked order, nothing built yet.** Jo chose to lock this on 2026-10-18 after
+Status: **locked order; partly built since 2026-10-18 (see the correction below).** Jo chose to lock this on 2026-10-18 after
 two Grok critique rounds and a repo cross-check.
+
+> **Correction 2026-11-04 (recon against `origin/main`).** Built and live since this was written: the supplement letter's claim-wording
+> filter (#2525, Phase 1); the tracker's Sunday review (#2710) and food search (#2590), plus floors, money and weight (Phase 3); the
+> own-document expiry tracker (#2526) and review-response drafts (`docs/pro/js/reputation.js`, three reply templates, see
+> REPUTATION-LOOP-2026-10-19) (Phase 4). **Not found on main:** an estimate-vs-invoice diff; a canvass priority list as its own
+> screen (`storm-center.js` carries a per-zone `canvassPlan.priority`, which may be the start of it); 30/60/90 cash buckets (the A/R
+> tile in `money-dashboard.js` has aging buckets, which may or may not be what was meant). Phases 0, 2, 5 and 6 were not checked.
 
 ## How this plan was made
 
