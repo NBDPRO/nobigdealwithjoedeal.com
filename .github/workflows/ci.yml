@@ -86,6 +86,47 @@ concurrency:
 # ─────────────────────────────────────────────────────────────
 
 jobs:
+  # ─────────────────────────────────────────────────────────────
+  # CHANGE SCOPE (added 2026-11-04)
+  #
+  # The free-plan runner pool runs ~20 jobs at once and one CI run is ~27
+  # jobs, so a docs-only PR held the whole pool for its browser shards while
+  # a dozen code PRs queued behind it. This job decides heavy=true|false
+  # (scripts/ci-change-scope.js) and seven OPTIONAL heavy jobs skip when a
+  # PR or queue group touches only documentation/, root *.md or .obsidian/.
+  #
+  # Never gated: any required check (branch protection + the main merge-queue
+  # ruleset). A skipped required job reads as a pass, and a skipped matrix
+  # job reports one unexpanded name, which would hang the queue. The gate on
+  # the optional jobs fails OPEN (`!cancelled()` and `!= 'false'`), so if
+  # this job errors or prints nothing the heavy jobs still run. No base
+  # commit (push to main) means heavy=true. Pinned by
+  # tests/ci-docs-only-skip-2026-11-04.test.js.
+  # ─────────────────────────────────────────────────────────────
+  change-scope:
+    name: Change scope (docs-only skips optional heavy jobs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.scope.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Classify the changed paths
+        id: scope
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          MQ_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          BASE="${PR_BASE:-$MQ_BASE}"
+          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "No base commit to diff against (push to main or missing history): run everything."
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE" HEAD | node scripts/ci-change-scope.js >> "$GITHUB_OUTPUT"
+
   smoke-tests:
     name: Smoke tests
     runs-on: ubuntu-latest
@@ -417,6 +458,8 @@ jobs:
   # firebase-tools shape as the firestore-rules job — none boots functions.
   emulator-orphan-suites:
     name: Auth/Firestore emulator suites (rate-limit, auth-access, lead-lifecycle)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -832,6 +875,8 @@ jobs:
   # break multi-tenant + App Check).
   functions-audit:
     name: Dependency audit (high and above)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 20 not 15: dep install runs ~4 min and the retry path above can spend up
     # to 3x180s of audit plus 120s of backoff before it fails closed. At 15 the
@@ -1229,6 +1274,8 @@ jobs:
   # pdf-lib usage), so it skips that install step esign-suites has.
   mobile-realtime-suite:
     name: Mobile realtime suite (Chromium)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -1264,6 +1311,8 @@ jobs:
   # block or any connect-src refusal. No functions/ deps needed.
   pro-demo-zero-network:
     name: Pro demo zero-network walk (Chromium)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 12 -> 20 (2026-10-16): the walk and the layouts check now run twice,
     # on the readable tree and on the minified build the deploy ships.
@@ -1444,6 +1493,8 @@ jobs:
   # bounds a stall below the queue's longest required job.
   public-e2e-webkit:
     name: Public-surface E2E (mobile WebKit)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -1492,6 +1543,8 @@ jobs:
   # documentation/projects/WEEKLY_CADENCE.md.
   qc-render-sweep:
     name: Rendered QC sweep (docs/)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # Matches the two other Playwright jobs below. This job was added AFTER
     # 42e4a003 gave every job a timeout, so it inherited GitHub's 6-hour
@@ -1556,6 +1609,8 @@ jobs:
   # (ledger in documentation/projects/WEEKLY_CADENCE.md).
   visual-brand-tokens:
     name: Brand-token visual assertions
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 20, same tier as the other Playwright jobs. First cut of this file
     # put it at 15 on the belief it had no Playwright install — wrong: it
