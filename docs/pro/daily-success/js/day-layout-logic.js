@@ -101,7 +101,33 @@
     return [t.doors, t.contacts, t.appts, t.closes, t.revenue, g.d, g.r, g.c].some((v) => (num(v) || 0) > 0);
   }
 
-  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, todaySummary, ringsFor, ringsHtml, salesVisible };
+  const ymdOf = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+  /**
+   * The "this week at a glance" strip: the seven days Monday..Sunday of the week holding todayDk, each with its page (if any), floors met,
+   * a shade level (full 100%+, half 50%+, some above 0; none when there is no page or no floors) and whether a workout was finished.
+   * -> [{ dk, label, day, isToday, pageIdx (-1 = no page), met, total, level, trained }]
+   */
+  function weekStrip(pages, floors, sessions, todayDk) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(todayDk || ''))) return [];
+    const [y, m, d] = todayDk.split('-').map(Number);
+    const base = new Date(y, m - 1, d);
+    const monday = new Date(y, m - 1, d - ((base.getDay() + 6) % 7));
+    const list = Array.isArray(pages) ? pages : [], fl = Array.isArray(floors) ? floors : [];
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    return labels.map((label, i) => {
+      const dt = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const dk = ymdOf(dt);
+      const pageIdx = list.findIndex((p) => p && p.dk === dk);
+      const data = pageIdx >= 0 ? list[pageIdx].data || {} : {};
+      const met = fl.filter((f) => data['floormet-' + f.id] === '1').length;
+      const total = fl.length;
+      const pct = total > 0 ? met / total : 0;   // no page means no data, so met is 0 and the level is none
+      return { dk, label, day: dt.getDate(), isToday: dk === todayDk, pageIdx, met, total, level: pct >= 1 ? 'full' : pct >= 0.5 ? 'half' : pct > 0 ? 'some' : 'none', trained: workoutDone(sessions, dk) };
+    });
+  }
+
+  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, weekStrip, todaySummary, ringsFor, ringsHtml, salesVisible };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDayLayout = api;
 })(typeof window !== 'undefined' ? window : null);
