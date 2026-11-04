@@ -426,8 +426,17 @@
 
   // Template-stamped view: wait for the panel and the leads, then render.
   let _tries = 0, _timer = null;
+  // The Calendar panel (#schedCalPanel, js/schedule-calendar-panel.js) loads
+  // lazily on the first Schedule visit, never on dashboard boot
+  // (tests/dashboard-boot-budget-2026-10-03.test.js ratchets boot scripts).
+  // It renders itself once loaded; ScriptLoader de-dupes repeat calls.
+  function loadCalendarPanel() {
+    if (window.NBDScheduleCalendar || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
+    window.ScriptLoader.load('/pro/js/schedule-calendar-panel.js?v=1');
+  }
   function maybeRender() {
     if (!/schedule/.test(location.hash || '')) return;
+    loadCalendarPanel();
     clearTimeout(_timer); _tries = 0;
     const tick = () => {
       if ($('schedPlanPanel') && Array.isArray(window._leads)) { render(); return; }
