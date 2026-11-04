@@ -4174,6 +4174,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Thumbtack Opportunities watcher (2026-11-04, flag thumbtackOpportunities, dark).
+    // opp_seen/{companyId}_{oppId}: one record per Opportunity seen (decision, score, fixed
+    // tags, ZIP, miles; no name, phone or free text). opp_rules/_default: the owner's rules
+    // override and kill switch. Admin-SDK only: the oppShortlistFile callable is the sole
+    // writer of opp_seen (create(), first sighting wins) and the owner reads through
+    // callables, never straight from the browser. A client that reaches these paths is
+    // denied for read AND write, whoever it is (owner, platform admin, another tenant).
+    match /opp_seen/{docId} {
+      allow read, write: if false;
+    }
+    match /opp_rules/{docId} {
+      allow read, write: if false;
+    }
+
     // Thursday — the Bland AI receptionist's call log (integrations/thursday.js).
     // One doc per call (id bland_calls__{call_id}): transcript, extraction,
     // route, notification state. Admin-SDK only for writes — the webhook, the
