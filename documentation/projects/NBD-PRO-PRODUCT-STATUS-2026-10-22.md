@@ -1,5 +1,7 @@
 # NBD Pro as a product: status by pillar (2026-10-22)
 
+> **Correction 2026-11-04 (recon against `origin/main`):** the sample account is no longer unlinked: the `/pro/sandbox` end screen links "Explore the sample account" to `/pro/explore` (`docs/pro/sandbox.html`), and the demo plan is built (#2294, tool pages #2725/#2726). The slug freeze shipped (#2700, see the 2026-10-23 update below). **Still open and unchanged:** the server-side `OWNER_EMAILS` fallback in `isOwnerCaller()` (a log-only draft, #2812, counts how often it is the only reason an owner passes; retire it only after the logs show none), and the hardcoded `success_url` in `functions/stripe.js` (matters only if Pro gets its own domain).
+
 Recon only. Nothing here changed billing, rules, auth, App Check or tenancy.
 Sources: the three pillar plans ([1](../architecture/PILLAR1-PROVISIONING-PLAN.md),
 [4](../architecture/PILLAR4-BILLING-PLAN.md), [5](../architecture/PILLAR5-DOMAINS-SITES-PLAN.md)),

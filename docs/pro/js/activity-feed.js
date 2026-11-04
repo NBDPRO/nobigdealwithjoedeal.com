@@ -377,7 +377,8 @@
         }
       }
       if (buttons.length === 0) return '';
-      return `<div style="display:flex; gap:3px; flex-shrink:0; align-items:center;">${buttons.join('')}</div>`;
+      // .af-actions: below 600px this cluster takes its own row (dashboard-app.css).
+      return `<div class="af-actions" style="display:flex; gap:3px; flex-shrink:0; align-items:center;">${buttons.join('')}</div>`;
     }
 
     container.innerHTML = events.map(ev => `
