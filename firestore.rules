@@ -2816,6 +2816,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Anonymous per-company, per-day portal counters (2026-11-04,
+    // CUSTOMER-PORTAL-PLAN Phase 1): opens and next-action taps, no IP, user
+    // agent, token or lead id. Written only by recordCustomerEvent via the
+    // admin SDK; read from the console / admin scripts. No client either way.
+    match /portal_metrics/{docId} {
+      allow read, write: if false;
+    }
+
     // ── DAILY SUCCESS ─────────────────────────────────
     match /daily_entries/{uid}/entries/{entryId} {
       allow read, write: if isOwner(uid) || isAdmin();
