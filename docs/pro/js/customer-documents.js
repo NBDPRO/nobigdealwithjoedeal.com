@@ -827,7 +827,9 @@
     var tr = (window._currentLead || {}).docTrack;
     return (tr && doc && doc.reviewToken && tr.tokenRef === doc.reviewToken.slice(0, 10)) ? tr : null;
   }
-  window.addEventListener('nbd:flags-loaded', function () { try { render(); } catch (e) { /* page not ready */ } });
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('nbd:flags-loaded', function () { try { render(); } catch (e) { /* page not ready */ } });
+  }
 
   function _dlg(build) {
     return new Promise(function (resolve) {
