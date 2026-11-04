@@ -92,8 +92,8 @@ for (const f of FLAGS) {
 // 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
 // 43 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED (a gate: the own-document expiry watch, dark).
 // 44 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED (a gate: the brief's delta mode, dark).
-ok('registry pins 51 flags (2026-11-04: +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
-  FLAGS.length === 51,String(FLAGS.length));
+ok('registry pins 52 flags (2026-11-04: +PORTAL_MOMENT_EMAILS_ENABLED, +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 41 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 52,String(FLAGS.length));
 
 // ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
 console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');
@@ -198,7 +198,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'PORTAL_MOMENT_EMAILS_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 

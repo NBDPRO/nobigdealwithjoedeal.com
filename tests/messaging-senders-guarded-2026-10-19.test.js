@@ -96,6 +96,7 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/funnel-recovery.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-followup.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/review-ask-auto.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
+  'functions/portal-moments.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
   'functions/storm-report-email.js': ['MessagingControls.guardEmail('],

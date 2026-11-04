@@ -101,6 +101,8 @@ const CRON_GATES = [
   { name: 'SECURE_DOC_LINK_ENABLED', polarity: 'enabled', file: 'doc-link-logic.js' },
   // Hourly secure-link follow-up sweep (2026-11-04): ONE Agent-inbox reminder to the owner 24h after a first open. Never the customer. Dry-run until Jo says go.
   { name: 'DOC_LINK_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'doc-link-followup.js' },
+  // Not a cron: the two Firestore triggers that send the portal key-moment emails (2026-11-04). DARK until Jo says go; also needs messaging_controls/automations portalMomentEmail.
+  { name: 'PORTAL_MOMENT_EMAILS_ENABLED', polarity: 'enabled', file: 'portal-moments.js' },
 ];
 
 /**

@@ -141,9 +141,8 @@ const CORS_ORIGINS = [
 ];
 
 // ─── Token minting ──────────────────────────────────────────
-// 32-char no-confusable alphabet (no 0/O, 1/I/L). 24 bytes of
-// crypto.randomBytes → 24 chars of token → ~120 bits of entropy.
-const PORTAL_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Lives in portal-token-mint.js (2026-11-04): 32-char no-confusable alphabet,
+// 24 bytes of crypto.randomBytes → ~120 bits of entropy.
 /**
  * D-2.7 — auto-pair before/after photos for the homeowner portal.
  *
@@ -198,13 +197,6 @@ function _pairBeforeAfter(photos) {
   }));
 }
 
-function mintPortalToken() {
-  const bytes = require('crypto').randomBytes(24);
-  let s = '';
-  for (const b of bytes) s += PORTAL_TOKEN_ALPHABET[b % PORTAL_TOKEN_ALPHABET.length];
-  return s;
-}
-
 // ═══════════════════════════════════════════════════════════════
 // createPortalToken
 // ═══════════════════════════════════════════════════════════════
@@ -239,26 +231,10 @@ exports.createPortalToken = onCall(
       throw new HttpsError('permission-denied', 'Not your lead');
     }
 
-    // 30-day default TTL — rep can force re-mint anytime.
-    const ttlDays = Math.min(90, Math.max(1, Number(request.data?.ttlDays) || 30));
-    const now = Date.now();
-    const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
-
-    const token = mintPortalToken();
-    await db.doc(`portal_tokens/${token}`).set({
-      leadId,
-      ownerUid: lead.userId,
-      // Tenant key carried on the token so sendPortalMessage can stamp
-      // companyId on the thread without a per-message lead read. ownerUid is
-      // lead.userId — the REP's uid, which diverges from companyId on a team
-      // tenant — so it is only a last-resort fallback, never the source.
-      companyId: lead.companyId || null,
-      mintedBy: uid,
-      mintedAt: FieldValue.serverTimestamp(),
-      expiresAt,
-      uses: 0,
-      maxUses: 100  // generous — homeowner may reload across days
-    });
+    // 30-day default TTL (1-90) — rep can force re-mint anytime. The write is
+    // shared with the key-moment emails (portal-token-mint.js).
+    const { token, expiresAt } = await require('./portal-token-mint')
+      .writePortalToken(db, leadId, lead, uid, request.data?.ttlDays);
     return { token, expiresAt: expiresAt.toMillis() };
   }
 );

@@ -723,6 +723,12 @@ exports.dailyLeadDigest = require('./lead-digest').dailyLeadDigest;
 // card is still untouched (functions/lead-followup.js).
 exports.leadFollowUpSweep = require('./lead-followup').leadFollowUpSweep;
 
+// Key-moment emails with the homeowner's portal link (booked / build day set /
+// job done). BUILT DARK: PORTAL_MOMENT_EMAILS_ENABLED + messaging_controls/
+// automations.portalMomentEmail + the email switch (functions/portal-moments.js).
+exports.portalMomentOnLead = require('./portal-moments').portalMomentOnLead;
+exports.portalMomentOnBooking = require('./portal-moments').portalMomentOnBooking;
+
 // ONE every-30-minutes storm poller (2026-10-04): the NWS storm-REPORTS watcher
 // (storm-watch.js runStormWatch — alerts Joe; subscriber texts gated by
 // STORM_TEXT_ENABLED) and the NWS ALERTS texter (sms-functions.js

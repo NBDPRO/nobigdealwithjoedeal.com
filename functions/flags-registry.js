@@ -110,6 +110,8 @@ const ROWS = {
     meaning: 'Estimate follow-up emails to homeowners. Live unless set to false (false = dry run, logs only).' },
   LEAD_FOLLOWUP_ENABLED: { group: 'Customer follow-ups', doc: ENV_DOC,
     meaning: 'Automatic follow-up to new leads that went quiet. Live unless set to false (false = skipped).' },
+  PORTAL_MOMENT_EMAILS_ENABLED: { group: 'Customer follow-ups', dark: true, doc: 'documentation/runbooks/PORTAL-MOMENT-EMAILS.md',
+    meaning: 'Emails the homeowner their project-page link when the inspection is booked, the build day is set, and the job is done. Also needs automations portalMomentEmail. NBD only. Off = nothing sent.' },
   DORMANT_NUDGE_ENABLED: { group: 'Customer follow-ups', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
     meaning: 'Nudges dormant leads to wake them up. Off = dry run, logs only.' },
   ANNIVERSARY_TOUCH_ENABLED: { group: 'Customer follow-ups', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
