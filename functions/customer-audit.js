@@ -58,7 +58,7 @@ const ALLOWED_TYPES = new Set([
 // deny every client). The token is still validated so the counts are real
 // homeowners, never a script.
 const METRIC_TYPES = new Set(['m_open', 'm_action']);
-const METRIC_ACTIONS = new Set(['sign', 'book', 'estimate', 'pay', 'review', 'warranty']);
+const METRIC_ACTIONS = new Set(['sign', 'book', 'estimate', 'pay', 'review', 'warranty', 'reschedule', 'cancel']);
 
 /** portal_metrics doc id + the counter field for one metric (pure). */
 function metricTarget(tok, type, kind, nowMs) {

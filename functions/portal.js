@@ -52,6 +52,7 @@ const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
 const PortalToday = require('./portal-today');
 const PortalPay = require('./portal-pay');
+const PortalBooking = require('./portal-booking');
 const EVA = require('./estimate-view-alert');
 const { reencodePhoto } = require('./photo-reencode');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
@@ -1019,7 +1020,15 @@ exports.getHomeownerPortalView = onRequest(
       }
     }))).filter(Boolean);
 
-    const _portalDocuments = _generatedDocs.concat(_esignDocs)
+    // Reports Jo shared with "Share link" (CUSTOMER-PORTAL-PLAN Phase 4):
+    // shown only once shared, only while the share is live, only as a
+    // /report/<token> link (portal-booking.js sharedReportRows).
+    const _sharedReports = PortalBooking.sharedReportRows(
+      docSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      new Set(_visibleDocRows.map((d) => d.id)),
+      Date.now()
+    );
+    const _portalDocuments = _generatedDocs.concat(_esignDocs, _sharedReports)
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     // Balance due / pay (2026-09-16), READ-ONLY. Surfaces data that already
@@ -1103,6 +1112,20 @@ exports.getHomeownerPortalView = onRequest(
     // Install-day "Today" card (CUSTOMER-PORTAL-PLAN Phase 2): crew company,
     // forecast, Jo's note. Never throws, never waits on weather longer than
     // portal-today.js WEATHER_BUDGET_MS.
+    // The next Cal.com appointment, with reschedule / cancel on Cal.com's own
+    // pages while the job is still at inspection or estimate (Phase 4).
+    // Tenant-filtered like the deal rooms; a failed read only loses the card.
+    let _booking = null;
+    try {
+      const as = await db.collection('appointments').where('leadId', '==', tok.leadId).limit(10).get();
+      _booking = PortalBooking.bookingCard(
+        as.docs.map((d) => d.data() || {}).filter((a) => recordInPortalTenant(a, ['userId', 'repUid'], tenant)),
+        hp.currentKey, Date.now()
+      );
+    } catch (e) {
+      logger.warn('portal booking read failed', { err: e && e.message });
+    }
+
     let _today = null;
     try {
       _today = await PortalToday.loadToday(db, lead, { tenant, repName: rep.displayName || lead.repName || '' });
@@ -1275,6 +1298,7 @@ exports.getHomeownerPortalView = onRequest(
       // { payments: [{ date, amountCents, method, invoiceNumber }],
       //   totalPaidCents } — null until money lands.
       paid: _paid,
+      booking: _booking,
       tokenInfo: {
         daysRemaining: tok.expiresAt
           ? Math.max(0, Math.ceil((tok.expiresAt.toMillis() - Date.now()) / 86_400_000))
