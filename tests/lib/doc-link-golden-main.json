@@ -1,0 +1,175 @@
+{
+  "legacy_pdf": {
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-store",
+      "Content-Disposition": "inline; filename=\"Smith_Estimate.pdf\"",
+      "Content-Length": "23",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
+      "Content-Type": "application/pdf",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "d17a61726f9b97fee38f4b4c118faa2a76d4f76a6c1786908147eb8a07c0de84",
+    "bodyLen": 23,
+    "docs": "a50a307e49ac2b39c558661f3d184eae2c88ef8aa33d7524ff0707987c2557cc",
+    "pushes": 1
+  },
+  "legacy_pdf_bot": {
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-store",
+      "Content-Disposition": "inline; filename=\"Smith_Estimate.pdf\"",
+      "Content-Length": "23",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
+      "Content-Type": "application/pdf",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "d17a61726f9b97fee38f4b4c118faa2a76d4f76a6c1786908147eb8a07c0de84",
+    "bodyLen": 23,
+    "docs": "7041d007aa2f9c16c07f16cd19047fb89e97d06271d7673ed358efbe4bda2688",
+    "pushes": 0
+  },
+  "legacy_pdf_trailing_slash": {
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-store",
+      "Content-Disposition": "inline; filename=\"Smith_Estimate.pdf\"",
+      "Content-Length": "23",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
+      "Content-Type": "application/pdf",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "d17a61726f9b97fee38f4b4c118faa2a76d4f76a6c1786908147eb8a07c0de84",
+    "bodyLen": 23,
+    "docs": "a50a307e49ac2b39c558661f3d184eae2c88ef8aa33d7524ff0707987c2557cc",
+    "pushes": 1
+  },
+  "legacy_pdf_not_pdf": {
+    "status": 415,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "31bb5caec43f9b2b86ae2e5d46cf82ba077c3a49231ddd808e44545da0f9d445",
+    "bodyLen": 489,
+    "docs": "a50a307e49ac2b39c558661f3d184eae2c88ef8aa33d7524ff0707987c2557cc",
+    "pushes": 1
+  },
+  "legacy_pdf_html_type": {
+    "status": 415,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "31bb5caec43f9b2b86ae2e5d46cf82ba077c3a49231ddd808e44545da0f9d445",
+    "bodyLen": 489,
+    "docs": "a50a307e49ac2b39c558661f3d184eae2c88ef8aa33d7524ff0707987c2557cc",
+    "pushes": 1
+  },
+  "legacy_pdf_bad_path": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "31bb5caec43f9b2b86ae2e5d46cf82ba077c3a49231ddd808e44545da0f9d445",
+    "bodyLen": 489,
+    "docs": "3500fc9db651632cc8574db036ee3680e553a4189cce8a0e3f10ec31d109d07a",
+    "pushes": 0
+  },
+  "legacy_pdf_missing_object": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "31bb5caec43f9b2b86ae2e5d46cf82ba077c3a49231ddd808e44545da0f9d445",
+    "bodyLen": 489,
+    "docs": "2cc7ae7e3e216de97edcf0023b5862d4280d0c6b3e56ff5e28bbe2719ae55c0f",
+    "pushes": 1
+  },
+  "legacy_html_report": {
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-store",
+      "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob: https:; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'",
+      "Content-Type": "text/html; charset=utf-8",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "c264a9cacaba38ac0b0f4d6ffc8e5089540126c5f2720988f0dcef7d03105b21",
+    "bodyLen": 36,
+    "docs": "b33557693959ba0e5429092959525ff4d4a197476ab8129a2514eeedc77aa2d0",
+    "pushes": 0
+  },
+  "revoked": {
+    "status": 410,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "693cf4582a6ebc24f4654dc6ba5f344b5b7d4c5f3d8e79fb1643566600ec97af",
+    "bodyLen": 518,
+    "docs": "65ab177528efbd2ae35474b718da958b2a86d67f579aa10f248d322d61d4b584",
+    "pushes": 0
+  },
+  "expired": {
+    "status": 410,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "cf73ecde06e60c7634f632251d81ed66ae6e52dab71370aa7f7c9fe68ff9596f",
+    "bodyLen": 513,
+    "docs": "6e65c20a8cf30df0de7ccbfea360d43ae41d3e09b87c40064da45aa61a31c1cc",
+    "pushes": 0
+  },
+  "unknown": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "47b6ec156180609dfa557d4025ae0e168c057cf4e503b03d0616791b08c8d5fa",
+    "bodyLen": 482,
+    "docs": "abe361f544f5579cc8d09b850ad51ae2715c7ba0ac3cd4d7fabf4716db52e59c",
+    "pushes": 0
+  },
+  "invalid_path": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "47b6ec156180609dfa557d4025ae0e168c057cf4e503b03d0616791b08c8d5fa",
+    "bodyLen": 482,
+    "docs": "abe361f544f5579cc8d09b850ad51ae2715c7ba0ac3cd4d7fabf4716db52e59c",
+    "pushes": 0
+  },
+  "sub_file_path_is_invalid": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "47b6ec156180609dfa557d4025ae0e168c057cf4e503b03d0616791b08c8d5fa",
+    "bodyLen": 482,
+    "docs": "1693a833e4d5b72d0fe9c0d5037e0361652344be3e357640f1bf1a6ec30ca95f",
+    "pushes": 0
+  },
+  "sub_unlock_path_is_invalid": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Robots-Tag": "noindex, nofollow"
+    },
+    "bodySha": "47b6ec156180609dfa557d4025ae0e168c057cf4e503b03d0616791b08c8d5fa",
+    "bodyLen": 482,
+    "docs": "1693a833e4d5b72d0fe9c0d5037e0361652344be3e357640f1bf1a6ec30ca95f",
+    "pushes": 0
+  }
+}

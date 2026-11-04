@@ -106,6 +106,7 @@ async function run() {
     await setDoc(doc(db, 'leads/leadA/recordings/recA'),{ userId: 'alice', companyId: 'co-a', transcript: 'confidential call notes' });
     await setDoc(doc(db, 'leads/leadA/documents/docA'), { userId: 'alice', name: 'Signed Contract.pdf' });
     await setDoc(doc(db, 'leads/leadA/documents/docDel'), { userId: 'alice', name: 'Old Draft.html', status: 'draft' });
+    await setDoc(doc(db, 'leads/leadA/docViews/viewA'), { tokenRef: 'ABCDEFGHJK', companyId: 'co-a', ownerUid: 'alice', device: 'mobile', readSeconds: 42 }); // Secure Document Link view row (2026-11-04)
     await setDoc(doc(db, 'leads/leadA/warrantyClaims/claimA'),   { status: 'open', reason: 'workmanship' });
     await setDoc(doc(db, 'leads/leadA/warrantyClaims/claimDel'), { status: 'resolved', reason: 'material' });
     // 2026-09-25: rows only a company_admin deletes (decision A), and a lead
@@ -171,6 +172,16 @@ async function run() {
   await check('users: B reads A user profile',        'deny',  getDoc(doc(bob, 'users/alice')));
   await check('recordings: B reads A call transcript','deny',  getDoc(doc(bob, 'leads/leadA/recordings/recA')));
   await check('lead documents: B reads A contract',   'deny',  getDoc(doc(bob, 'leads/leadA/documents/docA')));
+  // Secure Document Link view rows (2026-11-04): lead owner and same-company staff read; no other tenant; nobody writes.
+  await check('docViews: lead owner reads',                       'allow', getDoc(doc(alice, 'leads/leadA/docViews/viewA')));
+  await check('docViews: same-tenant manager reads',              'allow', getDoc(doc(eveMgr, 'leads/leadA/docViews/viewA')));
+  await check('docViews: B (other tenant) cannot read',           'deny',  getDoc(doc(bob, 'leads/leadA/docViews/viewA')));
+  await check('docViews: cross-tenant manager cannot read',       'deny',  getDoc(doc(bobMgr, 'leads/leadA/docViews/viewA')));
+  await check('docViews: anonymous cannot read',                  'deny',  getDoc(doc(anon, 'leads/leadA/docViews/viewA')));
+  await check('docViews: lead owner cannot write a view row',     'deny',  setDoc(doc(alice, 'leads/leadA/docViews/viewX'), { readSeconds: 9999 }));
+  await check('docViews: lead owner cannot edit a view row',      'deny',  updateDoc(doc(alice, 'leads/leadA/docViews/viewA'), { readSeconds: 1 }));
+  await check('docViews: company_admin cannot write or delete',   'deny',  deleteDoc(doc(aliceCA, 'leads/leadA/docViews/viewA')));
+  await check('report_share_tokens: lead owner still cannot read a token (password hash lives there)', 'deny', getDoc(doc(alice, 'report_share_tokens/ABCDEFGHJKLMNPQRSTUV2345')));
   // 2026-09-25: documents + warrantyClaims got their own `allow delete` (the
   // old `allow write` read request.resource, null on a delete, so it denied
   // every client delete). The owner control proves the fix; the rest prove a

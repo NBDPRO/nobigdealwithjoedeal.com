@@ -244,6 +244,8 @@
           ? '<div class="doc-type">' + esc(doc.typeName || doc.docType) + '</div>' : '')
       + '<div class="doc-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</div>'
       + '<div class="doc-date">' + esc(metaLine(doc)) + '</div>'
+      + (secureFlagOn() && secureTrackFor(doc) && window.NBDDocLinkCopy
+          ? '<div class="doc-track-chip">' + esc(window.NBDDocLinkCopy.chipText(secureTrackFor(doc), Date.now())) + '</div>' : '')
       + '</div>'
       + '<div class="doc-actions">'
       + (doc.url
@@ -264,6 +266,15 @@
             + (doc.reviewToken
                 ? '<button type="button" class="doc-btn doc-btn-plain" data-doc-fresh="' + esc(doc.id) + '"'
                   + ' title="New link for this estimate; the old link stops working">↻ Fresh link</button>'
+                : '')
+          : '')
+      // Secure Document Link (2026-11-04, dark: client flag secureDocLink AND server SECURE_DOC_LINK_ENABLED).
+      + (doc.isPdf && secureFlagOn()
+          ? '<button type="button" class="doc-btn doc-btn-plain doc-btn-review" data-doc-secure="' + esc(doc.id) + '"'
+            + ' title="Tracked link with an expiry date and an optional code">🔒 Send securely</button>'
+            + (secureTrackFor(doc)
+                ? '<button type="button" class="doc-btn doc-btn-plain" data-doc-revoke="' + esc(doc.id) + '"'
+                  + ' title="Stop this link now">⛔ Revoke</button>'
                 : '')
           : '')
       + (doc.shareable
@@ -803,11 +814,129 @@
     }
   }
 
+  // ── Secure Document Link (2026-11-04) ─────────────────────────────
+  // Dark twice: client flag `secureDocLink` (feature_flags/_default) shows the
+  // buttons; the server refuses unless SECURE_DOC_LINK_ENABLED=true. The code
+  // (when we generate one) is shown to Jo once in a dialog and is never put in
+  // the message, the URL, a toast, a log or the lead.
+  function secureFlagOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('secureDocLink'));
+  }
+  // The newest secure link's summary (lead.docTrack), when it is THIS row's link.
+  function secureTrackFor(doc) {
+    var tr = (window._currentLead || {}).docTrack;
+    return (tr && doc && doc.reviewToken && tr.tokenRef === doc.reviewToken.slice(0, 10)) ? tr : null;
+  }
+  window.addEventListener('nbd:flags-loaded', function () { try { render(); } catch (e) { /* page not ready */ } });
+
+  function _dlg(build) {
+    return new Promise(function (resolve) {
+      var back = document.createElement('div'); back.className = 'dlg-back';
+      var box = document.createElement('div'); box.className = 'dlg'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+      back.appendChild(box);
+      function done(v) { back.remove(); resolve(v); }
+      build(box, done);
+      document.body.appendChild(back);
+    });
+  }
+  function _el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }
+
+  function askSecureOptions() {
+    return _dlg(function (box, done) {
+      box.appendChild(_el('h3', 'dlg-h', 'Send securely'));
+      var l1 = _el('label', 'dlg-l', 'Link lasts'); var days = _el('select', 'dlg-in');
+      [[1, '1 day'], [7, '7 days'], [14, '14 days (recommended)'], [30, '30 days']].forEach(function (o) {
+        var op = _el('option', '', o[1]); op.value = String(o[0]); if (o[0] === 14) op.selected = true; days.appendChild(op);
+      });
+      l1.appendChild(days); box.appendChild(l1);
+      var l2 = _el('label', 'dlg-l', 'Code'); var pw = _el('select', 'dlg-in');
+      [['none', 'No code'], ['generate', 'Make an 8-character code'], ['own', 'I will type one']].forEach(function (o) {
+        var op = _el('option', '', o[1]); op.value = o[0]; pw.appendChild(op);
+      });
+      l2.appendChild(pw); box.appendChild(l2);
+      var own = _el('input', 'dlg-in'); own.type = 'text'; own.placeholder = 'At least 6 characters'; own.maxLength = 64; own.autocomplete = 'off'; own.hidden = true;
+      box.appendChild(own);
+      pw.addEventListener('change', function () { own.hidden = pw.value !== 'own'; });
+      box.appendChild(_el('p', 'dlg-note', 'The customer is told the link is tracked. The code is never in the message: give it to them by phone or a separate text.'));
+      var row = _el('div', 'dlg-row'); var no = _el('button', 'doc-btn doc-btn-plain', 'Cancel'); no.type = 'button';
+      var go = _el('button', 'doc-btn doc-btn-review', 'Create link'); go.type = 'button';
+      no.addEventListener('click', function () { done(null); });
+      go.addEventListener('click', function () {
+        var p = pw.value === 'generate' ? 'generate' : (pw.value === 'own' ? own.value : '');
+        if (pw.value === 'own' && String(p).trim().length < 6) { own.focus(); return; }
+        done({ expiryDays: parseInt(days.value, 10), password: p });
+      });
+      row.appendChild(no); row.appendChild(go); box.appendChild(row);
+    });
+  }
+  function showCodeOnce(code) {
+    return _dlg(function (box, done) {
+      box.appendChild(_el('h3', 'dlg-h', 'Code for the customer'));
+      box.appendChild(_el('p', 'dlg-code', code));
+      box.appendChild(_el('p', 'dlg-note', 'Shown once and not saved anywhere. Tell them by phone or a separate text, not in the same message as the link.'));
+      var row = _el('div', 'dlg-row'); var ok = _el('button', 'doc-btn doc-btn-review', 'I have it'); ok.type = 'button';
+      ok.addEventListener('click', function () { done(true); });
+      row.appendChild(ok); box.appendChild(row);
+    });
+  }
+
+  async function sendSecurely(docId, btn) {
+    if (window.NBDRole && !window.NBDRole.guard()) return;
+    if (!docId || !window._customerId || !secureFlagOn()) return;
+    if (!window.NBDPhoneShare) { if (typeof showToast === 'function') showToast('Sharing is still loading — try again', 'error'); return; }
+    var opt = await askSecureOptions();
+    if (!opt) return;
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Getting link…'; }
+    try {
+      var link = await _docCallable('createEstimateReviewLink', { leadId: window._customerId, documentId: docId, secure: true, expiryDays: opt.expiryDays, password: opt.password });
+      if (!link.shareUrl || !/^https:\/\//.test(link.shareUrl)) throw new Error('No link came back');
+      if (link.password) await showCodeOnce(link.password);
+      var lead = window._currentLead || {};
+      // Show the chip + Revoke right away; the server wrote the same summary to the lead.
+      window._currentLead = Object.assign({}, lead, { docTrack: { tokenRef: String(link.token).slice(0, 10), openCount: 0, readSeconds: 0, expiresAt: link.expiresAt, passwordSet: !!link.passwordRequired } });
+      var EF = window.NBDEstimateFollowups; var brand = '';
+      try { var b = typeof window._brand === 'function' ? window._brand() : null; brand = (b && (b.shortName || b.name)) || ''; } catch (_) {}
+      var first = String(lead.firstName || '').trim().split(/\s+/)[0] || '';
+      var text = window.NBDDocLinkCopy.secureReviewMessage({
+        firstName: first, from: EF ? EF.fromLine(window._user, brand) : '', url: link.shareUrl, hasCode: !!link.passwordRequired,
+        expiresAtMs: link.expiresAt, brand: link.noticeBrand || '', rep: link.noticeRep || ''
+      });
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+      return await _shareReview(docId, { text: text, link: link }, btn);
+    } catch (e) {
+      console.warn('sendSecurely failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Could not send securely: ' + ((e && e.message) || 'unknown'), 'error');
+    } finally {
+      if (btn && btn.isConnected && btn.disabled) { btn.disabled = false; btn.textContent = label || '🔒 Send securely'; }
+    }
+  }
+
+  async function revokeSecure(docId, btn) {
+    if (window.NBDRole && !window.NBDRole.guard()) return;
+    var doc = (window._customerDocs || []).filter(function (d) { return d.id === docId; })[0];
+    if (!doc || !doc.reviewToken || !secureTrackFor(doc)) return;
+    var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+    if (!(await ask('Stop this link now?\n\nThe customer will see that it was revoked.'))) return;
+    if (btn) btn.disabled = true;
+    try {
+      await _docCallable('revokeDocumentLink', { leadId: window._customerId, token: doc.reviewToken });
+      if (typeof showToast === 'function') showToast('Link revoked', 'success');
+      await refresh();
+    } catch (e) {
+      console.warn('revokeSecure failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Could not revoke: ' + ((e && e.message) || 'unknown'), 'error');
+      if (btn) btn.disabled = false;
+    }
+  }
+
   document.addEventListener('click', function (e) {
-    var t = e.target && e.target.closest && e.target.closest('[data-doc-review],[data-doc-fresh]');
+    var t = e.target && e.target.closest && e.target.closest('[data-doc-review],[data-doc-fresh],[data-doc-secure],[data-doc-revoke]');
     if (!t) return;
     e.preventDefault();
-    if (t.hasAttribute('data-doc-fresh')) freshReviewLink(t.getAttribute('data-doc-fresh'), t);
+    if (t.hasAttribute('data-doc-secure')) sendSecurely(t.getAttribute('data-doc-secure'), t);
+    else if (t.hasAttribute('data-doc-revoke')) revokeSecure(t.getAttribute('data-doc-revoke'), t);
+    else if (t.hasAttribute('data-doc-fresh')) freshReviewLink(t.getAttribute('data-doc-fresh'), t);
     else sendForReview(t.getAttribute('data-doc-review'), t);
   });
 

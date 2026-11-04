@@ -446,6 +446,11 @@ const estimateSend = require('./estimate-send');
 exports.createEstimateReviewLink = estimateSend.createEstimateReviewLink;
 exports.recordEstimateShared = estimateSend.recordEstimateShared;
 exports.freshEstimateLink = estimateSend.freshEstimateLink;
+// Secure Document Link (2026-11-04, dark behind SECURE_DOC_LINK_ENABLED): plain revoke, the viewer beacon
+// (/api/doc-link-ping) and the hourly 24h reminder to the owner (DOC_LINK_FOLLOWUP_ENABLED). See functions/doc-link-*.js.
+exports.revokeDocumentLink = estimateSend.revokeDocumentLink;
+exports.docLinkPing = require('./doc-link-ping').docLinkPing;
+exports.docLinkFollowupSweep = require('./doc-link-followup').docLinkFollowupSweep;
 
 // Pixel World DRAFT TEXT (2026-10-11): ONE template text draft for ONE lead into
 // the Agent inbox, server-built wording, never sent. See functions/pixel-draft.js.
