@@ -32,10 +32,16 @@
     if (navigator.globalPrivacyControl === true) return;
     if (navigator.doNotTrack === '1' || window.doNotTrack === '1') return;
 
-    window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
-    var s = document.createElement('script');
-    s.async = true;
-    s.src = 'https://www.clarity.ms/tag/' + PROJECT_ID;
-    document.head.appendChild(s);
+    var load = function () {
+      window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.clarity.ms/tag/' + PROJECT_ID;
+      document.head.appendChild(s);
+    };
+    // Speculation rules (docs/speculation.json) can prerender a page the
+    // visitor never opens; record nothing until it is actually shown.
+    if (document.prerendering) document.addEventListener('prerenderingchange', load, { once: true });
+    else load();
   } catch (e) { /* analytics must never break the page */ }
 })();

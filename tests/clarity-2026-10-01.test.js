@@ -39,17 +39,23 @@ console.log('\n1. coverage');
 
 console.log('\n2. loader behaviour');
 const SRC = read('docs/assets/js/clarity-loader.js');
-function run({ id, host = 'nobigdealwithjoedeal.com', pathName = '/', gpc = false, dnt = null } = {}) {
+function run({ id, host = 'nobigdealwithjoedeal.com', pathName = '/', gpc = false, dnt = null, prerendering = false } = {}) {
   const appended = [];
+  const listeners = {};
   const src = id == null ? SRC : SRC.replace("var PROJECT_ID = '';", `var PROJECT_ID = '${id}';`);
   const sb = {
     location: { hostname: host, pathname: pathName },
     navigator: { globalPrivacyControl: gpc, doNotTrack: dnt },
-    document: { createElement: () => ({}), head: { appendChild: (e) => appended.push(e) } },
+    document: {
+      prerendering,
+      createElement: () => ({}),
+      head: { appendChild: (e) => appended.push(e) },
+      addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+    },
   };
   sb.window = sb;
   vm.runInNewContext(src, sb);
-  return { appended, win: sb };
+  return { appended, win: sb, fire: (type) => (listeners[type] || []).forEach((fn) => fn()) };
 }
 ok('ships inert: no project ID, nothing loads', run({}).appended.length === 0 && /var PROJECT_ID = '';/.test(SRC));
 const live = run({ id: 'abc123xyz' });
@@ -66,6 +72,12 @@ ok('a path that only starts with "pro" still loads (/process is public)', run({ 
 ok('Global Privacy Control blocks it', run({ id: 'abc123xyz', gpc: true }).appended.length === 0);
 ok('Do Not Track blocks it', run({ id: 'abc123xyz', dnt: '1' }).appended.length === 0);
 ok('a malformed ID is refused (no URL injection)', run({ id: 'abc/../x' }).appended.length === 0);
+{
+  const pre = run({ id: 'abc123xyz', prerendering: true });
+  ok('a prerendered page (speculation rules) loads nothing yet', pre.appended.length === 0);
+  pre.fire('prerenderingchange');
+  ok('…and loads the tag once the visitor actually opens it', pre.appended.length === 1 && pre.appended[0].src === 'https://www.clarity.ms/tag/abc123xyz');
+}
 
 console.log('\n3. CSP');
 {

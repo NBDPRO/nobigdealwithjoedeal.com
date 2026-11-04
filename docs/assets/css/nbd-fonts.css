@@ -71,3 +71,11 @@
    and picks up the container's gap (measured: +10px on the nav logo). */
 picture.nbd-pic{display:contents}
 picture.nbd-pic>source{display:none}
+
+/* Cross-page view transitions (2026-11-04): a same-site navigation cross-fades
+   instead of flashing white. Lives here because this is the one stylesheet on
+   every public page; both pages must opt in. Pairs with the prerender rules in
+   /speculation.json. Off for visitors who ask for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}

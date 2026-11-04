@@ -1,0 +1,25 @@
+{
+  "prerender": [
+    {
+      "source": "document",
+      "where": {
+        "and": [
+          { "href_matches": "/*" },
+          { "not": { "href_matches": [
+            "/pro", "/pro/*",
+            "/admin", "/admin/*",
+            "/dev", "/dev/*",
+            "/sites", "/sites/*",
+            "/deal/*", "/share/*", "/report/*", "/api/*", "/cspReport",
+            "/inspect", "/inspect.html",
+            "/book", "/book/*",
+            "/r", "/yardsign",
+            "/*.pdf"
+          ] } },
+          { "not": { "selector_matches": "[data-no-prerender], [download]" } }
+        ]
+      },
+      "eagerness": "moderate"
+    }
+  ]
+}
