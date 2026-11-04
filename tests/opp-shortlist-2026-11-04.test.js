@@ -220,6 +220,7 @@ console.log('\n8. shortlist, hours, caps, rules override, ids');
   const sl = L.shortlist(many);
   ok('at most 5 SHOW per run; the rest HOLD with the reason', sl.counts.SHOW === 5 && sl.counts.HOLD === 3 && sl.results.filter((r) => r.decision === 'HOLD').every((r) => /per run limit/.test(r.reason)), JSON.stringify(sl.counts));
   ok('results are best score first', sl.results.every((r, i, a) => i === 0 || a[i - 1].score >= r.score));
+  ok('each result carries its input index (so a caller can map back after the sort)', sl.results.every((r) => many[r.index] && many[r.index].oppId === 'ZZ' + r.index) && new Set(sl.results.map((r) => r.index)).size === 8);
   ok('the per-run cap is a rule: an override of 2 gives 2 SHOW', L.shortlist(many, { rules: R.withOverride({ scoring: { perRunShowCap: 2 } }).rules }).counts.SHOW === 2);
   ok('shortlist of nothing / junk does not throw', L.shortlist([]).results.length === 0 && L.shortlist(null).results.length === 0 && L.shortlist([null, 5, 'x']).counts.SKIP === 3);
   ok('shortlist caps the batch at 200 items', L.shortlist(Array.from({ length: 300 }, () => item({}))).results.length === 200);

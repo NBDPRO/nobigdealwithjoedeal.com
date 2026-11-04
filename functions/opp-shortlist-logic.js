@@ -312,7 +312,7 @@ function shortlist(items, opts) {
   const o = opts || {};
   const rules = o.rules || R.withOverride({}).rules;
   const list = Array.isArray(items) ? items.slice(0, 200) : [];
-  const scored = list.map((it, i) => ({ r: scoreOpportunity(it, o), i }));
+  const scored = list.map((it, i) => ({ r: Object.assign(scoreOpportunity(it, o), { index: i }), i }));   // index = where the item sat in the input
   scored.sort((a, b) => (b.r.score - a.r.score) || ((a.r.ageMin == null ? 1e9 : a.r.ageMin) - (b.r.ageMin == null ? 1e9 : b.r.ageMin)) || (a.i - b.i));
   let shown = 0;
   for (const s of scored) {
