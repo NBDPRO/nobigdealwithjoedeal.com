@@ -672,6 +672,7 @@
     "photo-editor-switch-photoid-2026-09-14.test.js",
     "ds-week-strip-2026-11-04.test.js",
     "stage-role-fallback-coverage.test.js",
+    "ds-review-run-2026-11-04.test.js",
     "kanban-next-action-chip.test.js",
     "ds-week-glance-run-2026-11-04.test.js",
     "stage-checklist.test.js",
