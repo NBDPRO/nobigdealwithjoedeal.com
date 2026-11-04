@@ -1,0 +1,68 @@
+name: Workflow lint
+
+# Lints the GitHub Actions workflows themselves (added 2026-11-04, from
+# the GitHub repo sweep: documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md).
+#
+#   actionlint  workflow syntax, expression typos, and shellcheck on every
+#               run: block (a run: step that exits 0 when it should fail is
+#               one way a gate goes silently green).
+#   zizmor      Actions security: template injection, unpinned actions,
+#               persisted checkout credentials, over-broad permissions.
+#
+# REPORT-ONLY for now: both steps are continue-on-error and NOT in the
+# merge queue's required checks. Findings land in the job summary. Once
+# the baseline is clean, drop continue-on-error and make it required.
+#
+# Tool versions are pinned; bump them by hand (Dependabot does not see a
+# docker tag or a pipx version inside run:).
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-lint-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: actionlint + zizmor (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: actionlint 1.7.12
+        continue-on-error: true
+        run: |
+          # Runner bash is -e: capture the exit code instead of letting a
+          # finding abort the step before the summary is written.
+          rc=0
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 > actionlint.txt 2>&1 || rc=$?
+          cat actionlint.txt
+          {
+            echo '## actionlint'
+            if [ "$rc" -eq 0 ]; then echo 'No findings.'; else echo '```'; cat actionlint.txt; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: zizmor 1.32.0
+        continue-on-error: true
+        run: |
+          # --format=github prints PR annotations; the plain pass feeds the summary.
+          pipx run zizmor==1.32.0 --min-severity=medium --format=github .github/workflows || true
+          rc=0
+          pipx run zizmor==1.32.0 --min-severity=medium --format=plain .github/workflows > zizmor.txt 2>&1 || rc=$?
+          {
+            echo '## zizmor (medium and up)'
+            if [ "$rc" -eq 0 ]; then echo 'No findings.'; else echo '```'; cat zizmor.txt; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"

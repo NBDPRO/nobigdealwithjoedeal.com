@@ -345,6 +345,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## Audits
 
+- [GITHUB-REPO-SWEEP-2026-11-04](audit/GITHUB-REPO-SWEEP-2026-11-04.md) — open-source sweep across five lanes (local 1080 Ti server, CRM, site, CI/security, bots): what main already has (axe, Lighthouse, site search, signature pad, draw-geom, call transcripts), ranked adopt-next lists, phased local-server build order (Pascal: Ollama yes, vLLM no), and the report-only actionlint + zizmor workflow shipped with it
 - [SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04](audit/SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04.md) — Expenses "Scan with AI" put the receipt grand total in Amount and the tax in Tax, and every cost rollup adds the two, so sales tax counted twice ($107.00 receipt read $114.00). Proven with a synthetic receipt, fixed so Amount is pre-tax (as the Home Depot import stores it), plus a subtotal + tax = total check. Draft PR, money-computation: needs Jo's OK. Existing rows untouched.
 
 - [OVERNIGHT-SITE-PROGRAM-2026-10-26](audit/OVERNIGHT-SITE-PROGRAM-2026-10-26.md) — Jo's "keep working overnight" run: five read-only discovery lanes (46 findings, 45 verified), seven fix PRs (#2746, #2748 to #2753) each with a red-first guard and an independent review, the 22 findings that need Jo's call (copy and claims, brand-orange text on navy, storm-report false "no storms", dialogs ignoring Escape, CRM Home layout shift) and what was found on the side (invisible callout links on seven posts).
