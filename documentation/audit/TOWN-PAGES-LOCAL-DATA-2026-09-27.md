@@ -179,3 +179,36 @@ in `towns.json`, in body, FAQ (both copies) and meta descriptions. Also:
 Blanchester is southwest of Wilmington, not east.
 
 **Claim-wording follow-up (same PR):** hail-damage-wilmington "file without professional advocacy", storm-damage-lebanon "the same level of detail a public adjuster would prepare" and the hail-damage-west-chester FAQ ("walk you through the claim process … navigate this alone") were reworded to the allowed framing, and tests/claim-wording.test.js gained two rules: advocacy-near-claim (claim context in an adjacent sentence; the scanner now passes each sentence its neighbours) and public-adjuster-would. Still worth a human read: hail-damage-maineville "documented and filed Warren County hail claims".
+
+## Update 2026-11-04: Liberty Township and Independence (45 towns)
+
+Jo confirmed both as service areas on 2026-11-04 (they were already in the
+schema `areaServed` list). Added `liberty-township-oh` and `independence-ky` to
+`towns.json` and as new area pages, built from `fort-mitchell-ky.html` with the
+TOWN regions emptied and restamped. No other area page changed when the
+generator ran. Neither town has town-specific service pages yet.
+
+The storm blocks follow the method above, re-derived and checked by
+reproducing West Chester (radius 9.4 km, 32 nearby, 8 hail reports on 6 days)
+and Erlanger exactly. Details the method section does not spell out:
+
+- **Bulk files:** NCEI `StormEvents_details` for 2019-2026 (the 2026 file
+  dated c20261026), events filtered to begin dates on or before 2026-06-30 so
+  the new towns match the others.
+- **Wind basis:** `MG` = measured, `EG` = estimated, and `EG` at exactly
+  50 kt = `"report"`.
+- **One per episode + type:** ties on score go to the first event in the
+  bulk file (Erlanger's 2019-04-12 wind is 808048, not the higher-damage
+  808045).
+- **`tornadoes`** counts tornado episodes in range, not tornado events.
+- **`damageUsd`** is kept only at $10,000 or more.
+- **ZIPs:** Census 2020 ZCTA-to-place (Independence) and ZCTA-to-county-
+  subdivision (Liberty Township) relationship files, land share 3% or more.
+- **Housing:** Census Reporter API, ACS 2020-2024 5-year, B25035 / B25003.
+
+Independence runs its own building department (not PDS of Kenton County), and
+its permits page and residential fee schedule do not mention roofing, so its
+permit status is `unknown` with the city's Building Inspector as `ask`.
+Liberty Township is `yes` on the same Butler County re-roofing application as
+West Chester; the township issues the zoning certificate and the county the
+building permit.
