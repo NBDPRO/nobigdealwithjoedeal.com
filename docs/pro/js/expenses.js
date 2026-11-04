@@ -509,7 +509,7 @@
       miles: miles,
       mileageRateCents: mileageRateCents,
       marketingSource: (category === 'marketing' && form.marketingSource) ? String(form.marketingSource).trim().slice(0, 60) : null,
-      source: form.source === 'ocr' ? 'ocr' : (form.source === 'import' ? 'import' : 'manual'),
+      source: form.source === 'ocr' ? 'ocr' : (form.source === 'import' ? 'import' : (form.source === 'inbox' ? 'inbox' : 'manual')),
       ocrConfidence: typeof form.ocrConfidence === 'number' ? form.ocrConfidence : null,
       needsReview: !!form.needsReview,
       createdAt: window.serverTimestamp(),
@@ -526,8 +526,26 @@
       if (credit.creditRef) docData.creditRef = credit.creditRef;
       if (credit.reason) docData.reason = credit.reason;
     }
+    // Receipt inbox (2026-11-04, flag receiptInbox): the approved draft rides along so a re-import or a
+    // second approval can never double count, and the card can point back at its draft. Same shape as
+    // the Home Depot import (externalRef, docNumber/orderNumber, poJobName, reviewState, matchEvidence).
+    if (form.source === 'inbox') {
+      var clip = function (v, n) { return String(v == null ? '' : v).slice(0, n); };
+      if (form.externalRef) docData.externalRef = clip(form.externalRef, 80);
+      if (form.inboxId) docData.inboxId = clip(form.inboxId, 160);
+      if (form.docNumber) docData.docNumber = clip(form.docNumber, 40);
+      if (form.orderNumber) docData.orderNumber = clip(form.orderNumber, 40);
+      if (/^\d{4}$/.test(String(form.paymentLast4 || ''))) docData.paymentLast4 = String(form.paymentLast4);
+      if (form.poJobName) docData.poJobName = clip(form.poJobName, 120);
+      if (['assigned', 'overhead', 'unsorted'].indexOf(form.reviewState) !== -1) docData.reviewState = form.reviewState;
+      // Overhead / shop is the sorter's word for "no job, not a job cost" (receipt-sorter.js overhead()).
+      if (form.reviewState === 'overhead') docData.costType = 'overhead';
+      if (Array.isArray(form.matchEvidence)) docData.matchEvidence = form.matchEvidence.slice(0, 5).map(function (s) { return clip(s, 160); });
+    }
     try {
-      await window.addDoc(window.collection(window.db, 'expenses'), docData);
+      var addedRef = await window.addDoc(window.collection(window.db, 'expenses'), docData);
+      // The inbox needs the new row's id to mark its draft approved (no toast: the inbox says it).
+      if (form.returnId) return (addedRef && addedRef.id) || true;
       if (form.quiet) return true;
       if (entryType !== 'cost') { toast(entryType === 'credit' ? 'Credit logged. Totals now net it.' : 'Adjustment logged', 'ok'); return true; }
       toast(unassignedDirect
@@ -803,7 +821,7 @@
       '<div class="exx-dflex-gap8px">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
         (costsFlagOn() ? '<button type="button" class="btn btn-ghost" data-exp-action="open-import" title="Import many costs from a CSV; you approve each row">⬆ Import costs (CSV)</button>' : '') +
-        (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') +
+        (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') + (window.NBDReceiptInbox && window.NBDReceiptInbox.enabled() ? window.NBDReceiptInbox.buttonHtml() : '') +
         (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
         (window.NBDJobCostAuditor ? window.NBDJobCostAuditor.buttonHtml() : '') +
         (window.NBDSubPayments ? window.NBDSubPayments.buttonHtml() : '') +

@@ -40,3 +40,14 @@ Drive watch, backlog seed, email-in and the Scan-with-AI tax fix are separate wo
 
 - Team members: the receipt picture and the draft belong to the uploader's uid (Storage is keyed by uid). An owner cannot open a member's inbox receipt.
 - Nothing here was run against a real receipt, the real model or a phone. Reader accuracy on credit memos, delivery tickets and noisy copies is untested.
+
+## What PR B ships (the screen)
+
+- `docs/pro/js/receipt-inbox.js` + `docs/pro/css/receipt-inbox.css`: the "Receipt inbox" button (Expenses toolbar, flag `receiptInbox`), the capture / upload buttons, the list of waiting drafts with the month's AI spend, and the one-row approval card. Loaded by `script-loader.js` after the receipt sorter.
+- `docs/pro/js/receipt-inbox-logic.js`: the screen copy of the logic. Its SHARED block is byte-identical to the server file (a test fails on drift); the rest ranks jobs with the existing receipt sorter (`NBDReceiptSorterLogic.rank`) on the PO text and adds the ship-to address as a weaker, suggestion-only signal.
+- `docs/pro/js/expenses.js`: `createExpense` accepts `source: 'inbox'` and the fields that ride with it (`externalRef`, `inboxId`, `docNumber`, `orderNumber`, `paymentLast4`, `poJobName`, `reviewState`, `matchEvidence`), returns the new row id when asked (`returnId`), and an inbox "Overhead" pick saves `costType: overhead` (what the sorter does). Nothing changes for a manual save.
+- `firestore.indexes.json`: `receipt_inbox` (`ownerUid` asc, `receivedAt` desc) for the list query.
+
+How it behaves: opening, listing, picking a job, editing a field, and reading do not write any expense. Approve is disabled until THIS receipt has a job, Overhead or Park as unsorted picked by a person (even an exact customer-number match is shown, never pre-picked), the total and date are valid, a cost has a paid-from when `costsPaidFrom` is on, a credit has `costCredits` on, and a "looks like an existing cost" match has been acknowledged. One tap creates one expense through `createExpense`, then marks that draft approved (the rules check the expense exists, is the caller's, and carries the draft's `inboxId`). If the second write fails the screen says the cost WAS added and a retry never adds a second one. There is no approve-all and no auto-approve.
+
+Left for later (phase 2+): Drive watch, backlog seed, email-in, remembered job names from the inbox, the vendor-fits-the-job warning, the "same vendor and day already on another job" warning. The Scan-with-AI tax double count is a separate PR that needs Jo's OK.
