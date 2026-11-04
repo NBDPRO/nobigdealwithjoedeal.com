@@ -940,6 +940,48 @@ jobs:
           echo "gitleaks range: ${RANGE}"
           ./gitleaks git --redact --verbose --log-opts="${RANGE}" .
 
+      # 2026-11-04 (GitHub repo sweep,
+      # documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md): trufflehog
+      # next to gitleaks, which is now security-patch-only. trufflehog also
+      # tries each candidate against the live service (Stripe, Twilio,
+      # Resend, ...): "verified" means the key works today, "unknown" means
+      # the check could not finish. Known-dead keys are dropped.
+      # Same commit range as gitleaks. The log and summary carry detector,
+      # file, line and commit only, never the secret (--json + jq, because
+      # the plain output prints it).
+      # REPORT-ONLY for now: continue-on-error and no --fail. Make it
+      # blocking once the baseline is triaged.
+      - name: trufflehog scan (report-only)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          TRUFFLEHOG_VERSION: 3.99.8
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          tarball="trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}"
+          curl -sSfLO "${url}/${tarball}"
+          curl -sSfL "${url}/trufflehog_${TRUFFLEHOG_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum -c -
+          tar -xzf "${tarball}" trufflehog
+          if [ -n "${BASE_SHA}" ] && [ "${BASE_SHA}" != "0000000000000000000000000000000000000000" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            SINCE="${BASE_SHA}"
+          else
+            SINCE="${HEAD_SHA}~1"
+          fi
+          echo "trufflehog range: ${SINCE}..${HEAD_SHA}"
+          ./trufflehog git "file://${PWD}" --since-commit "${SINCE}" --branch "${HEAD_SHA}" \
+            --results=verified,unknown --no-update --json > trufflehog.json
+          jq -r '"\(if .Verified then "VERIFIED" else "unknown" end)  \(.DetectorName)  \(.SourceMetadata.Data.Git.file):\(.SourceMetadata.Data.Git.line)  commit \(.SourceMetadata.Data.Git.commit[0:12])"' trufflehog.json > findings.txt
+          {
+            echo '## trufflehog (verified + unknown, report-only)'
+            if [ -s findings.txt ]; then echo '```'; cat findings.txt; echo '```'; else echo 'No findings.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s findings.txt ]; then
+            sed 's/^/::warning::trufflehog /' findings.txt
+          fi
+
   e2e-authed-emulator:
     name: Authed E2E (emulators, ${{ matrix.shard }})
     runs-on: ubuntu-latest
