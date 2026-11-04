@@ -7,7 +7,7 @@
   'use strict';
   if (window.NBDHeatmapUI) return;
   const SESS = 'nbd_ds_workouts';
-  const CELL = 10, GAP = 2, TOP = 12;
+  const CELL = 10, GAP = 2, TOP = 16;
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
@@ -26,12 +26,12 @@
       ? '<rect class="hm-c l' + cell.level + '" x="' + c * (CELL + GAP) + '" y="' + (TOP + r * (CELL + GAP)) + '" width="' + CELL + '" height="' + CELL + '" rx="2"></rect>'
       : '').join('')).join('');
     const months = h.months.filter((m, i, a) => !a[i + 1] || a[i + 1].col - m.col >= 3)
-      .map((m) => '<text class="hm-m" x="' + m.col * (CELL + GAP) + '" y="9">' + esc(m.label) + '</text>').join('');
+      .map((m) => '<text class="hm-m" x="' + m.col * (CELL + GAP) + '" y="11">' + esc(m.label) + '</text>').join('');
     const label = h.workouts + ' workouts on ' + h.activeDays + ' days in the last 12 months';
     const key = [0, 1, 2, 3, 4].map((l) => '<svg viewBox="0 0 10 10" aria-hidden="true"><rect class="hm-c l' + l + '" width="10" height="10" rx="2"></rect></svg>').join('');
     return '<div class="wc-card hm-card" id="hmCard"><div class="wc-card-h">🗓️ Activity</div>' +
       '<div class="wt-big">' + esc(h.activeDays) + ' <small>training days · ' + esc(h.workouts) + ' workouts · best week ' + esc(h.bestWeek) + ' sets</small></div>' +
-      '<svg class="hm-svg" viewBox="0 0 ' + W + ' ' + Ht + '" role="img" aria-label="' + esc(label) + '">' + months + rects + '</svg>' +
+      '<div class="hm-scroll"><svg class="hm-svg" width="' + W + '" height="' + Ht + '" viewBox="0 0 ' + W + ' ' + Ht + '" role="img" aria-label="' + esc(label) + '">' + months + rects + '</svg></div>' +
       '<div class="hm-key"><span>Less</span>' + key + '<span>More</span></div></div>';
   }
 

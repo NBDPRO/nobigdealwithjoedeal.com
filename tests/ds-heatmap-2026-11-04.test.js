@@ -83,6 +83,7 @@ console.log('\n4. wired in, CSP-safe');
   const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
   const at = (s) => html.indexOf(s);
   ok('the grid has a text label for screen readers', /role="img" aria-label="/.test(ui));
+  ok('the grid keeps its real size inside a scroll box (labels stay readable)', /class="hm-scroll"><svg class="hm-svg" width=/.test(ui));
   ok('no inline style or handler in the card', !/style=|\son[a-z]+=/.test(ui));
   ok('the Progress card appends it, and refresh redraws only the progress part', /function cardHtml\(\) \{ return progressHtml\(\) \+ heat\(\); \}/.test(pg) && /outerHTML = progressHtml\(\)/.test(pg));
   ok('loaded once each, versioned, before the Progress card script', (html.match(/heatmap-logic\.js\?v=\d+/g) || []).length === 1 && (html.match(/heatmap-ui\.js\?v=\d+/g) || []).length === 1 && at('heatmap-ui.js') < at('progress-charts-ui.js'));

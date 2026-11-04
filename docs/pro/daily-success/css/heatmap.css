@@ -1,13 +1,16 @@
 /* 12-month activity heatmap (js/heatmap-ui.js). Builds on workout-coach.css (.wc-card, .wc-meta, .wc-lbl). */
 .hm-card { border-left-color: #16a34a; }
 .hm-dash .hm-card { margin: 0 0 14px; }
-.hm-svg { display: block; width: 100%; height: auto; }
+/* Real size, not scaled: the grid is wider than a phone, so it scrolls inside its box and opens on the newest weeks (direction: rtl
+   starts the scroll at the right edge) with the month labels at a readable 11px. */
+.hm-scroll { overflow-x: auto; direction: rtl; padding-bottom: 4px; }
+.hm-svg { display: block; direction: ltr; max-width: none; }
 .hm-c { fill: var(--rule, #d4c9b0); fill-opacity: 0.45; }
 .hm-c.l1, .hm-c.l2, .hm-c.l3, .hm-c.l4 { fill: var(--ac, #BD5728); }
 .hm-c.l1 { fill-opacity: 0.3; }
 .hm-c.l2 { fill-opacity: 0.55; }
 .hm-c.l3 { fill-opacity: 0.8; }
 .hm-c.l4 { fill-opacity: 1; }
-.hm-m { fill: currentColor; fill-opacity: 0.6; font-size: 9px; }
+.hm-m { fill: currentColor; fill-opacity: 0.7; font-size: 11px; }
 .hm-key { display: flex; align-items: center; gap: 4px; font-size: 11px; opacity: 0.7; margin-top: 6px; }
 .hm-key svg { width: 10px; height: 10px; }
