@@ -30,7 +30,7 @@
 'use strict';
 
 const THROTTLE_MS = 6 * 3600 * 1000;
-const SOURCES = ['portal', 'review_link', 'deal_room', 'remote_sign'];
+const SOURCES = ['portal', 'review_link', 'deal_room', 'remote_sign', 'secure_link'];
 
 function _ms(v) {
   if (v == null) return 0;
@@ -62,6 +62,9 @@ function viewAlertMessage(name, source, what) {
   }
   if (source === 'deal_room') {
     return { title: 'Proposal opened 👀', body: who + ' just opened their proposal.' };
+  }
+  if (source === 'secure_link') {
+    return { title: 'Estimate opened 👀', body: who + ' opened ' + (thing ? '"' + thing + '"' : 'the document you sent') + ' on your secure link.' };
   }
   if (source === 'review_link') {
     return { title: 'Estimate opened 👀', body: who + ' opened ' + (thing ? '"' + thing + '"' : 'the estimate you sent') + '.' };

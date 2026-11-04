@@ -92,8 +92,38 @@ for (const f of FLAGS) {
 // 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
 // 43 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED (a gate: the own-document expiry watch, dark).
 // 44 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED (a gate: the brief's delta mode, dark).
-ok('registry pins 49 flags (2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
-  FLAGS.length === 49,String(FLAGS.length));
+ok('registry pins 51 flags (2026-11-04: +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 51,String(FLAGS.length));
+
+// ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
+console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');
+{
+  const FF = REG.FIRESTORE_FLAGS || [];
+  const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
+  ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
+  ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
+  ok('the code agrees with the registry: opp-rules.js exports the same names and the same false defaults',
+    optRules.FLAG_NAME === 'thumbtackOpportunities' && optRules.SEND_FLAG_NAME === 'thumbtackOppSend' && optRules.FLAG_DEFAULT === false && optRules.SEND_FLAG_DEFAULT === false);
+  ok('each registered file really names its flag (a stale row fails)', FF.every((f) => fs.readFileSync(path.join(FN_DIR, f.file), 'utf8').includes("'" + f.name + "'")));
+  ok('the env-flag status payload is untouched by the new list', !JSON.stringify(REG.buildResponse({}, null).flags).includes('thumbtackOpp'));
+}
+
+// ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
+console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');
+{
+  const FF = REG.FIRESTORE_FLAGS || [];
+  const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
+  ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
+  ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
+  ok('the code agrees with the registry: opp-rules.js exports the same names and the same false defaults',
+    optRules.FLAG_NAME === 'thumbtackOpportunities' && optRules.SEND_FLAG_NAME === 'thumbtackOppSend' && optRules.FLAG_DEFAULT === false && optRules.SEND_FLAG_DEFAULT === false);
+  ok('each registered file really names its flag (a stale row fails)', FF.every((f) => fs.readFileSync(path.join(FN_DIR, f.file), 'utf8').includes("'" + f.name + "'")));
+  ok('the env-flag status payload is untouched by the new list', !JSON.stringify(REG.buildResponse({}, null).flags).includes('thumbtackOpp'));
+}
 
 // ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
 console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');
@@ -153,7 +183,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 

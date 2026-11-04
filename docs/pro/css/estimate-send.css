@@ -36,3 +36,15 @@
   .ef-acts { flex: 1 1 100%; }
   .ef-btn { flex: 1 1 0; }
 }
+
+/* Secure Document Link (2026-11-04): chip under a Files row + the two small dialogs. */
+.doc-track-chip { font-size: 12px; color: var(--m, #8b8e96); margin-top: 2px; }
+.dlg-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 16px; }
+.dlg { background: var(--s, #1a1d24); color: var(--t, #e5e7eb); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 18px; width: 100%; max-width: 380px; }
+.dlg-h { margin: 0 0 12px; font-size: 17px; }
+.dlg-l { display: block; font-size: 12px; color: var(--m, #8b8e96); margin: 0 0 10px; }
+.dlg-in { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 10px; font-size: 15px; background: var(--bg, #0f1115); color: inherit; border: 1px solid var(--br, #2a2d35); border-radius: 8px; }
+.dlg-in[hidden] { display: none; }
+.dlg-note { font-size: 12px; color: var(--m, #8b8e96); line-height: 1.5; }
+.dlg-code { font-size: 28px; font-weight: 700; letter-spacing: .12em; text-align: center; margin: 8px 0; user-select: all; }
+.dlg-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
