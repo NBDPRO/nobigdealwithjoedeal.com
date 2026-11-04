@@ -663,6 +663,7 @@
     "portal-home-screen-2026-11-04.test.js",
     "portal-booking-2026-11-04.test.js",
     "portal-moments-2026-11-04.test.js",
+    "portal-care-plan-2026-11-04.test.js",
     "deal-acceptance-atomicity.test.js",
     "refer-form-errors-visible-2026-09-28.test.js",
     "photo-queue-customer-page-2026-09-14.test.js",

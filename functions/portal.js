@@ -1102,6 +1102,19 @@ exports.getHomeownerPortalView = onRequest(
       logger.warn('portal booking read failed', { err: e && e.message });
     }
 
+    // Roof Care Plan (Phase 6): a member sees their plan; the offer shows only
+    // in CARE_PLAN_MODE=live, on NBD's own jobs, once the work is done.
+    let _carePlan = null;
+    try {
+      const CPL = require('./care-plan-logic');
+      _carePlan = require('./portal-care-plan').carePlanCard(lead, hp.currentKey, {
+        mode: CPL.carePlanMode(process.env), isNbd: require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
+        pageUrl: CPL.PUBLIC_PAGE, prices: CPL.PRICES_CENTS,
+      });
+    } catch (e) {
+      logger.warn('portal care plan card failed', { err: e && e.message });
+    }
+
     let _today = null;
     try {
       _today = await PortalToday.loadToday(db, lead, { tenant, repName: rep.displayName || lead.repName || '' });
@@ -1275,6 +1288,7 @@ exports.getHomeownerPortalView = onRequest(
       //   totalPaidCents } — null until money lands.
       paid: _paid,
       booking: _booking,
+      carePlan: _carePlan,
       tokenInfo: {
         daysRemaining: tok.expiresAt
           ? Math.max(0, Math.ceil((tok.expiresAt.toMillis() - Date.now()) / 86_400_000))

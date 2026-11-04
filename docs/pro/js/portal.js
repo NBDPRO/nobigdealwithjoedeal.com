@@ -1804,6 +1804,40 @@
       );
     }
 
+    // ── Roof Care Plan (Phase 6, 2026-11-04) ──
+    // functions/portal-care-plan.js decides: a member's plan, or (CARE_PLAN_MODE
+    // live, NBD, work done) a link to the public plan page. Never a checkout here.
+    const cpc = view.carePlan;
+    if (cpc && cpc.kind === 'member') {
+      const fmtDay = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+      const when = Number.isFinite(cpc.endsAtMs) ? 'Active through ' + fmtDay(cpc.endsAtMs)
+        : (Number.isFinite(cpc.renewsAtMs) ? 'Renews ' + fmtDay(cpc.renewsAtMs) : '');
+      parts.push(
+        '<div class="card" id="care-plan-card" data-care-plan="member">' +
+          '<div class="card-label">🛡️ Roof Care Plan</div>' +
+          '<div class="card-title">You’re a member</div>' +
+          (when ? '<p class="progress-schedule-note">' + esc(when) + '</p>' : '') +
+          '<p class="portal-pay-note">Your yearly roof check-up, priority scheduling after storms, and 10% off repairs.</p>' +
+          '<p class="portal-pay-note"><a href="#pm-card">Questions about your plan? Send ' + esc(repName) + ' a message below.</a></p>' +
+        '</div>'
+      );
+    } else if (cpc && cpc.kind === 'offer' && safeUrl(cpc.url)) {
+      parts.push(
+        '<div class="card" id="care-plan-card" data-care-plan="offer">' +
+          '<div class="card-label">🛡️ Keep it in good shape</div>' +
+          '<div class="card-title">The Roof Care Plan</div>' +
+          '<ul class="care-plan-list">' +
+            '<li>A full roof inspection every year, with a written photo report</li>' +
+            '<li>Small fixes on the visit: sealant touch-ups and up to 3 shingles</li>' +
+            '<li>Priority scheduling after storms</li>' +
+            '<li>10% off repairs</li>' +
+          '</ul>' +
+          '<p class="progress-schedule-note">' + esc(fmtCents(cpc.yearCents).replace('.00', '')) + ' a year or ' + esc(fmtCents(cpc.monthCents).replace('.00', '')) + ' a month.</p>' +
+          '<a class="btn" data-metric="care_plan" href="' + esc(safeUrl(cpc.url)) + '" target="_blank" rel="noopener">See the Care Plan</a>' +
+        '</div>'
+      );
+    }
+
     // ── Keep it on your phone (Phase 7, 2026-11-04) ──
     // NBD portals only: the web-app manifest names and icons it as NBD, so a
     // tenant's homeowner never installs an app wearing NBD's brand.
