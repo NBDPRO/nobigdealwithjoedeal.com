@@ -239,7 +239,7 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
   // 03 estimates
   tie('03 the V3 wizard is the default estimate builder', /estimate wizard asks one thing per screen/, 'docs/pro/js/estimate-v3-wizard.js', 'V3 is what opens by default');
   tie('03 five packages, Economy to Beyond', /Five packages, Economy to Beyond/, 'docs/pro/js/estimate-config.js', "TIER_ORDER: Object.freeze(['economy', 'good', 'better', 'best', 'beyond'])");
-  tie('03 open alert covers estimate, portal and signing link', /alert when the homeowner opens the estimate, portal or signing link/, 'functions/estimate-view-alert.js', "const SOURCES = ['portal', 'review_link', 'deal_room', 'remote_sign'];");
+  tie('03 open alert covers estimate, portal and signing link', /alert when the homeowner opens the estimate, portal or signing link/, 'functions/estimate-view-alert.js', "const SOURCES = ['portal', 'review_link', 'deal_room', 'remote_sign', 'secure_link'];");
   tie('03 signing links expire after 14 days', /Signing links expire after 14 days/, 'functions/esign-io.js', 'const TTL_DAYS = 14');
   // 04 getting paid
   ok('04 every recorded-payment method named on /pro exists in the Record Payment sheet',

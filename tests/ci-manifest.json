@@ -238,6 +238,7 @@
     "estimate-rounding-line-2026-09-28.test.js",
     "expenses-logic.test.js",
     "cost-credits-2026-11-03.test.js",
+    "doc-link-2026-11-04.test.js",
     "receipt-health-2026-10-18.test.js",
     "cash-payouts-2026-10-19.test.js",
     "messaging-center-2026-10-19.test.js",
