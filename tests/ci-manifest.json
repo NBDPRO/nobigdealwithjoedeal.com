@@ -804,7 +804,8 @@
     "lead-form-feedback-2026-10-26.test.js",
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
-    "blog-callout-links-2026-10-26.test.js"
+    "blog-callout-links-2026-10-26.test.js",
+    "ci-docs-only-skip-2026-11-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
