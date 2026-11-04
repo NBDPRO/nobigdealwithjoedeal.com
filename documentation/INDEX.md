@@ -344,6 +344,8 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## Audits
 
+- [SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04](audit/SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04.md) — Expenses "Scan with AI" put the receipt grand total in Amount and the tax in Tax, and every cost rollup adds the two, so sales tax counted twice ($107.00 receipt read $114.00). Proven with a synthetic receipt, fixed so Amount is pre-tax (as the Home Depot import stores it), plus a subtotal + tax = total check. Draft PR, money-computation: needs Jo's OK. Existing rows untouched.
+
 - [OVERNIGHT-SITE-PROGRAM-2026-10-26](audit/OVERNIGHT-SITE-PROGRAM-2026-10-26.md) — Jo's "keep working overnight" run: five read-only discovery lanes (46 findings, 45 verified), seven fix PRs (#2746, #2748 to #2753) each with a red-first guard and an independent review, the 22 findings that need Jo's call (copy and claims, brand-orange text on navy, storm-report false "no storms", dialogs ignoring Escape, CRM Home layout shift) and what was found on the side (invisible callout links on seven posts).
 - [OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23](audit/OVERNIGHT-LANDING-AUDIT-PASS2-2026-10-23.md) — second pass: deploy coverage, #2684 purge re-test (logout path passes, account-switch race still High), reviewer findings on the later merges, and which fix PRs own what.
 - [REVIEWS-STRIP-2026-10-24](projects/REVIEWS-STRIP-2026-10-24.md) — recent Google reviews, with their dates, on every homeowner page: one `reviews-strip` partial on 229 pages (+48 our-work pages from the template), dates on every card, a test naming the pages that carry none.
