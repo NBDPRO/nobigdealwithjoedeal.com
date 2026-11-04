@@ -195,6 +195,7 @@
   "onVisitCaptureWrite": "./visit-capture",
   "onYardSignCalendarWrite": "./google-calendar",
   "onYardSignPickupDue": "./push-functions",
+  "oppDraftFile": "./opp-draft",
   "oppShortlistFile": "./opp-shortlist",
   "ownerWeeklyDigest": "./owner-weekly-digest",
   "pdfRenderRetention": "./pdf-render-retention",

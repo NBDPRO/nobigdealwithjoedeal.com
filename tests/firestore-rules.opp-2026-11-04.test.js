@@ -3,9 +3,10 @@
  *
  *   opp_seen/{companyId}_{oppId}   one record per Opportunity seen (PR 2)
  *   opp_rules/_default             the owner's rules override + kill switch (PR 2)
+ *   opp_drafts/{companyId}_{oppId} the pending first-message draft, create-only (PR 3)
  *   documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md
  *
- * ADMIN-SDK ONLY. The oppShortlistFile callable is the sole writer and the owner reads
+ * ADMIN-SDK ONLY. The oppShortlistFile / oppDraftFile callables are the sole writers and the owner reads
  * through callables, so every client read AND write is denied, whoever the client is:
  * the owner, a platform admin, a company admin, another tenant, anonymous. The test proves
  * each path is denied for each of those, and (positive controls) that the harness really
@@ -61,9 +62,11 @@ async function run() {
 
   const SEEN = 'opp_seen/co-a_ZZ_QA_1';
   const RULES_DOC = 'opp_rules/_default';
+  const DRAFT = 'opp_drafts/co-a_ZZ_QA_1';
   await env.withSecurityRulesDisabled(async (c) => {
     await setDoc(doc(c.firestore(), SEEN), { companyId: 'co-a', oppId: 'ZZ_QA_1', decision: 'SHOW', score: 80 });
     await setDoc(doc(c.firestore(), RULES_DOC), { killSwitch: false });
+    await setDoc(doc(c.firestore(), DRAFT), { companyId: 'co-a', oppId: 'ZZ_QA_1', status: 'pending', draftText: 'ZZ_QA first draft' });
     await setDoc(doc(c.firestore(), 'feature_flags/_default'), { thumbtackOpportunities: false });
   });
 
@@ -82,6 +85,12 @@ async function run() {
     await check(name + ' CANNOT read opp_rules', 'deny', getDoc(doc(db, RULES_DOC)));
     await check(name + ' CANNOT write opp_rules (no client can lift the kill switch or raise a cap)', 'deny', setDoc(doc(db, RULES_DOC), { killSwitch: false, caps: { sendsPerDay: 99 } }));
     await check(name + ' CANNOT delete opp_rules', 'deny', deleteDoc(doc(db, RULES_DOC)));
+    await check(name + ' CANNOT read an opp_drafts doc', 'deny', getDoc(doc(db, DRAFT)));
+    await check(name + ' CANNOT list opp_drafts', 'deny', getDocs(collection(db, 'opp_drafts')));
+    await check(name + ' CANNOT create an opp_drafts doc (the callable is the only writer)', 'deny', setDoc(doc(db, 'opp_drafts/co-a_ZZ_QA_2'), { companyId: 'co-a', oppId: 'ZZ_QA_2', status: 'pending', draftText: 'x' }));
+    await check(name + ' CANNOT approve a draft (update status)', 'deny', updateDoc(doc(db, DRAFT), { status: 'approved' }));
+    await check(name + ' CANNOT overwrite a draft (set over the existing doc)', 'deny', setDoc(doc(db, DRAFT), { companyId: 'co-a', oppId: 'ZZ_QA_1', status: 'sent', draftText: 'changed' }));
+    await check(name + ' CANNOT delete a draft', 'deny', deleteDoc(doc(db, DRAFT)));
   }
   await check('another opp_rules doc id is denied too', 'deny', setDoc(doc(owner, 'opp_rules/co-a'), { killSwitch: false }));
   await check('a sub-path under opp_seen is denied (default deny)', 'deny', setDoc(doc(owner, 'opp_seen/co-a_ZZ_QA_1/notes/n1'), { x: 1 }));
@@ -93,6 +102,10 @@ async function run() {
     results.push({ label: 'seeded opp_seen is untouched after all of the above', ok: s.exists() && s.data().decision === 'SHOW' && s.data().score === 80 });
     results.push({ label: 'seeded opp_rules is untouched after all of the above', ok: r.exists() && r.data().killSwitch === false && !r.data().caps });
     const n = await getDoc(doc(c.firestore(), 'opp_seen/co-a_ZZ_QA_2'));
+    const dr = await getDoc(doc(c.firestore(), DRAFT));
+    const dn = await getDoc(doc(c.firestore(), 'opp_drafts/co-a_ZZ_QA_2'));
+    results.push({ label: 'seeded opp_drafts doc is untouched (still pending, text unchanged)', ok: dr.exists() && dr.data().status === 'pending' && dr.data().draftText === 'ZZ_QA first draft' });
+    results.push({ label: 'no opp_drafts doc was created by a denied write', ok: !dn.exists() });
     results.push({ label: 'no doc was created by a denied write', ok: !n.exists() });
   });
 
