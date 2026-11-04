@@ -21,7 +21,11 @@
 
   let selected = null;   // exId; null = the most-done lift
 
-  function cardHtml() {
+  // The 12-month activity heatmap rides under the card (heatmap-ui.js, loaded first; '' when it is absent).
+  const heat = () => { try { return window.NBDHeatmapUI ? window.NBDHeatmapUI.cardHtml() : ''; } catch (_) { return ''; } };
+  function cardHtml() { return progressHtml() + heat(); }
+
+  function progressHtml() {
     if (!P()) return '';
     const sessions = readJson(SESS, []);
     const t = today();
@@ -50,7 +54,7 @@
       '<div class="pg-note">Estimated 1RM ignores sets over 12 reps. Dots are new bests.</div></div>';
   }
 
-  function refresh() { const el = document.getElementById('pgCard'); if (el) el.outerHTML = cardHtml(); }
+  function refresh() { const el = document.getElementById('pgCard'); if (el) el.outerHTML = progressHtml(); }
 
   function hook() {
     const origFit = window.buildFitnessSection;
@@ -68,7 +72,7 @@
           const main = document.getElementById('main');
           if (main && !document.getElementById('pgCard')) {
             const box = document.createElement('div');
-            box.className = 'pg-dash';
+            box.className = 'pg-dash hm-dash';
             box.innerHTML = cardHtml();
             const weight = document.getElementById('wtCard');
             const anchor = weight && weight.parentNode && weight.parentNode.parentNode === main ? weight.parentNode : null;
