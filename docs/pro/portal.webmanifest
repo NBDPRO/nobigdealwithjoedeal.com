@@ -1,0 +1,16 @@
+{
+  "id": "/pro/portal",
+  "name": "My Project · No Big Deal",
+  "short_name": "My Project",
+  "description": "Your roofing project with No Big Deal Home Solutions: status, photos, documents and messages.",
+  "scope": "/pro/portal",
+  "display": "standalone",
+  "background_color": "#F7F3EE",
+  "theme_color": "#BD5728",
+  "icons": [
+    { "src": "/pro/img/nbd-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pro/img/nbd-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pro/img/nbd-icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/pro/img/nbd-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

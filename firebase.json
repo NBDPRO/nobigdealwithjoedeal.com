@@ -219,6 +219,13 @@
         ]
       },
       {
+        "_comment": "Homeowner PORTAL web-app manifest (2026-11-04, CUSTOMER-PORTAL-PLAN Phase 7). Same explicit Content-Type as the site manifest above. portal.js links it on NBD portals only; it has no start_url so the installed icon opens the page's own token URL.",
+        "source": "/pro/portal.webmanifest",
+        "headers": [
+          { "key": "Content-Type", "value": "application/manifest+json" }
+        ]
+      },
+      {
         "_comment": "Public brand assets (logo, illustrations) must be embeddable cross-origin. The Universal Doc Viewer (docs/pro/js/nbd-doc-viewer.js) renders generated PDFs inside <iframe srcdoc> *without* `allow-same-origin` — that gives the iframe a `null` origin, and the global Cross-Origin-Resource-Policy: same-origin above refuses to serve these images into it, leaving every generated document with a broken-image placeholder where the company logo should be. These are public marketing assets — letting them embed cross-origin is safe (CORP only governs *embedding*; it does not grant script-level read access). Targeted at /assets/images/** specifically so unrelated assets keep the stricter default. Placed AFTER the ** rule so last-match-wins lets this one stick.",
         "source": "/assets/images/**",
         "headers": [

@@ -69,6 +69,63 @@
   // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
   // server says charges what is due now; a sent link that no longer fits
   // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
+  // ── Add to Home Screen (Phase 7, 2026-11-04) ─────────────────────
+  // The manifest has NO start_url on purpose: the browser then uses this
+  // page's own address, token included, so the icon opens this homeowner's
+  // project. The token never goes into a file. No service worker either:
+  // this page is live data, and /pro/sw.js already leaves portal.html alone.
+  const A2HS_DISMISS_KEY = 'nbdPortalA2hsDismissed';
+  let _a2hsPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    _a2hsPrompt = e;
+    // Upgrade a card already on screen in place (a full re-render would
+    // wipe a message the homeowner is typing).
+    const row = document.querySelector('#a2hs-card .a2hs-actions');
+    if (row && !row.querySelector('[data-a2hs="add"]')) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn'; btn.setAttribute('data-a2hs', 'add');
+      btn.textContent = 'Add to Home Screen';
+      row.insertBefore(btn, row.firstChild);
+    }
+  });
+  function _isStandalone() {
+    try {
+      return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    } catch (_) { return false; }
+  }
+  function _linkHomeScreenManifest() {
+    if (document.querySelector('link[rel="manifest"]')) return;
+    const l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = '/pro/portal.webmanifest';
+    document.head.appendChild(l);
+  }
+  // { text, canPrompt } or null: phones only, not already installed, not dismissed.
+  function _homeScreenHint() {
+    if (_isStandalone()) return null;
+    try { if (localStorage.getItem(A2HS_DISMISS_KEY) === '1') return null; } catch (_) { /* private mode: still offer */ }
+    let coarse = false;
+    try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
+    if (!coarse) return null;
+    const ua = String(navigator.userAgent || '');
+    if (_a2hsPrompt) return { canPrompt: true, text: 'Add this page to your home screen to check on your project with one tap.' };
+    if (/iPhone|iPad|iPod/.test(ua)) return { canPrompt: false, text: 'Add this page to your home screen: tap the Share button, then “Add to Home Screen”.' };
+    return { canPrompt: false, text: 'Add this page to your home screen: open your browser menu, then choose “Add to Home screen”.' };
+  }
+  document.addEventListener('click', async function (e) {
+    const b = e.target && e.target.closest ? e.target.closest('[data-a2hs]') : null;
+    if (!b) return;
+    const card = document.getElementById('a2hs-card');
+    if (b.getAttribute('data-a2hs') === 'add' && _a2hsPrompt) {
+      const p = _a2hsPrompt; _a2hsPrompt = null;
+      try { await p.prompt(); } catch (_) {}
+    } else {
+      try { localStorage.setItem(A2HS_DISMISS_KEY, '1'); } catch (_) {}
+    }
+    if (card) card.remove();
+  });
+
   // Phase 3 pay panel (2026-11-04): Stripe's own page opens in a new tab so
   // this one stays put; tapping Pay speeds up the poll (_expectPayment) and
   // coming back fires an immediate one (_onVisibility).
@@ -1714,6 +1771,24 @@
             '<a href="mailto:?subject=' + emailSubject + '&body=' + emailBody + '" style="flex:1;min-width:120px;text-align:center;padding:10px;background:var(--surface-2,#13243d);color:var(--text);border:1px solid var(--br, #2a3344);border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:.04em;">✉️ Email it</a>' +
           '</div>' +
           '<div id="rf-status" style="display:none;margin-top:10px;padding:8px 10px;border-radius:6px;font-size:12px;background:rgba(46,204,138,.12);color:var(--nbd-success);border:1px solid rgba(46,204,138,.4);text-align:center;"></div>' +
+        '</div>'
+      );
+    }
+
+    // ── Keep it on your phone (Phase 7, 2026-11-04) ──
+    // NBD portals only: the web-app manifest names and icons it as NBD, so a
+    // tenant's homeowner never installs an app wearing NBD's brand.
+    if (isNbdCompany) _linkHomeScreenManifest();
+    const a2hs = isNbdCompany ? _homeScreenHint() : null;
+    if (a2hs) {
+      parts.push(
+        '<div class="card a2hs-card" id="a2hs-card">' +
+          '<div class="card-label">📱 Keep this page handy</div>' +
+          '<p class="portal-pay-note">' + esc(a2hs.text) + '</p>' +
+          '<div class="a2hs-actions">' +
+            (a2hs.canPrompt ? '<button type="button" class="btn" data-a2hs="add">Add to Home Screen</button>' : '') +
+            '<button type="button" class="btn btn-ghost" data-a2hs="dismiss">Not now</button>' +
+          '</div>' +
         '</div>'
       );
     }
