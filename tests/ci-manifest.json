@@ -660,6 +660,7 @@
     "seo-gsc-titles-2026-10-07.test.js",
     "meta-description-cuts-2026-10-26.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
+    "a11y-contrast-sweep-2026-11-04.test.js",
     "deal-acceptance-atomicity.test.js",
     "refer-form-errors-visible-2026-09-28.test.js",
     "photo-queue-customer-page-2026-09-14.test.js",

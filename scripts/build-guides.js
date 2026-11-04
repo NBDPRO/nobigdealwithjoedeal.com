@@ -194,7 +194,10 @@ function renderBody(body) {
       // Wide prose tables (3+ columns of sentences) stack into cards on a
       // phone; short grids (Yes / No / years) stay a table.
       const stack = head.length >= 3 && body.some((r) => r.some((c) => c.length > 40));
-      out.push('<div class="g-table-wrap"><table class="g-table' + (stack ? ' g-table-stack' : '') + '"><thead><tr>' + head.map((c) => '<th scope="col">' + inline(c) + '</th>').join('') + '</tr></thead><tbody>'
+      // tabindex + role + label: a table that scrolls sideways on a phone must be
+      // reachable by keyboard (axe scrollable-region-focusable, 2026-11-04).
+      const tableLabel = 'Table: ' + head.filter(Boolean).slice(0, 3).map((c) => c.replace(/[*_`\[\]]/g, '')).join(', ');
+      out.push('<div class="g-table-wrap" tabindex="0" role="region" aria-label="' + esc(tableLabel) + '"><table class="g-table' + (stack ? ' g-table-stack' : '') + '"><thead><tr>' + head.map((c) => '<th scope="col">' + inline(c) + '</th>').join('') + '</tr></thead><tbody>'
         + body.map((r) => '<tr>' + r.map((c, k) => (k === 0 ? '<th scope="row">' + inline(c) + '</th>' : '<td' + (stack ? ' data-label="' + esc(head[k] || '') + '"' : '') + '>' + inline(c) + '</td>')).join('') + '</tr>').join('')
         + '</tbody></table></div>');
       continue;
