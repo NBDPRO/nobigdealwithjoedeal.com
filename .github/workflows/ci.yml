@@ -99,10 +99,11 @@ jobs:
       # on the suite that stands between the cost book and the public tree. The
       # secret-scan job already pays this fetch; paying it here too is the price
       # of a pin that cannot be silenced by editing the pin.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -145,8 +146,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Gate the defect classes the 2026-06 manual QC sweep fixed by hand:
@@ -372,8 +375,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Most of the bucket is dependency-free, but expenses-logic requires
@@ -415,11 +420,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -473,8 +480,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Parse-checks every FIRST-PARTY shipped .js under functions/ + docs/.
@@ -504,8 +513,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -645,13 +656,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Firestore emulator runs on the JVM; firebase-tools needs a modern JDK
       # (same setup as the @stranger E2E shard that boots the functions emulator).
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -755,8 +768,10 @@ jobs:
     # 0.2-0.9 min" sample that no longer holds.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -819,8 +834,10 @@ jobs:
     # RUN" message would never be printed.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -881,8 +898,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # Simple grep — fast first-pass for obvious patterns. Catches
       # the big ones before a push even completes.
@@ -921,6 +939,57 @@ jobs:
           fi
           echo "gitleaks range: ${RANGE}"
           ./gitleaks git --redact --verbose --log-opts="${RANGE}" .
+
+      # 2026-11-04 (GitHub repo sweep,
+      # documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md): trufflehog
+      # next to gitleaks, which is now security-patch-only. trufflehog also
+      # tries each candidate against the live service (Stripe, Twilio,
+      # Resend, ...): "verified" means the key works today, "unknown" means
+      # the check could not finish. Known-dead keys are dropped.
+      # Same commit range as gitleaks. The log and summary carry detector,
+      # file, line and commit only, never the secret (--json + jq, because
+      # the plain output prints it).
+      # REPORT-ONLY for now: no --fail, and the step always exits 0. A
+      # scanner error or a hang (capped by `timeout`) becomes a warning, so
+      # it cannot fail this required job. This is NOT continue-on-error:
+      # ci.yml carries no continue-on-error key at all (pinned by
+      # tests/smoke/functions.test.js and tests/gauntlet-regressions.test.js).
+      # Make it blocking once the baseline is triaged.
+      - name: trufflehog scan (report-only)
+        env:
+          TRUFFLEHOG_VERSION: 3.99.8
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: |
+          rc=0
+          (
+            set -euo pipefail
+            tarball="trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
+            url="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}"
+            curl -sSfLO "${url}/${tarball}"
+            curl -sSfL "${url}/trufflehog_${TRUFFLEHOG_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum -c -
+            tar -xzf "${tarball}" trufflehog
+            if [ -n "${BASE_SHA}" ] && [ "${BASE_SHA}" != "0000000000000000000000000000000000000000" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+              SINCE="${BASE_SHA}"
+            else
+              SINCE="${HEAD_SHA}~1"
+            fi
+            echo "trufflehog range: ${SINCE}..${HEAD_SHA}"
+            timeout 240 ./trufflehog git "file://${PWD}" --since-commit "${SINCE}" --branch "${HEAD_SHA}" \
+              --results=verified,unknown --no-update --json > trufflehog.json
+            jq -r '"\(if .Verified then "VERIFIED" else "unknown" end)  \(.DetectorName)  \(.SourceMetadata.Data.Git.file):\(.SourceMetadata.Data.Git.line)  commit \(.SourceMetadata.Data.Git.commit[0:12])"' trufflehog.json > findings.txt
+            {
+              echo '## trufflehog (verified + unknown, report-only)'
+              if [ -s findings.txt ]; then echo '```'; cat findings.txt; echo '```'; else echo 'No findings.'; fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ -s findings.txt ]; then
+              sed 's/^/::warning::trufflehog /' findings.txt
+            fi
+          ) || rc=$?
+          if [ "${rc}" -ne 0 ]; then
+            echo "::warning::trufflehog did not complete (exit ${rc}); report-only, so the job continues"
+            echo "## trufflehog did not complete (exit ${rc})" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   e2e-authed-emulator:
     name: Authed E2E (emulators, ${{ matrix.shard }})
@@ -1017,13 +1086,15 @@ jobs:
     # make that a fast red instead of a wedge). Ledger in
     # documentation/projects/WEEKLY_CADENCE.md.
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # The Firestore emulator runs on the JVM; firebase-tools 15+ (the tests
       # devDependency) requires JDK 21 — same setup as firebase-deploy.yml.
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -1066,7 +1137,7 @@ jobs:
           npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -Ev 'hosting:.{0,20}127\.0\.0\.1 - - \['
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-authed-traces-${{ strategy.job-index }}
           path: tests/test-results/
@@ -1109,8 +1180,10 @@ jobs:
     # so it carries the same wedge exposure as the E2E jobs above.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # pdf-lib: the stamping engine under test is required directly from
@@ -1154,8 +1227,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1193,8 +1268,10 @@ jobs:
     # has to catch a hung install, not police the suite.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1313,8 +1390,10 @@ jobs:
     # 20-minute red instead of a 6-hour blocked merge.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1343,7 +1422,7 @@ jobs:
             'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js marketing.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-public-traces
           path: tests/test-results/
@@ -1363,8 +1442,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1386,7 +1467,7 @@ jobs:
             'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=mobile-webkit --workers=1 nav-drawer.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-public-webkit-traces
           path: tests/test-results/
@@ -1417,8 +1498,10 @@ jobs:
     # fast on a hung download, not to bound normal work.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # NO bare `playwright` argument here — install the workspace AS PINNED,
@@ -1454,7 +1537,7 @@ jobs:
         run: node scripts/qc-render-sweep.js --base http://localhost:5000 --json qc-render-sweep.json
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qc-render-sweep-report
           path: qc-render-sweep.json
@@ -1477,8 +1560,10 @@ jobs:
     # command, when auditing this.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install visual workspace deps
@@ -1521,8 +1606,10 @@ jobs:
     # fast red instead of a blocked merge.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1547,7 +1634,7 @@ jobs:
             "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 visual-regression.spec.js $MODE"
       - name: Upload baselines / diffs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: visual-regression-output
           path: |
