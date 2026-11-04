@@ -83,3 +83,5 @@ A draft is a **fixed template plus three facts** (company name, city, one saniti
 ## Files
 
 `functions/opp-rules.js` (data, flag names, override whitelist), `functions/opp-shortlist-logic.js` (pure scoring, shortlist, hours, caps), `functions/flags-registry.js` (`FIRESTORE_FLAGS`), `tests/opp-shortlist-2026-11-04.test.js`, `tests/flags-registry-drift.test.js`; PR 2: `functions/opp-access.js`, `functions/opp-shortlist.js`, `functions/index.js` + `function-map.json` + `FUNCTIONS_INDEX.md` entries, `firestore.rules`, `tests/opp-shortlist-callable-2026-11-04.test.js`, `tests/firestore-rules.opp-2026-11-04.test.js` (emulator, wired in `.github/workflows/ci.yml`).
+
+PR 3: `functions/opp-draft-templates.js`, `functions/opp-draft-logic.js`, `functions/opp-draft.js`, `opp_drafts` rules entry, `tests/opp-draft-2026-11-04.test.js`, `tests/opp-draft-callable-2026-11-04.test.js`, rules test extended.
