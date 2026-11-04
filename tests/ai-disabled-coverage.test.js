@@ -82,6 +82,8 @@ const ENDPOINTS = [
   { file: 'functions/photo-vision.js', export: 'analyzePhotoVision', gate: 'isAiDisabled', spend: /\bclassifyPhoto\(/ },
   { file: 'functions/visualizer-image-gen.js', export: 'visualizerImageGen', gate: 'isAiDisabled', spend: /generateViaReplicate\(|generateViaKie\(/ },
   { file: 'functions/receipt-vision.js', export: 'extractReceiptData', gate: 'isAiDisabled', spend: VENDOR_FETCH },
+  // 2026-11-04: the Receipt inbox reader (dark behind RECEIPT_INBOX_ENABLED); the gate is read before the vendor call.
+  { file: 'functions/receipt-inbox.js', export: 'submitInboxReceipt', gate: 'isAiDisabled', spend: VENDOR_FETCH },
   { file: 'functions/dictate.js', export: 'dictate', gate: 'isAiDisabled', spend: /callClaudeForDictate\(/ },
   { file: 'functions/handlers/ai-texting-preview.js', export: 'previewAiPersona', gate: 'isAiDisabled', spend: /callClaudeForDraft\(/ },
   { file: 'functions/handlers/photo.js', export: 'analyzeRoofPhoto', gate: 'isAiDisabled', spend: VENDOR_FETCH },

@@ -232,6 +232,32 @@ async function run() {
     { contentType: 'image/jpeg' }
   ));
 
+  // ── RECEIPT INBOX (receipts/{uid}/inbox/, 2026-11-04): the same owner-only receipts rule ──
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'receipts/alice/inbox/1700000000_scan.jpg'),
+    buf(1024),
+    { contentType: 'image/jpeg' }
+  ));
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'receipts/alice/inbox/1700000001_invoice.pdf'),
+    buf(8 * 1024),
+    { contentType: 'application/pdf' }
+  ));
+  await assertFails(uploadBytes(
+    ref(alice, 'receipts/alice/inbox/1700000002_mal.exe'),
+    buf(1024),
+    { contentType: 'application/x-msdownload' }
+  ));
+  await assertFails(uploadBytes(
+    ref(bob, 'receipts/alice/inbox/1700000003_sneak.jpg'),
+    buf(1024),
+    { contentType: 'image/jpeg' }
+  ));
+  await assertFails(getBytes(ref(bob, 'receipts/alice/inbox/1700000000_scan.jpg')));
+  await assertSucceeds(getBytes(ref(alice, 'receipts/alice/inbox/1700000000_scan.jpg')));
+  await assertSucceeds(deleteObject(ref(alice, 'receipts/alice/inbox/1700000000_scan.jpg')));   // the personal-skip delete
+  await assertFails(deleteObject(ref(bob, 'receipts/alice/inbox/1700000001_invoice.pdf')));
+
   // ── PAYMENT PROOFS (payment-proofs/{uid}/{invoiceId}/, 2026-09-29) ─────
   // Same posture as receipts/: check photo or PDF, 25MB, owner write,
   // owner + platform admin read, flat path denied.

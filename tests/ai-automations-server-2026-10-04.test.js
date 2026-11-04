@@ -222,6 +222,7 @@ const DAY = 24 * 3600 * 1000;
       'functions/integrations/thursday.js': /rowFromAnthropic\('thursday'/,
       'functions/photo-vision.js': /rowFromAnthropic\('photo-vision'/,
       'functions/receipt-vision.js': /rowFromAnthropic\('receipt-vision'/,
+      'functions/receipt-inbox.js': /rowFromAnthropic\('receipt-inbox'/,
       'functions/dictate.js': /rowFromAnthropic\('dictate'/,
       'functions/handlers/photo.js': /rowFromAnthropic\('roof-photo'/,
       'functions/handlers/ai.js': /rowFromAnthropic\(feature \|\| 'claude-proxy'/,

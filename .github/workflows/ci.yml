@@ -588,6 +588,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-reputation-test 'node firestore-rules.reputation.test.js'
+      # Receipt inbox (2026-11-04): receipt_inbox/{id} drafts are server-created; a browser can only decide. Own file.
+      - name: Run receipt-inbox rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-rcptinbox-test 'node firestore-rules.receipt-inbox.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |

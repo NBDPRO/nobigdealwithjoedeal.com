@@ -2681,6 +2681,46 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ── RECEIPT INBOX (2026-11-04, flag receiptInbox) ─────────────────────
+    // receipt_inbox/{companyId__rcpt_<hash>}: a DRAFT read from an uploaded receipt, waiting for
+    // the uploader to approve it ONE ROW AT A TIME. Created, rewritten and counted by the server
+    // only (submitInboxReceipt, admin SDK): `create, delete: if false` for every client, so a
+    // browser can never plant a draft, forge a read or remove the trail. Nothing here counts
+    // toward any total: only the expenses row the person creates on Approve does.
+    // READ: the uploader (ownerUid == caller, not a viewer) or a platform admin. Not the company
+    // at large: the receipt picture sits at receipts/{uid}/inbox/ which only that uid can open.
+    // UPDATE (the uploader, never a viewer) is a DECISION and nothing else:
+    //   ready | needs_look -> approved | skipped | not_business   (decidedBy = the caller; an
+    //     approval must name an expenses row of the caller that carries this draft's inboxId)
+    //   skipped | not_business -> ready | needs_look              (undo; only a draft that has a read)
+    // and only status / decision / decidedAt / decidedBy / fileDeleted / updatedAt may change, so
+    // the amounts the server read, the hash, the path and the owner are frozen.
+    // approved is final. There is no approve-all path: one document per write.
+    match /receipt_inbox/{inboxId} {
+      allow read: if isAdmin()
+        || (notViewer() && resource.data.ownerUid == request.auth.uid);
+      allow update: if notViewer()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decision', 'decidedAt', 'decidedBy', 'fileDeleted', 'updatedAt'])
+        && request.resource.data.get('decision', {}) is map
+        && request.resource.data.get('decision', {}).keys().size() <= 20
+        && (
+          (resource.data.status in ['ready', 'needs_look']
+            && request.resource.data.status in ['approved', 'skipped', 'not_business']
+            && request.resource.data.decidedBy == request.auth.uid
+            && (request.resource.data.status != 'approved'
+                || (request.resource.data.decision.get('expenseId', '') is string
+                    && request.resource.data.decision.get('expenseId', '') != ''
+                    && exists(/databases/$(database)/documents/expenses/$(request.resource.data.decision.expenseId))
+                    && get(/databases/$(database)/documents/expenses/$(request.resource.data.decision.expenseId)).data.get('inboxId', '') == inboxId
+                    && get(/databases/$(database)/documents/expenses/$(request.resource.data.decision.expenseId)).data.get('userId', '') == request.auth.uid)))
+          || (resource.data.status in ['skipped', 'not_business']
+            && resource.data.get('read', null) != null
+            && request.resource.data.status in ['ready', 'needs_look'])
+        );
+      allow create, delete: if false;
+    }
+
     // ── REPUTATION: the owner's review log (2026-10-19, flag reputationLoop) ──
     // review_log/{leadId}: the OWNER's own record that a review was posted for a
     // customer: { companyId, leadId, reviewSeen, platform, rating, responded,
