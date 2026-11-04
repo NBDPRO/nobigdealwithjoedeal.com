@@ -45,7 +45,14 @@ The vetting pass removed these before they became work:
 
 ## Follow-ups started the same day
 - **CI hardening:** SHA pins, `persist-credentials: false`, and trufflehog + osv-scanner in report-only mode. PR NBDPRO/nobigdealwithjoedeal.com#2833.
-- **Site:** `Speculation-Rules` header + view transitions, plus a weekly lychee job. In progress in its own session.
+- **Site:** `Speculation-Rules` header + view transitions, plus a weekly lychee job. PR NBDPRO/nobigdealwithjoedeal.com#2834. Ready for review; the preview-channel header proof is still owed.
+- **MRMS MESH radar hail swaths:** PR NBDPRO/nobigdealwithjoedeal.com#2840, **dark** until `feature_flags/global.meshHailEnabled`. Write-up: `documentation/projects/MESH-HAIL-SWATHS-2026-11-04.md` on that branch.
+  - A pure GRIB2/PNG decoder and polygon tracer feed a daily cron that writes `hail_mesh/{ymd}`, drawn on the Mission maps.
+  - Validated against real data: 84 of 106 ground reports of 1"+ hail fell inside the 0.75" swath, and 4 after shifting it 1° east.
+- **HTML checker:** html-validate with correctness rules only, report-only. PR NBDPRO/nobigdealwithjoedeal.com#2842.
+  - Its first run found and the PR fixes: a public `/areas/` card nested inside another, an unclosed CRM header button, a duplicated `style` attribute that dropped a margin, `"/ style="` typos, untitled iframes, and the vault pages' early `</body>`.
+  - parse5 builds an identical DOM for every id in the CRM pages before and after.
+- **Bot-key contract tests (MCP Inspector item):** already covered, nothing to build. `tests/agent-mcp-2026-10-02.test.js` and its two siblings test per-role tool lists, revoked keys, the kill switch, no send tools, and data minimization. The only gap is a check against the *live* `/api/mcp` with real role keys, which needs Jo's keys.
 - **CRM calendar engine trial:** EventCalendar, draft PR NBDPRO/nobigdealwithjoedeal.com#2835 (`documentation/projects/CALENDAR-ENGINE-TRIAL-2026-11-04.md` on that branch).
   - It passed both the enforced and the stricter Report-Only `/pro` CSP with zero violations.
   - Recommendation: a read-only Month/Week/List Schedule panel. Keep `crew.js`.
