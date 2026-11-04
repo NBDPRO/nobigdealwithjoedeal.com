@@ -2839,6 +2839,13 @@ service cloud.firestore {
       allow read: if isAuth() && resource.data.uid == request.auth.uid;
       allow write: if false;
     }
+    match /receiptInboxMeter/{docId} {
+      // Receipt inbox spend, "{companyId}__{YYYY-MM}" (security review 2026-11-04: the cap is per
+      // company, not per seat). Members of that company can read it for the "$x of $10" line;
+      // only submitInboxReceipt (admin SDK) writes it.
+      allow read: if isAuth() && (resource.data.companyId == myCompanyId() || ownsTenantByUid(resource.data.companyId));
+      allow write: if false;
+    }
 
     // Vision response cache (admin-SDK only — sha256(imageUrl) → suggestion).
     // Clients never touch this directly; the function reads/writes.
