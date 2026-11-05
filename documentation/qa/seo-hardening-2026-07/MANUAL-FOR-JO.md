@@ -156,6 +156,11 @@ TXT record at `_dmarc.nobigdealwithjoedeal.com`:
 `v=DMARC1; p=none; rua=mailto:<your inbox>` — monitor 2–4 weeks, then tighten
 to `p=quarantine`. (SPF verified present and correct; no change needed.)
 
+**DONE 2026-11-04:** published in Cloudflare DNS as
+`v=DMARC1; p=none; rua=mailto:jd@nobigdealwithjoedeal.com` and verified live
+(Cloudflare DoH + Google DoH). Review aggregate reports and tighten to
+`p=quarantine` on 2026-12-02 (reminders set).
+
 ## 6. FYI — things checked and deliberately left alone
 
 - **Phone landmine sweep:** every number other than (859) 420-7382 turned out

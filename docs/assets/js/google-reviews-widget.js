@@ -94,10 +94,17 @@
     return esc(t.slice(0, limit).trim()) + '&hellip;';
   }
 
+  // Google serves reviewer photos at the size in the URL (…=s128-c…). The slot is 40 px, so ask for 80 (2x screens)
+  // instead of 128, and load them lazily: the strip sits far below the fold on every page (speed audit 2026-11-04,
+  // ~110 KB per page view).
+  function avatarUrl(url) {
+    return /^https:\/\/lh\d\.googleusercontent\.com\//.test(url) ? url.replace(/=s\d+(?=-|$)/, '=s80') : url;
+  }
+
   function renderReviewCard(review) {
     const name = esc(review.author || 'Google user');
     const photo = review.profilePhotoUrl
-      ? `<img src="${esc(review.profilePhotoUrl)}" alt="" referrerpolicy="no-referrer" class="gr-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+      ? `<img src="${esc(avatarUrl(review.profilePhotoUrl))}" alt="" width="40" height="40" loading="lazy" decoding="async" referrerpolicy="no-referrer" class="gr-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
       : `<div style="width:40px;height:40px;border-radius:50%;background:#e8e5e0;flex-shrink:0"></div>`;
     const date = reviewDate(review);
     const rel = esc(review.relativeTime || '');

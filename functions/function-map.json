@@ -160,6 +160,7 @@
   "markEmailUnsubscribed": "./email-unsubscribe",
   "measureNewWebLead": "./integrations/public-measure",
   "measurementWebhook": "./integrations/measurement",
+  "meshHailCron": "./integrations/mesh-hail",
   "messagingCenter": "./messaging-center",
   "messagingWatch": "./messaging-center",
   "meterLeadCreate": "./lead-cap",
