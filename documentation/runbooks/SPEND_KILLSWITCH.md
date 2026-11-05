@@ -27,6 +27,9 @@ live in the same file as the already-gated `claudeProxy`):
   `publicFunnelAI` (the `/estimate` instant-estimator + storm-check note)
 - **2026-10-04:** `transcribeVoiceMemo` (the card-detail Voice Memo button)
   moved from Deepgram to Groq Whisper and reads this flag like `dictate`.
+- **2026-11-04:** `submitInboxReceipt` (the Receipt inbox reader, dark behind
+  `RECEIPT_INBOX_ENABLED`) reads this flag like `extractReceiptData`, and also has
+  its own $10/month cap (`userCostMeter.inboxUsd`).
 
 ```
 feature_flags/global   →   { aiDisabled: true }

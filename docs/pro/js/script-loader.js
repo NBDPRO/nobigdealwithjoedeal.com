@@ -714,9 +714,34 @@
     return p;
   }
 
+  // Start every file's DOWNLOAD at once with <link rel="preload"> (CRM speed-up plan Phase 1.1, 2026-11-04). The
+  // chain in loadBundle still inserts and RUNS the files one by one in bundle order, exactly as before (a CSS entry
+  // still finishes before the JS after it runs); it just finds each file already downloaded instead of waiting a
+  // round trip per file. Measured at 150 ms RTT: expenses (35 files) 9.1 s, estimates (31) 15.0 s, one after another.
+  // Skipped: anything loaded, pending, already warmed, or already on the page as a tag (load() dedupes those too).
+  const warmed = new Set();
+  function warm(src) {
+    const isCss = /\.css(\?|#|$)/i.test(String(src));
+    const key = cacheKey(src);
+    if (loaded.has(key) || pending.has(key) || warmed.has(key)) return;
+    try {
+      const tags = document.querySelectorAll(isCss ? 'link[rel="stylesheet"][href]' : 'script[src]');
+      for (let i = 0; i < tags.length; i++) {
+        if (cacheKey(tags[i].getAttribute(isCss ? 'href' : 'src')) === key) return;
+      }
+      const l = document.createElement('link');
+      l.rel = 'preload';
+      l.as = isCss ? 'style' : 'script';
+      l.href = src;
+      document.head.appendChild(l);
+      warmed.add(key);
+    } catch (e) {}
+  }
+
   function loadBundle(name) {
     const bundle = BUNDLES[name];
     if (!bundle) return Promise.resolve();
+    bundle.forEach(warm);
     // Sequential load to preserve dependency order (engine before UI).
     const p = bundle.reduce((prev, src) => prev.then(() => load(src)), Promise.resolve());
     // Theme cluster needs a one-shot init after arrival, whichever path

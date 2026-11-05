@@ -43,7 +43,32 @@
     try {
       window.Sentry.init({
         dsn: DSN,
-        tracesSampleRate: 0.05,
+        // Page-load speed (2026-11-04): the tracing bundle was loaded but no tracing integration was on, so no
+        // page-load timing (LCP, FCP, CLS, TTFB) ever reached Sentry. Every page load is sampled (a small team's
+        // loads are well inside the free quota); other spans keep the old 5 %. No trace headers are added to ANY
+        // request (tracePropagationTargets: []), so Firebase / Stripe / function calls see exactly what they did.
+        integrations: (function () {
+          try {
+            if (typeof window.Sentry.browserTracingIntegration === 'function') return [window.Sentry.browserTracingIntegration()];
+            if (typeof window.Sentry.BrowserTracing === 'function') return [new window.Sentry.BrowserTracing()];
+          } catch (e) {}
+          return [];
+        })(),
+        tracePropagationTargets: [],
+        tracesSampler: function (ctx) {
+          var op = (ctx && (ctx.transactionContext && ctx.transactionContext.op || ctx.op)) || '';
+          return op === 'pageload' ? 1.0 : 0.05;
+        },
+        // Page addresses lose their query string (?id=… lead / customer ids) before a transaction leaves the browser.
+        beforeSendTransaction: function (tx) {
+          try {
+            var strip = function (u) { return typeof u === 'string' ? u.split('?')[0].split('#')[0] : u; };
+            if (tx.request && tx.request.url) tx.request.url = strip(tx.request.url);
+            if (tx.transaction) tx.transaction = strip(tx.transaction);
+            if (tx.spans) tx.spans.forEach(function (s) { if (s.description) s.description = strip(s.description); if (s.data && s.data.url) s.data.url = strip(s.data.url); });
+          } catch (e) {}
+          return tx;
+        },
         environment: location.hostname.includes('localhost') ? 'dev' : 'production',
         release: (window.__NBD_RELEASE || 'web@unknown'),
         ignoreErrors: [

@@ -56,5 +56,5 @@ storms and over-state it elsewhere.
 
 1. **Jo flips `meshHailEnabled`**, then checks for a `hail_mesh/<today>` doc after 13:20 UTC.
 2. **Backfill** past storm days by calling `runMeshDay(ymd)` for each date. Only the last 3 days show today.
-3. **D2D storm map + Storm Center.** They still use points and hulls. Add the same `NBDHailMeshSwaths` layer there.
+3. **D2D door-knocking map: DONE** (stacked PR after this one). The Storms layer draws the last 7 days of swaths *under* the report dots and adds a legend line ("Radar hail swaths, last 7 days: N (M at 1.75"+)" · "not a measured size") only when there are some. It never says "no radar hail". Covered by `tests/d2d-mesh-swaths-2026-11-04.test.js` (20 checks, four mutations red). **Storm Center** still uses points only.
 4. **Hail-hit stamping** (`hailMatchCron`) could also test leads against MESH polygons, not only report radii.

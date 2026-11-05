@@ -39,7 +39,9 @@ const DOCS = path.join(ROOT, 'docs');
 
 const MEASUREMENT_ID = 'G-8PG7N9Q3DL';
 const INIT_SCRIPT = '/assets/js/inline/2a90205f1b.js';
-const LOADER_LINE = `<script async src="https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}"></script>`;
+// 2026-11-04 (speed audit): the page no longer fetches gtag.js itself; ga-loader.js fetches it on first interaction
+// or 3.5 s after load. The gtag URL rides in data-gtag so HAS_LOADER still finds the property on the page.
+const LOADER_LINE = `<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}"></script>`;
 const INIT_LINE = `<script defer src="${INIT_SCRIPT}"></script>`;
 
 // Directories whose every .html page is a public landing page, plus the
