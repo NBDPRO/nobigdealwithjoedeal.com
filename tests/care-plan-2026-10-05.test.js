@@ -257,16 +257,19 @@ const T0 = Date.UTC(2026, 9, 6, 15, 0, 0);
   console.log('\n8. the CRM invite link (Jo sends it himself)');
   let inviteDb, inviteUrl;
   {
+    // handleCheckout checks invite expiry against the real clock, so the invite is minted at
+    // the real time (a fixed T0 expired itself on 2026-11-05).
+    const NOW = Date.now();
     const db = makeDb(OWNER_LEADS); const stripe = makeStripe(); X.reset();
-    ok('refused while OFF', await rejects(() => X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'off', T0), /failed-precondition/));
-    ok('refused for another tenant\'s lead', await rejects(() => X.handleAdmin(db, null, { action: 'invite', leadId: 'L_OTHER' }, 'test', T0), /not-found/));
-    const inv = await X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'test', T0);
+    ok('refused while OFF', await rejects(() => X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'off', NOW), /failed-precondition/));
+    ok('refused for another tenant\'s lead', await rejects(() => X.handleAdmin(db, null, { action: 'invite', leadId: 'L_OTHER' }, 'test', NOW), /not-found/));
+    const inv = await X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'test', NOW);
     const token = new URL(inv.url).searchParams.get('invite');
     const plan = db._get('careplans/' + inv.carePlanId);
     ok('returns a page link with a token; only its SHA-256 is stored', /\/services\/roof-care-plan\?invite=/.test(inv.url) && token.length >= 30 && plan.inviteTokenHash === X.sha256(token) && !JSON.stringify(plan).includes(token));
     ok('nothing is queued to the homeowner', db._list('email_queue/').length === 0 && db._list('sms').length === 0);
-    ok('expires in 30 days', plan.inviteExpiresAtMs === T0 + 30 * DAY);
-    const again = await X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'test', T0);
+    ok('expires in 30 days', plan.inviteExpiresAtMs === NOW + 30 * DAY);
+    const again = await X.handleAdmin(db, null, { action: 'invite', leadId: 'L_EMAIL' }, 'test', NOW);
     ok('a second invite rotates the token on the SAME pending membership', again.carePlanId === inv.carePlanId && db._get('careplans/' + inv.carePlanId).inviteTokenHash !== plan.inviteTokenHash);
     const tok2 = new URL(again.url).searchParams.get('invite');
     const oldTry = await X.handleCheckout(db, stripe, { interval: 'month', termsAccepted: true, invite: token }, 'test');
