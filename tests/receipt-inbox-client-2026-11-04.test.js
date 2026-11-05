@@ -330,7 +330,7 @@ ok('the card started with the suggested card (3537 = Business debit card), so Ap
   await click('not-business-no');
   ok('Cancel keeps everything', !/deletes the picture/.test(html()) && deleted.length === 0);
   await click('not-business'); await click('not-business-yes');
-  ok('Yes: the picture is deleted and the draft is marked not_business with fileDeleted', deleted.includes('receipts/u1/inbox/s2.jpg') && writes.some((x) => x.id === 's2' && x.patch.status === 'not_business' && x.patch.fileDeleted === true) && expenseWrites().length === 0);
+  ok('Yes: the picture is deleted and the draft is marked not_business; fileDeleted is NOT written (the server records it, 2026-11-05)', deleted.includes('receipts/u1/inbox/s2.jpg') && writes.some((x) => x.id === 's2' && x.patch.status === 'not_business') && !writes.some((x) => x.id === 's2' && 'fileDeleted' in x.patch), JSON.stringify(writes.filter((x) => x.id === 's2')));
   await click('undo', { riId: 's3' });
   ok('Put back returns a skipped draft to the waiting list (needs its read)', writes.some((x) => x.id === 's3' && (x.patch.status === 'ready' || x.patch.status === 'needs_look')));
 
@@ -368,9 +368,13 @@ ok('the card started with the suggested card (3537 = Business debit card), so Ap
   await setChange([mkFile('a.jpg', 'image/jpeg'), mkFile('b.jpg', 'image/jpeg')]);
   ok('CAP: at the limit the picture is deleted, the loop stops, and the screen says reading is stopped', calls.length === 1 && deleted.length === 1 && /Reading is stopped until next month/.test(html()));
   uploads.length = 0; calls = []; deleted.length = 0;
-  callReply = { data: { status: 'not_business', spentUsd: 0.6, capUsd: 10 } };
+  callReply = { data: { inboxId: 'co__rcpt_p', status: 'needs_look', looksPersonal: true, spentUsd: 0.6, capUsd: 10 } };
   await setChange([mkFile('g.jpg', 'image/jpeg')]);
-  ok('a personal document: the user is told it was dropped (the server deletes the file)', toasts.some((t) => /not a business receipt/.test(t.m)) && deleted.length === 0);
+  ok('a "personal" verdict: the user is told it may not be a business receipt and is waiting; nothing is deleted', toasts.some((t) => /may not be a business receipt/.test(t.m) && /waiting/.test(t.m)) && deleted.length === 0, JSON.stringify(toasts.slice(-2)));
+  uploads.length = 0; calls = []; deleted.length = 0;
+  callReply = { data: { skipped: true, reason: 'teammate-has-it', spentUsd: 0.6, capUsd: 10 } };
+  await setChange([mkFile('t.jpg', 'image/jpeg')]);
+  ok('a receipt a teammate already sent: told plainly, and this upload is deleted (nothing kept twice)', toasts.some((t) => /Someone on your team already sent this receipt/.test(t.m)) && deleted.length === 1 && deleted[0] === uploads[0]);
   ok('uploading wrote nothing to expenses', expenseWrites().length === 0);
 
   // ═══ 13. wiring and hygiene ═══

@@ -17,7 +17,7 @@ Status: built, DARK, draft PRs, nothing merged, nothing deployed. Design and Jo'
 3. Unset `RECEIPT_INBOX_ENABLED` is a DRY RUN: the call validates and reports spend and cap, reads no file, calls no AI, writes nothing.
 4. Same file twice: the draft id is `{companyId}__rcpt_<sha256 of the bytes>`, so a second upload of the same file returns the existing draft before any AI money is spent. It is company scoped (the older `visionCache` is keyed by bytes alone).
 5. The reader (Claude Haiku 4.5) gets no tools and a fixed prompt that says the file is data. Its JSON is re-validated field by field; a job id, "approve" or any extra key in the reply is dropped. The server never picks a job.
-6. A document the reader calls personal is dropped: the file is deleted from Storage and only the hash, the status `not_business` and a counter (`skippedPersonal`) are kept. Restaurant meals and fuel are NOT treated as personal by the reader; Jo decides those on the card.
+6. A document the reader calls personal is NOT dropped by the server (Jo, 2026-11-05). It is filed as `needs_look` with a red `looks_personal` warning, and a `flaggedPersonal` counter goes up. Only the person's "Not a business receipt" tap drops it; `onInboxReceiptDropped` then deletes the picture and records `fileDeleted`. Restaurant meals and fuel are NOT treated as personal by the reader; Jo decides those on the card.
 7. Otherwise a draft is filed with status `ready` or `needs_look`. Nothing counts toward any total until the person approves that one row on the screen (PR B), which creates one expense through the normal `createExpense` path.
 
 ## Money rules in the mapper
@@ -58,6 +58,14 @@ Left for later (phase 2+): Drive watch, backlog seed, email-in, remembered job n
 
 A read-only security review of PR A found the cap was per uid (a company of N seats got N x $10, and a stranger could open accounts for more), nothing on the server limited the reader to approved companies, and the cap was check-then-spend (20 parallel taps at $9.99 all passed). Fixed on this branch: the company meter, the `enabled` allowlist, the reserve-then-settle transaction, settling before the AI spend log (a failing log can no longer leave a call unmetered), and concurrency 4 instead of 20 (a 1GiB instance holding 20 HEIC decodes could run out of memory). Each new check in `tests/receipt-inbox-server-2026-11-04.test.js` section K was shown to go red with its guard removed.
 
-Not changed, for Jo to decide: a document the reader calls personal is still deleted by the server (text printed on a document can steer that verdict; the alternative is to mark it and let the person confirm), and the UI must escape the read vendor / PO / line text (PR B).
+Decided 2026-11-05 (Jo): a "personal" verdict waits for a person, never an automatic delete (see the follow-ups update below). The UI escapes the read vendor / PO / line text (PR B, checked).
 
 Turning it on for NBD: deploy, set `RECEIPT_INBOX_ENABLED=true`, then add `enabled: true` to `integrations/receiptInbox/companies/{NBD companyId}` and flip the `receiptInbox` client flag.
+
+## Update 2026-11-05 (follow-ups before turn-on, Jo's answers)
+
+- **A "personal" verdict waits for a person.** The server files it as `needs_look` with a red `looks_personal` warning and deletes nothing. The reply carries `looksPersonal: true`, and the screen says it is waiting.
+- **The server records deletes.** `onInboxReceiptDropped` (Firestore trigger on `receipt_inbox/{id}`) acts only on the step into `not_business`. It deletes the picture inside the uploader's own inbox folder, checks it is gone, and writes `fileDeleted` true or false. The rules no longer let a browser write `fileDeleted`.
+- **A teammate's duplicate is told plainly.** The reply is `teammate-has-it`, with nothing of the first uploader's draft (no inboxId, no status) and no second draft. The screen says "Someone on your team already sent this receipt" and deletes its own upload.
+- **The decision map is bounded.** Only the keys the screen writes are allowed, strings are capped (a note is at most 200 characters), cents are whole numbers, and `edited` is a boolean.
+- **Turn-on order:** Jo only for the first couple of weeks, then the team, keeping the $10 company cap. "Paid from" maps 3537 only. Steps: set `RECEIPT_INBOX_ENABLED=true`, add `enabled: true` to NBD's company config, flip `receiptInbox`.

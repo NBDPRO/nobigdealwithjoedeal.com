@@ -134,6 +134,7 @@
     'dry-run': 'The receipt inbox is switched off on the server, so nothing was read.',
     paused: 'The receipt inbox is paused for your company, so nothing was read.',
     'not-enabled': 'The receipt inbox is not switched on for your company yet, so nothing was read.',
+    'teammate-has-it': 'Someone on your team already sent this receipt, so it was not added again.',
     'inbox-cap': 'The inbox AI limit for this month is reached, so nothing was read.',
     'unsupported-format': 'That picture format cannot be read. Try a JPEG, PNG or PDF.',
     'ocr-unavailable': 'The reader is busy right now. Try again in a minute.',
@@ -178,7 +179,8 @@
           continue;
         }
         if (d.existing) toast('That receipt is already in the inbox.', 'info');
-        else if (d.status === 'not_business') { read++; toast('That one is not a business receipt. It was dropped and the picture deleted.', 'info'); }
+        // A "personal" verdict is never dropped by the server (2026-11-05): it waits on a red warning for a person.
+        else if (d.looksPersonal) { read++; waiting++; toast('That one may not be a business receipt. It is waiting for you to check.', 'info'); }
         else if (d.status === 'failed') toast('That picture could not be read. Try a clearer photo.', 'warn');
         else { read++; waiting++; }
       } catch (e) {
@@ -528,13 +530,15 @@
     const d = S && S.drafts.find((x) => x.id === S.curId);
     if (!d || S.busy) return;
     S.busy = true; render();
+    // The picture is deleted here for a quick result, and the SERVER confirms the delete and records it
+    // (onInboxReceiptDropped; a browser can no longer write fileDeleted, 2026-11-05).
     const gone = await deleteFile(d.storagePath);
-    const ok = await writeDecision(d.id, Object.assign(stamp(), { status: 'not_business', fileDeleted: gone, decision: { note: 'not a business receipt' } }));
+    const ok = await writeDecision(d.id, Object.assign(stamp(), { status: 'not_business', decision: { note: 'not a business receipt' } }));
     S.busy = false; S.confirmNB = false;
     if (!ok) { render(); return; }
     d.status = 'not_business';
     S.curId = '';
-    toast(gone ? 'Dropped. The picture was deleted.' : 'Dropped, but the picture could not be deleted. Delete it from the receipts folder.', gone ? 'ok' : 'warn');
+    toast(gone ? 'Dropped. The picture was deleted.' : 'Dropped. The picture is being deleted.', 'ok');
     await refreshAll();
   }
   async function undo(id) {
