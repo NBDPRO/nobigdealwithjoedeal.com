@@ -3737,6 +3737,29 @@
     }
   }
 
+  // A new lead that survives a resent write (2026-11-04). Firestore runs over
+  // long polling here (nbd-auth.js), and on a slow link the SDK can resend a
+  // create the server already saved; addDoc's "must not exist yet" check then
+  // fails with ALREADY_EXISTS. The rep was told the save failed for a lead
+  // that saved, and saving again made a duplicate (the same race reds the
+  // authed E2E shards). The id is picked before the write, so after ANY error
+  // the doc is read back: there, and this user's, means it saved.
+  async function _createLeadDoc(payload) {
+    const ref = doc(collection(db, 'leads'));
+    try {
+      await setDoc(ref, payload);
+    } catch (e) {
+      let saved = false;
+      try {
+        const snap = await getDoc(ref);
+        saved = !!(snap && snap.exists() && (snap.data() || {}).userId === payload.userId);
+      } catch (_) { /* the read-back failing proves nothing: report the write error */ }
+      if (!saved) throw e;
+      console.warn('[saveLead] the create reported ' + ((e && e.code) || 'an error') + ' but the lead is saved; continuing');
+    }
+    return ref;
+  }
+
   window._saveLead = async (data) => {
     try {
       const editId = data.id;
@@ -3867,7 +3890,7 @@
                 });
                 leadRef = doc(db, 'leads', id);
               } else {
-                leadRef = await addDoc(collection(db,'leads'), {
+                leadRef = await _createLeadDoc({
                   ...data,
                   createdAt: serverTimestamp(),
                   stageStartedAt: serverTimestamp(),
@@ -3967,7 +3990,7 @@
           data.lng = window._pendingPinLatLng.lng;
         }
         // companyId tagged here too — see comment on the geocoded path above.
-        const fallbackRef = await addDoc(collection(db,'leads'), {
+        const fallbackRef = await _createLeadDoc({
           ...data,
           createdAt: serverTimestamp(),
           stageStartedAt: serverTimestamp(),
