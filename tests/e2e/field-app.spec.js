@@ -46,8 +46,12 @@ async function emptyToday(uid) {
   const leads = await db.collection('leads').where('userId', '==', uid).get();
   for (const d of leads.docs) {
     const x = d.data();
-    // crew-calendar.spec.js leaves a two-day job (scheduledDate + scheduledEndDate) on this rep, so clear the end date too
-    if (x.e2eTestData === true && (x.scheduledDate || x.scheduledEndDate)) {
+    // crew-calendar.spec.js leaves a two-day job (scheduledDate + scheduledEndDate) on this rep, so clear the end date too.
+    // 2026-11-05: that spec saves through window._saveLead, which never stamps e2eTestData, so the tag alone never
+    // matched it: on the days its Wed-Thu 07:00 job covers, the Now card showed "ZZCW… Placed…" instead of ZZFA and
+    // this spec failed on every PR. The e2e specs name their customers "ZZ…" or "[E2E] …", and this is the
+    // emulator's test rep.
+    if ((x.e2eTestData === true || /^(ZZ|\[E2E\])/.test(String(x.firstName || ''))) && (x.scheduledDate || x.scheduledEndDate)) {
       await d.ref.update({ scheduledDate: FieldValue.delete(), scheduledEndDate: FieldValue.delete() });
     }
   }
