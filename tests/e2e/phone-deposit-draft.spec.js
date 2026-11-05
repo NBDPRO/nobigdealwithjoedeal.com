@@ -79,15 +79,12 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
     const ids = await safeEvaluate(page, async ({ lead, est }) => {
       const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
-      // Ids picked here + setDoc, ALREADY_EXISTS swallowed: under CI load the
-      // Firestore emulator lets the SDK retry a commit whose first attempt
-      // already landed and rejects the retry (fixtures/auth.js loginAs;
-      // merge-queue flake 2026-10-06, 3 of 3 attempts on one run).
-      const put = async (coll, data) => {
-        const ref = fs.doc(fs.collection(db, coll));
-        try { await fs.setDoc(ref, data); } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-        return ref.id;
-      };
+      // Under CI load the SDK can resend a create the emulator already saved.
+      // A resent setDoc arrives as an UPDATE, which the rules can refuse
+      // (PERMISSION_DENIED, 2026-11-05), so swallowing only ALREADY_EXISTS was
+      // not enough: window.__e2eAddDoc (fixtures/auth.js loginAs) reads the doc
+      // back after any error instead.
+      const put = async (coll, data) => (await window.__e2eAddDoc(fs, db, coll, data)).id;
       const leadId = await put('leads', Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }));
       const estimateId = await put('estimates', Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));
       await fs.updateDoc(fs.doc(db, 'leads', leadId), { primaryEstimateId: estimateId });
@@ -108,12 +105,16 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
       const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const due = new Date(inv.dueDateMs); delete inv.dueDateMs;
-      const swallowRetry = (e) => { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }; // see the lead seed above
-      await fs.setDoc(fs.doc(db, 'invoices', id), Object.assign({}, inv, { dueDate: due, createdAt: fs.serverTimestamp(), updatedAt: fs.serverTimestamp() })).catch(swallowRetry);
-      await fs.setDoc(fs.doc(fs.collection(db, 'invoices')), {
+      // A resent write (see the lead seed above) counts as done when the doc is there.
+      const putAt = async (ref, data) => {
+        try { await fs.setDoc(ref, data); }
+        catch (e) { const s = await fs.getDoc(ref).catch(() => null); if (!(s && s.exists())) throw e; }
+      };
+      await putAt(fs.doc(db, 'invoices', id), Object.assign({}, inv, { dueDate: due, createdAt: fs.serverTimestamp(), updatedAt: fs.serverTimestamp() }));
+      await putAt(fs.doc(fs.collection(db, 'invoices')), {
         leadId, createdBy: uid, companyId, status: 'sent', total: 2000, balanceDue: 2000, amountPaid: 0,
         depositAmount: 0, items: [], createdAt: fs.serverTimestamp(), dueDate: new Date(Date.now() + 864e5), e2eTestData: true,
-      }).catch(swallowRetry);
+      });
     }, { id: decision.invoiceId, inv, leadId: ids.leadId, uid, companyId });
 
     await page.goto('/pro/customer.html?id=' + ids.leadId);
