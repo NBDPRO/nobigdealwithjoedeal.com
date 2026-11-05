@@ -1,0 +1,59 @@
+/* schedule-calendar.css — the Schedule view's Calendar panel
+   (js/schedule-calendar-panel.js, 2026-11-04). Lazy-loaded with the
+   EventCalendar vendor CSS. The library's own tokens are pointed at the CRM
+   theme variables, so every theme (light and dark) carries over. They must be
+   set ON .ec: the vendor sheet declares them there, and a variable set on the
+   element itself beats one inherited from .sc2-host (found in the browser
+   check — the grid stayed white on the dark theme). */
+
+.sc2-views { display: flex; flex-wrap: wrap; gap: 6px; }
+.sc2-view { min-height: 40px; padding: 0 12px; font-size: 12px; }
+.sc2-view[aria-pressed="true"] { border-color: var(--orange); color: var(--t); background: color-mix(in srgb, var(--orange) 18%, transparent); }
+
+.sc2-host,
+.sc2-host .ec {
+  --ec-bg-color: var(--s);
+  --ec-text-color: var(--t);
+  --ec-border-color: var(--br);
+  --ec-today-bg-color: color-mix(in srgb, var(--orange) 10%, transparent);
+  --ec-now-indicator-color: var(--orange);
+  --ec-button-bg-color: transparent;
+  --ec-button-border-color: var(--br);
+  --ec-button-text-color: var(--t);
+  --ec-button-active-bg-color: var(--orange);
+  --ec-button-active-border-color: var(--orange);
+  --ec-button-active-text-color: #fff;
+  --ec-popup-bg-color: var(--s2, var(--s));
+  color: var(--t);
+}
+/* EventCalendar renders its day-name row as a <header>, and the CRM's global
+   app-bar rule (dashboard-app.css `header{...}`: dark background, blur,
+   52px height, padding, border) leaks into it. The library already wins on
+   what it sets itself (display, grid, sticky, z-index); reset the rest. */
+.sc2-host header.ec-header {
+  background: var(--ec-bg-color);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom: 0;
+  padding: 0;
+  height: auto;
+  align-items: normal;
+  justify-content: normal;
+  flex-shrink: initial;
+}
+.sc2-host .ec-event.sc2-k-job { --ec-event-bg-color: var(--orange); }
+.sc2-host .ec-event.sc2-k-week { --ec-event-bg-color: var(--gold); --ec-event-text-color: #111; }
+.sc2-host .ec-event.sc2-k-adjuster { --ec-event-bg-color: var(--blue); }
+.sc2-host .ec-event.sc2-k-appointment { --ec-event-bg-color: var(--green); }
+.sc2-host .ec-event { cursor: pointer; }
+.sc2-ev-time { font-variant-numeric: tabular-nums; opacity: .9; }
+.sc2-ev-title { font-weight: 600; }
+.sc2-ev-note { display: block; font-size: 11px; opacity: .85; }
+
+.sc2-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 8px 0; padding: 0; font-size: 12px; color: var(--m); }
+.sc2-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.sc2-dot.is-job { background: var(--orange); }
+.sc2-dot.is-week { background: var(--gold); }
+.sc2-dot.is-adjuster { background: var(--blue); }
+.sc2-dot.is-appointment { background: var(--green); }
+.sc2-status { margin: 10px 0 0; font-size: 12px; color: var(--m); min-height: 1.4em; }
