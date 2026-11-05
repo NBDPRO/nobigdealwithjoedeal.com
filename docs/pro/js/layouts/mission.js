@@ -58,6 +58,7 @@
     return {
       tab: 'watch', sel: null, menu: false,
       warnings: [], warnState: 'loading', warnAt: 0,
+      mesh: [],
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
       knocks: [], knockState: 'idle',
@@ -105,6 +106,26 @@
   // calling it current: 'stale' says when it was last checked and that it is
   // not an all-clear (audit D13: one good poll used to mean "No active
   // warning" for as long as the feed stayed down).
+  // MRMS MESH radar hail swaths (2026-11-04, js/hail-mesh-swaths.js): the
+  // last 3 storm days from hail_mesh/{YYYY-MM-DD}, written by the dark
+  // meshHailCron. An extra layer only — any failure leaves S.mesh empty and
+  // every other layer drawing (logged, so a dead feed is visible in the console).
+  function loadMesh() {
+    var HM = W.NBDHailMeshSwaths;
+    if (!HM) {
+      if (W.ScriptLoader && typeof W.ScriptLoader.load === 'function' && !loadMesh._tried) {
+        loadMesh._tried = true;
+        return W.ScriptLoader.load('/pro/js/hail-mesh-swaths.js?v=1').then(loadMesh, function () {});
+      }
+      return Promise.resolve();
+    }
+    // Docs are keyed by the UTC day their 24-hour window ends.
+    return HM.load({ today: new Date().toISOString().slice(0, 10), days: 3 }).then(function (docs) {
+      if (!mounted) return;
+      S.mesh = HM.allSwaths(docs);
+      render();
+    }, function (e) { if (W.console) W.console.warn('[mission] radar hail swaths failed', e); });
+  }
   function warnFailed() { S.warnState = (S.warnState === 'ok' || S.warnState === 'stale') ? 'stale' : 'fail'; }
 
   function loadReports() {
@@ -253,7 +274,7 @@
     if (S.tab === 'canvass') {
       turfs().list.forEach(function (t) { t.rings.forEach(function (r, j) { sw.push({ id: 'T:' + t.index + ':' + j, rings: [r], level: 'turf', title: t.name }); }); });
     }
-    map.setSwaths(sw);
+    map.setSwaths(sw.concat(S.mesh || []));
     if (fit) map.fit(60);
     if (S.sel) map.select('L:' + S.sel);
   }
@@ -508,7 +529,7 @@
       map.setPins(pins);
       map.setSwaths(L.swaths ? S.warnings.map(function (w, i) {
         return { id: 'W:' + i, rings: w.rings, level: w.hailIn > 0 ? MV.levelForHail(w.hailIn) : 'warn', title: w.event + (w.hailIn ? ' · hail up to ' + fmtIn(w.hailIn) : '') };
-      }) : []);
+      }).concat(S.mesh || []) : []);
       // The road itself once routeDrive answered; straight hops until then.
       map.setRoutes(m.stops.length > 1 ? [{ id: 'route', points: m.path && m.path.length > 1 ? m.path : m.stops.map(function (s) { return [s.lat, s.lng]; }), color: 'orange' }] : []);
       if (fit) map.fit(70);
@@ -768,7 +789,7 @@
     if (a === 'addstop') { var aid = t.getAttribute('data-id'); if (aid && S.route.extra.indexOf(aid) === -1) S.route.extra.push(aid); S.route.peek = null; render(); return; }
     if (a === 'omw') { onMyWay(t.getAttribute('data-key')); return; }
     if (a === 'pick') { selectLead(t.getAttribute('data-id')); return; }
-    if (a === 'refresh') { loadWarnings(); loadReports(); toast('Refreshing the storm feed', 'info'); return; }
+    if (a === 'refresh') { loadWarnings(); loadReports(); loadMesh(); toast('Refreshing the storm feed', 'info'); return; }
     if (a === 'back') { switchBack(); return; }
     if (a === 'play') {
       if (S.playing) { stopPlay(); render(); return; }
@@ -882,7 +903,7 @@
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
     if (savedTab && savedTab !== 'watch') goTab(savedTab); else render();
-    loadWarnings(); loadReports();
+    loadWarnings(); loadReports(); loadMesh();
     timers.push(setInterval(function () { if (!doc.hidden) loadWarnings(); }, POLL_MS));
     timers.push(setInterval(function () { if (!doc.hidden) loadReports(); }, REPORTS_MS));
     timers.push(setInterval(tick, 700));

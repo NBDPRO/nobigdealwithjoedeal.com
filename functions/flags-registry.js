@@ -132,6 +132,8 @@ const ROWS = {
     meaning: 'Roof Care Plan sales. off = nothing sells; test = only your invite links and ?preview=careplan; live = sells to everyone.' },
   NBD_MONEY_PAPER: { group: 'Money', kind: 'off-switch', file: 'money-paper.js', doc: ENV_DOC,
     meaning: 'Paper trail on invoice changes (money spine). "off" = the kill switch is on and it stops writing.' },
+  RECEIPT_INBOX_ENABLED: { group: 'Money', dark: true, doc: 'documentation/projects/RECEIPT-INBOX-PHASE1-2026-11-04.md',
+    meaning: 'Receipt inbox reader: reads an uploaded receipt into a draft you approve. Off = dry run, reads and spends nothing.' },
   NBD_INVOICE_OVERDUE: { group: 'Money', kind: 'off-switch', file: 'invoice-overdue.js', doc: ENV_DOC,
     meaning: 'Daily overdue-invoice sweep. "off" = the sweep is skipped.' },
   NBD_CRM_STRIPE_INVOICES: { group: 'Money', kind: 'off-switch', file: 'stripe.js', doc: ENV_DOC,
