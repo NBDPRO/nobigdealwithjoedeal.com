@@ -268,6 +268,7 @@
       // customer-side activity log captures the visit. Fire-and-forget;
       // never block the page on telemetry.
       _emitAuditEvent('portal_open');
+      _emitMetric('m_open');
     } catch (e) {
       // Genuinely transient: DNS, offline, CORS, a 5xx that never parsed.
       // This is the one place "refresh and try again" is honest advice.
@@ -480,7 +481,11 @@
   // Posts a minimal { token, type, resourceId? } payload to the
   // recordCustomerEvent Cloud Function. Token-validated server-side.
   // Fire-and-forget — telemetry should never break the page.
-  function _emitAuditEvent(type, resourceId) {
+  // extra (optional): more allowlisted fields for the same POST — the
+  // anonymous metrics (_emitMetric) send their kind here, so this stays the
+  // ONE recordCustomerEvent call site behind the IS_PREVIEW guard
+  // (tests/portal-preview-telemetry.test.js).
+  function _emitAuditEvent(type, resourceId, extra) {
     try {
       // A rep looking at their own preview is not a customer visit.
       if (IS_PREVIEW) return;
@@ -490,11 +495,27 @@
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, type, resourceId: resourceId || null }),
+        body: JSON.stringify(Object.assign({ token, type, resourceId: resourceId || null }, extra || {})),
         keepalive: true,
       }).catch(() => {});
     } catch (_) { /* never fail the page */ }
   }
+
+  // ─── Anonymous portal counts (2026-11-04, CUSTOMER-PORTAL-PLAN Phase 1) ───
+  // Jo's call: first-party counts only. Same token-validated endpoint, but a
+  // metric type writes ONLY a per-company per-day counter (no IP, user agent,
+  // token or lead stored — functions/customer-audit.js metricTarget). A rep
+  // preview never counts. kind must be one of the server's METRIC_ACTIONS.
+  function _emitMetric(type, kind) {
+    _emitAuditEvent(type, null, { kind: kind || null });
+  }
+  // One delegated listener: any next-action button carries data-metric.
+  try {
+    document.addEventListener('click', function (ev) {
+      const a = ev.target && ev.target.closest && ev.target.closest('.progress-action[data-metric]');
+      if (a) _emitMetric('m_action', a.getAttribute('data-metric'));
+    });
+  } catch (_) { /* never fail the page */ }
 
   // Link to the itemized scope for one estimate, carrying the portal token
   // the page already holds. Relative on purpose: the portal is served from
@@ -844,6 +865,10 @@
       const doneCount = typeof p.doneCount === 'number' ? p.doneCount : idx;
       const blurb = _progressBlurb(p.currentBlurb, p.scheduledDate);
       const countText = copy.doneCount ? _fillCopy(copy.doneCount, { done: doneCount, total: total }) : '';
+      // "Step 4 of 8" — the current step's place in the SAME visible list the
+      // count and bar use (audit M2: one list for every number).
+      const _curPos = steps.findIndex(function (s) { return s.state === 'current'; });
+      const stepOfText = copy.stepOf && _curPos >= 0 ? _fillCopy(copy.stepOf, { n: _curPos + 1, total: total }) : '';
 
       // One segment per step; the state rides on a data attribute for CSS.
       const bar = '<div class="progress-bar" aria-hidden="true">' +
@@ -857,14 +882,30 @@
       // payment step), the rating card, the warranty card.
       const ratingInfoP = view.rating || {};
       const actions = [];
+      // Project home (2026-11-04, CUSTOMER-PORTAL-PLAN Phase 1): the ONE
+      // next action for where the job is goes first, as the big button —
+      // sign an estimate that waits on them, book the inspection that has
+      // not happened, or open the estimate they have. Each points at a card
+      // or link the page already renders; data-metric feeds the anonymous
+      // counts (_emitMetric).
+      const _sigSt = (view.estimate && view.estimate.signatureStatus) || 'none';
+      const _signUrlP = (_sigSt === 'sent' || _sigSt === 'viewed') ? signLink(view.estimate && view.estimate.signUrl) : '';
+      const _inspDone = Array.isArray(p.milestones) && p.milestones[0] && p.milestones[0].state === 'done';
+      if (_signUrlP && copy.signLink) {
+        actions.push('<a class="btn progress-action" data-metric="sign" href="' + esc(_signUrlP) + '" target="_blank" rel="noopener">' + esc(copy.signLink) + '</a>');
+      } else if (p.currentKey === 'inspection' && !_inspDone && view.bookingUrl && copy.bookLink) {
+        actions.push('<a class="btn progress-action" data-metric="book" href="#book-card">' + esc(copy.bookLink) + '</a>');
+      } else if (p.currentKey === 'estimate' && view.estimate && copy.estimateLink) {
+        actions.push('<a class="btn progress-action" data-metric="estimate" href="#est-card">' + esc(copy.estimateLink) + '</a>');
+      }
       if (p.payLink && safeUrl(p.payLink) && copy.payLink) {
-        actions.push('<a class="btn progress-action" href="' + esc(safeUrl(p.payLink)) + '" target="_blank" rel="noopener">' + esc(copy.payLink) + '</a>');
+        actions.push('<a class="btn progress-action" data-metric="pay" href="' + esc(safeUrl(p.payLink)) + '" target="_blank" rel="noopener">' + esc(copy.payLink) + '</a>');
       }
       if (p.currentKey === 'review' && ratingInfoP.canRate && !ratingInfoP.submitted && copy.reviewLink) {
-        actions.push('<a class="btn progress-action" href="#cr-card">' + esc(copy.reviewLink) + '</a>');
+        actions.push('<a class="btn progress-action" data-metric="review" href="#cr-card">' + esc(copy.reviewLink) + '</a>');
       }
       if (p.warrantyOnFile && view.warranty && (p.currentKey === 'review' || p.currentKey === 'warranty') && copy.warrantyLink) {
-        actions.push('<a class="btn btn-ghost progress-action" href="#wc-card">' + esc(copy.warrantyLink) + '</a>');
+        actions.push('<a class="btn btn-ghost progress-action" data-metric="warranty" href="#wc-card">' + esc(copy.warrantyLink) + '</a>');
       }
 
       const list = '<ol class="progress-list">' +
@@ -874,10 +915,18 @@
           const dateLabel = s.state === 'done'
             ? _milestoneDateLabel(p.milestoneDates && p.milestoneDates[s.key])
             : null;
+          // Spoken state for screen readers (colour alone fails low vision and
+          // phone glare; USWDS step indicator), and for a later step, the one
+          // it waits on — neutral words only ("Starts after: Signed").
+          const srState = s.state === 'done' ? copy.srDone : (s.state === 'current' ? copy.srCurrent : copy.srUpcoming);
+          const waitOn = s.state === 'upcoming' && i > 0 && copy.startsAfter
+            ? '<span class="progress-wait">' + esc(_fillCopy(copy.startsAfter, { prev: steps[i - 1].label })) + '</span>'
+            : '';
           return '<li class="progress-item" data-state="' + esc(s.state) + '"' +
               (s.state === 'current' ? ' aria-current="step"' : '') + '>' +
             '<span class="progress-dot" aria-hidden="true">' + mark + '</span>' +
-            '<span class="progress-item-label">' + esc(s.label) + '</span>' +
+            '<span class="progress-item-label">' + esc(s.label) +
+              (srState ? '<span class="sr-only">, ' + esc(srState) + '</span>' : '') + waitOn + '</span>' +
             (dateLabel ? '<span class="progress-step-date">' + esc(dateLabel) + '</span>' : '') +
           '</li>';
         }).join('') +
@@ -922,10 +971,16 @@
             '<div class="card-title">' + esc(p.currentLabel) + '</div>' +
             (countText ? '<div class="progress-count">' + esc(countText) + '</div>' : '') +
           '</div>' +
+          // Spoken only: the visible "N of M done" already says it, and both
+          // on screen read as a contradiction (browser check, 2026-11-04).
+          (stepOfText ? '<span class="sr-only">' + esc(stepOfText) + '</span>' : '') +
           bar +
           (blurb ? '<p class="progress-blurb">' + esc(blurb) + '</p>' : '') +
           (p.paidLine && p.currentKey !== 'payment' ? '<p class="progress-paid">' + esc(p.paidLine) + '</p>' : '') +
-          (actions.length ? '<div class="progress-actions">' + actions.join('') + '</div>' : '') +
+          // The first action is THE next action: the big full-width button.
+          (actions.length ? '<div class="progress-actions">' + actions.map(function (a, ai) {
+            return ai === 0 ? a.replace('class="btn ', 'class="btn progress-action-primary ').replace('btn-ghost ', '') : a;
+          }).join('') + '</div>' : '') +
           schedHtml +
           otherHtml +
           nextHtml +
@@ -963,7 +1018,7 @@
         ? '<a id="signedContractLink" class="btn btn-ghost" style="margin-top:12px;" href="' + esc(signedHref) + '" target="_blank" rel="noopener">📄 Download Signed Contract</a>'
         : '';
       parts.push(
-        '<div class="card">' +
+        '<div class="card" id="est-card">' +
           '<div class="card-label">Your Estimate</div>' +
           '<div class="row">' +
             '<div>' +
@@ -1199,11 +1254,14 @@
         title = 'Questions about your estimate?';
         subtitle = 'Grab a slot and we will go through it line by line — materials, timeline, warranty, what insurance covers. Nothing to sign on the call.';
         borderCss = 'border-color:var(--orange);';
+      // signedNow — 2026-11-04: this read "Book your inspection — pick a time
+      // for our crew to inspect your roof" AFTER the homeowner had signed. A
+      // signed job is past its inspection; the slot is a call about the build.
       } else if (signedNow) {
-        label = 'Next Step';
-        title = 'Book your inspection';
-        subtitle = 'Pick a time for our crew to inspect your roof and confirm next steps.';
         borderCss = 'border-color:var(--green);';
+        label = 'Questions Before Your Build?';
+        title = 'Talk with ' + (repName || 'your rep');
+        subtitle = 'Colors, materials, timing — pick a time and ' + (repName || 'your rep') + ' will go through it with you.';
       } else {
         label = 'Book a Time';
         title = 'Book a Time';
@@ -1224,7 +1282,7 @@
         : '';
 
       parts.push(
-        '<div class="card" style="' + borderCss + '">' +
+        '<div class="card" id="book-card" style="' + borderCss + '">' +
           '<div class="card-label">' + esc(label) + '</div>' +
           '<div class="card-title">' + esc(title) + '</div>' +
           '<p style="color:var(--muted);margin:0 0 14px;">' + esc(subtitle) + '</p>' +

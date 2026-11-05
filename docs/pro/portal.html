@@ -447,6 +447,21 @@
   .progress-action{
     min-height:44px; display:inline-flex; align-items:center; justify-content:center;
   }
+  /* Project home (2026-11-04): the ONE next action for where the job is,
+     full width on a phone so it is the obvious thing to tap. */
+  .progress-action-primary{
+    flex: 1 1 100%; min-height:52px; font-size: var(--nbd-text-md); font-weight:800;
+  }
+  @media (min-width: 640px){ .progress-action-primary{ flex: 0 1 auto; } }
+  /* A later step says what it is waiting on (neutral words only). */
+  .progress-wait{
+    display:block; font-size: var(--nbd-text-xs); font-weight:500;
+    color: var(--nbd-ink-subtle); margin-top:2px;
+  }
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
   .progress-all{ margin-top: var(--nbd-space-3); }
   .progress-all > summary{
     min-height:44px; display:flex; align-items:center; cursor:pointer;
@@ -615,6 +630,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=18" defer></script>
+<script src="js/portal.js?v=19" defer></script>
 </body>
 </html>
