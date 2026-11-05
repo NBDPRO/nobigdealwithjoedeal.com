@@ -81,7 +81,7 @@ async function seed(page, { owed }) {
       stage: owed ? 'install_complete' : 'inspected', jobType: 'cash', jobValue: 14200,
       e2eTestData: true, userId: uid, companyId, meter: 'manual', createdAt: fs.serverTimestamp(),
     };
-    const id = (await fs.addDoc(fs.collection(db, 'leads'), lead)).id;
+    const id = (await window.__e2eAddDoc(fs, db, 'leads', lead)).id;
     if (owed) {
       await fs.addDoc(fs.collection(db, 'invoices'), {
         leadId: id, createdBy: uid, companyId, userId: uid, customerName: lead.firstName + ' ' + lead.lastName,
