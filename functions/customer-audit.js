@@ -50,6 +50,24 @@ const ALLOWED_TYPES = new Set([
   'photo_upload',  // homeowner-uploaded photo (paired with the existing uploadHomeownerPhoto event log)
 ]);
 
+// ── First-party portal metrics (2026-11-04, CUSTOMER-PORTAL-PLAN Phase 1) ──
+// Jo's call: anonymous counts only, no third-party analytics on the portal.
+// A metric is NOT an audit event: it writes no customerAuditEvents row and
+// stores no IP, user agent, token or lead id — only a per-company, per-day
+// counter in portal_metrics/{companyKey}_{YYYY-MM-DD} (admin SDK only; rules
+// deny every client). The token is still validated so the counts are real
+// homeowners, never a script.
+const METRIC_TYPES = new Set(['m_open', 'm_action']);
+const METRIC_ACTIONS = new Set(['sign', 'book', 'estimate', 'pay', 'review', 'warranty']);
+
+/** portal_metrics doc id + the counter field for one metric (pure). */
+function metricTarget(tok, type, kind, nowMs) {
+  const company = String((tok && (tok.companyId || tok.ownerUid)) || 'unknown').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) || 'unknown';
+  const day = new Date(nowMs).toISOString().slice(0, 10);
+  const field = type === 'm_open' ? 'open' : 'action_' + kind;
+  return { docId: company + '_' + day, company, day, field };
+}
+
 exports.recordCustomerEvent = onRequest({
   region: 'us-central1',
   cors: CORS_ORIGINS,
@@ -75,8 +93,16 @@ exports.recordCustomerEvent = onRequest({
     res.status(400).json({ error: 'Invalid token' });
     return;
   }
-  if (!ALLOWED_TYPES.has(type)) {
+  const isMetric = METRIC_TYPES.has(type);
+  if (!ALLOWED_TYPES.has(type) && !isMetric) {
     res.status(400).json({ error: 'Invalid event type' });
+    return;
+  }
+  // A metric names one allowlisted action; anything else is refused, so the
+  // counter document can never grow fields a client invented.
+  const metricKind = isMetric ? (typeof body.kind === 'string' ? body.kind : '') : '';
+  if (isMetric && type === 'm_action' && !METRIC_ACTIONS.has(metricKind)) {
+    res.status(400).json({ error: 'Invalid metric' });
     return;
   }
 
@@ -91,6 +117,22 @@ exports.recordCustomerEvent = onRequest({
   // Honor the replay cap like the other token endpoints (QA finding).
   if (typeof tok.maxUses === 'number' && (tok.uses || 0) >= tok.maxUses) {
     res.status(410).json({ error: 'Link exhausted' });
+    return;
+  }
+
+  if (isMetric) {
+    const t = metricTarget(tok, type, metricKind, Date.now());
+    try {
+      await db.collection('portal_metrics').doc(t.docId).set({
+        companyKey: t.company,
+        day: t.day,
+        counts: { [t.field]: FieldValue.increment(1) },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      logger.warn('portalMetrics.write_failed', { err: e.message, type });
+    }
+    res.status(204).end();
     return;
   }
 
@@ -242,4 +284,4 @@ exports.onEstimateViewedStrike = onDocumentCreated('customerAuditEvents/{eventId
 });
 
 // Test-only export for unit checks.
-exports._test = { ALLOWED_TYPES };
+exports._test = { ALLOWED_TYPES, METRIC_TYPES, METRIC_ACTIONS, metricTarget };

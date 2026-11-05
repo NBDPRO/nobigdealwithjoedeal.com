@@ -62,6 +62,18 @@ const HOMEOWNER_PROGRESS_COPY = Object.freeze({
     reviewLink:   'Leave a rating',
     allDone:      'All done — thank you for choosing us.',
     repFallback:  'Your rep',
+    // Project home (2026-11-04, documentation/projects/CUSTOMER-PORTAL-PLAN-2026-11-04.md
+    // Phase 1). A later step says what it waits on, in neutral words only —
+    // never a claim, a carrier or an adjuster (KY rules above).
+    stepOf:       'Step {n} of {total}',
+    startsAfter:  'Starts after: {prev}',
+    srDone:       'Done',
+    srCurrent:    'Current step',
+    srUpcoming:   'Not started yet',
+    // The one big next-action button, matched to where the job is.
+    signLink:     'Review and sign your estimate',
+    bookLink:     'Pick your inspection time',
+    estimateLink: 'See your estimate',
   }),
 });
 

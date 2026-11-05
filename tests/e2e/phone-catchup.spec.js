@@ -55,7 +55,7 @@ test.describe.serial('phone catch-up: two won jobs, reload keeps progress @shard
       // it the create is PERMISSION_DENIED for a non-owner test user.
       const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag, meter: 'manual' }, f);
       ['createdAt', 'closedAt', 'stageStartedAt'].forEach((k) => { if (typeof data[k] === 'number') data[k] = fs.Timestamp.fromMillis(data[k]); });
-      const ref = await fs.addDoc(fs.collection(window.db, 'leads'), data);
+      const ref = await window.__e2eAddDoc(fs, window.db, 'leads', data);
       return ref.id;
     }, { f: fields, tag: run });
   }

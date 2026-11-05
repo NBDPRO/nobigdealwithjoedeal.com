@@ -88,7 +88,7 @@ test.describe.serial('phone voice memo @audit', () => {
     leadId = await safeEvaluate(page, async (s) => {
       const uid = window._user.uid;
       const companyId = (window._userClaims && window._userClaims.companyId) || uid;
-      const ref = await window.addDoc(window.collection(window.db, 'leads'), {
+      const ref = await window.__e2eAddDoc(window, window.db, 'leads', {
         firstName: '[E2E] Memo', lastName: String(s), address: `${String(s).slice(-3)} Memo Ln, Milford, OH`,
         phone: '513' + String(s).slice(-7), stage: 'new', deleted: false, userId: uid, companyId,
         createdAt: window.serverTimestamp(), e2eTestData: true,
