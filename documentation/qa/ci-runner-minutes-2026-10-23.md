@@ -44,3 +44,9 @@ Merge-group and push runs use a unique concurrency group per run (by design, so 
 2. apt retry/timeout tuning plus 2 attempts with a wait for the leftover `apt-get`: still too slow, because the mirror throughput itself is the problem.
 
 Both were reverted; the step is unchanged. A retry cannot cure a slow mirror. Options for Jo, smallest first: (a) cache `/var/cache/apt/archives` between runs with `actions/cache` (the first run pays, later runs do not; needs a root-owned cache path handled carefully); (b) take webkit out of this required job (only `nav-drawer.spec.js` runs on `mobile-webkit`) into its own non-required job, so the required job needs only the small chromium deps that the other jobs install without trouble; (c) point apt at a different mirror in the job. The same `--with-deps chromium` step runs in `esign-suites` (required) and others without these stalls, which fits the webkit dependency set being the heavy part.
+
+## Update 2026-11-05: the push-to-main run is dropped (Jo's call)
+
+Recommendation 4 above is done. `ci.yml` no longer has a `push: branches: [main]` trigger. A merge to main goes through the merge queue, so the commit that lands was already tested whole on the queue's `merge_group` ref; the push run repeated about 100 runner-minutes behind the same backlog. `firebase-deploy.yml` has its own trigger and does not wait on CI. Guard: `tests/ci-no-push-run-2026-11-05.test.js` (no `push` trigger on ci.yml; no workflow waits on a CI run).
+
+Measured on one merge-queue run (PR #2819, 2026-11-04): 23 jobs, 52 min wall, of which 20 to 39 min per job was queue wait for a runner; the longest job ran 14 min; all jobs together ran 84 min. Not covered: an admin push straight to main now gets no CI run (the ruleset normally prevents that).
