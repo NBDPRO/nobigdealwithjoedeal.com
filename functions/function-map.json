@@ -204,6 +204,8 @@
   "ownerWeeklyDigest": "./owner-weekly-digest",
   "pdfRenderRetention": "./pdf-render-retention",
   "phoneTextAction": "./phone-text-check",
+  "portalMomentOnBooking": "./portal-moments",
+  "portalMomentOnLead": "./portal-moments",
   "previewAiPersona": "./handlers/ai-texting-preview",
   "promiseCleanup": "./promise-cleanup",
   "provisionE2ETestUser": "./handlers/auth",
