@@ -689,6 +689,11 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
         run: |
           set +e
+          # 2026-11-05: deploying firestore:indexes also compiles firestore.rules against the Rules API, so the same
+          # 262,144-byte cap applies here: after #2869 fixed the rules step, this step failed with 'Total size of
+          # sources must be smaller than 262144'. Same strip as the rules step, and the readable file goes back after.
+          trap 'git checkout -- firestore.rules' EXIT
+          node scripts/strip-rules-comments.js --write firestore.rules || exit 1
           LOG="$RUNNER_TEMP/firestore-indexes.log"
           npx firebase-tools deploy --only firestore:indexes --project "$PRO_PROJECT" --non-interactive 2>&1 | tee "$LOG"
           EXIT=${PIPESTATUS[0]}
