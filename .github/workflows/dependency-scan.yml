@@ -1,0 +1,98 @@
+name: Dependency scan
+
+# osv-scanner over the npm lockfiles (added 2026-11-04, from the GitHub repo
+# sweep: documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md).
+#
+# PR-DIFF: scans the lockfiles at the PR's base and at its head, and
+# reports only the vulnerabilities the PR adds. The full list at the head
+# goes in a collapsed section of the job summary. There is no root
+# lockfile; the lockfiles are functions/, tests/ and tests/visual/.
+#
+# REPORT-ONLY for now: the scan step is continue-on-error and NOT in the merge
+# queue's required checks. Once the baseline is triaged, drop
+# continue-on-error and make it required.
+#
+# The osv-scanner version is pinned and its checksum verified; bump it by
+# hand (Dependabot does not see a version inside run:).
+
+on:
+  pull_request:
+    paths:
+      - '**/package-lock.json'
+      - '**/package.json'
+      - '.github/workflows/dependency-scan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-scan-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  osv:
+    name: osv-scanner PR diff (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: osv-scanner 2.7.0
+        continue-on-error: true
+        env:
+          OSV_VERSION: 2.7.0
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}"
+          bin="${RUNNER_TEMP}/osv-scanner_linux_amd64"
+          curl -sSfL -o "${bin}" "${url}/osv-scanner_linux_amd64"
+          (cd "${RUNNER_TEMP}" && curl -sSfL "${url}/osv-scanner_SHA256SUMS" | grep ' osv-scanner_linux_amd64$' | sha256sum -c -)
+          chmod +x "${bin}"
+
+          # scan <tree> <out>: one line per "VULN-ID package@version (lockfile)".
+          scan() {
+            local tree=$1 out=$2 rc=0
+            local args=()
+            for lock in functions/package-lock.json tests/package-lock.json tests/visual/package-lock.json; do
+              if [ -f "${tree}/${lock}" ]; then args+=(--lockfile "${lock}"); fi
+            done
+            (cd "${tree}" && "${bin}" scan source "${args[@]}" --format json > "${out}.json") || rc=$?
+            # 0 = clean, 1 = vulnerabilities found; anything else is a scanner error.
+            if [ "${rc}" -gt 1 ]; then echo "::error::osv-scanner exited ${rc} on ${tree}"; exit "${rc}"; fi
+            jq -r --arg root "$(cd "${tree}" && pwd)/" '
+              .results[]? | (.source.path | ltrimstr($root)) as $lock
+              | .packages[]? | .package as $p
+              | .vulnerabilities[]? | "\(.id) \($p.name)@\($p.version) (\($lock))"' "${out}.json" | sort -u > "${out}.txt"
+          }
+
+          scan "${PWD}" "${RUNNER_TEMP}/head"
+          if [ -n "${BASE_SHA}" ]; then
+            git worktree add --detach "${RUNNER_TEMP}/base-tree" "${BASE_SHA}" > /dev/null
+            scan "${RUNNER_TEMP}/base-tree" "${RUNNER_TEMP}/base"
+            comm -13 "${RUNNER_TEMP}/base.txt" "${RUNNER_TEMP}/head.txt" > "${RUNNER_TEMP}/new.txt"
+            heading='## osv-scanner: vulnerabilities this PR adds'
+          else
+            cp "${RUNNER_TEMP}/head.txt" "${RUNNER_TEMP}/new.txt"
+            heading='## osv-scanner: all vulnerabilities (no PR base to diff against)'
+          fi
+
+          {
+            echo "${heading}"
+            if [ -s "${RUNNER_TEMP}/new.txt" ]; then echo '```'; cat "${RUNNER_TEMP}/new.txt"; echo '```'; else echo 'None.'; fi
+            echo
+            echo "<details><summary>All $(wc -l < "${RUNNER_TEMP}/head.txt") at the head</summary>"
+            echo
+            echo '```'
+            cat "${RUNNER_TEMP}/head.txt"
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "${RUNNER_TEMP}/new.txt" ]; then
+            sed 's/^/::warning::osv-scanner new: /' "${RUNNER_TEMP}/new.txt"
+            exit 1
+          fi
