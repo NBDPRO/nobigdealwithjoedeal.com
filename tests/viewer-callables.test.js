@@ -388,6 +388,8 @@ const CASES = [
   // write flow a viewer cannot finish.
   { fn: 'previewAiPersona', file: 'handlers/ai-texting-preview.js', kind: 'call', data: { config: {}, sampleMessage: 'How much for a roof?' } },
   { fn: 'extractReceiptData', file: 'receipt-vision.js', kind: 'call', data: { storagePath: 'receipts/u-rep/r1.jpg' } },
+  // 2026-11-04: the Receipt inbox reader (its own path check rejects a caller who is not 'u-rep', after the guard, the kill switch and the limiter ran).
+  { fn: 'submitInboxReceipt', file: 'receipt-inbox.js', kind: 'call', data: { storagePath: 'receipts/u-rep/inbox/r1.jpg' } },
   { fn: 'resolveAddress', file: 'handlers/geocode.js', kind: 'call', data: { mode: 'forward', address: '123 Main St, Cincinnati OH' } },
 ];
 
@@ -468,7 +470,7 @@ const VERDICTS = {
   // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.
   getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
-  exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
+  exportMyData: 'self', extractReceiptData: 'refused', submitInboxReceipt: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',
