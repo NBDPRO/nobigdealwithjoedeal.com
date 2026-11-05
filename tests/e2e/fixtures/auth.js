@@ -91,6 +91,34 @@ async function loginAs(page, creds) {
       new MutationObserver(answer).observe(document, { childList: true, subtree: true });
     });
   }
+  // ── Seeding that survives a resent write (2026-11-04). The CRM's Firestore
+  // runs over long polling, and on a loaded CI runner the SDK can resend a
+  // create the emulator already saved; addDoc's "must not exist yet" check then
+  // throws ALREADY_EXISTS (.../leads/<id>) for a lead that IS there, and the
+  // spec dies in its own seed step (phone-deal-packet, phone-customer-order,
+  // 2026-11-04). Specs seed with window.__e2eAddDoc(mod, db, 'leads', data):
+  // the id is picked first, written with setDoc, and after any error read back
+  // (there = seeded). `mod` is the Firestore module or window (both carry
+  // doc / collection / setDoc / getDoc). The app's own lead creates do the
+  // same since #2865 (_createLeadDoc / NBDRepos.leads.create).
+  if (!page.__nbdSeedArmed) {
+    page.__nbdSeedArmed = true;
+    await page.addInitScript(() => {
+      window.__e2eAddDoc = async (mod, db, col, data) => {
+        if (typeof mod.setDoc !== 'function' || typeof mod.getDoc !== 'function') return mod.addDoc(mod.collection(db, col), data);
+        const ref = mod.doc(mod.collection(db, col));
+        try {
+          await mod.setDoc(ref, data);
+        } catch (e) {
+          let there = false;
+          try { const s = await mod.getDoc(ref); there = !!(s && s.exists()); } catch (_) { /* report the write error */ }
+          if (!there) throw e;
+          console.warn('[e2e] seed create reported ' + ((e && e.code) || 'an error') + ' but ' + col + '/' + ref.id + ' is there; continuing');
+        }
+        return ref;
+      };
+    });
+  }
   await page.goto('/pro/login.html');
   // Login.js wires the form once the Firebase SDK has loaded; wait
   // for the button to be enabled rather than time-boxing. The page

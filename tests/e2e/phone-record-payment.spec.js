@@ -76,7 +76,7 @@ test.describe('phone record payment: a won job with no invoice @shard3', () => {
     const leadId = await safeEvaluate(page, async (lead) => {
       const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
-      return (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
+      return (await window.__e2eAddDoc(fs, db, 'leads', Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
     }, lead);
 
     await page.goto('/pro/customer.html?id=' + leadId);
