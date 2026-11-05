@@ -67,7 +67,7 @@
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE customer-bootstrap.module.js: it installs the accessors the
      bootstrap then assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=7"></script>
+<script defer src="js/role-gate.js?v=8"></script>
 <script defer src="js/standalone-compat.js?v=2"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).
      Four surfaces wrote this field in four spellings until 2026-09-08, so
@@ -1840,6 +1840,13 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
         title="Open the portal in a preview window — see what the customer will see">
         🔍 Preview Portal
       </button>
+      <!-- Portal Phase 2 (2026-11-04): one line the homeowner sees on the
+           portal's Today card for a week ("Crew arrives 7:30, please move
+           the cars"). Blank clears it. -->
+      <button class="btn" id="portalNoteBtn" data-action="editPortalNote"
+        title="Leave a one-line note on the homeowner's portal (shows for 7 days)">
+        📝 Portal Note
+      </button>
       <button class="btn" data-action="openGallerySharePanel" title="Generate or view the shareable homeowner portal link">
         🔗 Share Portal
       </button>
@@ -2900,7 +2907,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/warranty-claim.js?v=3"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <script defer src="js/email_system.js?v=4"></script>
-<script defer src="js/customer-gallery-share.js?v=3"></script>
+<script defer src="js/customer-gallery-share.js?v=4"></script>
 <!-- Documents store — the SINGLE source of truth for every documents
      surface on this page (Overview list, Generated, Uploaded, nav count).
      Reads leads/{leadId}/documents and publishes window.loadDocuments, which
