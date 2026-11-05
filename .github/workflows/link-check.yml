@@ -1,0 +1,74 @@
+name: Outbound link check
+
+# Weekly lychee run over the site's OUTBOUND links (GAF, TAMKO, Yelp, Cal.com,
+# Google reviews, partners). Internal links are already covered by
+# scripts/check-site-integrity.js, so lychee only checks http(s) URLs and skips
+# our own domain. REPORT-ONLY: a dead link shows in the run summary and the
+# uploaded report, and never turns anything red (fail: false). From
+# documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md, item 2.
+#
+# The lychee cache (.lycheecache) is restored between runs so a re-run the same
+# week does not re-hit every vendor site; entries older than 3 days re-check.
+
+on:
+  schedule:
+    # 13:20 UTC Mondays: morning Cincinnati time, off the on-the-hour rush.
+    - cron: '20 13 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/link-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: link-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lychee:
+    name: Check outbound links (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.run_id }}
+          restore-keys: lychee-
+
+      - name: Run lychee
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          fail: false
+          args: >-
+            --no-progress
+            --cache --max-cache-age 3d
+            --scheme https --scheme http
+            --exclude-all-private
+            --exclude '^https?://(www\.)?nobigdealwithjoedeal\.com'
+            --exclude '^https://fonts\.(googleapis|gstatic)\.com/?$'
+            --exclude '^https://[a-z0-9-]+\.cloudfunctions\.net'
+            --exclude '^https://[a-z0-9.-]*firebase(storage|io)?\.(googleapis\.com|app)'
+            --exclude '^https://(www\.)?googletagmanager\.com'
+            --exclude '^https://([a-z]+\.)?clarity\.ms'
+            --exclude '^https://challenges\.cloudflare\.com'
+            --exclude '^https?://schema\.org'
+            --max-concurrency 8 --max-retries 2 --timeout 20
+            --accept '200..=299,429'
+            --user-agent 'Mozilla/5.0 (compatible; NBD-link-check; +https://nobigdealwithjoedeal.com)'
+            'docs/**/*.html'
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lychee-report
+          path: lychee/out.md
+          if-no-files-found: ignore

@@ -88,6 +88,10 @@
 .ipx-draft-chip.ipx-draft-chip.ipx-draft-chip { display: inline-block; margin-top: 4px; padding: 3px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--orange) 40%, transparent); white-space: nowrap; }
+/* "Includes $X in supplements" (2026-11-04): read-only chip on the customer page's invoice rows (invoice-supplement-chip-logic.js). */
+.ipx-sup-chip.ipx-sup-chip.ipx-sup-chip { display: inline-block; margin-top: 4px; padding: 3px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--blue, #1a3057); background: color-mix(in srgb, var(--blue, #1a3057) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue, #1a3057) 35%, transparent); white-space: nowrap; }
 /* Record payment sheet (2026-10-03) — recordPaymentUI in invoice-pipeline.js,
    opened from the customer page's Invoices & Payments panel. Phone-first:
    every target is at least 44px, inputs are 16px (no iOS zoom), and the sheet

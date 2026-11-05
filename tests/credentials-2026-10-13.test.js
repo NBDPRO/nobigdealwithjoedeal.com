@@ -248,10 +248,16 @@ console.log('\nJSON-LD');
   const entityScoped = nodes.filter((n) => n['@id']);
   const ids = entityScoped.map((n) => n['@id']);
   ok('every @id is unique', new Set(ids).size === ids.length);
-  const creds = nodes.filter((n) => n['@type'] === 'EducationalOccupationalCredential');
-  const expectedCreds = active.filter((r) => r.type === 'manufacturer');
+  // Manufacturer rows are EducationalOccupationalCredential, membership rows ProgramMembership (first active 2026-11-04).
+  const certs = nodes.filter((n) => n['@type'] === 'EducationalOccupationalCredential');
+  const creds = nodes.filter((n) => n['@type'] === 'EducationalOccupationalCredential' || n['@type'] === 'ProgramMembership');
+  const expectedCreds = active.filter((r) => r.type === 'manufacturer' || r.type === 'membership');
   ok('one credential node per active manufacturer row (insurance has no schema.org credential type)',
+    certs.length === active.filter((r) => r.type === 'manufacturer').length);
+  ok('one node per active manufacturer or membership row, each with its #id',
     creds.length === expectedCreds.length && expectedCreds.every((r) => ids.includes('https://nobigdealwithjoedeal.com/credentials#' + r.id)));
+  ok('membership rows are ProgramMembership nodes', active.filter((r) => r.type === 'membership').every((r) =>
+    nodes.some((n) => n['@type'] === 'ProgramMembership' && n['@id'] === 'https://nobigdealwithjoedeal.com/credentials#' + r.id)));
   ok('no node is a second Organization/business: only references to #org', !nodes.some((n) => /^(RoofingContractor|LocalBusiness)$/.test(String(n['@type'])))
     && nodes.filter((n) => n.about && n.about['@id'] === 'https://nobigdealwithjoedeal.com/#org').length === 1);
   const gafNode = creds.find((n) => /GAF/.test(n.name));
