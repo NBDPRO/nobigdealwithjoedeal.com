@@ -39,6 +39,7 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/lead-alert.js',
   'functions/lead-followup.js',
   'functions/funnel-recovery.js',
+  'functions/portal-moments.js',     // key-moment emails with the portal link (2026-11-04)
   'functions/review-ask-auto.js',
   'functions/review-ask-auto-logic.js',
   'functions/missed-call-reply-logic.js',
