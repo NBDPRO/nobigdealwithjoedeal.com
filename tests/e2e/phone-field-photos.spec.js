@@ -97,9 +97,9 @@ async function seedLead(page, extra) {
     // A fixed id + setDoc, and ALREADY_EXISTS swallowed: the emulator's
     // commit retry can land the first attempt and then reject the retry
     // (see fixtures/auth.js loginAs).
-    const ref = fsMod.doc(fsMod.collection(db, 'leads'));
-    try { await fsMod.setDoc(ref, lead); }
-    catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+    // 2026-11-05: a resent setDoc can also come back PERMISSION_DENIED (it lands as an update), so the seed reads the
+    // doc back after any error: window.__e2eAddDoc (fixtures/auth.js loginAs).
+    const ref = await window.__e2eAddDoc(fsMod, db, 'leads', lead);
     const id = ref.id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
