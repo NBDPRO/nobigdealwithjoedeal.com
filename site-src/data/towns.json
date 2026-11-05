@@ -288,6 +288,26 @@
    ]
   },
   {
+   "slug": "liberty-township-oh",
+   "town": "Liberty Township",
+   "state": "OH",
+   "county": "Butler County",
+   "region": "cincy-oh",
+   "zips": ["45011","45044","45069"],
+   "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":89.4,"population":44633,"source":"https://censusreporter.org/profiles/06000US3901743050/"},
+   "storms": {"radiusKm": 8.9, "nearbyCount": 31, "hailReports": 7, "hailDays": 4, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 2, "events": [
+    {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":6.89,"place":"North Hamilton airport to LeSourdsville","km":6.3,"damageUsd":250000,"noaa":1241784},
+    {"date":"2023-08-14","kind":"tornado","rating":"EF0","pathMi":1.33,"place":"Rockdale to LeSourdsville","km":4.9,"noaa":1122752},
+    {"date":"2025-05-16","kind":"hail","hailIn":2,"place":"Kyles","km":1.4,"noaa":1247257},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.25,"place":"Bethany","km":4.1,"noaa":876471}
+   ]},
+   "permit": {"status":"yes","authority":"Butler County Building & Zoning","url":"https://www.bcohio.gov/Document_Center/Development/Building%20%26%20Zoning/Procedures%20%26%20Applications/BZFORMS_ResRe-roofing_AppForm2026.pdf","summary":"Butler County requires a Residential Roofing Application with a Re-Roofing Addendum: scope, roof plan, replaced decking and ventilation. Liberty Township's own office handles zoning certificates; the county issues the building permit."},
+   "facts": [
+    {"cat":"growth","text":"Liberty Township had 9,314 residents in 1990 and 43,999 in 2020, close to five times as many, with the biggest jump in the 1990s.","url":"https://en.wikipedia.org/wiki/Liberty_Township,_Butler_County,_Ohio"},
+    {"cat":"history","text":"Apart from a northeast corner that belongs to the city of Monroe, the township is unincorporated and run by a three-member board of trustees; Bethany and Four Bridges are among its communities.","url":"https://en.wikipedia.org/wiki/Liberty_Township,_Butler_County,_Ohio"}
+   ]
+  },
+  {
    "slug": "loveland-oh",
    "town": "Loveland",
    "state": "OH",
@@ -703,6 +723,26 @@
    "facts": [
     {"cat":"historic","text":"Old Fort Mitchell grew up as one of Northern Kentucky's first streetcar suburbs: 141 buildings from about 1900 through the 1930s, Tudor Revival, American Foursquare and Craftsman bungalows among them.","url":"https://www.hmdb.org/m.asp?m=174598"},
     {"cat":"history","text":"Fort Mitchell was chartered as a city in 1910 on the site of a Civil War fortification built to defend Cincinnati.","url":"https://en.wikipedia.org/wiki/Fort_Mitchell,_Kentucky"}
+   ]
+  },
+  {
+   "slug": "independence-ky",
+   "town": "Independence",
+   "state": "KY",
+   "county": "Kenton County",
+   "region": "nky",
+   "zips": ["41051","41015"],
+   "housing": {"medianYearBuilt":1999,"ownerOccupiedPct":83.8,"population":29392,"source":"https://censusreporter.org/profiles/16000US2139142/"},
+   "storms": {"radiusKm": 7.8, "nearbyCount": 37, "hailReports": 3, "hailDays": 3, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-04-14","place":"Independence","noaa":1245799}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 1, "events": [
+    {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","county":"Boone","km":6.6,"damageUsd":250000,"noaa":1340869},
+    {"date":"2025-04-14","kind":"hail","hailIn":1.25,"place":"Independence","km":0.9,"noaa":1245799},
+    {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":5.9,"noaa":808048},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Erlanger","km":6.9,"noaa":802778}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Independence Building & Zoning","url":"https://www.cityofindependence.org/209/Permits","summary":"Independence runs its own building and zoning office instead of sending permits to PDS of Kenton County. Its permits page and residential fee schedule do not mention roofing, and I have not found a written re-roof rule.","ask":"the City of Independence Building Inspector"},
+   "facts": [
+    {"cat":"history","text":"Independence was incorporated in 1842, two years after Kenton County was split from Campbell County, and the name honors that break. It still shares the county seat with Covington.","url":"https://en.wikipedia.org/wiki/Independence,_Kentucky"},
+    {"cat":"growth","text":"The city grew from 14,982 residents in 2000 to 24,757 in 2010 and 28,676 in 2020.","url":"https://en.wikipedia.org/wiki/Independence,_Kentucky"}
    ]
   },
   {

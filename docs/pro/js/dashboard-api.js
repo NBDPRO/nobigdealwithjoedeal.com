@@ -9,8 +9,8 @@
  *   - photo count cache (Firestore photos query)
  *   - storm alerts pull (weather.gov)
  *   - leaderboard query (Firestore knocks)
- *   - property intel via Claude (window.callClaude)
- *   - geocode + Nominatim autocomplete fetch
+ *   - property-intel helpers (fetchPropertyIntel itself lives in property-intel.js)
+ *   - Nominatim autocomplete fetch (geocode itself lives in property-intel.js)
  *   - document save + load (Firestore documents collection)
  *   - GDPR export / erasure (Functions)
  *   - portal link share / revoke (Functions)
@@ -202,150 +202,11 @@ function getHamiltonSummaryUrl(parcelId) {
   return `https://wedge1.hcauditor.org/view/re/${clean}/2024/summary`;
 }
 
-async function fetchPropertyIntel(nominatimData, targetElId) {
-  const targetEl = document.getElementById(targetElId);
+// fetchPropertyIntel(nominatimData, targetElId) lives in property-intel.js only (2026-11-04): this file carried
+// an older copy without the Regrid fast path; property-intel.js loads later, so its copy was the one that ran.
 
-  // Determine county from Nominatim response
-  const addr = nominatimData?.address || {};
-  const county = addr.county || addr.state_district || '';
-  const countyClean = county.replace(' County','').trim();
-
-  // Build the clean address for searching
-  const num   = addr.house_number || '';
-  const road  = addr.road || addr.street || '';
-  const city  = addr.city || addr.town || addr.village || '';
-  const state = addr.state_code || addr.state || 'OH';
-  const zip   = addr.postcode || '';
-  const fullAddr = [num+' '+road, city, state+' '+zip].map(s=>s.trim()).filter(Boolean).join(', ');
-
-  // Cache check
-  const cacheKey = fullAddr.toLowerCase().replace(/\s/g,'');
-  if(_piCache[cacheKey]) {
-    renderIntelCard(targetElId, _piCache[cacheKey], countyClean, fullAddr);
-    return;
-  }
-
-  // Build the auditor URL based on county
-  let auditorUrl = '';
-  let searchUrl  = '';
-
-  if(county.toLowerCase().includes('hamilton')) {
-    const numEnc  = encodeURIComponent(num.toUpperCase());
-    const roadEnc = encodeURIComponent(road.toUpperCase());
-    // Hamilton address search returns list with parcel IDs
-    auditorUrl = `https://wedge1.hcauditor.org/search/address/${numEnc}/${roadEnc}//1/10`;
-    searchUrl  = auditorUrl;
-  } else if(county.toLowerCase().includes('clermont')) {
-    auditorUrl = `https://www.clermontauditor.org/real-estate/`;
-    searchUrl  = `https://opendata.clermontauditor.org/resource/ti6j-ub22.json?$$app_token=&$where=situs_address+like+%27${encodeURIComponent(num+'%25')}%27&$limit=5`;
-  } else if(county.toLowerCase().includes('warren')) {
-    auditorUrl = `https://www.wcauditor.org/PropertySearch/`;
-  } else if(county.toLowerCase().includes('butler')) {
-    auditorUrl = `https://propertysearch.bcohio.gov/search/commonsearch.aspx?mode=address`;
-  } else {
-    // Unknown county — use Claude to try to find it
-    auditorUrl = `https://www.hamiltoncountyauditor.org/`;
-  }
-
-  // ── Claude-powered extraction ─────────────────────────────────
-  // For Hamilton we can fetch the search page HTML and parse parcel ID,
-  // then fetch the summary page. For others, we ask Claude to help interpret.
-
-  try {
-    // Step 1: Ask Claude to look up the property data
-    const prompt = `You are a property data extraction assistant for a roofing contractor app covering the Cincinnati, Ohio metro area (Hamilton, Clermont, Warren, Butler counties).
-
-The user needs property intel for this address: "${fullAddr}"
-County: ${countyClean || 'unknown — likely Hamilton or Clermont, OH'}
-
-Your job: Return ONLY a valid JSON object with these fields (use null for unknown):
-{
-  "ownerName": "FULL NAME OR LLC NAME",
-  "isLLC": true/false,
-  "yearBuilt": 1985,
-  "roofAge": 40,
-  "lastSaleDate": "MM/DD/YYYY",
-  "lastSaleAmount": 245000,
-  "marketValue": 310000,
-  "assessedValue": 108500,
-  "propertyType": "Single Family",
-  "bedrooms": 3,
-  "sqft": 1850,
-  "acreage": 0.25,
-  "homestead": true,
-  "ownerOccupied": true,
-  "taxDistrict": "CINTI CORP",
-  "parcelId": "040-0003-0039-00",
-  "auditorUrl": "${auditorUrl}",
-  "dataSource": "Hamilton County Auditor"
-}
-
-To find this data, use the Hamilton County auditor search at: ${auditorUrl}
-The page at wedge1.hcauditor.org/search/address/[HOUSE_NUMBER]/[STREET_NAME]//1/10 returns matching parcels.
-Then wedge1.hcauditor.org/view/re/[PARCEL_ID_NO_DASHES]/2024/summary has the full record.
-
-For the address "${fullAddr}", search the auditor, find the parcel, and extract all available fields.
-If you cannot access the page, return your best estimate with "dataSource": "estimated" and null for unknown fields.
-RETURN ONLY THE JSON OBJECT. No explanation, no markdown, no preamble.`;
-
-    if (!window.callClaude) {
-      throw new Error('Claude proxy not loaded. Refresh the page and try again.');
-    }
-
-    const data = await window.callClaude({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      messages: [{role: 'user', content: prompt}]
-    });
-
-    // Extract text from Anthropic response
-    let rawText = data?.content?.[0]?.text || '';
-
-    // Parse JSON from response
-    let intel = null;
-    try {
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if(jsonMatch) intel = JSON.parse(jsonMatch[0]);
-    } catch(e) {}
-
-    if(!intel) throw new Error('No parseable data returned');
-
-    // Compute roofAge if we have yearBuilt but not roofAge
-    if(intel.yearBuilt && !intel.roofAge) {
-      intel.roofAge = new Date().getFullYear() - parseInt(intel.yearBuilt);
-    }
-
-    _piCache[cacheKey] = intel;
-    renderIntelCard(targetElId, intel, countyClean, fullAddr);
-
-  } catch(err) {
-    if(targetEl) {
-      const card = targetEl.querySelector('.pi-card');
-      const errHtml = `<div class="pi-card"><div class="pi-header"><span class="pi-title">🏠 Property Intel</span><span class="pi-county">${countyClean}</span></div><div class="pi-error">Could not load property data. Check your API key or try again.<br><small>${err.message}</small></div></div>`;
-      if(card) card.outerHTML = errHtml;
-    }
-  }
-}
-
-// ══════════════════════════════════════════════
-// GEOCODE — Nominatim single-result lookup
-// ══════════════════════════════════════════════
-// opts.quiet: no toast on a miss. Background callers (map layers geocoding
-// every lead, the lead save) pass it — a red "Address not found" per
-// unmappable lead read as a failed save / an error storm.
-async function geocode(q, opts){
-  const quiet = !!(opts && opts.quiet);
-  try{
-    // 5s cap: _saveLead awaits this on every new lead with an address, and
-    // Nominatim rate-limits/black-holes some IPs with no response — without
-    // a timeout the whole save hangs in the field (found via the authed E2E
-    // suite, 2026-07-04). Abort → the catch below → save proceeds pin-less.
-    const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&addressdetails=1`,{signal:AbortSignal.timeout(5000)});
-    const d=await res.json();
-    if(!d.length){if(!quiet)showToast('Address not found','error');return null;}
-    return d[0];
-  }catch(e){if(!quiet)showToast('Geocode failed','error');return null;}
-}
+// GEOCODE: geocode(q, opts) lives in property-intel.js only (2026-11-04). This file carried an identical
+// older copy; property-intel.js loads later, so its copy was the one that ran (CRM speed-up Phase 2, step 1).
 
 // ══════════════════════════════════════════════
 // ADDRESS AUTOCOMPLETE — Nominatim suggestions fetch

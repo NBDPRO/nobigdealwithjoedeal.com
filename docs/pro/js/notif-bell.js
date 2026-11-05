@@ -665,6 +665,13 @@
     } else {
       badge.style.display = 'none';
     }
+    // The count is part of the button's name (it was "Notifications" with a visible "3" beside it, which screen
+    // readers and voice control could not match); the badge itself is hidden from them so it is not read twice.
+    const bellBtn = document.getElementById('notifBtn');
+    if (bellBtn && typeof bellBtn.setAttribute === 'function') {
+      bellBtn.setAttribute('aria-label', unread.length ? `Notifications, ${badge.textContent} unread` : 'Notifications');
+      if (typeof badge.setAttribute === 'function') badge.setAttribute('aria-hidden', 'true');
+    }
 
     // Active list — canonical empty-state pattern (.nbd-empty).
     if (active.length === 0) {

@@ -143,7 +143,13 @@ function badgeImg(c, h) {
   if (!c.badge) return '';
   const { w: iw, h: ih } = pngSize(c.badge);
   const w = Math.round((h * iw) / ih);
-  return `<img src="${esc(c.badge)}" alt="${esc(c.badgeAlt)}" width="${w}" height="${h}" loading="lazy">`;
+  const img = `<img src="${esc(c.badge)}" alt="${esc(c.badgeAlt)}" width="${w}" height="${h}" loading="lazy">`;
+  // A .webp sibling (same name) is offered first, like the footer partials do (speed audit 2026-11-04: the TAMKO
+  // badge PNG was 17 KB, its WebP 4 KB).
+  const webp = c.badge.replace(/\.png$/, '.webp');
+  return existsSync(path.join(DOCS, webp))
+    ? `<picture class="nbd-pic"><source type="image/webp" srcset="${esc(webp)}">${img}</picture>`
+    : img;
 }
 const issuerShort = (c) => c.issuerShort || c.issuer;
 

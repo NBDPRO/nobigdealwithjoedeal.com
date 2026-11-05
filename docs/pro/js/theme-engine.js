@@ -5908,6 +5908,10 @@
     // derived bg gets nudged a notch by adjustHex above, which can shave the
     // accent's contrast below AA UI (3:1) — South Park hit 2.99 pre-tune.
     const accentFinal = tuneAgainst(accent, bgDerived, 3.0);
+    // --orange-on-header: the accent as SMALL TEXT on the app header (the "PRO" wordmark), which needs AA normal 4.5:1.
+    // The header is a fixed near-black (dashboard-app.css `header{background:rgba(10,12,15,.97)}`) in every theme,
+    // light ones included, so tune against that, not --bg. The default theme measured 4.03:1 (audit 2026-11-04).
+    const accentText = tuneAgainst(accentFinal, '#0a0c0f', 4.5);
 
     // Tune the card ink/paper pair to clear 4.5:1 (AA normal). Tries ink
     // first; falls back to tuning paper when ink is already at its limit
@@ -5977,6 +5981,7 @@
   --br: ${border};
   --rule: ${rule};
   --orange: ${accentFinal};
+  --orange-on-header: ${accentText};
   --ob: ${ob};
   --og: ${accentBg};
   --accent-fg: ${accentFg};

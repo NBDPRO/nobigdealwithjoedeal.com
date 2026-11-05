@@ -295,14 +295,19 @@ const smallFor = (u, w) => {
   const s = u.replace(/\.(avif|webp)$/, `-${w}.$1`);
   return s !== u && existsSync(path.join(ROOT, 'docs', s)) ? s : null;
 };
+// Speed audit 2026-11-04: the Our Work gallery card renders ~182 px wide on a phone (two columns) and the town/hub
+// case card ~310 px, but both were handed the 800 px original. They now offer <name>-400 / -640 copies with their own
+// `sizes` (made by scripts/prepare-project-images.mjs).
+const GALLERY_SIZES = '(max-width: 767px) 46vw, 352px';
+const CASE_SIZES = '(max-width: 767px) 80vw, 352px';
 // <picture> with whichever modern siblings exist, AVIF first; the original
-// stays the <img> fallback.
-const pictureFor = (src, img, smallWidth = 0) => {
+// stays the <img> fallback. `widths`: smaller copies to offer when they exist.
+const pictureFor = (src, img, widths = [], sizes = CARD_SIZES) => {
   const sources = [[avifFor(src), 'image/avif'], [webpFor(src), 'image/webp']]
     .filter(([u]) => u).map(([u, t]) => {
-      const small = smallWidth ? smallFor(u, smallWidth) : null;
-      return small
-        ? `<source srcset="${esc(small)} ${smallWidth}w, ${esc(u)} 800w" sizes="${CARD_SIZES}" type="${t}">`
+      const smalls = [].concat(widths).map((w) => [smallFor(u, w), w]).filter(([s]) => s);
+      return smalls.length
+        ? `<source srcset="${smalls.map(([s, w]) => `${esc(s)} ${w}w`).join(', ')}, ${esc(u)} 800w" sizes="${sizes}" type="${t}">`
         : `<source srcset="${esc(u)}" type="${t}">`;
     }).join('');
   return sources ? `<picture>${sources}${img}</picture>` : img;
@@ -312,10 +317,10 @@ const heroAlt = (p) => (p.photos.find((ph) => ph.src === p.hero) || p.photos[0])
 
 // `lcp`: the case-study page's own hero is its largest paint, so it loads
 // eagerly at high priority; every listing/strip card stays lazy.
-const heroImg = (p, cls, lcp = false, smallWidth = 0) => {
+const heroImg = (p, cls, lcp = false, widths = [], sizes = CARD_SIZES) => {
   const load = lcp ? 'fetchpriority="high"' : 'loading="lazy"';
   const img = `<img src="${esc(p.hero)}" alt="${esc(heroAlt(p))}" class="${cls}" ${load} decoding="async" width="800" height="600">`;
-  return pictureFor(p.hero, img, smallWidth);
+  return pictureFor(p.hero, img, widths, sizes);
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
@@ -398,7 +403,7 @@ const caseCard = (p, { withDesc = false } = {}) => {
   const meta = [`<span class="project-loc">${PIN_SVG} ${esc(p.city)}</span>`];
   if (p.year) meta.push(`<span>${esc(String(p.year))}</span>`);
   return `    <a class="project project-link" href="/our-work/${esc(p.slug)}">
-      ${heroImg(p, 'project-img')}
+      ${heroImg(p, 'project-img', false, [400, 640], CASE_SIZES)}
       <div class="project-body">
         <span class="project-tag">${esc(p.tag)}</span>${eraBadge(p)}
         <h3>${esc(p.title)}</h3>${price ? `
@@ -452,7 +457,7 @@ const card = (p) => {
   const pills = p.services.map((s) =>
     `<a href="/services/${s}">${esc(SERVICES[s])}</a>`).join('\n            ');
   return `      <div class="project" data-services="${esc(p.services.join(' '))}" data-slug="${esc(p.slug)}" data-project="${esc(JSON.stringify(payload))}">
-        ${heroImg(p, 'project-img')}
+        ${heroImg(p, 'project-img', false, [400, 640], GALLERY_SIZES)}
         <div class="project-body">
           <span class="project-tag">${esc(p.tag)}</span>${eraBadge(p)}
           <h3>${esc(p.title)}</h3>${price ? `
@@ -724,7 +729,7 @@ const homeCard = (p) => {
   const ctx = dated(p);
   const meta = [esc(p.city), p.year ? esc(String(p.year)) : null].filter(Boolean).join(' · ');
   return `      <a class="hj-card" href="/our-work/${esc(p.slug)}">
-        ${heroImg(p, 'hj-img', false, 640)}
+        ${heroImg(p, 'hj-img', false, [640])}
         <span class="hj-body"><b>${esc(p.title)}</b><span class="hj-meta">${meta}</span>${isPreNbd(p) ? `<span class="hj-note">${esc(PRE_NBD_LABEL)}</span>` : ''}<span class="hj-price">${esc(priceLine(p))}</span>${ctx ? `<span class="hj-note" data-price-context="${ctx.year}">${esc(ctx.short)}</span>` : ''}</span>
       </a>`;
 };
