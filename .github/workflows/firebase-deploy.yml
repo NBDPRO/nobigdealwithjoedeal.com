@@ -646,17 +646,23 @@ jobs:
       #
       # 2026-11-05: the Rules API caps an upload at 262,144 bytes and the
       # commented firestore.rules passed it (#2792), failing every attempt
-      # with HTTP 400. The rules tests above ran against the full file; this
-      # step uploads a copy without comment-only lines (code lines unchanged,
-      # proven by the script) and puts the readable file back afterwards.
+      # with HTTP 400. The rules tests above ran against the full file; the
+      # step below swaps in a copy without comment-only lines (code lines
+      # unchanged, proven by the script) for BOTH the rules and the indexes
+      # deploy: `deploy --only firestore:indexes` also test-compiles
+      # firestore.rules through the same API, so restoring the readable file
+      # between the two (#2869's first cut) failed the indexes step instead.
+      # "Restore readable firestore.rules" after the indexes step puts it back.
+      - name: Strip comment-only lines from firestore.rules for upload
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'rules' }}
+        run: node scripts/strip-rules-comments.js --write firestore.rules
+
       - name: Deploy Firestore rules (pro)
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'rules' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
         run: |
           set -e
-          trap 'git checkout -- firestore.rules' EXIT
-          node scripts/strip-rules-comments.js --write firestore.rules
           for attempt in 1 2 3; do
             if npx firebase-tools deploy --only firestore:rules --project "$PRO_PROJECT" --non-interactive; then
               echo "✓ Firestore rules deployed (attempt $attempt)."
@@ -712,6 +718,10 @@ jobs:
           fi
           echo "::warning::Index deploy hit 'already exists' (409) only. Treating as no-op."
           exit 0
+
+      - name: Restore readable firestore.rules
+        if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'rules') }}
+        run: git checkout -- firestore.rules
 
       # F-10: Storage rules deploy MUST fail the workflow if it fails.
       # Previously we swallowed the exit code and shipped functions +

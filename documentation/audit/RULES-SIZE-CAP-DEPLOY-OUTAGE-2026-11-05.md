@@ -40,6 +40,14 @@ The emulator never applies the cap: all the rules suites passed against the
   `RULES_PATH` pointing at the stripped copy, and all 28 groups passed. A
   301 KB file with no comments makes `--check` exit 1.
 
+## Update 2026-11-05 (afternoon): the indexes step needs it too
+
+After #2869 merged, the rules step passed (117,861 bytes uploaded). The next step,
+**Deploy Firestore indexes**, then failed with the same 400 error. `deploy --only firestore:indexes` also
+test-compiles `firestore.rules` through the same API, and #2869 had already put the readable file back
+when the rules step exited. The strip is now its own step, run before both the rules and the indexes
+deploys, and the readable file is restored once both are done.
+
 ## If it comes back
 
 The `--check` warning means the rules *code* is approaching 256 KB. By then,
