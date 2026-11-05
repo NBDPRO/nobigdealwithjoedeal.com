@@ -62,9 +62,12 @@ group('_diffView is present and liftable', () => {
 });
 if (!diffSrc) { console.log('\ncannot continue'); console.log(passed + ' passed, ' + (failed + 1) + ' failed'); process.exit(1); }
 
-const ctx = { Set, Array };
+// 2026-11-04: _diffView also repaints on a posted payment and reads the
+// paidSoFarCents helper (tests/portal-pay-panel-2026-11-04.test.js).
+const paidSrc = liftFunction(PORTAL, 'paidSoFarCents') || '';
+const ctx = { Set, Array, Number, Math };
 vm.createContext(ctx);
-vm.runInContext(diffSrc + '\nthis.__d = _diffView;', ctx);
+vm.runInContext(paidSrc + '\n' + diffSrc + '\nthis.__d = _diffView;', ctx);
 const diffView = ctx.__d;
 
 /* ══════════════════════════════════════════════════════════════════
