@@ -66,6 +66,8 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
   const dashRaw = read(DASH);
   const saveBody = bodyAfter(dashRaw, 'window._saveLead = async (data) =>');
   const helperBody = bodyAfter(dashRaw, 'function _stageRoleForWrite(stage)');
+  const createBody = bodyAfter(dashRaw, 'async function _createLeadDoc(payload)');
+  ok('_createLeadDoc helper exists in ' + DASH, !!createBody);
   ok('_saveLead found in ' + DASH, !!saveBody);
   ok('_stageRoleForWrite helper exists in ' + DASH, !!helperBody);
 
@@ -87,8 +89,12 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
       window: win,
       db: {},
       collection: (_db, name) => ({ col: name }),
-      doc: (_db, name, id) => ({ col: name, id }),
+      // doc(collectionRef) picks a new id (the _createLeadDoc shape); doc(db, name, id) names one.
+      doc: (a, name, id) => (name === undefined ? { col: a.col, id: 'new-' + (writes.length + 1) } : { col: name, id }),
       addDoc: async (ref, payload) => { writes.push({ op: 'add', col: ref.col, payload }); return { id: 'new-' + writes.length }; },
+      // a lead create (via _createLeadDoc) is recorded as an 'add', like the addDoc it replaced
+      setDoc: async (ref, payload) => { writes.push({ op: 'add', col: ref.col, id: ref.id, payload }); },
+      getDoc: async () => ({ exists: () => false, data: () => undefined }),
       updateDoc: async (ref, payload) => { writes.push({ op: 'update', col: ref.col, id: ref.id, payload }); },
       serverTimestamp: () => '__ts__',
       geocode: async () => (win.__geo || null),
@@ -101,8 +107,13 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
     const helper = helperBody
       ? new Function('window', 'return function _stageRoleForWrite(stage) ' + helperBody)(win)
       : undefined;
-    const names = Object.keys(stubs).concat(['_stageRoleForWrite']);
-    const vals = names.map((n) => (n === '_stageRoleForWrite' ? helper : stubs[n]));
+    // The real _createLeadDoc (2026-11-04), run against the same stubs.
+    const createLeadDoc = createBody
+      ? new Function('doc', 'collection', 'setDoc', 'getDoc', 'db', 'console', 'return async function _createLeadDoc(payload) ' + createBody)(
+        stubs.doc, stubs.collection, stubs.setDoc, stubs.getDoc, stubs.db, stubs.console)
+      : undefined;
+    const names = Object.keys(stubs).concat(['_stageRoleForWrite', '_createLeadDoc']);
+    const vals = names.map((n) => (n === '_stageRoleForWrite' ? helper : n === '_createLeadDoc' ? createLeadDoc : stubs[n]));
     // eslint-disable-next-line no-new-func
     const fn = new Function(...names, 'return async (data) => ' + saveBody)(...vals);
     return { fn, writes, win };
