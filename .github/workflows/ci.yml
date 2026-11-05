@@ -5,8 +5,11 @@ on:
   # GitHub merge queue (2026-10-04): every check must also run on the
   # queue's merge_group ref, or a queued PR waits forever for it.
   merge_group:
-  push:
-    branches: [main]
+  # No `push: branches: [main]` trigger (dropped 2026-11-05, Jo's call): a merge
+  # to main goes through the merge queue, so the commit that lands was already
+  # tested whole on the queue's merge_group ref. The push run repeated that run
+  # (about 100 runner-minutes) behind the same runner backlog. firebase-deploy.yml
+  # does not depend on this workflow. Pinned by tests/ci-no-push-run-2026-11-05.test.js.
 
 permissions:
   contents: read
@@ -25,6 +28,8 @@ permissions:
 #   push (main)   ci-push-<run_id>: never cancelled and never replaced.
 #                 A queue run is the merge gate and a main run is the
 #                 record of what deployed — neither may be cut short.
+#                 (2026-11-05: push to main no longer triggers this workflow;
+#                 the push group is kept so a manual or future trigger is safe.)
 #
 # Deploys are NOT here: firebase-deploy.yml has its own group, and a
 # deploy must never be cancelled mid-run. Do not add a job-level
@@ -647,6 +652,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-reputation-test 'node firestore-rules.reputation.test.js'
+      # Receipt inbox (2026-11-04): receipt_inbox/{id} drafts are server-created; a browser can only decide. Own file.
+      - name: Run receipt-inbox rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-rcptinbox-test 'node firestore-rules.receipt-inbox.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |

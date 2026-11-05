@@ -293,6 +293,7 @@
   "submitCustomerRating": "./portal",
   "submitDealAcceptance": "./deal-acceptance",
   "submitEsignEnvelope": "./esign-envelope",
+  "submitInboxReceipt": "./receipt-inbox",
   "submitPublicLead": "./handlers/integrations",
   "submitReferral": "./referrals",
   "submitSignature": "./remote-signing",
