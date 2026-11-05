@@ -178,7 +178,7 @@ test.describe.serial('phone estimate data @audit', () => {
       // possible-duplicate prompt (LeadDedup.checkAndPrompt), and a CI retry
       // of this hook would find the previous attempt's lead and sit on that
       // prompt until the hook times out. loadLeads() below is the real loader.
-      const leadRef = await window.addDoc(window.collection(window.db, 'leads'), {
+      const leadRef = await window.__e2eAddDoc(window, window.db, 'leads', {
         meter: 'manual', // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
         firstName: '[E2E] Estdata', lastName: String(stamp),
         address: `${String(stamp).slice(-3)} Estdata Ln, Milford, OH`,
