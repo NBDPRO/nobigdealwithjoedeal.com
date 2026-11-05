@@ -97,9 +97,9 @@ async function seedLead(page, extra) {
     // ALREADY_EXISTS (fixtures/auth.js loginAs; merge-queue flake
     // 2026-10-06). The write succeeded, and with the id known up front the
     // seed doesn't need the rejected promise to tell it where the lead is.
-    const ref = fsMod.doc(fsMod.collection(db, 'leads'));
-    try { await fsMod.setDoc(ref, Object.assign({ meter: 'manual' }, lead)); } // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
-    catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+    // 2026-11-05: a resent setDoc can also come back PERMISSION_DENIED (it lands as an update), so the seed reads the
+    // doc back after any error instead of matching one error text: window.__e2eAddDoc (fixtures/auth.js loginAs).
+    const ref = await window.__e2eAddDoc(fsMod, db, 'leads', Object.assign({ meter: 'manual' }, lead)); // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
     const id = ref.id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {

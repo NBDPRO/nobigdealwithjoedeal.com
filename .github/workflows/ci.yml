@@ -556,6 +556,12 @@ jobs:
       - name: Parse every first-party .js (shipped + tests)
         run: node scripts/check-js-syntax.js
 
+      # firestore.rules must fit the Rules API's 262,144-byte upload cap once
+      # the deploy strips its comment-only lines. Over it, every deploy stops
+      # at the rules step and functions stop shipping (2026-11-05, #2792).
+      - name: Firestore rules fit the upload cap
+        run: node scripts/strip-rules-comments.js --check firestore.rules
+
   firestore-rules:
     name: Firestore rules tests
     runs-on: ubuntu-latest
