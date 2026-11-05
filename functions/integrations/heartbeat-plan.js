@@ -110,6 +110,7 @@ const PLAN = {
   syncGbpReviews:            { slug: 'daily-syncs' },
   googleCalendarReconcile:   { slug: 'daily-syncs' },
   hailMatchCron:             { slug: 'daily-syncs' },
+  meshHailCron:              { slug: 'daily-syncs' },
 
   weeklyDigest:              { slug: 'weekly-crons' },
   dormantLeadNudge:          { slug: 'weekly-crons' },
