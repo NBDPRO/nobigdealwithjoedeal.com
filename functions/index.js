@@ -340,6 +340,8 @@ const parcelIntegration      = require('./integrations/parcel');
 const hailIntegration        = require('./integrations/hail');
 const calcomIntegration      = require('./integrations/calcom');
 const hailCron               = require('./integrations/hail-cron');
+// MRMS MESH radar hail swaths (2026-11-04) — dark until feature_flags/global.meshHailEnabled.
+const meshHailCron           = require('./integrations/mesh-hail');
 const complianceIntegration  = require('./integrations/compliance');
 const deviceAlertIntegration = require('./integrations/device-alert');
 const emailQueueWorker       = require('./integrations/email-queue-worker');
@@ -375,6 +377,7 @@ Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
 Object.assign(exports, calcomIntegration);
 Object.assign(exports, hailCron);
+exports.meshHailCron = meshHailCron.meshHailCron;
 Object.assign(exports, complianceIntegration);
 Object.assign(exports, deviceAlertIntegration);
 Object.assign(exports, emailQueueWorker);
@@ -1109,6 +1112,11 @@ exports.onPhotoCreatedClassify = photoVision.onPhotoCreatedClassify;
 // receipt/invoice into structured fields the expense form pre-fills.
 const receiptVision = require('./receipt-vision');
 exports.extractReceiptData = receiptVision.extractReceiptData;
+
+// Receipt and job-cost inbox, phase 1 (2026-11-04). Reads an uploaded receipt into a DRAFT
+// at receipt_inbox/{id}; never writes an expense. Dry-run unless RECEIPT_INBOX_ENABLED=true.
+const receiptInbox = require('./receipt-inbox');
+exports.submitInboxReceipt = receiptInbox.submitInboxReceipt;
 
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side
