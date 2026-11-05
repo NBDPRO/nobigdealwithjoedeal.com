@@ -8,4 +8,6 @@
 .d2d-dot.is-hail { background: #3b82f6; }
 .d2d-dot.is-wind { background: #22c55e; }
 .d2d-dot.is-tornado { background: #ef4444; }
+/* Radar hail swath key (NOAA MRMS MESH, 2026-11-04): a square, not a dot — it is an area. */
+.d2d-dot.is-mesh { background: #d9a21b; border-radius: 2px; }
 .d2d-storm-src { font-size: 10px; color: var(--m); margin-top: 2px; }
