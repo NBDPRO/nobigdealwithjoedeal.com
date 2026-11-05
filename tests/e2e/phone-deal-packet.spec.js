@@ -102,7 +102,7 @@ async function seedLeadWithPhotos(page) {
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), {
+    const id = (await window.__e2eAddDoc(fsMod, db, 'leads', {
       firstName: '[E2E] Packet', lastName: 'Packet' + stamp,
       address: stamp + ' Packet Way, Milford, OH 45150',
       phone: '513' + String(stamp).slice(-7), email: 'e2e-packet-' + stamp + '@nbd.test',
