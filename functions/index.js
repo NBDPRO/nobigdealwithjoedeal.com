@@ -340,6 +340,8 @@ const parcelIntegration      = require('./integrations/parcel');
 const hailIntegration        = require('./integrations/hail');
 const calcomIntegration      = require('./integrations/calcom');
 const hailCron               = require('./integrations/hail-cron');
+// MRMS MESH radar hail swaths (2026-11-04) — dark until feature_flags/global.meshHailEnabled.
+const meshHailCron           = require('./integrations/mesh-hail');
 const complianceIntegration  = require('./integrations/compliance');
 const deviceAlertIntegration = require('./integrations/device-alert');
 const emailQueueWorker       = require('./integrations/email-queue-worker');
@@ -375,6 +377,7 @@ Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
 Object.assign(exports, calcomIntegration);
 Object.assign(exports, hailCron);
+exports.meshHailCron = meshHailCron.meshHailCron;
 Object.assign(exports, complianceIntegration);
 Object.assign(exports, deviceAlertIntegration);
 Object.assign(exports, emailQueueWorker);

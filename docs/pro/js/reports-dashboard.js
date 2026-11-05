@@ -203,8 +203,10 @@
     };
   }
 
+  // A change from zero has no percentage: NaN hides the badge (a "+100%" read
+  // as "doubled" when the previous period was empty).
   function _delta(cur, prev) {
-    if (prev === 0) return cur === 0 ? 0 : 100;
+    if (!prev) return cur ? NaN : 0;
     return ((cur - prev) / prev) * 100;
   }
 
