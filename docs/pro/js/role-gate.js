@@ -87,6 +87,8 @@
     'NBDCustomerInvoices.recordPayment', 'NBDCustomerInvoices.sendBalance',
     // email a payment's drafted receipt to the customer (2026-10-04)
     'NBDCustomerInvoices.sendReceipt',
+    // the rep's note on the homeowner portal's Today card (2026-11-04)
+    'editPortalNote',
   ];
   // dashboard.html: <el data-action="call" data-fn="fnName">.
   var WRITE_FNS = [
