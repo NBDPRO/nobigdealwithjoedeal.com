@@ -62,7 +62,11 @@ for (const file of files) {
   const src = sharp(file).rotate().resize(800, 600, { fit: 'cover' });
   await src.clone().jpeg({ quality: 82, mozjpeg: true }).toFile(jpg);
   await src.clone().webp({ quality: 80 }).toFile(webp);
-  console.log(`✓ ${path.relative(ROOT, jpg)} + .webp`);
+  // Card-size copies (speed audit 2026-11-04): build-projects.mjs offers <base>-400/-640 in srcset when they exist.
+  for (const w of [400, 640]) {
+    await sharp(jpg).resize(w, Math.round(w * 0.75), { fit: 'cover' }).webp({ quality: 78 }).toFile(path.join(OUT, `${base}-${w}.webp`));
+  }
+  console.log(`✓ ${path.relative(ROOT, jpg)} + .webp + -400/-640.webp`);
   stubs.push({ src: `/assets/images/projects/${base}.jpg`, alt: '' });
 }
 
