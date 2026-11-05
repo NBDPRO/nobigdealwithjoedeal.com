@@ -67,7 +67,11 @@ ok('pinned to the hosting emulator too', /PLAYWRIGHT_BASE_URL=http:\/\/127\.0\.0
 ok('builds the Pagefind index site-search needs', /build-site-search\.mjs --install/.test(wk) && /build-site-search\.mjs\n/.test(wk));
 const t = /timeout-minutes: (\d+)/.exec(wk);
 ok('bounded by a timeout', !!t && Number(t[1]) > 0 && Number(t[1]) <= 20, t && t[1]);
-ok('not keyed on the event (merge-queue-ready forbids it)', !/\n    if:/.test(wk));
+// 2026-11-04: the job may carry the change-scope gate (docs-only PRs skip it),
+// which keys on changed paths, not the event. Event-keyed ifs stay forbidden.
+const wkIfs = (wk.match(/\n    if:.*/g) || []);
+ok('not keyed on the event (merge-queue-ready forbids it)',
+  wkIfs.every((l) => !/github\.event_name|github\.event\.pull_request|github\.head_ref|github\.base_ref|pull_request/.test(l)), wkIfs.join(' | '));
 
 console.log('\nCONFIG STILL ROUTES THE SPECS');
 ok('chromium project ignores nav-drawer (WebKit-only spec)', /name: 'chromium'[\s\S]{0,200}testIgnore: \/nav-drawer\\\.spec\\\.js\//.test(cfg));

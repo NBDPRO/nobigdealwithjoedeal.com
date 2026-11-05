@@ -119,10 +119,24 @@
      * @returns {Promise<{id: string}>}
      */
     create: async function (data) {
-      var ref = await window.addDoc(
-        window.collection(window.db, 'leads'),
-        stampCreate(data)
-      );
+      var payload = stampCreate(data);
+      // The id is picked before the write so a resent create can be told
+      // apart from a failed one (2026-11-04): over long polling the SDK can
+      // resend a create the server already saved, and addDoc's "must not exist"
+      // check then rejects with ALREADY_EXISTS for a lead that saved. After any
+      // error the doc is read back; there and this user's = saved.
+      var ref = window.doc(window.collection(window.db, 'leads'));
+      try {
+        await window.setDoc(ref, payload);
+      } catch (e) {
+        var saved = false;
+        try {
+          var snap = await window.getDoc(ref);
+          saved = !!(snap && snap.exists() && (snap.data() || {}).userId === payload.userId);
+        } catch (_) { /* the read-back failing proves nothing: report the write error */ }
+        if (!saved) throw e;
+        console.warn('[NBDRepos] lead create reported ' + ((e && e.code) || 'an error') + ' but the lead is saved; continuing');
+      }
       return { id: ref.id };
     },
 

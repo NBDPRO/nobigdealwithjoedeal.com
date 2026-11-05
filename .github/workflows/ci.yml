@@ -5,8 +5,11 @@ on:
   # GitHub merge queue (2026-10-04): every check must also run on the
   # queue's merge_group ref, or a queued PR waits forever for it.
   merge_group:
-  push:
-    branches: [main]
+  # No `push: branches: [main]` trigger (dropped 2026-11-05, Jo's call): a merge
+  # to main goes through the merge queue, so the commit that lands was already
+  # tested whole on the queue's merge_group ref. The push run repeated that run
+  # (about 100 runner-minutes) behind the same runner backlog. firebase-deploy.yml
+  # does not depend on this workflow. Pinned by tests/ci-no-push-run-2026-11-05.test.js.
 
 permissions:
   contents: read
@@ -25,6 +28,8 @@ permissions:
 #   push (main)   ci-push-<run_id>: never cancelled and never replaced.
 #                 A queue run is the merge gate and a main run is the
 #                 record of what deployed — neither may be cut short.
+#                 (2026-11-05: push to main no longer triggers this workflow;
+#                 the push group is kept so a manual or future trigger is safe.)
 #
 # Deploys are NOT here: firebase-deploy.yml has its own group, and a
 # deploy must never be cancelled mid-run. Do not add a job-level
@@ -86,6 +91,47 @@ concurrency:
 # ─────────────────────────────────────────────────────────────
 
 jobs:
+  # ─────────────────────────────────────────────────────────────
+  # CHANGE SCOPE (added 2026-11-04)
+  #
+  # The free-plan runner pool runs ~20 jobs at once and one CI run is ~27
+  # jobs, so a docs-only PR held the whole pool for its browser shards while
+  # a dozen code PRs queued behind it. This job decides heavy=true|false
+  # (scripts/ci-change-scope.js) and seven OPTIONAL heavy jobs skip when a
+  # PR or queue group touches only documentation/, root *.md or .obsidian/.
+  #
+  # Never gated: any required check (branch protection + the main merge-queue
+  # ruleset). A skipped required job reads as a pass, and a skipped matrix
+  # job reports one unexpanded name, which would hang the queue. The gate on
+  # the optional jobs fails OPEN (`!cancelled()` and `!= 'false'`), so if
+  # this job errors or prints nothing the heavy jobs still run. No base
+  # commit (push to main) means heavy=true. Pinned by
+  # tests/ci-docs-only-skip-2026-11-04.test.js.
+  # ─────────────────────────────────────────────────────────────
+  change-scope:
+    name: Change scope (docs-only skips optional heavy jobs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.scope.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Classify the changed paths
+        id: scope
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          MQ_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          BASE="${PR_BASE:-$MQ_BASE}"
+          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "No base commit to diff against (push to main or missing history): run everything."
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE" HEAD | node scripts/ci-change-scope.js >> "$GITHUB_OUTPUT"
+
   smoke-tests:
     name: Smoke tests
     runs-on: ubuntu-latest
@@ -99,10 +145,11 @@ jobs:
       # on the suite that stands between the cost book and the public tree. The
       # secret-scan job already pays this fetch; paying it here too is the price
       # of a pin that cannot be silenced by editing the pin.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -145,8 +192,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Gate the defect classes the 2026-06 manual QC sweep fixed by hand:
@@ -372,8 +421,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Most of the bucket is dependency-free, but expenses-logic requires
@@ -412,14 +463,18 @@ jobs:
   # firebase-tools shape as the firestore-rules job — none boots functions.
   emulator-orphan-suites:
     name: Auth/Firestore emulator suites (rate-limit, auth-access, lead-lifecycle)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -473,8 +528,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Parse-checks every FIRST-PARTY shipped .js under functions/ + docs/.
@@ -504,8 +561,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -568,6 +627,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-hshortcut-test 'node firestore-rules.health-shortcut.test.js'
+      # MRMS MESH radar hail swaths (2026-11-04): hail_mesh/{ymd} is signed-in read, Admin-SDK write only. Own file (positive controls inside).
+      - name: Run hail-mesh rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-hailmesh-test 'node firestore-rules.hail-mesh.test.js'
       # Brief delta-mode snapshot (2026-10-18): morningBriefState/{cid} is Admin-SDK only. Own file.
       - name: Run morning-brief-state rules tests under emulator
         run: |
@@ -588,6 +652,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-reputation-test 'node firestore-rules.reputation.test.js'
+      # Receipt inbox (2026-11-04): receipt_inbox/{id} drafts are server-created; a browser can only decide. Own file.
+      - name: Run receipt-inbox rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-rcptinbox-test 'node firestore-rules.receipt-inbox.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |
@@ -645,13 +714,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # Firestore emulator runs on the JVM; firebase-tools needs a modern JDK
       # (same setup as the @stranger E2E shard that boots the functions emulator).
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -755,8 +826,10 @@ jobs:
     # 0.2-0.9 min" sample that no longer holds.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -812,6 +885,8 @@ jobs:
   # break multi-tenant + App Check).
   functions-audit:
     name: Dependency audit (high and above)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 20 not 15: dep install runs ~4 min and the retry path above can spend up
     # to 3x180s of audit plus 120s of backoff before it fails closed. At 15 the
@@ -819,8 +894,10 @@ jobs:
     # RUN" message would never be printed.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -881,8 +958,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # Simple grep — fast first-pass for obvious patterns. Catches
       # the big ones before a push even completes.
@@ -921,6 +999,57 @@ jobs:
           fi
           echo "gitleaks range: ${RANGE}"
           ./gitleaks git --redact --verbose --log-opts="${RANGE}" .
+
+      # 2026-11-04 (GitHub repo sweep,
+      # documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md): trufflehog
+      # next to gitleaks, which is now security-patch-only. trufflehog also
+      # tries each candidate against the live service (Stripe, Twilio,
+      # Resend, ...): "verified" means the key works today, "unknown" means
+      # the check could not finish. Known-dead keys are dropped.
+      # Same commit range as gitleaks. The log and summary carry detector,
+      # file, line and commit only, never the secret (--json + jq, because
+      # the plain output prints it).
+      # REPORT-ONLY for now: no --fail, and the step always exits 0. A
+      # scanner error or a hang (capped by `timeout`) becomes a warning, so
+      # it cannot fail this required job. This is NOT continue-on-error:
+      # ci.yml carries no continue-on-error key at all (pinned by
+      # tests/smoke/functions.test.js and tests/gauntlet-regressions.test.js).
+      # Make it blocking once the baseline is triaged.
+      - name: trufflehog scan (report-only)
+        env:
+          TRUFFLEHOG_VERSION: 3.99.8
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: |
+          rc=0
+          (
+            set -euo pipefail
+            tarball="trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
+            url="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}"
+            curl -sSfLO "${url}/${tarball}"
+            curl -sSfL "${url}/trufflehog_${TRUFFLEHOG_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum -c -
+            tar -xzf "${tarball}" trufflehog
+            if [ -n "${BASE_SHA}" ] && [ "${BASE_SHA}" != "0000000000000000000000000000000000000000" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+              SINCE="${BASE_SHA}"
+            else
+              SINCE="${HEAD_SHA}~1"
+            fi
+            echo "trufflehog range: ${SINCE}..${HEAD_SHA}"
+            timeout 240 ./trufflehog git "file://${PWD}" --since-commit "${SINCE}" --branch "${HEAD_SHA}" \
+              --results=verified,unknown --no-update --json > trufflehog.json
+            jq -r '"\(if .Verified then "VERIFIED" else "unknown" end)  \(.DetectorName)  \(.SourceMetadata.Data.Git.file):\(.SourceMetadata.Data.Git.line)  commit \(.SourceMetadata.Data.Git.commit[0:12])"' trufflehog.json > findings.txt
+            {
+              echo '## trufflehog (verified + unknown, report-only)'
+              if [ -s findings.txt ]; then echo '```'; cat findings.txt; echo '```'; else echo 'No findings.'; fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ -s findings.txt ]; then
+              sed 's/^/::warning::trufflehog /' findings.txt
+            fi
+          ) || rc=$?
+          if [ "${rc}" -ne 0 ]; then
+            echo "::warning::trufflehog did not complete (exit ${rc}); report-only, so the job continues"
+            echo "## trufflehog did not complete (exit ${rc})" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   e2e-authed-emulator:
     name: Authed E2E (emulators, ${{ matrix.shard }})
@@ -1017,13 +1146,15 @@ jobs:
     # make that a fast red instead of a wedge). Ledger in
     # documentation/projects/WEEKLY_CADENCE.md.
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # The Firestore emulator runs on the JVM; firebase-tools 15+ (the tests
       # devDependency) requires JDK 21 — same setup as firebase-deploy.yml.
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -1066,7 +1197,7 @@ jobs:
           npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -Ev 'hosting:.{0,20}127\.0\.0\.1 - - \['
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-authed-traces-${{ strategy.job-index }}
           path: tests/test-results/
@@ -1109,8 +1240,10 @@ jobs:
     # so it carries the same wedge exposure as the E2E jobs above.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # pdf-lib: the stamping engine under test is required directly from
@@ -1151,11 +1284,15 @@ jobs:
   # pdf-lib usage), so it skips that install step esign-suites has.
   mobile-realtime-suite:
     name: Mobile realtime suite (Chromium)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1184,6 +1321,8 @@ jobs:
   # block or any connect-src refusal. No functions/ deps needed.
   pro-demo-zero-network:
     name: Pro demo zero-network walk (Chromium)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 12 -> 20 (2026-10-16): the walk and the layouts check now run twice,
     # on the readable tree and on the minified build the deploy ships.
@@ -1193,8 +1332,10 @@ jobs:
     # has to catch a hung install, not police the suite.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1317,8 +1458,10 @@ jobs:
     # 20-minute red instead of a 6-hour blocked merge.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1347,7 +1490,7 @@ jobs:
             'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js marketing.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-public-traces
           path: tests/test-results/
@@ -1364,11 +1507,15 @@ jobs:
   # bounds a stall below the queue's longest required job.
   public-e2e-webkit:
     name: Public-surface E2E (mobile WebKit)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1390,7 +1537,7 @@ jobs:
             'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=mobile-webkit --workers=1 nav-drawer.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-public-webkit-traces
           path: tests/test-results/
@@ -1410,6 +1557,8 @@ jobs:
   # documentation/projects/WEEKLY_CADENCE.md.
   qc-render-sweep:
     name: Rendered QC sweep (docs/)
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # Matches the two other Playwright jobs below. This job was added AFTER
     # 42e4a003 gave every job a timeout, so it inherited GitHub's 6-hour
@@ -1421,8 +1570,10 @@ jobs:
     # fast on a hung download, not to bound normal work.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       # NO bare `playwright` argument here — install the workspace AS PINNED,
@@ -1458,7 +1609,7 @@ jobs:
         run: node scripts/qc-render-sweep.js --base http://localhost:5000 --json qc-render-sweep.json
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qc-render-sweep-report
           path: qc-render-sweep.json
@@ -1472,6 +1623,8 @@ jobs:
   # (ledger in documentation/projects/WEEKLY_CADENCE.md).
   visual-brand-tokens:
     name: Brand-token visual assertions
+    needs: change-scope
+    if: ${{ !cancelled() && needs.change-scope.outputs.heavy != 'false' }}
     runs-on: ubuntu-latest
     # 20, same tier as the other Playwright jobs. First cut of this file
     # put it at 15 on the belief it had no Playwright install — wrong: it
@@ -1481,8 +1634,10 @@ jobs:
     # command, when auditing this.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install visual workspace deps
@@ -1525,8 +1680,10 @@ jobs:
     # fast red instead of a blocked merge.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
       - name: Install test deps
@@ -1551,7 +1708,7 @@ jobs:
             "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 visual-regression.spec.js $MODE"
       - name: Upload baselines / diffs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: visual-regression-output
           path: |
