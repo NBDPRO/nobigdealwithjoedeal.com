@@ -83,6 +83,7 @@
     "appcheck-config-per-page-2026-10-06.test.js",
     "google-signin-popup.test.js",
     "ci-concurrency.test.js",
+    "ci-no-push-run-2026-11-05.test.js",
     "crm-logo-legibility-2026-09-16.test.js",
     "pipeline-health-panel-2026-10-12.test.js",
     "portal-timeline-docs-balance-2026-09-16.test.js",
