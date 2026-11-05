@@ -28,6 +28,41 @@
 
   let _layer = null, _legend = null, _center = null, _events = [], _window = 'y1', _map = null, _seq = 0;
 
+  // Radar hail swaths (2026-11-04, js/hail-mesh-swaths.js): NOAA MRMS MESH
+  // bands for the last MESH_DAYS storm days from hail_mesh/{YYYY-MM-DD}
+  // (meshHailCron, dark until feature_flags/global.meshHailEnabled). Drawn
+  // UNDER the report dots. The legend only mentions them when there are some:
+  // a failed read and an empty week look the same, so "no radar hail" is
+  // never claimed.
+  const MESH_DAYS = 7;
+  const MESH_COLORS = { gold: '#d9a21b', red: '#d64545' };
+  let _mesh = [], _meshLayer = null, _meshSeq = 0;
+
+  /** Leaflet path style for one swath (pure): 1.75"+ red, smaller gold. */
+  function meshStyle(level) {
+    const c = MESH_COLORS[level] || MESH_COLORS.gold;
+    return { color: c, weight: 1, opacity: 0.9, fillColor: c, fillOpacity: level === 'red' ? 0.32 : 0.22 };
+  }
+
+  function loadMesh() {
+    const seq = ++_meshSeq;
+    const HM = window.NBDHailMeshSwaths;
+    if (!HM) {
+      const SL = window.ScriptLoader;
+      if (SL && typeof SL.load === 'function' && !loadMesh._tried) {
+        loadMesh._tried = true;
+        return Promise.resolve(SL.load('/pro/js/hail-mesh-swaths.js?v=1')).then(() => { if (seq === _meshSeq) return loadMesh(); });
+      }
+      return Promise.resolve();
+    }
+    // Docs are keyed by the UTC day their 24-hour window ends.
+    return HM.load({ today: new Date().toISOString().slice(0, 10), days: MESH_DAYS }).then((docs) => {
+      if (seq !== _meshSeq || !_map) return;
+      _mesh = HM.allSwaths(docs);
+      draw();
+    }, () => {});
+  }
+
   function haversineMi(la1, lo1, la2, lo2) {
     const R = 3958.8, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
     const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
@@ -72,6 +107,12 @@
   function draw() {
     if (!_map || !window.L) return;
     if (_layer) { _map.removeLayer(_layer); _layer = null; }
+    if (_meshLayer) { _map.removeLayer(_meshLayer); _meshLayer = null; }
+    if (_mesh.length) {
+      // Added first, so the report dots draw on top of the swaths.
+      _meshLayer = window.L.layerGroup(_mesh.map((s) => window.L.polygon(s.rings, meshStyle(s.level)).bindPopup(esc(s.title))));
+      _meshLayer.addTo(_map);
+    }
     const now = Date.now();
     const shown = inWindow(_events, _window, now).sort((a, b) => ageDays(b.date, now) - ageDays(a.date, now)); // newest on top
     _layer = window.L.layerGroup(shown.map((ev) => window.L.circleMarker([ev.lat, ev.lon], styleFor(ev, now)).bindPopup(esc(label(ev)))));
@@ -90,7 +131,17 @@
       '</div>' +
       '<div class="d2d-storm-key"><span class="d2d-dot is-hail"></span>Hail ' + n.hail + (maxHail ? ' (max ' + esc(maxHail) + '")' : '') +
       ' <span class="d2d-dot is-wind"></span>Wind ' + n.wind + ' <span class="d2d-dot is-tornado"></span>Tornado ' + n.tornado + '</div>' +
+      meshLegendHtml(_mesh) +
       '<div class="d2d-storm-src">NWS storm reports (NOAA) · brighter = newer</div>';
+  }
+
+  /** The radar-swath legend line, or '' when there are none (pure). */
+  function meshLegendHtml(mesh) {
+    if (!mesh || !mesh.length) return '';
+    const red = mesh.filter((s) => s.level === 'red').length;
+    return '<div class="d2d-storm-key"><span class="d2d-dot is-mesh"></span>Radar hail swaths, last ' + MESH_DAYS + ' days: ' + mesh.length +
+      (red ? ' (' + red + ' at 1.75"+)' : '') + '</div>' +
+      '<div class="d2d-storm-src">Radar estimate (NOAA MRMS) · not a measured size</div>';
   }
 
   async function load(center) {
@@ -129,17 +180,21 @@
     }
     _map.on('moveend', onMoveEnd);
     load(_map.getCenter());
+    loadMesh();
   }
 
   function hide(map) {
     const m = map || _map;
     _seq++;
+    _meshSeq++;
     if (m) {
       if (_layer) m.removeLayer(_layer);
+      if (_meshLayer) m.removeLayer(_meshLayer);
       m.off('moveend', onMoveEnd);
       if (_legend && _legend._ctl) m.removeControl(_legend._ctl);
     }
     _layer = null; _legend = null; _center = null; _events = [];
+    _meshLayer = null; _mesh = [];
   }
 
   document.addEventListener('click', (ev) => {
@@ -177,5 +232,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', followDeepLink); else followDeepLink();
 
-  window.NBDD2DStorms = { show, hide, styleFor, inWindow, label, parseStormParam, ageDays, WINDOWS };
+  window.NBDD2DStorms = { show, hide, styleFor, inWindow, label, parseStormParam, ageDays, WINDOWS, meshStyle, meshLegendHtml, loadMesh, MESH_DAYS };
 })();
