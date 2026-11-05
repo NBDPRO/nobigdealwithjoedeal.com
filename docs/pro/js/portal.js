@@ -69,9 +69,13 @@
   // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
   // server says charges what is due now; a sent link that no longer fits
   // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
+  // Phase 3 pay panel (2026-11-04): Stripe's own page opens in a new tab so
+  // this one stays put; tapping Pay speeds up the poll (_expectPayment) and
+  // coming back fires an immediate one (_onVisibility).
   function balancePayActionHtml(b) {
     const url = b && safeUrl(b.stripePaymentLink);
-    if (url) return '<a class="btn portal-pay-btn" href="' + esc(url) + '" target="_blank" rel="noopener">Pay Now →</a>';
+    if (url) return '<a class="btn portal-pay-btn" href="' + esc(url) + '" data-metric="pay" target="_blank" rel="noopener">Pay Now →</a>' +
+      '<p class="portal-pay-note" data-pay-secure>Opens Stripe’s secure payment page in a new tab. When you’re done, come back here. This page updates on its own.</p>';
     if (b && b.linkPending) return '<p class="portal-pay-wait" data-link-pending>Your balance link is on its way. Your rep will send it, or reply to any message from them to ask for it.</p>';
     return '<p class="portal-pay-wait">Ask your rep for a payment link to pay online.</p>';
   }
@@ -323,6 +327,19 @@
       const done = !!nSignedUrl || /sign|complete|done/i.test(nSig);
       events.push({ kind: 'signed', msg: done ? `✅ Your contract is signed — thank you!` : `✍️ Signature status updated` });
     }
+    // Payment posted (Phase 3 pay panel, 2026-11-04). Without this a payment
+    // that leaves the step unchanged (a deposit, a draw) never repaints, and
+    // the Pay card sits there after Stripe has taken the money.
+    const pPaid = paidSoFarCents(prev.paid), nPaid = paidSoFarCents(next.paid);
+    const pProc = Number(prev.balance && prev.balance.processingCents) || 0;
+    const nProc = Number(next.balance && next.balance.processingCents) || 0;
+    if (nPaid > pPaid) {
+      events.push({ kind: 'paid', msg: `✅ Payment received — thank you!` });
+    } else if (nProc > 0 && pProc !== nProc) {
+      events.push({ kind: 'paid', msg: `🏦 Your bank payment is processing` });
+    } else if (((prev.balance && prev.balance.stripePaymentLink) || '') !== ((next.balance && next.balance.stripePaymentLink) || '')) {
+      events.push({ kind: 'paid', msg: `💳 Your payment details were updated` });
+    }
     return events.length ? events : null;
   }
 
@@ -391,8 +408,23 @@
   function _scheduleNextPoll() {
     clearTimeout(_pollTimer);
     if (document.hidden) { _pollTimer = null; return; }
-    _pollTimer = setTimeout(_pollOnce, POLL_INTERVAL_MS);
+    _pollTimer = setTimeout(_pollOnce, Date.now() < _payWatchUntil ? PAY_POLL_INTERVAL_MS : POLL_INTERVAL_MS);
   }
+
+  // Phase 3 pay panel: after a Pay Now tap, check every 10s for 10 minutes
+  // so the paid state shows soon after Stripe posts it. Polls are exempt
+  // from the token's open budget (poll: true), so this costs no opens.
+  const PAY_POLL_INTERVAL_MS = 10_000;
+  const PAY_WATCH_MS = 10 * 60 * 1000;
+  let _payWatchUntil = 0;
+  function _expectPayment() {
+    _payWatchUntil = Date.now() + PAY_WATCH_MS;
+    if (_pollTimer) _scheduleNextPoll();
+  }
+  document.addEventListener('click', function (e) {
+    const a = e.target && e.target.closest ? e.target.closest('.portal-pay-btn, .progress-action[data-metric="pay"]') : null;
+    if (a) _expectPayment();
+  });
 
   function _onVisibility() {
     // Tab hidden → halt timer to save battery + Cloud Function cost.
@@ -1223,7 +1255,20 @@
         '</div>'
       );
     }
-    if (view.balance && !_nothingDue) {
+    // A bank (ACH) payment already in flight (portal-pay.js): no Pay button,
+    // just what is happening, so nobody pays twice while it settles.
+    const _processingCents = view.balance && !_nothingDue ? Number(view.balance.processingCents) || 0 : 0;
+    if (_processingCents > 0) {
+      parts.push(
+        '<div class="card" data-portal-pay-processing>' +
+          '<div class="card-label">💳 Payments</div>' +
+          '<div class="card-title">Bank payment processing</div>' +
+          '<p class="portal-pay-note">' + esc(fmtCents(_processingCents)) + ' from your bank account is on its way. Bank payments usually take 3 to 5 business days to clear. There is nothing more to do.</p>' +
+          (view.balance.invoiceNumber ? '<p class="progress-schedule-note">' + esc('Invoice ' + view.balance.invoiceNumber) + '</p>' : '') +
+        '</div>'
+      );
+    }
+    if (view.balance && !_nothingDue && !_processingCents) {
       const amount = (view.balance.amountCents / 100).toLocaleString(undefined, {
         style: 'currency', currency: 'USD'
       });
@@ -1249,6 +1294,7 @@
         '<div class="card">' +
           '<div class="card-label">💳 ' + (isDeposit ? 'Deposit Due' : 'Balance Due') + '</div>' +
           '<div class="card-title">' + esc(amount) + '</div>' +
+          (view.balance.invoiceNumber ? '<p class="progress-schedule-note" data-pay-invoice>' + esc('Invoice ' + view.balance.invoiceNumber) + '</p>' : '') +
           owedLine +
           payAction +
           bankLine +

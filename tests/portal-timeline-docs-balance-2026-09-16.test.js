@@ -175,7 +175,9 @@ group('Balance card: no button at all without a real link', () => {
   // 2026-10-07 (R6-2-6): the pay line moved into balancePayActionHtml(b),
   // which the card calls with view.balance; its behaviour (pending / ask the
   // rep / Pay Now) is run in tests/portal-after-signing-2026-10-07.test.js.
-  const card = liftBetween(PORTAL, "if (view.balance && !_nothingDue) {", "\n    }\n");
+  // 2026-11-04: a bank payment in flight (processingCents) gets its own card
+  // first and this one is skipped (tests/portal-pay-panel-2026-11-04.test.js).
+  const card = liftBetween(PORTAL, "if (view.balance && !_nothingDue && !_processingCents) {", "\n    }\n");
   const block = liftBetween(PORTAL, "function balancePayActionHtml(b) {", "\n  }\n");
   assert('found the balance-card render block', !!block && !!card && /balancePayActionHtml\(view\.balance\)/.test(card));
   if (block) {

@@ -51,6 +51,7 @@ const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
 const PortalToday = require('./portal-today');
+const PortalPay = require('./portal-pay');
 const EVA = require('./estimate-view-alert');
 const { reencodePhoto } = require('./photo-reencode');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
@@ -1065,14 +1066,18 @@ exports.getHomeownerPortalView = onRequest(
       zelle: (typeof zelleBrand === 'undefined' || (_kyHold && _kyHold.held) || !(_dueCard.amountCents > 0)) ? null
         : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
     } : null;
+    // Pay panel (CUSTOMER-PORTAL-PLAN Phase 3): a bank payment already in
+    // flight withholds the link (no paying twice) and the invoice number
+    // rides along. portal-pay.js never talks to Stripe.
+    const _payCard = PortalPay.withPayExtras(_balance, _unpaidInvoice);
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at
     // creation (stripe.js runs ky-insurance-law.js server-side), so a held
     // invoice has no link here and the step shows no button. Only while the
     // current step is an unpaid Final payment: the build is done by then, so
     // this is never an ask for money up front.
-    if (hp.currentKey === 'payment' && hp.pending && _balance && _balance.stripePaymentLink) {
-      progress.payLink = _balance.stripePaymentLink;
+    if (hp.currentKey === 'payment' && hp.pending && _payCard && _payCard.stripePaymentLink) {
+      progress.payLink = _payCard.stripePaymentLink;
     }
 
     // Signed by ANY path (audit M1, 2026-10-07): a deal-room acceptance never
@@ -1266,7 +1271,7 @@ exports.getHomeownerPortalView = onRequest(
       documents: _portalDocuments,
       // null when there's no outstanding invoice — most jobs, most of the
       // time. See the build above for why this never mints a new link.
-      balance: _balance,
+      balance: _payCard,
       // { payments: [{ date, amountCents, method, invoiceNumber }],
       //   totalPaidCents } — null until money lands.
       paid: _paid,

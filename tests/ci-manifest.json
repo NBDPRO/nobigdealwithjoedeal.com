@@ -673,6 +673,7 @@
     "town-rr-pages-overlap-2026-10-06.test.js",
     "portal-project-home-2026-11-04.test.js",
     "portal-today-2026-11-04.test.js",
+    "portal-pay-panel-2026-11-04.test.js",
     "noaa-event-links-2026-11-04.test.js",
     "a11y-contrast-sweep-2026-11-04.test.js",
     "deal-acceptance-atomicity.test.js",
