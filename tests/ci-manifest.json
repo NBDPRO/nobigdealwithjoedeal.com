@@ -673,6 +673,7 @@
     "ds-week-strip-2026-11-04.test.js",
     "stage-role-fallback-coverage.test.js",
     "kanban-next-action-chip.test.js",
+    "ds-week-glance-run-2026-11-04.test.js",
     "stage-checklist.test.js",
     "lead-task-writer-shape.test.js",
     "render-pdf-brand-mark-square.test.js",
@@ -809,6 +810,7 @@
     "wizard-validation-focus-2026-10-26.test.js",
     "scroll-padding-2026-10-26.test.js",
     "blog-callout-links-2026-10-26.test.js",
+    "ci-docs-only-skip-2026-11-04.test.js",
     "dashboard-boot-no-duplicate-toplevel-2026-11-04.test.js",
     "concat-shipped-2026-11-04.test.js",
     "script-loader-parallel-download-2026-11-04.test.js"
