@@ -1,0 +1,23 @@
+{
+  "elements": [
+    "html5"
+  ],
+  "rules": {
+    "close-order": "error",
+    "no-implicit-close": "error",
+    "no-dup-attr": "error",
+    "no-dup-id": "error",
+    "element-permitted-order": "error",
+    "element-permitted-occurrences": "error",
+    "element-required-content": "error",
+    "element-required-attributes": "error",
+    "attribute-allowed-values": "error",
+    "attribute-misuse": "error",
+    "hidden-focusable": "error",
+    "input-attributes": "error",
+    "valid-autocomplete": "error",
+    "autocomplete-password": "error",
+    "unrecognized-char-ref": "error",
+    "deprecated": "error"
+  }
+}

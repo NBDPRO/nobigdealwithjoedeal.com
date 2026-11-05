@@ -1,0 +1,64 @@
+name: HTML validate
+
+# Markup correctness for every page under docs/ (added 2026-11-04, from the
+# GitHub repo sweep: documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md).
+#
+# html-validate (MIT, pure Node, no browser) with .htmlvalidate.json, which
+# turns on CORRECTNESS rules only — wrong close order, an element closed by
+# the document ending, a duplicate attribute, a second <head>, attributes that
+# need another attribute, broken autocomplete tokens. Style rules (inline
+# styles, raw characters, button types…) stay off: the first full run had
+# 25,932 of those and they would bury the real breakage.
+#
+# The first correctness run found a public /areas/ card nested inside another
+# (one missing </div>), a CRM header button that was never closed (nine
+# cascading structure errors), a duplicated style attribute that silently
+# dropped a margin, and `"/ style="` typos — all fixed in the PR that added
+# this file. What it still lists is the triaged baseline in the sweep doc.
+#
+# REPORT-ONLY for now: continue-on-error and NOT in the merge queue's
+# required checks. Once the baseline is clean, drop continue-on-error and
+# make it required. The tool version is pinned in the command below; bump it
+# by hand.
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**/*.html'
+      - '.htmlvalidate.json'
+      - '.github/workflows/html-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: html-validate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: html-validate (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: html-validate 11.18.0
+        continue-on-error: true
+        run: |
+          # Runner bash is -e: capture the exit code so the summary still writes.
+          rc=0
+          npx --yes html-validate@11.18.0 --formatter stylish 'docs/**/*.html' > html-validate.txt 2>&1 || rc=$?
+          cat html-validate.txt
+          {
+            echo '## html-validate (correctness rules, .htmlvalidate.json)'
+            if [ "$rc" -eq 0 ]; then echo 'No findings.'; else echo '```'; tail -200 html-validate.txt; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
