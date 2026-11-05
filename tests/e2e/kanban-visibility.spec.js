@@ -113,7 +113,7 @@ async function seed(page, token) {
     const old = new Date(); old.setDate(old.getDate() - 60);
     const out = [];
     for (let i = 0; i < stages.length; i++) {
-      const ref = await window.addDoc(window.collection(window.db, 'leads'), {
+      const ref = await window.__e2eAddDoc(window, window.db, 'leads', {
         meter: 'manual', // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
         userId: uid, companyId: (window._userClaims && window._userClaims.companyId) || uid,
         firstName: 'Kv', lastName: tok + 'S' + i, stage: stages[i], // no jobType: every pipeline tab shows an untyped lead
