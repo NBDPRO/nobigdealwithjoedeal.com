@@ -292,6 +292,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `healthDigestCron` | daily 14:00 UTC | Ops health digest (Vision spend, Stripe webhooks, Anthropic tokens, portal engagement, "AI spend yesterday / this month" from `ai_spend_daily` / `ai_spend_monthly` (ai-spend.js), and the weekly Bots + Thursday scorecard (ops-scorecard.js)); gated on `HEALTH_DIGEST_ENABLED` |
 | `emailQueueWorker` | every 1 min | Drains `email_queue/` via Resend |
 | `hailMatchCron` | daily 09:00 | NOAA storm-match sweep + Slack notify (the HailTrace branch was removed 2026-10-04) (was listed as `hailCron` — actual export name is `hailMatchCron`) |
+| `meshHailCron` | daily 13:20 UTC | NOAA MRMS MESH 24-hour hail grid → 0.75/1/1.5/2" swath polygons for the Cincinnati/NKY box in `hail_mesh/{YYYY-MM-DD}` (integrations/mesh-hail.js; pure decode/trace in mesh-hail-logic.js). **Dark** until `feature_flags/global.meshHailEnabled === true` |
 | `onAppointmentReminder` | every 15 min | Push notification 15 min before appointments |
 | `onFollowUpDue` | daily 08:00 | Push notification for due follow-ups |
 | `googleCalendarReconcile` | daily 05:45 ET | Google Calendar — makes "NBD Jobs" match the CRM (jobs + adjuster meetings from 30 days back; removes stale events). No-op until set up; kill switch `GOOGLE_CALENDAR_SYNC_DISABLED=true` |

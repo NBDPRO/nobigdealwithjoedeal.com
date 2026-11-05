@@ -915,7 +915,7 @@ function svcFaqGeneric(t, service) {
   const L = CORE[service];
   const G = {
     'roof-inspection': [
-      ['How long does a roof inspection take?', `Most take 45 to 90 minutes, depending on size, pitch and how many penetrations there are. You get a straight verbal assessment on the spot; a written report with photos is $150.`],
+      ['How long does a roof inspection take?', `Most take 45 minutes to an hour, depending on size, pitch and how many penetrations there are. You get a straight verbal assessment on the spot; a written report with photos is $150.`],
       ['What does the inspection report include?', `Photos of every finding, shingle condition and remaining life, flashing and ventilation notes, gutters, and a plain recommendation: repair, replace, or check back later. More on the <a href="${L}">roof inspection page</a>.`],
     ],
     'siding-replacement': [

@@ -337,7 +337,7 @@
         ' is a good reason to get a trained eye on the roof — only an inspection can show whether there’s real damage. Joe documents anything he finds and writes the estimate; if you file, he meets your adjuster on the roof — the claim stays yours.';
     } else if (hail.length || wind.length || hasSigns) {
       headline = 'It’s worth a free inspection.';
-      detail = 'There’s enough here to get a trained eye on it. Joe will get on the roof, document anything claimable, and tell you straight whether it’s worth filing — no pressure.';
+      detail = 'There’s enough here to get a trained eye on it. Joe will get on the roof, document what the storm did, and tell you straight what he found, so you can decide what to do next. No pressure.';
     } else {
       headline = 'A quick free inspection will tell you for sure.';
       detail = 'Hard to call from the street. Joe will check it in person, document any damage, and walk you through your options — free, no obligation.';
