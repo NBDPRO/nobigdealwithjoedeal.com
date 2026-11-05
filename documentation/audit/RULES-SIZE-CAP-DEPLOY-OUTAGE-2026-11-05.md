@@ -46,3 +46,12 @@ The `--check` warning means the rules *code* is approaching 256 KB. By then,
 stripping comments no longer helps. Shrink the rules: factor out repeated
 helper conditions. Splitting the file will not help, because the cap applies
 to the total size of all sources.
+
+## Update 2026-11-05 (afternoon): the index step was a second stop
+
+With #2869 deployed, the rules step passed (117,861 bytes uploaded), and the next step failed with the same 400:
+`firebase deploy --only firestore:indexes` compiles firestore.rules too, and it ran on the full file the rules step
+had just restored. Storage rules and Cloud Functions are behind it, so they still did not ship (deploy for 590b24ab).
+#2878 runs the same strip-and-restore in the index step, and
+`tests/deploy-firestore-steps-strip-rules-2026-11-05.test.js` fails if any deploy step with a firestore target skips
+it. Lane note: [NEXT_SESSION-2026-11-05-site-crm-speed](../projects/NEXT_SESSION-2026-11-05-site-crm-speed.md).
