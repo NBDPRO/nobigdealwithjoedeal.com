@@ -98,7 +98,7 @@ async function seedLead(page) {
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
       meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
     };
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
+    const id = (await window.__e2eAddDoc(fsMod, db, 'leads', lead)).id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
       await new Promise((r) => setTimeout(r, 200));

@@ -173,7 +173,7 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
         let n = 0;
         for (const r of rows) {
           n += 1;
-          await window.addDoc(window.collection(window.db, 'leads'), Object.assign({}, base, r, {
+          await window.__e2eAddDoc(window, window.db, 'leads', Object.assign({}, base, r, {
             address: (10 + n) + ' Header Ln, Milford OH 45150', phone: '(513) 555-' + String(1000 + n),
           }));
         }
