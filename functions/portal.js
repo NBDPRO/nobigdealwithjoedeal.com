@@ -50,6 +50,7 @@ const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 // duplicated copy was first flagged.
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
+const PortalToday = require('./portal-today');
 const EVA = require('./estimate-view-alert');
 const { reencodePhoto } = require('./photo-reencode');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
@@ -1094,7 +1095,19 @@ exports.getHomeownerPortalView = onRequest(
     // ledger, in cents, redacted (no processor ids, notes or proof paths).
     const _paid = PAS.paidSummaryFor(tenantInvoices);
 
+    // Install-day "Today" card (CUSTOMER-PORTAL-PLAN Phase 2): crew company,
+    // forecast, Jo's note. Never throws, never waits on weather longer than
+    // portal-today.js WEATHER_BUDGET_MS.
+    let _today = null;
+    try {
+      _today = await PortalToday.loadToday(db, lead, { tenant, repName: rep.displayName || lead.repName || '' });
+    } catch (e) {
+      logger.warn('portal today card failed', { err: e && e.message });
+    }
+
     const view = {
+      // The words travel with the data (portal-today.js TODAY_COPY is the one copy).
+      today: _today ? Object.assign({ copy: PortalToday.TODAY_COPY }, _today) : null,
       homeowner: {
         firstName: lead.firstName || '',
         lastName:  lead.lastName || '',
@@ -1237,6 +1250,10 @@ exports.getHomeownerPortalView = onRequest(
           // internal-field-redaction posture as the rest of this view —
           // this is the one internal field that actually needs to travel.
           source: p.source === 'homeowner' ? 'homeowner' : 'rep',
+          // Upload time (ms) so the Today card can show the NEWEST shared photo
+          // (the query has no order). Not identifying; null when unknown.
+          atMs: (p.createdAt && typeof p.createdAt.toMillis === 'function') ? p.createdAt.toMillis()
+            : (p.uploadedAt && typeof p.uploadedAt.toMillis === 'function') ? p.uploadedAt.toMillis() : null,
         };
       }),
       // D-2.7: auto-pair before/after photos by location. The portal
