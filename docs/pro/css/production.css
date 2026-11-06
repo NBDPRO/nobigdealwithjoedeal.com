@@ -9,7 +9,7 @@
 .pr-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .pr-step { min-width: 0; }
 .pr-step-btn { width: 100%; min-height: 64px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); color: var(--t); font: inherit; text-align: left; cursor: pointer; }
-.pr-open .pr-step-btn { border-color: var(--orange, #e8720c); }
+.pr-open .pr-step-btn { border-color: var(--orange, #BD5728); }
 .pr-step-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--br); font-size: 11px; line-height: 14px; text-align: center; color: #fff; }
 .pr-done .pr-step-dot { background: var(--green, #22c55e); border-color: var(--green, #22c55e); }
 .pr-step-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
@@ -80,7 +80,7 @@
 .bs-cells { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; height: 16px; }
 .bs-cell { display: block; border-radius: 2px; background: var(--s2); border: 1px solid var(--br); min-height: 10px; }
 .bs-busy { background: rgba(127, 127, 127, .45); border-color: transparent; }
-.bs-job { background: var(--orange, #e8720c); border-color: transparent; }
+.bs-job { background: var(--orange, #BD5728); border-color: transparent; }
 .bs-deliv { background: rgba(59, 130, 246, .25); border-color: transparent; }
 .bs-note { grid-column: 2; font-size: 11px; color: var(--m); overflow-wrap: anywhere; }
 .bs-note:empty { display: none; }

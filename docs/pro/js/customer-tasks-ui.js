@@ -427,7 +427,7 @@ window.showToast = function(message, type = 'info') {
     const act = document.createElement('button');
     act.type = 'button';
     act.textContent = actionText;
-    act.style.cssText = 'background:none;border:1px solid var(--br,rgba(255,255,255,.2));border-radius:6px;color:var(--orange,#e8720c);cursor:pointer;font-size:12px;font-weight:700;padding:4px 8px;flex-shrink:0;';
+    act.style.cssText = 'background:none;border:1px solid var(--br,rgba(255,255,255,.2));border-radius:6px;color:var(--orange,#BD5728);cursor:pointer;font-size:12px;font-weight:700;padding:4px 8px;flex-shrink:0;';
     act.addEventListener('click', () => { toast.remove(); try { actionFn(); } catch (_) {} });
     toast.appendChild(act);
   }
