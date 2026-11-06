@@ -66,9 +66,6 @@
     return '<span class="pill' + tone + '" data-job-status="' + esc(js.key || '') + '">' + esc(js.label) + '</span>';
   }
 
-  // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
-  // server says charges what is due now; a sent link that no longer fits
-  // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
   // ── Add to Home Screen (Phase 7, 2026-11-04) ─────────────────────
   // The manifest has NO start_url on purpose: the browser then uses this
   // page's own address, token included, so the icon opens this homeowner's
@@ -126,6 +123,9 @@
     if (card) card.remove();
   });
 
+  // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
+  // server says charges what is due now; a sent link that no longer fits
+  // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
   // Phase 3 pay panel (2026-11-04): Stripe's own page opens in a new tab so
   // this one stays put; tapping Pay speeds up the poll (_expectPayment) and
   // coming back fires an immediate one (_onVisibility).

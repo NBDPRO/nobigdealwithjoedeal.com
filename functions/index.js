@@ -1123,6 +1123,7 @@ exports.extractReceiptData = receiptVision.extractReceiptData;
 // at receipt_inbox/{id}; never writes an expense. Dry-run unless RECEIPT_INBOX_ENABLED=true.
 const receiptInbox = require('./receipt-inbox');
 exports.submitInboxReceipt = receiptInbox.submitInboxReceipt;
+exports.onInboxReceiptDropped = receiptInbox.onInboxReceiptDropped;
 
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side
