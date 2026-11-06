@@ -27,6 +27,7 @@ Nothing was deployed. I merged nothing myself: #2894, #2899, #2900 and #2905 wen
 | [#2907](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2907) | a11y | heading-order + redundant-alt fixes (style measured identical) | L | open |
 | [#2908](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2908) | site-perf | 287 new -400 photo copies + srcset on case-study pages | L-M (5.7 MB binaries) | open |
 | [#2911](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2911) | site-visual | desktop header on the 33 blog posts and 7 product pages: nav labels no longer wrap to two lines, button 37-67 px -> 33 px on every post, logo no longer squeezed (new `blog-nav-fit.css`, codemod on 40 pages) | L | open |
+| [#2913](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2913) | site-visual | 18 service hub pages: header side padding 24 -> 16 px at 1025-1440 px like the other 184 pages (`nav-pad-laptop.css` linked last, link order untouched) | L | open |
 | [#2912](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2912) | site-visual | project pages' header at 1025-1440 px matches the standard pages (logo 60 -> 50 px, labels 12.16 -> 11.2 px; generator inline rules, 48 pages) | L | open |
 | [#2909](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2909) | site-ux | /inspect: every invalid field looks invalid, clears on edit (script v=9) | L | open |
 
@@ -62,7 +63,7 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 ## Next-night backlog
 1. 1600 px hero re-exports (NEEDS_JOE 2) then a `-1600` srcset step.
 2. Re-measure mobile TBT on service pages on a quiet machine / the weekly perf-watch, 3 runs, with and without `text-wrap: balance`.
-3. Header families still differ slightly: 18 services pages use 24 px nav padding at 1280 px vs 16 px on the 184-page majority (the documented nav-padding source-order race, so it needs its own careful PR); `/careers` and `/partners` nav padding (20 px vs 16 px); `/free-roof` first-invalid-field focus (generated script, needs the extractor).
+3. Header families still differ above 1440 px (service hubs 40/56 px side padding vs 16 px on standard pages; a design call, the 1025-1440 px gap was fixed in #2913); `/careers` and `/partners` nav padding (20 px vs 16 px); `/free-roof` first-invalid-field focus (generated script, needs the extractor).
 
 ## Rollback
 Close any open PR; merged ones revert with `git revert`. No deploys, no data writes, no CRM logins. Worktree
