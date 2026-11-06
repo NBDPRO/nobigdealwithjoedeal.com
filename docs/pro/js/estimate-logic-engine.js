@@ -712,6 +712,14 @@
     'RFG CUP':         '1',
     // Underlayment specifics
     'RFG IWS':         'max(sq * 0.10, eaveLf * 3 / 100)', // 10% of sq OR 3ft band at eaves
+    // Same eave band for the other ice & water / ice barrier variants. With no
+    // entry they fell through QTY_BY_SUB.underlayment = 'sq' and billed the
+    // WHOLE deck — in the Best template the IWS slot defaults to IWS-HT, so the
+    // default doubled the deck coverage and the brand toggle to RFG IWS swung
+    // the quantity ~10x (CRM audit 2026-11-06, OR-F06 / ED-F03).
+    'RFG IWS-HT':      'max(sq * 0.10, eaveLf * 3 / 100)', // high-temp: valleys/penetrations, not the deck
+    'RFG IWS-TAMKO':   'max(sq * 0.10, eaveLf * 3 / 100)', // TAMKO Moisture Guard
+    'RFG RNB-MEM':     'max(sq * 0.10, eaveLf * 3 / 100)', // rain & ice barrier: eaves, valleys, penetrations
     'RFG IWS-FC':      'sq',                                // full coverage
     // Decking replacement
     'RFG OSB716':      'adjustedSqft * deckReplacePct',
