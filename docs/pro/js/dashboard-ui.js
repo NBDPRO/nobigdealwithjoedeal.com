@@ -1640,17 +1640,27 @@ const openUploadDoc = function(){
 };
 
 // ── Inject "Blank" buttons on every template row ──
-// Runs once after DOM is ready. Each .tl-doc-row that calls
-// NBDDocGen.fillAndGenerate('type') gets a small "Blank" button
-// inserted before the arrow. Clicking it calls generateBlank()
-// instead, producing a printable empty copy.
-(function injectBlankButtons() {
+// Each Template Library row gets a small "Blank" button before the arrow.
+// Clicking it calls generateBlank() instead, producing a printable empty copy.
+// CRM audit 2026-11-06 (VW-F50): this used to run once at script load, while
+// the rows were still inside the un-hydrated tpl-view-docs <template>, and it
+// matched an onclick="fillAndGenerate('x')" the rows no longer carry, so no
+// Blank button ever existed. goTo('docs') now calls it after hydration; it
+// reads data-target from the data-action="docgen" rows and is idempotent.
+function _injectBlankButtons() {
   document.querySelectorAll('.tl-doc-row').forEach(function(row) {
-    var onclick = row.getAttribute('onclick') || '';
-    var match = onclick.match(/fillAndGenerate\(['"]([^'"]+)['"]\)/);
-    if (!match) return;
-    var type = match[1];
+    if (row.querySelector('.tl-doc-blank')) return;
+    var type = row.getAttribute('data-action') === 'docgen' ? (row.getAttribute('data-target') || '') : '';
+    if (!type) {
+      var onclick = row.getAttribute('onclick') || '';
+      var match = onclick.match(/fillAndGenerate\(['"]([^'"]+)['"]\)/);
+      if (!match) return;
+      type = match[1];
+    }
     var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tl-doc-blank';
+    btn.setAttribute('aria-label', 'Print a blank copy');
     btn.textContent = 'Blank';
     btn.title = 'Print a blank copy to fill by hand';
     btn.style.cssText = 'background:var(--s2);border:1px solid var(--br);color:var(--m);padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);';
@@ -1675,7 +1685,9 @@ const openUploadDoc = function(){
     if (arrow) row.insertBefore(btn, arrow);
     else row.appendChild(btn);
   });
-})();
+}
+window._injectBlankButtons = _injectBlankButtons; // dashboard-actions.js goTo('docs')
+_injectBlankButtons();
 function closeUploadDoc(){
   const el = document.getElementById('docUploadArea');
   if (el) el.style.display = 'none';
