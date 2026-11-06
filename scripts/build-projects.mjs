@@ -758,8 +758,10 @@ const STRIP_RE = /<!-- OURWORK-STRIP-START service="([a-z-]+)" -->[\s\S]*?<!-- O
 const detailPhotoCard = (ph) => {
   // Sized by .pd-photo in project-cards.css (inline style attributes until 2026-10-05).
   const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300">`;
+  // Rendered 157-341 px wide (two columns up to 768 px, then auto-fill at about 280 px); the -400 copies come from
+  // scripts/build-project-thumbs.mjs. Larger/denser screens still pick the 800 px file.
   return `      <figure class="pd-photo">
-        ${pictureFor(ph.src, img)}
+        ${pictureFor(ph.src, img, [400], '(max-width: 768px) 45vw, 290px')}
         <figcaption>${esc(ph.caption || ph.alt)}</figcaption>
       </figure>`;
 };
@@ -1094,6 +1096,7 @@ nav.nav{background:var(--navy-dark);padding:0 16px;display:flex;align-items:cent
 .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}.nav-logo img{height:42px;border-radius:6px}
 .nav-links{display:flex;list-style:none;gap:24px;align-items:center}.nav-links > li > a,.nav-links a{color:rgba(255,255,255,.85);text-decoration:none;font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .nav-cta{background:#BD5728;color:white!important;padding:8px 20px;border-radius:6px;font-weight:700!important}
+@media(min-width:1025px) and (max-width:1440px){.nav-links{gap:14px}.nav-links > li > a{font-size:.7rem;letter-spacing:.05em}.nav-cta{padding:8px 14px!important;font-size:.7rem}nav .nav-logo img{height:50px!important}}
 footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:40px;text-align:center}
 footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{color:var(--orange-light,#dd875f);text-decoration:none}
 .nbd-social{display:inline-flex;gap:10px;align-items:center;margin-left:14px;vertical-align:middle}
