@@ -1712,7 +1712,7 @@
               source: 'literal:It was a pleasure working with you. Thank you for choosing No Big Deal Home Solutions.',
               persist: PERSIST.DOCUMENT },
             { key: 'reviewLink', label: 'Google Review Link', type: 'text',
-              source: 'literal:https://g.page/r/nobigdeal/review', persist: PERSIST.DOCUMENT }
+              source: 'literal:https://g.page/r/CXzIjLwvtRPdEBM/review', persist: PERSIST.DOCUMENT }
           ]
         }
       ]
