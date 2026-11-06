@@ -674,7 +674,10 @@
         const t = setInterval(() => {
           if ((window._leads || []).length) { clearInterval(t); render(); }
         }, 200);
-        setTimeout(() => clearInterval(t), 8000);
+        // A company with NO leads never satisfied the poll, so the view stayed
+        // a blank page with no "no prospects" message (CRM audit 2026-11-06,
+        // VW-F01). Render once the wait ends, whatever the count.
+        setTimeout(() => { clearInterval(t); render(); }, 8000);
       }
     },
     render,

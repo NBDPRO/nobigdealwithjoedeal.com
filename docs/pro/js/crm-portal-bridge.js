@@ -644,6 +644,11 @@ async function renderDeletedDrawer() {
   if (!body) return; // drawer not in DOM
   body.innerHTML = '<div class="deleted-empty">Loading...</div>';
   const deleted = await window.__NBD_CALL_REGISTRY._loadDeletedLeads();
+  // null = the read failed (PL-F13): never "All Clear" for a bin we couldn't read.
+  if (deleted === null || deleted === undefined) {
+    body.innerHTML = '<div class="empty" role="alert"><div class="empty-title">Could not load deleted leads</div><div class="empty-sub">Check your connection and open the bin again. Nothing was deleted.</div></div>';
+    return;
+  }
   if(!deleted.length) {
     body.innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-5"/></svg></div><div class="empty-title">All Clear</div><div class="empty-sub">No deleted leads in the trash.</div></div>';
     return;
@@ -728,6 +733,7 @@ async function permanentDeleteLead(id, name) {
 async function refreshTrashBadge() {
   try {
     const deleted = await window.__NBD_CALL_REGISTRY._loadDeletedLeads();
+    if (!Array.isArray(deleted)) return; // read failed: leave the badge as it was
     const badge = document.getElementById('trashCountBadge');
     if(badge) {
       badge.textContent = deleted.length || '';

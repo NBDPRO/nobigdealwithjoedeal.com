@@ -485,6 +485,12 @@
           flashStatus('Save cancelled');
           return;
         }
+        // The callback reported nothing was filed on the customer (it has
+        // already told the user why), so no success toast (VW-F51).
+        if (result && result.notSaved) {
+          flashStatus('Not saved to the customer');
+          return;
+        }
       } else if (typeof window.showToast === 'function') {
         window.showToast('No save handler wired for this document', 'error');
         return;
