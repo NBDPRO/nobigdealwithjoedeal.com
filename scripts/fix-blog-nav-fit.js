@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * scripts/fix-blog-nav-fit.js — links /assets/css/blog-nav-fit.css (last in <head>) on every page that
- * carries the nav-blog partial, so the nine-item desktop header stops wrapping (see that stylesheet).
+ * carries the nav-blog or nav-microsite partial, so the nine-item desktop header stops wrapping (see that stylesheet).
  *
  *   node scripts/fix-blog-nav-fit.js            # dry run
  *   node scripts/fix-blog-nav-fit.js --apply    # write (each file's EOL preserved)
@@ -25,7 +25,7 @@ function walk(dir, out) {
 let pending = 0; let total = 0;
 for (const f of walk(DOCS, [])) {
   const src = fs.readFileSync(f, 'utf8');
-  if (!src.includes('<!-- nbd:partial nav-blog')) continue;
+  if (!/<!-- nbd:partial nav-(blog|microsite)/.test(src)) continue;
   total++;
   if (src.includes('blog-nav-fit.css')) continue;
   if (!src.includes('</head>')) { console.error('no </head> in ' + path.relative(DOCS, f)); pending++; continue; }

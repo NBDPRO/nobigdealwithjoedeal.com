@@ -8,6 +8,9 @@ Adding the existing `nbd-nav-responsive.css` did not help (labels still wrapped)
 `min-width: 1025px`; the hamburger layout below is untouched) sets `white-space: nowrap`, a 0.7 rem label and a 0.62 rem label
 at 1025 to 1180 px, a clamp()ed gap and a fixed-height button. `scripts/fix-blog-nav-fit.js` (dry run / `--apply` / `--check`) links it last in
 `<head>` on the 33 pages that carry the partial. Measured on three posts at 1025, 1100, 1180, 1181, 1280, 1440 and 1920 px: every label on one
-line, the button 33 px on every post, no horizontal overflow, header 70 px. The 48 project pages (31 px button, 12.16 px labels) and
+line, the button 33 px on every post, no horizontal overflow, header 70 px. A follow-up sweep (wrapped labels and logo squish at 1280 px) found the same breakage on the 7 `nav-microsite` product pages
+(GAF Timberline, TAMKO, LumaNail, RoofiVent, Pivot Boot, The NBD Build, The NBD Guarantee: long labels wrapped, the logo was squeezed
+to 108 px wide by the crowded row, the button wrapped to two lines), so the codemod links the stylesheet on those too (40 pages in all);
+re-measured at 1025 to 1920 px: one-line labels, no overflow, logo 117x60. The 48 project pages (31 px button, 12.16 px labels) and
 the standard pages (28 px, 11.2 px) keep their own sizes; unifying those three families is a larger header decision left alone.
 Back to [INDEX](../INDEX.md).
