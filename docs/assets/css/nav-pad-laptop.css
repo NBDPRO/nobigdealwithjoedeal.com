@@ -1,0 +1,10 @@
+/* nav-pad-laptop.css — header side padding at 1025 to 1440 px on the 18 service hub pages.
+ *
+ * Those pages put 24 px of padding either side of the header at laptop widths, while the other 184 standard pages (home, areas,
+ * about, ...) use 16 px, so the logo and button moved 8 px between a service page and the rest of the site. Three nav sheets set
+ * `nav { padding-left/right }` with !important at equal specificity, so source order decides; this file is linked last on
+ * those 18 pages and restores the majority value without touching the order-sensitive links before it. Other widths are
+ * untouched (24 px below 1025 px comes from nbd-nav-responsive.css and is not part of this rule). */
+@media (min-width: 1025px) and (max-width: 1440px) {
+  nav { padding-left: 16px !important; padding-right: 16px !important; }
+}
