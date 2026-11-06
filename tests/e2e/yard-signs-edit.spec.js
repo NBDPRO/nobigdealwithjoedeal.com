@@ -61,6 +61,13 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
   });
 
   const lastSign = (page, stamp) => safeEvaluate(page, (s) => (window.YardSigns.list() || []).find((x) => String(x.note || '').includes(s)) || null, stamp);
+  // The modal closes before YardSigns.list() reflects the save, so a read straight after it can
+  // see the old list (flaky 2 of 6 on main, 2026-11-06). Wait until the list shows what was saved.
+  const waitSign = async (page, stamp, ok = (x) => !!x) => {
+    let s = null;
+    await expect.poll(async () => { s = await lastSign(page, stamp); return ok(s); }, { timeout: 10_000 }).toBe(true);
+    return s;
+  };
 
   test('place from the desk: no location prompt, pin from the typed address, no false "could not save"', async ({ page }) => {
     const stamp = 'zzq' + Date.now();
@@ -80,7 +87,7 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     const toasts = await safeEvaluate(page, () => window.__toasts.slice());
     expect(toasts.some((t) => /Sign placed/.test(t)), 'success toast: ' + JSON.stringify(toasts)).toBe(true);
     expect(toasts.some((t) => /Could not save/.test(t)), 'no false "Could not save" after a saved sign: ' + JSON.stringify(toasts)).toBe(false);
-    const s = await lastSign(page, stamp);
+    const s = await waitSign(page, stamp);
     expect(s, 'the sign is in the list').toBeTruthy();
     expect([s.lat, s.lng], 'pinned at the geocoded address, not the device').toEqual([39.3601, -84.3099]);
     expect(await safeEvaluate(page, () => window.__geoCalls)).toBe(0);
@@ -96,7 +103,7 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     expect(await safeEvaluate(page, () => window.__geoCalls)).toBe(1);
     await page.click('[data-ys-action="save-place"]');
     await expect(page.locator('#ysPlaceModal')).toHaveCount(0, { timeout: 10_000 });
-    const s = await lastSign(page, stamp);
+    const s = await waitSign(page, stamp);
     expect([s.lat, s.lng], 'tapped GPS pin used').toEqual([39.0101, -84.0101]);
   });
 
@@ -107,7 +114,7 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     await page.fill('#ysNote', stamp);
     await page.click('[data-ys-action="save-place"]');
     await expect(page.locator('#ysPlaceModal')).toHaveCount(0, { timeout: 10_000 });
-    const s0 = await lastSign(page, stamp);
+    const s0 = await waitSign(page, stamp);
 
     // Edit
     await page.click(`[data-ys-action="edit"][data-ys-id="${s0.id}"]`);
@@ -121,7 +128,7 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     await expect(page.locator('#ysDue')).toContainText('Goes out');
     await page.click('[data-ys-action="save-place"]');
     await expect(page.locator('#ysPlaceModal')).toHaveCount(0, { timeout: 10_000 });
-    const s1 = await lastSign(page, stamp);
+    const s1 = await waitSign(page, stamp, (x) => !!x && x.note === stamp + ' moved');
     expect(s1.id).toBe(s0.id);
     expect(s1.note).toBe(stamp + ' moved');
     expect([s1.lat, s1.lng], 're-geocoded to the new address').toEqual([39.2002, -84.2002]);
