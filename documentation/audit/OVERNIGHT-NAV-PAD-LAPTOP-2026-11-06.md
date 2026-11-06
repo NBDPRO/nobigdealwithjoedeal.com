@@ -6,5 +6,5 @@ button moved 8 px between a service page and the rest of the site. The repo alre
 with `!important` at equal specificity and source order decides, so these pages resolve the opposite way from the majority. Re-ordering the links is the
 thing that note warns against, so `docs/assets/css/nav-pad-laptop.css` (16 px, only `min-width: 1025px and max-width: 1440px`) is linked last on those 18 pages by
 `scripts/fix-nav-pad-laptop.js` (dry run / `--apply` / `--check`; explicit page list). Measured at 768, 900, 1024, 1025, 1280 and 1440 px: padding 16 px on both
-`/about` and the service pages, no overflow. Left alone: at 1441 px and up the service pages use 40 and 56 px (their own responsive sheet) while the
+`/about` and the service pages, no overflow. Follow-up in the same PR: `/careers` and `/partners` (the last two pages off 16 px at every width: 20 px to 1024 px, 24 px to 1440 px, from the same responsive sheet) join the list, and the rule now runs from phone widths up to 1440 px; re-measured 320 to 1440 px: 16 px. Left alone: at 1441 px and up the service pages use 40 and 56 px (their own responsive sheet) while the
 standard pages stay at 16 px; that is a design call, not a bug. Back to [INDEX](../INDEX.md).

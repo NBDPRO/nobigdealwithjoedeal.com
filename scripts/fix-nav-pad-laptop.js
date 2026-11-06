@@ -13,7 +13,7 @@ const path = require('path');
 const DOCS = path.resolve(__dirname, '..', 'docs');
 const PAGES = ['commercial-roofing', 'emergency-roof-tarping', 'financing', 'fire-water-smoke-damage', 'gutter-cleaning', 'gutter-replacement',
   'hail-damage-insurance-claim', 'interior-repair', 'roof-care-plan', 'roof-cleaning-soft-wash', 'roof-inspection', 'roof-repair', 'roof-replacement',
-  'shed-roof-replacement', 'siding-repair', 'siding-replacement', 'storm-damage', 'wood-siding-repair'].map((s) => 'services/' + s + '.html');
+  'shed-roof-replacement', 'siding-repair', 'siding-replacement', 'storm-damage', 'wood-siding-repair'].map((s) => 'services/' + s + '.html').concat(['careers.html', 'partners.html']);
 const LINK = '<link rel="stylesheet" href="/assets/css/nav-pad-laptop.css">';
 const apply = process.argv.includes('--apply');
 const check = process.argv.includes('--check');
