@@ -519,6 +519,13 @@ function goTo(name, params = {}) {
     // frequently in normal use (task/snooze/lead-load), so no new churn.
     try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'dash-enter' } })); } catch (e) {}
   }
+  if(name==='docs') {
+    // CRM audit 2026-11-06 (VW-F50, VW-F53): the template is hydrated by now.
+    // Add the Blank buttons to its rows, and load Uploaded Documents, which
+    // otherwise loaded only after an upload in this session.
+    try { if (typeof window._injectBlankButtons === 'function') window._injectBlankButtons(); } catch (e) { console.warn('blank buttons failed:', e); }
+    try { if (typeof window.loadDocs === 'function') window.loadDocs(); } catch (e) { console.warn('loadDocs failed:', e); }
+  }
   if(name==='est') {
     // Same QA #9b pattern as view-dash above: the estimate-analytics band
     // (#estStats, estimate-analytics.js) renders off 'nbd:data-refreshed',
