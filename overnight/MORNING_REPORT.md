@@ -34,6 +34,7 @@ Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903
 | [#2915](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2915) | pro-ux | public /pro pages (how-to, register, pricing, terms) failed axe contrast/link/heading/main rules (A11y 83-96): scoped stylesheet with the sanctioned light orange + white-at-72%, underlined in-text links, sidebar labels not headings, terms in `<main>`; how-to 81-98 contrast nodes -> 0; visual regression passed | L | open |
 | [#2916](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2916) | pro-ux | /pro/ tour panels `<article role=tabpanel>` -> `<div>` (axe aria-allowed-role), no visual change | L | open |
 | [#2917](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2917) | pro-ux | last axe `region` notes on /pro/how-to and /pro/pricing (aria-label + role=contentinfo, attribute-only) | L | open |
+| [#2918](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2918) | pro-ux | /pro/how-to scrolled sideways 29 px on a 320 px phone (top bar 324 px wide, code paths past the margin, pill text overflowing at 320 and 768 px); phone-only CSS block + width-independent pill wrap; every public Pro page now has zero overflow at 320-1366 px | L | open |
 
 Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at the same spot, so each merge makes the others
 conflict on that file (keep both lines); Auto-fix has been resolving that. Optional checks that were red on some PRs
