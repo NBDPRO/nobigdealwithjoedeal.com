@@ -164,7 +164,7 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lDriveUrl','lScheduledDate','lScheduledWeek'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // The sub picker (production flow, 2026-10-04) — back to "No sub yet".
   if (window.NBDProduction) window.NBDProduction.fillSubSelect('lSubId', {});
   // The arrival window rides with #lScheduledDate — back to "All day".
@@ -213,7 +213,7 @@ const _leadModal = document.getElementById('leadModal');
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
   'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
-  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lSubId'
+  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lDriveUrl','lScheduledDate','lScheduledWeek','lSubId'
 ];
 function _leadFormHasContent(){
   return _LEAD_TYPED_FIELDS.some(id => {
@@ -469,6 +469,13 @@ async function saveLead(){
       warrantyCertFiledAt: document.getElementById('lWarrantyCertFiled')?.checked ? new Date().toISOString() : '',
       cocFiledAt: document.getElementById('lCocFiled')?.checked ? new Date().toISOString() : '',
       notes: document.getElementById('lNotes')?.value?.trim() || '',
+      // Google Drive folder for this customer (approved additive field, CRM
+      // audit 2026-11-06, CU-F07). Omitted when the field isn't on the page;
+      // anything that isn't an http(s) URL saves as '' (no javascript: links).
+      ...(document.getElementById('lDriveUrl') ? { driveFolderUrl: (function (v) {
+        v = String(v || '').trim();
+        return /^https?:\/\/[^\s]+$/i.test(v) ? v : '';
+      })(document.getElementById('lDriveUrl').value) } : {}),
       yearBuilt:     intelData.yearBuilt   || null,
       marketValue:   intelData.marketValue || null,
       lastSaleDate:  intelData.lastSaleDate || null,

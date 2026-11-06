@@ -976,6 +976,23 @@ async function loadCustomerData(id) {
     document.getElementById('infoJobValue').textContent = _jvNum ? `$${_jvNum.toLocaleString()}` : '—';
     document.getElementById('infoDamageType').textContent = lead.damageType || '—';
     document.getElementById('infoSource').textContent = lead.source || '—';
+    // Drive folder link (approved additive field, CRM audit 2026-11-06,
+    // CU-F07): an http(s) link opens in a new tab; anything else shows '—'.
+    {
+      const _dEl = document.getElementById('infoDriveFolder');
+      const _dUrl = String(lead.driveFolderUrl || '').trim();
+      if (_dEl) {
+        _dEl.textContent = '';
+        if (/^https?:\/\/[^\s]+$/i.test(_dUrl)) {
+          const _a = document.createElement('a');
+          _a.href = _dUrl; _a.target = '_blank'; _a.rel = 'noopener noreferrer'; _a.className = 'cbx-link';
+          _a.textContent = 'Open Drive folder';
+          _dEl.appendChild(_a);
+        } else {
+          _dEl.textContent = '—';
+        }
+      }
+    }
     document.getElementById('infoCarrier').textContent = lead.insCarrier || lead.insuranceCarrier || '—';
     document.getElementById('infoClaimStatus').textContent = lead.claimStatus || '—';
     document.getElementById('infoFollowUp').textContent = lead.followUp || '—';

@@ -710,6 +710,8 @@
     "resend-webhook.test.js",
     "paperwork-filing.test.js",
     "kanban-filter-unification.test.js",
+    "customer-calls-by-number-2026-11-06.test.js",
+    "lead-drive-link-2026-11-06.test.js",
     "warranty-claim.test.js",
     "anniversary-touch-stage-roles.test.js",
     "analytics-card-cache-account-switch.test.js",
