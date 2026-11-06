@@ -301,6 +301,7 @@
     "money-dashboard.test.js",
     "monthly-overhead-logic.test.js",
     "notif-bell-merge.test.js",
+    "settings-ui-2026-11-06.test.js",
     "followup-notif-flood-2026-10-03.test.js",
     "orphan-sweep-parser.test.js",
     "ourwork-deeplink-contract.test.js",

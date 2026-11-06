@@ -137,7 +137,9 @@ function clearAccentTheme() {
   if (window.ThemeGX && typeof window.ThemeGX.clearAccentOverride === 'function') {
     window.ThemeGX.clearAccentOverride();
   }
-  const picker = document.getElementById('customAccentColorPicker');
+  // CRM audit 2026-11-06 (ST-F22): the picker is #gxAccentPicker; the old id
+  // matched nothing, so it kept showing the cleared color.
+  const picker = document.getElementById('gxAccentPicker');
   if (picker) picker.value = '#BD5728';
 };
 function openSettingsTab(tabKey) {
@@ -1331,7 +1333,19 @@ function dsLoadConfig() {
   if (cfg) {
     if (cfg.northStar) {
       const catEl = document.getElementById('ds-cat');
-      if (catEl) catEl.value = cfg.northStar.category || 'Other';
+      if (catEl) {
+        // CRM audit 2026-11-06 (ST-F12): the Daily Success page offers other
+        // categories than this select. A value set there matched no option, so
+        // the select showed blank and Save rewrote it as "Other". Keep it.
+        const _cat = cfg.northStar.category || 'Other';
+        if (!Array.prototype.some.call(catEl.options || [], (o) => o.value === _cat)) {
+          const _o = document.createElement('option');
+          _o.value = _cat;
+          _o.textContent = _cat;
+          catEl.appendChild(_o);
+        }
+        catEl.value = _cat;
+      }
       const tEl = document.getElementById('ds-target');
       if (tEl) tEl.value = cfg.northStar.target || '';
       const dEl = document.getElementById('ds-deadline');

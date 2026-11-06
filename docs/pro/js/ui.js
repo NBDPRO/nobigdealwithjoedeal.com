@@ -878,6 +878,13 @@ function switchSettingsTab(tab) {
     if (window.__NBD_CALL_REGISTRY && typeof window.__NBD_CALL_REGISTRY.nbdSyncShapeStyleBtns === 'function') {
       window.__NBD_CALL_REGISTRY.nbdSyncShapeStyleBtns();
     }
+    // CRM audit 2026-11-06 (ST-F23): Professional Mode and Show tool names were
+    // synced only at DOMContentLoaded, while still inside the template, so
+    // they opened on the markup default. Read the live state off <body>.
+    var _pmCb = document.getElementById('professionalModeToggle');
+    if (_pmCb) _pmCb.checked = document.body.classList.contains('professional-mode');
+    var _slCb = document.getElementById('sidebarLabelsToggle');
+    if (_slCb) _slCb.checked = !document.body.classList.contains('sidebar-collapsed');
     // Material segmented control active-state — same lazy-hydration hook
     // as the calls above; nbdSyncMaterialBtns lives in
     // __NBD_CALL_REGISTRY (dashboard-ui-prefs-boot.js), not on window.
