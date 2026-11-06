@@ -52,7 +52,7 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 `fix-pro-orange-fallback.js`, `fix-region-landmarks.js`, `fix-phone-logo-link.js` and `build-project-thumbs.mjs` (all with `--check`).
 
 ## NEEDS_JOE (details in `overnight/NEEDS_JOE.md`)
-1. Homepage hero video is 0.9-2 MB on phones: lighter phone cut or skip on slow connections.
+1. Homepage hero video (0.9-2 MB on phones) already skips on Save-Data, 2g and reduced motion and starts only after load + idle; the open question is whether to also skip on 3g or ship a lighter phone cut (recommend skipping on 3g).
 2. Service-page hero photos are 800 px wide and upscale about 1.8x on 1440 px screens; needs 1600 px re-exports from the originals.
 3. /inspect header repeats the brand name (logo image plus text wordmark): see NEEDS_JOE 5; recommendation is to drop the text and set the image alt.
 4. Stray empty folder `C:\c\Users\jonat\AppData\Local\Temp\lhtest` (path slip; I was blocked from deleting it).
