@@ -157,7 +157,7 @@ console.log('\n4. the real dashboard (readable tree: every part maps line-for-li
 console.log('\n5. the deploy wiring');
 {
   const yml = fs.readFileSync(path.join(ROOT, '.github/workflows/firebase-deploy.yml'), 'utf8');
-  ok('the join step writes its maps into the dir minify and the Sentry step use', /node scripts\/concat-shipped\.js --write --maps-dir "\$RUNNER_TEMP\/nbd-sourcemaps"/.test(yml) && /MAPS="\$RUNNER_TEMP\/nbd-sourcemaps"/.test(yml));
+  ok('the join step writes its maps into the dir minify and the Sentry step use', /node scripts\/concat-shipped\.js --write (?:\$BUNDLES_FLAG )?--maps-dir "\$RUNNER_TEMP\/nbd-sourcemaps"/.test(yml) && /MAPS="\$RUNNER_TEMP\/nbd-sourcemaps"/.test(yml));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
