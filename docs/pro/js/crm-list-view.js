@@ -263,7 +263,7 @@
     sel.addEventListener('change', () => {
       if (typeof window.moveCard !== 'function') { sel.value = prev; return; }
       const want = sel.value;
-      Promise.resolve(window.moveCard(sel.dataset.id, want, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined))
+      Promise.resolve(window.moveCard(sel.dataset.id, sel.value, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined))
         .then((ok) => { if (ok === true) prev = want; else if (sel.isConnected) sel.value = prev; })
         .catch(() => { if (sel.isConnected) sel.value = prev; });
     });
