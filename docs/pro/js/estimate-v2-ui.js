@@ -3045,15 +3045,15 @@
   // presentation mode, retail/insurance doc formats, the preview sheet,
   // and the homeowner share view.
   // ═════════════════════════════════════════════════════════
+  // CRM audit 2026-11-06 (DT-F03): a leadId-only /photos read is provable only
+  // for a company reader (docLeadInMyCompany); a rep or solo owner was denied
+  // and saw an empty picker. Same rule as customer-bootstrap _photoQueryScopes.
   async function loadLeadPhotos(force) {
     const leadId = state.leadId || (state.customer && state.customer.leadId) || null;
     if (!leadId) { state._leadPhotos = null; renderPhotos(); return; }
     if (state._leadPhotos && state._leadPhotos._leadId === leadId && !force) return;
     if (!window.db || !window.getDocs || !window.query || !window.collection || !window.where) return;
     try {
-      // CRM audit 2026-11-06 (DT-F03): leadId alone is provable only for a
-      // company reader (docLeadInMyCompany); a rep or solo owner was denied and
-      // saw an empty picker. Same rule as customer-bootstrap _photoQueryScopes.
       const _cl = window._userClaims || {};
       const _uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
       const _reader = ['company_admin', 'manager', 'viewer'].indexOf(_cl.role || '') !== -1 && !!_cl.companyId;
