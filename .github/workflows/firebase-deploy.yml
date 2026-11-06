@@ -356,16 +356,23 @@ jobs:
       # The switch is read as (vars.NBD_CONCAT || 'on'): an UNSET variable is null, and GitHub compares null with '0'
       # as numbers (0 == 0), so the bare vars.NBD_CONCAT != '0' was false with nothing set and this step never ran
       # (deploy 6e8f39bf, 2026-11-06). Unset or anything but '0' = on; '0' = off.
+      # Phase 2b (lazy ScriptLoader bundles, --bundles) is on too since 2026-11-06, with its OWN off switch: repository
+      # variable NBD_BUNDLES=0 keeps the boot join but loads every lazy bundle file by file again. The bundle map is one
+      # ~7.5 KB script just before script-loader.js; without it the loader takes the old per-file path.
       - name: Join the dashboard's boot scripts for this deploy
         if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && (vars.NBD_CONCAT || 'on') != '0' }}
+        env:
+          NBD_BUNDLES: ${{ vars.NBD_BUNDLES || 'on' }}
         run: |
           set +e
-          node scripts/concat-shipped.js --write --maps-dir "$RUNNER_TEMP/nbd-sourcemaps"
+          BUNDLES_FLAG=""
+          if [ "$NBD_BUNDLES" != "0" ]; then BUNDLES_FLAG="--bundles"; fi
+          node scripts/concat-shipped.js --write $BUNDLES_FLAG --maps-dir "$RUNNER_TEMP/nbd-sourcemaps"
           rc=$?
           set -e
           if [ $rc -ne 0 ]; then
             echo "::warning::Join step failed (exit $rc) — undone; deploying the separate files."
-            rm -f docs/pro/js/_concat-*.js
+            rm -f docs/pro/js/_concat-*.js docs/pro/js/_bundle-*.js
             git checkout -- docs/pro/dashboard.html
           fi
           node scripts/check-js-syntax.js --shipped-only
@@ -496,7 +503,7 @@ jobs:
         # The joined files are new (untracked), so checkout alone would leave them for the source greps below.
         run: |
           git checkout -- docs/pro docs/assets docs/index.html docs/services docs/areas
-          rm -f docs/pro/js/_concat-*.js
+          rm -f docs/pro/js/_concat-*.js docs/pro/js/_bundle-*.js
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting
