@@ -365,6 +365,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 - [OVERNIGHT-LOGIN-DESKTOP-2026-11-06](audit/OVERNIGHT-LOGIN-DESKTOP-2026-11-06.md) — /pro/login desktop collapsed to one stacked column after the <main> wrapper (#2727); grid moved to #main, split layout restored
 - [OVERNIGHT-TRUST-BAR-2026-11-06](audit/OVERNIGHT-TRUST-BAR-2026-11-06.md) — phone bug: service trust bar clipped/overlapped at 390 px (two stylesheets fighting); fixed to a 2x3 grid, desktop alignment tightened, balanced headings
 - [OVERNIGHT-SITE-VISUAL-2026-11-05](audit/OVERNIGHT-SITE-VISUAL-2026-11-05.md) — unattended site/CRM polish session: local Lighthouse baseline (A11y/SEO 100, mobile TBT noise), retired-orange fallback codemod, local audit tooling
+- [OVERNIGHT-AREA-HERO-ALT-2026-11-06](audit/OVERNIGHT-AREA-HERO-ALT-2026-11-06.md) — area-page hero: the phone "Rather talk?" line was left-aligned under a centered hero; rule scoped to combo heroes only
 - [OVERNIGHT-PROJECT-NAV-2026-11-06](audit/OVERNIGHT-PROJECT-NAV-2026-11-06.md) — 48 project detail pages had a 40px nav padding and a bigger phone logo than the other 241 pages; generator fixed to match
 - [OVERNIGHT-PHONE-LOGO-2026-11-06](audit/OVERNIGHT-PHONE-LOGO-2026-11-06.md) — header-geometry sweep: six hand-authored pages kept the oversized 117x60 phone logo (never linked the phone-logo sheet); codemod with --check
 - [OVERNIGHT-BLOG-NAV-2026-11-06](audit/OVERNIGHT-BLOG-NAV-2026-11-06.md) — blog posts' desktop header wrapped its nine nav labels onto two lines and the button varied 37-67 px; blog-nav-fit.css + codemod on 33 pages
