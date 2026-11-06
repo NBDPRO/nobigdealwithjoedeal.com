@@ -9,6 +9,6 @@ ok(/function showError\(btn, msg, anchor\)/.test(src), 'showError takes an ancho
 ok(/insertBefore\(p, anchor\.nextSibling\)/.test(src), 'message inserted after the anchor field');
 ok(/showError\(btn, invalidMessage\(bad\), bad\[0\]\)/.test(src), 'validation passes the first invalid field');
 ok(/aria-describedby/.test(src), 'field points at the message');
-ok(/inspect-form\.js\?v=8/.test(html), 'script cache-bust bumped');
+ok(/inspect-form\.js\?v=9/.test(html), 'script cache-bust bumped');
 if (fail) process.exit(1);
 console.log('ok: inspect error placement');

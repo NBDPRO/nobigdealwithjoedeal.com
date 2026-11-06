@@ -53,6 +53,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   .tb-action-short{display:inline}
   .tb-action{padding:7px 11px;font-size:11px}
 }
+/* 320 px: the top bar (back link, brand, Tour, CRM) was 324 px wide, so the page scrolled sideways, the brand wrapped to "HOW / TO",
+   and the long <code> paths ran past the edge. Tighter gaps, one-line brand, wrapping code. */
+@media (max-width:360px){
+  .topbar{padding:0 12px;gap:8px}
+  .tb-brand{gap:6px}
+  .tb-title{white-space:nowrap;font-size:14px;letter-spacing:1px}
+  .tb-back{font-size:12px}
+  .tb-action{padding:7px 9px}
+  .qs li code,.detail-body code,.jt-pill .jt-b{overflow-wrap:anywhere}
+}
 
 /* ── HERO ── */
 .hero{padding:48px 20px 28px;text-align:center;position:relative;z-index:1;max-width:840px;margin:0 auto}
@@ -72,7 +82,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* ── LAYOUT ── */
 .layout{max-width:1180px;margin:0 auto;padding:0 20px 80px;display:grid;grid-template-columns:240px 1fr;gap:40px;position:relative;z-index:1}
 .toc{position:sticky;top:74px;align-self:start;max-height:calc(100vh - 90px);overflow-y:auto;padding-right:8px;scrollbar-width:thin}
-.toc h3{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:10px;padding-left:8px}
+.toc .toc-h{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:10px;padding-left:8px}
 .toc a{display:block;padding:7px 10px;border-radius:6px;font-size:13px;color:var(--tx2);text-decoration:none;transition:all .15s;border-left:2px solid transparent;margin-bottom:1px}
 .toc a:hover{color:var(--tx);background:var(--s1)}
 .toc a.active{color:var(--or);background:var(--or-dim);border-left-color:var(--or)}
@@ -138,7 +148,7 @@ summary:hover{background:var(--s2)}
 .jt-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .jt-pill{display:flex;flex-direction:column;gap:2px;background:var(--s1);border:1px solid var(--bdr2);border-radius:10px;padding:10px 14px;min-width:140px;flex:1}
 .jt-pill .jt-h{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-.jt-pill .jt-b{font-size:12px;color:var(--tx3);line-height:1.5}
+.jt-pill .jt-b{font-size:12px;color:var(--tx3);line-height:1.5;overflow-wrap:anywhere}
 .jt-pill.ins .jt-h{color:var(--purp)}
 .jt-pill.cash .jt-h{color:var(--grn)}
 .jt-pill.fin .jt-h{color:var(--blue)}
@@ -186,6 +196,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
   .toc-list{display:block !important}
 }
 </style>
+<link rel="stylesheet" href="css/pro-public-contrast.css">
 </head>
 <body>
 <header class="topbar">
@@ -216,19 +227,19 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
     <button class="toc-toggle" type="button" data-toc-toggle>Contents</button>
     <div class="toc-list">
       <div class="toc-group">
-        <h3>Get going</h3>
+        <p class="toc-h">Get going</p>
         <a href="#getting-started">Getting started</a>
         <a href="#install-pwa">Install on your phone</a>
       </div>
       <div class="toc-group">
-        <h3>Core workflow</h3>
+        <p class="toc-h">Core workflow</p>
         <a href="#kanban">The pipeline (kanban)</a>
         <a href="#leads">Adding & editing leads</a>
         <a href="#job-types">Job types & stages</a>
         <a href="#d2d">D2D tracker</a>
       </div>
       <div class="toc-group">
-        <h3>Selling & doc gen</h3>
+        <p class="toc-h">Selling & doc gen</p>
         <a href="#estimates">Estimates</a>
         <a href="#job-templates">Job templates</a>
         <a href="#photo-reports">Photo reports</a>
@@ -236,13 +247,13 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <a href="#customer-portal">Customer portal</a>
       </div>
       <div class="toc-group">
-        <h3>Map & reporting</h3>
+        <p class="toc-h">Map & reporting</p>
         <a href="#map-pins">Map & pins</a>
         <a href="#reports">Reports & analytics</a>
         <a href="#calendar">Calendar & follow-ups</a>
       </div>
       <div class="toc-group">
-        <h3>Account</h3>
+        <p class="toc-h">Account</p>
         <a href="#settings">Settings & themes</a>
         <a href="#ai-tools">AI tools</a>
         <a href="#connect-bots">Connect your own AI bot</a>

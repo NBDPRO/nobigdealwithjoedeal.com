@@ -53,6 +53,14 @@ function renderColumnCards(body, cards, stageKey) {
       + cards.length + ' cards (+' + (cards.length - slice.length) + ' hidden)</button>';
   }
   body.innerHTML = html;
+  // Bulk mode: the selection (a Set of ids) survives a re-render but the
+  // fresh cards came back unhighlighted, so selected leads looked unselected
+  // while bulk Delete / Move / Set still acted on them (CRM audit 2026-11-06,
+  // PL-F05). Re-apply the highlight from the selection.
+  if (window._bulkMode && typeof getBulkSelected === 'function') {
+    const sel = getBulkSelected();
+    if (sel && sel.size) body.querySelectorAll('.k-card').forEach((c) => { if (sel.has(c.dataset.id)) c.classList.add('bulk-selected'); });
+  }
   if (!showAll) {
     const btn = body.querySelector('.k-show-all');
     if (btn) btn.addEventListener('click', (e) => {
@@ -594,7 +602,9 @@ function renderLeads(leads, filtered){
   // explicit "show me") never unhides a stale list.
   const alertWrap=document.getElementById('followUpAlertsWrap');
   const alertBox=document.getElementById('followUpAlerts');
-  const dismissed = localStorage.getItem('nbd_crm_followup_hidden') === '1';
+  // Hidden only on the day it was dismissed (YYYY-MM-DD, local). A legacy '1'
+  // from before 2026-11-06 no longer hides it forever (PL-F14).
+  const dismissed = localStorage.getItem('nbd_crm_followup_hidden') === new Date().toLocaleDateString('en-CA');
   const narrowed = window._filteredLeads != null;
   if(alertWrap && alertBox){
     if(overdue.length && !dismissed){
