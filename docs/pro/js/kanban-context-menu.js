@@ -144,6 +144,9 @@
 
   // ─── Menu rendering ─────────────────────────────────────────────
   function buildMenu(lead, x, y) {
+    // Name the lead at the top of the menu, so the rep sees WHICH lead
+    // "Move to stage" / "Delete" will act on (PL-F03: the menu had no name).
+    const heading = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim() || lead.name || lead.address || '';
     const items = [];
     items.push({
       icon: '👁',
@@ -294,9 +297,9 @@
         else if (READ_ONLY.test(it.label || '')) clean.push(it);
       }
       while (clean.length && clean[clean.length - 1].divider) clean.pop();
-      return renderMenu(clean, x, y);
+      return renderMenu(clean, x, y, { heading: heading });
     }
-    return renderMenu(items, x, y);
+    return renderMenu(items, x, y, { heading: heading });
   }
 
   function renderMenu(items, x, y, opts) {
@@ -330,8 +333,9 @@
       font-family:'Barlow',-apple-system,system-ui,sans-serif;
       font-size:13px; line-height:1.4;
       animation:nbd-ctx-fade .12s ease-out;`;
-    const header = (isSubmenu && opts.title)
-      ? `<div style="padding:6px 14px 8px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--m,#9aa3b2);border-bottom:1px solid var(--br,#2a3344);margin-bottom:4px;">${escapeHtml(opts.title)}</div>`
+    const headText = (isSubmenu && opts.title) ? opts.title : (!isSubmenu && opts && opts.heading) ? opts.heading : '';
+    const header = headText
+      ? `<div style="padding:6px 14px 8px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--m,#9aa3b2);border-bottom:1px solid var(--br,#2a3344);margin-bottom:4px;">${escapeHtml(headText)}</div>`
       : '';
     menu.innerHTML = header + items.map((it, i) => {
       if (it.divider) return `<div style="height:1px; background:var(--br,#2a3344); margin:4px 0;"></div>`;
@@ -501,6 +505,14 @@
     if (touchTimer) clearTimeout(touchTimer);
     const jobId = card.getAttribute('data-job-id');
     touchTimer = setTimeout(() => {
+      touchTimer = null;
+      // The board re-rendered under the finger (the 250 ms debounced search
+      // fires inside this 500 ms window): the card pressed at touchstart is
+      // gone and a DIFFERENT lead's card now sits under the finger. Opening
+      // the menu here acted on the pressed lead while the rep looked at the
+      // new one — the past "landed on the first unfiltered lead" incident
+      // (CRM audit 2026-11-06, PL-F03). Do nothing; the rep presses again.
+      if (!card.isConnected) return;
       const lead = findLead(id, jobId);
       if (!lead) return;
       // Suppress the click that would normally fire after the
