@@ -113,3 +113,41 @@ raised 84 → 85 KB for the joined-bundle loader path and has no headroom left.
 - When a PR is in the merge queue its branch is locked: put follow-ups in a new PR (draft if it depends on the first).
 - The E2E shards are not required checks; `Unit suites (manifest)` and the secret scan are. A secret-scan 504 while
   downloading gitleaks is GitHub, not the code: requeue.
+
+## Update 2026-11-06 ~01:00Z (session close-out)
+
+**Merged since the tables above:**
+- #2876, the care-plan test time bomb (another session).
+- #2878, the deploy fix for the index step.
+- #2850, CRM Phase 2b, which carries #2841 and #2844's deploy-time join.
+- #2877, the last three E2E seeds.
+
+A deploy that includes #2878 and #2850 was running at close-out. **The first job next session: confirm a deploy ran all the way green.** Then check that Functions are live (`onInboxReceiptDropped` and `submitInboxReceipt` in the Firebase console).
+
+**Still open:**
+| PR | What | State |
+|---|---|---|
+| #2884 | Receipt inbox follow-ups: a "personal" verdict waits for a person; the server records the picture delete (`onInboxReceiptDropped`); teammate duplicate message; bounded decision map | Queue, set to merge |
+| #2887 | **Draft, needs Jo's OK on the before/after wording in its description.** Warranty claims in the makers' words; siding = Ply Gem and Polaris (Royal out); GAF fixes (Florence, Silver Pledge, pipe boot, WindProven, Pivot); RoofiVent gasket only when worn; United Restore removed | Draft |
+| #2882 | This note | Set to merge |
+
+**Jo's decisions from the 11-05 grilling** (also in memory):
+- **Phase 2b keep rule.** Re-measure the CRM dashboard, 2+ runs each, against the 11-04 baseline. Keep it if first paint and page ready are no worse and fully loaded is faster, then Jo does an iPhone feel check. Otherwise set `NBD_CONCAT=0`.
+- **Receipt inbox turn-on.** Do it after #2884 is deployed: NBD only, Jo alone for the first couple of weeks, $10 company cap, "Paid from" 3537 only. Walk Jo through the three switches and read each back.
+- **Sentry.** Once deploys are green, send Jo the token steps. He adds `SENTRY_AUTH_TOKEN` himself; get the org and project slugs.
+- **Copy.** Siding is Ply Gem and Polaris. Warranty-length claims name the product and use the maker's wording. United Restore is dropped. Acorn Finance and HailGuard stay out of Credentials.
+- **Homepage phone video.** Already shrunk by #2874; not reopened.
+
+**Next session, in order:**
+1. Confirm the deploy is green.
+2. Run the CRM speed check, then Jo makes the Phase 2b call.
+3. Jo approves #2887, then it merges.
+4. Receipt inbox turn-on walkthrough.
+5. Sentry token steps.
+
+**Lessons from this lane** (in memory):
+- A deploy fixed at one step can fail at the next for the same reason: read the next step's log.
+- Read back after ANY error on a resent create. `setDoc` resends come back PERMISSION_DENIED.
+- A new Cloud Function needs `node scripts/gen-function-map.js`.
+- Run the CI unit runner, not a hand-picked list; on Windows it is too slow to finish locally, so CI is the check.
+- A borrowed `functions/node_modules` junction can point at a pruned install: check `firebase-functions` resolves before trusting a red local run.
