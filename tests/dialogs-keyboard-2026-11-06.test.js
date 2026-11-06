@@ -53,7 +53,8 @@ console.log('DUPLICATE-CUSTOMER PROMPT (PL-F16)');
   ok('…Escape cancels AND settles the promise', /close: \(\) => \{ close\(\); resolve\(\{ action: 'cancel' \}\); \}/.test(fn));
   ok('…the e2e auto-answer button id is unchanged', /id="nbd-dedup-create"/.test(DD));
   const BOOT = read('dashboard-bootstrap.module.js');
-  ok('"Open existing" asks before dropping a typed Add Lead form', /window\._leadFormHasContent\(\)[\s\S]{0,200}nbdConfirm\('Open the existing customer\? What you typed in this form will not be saved\.'\)/.test(BOOT));
+  ok('"Open existing" asks before dropping a typed Add Lead form (nbdConfirm, native fallback on desktop)',
+    /window\._leadFormHasContent\(\)\) \{\s*const _askOpen = window\.nbdConfirm \|\| \(\(m\) => Promise\.resolve\(window\.confirm\(m\)\)\);\s*if \(!\(await _askOpen\('Open the existing customer\?/.test(BOOT));
   ok('_leadFormHasContent is a page-level function (reachable on window)', /^function _leadFormHasContent\(\)\{/m.test(read('crm-leads.js')));
 }
 

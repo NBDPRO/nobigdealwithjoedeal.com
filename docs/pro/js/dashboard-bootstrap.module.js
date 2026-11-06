@@ -3805,10 +3805,9 @@
               // Leaving drops everything typed in this form (notes included).
               // Ask first when there IS something typed (CRM audit
               // 2026-11-06, PL-F16); an empty form just goes.
-              if (typeof window._leadFormHasContent === 'function' && window._leadFormHasContent()
-                  && typeof window.nbdConfirm === 'function'
-                  && !(await window.nbdConfirm('Open the existing customer? What you typed in this form will not be saved.'))) {
-                return null;
+              if (typeof window._leadFormHasContent === 'function' && window._leadFormHasContent()) {
+                const _askOpen = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+                if (!(await _askOpen('Open the existing customer? What you typed in this form will not be saved.'))) return null;
               }
               // Rep chose to open the existing lead — navigate there.
               // "Add a job to them" lands on the add-job sheet (customer-jobs.js).
