@@ -69,6 +69,14 @@
         var isOwnerViewer = tenantKey === window._user.uid;
         var TO = await _teamOwnerMod(); // owner hand-off half (lazy)
         if (TO) isOwnerViewer = await TO.isOwner(tenantKey, isOwnerViewer);
+        // CRM audit 2026-11-06 (ST-F36): invite, Cancel, Disable, Re-enable,
+        // Remove and the seat controls are owner / company_admin / platform
+        // admin only on the server (requireTeamAdmin). Everyone else saw them
+        // and got a refusal after clicking; they now see the roster only.
+        var _tRole = (window._userClaims && window._userClaims.role) || '';
+        var canManageTeam = isOwnerViewer || _tRole === 'admin' || _tRole === 'company_admin';
+        var inviteForm = document.getElementById('teamInviteForm');
+        if (inviteForm) inviteForm.hidden = !canManageTeam;
         // Owner card: present the viewer AS owner only when they actually are one;
         // otherwise label generically so a member isn't mispresented as Owner.
         var nameEl = document.getElementById('teamOwnerName');
@@ -85,6 +93,8 @@
           // so the buy panel must render even with zero rows. Clear the list,
           // then fall through to _renderSeatBuy below (which self-hides when
           // the plan/entitlement doesn't qualify).
+          // Non-managers: an empty roster is just empty (no seat controls).
+          if (snap.empty && !canManageTeam) { list.innerHTML = ''; return; }
           if (snap.empty) {
             list.innerHTML = '';
             try { _renderSeatPanel([], list); } catch (_) { /* non-fatal */ }
@@ -122,6 +132,7 @@
               actions = '<button style="' + btnBase + '" data-team-action="enable" data-email="' + _nbdEscHtml(email) + '">Re-enable</button>'
                 + '<button style="' + btnBase + 'margin-left:6px;color:var(--red,#e05252);border-color:var(--red,#e05252);" data-team-action="remove" data-email="' + _nbdEscHtml(email) + '">Remove</button>';
             }
+            if (!canManageTeam) actions = '';
             return '<div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
               + '<div style="width:36px;height:36px;border-radius:18px;background:var(--s3);color:var(--m);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">' + _nbdEscHtml((m.email||'?')[0].toUpperCase()) + '</div>'
               + '<div class="f1"><div style="font-size:13px;font-weight:600;color:var(--t);">' + _nbdEscHtml(m.email||'') + '</div>'
@@ -131,6 +142,7 @@
               + '</div>';
           }).join('');
           if (TO) TO.decorate(list, snap.docs, tenantKey, isOwnerViewer);
+          if (!canManageTeam) return;
           // Over-capacity seat picker (cap-aware batch (de)activation).
           try {
             _renderSeatPanel(snap.docs.map(function(d){ var x = d.data()||{}; return { email:String(x.email||d.id||''), role:x.role, status:x.status, uid:x.uid }; }), list);

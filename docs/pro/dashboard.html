@@ -4625,8 +4625,8 @@
             <!-- Team members list (populated by JS) -->
             <div id="teamMembersList" class="mb-14"></div>
 
-            <!-- Invite form -->
-            <div style="border-top:1px solid var(--br);padding-top:14px;">
+            <!-- Invite form (hidden for roles that cannot invite: dashboard-team-tab.js) -->
+            <div id="teamInviteForm" style="border-top:1px solid var(--br);padding-top:14px;">
               <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;">Invite a Rep</div>
               <!-- Phone audit views#7 (2026-09-25): the row didn't wrap, so at 412 the
                    email box got 66px (35px at 360) beside Role + Send Invite, and its
