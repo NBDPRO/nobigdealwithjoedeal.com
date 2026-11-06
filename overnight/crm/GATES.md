@@ -29,4 +29,4 @@ locally I run the targeted authed specs through the harness instead (HARNESS.md)
 node bucket: 475/482 — FAIL on clean main (local/environmental, not mine; CI main is green): chibi-2026-10-25,
 d2d-map-vendor-race-2026-10-24, reviews-strip-every-homeowner-page-2026-10-24, public-targets-24px-2026-10-24,
 roof-rep-revamp-2026-10-25, reputation-2026-10-19, perf-watch-2026-10-02. Rule: a later run is green when the
-node-bucket failure set is a subset of these seven.
+node-bucket failure set is a subset of these seven, plus inline-head-css-2026-10-27 (its regex expects LF in .github/workflows/firebase-deploy.yml; this Windows checkout is CRLF; not in the baseline log because that run listed it as passing on a cold cache — environmental, file untouched).
