@@ -304,6 +304,7 @@
     "monthly-overhead-logic.test.js",
     "team-roles-2026-11-06.test.js",
     "notif-bell-merge.test.js",
+    "settings-ui-2026-11-06.test.js",
     "followup-notif-flood-2026-10-03.test.js",
     "integrity-3-guards-2026-11-06.test.js",
     "orphan-sweep-parser.test.js",
