@@ -3051,10 +3051,14 @@
     if (state._leadPhotos && state._leadPhotos._leadId === leadId && !force) return;
     if (!window.db || !window.getDocs || !window.query || !window.collection || !window.where) return;
     try {
-      const snap = await window.getDocs(window.query(
-        window.collection(window.db, 'photos'),
-        window.where('leadId', '==', leadId)
-      ));
+      // CRM audit 2026-11-06 (DT-F03): leadId alone is provable only for a
+      // company reader (docLeadInMyCompany); a rep or solo owner was denied and
+      // saw an empty picker. Same rule as customer-bootstrap _photoQueryScopes.
+      const _cl = window._userClaims || {};
+      const _uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
+      const _reader = ['company_admin', 'manager', 'viewer'].indexOf(_cl.role || '') !== -1 && !!_cl.companyId;
+      const _scope = _reader || !_uid ? [window.where('leadId', '==', leadId)] : [window.where('leadId', '==', leadId), window.where('userId', '==', _uid)];
+      const snap = await window.getDocs(window.query.apply(null, [window.collection(window.db, 'photos')].concat(_scope)));
       const list = [];
       snap.forEach(d => {
         const p = d.data() || {};

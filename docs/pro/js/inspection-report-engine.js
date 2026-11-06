@@ -125,21 +125,28 @@
       try {
         if (!window._db) return [];
 
-        const { collection, getDocs, query, where, orderBy } = await import(
+        const { collection, getDocs, query, where } = await import(
           '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
-        const q = query(
-          collection(window._db, REPORTS_COLLECTION),
-          where('leadId', '==', leadId),
-          orderBy('createdAt', 'desc')
-        );
-
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        // CRM audit 2026-11-06 (DT-F01): a leadId-only query can never satisfy
+        // the /reports read rule, so it was denied for everyone but the platform
+        // admin and this list was always empty. Same two-scope shape as the
+        // estimate and photo reads; equality only, sorted below.
+        const uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
+        if (!uid) return [];
+        const claims = window._userClaims || {};
+        const scopes = [where('userId', '==', uid)];
+        if (['company_admin', 'manager', 'viewer'].indexOf(claims.role || '') !== -1 && claims.companyId) {
+          scopes.push(where('companyId', '==', claims.companyId));
+        }
+        const byId = {};
+        for (const scope of scopes) {
+          const snapshot = await getDocs(query(collection(window._db, REPORTS_COLLECTION), where('leadId', '==', leadId), scope));
+          snapshot.docs.forEach(d => { byId[d.id] = { id: d.id, ...d.data() }; });
+        }
+        const ms = (r) => (r.createdAt && typeof r.createdAt.toMillis === 'function') ? r.createdAt.toMillis() : (Date.parse(r.createdAt) || 0);
+        return Object.values(byId).sort((a, b) => ms(b) - ms(a));
       } catch (err) {
         console.error('Error fetching reports:', err);
         return [];
