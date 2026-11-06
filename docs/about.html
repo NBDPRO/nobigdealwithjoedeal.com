@@ -367,6 +367,8 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
   .about-photo { max-width:280px; }
 }
 .about-section { padding:72px 5%; }
+/* Line the sections up with the hero (a centred 1200px container). A global `section{padding-inline:max(5%,env(safe-area..)) !important}` rule forces the inline padding, so this needs !important. */
+.about-section { padding-left:max(5%,calc((100% - 1200px) / 2),env(safe-area-inset-left)) !important; padding-right:max(5%,calc((100% - 1200px) / 2),env(safe-area-inset-right)) !important; }
 .about-section.alt { background:var(--off-white); }
 .about-section.dark { background:var(--navy-dark); color:#fff; }
 .truth-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:40px; }
