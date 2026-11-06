@@ -91,6 +91,26 @@ const appts = [
 ];
 for (const d of appts) same('appointment ' + d.bookingId, EC.appointmentEvent(d), FEED.normalizeAppointment(d));
 
+console.log('\nCRM-booked appointments (leads/{id}/tasks type event) — same as the feed');
+const L1 = { id: 'L1', firstName: 'Eve', lastName: 'Event', address: '1 Main' };
+const tasks = [
+  [{ id: 't1', type: 'event', title: 'Gutter check', eventAt: '2026-11-12T15:00:00.000Z' }, L1],
+  [{ id: 't2', type: 'event', title: 'Walkthrough with Eve Event', eventAt: '2026-11-12T18:00:00.000Z', durationMin: 30 }, L1],
+  [{ id: 't3', type: 'event', eventAt: '2026-11-13T14:00:00.000Z', durationMin: 5000 }, L1],
+  [{ id: 't4', type: 'event', eventAt: '2026-11-13T14:00:00.000Z', cancelled: true }, L1],
+  [{ id: 't5', type: 'task', eventAt: '2026-11-13T14:00:00.000Z' }, L1],
+  [{ id: 't6', type: 'event', eventAt: '2026-11-13T14:00:00.000Z' }, Object.assign({}, L1, { deleted: true })],
+  [{ id: 't7', type: 'event' }, L1],
+];
+for (const [t, lead] of tasks) {
+  const mine = EC.crmEventToAppointment(t, lead, lead.id, t.id);
+  const feed = FEED.leadEventToAppointment(t, lead, lead.id, t.id);
+  const pick = (a) => a && { id: a.id, startTime: a.startTime, endTime: a.endTime, title: a.title, leadId: a.leadId };
+  ok('task ' + t.id + ' matches the feed', JSON.stringify(pick(mine)) === JSON.stringify(pick(feed)), JSON.stringify(pick(mine)) + ' vs ' + JSON.stringify(pick(feed)));
+}
+const crmEv = EC.appointmentEvent(EC.crmEventToAppointment(tasks[0][0], L1, 'L1', 't1'));
+ok('a CRM event lands on the board at its New York time, an hour long', crmEv && crmEv.start === '2026-11-12 10:00' && crmEv.end === '2026-11-12 11:00', JSON.stringify(crmEv));
+
 console.log('\ntoEvents — the whole board');
 const all = EC.toEvents({ leads: leads.concat(adj), appointments: appts });
 const ids = all.map((e) => e.id);
