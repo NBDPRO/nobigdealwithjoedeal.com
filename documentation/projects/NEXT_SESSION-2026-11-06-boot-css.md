@@ -19,7 +19,8 @@ either dropped out of the queue, merge `main` into its branch and requeue.
 
 1. **Live speed re-run after #2827:** already done by another session (#2870). It can't be run from a cloud sandbox
    anyway (the proxy refuses the live site).
-2. **Boot CSS:** built in #2892. Full write-up: [BOOT-CSS-2026-11-06](../audit/BOOT-CSS-2026-11-06.md).
+2. **Boot CSS:** built in #2892. Full write-up: `documentation/audit/BOOT-CSS-2026-11-06.md` (ships with #2892,
+   which links it from INDEX).
    - 80 boots (4 roles on the emulator rig + the sample account, 8 layouts, phone and desktop): 41 eager sheets style
      nothing on the first screen. They apply on first input, a non-Home `goTo()`, a `?query` link, or idle (2 s cap).
    - **Win:** cold first paint at 150 ms / 1.6 Mbps 7.96 → 6.28 s; render-blocking CSS 56 → 21.
