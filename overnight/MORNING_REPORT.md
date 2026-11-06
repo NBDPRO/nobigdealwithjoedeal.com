@@ -26,6 +26,7 @@ Nothing was deployed. I merged nothing myself: #2894, #2899, #2900 and #2905 wen
 | [#2906](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2906) | site-ux | primary CTA >= 44 px | L | open |
 | [#2907](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2907) | a11y | heading-order + redundant-alt fixes (style measured identical) | L | open |
 | [#2908](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2908) | site-perf | 287 new -400 photo copies + srcset on case-study pages | L-M (5.7 MB binaries) | open |
+| [#2911](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2911) | site-visual | blog posts' desktop header: nav labels no longer wrap to two lines, button 37-67 px -> 33 px on every post (new `blog-nav-fit.css`, codemod on 33 pages) | L | open |
 | [#2909](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2909) | site-ux | /inspect: every invalid field looks invalid, clears on edit (script v=9) | L | open |
 
 Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at the same spot, so each merge makes the others
