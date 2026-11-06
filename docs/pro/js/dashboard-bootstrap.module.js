@@ -5911,6 +5911,18 @@
     if (!EB2) return;
     const defaults = EB2.getDefaultSettings();
     EB2.saveSettings(defaults);
+    // Reset must also clear the account copy that sign-in restores from
+    // (_hydrateEstimateSettingsFromFirestore, ST-F01) — otherwise the reset
+    // values came back on the next sign-in or device. Fire-and-forget, like
+    // Save All's write of the same field.
+    try {
+      if (window._db && window._user) {
+        const { setDoc, doc, deleteField } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
+        Promise.resolve(setDoc(doc(window._db, 'userSettings', window._user.uid),
+          { estimateSettingsV2: deleteField(), updatedAt: new Date().toISOString() }, { merge: true }))
+          .catch((e) => { console.warn('Estimate settings reset sync failed:', e); });
+      }
+    } catch (e) { console.warn('Estimate settings reset sync failed:', e); }
 
     // Clearing localStorage alone would be cosmetic for counties: the tenant
     // overlay re-applies the company's saved values on the very next calc, so
@@ -6805,13 +6817,23 @@
       // The read is async: bail if the rep saved on this device meanwhile, or a
       // different account signed in before it landed.
       if (localStorage.getItem(KEY)) return;
-      if (!window._user || window._user.uid !== uid) return;
+      // auth.currentUser moves first on a switch; window._user is set later in
+      // the auth callback, so check both.
+      const _cur = (auth && auth.currentUser) || null;
+      if (!_cur || _cur.uid !== uid || !window._user || window._user.uid !== uid) return;
       const EB2 = window.EstimateBuilderV2;
       if (EB2 && typeof EB2.updateSettings === 'function') EB2.updateSettings(saved);
       // Engine not loaded yet (lazy 'estimates' bundle): its loadSettings()
       // merges a partial saved object over the defaults, so the patch alone is
       // a valid store.
       else localStorage.setItem(KEY, JSON.stringify(saved));
+      // Settings → Estimates painted before this landed shows defaults, and a
+      // Save All from it would write them back. Repaint the device half —
+      // unless the rep is typing in that panel right now.
+      const panel = document.getElementById('stab-panel-estimates');
+      if (panel && !panel.contains(document.activeElement) && EB2 && typeof EB2.loadSettings === 'function') {
+        try { _paintDeviceEstimateInputs(EB2.loadSettings()); } catch (_) { /* paint is cosmetic here */ }
+      }
     } catch (e) {
       console.warn('Estimate settings server sync failed:', e && e.message);
     }

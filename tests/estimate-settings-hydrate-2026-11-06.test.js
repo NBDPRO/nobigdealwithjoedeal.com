@@ -49,7 +49,11 @@ async function run(opts) {
   const reads = [];
   const updates = [];
   const win = { _db: {}, _user: { uid: 'uid-a' } };
-  if (opts.engine) win.EstimateBuilderV2 = { updateSettings: (p) => { updates.push(p); store.nbd_est_settings_v3 = JSON.stringify(p); } };
+  const paints = [];
+  if (opts.engine) win.EstimateBuilderV2 = { updateSettings: (p) => { updates.push(p); store.nbd_est_settings_v3 = JSON.stringify(p); },
+    loadSettings: () => JSON.parse(store.nbd_est_settings_v3 || '{}') };
+  const auth = { currentUser: { uid: opts.authUid || 'uid-a' } };
+  const panel = { contains: (el) => !!opts.typingInPanel && el === 'focused-input' };
   const fsStub = {
     doc: (db, col, id) => col + '/' + id,
     getDoc: async (ref) => {
@@ -60,7 +64,9 @@ async function run(opts) {
     },
   };
   const sandbox = {
-    window: win, console: { log() {}, warn() {}, error() {} }, JSON, Array,
+    window: win, auth, console: { log() {}, warn() {}, error() {} }, JSON, Array,
+    document: { activeElement: 'focused-input', getElementById: (id) => (id === 'stab-panel-estimates' && opts.panel ? panel : null) },
+    _paintDeviceEstimateInputs: (st) => paints.push(st),
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
   };
   sandbox.globalThis = sandbox;
@@ -68,7 +74,7 @@ async function run(opts) {
   vm.createContext(sandbox);
   vm.runInContext(FN + '\nglobalThis.__run = _hydrateEstimateSettingsFromFirestore;', sandbox);
   await sandbox.__run();
-  return { store, reads, updates };
+  return { store, reads, updates, paints };
 }
 
 (async () => {
@@ -99,6 +105,19 @@ async function run(opts) {
     ok('a different account signed in before the read landed → nothing written', !('nbd_est_settings_v3' in r.store));
   }
   {
+    const r = await run({ remote: { estimateSettingsV2: PATCH }, authUid: 'uid-b' });
+    ok('the auth handle already moved to another account → nothing written', !('nbd_est_settings_v3' in r.store));
+  }
+  console.log('SETTINGS PANEL REPAINT');
+  {
+    const r = await run({ remote: { estimateSettingsV2: PATCH }, engine: true, panel: true });
+    ok('a painted Estimates panel is repainted with the restored values', r.paints.length === 1 && r.paints[0].overheadPct === 0.12);
+  }
+  {
+    const r = await run({ remote: { estimateSettingsV2: PATCH }, engine: true, panel: true, typingInPanel: true });
+    ok('…but not while the rep is typing in it', r.paints.length === 0);
+  }
+  {
     const r = await run({ remote: null });
     ok('no userSettings doc → nothing written', !('nbd_est_settings_v3' in r.store));
   }
@@ -106,6 +125,31 @@ async function run(opts) {
     const r = await run({ remote: { theme: 'default' } });
     ok('doc without estimateSettingsV2 → nothing written', !('nbd_est_settings_v3' in r.store));
   }
+  console.log('RESET TO DEFAULTS CLEARS THE ACCOUNT COPY (verifier blocker)');
+  {
+    // Without this, Reset → sign out → sign in restored the values the rep had
+    // just reset. Runs the real _resetEstimateDefaultsV2, Firestore stubbed.
+    const RS = SRC.indexOf('const _resetEstimateDefaultsV2 = async function() {');
+    const RE = RS >= 0 ? SRC.indexOf('\n  };', RS) : -1;
+    ok('the reset function is found (positive control)', RS >= 0 && RE > RS);
+    const fnSrc = SRC.slice(RS, RE + 5).split('await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js")').join('globalThis.__fs');
+    const writes = [];
+    const DELETE = { __delete: true };
+    const win = { _db: {}, _user: { uid: 'uid-a' }, nbdConfirm: async () => true,
+      EstimateBuilderV2: { getDefaultSettings: () => ({ overheadPct: 0.1 }), saveSettings() {} } };
+    const sandbox = { window: win, console: { log() {}, warn() {}, error() {} }, showToast() {}, Promise, Date, String };
+    sandbox.globalThis = sandbox;
+    sandbox.__fs = { doc: (db, c, id) => c + '/' + id, deleteField: () => DELETE,
+      setDoc: async (ref, data, o) => { writes.push({ ref, data, o }); }, updateDoc: async () => {} };
+    vm.createContext(sandbox);
+    try {
+      vm.runInContext(fnSrc + '\nglobalThis.__reset = _resetEstimateDefaultsV2;', sandbox);
+      await sandbox.__reset();
+    } catch (e) { /* the company half needs a hydrated profile; not under test */ }
+    const w = writes.find((x) => x.ref === 'userSettings/uid-a');
+    ok('Reset deletes userSettings/{uid}.estimateSettingsV2 (merge write)', !!w && w.data.estimateSettingsV2 === DELETE && w.o && w.o.merge === true, JSON.stringify(writes.map((x) => x.ref)));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
