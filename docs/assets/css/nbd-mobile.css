@@ -177,7 +177,9 @@ h1, h2, h3 { text-wrap: balance; }
   .breadcrumb a,
   .footer-col ul li a,
   .footer-links a,
-  .ann-bar a {
+  .ann-bar a,
+  .foot-slim a,
+  .footer-bottom a:not(.s-fb):not(.s-ig):not(.s-gg):not(.s-yelp) {
     display: inline-block;
     padding: 10px 6px;
     margin: -10px -6px;
