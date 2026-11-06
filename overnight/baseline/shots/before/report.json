@@ -1,0 +1,372 @@
+[
+ {
+  "path": "/",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\home-390.webp",
+  "shotKB": 176,
+  "pageHeight": 10513,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\home-1440.webp",
+  "shotKB": 235,
+  "pageHeight": 7525,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/roof-replacement",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-replacement-390.webp",
+  "shotKB": 182,
+  "pageHeight": 23728,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/roof-replacement",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-replacement-1440.webp",
+  "shotKB": 344,
+  "pageHeight": 16216,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/roof-repair",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-repair-390.webp",
+  "shotKB": 171,
+  "pageHeight": 15294,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/roof-repair",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-repair-1440.webp",
+  "shotKB": 280,
+  "pageHeight": 11731,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/roof-inspection",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-inspection-390.webp",
+  "shotKB": 173,
+  "pageHeight": 14158,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/roof-inspection",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-roof-inspection-1440.webp",
+  "shotKB": 266,
+  "pageHeight": 10424,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/storm-damage",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-storm-damage-390.webp",
+  "shotKB": 176,
+  "pageHeight": 16146,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/storm-damage",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-storm-damage-1440.webp",
+  "shotKB": 290,
+  "pageHeight": 11783,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/siding-replacement",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-siding-replacement-390.webp",
+  "shotKB": 185,
+  "pageHeight": 15893,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/siding-replacement",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-siding-replacement-1440.webp",
+  "shotKB": 292,
+  "pageHeight": 11339,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/gutter-replacement",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-gutter-replacement-390.webp",
+  "shotKB": 177,
+  "pageHeight": 15264,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/gutter-replacement",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-gutter-replacement-1440.webp",
+  "shotKB": 305,
+  "pageHeight": 11674,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/services/hail-damage-insurance-claim",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-hail-damage-insurance-claim-390.webp",
+  "shotKB": 197,
+  "pageHeight": 13361,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/services/hail-damage-insurance-claim",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\services-hail-damage-insurance-claim-1440.webp",
+  "shotKB": 269,
+  "pageHeight": 8953,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/inspect",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\inspect-390.webp",
+  "shotKB": 127,
+  "pageHeight": 3570,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/inspect",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\inspect-1440.webp",
+  "shotKB": 135,
+  "pageHeight": 2419,
+  "axe": {}
+ },
+ {
+  "path": "/our-work",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\our-work-390.webp",
+  "shotKB": 188,
+  "pageHeight": 7137,
+  "axe": {
+   "region": 1
+  }
+ },
+ {
+  "path": "/our-work",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /api/google-reviews"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\our-work-1440.webp",
+  "shotKB": 296,
+  "pageHeight": 6771,
+  "axe": {
+   "region": 4
+  }
+ },
+ {
+  "path": "/pro/login",
+  "width": 390,
+  "consoleErrors": [
+   "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /pro/nosw.txt"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\pro-login-390.webp",
+  "shotKB": 23,
+  "pageHeight": 1119,
+  "axe": {}
+ },
+ {
+  "path": "/pro/login",
+  "width": 1440,
+  "consoleErrors": [
+   "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed": [
+   "404 /pro/nosw.txt"
+  ],
+  "hOverflow": 0,
+  "shot": "overnight\\baseline\\shots\\before\\pro-login-1440.webp",
+  "shotKB": 38,
+  "pageHeight": 1385,
+  "axe": {}
+ }
+]
