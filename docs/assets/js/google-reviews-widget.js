@@ -115,9 +115,9 @@
     const text = truncate(review.text || '', 320);
     return `
       <div class="gr-card" style="background:#fff;border:1px solid #e8e5e0;border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px">
           ${photo}
-          <div style="flex:1;min-width:0">
+          <div style="flex:1;min-width:130px">
             <div style="font-weight:700;color:#12223d;font-size:.95rem">${name}</div>
             <div style="font-size:.78rem;color:#5d6673">${when}</div>
           </div>
