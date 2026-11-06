@@ -282,6 +282,12 @@
     var form = document.getElementById('inspectForm');
     if (!form) return;
 
+    // The red border (aria-invalid="true", set on submit) clears as soon as the person edits that field; submit re-checks.
+    form.addEventListener('input', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('aria-invalid') === 'true') t.setAttribute('aria-invalid', 'false');
+    });
+
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var btn = document.getElementById('inspectSubmit');
