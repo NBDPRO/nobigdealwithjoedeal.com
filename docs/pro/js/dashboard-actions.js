@@ -2479,7 +2479,15 @@ function _mCreate(kind) {
       // and it opens through PhotoEngine.openCamera — the real flow, with
       // tagging and the before/during/after phase — instead of a raw file
       // input whose result nothing consumed.
-      const lid = window._cardDetailLeadId || window._currentPhotoLeadId || window._customerId || '';
+      // _cardDetailLeadId counts only while a lead's detail is actually OPEN:
+      // closing the mobile job detail never cleared it, so the camera opened for
+      // the LAST customer viewed, with no name shown, and the shot landed in the
+      // wrong gallery (CRM audit 2026-11-06, PL-F07).
+      const _detailOpen = ['mJobDetail', 'cardDetailModal'].some((id) => {
+        const el = document.getElementById(id);
+        return !!(el && el.classList.contains('open') && !el.hidden);
+      });
+      const lid = (_detailOpen ? window._cardDetailLeadId : '') || window._currentPhotoLeadId || window._customerId || '';
       if (lid && window.PhotoEngine && typeof window.PhotoEngine.openCamera === 'function') {
         window.PhotoEngine.openCamera(lid);
         break;
@@ -3092,7 +3100,15 @@ function editCardDetails() {
       const file = input && input.files && input.files[0];
       if (!file) return;
 
-      const lid = window._cardDetailLeadId || window._currentPhotoLeadId || window._customerId || '';
+      // _cardDetailLeadId counts only while a lead's detail is actually OPEN:
+      // closing the mobile job detail never cleared it, so the camera opened for
+      // the LAST customer viewed, with no name shown, and the shot landed in the
+      // wrong gallery (CRM audit 2026-11-06, PL-F07).
+      const _detailOpen = ['mJobDetail', 'cardDetailModal'].some((id) => {
+        const el = document.getElementById(id);
+        return !!(el && el.classList.contains('open') && !el.hidden);
+      });
+      const lid = (_detailOpen ? window._cardDetailLeadId : '') || window._currentPhotoLeadId || window._customerId || '';
       if (lid && window.PhotoEngine && typeof window.PhotoEngine.uploadFromFile === 'function') {
         if (typeof showToast === 'function') showToast('Uploading photo…', 'info');
         await window.PhotoEngine.uploadFromFile(lid, file);
