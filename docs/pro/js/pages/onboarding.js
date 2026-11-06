@@ -187,7 +187,7 @@ function buildOverrides() {
   // brand.contact — only the keys the rep actually set (M1: present = "mine").
   const contact = {};
   if (phone)  contact.phone = phone;
-  if (email)  { contact.email = email; contact.alertEmail = email; }
+  if (email)  { contact.email = email; if (!state.keepAlertEmail) contact.alertEmail = email; }
   if (website) contact.website = website;
   if (address) contact.address = address;
   if (digits) contact.alertSms = '+1' + digits;
@@ -345,7 +345,6 @@ function setIfEmpty(id, value) {
 
 async function prefill() {
   const uid = state.user.uid;
-  setIfEmpty('obEmail', state.user.email || '');
   try {
     const uSnap = await getDoc(doc(db, 'users', uid));
     if (uSnap.exists()) {
@@ -365,6 +364,9 @@ async function prefill() {
       setIfEmpty('obDisplayName', b.displayName || '');
       setIfEmpty('obPhone', c.phone || p.businessPhone || '');
       setIfEmpty('obEmail', c.email || p.businessEmail || '');
+      // A lead-alert inbox set apart from the business email is the tenant's
+      // choice — a wizard re-run must not fold it back into the business email.
+      state.keepAlertEmail = !!(c.alertEmail && c.alertEmail !== (c.email || p.businessEmail || ''));
       setIfEmpty('obWebsite', c.website || p.businessWebsite || '');
       setIfEmpty('obAddress', c.address || p.businessAddress || '');
       setIfEmpty('obServiceArea', b.serviceArea || p.serviceArea || '');
@@ -380,6 +382,9 @@ async function prefill() {
       }
     }
   } catch (_) {}
+  // The login email only as a last resort: the profile's own business email
+  // wins on a re-run (CRM audit 2026-11-06, ST-F60).
+  setIfEmpty('obEmail', state.user.email || '');
   if (!state.sealTouched && !val('obSeal')) {
     const el = $('obSeal');
     if (el) el.value = deriveSeal(val('obName'));
