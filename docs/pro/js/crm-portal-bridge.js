@@ -596,6 +596,16 @@ function showDeleteConfirm(id, name) {
   const overlay = document.getElementById('delConfirmOverlay');
   if (nameEl) nameEl.textContent = name;
   if (overlay) overlay.classList.add('open');
+  // Keyboard contract (CRM audit 2026-11-06, PL-F17): focus moves into the
+  // dialog, Escape = Cancel, hotkeys stay off behind it, focus returns to the
+  // board after. The helper un-attaches itself when .open is removed.
+  if (overlay && window.nbdOverlay && typeof window.nbdOverlay.attach === 'function') {
+    window.nbdOverlay.attach(overlay, {
+      label: 'Move lead to Deleted?',
+      close: cancelDeleteConfirm,
+      isOpen: (el) => el.isConnected && el.classList.contains('open'),
+    });
+  }
 }
 
 function cancelDeleteConfirm() {
