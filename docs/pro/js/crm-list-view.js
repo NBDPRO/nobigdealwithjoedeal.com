@@ -249,9 +249,23 @@
     // moveCard re-renders (renderLeads) which calls back into render(),
     // so a gated/cancelled move snaps the select back to truth.
     wrap.querySelectorAll('.cl-stage-select').forEach((sel) => {
-      sel.addEventListener('change', () => {
-        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined);
-      });
+      _wireStageSelect(sel);
+    });
+  }
+
+  // Stage select → moveCard (CRM audit 2026-11-06, PL-F08). moveCard resolves
+  // true on success and undefined when it refuses (read-only lead, a missing
+  // required field) or the rep cancels (the Lost-reason picker). Those early
+  // returns don't re-render, so the select kept showing a stage the lead never
+  // moved to. Snap it back to the stored stage unless the move went through.
+  function _wireStageSelect(sel) {
+    let prev = sel.value;
+    sel.addEventListener('change', () => {
+      if (typeof window.moveCard !== 'function') { sel.value = prev; return; }
+      const want = sel.value;
+      Promise.resolve(window.moveCard(sel.dataset.id, want, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined))
+        .then((ok) => { if (ok === true) prev = want; else if (sel.isConnected) sel.value = prev; })
+        .catch(() => { if (sel.isConnected) sel.value = prev; });
     });
   }
 
@@ -330,9 +344,7 @@
       render(_lastList);
     });
     wrap.querySelectorAll('.cl-stage-select').forEach((sel) => {
-      sel.addEventListener('change', () => {
-        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined);
-      });
+      _wireStageSelect(sel);
     });
     wrap.querySelectorAll('.cl-card').forEach((card) => _wireSwipe(card, labelFor));
   }

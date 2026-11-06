@@ -4901,6 +4901,10 @@
   // was actually saved (default-ON digest/nudge: only OFF when the
   // stored value is explicitly false — matches the cron `=== false`
   // opt-out checks in functions/weekly-digest.js + dormant-leads.js).
+  // Did THIS page actually read users/{uid}? (CRM audit 2026-11-06, ST-F06.)
+  // A failed read used to be silent, leaving Phone / Google review / Cal.com /
+  // Role blank — and the next Save wrote those blanks over the stored values.
+  let _profileFieldsLoaded = false;
   async function _loadProfileSettings() {
     // Refreshing on #/settings runs this ~50ms after load, before sign-in
     // resolves — it used to return here, leaving Phone / Google review /
@@ -4914,7 +4918,7 @@
     _setVal('settingsEmail', u.email || '');
     try {
       const usrSnap = await getDoc(doc(db, 'users', u.uid));
-      if (!usrSnap.exists()) return;
+      if (!usrSnap.exists()) { _profileFieldsLoaded = true; return; }
       const d = usrSnap.data();
       // Cal.com username + shareable preview link.
       const calVal = d.calcomUsername || '';
@@ -4956,7 +4960,13 @@
         const roleEl = document.getElementById('settingsRole');
         if (roleEl && [...roleEl.options].some(o => (o.value || o.textContent) === d.jobTitle)) roleEl.value = d.jobTitle;
       }
-    } catch (e) { /* silent — rules may deny mid-bootstrap */ }
+      _profileFieldsLoaded = true;
+    } catch (e) {
+      // Rules may deny mid-bootstrap. No longer silent: Save below then keeps
+      // the stored fields instead of overwriting them with these empty boxes.
+      _profileFieldsLoaded = false;
+      console.warn('[settings] profile read failed:', e && (e.code || e.message));
+    }
   };
 
   const _saveSettings = async () => {
@@ -5006,7 +5016,9 @@
       if (typeof window._paintUserGreetings === 'function') window._paintUserGreetings();
       // Persist Cal.com username on the user profile.
       if (window.db && window.doc && window.setDoc) {
-        await window.setDoc(window.doc(window.db, 'users', window._user.uid), {
+        // Profile never loaded on this page → only the name (from the auth
+        // user, always known) is written; the stored fields stay as they are.
+        await window.setDoc(window.doc(window.db, 'users', window._user.uid), _profileFieldsLoaded ? {
           displayName: name,
           calcomUsername,
           weeklyDigestEnabled,
@@ -5017,16 +5029,19 @@
           profileCompany,
           jobTitle,
           licenseNumber
-        }, { merge: true });
+        } : { displayName: name }, { merge: true });
+        if (!_profileFieldsLoaded && typeof showToast === 'function') {
+          showToast('Name saved. Your other profile fields could not be loaded, so they were left unchanged — reopen Settings to edit them.', 'warning');
+        }
       }
       // Refresh the in-memory rep shadow so the next booking SMS
       // uses the new URL immediately (no page reload needed).
-      window._currentRep = Object.assign({}, window._currentRep || {}, {
+      window._currentRep = Object.assign({}, window._currentRep || {}, _profileFieldsLoaded ? {
         calcomUsername: calcomUsername || '',
         displayName: name,
         phone,
         googleReviewUrl
-      });
+      } : { displayName: name });
       if (rawReview && !googleReviewUrl) {
         showToast('Saved — but the Google review link must start with https:// and was cleared', 'warning');
       } else {

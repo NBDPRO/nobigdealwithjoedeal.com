@@ -185,8 +185,15 @@ async function saveCustomerEdits() {
     if (_jvCell && ('jobValue' in updates)) _jvCell.textContent = updates.jobValue ? `$${parseFloat(updates.jobValue).toLocaleString()}` : '—';
     const _dtCell = document.getElementById('infoDamageType');
     if (_dtCell && ('damageType' in updates)) _dtCell.textContent = updates.damageType || '—';
-    // Update local state
-    Object.assign(window._currentLead, updates);
+    // Update local state — BOTH copies. Several modules replace
+    // window._currentLead with a copy (portal-link helpers, documents,
+    // snooze), after which window._leadDoc — what the document generator and
+    // pre-flight read — kept the OLD name / address / phone, so a contract
+    // generated right after this edit carried the old address (CRM audit
+    // 2026-11-06, CU-F04). Same pattern as the stage-gate save.
+    [window._currentLead, window._leadDoc].forEach((o, i, arr) => {
+      if (o && arr.indexOf(o) === i) Object.assign(o, updates);
+    });
     // jobValue feeds the profit-panel margin math → re-render it too
     if (window.ProfitTracker && typeof window.ProfitTracker.renderCostPanel === 'function') {
       try { window.ProfitTracker.renderCostPanel('profitPanel', window._customerId); } catch (e) {}
