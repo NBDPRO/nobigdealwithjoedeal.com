@@ -53,7 +53,8 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 ## NEEDS_JOE (details in `overnight/NEEDS_JOE.md`)
 1. Homepage hero video is 0.9-2 MB on phones: lighter phone cut or skip on slow connections.
 2. Service-page hero photos are 800 px wide and upscale about 1.8x on 1440 px screens; needs 1600 px re-exports from the originals.
-3. Stray empty folder `C:\c\Users\jonat\AppData\Local\Temp\lhtest` (path slip; I was blocked from deleting it).
+3. /inspect header repeats the brand name (logo image plus text wordmark): see NEEDS_JOE 5; recommendation is to drop the text and set the image alt.
+4. Stray empty folder `C:\c\Users\jonat\AppData\Local\Temp\lhtest` (path slip; I was blocked from deleting it).
 
 ## Attempted and reverted / rejected
 - Linking `nbd-mobile.css` into project pages (matches the header but changes body margins and hero crop): rejected, header-only fix shipped.
