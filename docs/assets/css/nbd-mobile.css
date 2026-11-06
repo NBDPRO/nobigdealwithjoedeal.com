@@ -155,6 +155,11 @@ img, video {
   margin: 0 !important;
 }
 
+/* ─── HEADINGS: balanced line breaks (all widths) ─────────────────────────── */
+/* Stops one-word last lines ("NO / PITCH.") in short display headings. It only
+   changes where a heading wraps, never the copy; unsupported browsers ignore it. */
+h1, h2, h3 { text-wrap: balance; }
+
 /* ─── TAP TARGETS (≤ 600px): inline link hit-area expansion ──────────────── */
 /*
   Phase-3 audit: breadcrumb links, footer link-list anchors, and the
