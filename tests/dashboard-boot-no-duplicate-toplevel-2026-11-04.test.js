@@ -30,68 +30,8 @@ function ok(name, cond, detail) {
 
 const vm = require('vm');
 
-// Top-level declarations: a small scanner tracks {} depth while skipping comments, strings, template literals (with
-// nested ${}) and regex literals; a declaration at depth 0 is top level. It self-checks: a file must end at depth 0.
-function topLevelDecls(src) {
-  const names = new Set();
-  let depth = 0, i = 0, prev = '';
-  const tmpl = []; // brace depth at which each open template's ${ ... } began
-  const n = src.length;
-  const isIdent = (c) => /[\w$]/.test(c);
-  while (i < n) {
-    const c = src[i], d = src[i + 1];
-    if (c === '/' && d === '/') { while (i < n && src[i] !== '\n') i++; continue; }
-    if (c === '/' && d === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? n : e + 2; continue; }
-    if (c === '"' || c === "'") { i++; while (i < n && src[i] !== c) { if (src[i] === '\\') i++; i++; } i++; prev = 'x'; continue; }
-    if (c === '`' || (c === '}' && tmpl.length && tmpl[tmpl.length - 1] === depth)) {
-      if (c === '}') tmpl.pop();
-      i++;
-      while (i < n && src[i] !== '`') {
-        if (src[i] === '\\') { i += 2; continue; }
-        if (src[i] === '$' && src[i + 1] === '{') { tmpl.push(depth); i += 2; break; }
-        i++;
-      }
-      if (src[i] === '`') i++;
-      prev = 'x';
-      continue;
-    }
-    if (c === '/' && (prev === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(prev) || /^(return|typeof|case|in|of|delete|void|throw|new|else|do)$/.test(prev))) {
-      i++; let cls = false;
-      while (i < n) { const r = src[i]; if (r === '\\') { i += 2; continue; } if (r === '[') cls = true; else if (r === ']') cls = false; else if (r === '/' && !cls) break; else if (r === '\n') break; i++; }
-      i++; while (i < n && /[a-z]/.test(src[i])) i++;
-      prev = 'x';
-      continue;
-    }
-    if (isIdent(c)) {
-      let j = i; while (j < n && isIdent(src[j])) j++;
-      const word = src.slice(i, j);
-      if (depth === 0 && !/[.\w$]/.test(src[i - 1] || '')) {
-        const rest = src.slice(j, j + 120);
-        let m = null;
-        if (word === 'function') m = rest.match(/^\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/);
-        else if (word === 'let' || word === 'const' || word === 'class') m = rest.match(/^\s+([A-Za-z_$][\w$]*)/);
-        if (m) names.add(m[1]);
-      }
-      prev = word; i = j; continue;
-    }
-    if (c === '{') depth++;
-    else if (c === '}') depth--;
-    if (!/\s/.test(c)) prev = c;
-    i++;
-  }
-  return { names, balanced: depth === 0 && tmpl.length === 0 };
-}
-
-function duplicates(files) {
-  const seen = new Map();
-  const unbalanced = [];
-  for (const [name, text] of files) {
-    const r = topLevelDecls(text);
-    if (!r.balanced) unbalanced.push(name);
-    for (const id of r.names) (seen.get(id) || seen.set(id, []).get(id)).push(name);
-  }
-  return { dups: [...seen].filter(([, where]) => where.length > 1), unbalanced };
-}
+// The scanner is shared with scripts/concat-shipped.js (Phase 2 step 2): scripts/lib/toplevel-scan.js.
+const { topLevelDecls, duplicates } = require('../scripts/lib/toplevel-scan.js');
 
 ok('POSITIVE CONTROL: a name declared in two files is flagged',
   duplicates([['a.js', 'function f() {}\nconst k = 1;'], ['b.js', '  function inner() {}\nfunction f() {}']]).dups.map(([k]) => k).join() === 'f');

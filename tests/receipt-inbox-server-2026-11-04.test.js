@@ -103,6 +103,7 @@ const logger = {
 const httpsStub = { onCall: (o, h) => ({ __opts: o, __handler: typeof o === 'function' ? o : h }), onRequest: (o, h) => ({ __opts: o, __handler: h }), HttpsError };
 const PKG_STUBS = {
   'firebase-functions/v2/https': httpsStub,
+  'firebase-functions/v2/firestore': { onDocumentUpdated: (o, h) => ({ __opts: o, __handler: h }) },
   'firebase-functions/v2': { logger, https: httpsStub },
   'firebase-functions': { logger, https: httpsStub, config: () => ({}) },
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'sk-test-not-real' }), defineString: (n) => ({ name: n, value: () => '' }) },
@@ -303,27 +304,89 @@ const goodReply = () => ({ json: { documentType: 'invoice', vendor: 'Acme Roof S
   }
 
   // ── personal ──
-  console.log('\nH. a personal document is dropped');
+  console.log('\nH. a "personal" verdict waits for a person (2026-11-05)');
   reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
   {
     const p = 'receipts/co-a/inbox/groc.png'; put(p, PNG('groceries'));
     W.reply = { json: { documentType: 'personal', vendor: 'Corner Grocery 4417', date: '2026-05-29', total: 61.2, tax: 3.1, confidence: 0.9, poText: 'milk and eggs' } };
     const r = await call('owner', { storagePath: p });
     const d = W.docs[draftDocs()[0]];
-    ok('status not_business; the stored file is DELETED', r.value && r.value.status === 'not_business' && d.status === 'not_business' && !W.files[p] && W.effects.some((e) => e === 'storage:delete:' + p));
-    ok('only hash + status are kept: no read, no path, nothing the receipt said', d.read === null && d.storagePath === null && d.fileHash && !/Grocery|milk|61|4417/.test(JSON.stringify(d)), d);
-    ok('a counter (skippedPersonal) is kept on the company config', (W.docs['integrations/receiptInbox/companies/co-a'] || {}).skippedPersonal === 1);
-    ok('nothing about it was logged', !LOGS.some((l) => /Grocery|milk|4417/.test(l)));
-    put(p, PNG('groceries'));
+    ok('POSITIVE CONTROL: a draft was filed for it', !!d);
+    ok('the server deletes NOTHING: the file is still there and no storage delete ran', !!W.files[p] && !W.effects.some((e) => /^storage:delete:/.test(e)));
+    ok('it is a needs_look draft with the read kept (a person decides)', d && d.status === 'needs_look' && d.read && d.storagePath === p, d && d.status);
+    ok('the first warning is a RED "looks personal" one that says how to drop it', d && d.warnings[0] && d.warnings[0].code === 'looks_personal' && d.warnings[0].level === 'red' && /Not a business receipt/.test(d.warnings[0].text), JSON.stringify(d && d.warnings));
+    ok('the reply says looksPersonal (the screen words its toast from it)', r.value && r.value.looksPersonal === true && r.value.status === 'needs_look');
+    ok('a counter (flaggedPersonal) is kept on the company config', (W.docs['integrations/receiptInbox/companies/co-a'] || {}).flaggedPersonal === 1);
+    ok('nothing the receipt said was logged', !LOGS.some((l) => /Grocery|milk|4417/.test(l)));
+    ok('NO EXPENSE is written for it', expenseWrites().length === 0);
+    const p2 = 'receipts/co-a/inbox/biz.png'; put(p2, PNG('biz')); W.reply = goodReply();
+    const r2 = await call('owner', { storagePath: p2 });
+    ok('a business receipt has no looks_personal warning and no looksPersonal flag', r2.value && r2.value.looksPersonal === false && !W.docs[draftDocs().find((k) => k !== draftDocs()[0])].warnings.some((w) => w.code === 'looks_personal'));
+  }
+
+  console.log('\nH2. a teammate sends a receipt that is already in');
+  reset(); process.env.RECEIPT_INBOX_ENABLED = 'true';
+  {
+    const pa = 'receipts/co-a/inbox/same.png'; put(pa, PNG('same')); W.reply = goodReply();
+    const ra = await call('owner', { storagePath: pa });
+    const pb = 'receipts/u-rep/inbox/same.png'; put(pb, PNG('same'));
     const f0 = W.fetches.length;
-    const r2 = await call('owner', { storagePath: p });
-    ok('the same personal file again is a free "existing" answer (the hash is remembered)', r2.value && r2.value.existing === true && W.fetches.length === f0);
-    // a delete that fails is never reported as a delete
-    const p2 = 'receipts/co-a/inbox/groc2.png'; put(p2, PNG('groceries2')); W.files[p2].failDelete = true;
-    W.reply = { json: { documentType: 'personal', vendor: 'Corner Grocery', total: 5, confidence: 0.9 } };
-    await call('owner', { storagePath: p2 });
-    const d2 = W.docs[draftDocs().find((k) => k !== draftDocs()[0])];
-    ok('if the delete fails the draft still names the path (never claims a delete that did not happen)', d2 && d2.storagePath === p2);
+    const rb = await call('rep', { storagePath: pb });
+    ok('POSITIVE CONTROL: the owner filed it first', ra.value && ra.value.inboxId && draftDocs().length === 1);
+    ok('the teammate is told plainly (teammate-has-it), with no second read and no second draft', rb.value && rb.value.skipped === true && rb.value.reason === 'teammate-has-it' && W.fetches.length === f0 && draftDocs().length === 1, rb.value);
+    ok('nothing of the owner\'s draft is handed back (no inboxId, no status)', rb.value && !('inboxId' in rb.value) && !('status' in rb.value));
+    const ra2 = await call('owner', { storagePath: pa });
+    ok('the uploader sending it again still gets their own existing draft', ra2.value && ra2.value.existing === true && ra2.value.inboxId === ra.value.inboxId);
+  }
+
+  console.log('\nH3. onInboxReceiptDropped: the server deletes the picture and records it');
+  {
+    ok('POSITIVE CONTROL: the trigger is exported', typeof mod.onInboxReceiptDropped === 'object' && typeof mod._handleDropped === 'function');
+    const mk = (opts) => {
+      const files = Object.assign({}, opts.files || {});
+      const writes = [];
+      const deps = {
+        logger: { warn: () => {} },
+        bucket: () => ({ file: (p) => ({
+          delete: async () => { if (opts.deleteNoop) return; if (opts.deleteFails) throw Object.assign(new Error('boom'), { code: 500 }); if (!files[p]) throw Object.assign(new Error('nf'), { code: 404 }); delete files[p]; },
+          exists: async () => [!!files[p]],
+        }) }),
+        db: { doc: (path) => ({ set: async (v, o) => { writes.push({ path, v, o }); } }) },
+      };
+      return { deps, files, writes };
+    };
+    const drop = { status: 'not_business', ownerUid: 'u1', storagePath: 'receipts/u1/inbox/x.png' };
+    {
+      const w = mk({ files: { 'receipts/u1/inbox/x.png': 1 } });
+      const r = await mod._handleDropped({ status: 'ready' }, drop, 'co__rcpt_1', w.deps);
+      ok('ready -> not_business: the file is deleted, fileDeleted true and the path cleared', r.action === 'deleted' && !w.files['receipts/u1/inbox/x.png'] && w.writes[0].v.fileDeleted === true && w.writes[0].v.storagePath === null && w.writes[0].path === 'receipt_inbox/co__rcpt_1');
+    }
+    {
+      const w = mk({ files: {} });
+      const r = await mod._handleDropped({ status: 'ready' }, drop, 'co__rcpt_2', w.deps);
+      ok('the screen already deleted it (404): still recorded as deleted', r.action === 'deleted' && w.writes[0].v.fileDeleted === true);
+    }
+    {
+      const w = mk({ files: { 'receipts/u1/inbox/x.png': 1 }, deleteFails: true });
+      const r = await mod._handleDropped({ status: 'ready' }, drop, 'co__rcpt_3', w.deps);
+      ok('a delete that fails is recorded as NOT deleted, and the path is kept', r.action === 'kept' && w.writes[0].v.fileDeleted === false && !('storagePath' in w.writes[0].v));
+    }
+    {
+      const w = mk({ files: { 'receipts/u1/inbox/x.png': 1 }, deleteNoop: true });
+      const r = await mod._handleDropped({ status: 'ready' }, drop, 'co__rcpt_3b', w.deps);
+      ok('a delete that reports success while the file is still there is recorded as NOT deleted (it checks)', r.action === 'kept' && w.writes[0].v.fileDeleted === false);
+    }
+    {
+      const w = mk({ files: { 'receipts/u2/inbox/x.png': 1 } });
+      const r = await mod._handleDropped({ status: 'ready' }, Object.assign({}, drop, { storagePath: 'receipts/u2/inbox/x.png' }), 'co__rcpt_4', w.deps);
+      ok('a path outside the uploader\'s own inbox is refused: nothing deleted, nothing written', r.action === 'refused' && w.files['receipts/u2/inbox/x.png'] && w.writes.length === 0);
+    }
+    {
+      const w = mk({ files: { 'receipts/u1/inbox/x.png': 1 } });
+      const a = await mod._handleDropped({ status: 'not_business' }, drop, 'co__rcpt_5', w.deps);
+      const b = await mod._handleDropped({ status: 'ready' }, Object.assign({}, drop, { status: 'skipped' }), 'co__rcpt_5', w.deps);
+      ok('only the step INTO not_business acts (already dropped / skipped: nothing)', a.action === 'none' && b.action === 'none' && w.files['receipts/u1/inbox/x.png'] && w.writes.length === 0);
+    }
   }
 
   // ── failures ──
