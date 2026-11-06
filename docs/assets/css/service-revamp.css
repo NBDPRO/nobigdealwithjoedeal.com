@@ -12,6 +12,14 @@
  * own block without !important.
  */
 
+/* Trust bar, all widths: top-align each icon with its text and tighten the small
+ * line. Before, items were vertically centered, so the six icons sat at six
+ * different heights, and the <span> inherited the page's loose body line-height
+ * (about 27px between lines of 11px text). */
+.trust-bar .trust-item { align-items: flex-start; }
+.trust-bar .trust-text strong { line-height: 1.3; }
+.trust-bar .trust-text span { display: block; margin-top: 3px; line-height: 1.45; }
+
 /* ── hero ───────────────────────────────────────────────────────────── */
 .service-hero.svc-hero { position: relative; overflow: hidden; }
 .service-hero.svc-hero--photo { padding-top: 0; padding-bottom: 32px; min-height: 0; }
@@ -153,8 +161,11 @@
   .nbd-recent-jobs .project-img { height: 190px; }
   .nbd-recent-jobs .gallery .project-body > p:not([data-price-context]) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   /* trust bar: two columns, not six stacked rows */
-  .trust-bar-inner { display: grid !important; grid-template-columns: 1fr 1fr; padding: 0 !important; }
-  .trust-bar .trust-item { padding: 12px !important; gap: 10px; border-right: 1px solid rgba(255,255,255,.08) !important; }
+  /* minmax(0,1fr) + white-space:normal + flex-start: service-mobile-polish.css (a horizontal-scroll
+     bar, linked earlier) leaves nowrap, flex:0 0 auto and justify-content:center behind, which in this
+     grid pushed the cells 56px past the viewport and clipped the left icons off-screen. */
+  .trust-bar-inner { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 !important; gap: 0; overflow-x: visible; }
+  .trust-bar .trust-item { padding: 12px !important; gap: 10px; white-space: normal; justify-content: flex-start !important; border-right: 1px solid rgba(255,255,255,.08) !important; }
   .trust-bar .trust-text strong { font-size: .76rem; }
   .trust-bar .trust-text span { font-size: .7rem; }
   /* process: compact numbered rows */
