@@ -85,7 +85,7 @@
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=8',
+      'js/storm-center.js?v=9',
       'js/storm-outreach-ui.js?v=3',
       'js/storm-integration.js?v=4',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;

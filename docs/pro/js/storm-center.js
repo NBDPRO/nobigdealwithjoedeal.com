@@ -76,6 +76,50 @@
   let activeZone = null;
   let stormMap = null;
   let stormLayers = { alerts: null, zones: null, pins: null };
+
+  // Radar hail swaths (2026-11-05, js/hail-mesh-swaths.js — the same layer the
+  // Mission and D2D maps draw): NOAA MRMS MESH bands for the last MESH_DAYS
+  // storm days from hail_mesh/{YYYY-MM-DD} (dark until
+  // feature_flags/global.meshHailEnabled, so nothing shows until then). Above
+  // the broad SPC outlook, under the alerts, zones and pins. A failed read and
+  // an empty week look the same, so this never claims "no radar hail".
+  const MESH_DAYS = 7;
+  const MESH_COLORS = { gold: '#d9a21b', red: '#d64545' };
+  let meshSwaths = [], meshSeq = 0, meshLoaderTried = false;
+
+  /** Leaflet path style for one swath (pure): 1.75"+ red, smaller gold. */
+  function meshStyle(level) {
+    const c = MESH_COLORS[level] || MESH_COLORS.gold;
+    return { color: c, weight: 1, opacity: 0.9, fillColor: c, fillOpacity: level === 'red' ? 0.32 : 0.22,
+      attribution: 'Radar hail estimate: NOAA MRMS' };
+  }
+
+  function loadMeshSwaths() {
+    const seq = ++meshSeq;
+    const HM = window.NBDHailMeshSwaths;
+    if (!HM) {
+      const SL = window.ScriptLoader;
+      if (SL && typeof SL.load === 'function' && !meshLoaderTried) {
+        meshLoaderTried = true;
+        return Promise.resolve(SL.load('/pro/js/hail-mesh-swaths.js?v=1')).then(() => { if (seq === meshSeq) return loadMeshSwaths(); }, () => {});
+      }
+      return Promise.resolve();
+    }
+    // Docs are keyed by the UTC day their 24-hour window ends.
+    return HM.load({ today: new Date().toISOString().slice(0, 10), days: MESH_DAYS }).then((docs) => {
+      if (seq !== meshSeq) return;
+      meshSwaths = HM.allSwaths(docs);
+      drawMeshSwaths();
+    }, () => {});
+  }
+
+  function drawMeshSwaths() {
+    if (!stormMap || !stormLayers.mesh || typeof L === 'undefined') return;
+    stormLayers.mesh.clearLayers();
+    meshSwaths.forEach((s) => {
+      L.polygon(s.rings, meshStyle(s.level)).bindPopup(esc(s.title) + '<br><small>Not a measured size</small>').addTo(stormLayers.mesh);
+    });
+  }
   let currentTab = 'alerts'; // 'alerts' | 'zones' | 'canvass' | 'analytics'
   let isLoading = false;
   let userLocation = null;
@@ -767,6 +811,8 @@
     // Outlook sits UNDER everything else: it is a broad-area forecast, and an
     // active warning or a drawn zone must stay readable on top of it.
     stormLayers.outlook = L.layerGroup().addTo(stormMap);
+    // Radar hail swaths: over the outlook, under every warning, zone and pin.
+    stormLayers.mesh = L.layerGroup().addTo(stormMap);
     stormLayers.alerts = L.layerGroup().addTo(stormMap);
     stormLayers.zones = L.layerGroup().addTo(stormMap);
     stormLayers.pins = L.layerGroup().addTo(stormMap);
@@ -777,6 +823,9 @@
     }).addTo(stormMap).bindPopup('Your Location');
 
     renderMapLayers();
+    // A tab switch rebuilds the map: redraw what is loaded, then refresh.
+    drawMeshSwaths();
+    loadMeshSwaths();
 
     // Restore the prior view (a tab switch rebuilds the map) or focus a zone the
     // user just opened — otherwise the map snaps back to the default every paint.
