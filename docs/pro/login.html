@@ -52,6 +52,11 @@
 html,body{min-height:100%;font-family:'Barlow',sans-serif}
 body{background:var(--navy-dark);color:var(--white);display:grid;grid-template-columns:1fr 500px;min-height:100vh;min-height:100dvh}
 
+/* TWO-COLUMN SHELL. The brand panel and the form panel are children of <main id="main">, so the
+   grid has to live on #main: on <body> it only ever saw one child (the <main>) and the desktop
+   layout collapsed into one stacked column. #id beats nbd-mobile.css's body{display:flex}. */
+#main{display:grid;grid-template-columns:1fr 500px;width:100%;min-height:100vh;min-height:100dvh}
+
 /* BRAND PANEL */
 .bp{background:var(--navy-dark);position:relative;overflow:hidden;display:flex;flex-direction:column;padding:48px 56px}
 .bp::before{content:'';position:absolute;top:0;right:0;bottom:0;left:0;background-image:repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(255,255,255,0.018) 60px,rgba(255,255,255,0.018) 61px);pointer-events:none}
@@ -170,6 +175,7 @@ body{background:var(--navy-dark);color:var(--white);display:grid;grid-template-c
 @media(max-width:900px){
   html,body{overflow:auto;height:auto}
   body{grid-template-columns:1fr}
+  #main{grid-template-columns:1fr;min-height:0}
   .bp{padding:40px 28px 32px;min-height:auto}
   .bp-mid{padding:32px 0}
   .bp-features{display:none}
