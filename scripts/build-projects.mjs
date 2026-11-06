@@ -758,8 +758,10 @@ const STRIP_RE = /<!-- OURWORK-STRIP-START service="([a-z-]+)" -->[\s\S]*?<!-- O
 const detailPhotoCard = (ph) => {
   // Sized by .pd-photo in project-cards.css (inline style attributes until 2026-10-05).
   const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300">`;
+  // Rendered 157-341 px wide (two columns up to 768 px, then auto-fill at about 280 px); the -400 copies come from
+  // scripts/build-project-thumbs.mjs. Larger/denser screens still pick the 800 px file.
   return `      <figure class="pd-photo">
-        ${pictureFor(ph.src, img)}
+        ${pictureFor(ph.src, img, [400], '(max-width: 768px) 45vw, 290px')}
         <figcaption>${esc(ph.caption || ph.alt)}</figcaption>
       </figure>`;
 };
