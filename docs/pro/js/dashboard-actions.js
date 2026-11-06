@@ -219,7 +219,10 @@ function closeInspectionBuilder() {
 function hideFollowUpAlerts() {
   const wrap = document.getElementById('followUpAlertsWrap');
   if (wrap) wrap.style.display = 'none';
-  try { localStorage.setItem('nbd_crm_followup_hidden', '1'); } catch (e) {}
+  // Dismiss for TODAY (local date), not forever: the old '1' hid the daily
+  // follow-up list on that device for good, though the strip is a daily nudge
+  // (CRM audit 2026-11-06, PL-F14). crm-pipeline.js shows it again tomorrow.
+  try { localStorage.setItem('nbd_crm_followup_hidden', new Date().toLocaleDateString('en-CA')); } catch (e) {}
 };
 function goToD2DFromMaps() {
   if (typeof goTo === 'function') goTo('d2d');
@@ -518,6 +521,13 @@ function goTo(name, params = {}) {
     // widget re-render into its now-present body. Idempotent + already fires
     // frequently in normal use (task/snooze/lead-load), so no new churn.
     try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'dash-enter' } })); } catch (e) {}
+  }
+  if(name==='docs') {
+    // CRM audit 2026-11-06 (VW-F50, VW-F53): the template is hydrated by now.
+    // Add the Blank buttons to its rows, and load Uploaded Documents, which
+    // otherwise loaded only after an upload in this session.
+    try { if (typeof window._injectBlankButtons === 'function') window._injectBlankButtons(); } catch (e) { console.warn('blank buttons failed:', e); }
+    try { if (typeof window.loadDocs === 'function') window.loadDocs(); } catch (e) { console.warn('loadDocs failed:', e); }
   }
   if(name==='est') {
     // Same QA #9b pattern as view-dash above: the estimate-analytics band
@@ -2479,7 +2489,15 @@ function _mCreate(kind) {
       // and it opens through PhotoEngine.openCamera — the real flow, with
       // tagging and the before/during/after phase — instead of a raw file
       // input whose result nothing consumed.
-      const lid = window._cardDetailLeadId || window._currentPhotoLeadId || window._customerId || '';
+      // _cardDetailLeadId counts only while a lead's detail is actually OPEN:
+      // closing the mobile job detail never cleared it, so the camera opened for
+      // the LAST customer viewed, with no name shown, and the shot landed in the
+      // wrong gallery (CRM audit 2026-11-06, PL-F07).
+      const _detailOpen = ['mJobDetail', 'cardDetailModal'].some((id) => {
+        const el = document.getElementById(id);
+        return !!(el && el.classList.contains('open') && !el.hidden);
+      });
+      const lid = (_detailOpen ? window._cardDetailLeadId : '') || window._currentPhotoLeadId || window._customerId || '';
       if (lid && window.PhotoEngine && typeof window.PhotoEngine.openCamera === 'function') {
         window.PhotoEngine.openCamera(lid);
         break;
@@ -3092,7 +3110,15 @@ function editCardDetails() {
       const file = input && input.files && input.files[0];
       if (!file) return;
 
-      const lid = window._cardDetailLeadId || window._currentPhotoLeadId || window._customerId || '';
+      // _cardDetailLeadId counts only while a lead's detail is actually OPEN:
+      // closing the mobile job detail never cleared it, so the camera opened for
+      // the LAST customer viewed, with no name shown, and the shot landed in the
+      // wrong gallery (CRM audit 2026-11-06, PL-F07).
+      const _detailOpen = ['mJobDetail', 'cardDetailModal'].some((id) => {
+        const el = document.getElementById(id);
+        return !!(el && el.classList.contains('open') && !el.hidden);
+      });
+      const lid = (_detailOpen ? window._cardDetailLeadId : '') || window._currentPhotoLeadId || window._customerId || '';
       if (lid && window.PhotoEngine && typeof window.PhotoEngine.uploadFromFile === 'function') {
         if (typeof showToast === 'function') showToast('Uploading photo…', 'info');
         await window.PhotoEngine.uploadFromFile(lid, file);
