@@ -526,6 +526,19 @@ function editLead(id){
   if (_nbdReg && typeof _nbdReg.setSelectedTrades === 'function') {
     _nbdReg.setSelectedTrades(Array.isArray(l.trades) ? l.trades : []);
   }
+  // A stored source the select has no option for — the server-written
+  // funnel values ('Website — Contact form', 'Website — Inspection / Storm
+  // tool', …) or 'Phone call' — rendered blank and Save wrote source: '' over
+  // it (CRM audit 2026-11-06, PL-F02). Keep it selectable as an extra option,
+  // marked so _leadModalReset (crm-leads.js) removes it on dismiss. The
+  // vocabulary itself is unchanged.
+  (function keepStoredSource(sel, val) {
+    if (!sel || !val || !sel.options) return;
+    if (Array.prototype.some.call(sel.options, (o) => o.value === val)) return;
+    const o = document.createElement('option');
+    o.value = val; o.textContent = val; o.setAttribute('data-nbd-stored', '1');
+    sel.appendChild(o);
+  })(document.getElementById('lSource'), l.source);
   setV('lSource',l.source||'Door Knock');
   setV('lReferralCode', l.redeemReferralCode||'');
   setV('lDamageType',l.damageType||'');

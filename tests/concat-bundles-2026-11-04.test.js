@@ -1,7 +1,7 @@
 /**
  * tests/concat-bundles-2026-11-04.test.js — Phase 2b: joining lazy ScriptLoader bundles at deploy time
- * (scripts/concat-shipped.js --bundles; script-loader.js reads window.__NBD_JOINED_BUNDLES). SWITCHED OFF: no workflow
- * passes --bundles yet.
+ * (scripts/concat-shipped.js --bundles; script-loader.js reads window.__NBD_JOINED_BUNDLES). SWITCHED ON 2026-11-06:
+ * CI's minified walk and the deploy both pass --bundles; the deploy's off switch is the repo variable NBD_BUNDLES=0.
  *
  * 1. Planner (fixture): the bundle list is read by running the real-shaped loader in a sandbox; a file shared by two
  *    bundles, a file that is also a page tag, and every CSS entry stay as their own steps (breaking the run); runs of
@@ -13,7 +13,7 @@
  *    - a part already loaded beforehand → the per-file path (the joined file is never used, nothing runs twice);
  *    - the joined file failing → its parts load one by one, in order;
  *    - no map → exactly the old per-file behaviour.
- * 3. The real tree: --check --bundles plans at least 15 segments and refuses nothing; no workflow passes --bundles.
+ * 3. The real tree: --check --bundles plans at least 15 segments and refuses nothing; CI and the deploy pass --bundles.
  *
  * Zero deps. Run: node tests/concat-bundles-2026-11-04.test.js
  */
@@ -134,8 +134,13 @@ function env(map, opts = {}) {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/concat-shipped.js'), '--check', '--bundles', '--json'], { encoding: 'utf8' });
     let j = null; try { j = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))); } catch (e) {}
     ok('--check --bundles plans 15+ joined segments and refuses nothing', r.status === 0 && j && j.bundles && j.bundles.joined.length >= 15, (r.stderr || '').slice(0, 300) + (j ? ' segments=' + (j.bundles && j.bundles.joined.length) : ''));
-    const wf = ['.github/workflows/firebase-deploy.yml', '.github/workflows/ci.yml'].map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-    ok('switched off: no workflow passes --bundles yet', !/concat-shipped\.js[^\n]*--bundles/.test(wf));
+    // Switched ON 2026-11-06: CI's minified walk joins the bundles hard (a broken join stops the merge), and the deploy
+    // joins them behind their own off switch (NBD_BUNDLES=0), cleaning up _bundle-* files on failure and after Hosting.
+    const deploy = fs.readFileSync(path.join(ROOT, '.github/workflows/firebase-deploy.yml'), 'utf8').replace(/\r\n/g, '\n');
+    const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8').replace(/\r\n/g, '\n');
+    ok('CI walks the bundle-joined build', /node scripts\/concat-shipped\.js --write --bundles\n/.test(ci));
+    ok('the deploy passes --bundles unless NBD_BUNDLES is 0', /NBD_BUNDLES: \$\{\{ vars\.NBD_BUNDLES \|\| 'on' \}\}/.test(deploy) && /if \[ "\$NBD_BUNDLES" != "0" \]; then BUNDLES_FLAG="--bundles"; fi/.test(deploy) && /concat-shipped\.js --write \$BUNDLES_FLAG /.test(deploy));
+    ok('a failed join and the post-Hosting restore both remove _bundle-* files', (deploy.match(/rm -f docs\/pro\/js\/_concat-\*\.js docs\/pro\/js\/_bundle-\*\.js/g) || []).length === 2);
   }
 
   console.log('\n──────────────────────');

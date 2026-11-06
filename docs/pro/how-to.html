@@ -53,6 +53,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   .tb-action-short{display:inline}
   .tb-action{padding:7px 11px;font-size:11px}
 }
+/* 320 px: the top bar (back link, brand, Tour, CRM) was 324 px wide, so the page scrolled sideways, the brand wrapped to "HOW / TO",
+   and the long <code> paths ran past the edge. Tighter gaps, one-line brand, wrapping code. */
+@media (max-width:360px){
+  .topbar{padding:0 12px;gap:8px}
+  .tb-brand{gap:6px}
+  .tb-title{white-space:nowrap;font-size:14px;letter-spacing:1px}
+  .tb-back{font-size:12px}
+  .tb-action{padding:7px 9px}
+  .qs li code,.detail-body code,.jt-pill .jt-b{overflow-wrap:anywhere}
+}
 
 /* ── HERO ── */
 .hero{padding:48px 20px 28px;text-align:center;position:relative;z-index:1;max-width:840px;margin:0 auto}
@@ -138,7 +148,7 @@ summary:hover{background:var(--s2)}
 .jt-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .jt-pill{display:flex;flex-direction:column;gap:2px;background:var(--s1);border:1px solid var(--bdr2);border-radius:10px;padding:10px 14px;min-width:140px;flex:1}
 .jt-pill .jt-h{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-.jt-pill .jt-b{font-size:12px;color:var(--tx3);line-height:1.5}
+.jt-pill .jt-b{font-size:12px;color:var(--tx3);line-height:1.5;overflow-wrap:anywhere}
 .jt-pill.ins .jt-h{color:var(--purp)}
 .jt-pill.cash .jt-h{color:var(--grn)}
 .jt-pill.fin .jt-h{color:var(--blue)}
