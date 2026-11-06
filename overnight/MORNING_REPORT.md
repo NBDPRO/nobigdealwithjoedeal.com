@@ -39,6 +39,7 @@ Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at 
 conflict on that file (keep both lines); Auto-fix has been resolving that. Optional checks that were red on some PRs
 (Authed E2E shard 2/3, Mobile realtime, Pro demo zero-network, Rendered QC sweep) were red across unrelated PRs and are not
 required; the Rendered QC sweep's only finding locally is `/sites/oaks` images 404-ing on a static server that lacks the
+Read the log of one (the Pro demo zero-network walk on #2915): the job was CANCELLED while `playwright install --with-deps chromium` was still downloading apt packages from the Azure mirror (a few KB/s for minutes); the tests never ran. So the recurring optional-check failures that hit PRs touching no CRM code look like runner/apt timeouts, not code. Not verified for every check.
 Firebase rewrites.
 
 ## Metrics (local Lighthouse 12.8.2, 2 runs median; machine noise on mobile TBT is about +/-300 ms)
