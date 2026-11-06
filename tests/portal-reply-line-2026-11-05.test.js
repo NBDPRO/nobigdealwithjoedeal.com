@@ -47,6 +47,7 @@ const between = code.slice(defAt, cardStart);
 ok('no function boundary between the definition and the card (same scope)',
   !/\n {2}function \w+\s*\(/.test(between) && !/\n {2}\}\)\(\);/.test(between));
 
+ok('the line is styled by a .pm-reply-line class, not an inline style', /\.pm-reply-line\s*\{[^}]*color:\s*var\(--muted\)/.test(html) && !/data-pm-reply-line[^>]*style=/.test(card));
 ok('portal.html cache-busts portal.js past v=25', (() => {
   const m = html.match(/js\/portal\.js\?v=(\d+)/);
   return !!m && Number(m[1]) >= 26;
