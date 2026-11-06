@@ -38,4 +38,4 @@
    the customer Jo is on is the one-tap default; the picker lists them first. */
 .qc-here-btn.qc-here-btn.qc-here-btn.qc-here-btn { width: 100%; min-height: 48px; margin-bottom: 8px; font-size: 15px; font-weight: 700; }
 .nbd-qc-lead-btn.qc-lead-here { border-color: var(--orange, #A14A22) !important; min-height: 44px; }
-.qc-here-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--orange, #e8720c); border: 1px solid currentColor; }
+.qc-here-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--orange, #BD5728); border: 1px solid currentColor; }
