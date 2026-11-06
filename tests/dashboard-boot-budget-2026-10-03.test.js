@@ -217,6 +217,11 @@ CEILING.localBytes += 25 * 1024;
 // writes: with the flag off the module only answers '' to the board. Own line.
 CEILING.localScripts += 2;
 CEILING.localBytes += 18 * 1024;
+// +1 local tag / +3 KB, deliberate (2026-11-06, boot CSS): js/late-css.js (~2.6 KB readable), deferred. It turns the 41 data-late-css
+// preload links back into stylesheets after boot, which takes their ~1,700 rules out of every boot restyle. It must be on the page
+// before the first tap or goTo(), so it cannot ride a lazy bundle. Own line.
+CEILING.localScripts += 1;
+CEILING.localBytes += 3 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:
