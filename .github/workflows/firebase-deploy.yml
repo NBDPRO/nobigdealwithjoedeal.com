@@ -390,6 +390,54 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      # Readable CRM stack traces in Sentry (2026-11-06). Uploads this deploy's minified files with their maps to the
+      # release sentry-init.js reports (window.__NBD_RELEASE, stamped above), so Sentry maps "line 1, column N" back to
+      # the readable source. Does NOTHING until the repo secret SENTRY_AUTH_TOKEN exists (an org token, sntrys_…, made
+      # by Jo; it carries the org). Org defaults to the slug no-big-deal-q5, project to the DSN's project id (sentry-config.js);
+      # set repo variables SENTRY_ORG / SENTRY_PROJECT to override. Soft-fail: a Sentry outage never blocks a deploy.
+      # Frames inside the deploy-joined _concat-*.js files are not mapped (the join runs after minify).
+      - name: Upload source maps to Sentry
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'no-big-deal-q5' }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || '4511287883268096' }}
+        run: |
+          set +e
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::SENTRY_AUTH_TOKEN is not set: source maps are kept as the artifact only."
+            exit 0
+          fi
+          REL=$(grep -oE "web@[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{8}" docs/pro/js/sentry-config.js | head -1)
+          MAPS="$RUNNER_TEMP/nbd-sourcemaps"
+          if [ -z "$REL" ] || [ ! -d "$MAPS" ]; then
+            echo "::warning::Sentry upload skipped: no stamped release ($REL) or no maps dir."
+            exit 0
+          fi
+          # Pair each map with the minified file it belongs to (maps-dir mirrors docs/: pro/js/x.js.map <-> docs/pro/js/x.js).
+          STAGE="$RUNNER_TEMP/sentry-stage"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+          n=0
+          while IFS= read -r map; do
+            rel="${map#"$MAPS"/}"; rel="${rel%.map}"
+            case "$rel" in *.js) ;; *) continue ;; esac
+            [ -f "docs/$rel" ] || continue
+            mkdir -p "$STAGE/$(dirname "$rel")"
+            cp "docs/$rel" "$STAGE/$rel" && cp "$map" "$STAGE/$rel.map" && n=$((n+1))
+          done < <(find "$MAPS" -type f -name '*.js.map')
+          echo "Staged $n file+map pairs for release $REL"
+          CLI="${SENTRY_CLI:-npx --yes @sentry/cli@2.39.1}"   # SENTRY_CLI: the test harness's fake only
+          $CLI releases new "$REL" \
+            && $CLI sourcemaps upload --release "$REL" --url-prefix "~/" "$STAGE" \
+            && $CLI releases finalize "$REL"
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "::warning::Sentry source-map upload failed (exit $rc). The deploy continues; the maps are still in the artifact."
+          else
+            echo "::notice::Uploaded $n source maps to Sentry release $REL"
+          fi
+          exit 0
+
       # Hosting deploys FIRST — before rules / indexes / storage / functions —
       # so a transient auth-race flake on the rules deploy (the recurring
       # "Failed to authenticate" abort that took out deploys #732 + #736) can
