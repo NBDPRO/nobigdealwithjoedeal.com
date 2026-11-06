@@ -390,14 +390,14 @@ jobs:
       # Readable CRM stack traces in Sentry (2026-11-06). Uploads this deploy's minified files with their maps to the
       # release sentry-init.js reports (window.__NBD_RELEASE, stamped above), so Sentry maps "line 1, column N" back to
       # the readable source. Does NOTHING until the repo secret SENTRY_AUTH_TOKEN exists (an org token, sntrys_…, made
-      # by Jo; it carries the org). Org / project default to the numeric ids in the DSN (docs/pro/js/sentry-config.js);
+      # by Jo; it carries the org). Org defaults to the slug no-big-deal-q5, project to the DSN's project id (sentry-config.js);
       # set repo variables SENTRY_ORG / SENTRY_PROJECT to override. Soft-fail: a Sentry outage never blocks a deploy.
       # Frames inside the deploy-joined _concat-*.js files are not mapped (the join runs after minify).
       - name: Upload source maps to Sentry
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG || '4511287861968896' }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'no-big-deal-q5' }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || '4511287883268096' }}
         run: |
           set +e
