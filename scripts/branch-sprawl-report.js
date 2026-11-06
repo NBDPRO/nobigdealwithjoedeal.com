@@ -14,6 +14,7 @@
  * Classes (first match wins):
  *   keep:default   main
  *   keep:backup    backup/* — deliberate Oct 12–13 safety copies; never listed for deletion
+ *   keep:queue     gh-readonly-queue/* — the merge queue's own temporary refs; never touch
  *   keep:open-pr   head of an open PR (needs --open-prs and gh; otherwise unknown → treated as active)
  *   keep:active    last commit within --stale-days
  *   merged         tip is an ancestor of origin/main (merge commit) — safe to list
@@ -61,11 +62,12 @@ function squashed(sha) {
   } catch (_) { return false; }
 }
 
-const out = { 'keep:default': [], 'keep:backup': [], 'keep:open-pr': [], 'keep:active': [], merged: [], squashed: [], stale: [] };
+const out = { 'keep:default': [], 'keep:backup': [], 'keep:queue': [], 'keep:open-pr': [], 'keep:active': [], merged: [], squashed: [], stale: [] };
 for (const r of refs) {
   let c;
   if (r.name === 'main') c = 'keep:default';
   else if (/^backup\//.test(r.name)) c = 'keep:backup';
+  else if (/^gh-readonly-queue\//.test(r.name)) c = 'keep:queue';
   else if (openHeads && openHeads.has(r.name)) c = 'keep:open-pr';
   else if (mainAncestors.has(r.sha)) c = 'merged';
   else if (r.ageDays < STALE_DAYS && !openHeads) c = 'keep:active';
