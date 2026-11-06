@@ -1,6 +1,6 @@
 # Morning report — overnight 2026-11-05 to 06
 
-Nothing was deployed. I merged nothing myself: #2894, #2899, #2900 and #2905 went through the merge queue on their own
+Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903 and #2905 went through the merge queue on their own
 (the repo's queue/auto-merge, not a command from me). No `gh pr merge`, no pushes to main, no force-pushes.
 
 ## TL;DR
@@ -20,8 +20,8 @@ Nothing was deployed. I merged nothing myself: #2894, #2899, #2900 and #2905 wen
 | [#2899](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2899) | site-visual | trust bar fix on phones, desktop alignment, `text-wrap: balance` headings | L | merged |
 | [#2900](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2900) | pro-ux | /pro/login split layout restored; login visual baseline re-blessed from CI render | L | merged |
 | [#2905](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2905) | site-visual | six pages get the phone logo size | L | merged |
-| [#2897](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2897) | a11y | `role=region` on sticky CTA strip + announcement bar (306 files, codemod `--check`) | L (wide, mechanical) | open; optional E2E checks red (see below) |
-| [#2903](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2903) | site-visual | project detail pages: header padding + phone logo match the rest (generator) | L | open |
+| [#2897](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2897) | a11y | `role=region` on sticky CTA strip + announcement bar (306 files, codemod `--check`) | L (wide, mechanical) | merged |
+| [#2903](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2903) | site-visual | project detail pages: header padding + phone logo match the rest (generator) | L | merged |
 | [#2904](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2904) | site-visual | area hero "Rather talk?" line centered on phones | L | open |
 | [#2906](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2906) | site-ux | primary CTA >= 44 px | L | open |
 | [#2907](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2907) | a11y | heading-order + redundant-alt fixes (style measured identical) | L | open |
