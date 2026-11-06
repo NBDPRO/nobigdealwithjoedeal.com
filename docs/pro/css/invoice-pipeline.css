@@ -104,7 +104,7 @@
 .ipx-rp-pick.ipx-rp-pick.ipx-rp-pick.ipx-rp-pick { min-height: 44px; justify-content: center; white-space: normal; line-height: 1.2; }
 .ipx-rp-payers.ipx-rp-payers.ipx-rp-payers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .ipx-rp-payers .ipx-rp-pick.ipx-rp-pick.ipx-rp-pick.ipx-rp-pick { font-size: 13px; padding: 6px; }
-.ipx-rp .ipx-rp-pick[aria-pressed="true"] { border-color: var(--orange); color: var(--orange); background: rgba(232,114,12,.10); }
+.ipx-rp .ipx-rp-pick[aria-pressed="true"] { border-color: var(--orange); color: var(--orange); background: rgba(189,87,40,.10); }
 .ipx-rp-input.ipx-rp-input.ipx-rp-input { font-size: 16px; min-height: 44px; box-sizing: border-box; }
 .ipx-rp-confirm.ipx-rp-confirm.ipx-rp-confirm { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; margin: -4px 0 12px; }
 .ipx-rp-check.ipx-rp-check.ipx-rp-check { width: 22px; height: 22px; margin: 0; flex: none; }

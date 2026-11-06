@@ -3810,7 +3810,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     overlay.style.cssText = 'z-index:var(--z-overlay-top,10001);';
     overlay.innerHTML = `
       <style>
-        #nbd-markpaid-modal .nbd-mp-method[aria-pressed="true"]{border-color:var(--orange);color:var(--orange);background:rgba(232,114,12,.10);}
+        #nbd-markpaid-modal .nbd-mp-method[aria-pressed="true"]{border-color:var(--orange);color:var(--orange);background:rgba(189,87,40,.10);}
         #nbd-markpaid-modal .fi{font-size:16px;min-height:44px;}
       </style>
       <div class="modal ipx-max420w">

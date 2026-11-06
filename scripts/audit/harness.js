@@ -12,6 +12,7 @@
  *   node scripts/audit/harness.js --user owner@a.test --routes "/pro/dashboard.html#/crm,/pro/customer.html?id=audit-a-01"
  *   node scripts/audit/harness.js --user owner@b.test --routes-file overnight/crm/routes.txt --out overnight/crm/harness-runs/b
  *   flags: --no-shots  --no-axe  --base http://127.0.0.1:5000  --wait 2500  --eval "<js expr run after load>"
+ *   env EVAL_PHONE=1: run --eval at 412x860 (the phone-views spec size) instead of 1440x900
  *
  * Writes <out>/results.json and <out>/<slug>-390.png / -1440.png (screenshots
  * are JPEG-quality PNGs clipped to the viewport; keep them out of commits
@@ -129,6 +130,7 @@ async function measure(page) {
       await page.goto(BASE + r, { waitUntil: 'domcontentloaded', timeout: 45000 });
       if (r.includes('#')) await page.evaluate((h) => { if (location.hash !== h) location.hash = h; }, r.slice(r.indexOf('#')));
       await page.waitForTimeout(WAIT);
+      if (EVAL && process.env.EVAL_PHONE) await page.setViewportSize({ width: 412, height: 860 });
       if (EVAL) row.eval = await page.evaluate(String(EVAL)).catch((e) => 'EVAL ERROR ' + e.message);
       row.desktop = await measure(page);
       if (SHOTS) await page.screenshot({ path: path.join(OUT, slug(r) + '-1440.png') });

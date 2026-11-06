@@ -510,6 +510,11 @@
     clearAccentOverride: function() {
       state.accentOverride = null;
       saveState();
+      // CRM audit 2026-11-06 (ST-F22): setAccentOverride also wrote --orange
+      // and --og inline on <html>; leaving them made "Reset to Default" a
+      // no-op for every theme color that reads them.
+      document.documentElement.style.removeProperty('--orange');
+      document.documentElement.style.removeProperty('--og');
       // Re-read from current theme
       if (window.ThemeEngine) {
         const theme = window.ThemeEngine.get(window.ThemeEngine.getCurrent());
