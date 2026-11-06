@@ -125,8 +125,12 @@ function exitBulkMode() {
 function toggleCardSelection(leadId) {
   if (!window._bulkMode) return;
 
-  const card = document.querySelector(`.k-card[data-id="${leadId}"]`);
-  if (!card) return;
+  // Selection is per CUSTOMER (a set of lead ids) and bulk actions act on the
+  // customer, so highlight EVERY card of that customer. A customer with two job
+  // cards used to light up only the first card in DOM order — tick the second
+  // job and the first one lit (CRM audit 2026-11-06, PL-F12).
+  const cards = Array.prototype.slice.call(document.querySelectorAll(`.k-card[data-id="${leadId}"]`));
+  if (!cards.length) return;
 
   const sel = getBulkSelected();
   const isSelectedNow = !sel.has(leadId);
@@ -134,7 +138,7 @@ function toggleCardSelection(leadId) {
     if (next.has(leadId)) next.delete(leadId);
     else next.add(leadId);
   });
-  card.classList.toggle('bulk-selected', isSelectedNow);
+  cards.forEach(function (c) { c.classList.toggle('bulk-selected', isSelectedNow); });
   // updateBulkToolbar runs via store subscriber when NBDStore is
   // present; manual fallback otherwise.
   if (!window.NBDStore) updateBulkToolbar();
@@ -526,6 +530,19 @@ function editLead(id){
   if (_nbdReg && typeof _nbdReg.setSelectedTrades === 'function') {
     _nbdReg.setSelectedTrades(Array.isArray(l.trades) ? l.trades : []);
   }
+  // A stored source the select has no option for — the server-written
+  // funnel values ('Website — Contact form', 'Website — Inspection / Storm
+  // tool', …) or 'Phone call' — rendered blank and Save wrote source: '' over
+  // it (CRM audit 2026-11-06, PL-F02). Keep it selectable as an extra option,
+  // marked so _leadModalReset (crm-leads.js) removes it on dismiss. The
+  // vocabulary itself is unchanged.
+  (function keepStoredSource(sel, val) {
+    if (!sel || !val || !sel.options) return;
+    if (Array.prototype.some.call(sel.options, (o) => o.value === val)) return;
+    const o = document.createElement('option');
+    o.value = val; o.textContent = val; o.setAttribute('data-nbd-stored', '1');
+    sel.appendChild(o);
+  })(document.getElementById('lSource'), l.source);
   setV('lSource',l.source||'Door Knock');
   setV('lReferralCode', l.redeemReferralCode||'');
   setV('lDamageType',l.damageType||'');

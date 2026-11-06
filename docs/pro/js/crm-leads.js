@@ -177,6 +177,10 @@ function _leadModalReset(){
   // name saved another homeowner's claim onto it. Selects go back to their
   // first option ('' / Door Knock / No Claim), which is each one's default.
   ['lPolicyNumber','lDateOfLoss'].forEach(setVal);
+  // editLead adds the lead's own stored source as an extra option when the
+  // select has none for it (crm-portal-bridge.js, PL-F02); drop it again so
+  // it never lingers into the next lead's list.
+  ['lSource'].forEach(id=>{ const e=document.getElementById(id); if(e && e.querySelectorAll) e.querySelectorAll('option[data-nbd-stored]').forEach(o=>o.remove()); });
   ['lDamageType','lClaimStatus','lSource','lSubType'].forEach(id=>{ const e=document.getElementById(id); if(e && e.options && e.options.length) e.value=e.options[0].value; });
   // 2026-09-15 (Paperwork Filing) — checkboxes, not text fields: .value='' is
   // a no-op on an <input type="checkbox"> (it never uncheckes one). Without
@@ -196,6 +200,11 @@ function _leadModalReset(){
   // that failed to geocode inherited that house's location silently.
   window._pendingPinId = null;
   window._pendingPinLatLng = null;
+  // Same for an abandoned D2D "Edit First" conversion: the knock id stayed
+  // armed, so the NEXT lead saved got that knock's d2dKnockId and the knock
+  // was marked converted to the wrong lead (CRM audit 2026-11-06, PL-F06).
+  // Dismiss-only: a successful save consumes and clears it before closing.
+  window._pendingD2DConvertId = null;
   const mir = document.getElementById('modalIntelResult');
   if(mir) { mir.classList.remove('visible'); mir.innerHTML=''; }
   const pib = document.getElementById('pullIntelBtn');
@@ -476,27 +485,39 @@ async function saveLead(){
         v = String(v || '').trim();
         return /^https?:\/\/[^\s]+$/i.test(v) ? v : '';
       })(document.getElementById('lDriveUrl').value) } : {}),
-      yearBuilt:     intelData.yearBuilt   || null,
-      marketValue:   intelData.marketValue || null,
-      lastSaleDate:  intelData.lastSaleDate || null,
-      lastSaleAmt:   intelData.lastSaleAmount || null,
-      propertyType:  intelData.propertyType || null,
-      parcelId:      intelData.parcelId || null,
-      isLLC:         intelData.isLLC || false,
-      homestead:     intelData.homestead || false,
+      // Property intel + parcel: written ONLY when Pull Property Intel ran in
+      // this modal session (window._modalIntel set). Same omit-when-unknown
+      // rule as `trades` and `stage` above: this payload is spread into
+      // updateDoc on an edit, so the old `|| null` / `|| false` stand-ins
+      // erased a lead's stored year built, market value, sale history, parcel
+      // id and parcel polygon on EVERY ordinary edit (CRM audit 2026-11-06,
+      // PL-F01). A new lead with no lookup simply has no intel keys.
+      ...(window._modalIntel ? {
+        yearBuilt:     intelData.yearBuilt   || null,
+        marketValue:   intelData.marketValue || null,
+        lastSaleDate:  intelData.lastSaleDate || null,
+        lastSaleAmt:   intelData.lastSaleAmount || null,
+        propertyType:  intelData.propertyType || null,
+        parcelId:      intelData.parcelId || null,
+        isLLC:         intelData.isLLC || false,
+        homestead:     intelData.homestead || false,
+      } : {}),
       // Audit batch 11: stamp the parcel polygon when the Regrid lookup
       // returned one. photo-smart-ingest.js:getPropertyPolygon reads
       // `lead.parcel.geometry.coordinates` to power the photo-system
       // Phase 2 slope inference; without this the slope suggestion
-      // falls back to heading-only mode.
-      parcel:        intelData.parcelGeometry ? {
+      // falls back to heading-only mode. Omitted (never null) without one.
+      ...(intelData.parcelGeometry ? { parcel: {
         geometry: intelData.parcelGeometry,
         center:   intelData.parcelCenter || null,
         source:   'regrid',
         fetchedAt: new Date().toISOString()
-      } : null,
-      // D2D knock linkage (set by convertToLeadWithEdit flow)
-      d2dKnockId:    window._pendingD2DConvertId || null
+      } } : {}),
+      // D2D knock linkage (set by convertToLeadWithEdit flow). Omitted when no
+      // conversion is pending: a null here unlinked the knock from the lead on
+      // every later edit, and analytics-kpi.js credits door-knock revenue to
+      // reps through this field (PL-F01).
+      ...(window._pendingD2DConvertId ? { d2dKnockId: window._pendingD2DConvertId } : {})
     };
     // Captured before the save so quick-create listeners (EntityResolver)
     // can tell "brand-new lead" from "edit" — _saveLead returns the same
