@@ -23,3 +23,23 @@ No app code changed for the harness.
 
 ## D-004 — STOP_AT
 Launched 08:38 ET on 2026-11-06, so the brief's 06:30 ET hard stop is 2026-11-07 06:30; wrap-up 05:45.
+
+## D-005 — inventory and static audit in one pass (09:00 ET)
+Phase 1 (inventory) and the static half of Phase 2 run together per slice: the agent reading a file to list its
+features is the one best placed to score theme/tenant/hygiene/integrity/perf/tests on it, and a second read
+pass would double the cost. Harness-only columns (Reach, Mobile, A11y) come from scripts/audit/sweep.sh.
+Slices: pipeline (PL), customer (CU), estdocs (ED), settings (ST), views+satellites (VW), data+functions (DT),
+orchestrator (OR). The audit still completes before any fix starts.
+
+## D-006 — seed finding #6 (tear-off × layers) is NOT the bug the brief describes (09:10 ET)
+Verified in code: LAB TO1 / TO2 / TO3 are separate catalog codes "Tear Off 1/2/3 Layer Comp Shingles" with
+their own per-SQ rates (estimate-catalog-xactimate.js:795-801, estimate-labor-catalog.js:91-92), and a
+dedicated "Two-Layer Tear-Off Reroof" job template exists (job-templates-data.js:183). The layer count is
+priced by WHICH code is on the estimate, so QTY 'sq' is correct; the brief's fix `sq * tearOffLayers` would
+charge a 2-layer roof twice (TO2 rate × 2). Not applying it.
+The real, narrower defect: the line-item builder shows a Layers select (estimate-v2-ui.js:1105 #v2layers →
+tearOffLayers) whose value no QTY formula reads, so changing it does nothing on that path, while the per-SQ
+engine charges TEAR_OFF_EXTRA_PER_SQ for layers > 1. Whether Layers should swap TO1→TO2/TO3, warn, or be
+hidden on the line-item path changes a price → NEEDS_JOE (recommendation: warn + offer the swap; never
+silent). The comment "Tear-off labor lines (scale by layers)" at estimate-logic-engine.js:737 is misleading
+and is a Tier A comment fix.

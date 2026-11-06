@@ -45,7 +45,7 @@ const AXE = !process.argv.includes('--no-axe');
 const EVAL = arg('eval', null);
 let routes = [];
 if (arg('routes')) routes = String(arg('routes')).split(',');
-if (arg('routes-file')) routes = routes.concat(fs.readFileSync(String(arg('routes-file')), 'utf8').split(/\r?\n/).map((l) => l.replace(/#.*$/, '').trim()));
+if (arg('routes-file')) routes = routes.concat(fs.readFileSync(String(arg('routes-file')), 'utf8').split(/\r?\n/).map((l) => (/^\s*#/.test(l) ? '' : l.trim())));  // whole-line '#' comments only: routes carry #/hash
 routes = routes.map((r) => r.trim()).filter(Boolean);
 if (!routes.length) routes = ['/pro/dashboard.html'];
 

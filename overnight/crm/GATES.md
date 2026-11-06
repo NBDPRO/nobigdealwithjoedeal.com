@@ -24,5 +24,9 @@ locally I run the targeted authed specs through the harness instead (HARNESS.md)
 | 16 | Smoke bucket | node scripts/run-test-manifest.js --bucket smoke |
 | 17 | Node bucket (unit suites) | node scripts/run-test-manifest.js --bucket node |
 
-## Baseline (untouched origin/main fed35123)
-(pending)
+## Baseline (untouched origin/main fed35123, 2026-11-06 ~09:00 ET)
+16/17 PASS. smoke: 4432 passed 0 failed. smoke bucket 74/74. crm-audit 0 error / 1 warn / 22 info.
+node bucket: 475/482 — FAIL on clean main (local/environmental, not mine; CI main is green): chibi-2026-10-25,
+d2d-map-vendor-race-2026-10-24, reviews-strip-every-homeowner-page-2026-10-24, public-targets-24px-2026-10-24,
+roof-rep-revamp-2026-10-25, reputation-2026-10-19, perf-watch-2026-10-02. Rule: a later run is green when the
+node-bucket failure set is a subset of these seven.

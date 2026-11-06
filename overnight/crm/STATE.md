@@ -2,13 +2,13 @@
 
 - Started: 2026-11-06 08:38 America/New_York (13:38 UTC). Note: launched in the morning, so STOP_AT = 2026-11-07 06:30 ET, wrap-up from 05:45 ET.
 - Worktree: C:\Users\jonat\nbd-wt-crm · first branch: crm/2026-11-06-tooling from origin/main fed35123
-- Phase: 0 (setup)
-- HARNESS mode: pending (existing emulator rig found — see HARNESS.md)
-- Current task: installs + baseline gates
-- Done: worktree created
+- Phase: 4 (fix loop). Audit COMPLETE 09:40 ET: SCORECARD.md 908 rows, 242 findings (P0 4 · P1 11 · P2 91 · P3 136), 81 routes × 3 users swept.
+- HARNESS mode: FULL (see HARNESS.md)
+- Current task: ship tooling PR, then integrity-lead-save (PLAN.md §1)
+- Done: worktree; baseline gates; harness + audit tools; 6 slice audits + orchestrator; SCORECARD; PLAN; NEEDS_JOE
 - Open PRs (mine): none yet
 - Blockers: none
-- Last clock check: 08:45 ET
+- Last clock check: 09:28 AM ET
 
 ## CONFIG (from the brief)
 REPO=C:\Users\jonat\nobigdealwithjoedeal.com · WORKTREE_DIR=C:\Users\jonat\nbd-wt-crm · BRANCH_PREFIX=crm/2026-11-06
