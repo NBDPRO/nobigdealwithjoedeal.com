@@ -25,7 +25,7 @@ New siding changes how a house looks and how well it keeps water out of the wall
 
 | Material | What it is | Worth knowing |
 |---|---|---|
-| Vinyl | PVC panels in lap, Dutch lap, shake and board-and-batten styles. We mostly install Westlake Royal (Royal and Polaris lines). | The most affordable to buy and to maintain. Never needs paint. Quality varies a lot by thickness and line. |
+| Vinyl | PVC panels in lap, Dutch lap, shake and board-and-batten styles. We mostly install Ply Gem and Polaris. | The most affordable to buy and to maintain. Never needs paint. Quality varies a lot by thickness and line. |
 | Fiber cement | Cement, sand and wood fiber boards, such as James Hardie HardiePlank. | Heavier and more expensive to install. Resists fire, rot and insects, and holds paint well. |
 | Engineered wood | Treated wood-strand boards, such as LP SmartSide. | The look of wood with better impact resistance than vinyl. Needs paint over time. |
 

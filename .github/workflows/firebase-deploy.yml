@@ -353,8 +353,11 @@ jobs:
       # tests/concat-shipped-2026-11-04.test.js keeps the committed tree joinable. OFF SWITCH: set the repository
       # variable NBD_CONCAT to 0 (Settings → Secrets and variables → Actions → Variables); the next deploy ships the
       # separate files. No revert needed: docs/ is never changed.
+      # The switch is read as (vars.NBD_CONCAT || 'on'): an UNSET variable is null, and GitHub compares null with '0'
+      # as numbers (0 == 0), so the bare vars.NBD_CONCAT != '0' was false with nothing set and this step never ran
+      # (deploy 6e8f39bf, 2026-11-06). Unset or anything but '0' = on; '0' = off.
       - name: Join the dashboard's boot scripts for this deploy
-        if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && vars.NBD_CONCAT != '0' }}
+        if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && (vars.NBD_CONCAT || 'on') != '0' }}
         run: |
           set +e
           node scripts/concat-shipped.js --write

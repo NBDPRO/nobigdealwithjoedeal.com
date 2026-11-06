@@ -1,5 +1,9 @@
 # NEXT_SESSION, 2026-11-04: site fixes, copy decisions, speed audit and the CRM speed-up (lane note)
 
+> **Update 2026-11-05:** superseded for PR status by
+> [NEXT_SESSION-2026-11-05-site-crm-speed](NEXT_SESSION-2026-11-05-site-crm-speed.md). Most PRs below merged;
+> #2841 and #2844 were closed as superseded by #2850, and #2850 is no longer a draft. Jo's decisions here still stand.
+
 A lane note, not the live brief: see the **Current handoff** pointer in [INDEX](../INDEX.md). One long session on
 2026-11-04 covered site fixes, Jo's copy and wording decisions, a measured speed audit, and the CRM speed-up plan
 through Phase 2b. Another session was working on site markup, the Schedule calendar, storm/D2D, and CI hygiene the

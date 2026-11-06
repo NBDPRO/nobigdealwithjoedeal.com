@@ -148,7 +148,11 @@ console.log('\n4. the wiring (step 3)');
   const iJoin = dep.indexOf('node scripts/concat-shipped.js --write');
   const iHost = dep.indexOf('deploy --only hosting');
   ok('the deploy joins AFTER minify and BEFORE the Hosting deploy', iMin > -1 && iJoin > iMin && iHost > iJoin, [iMin, iJoin, iHost].join(','));
-  ok('the deploy step has the NBD_CONCAT off switch', dep.includes("vars.NBD_CONCAT != '0'"));
+  ok('the deploy step has the NBD_CONCAT off switch, read null-safe (an unset variable must mean ON)', dep.includes("(vars.NBD_CONCAT || 'on') != '0'"));
+  // GitHub compares null with '0' as numbers (0 == 0): the bare form is OFF when nothing is set (2026-11-06).
+  const depCode = dep.replace(/^\s*#.*$/gm, '');
+  ok('no step reads the switch in the bare form (unset would mean off)', !/&&\s*vars\.NBD_CONCAT\s*!=\s*'0'/.test(depCode));
+  ok('POSITIVE CONTROL: the bare-form pattern does catch the old condition', /&&\s*vars\.NBD_CONCAT\s*!=\s*'0'/.test("'hosting') && vars.NBD_CONCAT != '0' }}"));
   const joinStep = dep.slice(iJoin, iJoin + 400);
   ok('a failed join is undone (joined files removed, dashboard.html restored) and the separate files deploy',
     joinStep.includes('rm -f docs/pro/js/_concat-*.js') && joinStep.includes('git checkout -- docs/pro/dashboard.html'));
