@@ -219,7 +219,10 @@ function closeInspectionBuilder() {
 function hideFollowUpAlerts() {
   const wrap = document.getElementById('followUpAlertsWrap');
   if (wrap) wrap.style.display = 'none';
-  try { localStorage.setItem('nbd_crm_followup_hidden', '1'); } catch (e) {}
+  // Dismiss for TODAY (local date), not forever: the old '1' hid the daily
+  // follow-up list on that device for good, though the strip is a daily nudge
+  // (CRM audit 2026-11-06, PL-F14). crm-pipeline.js shows it again tomorrow.
+  try { localStorage.setItem('nbd_crm_followup_hidden', new Date().toLocaleDateString('en-CA')); } catch (e) {}
 };
 function goToD2DFromMaps() {
   if (typeof goTo === 'function') goTo('d2d');

@@ -125,8 +125,12 @@ function exitBulkMode() {
 function toggleCardSelection(leadId) {
   if (!window._bulkMode) return;
 
-  const card = document.querySelector(`.k-card[data-id="${leadId}"]`);
-  if (!card) return;
+  // Selection is per CUSTOMER (a set of lead ids) and bulk actions act on the
+  // customer, so highlight EVERY card of that customer. A customer with two job
+  // cards used to light up only the first card in DOM order — tick the second
+  // job and the first one lit (CRM audit 2026-11-06, PL-F12).
+  const cards = Array.prototype.slice.call(document.querySelectorAll(`.k-card[data-id="${leadId}"]`));
+  if (!cards.length) return;
 
   const sel = getBulkSelected();
   const isSelectedNow = !sel.has(leadId);
@@ -134,7 +138,7 @@ function toggleCardSelection(leadId) {
     if (next.has(leadId)) next.delete(leadId);
     else next.add(leadId);
   });
-  card.classList.toggle('bulk-selected', isSelectedNow);
+  cards.forEach(function (c) { c.classList.toggle('bulk-selected', isSelectedNow); });
   // updateBulkToolbar runs via store subscriber when NBDStore is
   // present; manual fallback otherwise.
   if (!window.NBDStore) updateBulkToolbar();

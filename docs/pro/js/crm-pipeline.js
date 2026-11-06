@@ -594,7 +594,9 @@ function renderLeads(leads, filtered){
   // explicit "show me") never unhides a stale list.
   const alertWrap=document.getElementById('followUpAlertsWrap');
   const alertBox=document.getElementById('followUpAlerts');
-  const dismissed = localStorage.getItem('nbd_crm_followup_hidden') === '1';
+  // Hidden only on the day it was dismissed (YYYY-MM-DD, local). A legacy '1'
+  // from before 2026-11-06 no longer hides it forever (PL-F14).
+  const dismissed = localStorage.getItem('nbd_crm_followup_hidden') === new Date().toLocaleDateString('en-CA');
   const narrowed = window._filteredLeads != null;
   if(alertWrap && alertBox){
     if(overdue.length && !dismissed){

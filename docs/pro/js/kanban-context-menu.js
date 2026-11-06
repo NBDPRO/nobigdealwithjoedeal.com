@@ -276,9 +276,14 @@
       }
     }
     items.push({ divider: true });
+    // deleteLead soft-deletes the whole CUSTOMER — every job. On a customer
+    // with more than one job the old "Delete lead" read as "delete this job
+    // card" (CRM audit 2026-11-06, PL-F12); say what it does.
+    let _jobCount = 0;
+    try { _jobCount = (window.NBDJobs && typeof window.NBDJobs.forLead === 'function') ? (window.NBDJobs.forLead(lead.id) || []).length : 0; } catch (e) { _jobCount = 0; }
     items.push({
       icon: '🗑',
-      label: 'Delete lead',
+      label: _jobCount > 1 ? 'Delete customer (all ' + _jobCount + ' jobs)' : 'Delete lead',
       danger: true,
       onSelect: () => window.deleteLead && window.deleteLead(lead.id),
     });
