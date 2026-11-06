@@ -29,9 +29,16 @@
 
   function scroll() { return document.getElementById('winbackScroll') || document.querySelector('#view-winback .view-scroll'); }
 
+  // CRM audit 2026-11-06 (VW-F08): only the NBD platform tenant falls back to
+  // No Big Deal; any other company with no name set gets a neutral phrase.
   function companyName() {
-    try { const b = typeof window._brand === 'function' ? window._brand() : null; if (b && (b.displayName || b.legalName)) return b.displayName || b.legalName; } catch (_) {}
-    return 'No Big Deal Home Solutions';
+    let b = null;
+    try { b = typeof window._brand === 'function' ? window._brand() : null; } catch (_) { b = null; }
+    if (b && (b.displayName || b.legalName)) return b.displayName || b.legalName;
+    let isNbd;
+    try { isNbd = (typeof window._isNbdPlatformTenant === 'function') ? !!window._isNbdPlatformTenant() : null; } catch (e) { isNbd = null; }
+    if (isNbd === null) isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    return isNbd ? 'No Big Deal Home Solutions' : 'our team';
   }
   function repName() {
     const u = window._user || {};

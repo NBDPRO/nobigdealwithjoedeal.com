@@ -710,6 +710,7 @@
     "resend-webhook.test.js",
     "paperwork-filing.test.js",
     "kanban-filter-unification.test.js",
+    "tenant-texts-2026-11-06.test.js",
     "warranty-claim.test.js",
     "anniversary-touch-stage-roles.test.js",
     "analytics-card-cache-account-switch.test.js",
