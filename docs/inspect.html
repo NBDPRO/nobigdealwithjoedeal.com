@@ -88,6 +88,8 @@ h1 span{color:#BD5728}
 .form-row label .opt{color:var(--gray);font-weight:600;text-transform:none;letter-spacing:0;margin-left:6px}
 .form-row input[type=text],.form-row input[type=tel],.form-row input[type=email],.form-row textarea{width:100%;padding:12px 14px;border:1.5px solid var(--light-gray);border-radius:8px;font:inherit;font-size:.95rem;color:#1a1a1a;background:#fff;transition:border-color .15s,box-shadow .15s}
 .form-row input:focus,.form-row textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(189,87,40,.12)}
+/* inspect-form.js sets aria-invalid on EVERY bad field on submit; until now only the focused one looked wrong. #7f1d1d is this page's existing error colour. */
+.form-row input[aria-invalid="true"],.form-row textarea[aria-invalid="true"]{border-color:#7f1d1d;box-shadow:inset 0 0 0 1px #7f1d1d}
 .form-row textarea{resize:vertical;min-height:90px;font-family:inherit}
 .form-row input[type=file]{width:100%;padding:10px;border:1.5px dashed var(--light-gray);border-radius:8px;font-size:.85rem;background:var(--off-white);cursor:pointer}
 .form-row input[type=file]:hover{border-color:var(--orange)}
@@ -531,7 +533,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 
 <script src="/assets/js/public-lead-submit.js" defer></script>
 <script src="/assets/js/intake-extras.js?v=4" defer></script>
-<script src="/assets/js/inspect-form.js?v=8" defer></script>
+<script src="/assets/js/inspect-form.js?v=9" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="#inspectForm" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
