@@ -1709,6 +1709,10 @@
             'Ask anything — pricing, scheduling, what to expect.' +
           '</div>' +
         '</div>' +
+        // Fixed reply line (Jo 2026-11-05): NBD portals only. Joe answers
+        // these himself; a tenant's turnaround is theirs to state, so a
+        // tenant portal shows nothing here.
+        (isNbdCompany ? '<p class="pm-reply-line" data-pm-reply-line>Joe usually answers the same day.</p>' : '') +
         '<textarea id="pm-text" rows="2" maxlength="2000" placeholder="Type your message… (Enter to send · Shift+Enter for new line)" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--br, #2a3344);background:var(--bg, #0a1424);color:inherit;font:inherit;font-size:14px;box-sizing:border-box;resize:vertical;margin-bottom:6px;"></textarea>' +
         '<div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">' +
           '<div id="pm-counter" style="font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;">0 / 2000</div>' +
