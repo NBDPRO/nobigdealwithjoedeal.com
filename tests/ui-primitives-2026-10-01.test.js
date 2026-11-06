@@ -114,8 +114,11 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
   ok('no tile content style is left inline',
     !/style="font-size:20px;margin-bottom:6px;"|style="font-size:13px;font-weight:700;color:var\(--t\);"|style="font-size:11px;color:var\(--m\);margin-top:2px;"/.test(cust));
   const labels = cust.match(/<label for="edit[A-Za-z]+"[^>]*>/g) || [];
-  ok('the 14 Edit Customer labels use .ui-label with no inline style',
-    labels.length === 14 && labels.every((t) => /class="ui-label"/.test(t) && !/\sstyle=/.test(t)), 'found ' + labels.length);
+  // 13 since 2026-11-06 (CRM audit CU-F15): "Additional Service Locations" was
+  // a second <label for="editDamageType"> (it labels a list, not that input),
+  // so it no longer carries a for= and is not counted here.
+  ok('the 13 Edit Customer labels use .ui-label with no inline style',
+    labels.length === 13 && labels.every((t) => /class="ui-label"/.test(t) && !/\sstyle=/.test(t)), 'found ' + labels.length);
   // Batch 5 (2026-10-02): tab bodies, small buttons, inline icons, notes.
   // Zero computed-style diff on 758 elements at 1280/390 px. Control: a 1px
   // padding change on .ui-btn-sm moved 5 of the 8 buttons; the other 3 sit

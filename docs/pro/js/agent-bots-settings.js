@@ -118,7 +118,12 @@
   }
 
   function settingsCard(d) {
-    const cur = d.timezone || '';
+    // Unset means unset: the server reports UTC with timezoneSet:false, and
+    // pre-selecting that made the next Save write timezone='UTC' for good — the
+    // "not set" warning vanished and bots kept counting days in UTC (CRM audit
+    // 2026-11-06, ST-F52). '' keeps "Not set — pick yours" selected; the server
+    // ignores an empty timezone on save.
+    const cur = d.timezoneSet ? (d.timezone || '') : '';
     const list = TZS.slice();
     const bz = browserTz();
     if (bz && list.indexOf(bz) === -1) list.push(bz);

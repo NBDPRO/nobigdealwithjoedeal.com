@@ -1825,8 +1825,8 @@ window.showPhotoActions = function(idx, event) {
   // tap on Delete's right edge opened Quick Capture instead. It is a modal
   // backdrop like every other overlay on this page, so it takes that tier.
   popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:var(--z-overlay,10000);display:flex;align-items:center;justify-content:center;';
-  popup.onclick = function(e) { if (e.target === popup) popup.remove(); };
-  
+  popup.onclick = function(e) { if (e.target === popup) _closePhotoActionPopup(); };
+
   var phaseColors = { 'Before': '#3b82f6', 'During': 'var(--orange)', 'After': 'var(--green)' };
   var sevColors = { 'minor': 'var(--gold)', 'moderate': 'var(--orange)', 'severe': 'var(--red)' };
   
@@ -1901,7 +1901,19 @@ window.showPhotoActions = function(idx, event) {
     '</div>';
   
   popup.appendChild(card);
+  // CRM audit 2026-11-06 (CU-F15): a hand-built dialog with no Esc, no focus
+  // move and no focus return. Name it, focus its close button, close on Esc,
+  // and hand focus back to the photo that opened it (_closePhotoActionPopup).
+  popup.setAttribute('role', 'dialog');
+  popup.setAttribute('aria-modal', 'true');
+  popup.setAttribute('aria-label', 'Photo actions');
+  popup._nbdReturnFocus = document.activeElement;
+  popup.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _closePhotoActionPopup(); }
+  });
   document.body.appendChild(popup);
+  var _closeBtn = popup.querySelector('.ct-close');
+  if (_closeBtn && typeof _closeBtn.focus === 'function') _closeBtn.focus();
 };
 
 window.quickSetPhase = function(phase, btn) {
@@ -2544,7 +2556,11 @@ function _closeGallerySharePanel() {
 }
 function _closePhotoActionPopup() {
   var el = document.getElementById('photoActionPopup');
-  if (el) el.remove();
+  if (!el) return;
+  var back = el._nbdReturnFocus;
+  el.remove();
+  // CU-F15: focus goes back to whatever opened the popup, if it is still there.
+  if (back && back.isConnected && typeof back.focus === 'function') back.focus();
 }
 function _triggerFileInput() {
   var el = document.getElementById('fileInput');
