@@ -6,6 +6,39 @@ MRMS radar hail swaths, a calendar engine trial and Schedule panel, site markup 
 then a grilled-out customer portal plan built as seven phases. Another session ran the site + CRM speed lane the
 same day ([its note](NEXT_SESSION-2026-11-04-site-crm-speed.md)); this lane stayed out of that.
 
+## Update, 2026-11-06 early (portal chain close-out; supersedes the 11-05 afternoon update where they differ)
+
+- **Landed on `main`:** Phase 1 (#2857), Phase 2 (#2858) and Phase 3, the pay panel (#2859). **Queued:** Phase 7a, add to
+  home screen (#2860, ready, squash auto-merge on). **Still drafts, each on the one before:** #2861 (Phase 4), #2862
+  (Phase 5), #2863 (Phase 6), #2864 (Phase 7). Next in line is #2861.
+- **Customer-facing when they land:** Phase 3 (pay panel, live on merge, no new charge path), Phase 4 (Cal.com
+  reschedule/cancel links, live on merge), Phase 5 (key-moment emails, **dark** until `PORTAL_MOMENT_EMAILS_ENABLED` and
+  the Messaging Center switch), Phase 6 (Care Plan card; the offer stays hidden until `CARE_PLAN_MODE=live`).
+- **The care-plan time bomb is fixed (#2876).** The fixed 2026-10-06 invite date expired at 2026-11-05 15:00 UTC and failed
+  every PR's unit bucket until then. The deploy outage is fixed in two steps: #2869 (rules step) and #2878 (index step).
+  #2880 is a duplicate of #2878 and should be closed, not merged.
+- **What landing a phase actually takes (done three times):**
+  1. Point the PR at `main` (`update_pull_request` base). Its base branch is the previous phase's branch until then.
+  2. In a scratch worktree on the phase branch, `git merge origin/main`. Because Phases 1-3 landed as **squashes**, expect
+     conflicts in the same three files each time: `docs/pro/portal.html` (the `portal.js?v=` cache-buster line),
+     `functions/portal.js` or `docs/pro/js/portal.js` (the `require`/helper lines each phase adds beside the same
+     anchor), and `tests/ci-manifest.json` (each phase's suite line). Read each hunk. Keep the phase's side. The
+     cache-buster must end **above** main's number. The client-file clash can be two phases adding blocks at the same spot:
+     keep both, and keep each comment with its own function.
+  3. Run the phase's own test, the other portal suites (`portal-project-home`, `-today`, `-pay-panel`, `-progress-steps`,
+     `-after-signing`, `money-getting-paid`), `node tests/smoke.test.js` (4432) and `node scripts/check-js-syntax.js`.
+  4. Commit **named files only**, push, mark ready, enable squash auto-merge.
+- **Trap I fell into:** a scratch worktree has no `functions/node_modules`, so I symlinked another checkout's. Then `git add -A`
+  committed the symlink to `main` (#2876 carried it; #2885 removed it). `.gitignore` says `functions/node_modules/` with a
+  trailing slash, which does not match a symlink. Remove the symlink before committing, or add paths by name.
+- **Auto-merge can sit idle.** `enable_pr_auto_merge` sometimes answers with a blank method and does nothing. When a PR is
+  "unstable" long after its checks finished, look at its latest PR run: a run **cancelled by the concurrency group**
+  leaves required checks incomplete. Re-run that run once and the PR turns "clean" and queues. A human "Merge when
+  ready" click also works.
+- **Not verified here:** the deploy for #2878 (run 42139837400) had passed Hosting and was on the rules-test gate when I
+  wrote this. Check that it got through Storage rules and **Cloud Functions**; none of those had shipped since about
+  02:50 UTC on 11-05, so the receipt-inbox Cloud Function in #2884 and any portal functions are waiting on it.
+
 ## Update, 2026-11-05 afternoon (supersedes "In flight" below where they differ)
 
 - **Merged since:** #2846 (Calendar panel), #2848 (NOAA links), #2857 (portal Phase 1), #2872 (this note) and
