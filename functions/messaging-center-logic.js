@@ -82,6 +82,7 @@ const AUTOMATIONS = Object.freeze({
   lead_ack_email:     { label: 'Lead ack email',                 channel: 'email', risk: 'HIGH', customer: true,  auto: true,  campaign: 'manual',     perDay: 100 },
   lead_followup_email:{ label: '20-48h follow-up email',         channel: 'email', risk: 'HIGH', customer: true,  auto: true,  campaign: 'manual',     perDay: 100 },
   review_ask_email:   { label: 'Review ask email',               channel: 'email', risk: 'HIGH', customer: true,  auto: true,  campaign: 'manual',     perDay: 50 },
+  portal_moment_email:{ label: 'Portal key-moment email',        channel: 'email', risk: 'HIGH', customer: true,  auto: true,  campaign: 'manual',     perDay: 100 },
   rep_email:          { label: 'Rep-sent email (CRM)',           channel: 'email', risk: 'MED',  customer: true,  auto: false, campaign: 'manual',     perDay: 200 },
   owner_lead_alert_email: { label: 'New-lead email to owner',    channel: 'email', risk: 'LOW',  customer: false, auto: true,  campaign: 'manual',     perDay: 60 },
   owner_lead_alert_push:  { label: 'New-lead push to owner',     channel: 'push',  risk: 'LOW',  customer: false, auto: true,  campaign: 'manual',     perDay: 60 },
@@ -155,6 +156,7 @@ const AUTOMATION_FLAGS = Object.freeze({
   review_ask_text: ['REVIEW_ASK_AUTO_TEXT_ENABLED'],
   review_ask_email: ['REVIEW_ASK_AUTO_EMAIL_ENABLED'],
   lead_followup_email: ['LEAD_FOLLOWUP_ENABLED'],
+  portal_moment_email: ['PORTAL_MOMENT_EMAILS_ENABLED'],
 });
 
 // ── tiny helpers ──────────────────────────────────────────────────────────
@@ -715,6 +717,7 @@ function controlsFrom(input) {
 const AUTOMATION_CONTROL_KEYS = Object.freeze({
   storm_alert: ['stormText', 'stormNwsText'], lead_ack_text: ['leadAckSms'], lead_ack_email: ['leadAckEmail'], lead_followup_email: ['leadFollowupEmail'],
   review_ask_text: ['reviewAskAutoText'], review_ask_email: ['reviewAskAutoEmail'], missed_call_text: ['missedCallAutotext'],
+  portal_moment_email: ['portalMomentEmail'],
 });
 
 /**
