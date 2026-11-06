@@ -1358,8 +1358,13 @@
     if (el) el.classList.remove('drag-over');
     const dragId = window._dragId || event.dataTransfer?.getData('text/plain');
     if (!dragId) return;
-    if (typeof moveCard === 'function') moveCard(dragId, stageKey, { isDrag: true });
-    window._dragId = null;
+    // Carry the dragged JOB, as the per-column handler (crm-pipeline.js) does.
+    // An EMPTY column has no per-column handler, so its drops land here — and
+    // without the job id a customer's second-job card moved the customer's
+    // ACTIVE job instead (CRM audit 2026-11-06, PL-F04).
+    const dragJob = event.dataTransfer?.getData('application/x-nbd-job') || window._dragJobId || null;
+    if (typeof moveCard === 'function') moveCard(dragId, stageKey, { isDrag: true, jobId: dragJob || undefined });
+    window._dragId = null; window._dragJobId = null;
   };
 
   // ── View switcher ──
