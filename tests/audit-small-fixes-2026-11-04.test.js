@@ -28,8 +28,8 @@ function ok(name, cond, detail) {
 
 const inspect = read('docs/inspect.html');
 const logo = (inspect.match(/<header class="topbar">[\s\S]*?<\/a>/) || [''])[0];
-ok('POSITIVE CONTROL: the /inspect header link carries the brand text', /NO BIG DEAL/.test(logo) && /Home Solutions/.test(logo));
-ok('…so its logo image has an empty alt', /<img src="\/assets\/images\/nbd-logo\.png"[^>]*alt=""/.test(logo));
+ok('POSITIVE CONTROL: the /inspect header link carries the brand name through its logo image alt', /<img src="\/assets\/images\/nbd-logo\.png"[^>]*alt="No Big Deal Home Solutions"/.test(logo));
+ok('…and no separate text wordmark repeats it beside the logo (it used to, with an empty alt)', /alt="No Big Deal Home Solutions"/.test(logo) && !/class="brand"/.test(logo) && !/NO BIG DEAL<\/div>/.test(logo));
 
 const css = read('docs/pro/css/dashboard-app.css').replace(/\/\*[\s\S]*?\*\//g, '');
 const badgeRule = (css.match(/\.hdr-tool \.hdr-tool-badge\{[^}]*\}/) || [''])[0];
