@@ -5,6 +5,14 @@ A lane note, not the live brief: see the **Current handoff** pointer in [INDEX](
 the speed audit and the CRM speed-up plan. Other sessions were working on site markup, the Schedule calendar,
 storm/D2D, the customer portal and CI hygiene the same days; this lane stayed out of those.
 
+> **Update 2026-11-06 (later the same lane).**
+> - **Receipt inbox:** live for NBD. All three switches are on and were read back in the console, and Jo ran a real photo through it successfully.
+> - **Speed (Phase 2):** the boot join is on and kept. Warm first paint went from 5.4 s to 2.3 s. The cold check (#2898) cleared the join.
+> - **Source maps (#2920):** the joined `_concat-*.js` files now get Sentry source maps.
+> - **Phase 2b lazy bundles:** switched ON in the PR after #2920. CI's minified walk joins the bundles hard. The deploy joins them behind their own off switch, the repo variable `NBD_BUNDLES=0`. Locally on the sample account, all 18 bundles loaded from 33 joined files with 0 page errors, and the 119-check zero-network walk passed. The cost is one ~7.5 KB blocking map script before `script-loader.js`. Re-measure with the same keep rule.
+> - **Sentry:** 0 unresolved issues in 24 h on 11-06. Page loads report: LCP p75 0.87 s, CLS 0.054.
+> - **Still Jo's:** the iPhone feel check.
+
 ## What merged
 
 | PR | What |

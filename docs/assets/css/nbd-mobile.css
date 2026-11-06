@@ -556,7 +556,7 @@ footer .nbd-social a {
    hover lifts previously ran unconditionally on most pages). */
 :focus-visible{outline:3px solid #bd5728;outline-offset:2px}
 .faq-q:focus-visible{outline:2px solid var(--orange,#bd5728);outline-offset:-2px}
-.btn-primary:active,.btn-cal:active,.btn-secondary:active,.nav-cta:active,.form-submit:active,.qlf-btn:active,.filter-btn:active,.mobile-cta-text:active{transform:translateY(1px)}
+.btn-primary:active,.btn-cal:active,.btn-secondary:active,.nav-cta:active,.form-submit:active,.qlf-btn:active,.filter-btn:active,.mobile-cta-text:active,.mobile-cta-book:active,.mobile-cta-call:active{transform:scale(.97)}
 @keyframes nbdRevealIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .mobile-nav.open{animation:nbdRevealIn .18s ease}
 .faq-item.open .faq-a{animation:nbdRevealIn .22s ease}
@@ -577,3 +577,11 @@ body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100
 /* PRIMARY BUTTON TAP FLOOR (2026-11-06): the primary CTA measured 42-43 px tall on ~20 pages (about, partners, the
    shingle pages, the-pledge, visualizer...) vs 56 px on the service/area pages. min-height only raises the short ones. */
 .btn-primary{min-height:44px;align-items:center}
+
+/* FOOTER SOCIAL ICONS (2026-11-06): the four round icons are 30 px; on phones an invisible ring grows the tap
+   area to 44 px without moving anything. (nbd-social.css itself must stay byte-identical to the canonical body
+   asserted by scripts/ensure-social-css.js, so the rule lives here.) */
+@media (max-width: 640px) {
+  footer .nbd-social a { position: relative; }
+  footer .nbd-social a::after { content: ''; position: absolute; inset: -7px; }
+}
