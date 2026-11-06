@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "_comment": "Receipt inbox (docs/pro/js/receipt-inbox.js, 2026-11-04): the uploader's own drafts, newest first.",
+      "collectionGroup": "receipt_inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "social_posts",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

@@ -59,9 +59,12 @@ test.describe.serial('Crew Calendar @shard2', () => {
       const tail = String(a.s).slice(-6);
       // the SDK can replay a create (ALREADY_EXISTS): the lead is there, which is all this needs
       const save = async (d) => { try { return await window._saveLead(d); } catch (e) { if (!/ALREADY_EXISTS|already exists/i.test(String((e && e.message) || e))) throw e; } };
+      // e2eTestData: field-app.spec.js's emptyToday() clears the schedule of every e2eTestData lead on this shared rep.
+      // Without the flag, a run on a Wednesday or Thursday left this two-day job on today, and field-app's Now card
+      // showed "ZZCW... Placed..." instead of its own stop (2026-11-05, #2867 / #2869 shard2).
       await save({ firstName: 'ZZCW' + tail, lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
-        scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: a.alpha, crew: 'ZZCW Alpha ' + a.s, permitNotRequired: true });
-      await save({ firstName: 'ZZCX' + tail, lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
+        scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: a.alpha, crew: 'ZZCW Alpha ' + a.s, permitNotRequired: true, e2eTestData: true });
+      await save({ firstName: 'ZZCX' + tail, lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true, e2eTestData: true });
     }, { s, wed, thu, alpha: subIds.alpha });
     await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'crew', device: 'desktop' }));
     await page.reload();

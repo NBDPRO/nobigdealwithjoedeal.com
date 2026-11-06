@@ -59,3 +59,31 @@ is broken.
 `npx --yes lighthouse@12.6.0 <url> --form-factor=mobile --only-categories=performance,accessibility,best-practices,seo
 --chrome-flags="--headless=new" --output=json`, two runs per page, median. Scores move ±5 between runs (the
 homepage went 82 then 77).
+
+## Update 2026-11-05: live re-run after #2827
+
+Hosting deploy 8134293c (2026-11-05 04:05Z, `/version.json`) includes #2827. Same command, mobile, two runs per
+page, against the live site at about 07:20 ET. Lighthouse failed to trace (`NO_NAVSTART`) on both Milford runs
+(both re-run) and on one Our Work run twice, so Our Work has one valid run.
+
+| Page | Perf before → now | LCP now | TBT now | Weight before → now |
+|---|---|---|---|---|
+| Homepage | 82 / 77 → 84 / 78 | 2.9 / 3.2 s | 369 / 524 ms | 1.26 → 2.52 MB (see below) |
+| /inspect | 92 / 91 → 97 / 99 | 2.0 s | 156 / 53 ms | 482 → 230 KB |
+| /areas/milford-oh | 86 / 84 → 87 / 89 | 2.5 / 2.0 s | 387 / 403 ms | 1.80 → 1.42 MB |
+| Blog post (adjuster visit) | 99 / 98 → 97 / 96 | 2.0 / 1.9 s | 137 / 205 ms | 321 → 210 KB |
+| /our-work | 85 / 86 → 87 (one run) | 3.6 s | 200 ms | 1.35 → 0.71 MB |
+| CRM sample `/pro/explore/dashboard` | 55 / 52 → 29 / 41 | 43.2 / 6.4 s | 1,579 / 1,331 ms | 615 → 940 / 530 KB |
+
+- **Public pages:** better or within the ±5 noise on every page. The weight drops come from the -400/-640 project photos
+  and the deferred GA.
+- **The homepage weight is not a regression.** 2.08 MB of it is the portrait hero video
+  (`topdown-install-spin-720x1280…av1.webm`, live since #2512 on 2026-10-16). hero-video.js starts it after `load`
+  plus idle, so it does not move FCP or LCP. Whether a run counts it depends on whether the download lands inside
+  Lighthouse's window; yesterday's baseline evidently did not. On a phone on cellular it is still 2 MB per visit.
+  Whether to ship a lighter phone cut is Jo's call.
+- **CRM sample: mixed, not a clean read.** The first run was cold (FCP 17.7 s). On the second, FCP fell from 11.8 to
+  3.7 s and LCP from 23.8 to 6.4 s, but total blocking time went from 0 to 1.3 to 1.6 s, which lowers the score. That
+  fits #2831 and #2836 delivering scripts sooner, so the parse work now lands inside the trace. Step 3 (#2844) was
+  closed without merging, and #2850 is still a switched-off draft. The signed-in Chrome method in the CRM section is
+  the better measure here.

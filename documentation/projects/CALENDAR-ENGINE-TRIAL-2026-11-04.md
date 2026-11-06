@@ -68,6 +68,19 @@ so the board can't disagree with Jo's phone.
 warnings, permits, Undo and the drawer, and it works. Revisit only if
 maintaining `crew.js` becomes a cost.
 
+**Update 2026-11-04 (same day): steps 1–3 are BUILT** in the Calendar panel PR, stacked on this one.
+- **Where it lives:** `docs/pro/js/schedule-calendar-panel.js` and `css/schedule-calendar.css`, mounted as `#schedCalPanel` above Plan Jobs.
+- **What it shows:** read-only Month / Week / List (phones get List / Day / Month).
+- **Data:**
+  - Jobs and adjuster meetings come from `window._leads`.
+  - Cal.com bookings are read by `repUid` and `userId` for the visible range, the same query shape and indexes as `smart-calendar.js`.
+  - CRM-booked appointments come from `window._taskCache` through `crmEventToAppointment`, which has a parity test against the feed's `leadEventToAppointment`.
+- **Behaviour:** tapping an event opens the customer. A failed bookings read is *said* in the status line, never shown as an empty calendar.
+- **More library traps found in the browser check:**
+  - The CRM's global `header{}` app-bar rule leaks into EventCalendar's `<header class="ec-header">` (a dark 52 px strip). It's reset in the panel CSS.
+  - Theme tokens must be set on `.ec` itself, not only inherited.
+  - A fixed height hid events behind "+1 more", so the panel uses auto height with `dayMaxEvents: false`.
+
 Next steps, in order:
 1. Mount a read-only panel in `#view-schedule` (lazy-load the vendor files only when the view opens).
 2. Feed it real `leads` and `appointments` and CRM-booked events (`leads/{id}/tasks` type `event`; mirror `leadEventToAppointment`).
