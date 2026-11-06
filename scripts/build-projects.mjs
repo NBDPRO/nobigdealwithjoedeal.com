@@ -1082,6 +1082,7 @@ const detailPage = (p) => {
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=3">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
+<link rel="stylesheet" href="/assets/css/nbd-nav-logo-mobile.css">
 <script type="application/ld+json">${JSON.stringify(detailSchema(p))}</script>
 <style>
 :root{--navy-dark:#12223d;--orange:#bd5728;--gray:#5d6673;--light-gray:#e8e5e0;--off-white:#f5f3ef}
@@ -1091,7 +1092,7 @@ body{font-family:'Montserrat',sans-serif;color:#1a1a1a;background:#fff}
 a{color:inherit}
 .nbd-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:#BD5728;color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 6px 0}
 .nbd-skip:focus{left:0}
-nav.nav{background:var(--navy-dark);padding:0 40px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;height:70px;box-shadow:0 2px 20px rgba(0,0,0,.4);border-bottom:3px solid var(--orange)}
+nav.nav{background:var(--navy-dark);padding:0 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;height:70px;box-shadow:0 2px 20px rgba(0,0,0,.4);border-bottom:3px solid var(--orange)}
 .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}.nav-logo img{height:42px;border-radius:6px}
 .nav-links{display:flex;list-style:none;gap:24px;align-items:center}.nav-links > li > a,.nav-links a{color:rgba(255,255,255,.85);text-decoration:none;font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .nav-cta{background:#BD5728;color:white!important;padding:8px 20px;border-radius:6px;font-weight:700!important}
