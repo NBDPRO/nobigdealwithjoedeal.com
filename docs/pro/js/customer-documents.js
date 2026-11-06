@@ -833,14 +833,42 @@
     window.addEventListener('nbd:flags-loaded', function () { try { render(); } catch (e) { /* page not ready */ } });
   }
 
+  // CRM audit 2026-11-06 (CU-F15): these dialogs had no Esc, no focus move
+  // and no focus return. Esc (and nothing else new) resolves null, the same
+  // as Cancel; the dialog is named by its heading; focus starts on the first
+  // control, Tab stays inside, and focus goes back to the opener on close.
   function _dlg(build) {
     return new Promise(function (resolve) {
+      var opener = document.activeElement;
       var back = document.createElement('div'); back.className = 'dlg-back';
       var box = document.createElement('div'); box.className = 'dlg'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
       back.appendChild(box);
-      function done(v) { back.remove(); resolve(v); }
+      var closed = false;
+      function done(v) {
+        if (closed) return;
+        closed = true;
+        back.remove();
+        if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
+        resolve(v);
+      }
       build(box, done);
+      var h = box.querySelector('.dlg-h');
+      if (h && h.textContent) box.setAttribute('aria-label', h.textContent);
+      var focusables = function () {
+        return Array.prototype.filter.call(box.querySelectorAll('button, select, input, textarea, [tabindex]'), function (n) { return !n.hidden && !n.disabled; });
+      };
+      back.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); return; }
+        if (e.key === 'Tab') {
+          var f = focusables(); if (!f.length) return;
+          var first = f[0], last = f[f.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
       document.body.appendChild(back);
+      var f0 = focusables()[0];
+      if (f0 && typeof f0.focus === 'function') f0.focus();
     });
   }
   function _el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }

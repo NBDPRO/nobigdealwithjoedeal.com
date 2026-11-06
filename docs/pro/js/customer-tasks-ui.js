@@ -2518,7 +2518,21 @@ window.generateCustomerDoc = async function(type) {
           <button class="nbd-preq-close ct-dialog-btn-primary">Got It</button>
         </div>
       </div>`;
-    modal.querySelector('.nbd-preq-close').addEventListener('click', () => modal.remove());
+    // CRM audit 2026-11-06 (CU-F15): a named modal dialog; focus starts on
+    // "Got It", Esc closes, and focus returns to the opener when it closes
+    // without moving on (Preview / Fix take the rep elsewhere on purpose).
+    const _opener = document.activeElement;
+    const _closeBack = () => {
+      modal.remove();
+      if (_opener && _opener.isConnected && typeof _opener.focus === 'function') _opener.focus();
+    };
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', "Can't generate " + label);
+    modal.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _closeBack(); }
+    });
+    modal.querySelector('.nbd-preq-close').addEventListener('click', () => _closeBack());
     modal.querySelector('.nbd-preq-preview').addEventListener('click', () => {
       modal.remove();
       window._previewBlankDoc(type);
@@ -2530,7 +2544,9 @@ window.generateCustomerDoc = async function(type) {
       });
     });
     document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    modal.addEventListener('click', e => { if (e.target === modal) _closeBack(); });
+    const _gotIt = modal.querySelector('.nbd-preq-close');
+    if (_gotIt && typeof _gotIt.focus === 'function') _gotIt.focus();
     return;
   }
 
