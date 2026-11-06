@@ -77,9 +77,32 @@
       '</div>' +
       '<div class="tr-actions"><button type="button" class="btn btn-orange" id="tenantRulesSave">Save business rules</button>' +
       '<span id="tenantRulesMsg" class="tr-msg" role="status"></span></div>';
+    // CRM audit 2026-11-06 (ST-F50): read-only for roles the rules refuse.
+    if (!canEditRules()) {
+      Array.prototype.forEach.call(host.querySelectorAll('input, textarea'), function (el) { el.disabled = true; });
+      var act = host.querySelector('.tr-actions');
+      if (act) act.innerHTML = '<span class="tr-msg" role="status">Only an owner or company admin can change business rules.</span>';
+      host.setAttribute('data-readonly', '1');
+    } else {
+      host.removeAttribute('data-readonly');
+    }
     host.setAttribute('data-state', 'ready');
     _paintedKey = loadedKey();
     return true;
+  }
+
+  // Who may save business rules: owner, company_admin, platform admin; never a
+  // viewer. The Upgrade prices panel's canEdit is the same predicate (it
+  // mirrors firestore.rules cpCanWrite); used when loaded, mirrored here if not.
+  function canEditRules() {
+    var c = window._userClaims || {};
+    var uid = window._user && window._user.uid;
+    var UPS = window.NBDUpgradePriceSettings;
+    if (UPS && typeof UPS.canEdit === 'function') return UPS.canEdit(c, uid);
+    if (!uid) return false;
+    if (c.role === 'admin' || c.role === 'company_admin') return true;
+    if (c.role === 'viewer') return false;
+    return String(c.companyId || uid) === String(uid);
   }
 
   // Read the panel into a businessRules object (pure DOM read, no write).

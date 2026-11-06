@@ -397,10 +397,12 @@ test('helper missing → classic lineItems still render (fail-open only for reta
 });
 
 // ── Tenant branding: no other company's homeowner may receive Joe's name ──
+// NBD navy is the locked #1A3057 = [26, 48, 87] (2026-11-06 CRM audit, CU-F11): the
+// PDF used to fall back to the RETIRED #1E3A6E [30, 58, 110], which this test pinned.
 test('NBD (no brand override) renders byte-identical: NBD name + navy', () => {
   const rec = runExport(preSweepV2);
   if (rec.all.indexOf('No Big Deal Home Solutions') < 0) throw new Error('NBD legal name missing');
-  if (!rec.fills.some(function (f) { return f[0] === 30 && f[1] === 58 && f[2] === 110; })) {
+  if (!rec.fills.some(function (f) { return f[0] === 26 && f[1] === 48 && f[2] === 87; })) {
     throw new Error('NBD navy header fill missing');
   }
   if (String(rec.saved).indexOf('NBD_Estimate_') !== 0) throw new Error('NBD filename prefix changed: ' + rec.saved);
@@ -416,7 +418,7 @@ test('non-NBD tenant gets its own name, primary color and doc prefix', () => {
   if (!rec.fills.some(function (f) { return f[0] === 10 && f[1] === 95 && f[2] === 56; })) {
     throw new Error('tenant primary color not applied to the header (#0A5F38)');
   }
-  if (rec.fills.some(function (f) { return f[0] === 30 && f[1] === 58 && f[2] === 110; })) {
+  if (rec.fills.some(function (f) { return f[0] === 26 && f[1] === 48 && f[2] === 87; })) {
     throw new Error('NBD navy still painted for a non-NBD tenant');
   }
   if (String(rec.saved).indexOf('ACME_Estimate_') !== 0) throw new Error('tenant doc prefix missing from filename: ' + rec.saved);

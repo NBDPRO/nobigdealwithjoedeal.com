@@ -23,7 +23,7 @@ gates=(
   "jtcost|node scripts/strip-job-template-costs.js --check"
   "smoke|node tests/smoke.test.js"
   "smokebucket|node scripts/run-test-manifest.js --bucket smoke"
-  "nodebucket|node scripts/run-test-manifest.js --bucket node"
+  "nodebucket|node scripts/audit/run-node-parallel.js --jobs 6"
 )
 fail=0
 for g in "${gates[@]}"; do

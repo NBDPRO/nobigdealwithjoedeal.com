@@ -34,5 +34,17 @@ axe (390/1440): only `region` (1 node mobile, 4 desktop) on every public page; /
 Console/404 locally: `/api/google-reviews` 404 and `/pro/nosw.txt` 404 (functions rewrite and demo SW probe; not served by static server, expected).
 Horizontal overflow at 390: 0 on every page.
 
-## AFTER
-Only a code-neutral change shipped in PR 1 (CRM CSS/JS fallback hex), so no public-page metric moved. See MORNING_REPORT.md.
+## AFTER (main with #2899 and #2900 merged; 4 pages, 2 runs median)
+
+| Page | Form | Perf | A11y | BP | SEO | FCP ms | LCP ms | CLS | TBT ms | SI ms | KB | Req | Unused CSS/JS KB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| / | mobile | 94 | 100 | 96 | 100 | 1518 | 2974 | 0 | 83 | 1817 | 1317 | 51 | 0/0 |
+| / | desktop | 97 | 100 | 96 | 100 | 513 | 1039 | 0 | 111 | 893 | 2556 | 51 | 0/0 |
+| /services/roof-repair | mobile | 75 | 100 | 96 | 100 | 1582 | 3226 | 0 | 718 | 1898 | 354 | 39 | 0/0 |
+| /services/roof-repair | desktop | 99 | 100 | 96 | 100 | 398 | 685 | 0.001 | 76 | 648 | 286 | 40 | 0/0 |
+| /services/roof-inspection | mobile | 76 | 100 | 96 | 100 | 1757 | 3285 | 0 | 604 | 1876 | 347 | 39 | 0/0 |
+| /services/roof-inspection | desktop | 99 | 100 | 96 | 100 | 575 | 813 | 0 | 88 | 718 | 287 | 40 | 0/0 |
+| /pro/login | mobile | 98 | 100 | 93 | 54 | 1727 | 2098 | 0.008 | 70 | 1727 | 421 | 34 | 17/156 |
+| /pro/login | desktop | 100 | 100 | 96 | 54 | 555 | 661 | 0.033 | 0 | 555 | 380 | 28 | 17/131 |
+
+Mobile TBT moves +/-300 ms between runs on this machine; public-page Perf differences are noise (no script or LCP change). Only visible metric change: /pro/login desktop CLS 0.010 -> 0.033 (new split layout, under 0.1). Raw JSON not committed.
