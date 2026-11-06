@@ -680,6 +680,7 @@
     "portal-home-screen-2026-11-04.test.js",
     "portal-booking-2026-11-04.test.js",
     "portal-moments-2026-11-04.test.js",
+    "portal-care-plan-2026-11-04.test.js",
     "noaa-event-links-2026-11-04.test.js",
     "a11y-contrast-sweep-2026-11-04.test.js",
     "deal-acceptance-atomicity.test.js",
