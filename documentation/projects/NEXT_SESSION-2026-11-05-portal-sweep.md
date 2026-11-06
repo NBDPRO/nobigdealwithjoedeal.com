@@ -35,9 +35,7 @@ same day ([its note](NEXT_SESSION-2026-11-04-site-crm-speed.md)); this lane stay
   "unstable" long after its checks finished, look at its latest PR run: a run **cancelled by the concurrency group**
   leaves required checks incomplete. Re-run that run once and the PR turns "clean" and queues. A human "Merge when
   ready" click also works.
-- **Not verified here:** the deploy for #2878 (run 42139837400) had passed Hosting and was on the rules-test gate when I
-  wrote this. Check that it got through Storage rules and **Cloud Functions**; none of those had shipped since about
-  02:50 UTC on 11-05, so the receipt-inbox Cloud Function in #2884 and any portal functions are waiting on it.
+- **Deploy status when I stopped (about 01:00 UTC 11-06):** the deploy for #2878 (run 42139837400) passed Hosting, the rules tests, **Firestore rules, Firestore indexes and Storage rules** (the index step is fixed), and was running the **Cloud Functions** deploy. Not yet seen: whether Functions and the "fleet must match the code" step finished green. None had shipped since about 02:50 UTC on 11-05, so the receipt-inbox function in #2884 and any new portal functions wait on it. Check that run first.
 
 ## Update, 2026-11-05 afternoon (supersedes "In flight" below where they differ)
 
