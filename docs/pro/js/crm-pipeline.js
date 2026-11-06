@@ -53,6 +53,14 @@ function renderColumnCards(body, cards, stageKey) {
       + cards.length + ' cards (+' + (cards.length - slice.length) + ' hidden)</button>';
   }
   body.innerHTML = html;
+  // Bulk mode: the selection (a Set of ids) survives a re-render but the
+  // fresh cards came back unhighlighted, so selected leads looked unselected
+  // while bulk Delete / Move / Set still acted on them (CRM audit 2026-11-06,
+  // PL-F05). Re-apply the highlight from the selection.
+  if (window._bulkMode && typeof getBulkSelected === 'function') {
+    const sel = getBulkSelected();
+    if (sel && sel.size) body.querySelectorAll('.k-card').forEach((c) => { if (sel.has(c.dataset.id)) c.classList.add('bulk-selected'); });
+  }
   if (!showAll) {
     const btn = body.querySelector('.k-show-all');
     if (btn) btn.addEventListener('click', (e) => {
