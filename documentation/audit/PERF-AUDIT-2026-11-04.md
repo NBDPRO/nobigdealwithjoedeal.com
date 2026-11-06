@@ -87,3 +87,36 @@ page, against the live site at about 07:20 ET. Lighthouse failed to trace (`NO_N
   fits #2831 and #2836 delivering scripts sooner, so the parse work now lands inside the trace. Step 3 (#2844) was
   closed without merging, and #2850 is still a switched-off draft. The signed-in Chrome method in the CRM section is
   the better measure here.
+
+## Update 2026-11-06: CRM dashboard after the deploy-time join (#2850 + #2889)
+
+#2850 merged at 2026-11-06 00:59Z, but its join step never ran. The step's condition was
+`vars.NBD_CONCAT != '0'`, and with the variable unset GitHub compares null with '0' as numbers (0 == 0), so the
+condition was false. #2889 changed it to `(vars.NBD_CONCAT || 'on') != '0'`. Deploy run 42153099485 (`5fefa2cb`, Hosting
+live 02:59Z) logged "Join the dashboard's boot scripts for this deploy" as a success. Live `/pro/dashboard` now loads
+6 `_concat-*.js` files, with 43 `<script src>` tags in the HTML.
+
+**Method** (same as the before run): Jo's signed-in desktop Chrome, tab visible, live `/pro/dashboard`. Navigate,
+wait 10 s, read the navigation and paint entries. Times are in ms.
+
+| | Runs | FCP median | DCL median | Load median |
+|---|---|---|---|---|
+| 2026-11-04 baseline (before Phase 1) | 2 | 3,270 / 3,330 | 3,100–4,600 | 4,600–6,800 |
+| Before the join (2026-11-06 ~01:40Z, `6eb983e3`) | 4 | 5,374 | 4,049 | 5,357 |
+| **After the join (2026-11-06 ~03:05Z, `5fefa2cb`), warm** | 5 | **2,332** | **1,990** | **2,616** |
+
+- **Warm runs** (FCP / DCL / load): 2,728 / 2,447 / 3,233; 2,216 / 1,990 / 2,616; 2,604 / 2,027 / 2,695;
+  1,980 / 1,584 / 2,239; 2,332 / 1,885 / 2,600. The spread is tight (FCP 2.0–2.7 s). The before runs varied about 2×
+  (FCP 4.1–8.4 s).
+- **Warm medians against the before run:** FCP about 57% lower, DCL about 51% lower, load about 51% lower. They are
+  also under the 11-04 baseline.
+- **One cold run** (the first load after the deploy, when every joined file has a new hash) was slow: DCL 11.5 s,
+  load 15.4 s, and no FCP entry was recorded. That is one sample. The before run's first load was 6.0 s, but it was
+  not a cold-after-deploy load. Whether the cold first visit after each deploy is worse with the join needs a fair
+  comparison: several cold runs, cache cleared, both ways.
+- **Console:** no errors on a load with console tracking on. The dashboard rendered signed in, with the Today view and
+  its figures.
+- **Not done:** Sentry page-load numbers (#2855) need a Sentry sign-in. Jo's iPhone check is still to do.
+
+**Decision for Jo:** keep the join on (the default now). To switch it off, set the repo variable `NBD_CONCAT=0`;
+the next deploy then ships the separate files. The open question is the cold first load after a deploy, above.
