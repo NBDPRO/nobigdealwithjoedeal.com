@@ -1,0 +1,27 @@
+/* pro-public-contrast.css — text contrast on the four public NBD Pro pages that sit on the navy theme
+ * (/pro/how-to, /pro/register, /pro/pricing, /pro/terms). Linked last in each page's <head>.
+ *
+ * axe-core measured: brand orange (#BD5728) text on the navy at 2.82:1 to 4.22:1, muted greys #8892A4 at 4.15:1 and #4A5568 at
+ * 1.73:1 to 2.58:1, and in-text links that differ from their sentence by colour alone (1.04:1 to 2.16:1). AA needs 4.5:1 for
+ * text under 18.66 px bold. Fixes use only the sanctioned tints: the light-on-dark orange (--orange-light, #DD875F) and white at
+ * reduced opacity. Selectors name exactly the elements axe flagged (no blanket `a` rules, so buttons and the light /pro/terms
+ * page are untouched); `body` raises specificity over each page's own inline rules, and !important is used only where a page sets
+ * the value more specifically or inline (the heading accents, the table pills, the terms link style attribute). */
+
+/* orange text on navy -> the light-on-dark orange */
+body .hero-ey, body .section-ey, body .qs-title, body .qs > ol > li > code, body .tb-title > span, body .toc-group a.active,
+body .footer > a, body .left-footer a, body .form-eyebrow, body .code-hint a, body .login-link a, body .pro-nav-logo > span,
+body li > a[href*="pricing"] { color: var(--orange-light, #DD875F); }
+body a[aria-current="page"][href*="pricing"], body .hl, body h1 > span, body .name > span, body a[href$="terms.html"][target="_blank"], body a[href$="privacy.html"][target="_blank"]
+  { color: var(--orange-light, #DD875F) !important; }
+
+/* muted greys on navy / near-black -> white at reduced opacity */
+body .hero-sub, body .section-lede, body .section-lede strong, body .toc-group > a, body .toc-group > .toc-h, body .tb-back,
+body #restartTourBtn .tb-action-full, body #restartTourBtn .tb-action-short, body .footer { color: rgba(255, 255, 255, .72); }
+body .toc-toggle { color: var(--orange-light, #DD875F); }
+body .toc-group a.active { color: var(--orange-light, #DD875F); }
+body .jt-pill .jt-b { color: rgba(255, 255, 255, .72) !important; }
+
+/* links inside running text must not rely on colour alone (WCAG 1.4.1) */
+body .footer > a, body .left-footer a, body .code-hint a, body .login-link a { text-decoration: underline; text-underline-offset: 2px; }
+body .terms-page p a { text-decoration: underline !important; text-underline-offset: 2px; }
