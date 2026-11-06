@@ -28,7 +28,7 @@
   .mobile-cta-strip.mobile-cta-bookfirst a{min-height:48px}
   .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-book{flex:1 1 auto;background:#BD5728;color:#fff;border:2px solid #BD5728;font-size:.84rem!important;letter-spacing:.05em!important;padding:12px 10px!important}
   .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-book:active{background:#A14A22;border-color:#A14A22}
-  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon{flex:0 0 52px;flex-direction:column;gap:2px;padding:4px 0!important;background:transparent;color:#fff;border:2px solid rgba(255,255,255,.4);font-size:.62rem!important;letter-spacing:.06em!important}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon{flex:0 0 52px;flex-direction:column;gap:2px;padding:4px 0!important;background:transparent;color:#fff;border:2px solid rgba(255,255,255,.4);font-size:.72rem!important;letter-spacing:.04em!important}
   .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon:active{background:rgba(255,255,255,.12)}
   .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon svg{width:18px;height:18px}
   body:has(.mobile-cta-bookfirst){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
