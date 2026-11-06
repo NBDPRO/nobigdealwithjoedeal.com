@@ -137,7 +137,9 @@ function clearAccentTheme() {
   if (window.ThemeGX && typeof window.ThemeGX.clearAccentOverride === 'function') {
     window.ThemeGX.clearAccentOverride();
   }
-  const picker = document.getElementById('customAccentColorPicker');
+  // CRM audit 2026-11-06 (ST-F22): the picker is #gxAccentPicker; the old id
+  // matched nothing, so it kept showing the cleared color.
+  const picker = document.getElementById('gxAccentPicker');
   if (picker) picker.value = '#BD5728';
 };
 function openSettingsTab(tabKey) {
@@ -521,6 +523,13 @@ function goTo(name, params = {}) {
     // widget re-render into its now-present body. Idempotent + already fires
     // frequently in normal use (task/snooze/lead-load), so no new churn.
     try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'dash-enter' } })); } catch (e) {}
+  }
+  if(name==='docs') {
+    // CRM audit 2026-11-06 (VW-F50, VW-F53): the template is hydrated by now.
+    // Add the Blank buttons to its rows, and load Uploaded Documents, which
+    // otherwise loaded only after an upload in this session.
+    try { if (typeof window._injectBlankButtons === 'function') window._injectBlankButtons(); } catch (e) { console.warn('blank buttons failed:', e); }
+    try { if (typeof window.loadDocs === 'function') window.loadDocs(); } catch (e) { console.warn('loadDocs failed:', e); }
   }
   if(name==='est') {
     // Same QA #9b pattern as view-dash above: the estimate-analytics band
@@ -1334,7 +1343,19 @@ function dsLoadConfig() {
   if (cfg) {
     if (cfg.northStar) {
       const catEl = document.getElementById('ds-cat');
-      if (catEl) catEl.value = cfg.northStar.category || 'Other';
+      if (catEl) {
+        // CRM audit 2026-11-06 (ST-F12): the Daily Success page offers other
+        // categories than this select. A value set there matched no option, so
+        // the select showed blank and Save rewrote it as "Other". Keep it.
+        const _cat = cfg.northStar.category || 'Other';
+        if (!Array.prototype.some.call(catEl.options || [], (o) => o.value === _cat)) {
+          const _o = document.createElement('option');
+          _o.value = _cat;
+          _o.textContent = _cat;
+          catEl.appendChild(_o);
+        }
+        catEl.value = _cat;
+      }
       const tEl = document.getElementById('ds-target');
       if (tEl) tEl.value = cfg.northStar.target || '';
       const dEl = document.getElementById('ds-deadline');

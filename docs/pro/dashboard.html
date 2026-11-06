@@ -4625,8 +4625,8 @@
             <!-- Team members list (populated by JS) -->
             <div id="teamMembersList" class="mb-14"></div>
 
-            <!-- Invite form -->
-            <div style="border-top:1px solid var(--br);padding-top:14px;">
+            <!-- Invite form (hidden for roles that cannot invite: dashboard-team-tab.js) -->
+            <div id="teamInviteForm" style="border-top:1px solid var(--br);padding-top:14px;">
               <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;">Invite a Rep</div>
               <!-- Phone audit views#7 (2026-09-25): the row didn't wrap, so at 412 the
                    email box got 66px (35px at 360) beside Role + Send Invite, and its
@@ -5051,7 +5051,7 @@
 
         <div class="flex-g8">
           <button class="btn btn-orange" data-action="call" data-fn="_saveNotifSettings">💾 Save Notification Settings</button>
-          <button class="btn btn-ghost fs-11" data-action="call" data-fn="_testNotif">🧪 Test Notification</button>
+          <button class="btn btn-ghost fs-11" data-action="call" data-fn="_testNotif">🔔 Preview an alert</button>
         </div>
         <div id="notif-save-msg" style="display:none;margin-top:10px;font-size:11px;color:#4caf82;">✓ Notification preferences saved</div>
         <!-- Away mode + backup person (js/away-mode-settings.js; owner / company_admin only) -->

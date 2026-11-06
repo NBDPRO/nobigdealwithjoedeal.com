@@ -408,6 +408,10 @@
 
   // ─── Bulk import ────────────────────────────────────────────────
   async function runImport(headers, mapping, dataRows) {
+    // CRM audit 2026-11-06 (VW-F155): remember which modal this run belongs
+    // to. Closing it mid-run must not throw at the end, and must not paint
+    // this run's result into a modal reopened for a new import.
+    const runModal = modalEl;
     const body = modalEl.querySelector('#nbd-import-body');
     body.innerHTML = `
       <div class="dix-tacenter-p30px20px">
@@ -615,7 +619,11 @@
     }
     try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'import' } })); } catch (_) {}
 
-    renderDoneStep({ imported, skippedDupe, skippedEmpty, skippedCap, failed, total: dataRows.length });
+    if (modalEl && modalEl === runModal) {
+      renderDoneStep({ imported, skippedDupe, skippedEmpty, skippedCap, failed, total: dataRows.length });
+    } else if (typeof window.showToast === 'function') {
+      window.showToast('Import finished: ' + imported + ' of ' + dataRows.length + ' leads added' + (failed ? ', ' + failed + ' failed' : ''), failed ? 'warning' : 'ok');
+    }
 
     // Cap hit mid-import: surface the canonical upsell once (on Growth it
     // degrades to billing-gate's explanatory toast). Fresh getPlan() so the
