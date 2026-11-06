@@ -14,6 +14,7 @@
  *   node scripts/pr-preflight.js --base <ref>    # another base
  *   node scripts/pr-preflight.js --worktree      # also include uncommitted changes
  *   node scripts/pr-preflight.js --no-gates      # scans only (fast)
+ *   node scripts/pr-preflight.js --open-prs      # also compare INDEX/manifest insert spots with open PRs (needs gh)
  *
  * Never writes a file, never fetches, never pushes. Exit 1 when any check FAILs;
  * WARN lines don't fail. Gates whose dependencies aren't installed (smoke needs
@@ -127,21 +128,56 @@ const has = (re) => changed.some((f) => re.test(f));
     const missing = notes.filter((n) => !idx.includes('(' + n.replace(/^documentation\//, '') + ')') && !/\/(qa|audit)\/[^/]+\/[^/]+$/.test(n));
     add(missing.length ? 'WARN' : 'PASS', 'new vault notes have an INDEX.md line in this branch', missing.length ? 'no INDEX line names: ' + missing.join(', ') + ' (fine only if a folder entry doc links it)' : '');
   }
-  const recent = [];
-  for (const f of ['documentation/INDEX.md', 'tests/ci-manifest.json']) {
-    if (!changed.includes(f)) continue;
-    const hunks = git('diff', '-U0', ...diffArgs, '--', f).split('\n').filter((l) => /^@@ /.test(l));
-    for (const h of hunks) {
+  // Each insert is identified by its two neighbour lines in the base file. Two
+  // branches whose inserts share a neighbour line conflict in the merge queue.
+  const SHARED = ['documentation/INDEX.md', 'tests/ci-manifest.json'];
+  const neighbours = (diffText, baseLines) => {
+    const out = [];
+    for (const h of diffText.split('\n').filter((l) => /^@@ /.test(l))) {
       const m = h.match(/^@@ -(\d+)(?:,(\d+))? /); if (!m) continue;
-      const start = Math.max(1, Number(m[1]) - 1), end = Number(m[1]) + Math.max(1, Number(m[2] || 1));
+      const start = Number(m[1]), count = m[2] === undefined ? 1 : Number(m[2]);
+      // count 0 = pure insert AFTER line `start`; otherwise lines start..start+count-1 changed.
+      const before = count === 0 ? start : start - 1, after = count === 0 ? start + 1 : start + count;
+      out.push({ at: start, keys: [baseLines[before - 1], baseLines[after - 1]].filter((x) => x && x.trim()).map((x) => x.trim()) });
+    }
+    return out;
+  };
+  const recent = [], clash = [];
+  const openPrs = flag('open-prs') ? (() => {
+    try {
+      const list = JSON.parse(execFileSync('gh', ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,headRefName,files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+      const me = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+      return list.filter((p) => p.headRefName !== me);
+    } catch (e) { add('SKIP', '--open-prs', 'gh not available: ' + e.message.split('\n')[0]); return []; }
+  })() : [];
+  for (const f of SHARED) {
+    if (!changed.includes(f)) continue;
+    const baseLines = git('show', mergeBase + ':' + f).split(/\r?\n/);
+    const mine = neighbours(git('diff', '-U0', ...diffArgs, '--', f), baseLines);
+    for (const ins of mine) {
       let blame = '';
-      try { blame = git('blame', '--line-porcelain', '-L', start + ',' + end, BASE, '--', f); } catch (_) { continue; }
+      try { blame = git('blame', '--line-porcelain', '-L', Math.max(1, ins.at - 1) + ',' + (ins.at + 1), mergeBase, '--', f); } catch (_) { blame = ''; }
       const times = [...blame.matchAll(/^committer-time (\d+)$/gm)].map((x) => Number(x[1]) * 1000);
-      if (times.some((t) => Date.now() - t < 48 * 3600 * 1000)) recent.push(f + ' @' + m[1]);
+      if (times.some((t) => Date.now() - t < 48 * 3600 * 1000)) recent.push(f + ' @' + ins.at);
+    }
+    for (const pr of openPrs.filter((p) => (p.files || []).some((x) => x.path === f))) {
+      let d = '';
+      try { d = execFileSync('gh', ['pr', 'diff', String(pr.number)], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }); } catch (_) { continue; }
+      // Only this file's part of their diff; use its 3-line context as the neighbour text.
+      const part = d.split(/^diff --git /m).find((x) => x.startsWith('a/' + f + ' '));
+      if (!part) continue;
+      const theirKeys = new Set();
+      const ls = part.split('\n');
+      for (let i = 0; i < ls.length; i++) {
+        if (/^\+[^+]/.test(ls[i]) && !/^\+/.test(ls[i - 1] || '')) { const b = (ls[i - 1] || '').slice(1).replace(/\r$/, '').trim(); if (b) theirKeys.add(b); }
+        if (/^\+[^+]/.test(ls[i]) && !/^\+/.test(ls[i + 1] || '')) { const a = (ls[i + 1] || '').slice(1).replace(/\r$/, '').trim(); if (a) theirKeys.add(a); }
+      }
+      if (mine.some((ins) => ins.keys.some((k) => theirKeys.has(k)))) clash.push(f + ' vs #' + pr.number);
     }
   }
-  if (recent.length) add('WARN', 'shared-list insert next to a line another PR added in the last 48 h (queue adjacency conflict risk)', recent.join(' | ') + ' — use node scripts/index-anchor.js to place it');
-  else if (changed.includes('documentation/INDEX.md') || changed.includes('tests/ci-manifest.json')) add('PASS', 'shared-list inserts are away from the last 48 h of inserts');
+  if (clash.length) add('WARN', 'shared-list insert at the same spot as another open PR (one of you will conflict in the queue)', clash.join(' | ') + ' — move yours with node scripts/index-anchor.js');
+  if (recent.length) add('WARN', 'shared-list insert next to a line added in the last 48 h', recent.join(' | ') + ' — the usual hot spot; node scripts/index-anchor.js picks a quieter one');
+  if (!clash.length && !recent.length && SHARED.some((f) => changed.includes(f))) add('PASS', 'shared-list inserts clear of recent inserts' + (openPrs.length ? ' and of open PRs' : ' (add --open-prs to compare with open PRs)'));
 }
 // 6. Tests: no .only / .skip added; KNOWN BUG pins touched get a loud line.
 {
