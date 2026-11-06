@@ -108,7 +108,10 @@ counts in `tests/cron-gate-drift.test.js` / `tests/flags-registry-drift.test.js`
 
 - A per-company "usually replies within" line on the portal.
 - Moment emails and the Care Plan offer for tenant companies (each needs its own sender first; NBD only for now).
-- Folding `functions/estimate-send.js`'s own portal-token minting into `functions/portal-token-mint.js`.
+- ~~Folding `functions/estimate-send.js`'s own portal-token minting into `functions/portal-token-mint.js`.~~
+  Nothing to fold (checked 2026-11-06): since #2862, `portal-token-mint.js` is the only writer of `portal_tokens`.
+  `estimate-send.js` mints `report_share_tokens` (the review link) and `deal_accept_tokens` (the accept link), which share
+  only the token alphabet.
 - ~~The Storm Center map still draws points and hulls~~ done in #2879 (see the update at the top).
 
 ## Watch: the flaky shards
