@@ -1,6 +1,6 @@
 # Morning report — overnight 2026-11-05 to 06
 
-Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903 and #2905 went through the merge queue on their own
+Nothing was deployed. Update 2026-11-06 morning: at Jo's request ("get every PR in queue to merge") I turned on auto-merge for my PRs; the queue still did every merge. Before that I merged nothing myself: #2894, #2897, #2899, #2900, #2903 and #2905 went through the merge queue on their own
 (the repo's queue/auto-merge, not a command from me). No `gh pr merge`, no pushes to main, no force-pushes.
 
 ## TL;DR
@@ -11,6 +11,7 @@ Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903
 - Smaller: landmark roles for axe (#2897), area-hero alignment (#2904), phone logo on 6 pages (#2905 merged), 44 px primary CTA
   floor (#2906), last two axe findings (#2907), `/inspect` invalid-field styling (#2909).
 - Perf: case-study pages load about a third fewer image bytes (#2908: 221 -> 148 KB phone, 148 -> 97 KB desktop).
+- **Second phase (daytime, #2922-#2936):** reading full-page screenshots at 390 and 1440 px found layout bugs the metric sweeps missed: the `/blog/` sidebar sat ~10,000 px down the page (#2931), 31 pages had a lone job card beside a 900 px hole (#2930), the `/about` sections did not line up with the hero (#2932), 45 town pages had mixed-case nav (#2936), three hero gradients washed out to grey-peach (#2933), reviewer names wrapped (#2934), the `/areas/` stat row orphaned its fourth stat (#2925), and a few tap-target and type-size fixes (#2922 #2923 #2924 #2935).
 - Axe across all 298 pages is clean once #2897 and #2907 land (only `region`, `heading-order`, `image-redundant-alt` existed).
 
 ## PRs
@@ -36,6 +37,22 @@ Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903
 | [#2917](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2917) | pro-ux | last axe `region` notes on /pro/how-to and /pro/pricing (aria-label + role=contentinfo, attribute-only) | L | open |
 | [#2918](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2918) | pro-ux | /pro/how-to scrolled sideways 29 px on a 320 px phone (top bar 324 px wide, code paths past the margin, pill text overflowing at 320 and 768 px); phone-only CSS block + width-independent pill wrap; every public Pro page now has zero overflow at 320-1366 px | L | open |
 | [#2919](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2919) | site-visual | DRAFT, needs Jo: /inspect header says the brand once (drops the text wordmark that repeated the logo image, sets the image alt); rewrites a deliberate 2026-11-04 test | L | draft |
+| [#2922](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2922) | site-visual | phone tap targets for footer legal links, blog Read Article and partner CTAs (+ slim footers) | L | open, auto-merge on |
+| [#2923](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2923) | site-visual | phone Call/Text labels 9.9 px -> about 12 px in the sticky strip | L | open, auto-merge on |
+| [#2924](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2924) | site-visual | button press feedback scales to 0.97 (was a 1 px nudge) | L | open, auto-merge on |
+| [#2925](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2925) | site-visual | /areas/ hero stats as a 2x2 grid on phones | L | open, auto-merge on |
+| [#2926](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2926) | copy | /partners hero: spaced em dash (the only unspaced one on the site) | L | open, auto-merge on |
+| [#2927](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2927) | site-visual | homepage eyebrows balance their wrap on phones, dot on line one | L | open, auto-merge on |
+| [#2928](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2928) | site-visual | checkmark strip on 124 service/town pages is a left-aligned list on phones | L | open, auto-merge on |
+| [#2930](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2930) | site-visual | a lone recent-job card becomes a feature card on desktop (31 pages) | L | open, auto-merge on |
+| [#2931](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2931) | site-visual | /blog/ sidebar sits beside the posts (markup closed </main> too late) | L | open, auto-merge on |
+| [#2932](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2932) | site-visual | /about sections line up with the hero container on wide screens | L | open, auto-merge on |
+| [#2933](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2933) | site-visual | /book, /free-roof, /free-tools hero gradient gets a navy base (no grey-peach corner) | L | open, auto-merge on |
+| [#2934](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2934) | site-visual | review cards let the star row wrap under the name (names stop breaking) | L | open, auto-merge on |
+| [#2935](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2935) | site-visual | footer social icons get a 44 px tap area on phones | L | open, auto-merge on |
+| [#2936](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2936) | site-visual | 45 town pages' desktop nav is uppercase like every other page type | L | open, auto-merge on |
+
+State at 2026-11-06 10:04: #2907, #2915 merged; #2909 #2913 #2914 #2916 #2918 in the merge queue; #2919 was pulled out of the queue and set back to draft by a manual request from Jo's account (left alone). GitHub-hosted CI was heavily backed up (20+ runs queued for over two hours, mostly from my own PRs' full CI); the optional Authed E2E failures on #2907/#2913/#2918 are CRM specs (`phone-tenant-setup`, `inbox-layout`) none of these PRs touch, and match the earlier "emulator resent writes under CI load" note. Measured and dropped: a fallback font for layout shift (CLS 0.000 on four pages even on throttled slow 4G), a lighter hero-video cut (phone cuts are already 0.7-1.5 MB and load after the page). Blocked: 1600 px hero photos need the original photos (committed masters are 800 px).
 
 Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at the same spot, so each merge makes the others
 conflict on that file (keep both lines); Auto-fix has been resolving that. Optional checks that were red on some PRs
