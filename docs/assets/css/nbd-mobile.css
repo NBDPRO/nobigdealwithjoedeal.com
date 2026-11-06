@@ -559,3 +559,7 @@ body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100
 @media(max-width:900px){body .blog-main{grid-template-columns:minmax(0,1fr)}}
 /* At 320 px the page now fits (288 px), which shrinks the sidebar's Call button to 232 px around a 212 px label; give the card and the button room. */
 @media(max-width:340px){body .cta-sidebar{padding-left:16px;padding-right:16px}body .cta-sidebar a{padding-left:12px;padding-right:12px}}
+
+/* PRIMARY BUTTON TAP FLOOR (2026-11-06): the primary CTA measured 42-43 px tall on ~20 pages (about, partners, the
+   shingle pages, the-pledge, visualizer...) vs 56 px on the service/area pages. min-height only raises the short ones. */
+.btn-primary{min-height:44px;align-items:center}
