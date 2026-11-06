@@ -53,6 +53,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   .tb-action-short{display:inline}
   .tb-action{padding:7px 11px;font-size:11px}
 }
+/* 320 px: the top bar (back link, brand, Tour, CRM) was 324 px wide, so the page scrolled sideways, the brand wrapped to "HOW / TO",
+   and the long <code> paths ran past the edge. Tighter gaps, one-line brand, wrapping code. */
+@media (max-width:360px){
+  .topbar{padding:0 12px;gap:8px}
+  .tb-brand{gap:6px}
+  .tb-title{white-space:nowrap;font-size:14px;letter-spacing:1px}
+  .tb-back{font-size:12px}
+  .tb-action{padding:7px 9px}
+  .qs li code,.detail-body code,.jt-pill .jt-b{overflow-wrap:anywhere}
+}
 
 /* ── HERO ── */
 .hero{padding:48px 20px 28px;text-align:center;position:relative;z-index:1;max-width:840px;margin:0 auto}
