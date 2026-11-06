@@ -18,16 +18,24 @@ const LINK = '<link rel="stylesheet" href="/assets/css/nav-pad-laptop.css">';
 const apply = process.argv.includes('--apply');
 const check = process.argv.includes('--check');
 let pending = 0;
+// scripts/hero-video.mjs owns the <link> that closes <head> on pages with a hero clip (it fails if anything follows it),
+// so on those pages the link goes just BEFORE hero-video.css; everywhere else, just before </head>.
+const HV_RE = /<link rel="stylesheet" href="\/assets\/css\/hero-video\.css\?v=\d+">/;
+function placed(src) {
+  const eol = src.includes('\r\n') ? '\r\n' : '\n';
+  const without = src.split(LINK + eol).join('').split(LINK).join('');
+  const m = without.match(HV_RE);
+  if (m) return without.replace(HV_RE, () => LINK + eol + m[0]);
+  return without.replace('</head>', () => LINK + eol + '</head>');
+}
 for (const rel of PAGES) {
   const f = path.join(DOCS, rel);
   const src = fs.readFileSync(f, 'utf8');
-  if (src.includes('nav-pad-laptop.css')) continue;
   if (!src.includes('</head>')) { console.error('no </head> in ' + rel); pending++; continue; }
+  const next = placed(src);
+  if (next === src) continue;
   pending++;
-  if (apply) {
-    const eol = src.includes('\r\n') ? '\r\n' : '\n';
-    fs.writeFileSync(f, src.replace('</head>', () => LINK + eol + '</head>'));
-  }
+  if (apply) fs.writeFileSync(f, next);
 }
 if (check) { if (pending) { console.error('fix-nav-pad-laptop: ' + pending + ' of ' + PAGES.length + ' page(s) lack the link'); process.exit(1); } console.log('fix-nav-pad-laptop: clean'); }
 else console.log((apply ? 'fixed ' : 'would fix ') + pending + ' of ' + PAGES.length + ' page(s)');
