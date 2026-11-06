@@ -484,6 +484,9 @@ async function loadNotes(leadId) {
     document.getElementById('notesList').innerHTML = html;
   } catch (e) {
     console.error('Error loading notes:', e);
+    // CRM audit 2026-11-06 (CU-F09): a failed read is not "no notes".
+    const _nl = document.getElementById('notesList');
+    if (_nl) _nl.innerHTML = '<div class="empty"><div>Could not load notes. Refresh to try again.</div></div>';
   }
 }
 

@@ -320,7 +320,13 @@ onAuthStateChanged(auth, async (user) => {
   const params = new URLSearchParams(window.location.search);
   const customerId = params.get('id');
 
-  if (!customerId) return;
+  // CRM audit 2026-11-06 (CU-F18): no id used to return silently, leaving a
+  // blank (opacity:0) page. Say what happened and offer the way back.
+  if (!customerId) {
+    showError('No customer selected', 'This link has no customer in it. Open the customer from the pipeline.');
+    document.documentElement.style.opacity = '1';
+    return;
+  }
 
   // Bug fix 2026-05-05: on iOS Safari (especially as a PWA), the first
   // getDoc after a fresh navigation occasionally hangs forever instead of
