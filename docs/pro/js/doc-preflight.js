@@ -288,6 +288,31 @@
     return def;
   }
 
+  // A few prefill defaults are NBD's own identity — company name / phone /
+  // email, "NBD Inspector", "Joe Deal". For any other tenant they printed on
+  // that company's customer paper (CRM audit 2026-11-06, ED-F15 / VW-F54).
+  // NBD itself keeps them byte-identical; another tenant gets its own brand
+  // value, or a blank for the rep to fill. Keyed on the platform-tenant check
+  // (companyId), never on brand strings. Unknown identity (no check loaded)
+  // keeps the literal, as before.
+  var NBD_IDENTITY_LITERALS = {
+    'No Big Deal Home Solutions': function (b) { return b.legalName || b.displayName || ''; },
+    '(859) 420-7382': function (b) { return (b.contact && b.contact.phone) || ''; },
+    'info@nobigdealwithjoedeal.com': function (b) { return (b.contact && b.contact.email) || ''; },
+    'NBD Inspector': function (b) { var n = b.legalName || b.displayName || ''; return n ? n + ' Inspector' : 'Inspector'; },
+    'Joe Deal': function () { return ''; }
+  };
+  function tenantLiteral(key, lit) {
+    if (!Object.prototype.hasOwnProperty.call(NBD_IDENTITY_LITERALS, lit)) return lit;
+    var isNbd;
+    try { isNbd = typeof window._isNbdPlatformTenant === 'function' ? !!window._isNbdPlatformTenant() : null; }
+    catch (_) { isNbd = null; }
+    if (isNbd !== false) return lit;
+    var b = {};
+    try { b = (typeof window._brand === 'function' && window._brand()) || {}; } catch (_) { b = {}; }
+    return NBD_IDENTITY_LITERALS[lit](b);
+  }
+
   function resolveFieldValue(field, ctx) {
     // 0. Deposit-rule fields have their own override rules (above).
     if (isDepositField(field)) return resolveDepositField(field, ctx);
@@ -308,7 +333,7 @@
     if (!src) return field.default !== undefined ? field.default : '';
 
     if (typeof src === 'string' && src.indexOf('literal:') === 0) {
-      return src.slice('literal:'.length);
+      return tenantLiteral(field.key, src.slice('literal:'.length));
     }
 
     if (src === 'photos') return ctx.photos || [];

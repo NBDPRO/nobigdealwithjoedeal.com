@@ -193,9 +193,11 @@
       colors: {
         // NBD DOCUMENT STANDARD, locked 2026-09-07. These are MEASURED off the
         // master logo artwork (1536x1024) — the logo is the colour source of
-        // truth, not any code file. Retired: #1A3057 (too blue), #12223D,
-        // #1A3057 (too grey-blue) and #BD5728, which was both off-brand and
-        // failed WCAG AA for body text at 3.07:1 on white.
+        // truth, not any code file. Retired: the earlier navies (one too blue,
+        // one too grey-blue) and the earlier orange, which was both off-brand
+        // and failed WCAG AA for body text at 3.07:1 on white. (A later hex
+        // sweep rewrote this list into the CURRENT values below, so it read as
+        // if the live palette were retired — CRM audit 2026-11-06, OR-F05.)
         primary:   '#1A3057',  // navy — logo wordmark/roof. 13.09:1 on white
         secondary: '#12223D',  // navy-deep — navy mixed 30% to black. 15.89:1
         accent:    '#BD5728',  // orange — the logo's rust. 4.61:1, clears AA
