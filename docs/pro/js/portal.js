@@ -1023,7 +1023,7 @@
       const _inspDone = Array.isArray(p.milestones) && p.milestones[0] && p.milestones[0].state === 'done';
       if (_signUrlP && copy.signLink) {
         actions.push('<a class="btn progress-action" data-metric="sign" href="' + esc(_signUrlP) + '" target="_blank" rel="noopener">' + esc(copy.signLink) + '</a>');
-      } else if (p.currentKey === 'inspection' && !_inspDone && view.bookingUrl && copy.bookLink) {
+      } else if (p.currentKey === 'inspection' && !_inspDone && view.bookingUrl && !view.booking && copy.bookLink) {
         actions.push('<a class="btn progress-action" data-metric="book" href="#book-card">' + esc(copy.bookLink) + '</a>');
       } else if (p.currentKey === 'estimate' && view.estimate && copy.estimateLink) {
         actions.push('<a class="btn progress-action" data-metric="estimate" href="#est-card">' + esc(copy.estimateLink) + '</a>');
@@ -1364,6 +1364,35 @@
     const paidHtml = paymentsCardHtml(view.paid);
     if (paidHtml) parts.push(paidHtml);
 
+    // ── Your appointment (Phase 4, 2026-11-04) ──
+    // The next Cal.com booking (functions/portal-booking.js). Reschedule and
+    // cancel are Cal.com's own pages, offered only at inspection / estimate;
+    // later, a change is a message to the rep. While one is booked, the
+    // "book a time" embed below steps aside so nobody books twice.
+    const bk = view.booking;
+    if (bk && Number.isFinite(bk.startMs)) {
+      const tz = { timeZone: 'America/New_York' };
+      const day = new Date(bk.startMs).toLocaleDateString('en-US', Object.assign({ weekday: 'long', month: 'long', day: 'numeric' }, tz));
+      const t0 = new Date(bk.startMs).toLocaleTimeString('en-US', Object.assign({ hour: 'numeric', minute: '2-digit' }, tz));
+      const t1 = bk.endMs ? new Date(bk.endMs).toLocaleTimeString('en-US', Object.assign({ hour: 'numeric', minute: '2-digit' }, tz)) : '';
+      const m = bk.manage || null;
+      const rs = m && safeUrl(m.reschedule), cx = m && safeUrl(m.cancel);
+      parts.push(
+        '<div class="card" id="appt-card" data-portal-booking>' +
+          '<div class="card-label">📅 Your appointment</div>' +
+          '<div class="card-title">' + esc(day) + '</div>' +
+          '<p class="progress-schedule-note">' + esc(t1 ? t0 + ' to ' + t1 : t0) + (bk.title ? ' · ' + esc(bk.title) : '') + '</p>' +
+          (rs && cx
+            ? '<div class="appt-actions">' +
+                '<a class="btn" data-metric="reschedule" href="' + esc(rs) + '" target="_blank" rel="noopener">Pick a new time</a>' +
+                '<a class="btn btn-ghost" data-metric="cancel" href="' + esc(cx) + '" target="_blank" rel="noopener">Cancel</a>' +
+              '</div>' +
+              '<p class="portal-pay-note">Changes happen on Cal.com’s page and show up here.</p>'
+            : '<p class="portal-pay-note"><a href="#pm-card">Need to change it? Send ' + esc(repName) + ' a message below.</a></p>') +
+        '</div>'
+      );
+    }
+
     // ── Booking embed ──
     // The rep's calendar can carry more than one visit type (see
     // booking-events.js). Which one belongs here depends on where the job
@@ -1375,7 +1404,7 @@
     // server-rendered view, so a tenant with nothing configured gets an
     // empty list and this whole card is skipped — same as the old
     // `if (view.bookingUrl)` guard, which is kept as the fallback path.
-    if (view.bookingUrl) {
+    if (view.bookingUrl && !view.booking) {
       const bookCtx = {
         rep: view.rep || {},
         companyName: (view.company && view.company.name) || ''

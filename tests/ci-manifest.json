@@ -678,6 +678,7 @@
     "portal-today-2026-11-04.test.js",
     "portal-pay-panel-2026-11-04.test.js",
     "portal-home-screen-2026-11-04.test.js",
+    "portal-booking-2026-11-04.test.js",
     "noaa-event-links-2026-11-04.test.js",
     "a11y-contrast-sweep-2026-11-04.test.js",
     "deal-acceptance-atomicity.test.js",

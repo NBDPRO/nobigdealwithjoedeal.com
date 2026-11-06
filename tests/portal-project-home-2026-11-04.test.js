@@ -52,8 +52,9 @@ function ok(label, cond, detail) {
   const code = stripComments(PJS);
   ok('sign action when the estimate waits on them (sent/viewed + live sign link)',
     /_sigSt === 'sent' \|\| _sigSt === 'viewed'/.test(code) && /data-metric="sign"/.test(code) && /copy\.signLink/.test(code));
+  // 2026-11-04 (Phase 4): and not while an appointment is already booked.
   ok('book action only at an un-done inspection step with a booking link',
-    /p\.currentKey === 'inspection' && !_inspDone && view\.bookingUrl && copy\.bookLink/.test(code) && /href="#book-card"/.test(code));
+    /p\.currentKey === 'inspection' && !_inspDone && view\.bookingUrl && !view\.booking && copy\.bookLink/.test(code) && /href="#book-card"/.test(code));
   ok('estimate action at the estimate step points at #est-card', /p\.currentKey === 'estimate' && view\.estimate && copy\.estimateLink/.test(code) && /href="#est-card"/.test(code));
   ok('the cards those anchors target exist', /'<div class="card" id="est-card">'/.test(code) && /'<div class="card" id="book-card" style="'/.test(code));
   ok('every next action carries a metric kind', ['pay', 'review', 'warranty'].every((k) => code.indexOf('data-metric="' + k + '"') > 0));
