@@ -684,6 +684,7 @@
     "nav-logo-size-2026-09-14.test.js",
     "security-docs-and-hosts-2026-09-14.test.js",
     "sentry-release-stamp-step.test.js",
+    "deploy-firestore-steps-strip-rules-2026-11-05.test.js",
     "voice-portal-draft-killswitch.test.js",
     "ai-disabled-coverage.test.js",
     "photo-editor-switch-photoid-2026-09-14.test.js",
