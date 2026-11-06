@@ -65,7 +65,10 @@
   function isOwner() {
     var role = window._userClaims && window._userClaims.role;
     return !(window._userClaims && window._userClaims.companyId) ||
-           companyId() === uid() || role === 'owner' || role === 'admin';
+           companyId() === uid() || role === 'owner' || role === 'admin' ||
+           // CRM audit 2026-11-06 (ST-F57): the rules let a company_admin
+           // write the company profile too (cpCanWrite).
+           role === 'company_admin';
   }
 
   // A rep with no display name used to default to — and SAVE — 'Joe', so

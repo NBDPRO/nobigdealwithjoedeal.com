@@ -100,10 +100,15 @@
 
   // ── Derived helpers ────────────────────────────────────────────────
   function ageInDays(lead) {
-    const ts = lead.createdAt?.toDate ? lead.createdAt.toDate()
-             : lead.createdAt?._seconds ? new Date(lead.createdAt._seconds * 1000)
-             : (lead.createdAt instanceof Date ? lead.createdAt : null);
-    if (!ts) return null;
+    // CRM audit 2026-11-06 (VW-F03): an ISO string or epoch-ms number (CSV
+    // imports, older writers) used to read as "no age", and such a lead
+    // vanished whenever an age filter was set.
+    const _raw = lead.createdAt;
+    const ts = _raw?.toDate ? _raw.toDate()
+             : _raw?._seconds ? new Date(_raw._seconds * 1000)
+             : (_raw instanceof Date ? _raw
+             : ((typeof _raw === 'string' || typeof _raw === 'number') && _raw !== '' ? new Date(_raw) : null));
+    if (!ts || isNaN(ts.getTime())) return null;
     return Math.floor((Date.now() - ts.getTime()) / (1000 * 60 * 60 * 24));
   }
   function ageBucket(days) {
