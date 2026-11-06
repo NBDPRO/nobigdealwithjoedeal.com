@@ -716,6 +716,7 @@
     "resend-webhook.test.js",
     "paperwork-filing.test.js",
     "kanban-filter-unification.test.js",
+    "customer-files-guards-2026-11-06.test.js",
     "tenant-paper-identity-2026-11-06.test.js",
     "board-wrong-record-guards-2026-11-06.test.js",
     "warranty-claim.test.js",

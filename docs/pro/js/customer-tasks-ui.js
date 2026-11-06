@@ -1917,7 +1917,9 @@ window.showPhotoActions = function(idx, event) {
 };
 
 window.quickSetPhase = function(phase, btn) {
-  var photo = (window._allPhotos || [])[window._quickEditPhotoIdx];
+  // By id, not list position: a refresh while the popup is open reorders
+  // _allPhotos (CRM audit 2026-11-06, CU-F03).
+  var photo = (window._allPhotos || []).find(function (p) { return p && p.id === window._quickEditPhotoId; });
   if (!photo) return;
   // Remember what it was and that the rep actually chose — quickSaveMeta
   // only writes the phase key when this ran. See the note there.
@@ -1937,7 +1939,9 @@ window.quickSetPhase = function(phase, btn) {
 };
 
 window.quickSetSeverity = function(sev, btn) {
-  var photo = (window._allPhotos || [])[window._quickEditPhotoIdx];
+  // By id, not list position: a refresh while the popup is open reorders
+  // _allPhotos (CRM audit 2026-11-06, CU-F03).
+  var photo = (window._allPhotos || []).find(function (p) { return p && p.id === window._quickEditPhotoId; });
   if (!photo) return;
   
   if (photo.severity === sev) {
@@ -1959,7 +1963,9 @@ window.quickSetSeverity = function(sev, btn) {
 };
 
 window.quickSaveMeta = async function() {
-  var photo = (window._allPhotos || [])[window._quickEditPhotoIdx];
+  // By id, not list position: a refresh while the popup is open reorders
+  // _allPhotos (CRM audit 2026-11-06, CU-F03).
+  var photo = (window._allPhotos || []).find(function (p) { return p && p.id === window._quickEditPhotoId; });
   if (!photo || !photo.id) return;
 
   try {
@@ -2771,13 +2777,22 @@ function logGeneratedDoc(type, data) {
   setTimeout(function () { window.NBDCustomerDocs.refresh(); }, 2500);
 }
 
-window.openDocUploadModal = function() {
-  window.nbdModal.open('docUploadModal');
-};
-
-window.closeDocUploadModal = function() {
-  window.nbdModal.close('docUploadModal');
-};
+// Only a FALLBACK. customer-bootstrap.module.js runs first (module scripts and
+// deferred scripts execute in document order) and installs the real pair,
+// whose open + onClose clear window._docUploadQueue. This file used to
+// overwrite it with a bare open that never cleared the queue, so after a
+// successful upload, reopening the modal showed the same files and Upload
+// filed them again as duplicates (CRM audit 2026-11-06, CU-F01).
+if (typeof window.openDocUploadModal !== 'function') {
+  window.openDocUploadModal = function() {
+    window.nbdModal.open('docUploadModal');
+  };
+}
+if (typeof window.closeDocUploadModal !== 'function') {
+  window.closeDocUploadModal = function() {
+    window.nbdModal.close('docUploadModal');
+  };
+}
 
 // ── Load all new sections when customer loads ───
 // loadPhotosByPhase used to run in this bundle too. It now runs earlier,
