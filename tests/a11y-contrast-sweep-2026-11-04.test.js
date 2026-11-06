@@ -43,7 +43,7 @@ console.log('\nfixed spots keep their tokens');
 const LIGHT = /var\(--orange-light(,#dd875f)?\)/;
 const fin = read('docs/blog/roof-financing-cincinnati-explained.html');
 ok('financing post: hero .article-tag uses orange-light', /\.article-tag\{[^}]*color:var\(--orange-light/.test(fin));
-ok('financing post: .fact-box h4 uses orange-dark', /\.fact-box h4\{[^}]*color:var\(--orange-dark/.test(fin));
+ok('financing post: .fact-box title (was h4, now .fact-title) uses orange-dark', /\.fact-box \.fact-title\{[^}]*color:var\(--orange-dark/.test(fin));
 ok('financing post: related .rtag uses orange-dark', /\.rtag\{[^}]*color:var\(--orange-dark/.test(fin));
 ok('pipe-boot post: the dark compare head row uses orange-light', /\.compare-row\.head \.ours\{color:var\(--orange-light/.test(read('docs/blog/the-pipe-boot-fork.html')));
 ok('/book: the phone link in the note is underlined, not colour-only', /\.book-note-inner p a\{[^}]*text-decoration:underline/.test(read('docs/book/index.html')));
