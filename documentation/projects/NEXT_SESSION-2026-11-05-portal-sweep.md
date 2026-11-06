@@ -6,6 +6,33 @@ MRMS radar hail swaths, a calendar engine trial and Schedule panel, site markup 
 then a grilled-out customer portal plan built as seven phases. Another session ran the site + CRM speed lane the
 same day ([its note](NEXT_SESSION-2026-11-04-site-crm-speed.md)); this lane stayed out of that.
 
+## Update, 2026-11-06 morning (the portal stack is landed; supersedes the updates below where they differ)
+
+- **All seven phases are on `main`:** #2857, #2858, #2859, #2860 (add to home screen), #2861 (your appointment),
+  #2862 (key-moment emails, **dark**), #2863 (Care Plan card, offer hidden until `CARE_PLAN_MODE=live`), #2864 (photo
+  viewer). The deploy for #2863's commit (run 42159246944) passed, so the Phase 5 functions are live and dark.
+- **Reply line:** #2901 adds "Joe usually answers the same day." above the portal message box, NBD portals only
+  (`portal.js?v=26`, `tests/portal-reply-line-2026-11-05.test.js`). Squash auto-merge on; check it merged.
+- **Waiting on Jo (Claude cannot write production flags):**
+  1. `PORTAL_MOMENT_EMAILS_ENABLED=true` on `portalMomentOnLead` and `portalMomentOnBooking`, then the Messaging
+     Center row "Portal key-moment email" with **canary ON**. Steps: [PORTAL-MOMENT-EMAILS](../runbooks/PORTAL-MOMENT-EMAILS.md).
+  2. `feature_flags/global.meshHailEnabled = true`. Read back on 11-06: production has **no `feature_flags/global` doc
+     at all** (only `_default` and one per-user doc), so Jo creates the doc with that field. `getFlags()` in
+     `functions/integrations/killswitch.js` reads exactly that path.
+- **Hail backfill, after the flag:** there is no backfill script. `runMeshDay(ymd)` is reachable as
+  `require('./integrations/mesh-hail')._test.runMeshDay` from `functions/` with application-default credentials
+  (project `nobigdeal-pro`, present on Jo's PC). Run it for each of the last 30 UTC days, then read each
+  `hail_mesh/<ymd>` back. A day with no hail **still writes a doc** (zero polygons); only a missing NOAA file writes
+  nothing. `hail_mesh` was empty on 11-06.
+- **Landing a stacked phase after its base squashes (what worked for #2861-#2864):** if the branch was cut before the
+  base PR's last commits, first merge the base branch's final head into it, *then* merge `origin/main`. Merging main
+  alone and keeping the branch side silently reverts the base's late commits (it nearly did on #2861). After that, a
+  conflicted file whose `origin/main` blob equals the base head's blob takes the branch side; anything else gets a real
+  hunk-by-hunk resolution. Confirm `git diff --stat origin/main...HEAD` equals the phase's own diff before pushing.
+- **Queueing:** `gh pr merge N --squash` alone only prints "merge strategy is set by the merge queue" and does nothing
+  while checks are pending. `gh pr merge N --auto --squash --match-head-commit <sha>` enables auto-merge, which
+  enqueues once the 7 required checks pass.
+
 ## Update, 2026-11-06 early (portal chain close-out; supersedes the 11-05 afternoon update where they differ)
 
 - **Landed on `main`:** Phase 1 (#2857), Phase 2 (#2858) and Phase 3, the pay panel (#2859). **Queued:** Phase 7a, add to
