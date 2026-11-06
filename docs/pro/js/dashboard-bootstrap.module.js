@@ -1358,8 +1358,13 @@
     if (el) el.classList.remove('drag-over');
     const dragId = window._dragId || event.dataTransfer?.getData('text/plain');
     if (!dragId) return;
-    if (typeof moveCard === 'function') moveCard(dragId, stageKey, { isDrag: true });
-    window._dragId = null;
+    // Carry the dragged JOB, as the per-column handler (crm-pipeline.js) does.
+    // An EMPTY column has no per-column handler, so its drops land here — and
+    // without the job id a customer's second-job card moved the customer's
+    // ACTIVE job instead (CRM audit 2026-11-06, PL-F04).
+    const dragJob = event.dataTransfer?.getData('application/x-nbd-job') || window._dragJobId || null;
+    if (typeof moveCard === 'function') moveCard(dragId, stageKey, { isDrag: true, jobId: dragJob || undefined });
+    window._dragId = null; window._dragJobId = null;
   };
 
   // ── View switcher ──
@@ -6805,11 +6810,13 @@
     }
   };
 
+  // CRM audit 2026-11-06 (ST-F09): this only ever showed a toast, yet it said
+  // "your alerts work!", which no channel had tested, and it fell back to a
+  // native alert(). It is now labelled for what it does: a preview of how an
+  // in-app alert looks. Email and SMS are not sent from here.
   const _testNotif = function() {
     if (typeof showToast === 'function') {
-      showToast('🔔 Test notification — your alerts work!', 'success');
-    } else {
-      alert('🔔 Test notification — your alerts work!');
+      showToast('🔔 This is how an in-app alert looks. Email and text alerts are not sent from this button.', 'info');
     }
   };
 

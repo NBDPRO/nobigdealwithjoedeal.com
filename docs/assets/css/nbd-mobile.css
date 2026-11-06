@@ -186,6 +186,20 @@ h1, h2, h3 { text-wrap: balance; }
   }
 }
 
+/* Transparency strip (data-nbd-transparency, injected on 124 service/town pages with inline
+   space-around): on a phone the four checkmark items wrapped 1-2 per row and centred, so the
+   ticks staggered. Stack them as a left-aligned list (block stays centred). */
+@media (max-width: 600px) {
+  section[data-nbd-transparency] > div {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: fit-content;
+    max-width: 100%;
+  }
+}
+
 /* ─── PHONE BREAKPOINT (≤ 480px) ─────────────────────────────────────────── */
 /*  Targets common Android viewports: 360, 375, 390, 412, 414, 428, 480     */
 
@@ -544,7 +558,7 @@ footer .nbd-social a {
    hover lifts previously ran unconditionally on most pages). */
 :focus-visible{outline:3px solid #bd5728;outline-offset:2px}
 .faq-q:focus-visible{outline:2px solid var(--orange,#bd5728);outline-offset:-2px}
-.btn-primary:active,.btn-cal:active,.btn-secondary:active,.nav-cta:active,.form-submit:active,.qlf-btn:active,.filter-btn:active,.mobile-cta-text:active{transform:translateY(1px)}
+.btn-primary:active,.btn-cal:active,.btn-secondary:active,.nav-cta:active,.form-submit:active,.qlf-btn:active,.filter-btn:active,.mobile-cta-text:active,.mobile-cta-book:active,.mobile-cta-call:active{transform:scale(.97)}
 @keyframes nbdRevealIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .mobile-nav.open{animation:nbdRevealIn .18s ease}
 .faq-item.open .faq-a{animation:nbdRevealIn .22s ease}
@@ -561,3 +575,15 @@ body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100
 @media(max-width:900px){body .blog-main{grid-template-columns:minmax(0,1fr)}}
 /* At 320 px the page now fits (288 px), which shrinks the sidebar's Call button to 232 px around a 212 px label; give the card and the button room. */
 @media(max-width:340px){body .cta-sidebar{padding-left:16px;padding-right:16px}body .cta-sidebar a{padding-left:12px;padding-right:12px}}
+
+/* PRIMARY BUTTON TAP FLOOR (2026-11-06): the primary CTA measured 42-43 px tall on ~20 pages (about, partners, the
+   shingle pages, the-pledge, visualizer...) vs 56 px on the service/area pages. min-height only raises the short ones. */
+.btn-primary{min-height:44px;align-items:center}
+
+/* FOOTER SOCIAL ICONS (2026-11-06): the four round icons are 30 px; on phones an invisible ring grows the tap
+   area to 44 px without moving anything. (nbd-social.css itself must stay byte-identical to the canonical body
+   asserted by scripts/ensure-social-css.js, so the rule lives here.) */
+@media (max-width: 640px) {
+  footer .nbd-social a { position: relative; }
+  footer .nbd-social a::after { content: ''; position: absolute; inset: -7px; }
+}
