@@ -22,7 +22,14 @@ locally I run the targeted authed specs through the harness instead (HARNESS.md)
 | 14 | Job-template cost strip | node scripts/strip-job-template-costs.js --check |
 | 15 | Smoke | node tests/smoke.test.js |
 | 16 | Smoke bucket | node scripts/run-test-manifest.js --bucket smoke |
-| 17 | Node bucket (unit suites) | node scripts/run-test-manifest.js --bucket node |
+| 17 | Node bucket (unit suites) | node scripts/audit/run-node-parallel.js --jobs 6 |
+
+**Gate 17 changed 2026-11-06 (DECISIONS D-007).** `run-test-manifest.js --bucket node` stops at its 8-minute budget,
+which on this laptop is about 650 of the ~840 suites ("RUNNER ERROR: wall-clock budget exhausted"). A red suite in
+the unrun tail looked like a clean run: the golden-totals suite on #2941 failed in CI but had never run locally.
+`run-node-parallel.js` runs every suite in the manifest's node bucket, 6 at a time, with no budget (~140 s). It uses
+the same command and cwd as the manifest runner. Local baseline with it: all pass except the same 8
+Windows/environmental suites listed below.
 
 ## Baseline (untouched origin/main fed35123, 2026-11-06 ~09:00 ET)
 16/17 PASS. smoke: 4432 passed 0 failed. smoke bucket 74/74. crm-audit 0 error / 1 warn / 22 info.

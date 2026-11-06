@@ -6825,11 +6825,13 @@
     }
   };
 
+  // CRM audit 2026-11-06 (ST-F09): this only ever showed a toast, yet it said
+  // "your alerts work!", which no channel had tested, and it fell back to a
+  // native alert(). It is now labelled for what it does: a preview of how an
+  // in-app alert looks. Email and SMS are not sent from here.
   const _testNotif = function() {
     if (typeof showToast === 'function') {
-      showToast('🔔 Test notification — your alerts work!', 'success');
-    } else {
-      alert('🔔 Test notification — your alerts work!');
+      showToast('🔔 This is how an in-app alert looks. Email and text alerts are not sent from this button.', 'info');
     }
   };
 
