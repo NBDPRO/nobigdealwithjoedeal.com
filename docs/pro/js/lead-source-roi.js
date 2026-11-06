@@ -94,6 +94,11 @@
   let _spend = null;
   let _targetId = null;
   let _fetching = false;
+  // Spend + marketing expenses are out of date (a lead changed while Reports
+  // wasn't on screen). Consumed by the next render (CRM audit 2026-11-06,
+  // VW-F11): before, every lead save/load re-read the owner's whole expense
+  // history even with Reports closed.
+  let _stale = false;
 
   async function _fetchMarketing() {
     const db = window.db || window._db;
@@ -124,6 +129,7 @@
     const el = document.getElementById(targetId);
     if (!el) return;
     _targetId = targetId;
+    if (_stale) { _spend = null; _marketingByKey = null; _stale = false; }
     const Nn = N();
     if (!Nn) { el.innerHTML = '<div class="empty">The numbers module did not load — refresh the page.</div>'; return; }
     const leads = window._leads || [];
@@ -233,7 +239,14 @@
       render(targetId);
       // Live-update on lead changes; spend is re-read too (it may have been
       // edited on the Sunday review).
-      document.addEventListener('leadsChanged', () => { _spend = null; _marketingByKey = null; render(targetId); });
+      // Only re-read when the panel is actually showing; otherwise mark the
+      // cache stale and let the next Reports visit refresh it (VW-F11).
+      document.addEventListener('leadsChanged', () => {
+        const el = document.getElementById(targetId);
+        const visible = !!(el && el.offsetParent !== null);
+        _stale = true;
+        if (visible) render(targetId);
+      });
     }
   };
 
