@@ -6,6 +6,26 @@ MRMS radar hail swaths, a calendar engine trial and Schedule panel, site markup 
 then a grilled-out customer portal plan built as seven phases. Another session ran the site + CRM speed lane the
 same day ([its note](NEXT_SESSION-2026-11-04-site-crm-speed.md)); this lane stayed out of that.
 
+## Update, 2026-11-05 afternoon (supersedes "In flight" below where they differ)
+
+- **Merged since:** #2846 (Calendar panel), #2848 (NOAA links), #2857 (portal Phase 1), #2872 (this note) and
+  #2873 (the Field App e2e fix below).
+- **#2858** (portal Phase 2) now targets `main`, is ready and has auto-merge on. **#2859–#2864** are still drafts,
+  each on the one before; their CI was cancelled on purpose to keep runners free for the queue. Each gets a fresh
+  run when it is pointed at `main`.
+- **#2879:** radar hail swaths on the **Storm Center** map, the last "not built" swath item. It is dark like the
+  rest, and on auto-merge.
+- **Blocking every PR's unit check since 15:00 UTC 11-05:** `tests/care-plan-2026-10-05.test.js` mints a Care Plan
+  invite at a fixed 2026-10-06 date with a 30-day expiry that checkout compares to the real clock. Fix: #2876,
+  another session's, in the merge queue. Merge `main` into the next portal PR after it lands.
+- **The `@shard2` Field App failure was real and is fixed (#2873).** `crew-calendar.spec` leaves a Wed–Thu 07:00
+  job on the test rep and saves it through `window._saveLead`, which never stamps `e2eTestData`. So the Field App's
+  `emptyToday()` never cleared it, and the spec failed every Wednesday and Thursday.
+- **The other `@shard2`/`@shard3` failures** look like load: the Firestore emulator under CI load lets the SDK
+  re-send a write that already landed. A create gives `ALREADY_EXISTS`. A `setDoc` carrying
+  `createdAt: serverTimestamp()` is re-checked as an *update*, which the estimates rule refuses, so it shows up as
+  `PERMISSION_DENIED`. This is not proven by a reproduction. Another session is hardening the seeds (#2871, #2875).
+
 ## Merged
 
 | PR | What |
@@ -58,7 +78,7 @@ counts in `tests/cron-gate-drift.test.js` / `tests/flags-registry-drift.test.js`
 - A per-company "usually replies within" line on the portal.
 - Moment emails and the Care Plan offer for tenant companies (each needs its own sender first; NBD only for now).
 - Folding `functions/estimate-send.js`'s own portal-token minting into `functions/portal-token-mint.js`.
-- The Storm Center map still draws points and hulls; it does not use the `NBDHailMeshSwaths` layer yet.
+- ~~The Storm Center map still draws points and hulls~~ done in #2879 (see the update at the top).
 
 ## Watch: the flaky shards
 
