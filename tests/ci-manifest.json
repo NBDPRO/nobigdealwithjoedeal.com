@@ -301,6 +301,7 @@
     "money-dashboard.test.js",
     "docs-view-2026-11-06.test.js",
     "monthly-overhead-logic.test.js",
+    "team-roles-2026-11-06.test.js",
     "notif-bell-merge.test.js",
     "followup-notif-flood-2026-10-03.test.js",
     "integrity-3-guards-2026-11-06.test.js",
