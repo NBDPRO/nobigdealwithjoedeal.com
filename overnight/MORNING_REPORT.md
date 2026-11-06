@@ -66,6 +66,8 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 1. 1600 px hero re-exports (NEEDS_JOE 2) then a `-1600` srcset step.
 2. Re-measure mobile TBT on service pages on a quiet machine / the weekly perf-watch, 3 runs, with and without `text-wrap: balance`.
 3. Header families: service hubs, /careers and /partners now share the 16 px side margin at every width (#2913); the project pages and blog/product pages have their own size rules (#2911, #2912).
+4. Public /pro pages beyond the four fixed in #2915: `/pro/` has one `aria-allowed-role` (role=tabpanel on `#step-estimate`); the CRM app pages (dashboard, customer, ...) still load render-blocking Google Fonts CSS although `nbd-fonts-pro.css` self-hosts Barlow; moving them needs a per-page weight audit (several pages ask for 800/900 weights and mono families the sheet does not carry) and belongs to the CRM speed lane.
+5. #2915 (public /pro contrast) is not in the PR table above: [#2915](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2915), public Pro pages pass axe contrast/link/heading/main rules (how-to 81-98 contrast nodes -> 0), visual regression passed.
 
 ## Rollback
 Close any open PR; merged ones revert with `git revert`. No deploys, no data writes, no CRM logins. Worktree
