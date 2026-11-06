@@ -66,9 +66,6 @@
     return '<span class="pill' + tone + '" data-job-status="' + esc(js.key || '') + '">' + esc(js.label) + '</span>';
   }
 
-  // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
-  // server says charges what is due now; a sent link that no longer fits
-  // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
   // ── Photo viewer (Phase 7 polish, 2026-11-04) ────────────────────
   // A tap on a project photo opened the full image in a new tab, which on a
   // phone dropped the homeowner out of the portal. Now it opens in a native
@@ -197,6 +194,9 @@
     if (card) card.remove();
   });
 
+  // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
+  // server says charges what is due now; a sent link that no longer fits
+  // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
   // Phase 3 pay panel (2026-11-04): Stripe's own page opens in a new tab so
   // this one stays put; tapping Pay speeds up the poll (_expectPayment) and
   // coming back fires an immediate one (_onVisibility).
