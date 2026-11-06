@@ -141,6 +141,12 @@ test.describe.serial('Bento Board @shard2', () => {
     // the first-run setup card sits above Home's scroller and can cover tiles; this spec is about the board
     await safeEvaluate(page, () => { const st = document.createElement('style'); st.textContent = '.sc-card{display:none !important}'; document.head.appendChild(st); });
     await page.locator('[data-bn-id="tasks"]').scrollIntoViewIfNeeded();
+    // The board can still be re-packing after the resize steps above: a CI run caught "tasks" moving from row 4 to
+    // row 1 after it was measured, so the press landed where it used to be and no drag started. Measure only once
+    // the tile and the grid have held still for two reads in a row.
+    const boxesNow = async () => JSON.stringify([await page.locator('[data-bn-id="tasks"]').boundingBox(), await page.locator('#nbdBentoRoot .bn-grid').boundingBox()]);
+    let lastBoxes = '';
+    await expect.poll(async () => { const b = await boxesNow(); const still = b === lastBoxes; lastBoxes = b; return still; }, { timeout: 5_000, intervals: [150] }).toBe(true);
     const grid = await page.locator('#nbdBentoRoot .bn-grid').boundingBox();
     const tasks = await page.locator('[data-bn-id="tasks"]').boundingBox();
     const t0 = await cellState(page, 'tasks');
