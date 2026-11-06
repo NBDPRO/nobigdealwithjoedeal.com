@@ -49,10 +49,18 @@ ok('RFG RNB-MEM bills the same eave band as RFG IWS', Math.abs(qty('RFG RNB-MEM'
 // Every catalog ice & water code that is not explicitly full coverage gets an
 // explicit QTY_BY_CODE entry — none may fall through to the whole-deck default.
 const CAT = fs.readFileSync(path.join(JS, 'estimate-catalog-xactimate.js'), 'utf8');
+// Each catalog entry is an A({ ... }) call. Match on the name AND on the tags,
+// so a variant named differently ("WinterGuard", "Leak Barrier") but tagged
+// as ice & water is still caught (verifier note, 2026-11-06).
 const iws = [];
-CAT.replace(/code:'([^']+)',\s*name:'([^']*)'/g, (m, code, name) => {
-  if (/ice\s*&\s*water|moisture guard|ice barrier/i.test(name) && !/full[- ]coverage/i.test(name)) iws.push(code);
-  return m;
+CAT.split('A({').slice(1).forEach((chunk) => {
+  const body = chunk.slice(0, chunk.indexOf('})'));
+  const code = (body.match(/code:'([^']+)'/) || [])[1];
+  const name = (body.match(/name:'([^']*)'/) || [])[1] || '';
+  const tags = (body.match(/tags:\[([^\]]*)\]/) || [])[1] || '';
+  if (!code) return;
+  const isIws = /ice\s*(&|and)\s*water|moisture guard|ice barrier/i.test(name) || /'(ice-water|ice-shield|rain-ice)'/.test(tags);
+  if (isIws && !/full[- ]coverage/i.test(name)) iws.push(code);
 });
 ok('found the catalog ice & water codes (positive control)', iws.includes('RFG IWS') && iws.includes('RFG IWS-HT'), iws.join(','));
 iws.forEach((code) => ok(code + ' has an explicit QTY_BY_CODE entry (no whole-deck fall-through)', !!L.QTY_BY_CODE[code]));
