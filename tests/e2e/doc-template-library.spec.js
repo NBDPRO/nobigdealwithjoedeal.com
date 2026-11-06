@@ -60,8 +60,14 @@ async function seed(page) {
   return safeEvaluate(page, async ({ lead, est, leadId, estimateId }) => {
     const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
-    await fs.setDoc(fs.doc(db, 'leads', leadId), Object.assign({}, lead, { primaryEstimateId: estimateId, createdAt: fs.serverTimestamp() }));
-    await fs.setDoc(fs.doc(db, 'estimates', estimateId), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));
+    // A resent write under CI load lands as an UPDATE the rules can refuse (PERMISSION_DENIED, 2026-11-05), so after any
+    // error the doc is read back: there = seeded (same rule as window.__e2eAddDoc in fixtures/auth.js).
+    const putAt = async (ref, data) => {
+      try { await fs.setDoc(ref, data); }
+      catch (e) { const s = await fs.getDoc(ref).catch(() => null); if (!(s && s.exists())) throw e; }
+    };
+    await putAt(fs.doc(db, 'leads', leadId), Object.assign({}, lead, { primaryEstimateId: estimateId, createdAt: fs.serverTimestamp() }));
+    await putAt(fs.doc(db, 'estimates', estimateId), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));
     return { leadId, estimateId, name: lead.firstName + ' ' + lead.lastName };
   }, { lead, est, leadId, estimateId });
 }
