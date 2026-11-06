@@ -188,7 +188,8 @@
   .hero-btns.svc-cta { width: 100%; }
   .svc-cta .btn-primary { width: 100%; }
   .svc-alt { text-align: center; }
-  .city-hero .svc-alt, .combo-hero .svc-alt { text-align: left; }
+  /* combo heroes are left-aligned; city (area) heroes are centered, so they keep the centered .svc-alt above */
+  .combo-hero .svc-alt { text-align: left; }
 }
 @media (max-width: 520px) {
   .storm-grid { grid-template-columns: 1fr; }
