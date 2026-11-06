@@ -2699,20 +2699,10 @@ async function _undoStageMove(lead, fromStage, movedTo) {
 }
 
 // Task toggle
-window.toggleTask = async function(taskId, newDoneState) {
-  try {
-    await updateDoc(doc(db, 'tasks', taskId), {
-      done: newDoneState,
-      completedAt: newDoneState ? serverTimestamp() : null,
-      updatedAt: serverTimestamp()
-    });
-    
-    // Reload timeline
-    await loadTimeline(window._customerId, { createdAt: new Date() });
-  } catch (e) {
-    console.error('Error toggling task:', e);
-  }
-};
+// window.toggleTask lives in customer-tasks-ui.js (leads/{leadId}/tasks). A
+// second copy here wrote the RETIRED top-level /tasks store and only lost
+// because that file loads later; removed so script order can never revive it
+// (CRM audit 2026-11-06, DT-F10).
 
 // Error display
 function showError(title, message) {
