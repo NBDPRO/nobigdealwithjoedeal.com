@@ -118,5 +118,24 @@ wait 10 s, read the navigation and paint entries. Times are in ms.
   its figures.
 - **Not done:** Sentry page-load numbers (#2855) need a Sentry sign-in. Jo's iPhone check is still to do.
 
-**Decision for Jo:** keep the join on (the default now). To switch it off, set the repo variable `NBD_CONCAT=0`;
-the next deploy then ships the separate files. The open question is the cold first load after a deploy, above.
+**Decision (2026-11-06, under Jo's 11-05 keep rule):** keep the join on (the default). To switch it off, set the
+repo variable `NBD_CONCAT=0`; the next deploy then ships the separate files.
+
+### Cold check, 2026-11-06 ~04:30Z: the join is not the cause of the slow cold run
+
+A signed-out cold load can't time the dashboard, because it sends the browser to `/pro/login` before it boots. So
+the cold test compares the script download on its own. Script run time is the same either way; the download is what
+the join changes. The separate files are still served live (minified), so both sets were compared against the live
+site:
+
+- **Method:** a fresh Playwright Chromium per run (empty cache, service workers blocked), on `/pro/login`. Fetch every
+  dashboard script with `cache: 'no-store'`, all at once as the page would. Four rounds, alternating which set goes
+  first. The byte size is the browser's `transferSize`.
+- **Separate:** the 214 `<script src>` files in `docs/pro/dashboard.html`, 1,156 KB on the wire. Runs: 626, 891,
+  1,018 and 595 ms (median 759 ms).
+- **Joined:** the 43 `<script src>` files in the live dashboard HTML, 1,030 KB on the wire. Runs: 182, 188, 181 and
+  489 ms (median 185 ms).
+
+Cold, the joined set downloads about 4× faster and about 11% lighter. So the 15.4 s first load above was not caused by
+the join: a deploy makes every file new, joined or not. The first try ran in Jo's Chrome, and its CRM service worker
+answered most of the separate-file requests, so that run is not used here.
