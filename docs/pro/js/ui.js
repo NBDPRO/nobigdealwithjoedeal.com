@@ -885,6 +885,17 @@ function switchSettingsTab(tab) {
     if (_pmCb) _pmCb.checked = document.body.classList.contains('professional-mode');
     var _slCb = document.getElementById('sidebarLabelsToggle');
     if (_slCb) _slCb.checked = !document.body.classList.contains('sidebar-collapsed');
+    // CRM audit 2026-11-06 (ST-F26): Ambient Sound opened unchecked even with
+    // sound on; read it from ThemeSounds, which owns the saved state.
+    var _sndCb = document.getElementById('te-sound-toggle');
+    if (_sndCb && window.ThemeSounds && typeof window.ThemeSounds.isEnabled === 'function') _sndCb.checked = !!window.ThemeSounds.isEnabled();
+    // CRM audit 2026-11-06 (ST-F20): pixel-mode.js watches #pixelModePanel at
+    // boot, while the panel is still inside the settings <template>, so for a
+    // user with Pixel Mode off the core (and the toggles' listeners) never
+    // loaded and the toggles did nothing. Load it when this tab opens.
+    if (window.NBDPixelMode && window.NBDPixelMode.__stub && typeof window.NBDPixelMode.ensure === 'function') {
+      try { window.NBDPixelMode.ensure(); } catch (e) { /* the toggle stays inert; nothing else depends on it */ }
+    }
     // Material segmented control active-state — same lazy-hydration hook
     // as the calls above; nbdSyncMaterialBtns lives in
     // __NBD_CALL_REGISTRY (dashboard-ui-prefs-boot.js), not on window.
