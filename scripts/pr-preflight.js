@@ -145,9 +145,9 @@ const has = (re) => changed.some((f) => re.test(f));
   const recent = [], clash = [];
   const openPrs = flag('open-prs') ? (() => {
     try {
-      const list = JSON.parse(execFileSync('gh', ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,headRefName,files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
-      const me = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
-      return list.filter((p) => p.headRefName !== me);
+      const list = JSON.parse(execFileSync('gh', ['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,headRefName,headRefOid,files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+      const me = git('rev-parse', '--abbrev-ref', 'HEAD').trim(), sha = git('rev-parse', 'HEAD').trim();
+      return list.filter((p) => p.headRefName !== me && p.headRefOid !== sha);
     } catch (e) { add('SKIP', '--open-prs', 'gh not available: ' + e.message.split('\n')[0]); return []; }
   })() : [];
   for (const f of SHARED) {
