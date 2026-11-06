@@ -35,6 +35,7 @@ Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903
 | [#2916](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2916) | pro-ux | /pro/ tour panels `<article role=tabpanel>` -> `<div>` (axe aria-allowed-role), no visual change | L | open |
 | [#2917](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2917) | pro-ux | last axe `region` notes on /pro/how-to and /pro/pricing (aria-label + role=contentinfo, attribute-only) | L | open |
 | [#2918](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2918) | pro-ux | /pro/how-to scrolled sideways 29 px on a 320 px phone (top bar 324 px wide, code paths past the margin, pill text overflowing at 320 and 768 px); phone-only CSS block + width-independent pill wrap; every public Pro page now has zero overflow at 320-1366 px | L | open |
+| [#2919](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2919) | site-visual | DRAFT, needs Jo: /inspect header says the brand once (drops the text wordmark that repeated the logo image, sets the image alt); rewrites a deliberate 2026-11-04 test | L | draft |
 
 Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at the same spot, so each merge makes the others
 conflict on that file (keep both lines); Auto-fix has been resolving that. Optional checks that were red on some PRs
@@ -59,7 +60,7 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 ## NEEDS_JOE (details in `overnight/NEEDS_JOE.md`)
 1. Homepage hero video (0.9-2 MB on phones) already skips on Save-Data, 2g and reduced motion, starts only after load + idle, and deliberately serves 3g the smaller cut; the only open question is whether you want a lighter phone cut.
 2. Service-page hero photos are 800 px wide and upscale about 1.8x on 1440 px screens; needs 1600 px re-exports from the originals.
-3. /inspect header repeats the brand name (logo image plus text wordmark): see NEEDS_JOE 5; recommendation is to drop the text and set the image alt.
+3. /inspect header repeats the brand name (logo image plus text wordmark): my recommended fix is ready as DRAFT [#2919](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2919); it rewrites a deliberate test, so mark it ready or close it.
 4. Stray empty folder `C:\c\Users\jonat\AppData\Local\Temp\lhtest` (path slip; I was blocked from deleting it).
 
 ## Attempted and reverted / rejected
