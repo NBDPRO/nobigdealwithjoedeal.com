@@ -31,6 +31,7 @@
  * USAGE:
  *   node scripts/concat-shipped.js --check            # plan + checks on the committed tree; exit 1 on a refusal
  *   node scripts/concat-shipped.js --write [--root D] # rewrite D/docs (default: this checkout) — deploy copy only
+ *   add --maps-dir DIR (with --write) to also write DIR/pro/js/_concat-….js.map from minify's maps in DIR (Sentry).
  *   add --json to print the plan as JSON.
  */
 'use strict';
@@ -40,10 +41,46 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 const { topLevelDecls, codeOnly } = require('./lib/toplevel-scan.js');
+const { joinMaps } = require('./lib/sourcemap-concat.js');
 
 const MIN_GROUP = 2;
 
 function arg(name) { const i = process.argv.indexOf(name); return i > -1 ? process.argv[i + 1] : null; }
+
+/**
+ * The joined text of docs/pro/<keys>, plus where each part starts, for the source map. Each part is a
+ * `/*! concat: js/x.js *\/` marker line, the file (trailing whitespace trimmed), then `;` on its own line.
+ */
+function joinBody(root, keys) {
+  let body = '', line = 0;
+  const parts = [];
+  for (const k of keys) {
+    const text = fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8').replace(/\s+$/, '');
+    const n = text.split('\n').length;
+    parts.push({ key: k, lineOffset: line + 1, lines: n, content: text });
+    body += `/*! concat: ${k} */\n${text}\n;\n`;
+    line += n + 2;
+  }
+  return { body, parts };
+}
+
+/**
+ * --maps-dir DIR (the deploy's minify maps, mirroring docs/: pro/js/x.js.map): write DIR/pro/<file>.map for a joined
+ * file, built from each part's minify map (or, for a part minify left readable, a line-for-line map to itself), so
+ * the Sentry upload step pairs it with the joined file like any other. Never written into docs/, never served.
+ */
+function writeJoinedMap(mapsDir, file, parts) {
+  if (!mapsDir) return;
+  const map = joinMaps(parts.map((p) => {
+    const mp = path.join(mapsDir, 'pro', p.key + '.map');
+    return fs.existsSync(mp)
+      ? { lineOffset: p.lineOffset, lines: p.lines, map: fs.readFileSync(mp, 'utf8') }
+      : { lineOffset: p.lineOffset, lines: p.lines, map: null, source: 'pro/' + p.key, content: p.content };
+  }), path.basename(file));
+  const out = path.join(mapsDir, 'pro', file + '.map');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, JSON.stringify(map));
+}
 const key = (src) => String(src).split('#')[0].split('?')[0].replace(/^\.\//, '');
 
 /** Ranges of the HTML that are not live markup: comments and <template> bodies. */
@@ -231,12 +268,13 @@ function planBundles(root, pageTags) {
   return { plans, segments, skipped };
 }
 
-function writeBundles(root, html, bp) {
+function writeBundles(root, html, bp, mapsDir) {
   for (const seg of bp.segments) {
-    const body = seg.keys.map((k) => `/*! concat: ${k} */\n${fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8').replace(/\s+$/, '')}\n;\n`).join('');
+    const { body, parts } = joinBody(root, seg.keys);
     const hash = crypto.createHash('sha256').update(body).digest('hex').slice(0, 10);
     seg.file = `js/_bundle-${seg.bundle}-${seg.index}-${hash}.js`;
     fs.writeFileSync(path.join(root, 'docs/pro', seg.file), body);
+    writeJoinedMap(mapsDir, seg.file, parts);
   }
   const map = {};
   for (const [name, plan] of Object.entries(bp.plans)) {
@@ -255,18 +293,16 @@ function writeBundles(root, html, bp) {
   return html.slice(0, loaderTag.start) + `<script${attrs} src="${mapFile}"></script>\n` + html.slice(loaderTag.start);
 }
 
-function write(root, p, bp) {
+function write(root, p, bp, mapsDir) {
   let html = p.html;
   const edits = []; // [start, end, replacement], applied from the end
   const fileOf = new Map();
   p.groups.forEach((g, gi) => {
-    const body = g.map((t) => {
-      const k = key(t.src);
-      return `/*! concat: ${k} */\n${fs.readFileSync(path.join(root, 'docs/pro', k), 'utf8').replace(/\s+$/, '')}\n;\n`;
-    }).join('');
+    const { body, parts } = joinBody(root, g.map((t) => key(t.src)));
     const hash = crypto.createHash('sha256').update(body).digest('hex').slice(0, 10);
     const name = `js/_concat-${gi + 1}-${hash}.js`;
     fs.writeFileSync(path.join(root, 'docs/pro', name), body);
+    writeJoinedMap(mapsDir, name, parts);
     g.forEach((t, i) => {
       fileOf.set(key(t.src), name);
       if (i === 0) { edits.push([t.start, t.end, `<script defer src="${name}"></script>`]); return; }
@@ -288,7 +324,7 @@ function write(root, p, bp) {
   }
   edits.sort((a, b) => b[0] - a[0]);
   for (const [s, e, r] of edits) html = html.slice(0, s) + r + html.slice(e);
-  if (bp) html = writeBundles(root, html, bp);
+  if (bp) html = writeBundles(root, html, bp, mapsDir);
   fs.writeFileSync(p.htmlPath, html);
   return html;
 }
@@ -318,9 +354,9 @@ function main() {
     console.error('concat-shipped: REFUSED — nothing written:\n  ' + p.refusals.join('\n  '));
     process.exit(1);
   }
-  if (process.argv.includes('--write')) { write(root, p, bp); console.log(`concat-shipped: wrote ${p.groups.length} joined file(s) and rewrote ${path.relative(root, p.htmlPath)}.`); }
+  if (process.argv.includes('--write')) { write(root, p, bp, arg('--maps-dir')); console.log(`concat-shipped: wrote ${p.groups.length} joined file(s) and rewrote ${path.relative(root, p.htmlPath)}.`); }
   else if (!process.argv.includes('--check')) { console.log('(dry run: pass --check in CI, --write on the deploy copy)'); }
 }
 
 if (require.main === module) main();
-module.exports = { plan, write, scriptTags, eligibility, exclusionSets, key, planBundles, loaderBundles };
+module.exports = { plan, write, joinBody, scriptTags, eligibility, exclusionSets, key, planBundles, loaderBundles };
