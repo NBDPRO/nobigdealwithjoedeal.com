@@ -16,7 +16,7 @@
 .pc-status { margin-top: 6px; }
 .pc-promises { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.4; }
 .pc-promise-who { display: inline-block; min-width: 38px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--m); }
-.pc-promise-jo .pc-promise-who { color: var(--orange, #e8720c); }
+.pc-promise-jo .pc-promise-who { color: var(--orange, #BD5728); }
 .pc-follow { margin-top: 6px; }
 /* Call Center view (js/call-center-view.js, #/calls). */
 .cc-wrap { padding: 16px; max-width: 900px; }
@@ -32,7 +32,7 @@
   min-height: 44px; padding: 0 14px; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 700;
   background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15));
 }
-.cc-tab.is-on { background: var(--orange, #e8720c); border-color: var(--orange, #e8720c); color: var(--accent-fg, #fff); }
+.cc-tab.is-on { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
 .cc-count { font-weight: 400; opacity: .85; }
 /* When / direction / order chips + the two date boxes (js/call-center-filters-logic.js, 2026-10-21): one scrolling row each,
    44px targets, so a phone never wraps them into a wall. */
@@ -45,7 +45,7 @@
 .cc-date { flex: 1 1 auto; min-height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; font: inherit; min-width: 0;
   background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15)); }
 .cc-filter-sum { font-size: 13px; color: var(--m); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cc-clear { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--br, rgba(255,255,255,.15)); background: transparent; color: var(--orange, #e8720c); font: inherit; font-weight: 700; cursor: pointer; }
+.cc-clear { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--br, rgba(255,255,255,.15)); background: transparent; color: var(--orange, #BD5728); font: inherit; font-weight: 700; cursor: pointer; }
 .cc-chip {
   display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px; margin: 0 4px 4px 0;
@@ -69,7 +69,7 @@
 .pt-day { align-self: center; font-size: 11px; color: var(--m); margin: 6px 0 2px; }
 .pt-msg { max-width: 82%; padding: 7px 10px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
 .pt-in { align-self: flex-start; background: var(--s3, rgba(255,255,255,.08)); border-bottom-left-radius: 4px; }
-.pt-out { align-self: flex-end; background: var(--orange, #e8720c); color: var(--accent-fg, #fff); border-bottom-right-radius: 4px; }
+.pt-out { align-self: flex-end; background: var(--orange, #BD5728); color: var(--accent-fg, #fff); border-bottom-right-radius: 4px; }
 .pt-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .pt-time { font-size: 10px; opacity: .75; margin-top: 2px; text-align: right; }
 
@@ -90,16 +90,16 @@
 .cc-reach { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; text-decoration: none; }
 /* Speed-to-lead (2026-10-15): a missed call's "Text back" — the reply is
    already typed (sms: link with body). The card's and the bell row's. */
-.cc-textback { font-weight: 700; color: var(--orange, #e8720c); }
+.cc-textback { font-weight: 700; color: var(--orange, #BD5728); }
 .notif-actions-textback { display: flex; align-self: center; flex-shrink: 0; }
 .notif-textback {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-height: 36px; padding: 0 10px; border-radius: 6px; white-space: nowrap;
   font-size: 12px; font-weight: 700; text-decoration: none;
-  color: var(--orange, #e8720c); background: color-mix(in srgb, var(--orange, #e8720c) 14%, transparent);
+  color: var(--orange, #BD5728); background: color-mix(in srgb, var(--orange, #BD5728) 14%, transparent);
 }
 /* The card a ?call=<id> link opened (the urgent push, the email). */
-.cc-card.cc-focus { outline: 2px solid var(--orange, #e8720c); outline-offset: 2px; scroll-margin-top: 72px; }
+.cc-card.cc-focus { outline: 2px solid var(--orange, #BD5728); outline-offset: 2px; scroll-margin-top: 72px; }
 
 /* Matching a caller to a customer (2026-10-03): the one-tap "Looks like X /
    File on X" row (or "Not in CRM yet / Make lead") on call cards and both
@@ -112,7 +112,7 @@
 .cc-tagmatch { margin-bottom: 12px; }
 /* Pipeline health strip (callPipelineHealth, 2026-10-12): one line when well, red when not. */
 .cc-health { margin-bottom: 12px; font-size: 14px; overflow-wrap: anywhere; border-left: 4px solid var(--green, #2e9e5b); }
-.cc-health-warn { border-left-color: var(--orange, #e8720c); }
+.cc-health-warn { border-left-color: var(--orange, #BD5728); }
 .cc-health-bad { border-left-color: var(--red, #e05252); }
 .cc-health-rows { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-tag-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

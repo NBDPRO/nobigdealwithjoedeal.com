@@ -371,6 +371,9 @@ function goTo(name, params = {}) {
     showToast('Upgrade to access this feature — plans start at $99/mo', 'error');
     return;
   }
+  // Every view but Home may need a late stylesheet (late-css.js): apply them
+  // all before the view is shown, so it never paints unstyled.
+  if (name !== 'home' && window.NBDLateCss) window.NBDLateCss.flip();
 
   // ── Maps & Pins is retired → D2D (map unification, phase C) ──
   // Its pins/heat/jobs/territories are all unified into the D2D map, plus

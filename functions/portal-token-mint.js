@@ -2,8 +2,9 @@
  * functions/portal-token-mint.js — writes a homeowner portal token (2026-11-04).
  * createPortalToken (the rep's button, functions/portal.js) and the key-moment
  * emails (functions/portal-moments.js) share it, so the token's shape — tenant
- * key, TTL, use budget — cannot drift between those two. estimate-send.js still
- * mints its own (same fields); folding it in is a separate change.
+ * key, TTL, use budget — cannot drift between those two. It is the only writer of
+ * portal_tokens: estimate-send.js mints report_share_tokens and deal_accept_tokens
+ * (same alphabet, other collections and fields), not portal links.
  * Callers do their own authorization first.
  */
 'use strict';

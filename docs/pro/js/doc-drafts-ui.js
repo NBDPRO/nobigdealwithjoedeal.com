@@ -223,7 +223,7 @@
     return n;
   }
   var BTN = { minHeight: '44px', minWidth: '44px', padding: '0 14px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', border: '1px solid var(--br, #d1d5db)', background: 'var(--s, #fff)', color: 'var(--t, #111827)' };
-  var BTN_PRIMARY = Object.assign({}, BTN, { background: 'var(--orange, #e8720c)', color: '#fff', border: '1px solid transparent' });
+  var BTN_PRIMARY = Object.assign({}, BTN, { background: 'var(--orange, #BD5728)', color: '#fff', border: '1px solid transparent' });
 
   function setBusy(btns, busy) { btns.forEach(function (b) { b.disabled = busy; b.style.opacity = busy ? '.6' : '1'; }); }
 

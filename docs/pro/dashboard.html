@@ -27,19 +27,19 @@
      used to carry. Customer/vault/login already loaded the file; dashboard now joins. -->
 <link rel="stylesheet" href="css/theme-system.css?v=12">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
-<link rel="stylesheet" href="css/agent-inbox.css?v=5">
-<link rel="stylesheet" href="css/agent-bots.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/agent-inbox.css?v=5">
+<link rel="stylesheet" media="print" data-late-css href="css/agent-bots.css?v=1">
 <link rel="stylesheet" href="css/sort-customers.css?v=2">
-<link rel="stylesheet" href="css/triage-deck.css?v=3">
+<link rel="stylesheet" media="print" data-late-css href="css/triage-deck.css?v=3">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
-<link rel="stylesheet" href="css/stale-leads-cleanup.css?v=1">
-<link rel="stylesheet" href="css/lead-source-fixer.css?v=1">
-<link rel="stylesheet" href="css/reputation.css?v=1">
-<link rel="stylesheet" href="css/speed-to-lead.css?v=1">
-<link rel="stylesheet" href="css/estimate-follow-board.css?v=1">
-<link rel="stylesheet" href="css/follow-up-board.css?v=2">
-<link rel="stylesheet" href="css/dol-fill.css?v=1">
-<link rel="stylesheet" href="css/d2d-storm.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/stale-leads-cleanup.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/lead-source-fixer.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/reputation.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/speed-to-lead.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/estimate-follow-board.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/follow-up-board.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/dol-fill.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/d2d-storm.css?v=2">
 <link rel="stylesheet" href="css/phone-calls.css?v=13">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
@@ -139,6 +139,9 @@
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
+<!-- 2026-11-06: applies the data-late-css stylesheets (media="print" until then) on
+     the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
+<script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
 <script src="js/script-loader.js?v=210"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
@@ -167,37 +170,37 @@
 <link rel="stylesheet" href="css/dashboard-app.css?v=29">
 <link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=6">
-<link rel="stylesheet" href="css/rep-os.css?v=1">
-<link rel="stylesheet" href="css/close-board.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/invoice-pipeline.css?v=6">
+<link rel="stylesheet" media="print" data-late-css href="css/rep-os.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=2">
-<link rel="stylesheet" href="css/money-dashboard.css?v=3">
-<link rel="stylesheet" href="css/job-templates-view.css?v=1">
-<link rel="stylesheet" href="css/yard-signs-view.css?v=1">
-<link rel="stylesheet" href="css/expenses.css?v=5">
-<link rel="stylesheet" href="css/crm-pipeline-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/money-dashboard.css?v=3">
+<link rel="stylesheet" media="print" data-late-css href="css/job-templates-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/yard-signs-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/expenses.css?v=5">
+<link rel="stylesheet" media="print" data-late-css href="css/crm-pipeline-view.css?v=2">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=3">
 <link rel="stylesheet" href="css/field-sunlight.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=8">
 <link rel="stylesheet" href="css/away-mode.css?v=1">
-<link rel="stylesheet" href="css/prod-flags.css?v=1">
-<link rel="stylesheet" href="css/templates-library-view.css?v=2">
-<link rel="stylesheet" href="css/data-import-view.css?v=2">
-<link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
-<link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
-<link rel="stylesheet" href="css/admin-manager-view.css?v=1">
-<link rel="stylesheet" href="css/claim-core-view.css?v=1">
-<link rel="stylesheet" href="css/quick-capture-view.css?v=2">
-<link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
-<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=3">
-<link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
-<link rel="stylesheet" href="css/voicemail-view.css?v=1">
-<link rel="stylesheet" href="css/reports-trends-view.css?v=2">
-<link rel="stylesheet" href="css/supplement.css?v=1">
-<link rel="stylesheet" href="css/product-library.css?v=6">
+<link rel="stylesheet" media="print" data-late-css href="css/prod-flags.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/templates-library-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/data-import-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/lead-snooze-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/ai-texting-persona-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/admin-manager-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/quick-capture-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/quick-capture-inbox-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/dashboard-widgets-view.css?v=3">
+<link rel="stylesheet" media="print" data-late-css href="css/estimate-preview-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/voicemail-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/reports-trends-view.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/supplement.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/product-library.css?v=6">
 <link rel="stylesheet" href="css/widgets-home.css?v=2">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=4">
-<link rel="stylesheet" href="css/storm-center.css?v=7">
+<link rel="stylesheet" media="print" data-late-css href="css/storm-center.css?v=7">
 <link rel="stylesheet" href="css/my-skin.css?v=6">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=8" id="kanban-force-css-link">
@@ -235,19 +238,19 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
-<link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=9">
+<link rel="stylesheet" media="print" data-late-css href="css/dashboard-bootstrap-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/google-calendar.css?v=9">
 <link rel="stylesheet" href="css/production.css?v=1">
-<link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=5">
-<link rel="stylesheet" href="css/estimate-send.css?v=2">
-<link rel="stylesheet" href="css/materials-list.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/estimate-send.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
 <link rel="stylesheet" href="css/numbers.css?v=3">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
-<link rel="stylesheet" href="css/voice-intelligence.css?v=4">
+<link rel="stylesheet" media="print" data-late-css href="css/voice-intelligence.css?v=4">
 
 <!-- NAV HTML -->
 <nav id="nbd-pro-nav">

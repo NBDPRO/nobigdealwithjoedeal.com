@@ -83,6 +83,10 @@ the local worktree `C:\Users\jonat\nbd-wt-dedupe`; push it once the branch unloc
    40 % cheaper and remove about 54 render-blocking files. **Not covered yet:** role-specific homes (crew,
    canvasser). The first-open unstyled-flash risk also needs a plan: put each sheet in its view's ScriptLoader
    bundle, plus an idle preload. Measure the role homes first.
+   **Update 2026-11-06:** measured (four roles and the sample account) and built in
+   [BOOT-CSS-2026-11-06](../audit/BOOT-CSS-2026-11-06.md): 41 sheets now load as `media="print"` and apply on first
+   input, a non-Home `goTo()` or idle. The "about 40 % cheaper restyles" above did not hold: boot restyle time is the
+   same even with the sheets deleted. The win is first paint on a slow link (7.96 → 6.28 s, cold).
 5. Small leftovers: the roof guide's illustrations still say "centre"/"centreline" (an SVG regenerate:
    `build-illustrations.mjs --svg`, then the pinned svgo, then `--stamp`).
 

@@ -17,7 +17,7 @@
 .rs-items { margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.35; }
 .rs-items li { padding: 3px 0; border-top: 1px solid var(--br, #2a2f37); overflow-wrap: anywhere; }
 .rs-items li:first-child { border-top: 0; }
-.rs-q { display: inline-block; min-width: 2.2em; color: var(--orange, #e8720c); font-weight: 700; }
+.rs-q { display: inline-block; min-width: 2.2em; color: var(--orange, #BD5728); font-weight: 700; }
 .rs-more, .rs-note { color: var(--m, #9ca3af); font-size: 12px; }
 .rs-cand { border: 1px solid var(--br, #2a2f37); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .rs-cand-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -32,5 +32,5 @@
 .rs-btn { min-height: 48px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: transparent; color: var(--t, #fff); font-size: 15px; font-weight: 700; cursor: pointer; padding: 6px 12px; }
 .rs-btn small { font-weight: 500; opacity: .85; }
 .rs-btn:disabled { opacity: .4; cursor: default; }
-.rs-btn-primary { background: var(--orange, #e8720c); border-color: var(--orange, #e8720c); color: #fff; }
+.rs-btn-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; }
 @media (min-width: 560px) { .rs-actions { grid-template-columns: repeat(3, 1fr); } }
