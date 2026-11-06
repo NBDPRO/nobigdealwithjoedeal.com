@@ -36,7 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (dropZone && fileInput) {
     dropZone.addEventListener('click', () => fileInput.click());
-    
+    // CRM audit 2026-11-06 (CU-F15): the drop zone is the only way to pick
+    // files and it could not be reached by keyboard. It is role="button"
+    // tabindex="0" in customer.html; Enter / Space open the picker.
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropZone.classList.add('drag-over');

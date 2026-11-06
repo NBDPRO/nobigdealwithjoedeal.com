@@ -3696,8 +3696,8 @@ window.exportCustomerEstimate = async function(estimateId) {
     const _b = (window._brand && window._brand()) || {};
     const _isNbd = !_b.legalName || _b.legalName === 'No Big Deal Home Solutions';
     const _hx = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(h || '')); return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : null; };
-    const _pri = (!_isNbd && _hx(_b.colors && _b.colors.primary)) || [30, 58, 110];
-    const _acc = (!_isNbd && _hx(_b.colors && _b.colors.accent)) || [232, 114, 12];
+    const _pri = (!_isNbd && _hx(_b.colors && _b.colors.primary)) || [26, 48, 87];   // #1A3057 navy
+    const _acc = (!_isNbd && _hx(_b.colors && _b.colors.accent)) || [189, 87, 40];  // #BD5728 orange
     const _legalName = _isNbd ? 'No Big Deal Home Solutions' : String(_b.legalName || '');
 
     // Header

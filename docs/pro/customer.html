@@ -2685,7 +2685,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       📄 Upload Documents
     </h3>
 
-    <div class="upload-zone" id="docDropZone" style="margin-bottom:16px;">
+    <div class="upload-zone" id="docDropZone" role="button" tabindex="0" aria-label="Choose documents to upload" style="margin-bottom:16px;">
       <div class="upload-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;"><path d="M5 2h7l4 4v11a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg></div>
       <div class="upload-text">Click or drag documents here</div>
       <div class="upload-hint">Supported: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</div>
@@ -3143,14 +3143,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
         <input class="ui-field" id="editAddress" type="text" />
       </div>
       <div>
-        <label for="editDamageType" class="ui-label">Additional Service Locations</label>
+        <div class="ui-label" id="editServiceAddressesLabel">Additional Service Locations</div>
         <!-- A job can cover more than one property. Invoice NBD-2026-0810-XXXX
              (Example Properties LLC) bills 100 AND 102 Kentucky Ave on one
              document; before this field the second building had nowhere to
              live and was lost. `address` stays the primary/billing address;
              these are extra properties worked under the same job and print
              in the SERVICE LOCATIONS block. -->
-        <div id="editServiceAddresses"></div>
+        <div id="editServiceAddresses" role="group" aria-labelledby="editServiceAddressesLabel"></div>
         <button type="button" data-action="addServiceAddressRow" class="btn" style="margin-top:6px;padding:7px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">+ Add another property</button>
       </div>
       <div>
