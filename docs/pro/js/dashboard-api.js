@@ -272,7 +272,12 @@ async function loadDocs(){
         <a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost" style="font-size:11px;padding:5px 10px;">Open</a>
       </div>`;
     }).join('');
-  } catch(e){ console.error('loadDocs error:',e); }
+  } catch(e){
+    console.error('loadDocs error:',e);
+    // CRM audit 2026-11-06 (VW-F53): a failed read is not "no documents".
+    const w = document.getElementById('uploadedDocsWrap');
+    if (w) w.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Could not load your uploaded documents. Try again in a moment.</div>';
+  }
 }
 
 // ══════════════════════════════════════════════
