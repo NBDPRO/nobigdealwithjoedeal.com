@@ -1125,7 +1125,9 @@ console.log('\nCRM custom-pipeline + kanban correctness (lead-lifecycle sweep)')
     'a drag call site missing isDrag:true would wrongly apply exact-match comparison and rewrite the real stage on a same-column re-drop');
   const dbm = read('docs/pro/js/dashboard-bootstrap.module.js');
   assert('global window.drop (board-level delegated drop) passes isDrag:true',
-    /moveCard\(dragId, stageKey, \{ isDrag: true \}\)/.test(dbm));
+    // 2026-11-06 (CRM audit PL-F04): the board-level drop also carries the
+    // dragged card's jobId now, as the per-column sites above already do.
+    /moveCard\(dragId, stageKey, \{ isDrag: true(, jobId: [\w.|\s]+)? \}\)/.test(dbm));
   assert('the retry closure carries the original isDrag flag forward (not a bare re-call)',
     /moveCard\(id, newStage, \{ isDrag \}\)/.test(cp),
     'a retried drag must stay column-NOOP-safe and a retried explicit move must stay exact-match');
