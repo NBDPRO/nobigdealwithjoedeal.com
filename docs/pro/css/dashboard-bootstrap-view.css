@@ -31,5 +31,5 @@
 .dbx-fx1-minw0.dbx-fx1-minw0.dbx-fx1-minw0 { flex: 1; min-width: 0; }
 .dbx-w600-mb2px-whinowrap.dbx-w600-mb2px-whinowrap.dbx-w600-mb2px-whinowrap { font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dbx-fs10px-cm-whinowrap.dbx-fs10px-cm-whinowrap.dbx-fs10px-cm-whinowrap { font-size: 10px; color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dbx-corange-p6px2px.dbx-corange-p6px2px.dbx-corange-p6px2px { color: var(--orange,#e8720c); padding: 6px 2px; }
+.dbx-corange-p6px2px.dbx-corange-p6px2px.dbx-corange-p6px2px { color: var(--orange,#BD5728); padding: 6px 2px; }
 .dbx-cm-p6px2px.dbx-cm-p6px2px.dbx-cm-p6px2px { color: var(--m); padding: 6px 2px; }

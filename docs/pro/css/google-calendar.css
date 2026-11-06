@@ -34,7 +34,7 @@
 .sp-or { font-size: 11px; color: var(--m); align-self: center; padding-bottom: 10px; }
 /* "Move to Crew Scheduled?" after a build date is saved (2026-10-03). 44px taps. */
 .sp-stage-offer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.sp-stage-chip { min-height: 44px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 22px; border: none; background: var(--orange, #e8720c); color: #fff; cursor: pointer; }
+.sp-stage-chip { min-height: 44px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 22px; border: none; background: var(--orange, #BD5728); color: #fff; cursor: pointer; }
 .sp-stage-no { min-height: 44px; padding: 10px 14px; font: inherit; font-size: 13px; border-radius: 22px; border: 1px solid var(--br); background: transparent; color: var(--m); cursor: pointer; }
 /* "Already completed" (2026-10-13): quiet backfill of a job that missed scheduling. 44px taps. */
 .sp-done-wrap { margin-top: 8px; }

@@ -5445,7 +5445,7 @@
       msg.textContent = '⚠ Your company’s saved rates just loaded and replaced ' + what
         + ' you had changed here. Those are company-wide: make the change again, then press Save. Your other settings are as you left them.';
       msg.setAttribute('data-kind', 'warn');
-      msg.style.color = 'var(--orange,#e8720c)';
+      msg.style.color = 'var(--orange,#BD5728)';
       clearTimeout(_v2SaveMsgTimer);
       _v2SaveMsgTimer = null;
     }
@@ -5878,7 +5878,7 @@
             : '✓ Estimate settings saved. Every linked estimate will use these rates.';
       const warn = pricingSaveFailed || companySkipped || upgradeSaveSkipped;
       msg.setAttribute('data-kind', warn ? 'warn' : 'ok');
-      msg.style.color = warn ? 'var(--orange,#e8720c)' : '#4caf82';
+      msg.style.color = warn ? 'var(--orange,#BD5728)' : '#4caf82';
       // A warning stays until the next save; only a clean save fades. One
       // timer, so an earlier save's fade can't blank a newer warning.
       clearTimeout(_v2SaveMsgTimer);

@@ -14,13 +14,13 @@
 .sgs-hint { margin-top: 4px; font-size: 12px; color: var(--m, #9aa3b2); }
 .sgs-choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .sgs-choice { min-height: 44px; padding: 10px 14px; font-size: 15px; font-weight: 600; border-radius: 22px; border: 1px solid var(--br, #2a2f3a); background: var(--s, #12151b); color: var(--t, #e5e7eb); cursor: pointer; }
-.sgs-choice.is-on { background: var(--orange, #e8720c); border-color: var(--orange, #e8720c); color: #fff; }
+.sgs-choice.is-on { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; }
 .sgs-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; cursor: pointer; }
 .sgs-check input { width: 22px; height: 22px; flex: none; }
 .sgs-err { min-height: 18px; font-size: 13px; color: #f87171; margin: 2px 0 8px; }
 .sgs-actions { display: flex; gap: 10px; }
 .sgs-btn { flex: 1; min-height: 48px; font-size: 16px; font-weight: 700; border-radius: 10px; cursor: pointer; }
 .sgs-cancel { background: transparent; color: var(--t, #e5e7eb); border: 1px solid var(--br, #2a2f3a); }
-.sgs-save { background: var(--orange, #e8720c); color: #fff; border: none; }
+.sgs-save { background: var(--orange, #BD5728); color: #fff; border: none; }
 .sgs-save:disabled { opacity: .6; }
 html.sgs-open, html.sgs-open body { overflow: hidden; }
