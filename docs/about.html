@@ -367,6 +367,8 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
   .about-photo { max-width:280px; }
 }
 .about-section { padding:72px 5%; }
+/* Line the sections up with the hero (a centred 1200px container). A global `section{padding-inline:max(5%,env(safe-area..)) !important}` rule forces the inline padding, so this needs !important. */
+.about-section { padding-left:max(5%,calc((100% - 1200px) / 2),env(safe-area-inset-left)) !important; padding-right:max(5%,calc((100% - 1200px) / 2),env(safe-area-inset-right)) !important; }
 .about-section.alt { background:var(--off-white); }
 .about-section.dark { background:var(--navy-dark); color:#fff; }
 .truth-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:40px; }
@@ -995,9 +997,8 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
       <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-120.webp 1x"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="36" height="40" loading="lazy" style="display:block;height:40px;width:auto"></picture>
       <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Verify on TAMKO.com →</span></span>
     </a>
-    <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
-      <img src="/assets/american-operator/american-operator-badge-120.png" alt="Locally Owned &amp; Operated — American Operator member badge" width="35" height="40" loading="lazy" style="display:block;height:40px;width:auto">
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">Locally Owned &amp; Operated<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">American Operator member →</span></span>
+    <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:0;text-decoration:none;line-height:1.2">
+      <picture class="nbd-pic"><source type="image/webp" srcset="/assets/american-operator/american-operator-banner-dark-520.webp"><img src="/assets/american-operator/american-operator-banner-dark-520.png" alt="Locally Owned &amp; Operated — certified by American Operator" width="260" height="44" loading="lazy" style="display:block;height:44px;width:auto;border-radius:6px"></picture>
     </a>
     <p style="font-size:.62rem;color:rgba(255,255,255,.78);line-height:1.6;flex:1;min-width:280px"><span data-nosnippet>Independent Contractor. Not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC. Contractors enrolled in GAF or TAMKO certification programs are not employees or agents of those manufacturers, and neither controls or otherwise supervises these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011. TAMKO®, TAMKO Pro™, ProShield® and HailGuard™ are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
   </div>
