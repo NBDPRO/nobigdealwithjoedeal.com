@@ -68,10 +68,17 @@
            companyId() === uid() || role === 'owner' || role === 'admin';
   }
 
+  // A rep with no display name used to default to — and SAVE — 'Joe', so
+  // another company's homeowners got texts from "Joe's assistant" (CRM audit
+  // 2026-11-06, ST-F53). Only the NBD platform tenant falls back to Joe; for
+  // anyone else it stays blank and the server fills it from the tenant.
   function defaultName() {
     var u = window._user || {};
     var n = (u.displayName || '').trim().split(/\s+/)[0];
-    return n || 'Joe';
+    if (n) return n;
+    var isNbd = false;
+    try { isNbd = typeof window._isNbdPlatformTenant === 'function' && !!window._isNbdPlatformTenant(); } catch (_) { isNbd = false; }
+    return isNbd ? 'Joe' : '';
   }
 
   function freshConfig() {
