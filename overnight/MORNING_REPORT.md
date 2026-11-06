@@ -22,15 +22,18 @@ Nothing was deployed. I merged nothing myself: #2894, #2897, #2899, #2900, #2903
 | [#2905](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2905) | site-visual | six pages get the phone logo size | L | merged |
 | [#2897](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2897) | a11y | `role=region` on sticky CTA strip + announcement bar (306 files, codemod `--check`) | L (wide, mechanical) | merged |
 | [#2903](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2903) | site-visual | project detail pages: header padding + phone logo match the rest (generator) | L | merged |
-| [#2904](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2904) | site-visual | area hero "Rather talk?" line centered on phones | L | open |
+| [#2904](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2904) | site-visual | area hero "Rather talk?" line centered on phones | L | merged |
 | [#2906](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2906) | site-ux | primary CTA >= 44 px | L | open |
 | [#2907](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2907) | a11y | heading-order + redundant-alt fixes (style measured identical) | L | open |
-| [#2908](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2908) | site-perf | 287 new -400 photo copies + srcset on case-study pages | L-M (5.7 MB binaries) | open |
-| [#2911](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2911) | site-visual | desktop header on the 33 blog posts and 7 product pages: nav labels no longer wrap to two lines, button 37-67 px -> 33 px on every post, logo no longer squeezed (new `blog-nav-fit.css`, codemod on 40 pages) | L | open |
+| [#2908](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2908) | site-perf | 287 new -400 photo copies + srcset on case-study pages | L-M (5.7 MB binaries) | merged |
+| [#2911](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2911) | site-visual | desktop header on the 33 blog posts and 7 product pages: nav labels no longer wrap to two lines, button 37-67 px -> 33 px on every post, logo no longer squeezed (new `blog-nav-fit.css`, codemod on 40 pages) | L | merged |
 | [#2914](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2914) | pro-ux | /pro/login phone text: every label under 12 px (9-11 px before) raised to 12 px at 900 px and below; Lighthouse Best Practices 93 -> 96; may need a CI re-bless of the 375/768 px login visual baselines | L | open |
 | [#2913](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2913) | site-visual | 18 service hub pages plus /careers and /partners: header side padding 24/20/40/56 -> 16 px at every width like the other 184 pages (`nav-pad-laptop.css` linked last, link order untouched) | L | open |
-| [#2912](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2912) | site-visual | project pages' header at 1025-1440 px matches the standard pages (logo 60 -> 50 px, labels 12.16 -> 11.2 px; generator inline rules, 48 pages) | L | open |
+| [#2912](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2912) | site-visual | project pages' header at 1025-1440 px matches the standard pages (logo 60 -> 50 px, labels 12.16 -> 11.2 px; generator inline rules, 48 pages) | L | merged |
 | [#2909](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2909) | site-ux | /inspect: every invalid field looks invalid, clears on edit (script v=9) | L | open |
+| [#2915](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2915) | pro-ux | public /pro pages (how-to, register, pricing, terms) failed axe contrast/link/heading/main rules (A11y 83-96): scoped stylesheet with the sanctioned light orange + white-at-72%, underlined in-text links, sidebar labels not headings, terms in `<main>`; how-to 81-98 contrast nodes -> 0; visual regression passed | L | open |
+| [#2916](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2916) | pro-ux | /pro/ tour panels `<article role=tabpanel>` -> `<div>` (axe aria-allowed-role), no visual change | L | open |
+| [#2917](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2917) | pro-ux | last axe `region` notes on /pro/how-to and /pro/pricing (aria-label + role=contentinfo, attribute-only) | L | open |
 
 Merge order: independent. Every PR adds one line to `documentation/INDEX.md` at the same spot, so each merge makes the others
 conflict on that file (keep both lines); Auto-fix has been resolving that. Optional checks that were red on some PRs
@@ -66,8 +69,7 @@ added: `scripts/overnight-serve.mjs`, `overnight-lh.mjs`, `overnight-shots.mjs`,
 1. 1600 px hero re-exports (NEEDS_JOE 2) then a `-1600` srcset step.
 2. Re-measure mobile TBT on service pages on a quiet machine / the weekly perf-watch, 3 runs, with and without `text-wrap: balance`.
 3. Header families: service hubs, /careers and /partners now share the 16 px side margin at every width (#2913); the project pages and blog/product pages have their own size rules (#2911, #2912).
-4. Public /pro pages beyond the four fixed in #2915: `/pro/` has one `aria-allowed-role` (role=tabpanel on `#step-estimate`); the CRM app pages (dashboard, customer, ...) still load render-blocking Google Fonts CSS although `nbd-fonts-pro.css` self-hosts Barlow; moving them needs a per-page weight audit (several pages ask for 800/900 weights and mono families the sheet does not carry) and belongs to the CRM speed lane.
-5. #2915 (public /pro contrast) is not in the PR table above: [#2915](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2915), public Pro pages pass axe contrast/link/heading/main rules (how-to 81-98 contrast nodes -> 0), visual regression passed.
+4. The CRM app pages (dashboard, customer, ...) still load render-blocking Google Fonts CSS although `nbd-fonts-pro.css` self-hosts Barlow; moving them needs a per-page weight audit (several pages ask for 800/900 weights and mono families the sheet does not carry) and belongs to the CRM speed lane. (The public /pro pages are axe-clean once #2915, #2916 and #2917 land.)
 
 ## Rollback
 Close any open PR; merged ones revert with `git revert`. No deploys, no data writes, no CRM logins. Worktree
