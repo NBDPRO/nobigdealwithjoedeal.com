@@ -5,7 +5,7 @@
 /* A .doc-btn that is a <button>: reset the UA look the same way the row's
    other buttons do (font-family, never the font shorthand — see rowHtml). */
 .doc-btn.doc-btn-plain { background: none; border: 0; cursor: pointer; font-family: inherit; }
-.doc-btn.doc-btn-review { color: var(--orange, #e8720c); font-weight: 600; }
+.doc-btn.doc-btn-review { color: var(--orange, #BD5728); font-weight: 600; }
 
 /* Home card */
 #homeEstimateFollowups[hidden] { display: none; }
