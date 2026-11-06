@@ -1940,6 +1940,11 @@
       _notifFirestoreSynced = true;
       _syncNotifSettingsFromFirestore();
     }
+    // Same for the per-device estimate settings the sign-out purge removed
+    // (ST-F01). Fire-and-forget.
+    if (typeof _hydrateEstimateSettingsFromFirestore === 'function') {
+      _hydrateEstimateSettingsFromFirestore();
+    }
     // Load custom claims for role-based access (Enterprise)
     // Claims include: companyId, role, plan, subscriptionStatus
     try {
@@ -6775,6 +6780,43 @@
   // Pull saved settings from Firestore userSettings/{uid}, cache to
   // localStorage, and refresh the UI if the panel is open. Tolerates
   // missing doc / missing notifications subfield (returns silently).
+  // Estimate settings (Settings → Estimates "Save All": markup / overhead /
+  // profit, cost basis, job + repair minimums, round-to, dump fee, extra-layer
+  // price) live per device in localStorage 'nbd_est_settings_v3', which the
+  // sign-out purge (nbd-auth.js) deletes so the next account on a shared
+  // device can't inherit them. _saveEstimateDefaultsV2 also writes the same
+  // patch to userSettings/{uid}.estimateSettingsV2 — but nothing ever read it
+  // back, so every sign-in after a sign-out (and every new device) priced at
+  // factory defaults while Settings said the values apply to every estimate
+  // (CRM audit 2026-11-06, ST-F01). Restore the signed-in user's OWN saved
+  // patch when this device has none. This device's own saved values win.
+  async function _hydrateEstimateSettingsFromFirestore() {
+    const KEY = 'nbd_est_settings_v3';
+    const _db = window._db || window.db;
+    const uid = window._user && window._user.uid;
+    if (!_db || !uid) return;
+    try { if (localStorage.getItem(KEY)) return; } catch (_) { return; }
+    try {
+      const { getDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
+      const snap = await (window.nbdRetryOffline || (f => f()))(() => getDoc(doc(_db, 'userSettings', uid)));
+      if (!snap.exists()) return;
+      const saved = snap.data() && snap.data().estimateSettingsV2;
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+      // The read is async: bail if the rep saved on this device meanwhile, or a
+      // different account signed in before it landed.
+      if (localStorage.getItem(KEY)) return;
+      if (!window._user || window._user.uid !== uid) return;
+      const EB2 = window.EstimateBuilderV2;
+      if (EB2 && typeof EB2.updateSettings === 'function') EB2.updateSettings(saved);
+      // Engine not loaded yet (lazy 'estimates' bundle): its loadSettings()
+      // merges a partial saved object over the defaults, so the patch alone is
+      // a valid store.
+      else localStorage.setItem(KEY, JSON.stringify(saved));
+    } catch (e) {
+      console.warn('Estimate settings server sync failed:', e && e.message);
+    }
+  }
+
   async function _syncNotifSettingsFromFirestore() {
     const _db = window._db || window.db;
     const uid = window._user && window._user.uid;
