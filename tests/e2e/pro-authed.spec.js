@@ -546,7 +546,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
         firstName: 'E2E', lastName: 'Invoice', address: est.addr, stage: 'new', meter: 'manual', e2eTestData: true,
       });
-      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      } catch (e) { const s = await fsLead.getDoc(leadRef).catch(() => null); if (!(s && s.exists())) throw e; } // a resend can also come back PERMISSION_DENIED (2026-11-05): read back
       est.leadId = leadRef.id;
       const estimateId = await saveEstimateTolerant(est);
       const invoiceId = await window.InvoicePipeline.createInvoiceFromEstimate(estimateId);
@@ -639,7 +639,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
         firstName: 'E2E', lastName: 'Photo', address: '742 Photo Test Ct, Cincinnati, OH', stage: 'new', meter: 'manual', e2eTestData: true,
       });
-      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      } catch (e) { const s = await fsLead.getDoc(leadRef).catch(() => null); if (!(s && s.exists())) throw e; } // a resend can also come back PERMISSION_DENIED (2026-11-05): read back
       const leadId = leadRef.id;
       const photo = await window.PhotoEngine.uploadFromFile(
         leadId, blob, ['before'], '[E2E] photo journey ' + args.stamp);
@@ -702,7 +702,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
           userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
           firstName: 'E2E', lastName: 'Dash Photo', address: '744 Photo Test Ct, Cincinnati, OH', stage: 'new', meter: 'manual', e2eTestData: true,
         });
-      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      } catch (e) { const s = await fsLead.getDoc(leadRef).catch(() => null); if (!(s && s.exists())) throw e; } // a resend can also come back PERMISSION_DENIED (2026-11-05): read back
       const leadId = leadRef.id;
       // Registry-only (Globals Tranche 3 T3-C, 2026-09-18), not a bare window global.
       const url = await window.__NBD_CALL_REGISTRY._uploadPhoto(leadId, file);

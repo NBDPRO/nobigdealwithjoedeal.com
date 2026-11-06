@@ -19,8 +19,10 @@
  *     receipt-inbox-logic.js). Its JSON is re-validated field by field, so a job id, an
  *     "approve" or any other extra key in the reply is dropped. The JOB is never chosen
  *     here at all: the screen suggests one with deterministic code and a person taps.
- *   - A document the reader calls personal / not a business receipt is DROPPED: the file
- *     is deleted from Storage and only its hash, a status and a counter are kept.
+ *   - A document the reader calls personal is NOT dropped by the server (Jo, 2026-11-05: text
+ *     printed on a document can steer that verdict). It is filed as needs_look with a red
+ *     "looks personal" warning; only a person's "Not a business receipt" tap drops it, and
+ *     onInboxReceiptDropped (below) then deletes the picture and records fileDeleted itself.
  *   - Receipt text is never logged. The raw model reply is never stored or logged.
  *   - The dedupe key is company scoped (the doc id), unlike the shared visionCache.
  *   - Credit memos are read as credits (positive cents, documentType 'credit'); the old
@@ -30,6 +32,7 @@
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -59,6 +62,9 @@ const READING_STALE_MS = 5 * 60 * 1000;
 // Booked on the company meter before each read, then settled to the real cost. Above a typical
 // read (a phone photo is ~$0.005, a long PDF a few cents) so the cap can only be undershot.
 const RESERVE_USD = 0.25;
+// The red warning a "personal" verdict becomes (server only, so the SHARED logic block is untouched).
+const LOOKS_PERSONAL = 'looks_personal';
+const PERSONAL_WARNING_TEXT = 'The reader thinks this is not a business receipt. If that is right, tap "Not a business receipt" below and the picture is deleted. If it is a business cost, check the details and approve it as usual.';
 
 // Dry-run unless the literal 'true' (kind 'enabled' in flags-registry.js).
 const enabled = () => process.env.RECEIPT_INBOX_ENABLED === 'true';
@@ -143,7 +149,12 @@ exports.submitInboxReceipt = onCall({
     const d = existing.data() || {};
     const recvMs = d.receivedAt && typeof d.receivedAt.toMillis === 'function' ? d.receivedAt.toMillis() : 0;
     const stale = d.status === 'reading' && recvMs && Date.now() - recvMs > READING_STALE_MS;
-    if (d.status !== 'failed' && !stale) return { inboxId, existing: true, status: d.status || 'ready', ...capInfo };
+    if (d.status !== 'failed' && !stale) {
+      // A teammate already filed these bytes (the key is company scoped). Say so plainly and hand
+      // back nothing of theirs: no inboxId, no status, and no second draft to count twice.
+      if (d.ownerUid && d.ownerUid !== uid) return { skipped: true, reason: 'teammate-has-it', ...capInfo };
+      return { inboxId, existing: true, status: d.status || 'ready', ...capInfo };
+    }
   }
 
   // ── Inbox cap: a hard stop AT the cap, checked before the reader is paid ──
@@ -264,21 +275,57 @@ exports.submitInboxReceipt = onCall({
   }
   const read = L.sanitizeInboxRead(parsed);
 
-  // Personal / not a business receipt: dropped. Delete the file, keep only the hash + a counter.
-  if (read.documentType === L.PERSONAL_DOC_TYPE) {
-    let deleted = true;
-    try { await getStorage().bucket().file(storagePath).delete(); } catch (e) { deleted = false; logger.warn('receipt-inbox.skip_delete_failed', { code: 'storage' }); }
-    const skipped = L.buildSkippedFields({ companyId, ownerUid: uid, fileHash, mime: contentType, model: MODEL, costUsd: callCostUsd });
-    if (!deleted) skipped.storagePath = storagePath;   // never claim a delete that did not happen
-    await ref.set({ ...skipped, receivedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    await cfgRef.set({ skippedPersonal: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    return { inboxId, status: 'not_business', spentUsd: spentAfter, capUsd: cap.capUsd };
-  }
-
   const fields = L.buildInboxDraftFields({
     read, companyId, ownerUid: uid, storagePath, fileHash, mime: contentType,
     model: MODEL, costUsd: callCostUsd, cardMap: cfg.cardMap, todayYmd: new Date().toISOString().slice(0, 10),
   });
+  // Personal / not a business receipt: kept, never deleted here (Jo, 2026-11-05). The reader's verdict
+  // can be steered by text printed on the document, so it is a red warning on a needs_look draft and the
+  // person decides. "Not a business receipt" on the card drops it (onInboxReceiptDropped deletes the file).
+  const looksPersonal = read.documentType === L.PERSONAL_DOC_TYPE;
+  if (looksPersonal) {
+    fields.status = 'needs_look';
+    fields.warnings = [{ code: LOOKS_PERSONAL, level: 'red', text: PERSONAL_WARNING_TEXT }].concat(fields.warnings || []);
+    await cfgRef.set({ flaggedPersonal: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
   await ref.set({ ...fields, receivedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-  return { inboxId, status: fields.status, costUsd: callCostUsd, spentUsd: spentAfter, capUsd: cap.capUsd };
+  return { inboxId, status: fields.status, looksPersonal, costUsd: callCostUsd, spentUsd: spentAfter, capUsd: cap.capUsd };
 }));
+
+// ── A person dropped a draft ("Not a business receipt"): the SERVER deletes the picture and records it ──
+// The screen used to delete the file and write fileDeleted itself, so a browser could claim a delete
+// that never happened (security review 2026-11-05). The rules no longer let a client write fileDeleted;
+// this trigger deletes the object (only inside the uploader's own inbox folder) and stamps the truth.
+async function handleDropped(before, after, inboxId, deps) {
+  if (!after || after.status !== 'not_business') return { action: 'none' };
+  if (before && before.status === 'not_business') return { action: 'none' };
+  const path = after.storagePath;
+  if (!path) return { action: 'none' };
+  if (!L.inboxPathOk(path, after.ownerUid)) {
+    deps.logger.warn('receipt-inbox.drop_bad_path', { inboxId });
+    return { action: 'refused' };
+  }
+  let gone = false;
+  try {
+    const file = deps.bucket().file(path);
+    try { await file.delete(); } catch (e) { if (!(e && (e.code === 404 || e.code === '404'))) throw e; }
+    const [exists] = await file.exists();
+    gone = !exists;
+  } catch (e) {
+    deps.logger.warn('receipt-inbox.drop_delete_failed', { inboxId, code: 'storage' });
+  }
+  await deps.db.doc('receipt_inbox/' + inboxId).set(
+    gone ? { fileDeleted: true, storagePath: null, updatedAt: FieldValue.serverTimestamp() }
+      : { fileDeleted: false, updatedAt: FieldValue.serverTimestamp() },
+    { merge: true });
+  return { action: gone ? 'deleted' : 'kept' };
+}
+
+exports.onInboxReceiptDropped = onDocumentUpdated(
+  { document: 'receipt_inbox/{inboxId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 60 },
+  async (event) => {
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    return handleDropped(before, after, event.params.inboxId, { db: getFirestore(), bucket: () => getStorage().bucket(), logger });
+  });
+exports._handleDropped = handleDropped;

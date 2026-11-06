@@ -75,6 +75,8 @@ async function run() {
   await seed('co-b__rcpt_theirs', draft('co-b', { fileHash: '5'.repeat(64) }));
   await seed('co-a__rcpt_viewers', draft('vera', { companyId: 'co-a', fileHash: '6'.repeat(64) }));
   await seed('co-a__rcpt_ten', draft('co-a', { fileHash: '7'.repeat(64) }));
+  // one fresh draft per 2026-11-05 decision-limit case, so each can fail on its own (no shared state)
+  for (const k of ['dk', 'dn', 'ds', 'dc', 'dok', 'fd']) await seed('co-a__rcpt_' + k, draft('co-a', { fileHash: k.padEnd(64, '0') }));
   await seed('co-a__rcpt_seven', draft('co-a', { fileHash: '9'.repeat(64) }));
   const exp = (uid, inboxId, over) => Object.assign({ userId: uid, companyId: uid === 'rep1' ? 'co-a' : uid, createdBy: uid, amountCents: 123456, taxCents: 8642, supplier: 'Acme Roof Supply', category: 'materials', costType: 'direct', source: 'inbox', inboxId, externalRef: 'rcpt_x' }, over || {});
   await seedExp('e-one', exp('co-a', 'co-a__rcpt_one'));
@@ -139,7 +141,9 @@ async function run() {
 
   // ── update: skip / not business / undo ──
   await check('skip', 'allow', updateDoc(ref(solo, 'co-a__rcpt_two'), decide('skipped', null, 'co-a')));
-  await check('not a business receipt (and the file was deleted by the client)', 'allow', updateDoc(ref(solo, 'co-a__rcpt_three'), decide('not_business', null, 'co-a', { fileDeleted: true })));
+  // fileDeleted is server-only since 2026-11-05 (onInboxReceiptDropped records the real delete).
+  await check('a browser cannot claim the picture was deleted (fileDeleted is server-only)', 'deny', updateDoc(ref(solo, 'co-a__rcpt_fd'), decide('not_business', null, 'co-a', { fileDeleted: true })));
+  await check('not a business receipt (the server deletes the picture and records it)', 'allow', updateDoc(ref(solo, 'co-a__rcpt_three'), decide('not_business', null, 'co-a')));
   await check('undo a skip back to ready (it has a read)', 'allow', updateDoc(ref(solo, 'co-a__rcpt_skipped'), { status: 'ready' }));
   await check('undo to needs_look is also allowed', 'allow', updateDoc(ref(solo, 'co-a__rcpt_two'), { status: 'needs_look' }));
   await check('undo on a dropped personal draft (no read) is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_personal'), { status: 'ready' }));
@@ -157,6 +161,13 @@ async function run() {
   await check('a decision that is not a map is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_six'), { status: 'skipped', decidedBy: 'co-a', decidedAt: now(), decision: 'x' }));
   const bigDecision = {}; for (let i = 0; i < 21; i++) bigDecision['k' + i] = i;
   await check('a decision with more than 20 keys is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_ten'), { status: 'skipped', decidedBy: 'co-a', decidedAt: now(), decision: bigDecision }));
+  // decision holds only the keys the screen writes, each bounded (2026-11-05).
+  const skipWith = (d) => ({ status: 'skipped', decidedBy: 'co-a', decidedAt: now(), decision: d });
+  await check('a decision key the screen never writes is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_dk'), skipWith({ note: 'skipped', extra: 'x' })));
+  await check('a decision note over 200 characters is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_dn'), skipWith({ note: 'n'.repeat(201) })));
+  await check('a decision note that is not a string is refused', 'deny', updateDoc(ref(solo, 'co-a__rcpt_ds'), skipWith({ note: { big: 'n'.repeat(50) } })));
+  await check('decision cents must be whole numbers', 'deny', updateDoc(ref(solo, 'co-a__rcpt_dc'), skipWith({ note: 'skipped', totalCents: 12.5 })));
+  await check('POSITIVE CONTROL: a 200-character note is allowed', 'allow', updateDoc(ref(solo, 'co-a__rcpt_dok'), skipWith({ note: 'n'.repeat(200) })));
 
   // ── the expense an approval creates (existing rules, re-tested with an inbox-created credit) ──
   const newExp = (db, id, over) => setDoc(doc(db, 'expenses/' + id), Object.assign({ userId: 'co-a', companyId: 'co-a', createdBy: 'co-a', amountCents: 95000, taxCents: 6784, supplier: 'Acme Roof Supply', category: 'materials', costType: 'direct', source: 'inbox', inboxId: 'co-a__rcpt_cr', externalRef: 'rcpt_cr', date: new Date('2026-06-10T00:00:00Z'), createdAt: serverTimestamp(), reviewState: 'assigned', entryType: 'credit', relatedExpenseId: 'e-coa-cost', creditRef: 'CM-77' }, over || {}));
