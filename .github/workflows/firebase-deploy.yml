@@ -360,7 +360,7 @@ jobs:
         if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && (vars.NBD_CONCAT || 'on') != '0' }}
         run: |
           set +e
-          node scripts/concat-shipped.js --write
+          node scripts/concat-shipped.js --write --maps-dir "$RUNNER_TEMP/nbd-sourcemaps"
           rc=$?
           set -e
           if [ $rc -ne 0 ]; then
@@ -395,7 +395,8 @@ jobs:
       # the readable source. Does NOTHING until the repo secret SENTRY_AUTH_TOKEN exists (an org token, sntrys_…, made
       # by Jo; it carries the org). Org defaults to the slug no-big-deal-q5, project to the DSN's project id (sentry-config.js);
       # set repo variables SENTRY_ORG / SENTRY_PROJECT to override. Soft-fail: a Sentry outage never blocks a deploy.
-      # Frames inside the deploy-joined _concat-*.js files are not mapped (the join runs after minify).
+      # Frames inside the deploy-joined _concat-*.js files are mapped too (2026-11-06): the join step writes a flat map
+      # per joined file into the same maps dir (scripts/lib/sourcemap-concat.js), built from each part's minify map.
       - name: Upload source maps to Sentry
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         env:
