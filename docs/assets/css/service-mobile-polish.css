@@ -1,4 +1,12 @@
 /* Service-page mobile polish: horizontal-scroll trust bar so hero CTA stays above fold. */
+/* Benefit strip under the hero on financing, fire-water-smoke-damage,
+   hail-damage-insurance-claim, roof-care-plan, roof-cleaning-soft-wash and
+   roof-inspection: the .trust-item blocks sit directly in .trust-bar (no
+   .trust-bar-inner wrapper), so on desktop they stacked in a jagged column.
+   Lay them out as one row, like the other service pages. Phones keep the list. */
+@media (min-width: 901px) {
+  .trust-bar:not(:has(.trust-bar-inner)) { display: flex; align-items: stretch; justify-content: space-around; padding-inline: max(40px, calc((100% - 1120px) / 2)); }
+}
 /*
   Breakpoint was 768px until 2026-09-08. The five trust items need 920px to sit
   side by side, so between 769px and 919px this media query had already switched
