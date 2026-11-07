@@ -218,6 +218,7 @@
     "createcompany-admin-claim-guard.test.js",
     "crm-audit.test.js",
     "dialogs-keyboard-2026-11-06.test.js",
+    "escape-layering-2026-11-06.test.js",
     "cron-heartbeat.test.js",
     "cust-id-prefix.test.js",
     "intl-formatter-cache-2026-10-26.test.js",

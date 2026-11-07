@@ -238,6 +238,10 @@
           close: () => { close(); resolve({ action: 'cancel' }); },
         });
       }
+      // Start on Cancel, not the first "open existing" match: Enter on a match
+      // navigates away from a half-typed Add Lead form (steward review of #2952).
+      const _cancelBtn = overlay.querySelector('#nbd-dedup-cancel');
+      if (_cancelBtn && typeof _cancelBtn.focus === 'function') _cancelBtn.focus();
 
       overlay.querySelectorAll('.nbd-dedup-match-btn').forEach(btn => {
         btn.addEventListener('click', () => {
