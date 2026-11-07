@@ -67,6 +67,14 @@
 
   function root() { return document.getElementById('callsList'); }
 
+  // This customer's 10-digit number, the key functions/call-center.js stamps on
+  // every phone_calls doc (phoneDigits). '' when the lead has no usable number.
+  function leadDigits() {
+    var L = window._leadDoc || {};
+    var d = String(L.phoneDigits || L.phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    return /^\d{10}$/.test(d) ? d : '';
+  }
+
   async function fetchCalls(leadId) {
     var db = window.db, auth = window.auth;
     var uid = auth && auth.currentUser && auth.currentUser.uid;
@@ -86,6 +94,32 @@
           snap.docs.forEach(function (d) { byId[sources[k][1] + ':' + d.id] = Object.assign({ _id: d.id, _kind: sources[k][1] }, d.data()); });
         } catch (e) {
           console.warn('[calls] read failed', sources[k][0], e && e.code);
+        }
+      }
+    }
+    // Calls matched by NUMBER (approved additive feature, CRM audit
+    // 2026-11-06, CU-F06): most recorded calls carry leadId null, so the
+    // leadId queries above missed them. Read-only, same two scopes the rules
+    // allow, and only calls not already attached to a DIFFERENT customer —
+    // a shared household number never claims someone else's call.
+    var pd = leadDigits();
+    if (pd) {
+      var pScopes = [[window.where('phoneDigits', '==', pd), window.where('userId', '==', uid)]];
+      if (['company_admin', 'manager', 'viewer'].indexOf(c.role || '') !== -1 && c.companyId) {
+        pScopes.push([window.where('phoneDigits', '==', pd), window.where('companyId', '==', c.companyId)]);
+      }
+      for (var j = 0; j < pScopes.length; j++) {
+        try {
+          var pq = window.query.apply(null, [window.collection(db, 'phone_calls')].concat(pScopes[j]).concat(window.limit ? [window.limit(50)] : []));
+          var psnap = await window.getDocs(pq);
+          psnap.docs.forEach(function (d) {
+            var data = d.data() || {};
+            if (data.leadId && data.leadId !== leadId) return;
+            var key = 'phone:' + d.id;
+            if (!byId[key]) byId[key] = Object.assign({ _id: d.id, _kind: 'phone', _byNumber: !data.leadId }, data);
+          });
+        } catch (e) {
+          console.warn('[calls] by-number read failed', e && e.code);
         }
       }
     }
@@ -120,6 +154,7 @@
     var when = c.startedAtMs ? new Date(c.startedAtMs) : null;
     var dir = c.direction === 'outbound' ? '↗ Outgoing' : c.direction === 'inbound' ? '↙ Incoming' : 'Call';
     var chips = chip(dir, 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
+    if (c._byNumber) chips += chip('Matched by number', 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
     if ((c.alternateLeadIds || []).length) chips += chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', '#78350f', '#fde68a');
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
     var summary = c.summary || (c.transcript ? '' : c.status === 'short' ? 'Short call (under 15 seconds).' : 'Recorded on your phone. Notes appear here once it is transcribed.');
@@ -138,7 +173,9 @@
     var acts = c.storagePath ? '<button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button>' : '';
     if (!isViewer()) {
       acts += '<button type="button" class="btn pc-play" data-calls-act="' + (c.handledAtMs ? 'pc-unhandled' : 'pc-handled') + '" data-call-id="' + esc(id) + '">' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' +
-        '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>';
+        // A call matched only by number is not filed on any customer, and the
+        // server refuses to move it (steward review of #2946): no move button.
+        (c._byNumber ? '' : '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>');
     }
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
@@ -436,7 +473,21 @@
   var tries = 0;
   (function wait() {
     var ready = window.db && window.auth && window.auth.currentUser && window._customerId && window.getDocs && window.collection;
-    if (ready) { load(); return; }
+    if (ready) {
+      load();
+      // The by-number half reads the lead's phones from window._leadDoc, which
+      // lands after _customerId on a cold load, so that first load had no
+      // number to match (steward review of #2946). Load once more when the lead
+      // doc lands (checked for ~12 s); filed calls show straight away.
+      if (!window._leadDoc) {
+        var leadTries = 0;
+        (function waitLead() {
+          if (window._leadDoc) { load(); return; }
+          if (++leadTries < 40) setTimeout(waitLead, 300);
+        })();
+      }
+      return;
+    }
     if (++tries < 100) setTimeout(wait, 300);
   })();
   window.addEventListener('nbd:data-refreshed', function () { load(); });

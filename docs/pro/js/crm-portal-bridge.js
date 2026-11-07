@@ -566,6 +566,7 @@ function editLead(id){
   setV('lLoanAmount', l.loanAmount||'');
   setV('lLoanStatus', l.loanStatus||'');
   setV('lPreQualLink', l.preQualLink||'');
+  setV('lDriveUrl', l.driveFolderUrl||'');
   // Job fields
   setV('lScheduledDate', l.scheduledDate||'');
   // Arrival window (2026-09-29): the preset + start/length/days this lead
