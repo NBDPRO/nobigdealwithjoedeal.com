@@ -643,6 +643,7 @@
     "css-token-resolution.test.js",
     "portal-error-states.test.js",
     "portal-preview-telemetry.test.js",
+    "docs-identity-2026-11-06.test.js",
     "portal-preview-framing.test.js",
     "csp-hardening-2026-10-05.test.js",
     "portal-share-recording.test.js",
