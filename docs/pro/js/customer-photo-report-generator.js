@@ -73,6 +73,18 @@ function addDocumentsToQueue(files) {
   // Without this guard, adding two files queued four entries and uploaded
   // each of them twice.
   const key = (f) => [f.name, f.size, f.lastModified || 0].join('|');
+  // CRM audit 2026-11-06 (CU-F22): a drop bypasses the input's accept=, and
+  // there was no size cap. Same list as accept= and the same 20 MB cap as
+  // customer-dnd-upload.js; anything else is skipped with a toast.
+  const _OK_EXT = /\.(pdf|docx?|xlsx?|jpe?g|png)$/i;
+  const _MAX = 20 * 1024 * 1024;
+  const _skip = [];
+  files = (files || []).filter((f) => {
+    if (!_OK_EXT.test(String(f && f.name || ''))) { _skip.push((f && f.name ? f.name : 'file') + ': not a supported type'); return false; }
+    if (f.size > _MAX) { _skip.push(f.name + ': too large (max 20 MB)'); return false; }
+    return true;
+  });
+  if (_skip.length && typeof window.showToast === 'function') window.showToast(_skip.join(' · '), 'error');
   const seen = new Set(window._docUploadQueue.map(it => key(it.file)));
   let added = 0;
   files.forEach(file => {

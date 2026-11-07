@@ -1833,9 +1833,11 @@ window.showPhotoActions = function(idx, event) {
   var card = document.createElement('div');
   card.style.cssText = 'background:var(--bg,#0f172a);border:1px solid var(--br,#2a2a4e);border-radius:16px;padding:24px;max-width:420px;width:90%;color:var(--t);font-family:system-ui,sans-serif;';
   
+  // CRM audit 2026-11-06 (CU-F16): http(s) only and escaped, like the grid.
+  var _thumbUrl = /^https?:/i.test(String(photo.url || '')) ? nbdEscFn()(photo.url) : '';
   card.innerHTML = '<div class="ct-head">' +
     '<div class="ct-row10">' +
-    '<img src="' + photo.url + '" loading="lazy" decoding="async" class="ct-thumb">' +
+    '<img src="' + _thumbUrl + '" alt="" loading="lazy" decoding="async" class="ct-thumb">' +
     '<div class="ct-title">Edit Photo</div></div>' +
     // The × was a bare 13x26 glyph; 40x40 is a thumb-sized target (2026-09-25).
     '<button data-action="_closePhotoActionPopup" aria-label="Close" class="ct-close">&times;</button></div>' +
