@@ -114,11 +114,22 @@ ok('follows the CRM router: a view made active opens its window', /S\.mo\.observ
 ok('opening an app goes through goTo (the one router)', /W\.goTo\(id\)/.test(OS));
 ok('unmount releases every view back to where it was', /Object\.keys\(st\.origins\)\.forEach\(function \(id\) \{ release\(id\); \}\)/.test(OS) && /o\.parent\.insertBefore\(v, o\.next\)/.test(OS));
 ok('no snapping while typing in a field', /\/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(tag\)/.test(OS));
-ok('saves through LayoutEngine.saveUser, normalised', /saveUser\(\{ layoutState: \{ os: st \} \}\)/.test(OS) && /WM\.normalizeState\(\{ wins: S\.wins/.test(OS));
+ok('saves through LayoutEngine.saveUser, normalised, and unmount flushes a pending save', /saveUser\(\{ layoutState: \{ os: st \} \}\)/.test(OS) && /WM\.normalizeState\(\{ wins: src\.wins/.test(OS) &&
+  /if \(saveT\) \{ clearTimeout\(saveT\); saveT = null; writeState\(st\); \}/.test(OS));
 ok('stylesheet: no hex colours', !/#[0-9a-fA-F]{3,8}\b/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
 ok('stylesheet: no transition: all, durations from tokens', !/transition:\s*all/.test(CSS) && (CSS.match(/transition:[^;]+/g) || []).every((s) => !/\d+m?s/.test(s.replace(/var\([^)]*\)/g, ''))));
 ok('stylesheet: windowed views show, the rest stay hidden', /\.os-win-body > \.view\.os-in-win \{ display: flex !important;/.test(CSS) && /\.content > \.view \{ display: none !important; \}/.test(CSS));
 ok('touch screens get the 44px floor on window controls', /@media \(pointer: coarse\)[\s\S]*?\.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
+
+const has = (src, s) => src.indexOf(s) !== -1;
+ok('phone: #mobile-nav hidden (the bar replaces it)', has(CSS, '[data-os-surface="phone"] #mobile-nav { display: none !important; }'));
+ok('phone: the bar is 62px + safe area, like #mobile-nav (FAB ladder clearance)', has(CSS, 'height: calc(62px + env(safe-area-inset-bottom, 0px)); padding: 0 2px env(safe-area-inset-bottom, 0px);'));
+ok('phone: home screen hides views; an open app hides the home screen',
+  has(CSS, ':not([data-os-app]) .content > .view { display: none !important; }') && has(CSS, '[data-os-app] .os-phone { display: none; }'));
+ok('phone: opening an app records it in recents and routes through goTo', has(OS, 'S.recent = WM.pushRecent(S.recent, id);') && has(OS, 'if (o.route !== false) goToView(id);'));
+ok('phone: the switcher is a modal dialog and Esc closes it', has(OS, "setAttribute('aria-modal', 'true')") && has(OS, 'if (S.switcherEl) { ev.preventDefault(); closeSwitcher(); }'));
+ok('crossing the phone breakpoint remounts the right shape', /unmount\(\);\s+mount\(\{ surface: now \}\);/.test(OS));
+ok('nothing loops: no infinite animations', !/infinite/.test(CSS));
 
 R._reset();
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

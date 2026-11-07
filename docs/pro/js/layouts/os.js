@@ -81,13 +81,13 @@
     return WM.normalizeState(raw, known);
   }
   var saveT = null;
+  function writeState(src) {
+    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, icons: src.icons, dock: src.dock, recent: src.recent }, null);
+    safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
+  }
   function save() {
     clearTimeout(saveT);
-    saveT = setTimeout(function () {
-      if (!S) return;
-      var st = WM.normalizeState({ wins: S.wins, focus: S.focus, icons: S.icons, dock: S.dock, recent: S.recent }, null);
-      safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
-    }, SAVE_MS);
+    saveT = setTimeout(function () { saveT = null; if (S) writeState(S); }, SAVE_MS);
   }
 
   // ── views in and out of windows ─────────────────────────────
@@ -548,8 +548,255 @@
   }
 
   // ═══ PHONE (phase 3) ═══════════════════════════════════════
-  function phoneOpen() {}
-  function mountPhone() {}
+  // A home screen (pages of app icons, a widget row) and one bottom bar in
+  // place of #mobile-nav, at the SAME 62px + safe area, so the FAB ladder's
+  // baked-in clearance still holds: Home, four dock apps, Recents. An open
+  // app is the real view, full screen, exactly as the CRM draws it. Swipe up
+  // on the bar to go home; long-press it (or tap Recents) for the switcher.
+  var PER_PAGE = 20;   // 4 columns x 5 rows
+  function phoneIconHtml(a, extraClass) {
+    var sel = S.editPick === a.id;
+    return '<button type="button" class="os-p-icon' + (extraClass || '') + (sel ? ' is-picked' : '') + '" data-osp="app" data-id="' + esc(a.id) + '"' +
+      (S.editing ? ' aria-pressed="' + (sel ? 'true' : 'false') + '"' : '') + '>' +
+      '<span class="os-p-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span>' +
+      '<span class="os-p-label">' + esc(a.label) + '</span></button>';
+  }
+  function phonePaint() {
+    if (!S || !S.phoneEl) return;
+    var ordered = WM.orderApps(S.apps, S.icons);
+    var pages = WM.pages(ordered, PER_PAGE);
+    var c = L.clockText(new Date());
+    var h = '<div class="os-p-widgets">' +
+      '<div class="os-p-clock"><div class="os-p-time ui-num">' + esc(c.time) + '</div><div class="os-p-date">' + esc(c.date) + '</div></div>' +
+      '<div class="os-p-quick">' +
+        '<button type="button" class="btn btn-orange os-p-qbtn" data-osp="newlead">New lead</button>' +
+        '<button type="button" class="btn btn-ghost os-p-qbtn" data-osp="search">Search</button>' +
+      '</div></div>';
+    if (S.editing) {
+      h += '<div class="os-p-edit" role="status"><span>' + esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : 'Tap an app, then tap where it goes.') +
+        '</span><button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
+    }
+    h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
+      return '<div class="os-p-page" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
+        pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
+    }).join('') + '</div>';
+    if (pages.length > 1) {
+      h += '<div class="os-p-dots" aria-hidden="true">' + pages.map(function (pg, i) {
+        return '<span class="os-p-dot' + (i === (S.page || 0) ? ' is-on' : '') + '"></span>';
+      }).join('') + '</div>';
+    }
+    S.phoneEl.innerHTML = h;
+    var pagesEl = S.phoneEl.querySelector('.os-p-pages');
+    if (pagesEl && S.page) pagesEl.scrollLeft = S.page * pagesEl.clientWidth;
+    paintBar();
+  }
+  function paintBar() {
+    if (!S || !S.barEl) return;
+    var dock = WM.dockApps(S.apps, S.dock);
+    var home = !S.phoneOpen;
+    S.barEl.innerHTML =
+      '<button type="button" class="os-bar-btn os-bar-home' + (home ? ' is-on' : '') + '" data-osp="home" aria-label="Home screen"' + (home ? ' aria-current="page"' : '') + '>' +
+        '<span class="os-bar-glyph" aria-hidden="true">⌂</span><span class="os-bar-label">Home</span></button>' +
+      dock.map(function (a, i) {
+        var on = S.phoneOpen === a.id;
+        var sel = S.editing && S.editPick;
+        return '<button type="button" class="os-bar-btn' + (on ? ' is-on' : '') + (sel ? ' is-target' : '') + '" data-osp="' + (S.editing ? 'dockslot' : 'app') + '" data-id="' + esc(a.id) + '" data-slot="' + String(i) + '"' +
+          (on ? ' aria-current="page"' : '') + '>' +
+          '<span class="os-bar-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span><span class="os-bar-label">' + esc(a.label) + '</span></button>';
+      }).join('') +
+      '<button type="button" class="os-bar-btn" data-osp="recents" aria-label="Recent apps" aria-haspopup="dialog">' +
+        '<span class="os-bar-glyph" aria-hidden="true">❏</span><span class="os-bar-label">Recents</span></button>';
+  }
+  function phoneOpen(id, opts) {
+    var o = opts || {};
+    if (!S || !viewEl(id)) return;
+    closeSwitcher();
+    S.phoneOpen = id;
+    S.recent = WM.pushRecent(S.recent, id);
+    doc.documentElement.setAttribute('data-os-app', id);
+    if (o.route !== false) goToView(id);
+    paintBar();
+    save();
+  }
+  function phoneHome() {
+    if (!S) return;
+    closeSwitcher();
+    S.phoneOpen = null;
+    doc.documentElement.removeAttribute('data-os-app');
+    if (S.editing) { S.editing = false; S.editPick = null; }
+    phonePaint();
+    var p = S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
+    if (p) p.focus({ preventScroll: true });
+  }
+
+  // ── app switcher ──
+  function openSwitcher() {
+    if (!S || S.switcherEl) return;
+    var el = doc.createElement('div');
+    el.id = 'osSwitcher';
+    el.className = 'os-switcher';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Recent apps');
+    S.switcherEl = el;
+    S.switcherReturn = doc.activeElement;
+    doc.body.appendChild(el);
+    paintSwitcher();
+    var first = el.querySelector('button');
+    if (first) first.focus();
+  }
+  function paintSwitcher() {
+    var el = S && S.switcherEl;
+    if (!el) return;
+    var cards = S.recent.filter(function (id) { return !!viewEl(id); });
+    el.innerHTML = '<div class="os-sw-hd"><h2 class="ui-heading os-sw-title">Recent apps</h2>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-osp="swclose">Close</button></div>' +
+      (cards.length ? '<ul class="os-sw-cards">' + cards.map(function (id) {
+        var a = appById(id);
+        return '<li class="os-sw-card" data-id="' + esc(id) + '">' +
+          '<button type="button" class="os-sw-open" data-osp="swopen" data-id="' + esc(id) + '">' +
+            '<span class="os-sw-glyph" aria-hidden="true">' + esc(a && a.icon ? a.icon : '▣') + '</span>' +
+            '<span class="os-sw-name">' + esc(appLabel(id)) + '</span>' +
+            (S.phoneOpen === id ? '<span class="ui-badge is-accent">Open</span>' : '') + '</button>' +
+          '<button type="button" class="os-sw-x" data-osp="swremove" data-id="' + esc(id) + '" aria-label="Remove ' + esc(appLabel(id)) + ' from recents">✕</button></li>';
+      }).join('') + '</ul><div class="os-sw-foot"><button type="button" class="ui-btn-quiet" data-osp="swclear">Clear all</button></div>'
+        : '<div class="ui-empty"><div class="ui-heading">No recent apps</div><p class="ui-caption">Apps you open show up here.</p></div>');
+  }
+  function closeSwitcher() {
+    if (!S || !S.switcherEl) return;
+    if (S.switcherEl.parentNode) S.switcherEl.parentNode.removeChild(S.switcherEl);
+    S.switcherEl = null;
+    var back = S.switcherReturn;
+    S.switcherReturn = null;
+    if (back && typeof back.focus === 'function' && doc.contains(back)) back.focus();
+  }
+  function removeRecent(id) {
+    S.recent = S.recent.filter(function (x) { return x !== id; });
+    if (S.phoneOpen === id) { phoneHome(); openSwitcher(); }
+    paintSwitcher();
+    save();
+  }
+
+  // ── edit mode: tap an app, then tap where it goes ──
+  function editTap(id, slot) {
+    if (!S.editPick) { if (slot == null) S.editPick = id; phonePaint(); return; }
+    var pick = S.editPick;
+    S.editPick = null;
+    if (slot != null) {
+      var dock = WM.dockApps(S.apps, S.dock).map(function (a) { return a.id; });
+      var at = dock.indexOf(pick);
+      if (at !== -1) dock[at] = dock[slot];   // moving within the dock swaps
+      dock[slot] = pick;
+      S.dock = dock;
+    } else if (id !== pick) {
+      var order = WM.orderApps(S.apps, S.icons).map(function (a) { return a.id; });
+      var i = order.indexOf(pick), j = order.indexOf(id);
+      if (i !== -1 && j !== -1) { order[i] = id; order[j] = pick; S.icons = order; }
+    }
+    phonePaint();
+    save();
+  }
+
+  function onPhoneClick(ev) {
+    var t = ev.target.closest && ev.target.closest('[data-osp]');
+    if (!t) return;
+    if (S.barSwiped) { S.barSwiped = false; ev.preventDefault(); return; }
+    var what = t.getAttribute('data-osp');
+    var id = t.getAttribute('data-id');
+    if (what === 'app') {
+      if (S.longPressed) { S.longPressed = false; return; }
+      if (S.editing) return editTap(id, null);
+      return phoneOpen(id);
+    }
+    if (what === 'dockslot') return editTap(id, Number(t.getAttribute('data-slot')));
+    if (what === 'home') return phoneHome();
+    if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
+    if (what === 'done') { S.editing = false; S.editPick = null; return phonePaint(); }
+    if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
+    if (what === 'search') return openSearch();
+    if (what === 'swclose') return closeSwitcher();
+    if (what === 'swopen') return phoneOpen(id);
+    if (what === 'swremove') return removeRecent(id);
+    if (what === 'swclear') { S.recent = []; if (S.phoneOpen) phoneHome(); paintSwitcher(); save(); }
+  }
+  // long-press an icon -> edit mode; swipe up / long-press on the bar -> home / switcher
+  function onPhoneDown(ev) {
+    var icon = ev.target.closest && ev.target.closest('.os-p-icon');
+    var bar = ev.target.closest && ev.target.closest('.os-bar');
+    if (!icon && !bar) return;
+    S.press = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId, bar: !!bar, fired: false };
+    clearTimeout(S.pressT);
+    S.pressT = setTimeout(function () {
+      if (!S || !S.press) return;
+      S.press.fired = true;
+      if (S.press.bar) { S.barSwiped = true; openSwitcher(); }
+      else if (!S.editing) { S.editing = true; S.editPick = null; S.longPressed = true; phonePaint(); }
+    }, 550);
+  }
+  function onPhoneMove(ev) {
+    var p = S && S.press;
+    if (!p || ev.pointerId !== p.pid) return;
+    if (Math.abs(ev.clientX - p.x) + Math.abs(ev.clientY - p.y) > 10) clearTimeout(S.pressT);
+  }
+  function onPhoneUp(ev) {
+    var p = S && S.press;
+    if (!p || ev.pointerId !== p.pid) return;
+    clearTimeout(S.pressT);
+    S.press = null;
+    if (p.bar && !p.fired && p.y - ev.clientY > 36 && S.phoneOpen) { S.barSwiped = true; phoneHome(); }
+  }
+  function onPagesScroll() {
+    var p = S && S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
+    if (!p || !p.clientWidth) return;
+    var page = Math.round(p.scrollLeft / p.clientWidth);
+    if (page === S.page) return;
+    S.page = page;
+    var dots = S.phoneEl.querySelectorAll('.os-p-dot');
+    for (var i = 0; i < dots.length; i++) dots[i].classList.toggle('is-on', i === page);
+  }
+
+  function mountPhone() {
+    var content = doc.querySelector('.content');
+    if (!content) return;
+    S.contentEl = content;
+    var home = doc.createElement('div');
+    home.id = 'osPhone';
+    home.className = 'os-phone';
+    content.appendChild(home);
+    S.phoneEl = home;
+    var bar = doc.createElement('nav');
+    bar.id = 'osBar';
+    bar.className = 'os-bar';
+    bar.setAttribute('aria-label', 'Apps');
+    doc.body.appendChild(bar);
+    S.barEl = bar;
+    var st = savedState();
+    S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
+    S.wins = st.wins;   // kept as-is so a laptop session survives a phone visit
+    S.focus = st.focus;
+    S.page = 0;
+    phonePaint();
+    S.clockT = setInterval(function () {
+      var t = S && S.phoneEl && S.phoneEl.querySelector('.os-p-time');
+      if (t) t.textContent = L.clockText(new Date()).time;
+    }, 30000);
+    [home, bar].forEach(function (el) {
+      on(el, 'click', onPhoneClick);
+      on(el, 'pointerdown', onPhoneDown);
+    });
+    on(doc, 'click', function (ev) { if (S.switcherEl && S.switcherEl.contains(ev.target)) onPhoneClick(ev); });
+    on(doc, 'pointermove', onPhoneMove);
+    on(doc, 'pointerup', onPhoneUp);
+    on(doc, 'pointercancel', onPhoneUp);
+    on(home, 'scroll', onPagesScroll, true);
+    on(doc, 'keydown', function (ev) {
+      if (ev.key !== 'Escape') return;
+      if (S.switcherEl) { ev.preventDefault(); closeSwitcher(); }
+      else if (S.editing) { S.editing = false; S.editPick = null; phonePaint(); }
+    });
+    // the phone opens on the home screen
+    doc.documentElement.removeAttribute('data-os-app');
+  }
 
   // ═══ mount / unmount ═══════════════════════════════════════
   function mount(ctx) {
@@ -562,6 +809,19 @@
     doc.documentElement.setAttribute('data-os-surface', S.surface === 'phone' ? 'phone' : 'desk');
     if (S.surface === 'phone') mountPhone(); else mountDesk();
     watchViews();
+    // Crossing the phone breakpoint keeps the same layout id, so the engine
+    // won't remount it: switch between the desktop and the home screen here.
+    var surfT = null;
+    on(W, 'resize', function () {
+      clearTimeout(surfT);
+      surfT = setTimeout(function () {
+        if (!S) return;
+        var now = safe(function () { return W.LayoutEngine.surface(); }) || S.surface;
+        if ((now === 'phone') === (S.surface === 'phone')) return;
+        unmount();
+        mount({ surface: now });
+      }, 250);
+    });
     // the sidebar is filled per role after auth: refresh the app list once it settles
     S.appsT = setTimeout(function () {
       if (!S) return;
@@ -569,15 +829,19 @@
       if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); }
     }, 3000);
   }
-  function phonePaint() {}
   function unmount() {
     if (!S) return;
     var st = S;
-    clearTimeout(saveT); clearInterval(st.clockT); clearTimeout(st.appsT);
+    // a change still waiting to be saved is written now, not dropped
+    if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
+    clearInterval(st.clockT); clearTimeout(st.appsT);
     if (st.mo) st.mo.disconnect();
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });
-    ['osDesk', 'osPhone'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
+    if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);
+    clearTimeout(st.pressT);
+    doc.documentElement.removeAttribute('data-os-app');
+    ['osDesk', 'osPhone', 'osBar'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
     doc.documentElement.removeAttribute('data-os-surface');
     S = null;
   }
