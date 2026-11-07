@@ -424,8 +424,9 @@
   function startListHtml(q) {
     var term = String(q || '').trim().toLowerCase();
     var list = S.apps.filter(function (a) { return !term || a.label.toLowerCase().indexOf(term) !== -1 || a.id.indexOf(term) !== -1; });
-    if (!list.length) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
-    return list.map(function (a) {
+    var visits = visitStartRows(term);
+    if (!list.length && !visits) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
+    return visits + list.map(function (a) {
       var pinned = S.pins.indexOf(a.id) !== -1;
       return '<li class="os-start-row"><button type="button" class="os-start-app" data-osapp="' + esc(a.id) + '"><span aria-hidden="true">' + esc(a.icon || '▣') + '</span> ' + esc(a.label) + '</button>' +
         '<button type="button" class="os-start-pin' + (pinned ? ' is-on' : '') + '" data-ospin="' + esc(a.id) + '" aria-pressed="' + (pinned ? 'true' : 'false') + '" aria-label="' + esc((pinned ? 'Unpin ' : 'Pin ') + a.label + ' to the taskbar') + '">📌</button></li>';
@@ -476,6 +477,7 @@
         '<button type="button" class="os-start-btn" data-osdo="start" aria-expanded="false" aria-controls="osStart">' +
           '<span class="os-start-mark" aria-hidden="true"></span><span>Start</span></button>' +
         '<button type="button" class="os-task os-overview-btn" data-osdo="overview" aria-pressed="false" aria-label="Overview: every window on this desk">▦</button>' +
+        '<div class="os-visit-slot"></div>' +
         '<div class="os-task-list" role="group" aria-label="Pinned and open apps"></div>' +
         '<div class="os-desks" role="group" aria-label="Desks"></div>' +
         '<button type="button" class="os-task os-show-desk" data-osdo="desktop" aria-label="Show desktop">▭</button>' +
@@ -491,6 +493,8 @@
     S.startBtn = desk.querySelector('.os-start-btn');
     S.desksEl = desk.querySelector('.os-desks');
     S.overviewBtn = desk.querySelector('.os-overview-btn');
+    S.visitTaskEl = desk.querySelector('.os-visit-slot');
+    S.visitTaskEl.innerHTML = visitTaskHtml();
     applyButtonStyle();
     paintIcons();
     paintClock();
@@ -593,6 +597,8 @@
     var t = ev.target;
     if (!t.closest) return;
     if (S.iconDragged) { S.iconDragged = false; ev.preventDefault(); return; }
+    var vz = t.closest('[data-osvisit]');
+    if (vz) { onVisitTap(vz); return; }
     if (S.overview && !t.closest('.os-taskbar')) {
       var pick = t.closest('.os-win');
       ev.preventDefault();
@@ -761,6 +767,7 @@
       h += '<div class="os-p-edit" role="status"><span>' + esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : 'Tap an app, then tap where it goes.') +
         '</span><button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
     }
+    if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
       return '<div class="os-p-page" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
         pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
@@ -782,6 +789,7 @@
     S.barEl.innerHTML =
       '<button type="button" class="os-bar-btn os-bar-home' + (home ? ' is-on' : '') + '" data-osp="home" aria-label="Home screen"' + (home ? ' aria-current="page"' : '') + '>' +
         '<span class="os-bar-glyph" aria-hidden="true">⌂</span><span class="os-bar-label">Home</span></button>' +
+      (S.editing ? '' : visitBarHtml()) +
       dock.map(function (a, i) {
         var on = S.phoneOpen === a.id;
         var sel = S.editing && S.editPick;
@@ -883,6 +891,8 @@
   }
 
   function onPhoneClick(ev) {
+    var vz = ev.target.closest && ev.target.closest('[data-osvisit]');
+    if (vz) { onVisitTap(vz); return; }
     var t = ev.target.closest && ev.target.closest('[data-osp]');
     if (!t) return;
     if (S.barSwiped) { S.barSwiped = false; ev.preventDefault(); return; }
@@ -984,6 +994,99 @@
   }
 
   // ═══ mount / unmount ═══════════════════════════════════════
+  // ═══ VISITS (2026-11-07) ═══════════════════════════════════
+  // Record visit, Recent visits and Unfiled visits as NBD OS apps (Joe's pick).
+  // The floating round record button is Classic's and Bento's: here its
+  // bottom-left corner is the taskbar's Start button. They are actions, not
+  // views, so they never open a window. Record and Recent carry the visit
+  // recorder launcher's own delegate attributes ([data-nbd-record-visit] /
+  // [data-nbd-recent-visits]), the one path every entry point takes; Unfiled
+  // calls NBDVisitRecorderLauncher.openUnfiled(). Where they sit:
+  //   desktop: a Record visit button on the taskbar (after Overview) and a
+  //            Visits group at the top of the Start menu
+  //   phone:   Record in the bar after Home, and a Visits row on the home screen
+  // The unfiled count rides on Record as a badge and names the Unfiled item,
+  // which shows only while there is something unfiled.
+  var UNFILED_KEY = 'nbd_vr_unfiled';
+  function unfiledCount() {
+    try { return parseInt(W.localStorage.getItem(UNFILED_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+  }
+  function visitBadge(n) {
+    return n > 0 ? '<span class="os-visit-badge ui-num" aria-hidden="true">' + String(n) + '</span>' : '';
+  }
+  function recLabel(n) { return 'Record visit' + (n > 0 ? ', ' + String(n) + ' unfiled' : ''); }
+  function visitAttrs(kind) {
+    if (kind === 'record') return ' data-osvisit="record" data-nbd-record-visit="" data-source="fab"';
+    if (kind === 'recent') return ' data-osvisit="recent" data-nbd-recent-visits=""';
+    return ' data-osvisit="unfiled"';
+  }
+  var REC_GLYPH = '<span class="os-rec-glyph" aria-hidden="true"></span>';
+  /** The visit apps a list should show, filtered by a Start-menu search term. */
+  function visitItems(term) {
+    var n = unfiledCount();
+    var items = [{ kind: 'record', label: 'Record visit' }, { kind: 'recent', label: 'Recent visits', icon: '🕘' }];
+    if (n > 0) items.push({ kind: 'unfiled', label: 'Unfiled visits (' + String(n) + ')', icon: '📥' });
+    var q = String(term || '').trim().toLowerCase();
+    return q ? items.filter(function (it) { return it.label.toLowerCase().indexOf(q) !== -1 || 'visit'.indexOf(q) === 0; }) : items;
+  }
+  function visitGlyph(it, cls) {
+    return it.kind === 'record' ? REC_GLYPH : '<span class="' + esc(cls) + '" aria-hidden="true">' + esc(it.icon) + '</span>';
+  }
+  function visitTaskHtml() {
+    var n = unfiledCount();
+    return '<button type="button" class="os-task os-visit-task"' + visitAttrs('record') + ' aria-label="' + esc(recLabel(n)) + '">' +
+      REC_GLYPH + '<span class="os-task-label">Record visit</span>' + visitBadge(n) + '</button>';
+  }
+  function visitStartRows(term) {
+    var items = visitItems(term);
+    if (!items.length) return '';
+    return '<li class="os-start-group ui-eyebrow" aria-hidden="true">Visits</li>' + items.map(function (it) {
+      return '<li class="os-start-row"><button type="button" class="os-start-app os-visit-app"' + visitAttrs(it.kind) + '>' +
+        visitGlyph(it, 'os-start-glyph') + ' ' + esc(it.label) + '</button></li>';
+    }).join('');
+  }
+  function visitBarHtml() {
+    var n = unfiledCount();
+    return '<button type="button" class="os-bar-btn os-bar-rec"' + visitAttrs('record') + ' aria-label="' + esc(recLabel(n)) + '">' +
+      '<span class="os-bar-glyph" aria-hidden="true">' + REC_GLYPH + visitBadge(n) + '</span><span class="os-bar-label">Record</span></button>';
+  }
+  function visitPhoneRowHtml() {
+    return '<div class="os-p-visits" role="group" aria-label="Visits">' + visitItems('').map(function (it) {
+      return '<button type="button" class="os-p-icon os-visit-icon' + (it.kind === 'record' ? ' is-rec' : '') + '"' + visitAttrs(it.kind) + '>' +
+        '<span class="os-p-glyph" aria-hidden="true">' + (it.kind === 'record' ? REC_GLYPH : esc(it.icon)) + '</span>' +
+        '<span class="os-p-label">' + esc(it.label) + '</span></button>';
+    }).join('') + '</div>';
+  }
+  /** A tap on a visit app: close the Start menu; Unfiled opens its sheet here,
+   *  Record and Recent go on to the launcher's document delegate. */
+  function onVisitTap(el) {
+    if (S && S.startOpen) setStart(false);
+    if (el.getAttribute('data-osvisit') !== 'unfiled') return;
+    var Lv = W.NBDVisitRecorderLauncher;
+    if (Lv && typeof Lv.openUnfiled === 'function') safe(function () { Lv.openUnfiled(); });
+  }
+  function paintVisits() {
+    if (!S) return;
+    if (S.surface === 'phone') { if (S.phoneEl) phonePaint(); return; }
+    if (S.visitTaskEl) S.visitTaskEl.innerHTML = visitTaskHtml();
+    if (S.startOpen) S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(S.startEl.querySelector('input').value);
+  }
+  /** Keep the unfiled count true: another tab's write, and the recorder's own change events once it loads. */
+  function watchVisits() {
+    on(W, 'storage', function (e) { if (e && e.key === UNFILED_KEY) paintVisits(); });
+    var tries = 0;
+    (function sub() {
+      if (!S) return;
+      var R = W.NBDVisitRecorder;
+      if (R && typeof R.subscribe === 'function') {
+        var off = R.subscribe(function (k) { if (k === 'counters') paintVisits(); });
+        if (typeof off === 'function') S.unbind.push(off);
+        return;
+      }
+      if (++tries <= 40) S.visitT = setTimeout(sub, 3000);   // the recorder loads ~4 s after the page settles
+    })();
+  }
+
   function mount(ctx) {
     if (S) return;
     S = {
@@ -995,6 +1098,7 @@
     doc.documentElement.setAttribute('data-os-surface', S.surface === 'phone' ? 'phone' : 'desk');
     if (S.surface === 'phone') mountPhone(); else mountDesk();
     watchViews();
+    watchVisits();
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1020,7 +1124,7 @@
     var st = S;
     // a change still waiting to be saved is written now, not dropped
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
-    clearInterval(st.clockT); clearTimeout(st.appsT);
+    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT);
     if (st.mo) st.mo.disconnect();
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });

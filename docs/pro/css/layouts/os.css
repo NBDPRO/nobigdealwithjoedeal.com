@@ -354,3 +354,36 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
   .os-desk-btn, .os-start-pin { width: 44px; height: 44px; }
   .os-deskmenu-item { min-height: 44px; }
 }
+
+/* ── visits (2026-11-07): Record visit, Recent visits, Unfiled visits as apps ──
+   The floating round record button is Classic's and Bento's; NBD OS draws
+   them in its own taskbar, Start menu, phone bar and home screen (os.js
+   VISITS). The glyph is that button in small: orange disc, white ring, red
+   centre. */
+.os-rec-glyph {
+  display: inline-block; flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+  background: radial-gradient(circle, var(--red) 0 27%, white 29% 50%, var(--orange) 52%);
+}
+.os-visit-badge {
+  display: inline-block; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: color-mix(in srgb, var(--red) 82%, black); color: white;
+  font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums;
+}
+/* taskbar: right after Overview, the label in full */
+.os-visit-slot { display: flex; }
+.os-visit-task { gap: 8px; color: var(--t); font-weight: 700; }
+/* Start menu: a "Visits" group above the apps */
+.os-start-group { grid-column: 1 / -1; padding: var(--ui-space-2, 8px) var(--ui-space-2, 8px) 2px; }
+.os-start-glyph { display: inline-block; width: 20px; text-align: center; }
+/* phone bar: Record after Home; its glyph is bigger, the badge on its corner */
+.os-bar-rec { color: var(--t); }
+.os-bar-rec .os-bar-glyph { position: relative; display: inline-flex; }
+.os-bar-rec .os-rec-glyph { width: 26px; height: 26px; }
+.os-bar-rec .os-visit-badge { position: absolute; top: -6px; right: -14px; box-shadow: 0 0 0 2px var(--s); }
+/* phone home screen: the Visits row above the app pages */
+.os-p-visits {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ui-space-2, 8px) 4px;
+  padding: 0 var(--ui-space-3, 12px) var(--ui-space-2, 8px);
+}
+.os-visit-icon.is-rec .os-p-glyph { background: var(--orange); border-color: var(--orange); }
+.os-visit-icon.is-rec .os-rec-glyph { width: 34px; height: 34px; background: radial-gradient(circle, var(--red) 0 30%, white 32%); }

@@ -6,7 +6,7 @@
  *      focus after close/minimise, icon order, the saved-state guard
  *      (unknown apps dropped, bounded, under the registry's 12 KB cap), and
  *      the phone helpers (pages, recent apps, dock).
- *   2. wiring (static): the layout is registered DARK behind `osLayout`, its
+ *   2. wiring (static): the layout is registered behind `osLayout` (on unless set false, 2026-11-07), its
  *      needs load the shared logic first, os.js escapes every value it puts in
  *      markup, positions through CSS custom properties only, follows the CRM
  *      router instead of replacing it, puts every view back on unmount, and
