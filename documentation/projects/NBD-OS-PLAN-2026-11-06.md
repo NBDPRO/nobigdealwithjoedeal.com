@@ -11,6 +11,32 @@ Jo's answers on 2026-11-06:
 Jo then asked for all phases to be written out first and worked through
 without check-ins until done.
 
+## Update, 2026-11-07: on for everyone, nothing dark
+
+Joe: "i want to completely turn it on live nothing dark", for every tenant.
+The flag sections below are history; what is true now:
+
+- **Both flags are on by default.** `layout-system.js` reads `osLayout` and
+  `osSystemLayer` as on unless `feature_flags` sets them to exactly `false`
+  (live, and from the per-account cache before the flags load). With nothing
+  written anywhere, every tenant gets the system layer (tray, Control Center,
+  Notification Center, Spotlight, boot and lock screens) over whatever layout
+  they use, and NBD OS is in every layout picker. It is still a layout, picked
+  like any other, never forced.
+- **Kill switch, no deploy:** write `osSystemLayer: false` and/or
+  `osLayout: false` in `feature_flags/_default` (everyone) or one uid's doc.
+- **Record visit lives in the OS** (Joe's pick): a Record visit button on the
+  taskbar and a Visits group at the top of the Start menu on a laptop; Record
+  in the bar after Home and a Visits row on the home screen on a phone. The
+  unfiled count rides on Record as a badge. The floating round record button
+  (PR #3009) stays Classic/Bento only: in NBD OS its corner is the Start
+  button. Tests: `tests/nbd-os-visits-2026-11-07.test.js`.
+- Checked in the sample account at 1280 px and 360 px, nbd-original and Paper
+  light: all three visit apps open the right sheet, none opens a window.
+  Still not tried on a real iPhone.
+- The boot-size ceiling raise (2864 KB) that this PR carries is approved with
+  it; measured 2859 KB.
+
 ## Status, 2026-11-06 (end of the build session): all six phases built, dark
 
 Every phase below (0 to 5) is built and committed on `feat/nbd-os-plan`, one
