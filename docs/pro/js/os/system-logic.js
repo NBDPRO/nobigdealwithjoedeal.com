@@ -9,6 +9,7 @@
  *   holdToast(type, dnd)    Do Not Disturb: which toasts wait in the centre
  *   pushHistory(list, e)    the session toast history, newest first, capped
  *   groupNotifications(xs)  Notification Center sections, in a fixed order
+ *   readNav(doc)            the sidebar goTo entries (browser; takes the document)
  *   appsFromNav(entries)    the apps a member can open (role-hidden ones gone)
  *   systemActions(apps)     the Spotlight (Cmd+K) entries the layer registers
  *   clockText(now)          "2:05 PM" / "Thu, Nov 6"
@@ -121,8 +122,37 @@
       var label = String(e.label || '').replace(/\s+/g, ' ').trim().slice(0, 40);
       if (!label) return;
       seen[e.id] = true;
-      out.push({ id: e.id, label: label });
+      out.push({ id: e.id, label: label, icon: String(e.icon || '').slice(0, 8) });
     });
+    return out;
+  }
+
+  /**
+   * The sidebar's goTo entries as plain { id, label, icon, hidden } (browser
+   * only, but takes the document so a test can pass a stand-in). The label is
+   * the item's own text: the emoji icon (.ni-icon) and live badges (.nbadge,
+   * counts) are not part of the name. Hidden = what role gating and the
+   * sidebar customizer hide (class "dn", display:none, hidden); a COLLAPSED
+   * nav section is not hidden, it's folded. Feed the result to appsFromNav.
+   */
+  function readNav(doc) {
+    var out = [];
+    if (!doc || typeof doc.querySelectorAll !== 'function') return out;
+    var nodes = doc.querySelectorAll('.sidebar [data-action="goTo"][data-target]');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var id = n.getAttribute('data-target');
+      var label = '';
+      var kids = n.childNodes || [];
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k].nodeType === 3) label += kids[k].nodeValue;
+      }
+      var iconEl = n.querySelector ? n.querySelector('.ni-icon') : null;
+      var cls = n.classList;
+      var hidden = !!(n.hidden || (cls && cls.contains('dn')) || (n.style && n.style.display === 'none') ||
+        n.getAttribute('aria-hidden') === 'true');
+      out.push({ id: id, label: label || n.getAttribute('aria-label') || '', icon: iconEl ? String(iconEl.textContent || '').trim() : '', hidden: hidden });
+    }
     return out;
   }
 
@@ -157,7 +187,7 @@
 
   var api = {
     trayItems: trayItems, holdToast: holdToast, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
-    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav,
+    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav,
     systemActions: systemActions, clockText: clockText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

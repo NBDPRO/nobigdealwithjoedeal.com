@@ -336,22 +336,13 @@
   }
 
   // ── Spotlight ──
-  function navEntries() {
-    var out = [];
-    var nodes = doc.querySelectorAll('[id^="nav-"]');
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      var id = n.id.slice(4);
-      var label = (n.getAttribute('aria-label') || n.getAttribute('title') || n.textContent || '');
-      var hidden = n.hidden || n.getAttribute('aria-hidden') === 'true' || n.classList.contains('dn') ||
-        (typeof w.getComputedStyle === 'function' && w.getComputedStyle(n).display === 'none' && !n.closest('#sidebar.collapsed'));
-      // a view key that has no view section can't be opened
-      if (!byId('view-' + id) && id !== 'd2d') hidden = true;
-      out.push({ id: id, label: label, hidden: hidden });
-    }
-    return out;
+  function apps() {
+    // a view key with no view section can't be opened (goTo would fall back to the Pipeline)
+    return L.appsFromNav(L.readNav(doc).map(function (e) {
+      if (!byId('view-' + e.id)) e.hidden = true;
+      return e;
+    }));
   }
-  function apps() { return L.appsFromNav(navEntries()); }
   var registered = [];
   function registerSpotlight() {
     var C = w.NBDCommand;

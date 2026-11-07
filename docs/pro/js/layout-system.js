@@ -66,7 +66,8 @@
       // Shared building blocks (js/layouts/kit.js + css/layouts/kit.css) this
       // layout needs BEFORE its own script runs. Loaded once, shared, kept.
       needs: {
-        script: pathList(raw.needs && raw.needs.script, /^js\/layouts\/[a-z0-9-]+\.js$/),
+        // js/os/ holds the NBD OS system layer's pure logic, shared with the os layout
+        script: pathList(raw.needs && raw.needs.script, /^js\/(layouts|os)\/[a-z0-9-]+\.js$/),
         css: pathList(raw.needs && raw.needs.css, /^css\/layouts\/[a-z0-9-]+\.css$/),
       },
       supports: {
@@ -318,6 +319,18 @@
     script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
+  // NBD OS (2026-11-06, plan documentation/projects/NBD-OS-PLAN-2026-11-06.md):
+  // a desktop with windows on a laptop or tablet, a home screen with an app
+  // switcher on a phone. Dark: shown and resolvable only while `osLayout` is on.
+  register({
+    id: 'os', name: 'NBD OS', version: 1,
+    blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
+    surfaces: SURFACES, tier: 'free', flag: 'osLayout',
+    script: 'js/layouts/os.js', css: 'css/layouts/os.css',
+    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js'] },
+    supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
   var api = {
@@ -824,7 +837,7 @@
   function loadSystemLayer() {
     if (systemLoading) return systemLoading;
     systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=1'] } })
-      .then(function () { return loadScriptPath('js/os/system-logic.js?v=1'); })
+      .then(function () { return loadScriptPath('js/os/system-logic.js'); })
       .then(function () { return loadScriptPath('js/os/system.js?v=1'); });
     return systemLoading;
   }
