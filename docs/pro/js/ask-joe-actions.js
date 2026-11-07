@@ -123,7 +123,7 @@
     } catch (e) { /* the rest still answers */ }
     if (uid && window.getDocs && window.query && window.collection && window.where && (window._db || window.db)) {
       try {
-        const q = window.query(window.collection(window._db || window.db, 'appointments'), window.where('repUid', '==', uid), window.where('startTime', '>=', start), window.where('startTime', '<=', end));
+        const q = window.query(window.collection(window._db || window.db, 'appointments'), window.where('userId', '==', uid) /* was repUid: rule-denied for every non-admin (CRM audit 2026-11-06, DT-F05) */, window.where('startTime', '>=', start), window.where('startTime', '<=', end));
         const snap = await window.getDocs(q);
         snap.forEach((doc) => {
           const a = doc.data() || {};

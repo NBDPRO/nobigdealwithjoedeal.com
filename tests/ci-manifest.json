@@ -177,6 +177,7 @@
     "csv-import-stage-customerid-2026-09-28.test.js",
     "global-search-phone-match-2026-09-28.test.js",
     "lead-deep-link-2026-09-28.test.js",
+    "scoped-queries-2026-11-06.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "deal-room-views-2026-10-02.test.js",
     "thursday-video-card-2026-10-05.test.js",
