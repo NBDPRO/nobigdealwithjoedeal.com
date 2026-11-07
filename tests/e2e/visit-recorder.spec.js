@@ -9,7 +9,7 @@
 // reachable from this PR at all (no server step), and the offline leg is
 // context.setOffline(true), not a mock.
 //
-//   1. Home: the Record bar is thumb-sized and above the bottom nav.
+//   1. Home: the round record button is thumb-sized and above the bottom nav; its menu starts a visit.
 //   2. Record with NO signal -> Stop -> "Saved on phone - waiting for signal"
 //      -> chips show their evidence -> Save unattached -> Unfiled (1).
 //   3. Signal returns -> uploads by itself -> doc is "uploaded" under
@@ -105,9 +105,16 @@ async function waitForConsentConfig(page) {
 }
 const visitDocs = async (db, uid) => (await db.collection('users/' + uid + '/visit_captures').get()).docs.map((d) => Object.assign({ id: d.id }, d.data()));
 
-// The Home bar has TWO buttons with the .nbd-vr-unfiled class: the 'Unfiled visits (n)' badge and the
-// 'Recent visits' button (visit-recorder-launcher.js reuses the class). Address the badge, not both.
-const UNFILED = '.nbd-vr-unfiled:not(.nbd-vr-recent)';
+// 2026-11-07: the Home pill bar became one round record button (bottom-left) with a menu
+// (visit-recorder-menu.js). Closed, its badge is the unfiled count; the menu's 'Unfiled visits' item opens the list.
+const FAB = '#nbd-vr-fab .nbd-vr-fabbtn';
+const BADGE = '#nbd-vr-fab .nbd-vr-fabbadge';
+async function pickFromMenu(page, label) {
+  await page.locator(FAB).tap();
+  const item = page.locator('#nbd-vr-menu [role="menuitem"]', { hasText: label });
+  await expect(item, label + ' is in the record button menu').toBeVisible({ timeout: 15_000 });
+  await item.tap();
+}
 
 test.describe('visit recorder: record first, save on the phone, upload later, attach by a tap @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
@@ -123,7 +130,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await loginAs(page, creds);
       expect(await forceStandalone(page)).toBeGreaterThan(200);
       await safeEvaluate(page, () => window.goTo('home'));
-      const bar = page.locator('#nbd-vr-bar .nbd-vr-barbtn');
+      const bar = page.locator(FAB);
       await expect(bar, 'the Record button is on Home').toBeVisible({ timeout: 30_000 });
       const b = await bar.boundingBox();
       const nav = await page.locator('#mobile-nav').first().boundingBox();
@@ -137,7 +144,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await waitForConsentConfig(page);   // and the consent setting is cached, before the signal goes
       await context.setOffline(true);
 
-      await bar.tap();
+      await pickFromMenu(page, 'Record visit');
       const live = page.locator('.nbd-vr-live');
       await expect(live, 'recording starts with no signal').toBeVisible({ timeout: 15_000 });
       await expect(live).toContainText('Recording');
@@ -163,7 +170,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       expect(before[0].status).toBe('stored');
       expect(before[0].sizeBytes).toBeGreaterThan(500);
       await sheet.locator('.nbd-vr-btn', { hasText: 'Save unattached' }).tap();
-      await expect(page.locator(UNFILED)).toHaveText('Unfiled visits (1)');
+      await expect(page.locator(BADGE)).toHaveText('1');
 
       // signal returns: no tap needed
       await context.setOffline(false);
@@ -198,7 +205,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       });
 
       // attach by search, from the Unfiled list
-      await page.locator(UNFILED).tap();
+      await pickFromMenu(page, 'Unfiled visits');
       const list = page.locator('.nbd-vr-sheet');
       await expect(list.locator('.nbd-vr-title')).toHaveText('Unfiled visits');
       await expect(list.locator('.nbd-vr-item')).toHaveCount(1);
@@ -210,7 +217,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await expect.poll(async () => ((await S.db.doc('users/' + S.uid + '/visit_captures/' + id).get()).data() || {}).leadId, { timeout: 20_000 }).toBe(S.lead);
       expect(attachCalls.length, 'the server was asked once, for this visit and this customer').toBe(1);
       expect(attachCalls[0]).toMatchObject({ visitId: id, action: 'attach', leadId: S.lead });
-      await expect(page.locator(UNFILED), 'the Home badge clears').toBeHidden();
+      await expect(page.locator(BADGE), 'the record button badge clears').toBeHidden();
     });
 
     test('customer page: Record visit is pre-attached; do-not-record is respected, including the deep link', async ({ page }) => {

@@ -52,6 +52,7 @@
     'nbd-qci-fab',              // W132
     'addLeadFab',               // Add Lead — revived + restacked 2026-07-06
     'nbd-fab-dial',             // mobile speed-dial launcher (fab-speed-dial.js)
+    'nbd-vr-fab',               // the bottom-left record button (visit-recorder-launcher.js, 2026-11-07)
   ];
 
   const BLOCKING_MODAL_IDS = [

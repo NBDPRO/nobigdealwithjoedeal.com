@@ -10,14 +10,17 @@
  * Entry points (all end in NBDVisitRecorderUI.begin()):
  *   - any element with data-nbd-record-visit (delegated; optional
  *     data-lead-id, data-appointment-id, data-source)
- *   - the Record bar on Home (dashboard.html, #view-home) in Classic and
- *     Bento; Island has it in its dock and the full-screen layouts in their
- *     own screens (js/layouts/kit.js recordButton), all via the delegate
+ *   - the round record button, bottom-left on every dashboard screen in
+ *     Classic and Bento (2026-11-07; it replaced the pill bar over Home). Its
+ *     menu (Record visit, Recent visits, Unfiled visits) is
+ *     visit-recorder-menu.js, fetched with the recorder below. Island has
+ *     Record in its dock and the full-screen layouts in their own screens
+ *     (js/layouts/kit.js recordButton), all via the delegate
  *   - "Record visit" on today's appointment rows (decorated here, so the
  *     Today files are untouched) - pre-attaches lead + appointment
  *   - "Record visit" in the customer page quick-actions - pre-attaches lead
  *   - the deep link  ?capture=1[&lead=<id>]
- *   - Unfiled visits: the Home bar badge, or NBDVisitRecorderLauncher.openUnfiled()
+ *   - Unfiled visits: the record button's menu, or NBDVisitRecorderLauncher.openUnfiled()
  *
  * Also here, owner/manager only: the per-customer "do not record" toggle on
  * the customer page, and the owner's recording-reminder switch in
@@ -30,17 +33,20 @@
 
   var V = '3';
   var FILES = [
-    '/pro/css/visit-recorder.css?v=4',   // = BAR_CSS below
+    '/pro/css/visit-recorder.css?v=5',   // = BAR_CSS below
     '/pro/js/visit-recorder-logic.js?v=' + V,
     '/pro/js/visit-recorder.js?v=' + V,
     '/pro/js/visit-recorder-ui.js?v=' + V,
+    // the record button's menu (2026-11-07): lazy with the rest, so the boot
+    // file only draws the button and its badge (the dashboard's script budget)
+    '/pro/js/visit-recorder-menu.js?v=1',
   ];
   // PR 2: the one "N unfiled visits" Today row. Its own file so the Today PRs are
   // untouched, and best-effort: the recorder works without it.
   var TODAY_FILE = '/pro/js/visit-unfiled-today.js?v=' + V;
   // The bar's stylesheet has its own version: only its bar placement changes
   // here, and the recorder files above keep theirs.
-  var BAR_CSS = '/pro/css/visit-recorder.css?v=4';
+  var BAR_CSS = '/pro/css/visit-recorder.css?v=5';
   // The same words on every entry point, in every layout (kit.js RECORD_LABEL).
   var RECORD_LABEL = 'Record visit';
   var RECENT_LABEL = 'Recent visits';
@@ -101,10 +107,11 @@
     return load().then(function () {
       if (window.NBDVisitRecorder.getState().active) { window.NBDVisitRecorderUI.ensureLive(); return null; }
       return window.NBDVisitRecorderUI.begin(o || {});
-    }).catch(function () {
-      toast('Could not load the recorder. Check your signal and try again.', 'error');
-      return null;
-    });
+    }).catch(loadFailed);
+  }
+  function loadFailed() {
+    toast('Could not load the recorder. Check your signal and try again.', 'error');
+    return null;
   }
   function fromElement(t) {
     var d = t.dataset || {};
@@ -172,11 +179,17 @@
     }).catch(function () {});
   }
 
-  // ── the Home bar ────────────────────────────────────────────────────────
-  var bar = null;
-  var unfiledBtn = null;
-  var barWait = false;   // the bar's stylesheet is still on its way (see mountBar)
-  // ONE Record visit entry per layout (2026-10-15). The floating bar is
+  // ── the record button (2026-11-07) ──────────────────────────────────────
+  // One round orange button, bottom-left, on every dashboard screen (Joe's
+  // mockup, documentation/projects/RECORD-BUTTON-2026-11-07.md). It replaced the
+  // full-width pill bar over Home, which covered the Today list's Attach / Keep /
+  // Discard buttons. Closed, it shows a red count of unfiled visits; tapped, it
+  // opens visit-recorder-menu.js (fetched with the recorder, not at boot).
+  var bar = null;       // #nbd-vr-fab: the button and, while open, its menu
+  var fabBtn = null;
+  var badge = null;
+  var barWait = false;   // the button's stylesheet is still on its way (see mountBar)
+  // ONE Record visit entry per layout (2026-10-15). The round button is
   // Classic's and Bento's. Island puts Record visit in its dock, and the
   // full-screen layouts (Field, Focus, Inbox, Mission, Crew) draw it in their
   // own screens (js/layouts/kit.js recordButton), all through the same
@@ -188,14 +201,15 @@
   }
   function paintBar() {
     if (!bar) return;
-    var home = document.getElementById('view-home');
-    var show = !!(home && home.classList.contains('active')) && layoutWantsBar() && !barWait;
+    var show = layoutWantsBar() && !barWait;
     bar.hidden = !show;
-    // visit-recorder.css reserves room under Home's content while the bar shows
+    // visit-recorder.css reserves room under Home's content (and the desktop
+    // sidebar's foot) while the button shows
     document.documentElement.classList.toggle('nbd-vr-bar-on', show);
     var n = counters().unfiled;
-    unfiledBtn.hidden = n < 1;
-    unfiledBtn.textContent = 'Unfiled visits (' + n + ')';
+    badge.hidden = n < 1;
+    badge.textContent = n;
+    fabBtn.setAttribute('aria-label', n > 0 ? 'Visits, ' + n + ' unfiled' : 'Visits');
   }
   function mountBar() {
     if (bar || !document.getElementById('view-home')) return;
@@ -217,35 +231,31 @@
       setTimeout(barGo, 2000);
     }
     bar = document.createElement('div');
-    bar.className = 'nbd-vr-bar';
-    bar.id = 'nbd-vr-bar';
+    bar.className = 'nbd-vr-fab';
+    bar.id = 'nbd-vr-fab';
     bar.hidden = true;
-    var rec = document.createElement('button');
-    rec.type = 'button';
-    rec.className = 'nbd-vr-barbtn';
-    rec.setAttribute('data-nbd-record-visit', '');
-    rec.setAttribute('data-source', 'fab');
-    var dot = document.createElement('span'); dot.className = 'nbd-vr-bardot'; dot.setAttribute('aria-hidden', 'true');
-    var txt = document.createElement('span'); txt.textContent = RECORD_LABEL;
-    rec.appendChild(dot); rec.appendChild(txt);
-    unfiledBtn = document.createElement('button');
-    unfiledBtn.type = 'button';
-    unfiledBtn.className = 'nbd-vr-unfiled';
-    unfiledBtn.hidden = true;
-    unfiledBtn.addEventListener('click', function () { openUnfiled(); });
-    // Recent visits: the quiet second button beside Record (the unfiled
-    // button's look; delegated through [data-nbd-recent-visits] like the rest)
-    var recent = document.createElement('button');
-    recent.type = 'button';
-    recent.className = 'nbd-vr-unfiled nbd-vr-recent';
-    recent.setAttribute('data-nbd-recent-visits', '');
-    recent.textContent = RECENT_LABEL;
-    bar.appendChild(rec); bar.appendChild(recent); bar.appendChild(unfiledBtn);
+    // a white record dot (red centre, drawn by the CSS) and the unfiled count; no label
+    fabBtn = mk('button', 'nbd-vr-fabbtn', bar);
+    fabBtn.type = 'button';
+    fabBtn.setAttribute('aria-haspopup', 'menu');
+    fabBtn.setAttribute('aria-expanded', 'false');
+    mk('span', 'nbd-vr-fabdot', fabBtn).setAttribute('aria-hidden', 'true');
+    badge = mk('span', 'nbd-vr-fabbadge', fabBtn);
+    badge.setAttribute('aria-hidden', 'true');
+    // Record / Recent / Unfiled, the menu's three items, need the recorder anyway: one load, then the menu
+    fabBtn.addEventListener('click', function () {
+      load().then(function () { window.NBDVisitRecorderMenu.toggle(bar, counters().unfiled); }).catch(loadFailed);
+    });
     document.body.appendChild(bar);
     paintBar();
   }
+  function mk(tag, cls, parent) {
+    var n = document.createElement(tag);
+    n.className = cls;
+    return parent.appendChild(n);
+  }
   function openUnfiled() {
-    return load().then(function () { window.NBDVisitRecorderUI.openUnfiled(); }).catch(function () { toast('Could not load the recorder.', 'error'); });
+    return load().then(function () { window.NBDVisitRecorderUI.openUnfiled(); }).catch(loadFailed);
   }
   /**
    * "Recent visits" (the last 14 days, NBDVisitRecorderUI.openRecent): every
@@ -257,7 +267,7 @@
       var UI = window.NBDVisitRecorderUI;
       if (UI && typeof UI.openRecent === 'function') { UI.openRecent(); return; }
       toast('Recent visits are not available yet. Reload the app to get the latest version.', 'info');
-    }).catch(function () { toast('Could not load the recorder. Check your signal and try again.', 'error'); });
+    }).catch(loadFailed);
   }
 
   // ── decorators (appointments, customer page, settings) ──────────────────

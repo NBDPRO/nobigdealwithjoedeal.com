@@ -107,13 +107,15 @@ const phoneRule = rules(vr).filter((r) => PHONE(r.media) && /nbd-vr-bar-on #view
 ok('the new rule lives only inside @media (max-width:768px)', phoneRule.length === 1);
 ok('it is keyed on html.nbd-vr-bar-on, which the launcher toggles only while the bar shows',
   /classList\.toggle\('nbd-vr-bar-on', show\)/.test(read('docs/pro/js/visit-recorder-launcher.js')));
-ok('the desktop rule (min-width:769px, 96px) and the base rule are unchanged',
-  /min-width:769px\)\{[\s\S]*?html\.nbd-vr-bar-on #view-home \.view-scroll\{ padding-bottom:96px; \}/.test(vr) && /html\.nbd-vr-bar-on #view-home \.view-scroll\{ padding-bottom:calc\(74px \+ env\(safe-area-inset-bottom, 0px\)\); \}/.test(vr));
+// 2026-11-07: on a desktop the round button sits over the sidebar's foot, not over Home's content, so
+// the desktop room moved from Home's scroll to the sidebar (its last item scrolls clear of the button).
+ok('the desktop rule gives the sidebar foot 96px, and the base rule is unchanged',
+  /min-width:769px\)\{[\s\S]*?html\.nbd-vr-bar-on \.sidebar\{ padding-bottom:96px; \}/.test(vr) && /html\.nbd-vr-bar-on #view-home \.view-scroll\{ padding-bottom:calc\(74px \+ env\(safe-area-inset-bottom, 0px\)\); \}/.test(vr));
 
 console.log('\n4. phones refetch the stylesheet');
 const launcher = read('docs/pro/js/visit-recorder-launcher.js');
-ok('the launcher asks for visit-recorder.css?v=4 in both places', (launcher.match(/visit-recorder\.css\?v=4/g) || []).length === 2 && !/visit-recorder\.css\?v=3/.test(launcher));
-// v=3 since this fix; v=4 since the bar waits for its stylesheet (perf-1 2026-10-26). One URL on both pages, never behind v=3.
+ok('the launcher asks for visit-recorder.css?v=5 in both places', (launcher.match(/visit-recorder\.css\?v=5/g) || []).length === 2 && !/visit-recorder\.css\?v=[34]\b/.test(launcher));
+// v=3 since this fix; v=4 since the bar waits for its stylesheet (perf-1 2026-10-26); v=5 the round record button (2026-11-07). One URL on both pages, never behind v=3.
 const launcherV = (f) => Number((/visit-recorder-launcher\.js\?v=(\d+)/.exec(read(f)) || [])[1] || 0);
 ok('dashboard.html and customer.html load the same bumped launcher (?v=3 or later)', launcherV('docs/pro/dashboard.html') >= 3 && launcherV('docs/pro/dashboard.html') === launcherV('docs/pro/customer.html'));
 
