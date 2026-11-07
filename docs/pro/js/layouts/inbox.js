@@ -70,6 +70,14 @@
   }
   function digits10(v) { var d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 ? d : ''; }
   function endOfDay(ms) { var d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime(); }
+  // End of the day n calendar days before ms (a calendar step, so a DST change
+  // in between cannot leave it an hour off end-of-day).
+  function endOfDayBack(ms, n) { var d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate() - n, 23, 59, 59, 999).getTime(); }
+  function isEndOfDay(ms) { var d = new Date(ms); return d.getHours() === 23 && d.getMinutes() === 59 && d.getSeconds() === 59 && d.getMilliseconds() === 999; }
+  function calDaysBetween(a, b) {
+    var x = new Date(a), y = new Date(b);
+    return Math.round((Date.UTC(y.getFullYear(), y.getMonth(), y.getDate()) - Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())) / DAY);
+  }
   function ymdEnd(ymd) {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ''));
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999).getTime() : 0;
@@ -86,6 +94,9 @@
   function timer(replyByMs, windowMs, now) {
     var n = now == null ? Date.now() : now;
     var left = replyByMs - n;
+    // A day deadline (due "that day", ending 23:59:59.999) counts calendar days,
+    // the way its "was due N days ago" line does; hour windows keep h/m.
+    if (left <= 0 && isEndOfDay(replyByMs)) return { state: 'red', label: 'Overdue ' + Math.max(1, calDaysBetween(replyByMs, n)) + 'd', leftMs: left };
     if (left <= 0) return { state: 'red', label: 'Overdue ' + dur(-left), leftMs: left };
     if (left <= (windowMs || HOUR) / 2) return { state: 'gold', label: dur(left) + ' left', leftMs: left };
     return { state: 'green', label: dur(left) + ' left', leftMs: left };
@@ -224,7 +235,7 @@
       if (!p.name) p.name = r.name || '';
       if (!p.phone) p.phone = digits10(r.phone);
       var late = r.daysLate || 0;
-      var by = late > 0 ? endOfDay(now) - late * DAY : endOfDay(now);
+      var by = late > 0 ? endOfDayBack(now, late) : endOfDay(now);
       add(p, 'nudge', by, late > 0 ? 'Follow-up was due ' + late + ' day' + (late === 1 ? '' : 's') + ' ago.' : 'Follow-up is due today.', { atMs: by });
     });
 
