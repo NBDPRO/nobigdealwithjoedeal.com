@@ -135,7 +135,13 @@ function subscribe() {
     state.settings = { enabled: d.enabled === true, reels: d.reels === true, platforms: d.platforms || {} };
     renderSettings();
     renderSub();
-  }, () => {});
+  }, (err) => {
+    // CRM audit 2026-11-06 (VW-F108): say so, and lock the toggles so a tap
+    // can't save defaults over the settings we couldn't read.
+    console.error('[social] settings subscription failed', err);
+    document.querySelectorAll('#ssEnabled, #ssReels, input[data-platform]').forEach((el) => { el.disabled = true; });
+    toast('Could not load your auto-publish settings. Reload the page to change them.');
+  });
 }
 
 // ── Render ───────────────────────────────────────────────────────────────
@@ -357,16 +363,18 @@ async function aiCaption(p) {
 /** After a job draft: one AI pass for the group, applied while still draft. */
 async function aiPassForCreated(created) {
   const first = created.map((c) => state.byId.get(c.id)).find(Boolean);
-  if (!first) return false;
+  if (!first) return { used: false, failed: 0 };
   let text;
-  try { text = await aiCaption(first); } catch (e) { console.warn('[social] AI caption unavailable, keeping template:', e && e.message); return false; }
+  try { text = await aiCaption(first); } catch (e) { console.warn('[social] AI caption unavailable, keeping template:', e && e.message); return { used: false, failed: 0 }; }
+  // CRM audit 2026-11-06 (VW-F108): count the writes that failed.
+  let failed = 0;
   for (const c of created) {
     const p = state.byId.get(c.id);
     if (p && p.status === 'draft') {
-      try { await updateDoc(postRef(c.id), { caption: text, status: 'draft', updatedAt: serverTimestamp() }); } catch (_) {}
+      try { await updateDoc(postRef(c.id), { caption: text, status: 'draft', updatedAt: serverTimestamp() }); } catch (e) { failed++; console.warn('[social] AI caption save failed:', e && e.message); }
     }
   }
-  return true;
+  return { used: true, failed };
 }
 
 // ── Flows ────────────────────────────────────────────────────────────────
@@ -410,9 +418,10 @@ async function generateFromJob() {
     closeSheet();
     // wait (bounded) for the snapshot to carry the new docs, then one AI pass
     for (let i = 0; i < 20 && !res.created.every((c) => state.byId.has(c.id)); i++) await new Promise((r) => setTimeout(r, 150));
-    const usedAi = await aiPassForCreated(res.created);
+    const ai = await aiPassForCreated(res.created);
     switchTab('drafts');
-    toast(res.created.length + ' draft' + (res.created.length === 1 ? '' : 's') + ' ready' + (usedAi ? ' (AI caption)' : ' (template caption)') + ' — review and approve.');
+    toast(res.created.length + ' draft' + (res.created.length === 1 ? '' : 's') + ' ready' + (ai.used ? ' (AI caption)' : ' (template caption)') + ' — review and approve.' +
+      (ai.failed ? ' ' + ai.failed + ' kept the template caption: the AI caption did not save.' : ''));
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Generate drafts'; }
     toast(e.message || 'Could not draft that job.');
