@@ -1,5 +1,6 @@
 /**
- * tests/nbd-os-flags-2026-11-06.test.js — NBD OS phase 0: dark layouts.
+ * tests/nbd-os-flags-2026-11-06.test.js — NBD OS phase 0: flagged layouts.
+ * Since 2026-11-07 the flags are ON unless feature_flags sets them to exactly false.
  *
  * A layout registered with `flag: '<name>'` is hidden from the picker
  * (list / forSurface) and can't be resolved while that flag is off; listAll()
@@ -63,7 +64,30 @@ ok('null check resets to off', ids(R.list()).indexOf('os') === -1);
 
 console.log('engine wiring');
 ok('engine installs the check', /R\.setFlagCheck\(isFlagOn\)/.test(SRC));
-ok('live NBDFlags wins once loaded', /if \(liveFlags\(\)\) return window\.NBDFlags\.enabled\(name\) === true;/.test(SRC));
+ok('live NBDFlags wins once loaded (on unless exactly false)', /if \(liveFlags\(\)\) return window\.NBDFlags\.get\(name\) !== false;/.test(SRC));
+
+// 2026-11-07 (Joe: "completely turn it on live, nothing dark"): a layout flag is ON unless
+// feature_flags sets it to exactly false. Run the engine's real flag functions against stubs.
+console.log('on by default, false is the kill switch');
+{
+  const cut = (from, to) => { const i = SRC.indexOf(from), j = SRC.indexOf(to, i); return i >= 0 && j > i ? SRC.slice(i, j) : ''; };
+  const body = cut('  function liveFlags() {', '  function onFlagsLoaded() {');
+  ok('control: found liveFlags / cachedFlags / isFlagOn', /function isFlagOn/.test(body) && /function cachedFlags/.test(body));
+  function run(flagsDoc, loaded, cache) {
+    const window = { NBDFlags: { isLoaded: () => loaded, enabled: (n) => !!flagsDoc[n], get: (n) => flagsDoc[n] }, _user: { uid: 'u1' } };
+    const lsGet = () => (cache === undefined ? null : JSON.stringify({ uid: 'u1', flags: cache }));
+    const parse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+    return new Function('window', 'lsGet', 'parse', 'FLAGS_KEY', body + '\nreturn isFlagOn;')(window, lsGet, parse, 'k');
+  }
+  ok('live: a flag nobody set is ON', run({}, true)('osLayout') === true);
+  ok('live: set true is ON', run({ osLayout: true }, true)('osLayout') === true);
+  ok('live: set false is OFF (the kill switch)', run({ osLayout: false }, true)('osLayout') === false);
+  ok('live: only an exact false turns it off (0 / null stay on)', run({ osLayout: 0 }, true)('osLayout') === true && run({ osLayout: null }, true)('osLayout') === true);
+  ok('before the flags load, with no cache: ON', run({}, false)('osSystemLayer') === true);
+  ok('before the flags load, a cached false keeps it OFF', run({}, false, { osSystemLayer: false })('osSystemLayer') === false);
+  ok('the cache records false only for an exact false', /flags\[n\] = window\.NBDFlags\.get\(n\) !== false;/.test(SRC));
+  ok('the system layer starts before the flag read unless last known off', /cachedFlags\(\)\[SYSTEM_FLAG\] !== false\) loadSystemLayer\(\)/.test(SRC));
+}
 ok('re-resolves on nbd:flags-loaded', /addEventListener\('nbd:flags-loaded', onFlagsLoaded\)/.test(SRC));
 ok('last-known cache is per account', /c\.uid && c\.uid !== who/.test(SRC));
 ok('boot never paints a dark stamped layout', /R\.flagOn\(R\.get\(stamped\)\)/.test(SRC));

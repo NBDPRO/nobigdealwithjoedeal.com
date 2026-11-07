@@ -325,7 +325,8 @@
 
   // NBD OS (2026-11-06, plan documentation/projects/NBD-OS-PLAN-2026-11-06.md):
   // a desktop with windows on a laptop or tablet, a home screen with an app
-  // switcher on a phone. Dark: shown and resolvable only while `osLayout` is on.
+  // switcher on a phone. On for everyone (2026-11-07); `osLayout: false` in
+  // feature_flags hides it from the picker and stops it resolving.
   register({
     id: 'os', name: 'NBD OS', version: 1,
     blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
@@ -794,10 +795,14 @@
   }
 
   // ── boot ─────────────────────────────────────────────────────────────
-  // Dark-layout flags (NBD OS phase 0). Until NBDFlags has loaded, trust the
+  // Layout flags (NBD OS phase 0). Until NBDFlags has loaded, trust the
   // last-known value cached for this account, so a rep on a flagged layout
   // doesn't flash Classic every boot. Once the flags load, the live value wins
   // and the cache is rewritten.
+  // ON BY DEFAULT (Joe, 2026-11-07: "completely turn it on live, nothing dark").
+  // A flag is on unless feature_flags sets it to exactly false, so writing
+  // `osLayout: false` / `osSystemLayer: false` in _default (or one uid's doc)
+  // is the kill switch, with no deploy.
   var FLAGS_KEY = 'nbd_layout_flags';
   function flagNames() {
     var out = [SYSTEM_FLAG];
@@ -815,13 +820,13 @@
     return c.flags;
   }
   function isFlagOn(name) {
-    if (liveFlags()) return window.NBDFlags.enabled(name) === true;
-    return cachedFlags()[name] === true;
+    if (liveFlags()) return window.NBDFlags.get(name) !== false;
+    return cachedFlags()[name] !== false;
   }
   function onFlagsLoaded() {
     if (!liveFlags()) return;
     var flags = {};
-    flagNames().forEach(function (n) { flags[n] = window.NBDFlags.enabled(n) === true; });
+    flagNames().forEach(function (n) { flags[n] = window.NBDFlags.get(n) !== false; });
     lsSet(FLAGS_KEY, JSON.stringify({ uid: (window._user && window._user.uid) || null, flags: flags }));
     // A layout switched on or off changes what resolves; re-apply the answer.
     refresh();
@@ -848,8 +853,8 @@
     watchPicker();
     window.addEventListener('nbd:flags-loaded', onFlagsLoaded);
     if (liveFlags()) onFlagsLoaded();
-    // last-known on: paint the tray without waiting for the flag read
-    else if (cachedFlags()[SYSTEM_FLAG] === true) loadSystemLayer();
+    // on unless last known off: paint the tray without waiting for the flag read
+    else if (cachedFlags()[SYSTEM_FLAG] !== false) loadSystemLayer();
     window.addEventListener('online', function () {
       if (hydrated || !dbReady()) return;
       if (retryT) { clearTimeout(retryT); retryT = null; }

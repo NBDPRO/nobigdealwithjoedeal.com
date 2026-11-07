@@ -107,7 +107,7 @@ const CSS = read('docs/pro/css/os/system.css');
 const HTML = read('docs/pro/dashboard.html');
 const BELL = read('docs/pro/js/notif-bell.js');
 ok('the engine loads the layer only behind osSystemLayer', /var SYSTEM_FLAG = 'osSystemLayer';/.test(SYS) && /if \(flags\[SYSTEM_FLAG\]\) loadSystemLayer\(\);/.test(SYS));
-ok('the cached flag can start it before the flag read', /cachedFlags\(\)\[SYSTEM_FLAG\] === true\) loadSystemLayer\(\)/.test(SYS));
+ok('it starts before the flag read unless the cache says it was turned off (on by default, 2026-11-07)', /cachedFlags\(\)\[SYSTEM_FLAG\] !== false\) loadSystemLayer\(\)/.test(SYS));
 ok('logic loads before the DOM half', SYS.indexOf("loadScriptPath('js/os/system-logic.js')") < SYS.indexOf("js/os/system.js?"));
 ok('no <script> tag for the layer in dashboard.html', !/js\/os\//.test(HTML));
 ok('system.js has no inline handlers', !/\son[a-z]+=/i.test(DOM.replace(/\/\*[\s\S]*?\*\//g, '')));
