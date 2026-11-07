@@ -135,6 +135,13 @@
 
   // ── Render ───────────────────────────────────────────────
   function render() {
+    // CRM audit 2026-11-06 (ST-F41): platform-admin-only tools (the server
+    // refuses everyone else, and the prompt names NBD's codes). Hidden for
+    // tenant owners; style.display because .btn sets its own display.
+    const _platformAdmin = !!(window._userClaims && window._userClaims.role === 'admin');
+    document.querySelectorAll('[data-target="AdminManager.rotateAccessCodes"], [data-target="AdminManager.runMigrationsNow"]').forEach((b) => {
+      b.style.display = _platformAdmin ? '' : 'none';
+    });
     const container = document.getElementById('adminRosterContainer');
     if (!container) return;
 
