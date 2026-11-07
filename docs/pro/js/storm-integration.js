@@ -218,11 +218,19 @@
    * Returns 3 asset types: door hanger, postcard, social post.
    */
   function generateMarketingCampaign(zone, company) {
-    company = company || {
-      name: 'No Big Deal Home Solutions',
-      phone: '(859) 420-7382',
-      website: 'nobigdealwithjoedeal.com'
-    };
+    // Default to the ACTIVE tenant's brand, never NBD's for another company
+    // (CRM audit 2026-11-06, VW-F09 sibling). NBD's own values are unchanged.
+    if (!company) {
+      let b = null;
+      try { b = typeof window._brand === 'function' ? window._brand() : null; } catch (e) { b = null; }
+    let isNbd;
+    try { isNbd = (typeof window._isNbdPlatformTenant === 'function') ? !!window._isNbdPlatformTenant() : null; } catch (e) { isNbd = null; }
+    if (isNbd === null) isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+      const c = (b && b.contact) || {};
+      company = isNbd
+        ? { name: 'No Big Deal Home Solutions', phone: '(859) 420-7382', website: 'nobigdealwithjoedeal.com' }
+        : { name: (b && (b.legalName || b.displayName)) || '', phone: c.phone || '', website: (c.website || '').replace(/^https?:\/\//, '') };
+    }
     const eventType = zone.alertType || zone.type || 'severe storm';
     const when = zone.effectiveAt
       ? new Date(zone.effectiveAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })

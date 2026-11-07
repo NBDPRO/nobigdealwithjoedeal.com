@@ -129,7 +129,7 @@
         const threadEl = document.getElementById('repMsgThread');
         if (threadEl) {
           threadEl.innerHTML =
-            '<div style="color:#fca5a5;font-size:13px;text-align:center;padding:24px 12px;">' +
+            '<div style="color:var(--ui-danger-text, #fca5a5);font-size:13px;text-align:center;padding:24px 12px;">' +
             'Could not load messages: ' + escMsg(err.message || err) + '</div>';
         }
       }
@@ -152,7 +152,8 @@
       sendBtn.disabled = true;
       const origLabel = sendBtn.textContent;
       sendBtn.textContent = 'Sending…';
-      if (statusEl) statusEl.textContent = '';
+      // CRM audit 2026-11-06 (CU-F17): clear an earlier error's red too.
+      if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
       try {
         const fn = httpsCallable(getFunctions(), 'replyToPortalMessage');
         const res = await fn({ leadId, text });
@@ -170,7 +171,7 @@
       } catch (err) {
         if (statusEl) {
           statusEl.textContent = 'Error: ' + (err.message || 'try again');
-          statusEl.style.color = '#fca5a5';
+          statusEl.style.color = 'var(--ui-danger-text, #fca5a5)';
         }
         sendBtn.disabled = false;
         sendBtn.textContent = origLabel;

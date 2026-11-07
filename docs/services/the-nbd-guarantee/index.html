@@ -40,6 +40,7 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Services","item":"https://nobigdealwithjoedeal.com/#services"},{"@type":"ListItem","position":3,"name":"The NBD Guarantee","item":"https://nobigdealwithjoedeal.com/services/the-nbd-guarantee"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
   {"@type":"Question","name":"Why three tiers instead of one quote?","acceptedAnswer":{"@type":"Answer","text":"Because not every roof should be the same. A rental that's getting sold in 5 years doesn't need the Elite tier. A forever home does. Three tiers means the right roof for your situation, not the most expensive one I can sell you."}},
+  {"@type":"Question","name":"Is there a tier for hail-prone roofs?","acceptedAnswer":{"@type":"Answer","text":"Yes. Beyond is a fourth option above Elite for homeowners whose main worry is hail. It is built only with TAMKO HailGuard, which TAMKO describes as the first asphalt shingle system backed by a written hail warranty. NBD's own written labor warranty on Beyond runs up to 20 years, the same term as Elite, and its terms are in your contract. The hail warranty is a separate TAMKO document, and I put its written terms in front of you at the estimate."}},
   {"@type":"Question","name":"What GAF warranty coverage do I get?","acceptedAnswer":{"@type":"Answer","text":"Joe is a GAF® Certified Contractor, which makes enhanced manufacturer warranty coverage (including System Plus) available on qualifying full-system installs. The warranty registered at install time is what applies — once it's on the paperwork, that's the contract. The NBD Pledge — Joe coming back personally — is independent of GAF and applies for as long as Joe is in business, regardless."}},
   {"@type":"Question","name":"Can I add LumaNail to a Standard or Preferred roof?","acceptedAnswer":{"@type":"Answer","text":"LumaNail is bundled into Elite. If you want it on a Standard or Preferred build, ask me and I'll work it into the bundle as a make-or-break upgrade — but I don't lead with it as an upcharge."}},
   {"@type":"Question","name":"Why don't you publish exact tier prices?","acceptedAnswer":{"@type":"Answer","text":"Because every roof is different — pitch, square count, decking condition, accessibility, tear-off complexity, insurance documentation. Relative pricing is honest: Preferred is roughly 20% over Standard, Elite is roughly 40% over Standard. Exact numbers come from a free in-person estimate where I actually look at your roof."}}
@@ -132,6 +133,12 @@ nav { position: sticky; top: 0; z-index: 1000; background: var(--navy-dark); bor
 .tier-card { background:#fff; border-radius: 14px; padding: 36px 28px; box-shadow: 0 8px 24px rgba(18,34,61,.08); border-top: 4px solid var(--tan); position: relative; display:flex; flex-direction:column; }
 .tier-card.preferred { border-top-color: var(--orange); transform: translateY(-12px); box-shadow: 0 16px 48px rgba(189,87,40,.18); border: 2px solid var(--orange); border-top: 6px solid var(--orange); }
 .tier-card.elite { border-top-color: var(--orange-dark); }
+.tier-beyond { max-width: 820px; margin: 28px auto 0; background: #12223d; color: #fff; border-radius: 14px; padding: 26px 28px; border-left: 6px solid #BD5728; }
+.tier-beyond .tb-eyebrow { font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #DD875F; margin: 0 0 6px; }
+aside.tier-beyond h3 { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem !important; line-height: 1.1; letter-spacing: .5px; margin: 0 0 8px; color: #fff; }
+.tier-beyond p { font-size: .95rem; line-height: 1.65; margin: 0 0 10px; color: rgba(255,255,255,.88); }
+.tier-beyond .tb-links { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 12px 0 0; }
+.tier-beyond .tb-links a { color: #DD875F; font-weight: 700; text-decoration: underline; padding: 8px 0; }
 .tc-pill { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #BD5728; color: #fff; font-size: .68rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; padding: 6px 14px; border-radius: 100px; box-shadow: 0 4px 12px rgba(189,87,40,.4); }
 .tc-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--navy-dark); letter-spacing: 1.2px; margin-bottom: 4px; }
 .tc-shingle { font-size: .82rem; font-weight: 700; color:#A14A22; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 18px; }
@@ -597,6 +604,12 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
     </div>
   </div>
   <p style="max-width:820px;margin:20px auto 0;text-align:center;font-size:.82rem;color:#666;line-height:1.6">&ldquo;Elite&rdquo; is the name of our top <em>build</em> tier &mdash; it&rsquo;s ours, not a manufacturer program. We&rsquo;re a <strong>GAF Certified</strong> contractor; &ldquo;Master Elite&rdquo; is a separate GAF certification tier and isn&rsquo;t what we&rsquo;re describing here.</p>
+  <aside class="tier-beyond" id="beyond" aria-labelledby="beyond-h">
+    <p class="tb-eyebrow">A fourth option for hail-prone roofs</p>
+    <h3 id="beyond-h">Beyond</h3>
+    <p>If hail is your real worry, there&rsquo;s one more option above Elite: <strong>Beyond</strong>. It&rsquo;s built only with <strong>TAMKO HailGuard</strong>, which TAMKO describes as the first asphalt shingle system backed by a written hail warranty. NBD&rsquo;s own written labor warranty on Beyond runs up to 20 years, the same term as Elite, and its terms are in your contract. The hail warranty is a separate TAMKO document; I put its written terms in front of you at the estimate.</p>
+    <p class="tb-links"><a href="/services/tamko-impact-resistant-shingles#hailguard">How HailGuard works &rarr;</a> <a href="/blog/how-much-does-roof-cost-cincinnati-2026#per-square">What Beyond costs per square &rarr;</a></p>
+  </aside>
 </section>
 
 <!-- COMPARISON TABLE -->
@@ -764,7 +777,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
         <p>Full Class 4 impact, 160 mph wind — voted #1 Product of the Year.</p>
       </div>
       <div class="gtss-card">
-        <div class="stage">Top of the lineup</div>
+        <div class="stage">Top of the lineup &middot; the Beyond option</div>
         <div class="nm">HailGuard</div>
         <span class="badge">Hail warranty</span>
         <p>Class 4, tested beyond — the first asphalt shingle with a written hail warranty.</p>
@@ -890,6 +903,11 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
     <div class="faq-item">
       <div class="faq-q">Why three tiers instead of one quote?</div>
       <div class="faq-a"><p>Because not every roof should be the same. A rental that's getting sold in 5 years doesn't need the Elite tier. A forever home does. Three tiers means the right roof for your situation, not the most expensive one I can sell you.</p></div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Is there a tier for hail-prone roofs?</div>
+      <div class="faq-a"><p>Yes. Beyond is a fourth option above Elite for homeowners whose main worry is hail. It is built only with TAMKO HailGuard, which TAMKO describes as the first asphalt shingle system backed by a written hail warranty. NBD&rsquo;s own written labor warranty on Beyond runs up to 20 years, the same term as Elite, and its terms are in your contract. The hail warranty is a separate TAMKO document, and I put its written terms in front of you at the estimate.</p></div>
     </div>
 
     <div class="faq-item">

@@ -816,6 +816,9 @@ function renderLeads(leads, filtered){
       // W103: same race-safe drop as the new-system path above.
       const dropH = e => {
         e.preventDefault();
+        // CRM audit 2026-11-06 (PL-F19): same as the new path — without it the
+        // board-level delegated drop also fired and moveCard ran twice.
+        e.stopPropagation();
         body.classList.remove('drag-over');
         const draggedId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
         if (!draggedId) return;

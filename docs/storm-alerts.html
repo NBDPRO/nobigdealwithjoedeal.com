@@ -82,6 +82,8 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 .sc-consent input { margin-top:2px; width:18px; height:18px; flex-shrink:0; accent-color:var(--orange); }
 .sc-consent a { color:inherit; text-decoration:underline; }
 .sc-consent-req { margin:4px 0 0; font-size:.78rem; color:rgba(255,255,255,.62); line-height:1.4; text-align:left; }
+/* A global `section p{font-size:.95rem!important}` rule made this hint body-sized; keep it the small hint it was written as. */
+form .sc-consent-req { font-size:.78rem!important; }
 .field input[aria-invalid="true"] { border-color:#f87171; }
 
 /* Success */

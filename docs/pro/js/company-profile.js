@@ -678,6 +678,11 @@
     // missing cache dropped every field this save did not carry — the saved
     // jurisdictions among them — under a flag that still said "loaded".
     const onServerCopy = !!key && window._companyProfileLoaded === true && _loadedKey === key;
+    // Snapshot for a rollback if the server refuses the write (ST-F02).
+    const _rbProfile = window._companyProfile;
+    const _rbBrandRaw = _brandOverrideRaw;
+    let _rbCache = null;
+    if (key) { try { _rbCache = localStorage.getItem(_cacheKeyFor(key)); } catch (_) { /* storage blocked */ } }
     window._companyProfile = onServerCopy
       ? deepMerge(window._companyProfile, overridesObj)
       : deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, mergedRemote);
@@ -700,7 +705,24 @@
     // guard would deny the whole save. In-memory/localStorage keep the value (the
     // mint helpers read it); only the Firestore payload is scrubbed.
     const writePayload = _stripReservedBrandKeys(overridesObj);
-    await setDoc(doc(window.db, 'companyProfile', key), writePayload, { merge: true });
+    const _applied = window._companyProfile;
+    try {
+      await setDoc(doc(window.db, 'companyProfile', key), writePayload, { merge: true });
+    } catch (e) {
+      // Refused (rules) or failed: undo the in-memory + cached merge so this
+      // session's estimates and documents don't use values the server never
+      // accepted (CRM audit 2026-11-06, ST-F02). Skip if a later save already
+      // replaced the profile. The caller still gets the error to report.
+      if (window._companyProfile === _applied) {
+        window._companyProfile = _rbProfile;
+        _brandOverrideRaw = _rbBrandRaw;
+        try {
+          if (_rbCache == null) localStorage.removeItem(_cacheKeyFor(key));
+          else localStorage.setItem(_cacheKeyFor(key), _rbCache);
+        } catch (_) { /* storage blocked */ }
+      }
+      throw e;
+    }
     return window._companyProfile;
   };
 

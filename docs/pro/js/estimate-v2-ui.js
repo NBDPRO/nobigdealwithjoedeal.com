@@ -3045,16 +3045,21 @@
   // presentation mode, retail/insurance doc formats, the preview sheet,
   // and the homeowner share view.
   // ═════════════════════════════════════════════════════════
+  // CRM audit 2026-11-06 (DT-F03): a leadId-only /photos read is provable only
+  // for a company reader (docLeadInMyCompany); a rep or solo owner was denied
+  // and saw an empty picker. Same rule as customer-bootstrap _photoQueryScopes.
   async function loadLeadPhotos(force) {
     const leadId = state.leadId || (state.customer && state.customer.leadId) || null;
     if (!leadId) { state._leadPhotos = null; renderPhotos(); return; }
     if (state._leadPhotos && state._leadPhotos._leadId === leadId && !force) return;
     if (!window.db || !window.getDocs || !window.query || !window.collection || !window.where) return;
     try {
-      const snap = await window.getDocs(window.query(
-        window.collection(window.db, 'photos'),
-        window.where('leadId', '==', leadId)
-      ));
+      const _cl = window._userClaims || {};
+      const _uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
+      // Platform admin (role 'admin') passes a leadId-only read via isAdmin().
+      const _reader = _cl.role === 'admin' || (['company_admin', 'manager', 'viewer'].indexOf(_cl.role || '') !== -1 && !!_cl.companyId);
+      const _scope = _reader || !_uid ? [window.where('leadId', '==', leadId)] : [window.where('leadId', '==', leadId), window.where('userId', '==', _uid)];
+      const snap = await window.getDocs(window.query.apply(null, [window.collection(window.db, 'photos')].concat(_scope)));
       const list = [];
       snap.forEach(d => {
         const p = d.data() || {};

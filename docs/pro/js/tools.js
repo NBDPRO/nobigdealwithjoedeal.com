@@ -657,6 +657,16 @@ window.qaUseMyLocation = qaUseMyLocation;
 // (warranty certificate functions removed — canonical source is warranty-cert.js)
 
 // ══ LEAD EXPORT CSV ═══════════════════════════════════════════════════════
+// Spreadsheet formula neutralising (CRM audit 2026-11-06, VW-F150) — the same
+// rule data-export.js applies: a cell starting = + - @ tab or CR is demoted to
+// text with a leading ' unless it is a plain signed number (a -1500 credit
+// must still sum). Lead names and notes come from the public intake form.
+function _csvSafe(s) {
+  if (!/^[=+\-@\t\r]/.test(s)) return s;
+  if (/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(s)) return s;
+  return "'" + s;
+}
+
 function exportLeadsCSV() {
   const leads = window._leads || [];
   if (!leads.length) { showToast('No leads to export', 'error'); return; }
@@ -673,14 +683,16 @@ function exportLeadsCSV() {
     l.insCarrier||'', l.jobValue||'', l.followUp||'',
     (l.notes||'').replace(/,/g,';').replace(/\n/g,' '),
     l.createdAt?.toDate ? l.createdAt.toDate().toLocaleDateString() : ''
-  ].map(v => `"${String(v).replace(/"/g,'""')}"`));
+  ].map(v => `"${_csvSafe(String(v)).replace(/"/g,'""')}"`));
 
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `NBD-Leads-${new Date().toISOString().split('T')[0]}.csv`;
+  let _isNbd = true;
+  try { if (typeof window._isNbdPlatformTenant === 'function') _isNbd = !!window._isNbdPlatformTenant(); } catch (_) { /* keep NBD */ }
+  a.download = `${_isNbd ? 'NBD-' : ''}Leads-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
   showToast(`✓ Exported ${leads.length} leads to CSV`, 'success');

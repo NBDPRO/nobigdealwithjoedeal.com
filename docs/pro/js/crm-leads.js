@@ -164,7 +164,7 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lDriveUrl','lScheduledDate','lScheduledWeek'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // The sub picker (production flow, 2026-10-04) — back to "No sub yet".
   if (window.NBDProduction) window.NBDProduction.fillSubSelect('lSubId', {});
   // The arrival window rides with #lScheduledDate — back to "All day".
@@ -222,7 +222,7 @@ const _leadModal = document.getElementById('leadModal');
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
   'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
-  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lSubId'
+  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lDriveUrl','lScheduledDate','lScheduledWeek','lSubId'
 ];
 function _leadFormHasContent(){
   return _LEAD_TYPED_FIELDS.some(id => {
@@ -478,6 +478,20 @@ async function saveLead(){
       warrantyCertFiledAt: document.getElementById('lWarrantyCertFiled')?.checked ? new Date().toISOString() : '',
       cocFiledAt: document.getElementById('lCocFiled')?.checked ? new Date().toISOString() : '',
       notes: document.getElementById('lNotes')?.value?.trim() || '',
+      // Google Drive folder for this customer (approved additive field, CRM
+      // audit 2026-11-06, CU-F07). Omitted when the field isn't on the page;
+      // anything that isn't an http(s) URL saves as '' (no javascript: links).
+      // Blank clears it; a bare domain gets https://; anything else that is not
+      // an http(s) link is left out, so an edit keeps the stored link, and the
+      // rep is told (steward review of #2946).
+      ...(document.getElementById('lDriveUrl') ? (function (v) {
+        v = String(v || '').trim();
+        if (!v) return { driveFolderUrl: '' };
+        if (!/^[a-z][a-z0-9+.-]*:/i.test(v) && /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(v)) v = 'https://' + v;
+        if (/^https?:\/\/[^\s]+$/i.test(v)) return { driveFolderUrl: v };
+        if (typeof window.showToast === 'function') window.showToast('Drive folder link not saved: paste a link that starts with https://', 'warning');
+        return {};
+      })(document.getElementById('lDriveUrl').value) : {}),
       // Property intel + parcel: written ONLY when Pull Property Intel ran in
       // this modal session (window._modalIntel set). Same omit-when-unknown
       // rule as `trades` and `stage` above: this payload is spread into

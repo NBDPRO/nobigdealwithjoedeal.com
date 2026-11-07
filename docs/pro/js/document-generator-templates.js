@@ -2426,7 +2426,7 @@
           <div style="font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:${A};margin-bottom:8px;">
             WE'RE IN YOUR NEIGHBORHOOD</div>
           <h2 style="margin:0;font-size:22px;color:#fff;line-height:1.3;">${d.headline ? esc(d.headline) : 'FREE ROOF<br>INSPECTION'}</h2>
-          <p style="margin:12px 0 0;font-size:13px;opacity:0.85;">No cost. No obligation. No big deal.</p>
+          <p style="margin:12px 0 0;font-size:13px;opacity:0.85;">${isNbdDoc() ? 'No cost. No obligation. No big deal.' : 'No cost. No obligation.'}</p>
         </div>
         <div class="hanger-body">
           <p style="font-size:13px;color:#555;margin:0 0 16px;line-height:1.6;">
@@ -2636,7 +2636,7 @@
 
         <p>On behalf of everyone at ${C.name}, I want to personally thank you for trusting us with your
         ${projectPhrase} at ${esc(d.address)}. It was a privilege to work on your home,
-        and we hope the experience lived up to our promise — no stress, no hassle, no big deal.</p>
+        and we hope the experience lived up to ${isNbdDoc() ? 'our promise — no stress, no hassle, no big deal' : 'your expectations'}.</p>
 
         ${d.projectSummary ? `<p>${esc(d.projectSummary)}</p>` : ''}
 

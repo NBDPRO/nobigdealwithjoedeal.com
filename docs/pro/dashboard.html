@@ -880,7 +880,7 @@
 
   <div class="ni" role="button" tabindex="0" data-action="windowOpen" data-target="how-to.html" id="nav-howto" title="Step-by-step instructions"><span class="ni-icon">📖</span>How To</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="settings" id="nav-settings"><span class="ni-icon">⚙️</span>Settings</div>
-  <div class="ni dn" data-action="goTo" data-target="admin" id="nav-admin"><span class="ni-icon">🛡️</span>Team Manager</div>
+  <div class="ni dn" role="button" tabindex="0" data-action="goTo" data-target="admin" id="nav-admin"><span class="ni-icon">🛡️</span>Team Manager</div>
 
 </nav>
 
@@ -3185,8 +3185,8 @@
               <div class="sf"><label for="settingsEmail">Email</label><input type="text" id="settingsEmail" placeholder="you@email.com" disabled style="opacity:.5;"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label for="settingsCompany">Company</label><input type="text" id="settingsCompany" placeholder="No Big Deal Home Solutions"></div>
-              <div class="sf"><label for="settingsPhone">Phone</label><input type="text" id="settingsPhone" placeholder="(859) 420-7382"></div>
+              <div class="sf"><label for="settingsCompany">Company</label><input type="text" id="settingsCompany" placeholder="Your company name"></div>
+              <div class="sf"><label for="settingsPhone">Phone</label><input type="text" id="settingsPhone" placeholder="(555) 555-0100"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label for="settingsRole">Role</label>
@@ -3203,7 +3203,7 @@
             <div class="sf-row">
               <div class="sf f1">
                 <label for="settingsCalcom">Cal.com username <span style="font-size:10px;color:var(--m);font-weight:400;">· optional · homeowners book inspections at cal.com/&lt;username&gt;</span></label>
-                <input type="text" id="settingsCalcom" placeholder="joedeal" autocomplete="off" spellcheck="false"
+                <input type="text" id="settingsCalcom" placeholder="your-cal-username" autocomplete="off" spellcheck="false"
                   data-on-input="nbdSettingsUpdateCalcomPreview">
                 <a id="settingsCalcomPreview" target="_blank" rel="noopener"
                    style="display:none;font-size:11px;color:var(--orange);margin-top:4px;word-break:break-all;text-decoration:none;"></a>
@@ -4220,23 +4220,23 @@
           <div class="panel-hdr"><div><div class="panel-label">Brand Identity</div><div class="panel-title">Company Info</div></div></div>
           <div class="panel-body">
             <div class="sf-row">
-              <div class="sf"><label>Legal Business Name</label><input type="text" id="coName" placeholder="No Big Deal Home Solutions"></div>
-              <div class="sf"><label>DBA / Trade Name</label><input type="text" id="coDba" placeholder="No Big Deal"></div>
+              <div class="sf"><label>Legal Business Name</label><input type="text" id="coName" placeholder="Your legal business name"></div>
+              <div class="sf"><label>DBA / Trade Name</label><input type="text" id="coDba" placeholder="Your trade name"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>EIN</label><input type="text" id="coEin" placeholder="XX-XXXXXXX"></div>
               <div class="sf"><label>State of Incorporation</label><input type="text" id="coState" placeholder="OH"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Business Phone</label><input type="text" id="coPhone" placeholder="(859) 420-7382"></div>
-              <div class="sf"><label>Business Email</label><input type="text" id="coEmail" placeholder="JD@nobigdealwithjoedeal.com"></div>
+              <div class="sf"><label>Business Phone</label><input type="text" id="coPhone" placeholder="(555) 555-0100"></div>
+              <div class="sf"><label>Business Email</label><input type="text" id="coEmail" placeholder="you@yourcompany.com"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="123 Main St"></div>
               <div class="sf"><label>City, State ZIP</label><input type="text" id="coCity" placeholder="Goshen, OH 45122"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Website</label><input type="text" id="coWebsite" placeholder="nobigdealwithjoedeal.com"></div>
+              <div class="sf"><label>Website</label><input type="text" id="coWebsite" placeholder="yourcompany.com"></div>
               <div class="sf"><label>Google Business URL</label><input type="text" id="coGbp" placeholder="g.co/kgs/..."></div>
             </div>
           </div>
@@ -4287,9 +4287,9 @@
           <div class="panel-body">
             <div class="sf-row">
               <div class="sf"><label>Legal / Company Name</label>
-                <input type="text" id="cp_brand_legalName" placeholder="No Big Deal Home Solutions"></div>
+                <input type="text" id="cp_brand_legalName" placeholder="Your legal business name"></div>
               <div class="sf"><label>Display Name (short, shown in headers)</label>
-                <input type="text" id="cp_brand_displayName" placeholder="No Big Deal"></div>
+                <input type="text" id="cp_brand_displayName" placeholder="Your trade name"></div>
             </div>
             <div class="sf"><label>Logo URL</label>
               <input type="text" id="cp_brand_logoUrl" placeholder="https://yourdomain.com/logo.png"></div>
@@ -4320,7 +4320,7 @@
             <div id="cp_alertConfirm" role="status" hidden class="cp-alert-warn"><span id="cp_alertConfirmMsg"></span> <button type="button" id="cp_alertConfirmBtn" class="btn btn-orange" data-action="call" data-fn="_sendAlertConfirm" hidden>Send confirmation email</button> <button type="button" id="cp_alertRevokeBtn" class="btn btn-ghost" data-action="call" data-fn="_revokeAlertConfirm" hidden>Remove confirmed address</button></div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
-                <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>
+                <input type="text" id="cp_brand_phone" placeholder="(555) 555-0100"></div>
               <div class="sf"><label>Email</label>
                 <input type="text" id="cp_brand_email" placeholder="info@yourdomain.com"></div>
             </div>
@@ -4335,7 +4335,7 @@
                  Zelle lines use the Email above. -->
             <div class="sf-row">
               <div class="sf"><label>Zelle phone</label>
-                <input type="text" id="cp_brand_zellePhone" placeholder="(859) 420-7382" maxlength="40"></div>
+                <input type="text" id="cp_brand_zellePhone" placeholder="(555) 555-0100" maxlength="40"></div>
               <div class="sf"><label>Zelle email</label>
                 <input type="text" id="cp_brand_zelleEmail" placeholder="you@yourdomain.com" maxlength="120"></div>
             </div>
@@ -4351,15 +4351,15 @@
           <div class="panel-body">
             <div class="sf-row">
               <div class="sf"><label>Business Name</label>
-                <input type="text" id="cp_businessName" placeholder="No Big Deal Home Solutions"></div>
+                <input type="text" id="cp_businessName" placeholder="Your legal business name"></div>
               <div class="sf"><label>Phone</label>
-                <input type="text" id="cp_businessPhone" placeholder="(859) 420-7382"></div>
+                <input type="text" id="cp_businessPhone" placeholder="(555) 555-0100"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>Email</label>
-                <input type="text" id="cp_businessEmail" placeholder="info@nobigdealwithjoedeal.com"></div>
+                <input type="text" id="cp_businessEmail" placeholder="info@yourcompany.com"></div>
               <div class="sf"><label>Website</label>
-                <input type="text" id="cp_businessWebsite" placeholder="nobigdealwithjoedeal.com"></div>
+                <input type="text" id="cp_businessWebsite" placeholder="yourcompany.com"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>Letterhead Address (one line, optional)</label>
@@ -4459,7 +4459,7 @@
           <div class="panel-body">
             <div class="sf-row">
               <div class="sf"><label>Tagline</label>
-                <input type="text" id="cp_tagline" placeholder="No Big Deal — We've Got You Covered"></div>
+                <input type="text" id="cp_tagline" placeholder="Your tagline"></div>
               <div class="sf"><label>Service Area</label>
                 <input type="text" id="cp_serviceArea" placeholder="e.g. Your City & surrounding counties"></div>
             </div>
@@ -6028,6 +6028,7 @@
     <!-- PROPERTY INTEL PULL -->
     <button class="pull-intel-btn" id="pullIntelBtn" data-action="call" data-fn="pullIntelForModal">🏠 Pull Property Intel</button>
     <div class="modal-intel-result" id="modalIntelResult"></div>
+    <div class="mfield"><label for="lDriveUrl">Drive folder link</label><input type="url" id="lDriveUrl" inputmode="url" autocomplete="off" placeholder="https://drive.google.com/drive/folders/..."></div>
     <div class="mfield"><label>Notes</label><textarea id="lNotes" placeholder="Roof age, damage details, adjuster notes, supplements..." style="min-height:80px;"></textarea></div>
     <input type="hidden" id="lEditId">
 

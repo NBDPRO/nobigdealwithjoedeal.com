@@ -888,6 +888,9 @@ async function boot() {
     el.brand.textContent = envelope.companyName;
     try { document.title = `Review & Sign · ${envelope.companyName}`; } catch (_) {}
   }
+  // CRM audit 2026-11-06 (ED-F24): the brand starts hidden (esign.html) so a
+  // homeowner never sees NBD's name while another contractor's envelope loads.
+  if (el.brand) el.brand.style.visibility = '';
   el.title.textContent = envelope.title ? `· ${envelope.title}` : '';
   if (Number(envelope.signerCount) > 1) {
     // Multi-signer: say whose turn this is, so a co-owner knows the first

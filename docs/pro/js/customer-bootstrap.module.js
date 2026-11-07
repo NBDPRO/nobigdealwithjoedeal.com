@@ -320,7 +320,13 @@ onAuthStateChanged(auth, async (user) => {
   const params = new URLSearchParams(window.location.search);
   const customerId = params.get('id');
 
-  if (!customerId) return;
+  // CRM audit 2026-11-06 (CU-F18): no id used to return silently, leaving a
+  // blank (opacity:0) page. Say what happened and offer the way back.
+  if (!customerId) {
+    showError('No customer selected', 'This link has no customer in it. Open the customer from the pipeline.');
+    document.documentElement.style.opacity = '1';
+    return;
+  }
 
   // Bug fix 2026-05-05: on iOS Safari (especially as a PWA), the first
   // getDoc after a fresh navigation occasionally hangs forever instead of
@@ -976,6 +982,23 @@ async function loadCustomerData(id) {
     document.getElementById('infoJobValue').textContent = _jvNum ? `$${_jvNum.toLocaleString()}` : '—';
     document.getElementById('infoDamageType').textContent = lead.damageType || '—';
     document.getElementById('infoSource').textContent = lead.source || '—';
+    // Drive folder link (approved additive field, CRM audit 2026-11-06,
+    // CU-F07): an http(s) link opens in a new tab; anything else shows '—'.
+    {
+      const _dEl = document.getElementById('infoDriveFolder');
+      const _dUrl = String(lead.driveFolderUrl || '').trim();
+      if (_dEl) {
+        _dEl.textContent = '';
+        if (/^https?:\/\/[^\s]+$/i.test(_dUrl)) {
+          const _a = document.createElement('a');
+          _a.href = _dUrl; _a.target = '_blank'; _a.rel = 'noopener noreferrer'; _a.className = 'cbx-link';
+          _a.textContent = 'Open Drive folder';
+          _dEl.appendChild(_a);
+        } else {
+          _dEl.textContent = '—';
+        }
+      }
+    }
     document.getElementById('infoCarrier').textContent = lead.insCarrier || lead.insuranceCarrier || '—';
     document.getElementById('infoClaimStatus').textContent = lead.claimStatus || '—';
     document.getElementById('infoFollowUp').textContent = lead.followUp || '—';
@@ -2699,20 +2722,10 @@ async function _undoStageMove(lead, fromStage, movedTo) {
 }
 
 // Task toggle
-window.toggleTask = async function(taskId, newDoneState) {
-  try {
-    await updateDoc(doc(db, 'tasks', taskId), {
-      done: newDoneState,
-      completedAt: newDoneState ? serverTimestamp() : null,
-      updatedAt: serverTimestamp()
-    });
-    
-    // Reload timeline
-    await loadTimeline(window._customerId, { createdAt: new Date() });
-  } catch (e) {
-    console.error('Error toggling task:', e);
-  }
-};
+// window.toggleTask lives in customer-tasks-ui.js (leads/{leadId}/tasks). A
+// second copy here wrote the RETIRED top-level /tasks store and only lost
+// because that file loads later; removed so script order can never revive it
+// (CRM audit 2026-11-06, DT-F10).
 
 // Error display
 function showError(title, message) {

@@ -232,7 +232,12 @@
   function _d2dCompany() {
     let b = null;
     try { if (typeof window._brand === 'function') b = window._brand() || null; } catch (e) { b = null; }
-    const isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    // CRM audit 2026-11-06 (VW-F04): "no legal name" is not "NBD" — keyed on
+    // the platform-tenant check, so an unconfigured tenant's prospect gets the
+    // neutral phrase, never the owner's company.
+    let isNbd;
+    try { isNbd = (typeof window._isNbdPlatformTenant === 'function') ? !!window._isNbdPlatformTenant() : null; } catch (e) { isNbd = null; }
+    if (isNbd === null) isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
     // 2026-10-15 (Twilio A2P reapply): NBD's texts spell the registered
     // brand out, the same name as functions/sms-functions.js NBD_D2D_COMPANY.
     if (isNbd) return 'No Big Deal Home Solutions';
