@@ -317,6 +317,9 @@
     var q = state.q.trim().toLowerCase();
     if (!q) return true;
     var digits = q.replace(/\D/g, '');
+    // CRM audit 2026-11-06 (VW-F14): "+1 513…" is 11 digits; phoneDigits is the
+    // last 10 (digits10). Drop the country code so it matches.
+    if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
     var lab = labelFor(c);
     var hay = [c.contactName, leadName(L[c.leadId]), lab ? lab.kind + ' ' + (lab.name || '') : '', c.summary, c.transcript, (c.promises || []).map(function (p) { return p.text; }).join(' ')].join(' ').toLowerCase();
     return hay.indexOf(q) !== -1 || (digits.length >= 3 && String(c.phoneDigits || '').indexOf(digits) !== -1);

@@ -145,10 +145,10 @@
     // is patched to always return true in PWA standalone mode
     // (standalone-compat.js), which would silently mark a bonus paid on a
     // mis-tap. nbdConfirm gives a real Promise<boolean> modal there and falls
-    // back to native confirm on desktop (and to "yes" where confirm is absent,
-    // as before).
+    // back to native confirm on desktop. Where neither exists it answers "no"
+    // (CRM audit 2026-11-06, VW-F17: it used to answer "yes" and mark it paid).
     const _ask = window.nbdConfirm
-      || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : true));
+      || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
     if (!(await _ask(`Mark the ${fmtMoney(amt)} referral bonus to ${to} as paid?`))) return;
     if (!window.db || !window.updateDoc || !window.doc) {
       if (window.showToast) window.showToast('Not connected — try again in a moment', 'error');

@@ -2305,9 +2305,8 @@ ${STATIC_CHART_CSS}
         lines.push('Warnings: ' + summary.warnings.length);
         console.warn('[Enrich] warnings:', summary.warnings);
       }
-      // eslint-disable-next-line no-alert
-      window.alert(lines.join('\n'));
-      showToast('\u2713 Data enriched \u2014 reports now have full analytics', 'success');
+      // CRM audit 2026-11-06 (VW-F58): the summary used to be a native alert().
+      showToast('\u2713 Data enriched \u2014 ' + lines.join(' \u00b7 '), 'success');
     } catch (e) {
       console.error('[Enrich] failed:', e);
       const msg = e.message || 'Unknown error';
