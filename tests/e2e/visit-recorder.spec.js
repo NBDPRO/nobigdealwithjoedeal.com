@@ -92,6 +92,17 @@ const recorderRows = (page) => safeEvaluate(page, () => window.NBDVisitRecorder.
 async function waitForRecorder(page) {
   await safeWaitForFunction(page, () => !!(window.NBDVisitRecorder && window.NBDVisitRecorderUI), null, { timeout: 45_000 });
 }
+// The recorder reads the company's consent setting once at boot (refreshConfig) and caches it in
+// localStorage 'nbd_vr_cfg'. Until that read lands, begin() fails CLOSED and shows the "Record this
+// visit" reminder sheet instead of recording (visit-recorder-ui.js begin, by design). On a slow CI
+// emulator the tap could beat the read (2026-11-06: the Home-bar and deep-link tests went red on
+// @shard3 with the sheet on screen), so wait for the cached setting, as any phone that has opened
+// the CRM once has it.
+async function waitForConsentConfig(page) {
+  await safeWaitForFunction(page, () => {
+    try { const c = JSON.parse(localStorage.getItem('nbd_vr_cfg') || 'null'); return !!(c && c.companyId && c.atMs); } catch (e) { return false; }
+  }, null, { timeout: 45_000 });
+}
 const visitDocs = async (db, uid) => (await db.collection('users/' + uid + '/visit_captures').get()).docs.map((d) => Object.assign({ id: d.id }, d.data()));
 
 // The Home bar has TWO buttons with the .nbd-vr-unfiled class: the 'Unfiled visits (n)' badge and the
@@ -123,6 +134,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await safeWaitForFunction(page, (lead) => Array.isArray(window._leads) && window._leads.some((l) => l.id === lead), S.lead, { timeout: 40_000 });
       await safeEvaluate(page, (id) => localStorage.setItem('nbd_recent_customers', JSON.stringify([{ id, ts: Date.now() }])), S.lead);
       await waitForRecorder(page);   // the recorder code is fetched on idle, before the signal goes
+      await waitForConsentConfig(page);   // and the consent setting is cached, before the signal goes
       await context.setOffline(true);
 
       await bar.tap();
@@ -249,6 +261,10 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       if (!S) S = await seed(stamp);
       await page.addInitScript(initStorage);
       await loginAs(page, creds);
+      // A phone that has opened the CRM before: the consent setting is cached (see waitForConsentConfig).
+      await page.goto('/pro/dashboard.html');
+      await waitForRecorder(page);
+      await waitForConsentConfig(page);
       await page.goto('/pro/dashboard.html?capture=1');
       const live = page.locator('.nbd-vr-live');
       await expect(live, 'recording started from the link').toBeVisible({ timeout: 60_000 });
