@@ -21,6 +21,9 @@
  * picking an item. Opening focuses the first item; arrow keys, Home and End
  * move; Escape, the button and a pick return focus to the button. Tab closes
  * and lets focus move on.
+ *
+ * Long-press (2026-11-07): hold the button and release to start recording
+ * straight away, skipping the menu (see "long-press" below).
  */
 (function () {
   'use strict';
@@ -154,14 +157,81 @@
   /** The record button's click: open the menu with the unfiled count, or close it. */
   function toggle(w, n) {
     if (!w) return;
+    // the click that ends a long-press (below) must not also open the menu
+    if (Date.now() < swallowUntil) { swallowUntil = 0; return; }
     if (wrap !== w) {
       wrap = w;
       btn = w.querySelector('.nbd-vr-fabbtn');
       menu = null;
+      wireHold(btn);
     }
     if (isOpen()) close(true);
     else open(Number(n) || 0);
   }
 
-  window.NBDVisitRecorderMenu = { toggle: toggle, close: close, isOpen: isOpen };
+  // ── long-press: hold to record (2026-11-07) ─────────────────────────────
+  // Hold the round button HOLD_MS and it arms (a red ring and "Release to
+  // record"; a short buzz where the phone supports it); let go and the
+  // recording starts, skipping the menu. Recording starts on the RELEASE, a
+  // real user gesture, so iPhone Safari grants the microphone the same as a
+  // tap. Sliding more than MOVE_PX away, or the browser taking the touch
+  // (scroll, call), cancels. A short tap still opens the menu, and the menu
+  // keeps Record visit for keyboard and screen-reader users.
+  // Wired from this lazy file (onto the button the boot launcher drew), so the
+  // dashboard's boot script budget is untouched: until this file arrives a
+  // long-press simply acts as a tap.
+  var HOLD_MS = 500;
+  var MOVE_PX = 12;
+  var SWALLOW_MS = 800;
+  var swallowUntil = 0;
+  var press = null;
+  function holdEnd() {
+    if (!press) return;
+    clearTimeout(press.t);
+    if (press.wrap) press.wrap.classList.remove('is-armed');
+    press = null;
+  }
+  function onHoldDown(e) {
+    if (e.button !== 0 || isOpen()) return;
+    holdEnd();
+    var b = e.currentTarget;
+    var w = b.parentNode;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, armed: false, wrap: w, t: 0 };
+    var p = press;
+    p.t = setTimeout(function () {
+      if (press !== p) return;
+      p.armed = true;
+      w.classList.add('is-armed');
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
+    }, HOLD_MS);
+  }
+  function onHoldMove(e) {
+    if (!press || e.pointerId !== press.id) return;
+    if (Math.abs(e.clientX - press.x) > MOVE_PX || Math.abs(e.clientY - press.y) > MOVE_PX) holdEnd();
+  }
+  function onHoldUp(e) {
+    if (!press || e.pointerId !== press.id) return;
+    var armed = press.armed;
+    holdEnd();
+    if (!armed) return;   // a short tap: the click opens the menu as usual
+    swallowUntil = Date.now() + SWALLOW_MS;
+    e.preventDefault();
+    var L = window.NBDVisitRecorderLauncher;
+    if (L && typeof L.begin === 'function') L.begin({ source: 'fab' });
+  }
+  function wireHold(b) {
+    if (!b || b.getAttribute('data-nbd-hold') === '1') return;
+    b.setAttribute('data-nbd-hold', '1');
+    b.addEventListener('pointerdown', onHoldDown);
+    b.addEventListener('pointermove', onHoldMove);
+    b.addEventListener('pointerup', onHoldUp);
+    b.addEventListener('pointercancel', holdEnd);
+    b.addEventListener('pointerleave', holdEnd);
+    // Android's long-press context menu / iOS's callout would steal the hold
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  var fabEl = document.getElementById('nbd-vr-fab');
+  wireHold(fabEl && fabEl.querySelector('.nbd-vr-fabbtn'));
+
+  window.NBDVisitRecorderMenu = { toggle: toggle, close: close, isOpen: isOpen, wireHold: wireHold };
 })();

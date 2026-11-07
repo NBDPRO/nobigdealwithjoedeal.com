@@ -85,6 +85,8 @@
 }
 @media (max-width: 768px) {
   html.nbd-demo.nbd-vr-bar-on #view-home .view-scroll { padding-bottom: calc(80px + 74px + 50px + env(safe-area-inset-bottom, 0px)) !important; }
+  /* 2026-11-07: the record button (and so the lifted strip) is on every screen, so every screen gets the strip's room too */
+  html.nbd-demo.nbd-vr-bar-on .view-scroll { padding-bottom: calc(80px + 74px + 50px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 @media (max-width: 560px) {
   .nbd-demo-long { display: none; }
