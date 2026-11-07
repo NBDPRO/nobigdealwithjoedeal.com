@@ -47,6 +47,43 @@ Cold start (estimate, measure after the first deploy): container start plus
 `osrm-routed --mmap` (pages the graph in on demand) ≈ 3–6 s. The browser shows
 "Calculating drive time…" and gives up at 12 s, falling back to "(est.)".
 
+## Update 2026-11-07: road-time stop ordering (needs one rebuild + redeploy)
+
+Mission Control's **Shortest** day route used to order stops by straight-line
+distance (nearest neighbour + 2-opt in `routeplan.js`). Now it asks
+`routeDrive({ matrix: true })` for the drive-time matrix (the proxy's new
+`POST /v1/table`, OSRM `/table` on loopback) and runs the same search on road
+seconds, so a river crossing no longer looks like a short hop. The open path
+from the first stop is kept, which OSRM's own `/trip` cannot do without fixing
+the last stop. Until the new image is live, the proxy answers 404 for
+`/v1/table`, routeDrive says `not_supported` and the browser keeps the
+straight-line order: shipping the code first is safe.
+
+To turn it on (Joe, from the repo root; both commands are the same as for a
+monthly map refresh, with a tag for this change):
+
+```sh
+gcloud builds submit routing/osrm --config routing/osrm/cloudbuild.yaml \
+  --substitutions=_TAG=20261107-table --project nobigdeal-pro
+IMAGE=us-central1-docker.pkg.dev/nobigdeal-pro/routing/osrm-cincy:20261107-table \
+  sh routing/osrm/deploy.sh --apply
+```
+
+Check it (the IAM policy printed by the deploy must still have no `allUsers`):
+
+```sh
+URL=https://osrm-cincy-717435841570.us-central1.run.app
+TOKEN=$(gcloud auth print-identity-token)
+curl -s -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"coords":[[-84.512,39.1031],[-84.6266,38.9989],[-84.5086,39.0837]]}' $URL/v1/table
+# -> {"ok":true,"sec":[[0,...],[...],[...]]}
+```
+
+Then pin the new digest in `routing/osrm/deploy.sh` in a small PR (the build
+prints it), so the next plain `deploy.sh --apply` doesn't roll back. Cost: the
+same scale-to-zero service; the table call is one more request per day-route
+change and is cached 30 days like a route.
+
 ## Deploy (once, and after each rebuild)
 
 ```sh
