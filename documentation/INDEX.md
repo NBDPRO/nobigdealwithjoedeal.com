@@ -369,6 +369,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 - [CRM-SILENT-FAILURES-2026-11-06](audit/CRM-SILENT-FAILURES-2026-11-06.md) — six CRM screens stopped saying "saved" / "All clear" when they weren't: Deleted bin, document viewer Save, Company + Notification settings, Agent Inbox, voicemail, and a blank Prospects view.
 - [Sharper heroes on roof-inspection and storm-damage](audit/HERO-1600-TWO-PAGES-2026-11-06.md) — 1600 px AVIFs from the originals in the photo library; the other 10 need CRM exports; 2026-11-06
 - [Mid-page CTA band heading was 17px](audit/CTA-BAND-HEADING-2026-11-07.md) — 18 service pages; the global h3 rule beat the band's clamp; 4 old bands get light orange and equal buttons; 2026-11-07
+- [Hero pill dot wrapped onto its own line](audit/HERO-PILL-DOT-WRAP-2026-11-07.md) — 3 service pages on phones; inline-block pill keeps the dot with the words; 2026-11-07
 - [Overnight: phone Call/Text labels raised from 9.9 px](audit/OVERNIGHT-CTA-LABEL-SIZE-2026-11-06.md) — smallest visible text on the site; 2026-11-06
 - [SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04](audit/SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04.md) — Expenses "Scan with AI" put the receipt grand total in Amount and the tax in Tax, and every cost rollup adds the two, so sales tax counted twice ($107.00 receipt read $114.00). Proven with a synthetic receipt, fixed so Amount is pre-tax (as the Home Depot import stores it), plus a subtotal + tax = total check. Draft PR, money-computation: needs Jo's OK. Existing rows untouched.
 
