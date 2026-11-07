@@ -52,3 +52,12 @@
 @media (max-width: 600px) {
   .service-midpage-cta:not(.svc-mid) a { flex: 1 1 100%; }
 }
+
+/* Hero pill on phones: nbd-mobile.css lets it wrap (flex-wrap !important), and
+   when the text is long the "●" ::before became its own flex line above the
+   words (emergency-roof-tarping, fire-water-smoke-damage,
+   roof-cleaning-soft-wash). Block flow keeps the dot inline with the first line. */
+@media (max-width: 600px) {
+  .service-hero .hero-badge { display: inline-block; max-width: 100%; box-sizing: border-box; line-height: 1.5; border-radius: 16px; }
+  .service-hero .hero-badge::before { display: inline-block; margin-right: 8px; vertical-align: middle; }
+}
