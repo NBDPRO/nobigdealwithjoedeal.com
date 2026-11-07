@@ -1816,10 +1816,10 @@ function _openLeadModalWithMissingFieldsBanner(lead, targetStage, missingFields)
     const banner = document.createElement('div');
     banner.id = 'mFieldGateBanner';
     banner.setAttribute('role', 'alert');
-    banner.style.cssText = 'background:rgba(234,88,12,.10);border:1px solid var(--orange,#ea580c);border-left:3px solid var(--orange,#ea580c);border-radius:6px;padding:10px 12px;margin:0 0 12px 0;font-size:13px;color:var(--t,#fff);line-height:1.4;';
+    banner.style.cssText = 'background:color-mix(in srgb,var(--orange,#BD5728) 10%,transparent);border:1px solid var(--orange,#BD5728);border-left:3px solid var(--orange,#BD5728);border-radius:6px;padding:10px 12px;margin:0 0 12px 0;font-size:13px;color:var(--t,#fff);line-height:1.4;';
 
     const eyebrow = document.createElement('div');
-    eyebrow.style.cssText = 'font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:var(--orange,#ea580c);margin-bottom:4px;';
+    eyebrow.style.cssText = 'font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:var(--orange,#BD5728);margin-bottom:4px;';
     eyebrow.textContent = `⚠ Move to "${stageLabel}" blocked — fill these in to advance`;
     banner.appendChild(eyebrow);
 
@@ -1831,7 +1831,7 @@ function _openLeadModalWithMissingFieldsBanner(lead, targetStage, missingFields)
         btn.type = 'button';
         btn.textContent = it.label;
         btn.dataset.gateJump = it.inputId;
-        btn.style.cssText = 'background:none;border:none;padding:0;color:var(--orange,#ea580c);text-decoration:underline;cursor:pointer;font:inherit;';
+        btn.style.cssText = 'background:none;border:none;padding:0;color:var(--orange,#BD5728);text-decoration:underline;cursor:pointer;font:inherit;';
         list.appendChild(btn);
       } else {
         list.appendChild(document.createTextNode(it.label));
@@ -1861,7 +1861,7 @@ function _openLeadModalWithMissingFieldsBanner(lead, targetStage, missingFields)
           try { jt.focus({ preventScroll: true }); } catch (_) { try { jt.focus(); } catch (__) {} }
           try {
             jt.style.transition = 'box-shadow .25s ease';
-            jt.style.boxShadow = '0 0 0 3px rgba(234,88,12,.55)';
+            jt.style.boxShadow = '0 0 0 3px color-mix(in srgb,var(--orange,#BD5728) 55%,transparent)';
             setTimeout(() => { jt.style.boxShadow = ''; }, 1600);
           } catch (_) {}
         }
@@ -1871,7 +1871,7 @@ function _openLeadModalWithMissingFieldsBanner(lead, targetStage, missingFields)
       try { inp.focus({ preventScroll: true }); } catch (_) { try { inp.focus(); } catch (__) {} }
       try {
         inp.style.transition = 'box-shadow .25s ease';
-        inp.style.boxShadow = '0 0 0 3px rgba(234,88,12,.55)';
+        inp.style.boxShadow = '0 0 0 3px color-mix(in srgb,var(--orange,#BD5728) 55%,transparent)';
         setTimeout(() => { inp.style.boxShadow = ''; }, 1600);
       } catch (_) {}
     };
