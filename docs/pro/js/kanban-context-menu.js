@@ -524,6 +524,13 @@
       // touchend so the long-press doesn't ALSO open the card.
       const suppressClick = (e) => { e.preventDefault(); e.stopPropagation(); };
       card.addEventListener('click', suppressClick, { once: true, capture: true });
+      // CRM audit 2026-11-06 (PL-F29): iOS often sends no click after a long
+      // press, so the once-listener stayed armed and ate the next real tap.
+      // The click that belongs to this press follows the finger lifting, so
+      // disarm a moment after touchend / touchcancel, however long the hold.
+      const disarm = () => setTimeout(() => card.removeEventListener('click', suppressClick, { capture: true }), 400);
+      card.addEventListener('touchend', disarm, { once: true });
+      card.addEventListener('touchcancel', disarm, { once: true });
       // Light haptic if supported.
       if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) {}
       buildMenu(lead, touchStart.x, touchStart.y);
