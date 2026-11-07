@@ -1168,6 +1168,12 @@
   .crm-list-wrap{ display:none; }
   body.crm-list-mode #view-crm .kanban-board{ display:none !important; }
   body.crm-list-mode .crm-list-wrap{ display:block; padding:0 4px 20px; overflow:auto; }
+  /* #view-crm is a fixed-height flex column. The board takes the leftover
+     space (flex 1 1 0%); the list was flex 0 1 auto with a tall table, so the
+     browser shrank every sibling to fit it and the follow-ups panel and the
+     job-type banner spilled under the table (CRM walk 2026-11-07, PL-15).
+     The list now takes the leftover space the same way the board does. */
+  body.crm-list-mode #view-crm > .crm-list-wrap{ flex:1 1 0%; min-height:0; }
   /* Phones: the last card's CALL/TEXT/MAP/OPEN row could not scroll clear of
      the fixed FAB stack + tab bar (QA 2026-09-27: OPEN covered). Same 150px
      clearance the D2D view uses. */
