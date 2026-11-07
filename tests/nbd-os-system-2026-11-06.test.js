@@ -141,6 +141,8 @@ ok('no transition: all', !/transition:\s*all/.test(CSS));
 // (header-taps visual audit). The real proof is that audit in the Pro demo walk; this pins the rule.
 ok('phones: the What\'s New bell keeps 3px clear of the Settings pill (beats its inline -3px)',
   /@media \(max-width: 480px\) \{[\s\S]*?header #nbd-whats-new-bell \{ margin-right: 3px !important; \}/.test(CSS));
+ok('phones: the bell is stacked above the pill, so its hit area wins whatever the 🎁 glyph width',
+  /@media \(max-width: 480px\) \{[\s\S]*?header #nbd-whats-new-bell \{ z-index: 1; \}/.test(CSS));
 
 console.log('phase 4: session, lock, settings');
 ok('auto-lock choices; junk reads as off', L.lockMinutes(5) === 5 && L.lockMinutes('15') === 15 && L.lockMinutes(7) === 0 && L.lockMinutes('x') === 0);
