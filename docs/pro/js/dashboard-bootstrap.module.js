@@ -3807,6 +3807,13 @@
           const result = await window.LeadDedup.checkAndPrompt(data, window._leads || []);
           if (!result.proceed) {
             if (result.openLeadId) {
+              // Leaving drops everything typed in this form (notes included).
+              // Ask first when there IS something typed (CRM audit
+              // 2026-11-06, PL-F16); an empty form just goes.
+              if (typeof window._leadFormHasContent === 'function' && window._leadFormHasContent()) {
+                const _askOpen = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+                if (!(await _askOpen('Open the existing customer? What you typed in this form will not be saved.'))) return null;
+              }
               // Rep chose to open the existing lead — navigate there.
               // "Add a job to them" lands on the add-job sheet (customer-jobs.js).
               window.location.href = `/pro/customer.html?id=${encodeURIComponent(result.openLeadId)}${result.addJob ? '#addJob' : ''}`;

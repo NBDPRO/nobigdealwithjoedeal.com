@@ -151,7 +151,9 @@
         if (!entries[i].el.isConnected && entries[i].el.id === el.id) { opener = entries[i].opener; entries.splice(i, 1); break; }
       }
     }
-    e = { el: el, close: opts.close, isOpen: opts.isOpen, opener: opener, added: [] };
+    e = { el: el, close: opts.close, isOpen: opts.isOpen, opener: opener, added: [],
+      // Open order, shared with nbd-modal.js (see its Escape handler).
+      seq: (window.__nbdLayerSeq = (window.__nbdLayerSeq || 0) + 1) };
     var dlg = el.matches(DIALOG) ? el : el.querySelector(DIALOG);
     if (!dlg) { dlg = el; put(e, dlg, 'role', 'dialog'); }
     put(e, dlg, 'aria-modal', 'true');
@@ -182,5 +184,7 @@
     else if (!ev.shiftKey && a === last) { ev.preventDefault(); focusNode(first); }
   });
 
-  window.nbdOverlay = { attach: attach };
+  // topSeq(): the open order of the top open layer (0 = none), so nbd-modal.js
+  // can tell whether an overlay dialog sits above its own top modal.
+  window.nbdOverlay = { attach: attach, topSeq: function () { var t = top(); return t ? (t.seq || 0) : 0; } };
 })();

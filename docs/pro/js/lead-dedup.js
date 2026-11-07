@@ -228,6 +228,21 @@
 
       function close() { overlay.remove(); }
 
+      // Keyboard contract (CRM audit 2026-11-06, PL-F16): Escape = Cancel,
+      // focus moves in, Tab stays inside, focus returns to the opener. The
+      // shared helper (overlay-a11y.js) is on dashboard.html; elsewhere this
+      // degrades to the old mouse-only overlay.
+      if (window.nbdOverlay && typeof window.nbdOverlay.attach === 'function') {
+        window.nbdOverlay.attach(overlay, {
+          label: 'Possible duplicate customer',
+          close: () => { close(); resolve({ action: 'cancel' }); },
+        });
+      }
+      // Start on Cancel, not the first "open existing" match: Enter on a match
+      // navigates away from a half-typed Add Lead form (steward review of #2952).
+      const _cancelBtn = overlay.querySelector('#nbd-dedup-cancel');
+      if (_cancelBtn && typeof _cancelBtn.focus === 'function') _cancelBtn.focus();
+
       overlay.querySelectorAll('.nbd-dedup-match-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const leadId = btn.getAttribute('data-lead-id');
