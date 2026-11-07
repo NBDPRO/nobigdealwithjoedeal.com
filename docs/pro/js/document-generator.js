@@ -3275,15 +3275,19 @@ window.NBDDocGen = {
 
     // Collect all non-empty fields into a data table
     const skipFields = new Set(['_documentType','date','companyName','companyPhone','companyEmail','companyWebsite','companyTagline']);
+    // CRM audit 2026-11-06 (ED-F13): internal fields are not customer paper —
+    // _-prefixed keys, record ids (leadId, userId, companyId, …Id), uid and
+    // anything named internal.
+    const _internalKey = (k) => /^_/.test(k) || /Id$/.test(k) || /^(uid|id)$/i.test(k) || /internal/i.test(k);
     const fieldRows = Object.entries(d)
-      .filter(([k,v]) => v && !skipFields.has(k) && typeof v === 'string' && v.trim())
+      .filter(([k,v]) => v && !skipFields.has(k) && !_internalKey(k) && typeof v === 'string' && v.trim())
       .map(([k,v]) => {
         const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).replace(/_/g, ' ');
         return `<tr><td style="padding:8px 12px;font-weight:600;color:${_P};white-space:nowrap;width:180px;border-bottom:1px solid #f0f0f0;">${this._escHtml(label)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">${this._escHtml(String(v).substring(0, 500))}</td></tr>`;
       }).join('');
 
     const c = this._resolveCompany();
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${typeName} — ${this._escHtml(name || 'NBD Pro')}</title>
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${this._escHtml(typeName)} — ${this._escHtml(name || (c && c.name) || 'Document')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Lato:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* NBD DOCUMENT STANDARD (locked 2026-09-07). This generic/server document
@@ -3316,7 +3320,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:16px;}
 </style></head><body>
 <div class="hdr">
   <div>
-    <div class="brand-row">${this._logoSrc() ? `<img class="brand-logo" src="${this._logoSrc()}" alt="${this._resolveCompany().name}"/>` : ''}<div class="brand">${this._resolveCompany().name}</div></div>
+    <div class="brand-row">${this._logoSrc() ? `<img class="brand-logo" src="${this._logoSrc()}" alt="${this._escHtml(this._resolveCompany().name)}"/>` : ''}<div class="brand">${this._escHtml(this._resolveCompany().name)}</div></div>
     <div class="badge">${typeName}</div>
   </div>
   <div><div class="doc-type">${typeName}</div><div class="doc-date">${date}</div></div>
@@ -3335,7 +3339,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
   <div><div class="sig-line">Homeowner Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
   <div><div class="sig-line">Contractor Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
 </div>
-<div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).join(' · ')}</span></div>
+<div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).map((x) => this._escHtml(x)).join(' · ')}</span></div>
 </body></html>`;
   },
 
