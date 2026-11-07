@@ -300,6 +300,7 @@
     "microsite-publication-gate.test.js",
     "tenant-site-publish-2026-10-04.test.js",
     "migration-run-once-guard.test.js",
+    "settings-2-2026-11-06.test.js",
     "backfill-oaks-brand-dryrun-2026-10-07.test.js",
     "money-dashboard.test.js",
     "customer-keyboard-2026-11-06.test.js",
