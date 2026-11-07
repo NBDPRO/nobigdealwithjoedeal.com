@@ -37,3 +37,18 @@
     padding: 12px 18px !important;
   }
 }
+
+/* Mid-page CTA band, all 18 service pages: the global "section h3" readability
+   rule (nbd-readability.css, !important) shrank its Bebas heading to ~17px on
+   phones and laptops. Restore the intended clamp. */
+.service-midpage-cta h3 { font-size: clamp(1.75rem, 4vw, 2.5rem) !important; line-height: 1.05 !important; font-weight: 400 !important; }
+/* Old inline-styled version (financing, emergency-roof-tarping,
+   fire-water-smoke-damage, roof-care-plan): dark orange on navy was low
+   contrast and the two buttons were different widths. .svc-mid pages already
+   use the light orange. */
+.service-midpage-cta:not(.svc-mid) h3 span,
+.service-midpage-cta:not(.svc-mid) > div > div:first-child { color: #dd875f !important; }
+.service-midpage-cta:not(.svc-mid) a { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; box-sizing: border-box; }
+@media (max-width: 600px) {
+  .service-midpage-cta:not(.svc-mid) a { flex: 1 1 100%; }
+}

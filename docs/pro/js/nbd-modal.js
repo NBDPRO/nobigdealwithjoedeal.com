@@ -69,6 +69,8 @@
     if (!el) return null;
     opts = opts || {};
     managed.set(el, {
+      // Open order, shared with overlay-a11y.js: Escape goes to the newest layer.
+      seq: (window.__nbdLayerSeq = (window.__nbdLayerSeq || 0) + 1),
       static: !!opts.static,
       restoreFocus: (document.activeElement && document.activeElement !== document.body) ? document.activeElement : null,
       onClose: (typeof opts.onClose === 'function') ? opts.onClose : null
@@ -117,6 +119,12 @@
     if (!top) return;
     var st = managed.get(top);
     if (st && st.static) return;
+    // An nbdOverlay dialog opened after this modal is on top: let the event
+    // reach its window listener instead of closing the modal underneath.
+    // (Kept terse: this file is parser-blocking and counts against the
+    // dashboard boot budget, tests/dashboard-boot-budget-2026-10-03.test.js.)
+    var ov = window.nbdOverlay && window.nbdOverlay.topSeq ? window.nbdOverlay.topSeq() : 0;
+    if (ov > ((st && st.seq) || 0)) return;
     e.stopPropagation();
     close(top);
   });

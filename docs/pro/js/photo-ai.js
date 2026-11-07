@@ -181,7 +181,7 @@
           style="
             display:inline-flex; align-items:center; gap:8px;
             padding:10px 16px; border-radius:8px; border:1px solid #A14A22;
-            background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
+            background:linear-gradient(135deg,var(--orange,#BD5728) 0%,color-mix(in srgb,var(--orange,#BD5728) 85%,#000) 100%);
             color:#fff; font-weight:600; font-size:13px;
             cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.08);">
           <span aria-hidden="true">✨</span>

@@ -614,6 +614,16 @@ function showDeleteConfirm(id, name) {
   const overlay = document.getElementById('delConfirmOverlay');
   if (nameEl) nameEl.textContent = name;
   if (overlay) overlay.classList.add('open');
+  // Keyboard contract (CRM audit 2026-11-06, PL-F17): focus moves into the
+  // dialog, Escape = Cancel, hotkeys stay off behind it, focus returns to the
+  // board after. The helper un-attaches itself when .open is removed.
+  if (overlay && window.nbdOverlay && typeof window.nbdOverlay.attach === 'function') {
+    window.nbdOverlay.attach(overlay, {
+      label: 'Move lead to Deleted?',
+      close: cancelDeleteConfirm,
+      isOpen: (el) => el.isConnected && el.classList.contains('open'),
+    });
+  }
 }
 
 function cancelDeleteConfirm() {
@@ -662,6 +672,13 @@ async function renderDeletedDrawer() {
   if (!body) return; // drawer not in DOM
   body.innerHTML = '<div class="deleted-empty">Loading...</div>';
   const deleted = await window.__NBD_CALL_REGISTRY._loadDeletedLeads();
+  // undefined = not signed in yet: keep "Loading..." (steward review of #2949).
+  if (deleted === undefined) return;
+  // null = the read failed (PL-F13): never "All Clear" for a bin we couldn't read.
+  if (deleted === null) {
+    body.innerHTML = '<div class="empty" role="alert"><div class="empty-title">Could not load deleted leads</div><div class="empty-sub">Check your connection and open the bin again. Nothing was deleted.</div></div>';
+    return;
+  }
   if(!deleted.length) {
     body.innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-5"/></svg></div><div class="empty-title">All Clear</div><div class="empty-sub">No deleted leads in the trash.</div></div>';
     return;
@@ -677,14 +694,21 @@ async function renderDeletedDrawer() {
     const val = l.jobValue ? ' · $'+parseFloat(l.jobValue).toLocaleString() : '';
     const stage = escHtml((typeof window.stageLabel === 'function' && l.stage && window.stageLabel(l.stage)) || l.stage || 'New');
     const safeId = escHtml(l.id);
+    // Offer only what firestore.rules allows on THIS lead (the bin now shows
+    // teammates' deletes to company readers; steward review of #2949).
+    const _c = window._userClaims || {};
+    const _uid = window._user && window._user.uid;
+    const _own = !!_uid && l.userId === _uid && _c.role !== 'viewer';
+    const _sameCo = !!_c.companyId && l.companyId != null && l.companyId === _c.companyId;
+    const canRestore = _c.role === 'admin' || _own || ((_c.role === 'company_admin' || _c.role === 'manager') && _sameCo);
+    const canRemove = _c.role === 'admin' || _own || (_c.role === 'company_admin' && _sameCo);
+    const _btns = (canRestore ? `<button type="button" class="dc-restore nbd-dc-restore" data-id="${safeId}">Restore</button>` : '')
+      + (canRemove ? `<button type="button" class="dc-perm nbd-dc-perm" data-id="${safeId}" data-name="${name}">Remove</button>` : '');
     return `<div class="deleted-card" id="dc-${safeId}">
       <div class="deleted-card-name">${name}</div>
       <div class="deleted-card-addr">${addr}</div>
       <div class="deleted-card-meta">Stage: ${stage}${val} · Deleted ${deletedDate}</div>
-      <div class="deleted-card-btns">
-        <button type="button" class="dc-restore nbd-dc-restore" data-id="${safeId}">Restore</button>
-        <button type="button" class="dc-perm nbd-dc-perm" data-id="${safeId}" data-name="${name}">Remove</button>
-      </div>
+      ${_btns ? `<div class="deleted-card-btns">${_btns}</div>` : ''}
     </div>`;
   }).join('');
   // Wire delegated listeners.
@@ -746,6 +770,7 @@ async function permanentDeleteLead(id, name) {
 async function refreshTrashBadge() {
   try {
     const deleted = await window.__NBD_CALL_REGISTRY._loadDeletedLeads();
+    if (!Array.isArray(deleted)) return; // read failed: leave the badge as it was
     const badge = document.getElementById('trashCountBadge');
     if(badge) {
       badge.textContent = deleted.length || '';

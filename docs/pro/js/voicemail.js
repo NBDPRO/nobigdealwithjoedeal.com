@@ -311,7 +311,10 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     });
 
     renderResult({ transcript: res.transcript, summary, activityId, taskCount: createdTasks.length });
-    toast(`✓ Voicemail saved · ${createdTasks.length} task${createdTasks.length === 1 ? '' : 's'} created`, 'success');
+    // A failed timeline write used to toast "✓ Voicemail saved" anyway (CRM
+    // audit 2026-11-06, VW-F158). The transcript is still on screen to copy.
+    if (activityId) toast(`✓ Voicemail saved · ${createdTasks.length} task${createdTasks.length === 1 ? '' : 's'} created`, 'success');
+    else toast('Transcribed, but NOT saved to the customer timeline — copy what you need below.', 'warning');
   }
 
   // ── persistence ───────────────────────────────────────────────
@@ -417,7 +420,11 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
            ✓ Created ${taskCount} task${taskCount === 1 ? '' : 's'} from action items.
          </div>` : '';
 
+    // Said in the result too, not only in a toast that fades (VW-F158).
+    const notSavedRow = activityId ? '' : `<div class="vmx-bgs2-bd1pxsolid-r7px" role="alert">Not saved to the customer's timeline. Copy what you need from below.</div>`;
+
     r.innerHTML = `
+      ${notSavedRow}
       ${tasksRow}
       ${summary.overview ? `<div class="vmx-bgs2-bd1pxsolid-r7px">
         <div class="vmx-fs9px-ls12em-ttuppercas">Overview</div>

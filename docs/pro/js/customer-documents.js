@@ -431,6 +431,9 @@
       });
     } catch (err) {
       console.warn('[customer-documents] envelopes load failed', err && err.message);
+      // CRM audit 2026-11-06 (CU-F10): say so instead of an empty list.
+      var _el = document.getElementById('esignEnvelopeList');
+      if (_el) _el.textContent = 'Could not load signature requests. Refresh to try again.';
     }
   }
 

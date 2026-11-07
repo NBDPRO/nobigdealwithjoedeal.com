@@ -41,8 +41,8 @@ console.log('\n1. registration');
   ok('field is registered with phone + tablet only', d && d.surfaces.slice().sort().join() === 'phone,tablet');
   ok('lazy assets and the kit exist on disk',
     fs.existsSync(path.join(ROOT, 'docs/pro', d.script)) && fs.existsSync(path.join(ROOT, 'docs/pro', d.css))
-    && d.needs.script.every((p) => fs.existsSync(path.join(ROOT, 'docs/pro', p)))
-    && d.needs.css.every((p) => fs.existsSync(path.join(ROOT, 'docs/pro', p))));
+    && d.needs.script.every((p) => fs.existsSync(path.join(ROOT, 'docs/pro', p.replace(/\?v=\d+$/, ''))))
+    && d.needs.css.every((p) => fs.existsSync(path.join(ROOT, 'docs/pro', p.replace(/\?v=\d+$/, '')))));
   ok('sunlight is a declared capability', d.supports.sunlight === true);
   ok('a phone that chose it gets it; a desktop that chose it gets Classic',
     R.resolve({ surface: 'phone', user: { byDevice: { phone: 'field' } } }).id === 'field'

@@ -112,7 +112,8 @@ function subscribeToPhotos() {
     render();
   }, err => {
     console.error('photo subscription failed:', err);
-    document.getElementById('prBody').innerHTML = '<div class="pr-loading">Couldn\'t load photos: ' + err.message + '</div>';
+    // CRM audit 2026-11-06 (VW-F110): escaped, like every other value here.
+    document.getElementById('prBody').innerHTML = '<div class="pr-loading">Couldn\'t load photos: ' + esc(err && err.message) + '</div>';
   });
 }
 

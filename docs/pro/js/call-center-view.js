@@ -317,6 +317,9 @@
     var q = state.q.trim().toLowerCase();
     if (!q) return true;
     var digits = q.replace(/\D/g, '');
+    // CRM audit 2026-11-06 (VW-F14): "+1 513…" is 11 digits; phoneDigits is the
+    // last 10 (digits10). Drop the country code so it matches.
+    if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
     var lab = labelFor(c);
     var hay = [c.contactName, leadName(L[c.leadId]), lab ? lab.kind + ' ' + (lab.name || '') : '', c.summary, c.transcript, (c.promises || []).map(function (p) { return p.text; }).join(' ')].join(' ').toLowerCase();
     return hay.indexOf(q) !== -1 || (digits.length >= 3 && String(c.phoneDigits || '').indexOf(digits) !== -1);
@@ -522,7 +525,25 @@
       '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + stats + sum;
   }
 
+  // CRM audit 2026-11-06 (VW-F15): a Handled / attach re-renders the list.
+  // Carry any recording player across, so a call that is playing keeps playing.
   function render() {
+    var el = root();
+    var live = {};
+    var canQ = !!(el && typeof el.querySelectorAll === 'function');
+    if (canQ) el.querySelectorAll('[data-cc-audio] audio').forEach(function (a) { live[a.parentNode.getAttribute('data-cc-audio')] = a; });
+    renderList();
+    Object.keys(live).forEach(function (id) {
+      var slot = canQ && el.querySelector('[data-cc-audio="' + CSS.escape(id) + '"]');
+      if (slot && !slot.querySelector('audio')) slot.appendChild(live[id]);
+    });
+  }
+  // VW-F15: the recordings are blobs held in memory; free them when the page goes.
+  if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', function () {
+    Object.keys(state.blobUrls).forEach(function (k) { try { URL.revokeObjectURL(state.blobUrls[k]); } catch (_) {} });
+    state.blobUrls = {};
+  });
+  function renderList() {
     var el = root();
     if (!el) return;
     var L = leadsById();

@@ -3807,6 +3807,13 @@
           const result = await window.LeadDedup.checkAndPrompt(data, window._leads || []);
           if (!result.proceed) {
             if (result.openLeadId) {
+              // Leaving drops everything typed in this form (notes included).
+              // Ask first when there IS something typed (CRM audit
+              // 2026-11-06, PL-F16); an empty form just goes.
+              if (typeof window._leadFormHasContent === 'function' && window._leadFormHasContent()) {
+                const _askOpen = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+                if (!(await _askOpen('Open the existing customer? What you typed in this form will not be saved.'))) return null;
+              }
               // Rep chose to open the existing lead — navigate there.
               // "Add a job to them" lands on the add-job sheet (customer-jobs.js).
               window.location.href = `/pro/customer.html?id=${encodeURIComponent(result.openLeadId)}${result.addJob ? '#addJob' : ''}`;
@@ -4185,13 +4192,34 @@
     catch(e) { console.error('permanentDelete error:', e && e.code, e); return false; }
   };
 
+  // Deleted bin (CRM audit 2026-11-06, PL-F13). Was own-userId only (a
+  // manager who deleted a teammate's lead never saw it here), returned
+  // undefined before auth (renderDeletedDrawer then threw and sat on
+  // "Loading…"), and turned a failed read into [] — "All Clear" while the bin
+  // might be full. Now: the same two-scope shape as loadEstimates for team
+  // readers, undefined before auth ("Loading..."), null on failure so the drawer can say so, and a
+  // cap per scope.
   async function _loadDeletedLeads() {
+    const uid = window._user?.uid;
+    // Not signed in yet: undefined, which the drawer shows as "Loading…"
+    // (never "All Clear" before we have looked; steward review of #2949).
+    if (!uid) return undefined;
     try {
-      const uid = window._user?.uid;
-      if (!uid) return;
-      const snap = await getDocs(query(collection(db,'leads'), where('userId','==',uid), where('deleted','==',true)));
-      return snap.docs.map(d => ({id:d.id,...d.data()}));
-    } catch(e) { return []; }
+      const claims = window._userClaims || {};
+      const scopes = [where('userId','==',uid)];
+      if (['company_admin','manager','viewer'].includes(claims.role || '') && claims.companyId) {
+        scopes.push(where('companyId','==',claims.companyId));
+      }
+      const byId = {};
+      for (const scope of scopes) {
+        const snap = await getDocs(query(collection(db,'leads'), scope, where('deleted','==',true), limit(200)));
+        snap.docs.forEach(d => { byId[d.id] = {id:d.id,...d.data()}; });
+      }
+      return Object.values(byId);
+    } catch(e) {
+      console.warn('[deleted] read failed:', e && (e.code || e.message));
+      return null;
+    }
   }
 
   // ── ESTIMATES ──────────────────────────────────
@@ -6027,6 +6055,7 @@
       if (el) data[f] = el.value || '';
     });
     try { localStorage.setItem('nbd_company_settings', JSON.stringify(data)); } catch(e){}
+    let _coSyncFailed = false;
     try {
       if (window._db && window._user) {
         const { setDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
@@ -6036,15 +6065,19 @@
           { merge: true }
         );
       }
-    } catch (e) { console.warn('Company settings Firestore sync failed:', e); }
+    } catch (e) { console.warn('Company settings Firestore sync failed:', e); _coSyncFailed = true; }
 
+    // A failed server write used to show the same "✓ saved" (CRM audit
+    // 2026-11-06, ST-F05): the values are on THIS device only, and another
+    // device would show the old ones. Say so.
+    const _coMsg = _coSyncFailed ? 'Saved on this device only — could not reach the server, so your other devices will not see it yet.' : '✓ Company info saved';
     const msg = document.getElementById('co-save-msg');
     if (msg) {
       msg.style.display = 'block';
-      msg.textContent = '✓ Company info saved';
-      setTimeout(() => msg.style.display = 'none', 3000);
+      msg.textContent = _coMsg;
+      setTimeout(() => msg.style.display = 'none', _coSyncFailed ? 8000 : 3000);
     }
-    if (typeof showToast === 'function') showToast('✓ Company info saved', 'success');
+    if (typeof showToast === 'function') showToast(_coMsg, _coSyncFailed ? 'warning' : 'success');
   };
 
   async function _loadCompanySettings() {
@@ -6743,6 +6776,7 @@
     });
 
     try { localStorage.setItem('nbd_notif_settings', JSON.stringify(data)); } catch(e){}
+    let _ntSyncFailed = false;
     try {
       if (window._db && window._user) {
         const { setDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
@@ -6752,14 +6786,18 @@
           { merge: true }
         );
       }
-    } catch (e) {}
+    } catch (e) { console.warn('Notification settings Firestore sync failed:', e); _ntSyncFailed = true; }
 
+    // Same honesty as Company info (ST-F05): a failed server write is
+    // device-only, not "saved".
+    const _ntMsg = _ntSyncFailed ? 'Saved on this device only — could not reach the server, so alerts may still use your old settings.' : '✓ Notification preferences saved';
     const msg = document.getElementById('notif-save-msg');
     if (msg) {
       msg.style.display = 'block';
-      setTimeout(() => msg.style.display = 'none', 3000);
+      msg.textContent = _ntMsg;
+      setTimeout(() => msg.style.display = 'none', _ntSyncFailed ? 8000 : 3000);
     }
-    if (typeof showToast === 'function') showToast('✓ Notification preferences saved', 'success');
+    if (typeof showToast === 'function') showToast(_ntMsg, _ntSyncFailed ? 'warning' : 'success');
   };
 
   // Apply a settings object to the Notifications-tab form controls.

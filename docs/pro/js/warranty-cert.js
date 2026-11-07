@@ -320,6 +320,10 @@ async function generateWarrantyCertPDF() {
   const _b = (window._brand && window._brand()) || null;
   const isNbd = !_b || !_b.legalName || _b.legalName === 'No Big Deal Home Solutions';
   const _bc = (_b && _b.contact) || {};
+  // CRM audit 2026-11-06 (ED-F20): another company's certificate used NBD's
+  // orange. Its accent comes from the tenant brand; NBD keeps the exact literals.
+  const _accHex = (!isNbd && _b && _b.colors && /^#[0-9a-f]{3,8}$/i.test(String(_b.colors.accent || ''))) ? _b.colors.accent : '#BD5728';
+  const _accVar = isNbd ? 'var(--orange,#BD5728)' : _accHex;
   // Certificate-number prefix. ASYNC resolver: _custIdPrefix() answers NBD for
   // EVERY tenant until company-profile hydration completes, and this string is
   // printed on the certificate the homeowner keeps. Never blank — a minted
@@ -409,10 +413,10 @@ async function generateWarrantyCertPDF() {
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:'Lato','Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#111;padding:40px 48px;max-width:800px;margin:0 auto;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:4px solid #BD5728;margin-bottom:28px;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:4px solid ${_accHex};margin-bottom:28px;}
     .brand{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;}
-    .brand span{color:var(--orange,#BD5728);}
-    .brand-sub{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--orange,#BD5728);border:1px solid #BD5728;padding:2px 10px;border-radius:2px;display:inline-block;margin-top:6px;}
+    .brand span{color:${_accVar};}
+    .brand-sub{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:${_accVar};border:1px solid ${_accHex};padding:2px 10px;border-radius:2px;display:inline-block;margin-top:6px;}
     .cert-header{text-align:right;}
     .cert-type{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#999;margin-bottom:4px;}
     .cert-title{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:#111;}
@@ -422,18 +426,18 @@ async function generateWarrantyCertPDF() {
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-bottom:8px;}
     .field label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#999;display:block;margin-bottom:3px;}
     .field .val{font-size:15px;font-weight:700;color:#111;border-bottom:1.5px solid #ddd;padding-bottom:4px;min-height:24px;}
-    .guarantee-box{background:#f9f9f9;border:1px solid #eee;border-left:4px solid #BD5728;border-radius:4px;padding:16px 18px;margin:16px 0;}
-    .guarantee-box .tier{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--orange,#BD5728);margin-bottom:6px;}
+    .guarantee-box{background:#f9f9f9;border:1px solid #eee;border-left:4px solid ${_accHex};border-radius:4px;padding:16px 18px;margin:16px 0;}
+    .guarantee-box .tier{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:${_accVar};margin-bottom:6px;}
     .guarantee-box .terms{font-size:12px;color:#444;line-height:1.7;}
     .features{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0;}
     .feature{display:flex;align-items:center;gap:8px;font-size:12px;color:#333;}
-    .feature-dot{width:8px;height:8px;border-radius:50%;background:var(--orange,#BD5728);flex-shrink:0;}
+    .feature-dot{width:8px;height:8px;border-radius:50%;background:${_accVar};flex-shrink:0;}
     .sig-section{margin-top:32px;padding-top:20px;border-top:1px solid #eee;}
     .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:20px;}
     .sig-line{border-bottom:1.5px solid #333;height:32px;margin-bottom:5px;}
     .sig-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;}
     .footer{margin-top:24px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#aaa;}
-    .seal{width:60px;height:60px;border-radius:50%;border:3px solid #BD5728;display:flex;align-items:center;justify-content:center;font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--orange,#BD5728);text-align:center;line-height:1.3;padding:8px;}
+    .seal{width:60px;height:60px;border-radius:50%;border:3px solid ${_accHex};display:flex;align-items:center;justify-content:center;font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:${_accVar};text-align:center;line-height:1.3;padding:8px;}
     @page{margin:1.5cm 2cm;size:letter;}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   </style></head><body>

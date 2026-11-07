@@ -46,7 +46,9 @@ window.subscribe = async function(plan, evt) {
   const btn = (evt && evt.target) || (typeof window !== 'undefined' && window.event && window.event.target) || null;
   const originalLabel = btn ? btn.textContent : '';
 
-  // Check if user is signed in
+  // Check if user is signed in. CRM audit 2026-11-06 (ST-F65): wait for the
+  // restored session first, or a just-loaded page reads null for a signed-in user.
+  if (typeof auth.authStateReady === 'function') { try { await auth.authStateReady(); } catch (_) { /* fall through */ } }
   const user = auth.currentUser;
   if (!user) {
     // A signed-out visitor on the pricing page is almost always a NEW stranger,

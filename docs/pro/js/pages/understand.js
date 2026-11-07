@@ -277,19 +277,26 @@ function formatAiText(text) {
 async function loadPipelineContext() {
   try {
     if (window._db && window._authUser) {
-      const { collection, getDocs, query } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
+      const { collection, getDocs, query, where, limit } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._authUser.uid;
-      const snap = await getDocs(query(collection(window._db, 'leads', uid, 'leads')));
+      // CRM audit 2026-11-06 (DT-F18): leads live in the flat /leads
+      // collection keyed by userId (as project-codex-page.js reads them).
+      // `leads/{uid}/leads` does not exist, so the rules denied it and this
+      // context was always empty. Capped; deleted leads are skipped.
+      const snap = await getDocs(query(collection(window._db, 'leads'), where('userId', '==', uid), limit(1000)));
       let totalRevenue = 0;
       let active = 0;
       let closed = 0;
+      let count = 0;
       snap.forEach(d => {
         const data = d.data();
+        if (data.deleted === true) return;
+        count++;
         totalRevenue += Number(data.estimateTotal || data.totalRCV || data.cashPrice || 0);
         if (data.stage === 'completed' || data.stage === 'collected') closed++;
         else active++;
       });
-      pipelineContext = { leads: snap.size, revenue: totalRevenue, active, closed };
+      pipelineContext = { leads: count, revenue: totalRevenue, active, closed };
     }
   } catch (err) {
     console.warn('Could not load pipeline context:', err);

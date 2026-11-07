@@ -808,6 +808,10 @@ window.NBDDocGen = {
               showToast('\u2713 Document generated \u2014 use Print or Download PDF to save a copy', 'success');
             }
           }
+          // Tell the viewer whether anything was filed on the customer, so it
+          // doesn't add "Document saved" for a document that was never attached
+          // (no lead picked, or the write failed) - CRM audit 2026-11-06, VW-F51.
+          return attachedToLead ? true : { notSaved: true };
         },
         // Called by NBDDocViewer after the user finalizes signatures
         // inside the iframe. Re-uploads the signed HTML to the same
@@ -3275,15 +3279,19 @@ window.NBDDocGen = {
 
     // Collect all non-empty fields into a data table
     const skipFields = new Set(['_documentType','date','companyName','companyPhone','companyEmail','companyWebsite','companyTagline']);
+    // CRM audit 2026-11-06 (ED-F13): internal fields are not customer paper —
+    // _-prefixed keys, record ids (leadId, userId, companyId, …Id), uid and
+    // anything named internal.
+    const _internalKey = (k) => /^_/.test(k) || /Id$/.test(k) || /^(uid|id)$/i.test(k) || /internal/i.test(k);
     const fieldRows = Object.entries(d)
-      .filter(([k,v]) => v && !skipFields.has(k) && typeof v === 'string' && v.trim())
+      .filter(([k,v]) => v && !skipFields.has(k) && !_internalKey(k) && typeof v === 'string' && v.trim())
       .map(([k,v]) => {
         const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).replace(/_/g, ' ');
         return `<tr><td style="padding:8px 12px;font-weight:600;color:${_P};white-space:nowrap;width:180px;border-bottom:1px solid #f0f0f0;">${this._escHtml(label)}</td><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">${this._escHtml(String(v).substring(0, 500))}</td></tr>`;
       }).join('');
 
     const c = this._resolveCompany();
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${typeName} — ${this._escHtml(name || 'NBD Pro')}</title>
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${this._escHtml(typeName)} — ${this._escHtml(name || (c && c.name) || 'Document')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Lato:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* NBD DOCUMENT STANDARD (locked 2026-09-07). This generic/server document
@@ -3316,7 +3324,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:16px;}
 </style></head><body>
 <div class="hdr">
   <div>
-    <div class="brand-row">${this._logoSrc() ? `<img class="brand-logo" src="${this._logoSrc()}" alt="${this._resolveCompany().name}"/>` : ''}<div class="brand">${this._resolveCompany().name}</div></div>
+    <div class="brand-row">${this._logoSrc() ? `<img class="brand-logo" src="${this._logoSrc()}" alt="${this._escHtml(this._resolveCompany().name)}"/>` : ''}<div class="brand">${this._escHtml(this._resolveCompany().name)}</div></div>
     <div class="badge">${typeName}</div>
   </div>
   <div><div class="doc-type">${typeName}</div><div class="doc-date">${date}</div></div>
@@ -3335,7 +3343,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
   <div><div class="sig-line">Homeowner Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
   <div><div class="sig-line">Contractor Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
 </div>
-<div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).join(' · ')}</span></div>
+<div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).map((x) => this._escHtml(x)).join(' · ')}</span></div>
 </body></html>`;
   },
 
@@ -3637,14 +3645,14 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
     fields.forEach(f => {
       const id = 'docgen_' + f.name;
       if (f.type === 'textarea') {
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
           <textarea id="${id}" rows="3" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;resize:vertical;font-family:inherit;" placeholder="${f.label}"></textarea></div>`;
       } else if (f.type === 'select') {
         const opts = (f.options||[]).map(o => `<option value="${o}"${f.default === o ? ' selected' : ''}>${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('');
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}</label>
           <select id="${id}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;">${opts}</select></div>`;
       } else {
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
           <input type="text" id="${id}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;" placeholder="${f.label}"></div>`;
       }
     });
@@ -3657,11 +3665,11 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         <div style="padding:20px 24px;border-bottom:2px solid #eee;display:flex;justify-content:space-between;align-items:center;">
           <div><div style="font-size:10px;color:#1a3057;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">Generate Document</div>
           <div style="font-size:18px;font-weight:700;color:#12223d;font-family:'Helvetica Neue',Arial,sans-serif;">${docName}</div></div>
-          <button data-dg-action="closeFillModal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;">&times;</button>
+          <button type="button" data-dg-action="closeFillModal" aria-label="Close" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;">&times;</button>
         </div>
         <div style="flex:1;overflow-y:auto;padding:20px 24px;">
           <div style="margin-bottom:16px;">
-            <label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Auto-fill from Lead</label>
+            <label for="docgen_leadSelect" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Auto-fill from Lead</label>
             <select id="docgen_leadSelect" data-dg-leadselect style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;">${leadOptions}</select>
           </div>
           <div style="border-top:1px solid #eee;padding-top:16px;">${fieldsHTML}</div>
@@ -3672,6 +3680,9 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         </div>
       </div>`;
     document.body.appendChild(modal);
+    // CRM audit 2026-11-06 (VW-F56): Escape, Tab trap and focus return, the
+    // shared contract (overlay-a11y.js). Escape does what Cancel does.
+    if (window.nbdOverlay) window.nbdOverlay.attach(modal, { label: 'Generate ' + docName, close: () => modal.remove() });
 
     // Wave 28: change-delegate for the lead-select (replaces inline onchange).
     const _docgenLeadSelect = modal.querySelector('[data-dg-leadselect]');

@@ -30,7 +30,7 @@ window.storage = {
 };
 
 // ── STORAGE ──
-async function save(){try{await window.storage.set('nbd-codex-v2',JSON.stringify({tasks:codex.tasks,totalSessions:codex.totalSessions,lastSession:codex.lastSession,version:codex.version,sessions:codex.sessions.filter(s=>s.source==='original'||s.num>=10),directives:codex.directives}))}catch(e){}}
+async function save(){try{await window.storage.set('nbd-codex-v2',JSON.stringify({tasks:codex.tasks,totalSessions:codex.totalSessions,lastSession:codex.lastSession,version:codex.version,sessions:codex.sessions.filter(s=>s.source==='original'||s.num>=10),directives:codex.directives}))}catch(e){console.warn('[codex] save failed:',e&&e.message);toast('Couldn\'t save. Your browser storage may be full.','red')}} // CRM audit 2026-11-06 (VW-F109)
 async function load(){
   try{
     const r=await window.storage.get('nbd-codex-v2');
@@ -42,7 +42,7 @@ async function load(){
     if(s.sessions){s.sessions.filter(ss=>ss.num>11).forEach(ss=>{if(!codex.sessions.find(x=>x.id===ss.id))codex.sessions.unshift(ss)})}
     if(s.version&&s.totalSessions>codex.totalSessions){codex.version=s.version;codex.totalSessions=s.totalSessions;codex.lastSession=s.lastSession}
     if(s.directives)codex.directives=s.directives;
-  }catch(e){}
+  }catch(e){console.warn('[codex] load failed:',e&&e.message);toast('Saved progress couldn\'t be read. Showing the built-in list.','red')} // CRM audit 2026-11-06 (VW-F109)
 }
 
 function uid(){return Math.random().toString(36).slice(2,9)}

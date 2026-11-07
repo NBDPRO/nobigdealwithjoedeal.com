@@ -227,7 +227,14 @@ function decodeQr(m) {
     ok('customer.html loads the CSS and both scripts with defer + ?v=, QR first', tags(cust));
     ok('the dashboard loads them only with the Field layout (needs, in order, ?v=), so its boot budget does not grow',
       /needs: \{ script: \['js\/layouts\/kit\.js', 'js\/qr-code\.js\?v=1', 'js\/review-handoff\.js\?v=1'\], css: \['css\/layouts\/kit\.css', 'css\/review-handoff\.css\?v=1'\] \}/.test(read('docs/pro/js/layout-system.js'))
-      && !/review-handoff|qr-code/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=([5-9]|\d{2,})"/.test(read('docs/pro/dashboard.html')));   // >= 5 (6 since NBD OS, 2026-11-06)
+      && !/review-handoff|qr-code/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=([5-9]|\d{2,})"/.test(read('docs/pro/dashboard.html')));   // >= 5 (7 since NBD OS + the Field needs fix)
+    // The source text alone passed while the registry's path rule dropped the
+    // QR + hand-off files: check what the engine will actually load.
+    const LS = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
+    const fn = LS.get('field') && LS.get('field').needs;
+    ok('the registry KEEPS Field\'s needs after normalising, in order (the Review / Job done button has its scripts)',
+      !!fn && fn.script.join() === 'js/layouts/kit.js,js/qr-code.js?v=1,js/review-handoff.js?v=1' && fn.css.join() === 'css/layouts/kit.css,css/review-handoff.css?v=1',
+      fn && (fn.script.join() + ' | ' + fn.css.join()));
     const f = read('docs/pro/js/layouts/field.js');
     ok('Field: a Review button in the action bar for a job-done lead', /collectHtml\(it\) \+ reviewHtml\(it\) \+ '<\/div>'/.test(f) && /if \(!it \|\| !it\.id \|\| !jobDone\(leadById\(it\.id\)\)\) return '';/.test(f) && /class="lk-act fa-review" data-rh-open data-lead-id="/.test(f));
     ok('Field: the lead screen and the wrap-up offer it too', /handoffBtn\(it\.id, 'fa-big', 'Job done: show the review QR'\)/.test(f) && /wrapHandoffs\(d\)/.test(f) && /if \(!d\.done\[s\.key\] \|\| !s\.leadId \|\| seen\[s\.leadId\]\) return;/.test(f));
