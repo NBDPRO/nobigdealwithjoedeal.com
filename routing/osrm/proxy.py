@@ -11,6 +11,11 @@ POST /v1/route  {"coords": [[lng, lat], ...] (2..25), "geometry": true|false}
           "geometry": "<polyline6>" | null}
   -> 200 {"ok": false, "reason": "no_route" | "outside"}   (nothing routable)
   -> 400 bad input, 503 OSRM still starting
+POST /v1/table  {"coords": [[lng, lat], ...] (2..25)}          (2026-11-07)
+  -> 200 {"ok": true, "sec": [[n | null, ...], ...]}  driving seconds from
+          each stop (row) to each stop (column); null = no road between them.
+          The CRM orders a day's stops by these instead of straight lines.
+  -> 200 {"ok": false, "reason": "no_route" | "outside"}, 400, 503 as above
 GET /healthz -> 200 once OSRM answers.
 """
 import json
@@ -56,6 +61,31 @@ def osrm_route(req):
     path = ";".join("%.6f,%.6f" % c for c in req["coords"])
     q = "overview=full&geometries=polyline6" if req["geometry"] else "overview=false"
     url = "%s/route/v1/driving/%s?%s&steps=false&annotations=false&continue_straight=false" % (OSRM, path, q)
+    return osrm_get(url)
+
+
+def osrm_table(req):
+    # loopback only: this URL (with the coordinates) never leaves the container
+    path = ";".join("%.6f,%.6f" % c for c in req["coords"])
+    return osrm_get("%s/table/v1/driving/%s?annotations=duration" % (OSRM, path))
+
+
+def table_reply(res, n):
+    """OSRM /table answer -> the proxy's reply. Durations rounded to whole seconds."""
+    if res is None:
+        return 503, {"ok": False, "reason": "starting"}
+    rows = res.get("durations") if isinstance(res, dict) else None
+    if res.get("code") != "Ok" or not isinstance(rows, list) or len(rows) != n:
+        return 200, {"ok": False, "reason": "no_route"}
+    sec = []
+    for row in rows:
+        if not isinstance(row, list) or len(row) != n:
+            return 200, {"ok": False, "reason": "no_route"}
+        sec.append([None if v is None else int(round(v)) for v in row])
+    return 200, {"ok": True, "sec": sec}
+
+
+def osrm_get(url):
     deadline = time.time() + START_WAIT_S
     while True:
         try:
@@ -98,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, {"ok": False})
 
     def do_POST(self):
-        if self.path != "/v1/route":
+        if self.path not in ("/v1/route", "/v1/table"):
             return self._send(404, {"ok": False})
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -111,6 +141,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, {"ok": False, "reason": err})
         if not all(in_box(*c) for c in req["coords"]):
             return self._send(200, {"ok": False, "reason": "outside"})
+        if self.path == "/v1/table":
+            status, body = table_reply(osrm_table(req), len(req["coords"]))
+            return self._send(status, body)
         res = osrm_route(req)
         if res is None:
             return self._send(503, {"ok": False, "reason": "starting"})

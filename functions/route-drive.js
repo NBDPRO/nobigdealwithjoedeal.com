@@ -7,8 +7,11 @@
  *
  *   auth        signed in (no anonymous), App Check enforced, 60 calls a
  *               minute per user (callableRateLimit)
- *   input       { stops: [{lat,lng}] 2..25, geometry: bool }
+ *   input       { stops: [{lat,lng}] 2..25, geometry: bool, matrix: bool }
  *   output      { ok: true, legs: [{min, mi}], min, mi, geometry? (polyline6) }
+ *               | matrix: true -> { ok: true, sec: n x n driving seconds }
+ *                 (2026-11-07, proxy /v1/table; 'not_supported' before the
+ *                 routing image with /v1/table is deployed)
  *               | { ok: false, reason } — the browser then keeps its
  *               straight-line estimate, labelled "est."
  *   cache       memory (this instance, 500 routes, 7 days, with geometry) and
@@ -55,10 +58,66 @@ async function osrmClient(url) {
   return _client;
 }
 
+/**
+ * The drive-time matrix for a set of stops (2026-11-07): { ok, sec: n x n
+ * seconds | null } from the proxy's /v1/table, so the browser can order a
+ * day's stops by road time instead of straight lines. Cached like a route
+ * (memory + Firestore, keyed by a hash; Firestore cannot hold nested arrays,
+ * so it stores the flat row-major list and n). An older routing image has no
+ * /v1/table (404): that is 'not_supported', and the browser keeps its
+ * straight-line ordering until the image is redeployed.
+ */
+async function matrixFor(clean, deps) {
+  const now = deps.now;
+  const key = L.cacheKey(clean.stops, false, 'table');
+  const n = clean.stops.length;
+  const hit = memGet(key, now);
+  if (hit) return Object.assign({ cached: true }, hit);
+  const db = deps.db;
+  if (db) {
+    try {
+      const snap = await db.collection(COL).doc(key).get();
+      const v = snap.exists ? snap.data() : null;
+      if (v && v.expireAtMs > now && v.n === n && Array.isArray(v.secFlat) && v.secFlat.length === n * n) {
+        const rows = [];
+        for (let i = 0; i < n; i++) rows.push(v.secFlat.slice(i * n, i * n + n));
+        const value = L.shapeMatrix({ ok: true, sec: rows }, n);
+        if (value.ok) { memSet(key, value, now); return Object.assign({ cached: true }, value); }
+      }
+    } catch (_) { /* cache is best-effort; ask the routing service */ }
+  }
+  if (!deps.url) return { ok: false, reason: 'not_configured' };
+  let res;
+  try {
+    const client = await deps.client(deps.url);
+    const r = await client.request({ url: deps.url + '/v1/table', method: 'POST', data: L.proxyBody(clean.stops, false), timeout: CALL_TIMEOUT_MS });
+    res = L.shapeMatrix(r && r.data, n);
+  } catch (e) {
+    const status = (e && e.response && e.response.status) || (e && e.code) || 'error';
+    if (status === 404) return { ok: false, reason: 'not_supported' };
+    logger.warn('[routeDrive] routing service unavailable (table)', { status });
+    return { ok: false, reason: 'unavailable' };
+  }
+  if (!res.ok) return res;
+  memSet(key, res, now);
+  if (db) {
+    db.collection(COL).doc(key).set({ n, secFlat: [].concat.apply([], res.sec), atMs: now, expireAtMs: now + FS_TTL_MS })
+      .catch(() => {});
+  }
+  return res;
+}
+
 /** Core, injectable for tests: { db, now, url, client } */
 async function routeFor(data, deps) {
   const geometry = !!(data && data.geometry === true);
   const clean = L.cleanStops(data && data.stops);
+  if (data && data.matrix === true) {
+    if (!clean.ok) {
+      if (clean.reason === 'invalid') throw new HttpsError('invalid-argument', 'Send 2 to ' + L.MAX_STOPS + ' stops.');
+      return { ok: false, reason: clean.reason };
+    }
+    return matrixFor(clean, deps);
+  }
   if (!clean.ok) {
     if (clean.reason === 'invalid') throw new HttpsError('invalid-argument', 'Send 2 to ' + L.MAX_STOPS + ' stops.');
     return { ok: false, reason: clean.reason };

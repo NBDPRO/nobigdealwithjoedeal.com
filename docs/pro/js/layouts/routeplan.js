@@ -4,7 +4,9 @@
  * Mission Control through `needs.script`; require()-able for tests.
  *
  *   order        nearest-neighbour from a fixed first stop, then 2-opt on the
- *                OPEN path (the first stop never moves; nothing returns home)
+ *                OPEN path (the first stop never moves; nothing returns home).
+ *                optimizeMatrix() runs the same search on ROAD seconds from
+ *                the routing service when it answers (2026-11-07)
  *   drive time   an ESTIMATE: straight-line miles x 1.3 for the road network at
  *                an average 28 mph. There is no routing API in the CRM and none is
  *                added; every place this number is shown says "est."
@@ -44,8 +46,13 @@
     return t;
   }
 
+  // cost(i, j) between two point INDEXES; the default is straight-line miles.
+  // optimizeMatrix() passes road seconds instead (2026-11-07, OSRM /table).
+  function milesCost(pts) { return function (i, j) { return distMi(pts[i], pts[j]); }; }
+
   /** Nearest neighbour from `start` over every index. Returns an index order. */
-  function nearestNeighbor(pts, start) {
+  function nearestNeighbor(pts, start, cost) {
+    var c = cost || milesCost(pts);
     var n = pts.length;
     if (!n) return [];
     var s = start >= 0 && start < n ? start : 0;
@@ -53,9 +60,9 @@
     for (i = 0; i < n; i++) if (i !== s) left.push(i);
     var order = [s];
     while (left.length) {
-      var cur = pts[order[order.length - 1]], bi = 0, bd = Infinity;
+      var cur = order[order.length - 1], bi = 0, bd = Infinity;
       for (i = 0; i < left.length; i++) {
-        var d = distMi(cur, pts[left[i]]);
+        var d = c(cur, left[i]);
         if (d < bd) { bd = d; bi = i; }
       }
       order.push(left.splice(bi, 1)[0]);
@@ -67,7 +74,8 @@
    * 2-opt on an OPEN path whose first element is fixed. Reverses a segment
    * whenever that shortens the path, until a full pass finds nothing.
    */
-  function twoOpt(order, pts) {
+  function twoOpt(order, pts, cost) {
+    var c = cost || milesCost(pts);
     var o = order.slice(), n = o.length;
     if (n < 4) return o;
     var improved = true, guard = 0;
@@ -75,10 +83,10 @@
       improved = false;
       for (var i = 1; i < n - 1; i++) {
         for (var j = i + 1; j < n; j++) {
-          var a = pts[o[i - 1]], b = pts[o[i]], c = pts[o[j]];
-          var d = j + 1 < n ? pts[o[j + 1]] : null;
-          var before = distMi(a, b) + (d ? distMi(c, d) : 0);
-          var after = distMi(a, c) + (d ? distMi(b, d) : 0);
+          var a = o[i - 1], b = o[i], e = o[j];
+          var d = j + 1 < n ? o[j + 1] : null;
+          var before = c(a, b) + (d != null ? c(e, d) : 0);
+          var after = c(a, e) + (d != null ? c(b, d) : 0);
           if (after + 1e-9 < before) {
             // reverse o[i..j]
             for (var l = i, r = j; l < r; l++, r--) { var t = o[l]; o[l] = o[r]; o[r] = t; }
@@ -103,6 +111,40 @@
     var nn = nearestNeighbor(pts, start || 0);
     var best = twoOpt(nn, pts);
     return { order: best, miles: pathMi(best, pts), nnMiles: pathMi(nn, pts) };
+  }
+
+  /**
+   * The same order search over ROAD time (2026-11-07): sec is the n x n
+   * driving-seconds matrix from the routing service (row = from, column = to).
+   * 2-opt reverses segments, so it searches on the two directions' average;
+   * the path's reported seconds are the real ones, in driving direction.
+   * Returns { order, sec, nnSec, identSec }, or null when a needed pair has
+   * no road (null) or the matrix is the wrong size — the caller then keeps
+   * the straight-line order.
+   */
+  function pathSec(order, sec) {
+    var t = 0;
+    for (var i = 1; i < order.length; i++) t += sec[order[i - 1]][order[i]];
+    return t;
+  }
+  function optimizeMatrix(sec, start) {
+    var n = Array.isArray(sec) ? sec.length : 0;
+    if (!n || n > MAX_STOPS) return null;
+    for (var i = 0; i < n; i++) {
+      if (!Array.isArray(sec[i]) || sec[i].length !== n) return null;
+      for (var j = 0; j < n; j++) if (i !== j && !(typeof sec[i][j] === 'number' && isFinite(sec[i][j]) && sec[i][j] >= 0)) return null;
+    }
+    var sym = function (a, b) { return (sec[a][b] + sec[b][a]) / 2; };
+    var pts = []; for (i = 0; i < n; i++) pts.push(i);   // only its length is used once cost is given
+    var ident = pts.slice();
+    var nn = nearestNeighbor(pts, start || 0, sym);
+    var best = twoOpt(nn, pts, sym);
+    // 2-opt works on the averaged times; on lopsided one-way times that can
+    // be longer in driving direction than where it started (found by the
+    // random-matrix test). Keep whichever is really shorter.
+    var bestSec = pathSec(best, sec), nnSec = pathSec(nn, sec);
+    if (nnSec < bestSec) { best = nn; bestSec = nnSec; }
+    return { order: best, sec: bestSec, nnSec: nnSec, identSec: pathSec(ident, sec) };
   }
 
   /** Per-hop legs for an order: [{ from, to, mi, roadMi, min }]. */
@@ -233,7 +275,7 @@
   var api = {
     ROAD_FACTOR: ROAD_FACTOR, AVG_MPH: AVG_MPH, ON_SITE_MIN: ON_SITE_MIN, MAX_STOPS: MAX_STOPS,
     distMi: distMi, driveMin: driveMin, roadMi: roadMi, pathMi: pathMi,
-    nearestNeighbor: nearestNeighbor, twoOpt: twoOpt, optimize: optimize, legs: legs, totals: totals, conflicts: conflicts,
+    nearestNeighbor: nearestNeighbor, twoOpt: twoOpt, optimize: optimize, optimizeMatrix: optimizeMatrix, legs: legs, totals: totals, conflicts: conflicts,
     stageGroup: stageGroup, roofAgeBucket: roofAgeBucket, onMyWayText: onMyWayText, smsHref: smsHref,
     directionsUrl: directionsUrl, draftOnMyWay: draftOnMyWay, COULD_NOT_CHECK: COULD_NOT_CHECK,
   };

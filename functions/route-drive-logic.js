@@ -9,6 +9,8 @@
  *                never is (and none is ever logged)
  *   shapeResult  the proxy's reply -> what the browser gets
  *                ({ ok, legs: [{ min, mi }], min, mi, geometry? })
+ *   shapeMatrix  the proxy's /v1/table reply -> { ok, sec: n x n seconds }
+ *                (2026-11-07: Mission Control orders stops by road time)
  */
 'use strict';
 const crypto = require('crypto');
@@ -34,8 +36,9 @@ function cleanStops(raw) {
   return { ok: true, stops };
 }
 
-function cacheKey(stops, geometry) {
-  const s = stops.map((p) => p.lat.toFixed(4) + ',' + p.lng.toFixed(4)).join(';') + (geometry ? '|g' : '|n');
+// kind 'table' (the drive-time matrix) gets its own key; a route's key is unchanged.
+function cacheKey(stops, geometry, kind) {
+  const s = stops.map((p) => p.lat.toFixed(4) + ',' + p.lng.toFixed(4)).join(';') + (geometry ? '|g' : '|n') + (kind === 'table' ? '|t' : '');
   return crypto.createHash('sha256').update(s).digest('hex');
 }
 
@@ -58,4 +61,29 @@ function shapeResult(r, nLegs) {
   return out;
 }
 
-module.exports = { BBOX, MAX_STOPS, cleanStops, cacheKey, proxyBody, shapeResult, minutes, miles, inBox };
+/**
+ * Proxy /v1/table reply -> browser reply (2026-11-07, road-time ordering).
+ * { ok: true, sec: n x n of whole seconds | null (no road) } — or { ok: false }.
+ * Only durations leave this function: no coordinate is in the reply.
+ */
+function shapeMatrix(r, n) {
+  if (!r || r.ok !== true || !Array.isArray(r.sec) || r.sec.length !== n) {
+    return { ok: false, reason: (r && typeof r.reason === 'string' && /^[a-z_]{1,20}$/.test(r.reason)) ? r.reason : 'no_route' };
+  }
+  const sec = [];
+  for (let i = 0; i < n; i++) {
+    const row = r.sec[i];
+    if (!Array.isArray(row) || row.length !== n) return { ok: false, reason: 'no_route' };
+    const out = [];
+    for (let j = 0; j < n; j++) {
+      const v = row[j];
+      if (v === null) { out.push(null); continue; }
+      if (typeof v !== 'number' || !isFinite(v) || v < 0) return { ok: false, reason: 'no_route' };
+      out.push(Math.round(v));
+    }
+    sec.push(out);
+  }
+  return { ok: true, sec };
+}
+
+module.exports = { BBOX, MAX_STOPS, cleanStops, cacheKey, proxyBody, shapeResult, shapeMatrix, minutes, miles, inBox };

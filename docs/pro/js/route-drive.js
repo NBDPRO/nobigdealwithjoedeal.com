@@ -92,8 +92,51 @@
     return p;
   }
 
+  /**
+   * The drive-time matrix (2026-11-07): NBDRouteDrive.matrix(stops) ->
+   * { ok: true, sec: n x n driving seconds | null } | { ok: false, reason }.
+   * Mission Control orders a day's stops by it. Same memo, timeout and
+   * sample-account rule as get(); 'not_supported' until the routing image
+   * that serves /v1/table is deployed, and the caller keeps straight lines.
+   */
+  function shapeMatrix(r, n) {
+    var d = r && r.data;
+    if (!d || d.ok !== true || !Array.isArray(d.sec) || d.sec.length !== n) {
+      return { ok: false, reason: (d && typeof d.reason === 'string' && d.reason) || 'no_route' };
+    }
+    for (var i = 0; i < n; i++) {
+      var row = d.sec[i];
+      if (!Array.isArray(row) || row.length !== n) return { ok: false, reason: 'no_route' };
+      for (var j = 0; j < n; j++) if (row[j] !== null && !(okNum(row[j]) && row[j] >= 0)) return { ok: false, reason: 'no_route' };
+    }
+    return { ok: true, sec: d.sec.map(function (row) { return row.slice(); }) };
+  }
+  function matrix(stops) {
+    if (!Array.isArray(stops) || stops.length < 2 || stops.length > 25 ||
+      !stops.every(function (p) { return p && okNum(p.lat) && okNum(p.lng); })) {
+      return Promise.resolve({ ok: false, reason: 'invalid' });
+    }
+    var key = keyOf(stops, false) + '|t', now = Date.now(), m = memo[key];
+    if (m && now - m.at < MEMO_MS) return m.pending || Promise.resolve(m.value);
+    var timer;
+    var timeout = new Promise(function (resolve) { timer = setTimeout(function () { resolve({ ok: false, reason: 'timeout' }); }, TIMEOUT_MS); });
+    var p = Promise.race([
+      Promise.resolve().then(function () {
+        return call({ stops: stops.map(function (s) { return { lat: s.lat, lng: s.lng }; }), matrix: true });
+      }).then(function (r) { return shapeMatrix(r, stops.length); }, function () { return { ok: false, reason: 'unavailable' }; }),
+      timeout,
+    ]).then(function (v) {
+      clearTimeout(timer);
+      // 'not_supported' is remembered for the full memo window: the image will not change mid-shift.
+      memo[key] = (v.ok || v.reason === 'not_supported') ? { at: Date.now(), value: v } : { at: Date.now() - MEMO_MS + 60000, value: v };
+      return v;
+    });
+    memo[key] = { at: now, pending: p };
+    return p;
+  }
+
   var api = {
-    get: get, decodePolyline6: decodePolyline6, TIMEOUT_MS: TIMEOUT_MS,
+    get: get, matrix: matrix, decodePolyline6: decodePolyline6, TIMEOUT_MS: TIMEOUT_MS,
     _setCaller: function (fn) { caller = fn; memo = {}; }, _reset: function () { memo = {}; },
     _setTimeoutMs: function (ms) { TIMEOUT_MS = ms; },
   };

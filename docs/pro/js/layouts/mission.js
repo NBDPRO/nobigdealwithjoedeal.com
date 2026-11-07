@@ -62,7 +62,7 @@
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
       knocks: [], knockState: 'idle',
-      route: { mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false }, extra: [], sel: null, peek: null, omw: null, real: null },
+      route: { mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false }, extra: [], sel: null, peek: null, omw: null, real: null, matrix: null },
     };
   }
 
@@ -330,10 +330,20 @@
     var pts = located.map(function (s) { return { lat: s.lat, lng: s.lng }; });
     var ident = located.map(function (s, i) { return i; });
     var byTime = RP.totals(ident, pts);
-    var order = ident, opt = null;
+    var order = ident, opt = null, road = null, rm = null;
     if (S.route.mode === 'short' && located.length > 2) {
       opt = RP.optimize(pts, 0);
       order = opt.order;
+      // Road-time order (2026-11-07): once the routing service returns the
+      // drive-time matrix for these stops, order by road seconds instead of
+      // straight lines (a river crossing is not a straight line). Until it
+      // answers, or if it can't (an older routing image, offline, the sample
+      // account), the straight-line order above stands.
+      rm = roadMatrix(located);
+      if (rm && rm.status === 'ok' && typeof RP.optimizeMatrix === 'function') {
+        road = RP.optimizeMatrix(rm.sec, 0);
+        if (road) order = road.order;
+      }
     }
     var t = order === ident ? byTime : RP.totals(order, pts);
     var ordered = order.map(function (i) { return located[i]; });
@@ -350,10 +360,30 @@
     var tight = RP.conflicts(ordered, legsOut);
     return {
       stops: ordered, unlocated: unlocated, legs: legsOut, roadMi: miOut, min: minOut,
-      real: !!(rd && rd.status === 'ok'), pending: !!(rd && rd.status === 'pending'), path: rd && rd.status === 'ok' ? rd.path : null,
-      byTime: byTime, savedMin: Math.max(0, byTime.min - t.min), savedMi: Math.max(0, Math.round((byTime.roadMi - t.roadMi) * 10) / 10),
+      real: !!(rd && rd.status === 'ok'), pending: !!(rd && rd.status === 'pending') || !!(rm && rm.status === 'pending'), path: rd && rd.status === 'ok' ? rd.path : null,
+      // ordered by road seconds: the saving is road minutes, and miles are not compared (the order was not chosen on miles)
+      roadOrdered: !!road,
+      byTime: byTime,
+      savedMin: road ? Math.max(0, Math.round((road.identSec - road.sec) / 60)) : Math.max(0, byTime.min - t.min),
+      savedMi: road ? null : Math.max(0, Math.round((byTime.roadMi - t.roadMi) * 10) / 10),
       tight: tight, reordered: order.some(function (v, i) { return v !== i; }),
     };
+  }
+  /** The drive-time matrix for these stops (any order): asked once, then repaints. */
+  function roadMatrix(located) {
+    var RD = W.NBDRouteDrive;
+    if (!RD || typeof RD.matrix !== 'function' || located.length < 3 || located.length > 25) return null;
+    var key = located.map(function (s) { return Number(s.lat).toFixed(4) + ',' + Number(s.lng).toFixed(4); }).join(';');
+    var cur = S.route.matrix;
+    if (cur && cur.key === key) return cur;
+    var mine = { key: key, status: 'pending' };
+    S.route.matrix = mine;
+    RD.matrix(located.map(function (s) { return { lat: Number(s.lat), lng: Number(s.lng) }; })).then(function (r) {
+      if (!mounted || S.route.matrix !== mine) return;
+      if (r && r.ok) { mine.status = 'ok'; mine.sec = r.sec; } else mine.status = 'fail';
+      render();
+    }, function () { if (mounted && S.route.matrix === mine) { mine.status = 'fail'; render(); } });
+    return mine;
   }
   /** The road route for these stops in this order: asked once, then repaints. */
   function realRoute(ordered) {
@@ -428,7 +458,7 @@
       (m.stops.length > 1 ? ' · about ' + m.min + ' min driving · ' + m.roadMi + ' mi' + (m.real ? '' : ' (est.)') : '') + '</p>' +
       (m.pending ? '<p class="mc-note" role="status">Calculating road times…</p>' : '');
     if (S.route.mode === 'short' && m.stops.length > 2) {
-      h += '<p class="mc-note">' + (m.savedMin > 0 ? 'Saves about ' + m.savedMin + ' min and ' + m.savedMi + ' mi against appointment order.' : 'Appointment order is already the shortest.') +
+      h += '<p class="mc-note">' + (m.savedMin > 0 ? 'Saves about ' + m.savedMin + ' min' + (m.savedMi != null ? ' and ' + m.savedMi + ' mi' : '') + ' against appointment order' + (m.roadOrdered ? ', by road time.' : '.') : 'Appointment order is already the shortest.') +
         (m.reordered ? ' <span class="mc-chip mc-chip-warn">Order differs from appointment times</span>' : '') + '</p>';
     }
     h += '<ol class="mc-stops">';
