@@ -11,6 +11,9 @@ html[data-layout="focus"] .fo-root[hidden] { display: none; }
 html[data-layout="focus"].my-skin-wallpaper .fo-root { background: transparent; }
 html[data-layout="focus"] .fo-wrap {
   max-width: 920px; margin: 0 auto; box-sizing: border-box; min-height: 100%; display: flex; flex-direction: column;
+  /* one rhythm between the blocks: the stops/cash strips touched the pill row
+     and the Start button (CRM walk 2026-11-07) */
+  gap: 12px;
   /* full screen over the status bar and the home indicator */
   padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(40px + env(safe-area-inset-bottom, 0px));
 }
@@ -35,6 +38,10 @@ html[data-layout="focus"] .fo-sub { font-size: 20px; font-weight: 700; color: va
 html[data-layout="focus"] .fo-lines { list-style: none; margin: 8px auto 24px; padding: 0; text-align: center; color: var(--m); font-size: 16px; line-height: 1.8; }
 html[data-layout="focus"] .fo-note { text-align: center; color: var(--m); font-size: 14px; }
 html[data-layout="focus"] .fo-empty { text-align: center; color: var(--m); padding: 14vh 0; font-size: 17px; }
+/* .fo-queue is a column so .fo-start centres under the count (align-self
+   only works in a flex parent; it sat on the left edge) */
+html[data-layout="focus"] .fo-queue { display: flex; flex-direction: column; align-items: center; }
+html[data-layout="focus"] .fo-queue .fo-lines { align-self: stretch; }
 html[data-layout="focus"] .fo-start {
   align-self: center; min-height: calc(var(--tap) + 8px); padding: 0 28px; border-radius: 18px; border: 0;
   background: var(--orange); color: var(--accent-fg, #fff); font: inherit; font-size: 18px; font-weight: 800; cursor: pointer;

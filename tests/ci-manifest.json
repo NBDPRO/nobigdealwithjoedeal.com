@@ -100,6 +100,7 @@
     "never-forget-client-2026-10-13.test.js",
     "home-strip-failed-reads-2026-10-13.test.js",
     "today-ux-walk-2026-10-13.test.js",
+    "crm-walk-spacing-polish-2026-11-07.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
     "reports-delta-from-zero-2026-11-04.test.js",

@@ -57,3 +57,15 @@
 .sc2-dot.is-adjuster { background: var(--blue); }
 .sc2-dot.is-appointment { background: var(--green); }
 .sc2-status { margin: 10px 0 0; font-size: 12px; color: var(--m); min-height: 1.4em; }
+
+/* Phones: the toolbar is ~300px wide inside the card. The title squeezed in
+   beside the arrows wrapped to "Nov 2 –" / "2026" and Today dropped under the
+   arrows (CRM walk 2026-11-07). The title gets its own row; the buttons share
+   the next one. */
+@media (max-width: 600px) {
+  .sc2-host .ec-toolbar { flex-wrap: wrap; row-gap: 8px; }
+  .sc2-host .ec-toolbar > .ec-center { order: -1; flex: 1 1 100%; text-align: center; }
+  .sc2-host .ec-toolbar > .ec-start,
+  .sc2-host .ec-toolbar > .ec-start .ec-button-group { flex-wrap: nowrap; white-space: nowrap; }
+  .sc2-host .ec-toolbar > .ec-end:empty { display: none; }
+}
