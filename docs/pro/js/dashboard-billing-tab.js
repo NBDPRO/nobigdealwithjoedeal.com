@@ -159,6 +159,13 @@
             // in ui.js — a second nbdRenderFontGrid() here redrew it twice.)
           }
         };
+        // Deep link (#/settings/billing, ?settings=billing) opened Billing
+        // before this script loaded: render now (same race as dashboard-team-tab.js).
+        var _on = document.getElementById('stab-billing');
+        if (_on && _on.classList.contains('stab-active')) {
+          if (window.NBDBilling) window.NBDBilling.loadSubscription().then(renderBillingTab);
+          else renderBillingTab();
+        }
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _nbdInstallBillingHook);
