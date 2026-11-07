@@ -50,7 +50,7 @@
 .nbd-recent-jobs-all{font-size:.82rem;font-weight:700;color:#A14A22;text-decoration:none}
 .nbd-recent-jobs-all:hover{text-decoration:underline}
 .nbd-recent-jobs-head .nbd-recent-jobs-all{display:inline-block;padding:6px 0}
-.nbd-recent-jobs .gallery{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.nbd-recent-jobs .gallery{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 /* One recent job (31 service/area pages): a lone 350px card left a 900px hole beside it on desktop.
    From 900px lay it out as a wide feature card, image left, text right. */
 @media(min-width:900px){

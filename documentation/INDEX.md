@@ -367,6 +367,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [GITHUB-REPO-SWEEP-2026-11-04](audit/GITHUB-REPO-SWEEP-2026-11-04.md) — open-source sweep across five lanes (local 1080 Ti server, CRM, site, CI/security, bots): what main already has (axe, Lighthouse, site search, signature pad, draw-geom, call transcripts), ranked adopt-next lists, phased local-server build order (Pascal: Ollama yes, vLLM no), and the report-only actionlint + zizmor workflow shipped with it
 - [CRM-SILENT-FAILURES-2026-11-06](audit/CRM-SILENT-FAILURES-2026-11-06.md) — six CRM screens stopped saying "saved" / "All clear" when they weren't: Deleted bin, document viewer Save, Company + Notification settings, Agent Inbox, voicemail, and a blank Prospects view.
+- [Two recent-job cards fill the row](audit/RECENT-JOBS-TWO-CARDS-2026-11-07.md) — auto-fill left a third empty track; auto-fit on 9 pages; 2026-11-07
 - [Sharper heroes on roof-inspection and storm-damage](audit/HERO-1600-TWO-PAGES-2026-11-06.md) — 1600 px AVIFs from the originals in the photo library; the other 10 need CRM exports; 2026-11-06
 - [Mid-page CTA band heading was 17px](audit/CTA-BAND-HEADING-2026-11-07.md) — 18 service pages; the global h3 rule beat the band's clamp; 4 old bands get light orange and equal buttons; 2026-11-07
 - [Hero pill dot wrapped onto its own line](audit/HERO-PILL-DOT-WRAP-2026-11-07.md) — 3 service pages on phones; inline-block pill keeps the dot with the words; 2026-11-07
