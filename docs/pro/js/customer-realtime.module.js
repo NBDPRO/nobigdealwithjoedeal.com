@@ -129,7 +129,7 @@
         const threadEl = document.getElementById('repMsgThread');
         if (threadEl) {
           threadEl.innerHTML =
-            '<div style="color:var(--red, #fca5a5);font-size:13px;text-align:center;padding:24px 12px;">' +
+            '<div style="color:var(--ui-danger-text, #fca5a5);font-size:13px;text-align:center;padding:24px 12px;">' +
             'Could not load messages: ' + escMsg(err.message || err) + '</div>';
         }
       }
@@ -171,7 +171,7 @@
       } catch (err) {
         if (statusEl) {
           statusEl.textContent = 'Error: ' + (err.message || 'try again');
-          statusEl.style.color = 'var(--red, #fca5a5)';
+          statusEl.style.color = 'var(--ui-danger-text, #fca5a5)';
         }
         sendBtn.disabled = false;
         sendBtn.textContent = origLabel;

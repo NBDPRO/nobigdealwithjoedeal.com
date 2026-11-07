@@ -75,7 +75,11 @@ const read = (f) => fs.readFileSync(path.join(JS, f), 'utf8').replace(/\r\n/g, '
     vm.runInContext(fn + '\nglobalThis.__p = onSend();', sb);
     await sb.__p;
     ok('a send after an error shows "Sent ✓" without the old red', statusEl.textContent === 'Sent ✓' && !statusEl.style.color, JSON.stringify(statusEl.style));
-    ok('error colours use the --red token (old value kept as fallback)', !/color = '#fca5a5'/.test(SRC) && !/color:#fca5a5/.test(SRC));
+    // DESIGN.md → Color: red TEXT uses --ui-danger-text (plain red on navy is
+    // under 4.5:1). Both error lines use it, with the old value as fallback.
+    ok('the send error uses --ui-danger-text', /statusEl\.style\.color = 'var\(--ui-danger-text, #fca5a5\)'/.test(SRC));
+    ok('the load error uses --ui-danger-text', /<div style="color:var\(--ui-danger-text, #fca5a5\);font-size:13px;/.test(SRC));
+    ok('…and no bare or plain-red error text is left', !/color = '#fca5a5'/.test(SRC) && !/color:#fca5a5/.test(SRC) && !/var\(--red, #fca5a5\)/.test(SRC));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
