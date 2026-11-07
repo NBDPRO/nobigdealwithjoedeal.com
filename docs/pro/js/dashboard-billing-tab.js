@@ -28,9 +28,10 @@
           }
           var cardsLoading = document.getElementById('billingPlanCards');
           if (cardsLoading) {
-            cardsLoading.innerHTML = _failed
-              ? '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">Plan details could not load. <button type="button" class="btn btn-ghost" data-billing-action="retryLoad" style="margin-left:8px;font-size:11px;padding:6px 12px;">Try again</button></div>'
-              : '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">Loading plan details…</div>';
+            // One wrapper (no new inline styles: inline-style ratchet).
+            cardsLoading.innerHTML = '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">'
+              + (_failed ? 'Plan details could not load. <button type="button" class="btn btn-ghost" data-billing-action="retryLoad">Try again</button>' : 'Loading plan details…')
+              + '</div>';
           }
           return;
         }
