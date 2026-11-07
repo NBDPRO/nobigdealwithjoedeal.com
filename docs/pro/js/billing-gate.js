@@ -68,6 +68,9 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   // tenants the seat-charging callable would refuse (non-card-billed).
   let _source = null;
   let _loaded = false;
+  // CRM audit 2026-11-06 (ST-F37): true after a failed subscription read, so the
+  // Billing tab can show "couldn't load" + retry instead of "Loading…" forever.
+  let _loadFailed = false;
   // Tenant-ready (2026-10-04): the one-time import allowance already used
   // (functions/lead-cap.js) and a cancelled subscription's read-only grace
   // end (functions/stripe.js customer.subscription.deleted).
@@ -265,8 +268,10 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         _source = null;
       }
       _loaded = true;
+      _loadFailed = false;
     } catch (e) {
       console.warn('[Billing] loadSubscription failed:', e.message);
+      _loadFailed = true;
       // Do NOT force plan='free' + _loaded=true here. That made a paid tenant
       // flash as Free with Upgrade buttons whenever the sub doc read failed
       // (network blip, rules race, SDK hiccup). Leave _loaded=false so
@@ -483,6 +488,7 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // Billing UI MUST check this before rendering Free + Upgrade — an
       // unloaded plan still defaults _plan to 'free' for fail-open gates.
       loaded: _loaded,
+      loadFailed: _loadFailed,
       label: (PLANS[_plan] || PLANS.free).label,
       status: _status,
       usage: { ..._usage },

@@ -10,22 +10,27 @@
         // Never paint Free + Upgrade from the default _plan='free' seed — that
         // was the post-sprint "scary Free flash" for paid tenants on a blip.
         if (!info.loaded) {
+          // CRM audit 2026-11-06 (ST-F37): a FAILED read used to sit on
+          // "Loading…" forever. Say so, and offer a retry.
+          var _failed = !!info.loadFailed;
           var titleEl = document.getElementById('billingPlanTitle');
-          if (titleEl) titleEl.textContent = 'NBD Pro · Loading…';
+          if (titleEl) titleEl.textContent = _failed ? 'NBD Pro · Plan unavailable' : 'NBD Pro · Loading…';
           var badgeEl = document.getElementById('billingPlanBadge');
           if (badgeEl) badgeEl.textContent = '…';
           var nameEl = document.getElementById('billingPlanName');
-          if (nameEl) nameEl.textContent = 'Loading plan…';
+          if (nameEl) nameEl.textContent = _failed ? 'Could not load your plan' : 'Loading plan…';
           var descEl = document.getElementById('billingPlanDesc');
-          if (descEl) descEl.textContent = 'Checking your subscription…';
+          if (descEl) descEl.textContent = _failed ? 'Check your connection and try again. Nothing about your plan has changed.' : 'Checking your subscription…';
           var statusEl = document.getElementById('billingStatusBadge');
           if (statusEl) {
-            statusEl.textContent = 'LOADING';
+            statusEl.textContent = _failed ? 'UNAVAILABLE' : 'LOADING';
             statusEl.style.background = 'var(--m)';
           }
           var cardsLoading = document.getElementById('billingPlanCards');
           if (cardsLoading) {
-            cardsLoading.innerHTML = '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">Loading plan details…</div>';
+            cardsLoading.innerHTML = _failed
+              ? '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">Plan details could not load. <button type="button" class="btn btn-ghost" data-billing-action="retryLoad" style="margin-left:8px;font-size:11px;padding:6px 12px;">Try again</button></div>'
+              : '<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--m);font-size:12px;">Loading plan details…</div>';
           }
           return;
         }
@@ -203,6 +208,12 @@
         document.addEventListener('click', function (ev) {
           var t = ev.target.closest && ev.target.closest('[data-billing-action="managePortal"]');
           if (t) openCustomerPortalSession(t);
+          // ST-F37: retry a failed subscription read, then repaint.
+          var r = ev.target.closest && ev.target.closest('[data-billing-action="retryLoad"]');
+          if (r && window.NBDBilling && typeof window.NBDBilling.loadSubscription === 'function') {
+            r.disabled = true; r.textContent = 'Loading…';
+            Promise.resolve(window.NBDBilling.loadSubscription()).catch(function () {}).then(function () { renderBillingTab(); });
+          }
         });
       }
 
