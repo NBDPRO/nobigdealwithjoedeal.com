@@ -604,13 +604,27 @@
     };
   }
 
+  // CRM audit 2026-11-06 (VW-F09): the door scripts said "I'm with No Big Deal
+  // Home Solutions" for every company. NBD keeps its exact words; another
+  // tenant's reps introduce their own company.
+  function _stormCompany() {
+    let b = null;
+    try { b = typeof window._brand === 'function' ? window._brand() : null; } catch (e) { b = null; }
+    let isNbd;
+    try { isNbd = (typeof window._isNbdPlatformTenant === 'function') ? !!window._isNbdPlatformTenant() : null; } catch (e) { isNbd = null; }
+    if (isNbd === null) isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    if (isNbd) return 'No Big Deal Home Solutions';
+    return (b && (b.legalName || b.displayName)) || 'a local roofing company';
+  }
+
   function generateTalkingPoints(zone) {
     const points = [];
+    const _co = _stormCompany();
 
     if (zone.hailSize) {
       points.push({
         type: 'opener',
-        text: `Hi, I\'m with No Big Deal Home Solutions. We\'ve been working in the neighborhood after the ${zone.hailSize}"+ hail event. Have you had a chance to check your roof yet?`
+        text: `Hi, I\'m with ${_co}. We\'ve been working in the neighborhood after the ${zone.hailSize}"+ hail event. Have you had a chance to check your roof yet?`
       });
       points.push({
         type: 'damage',
@@ -619,7 +633,7 @@
     } else if (zone.windSpeed) {
       points.push({
         type: 'opener',
-        text: `Hi, I\'m with No Big Deal Home Solutions. We\'re checking on homes in the area after those ${zone.windSpeed}mph winds. Have you noticed any shingles missing or loose?`
+        text: `Hi, I\'m with ${_co}. We\'re checking on homes in the area after those ${zone.windSpeed}mph winds. Have you noticed any shingles missing or loose?`
       });
       points.push({
         type: 'damage',
@@ -628,7 +642,7 @@
     } else {
       points.push({
         type: 'opener',
-        text: `Hi, I\'m with No Big Deal Home Solutions. We\'re offering free storm damage inspections to homeowners in the area after the recent severe weather. Would you like us to take a look?`
+        text: `Hi, I\'m with ${_co}. We\'re offering free storm damage inspections to homeowners in the area after the recent severe weather. Would you like us to take a look?`
       });
     }
 
