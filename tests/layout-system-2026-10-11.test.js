@@ -188,7 +188,19 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
     const E = ctx.LayoutEngine;
     await tick(20);
     ok('boot with nothing cached applies classic and stamps data-layout', b.attrs['data-layout'] === 'classic' && E.current().id === 'classic');
-    ok('classic adds no stylesheet and no script', b.appended.length === 0);
+    // 2026-11-07: the NBD OS system layer is on for everyone (on unless feature_flags says false), so
+    // Classic's boot loads exactly that layer and nothing of its own.
+    const src = (el) => String(el.href || el.src || '');
+    ok('classic adds no stylesheet or script of its own (only the NBD OS system layer, on by default)',
+      b.appended.every((el) => /\/os\/system(-logic)?\.(css|js)/.test(src(el))) && b.appended.some((el) => /os\/system\.css/.test(src(el))),
+      b.appended.map(src).join(', '));
+    {
+      // the kill switch: a last-known osSystemLayer:false keeps Classic's boot bare
+      const b2 = makeBrowser({ storage: { nbd_layout_flags: JSON.stringify({ uid: null, flags: { osSystemLayer: false } }) } });
+      loadEngine(b2);
+      await tick(20);
+      ok('with osSystemLayer set to false, classic adds no stylesheet and no script', b2.appended.length === 0, b2.appended.map(src).join(', '));
+    }
 
     let mounts = 0, unmounts = 0;
     ctx.LayoutEngine.implement('bento', { mount() { mounts++; }, unmount() { unmounts++; } });
