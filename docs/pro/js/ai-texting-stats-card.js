@@ -36,7 +36,7 @@
     if (!fn) return null;
     _inflight = fn({ windowDays: 90 })
       .then(res => { _cache = (res && res.data) || null; _inflight = null; return _cache; })
-      .catch(e => { _inflight = null; console.warn('[AiTextingStatsCard] failed:', e && e.message); return null; });
+      .catch(e => { _inflight = null; console.warn('[AiTextingStatsCard] failed:', e && e.message); return { _failed: true }; }); // CRM audit 2026-11-06 (VW-F165): not cached; the card says it failed
     return _inflight;
   }
 
@@ -64,10 +64,14 @@
   const HEAD = '<span style="font-size:17px;">🤖</span><span style="font-weight:700;font-size:13px;color:var(--t,#e8eaf0);">AI Texting</span>';
 
   function renderInto(h, s) {
-    if (!s || !s.total) {
+    if (!s || !s.total || s._failed) {
+      // CRM audit 2026-11-06 (VW-F165): a failed read is not "no drafts yet".
+      const msg = (s && s._failed)
+        ? 'Couldn\'t load AI texting stats. Check your connection and open this page again.'
+        : 'No AI reply drafts yet — they appear here once homeowners start texting your business line.';
       h.innerHTML = `<div style="${WRAP}">
         <div style="display:flex;align-items:center;gap:8px;">${HEAD}</div>
-        <div style="font-size:12px;color:var(--m,#9aa3b2);margin-top:8px;">No AI reply drafts yet — they appear here once homeowners start texting your business line.</div>
+        <div style="font-size:12px;color:var(--m,#9aa3b2);margin-top:8px;">${msg}</div>
       </div>`;
       return;
     }

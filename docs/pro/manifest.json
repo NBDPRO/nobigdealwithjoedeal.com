@@ -1,7 +1,7 @@
 {
   "name": "NBD Pro",
   "short_name": "NBD Pro",
-  "description": "No Big Deal — Roofing CRM Dashboard",
+  "description": "Roofing CRM dashboard",
   "start_url": "/pro/dashboard.html",
   "scope": "/pro/",
   "display": "standalone",

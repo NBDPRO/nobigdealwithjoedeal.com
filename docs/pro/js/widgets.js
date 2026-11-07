@@ -1150,7 +1150,9 @@ function _thuDraw(el) {
   const unread = _thuCalls.filter(c => !c.reviewed).length;
   const hiddenCount = _thuCalls.length - list.length;
   if (!_thuCalls.length) {
-    el.innerHTML = '<div class="w-empty">No calls yet. When Thursday answers (513) 940-5589, each call lands here with a summary, the recording, and a lead or task.</div>';
+    // CRM audit 2026-11-06 (VW-F164): (513) 940-5589 is NBD's Thursday line.
+    const _thuNbd = typeof window._isNbdPlatformTenant === 'function' && window._isNbdPlatformTenant() === true;
+    el.innerHTML = '<div class="w-empty">No calls yet. When Thursday answers ' + (_thuNbd ? '(513) 940-5589' : 'your business line') + ', each call lands here with a summary, the recording, and a lead or task.</div>';
     return;
   }
   el.innerHTML = '<div class="wg-between-c wg-mb6 wg-meta">' +
