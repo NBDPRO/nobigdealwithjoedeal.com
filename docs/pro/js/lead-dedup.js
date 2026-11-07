@@ -218,7 +218,7 @@
               border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
               -webkit-tap-highlight-color:transparent;">＋ Add a job to them</button>
             <button id="nbd-dedup-create" style="
-              background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
+              background:linear-gradient(135deg,var(--orange,#BD5728) 0%,color-mix(in srgb,var(--orange,#BD5728) 85%,#000) 100%);
               color:#fff; border:none; padding:9px 18px; border-radius:8px;
               font-size:13px; font-weight:600; cursor:pointer;
               -webkit-tap-highlight-color:transparent;">Create anyway</button>
