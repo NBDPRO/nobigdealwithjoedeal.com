@@ -136,15 +136,27 @@
         const uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
         if (!uid) return [];
         const claims = window._userClaims || {};
-        const scopes = [where('userId', '==', uid)];
-        if (['company_admin', 'manager', 'viewer'].indexOf(claims.role || '') !== -1 && claims.companyId) {
+        // Platform admin (role 'admin'): a leadId-only read passes via isAdmin(),
+        // as before this change (steward review of #2950).
+        const scopes = claims.role === 'admin' ? [null] : [where('userId', '==', uid)];
+        if (claims.role !== 'admin' && ['company_admin', 'manager', 'viewer'].indexOf(claims.role || '') !== -1 && claims.companyId) {
           scopes.push(where('companyId', '==', claims.companyId));
         }
         const byId = {};
+        let anyOk = false;
         for (const scope of scopes) {
-          const snapshot = await getDocs(query(collection(window._db, REPORTS_COLLECTION), where('leadId', '==', leadId), scope));
-          snapshot.docs.forEach(d => { byId[d.id] = { id: d.id, ...d.data() }; });
+          // Each scope on its own: a refused one must not drop what the other found.
+          try {
+            const q = scope ? query(collection(window._db, REPORTS_COLLECTION), where('leadId', '==', leadId), scope)
+              : query(collection(window._db, REPORTS_COLLECTION), where('leadId', '==', leadId));
+            const snapshot = await getDocs(q);
+            snapshot.docs.forEach(d => { byId[d.id] = { id: d.id, ...d.data() }; });
+            anyOk = true;
+          } catch (scopeErr) {
+            console.warn('[reports] one read scope failed:', scopeErr && scopeErr.message);
+          }
         }
+        if (!anyOk) throw new Error('every report read was refused');
         const ms = (r) => (r.createdAt && typeof r.createdAt.toMillis === 'function') ? r.createdAt.toMillis() : (Date.parse(r.createdAt) || 0);
         return Object.values(byId).sort((a, b) => ms(b) - ms(a));
       } catch (err) {

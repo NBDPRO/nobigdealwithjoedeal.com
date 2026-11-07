@@ -39,16 +39,24 @@ function block(src, start) {
 }
 // A rules-shaped stub: owner scope (userId == me) or company scope (companyId)
 // always passes; a leadId-only photos read passes only for a company reader.
-function stubDb(role) {
+// Steward review of #2950: isAdmin() (role 'admin', the platform owner) also
+// passes a leadId-only read, and opts.denyCompany refuses the company scope.
+function stubDb(role, opts) {
+  opts = opts || {};
   const reader = ['company_admin', 'manager', 'viewer'].includes(role);
+  const admin = role === 'admin';
   const docs = { photos: [{ id: 'p1', leadId: 'L1', userId: 'me', url: 'https://example.test/p.jpg' }],
-    reports: [{ id: 'r1', leadId: 'L1', userId: 'me', createdAt: '2026-11-06T10:00:00Z' }, { id: 'r2', leadId: 'L1', userId: 'me', createdAt: '2026-11-06T12:00:00Z' }] };
+    reports: [{ id: 'r1', leadId: 'L1', userId: 'me', createdAt: '2026-11-06T10:00:00Z' }, { id: 'r2', leadId: 'L1', userId: 'me', createdAt: '2026-11-06T12:00:00Z' }, { id: 'r3', leadId: 'L1', userId: 'teammate', createdAt: '2026-11-06T11:00:00Z' }] };
+  const seen = [];
   const api = {
     collection: (db, c) => ({ c }), where: (f, op, v) => ({ f, v }), orderBy: () => ({ order: true }),
     query: (c, ...fs) => ({ c: c.c, fs: fs.filter((x) => x && x.f) }),
+    seen,
     getDocs: async (q) => {
+      seen.push(q);
+      if (opts.denyCompany && q.fs.some((x) => x.f === 'companyId')) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
       const scoped = q.fs.some((x) => (x.f === 'userId' && x.v === 'me') || x.f === 'companyId');
-      if (!scoped && !(q.c === 'photos' && reader)) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+      if (!scoped && !admin && !(q.c === 'photos' && reader)) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
       const rows = (docs[q.c] || []).filter((d) => q.fs.every((x) => d[x.f] === undefined || d[x.f] === x.v || x.f === 'companyId'));
       const out = rows.map((d) => ({ id: d.id, data: () => d }));
       return { docs: out, forEach: (fn) => out.forEach(fn), size: out.length };
@@ -63,8 +71,8 @@ function stubDb(role) {
     const SRC = read('inspection-report-engine.js');
     const fn = block(SRC, '    async getReports(leadId) {');
     ok('getReports found (positive control)', fn.length > 100);
-    const run = async (role) => {
-      const fsx = stubDb(role);
+    const run = async (role, opts) => {
+      const fsx = stubDb(role, opts);
       const win = { _db: {}, _user: { uid: 'me' }, _userClaims: { role, companyId: 'co' } };
       const sandbox = { window: win, console: { log() {}, warn() {}, error() {} }, Object, Date, REPORTS_COLLECTION: 'reports',
         __fs: fsx };
@@ -77,6 +85,10 @@ function stubDb(role) {
     };
     const rep = await run('sales_rep');
     ok('a sales rep sees their saved reports (was always empty)', rep.length === 2, JSON.stringify(rep));
+    const adm = await run('admin');
+    ok('the platform admin still sees every report on the lead, teammates\' too (isAdmin, as before)', adm.length === 3, JSON.stringify(adm.map((r) => r.id)));
+    const mgr = await run('manager', { denyCompany: true });
+    ok('a refused company scope keeps the owner-scope reports (was: all dropped)', mgr.length === 2, JSON.stringify(mgr));
     ok('…newest first', rep[0] && rep[0].id === 'r2');
     ok('a solo owner (no role) sees them too', (await run('')).length === 2);
   }
@@ -104,11 +116,13 @@ function stubDb(role) {
     if (call === 'loadLeadPhotos') {
       // loadLeadPhotos derives the lead id itself; check its first lines resolve it from page state.
       ok(file + ': rep query carries the owner scope', /window\.where\('userId', '==', _uid\)/.test(fn));
+      ok(file + ': the platform admin keeps the leadId-wide read (isAdmin)', /const _reader = _cl\.role === 'admin' \|\|/.test(fn));
     } else {
       const rep = await run('sales_rep');
       ok(file + ': a sales rep gets their photos (was an empty picker)', Array.isArray(rep) && rep.length === 1, JSON.stringify(rep));
       ok(file + ': a solo owner gets them too', (await run('')).length === 1);
       ok(file + ': a company reader still reads leadId-wide', (await run('manager')).length === 1);
+      ok(file + ': the platform admin still reads leadId-wide (isAdmin), not narrowed to own uploads', /_cl.role === 'admin'/.test(fn) && (await run('admin')).length === 1);
     }
   }
 

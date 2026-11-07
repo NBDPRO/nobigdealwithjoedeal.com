@@ -17,3 +17,12 @@ real loaders against a rules-shaped stub: 11/11; on main 7 fail.
 
 Left as a NEEDS_JOE / Tier C note: the comment in firestore.rules near the /reports block (≈3852-3855) says the
 leadId-only query works; it doesn't.
+
+## Update — PR steward review (2026-11-06 evening)
+
+1. **Platform admin kept.** Jo's account is `{ owner: true, role: 'admin' }`, and it reads `leadId`-only `/photos` and `/reports` today through `isAdmin()`. The new scope lists left `admin` out, so his reads would have narrowed to his own uploads. Now:
+   - In both photo pickers, `admin` counts as a reader (the `leadId`-only query).
+   - Saved reports run one `leadId`-only query for `admin`.
+2. **Each report scope on its own.** A refused company-scope read no longer throws away the owner-scope reports already fetched. The loader returns what it found, and fails only when every scope was refused.
+
+Test: `tests/scoped-queries-2026-11-06.test.js` now models `isAdmin()` and a refused company scope in its rules stub. It passes 15/15, and the 4 new checks fail on the PR head before this commit.

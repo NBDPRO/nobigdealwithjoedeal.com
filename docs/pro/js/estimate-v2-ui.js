@@ -3056,7 +3056,8 @@
     try {
       const _cl = window._userClaims || {};
       const _uid = (window._user && window._user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null;
-      const _reader = ['company_admin', 'manager', 'viewer'].indexOf(_cl.role || '') !== -1 && !!_cl.companyId;
+      // Platform admin (role 'admin') passes a leadId-only read via isAdmin().
+      const _reader = _cl.role === 'admin' || (['company_admin', 'manager', 'viewer'].indexOf(_cl.role || '') !== -1 && !!_cl.companyId);
       const _scope = _reader || !_uid ? [window.where('leadId', '==', leadId)] : [window.where('leadId', '==', leadId), window.where('userId', '==', _uid)];
       const snap = await window.getDocs(window.query.apply(null, [window.collection(window.db, 'photos')].concat(_scope)));
       const list = [];
