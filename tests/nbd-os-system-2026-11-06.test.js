@@ -109,6 +109,20 @@ const BELL = read('docs/pro/js/notif-bell.js');
 ok('the engine loads the layer only behind osSystemLayer', /var SYSTEM_FLAG = 'osSystemLayer';/.test(SYS) && /if \(flags\[SYSTEM_FLAG\]\) loadSystemLayer\(\);/.test(SYS));
 ok('it starts before the flag read unless the cache says it was turned off (on by default, 2026-11-07)', /cachedFlags\(\)\[SYSTEM_FLAG\] !== false\) loadSystemLayer\(\)/.test(SYS));
 ok('logic loads before the DOM half', SYS.indexOf("loadScriptPath('js/os/system-logic.js')") < SYS.indexOf("js/os/system.js?"));
+// 2026-11-07 (on for everyone): on a phone the tray clock sat ON the NBD logo mark and squeezed the
+// wordmark to 0px (Pro demo walk, wallpaper-chrome: "the wordmark clears 4.5:1"). Measured fix:
+{
+  const phone = (CSS.match(/@media \(max-width: 480px\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok('phones: the tray is a 40px button with the time hidden visually (kept for screen readers), packed at a 2px gap',
+    /header \.hright \{ gap: 2px; \}/.test(phone) && /\.os-tray-clock \{ min-width: 40px; padding: 0; \}/.test(phone)
+    && /\.os-tray-clock \.os-tray-time \{\s*position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect\(0 0 0 0\)/.test(phone)
+    && !/\.os-tray-time[^{]*\{[^}]*display: none/.test(phone), phone.slice(0, 200));
+  ok('phones: an empty tray button gets a visible controls glyph in its own ink (no hex, no emoji)',
+    /\.os-tray-clock::before \{[\s\S]*?currentColor[\s\S]*?\}/.test(phone) && !/#[0-9a-f]{3,8}\b/i.test(phone));
+  ok('under 380px the wordmark is hidden cleanly (the logo mark stays), not clipped mid-word',
+    /@media \(max-width: 380px\) \{\s*header \.logo \{ display: none; \}\s*\}/.test(CSS) && !/logo-mark[^{]*\{[^}]*display: none/.test(CSS));
+  ok('the time is still in the tray button\'s label', /Control Center, /.test(read('docs/pro/js/os/system.js')) || /Control Center/.test(read('docs/pro/js/os/system.js')));
+}
 ok('no <script> tag for the layer in dashboard.html', !/js\/os\//.test(HTML));
 ok('system.js has no inline handlers', !/\son[a-z]+=/i.test(DOM.replace(/\/\*[\s\S]*?\*\//g, '')));
 ok('system.js writes no inline style attributes', !/style=/.test(DOM) && !/\.style\./.test(DOM));

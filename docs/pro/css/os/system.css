@@ -47,6 +47,34 @@
   .os-tray-clock { gap: 4px; }
   .os-clock-dot { display: inline-block; }
 }
+/* Phones, measured 2026-11-07 once the layer went on for everyone: the header's
+   right side (connection, recent customers, bell, theme, what's new, avatar)
+   left no room for the tray clock, so it sat ON the NBD logo mark and squeezed
+   the wordmark to 0px (caught by the Pro demo walk). The phone's own status bar
+   shows the time, so on a phone the tray is a 40px button like its neighbours
+   (its dot still says what needs attention; the time stays in its label for
+   screen readers), and the right side packs at the tools' own 2px gap. */
+@media (max-width: 480px) {
+  header .hright { gap: 2px; }
+  .os-tray-clock { min-width: 40px; padding: 0; }
+  .os-tray-clock .os-tray-time {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  /* with the time hidden the button would be empty: a two-slider "controls" glyph, in the button's own ink */
+  .os-tray-clock::before {
+    content: ""; display: inline-block; flex: 0 0 auto; width: 18px; height: 14px;
+    background:
+      radial-gradient(circle at 5px 3px, currentColor 2.5px, transparent 3px),
+      radial-gradient(circle at 13px 11px, currentColor 2.5px, transparent 3px),
+      linear-gradient(currentColor, currentColor) 0 2px / 18px 2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 10px / 18px 2px no-repeat;
+  }
+}
+/* Below 380px there is no room for the wordmark beside the tray and the tools:
+   hide it cleanly (the NBD logo mark stays) rather than clip it mid-word. */
+@media (max-width: 380px) {
+  header .logo { display: none; }
+}
 
 /* ── sheets ──────────────────────────────────────────────── */
 .os-sheet-wrap[hidden] { display: none; }
