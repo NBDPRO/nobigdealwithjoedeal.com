@@ -79,7 +79,31 @@ ok('a focus that is not an open window falls back', ns.focus === ns.wins[ns.wins
 ok('fits the registry\'s 12 KB per-layout cap', J(ns).length <= R.MAX_STATE_JSON, J(ns).length);
 const ns2 = WM.normalizeState({ wins: [{ id: 'admin' }, { id: 'crm' }, { id: 'crm' }, { id: 'Bad' }], icons: ['admin', 'crm'], dock: ['crm', 'crm', 'x'] }, ['crm']);
 ok('windows / icons / dock only for apps this member has (role-gated stay gone)', ns2.wins.map((w) => w.id).join() === 'crm' && ns2.icons.join() === 'crm' && ns2.dock.join() === 'crm');
-ok('no state at all is a clean empty desk', J(WM.normalizeState(null, [])) === J({ v: 1, wins: [], focus: null, icons: [], dock: [], recent: [] }));
+ok('no state at all is a clean empty desk', J(WM.normalizeState(null, [])) === J({ v: 1, wins: [], focus: null, icons: [], dock: [], recent: [], desk: 0, pins: [] }));
+
+console.log('phase 5: desks, pins, overview, button styles');
+ok('desk numbers clamp to 0..3', WM.deskIndex(2) === 2 && WM.deskIndex(4) === 0 && WM.deskIndex(-1) === 0 && WM.deskIndex('x') === 0 && WM.DESKS === 4);
+const ns5 = WM.normalizeState({ wins: [{ id: 'crm', desk: 2 }, { id: 'est', desk: 9 }], desk: 3, pins: ['crm', 'crm', 'gone', 'est'] }, ['crm', 'est']);
+ok('each window keeps its desk; a bad desk is desk 0; the current desk is kept', ns5.wins.map((w) => w.id + w.desk).join() === 'crm2,est0' && ns5.desk === 3);
+ok('pins: known apps only, no repeats', ns5.pins.join() === 'crm,est');
+ok('desk counts', J(WM.deskCounts([{ desk: 0 }, { desk: 2 }, { desk: 2 }, { desk: 7 }])) === J([2, 0, 2, 0]));
+const ti = WM.taskItems([{ id: 'crm', desk: 0 }, { id: 'est', desk: 1, min: true }, { id: 'home', desk: 0 }], ['est', 'photos'], 0, ['home', 'crm', 'est']);
+ok('shelf: pinned first (running or not), then this desk\'s windows in open order', ti.map((t) => t.id).join() === 'est,photos,home,crm', ti.map((t) => t.id).join());
+ok('shelf flags: pinned est runs on another desk, photos is not running', ti[0].pinned && ti[0].running && !ti[0].here && ti[0].min && !ti[1].running);
+ok('windows on other desks are not on this desk\'s shelf unless pinned', WM.taskItems([{ id: 'crm', desk: 1 }], [], 0, []).length === 0);
+let pins = WM.togglePin([], 'crm'); pins = WM.togglePin(pins, 'est'); pins = WM.togglePin(pins, 'crm');
+ok('toggle pin adds and removes, keeping order', pins.join() === 'est');
+let many = []; for (let i = 0; i < 12; i++) many = WM.togglePin(many, 'app' + i);
+ok('at most MAX_PINS pins', many.length === WM.MAX_PINS);
+ok('a bad id is never pinned', WM.togglePin([], '<x>').length === 0);
+const slots = WM.overviewSlots(5, { w: 1200, h: 700 }, 20);
+ok('overview: one slot per window, all inside the desk', slots.length === 5 && slots.every((s) => s.x >= 0 && s.y >= 0 && s.x + s.w <= 1200 && s.y + s.h <= 700), J(slots));
+ok('overview: no overlapping slots', slots.every((a, i) => slots.every((b, j) => i === j || a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y)));
+ok('overview: nothing to show, or no desk, is no slots', WM.overviewSlots(0, { w: 1, h: 1 }).length === 0 && WM.overviewSlots(3, { w: 0, h: 0 }).length === 0);
+const fit = WM.fitInto({ x: 100, y: 50, w: 800, h: 600 }, { x: 0, y: 0, w: 400, h: 400 });
+ok('fit: scaled down to the slot and centred in it', fit.s === 0.5 && fit.tx === -100 && fit.ty === 0, J(fit));
+ok('fit: a small window is never enlarged', WM.fitInto({ x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0, w: 400, h: 400 }).s === 1);
+ok('button styles: chrome by default, mac and linux allowed', WM.buttonStyle('mac') === 'mac' && WM.buttonStyle('linux') === 'linux' && WM.buttonStyle('bogus') === 'chrome' && WM.buttonStyle() === 'chrome');
 
 console.log('phone helpers');
 const apps = 'abcdefghijklmnopqrstuvwxy'.split('').map((ch) => ({ id: ch }));
@@ -130,6 +154,20 @@ ok('phone: opening an app records it in recents and routes through goTo', has(OS
 ok('phone: the switcher is a modal dialog and Esc closes it', has(OS, "setAttribute('aria-modal', 'true')") && has(OS, 'if (S.switcherEl) { ev.preventDefault(); closeSwitcher(); }'));
 ok('crossing the phone breakpoint remounts the right shape', /unmount\(\);\s+mount\(\{ surface: now \}\);/.test(OS));
 ok('nothing loops: no infinite animations', !/infinite/.test(CSS));
+
+console.log('phase 5 wiring');
+ok('the router watcher reacts only to a VIEW\'s class changing (never the layout\'s own window classes)', has(OS, "routed = !!(t && t.classList && t.classList.contains('view'));") && has(OS, 'if (!routed || pending) return;'));
+ok('windows on another desk are not drawn', has(OS, "el.classList.toggle('is-offdesk', WM.deskIndex(rec.desk) !== S.desk);") && has(CSS, '.os-win.is-offdesk { display: none; }'));
+ok('opening a window that lives on another desk goes to that desk', has(OS, 'if (WM.deskIndex(rec.desk) !== S.desk) { S.desk = WM.deskIndex(rec.desk); paintDeskBtns(); }'));
+ok('focus fallbacks stay on the current desk', has(OS, 'var next = WM.nextFocus(here(), id);'));
+ok('moving the front window away routes the CRM to the window left in front', has(OS, 'if (S.focus) focusWin(S.focus); else save();'));
+ok('overview moves the real windows by transform only, and a press never drags there',
+  has(CSS, 'transform: translate(var(--otx, 0px), var(--oty, 0px)) scale(var(--os, 1));') && has(OS, 'if (S.overview) return;   // in the overview'));
+ok('desk / overview keys never fire while typing', has(OS, 'if (ev.ctrlKey && ev.altKey && !ev.metaKey && !typing) {'));
+ok('desk and overview are Spotlight entries, removed on unmount', has(OS, "id: 'os:overview'") && has(OS, 'unregisterDeskSpotlight();'));
+ok('pinning: Start menu toggle is a pressed button, right-click on shelf/icon also toggles', has(OS, 'data-ospin=') && has(OS, "aria-pressed=\"' + (pinned ? 'true' : 'false')") && has(OS, "on(desk, 'contextmenu'"));
+ok('button styles: mac / chrome / linux from one attribute; coarse pointers keep the 44px floor',
+  has(CSS, 'html[data-os-buttons="mac"]') && has(CSS, 'html[data-os-buttons="linux"]') && /@media \(pointer: coarse\) \{\n  html\[data-os-buttons="mac"\] \.os-win-btns \.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
 
 R._reset();
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

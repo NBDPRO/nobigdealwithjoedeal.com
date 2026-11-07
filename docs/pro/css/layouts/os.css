@@ -273,3 +273,84 @@ html[data-layout="os"][data-os-surface="phone"] .os-bar {
 .os-sw-x:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 .os-sw-foot { display: flex; justify-content: center; }
 .os-sw-foot .ui-btn-quiet { min-height: 44px; }
+
+/* ═══ PHASE 5: Linux · ChromeOS · macOS touches ═════════════ */
+/* virtual desks: a window on another desk is not drawn */
+.os-win.is-offdesk { display: none; }
+.os-desks { display: flex; gap: 2px; padding: 0 var(--ui-space-1, 4px); border-left: 1px solid var(--ui-line-hair, var(--br)); margin-left: var(--ui-space-1, 4px); }
+.os-desk-btn {
+  position: relative; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--m); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-sm, 6px);
+  font-size: var(--ui-fs-caption, 12px); font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease), color var(--ui-dur-hover, 140ms) var(--ui-ease, ease);
+}
+.os-desk-btn.has-wins::after { content: ''; position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--m); }
+.os-desk-btn.is-on { background: var(--s2); color: var(--t); border-color: var(--ui-line-strong, var(--br)); }
+.os-desk-btn.is-on.has-wins::after { background: var(--orange); }
+.os-desk-btn:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-win-deskbtn { margin-left: auto; font-size: 13px; }
+.os-deskmenu {
+  position: absolute; top: 40px; right: 8px; z-index: 5; display: flex; flex-direction: column; min-width: 150px; padding: 4px;
+  background: var(--s); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px); box-shadow: var(--ui-elev-3);
+}
+.os-deskmenu-item { min-height: 36px; padding: 0 var(--ui-space-3, 12px); text-align: left; background: transparent; color: var(--t); border: 0; border-radius: var(--ui-radius-sm, 6px); cursor: pointer; }
+.os-deskmenu-item:hover, .os-deskmenu-item:focus-visible { background: var(--s2); outline: none; }
+.os-deskmenu-item[disabled] { color: var(--m); cursor: default; background: transparent; }
+
+/* shelf: pinned apps stay, running ones get a dot (ChromeOS shelf / macOS Dock) */
+.os-task.is-idle { color: var(--m); }
+.os-task.is-running:not(.is-focus)::after {
+  content: ''; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--m);
+}
+.os-task.is-elsewhere { font-style: italic; }
+.os-start-row { display: flex; align-items: center; gap: 2px; }
+.os-start-row .os-start-app { flex: 1; min-width: 0; }
+.os-start-pin {
+  width: 32px; height: 32px; flex-shrink: 0; background: transparent; border: 0; border-radius: var(--ui-radius-sm, 6px);
+  cursor: pointer; opacity: .35; filter: grayscale(1);
+  transition: opacity var(--ui-dur-hover, 140ms) var(--ui-ease, ease);
+}
+.os-start-row:hover .os-start-pin, .os-start-pin:focus-visible { opacity: .8; }
+.os-start-pin.is-on { opacity: 1; filter: none; }
+.os-start-pin:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+
+/* overview (Mission Control / Activities / ChromeOS overview): the real windows shrink into a grid */
+.os-win { transition: transform var(--ui-dur-sheet, 300ms) var(--ui-ease-enter, ease-out); }
+.os-desk.is-overview .os-desk-area { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.os-desk.is-overview .os-icons, .os-desk.is-overview .os-widgets { opacity: .15; pointer-events: none; }
+.os-desk.is-overview .os-win:not(.is-min):not(.is-offdesk) {
+  transform-origin: 0 0; transform: translate(var(--otx, 0px), var(--oty, 0px)) scale(var(--os, 1));
+  animation: none;   /* a still-running open animation would override the transform */
+  cursor: pointer; box-shadow: var(--ui-elev-3);
+}
+.os-desk.is-overview .os-win * { pointer-events: none; }
+.os-desk.is-overview .os-win:hover { border-color: var(--orange); }
+.os-overview-btn[aria-pressed="true"] { background: var(--s2); border-color: var(--ui-line-strong, var(--br)); }
+
+/* window buttons — macOS: three round lights, top-left */
+html[data-os-buttons="mac"] .os-win-btns { order: -1; gap: 2px; margin-right: 6px; }
+html[data-os-buttons="mac"] .os-win-btns .os-win-btn { width: 22px; height: 22px; color: transparent; font-size: 0; position: relative; background: transparent; }
+html[data-os-buttons="mac"] .os-win-btns .os-win-btn::before {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--bg) 25%, transparent);
+}
+html[data-os-buttons="mac"] .os-win-btns [data-osw="close"]::before { background: var(--red); }
+html[data-os-buttons="mac"] .os-win-btns [data-osw="min"]::before { background: var(--gold); }
+html[data-os-buttons="mac"] .os-win-btns [data-osw="max"]::before { background: var(--green); }
+html[data-os-buttons="mac"] .os-win-btns [data-osw="close"] { order: -3; }
+html[data-os-buttons="mac"] .os-win-btns [data-osw="min"] { order: -2; }
+html[data-os-buttons="mac"] .os-win-btns .os-win-btn:hover { background: transparent; }
+html[data-os-buttons="mac"] .os-win:not(.is-focus) .os-win-btns .os-win-btn::before { background: var(--s3, var(--br)); }
+html[data-os-buttons="mac"] .os-win-title { text-align: center; }
+/* Linux (GNOME): close only, a round button top-right; double-click still maximises */
+html[data-os-buttons="linux"] .os-win-btns [data-osw="min"],
+html[data-os-buttons="linux"] .os-win-btns [data-osw="max"] { display: none; }
+html[data-os-buttons="linux"] .os-win-btns [data-osw="close"] { border-radius: 50%; background: color-mix(in srgb, var(--t) 10%, transparent); width: 26px; height: 26px; }
+html[data-os-buttons="linux"] .os-win-title { text-align: center; }
+@media (pointer: coarse) {
+  html[data-os-buttons="mac"] .os-win-btns .os-win-btn { width: 44px; height: 44px; }
+  html[data-os-buttons="mac"] .os-win-btns .os-win-btn::before { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+  html[data-os-buttons="linux"] .os-win-btns [data-osw="close"] { width: 44px; height: 44px; }
+  .os-desk-btn, .os-start-pin { width: 44px; height: 44px; }
+  .os-deskmenu-item { min-height: 44px; }
+}

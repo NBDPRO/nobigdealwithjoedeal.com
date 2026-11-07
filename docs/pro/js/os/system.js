@@ -350,6 +350,14 @@
     h += '<div class="os-cc-block"><div class="ui-eyebrow">Display</div>' + seg('Display mode', modePref(), [
       { key: 'mode', value: 'light', label: 'Light' }, { key: 'mode', value: 'dark', label: 'Dark' }, { key: 'mode', value: 'auto', label: 'Auto' },
     ]) + '</div>';
+    // Window buttons, only while the NBD OS layout is showing windows: the three
+    // families Jo asked for (macOS traffic lights, ChromeOS / Windows, Linux GNOME).
+    if (doc.documentElement.getAttribute('data-layout') === 'os' && doc.documentElement.getAttribute('data-os-surface') === 'desk') {
+      var bs = doc.documentElement.getAttribute('data-os-buttons') || 'chrome';
+      h += '<div class="os-cc-block"><div class="ui-eyebrow">Window buttons</div>' + seg('Window buttons', bs, [
+        { key: 'btnstyle', value: 'mac', label: 'macOS' }, { key: 'btnstyle', value: 'chrome', label: 'ChromeOS' }, { key: 'btnstyle', value: 'linux', label: 'Linux' },
+      ]) + '</div>';
+    }
     if (w.NBDFieldSunlight && typeof w.NBDFieldSunlight.setMode === 'function') {
       h += '<div class="os-cc-block"><div class="ui-eyebrow">Sunlight</div>' + seg('Sunlight mode', sunMode(), [
         { key: 'sun', value: 'off', label: 'Off' }, { key: 'sun', value: 'on', label: 'On' }, { key: 'sun', value: 'auto', label: 'At a job' },
@@ -469,6 +477,10 @@
     else if (key === 'sun' && w.NBDFieldSunlight) call(function () { w.NBDFieldSunlight.setMode(val); });
     else if (key === 'motion' && typeof w.nbdComfortSet === 'function') call(function () { w.nbdComfortSet('motion', val === 'on' ? 'reduce' : 'normal'); });
     else if (key === 'glove' && w.LayoutEngine) call(function () { w.LayoutEngine.saveUser({ glove: val === 'on' }); });
+    else if (key === 'btnstyle' && (val === 'mac' || val === 'chrome' || val === 'linux')) {
+      lsSet('nbd_os_btnstyle', val === 'chrome' ? null : val);
+      doc.documentElement.setAttribute('data-os-buttons', val);
+    }
     else if (key === 'sounds') { state.sounds = val === 'on'; lsSet(SOUND_KEY, state.sounds ? '1' : null); sound('open'); }
     else if (key === 'lockmin') { state.lockMin = L.lockMinutes(val); lsSet(LOCK_KEY, state.lockMin ? String(state.lockMin) : null); state.lastActive = Date.now(); }
     // Repaint after the CRM applied the change (theme and comfort are synchronous;

@@ -32,6 +32,8 @@
   var MAX_WINS = 12;                // open windows kept in the saved state
   var MAX_RECENT = 8;
   var ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
+  var DESKS = 4;                    // virtual desks (Linux workspaces / ChromeOS desks / macOS Spaces)
+  var MAX_PINS = 8;
 
   function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
@@ -156,6 +158,7 @@
       return {
         id: w.id, x: f.x, y: f.y, w: f.w, h: f.h, z: num(w.z, 0),
         min: w.min === true, zone: ZONE_NAMES.indexOf(w.zone) !== -1 ? w.zone : null,
+        desk: deskIndex(w.desk),
       };
     });
     wins = front(wins, null);
@@ -170,8 +173,88 @@
       icons: ids(r.icons, 60),
       dock: ids(r.dock, 4),
       recent: ids(r.recent, MAX_RECENT),
+      desk: deskIndex(r.desk),
+      pins: ids(r.pins, MAX_PINS),
     };
   }
+
+  /** A desk number 0..DESKS-1; anything else is desk 0. */
+  function deskIndex(v) {
+    var n = Math.floor(Number(v));
+    return isFinite(n) && n >= 0 && n < DESKS ? n : 0;
+  }
+  /** How many windows live on each desk: [n0, n1, n2, n3]. */
+  function deskCounts(wins) {
+    var out = [];
+    for (var i = 0; i < DESKS; i++) out.push(0);
+    (Array.isArray(wins) ? wins : []).forEach(function (w) { out[deskIndex(w.desk)]++; });
+    return out;
+  }
+  /**
+   * The taskbar / shelf: pinned apps first (in pin order, whether running or
+   * not), then this desk's running windows that aren't pinned, in open order.
+   * Each item: { id, pinned, running, min, here } (here = a window on this desk).
+   */
+  function taskItems(wins, pins, desk, order) {
+    var d = deskIndex(desk);
+    var byId = {};
+    (Array.isArray(wins) ? wins : []).forEach(function (w) { byId[w.id] = w; });
+    var out = [], used = {};
+    (Array.isArray(pins) ? pins : []).forEach(function (id) {
+      if (used[id] || !ID_RE.test(String(id))) return;
+      used[id] = true;
+      var w = byId[id];
+      out.push({ id: id, pinned: true, running: !!w, min: !!(w && w.min), here: !!(w && deskIndex(w.desk) === d) });
+    });
+    var ord = Array.isArray(order) ? order : [];
+    (Array.isArray(wins) ? wins : []).slice().sort(function (a, b) { return ord.indexOf(a.id) - ord.indexOf(b.id); }).forEach(function (w) {
+      if (used[w.id] || deskIndex(w.desk) !== d) return;
+      used[w.id] = true;
+      out.push({ id: w.id, pinned: false, running: true, min: !!w.min, here: true });
+    });
+    return out;
+  }
+  /** Pin or unpin an app (pinned order kept, at most MAX_PINS). */
+  function togglePin(pins, id) {
+    var list = (Array.isArray(pins) ? pins : []).filter(function (x) { return x !== id; });
+    if (list.length === (Array.isArray(pins) ? pins.length : 0) && ID_RE.test(String(id)) && list.length < MAX_PINS) list.push(id);
+    return list;
+  }
+  /**
+   * Overview (Mission Control / Activities / ChromeOS overview): n slots in a
+   * grid over the desk (px), roughly matching the desk's shape, with a gap.
+   */
+  function overviewSlots(n, desk, gap) {
+    var count = Math.max(0, Math.floor(num(n, 0)));
+    var d = desk || {};
+    if (!count || !(d.w > 0) || !(d.h > 0)) return [];
+    var g = gap > 0 ? gap : 24;
+    var cols = Math.max(1, Math.ceil(Math.sqrt(count * (d.w / d.h) / 1.4)));
+    if (cols > count) cols = count;
+    var rows = Math.ceil(count / cols);
+    var w = (d.w - g * (cols + 1)) / cols;
+    var h = (d.h - g * (rows + 1)) / rows;
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      var r = Math.floor(i / cols), c = i % cols;
+      var inRow = r === rows - 1 ? count - r * cols : cols;      // centre a short last row
+      var offset = (cols - inRow) * (w + g) / 2;
+      out.push({ x: Math.round(g + c * (w + g) + offset), y: Math.round(g + r * (h + g)), w: Math.round(w), h: Math.round(h) });
+    }
+    return out;
+  }
+  /** The translate + scale that fits a window rect (px) inside a slot, centred, never enlarged. */
+  function fitInto(rect, slot) {
+    var r = rect || {}, s = slot || {};
+    if (!(r.w > 0) || !(r.h > 0) || !(s.w > 0) || !(s.h > 0)) return { tx: 0, ty: 0, s: 1 };
+    var k = Math.min(1, s.w / r.w, s.h / r.h);
+    var tx = s.x + (s.w - r.w * k) / 2 - r.x;
+    var ty = s.y + (s.h - r.h * k) / 2 - r.y;
+    return { tx: Math.round(tx), ty: Math.round(ty), s: Math.round(k * 1000) / 1000 };
+  }
+  var BUTTON_STYLES = ['chrome', 'mac', 'linux'];
+  /** Window-button style: 'chrome' (ChromeOS / Windows, the default), 'mac' or 'linux'. */
+  function buttonStyle(v) { return BUTTON_STYLES.indexOf(v) !== -1 ? v : 'chrome'; }
 
   // ── phone ──────────────────────────────────────────────────
   /** Home screen pages of `perPage` icons (default 4 columns x 5 rows). */
@@ -206,6 +289,8 @@
     clampFrac: clampFrac, toPx: toPx, toFrac: toFrac, snapZone: snapZone, zoneFrac: zoneFrac, keySnap: keySnap,
     cascadeFrac: cascadeFrac, front: front, nextFocus: nextFocus, orderApps: orderApps, normalizeState: normalizeState,
     pages: pages, pushRecent: pushRecent, dockApps: dockApps,
+    DESKS: DESKS, MAX_PINS: MAX_PINS, BUTTON_STYLES: BUTTON_STYLES, deskIndex: deskIndex, deskCounts: deskCounts,
+    taskItems: taskItems, togglePin: togglePin, overviewSlots: overviewSlots, fitInto: fitInto, buttonStyle: buttonStyle,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSWm = api;

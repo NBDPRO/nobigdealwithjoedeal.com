@@ -82,7 +82,7 @@
   }
   var saveT = null;
   function writeState(src) {
-    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, icons: src.icons, dock: src.dock, recent: src.recent }, null);
+    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
     safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
   }
   function save() {
@@ -140,6 +140,7 @@
     el.style.setProperty('--wh', String(f.h));
     el.style.setProperty('--wz', String(rec.z || 1));
     el.classList.toggle('is-min', !!rec.min);
+    el.classList.toggle('is-offdesk', WM.deskIndex(rec.desk) !== S.desk);
     el.classList.toggle('is-max', rec.zone === 'max');
     el.classList.toggle('is-snapped', !!rec.zone && rec.zone !== 'max');
     el.classList.toggle('is-focus', S.focus === rec.id && !rec.min);
@@ -149,7 +150,13 @@
       mx.textContent = rec.zone === 'max' ? '❐' : '□';
     }
   }
-  function paintAllWins() { S.wins.forEach(placeWin); paintTaskbar(); }
+  function paintAllWins() {
+    S.wins.forEach(placeWin);
+    paintTaskbar();
+    if (S.overview) layoutOverview();
+  }
+  // the windows on the desk being shown
+  function here() { return S.wins.filter(function (w) { return WM.deskIndex(w.desk) === S.desk; }); }
 
   function buildWin(id) {
     var el = doc.createElement('section');
@@ -162,6 +169,7 @@
     el.innerHTML = '<div class="os-win-bar" data-osw="bar">' +
       '<span class="os-win-icon" aria-hidden="true">' + esc(a && a.icon ? a.icon : '▣') + '</span>' +
       '<h2 class="os-win-title">' + labelHtml + '</h2>' +
+      '<button type="button" class="os-win-btn os-win-deskbtn" data-osw="desk" aria-haspopup="menu" aria-label="Move ' + labelHtml + ' to another desk">⧉</button>' +
       '<div class="os-win-btns">' +
       '<button type="button" class="os-win-btn" data-osw="min" aria-label="Minimise ' + labelHtml + '">–</button>' +
       '<button type="button" class="os-win-btn" data-osw="max" aria-label="Maximise ' + labelHtml + '">□</button>' +
@@ -178,10 +186,11 @@
     var rec = winRec(id);
     if (!rec) {
       var f = WM.cascadeFrac(S.wins.length);
-      rec = { id: id, x: f.x, y: f.y, w: f.w, h: f.h, z: 0, min: false, zone: null };
+      rec = { id: id, x: f.x, y: f.y, w: f.w, h: f.h, z: 0, min: false, zone: null, desk: S.desk };
       S.wins.push(rec);
       if (S.order.indexOf(id) === -1) S.order.push(id);
     }
+    if (WM.deskIndex(rec.desk) !== S.desk) { S.desk = WM.deskIndex(rec.desk); paintDeskBtns(); }
     var fresh = !winEl(id);
     var el = winEl(id) || buildWin(id);
     if (fresh) sound('open');
@@ -203,7 +212,7 @@
     var rec = winRec(id);
     if (!rec) return;
     rec.min = true;
-    var next = WM.nextFocus(S.wins, id);
+    var next = WM.nextFocus(here(), id);
     S.focus = next;
     if (next) focusWin(next); else { paintAllWins(); save(); }
   }
@@ -214,7 +223,7 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
     S.wins = S.wins.filter(function (w) { return w.id !== id; });
     S.order = S.order.filter(function (x) { return x !== id; });
-    var next = WM.nextFocus(S.wins, id);
+    var next = WM.nextFocus(here(), id);
     S.focus = next;
     if (next) focusWin(next); else { paintAllWins(); save(); }
   }
@@ -225,12 +234,103 @@
     focusWin(id, { route: false });
   }
   function showDesktop() {
-    var anyOpen = S.wins.some(function (w) { return !w.min; });
-    S.wins.forEach(function (w) { w.min = anyOpen; });
-    S.focus = anyOpen ? null : WM.nextFocus(S.wins, null);
+    var mine = here();
+    var anyOpen = mine.some(function (w) { return !w.min; });
+    mine.forEach(function (w) { w.min = anyOpen; });
+    S.focus = anyOpen ? null : WM.nextFocus(mine, null);
     paintAllWins();
     if (S.focus) focusWin(S.focus);
     save();
+  }
+
+  // ── virtual desks (Linux workspaces / ChromeOS desks / macOS Spaces) ──
+  function switchDesk(n) {
+    var d = WM.deskIndex(n);
+    if (d === S.desk) return;
+    S.desk = d;
+    closeDeskMenu();
+    S.focus = WM.nextFocus(here(), null);
+    if (S.focus) focusWin(S.focus); else { paintAllWins(); save(); }
+    paintDeskBtns();
+  }
+  function moveToDesk(id, n) {
+    var rec = winRec(id);
+    if (!rec) return;
+    rec.desk = WM.deskIndex(n);
+    closeDeskMenu();
+    if (rec.desk !== S.desk && S.focus === id) S.focus = WM.nextFocus(here(), id);
+    paintAllWins();
+    paintDeskBtns();
+    // the CRM's active view follows the window left in front on this desk
+    if (S.focus) focusWin(S.focus); else save();
+  }
+  function paintDeskBtns() {
+    if (!S.desksEl) return;
+    var counts = WM.deskCounts(S.wins);
+    var h = '';
+    for (var i = 0; i < WM.DESKS; i++) {
+      var on = i === S.desk;
+      h += '<button type="button" class="os-desk-btn' + (on ? ' is-on' : '') + (counts[i] ? ' has-wins' : '') + '" data-osdesk="' + String(i) + '"' +
+        ' aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="Desk ' + String(i + 1) + ', ' + String(counts[i]) + (counts[i] === 1 ? ' window' : ' windows') + '">' + String(i + 1) + '</button>';
+    }
+    S.desksEl.innerHTML = h;
+  }
+  function openDeskMenu(id, anchor) {
+    closeDeskMenu();
+    var rec = winRec(id);
+    if (!rec) return;
+    var m = doc.createElement('div');
+    m.className = 'os-deskmenu';
+    m.setAttribute('role', 'menu');
+    m.setAttribute('aria-label', 'Move to desk');
+    var h = '';
+    for (var i = 0; i < WM.DESKS; i++) {
+      var cur = WM.deskIndex(rec.desk) === i;
+      h += '<button type="button" role="menuitem" class="os-deskmenu-item" data-osmove="' + String(i) + '" data-win="' + esc(id) + '"' + (cur ? ' disabled' : '') + '>' +
+        'Desk ' + String(i + 1) + (cur ? ' (here)' : '') + '</button>';
+    }
+    m.innerHTML = h;
+    anchor.parentNode.appendChild(m);
+    S.deskMenu = m;
+    var first = m.querySelector('button:not([disabled])');
+    if (first) first.focus();
+  }
+  function closeDeskMenu() {
+    if (S && S.deskMenu && S.deskMenu.parentNode) S.deskMenu.parentNode.removeChild(S.deskMenu);
+    if (S) S.deskMenu = null;
+  }
+  // ── pinned apps (ChromeOS shelf / macOS Dock) ──
+  function togglePin(id) {
+    S.pins = WM.togglePin(S.pins, id);
+    paintTaskbar();
+    if (S.startOpen) S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(S.startEl.querySelector('input').value);
+    save();
+  }
+  // ── overview (macOS Mission Control / GNOME Activities / ChromeOS overview) ──
+  // The real windows shrink into a grid (live content, not screenshots);
+  // click one to bring it forward, Esc or the button again to leave.
+  function layoutOverview() {
+    var desk = deskSize();
+    var vis = here().filter(function (w) { return !w.min; }).sort(function (a, b) { return S.order.indexOf(a.id) - S.order.indexOf(b.id); });
+    var slots = WM.overviewSlots(vis.length, desk, 28);
+    vis.forEach(function (w, i) {
+      var el = winEl(w.id);
+      if (!el) return;
+      var px = WM.toPx(w.zone ? WM.zoneFrac(w.zone) : w, desk);
+      var fit = WM.fitInto(px, slots[i]);
+      el.style.setProperty('--otx', String(fit.tx) + 'px');
+      el.style.setProperty('--oty', String(fit.ty) + 'px');
+      el.style.setProperty('--os', String(fit.s));
+    });
+  }
+  function setOverview(on) {
+    if (!S.deskEl) return;
+    S.overview = !!on;
+    if (S.startOpen) setStart(false);
+    closeDeskMenu();
+    if (S.overview) layoutOverview();
+    S.deskEl.classList.toggle('is-overview', S.overview);
+    if (S.overviewBtn) S.overviewBtn.setAttribute('aria-pressed', S.overview ? 'true' : 'false');
   }
 
   // ── drag / resize / snap ──
@@ -310,14 +410,15 @@
   }
   function paintTaskbar() {
     if (!S.taskListEl) return;
-    var ordered = S.wins.slice().sort(function (a, b) { return S.order.indexOf(a.id) - S.order.indexOf(b.id); });
-    S.taskListEl.innerHTML = ordered.map(function (w) {
-      var a = appById(w.id);
-      var focused = S.focus === w.id && !w.min;
-      return '<button type="button" class="os-task' + (focused ? ' is-focus' : '') + (w.min ? ' is-min' : '') + '" data-ostask="' + esc(w.id) + '"' +
-        ' aria-pressed="' + (focused ? 'true' : 'false') + '" aria-label="' + esc(appLabel(w.id) + (w.min ? ', minimised' : '')) + '">' +
+    S.taskListEl.innerHTML = WM.taskItems(S.wins, S.pins, S.desk, S.order).map(function (t) {
+      var a = appById(t.id);
+      var focused = S.focus === t.id && t.here && !t.min;
+      var state = !t.running ? ', pinned' : (t.min ? ', minimised' : '') + (!t.here ? ', on another desk' : '') + (t.pinned ? ', pinned' : '');
+      return '<button type="button" class="os-task' + (focused ? ' is-focus' : '') + (t.min ? ' is-min' : '') + (t.running ? ' is-running' : ' is-idle') +
+        (t.pinned ? ' is-pinned' : '') + (t.running && !t.here ? ' is-elsewhere' : '') + '" data-ostask="' + esc(t.id) + '"' +
+        ' aria-pressed="' + (focused ? 'true' : 'false') + '" aria-label="' + esc(appLabel(t.id) + state) + '">' +
         '<span class="os-task-glyph" aria-hidden="true">' + esc(a && a.icon ? a.icon : '▣') + '</span>' +
-        '<span class="os-task-label">' + esc(appLabel(w.id)) + '</span></button>';
+        '<span class="os-task-label">' + esc(appLabel(t.id)) + '</span></button>';
     }).join('');
   }
   function startListHtml(q) {
@@ -325,7 +426,9 @@
     var list = S.apps.filter(function (a) { return !term || a.label.toLowerCase().indexOf(term) !== -1 || a.id.indexOf(term) !== -1; });
     if (!list.length) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
     return list.map(function (a) {
-      return '<li><button type="button" class="os-start-app" data-osapp="' + esc(a.id) + '"><span aria-hidden="true">' + esc(a.icon || '▣') + '</span> ' + esc(a.label) + '</button></li>';
+      var pinned = S.pins.indexOf(a.id) !== -1;
+      return '<li class="os-start-row"><button type="button" class="os-start-app" data-osapp="' + esc(a.id) + '"><span aria-hidden="true">' + esc(a.icon || '▣') + '</span> ' + esc(a.label) + '</button>' +
+        '<button type="button" class="os-start-pin' + (pinned ? ' is-on' : '') + '" data-ospin="' + esc(a.id) + '" aria-pressed="' + (pinned ? 'true' : 'false') + '" aria-label="' + esc((pinned ? 'Unpin ' : 'Pin ') + a.label + ' to the taskbar') + '">📌</button></li>';
     }).join('');
   }
   function setStart(open) {
@@ -372,7 +475,9 @@
       '<nav class="os-taskbar" aria-label="Taskbar">' +
         '<button type="button" class="os-start-btn" data-osdo="start" aria-expanded="false" aria-controls="osStart">' +
           '<span class="os-start-mark" aria-hidden="true"></span><span>Start</span></button>' +
-        '<div class="os-task-list" role="group" aria-label="Open windows"></div>' +
+        '<button type="button" class="os-task os-overview-btn" data-osdo="overview" aria-pressed="false" aria-label="Overview: every window on this desk">▦</button>' +
+        '<div class="os-task-list" role="group" aria-label="Pinned and open apps"></div>' +
+        '<div class="os-desks" role="group" aria-label="Desks"></div>' +
         '<button type="button" class="os-task os-show-desk" data-osdo="desktop" aria-label="Show desktop">▭</button>' +
       '</nav>';
     content.appendChild(desk);
@@ -384,6 +489,9 @@
     S.taskListEl = desk.querySelector('.os-task-list');
     S.startEl = desk.querySelector('.os-start');
     S.startBtn = desk.querySelector('.os-start-btn');
+    S.desksEl = desk.querySelector('.os-desks');
+    S.overviewBtn = desk.querySelector('.os-overview-btn');
+    applyButtonStyle();
     paintIcons();
     paintClock();
     S.clockT = setInterval(paintClock, 30000);
@@ -394,6 +502,12 @@
       if (bar && !(ev.target.closest('button'))) toggleMax(bar.parentNode.getAttribute('data-win'));
     });
     on(desk, 'pointerdown', onDeskPointerDown);
+    on(desk, 'contextmenu', function (ev) {
+      var it = ev.target.closest && ev.target.closest('[data-ostask], .os-icon');
+      if (!it) return;
+      ev.preventDefault();
+      togglePin(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'));
+    });
     on(doc, 'pointermove', function (ev) { moveDrag(ev); moveIconDrag(ev); });
     on(doc, 'pointerup', function (ev) { endDrag(ev); endIconDrag(ev); });
     on(doc, 'pointercancel', function (ev) { endDrag(ev); endIconDrag(ev); });
@@ -419,10 +533,10 @@
 
     // restore the saved session, bottom window first, then follow the active view
     var st = savedState();
-    S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
+    S.icons = st.icons; S.dock = st.dock; S.recent = st.recent; S.desk = st.desk; S.pins = st.pins;
     var restoring = st.wins.slice().sort(function (a, b) { return a.z - b.z; });
     restoring.forEach(function (w) {
-      S.wins.push({ id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, z: w.z, min: w.min, zone: w.zone });
+      S.wins.push({ id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, z: w.z, min: w.min, zone: w.zone, desk: w.desk });
       var el = buildWin(w.id);
       // a templated view is hydrated by the CRM's router the first time it shows
       if (viewEl(w.id) && !viewEl(w.id).childElementCount) goToView(w.id);
@@ -431,8 +545,36 @@
     S.order = S.wins.map(function (w) { return w.id; });
     var active = doc.querySelector('.content .view.active');
     var focusId = st.focus || (active ? active.id.slice(5) : null);
+    paintDeskBtns();
     if (focusId && viewEl(focusId)) openWin(focusId);
     else paintAllWins();
+    registerDeskSpotlight();
+  }
+
+  // Window buttons: 'chrome' (ChromeOS / Windows, default), 'mac' (traffic
+  // lights, top-left) or 'linux' (GNOME: close only). Chosen in the Control Center.
+  var BTN_KEY = 'nbd_os_btnstyle';
+  function applyButtonStyle() {
+    var v = null;
+    try { v = W.localStorage.getItem(BTN_KEY); } catch (e) {}
+    doc.documentElement.setAttribute('data-os-buttons', WM.buttonStyle(v));
+  }
+  var deskActs = [];
+  function registerDeskSpotlight() {
+    var C = W.NBDCommand;
+    if (!C || typeof C.registerAction !== 'function') return;
+    var acts = [{ id: 'os:overview', label: 'Overview: every window', keywords: 'overview mission control activities expose windows', run: function () { setOverview(true); } }];
+    for (var i = 0; i < WM.DESKS; i++) {
+      (function (n) {
+        acts.push({ id: 'os:desk:' + n, label: 'Go to desk ' + (n + 1), keywords: 'desk workspace space virtual desktop ' + (n + 1), run: function () { switchDesk(n); } });
+      })(i);
+    }
+    acts.forEach(function (a) { deskActs.push(a.id); safe(function () { C.registerAction({ id: a.id, label: a.label, keywords: a.keywords, group: 'System', icon: '▦', run: a.run }); }); });
+  }
+  function unregisterDeskSpotlight() {
+    var C = W.NBDCommand;
+    if (C && typeof C.unregisterAction === 'function') deskActs.forEach(function (id) { safe(function () { C.unregisterAction(id); }); });
+    deskActs = [];
   }
 
   function openSearch() {
@@ -441,7 +583,8 @@
   }
   function deskAction(what) {
     if (what === 'start') return setStart(!S.startOpen);
-    if (what === 'desktop') return showDesktop();
+    if (what === 'desktop') { if (S.overview) setOverview(false); return showDesktop(); }
+    if (what === 'overview') return setOverview(!S.overview);
     if (what === 'search') { if (S.startOpen) setStart(false); return openSearch(); }
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'settings') { if (S.startOpen) setStart(false); return openWin('settings'); }
@@ -450,6 +593,20 @@
     var t = ev.target;
     if (!t.closest) return;
     if (S.iconDragged) { S.iconDragged = false; ev.preventDefault(); return; }
+    if (S.overview && !t.closest('.os-taskbar')) {
+      var pick = t.closest('.os-win');
+      ev.preventDefault();
+      setOverview(false);
+      if (pick) focusWin(pick.getAttribute('data-win'));
+      return;
+    }
+    var mv = t.closest('[data-osmove]');
+    if (mv) { moveToDesk(mv.getAttribute('data-win'), Number(mv.getAttribute('data-osmove'))); return; }
+    if (S.deskMenu && !t.closest('.os-deskmenu')) closeDeskMenu();
+    var dk = t.closest('[data-osdesk]');
+    if (dk) { switchDesk(Number(dk.getAttribute('data-osdesk'))); if (S.overview) layoutOverview(); return; }
+    var pin = t.closest('[data-ospin]');
+    if (pin) { togglePin(pin.getAttribute('data-ospin')); return; }
     var b = t.closest('[data-osw]');
     if (b && b.tagName === 'BUTTON') {
       var id = b.closest('.os-win').getAttribute('data-win');
@@ -457,6 +614,7 @@
       if (what === 'min') minimiseWin(id);
       else if (what === 'max') toggleMax(id);
       else if (what === 'close') closeWin(id);
+      else if (what === 'desk') openDeskMenu(id, b);
       return;
     }
     var app = t.closest('[data-osapp]');
@@ -474,6 +632,7 @@
   function onDeskPointerDown(ev) {
     var t = ev.target;
     if (!t.closest) return;
+    if (S.overview) return;   // in the overview a press picks a window (click), it never drags
     var grip = t.closest('[data-osw="grip"]');
     if (grip) return startDrag(ev, grip.parentNode.getAttribute('data-win'), 'size');
     var bar = t.closest('[data-osw="bar"]');
@@ -513,6 +672,20 @@
   }
   function onDeskKey(ev) {
     if (ev.key === 'Escape' && S.startOpen) { ev.preventDefault(); setStart(false); S.startBtn.focus(); return; }
+    if (ev.key === 'Escape' && S.deskMenu) { ev.preventDefault(); closeDeskMenu(); return; }
+    if (ev.key === 'Escape' && S.overview) { ev.preventDefault(); setOverview(false); return; }
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || (ev.target && ev.target.isContentEditable);
+    // Ctrl+Alt+O overview; Ctrl+Alt+1-4 switch desk; Ctrl+Alt+Shift+1-4 move the focused window there
+    if (ev.ctrlKey && ev.altKey && !ev.metaKey && !typing) {
+      var dn = /^Digit([1-4])$/.exec(ev.code || '');
+      if (dn) {
+        ev.preventDefault();
+        if (ev.shiftKey) { if (S.focus) moveToDesk(S.focus, Number(dn[1]) - 1); }
+        else switchDesk(Number(dn[1]) - 1);
+        return;
+      }
+      if (!ev.shiftKey && ev.code === 'KeyO') { ev.preventDefault(); setOverview(!S.overview); return; }
+    }
     // Ctrl+Alt+arrows snap the focused window; never while typing in a field
     if (!(ev.ctrlKey && ev.altKey) || ev.shiftKey || ev.metaKey) return;
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(ev.key) === -1) return;
@@ -543,8 +716,15 @@
   function watchViews() {
     if (typeof MutationObserver !== 'function') return;
     var pending = false;
-    S.mo = new MutationObserver(function () {
-      if (pending) return;
+    S.mo = new MutationObserver(function (recs) {
+      // only a VIEW's class changing means the CRM routed; the layout's own
+      // window / desk class changes must never move anything
+      var routed = false;
+      for (var i = 0; i < recs.length && !routed; i++) {
+        var t = recs[i].target;
+        routed = !!(t && t.classList && t.classList.contains('view'));
+      }
+      if (!routed || pending) return;
       pending = true;
       // goTo removes every .active then adds one: settle before reading
       setTimeout(function () { pending = false; onViewChange(); }, 0);
@@ -809,6 +989,7 @@
     S = {
       surface: (ctx && ctx.surface) || 'desktop', apps: [], wins: [], focus: null, order: [], icons: [], dock: [], recent: [],
       origins: {}, unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
+      desk: 0, pins: [], overview: false, deskMenu: null,
     };
     S.apps = readApps();
     doc.documentElement.setAttribute('data-os-surface', S.surface === 'phone' ? 'phone' : 'desk');
@@ -848,6 +1029,8 @@
     doc.documentElement.removeAttribute('data-os-app');
     ['osDesk', 'osPhone', 'osBar'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
     doc.documentElement.removeAttribute('data-os-surface');
+    doc.documentElement.removeAttribute('data-os-buttons');
+    unregisterDeskSpotlight();
     S = null;
   }
 
