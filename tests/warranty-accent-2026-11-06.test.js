@@ -6,14 +6,14 @@
  * (_b.colors.accent); NBD's output stays byte-identical to main.
  * Evaluates the certificate's real <style> block (the 7 accent declarations)
  * with the real helper lines, for NBD and for a tenant, and compares NBD
- * against main's copy of the same lines. Zero deps.
+ * against the same 7 lines as main shipped them before ED-F20 (pinned).
+ * Zero deps.
  * Run: node tests/warranty-accent-2026-11-06.test.js
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { execFileSync } = require('child_process');
 let passed = 0, failed = 0;
 function ok(name, cond, detail) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
@@ -48,14 +48,19 @@ ok('…and none of NBD\'s orange', !/#BD5728/i.test(oaks));
 ok('NBD keeps its orange (positive control)', /#BD5728/.test(nbd) && /var\(--orange,#BD5728\)/.test(nbd));
 const bad = render(SRC, { legalName: 'Bad Co', colors: { accent: 'red;}</style><script>' } });
 ok('a malformed accent falls back to the default instead of being injected', !/<script>/.test(bad) && /#BD5728/.test(bad));
-let mainSrc = null;
-try { mainSrc = execFileSync('git', ['show', 'origin/main:docs/pro/js/warranty-cert.js'], { cwd: path.join(__dirname, '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).replace(/\r\n/g, '\n'); } catch (_) { /* no git or no origin/main (shallow CI checkout): skip */ }
-if (mainSrc) {
-  const mainNbd = styleLines(mainSrc).join('\n');
-  ok('NBD\'s certificate style is byte-identical to main', nbd === mainNbd, nbd === mainNbd ? '' : 'differs');
-} else {
-  console.log('  · (no git checkout: byte-identity against main skipped)');
-}
+// NBD's 7 accent lines exactly as main shipped them BEFORE ED-F20 (#2980,
+// parent of 3ca68805). Pinned, not read from origin/main: once #2980 merged,
+// main's source holds the templated accent and could never match again.
+const NBD_BEFORE = [
+  "    .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:4px solid #BD5728;margin-bottom:28px;}",
+  "    .brand span{color:var(--orange,#BD5728);}",
+  "    .brand-sub{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--orange,#BD5728);border:1px solid #BD5728;padding:2px 10px;border-radius:2px;display:inline-block;margin-top:6px;}",
+  "    .guarantee-box{background:#f9f9f9;border:1px solid #eee;border-left:4px solid #BD5728;border-radius:4px;padding:16px 18px;margin:16px 0;}",
+  "    .guarantee-box .tier{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--orange,#BD5728);margin-bottom:6px;}",
+  "    .feature-dot{width:8px;height:8px;border-radius:50%;background:var(--orange,#BD5728);flex-shrink:0;}",
+  "    .seal{width:60px;height:60px;border-radius:50%;border:3px solid #BD5728;display:flex;align-items:center;justify-content:center;font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--orange,#BD5728);text-align:center;line-height:1.3;padding:8px;}"
+].join('\n');
+ok('NBD\'s certificate style is byte-identical to before ED-F20', nbd === NBD_BEFORE, nbd === NBD_BEFORE ? '' : 'differs');
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
