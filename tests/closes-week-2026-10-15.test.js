@@ -164,7 +164,9 @@ console.log('\nF. the Home card');
   ok('every registered layout is covered (no new layout without a slot or Home)', (() => {
     const ls = read('docs/pro/js/layout-system.js');
     const ids = [...ls.matchAll(/id: '([a-z-]+)', name:/g)].map((x) => x[1]);
-    const covered = { classic: 1, bento: 1, island: 1, focus: 1, field: 1, inbox: 1, crew: 1, mission: 1 };
+    // os (NBD OS, 2026-11-06): shows the real Home view (#view-home with #homeClosesWeek)
+    // as the Today window on a laptop and the Today app on a phone, so Home covers it.
+    const covered = { classic: 1, bento: 1, island: 1, focus: 1, field: 1, inbox: 1, crew: 1, mission: 1, os: 1 };
     return ids.length >= 7 && ids.every((i) => covered[i] || i === 'FALLBACK');
   })(), [...read('docs/pro/js/layout-system.js').matchAll(/id: '([a-z-]+)', name:/g)].map((x) => x[1]).join());
   const sl = read('docs/pro/js/script-loader.js');

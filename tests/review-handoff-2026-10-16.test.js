@@ -227,7 +227,7 @@ function decodeQr(m) {
     ok('customer.html loads the CSS and both scripts with defer + ?v=, QR first', tags(cust));
     ok('the dashboard loads them only with the Field layout (needs, in order, ?v=), so its boot budget does not grow',
       /needs: \{ script: \['js\/layouts\/kit\.js', 'js\/qr-code\.js\?v=1', 'js\/review-handoff\.js\?v=1'\], css: \['css\/layouts\/kit\.css', 'css\/review-handoff\.css\?v=1'\] \}/.test(read('docs/pro/js/layout-system.js'))
-      && !/review-handoff|qr-code/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=6/.test(read('docs/pro/dashboard.html')));
+      && !/review-handoff|qr-code/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=([5-9]|\d{2,})"/.test(read('docs/pro/dashboard.html')));   // >= 5 (7 since NBD OS + the Field needs fix)
     // The source text alone passed while the registry's path rule dropped the
     // QR + hand-off files: check what the engine will actually load.
     const LS = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));

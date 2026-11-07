@@ -77,7 +77,20 @@
         glass: supports.glass === true,
         sunlight: supports.sunlight === true,
       },
+      // A dark layout (2026-11-06, NBD OS phase 0): shown in the picker and
+      // resolvable ONLY while this feature flag is on. Classic is never flagged.
+      flag: raw.id !== FALLBACK && typeof raw.flag === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(raw.flag) ? raw.flag : null,
     };
+  }
+
+  // Whether a flagged layout is switched on. The engine installs the real check
+  // (NBDFlags, with a last-known cache so a chosen dark layout doesn't flash
+  // Classic before the flags load); until then every flagged layout is off.
+  var flagCheck = function () { return false; };
+  function setFlagCheck(fn) { flagCheck = typeof fn === 'function' ? fn : function () { return false; }; }
+  function flagOn(d) {
+    if (!d || !d.flag) return true;
+    try { return flagCheck(d.flag) === true; } catch (e) { return false; }
   }
 
   function pathList(v, re) {
@@ -92,7 +105,10 @@
     return d;
   }
   function get(id) { return isId(id) && defs[id] ? defs[id] : null; }
-  function list() { return order.map(function (id) { return defs[id]; }); }
+  // list / forSurface are what the picker shows: a flagged layout whose flag
+  // is off is left out. listAll is every registered layout (tests, admin tools).
+  function listAll() { return order.map(function (id) { return defs[id]; }); }
+  function list() { return listAll().filter(flagOn); }
   function forSurface(surface) { return list().filter(function (d) { return d.surfaces.indexOf(surface) !== -1; }); }
 
   // ── settings shapes ──────────────────────────────────────────────────
@@ -183,6 +199,7 @@
     function usable(id, honourAllowed) {
       var d = get(id);
       if (!d || d.surfaces.indexOf(surface) === -1) return false;
+      if (!flagOn(d)) return false;
       if (available && !available(d)) return false;
       if (honourAllowed && id !== FALLBACK && company.allowed && company.allowed.indexOf(id) === -1) return false;
       return true;
@@ -306,13 +323,27 @@
     supports: { wallpaper: true, glass: false, sunlight: false },
   });
 
+  // NBD OS (2026-11-06, plan documentation/projects/NBD-OS-PLAN-2026-11-06.md):
+  // a desktop with windows on a laptop or tablet, a home screen with an app
+  // switcher on a phone. On for everyone (2026-11-07); `osLayout: false` in
+  // feature_flags hides it from the picker and stops it resolving.
+  register({
+    id: 'os', name: 'NBD OS', version: 1,
+    blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
+    surfaces: SURFACES, tier: 'free', flag: 'osLayout',
+    script: 'js/layouts/os.js', css: 'css/layouts/os.css',
+    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js'] },
+    supports: { wallpaper: true, glass: true, sunlight: false },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
-    register: register, get: get, list: list, forSurface: forSurface,
+    register: register, get: get, list: list, listAll: listAll, forSurface: forSurface,
+    setFlagCheck: setFlagCheck, flagOn: flagOn,
     normalizeUser: normalizeUser, normalizeCompany: normalizeCompany,
     resolve: resolve, surfaceFor: surfaceFor, isId: isId, densityFor: densityFor, DENSITIES: DENSITIES,
     // test hook: forget everything but Classic
-    _reset: function () { defs = {}; order = []; register({ id: FALLBACK, name: 'Classic' }); },
+    _reset: function () { defs = {}; order = []; flagCheck = function () { return false; }; register({ id: FALLBACK, name: 'Classic' }); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.LayoutRegistry = api;
@@ -764,8 +795,66 @@
   }
 
   // ── boot ─────────────────────────────────────────────────────────────
+  // Layout flags (NBD OS phase 0). Until NBDFlags has loaded, trust the
+  // last-known value cached for this account, so a rep on a flagged layout
+  // doesn't flash Classic every boot. Once the flags load, the live value wins
+  // and the cache is rewritten.
+  // ON BY DEFAULT (Joe, 2026-11-07: "completely turn it on live, nothing dark").
+  // A flag is on unless feature_flags sets it to exactly false, so writing
+  // `osLayout: false` / `osSystemLayer: false` in _default (or one uid's doc)
+  // is the kill switch, with no deploy.
+  var FLAGS_KEY = 'nbd_layout_flags';
+  function flagNames() {
+    var out = [SYSTEM_FLAG];
+    R.listAll().forEach(function (d) { if (d.flag && out.indexOf(d.flag) === -1) out.push(d.flag); });
+    return out;
+  }
+  function liveFlags() {
+    var F = window.NBDFlags;
+    return !!(F && typeof F.isLoaded === 'function' && F.isLoaded() && typeof F.enabled === 'function');
+  }
+  function cachedFlags() {
+    var c = parse(lsGet(FLAGS_KEY));
+    var who = (window._user && window._user.uid) || null;
+    if (!c || typeof c !== 'object' || !c.flags || (who && c.uid && c.uid !== who)) return {};
+    return c.flags;
+  }
+  function isFlagOn(name) {
+    if (liveFlags()) return window.NBDFlags.get(name) !== false;
+    return cachedFlags()[name] !== false;
+  }
+  function onFlagsLoaded() {
+    if (!liveFlags()) return;
+    var flags = {};
+    flagNames().forEach(function (n) { flags[n] = window.NBDFlags.get(n) !== false; });
+    lsSet(FLAGS_KEY, JSON.stringify({ uid: (window._user && window._user.uid) || null, flags: flags }));
+    // A layout switched on or off changes what resolves; re-apply the answer.
+    refresh();
+    if (flags[SYSTEM_FLAG]) loadSystemLayer();
+  }
+  R.setFlagCheck(isFlagOn);
+
+  // NBD OS System layer (phase 1): the tray, Control Center, Notification
+  // Center and Spotlight entries, over EVERY layout. Lazy (no <script> tag, so
+  // the boot budget is untouched) and only while `osSystemLayer` is on. Once
+  // loaded it stays for the page's life; turning the flag off takes effect on
+  // the next load.
+  var SYSTEM_FLAG = 'osSystemLayer';
+  var systemLoading = null;
+  function loadSystemLayer() {
+    if (systemLoading) return systemLoading;
+    systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=1'] } })
+      .then(function () { return loadScriptPath('js/os/system-logic.js'); })
+      .then(function () { return loadScriptPath('js/os/system.js?v=1'); });
+    return systemLoading;
+  }
+
   function boot() {
     watchPicker();
+    window.addEventListener('nbd:flags-loaded', onFlagsLoaded);
+    if (liveFlags()) onFlagsLoaded();
+    // on unless last known off: paint the tray without waiting for the flag read
+    else if (cachedFlags()[SYSTEM_FLAG] !== false) loadSystemLayer();
     window.addEventListener('online', function () {
       if (hydrated || !dbReady()) return;
       if (retryT) { clearTimeout(retryT); retryT = null; }
@@ -788,7 +877,7 @@
     });
     // First paint of the engine: honour what the preboot stamped, Classic otherwise.
     var stamped = root.getAttribute('data-layout');
-    var id = stamped && R.get(stamped) ? stamped : R.FALLBACK;
+    var id = stamped && R.get(stamped) && R.flagOn(R.get(stamped)) ? stamped : R.FALLBACK;
     apply(id, { source: 'cache' });
   }
 

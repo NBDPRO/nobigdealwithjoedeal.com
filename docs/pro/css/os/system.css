@@ -1,0 +1,193 @@
+/* os/system.css — NBD OS System layer (2026-11-06, phase 1): status tray,
+   Control Center, Notification Center. Loaded lazily by layout-system.js only
+   while the osSystemLayer flag is on. Theme tokens and --ui-* tokens only, so
+   every theme (dark and light) works; durations are --ui-dur-* so both
+   reduce-motion switches turn every transition off. */
+
+/* ── status tray ─────────────────────────────────────────── */
+.os-tray { display: flex; align-items: center; gap: var(--ui-space-1, 4px); margin-right: var(--ui-space-2, 8px); }
+.os-tray-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 0 var(--ui-space-2, 8px);
+  background: transparent; color: var(--m); border: 1px solid transparent;
+  border-radius: var(--ui-radius-pill, 100px);
+  font-size: var(--ui-fs-caption, 12px); font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease), border-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease);
+}
+.os-tray-item:hover { background: var(--s2); border-color: var(--ui-line-divider, var(--br)); color: var(--t); }
+.os-tray-item:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-tray-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--m); flex-shrink: 0; }
+.os-tone-ok .os-tray-dot { background: var(--green); }
+.os-tone-warn .os-tray-dot { background: var(--gold); }
+.os-tone-alert .os-tray-dot { background: var(--orange); }
+.os-tone-alert .os-tray-text { color: var(--ui-accent-text, var(--t)); font-weight: 600; }
+.os-tray-clock { color: var(--t); font-weight: 600; white-space: nowrap; }
+.os-clock-dot { display: none; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.os-clock-dot.os-tone-warn { background: var(--gold); }
+.os-clock-dot.os-tone-alert { background: var(--orange); }
+/* The header bar is near-black in EVERY theme and mode (dashboard-app.css
+   `header`), but --t / --m are dark inks in light mode. Pin the tray's inks
+   to the same values dashboard-app.css pins .hdr-tool to there. */
+:root[data-mode="light"] header .os-tray-item { color: rgb(156 163 175); }
+:root[data-mode="light"] header .os-tray-clock,
+:root[data-mode="light"] header .os-tray-item:hover { color: rgb(232 234 240); }
+:root[data-mode="light"] header .os-tray-item:hover { background: rgb(232 234 240 / .08); border-color: transparent; }
+:root[data-mode="light"] header .os-tone-alert .os-tray-text { color: var(--orange); }
+
+/* Phones: the header is tight. Dots only (the counts live in the panels),
+   and the clock; every part keeps the 44px tap floor. */
+@media (max-width: 768px) {
+  .os-tray { gap: 0; margin-right: 2px; }
+  .os-tray-item { min-height: 44px; min-width: 32px; padding: 0 6px; justify-content: center; }
+  .os-tray-item:not(.os-tray-clock) .os-tray-text { display: none; }
+  /* The header has ~110px to spare at 360px: the tray is ONE button, the
+     clock, carrying a dot for whatever needs attention (offline, storm, away).
+     It opens the Control Center; the bell beside it shows the unread count. */
+  .os-tray-item:not(.os-tray-clock) { display: none; }
+  .os-tray-clock { gap: 4px; }
+  .os-clock-dot { display: inline-block; }
+}
+/* Phones, measured 2026-11-07 once the layer went on for everyone: the header's
+   right side (connection, recent customers, bell, theme, what's new, avatar)
+   left no room for the tray clock, so it sat ON the NBD logo mark and squeezed
+   the wordmark to 0px (caught by the Pro demo walk). The phone's own status bar
+   shows the time, so on a phone the tray is a 40px button like its neighbours
+   (its dot still says what needs attention; the time stays in its label for
+   screen readers), and the right side packs at the tools' own 2px gap. */
+@media (max-width: 480px) {
+  header .hright { gap: 2px; }
+  .os-tray-clock { min-width: 40px; padding: 0; }
+  .os-tray-clock .os-tray-time {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  /* with the time hidden the button would be empty: a two-slider "controls" glyph, in the button's own ink */
+  .os-tray-clock::before {
+    content: ""; display: inline-block; flex: 0 0 auto; width: 18px; height: 14px;
+    background:
+      radial-gradient(circle at 5px 3px, currentColor 2.5px, transparent 3px),
+      radial-gradient(circle at 13px 11px, currentColor 2.5px, transparent 3px),
+      linear-gradient(currentColor, currentColor) 0 2px / 18px 2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 10px / 18px 2px no-repeat;
+  }
+}
+/* Below 380px there is no room for the wordmark beside the tray and the tools:
+   hide it cleanly (the NBD logo mark stays) rather than clip it mid-word. */
+@media (max-width: 380px) {
+  header .logo { display: none; }
+}
+
+/* ── sheets ──────────────────────────────────────────────── */
+.os-sheet-wrap[hidden] { display: none; }
+.os-sheet-wrap { position: fixed; inset: 0; z-index: var(--z-overlay, 10000); }
+.os-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.os-sheet {
+  position: absolute; top: var(--ui-space-3, 12px); right: var(--ui-space-3, 12px);
+  width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto;
+  background: var(--s); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br));
+  border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-3);
+  animation: os-in var(--ui-dur-sheet, 300ms) var(--ui-ease-enter, ease-out);
+}
+.os-sheet:focus { outline: none; }
+@keyframes os-in { from { opacity: 0; transform: translateY(calc(-1 * var(--ui-enter-y, 6px))); } to { opacity: 1; transform: none; } }
+.os-sheet-hd { display: flex; align-items: center; justify-content: space-between; padding: var(--ui-space-3, 12px) var(--ui-space-4, 16px); border-bottom: 1px solid var(--ui-line-hair, var(--br)); }
+.os-sheet-title { margin: 0; }
+.os-x { min-width: 36px; min-height: 36px; }
+.os-sheet-body { padding: var(--ui-space-4, 16px); }
+
+@media (max-width: 768px) {
+  /* a bottom sheet, the dashboard's phone convention for .modal */
+  .os-sheet {
+    top: auto; right: 0; left: 0; bottom: 0; width: 100%; max-height: 85vh;
+    border-radius: var(--ui-radius-lg, 12px) var(--ui-radius-lg, 12px) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @keyframes os-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  .os-x { min-width: 44px; min-height: 44px; }
+}
+
+/* ── Control Center ──────────────────────────────────────── */
+.os-cc { display: flex; flex-direction: column; gap: var(--ui-space-4, 16px); }
+.os-cc-block { display: flex; flex-direction: column; gap: var(--ui-space-2, 8px); }
+.os-cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-2, 8px); }
+.os-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  min-height: 64px; width: 100%; padding: var(--ui-space-3, 12px);
+  background: var(--s2); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br));
+  border-radius: var(--ui-radius-md, 8px); cursor: pointer;
+  transition: background-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease), border-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease), transform var(--ui-dur-press, 80ms) var(--ui-ease, ease);
+}
+.os-tile:hover { border-color: var(--ui-line-strong, var(--br)); }
+.os-tile:active { transform: scale(var(--ui-press-scale, .97)); }
+.os-tile:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-tile.is-on { background: color-mix(in srgb, var(--orange) 16%, var(--s2)); border-color: color-mix(in srgb, var(--orange) 55%, var(--br)); }
+.os-tile-label { font-weight: 600; font-size: var(--ui-fs-body, 14px); }
+.os-tile-state { font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-tile.is-on .os-tile-state { color: var(--ui-accent-text, var(--t)); }
+.os-tile-hint { font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--s2); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px); }
+.os-seg-btn {
+  min-height: 40px; background: transparent; color: var(--m); border: 0; border-radius: var(--ui-radius-sm, 6px);
+  font-weight: 600; cursor: pointer; transition: background-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease);
+}
+.os-seg-btn.is-on { background: var(--s); color: var(--t); box-shadow: var(--ui-elev-1); }
+.os-seg-btn:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+@media (max-width: 768px) { .os-seg-btn { min-height: 44px; } }
+
+/* ── Notification Center ─────────────────────────────────── */
+.os-nc { display: flex; flex-direction: column; gap: var(--ui-space-4, 16px); }
+.os-nc-tools { display: flex; justify-content: flex-end; gap: var(--ui-space-2, 8px); }
+.os-nc-h { margin: 0 0 var(--ui-space-2, 8px); display: flex; align-items: center; gap: 6px; }
+.os-nc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); }
+.os-nc-item, .os-nc-hist {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); background: var(--s2); color: var(--t);
+  border: 1px solid var(--ui-line-hair, var(--br)); border-radius: var(--ui-radius-md, 8px);
+}
+.os-nc-item { cursor: pointer; min-height: 44px; }
+.os-nc-item:hover { border-color: var(--ui-line-strong, var(--br)); }
+.os-nc-item:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-nc-item.is-unread { border-left: 3px solid var(--orange); }
+.os-nc-title { font-weight: 600; font-size: var(--ui-fs-body-sm, 13px); }
+.os-nc-text { font-size: var(--ui-fs-body-sm, 13px); color: var(--t); overflow-wrap: anywhere; }
+.os-nc-meta { color: var(--m); }
+.os-nc-hist.os-tone-error { border-left: 3px solid var(--red); }
+.os-nc-hist.os-tone-warning { border-left: 3px solid var(--gold); }
+.os-nc-empty { padding: var(--ui-space-6, 24px) var(--ui-space-2, 8px); text-align: center; }
+
+/* ── boot screen (phase 4) ───────────────────────────────── */
+.os-boot {
+  position: fixed; inset: 0; z-index: var(--z-loader, 9900); display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--t); cursor: pointer;
+  animation: os-fade-in var(--ui-dur-enter, 220ms) var(--ui-ease-enter, ease-out);
+  transition: opacity var(--ui-dur-exit, 160ms) var(--ui-ease-exit, ease-in);
+}
+.os-boot.is-leaving { opacity: 0; }
+@keyframes os-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.os-boot-card { display: flex; flex-direction: column; align-items: center; gap: var(--ui-space-4, 16px); padding: var(--ui-space-6, 24px); text-align: center; }
+.os-boot-mark, .os-lock-mark {
+  display: flex; align-items: center; justify-content: center; width: 72px; height: 72px;
+  background: var(--orange); color: var(--accent-fg, var(--bg)); border-radius: var(--ui-radius-lg, 12px);
+  font-weight: 800; font-size: 26px; letter-spacing: .02em; box-shadow: var(--ui-elev-2);
+}
+.os-boot-title { margin: 0; }
+.os-boot-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.os-boot-steps li { display: flex; align-items: center; gap: 8px; color: var(--m); font-size: var(--ui-fs-body, 14px); }
+.os-boot-steps li.is-done { color: var(--t); }
+.os-boot-tick {
+  display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--br); font-size: 11px; color: var(--ui-success-text, var(--t));
+}
+.os-boot-steps li.is-done .os-boot-tick { border-color: var(--green); background: color-mix(in srgb, var(--green) 18%, transparent); }
+
+/* ── lock screen (phase 4) ───────────────────────────────── */
+.os-lock {
+  position: fixed; inset: 0; z-index: calc(var(--z-toast, 10002) + 1); display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 97%, transparent); color: var(--t);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  animation: os-fade-in var(--ui-dur-sheet, 300ms) var(--ui-ease-enter, ease-out);
+}
+.os-lock-inner { display: flex; flex-direction: column; align-items: center; gap: var(--ui-space-3, 12px); padding: var(--ui-space-6, 24px); text-align: center; }
+.os-lock-time { font-size: 64px; font-weight: 700; line-height: 1; margin-top: var(--ui-space-4, 16px); }
+.os-lock-date { font-size: var(--ui-fs-heading, 16px); color: var(--m); }
+.os-lock-lines { list-style: none; margin: var(--ui-space-4, 16px) 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--t); font-size: var(--ui-fs-body, 14px); }
+.os-lock-btn { min-height: 48px; min-width: 160px; justify-content: center; }
