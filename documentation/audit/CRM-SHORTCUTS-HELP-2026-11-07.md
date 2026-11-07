@@ -17,3 +17,11 @@ The `?` key opens the Keyboard Shortcuts panel (`showShortcutsHelp` in `dashboar
 `maps-routing.js` uses the same `div[style*=fixed]` selector, but there it is correct: that overlay is inline-styled `position:fixed`.
 
 `tests/shortcuts-help-close-2026-11-07.test.js` runs the shipped function. It passes 7/7, and 4 checks fail on main.
+
+## Also in this PR: PL-F27
+
+Sign-out (`window._signOut`) now stops the live estimates listener before `signOut(auth)`, through a new `window._unsubscribeEstimates`. Until now the listener outlived the token, errored with permission-denied, and its error handler re-fetched during teardown. `tests/signout-estimates-unsub-2026-11-07.test.js` runs the shipped `_signOut` and records the order of calls: 5/5 with the fix, 3 fail on main.
+
+## Held: boot budget
+
+Together the two fixes add about 440 shipped (minified) bytes to `dashboard-bootstrap.module.js`. Main sits 184 bytes under the shipped local-script ceiling in `dashboard-boot-budget-2026-10-03` (2856 KB), so this PR fails that gate as it stands. Raising the ceiling is a deliberate decision for Jo, so the PR stays a draft until he chooses: raise it by 1 KB, or trim bytes elsewhere first.
