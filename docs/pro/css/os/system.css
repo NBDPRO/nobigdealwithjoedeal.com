@@ -64,6 +64,12 @@
      style. Measured at 390 and 360 px: all four corners of every header
      button answer, the wordmark keeps its room. */
   header #nbd-whats-new-bell { margin-right: 3px !important; }
+  /* ...but the bell's width is the 🎁 glyph's, which differs by OS font: on
+     CI's Linux the narrower bell put its corner tap past that 3px again
+     (passed on Windows, failed in the Pro demo walk). Stacking the bell above
+     the pill makes its own 44px hit area win where the two overlap, for any
+     bell from 30 to 44px wide (measured); the pill keeps its other taps. */
+  header #nbd-whats-new-bell { z-index: 1; }
   .os-tray-clock { min-width: 40px; padding: 0; }
   .os-tray-clock .os-tray-time {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
