@@ -165,20 +165,44 @@ window.uploadDocuments = async function() {
   
   _setDocUploadBusy(true);
   
+  // One try PER FILE (CRM audit 2026-11-06, CU-F02). A single try around the
+  // loop stopped the batch at the first refused file, left the files that had
+  // already gone up in the queue, and a retry uploaded them again as
+  // duplicates. Now every file is attempted, finished ones leave the queue,
+  // and only the failed ones stay for a retry.
   try {
-    for (let i = 0; i < window._docUploadQueue.length; i++) {
-      const item = window._docUploadQueue[i];
+    const queue = window._docUploadQueue;
+    const total = queue.length;
+    let lastErr = null;
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      if (item.done) continue;
       item.uploading = true;
       updateDocUploadPreview();
-      
-      await uploadSingleDocument(item, i);
+      try {
+        await uploadSingleDocument(item, i);
+        item.done = true;
+      } catch (err) {
+        item.uploading = false;
+        item.failed = true;
+        lastErr = err;
+        console.error('Document upload error:', err);
+      }
     }
-    
-    const _n = window._docUploadQueue.length;
-    _nbdNotify(`Uploaded ${_n} file${_n === 1 ? '' : 's'}.`, 'success');
-    closeDocUploadModal();
-    if (window.NBDCustomerDocs) await window.NBDCustomerDocs.refresh();
-    
+    const failedItems = queue.filter((it) => !it.done);
+    const okCount = total - failedItems.length;
+    if (!failedItems.length) {
+      _nbdNotify(`Uploaded ${total} file${total === 1 ? '' : 's'}.`, 'success');
+      closeDocUploadModal();
+    } else {
+      // Keep only what still needs sending; a retry never re-sends a done file.
+      window._docUploadQueue = failedItems;
+      updateDocUploadPreview();
+      _nbdNotify(`Uploaded ${okCount} of ${total}. ${failedItems.length} failed: ` +
+        ((lastErr && lastErr.message) || 'unknown error') + ' — tap Upload to retry the rest.', 'error');
+    }
+    if (okCount && window.NBDCustomerDocs) await window.NBDCustomerDocs.refresh();
+
   } catch (error) {
     console.error('Document upload error:', error);
     _nbdNotify('Upload failed: ' + ((error && error.message) || 'unknown error'), 'error');
