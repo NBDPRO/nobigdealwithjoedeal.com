@@ -17,6 +17,10 @@
   bottom:calc(62px + 14px + env(safe-area-inset-bottom, 0px));
   z-index:900;
 }
+/* Open, the menu and its dim rise over the bottom nav, toasts and the sample
+   account's strip (10008), which otherwise covered the Record visit pill.
+   Nothing modal is open while the menu is: the button hides under those. */
+.nbd-vr-fab.is-open{ z-index:10011; }
 html[data-layout="island"] .nbd-vr-fab,
 html[data-layout="field"] .nbd-vr-fab,
 html[data-layout="focus"] .nbd-vr-fab,
@@ -98,7 +102,7 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
   font-size:13px; line-height:22px; text-align:center; font-variant-numeric:tabular-nums;
 }
 /* the light dim behind the open menu; a tap on it closes the menu */
-.nbd-vr-dim{ position:fixed; inset:0; z-index:899; background:color-mix(in srgb, black 28%, transparent); }
+.nbd-vr-dim{ position:fixed; inset:0; z-index:10010; background:color-mix(in srgb, black 28%, transparent); }
 .nbd-vr-dim[hidden]{ display:none; }
 @media (prefers-reduced-motion: reduce){ .nbd-vr-menu{ animation:none; } }
 @media (min-width:769px){

@@ -290,7 +290,8 @@ function boot(opts) {
     ok('hidden while a recorder sheet is up', /body:has\(\.nbd-vr-scrim\) \.nbd-vr-fab/.test(css));
     ok('hidden while the phone keyboard is up (keyboard-viewport.js html.nbd-kb-open)', /html\.nbd-kb-open \.nbd-vr-fab/.test(css) && /classList\.add\('nbd-kb-open'\)/.test(read('docs/pro/js/keyboard-viewport.js')));
     ok('the hide rule really is display:none', /body:has\(\.nbd-vr-scrim\) \.nbd-vr-fab\{ display:none; \}/.test(css));
-    ok('the dim sits just under the button and the menu', /z-index:899/.test(block('.nbd-vr-dim')) && /z-index:900/.test(fab));
+    ok('the dim sits just under the open button and menu, both over the nav, toasts and the sample strip (10008)',
+      /z-index:10010/.test(block('.nbd-vr-dim')) && /z-index:10011/.test(block('.nbd-vr-fab.is-open')) && /z-index:900/.test(fab));
     ok('the menu opens up and to the right of the button', /left:0; bottom:66px;/.test(block('.nbd-vr-menu')) && /transform-origin:0 100%/.test(block('.nbd-vr-menu')));
     ok('motion uses the duration tokens and stops for reduced motion', /animation:nbd-vr-menu-in var\(--ui-dur-enter\)/.test(css) && /prefers-reduced-motion: reduce\)\{ \.nbd-vr-menu\{ animation:none; \} \}/.test(css));
     ok('the old pill bar\'s rules are gone', !/\.nbd-vr-bar\{|\.nbd-vr-barbtn|\.nbd-vr-unfiled\{/.test(css));
@@ -307,6 +308,10 @@ function boot(opts) {
     const html = read('docs/pro/dashboard.html');
     ok('dashboard.html does not load the menu file at boot (the shipped-bytes budget)', !/visit-recorder-menu\.js/.test(html));
     ok('the launcher is still a deferred boot script', /<script defer src="js\/visit-recorder-launcher\.js\?v=\d+"><\/script>/.test(html));
+    // phones keep a cached copy until the URL changes: both pages ask for the new launcher and coordinator
+    const cust = read('docs/pro/customer.html');
+    ok('dashboard + customer pages load the new launcher (v>=5) and coordinator (v>=3)',
+      [html, cust].every((p) => /visit-recorder-launcher\.js\?v=([5-9]|\d\d+)"/.test(p) && /fab-stack-coordinator\.js\?v=([3-9]|\d\d+)"/.test(p)));
     ok('the stylesheet is re-versioned in both places (v=5)', (L.match(/visit-recorder\.css\?v=5/g) || []).length === 2);
     const M = read('docs/pro/js/visit-recorder-menu.js');
     ok('menu: no innerHTML and no inline styles (strict CSP)', !/\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML|\.style\.|setAttribute\(\s*['"]style/.test(M.replace(/\/\*[\s\S]*?\*\//g, '')));
