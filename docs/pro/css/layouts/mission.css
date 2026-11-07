@@ -3,144 +3,144 @@
  * danger is --red / --gold in every theme; team areas and routes are --orange.
  * No <header> elements (the app styles every header as its dark top bar). */
 
-html[data-layout="mission"] .mc-root {
+html[data-layout="mission"] #nbdMissionRoot {
   position: fixed; inset: 0; z-index: 1800; background: var(--bg); color: var(--t); overflow: hidden;
 }
-html[data-layout="mission"] .mc-root[hidden] { display: none; }
-html[data-layout="mission"] .mc-wrap { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; padding-bottom: env(safe-area-inset-bottom, 0px); }
+html[data-layout="mission"] #nbdMissionRoot[hidden] { display: none; }
+html[data-layout="mission"] #nbdMissionRoot .mc-wrap { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* top bar (full screen: it starts under the status bar) */
-html[data-layout="mission"] .mc-top {
+html[data-layout="mission"] #nbdMissionRoot .mc-top {
   position: relative; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 8px;
   background: var(--s); border-bottom: 1px solid var(--rule);
 }
-html[data-layout="mission"] .mc-title { font-weight: 900; letter-spacing: .02em; font-size: 17px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-title { font-weight: 900; letter-spacing: .02em; font-size: 17px; }
 /* four tabs never push the bar wider than a phone: they scroll sideways */
-html[data-layout="mission"] .mc-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-html[data-layout="mission"] .mc-tabs::-webkit-scrollbar { display: none; }
-html[data-layout="mission"] .mc-tab { flex: none; white-space: nowrap; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tabs::-webkit-scrollbar { display: none; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tab { flex: none; white-space: nowrap; }
 /* Menu: the way out, the same sheet as Crew's */
-html[data-layout="mission"] .mc-sheet-menu {
+html[data-layout="mission"] #nbdMissionRoot .mc-sheet-menu {
   position: absolute; right: 14px; top: calc(100% - 4px); z-index: 5; min-width: 220px; padding: 6px;
   display: flex; flex-direction: column; background: var(--s); border: 1px solid var(--rule); border-radius: 14px;
   box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 60%, transparent);
 }
-html[data-layout="mission"] .mc-sheet-menu button {
+html[data-layout="mission"] #nbdMissionRoot .mc-sheet-menu button {
   min-height: var(--tap); padding: 0 14px; text-align: left; border: 0; border-radius: 10px; background: none;
   color: var(--t); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
 }
-html[data-layout="mission"] .mc-sheet-menu button:hover { background: var(--og); }
-html[data-layout="mission"] .mc-rec { width: 100%; margin-top: 10px; }
-html[data-layout="mission"] .mc-map-fail { height: 100%; min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; }
-html[data-layout="mission"] .mc-tab, html[data-layout="mission"] .mc-btn {
+html[data-layout="mission"] #nbdMissionRoot .mc-sheet-menu button:hover { background: var(--og); }
+html[data-layout="mission"] #nbdMissionRoot .mc-rec { width: 100%; margin-top: 10px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-map-fail { height: 100%; min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tab, html[data-layout="mission"] #nbdMissionRoot .mc-btn {
   min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--rule);
   background: var(--s2); color: var(--t); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
 }
-html[data-layout="mission"] .mc-tab-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
-html[data-layout="mission"] .mc-btn-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); width: 100%; margin-top: 12px; min-height: var(--tap); }
-html[data-layout="mission"] .mc-top-end { margin-left: auto; display: flex; gap: 8px; }
-html[data-layout="mission"] .mc-chip { font-size: 13px; font-weight: 700; color: var(--m); padding: 4px 10px; border: 1px solid var(--rule); border-radius: 999px; }
-html[data-layout="mission"] .mc-chip-hot { color: var(--t); border-color: var(--red); background: color-mix(in srgb, var(--red) 18%, var(--s)); }
-html[data-layout="mission"] .mc-chip-warn { color: var(--t); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 18%, var(--s)); }
+html[data-layout="mission"] #nbdMissionRoot .mc-tab-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+html[data-layout="mission"] #nbdMissionRoot .mc-btn-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); width: 100%; margin-top: 12px; min-height: var(--tap); }
+html[data-layout="mission"] #nbdMissionRoot .mc-top-end { margin-left: auto; display: flex; gap: 8px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-chip { font-size: 13px; font-weight: 700; color: var(--m); padding: 4px 10px; border: 1px solid var(--rule); border-radius: 999px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-chip-hot { color: var(--t); border-color: var(--red); background: color-mix(in srgb, var(--red) 18%, var(--s)); }
+html[data-layout="mission"] #nbdMissionRoot .mc-chip-warn { color: var(--t); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 18%, var(--s)); }
 
 /* body: rail | map | path */
-html[data-layout="mission"] .mc-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; }
-html[data-layout="mission"] .mc-side { overflow-y: auto; padding: 12px; background: var(--s); border-right: 1px solid var(--rule); }
-html[data-layout="mission"] .mc-right { border-right: 0; border-left: 1px solid var(--rule); }
+html[data-layout="mission"] #nbdMissionRoot .mc-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-side { overflow-y: auto; padding: 12px; background: var(--s); border-right: 1px solid var(--rule); }
+html[data-layout="mission"] #nbdMissionRoot .mc-right { border-right: 0; border-left: 1px solid var(--rule); }
 /* "What closes this week": its own cell under the left rail, never the map
    column (D2). A 300px rail is narrow, so each row's action drops under it. */
-html[data-layout="mission"] .mc-body { grid-template-rows: minmax(0, 1fr) auto; }
-html[data-layout="mission"] .mc-left { grid-column: 1; grid-row: 1; }
-html[data-layout="mission"] .mc-center { grid-column: 2; grid-row: 1 / span 2; }
-html[data-layout="mission"] .mc-right { grid-column: 3; grid-row: 1 / span 2; }
-html[data-layout="mission"] .mc-cwk { grid-column: 1; grid-row: 2; max-height: 42vh; border-top: 1px solid var(--rule); }
-html[data-layout="mission"] .mc-cwk .cwk-card { margin: 0; padding: 12px; }
-html[data-layout="mission"] .mc-cwk .cwk-row { flex-wrap: wrap; }
-html[data-layout="mission"] .mc-cwk .cwk-act { width: 100%; justify-content: center; }
-html[data-layout="mission"] .mc-center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-html[data-layout="mission"] .mc-map { flex: 1 1 auto; min-height: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-body { grid-template-rows: minmax(0, 1fr) auto; }
+html[data-layout="mission"] #nbdMissionRoot .mc-left { grid-column: 1; grid-row: 1; }
+html[data-layout="mission"] #nbdMissionRoot .mc-center { grid-column: 2; grid-row: 1 / span 2; }
+html[data-layout="mission"] #nbdMissionRoot .mc-right { grid-column: 3; grid-row: 1 / span 2; }
+html[data-layout="mission"] #nbdMissionRoot .mc-cwk { grid-column: 1; grid-row: 2; max-height: 42vh; border-top: 1px solid var(--rule); }
+html[data-layout="mission"] #nbdMissionRoot .mc-cwk .cwk-card { margin: 0; padding: 12px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-cwk .cwk-row { flex-wrap: wrap; }
+html[data-layout="mission"] #nbdMissionRoot .mc-cwk .cwk-act { width: 100%; justify-content: center; }
+html[data-layout="mission"] #nbdMissionRoot .mc-center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-map { flex: 1 1 auto; min-height: 0; }
 
-html[data-layout="mission"] .mc-h { margin: 0 0 8px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
-html[data-layout="mission"] .mc-h2 { margin: 14px 0 6px; font-size: 13px; font-weight: 800; color: var(--m); }
-html[data-layout="mission"] .mc-count { color: var(--t); }
-html[data-layout="mission"] .mc-note { margin: 6px 0; font-size: 13px; color: var(--m); line-height: 1.4; }
-html[data-layout="mission"] .mc-fine { margin: 6px 0 0; font-size: 12px; color: var(--m); }
-html[data-layout="mission"] .mc-label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
-html[data-layout="mission"] .mc-line { margin: 2px 0 6px; font-size: 15px; line-height: 1.4; }
+html[data-layout="mission"] #nbdMissionRoot .mc-h { margin: 0 0 8px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-h2 { margin: 14px 0 6px; font-size: 13px; font-weight: 800; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-count { color: var(--t); }
+html[data-layout="mission"] #nbdMissionRoot .mc-note { margin: 6px 0; font-size: 13px; color: var(--m); line-height: 1.4; }
+html[data-layout="mission"] #nbdMissionRoot .mc-fine { margin: 6px 0 0; font-size: 12px; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-line { margin: 2px 0 6px; font-size: 15px; line-height: 1.4; }
 
 /* alerts */
-html[data-layout="mission"] .mc-alert { border: 1px solid var(--rule); border-left-width: 5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--s2); }
-html[data-layout="mission"] .mc-alert-red { border-left-color: var(--red); }
-html[data-layout="mission"] .mc-alert-gold { border-left-color: var(--gold); }
-html[data-layout="mission"] .mc-alert-ev { font-weight: 800; }
-html[data-layout="mission"] .mc-alert-sub, html[data-layout="mission"] .mc-alert-n { font-size: 13px; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-alert { border: 1px solid var(--rule); border-left-width: 5px; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--s2); }
+html[data-layout="mission"] #nbdMissionRoot .mc-alert-red { border-left-color: var(--red); }
+html[data-layout="mission"] #nbdMissionRoot .mc-alert-gold { border-left-color: var(--gold); }
+html[data-layout="mission"] #nbdMissionRoot .mc-alert-ev { font-weight: 800; }
+html[data-layout="mission"] #nbdMissionRoot .mc-alert-sub, html[data-layout="mission"] #nbdMissionRoot .mc-alert-n { font-size: 13px; color: var(--m); }
 
 /* in the path / lists */
-html[data-layout="mission"] .mc-list { list-style: none; margin: 0; padding: 0; }
-html[data-layout="mission"] .mc-row {
+html[data-layout="mission"] #nbdMissionRoot .mc-list { list-style: none; margin: 0; padding: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-row {
   display: grid; grid-template-columns: 1fr auto; gap: 0 8px; width: 100%; text-align: left; box-sizing: border-box;
   min-height: var(--tap); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--rule); border-radius: 12px;
   background: var(--s2); color: var(--t); font: inherit; cursor: pointer;
 }
-html[data-layout="mission"] .mc-row-on { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange) inset; }
-html[data-layout="mission"] .mc-row-name { font-weight: 700; overflow-wrap: anywhere; }
-html[data-layout="mission"] .mc-row-sub { grid-column: 1; font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
-html[data-layout="mission"] .mc-hail { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-weight: 800; font-size: 13px; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
-html[data-layout="mission"] .mc-hail-red { color: var(--ui-danger-text, var(--red)); border-color: var(--red); }
-html[data-layout="mission"] .mc-hail-gold { color: var(--gold); border-color: var(--gold); }
+html[data-layout="mission"] #nbdMissionRoot .mc-row-on { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange) inset; }
+html[data-layout="mission"] #nbdMissionRoot .mc-row-name { font-weight: 700; overflow-wrap: anywhere; }
+html[data-layout="mission"] #nbdMissionRoot .mc-row-sub { grid-column: 1; font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
+html[data-layout="mission"] #nbdMissionRoot .mc-hail { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-weight: 800; font-size: 13px; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+html[data-layout="mission"] #nbdMissionRoot .mc-hail-red { color: var(--ui-danger-text, var(--red)); border-color: var(--red); }
+html[data-layout="mission"] #nbdMissionRoot .mc-hail-gold { color: var(--gold); border-color: var(--gold); }
 
 /* customer */
-html[data-layout="mission"] .mc-cust-name { font-size: 22px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
-html[data-layout="mission"] .mc-cust-addr { color: var(--m); margin-bottom: 10px; overflow-wrap: anywhere; }
-html[data-layout="mission"] .mc-block { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 8px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-cust-name { font-size: 22px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+html[data-layout="mission"] #nbdMissionRoot .mc-cust-addr { color: var(--m); margin-bottom: 10px; overflow-wrap: anywhere; }
+html[data-layout="mission"] #nbdMissionRoot .mc-block { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 8px; }
 
 /* canvass */
-html[data-layout="mission"] .mc-stepper { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
-html[data-layout="mission"] .mc-turf { border: 1px solid var(--rule); border-left: 5px solid var(--orange); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--s2); }
-html[data-layout="mission"] .mc-turf-hd { display: flex; justify-content: space-between; gap: 8px; }
-html[data-layout="mission"] .mc-turf-name { font-weight: 800; }
-html[data-layout="mission"] .mc-turf-meta { font-size: 13px; color: var(--m); margin: 2px 0 6px; }
-html[data-layout="mission"] .mc-rep { display: block; }
-html[data-layout="mission"] .mc-rep input, html[data-layout="mission"] .mc-sheet-text {
+html[data-layout="mission"] #nbdMissionRoot .mc-stepper { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-turf { border: 1px solid var(--rule); border-left: 5px solid var(--orange); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--s2); }
+html[data-layout="mission"] #nbdMissionRoot .mc-turf-hd { display: flex; justify-content: space-between; gap: 8px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-turf-name { font-weight: 800; }
+html[data-layout="mission"] #nbdMissionRoot .mc-turf-meta { font-size: 13px; color: var(--m); margin: 2px 0 6px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-rep { display: block; }
+html[data-layout="mission"] #nbdMissionRoot .mc-rep input, html[data-layout="mission"] #nbdMissionRoot .mc-sheet-text {
   width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 44px; padding: 8px 10px; font: inherit;
   background: var(--bg); color: var(--t); border: 1px solid var(--rule); border-radius: 8px;
 }
-html[data-layout="mission"] .mc-sheet { margin-top: 10px; }
-html[data-layout="mission"] .mc-sheet-act { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-html[data-layout="mission"] .mc-script { list-style: none; margin: 0; padding: 0; }
-html[data-layout="mission"] .mc-script li, html[data-layout="mission"] .mc-obj { border-bottom: 1px solid var(--rule); padding: 6px 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-sheet { margin-top: 10px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-sheet-act { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+html[data-layout="mission"] #nbdMissionRoot .mc-script { list-style: none; margin: 0; padding: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-script li, html[data-layout="mission"] #nbdMissionRoot .mc-obj { border-bottom: 1px solid var(--rule); padding: 6px 0; }
 
 /* timeline */
-html[data-layout="mission"] .mc-tl { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--s); border-top: 1px solid var(--rule); flex-wrap: wrap; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tl { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--s); border-top: 1px solid var(--rule); flex-wrap: wrap; }
 /* a 44px-tall input: the thumb looks the same, the finger target is not 16px (audit D8) */
-html[data-layout="mission"] .mc-scrub { flex: 1 1 160px; min-width: 120px; height: 44px; min-height: 44px; margin: 0; accent-color: var(--orange); cursor: pointer; }
-html[data-layout="mission"] .mc-tl-label { font-size: 13px; color: var(--m); }
+html[data-layout="mission"] #nbdMissionRoot .mc-scrub { flex: 1 1 160px; min-width: 120px; height: 44px; min-height: 44px; margin: 0; accent-color: var(--orange); cursor: pointer; }
+html[data-layout="mission"] #nbdMissionRoot .mc-tl-label { font-size: 13px; color: var(--m); }
 
 /* day route (M3) */
-html[data-layout="mission"] .mc-seg { display: flex; gap: 6px; margin-bottom: 8px; }
-html[data-layout="mission"] .mc-seg .mc-btn { flex: 1 1 0; }
-html[data-layout="mission"] .mc-stops { list-style: none; margin: 0; padding: 0; }
-html[data-layout="mission"] .mc-stop {
+html[data-layout="mission"] #nbdMissionRoot .mc-seg { display: flex; gap: 6px; margin-bottom: 8px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-seg .mc-btn { flex: 1 1 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-stops { list-style: none; margin: 0; padding: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-stop {
   display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; box-sizing: border-box;
   min-height: var(--tap); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--rule); border-radius: 12px;
   background: var(--s2); color: var(--t); font: inherit; cursor: pointer;
 }
-html[data-layout="mission"] .mc-num {
+html[data-layout="mission"] #nbdMissionRoot .mc-num {
   flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: var(--orange); color: var(--accent-fg, #fff); font-weight: 800; font-size: 13px;
 }
-html[data-layout="mission"] .mc-stop-main { display: flex; flex-direction: column; min-width: 0; }
-html[data-layout="mission"] .mc-drive { font-size: 12px; color: var(--m); margin-top: 2px; }
-html[data-layout="mission"] .mc-layers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-html[data-layout="mission"] .mc-layer {
+html[data-layout="mission"] #nbdMissionRoot .mc-stop-main { display: flex; flex-direction: column; min-width: 0; }
+html[data-layout="mission"] #nbdMissionRoot .mc-drive { font-size: 12px; color: var(--m); margin-top: 2px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-layers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+html[data-layout="mission"] #nbdMissionRoot .mc-layer {
   min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--s2); color: var(--t);
   font: inherit; font-weight: 700; font-size: 13px; cursor: pointer;
 }
-html[data-layout="mission"] .mc-layer-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
-html[data-layout="mission"] .mc-layer-off { opacity: .5; cursor: not-allowed; }
-html[data-layout="mission"] .mc-draft { font-size: 15px; padding: 8px 10px; border: 1px dashed var(--rule); border-radius: 8px; background: var(--bg); }
-html[data-layout="mission"] .mc-open-sms { display: inline-flex; align-items: center; text-decoration: none; }
+html[data-layout="mission"] #nbdMissionRoot .mc-layer-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+html[data-layout="mission"] #nbdMissionRoot .mc-layer-off { opacity: .5; cursor: not-allowed; }
+html[data-layout="mission"] #nbdMissionRoot .mc-draft { font-size: 15px; padding: 8px 10px; border: 1px dashed var(--rule); border-radius: 8px; background: var(--bg); }
+html[data-layout="mission"] #nbdMissionRoot .mc-open-sms { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* phones and narrow windows: map on top, panels stack under it */
 @media (max-width: 900px) {
@@ -148,22 +148,22 @@ html[data-layout="mission"] .mc-open-sms { display: inline-flex; align-items: ce
      minmax(220px, 46vh) row (with .mc-center's min-height:0) the map row fell
      to its minimum once the panels below had content, and the timeline took a
      third of it; the closes-week card in that row made it 0 px (audit D2). */
-  html[data-layout="mission"] .mc-body { grid-template-columns: 1fr; grid-template-rows: max-content max-content max-content max-content; overflow-y: auto; }
-  html[data-layout="mission"] .mc-map { flex: none; height: clamp(240px, 44vh, 420px); }
-  html[data-layout="mission"] .mc-center { grid-column: 1; grid-row: 1; }
-  html[data-layout="mission"] .mc-left { grid-row: 2; border-right: 0; border-top: 1px solid var(--rule); overflow: visible; }
-  html[data-layout="mission"] .mc-right { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-body { grid-template-columns: 1fr; grid-template-rows: max-content max-content max-content max-content; overflow-y: auto; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-map { flex: none; height: clamp(240px, 44vh, 420px); }
+  html[data-layout="mission"] #nbdMissionRoot .mc-center { grid-column: 1; grid-row: 1; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-left { grid-row: 2; border-right: 0; border-top: 1px solid var(--rule); overflow: visible; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-right { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
   /* last: Alerts and In the path come first on a storm day */
-  html[data-layout="mission"] .mc-cwk { grid-row: 4; max-height: none; border-right: 0; overflow: visible; }
-  html[data-layout="mission"] .mc-title { display: none; }
-  html[data-layout="mission"] .mc-top { gap: 8px; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-cwk { grid-row: 4; max-height: none; border-right: 0; overflow: visible; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-title { display: none; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-top { gap: 8px; }
   /* The Next stop strip under the header (next-stop.js, 2026-10-15) would
      take a fixed slice of a phone screen outside the scrolling panels, so on
      a phone the whole screen scrolls instead: header (sticky), strip, map,
      panels. */
-  html[data-layout="mission"] .mc-wrap { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  html[data-layout="mission"] .mc-body { flex: none; overflow: visible; }
-  html[data-layout="mission"] [data-mc-slot="top"] { position: sticky; top: 0; z-index: 3; background: var(--bg); }
+  html[data-layout="mission"] #nbdMissionRoot .mc-wrap { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  html[data-layout="mission"] #nbdMissionRoot .mc-body { flex: none; overflow: visible; }
+  html[data-layout="mission"] #nbdMissionRoot [data-mc-slot="top"] { position: sticky; top: 0; z-index: 3; background: var(--bg); }
 }
 /* The phone nav is hidden only while Mission Control is on screen (kit.css,
    html.lk-overlay-on), never on every view: Menu > Pipeline used to strand you. */
