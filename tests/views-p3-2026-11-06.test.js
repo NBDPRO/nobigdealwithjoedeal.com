@@ -1,4 +1,4 @@
-// CRM audit 2026-11-06 — four small view fixes (VW-F110, VW-F164, VW-F165, VW-F168).
+// CRM audit 2026-11-06 — six small view fixes (VW-F108, VW-F109, VW-F110, VW-F164, VW-F165, VW-F168).
 // Each check executes the shipped code where it can, so a revert fails here.
 'use strict';
 const fs = require('fs');
@@ -69,6 +69,64 @@ function check(name, ok) {
     check('VW-F165: a failed read says it could not load', /Couldn.t load AI texting stats/.test(html));
     check('VW-F165: a failed read does not claim "No AI reply drafts yet"', html.length > 0 && !html.includes('No AI reply drafts yet'));
     check('VW-F165: the empty (no drafts) copy is still there', src.includes('No AI reply drafts yet'));
+
+    // ── VW-F108 / VW-F109: shared helper — lift one top-level function ──
+    function lift(src, name) {
+      const lines = src.split(/\r?\n/);
+      const i = lines.findIndex(l => new RegExp('^(async )?function ' + name + '\\(').test(l));
+      if (i < 0) return '';
+      if (/\}\s*(\/\/.*)?$/.test(lines[i]) && lines[i].split('{').length === lines[i].split('}').length) return lines[i];
+      const j = lines.findIndex((l, k) => k > i && /^\}/.test(l));
+      return lines.slice(i, j + 1).join('\n');
+    }
+
+    // ── VW-F108: social studio settings error + AI caption failures ──
+    {
+      const ss = read('docs/pro/js/pages/social-studio.js');
+      const sub = lift(ss, 'subscribe');
+      const toasts = [], disabled = [];
+      const els = ['ssEnabled', 'ssReels', 'p1'].map(id => ({ id, disabled: false }));
+      const sctx = {
+        state: { companyId: 'c1', settings: {} }, db: {},
+        query: () => ({}), collection: () => ({}), limit: () => ({}), doc: () => ({ settings: true }),
+        onSnapshot: (ref, ok, bad) => { if (ref && ref.settings && bad) bad(new Error('permission-denied')); },
+        $: () => ({ innerHTML: '' }), esc: (x) => String(x),
+        toast: (m) => toasts.push(m), renderSettings() {}, renderSub() {},
+        document: { querySelectorAll: () => els },
+        console: { error() {}, warn() {}, log() {} },
+      };
+      let ran = true;
+      try { vm.runInNewContext(sub + '\nsubscribe();', sctx); } catch (e) { ran = false; }
+      check('VW-F108: the settings listener has a real error callback', ran && toasts.some(m => /could not load your auto-publish settings/i.test(m)));
+      check('VW-F108: a failed settings read locks the toggles', els.every(e => e.disabled === true));
+
+      const ai = lift(ss, 'aiPassForCreated');
+      const actx = {
+        state: { byId: new Map([['a', { status: 'draft' }], ['b', { status: 'draft' }]]) },
+        aiCaption: async () => 'A caption.', postRef: (id) => id, serverTimestamp: () => 0,
+        updateDoc: async (id) => { if (id === 'b') throw new Error('offline'); },
+        console: { warn() {}, log() {} },
+      };
+      vm.runInNewContext(ai + '\nout = aiPassForCreated([{ id: "a" }, { id: "b" }]);', actx);
+      const res = await actx.out;
+      check('VW-F108: a failed caption write is counted', !!res && res.failed === 1 && res.used === true);
+      check('VW-F108: the drafts toast reports a caption that did not save', /ai\.failed/.test(ss) && /did not save/.test(ss));
+    }
+
+    // ── VW-F109: Codex save/load tell the user when storage fails ────
+    {
+      const cx = read('docs/pro/js/ai-tool-finder-page-2.js');
+      const toasts = [];
+      const cctx = {
+        window: { storage: { set: async () => { throw new Error('QuotaExceededError'); }, get: async () => ({ value: '{not json' }) } },
+        codex: { tasks: [], sessions: [], directives: [] },
+        toast: (m, t) => toasts.push([m, t]), console: { warn() {}, log() {} }, JSON,
+      };
+      vm.runInNewContext(lift(cx, 'save') + '\n' + lift(cx, 'load') + '\nout = save().then(load);', cctx);
+      await cctx.out;
+      check('VW-F109: a failed save shows an error toast', toasts.some(([m, t]) => /couldn.t save/i.test(m) && t === 'red'));
+      check('VW-F109: an unreadable saved copy shows an error toast', toasts.some(([m, t]) => /couldn.t be read/i.test(m) && t === 'red'));
+    }
 
     // ── VW-F168: the installed app description names no company ─────
     const man = JSON.parse(read('docs/pro/manifest.json'));
