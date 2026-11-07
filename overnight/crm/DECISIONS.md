@@ -74,3 +74,9 @@ non-draft PR). Fully reversible. The tooling branch is locked while #2938 is que
 
 ## D-011
 **Unbounded reads (VW-F167, VW-F103, VW-F104, VW-F16, VW-F60, VW-F07, DT-F08) not capped overnight.** Adding limit() to these reads changes what is true, not only how fast it is. A handled-numbers read capped at N treats handled number N+1 as unhandled, so the call resurfaces as needing attention. The leaderboard, KPI and photo counts would undercount, and the Agent Inbox would hide pending items with no notice. A real fix needs server-side rollups (count docs) or cursor pagination with a "showing first N" line. Proposed for a later session, test-first, per read.
+
+## D-012
+**Native-dialog fallbacks (VW-F10, VW-F105, ST-F16) left as they are.** Each one is the sanctioned `window.nbdConfirm || confirm` pattern the brief allows. The real gap is VW-F159: nbdConfirm only exists in standalone mode, and the fix belongs in standalone-compat.js, which is parser-blocking and at the boot budget. Native **prompt()** callers (VW-F57, PL-F18, CU-F13, ED-F22) need a shared, deferred, non-blocking prompt helper first. That is a design task for a fresh session, not an overnight patch.
+
+## D-013
+**CU-F19 split from PL-F23/PL-F27.** The viewer guards live on the customer page, which the dashboard boot budget does not count, so they ship in their own PR. PL-F23 and PL-F27 add about 440 shipped bytes to dashboard-bootstrap, while main has 184 bytes left. They are held in draft #2994 for Jo's budget call (NEEDS_JOE #24).

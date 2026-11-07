@@ -62,3 +62,5 @@
    - **ED-F06 / ST-F03:** the Round-To setting applies only to per-SQ quotes. The V2 line-item builder always rounds to 25.
 
    *Recommend:* one MONEY PR per item, test-first. Settings are honoured everywhere they're shown; you confirm the expected totals on 2-3 sample jobs before merge.
+24. **Boot budget, 1 KB (PL-F23, PL-F27, draft #2994):** the Keyboard Shortcuts "Got it" button does nothing, and sign-out leaves the estimates listener running. Both fixes are built and tested in #2994, but together they need about 440 shipped bytes. Main has 184 bytes left under the 2856 KB shipped-script ceiling.
+   *Recommend:* raise the ceiling by 1 KB with a dated note, as the earlier raises did, then un-draft #2994.

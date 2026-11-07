@@ -6,7 +6,7 @@
 - HARNESS mode: FULL (see HARNESS.md)
 - Current task: none. See [MORNING_REPORT](MORNING_REPORT.md).
 - Done: worktree; baseline gates; harness + audit tools; 6 slice audits + orchestrator; SCORECARD; PLAN; NEEDS_JOE; 40 PRs (37 merged, 3 held drafts); after-sweep; MORNING_REPORT; handoff.
-- Open PRs (mine): #2941 MONEY iws (draft, held) · #2942 MONEY settings (draft, held) · #2981 email-tenant (draft, held for Jo's wording read). All others merged.
+- Open PRs (mine): drafts held for Jo: #2941, #2942 (MONEY), #2981 (wording), #2994 (boot budget). In review: #2995 (test pin), #2996 (CU-F19). All others merged.
 - Blockers: none. Held drafts wait on Jo.
 - Last clock check: 2026-11-07 ~00:30 ET (wrap-up).
 

@@ -5,7 +5,7 @@ This is the pick-up note for the NBD Pro CRM overnight audit, which ran from 202
 ## State
 
 - The audit covered 908 rows and produced 247 findings (P0 3, P1 11, P2 92, P3 141).
-- 40 PRs were opened: 37 merged and 3 are held drafts. Every P0 is merged.
+- 44 PRs were opened: 37 merged, 4 held drafts and 2 in review. Every P0 is merged.
 - About 117 findings are fixed on main. About 123 have no PR yet, and the per-finding table is [findings-status](../../overnight/crm/findings-status.md).
 
 ## Waiting on Jo
@@ -14,6 +14,8 @@ This is the pick-up note for the NBD Pro CRM overnight audit, which ran from 202
    - [#2941](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2941): ice & water bills the eave band (MONEY).
    - [#2942](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2942): estimate Settings survive sign-out (MONEY).
    - [#2981](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2981): tenant stage emails (wording).
+   - [#2994](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2994): Shortcuts "Got it" and the sign-out listener. It needs a 1 KB dashboard boot-budget raise: about 440 shipped bytes against 184 left.
+   - In review, not held: [#2996](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2996) (CU-F19 viewer guards) and [#2995](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2995) (warranty-accent test pinned; it failed on main locally).
 2. **Emails, decided 2026-11-07:** "jd@ on anything going to me directly and info on anything general on site." The next PR sorts the seven document spots that print jd@ today and shows Jo the per-spot sort before merge. Zelle lines stay on jd@.
 3. **[NEEDS_JOE](../../overnight/crm/NEEDS_JOE.md):** 23 items. The ones that block fixes are:
    - estimate math that changes prices (ED-F01 layers, ED-F05 template markup, Round-To, dumpster sizing)

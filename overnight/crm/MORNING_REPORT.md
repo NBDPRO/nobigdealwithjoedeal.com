@@ -6,7 +6,13 @@ Live state for the run is in this folder: [STATE](STATE.md), [LOG](LOG.md), [DEC
 ## The short version
 
 - **Audit:** 908 rows were scored across six slices (pipeline, customer card, estimates & documents, settings/team/billing, other views, and the data map with Cloud Functions). That produced **247 findings**: P0 3, P1 11, P2 92, P3 141.
-- **Fixes:** **40 PRs** were opened; **37 are merged** and **3 are held as drafts for Jo** (#2941, #2942, #2981).
+- **Fixes:** **44 PRs** were opened. **37 are merged**, **4 are held as drafts for Jo** (#2941, #2942, #2981, #2994), and **2 opened during wrap-up**:
+  - [#2996](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2996): viewer guards (CU-F19).
+  - [#2995](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2995): a fix to my own warranty-accent test. After #2980 merged it compared NBD against a moving main and failed locally on main.
+- **Browser re-sweep, before → after** (same seed, routes and users; [SCORECARD-AFTER](SCORECARD-AFTER.md)):
+  - Serious/critical accessibility nodes: 656 → 516 for owner A, 585 → 482 for owner B, 524 → 421 for the rep. Routes with any serious issue: 71 → 69.
+  - Tenant B routes showing NBD text: 4 → 3.
+  - Page errors stayed at 0, 390px overflow at 1 route, and blank views at 5. The after run served main minus 18 commits.
   - All 3 P0s are merged.
   - 7 of the 11 P1s are merged. Two more are in the held drafts.
   - About 117 findings are fixed on main.
@@ -15,14 +21,15 @@ Live state for the run is in this folder: [STATE](STATE.md), [LOG](LOG.md), [DEC
 
 ## What needs Jo (most important first)
 
-1. **Three held drafts.**
+1. **Four held drafts.**
+   - [#2994](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2994): the Keyboard Shortcuts "Got it" button finally closes the panel, and sign-out stops the estimates listener. It needs a **1 KB boot-budget raise**: the fixes add about 440 shipped bytes to the dashboard and main has 184 left (NEEDS_JOE #24).
    - [#2941](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2941): ice & water bills the eave band (MONEY).
    - [#2942](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2942): Settings → Estimates values survive sign-out (MONEY).
    - [#2981](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2981): stage emails stop sending NBD's warranty pledge, Acorn financing and the $100 referral bonus to other companies' homeowners. Its wording needs your read.
 
    The two MONEY PRs say "review line by line" for a reason: they change totals.
 2. **Emails (ED-F19): you answered this tonight.** "jd@ on anything going to me directly and info on anything general on site." The next step is one PR that sorts the seven document spots that print jd@ today (estimate-finalization ×2, estimate-supplement, warranty-cert ×2, photo-report, inspection-report-engine). It will show you the per-spot sort before it merges.
-3. **[NEEDS_JOE](NEEDS_JOE.md)** has 23 items. The ones that block real fixes:
+3. **[NEEDS_JOE](NEEDS_JOE.md)** has 24 items. The ones that block real fixes:
    - **#1 and #23, estimate math that changes prices.** The layers select does nothing on the line-item path (ED-F01, P1). Job templates ignore Settings markup and overhead. Round-To only applies per SQ. Dumpster size goes by squares.
    - **#9, invented content in blank document templates (ED-F16).** Sample GAF materials, made-up delivery quantities and pre-checked QA boxes can reach customer paper.
    - **#20, "Limited lifetime" warranty strings (ED-F27).**
@@ -36,6 +43,8 @@ Live state for the run is in this folder: [STATE](STATE.md), [LOG](LOG.md), [DEC
 - **D-009:** proposals only, nothing built, for ST-F11 (contact fields can't be cleared), ST-F62 (stranded email signup), VW-F156 (deploy reloads open tabs) and ST-F35 (the AI usage panel copy).
 - **D-010:** refer.html's default title is left alone, because changing it would also change NBD's own referral page. The better route is portal.js always sending `&co=`.
 - **D-011:** unbounded reads (Agent Inbox, Thursday handled numbers, leaderboard, KPI, photo counts) were **not** capped. A cap would hide data: a handled number past the cap would show as unhandled, and counts would come up short. They need server-side counts or paging.
+- **D-012:** the native confirm fallbacks (VW-F10, VW-F105, ST-F16) are the sanctioned `nbdConfirm || confirm` pattern, so they stay. Native `prompt()` callers need a shared, deferred prompt helper first, which is a design task.
+- **D-013:** CU-F19 (viewer guards, customer page, not counted by the dashboard budget) ships alone. PL-F23 and PL-F27 are parked in draft #2994 for the budget call.
 - **VW-F160 is blocked by the boot budget.** standalone-compat.js is parser-blocking, and the budget has about 13 bytes of headroom.
 
 ## What's left (not built)
