@@ -2602,6 +2602,9 @@
       ? window.NBDAuth.purgeSmsOutbox()
       : Promise.resolve(window.NBDSmsOutbox && typeof window.NBDSmsOutbox.purgeAll === 'function'
         ? window.NBDSmsOutbox.purgeAll() : false);
+    // CRM audit 2026-11-06 (PL-F27): stop the live estimates listener before
+    // the token goes, so it never errors permission-denied and re-fetches.
+    if (typeof window._unsubscribeEstimates === 'function') window._unsubscribeEstimates();
     return Promise.resolve(purgeSms).catch(() => false)
       .then(() => signOut(auth))
       // Firestore's on-phone cache (customer records) goes with the session —
@@ -4322,6 +4325,10 @@
       }, onErr));
     }
     _estimatesUnsub = () => unsubs.forEach(u => { try { u(); } catch(e) {} });
+  };
+  // PL-F27: sign-out calls this before signOut(auth).
+  window._unsubscribeEstimates = function () {
+    if (_estimatesUnsub) { try { _estimatesUnsub(); } catch(e) {} _estimatesUnsub = null; }
   };
 
   window._saveEstimate = async (data) => {
