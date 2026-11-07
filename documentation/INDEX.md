@@ -370,6 +370,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 - [Sharper heroes on roof-inspection and storm-damage](audit/HERO-1600-TWO-PAGES-2026-11-06.md) — 1600 px AVIFs from the originals in the photo library; the other 10 need CRM exports; 2026-11-06
 - [Mid-page CTA band heading was 17px](audit/CTA-BAND-HEADING-2026-11-07.md) — 18 service pages; the global h3 rule beat the band's clamp; 4 old bands get light orange and equal buttons; 2026-11-07
 - [Overnight: phone Call/Text labels raised from 9.9 px](audit/OVERNIGHT-CTA-LABEL-SIZE-2026-11-06.md) — smallest visible text on the site; 2026-11-06
+- [/credentials hero aligned with the content below](audit/CREDENTIALS-HERO-ALIGN-2026-11-07.md) — hero container 900px vs 1000px, 50px offset on desktop; 2026-11-07
 - [SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04](audit/SCAN-AI-TAX-DOUBLE-COUNT-2026-11-04.md) — Expenses "Scan with AI" put the receipt grand total in Amount and the tax in Tax, and every cost rollup adds the two, so sales tax counted twice ($107.00 receipt read $114.00). Proven with a synthetic receipt, fixed so Amount is pre-tax (as the Home Depot import stores it), plus a subtotal + tax = total check. Draft PR, money-computation: needs Jo's OK. Existing rows untouched.
 
 - [CRM-SCOPED-QUERIES-2026-11-06](audit/CRM-SCOPED-QUERIES-2026-11-06.md) — saved inspection reports, the estimate/supplement photo pickers and Ask Joe's schedule were silently empty because their queries could never pass the Firestore rules; now scoped the way the rules require.
