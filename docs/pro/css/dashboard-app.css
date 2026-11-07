@@ -4541,6 +4541,10 @@ body {
     padding:8px 10px!important;
     min-height:44px!important;
   }
+  /* The search box was 33px beside the 44px type filter on the same row
+     (centres 6px apart; CRM walk 2026-11-07). Same row, so the header gets
+     no taller (phone-pipeline.spec.js pipeline#7). */
+  #crmSearch.crm-hdr-input{ min-height:44px!important; }
   /* One row (2026-10-13, Jo: "CRM tab is getting a bit tight again"): with
      three-digit counts (INS 188 · ALL 249) the seven tabs wrapped ALL onto a
      second 44px row. Tighter padding + a smaller label/badge fit all seven
