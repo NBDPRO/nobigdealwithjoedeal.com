@@ -486,6 +486,12 @@
           _prev(tab);
           if (tab === 'team') _loadTeamAfterPlanRefresh();
         };
+        // A deep link (#/settings/team) opens the tab ~50 ms after goTo,
+        // usually before this template script has loaded, so the wrapper
+        // above missed it and the roster never loaded (owner card stuck on
+        // 'JD' / 'Loading...'). If Team is already open, load it now.
+        var _on = document.getElementById('stab-team');
+        if (_on && _on.classList.contains('stab-active')) _loadTeamAfterPlanRefresh();
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _installTeamTabHook);
