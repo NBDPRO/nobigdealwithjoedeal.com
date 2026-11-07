@@ -228,6 +228,7 @@
     "customer-documents-store.test.js",
     "dashboard-kpi.test.js",
     "data-export.test.js",
+    "warranty-accent-2026-11-06.test.js",
     "dictate-transcription-provider.test.js",
     "voice-memo-groq-2026-10-04.test.js",
     "docgen-paypanel.test.js",
