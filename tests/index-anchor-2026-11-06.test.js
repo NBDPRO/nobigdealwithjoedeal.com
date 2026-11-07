@@ -18,10 +18,11 @@ function ok(name, cond, extra) {
   if (cond) { passed++; console.log('  ✓ ' + name); } else { failed++; console.log('  ✗ ' + name + (extra ? '  — ' + extra : '')); }
 }
 
-// 1. Placement spreads lines: the 11 CRM suites that all landed after one manifest line on 2026-11-06.
+// 1. Placement spreads lines (on 2026-11-06, 11 CRM suites all landed after one manifest line).
+// Sample names that can never be real suites, so the check does not depend on what the live
+// manifest holds today (the first version used the real CRM names and broke once they merged).
 const manifest = fs.readFileSync(path.join(ROOT, 'tests', 'ci-manifest.json'), 'utf8').split(/\r?\n/);
-const names = ['estimate-iws-qty', 'estimate-settings-hydrate', 'customer-files-guards', 'hygiene-guards', 'customer-calls-by-number',
-  'integrity-2-guards', 'tenant-texts', 'silent-failures', 'scoped-queries', 'lead-source-roi-refetch', 'dialogs-keyboard'].map((n) => n + '-2026-11-06.test.js');
+const names = Array.from({ length: 11 }, (_, i) => 'zz-index-anchor-sample-' + (i + 1) + '-never-a-suite.test.js');
 const at = names.map((n) => A.placeManifest(manifest, 'node', n)).filter((p) => !p.already).map((p) => p.at);
 ok('positive control: placement found the node bucket for every name', at.length === names.length, at.length + '/' + names.length);
 ok('eleven new lines land on at least nine distinct slots (was one)', new Set(at).size >= 9, [...new Set(at)].length + ' distinct');
