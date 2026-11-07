@@ -148,6 +148,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [DARK-FLAGS-READINESS-2026-11-05](projects/DARK-FLAGS-READINESS-2026-11-05.md) — every built-but-dark feature: what its flag does, what to check before turning it on, how to undo it (production flag state not checked)
+- [NBD-OS-PLAN-2026-11-06](projects/NBD-OS-PLAN-2026-11-06.md) — Jo's "make the CRM feel like a full OS": a System layer over every layout (tray, Control Center, Notification Center, Spotlight actions) plus an NBD OS layout (laptop desktop + windows, phone home screen + app switcher, boot, lock screen, Settings app). Dark behind `osSystemLayer` / `osLayout`; every tenant
 - [CRM-SPEED-UP-PLAN-2026-11-04](projects/CRM-SPEED-UP-PLAN-2026-11-04.md) — phased plan for the CRM dashboard's ~250 boot requests: baseline, parallel bundle loading + preload + lazy view CSS, then deploy-time concatenation, then SW caching
 - [BUILD-PLAN-2026-10-18](projects/BUILD-PLAN-2026-10-18.md) — locked phased plan for personal, business and home network: two Grok critique rounds plus a repo cross-check, what already exists vs genuinely new, guardrails, corrections to Grok's advice, and the seven phases
 - [CRM-SPEED-UP-PHASE2-DESIGN-2026-11-04](projects/CRM-SPEED-UP-PHASE2-DESIGN-2026-11-04.md) — design (for Jo's go-ahead) for deploy-time concatenation of the CRM dashboard's boot scripts/CSS: grouping rules, the JS differences joining introduces and a refusing guard for each, Sentry index maps, rollback switch, 5 steps
