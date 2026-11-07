@@ -166,6 +166,7 @@
       { id: 'os:notifs', label: 'Open Notification Center', keywords: 'notifications alerts history toasts', panel: 'notifs' },
       { id: 'os:dnd', label: 'Toggle Do Not Disturb', keywords: 'quiet mute dnd focus silence', toggle: 'dnd' },
       { id: 'os:layouts', label: 'Change layout', keywords: 'layout arrange desktop windows home screen', panel: 'layouts' },
+      { id: 'os:lock', label: 'Lock screen', keywords: 'lock privacy hide screen away', toggle: 'lock' },
     ];
     (Array.isArray(apps) ? apps : []).forEach(function (a) {
       acts.push({ id: 'os:app:' + a.id, label: 'Open ' + a.label, keywords: 'app open go ' + a.label.toLowerCase() + ' ' + a.id, app: a.id });
@@ -185,7 +186,74 @@
     return { time: time, date: DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() };
   }
 
+  // ── phase 4: session, lock screen, settings entries ──────────
+
+  /** Auto-lock choices in minutes; 0 = off (the default). Anything else reads as off. */
+  var LOCK_CHOICES = [0, 5, 15, 30];
+  function lockMinutes(v) {
+    var n = Number(v);
+    return LOCK_CHOICES.indexOf(n) !== -1 ? n : 0;
+  }
+  /** Lock after `minutes` with no input. Off (0) never locks; a clock that went backwards never locks. */
+  function shouldLock(lastActive, now, minutes) {
+    var m = lockMinutes(minutes);
+    if (!m) return false;
+    var idle = Number(now) - Number(lastActive);
+    return isFinite(idle) && idle >= m * 60000;
+  }
+  /**
+   * The lock screen's lines: COUNTS ONLY. It sits on a phone on a dashboard
+   * or a laptop in a homeowner's kitchen, so it never names a customer,
+   * an address or an amount.
+   */
+  function lockLines(input) {
+    var i = input || {};
+    var out = [];
+    var unread = int(i.unread);
+    out.push(unread ? plural(unread, 'notification') + ' waiting' : 'No new notifications');
+    var pending = int(i.pending);
+    if (i.online === false) out.push(pending ? 'Offline · ' + plural(pending, 'change') + ' saved here' : 'Offline');
+    else if (pending) out.push(plural(pending, 'change') + ' syncing');
+    return out;
+  }
+  /** Up to two initials from the company name for the boot / lock mark; '' when there's no name. */
+  function companyMark(name) {
+    var words = String(name || '').replace(/[^A-Za-z0-9 &]/g, ' ').split(/\s+/).filter(function (w) { return w && w !== '&'; });
+    if (!words.length) return '';
+    var first = words[0].charAt(0), second = words.length > 1 ? words[1].charAt(0) : (words[0].charAt(1) || '');
+    return (first + second).toUpperCase();
+  }
+  /** The boot screen's steps, each { label, done } in order. */
+  function bootSteps(s) {
+    var x = s || {};
+    return [
+      { id: 'auth', label: 'Signing you in', done: !!x.signedIn },
+      { id: 'data', label: 'Loading your jobs and leads', done: !!x.dataReady },
+      { id: 'ready', label: 'Ready', done: !!(x.signedIn && x.dataReady) },
+    ];
+  }
+  var TAB_RE = /^[a-z][a-z0-9-]{0,31}$/;
+  /**
+   * Spotlight entries for each Settings tab the member can SEE (tabs: [{ id,
+   * label, hidden }] read from the hydrated view; role-hidden tabs dropped).
+   * The emoji prefix on the button is not part of the name.
+   */
+  function settingsActions(tabs) {
+    var seen = {};
+    var out = [];
+    (Array.isArray(tabs) ? tabs : []).forEach(function (t) {
+      if (!t || t.hidden || !TAB_RE.test(String(t.id || '')) || seen[t.id]) return;
+      var label = String(t.label || '').replace(/^[^A-Za-z0-9]+/, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (!label) return;
+      seen[t.id] = true;
+      out.push({ id: 'os:set:' + t.id, label: 'Settings: ' + label, keywords: 'settings preferences ' + label.toLowerCase() + ' ' + t.id, tab: t.id });
+    });
+    return out;
+  }
+
   var api = {
+    LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
+    companyMark: companyMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
     groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav,
     systemActions: systemActions, clockText: clockText,

@@ -164,6 +164,25 @@ Same `os` layout; the phone surface gets its own shape in the same files.
   - Node tests for the idle timer, the lock-screen text (no PII) and the settings index.
   - A browser check of the boot and lock screens on phone and desktop.
 
+## Phase 5: the best of Linux, ChromeOS and macOS (added 2026-11-06)
+
+Jo, mid-build: "take inspiration from all 3: Linux, ChromeOS, macOS". This
+phase covers the features the three systems share, in our tokens:
+
+1. **Overview**: one view of every open window as a tile, the same idea as macOS Mission Control, ChromeOS Overview and the GNOME Activities overview. Click a tile to focus it; Esc leaves. Entry points: a taskbar button, Spotlight, and Ctrl+Alt+Up when no window is focused.
+2. **Virtual desks** (Linux workspaces, ChromeOS desks, macOS Spaces): up to 4 desks, each with its own windows.
+   - Switch from the taskbar, from Overview, or with Ctrl+Alt+1-4.
+   - Move a window to another desk from its title-bar menu.
+   - A view lives on one desk at a time.
+3. **Pinned apps**: the ChromeOS shelf and macOS Dock. Pin apps to the taskbar; a pinned app shows with or without a window, and running apps get a dot.
+4. **Window-button style**, a Control Center choice:
+   - **macOS**: round red, yellow and green buttons, top-left
+   - **ChromeOS / Windows**: right-hand buttons (the default)
+   - **Linux (GNOME)**: close only, top-right; double-click maximises
+- **Verify:**
+  - Node tests for desk assignment, pin order and the state bound.
+  - A browser check of overview tiles, desk switching and each button style.
+
 ## Delivery
 
 - **One branch, `feat/nbd-os-plan`**, with one commit per phase, each green on the cheap gates:

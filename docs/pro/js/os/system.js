@@ -55,6 +55,166 @@
 
   state.dnd = lsGet(DND_KEY) === '1';
 
+  // ── phase 4: session ──────────────────────────────────────
+  var LOCK_KEY = 'nbd_os_lock_min';
+  var SOUND_KEY = 'nbd_os_sounds';
+  var BOOT_KEY = 'nbd_os_booted';
+  state.lockMin = L.lockMinutes(lsGet(LOCK_KEY));
+  state.sounds = lsGet(SOUND_KEY) === '1';
+  state.lastActive = Date.now();
+  state.locked = false;
+
+  function companyName() {
+    var p = w._companyProfile;
+    var n = p && typeof p.businessName === 'string' ? p.businessName.trim() : '';
+    return n.slice(0, 60);
+  }
+  function markText() {
+    var m = L.companyMark(companyName());
+    if (m) return m;
+    var lm = doc.querySelector('header .logo-mark');
+    return lm ? String(lm.textContent || '').trim().slice(0, 4) : '';
+  }
+  function motionReducedNow() {
+    if (doc.documentElement.getAttribute('data-motion') === 'reduce') return true;
+    try { return !!(w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+  }
+
+  // System sounds: opt-in (off by default), three short quiet tones made with
+  // Web Audio. No audio files, nothing autoplays before a tap.
+  var audio = null;
+  var TONES = { open: [660, 0.06], close: [440, 0.06], lock: [330, 0.12], unlock: [520, 0.1] };
+  function sound(kind) {
+    if (!state.sounds || !TONES[kind]) return;
+    call(function () {
+      var AC = w.AudioContext || w.webkitAudioContext;
+      if (!AC) return;
+      audio = audio || new AC();
+      var t = audio.currentTime;
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(TONES[kind][0], t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.04, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + TONES[kind][1]);
+      o.connect(g); g.connect(audio.destination);
+      o.start(t); o.stop(t + TONES[kind][1] + 0.02);
+    });
+  }
+
+  // Boot screen: once per browser session, only while the CRM is still
+  // loading, and it shows REAL progress (signed in, data in). It closes the
+  // moment the data is there (never longer than the real load), after 6 s at
+  // most, or on any tap. Skipped with reduced motion or when already loaded.
+  function dataReady() { return Array.isArray(w._leads); }
+  function bootHtml() {
+    var steps = L.bootSteps({ signedIn: !!(w._user && w._user.uid), dataReady: dataReady() });
+    var name = companyName();
+    return '<div class="os-boot-card">' +
+      '<div class="os-boot-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+      '<div class="os-boot-title ui-title">' + esc(name ? 'Starting ' + name : 'Starting your workspace') + '</div>' +
+      '<ol class="os-boot-steps">' + steps.map(function (s) {
+        return '<li class="' + (s.done ? 'is-done' : '') + '"><span class="os-boot-tick" aria-hidden="true">' + (s.done ? '✓' : '') + '</span>' + esc(s.label) + '</li>';
+      }).join('') + '</ol></div>';
+  }
+  function boot() {
+    var seen = false;
+    try { seen = w.sessionStorage.getItem(BOOT_KEY) === '1'; w.sessionStorage.setItem(BOOT_KEY, '1'); } catch (e) { seen = true; }
+    if (seen || dataReady() || motionReducedNow()) return;
+    var el = doc.createElement('div');
+    el.id = 'osBoot';
+    el.className = 'os-boot';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = bootHtml();
+    doc.body.appendChild(el);
+    var started = Date.now();
+    var t = setInterval(function () {
+      if (!doc.contains(el)) { clearInterval(t); return; }
+      el.innerHTML = bootHtml();
+      if (dataReady() || Date.now() - started > 6000) { clearInterval(t); finish(); }
+    }, 250);
+    function finish() {
+      el.classList.add('is-leaving');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }
+    el.addEventListener('click', function () { clearInterval(t); finish(); });
+  }
+
+  // Lock screen: a privacy cover, not security (sign-out stays sign-out).
+  // Counts only, never a customer's name. Auto-lock is off by default.
+  var hiddenForLock = [];
+  function lock() {
+    if (state.locked) return;
+    close();
+    state.locked = true;
+    state.lockReturn = doc.activeElement;
+    var el = doc.createElement('div');
+    el.id = 'osLock';
+    el.className = 'os-lock';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Screen locked');
+    doc.body.appendChild(el);
+    // everything else leaves the accessibility tree while locked
+    hiddenForLock = [];
+    Array.prototype.forEach.call(doc.body.children, function (c) {
+      if (c === el || c.getAttribute('aria-hidden') === 'true') return;
+      c.setAttribute('aria-hidden', 'true');
+      hiddenForLock.push(c);
+    });
+    paintLock();
+    doc.documentElement.classList.add('os-locked');
+    sound('lock');
+    var b = el.querySelector('button');
+    if (b) b.focus();
+  }
+  function paintLock() {
+    var el = byId('osLock');
+    if (!el) return;
+    var c = L.clockText(new Date());
+    var lines = L.lockLines({ unread: unreadCount(), pending: pendingCount(), online: w.navigator ? w.navigator.onLine !== false : true });
+    el.innerHTML = '<div class="os-lock-inner">' +
+      '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+      '<div class="os-lock-time ui-num">' + esc(c.time) + '</div>' +
+      '<div class="os-lock-date">' + esc(c.date) + '</div>' +
+      '<ul class="os-lock-lines">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+      '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+  }
+  function unlock() {
+    if (!state.locked) return;
+    state.locked = false;
+    var el = byId('osLock');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    hiddenForLock.forEach(function (c) { c.removeAttribute('aria-hidden'); });
+    hiddenForLock = [];
+    doc.documentElement.classList.remove('os-locked');
+    state.lastActive = Date.now();
+    sound('unlock');
+    var back = state.lockReturn;
+    state.lockReturn = null;
+    if (back && typeof back.focus === 'function' && doc.contains(back)) back.focus();
+  }
+  function noteActivity() { if (!state.locked) state.lastActive = Date.now(); }
+  function checkIdle() {
+    if (!state.locked && L.shouldLock(state.lastActive, Date.now(), state.lockMin)) lock();
+    else if (state.locked) paintLock();
+  }
+
+  // Settings tabs the member can see, once the Settings view has hydrated.
+  function settingsTabs() {
+    var out = [];
+    var btns = doc.querySelectorAll('#view-settings .stab-btn[data-target]');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      // the button's OWN display (role gating hides the tab itself), not whether Settings is on screen
+      var hidden = b.hidden || b.classList.contains('dn') || /display\s*:\s*none/.test(b.getAttribute('style') || '') ||
+        (typeof w.getComputedStyle === 'function' && w.getComputedStyle(b).display === 'none');
+      out.push({ id: b.getAttribute('data-target'), label: b.textContent || '', hidden: hidden });
+    }
+    return out;
+  }
+
   // ── inputs (each read defensively: a missing module is "unknown", not a crash) ──
   function pendingCount() {
     var S = w.NBDOfflineSync;
@@ -201,8 +361,14 @@
     h += action('layouts', 'Layout', layoutName());
     if (w.NBDPixelMode && typeof w.NBDPixelMode.open === 'function') h += action('pixel', 'Pixel World');
     h += action('away', 'Away mode', awayOn() ? 'On' : 'Settings');
+    h += action('lock', 'Lock screen', 'Hides the CRM until you tap');
+    h += toggle('sounds', 'System sounds', state.sounds);
     state.controls.forEach(function (c) { h += action('x:' + c.id, c.label, c.hint ? call(c.hint) : ''); });
-    h += '</div></div>';
+    h += '</div>';
+    h += '<div class="os-cc-block"><div class="ui-eyebrow">Auto-lock</div>' + seg('Auto-lock after', String(state.lockMin), L.LOCK_CHOICES.map(function (m) {
+      return { key: 'lockmin', value: String(m), label: m ? m + ' min' : 'Off' };
+    })) + '</div>';
+    h += '</div>';
     return h;
   }
 
@@ -303,6 +469,8 @@
     else if (key === 'sun' && w.NBDFieldSunlight) call(function () { w.NBDFieldSunlight.setMode(val); });
     else if (key === 'motion' && typeof w.nbdComfortSet === 'function') call(function () { w.nbdComfortSet('motion', val === 'on' ? 'reduce' : 'normal'); });
     else if (key === 'glove' && w.LayoutEngine) call(function () { w.LayoutEngine.saveUser({ glove: val === 'on' }); });
+    else if (key === 'sounds') { state.sounds = val === 'on'; lsSet(SOUND_KEY, state.sounds ? '1' : null); sound('open'); }
+    else if (key === 'lockmin') { state.lockMin = L.lockMinutes(val); lsSet(LOCK_KEY, state.lockMin ? String(state.lockMin) : null); state.lastActive = Date.now(); }
     // Repaint after the CRM applied the change (theme and comfort are synchronous;
     // saveUser applies the tap size before its write resolves).
     setTimeout(paintSheet, 30);
@@ -311,6 +479,7 @@
     if (key === 'layouts') return openLayouts();
     if (key === 'pixel') { close(); return call(function () { w.NBDPixelMode.open(); }); }
     if (key === 'away') { close(); return settingsTab('notifications', null); }
+    if (key === 'lock') return lock();
     if (key === 'readall' && typeof w.markAllNotificationsRead === 'function') { call(w.markAllNotificationsRead); return setTimeout(refresh, 30); }
     if (key === 'clearall' && typeof w.clearAllNotifications === 'function') { call(w.clearAllNotifications); return setTimeout(refresh, 30); }
     if (key.indexOf('x:') === 0) {
@@ -349,6 +518,10 @@
     if (!C || typeof C.registerAction !== 'function') return;
     registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
     registered = [];
+    L.settingsActions(settingsTabs()).forEach(function (a) {
+      registered.push(a.id);
+      C.registerAction({ id: a.id, label: a.label, keywords: a.keywords, group: 'Settings', icon: '⚙', run: function () { settingsTab(a.tab, null); } });
+    });
     L.systemActions(apps()).forEach(function (a) {
       registered.push(a.id);
       C.registerAction({
@@ -356,6 +529,7 @@
         run: function () {
           if (a.app) { if (typeof w.goTo === 'function') w.goTo(a.app); }
           else if (a.toggle === 'dnd') setDnd(!state.dnd);
+          else if (a.toggle === 'lock') lock();
           else open(a.panel);
         },
       });
@@ -369,6 +543,7 @@
     var what = t.getAttribute('data-os');
     if (what === 'open') { e.preventDefault(); open(t.getAttribute('data-panel')); }
     else if (what === 'close') { e.preventDefault(); close(); }
+    else if (what === 'unlock') { e.preventDefault(); unlock(); }
     else if (what === 'set') { e.preventDefault(); set(t.getAttribute('data-key'), t.getAttribute('data-val')); }
     else if (what === 'do') { e.preventDefault(); doAction(t.getAttribute('data-key')); }
     else if (what === 'notif') {
@@ -380,6 +555,11 @@
     }
   }
   function onKey(e) {
+    if (state.locked) {
+      if (e.key === 'Tab') { e.preventDefault(); var ub = doc.querySelector('#osLock button'); if (ub) ub.focus(); }
+      else if (e.key === 'Escape') { e.preventDefault(); unlock(); }
+      return;
+    }
     if (!state.open) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
     if (e.key !== 'Tab') return;
@@ -409,6 +589,15 @@
 
   function init() {
     doc.documentElement.classList.add('os-system');
+    boot();
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { doc.addEventListener(ev, noteActivity, { passive: true, capture: true }); });
+    setInterval(checkIdle, 15000);
+    // Settings tabs join Spotlight once the Settings view has hydrated (role gating applied)
+    var sv = byId('view-settings');
+    if (sv && typeof MutationObserver === 'function') {
+      var smo = new MutationObserver(function () { if (sv.querySelector('.stab-btn')) { smo.disconnect(); setTimeout(registerSpotlight, 300); } });
+      smo.observe(sv, { childList: true });
+    }
     paintTray();
     wrapToast();
     registerSpotlight();
@@ -428,6 +617,7 @@
     isDnd: function () { return state.dnd; }, setDnd: setDnd,
     history: function () { return state.history.slice(); },
     apps: apps, registerControl: registerControl, settingsTab: settingsTab,
+    lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound,
   };
 
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init, { once: true });

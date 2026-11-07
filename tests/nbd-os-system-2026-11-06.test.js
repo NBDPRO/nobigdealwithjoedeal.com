@@ -124,5 +124,28 @@ ok('the stylesheet uses no hex colours', !/#[0-9a-fA-F]{3,8}\b/.test(CSS.replace
 ok('every transition uses a --ui-dur token', (CSS.match(/transition:[^;]+/g) || []).every((s) => !/\d+m?s/.test(s.replace(/var\([^)]*\)/g, ''))));
 ok('no transition: all', !/transition:\s*all/.test(CSS));
 
+console.log('phase 4: session, lock, settings');
+ok('auto-lock choices; junk reads as off', L.lockMinutes(5) === 5 && L.lockMinutes('15') === 15 && L.lockMinutes(7) === 0 && L.lockMinutes('x') === 0);
+ok('locks only after the chosen idle time', !L.shouldLock(0, 4 * 60000, 5) && L.shouldLock(0, 5 * 60000, 5));
+ok('off never locks; a clock that went backwards never locks', !L.shouldLock(0, 1e12, 0) && !L.shouldLock(1e12, 0, 5));
+const ll = L.lockLines({ unread: 2, pending: 3, online: false });
+ok('lock lines are counts only', ll.join('|') === '2 notifications waiting|Offline · 3 changes saved here', ll.join('|'));
+ok('a calm lock screen', L.lockLines({}).join('|') === 'No new notifications');
+ok('company mark: two initials, symbols ignored, empty name -> empty',
+  L.companyMark('No Big Deal Home Solutions') === 'NB' && L.companyMark('Acme') === 'AC' && L.companyMark('  &  ') === '' && L.companyMark(null) === '');
+const bs = L.bootSteps({ signedIn: true, dataReady: false });
+ok('boot steps reflect real progress', bs.map((s) => s.id + (s.done ? '+' : '-')).join(',') === 'auth+,data-,ready-');
+const sa = L.settingsActions([{ id: 'profile', label: '👤 Profile' }, { id: 'billing', label: '💳 Billing', hidden: true }, { id: 'profile', label: 'dup' }, { id: 'Bad', label: 'x' }, { id: 'help', label: '❓  Help ' }]);
+ok('settings entries: role-hidden, duplicate and bad tabs dropped; emoji prefix stripped',
+  sa.map((a) => a.label).join('|') === 'Settings: Profile|Settings: Help' && sa.every((a) => /^os:set:/.test(a.id)), sa.map((a) => a.label).join('|'));
+ok('Lock screen is a Spotlight entry', L.systemActions([]).some((a) => a.id === 'os:lock'));
+ok('lock is a modal dialog that hides the rest from screen readers and restores it', /aria-label', 'Screen locked'/.test(DOM) &&
+  /c\.setAttribute\('aria-hidden', 'true'\)/.test(DOM) && /hiddenForLock\.forEach\(function \(c\) \{ c\.removeAttribute\('aria-hidden'\); \}\)/.test(DOM));
+ok('lock lines come from the counts-only rule', /L\.lockLines\(\{ unread: unreadCount\(\)/.test(DOM));
+ok('boot: once per session, skipped when loaded or with reduced motion, capped at 6 s',
+  /if \(seen \|\| dataReady\(\) \|\| motionReducedNow\(\)\) return;/.test(DOM) && /Date\.now\(\) - started > 6000/.test(DOM));
+ok('sounds are opt-in (off unless the stored switch is on)', /state\.sounds = lsGet\(SOUND_KEY\) === '1';/.test(DOM) && /if \(!state\.sounds \|\| !TONES\[kind\]\) return;/.test(DOM));
+ok('auto-lock is off by default', /state\.lockMin = L\.lockMinutes\(lsGet\(LOCK_KEY\)\);/.test(DOM) && L.lockMinutes(null) === 0);
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

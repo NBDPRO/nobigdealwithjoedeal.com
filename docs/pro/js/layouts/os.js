@@ -111,6 +111,8 @@
       else o.parent.appendChild(v);
     }
   }
+  // opt-in system sounds live in the system layer (off unless the member turned them on)
+  function sound(kind) { if (W.NBDOS && typeof W.NBDOS.sound === 'function') safe(function () { W.NBDOS.sound(kind); }); }
   function goToView(id) {
     if (typeof W.goTo !== 'function') return;
     S.routing = true;
@@ -180,7 +182,9 @@
       S.wins.push(rec);
       if (S.order.indexOf(id) === -1) S.order.push(id);
     }
+    var fresh = !winEl(id);
     var el = winEl(id) || buildWin(id);
+    if (fresh) sound('open');
     adopt(id, el.querySelector('.os-win-body'));
     rec.min = false;
     focusWin(id, { route: o.route !== false });
@@ -205,6 +209,7 @@
   }
   function closeWin(id) {
     var el = winEl(id);
+    sound('close');
     release(id);
     if (el && el.parentNode) el.parentNode.removeChild(el);
     S.wins = S.wins.filter(function (w) { return w.id !== id; });
