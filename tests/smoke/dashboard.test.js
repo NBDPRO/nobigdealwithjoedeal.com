@@ -5931,9 +5931,12 @@ section('Mobile overflow sweep 2026-09-14 — 5 invisible-horizontal-scroll bugs
   assert('#stab-bar gets a mobile mask-image fade (Settings tab bar)',
     /#stab-bar\{\s*-webkit-mask-image:linear-gradient\(to right,#000 calc\(100% - 24px\),transparent 100%\);\s*mask-image:linear-gradient\(to right,#000 calc\(100% - 24px\),transparent 100%\);\s*\}/.test(dash),
     'expected #stab-bar to get the same mask-image right-edge fade as .crm-hdr-views/.cb-stats-row');
+  // The bar's styles moved from an inline style="" to the .stab-bar class
+  // (2026-11-07, Settings desktop tab rail); either form keeps the guarantee.
   const stabBarTag = /<div id="stab-bar" style="([^"]*)"/.exec(dash);
-  assert('#stab-bar inline style enables -webkit-overflow-scrolling:touch',
-    !!stabBarTag && /-webkit-overflow-scrolling:touch/.test(stabBarTag[1]),
+  const stabBarClass = /<div id="stab-bar" class="stab-bar">/.test(dash) && /\.stab-bar\{[^}]*-webkit-overflow-scrolling:touch/.test(dash);
+  assert('#stab-bar enables -webkit-overflow-scrolling:touch (inline or via .stab-bar)',
+    (!!stabBarTag && /-webkit-overflow-scrolling:touch/.test(stabBarTag[1])) || stabBarClass,
     'expected #stab-bar to opt into momentum scrolling on iOS like the other scroll-affordance fixes');
 
   // 2. Rep OS — Performance Snapshot row (rep-os.js), 4 cards with a

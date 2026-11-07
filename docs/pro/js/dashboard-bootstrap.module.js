@@ -4252,7 +4252,8 @@
           return tb - ta;
         });
     } catch(e) { window._estimates = []; }
-    renderEstimatesList(window._estimates);
+    // dashboard-widgets.js (a deferred classic script below this module) may not have run yet.
+    if (typeof window.renderEstimatesList === 'function') window.renderEstimatesList(window._estimates);
     // Wave 13: notify the bell so stale-estimate counts update.
     try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'estimates' } })); } catch (_) {}
   }
@@ -4288,7 +4289,7 @@
       const merged = Object.assign({}, comp, own); // own wins on a shared doc
       // Soft-deleted estimates drop out here too (review R5-8-2).
       window._estimates = Object.values(merged).filter(e => e.deleted !== true).sort(sortDesc);
-      renderEstimatesList(window._estimates);
+      if (typeof window.renderEstimatesList === 'function') window.renderEstimatesList(window._estimates);
     };
     const onErr = (err) => {
       console.warn('estimates snapshot error:', err && err.message);

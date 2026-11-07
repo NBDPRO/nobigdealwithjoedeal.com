@@ -204,3 +204,14 @@
   .svc-cta .btn-primary { min-height: 60px; }
   .svc-alt { text-align: left; }
 }
+
+/* Town pages (124 services/<service>-<town> pages and 45 /areas/<town> pages).
+   1) The service/town pages' inline .nav-links rule had no text-transform, so
+      their header read "Services  About Joe" while every other page reads
+      "SERVICES  ABOUT JOE" (areas pages were fixed 2026-11-06).
+   2) Source links in the local-facts copy (Wikipedia, Census, NOAA, city permit
+      reports) were unstyled, i.e. the browser's default blue/purple. Use the
+      site's link colours: dark orange on light panels, light orange in the hero. */
+.nav-links > li > a { text-transform: uppercase; }
+.local-box a:not([class]), .why-card a:not([class]), .why-section p a:not([class]), .storm-section a:not([class]), .sec-desc a:not([class]), .section-inner p a:not([class]) { color: #A14A22; text-decoration: underline; text-underline-offset: 2px; }
+.combo-hero-content p a:not([class]) { color: #DD875F; text-decoration: underline; text-underline-offset: 2px; }

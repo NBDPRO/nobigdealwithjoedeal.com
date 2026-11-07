@@ -43,3 +43,40 @@ engine charges TEAR_OFF_EXTRA_PER_SQ for layers > 1. Whether Layers should swap 
 hidden on the line-item path changes a price → NEEDS_JOE (recommendation: warn + offer the swap; never
 silent). The comment "Tear-off labor lines (scale by layers)" at estimate-logic-engine.js:737 is misleading
 and is a Tier A comment fix.
+
+## D-007 — local node-bucket gate was incomplete; replaced (11:20 ET)
+scripts/run-test-manifest.js --bucket node has an 8-minute wall-clock budget (sized for CI's 10-minute job). On
+this laptop it stops at ~650/836 suites with "RUNNER ERROR: wall-clock budget exhausted" — my run-gates grep only
+read the ✗ lines, so ~184 suites never ran locally on every branch. PR #2941 went red in CI on
+system-plus-standard-and-up (golden template totals) that had never run here. Every earlier "same as baseline"
+was therefore true but incomplete. Fix: scripts/audit/run-node-parallel.js runs ALL node-bucket suites, 6 at a
+time, no budget (139 s). Baseline on main: 827/835, the same 8 environmental failures. Re-running every PR branch
+with it; PR bodies corrected where needed.
+
+## D-008 — merge queue (12:33 PM ET)
+Auto-merge was enabled on every crm/2026-11-06-* PR by the jdealtia-sys account (not this session) within
+minutes of opening; #2938-#2945 reached the merge queue. Asked Jo; his answer: decide, weighing landing the work
+against several sessions sharing the queue. Decision: leave the Tier A PRs queued (each passed the full local
+gate run and is independently mergeable); pull ONLY the two MONEY/LOGIC PRs (#2941 ice & water — changes Best
+template totals by -$3,850/job at default measurements; #2942 estimate-settings restore) out of the queue,
+disable their auto-merge, and convert them to drafts with a HOLD note (memory: a watcher once re-queued a held
+non-draft PR). Fully reversible. The tooling branch is locked while #2938 is queued; my local tooling commit
+(run-node-parallel.js, seed direction fix, state through #2952) will go in a follow-up PR once #2938 lands.
+
+## D-009 — proposals, not built overnight (Tier C or data-safety)
+- **ST-F11** (brand contact fields can't be cleared): a blank is omitted from the merge write. Making blanks clear means writing deletes into companyProfile; that is a data-shape change, proposed with an explicit "Clear" control instead of treating blank as clear.
+- **ST-F62** (free email signup can strand an account): if a step after createUserWithEmailAndPassword fails, the retry hits email-already-in-use. Auth-flow change (Tier C); proposal: resume from the existing user (sign in with the same credentials, then finish the users/companies writes idempotently).
+- **VW-F156** (every deploy force-reloads open dashboard tabs within ~60 s with no unsaved-input check): service-worker update policy (Tier C); proposal: defer the reload until the tab is hidden or idle and no form is dirty, with a "New version — reload" toast.
+- **ST-F35** (AI usage panel is device-local and its copy says charges pass "to your key"): copy fix proposed; dashboard.html is in several open PRs tonight, so it waits.
+
+## D-010
+**VW-F111 (refer.html default title) not built overnight.** The suggested fix, a neutral default title and hero copy, also changes NBD's own referral landing page, which is customer-facing brand copy. The other route is portal.js always appending &co= for non-NBD tenants, with a fallback name when the company name is blank. That one leaves NBD untouched and is the better fix, but it is a portal change that needs its own test. Proposed for a later session; nothing is customer-visible today for NBD.
+
+## D-011
+**Unbounded reads (VW-F167, VW-F103, VW-F104, VW-F16, VW-F60, VW-F07, DT-F08) not capped overnight.** Adding limit() to these reads changes what is true, not only how fast it is. A handled-numbers read capped at N treats handled number N+1 as unhandled, so the call resurfaces as needing attention. The leaderboard, KPI and photo counts would undercount, and the Agent Inbox would hide pending items with no notice. A real fix needs server-side rollups (count docs) or cursor pagination with a "showing first N" line. Proposed for a later session, test-first, per read.
+
+## D-012
+**Native-dialog fallbacks (VW-F10, VW-F105, ST-F16) left as they are.** Each one is the sanctioned `window.nbdConfirm || confirm` pattern the brief allows. The real gap is VW-F159: nbdConfirm only exists in standalone mode, and the fix belongs in standalone-compat.js, which is parser-blocking and at the boot budget. Native **prompt()** callers (VW-F57, PL-F18, CU-F13, ED-F22) need a shared, deferred, non-blocking prompt helper first. That is a design task for a fresh session, not an overnight patch.
+
+## D-013
+**CU-F19 split from PL-F23/PL-F27.** The viewer guards live on the customer page, which the dashboard boot budget does not count, so they ship in their own PR. PL-F23 and PL-F27 add about 440 shipped bytes to dashboard-bootstrap, while main has 184 bytes left. They are held in draft #2994 for Jo's budget call (NEEDS_JOE #24).

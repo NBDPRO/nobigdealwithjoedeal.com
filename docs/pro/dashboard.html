@@ -3146,7 +3146,7 @@
        before the user opens Settings. -->
   <div class="view" id="view-settings" data-view-template="tpl-view-settings"></div>
   <template id="tpl-view-settings">
-    <div class="view-scroll" style="max-width:640px;padding-bottom:40px;">
+    <div class="view-scroll settings-scroll">
 
       <!-- ── SETTINGS HEADER ── -->
       <div class="page-hdr">
@@ -3157,7 +3157,7 @@
       </div>
 
       <!-- ── TAB BAR ── -->
-      <div id="stab-bar" style="display:flex;gap:0;border-bottom:2px solid var(--br);margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div id="stab-bar" class="stab-bar">
         <button class="stab-btn stab-active" data-action="settingsTab" data-target="profile" id="stab-profile">👤 Profile</button>
         <button class="stab-btn" data-action="settingsTab" data-target="appearance" id="stab-appearance">🎨 Appearance</button>
         <button class="stab-btn" data-action="settingsTab" data-target="estimates" id="stab-estimates">📋 Estimates</button>
