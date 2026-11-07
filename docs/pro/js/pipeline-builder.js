@@ -349,6 +349,15 @@
       var tmp = arr[idx]; arr[idx] = arr[swap]; arr[swap] = tmp;
       _dirty = true; render();
     } else if (action === 'remove') {
+      // CRM audit 2026-11-06 (ST-F51): same guard as 🗑 delete. Removing a stage
+      // that still holds leads dropped them into this pipeline's first column.
+      var rv = canDeleteStage(key);
+      if (!rv.ok) {
+        var rnm = (res.stageMeta[key] || {}).label || key;
+        if (rv.unhydrated) { toast('Still loading your leads — wait a moment and try removing "' + rnm + '" again.', 'error'); return; }
+        toast(rv.count + ' lead' + (rv.count === 1 ? ' is' : 's are') + ' still on "' + rnm + '." Move ' + (rv.count === 1 ? 'it' : 'them') + ' to another stage first, then remove it from this pipeline.', 'error');
+        return;
+      }
       var a2 = ensureViewStages(vk, res);
       var j = a2.indexOf(key);
       if (j !== -1) { a2.splice(j, 1); _dirty = true; render(); }

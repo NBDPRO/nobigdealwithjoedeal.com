@@ -86,6 +86,8 @@
           var name = isOwnerViewer ? (window._user.displayName || window._user.email || 'O') : 'Owner';
           initEl.textContent = name.split(' ').map(function(w){return w[0]}).join('').toUpperCase().substring(0,2);
         }
+        // CRM audit 2026-11-06 (ST-F38): say it is loading, and say so if it fails.
+        list.innerHTML = '<div class="meta-10">Loading your team…</div>';
         try {
           var snap = await window.getDocs(window.collection(window.db, 'companies', tenantKey, 'members'));
           // An empty roster still needs the seat controls: a Starter/Team owner
@@ -149,7 +151,10 @@
           } catch (_) { /* non-fatal */ }
           // Per-seat add-on purchase (Route 1b; dark until the seat price exists).
           try { _renderSeatBuy(list); } catch (_) { /* non-fatal */ }
-        } catch(e) { console.warn('loadTeamMembers:', e.message); }
+        } catch(e) {
+          console.warn('loadTeamMembers:', e.message);
+          list.innerHTML = '<div class="meta-10" role="alert">Could not load your team. Check your connection and open Team again.</div>';
+        }
       }
 
       // ── Over-capacity SEAT PICKER ────────────────────────────────────

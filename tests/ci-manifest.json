@@ -434,6 +434,7 @@
     "call-center-ingest-2026-10-01.test.js",
     "call-center-notes-2026-10-01.test.js",
     "call-center-provider-outage-2026-10-13.test.js",
+    "team-pipeline-states-2026-11-06.test.js",
     "call-audio-transcode-2026-10-14.test.js",
     "offline-safety-2026-10-04.test.js",
     "sw-offline-shell-2026-10-04.test.js",
