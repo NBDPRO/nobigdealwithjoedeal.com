@@ -20,6 +20,7 @@ ok('no page keeps the 22px compact nav link (padding:4px)', compact.every((f) =>
 ok('nbd-nav-responsive.css: compact nav links padded to 24px', /nav \.nav-links > li > a\{font-size:\.7rem!important;letter-spacing:\.05em!important;padding:5px 0!important\}/.test(read(path.join(ROOT, 'docs/assets/css/nbd-nav-responsive.css'))));
 const tpl = read(path.join(ROOT, 'scripts/build-projects.mjs'));
 ok('our-work template: crumb and back links carry vertical padding', /\.pd-crumb a\{[^}]*display:inline-block;padding:5px 0;/.test(tpl) && /\.pd-back\{[^}]*padding:4px 0;/.test(tpl));
-const blog = PAGES.filter((f) => /\/blog\/[a-z0-9-]+\.html$/.test(f) && /\.sidebar-links li a/.test(read(f)));
+// either path separator: path.join gives docs\blog\x.html on Windows (the >= 20 floor still catches an empty match)
+const blog = PAGES.filter((f) => /[\\/]blog[\\/][a-z0-9-]+\.html$/.test(f) && /\.sidebar-links li a/.test(read(f)));
 ok('every blog page pads its sidebar links (' + blog.length + ' pages)', blog.length >= 20 && blog.every((f) => /\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))), blog.filter((f) => !/\.sidebar-links li a\s*\{[^}]*padding:\s*4px 0/.test(read(f))).map((f) => path.relative(ROOT, f)).join(', '));
 console.log('\n' + passed + ' passed, ' + failed + ' failed'); if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }

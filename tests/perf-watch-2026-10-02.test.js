@@ -77,7 +77,8 @@ ok('the codemod is idempotent and only fills in what is missing', FP.stamp(stamp
 ok('the codemod keeps CRLF files CRLF (no lone CR)', FP.stamp('<head>\r\n' + LINK + '\r\n</head>\r\n') === '<head>\r\n' + LINK + '\r\n' + FP.FONT_PRELOADS.join('\r\n') + '\r\n</head>\r\n');
 const heroCodemod = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'add-template-hero-preloads.js'), 'utf8');
 ok('the hero-preload codemod looks for an image preload, so the font hints cannot suppress a hero preload', !/src\.includes\('rel="preload"'\)/.test(heroCodemod) && /as="image"/.test(heroCodemod.split('\n').find((l) => /skipped\+\+/.test(l)) || ''));
-const buildProjects = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-projects.mjs'), 'utf8');
+// LF-only, as CI checks it out: the generator's source is CRLF in a Windows checkout
+const buildProjects = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-projects.mjs'), 'utf8').replace(/\r\n/g, '\n');
 ok('build-projects.mjs (the one generator that emits a head with nbd-fonts.css) emits the font hints, so a restamp keeps them', buildProjects.includes(LINK + '\n' + FP.FONT_PRELOADS.join('\n')));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

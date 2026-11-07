@@ -26,8 +26,9 @@ function ok(name, cond, detail) {
 }
 
 const ROOT = path.join(__dirname, '..');
-const actions = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-actions.js'), 'utf8');
-const loader = fs.readFileSync(path.join(ROOT, 'docs/pro/js/script-loader.js'), 'utf8');
+// LF-only, as CI checks it out (a Windows checkout is CRLF; the function regex below anchors on \n)
+const actions = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-actions.js'), 'utf8').replace(/\r\n/g, '\n');
+const loader = fs.readFileSync(path.join(ROOT, 'docs/pro/js/script-loader.js'), 'utf8').replace(/\r\n/g, '\n');
 const fnSrc = (/\n(\s*)function waitForD2D\(cb\) \{[\s\S]*?\n\1\}\n/.exec(actions) || [''])[0];
 ok('control: waitForD2D() is in dashboard-actions.js', !!fnSrc);
 ok('control: the D2D view still preloads mapvendor and d2d together (the race this guards)',

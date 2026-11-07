@@ -83,7 +83,8 @@ for (const f of new Set(headLinks.map((l) => l.match(/css\/([^"?]+)/)[1]))) {
 ok('inlined CSS has no relative url() or @import', bad.length === 0, bad.join('; '));
 
 console.log('\nDEPLOY WIRING');
-const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'firebase-deploy.yml'), 'utf8');
+// LF-only, as CI checks it out (the continuation-line check below needs backslash + \n)
+const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'firebase-deploy.yml'), 'utf8').replace(/\r\n/g, '\n');
 const iMin = wf.indexOf('node scripts/minify-shipped.js --write');
 const iInline = wf.indexOf('node scripts/inline-head-css.js --write');
 const iDeploy = wf.indexOf('firebase-tools deploy --only hosting');
