@@ -27,7 +27,8 @@ const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const SRC_PATH = path.join(ROOT, 'docs/pro/js/reputation.js');
-const SRC = fs.readFileSync(SRC_PATH, 'utf8');
+// LF-only, as CI checks it out (the loadData strip below anchors on \n)
+const SRC = fs.readFileSync(SRC_PATH, 'utf8').replace(/\r\n/g, '\n');
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
 const CODE = strip(SRC);
 

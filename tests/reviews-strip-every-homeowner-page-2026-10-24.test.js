@@ -27,7 +27,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (p) => fs.readFileSync(path.isAbsolute(p) ? p : path.join(ROOT, p), 'utf8');
+// LF-only, as CI checks it out (the marker-pair regex below spans lines)
+const read = (p) => fs.readFileSync(path.isAbsolute(p) ? p : path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
 
 let passed = 0, failed = 0; const fails = [];

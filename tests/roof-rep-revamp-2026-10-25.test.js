@@ -13,10 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const R = require(path.join(ROOT, 'docs', 'pro', 'js', 'pages', 'roof-rep-rules.js'));
-const SRC = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'pages', 'roof-rep.js'), 'utf8');
-const HTML = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'roof-rep.html'), 'utf8');
-const CSS = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'css', 'roof-rep.css'), 'utf8');
-const FXS = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'pages', 'roof-rep-fx.js'), 'utf8');
+// LF-only, as CI checks it out: the source anchors and tree() below use \n
+const SRC = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'pages', 'roof-rep.js'), 'utf8').replace(/\r\n/g, '\n');
+const HTML = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'roof-rep.html'), 'utf8').replace(/\r\n/g, '\n');
+const CSS = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'css', 'roof-rep.css'), 'utf8').replace(/\r\n/g, '\n');
+const FXS = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'pages', 'roof-rep-fx.js'), 'utf8').replace(/\r\n/g, '\n');
 
 let passed = 0, failed = 0;
 function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); passed++; } else { console.log('  ✗ ' + label + (detail ? ' — ' + detail : '')); failed++; } }
