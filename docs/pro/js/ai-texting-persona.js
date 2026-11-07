@@ -52,6 +52,9 @@
   var state = null;          // current edited config
   var rendered = false;      // panel built once
   var saving = false, previewing = false;
+  // CRM audit 2026-11-06 (VW-F166): true when the saved persona couldn't be
+  // read. Save stays off so the defaults on screen never overwrite it.
+  var loadFailed = false;
 
   function uid() {
     return (window._user && window._user.uid) ||
@@ -307,6 +310,7 @@
   // ── save ──────────────────────────────────────────────────────
   async function doSave() {
     if (saving) return;
+    if (loadFailed) { setStatus('Your saved persona didn’t load, so Save is off to protect it. Reload the page and try again.', 'error'); return; }
     var id = uid();
     if (!id) { setStatus('Sign in to save.', 'error'); return; }
     if (!window.db || !window.doc || !window.setDoc) { setStatus('Not ready — try again in a moment.', 'error'); return; }
@@ -341,6 +345,7 @@
   // ── load on first open ────────────────────────────────────────
   async function load() {
     state = freshConfig();
+    loadFailed = false;
     var id = uid();
     if (id && window.db && window.getDoc && window.doc) {
       try {
@@ -356,7 +361,7 @@
             enabled: d.enabled !== false,
           };
         }
-      } catch (e) { /* defaults stand */ }
+      } catch (e) { loadFailed = true; console.warn('[aiPersona] load failed:', e && e.message); }
     }
   }
 
@@ -369,6 +374,7 @@
       mount.innerHTML = '<div class="tpx-p20px-cm-fs13px">Loading…</div>';
       await load();
       render();
+      if (loadFailed) setStatus('Couldn’t load your saved persona. Showing defaults; Save is off so they don’t replace it. Reload the page to try again.', 'error');
     }
   }
 
