@@ -67,7 +67,21 @@ function slice(src, start, endAt) {
     ok('a failed read returns null, not []', off.loaded === null);
     ok('…and the drawer says it could not load, not "All Clear"', /Could not load deleted leads/.test(off.html) && !/All Clear/.test(off.html), off.html.slice(0, 80));
     const pre = await run({ uid: null });
-    ok('before sign-in it returns [] and the drawer does not throw', Array.isArray(pre.loaded) && pre.loaded.length === 0 && !pre.drawErr);
+    // Since the steward review of #2949: before sign-in the loader returns
+    // undefined ("not looked yet"), and the drawer keeps "Loading..." instead
+    // of "All Clear".
+    ok('before sign-in it returns undefined, the drawer keeps "Loading..." (never "All Clear") and does not throw',
+      pre.loaded === undefined && /Loading/.test(pre.html) && !/All Clear/.test(pre.html) && !pre.drawErr, pre.html.slice(0, 60));
+    // Restore / Remove only where firestore.rules allows them on that lead.
+    const bin = [{ id: 'mine', userId: 'u1', companyId: 'co' }, { id: 'teammate', userId: 'u2', companyId: 'co' }];
+    const btns = (html, id) => ({ restore: new RegExp('nbd-dc-restore" data-id="' + id + '"').test(html), remove: new RegExp('nbd-dc-perm" data-id="' + id + '"').test(html) });
+    const asViewer = await run({ uid: 'u1', claims: { role: 'viewer', companyId: 'co' }, docs: bin });
+    ok('a viewer sees the bin but no Restore / Remove at all', !/nbd-dc-restore|nbd-dc-perm/.test(asViewer.html) && /teammate|deleted-card/.test(asViewer.html));
+    const asMgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' }, docs: bin });
+    ok('a manager can Restore a teammate\'s lead but not Remove it (rules: delete is company_admin)', btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove);
+    ok('…and keeps both on their own lead (positive control)', btns(asMgr.html, 'mine').restore && btns(asMgr.html, 'mine').remove);
+    const asAdmin = await run({ uid: 'u1', claims: { role: 'company_admin', companyId: 'co' }, docs: bin });
+    ok('a company_admin keeps both on a teammate\'s lead', btns(asAdmin.html, 'teammate').restore && btns(asAdmin.html, 'teammate').remove);
     const mgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' },
       docs: [{ id: 'mine', userId: 'u1', companyId: 'co' }, { id: 'teammate', userId: 'u2', companyId: 'co' }] });
     ok('a manager sees a teammate\'s deleted lead (company scope)', mgr.loaded.map((d) => d.id).sort().join(',') === 'mine,teammate', JSON.stringify(mgr.loaded));

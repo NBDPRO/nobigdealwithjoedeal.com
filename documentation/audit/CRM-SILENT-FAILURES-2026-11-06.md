@@ -15,3 +15,14 @@ read scope.
 
 `tests/silent-failures-2026-11-06.test.js`: the Deleted bin and the viewer save run as real code in a vm; the
 other four are source checks on the shipped text. 19/19; on main 15 fail and the positive controls pass.
+
+## Update — PR steward review (2026-11-06 evening)
+
+1. **The team-wide Deleted bin offers only what the rules allow.** For each deleted lead, the drawer mirrors `/leads` in `firestore.rules`:
+   - **Restore (update):** `isAdmin`, or the rep's own lead (not a viewer), or `company_admin` / `manager` in the same company.
+   - **Remove (delete):** `isAdmin`, or the rep's own lead (not a viewer), or `company_admin` in the same company.
+   - So a viewer sees the bin with no buttons, and a manager can Restore a teammate's lead but not Remove it.
+2. **No "All Clear" before sign-in.** The loader returns `undefined` until `_user` exists, and the drawer keeps "Loading…". `refreshTrashBadge` already ignores anything that isn't an array. `silent-failures-2026-11-06.test.js` changes its expected value from "returns []" to "returns undefined, keeps Loading…".
+3. Not changed here: with no `_db` / `_user`, Company settings still shows "✓ saved". That is older than this PR and left for its own change.
+
+Tests: `silent-failures-2026-11-06.test.js` now passes 23/23. It adds viewer, manager and company_admin button checks. Against the PR head before this commit, 3 checks fail.

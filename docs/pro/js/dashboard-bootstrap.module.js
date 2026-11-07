@@ -4190,11 +4190,13 @@
   // undefined before auth (renderDeletedDrawer then threw and sat on
   // "Loading…"), and turned a failed read into [] — "All Clear" while the bin
   // might be full. Now: the same two-scope shape as loadEstimates for team
-  // readers, [] before auth, null on failure so the drawer can say so, and a
+  // readers, undefined before auth ("Loading..."), null on failure so the drawer can say so, and a
   // cap per scope.
   async function _loadDeletedLeads() {
     const uid = window._user?.uid;
-    if (!uid) return [];
+    // Not signed in yet: undefined, which the drawer shows as "Loading…"
+    // (never "All Clear" before we have looked; steward review of #2949).
+    if (!uid) return undefined;
     try {
       const claims = window._userClaims || {};
       const scopes = [where('userId','==',uid)];
