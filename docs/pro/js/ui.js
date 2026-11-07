@@ -894,7 +894,9 @@ function switchSettingsTab(tab) {
     // user with Pixel Mode off the core (and the toggles' listeners) never
     // loaded and the toggles did nothing. Load it when this tab opens.
     if (window.NBDPixelMode && window.NBDPixelMode.__stub && typeof window.NBDPixelMode.ensure === 'function') {
-      try { window.NBDPixelMode.ensure(); } catch (e) { /* the toggle stays inert; nothing else depends on it */ }
+      // ensure() loads the core and returns a Promise: catch a failed load too
+      // (offline), or it surfaces as an unhandled rejection (steward review).
+      try { var _pm = window.NBDPixelMode.ensure(); if (_pm && typeof _pm.catch === 'function') _pm.catch(function () { /* stays inert */ }); } catch (e) { /* the toggle stays inert; nothing else depends on it */ }
     }
     // Material segmented control active-state — same lazy-hydration hook
     // as the calls above; nbdSyncMaterialBtns lives in

@@ -39,6 +39,10 @@ console.log('APPEARANCE TAB OPENS (ST-F20, ST-F26)');
   const els = run({ ThemeSounds: { isEnabled: () => true }, NBDPixelMode: { __stub: true, ensure: () => { ensured++; } } });
   ok('Ambient Sound shows on when ThemeSounds is on', els['te-sound-toggle'].checked === true);
   ok('opening the tab loads the Pixel Mode core while it is still the stub', ensured === 1, String(ensured));
+  // ensure() returns a Promise: a failed load (offline) must be caught.
+  let caught = 0;
+  run({ ThemeSounds: { isEnabled: () => true }, NBDPixelMode: { __stub: true, ensure: () => ({ catch: () => { caught++; } }) } });
+  ok('a failed core load is caught (no unhandled rejection offline)', caught === 1, String(caught));
   let ensured2 = 0;
   run({ ThemeSounds: { isEnabled: () => false }, NBDPixelMode: { __stub: false, ensure: () => { ensured2++; } } });
   ok('…and leaves an already-loaded core alone', ensured2 === 0);
@@ -48,11 +52,11 @@ console.log('APPEARANCE TAB OPENS (ST-F20, ST-F26)');
 
 console.log('SETTINGS PLACEHOLDERS (ST-F15)');
 {
-  const ids = ['settingsCompany', 'settingsPhone', 'settingsCalcom', 'coName', 'coDba', 'coPhone', 'cp_brand_legalName', 'cp_brand_displayName', 'cp_brand_phone', 'cp_brand_zellePhone', 'cp_businessName', 'cp_businessPhone', 'cp_tagline'];
+  const ids = ['settingsCompany', 'settingsPhone', 'settingsCalcom', 'coName', 'coDba', 'coPhone', 'cp_brand_legalName', 'cp_brand_displayName', 'cp_brand_phone', 'cp_brand_zellePhone', 'cp_businessName', 'cp_businessPhone', 'cp_tagline', 'coEmail', 'coWebsite', 'cp_businessEmail', 'cp_businessWebsite'];
   const ph = ids.map((id) => { const m = HTML.match(new RegExp('id="' + id + '"[^>]*placeholder="([^"]*)"')); return [id, m ? m[1] : null]; });
-  ok('all 13 inputs are found with a placeholder (positive control)', ph.every(([, p]) => p !== null), ph.filter(([, p]) => p === null).map(([i]) => i).join(','));
-  const nbd = ph.filter(([, p]) => p && /No Big Deal|859\) 420-7382|joedeal/i.test(p));
-  ok('none of them shows NBD\'s own name, phone or Cal.com handle', nbd.length === 0, nbd.map(([i, p]) => i + '=' + p).join('; '));
+  ok('all 17 inputs are found with a placeholder (positive control)', ph.every(([, p]) => p !== null), ph.filter(([, p]) => p === null).map(([i]) => i).join(','));
+  const nbd = ph.filter(([, p]) => p && /No Big Deal|859\) 420-7382|joedeal|nobigdealwithjoedeal/i.test(p));
+  ok('none of them shows NBD\'s own name, phone, Cal.com handle, email or website', nbd.length === 0, nbd.map(([i, p]) => i + '=' + p).join('; '));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

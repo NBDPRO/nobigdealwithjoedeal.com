@@ -13,3 +13,10 @@ against main's code.
 | ST-F15 | `dashboard.html` | 13 Settings / Company / Company Profile placeholders showed NBD's own name, phone (859) 420-7382, Cal.com handle and tagline to every contractor. | They now show neutral examples: "Your company name", "(555) 555-0100" (a reserved fictional number), "your-cal-username", "Your tagline". These are placeholders only, so no stored value, label or id changes. |
 
 Not done here: ST-F21 (applying a saved Custom Theme at boot) needs a decision on what counts as the current theme. It's in NEEDS_JOE.
+
+## Update — PR steward review (2026-11-06 evening)
+
+1. Four more placeholders showed NBD addresses to every tenant: `coEmail` (JD@), `coWebsite`, `cp_businessEmail` (info@) and `cp_businessWebsite`. They now read "you@yourcompany.com", "yourcompany.com" and "info@yourcompany.com", and the test checks all 17 inputs.
+2. `NBDPixelMode.ensure()` is the core loader and returns a Promise, so the `try` could not catch a failed load. Offline, that surfaced as an unhandled rejection. Its rejection is now caught.
+
+Test: `settings-2-2026-11-06.test.js` passes 8/8, and 2 checks fail on the PR head before this commit.
