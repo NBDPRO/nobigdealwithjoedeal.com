@@ -1081,6 +1081,14 @@
   const NotifBell = {
     render,
     getCount: () => buildNotifications().filter(n => !itemIsDismissed(n) && !itemIsRead(n)).length,
+    // Read-only copy of the live (not dismissed) items for the NBD OS
+    // Notification Center (2026-11-06). Plain fields only: no callbacks leave
+    // this module; opening one goes back through _handleClick(id).
+    items: () => buildNotifications().filter(n => !itemIsDismissed(n)).map(n => ({
+      id: n.id, type: n.type || '', severity: n.severity || '', title: n.title || '',
+      text: n.text || '', sub: n.sub || '', ts: n.ts instanceof Date ? n.ts.getTime() : (typeof n.ts === 'number' ? n.ts : null),
+      read: itemIsRead(n), server: n._source === 'server',
+    })),
     _handleClick: handleClick,
     _dismiss: dismissOne,
     _restore: restoreOne,

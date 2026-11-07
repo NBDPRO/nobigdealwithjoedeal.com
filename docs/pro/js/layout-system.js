@@ -785,7 +785,7 @@
   // and the cache is rewritten.
   var FLAGS_KEY = 'nbd_layout_flags';
   function flagNames() {
-    var out = [];
+    var out = [SYSTEM_FLAG];
     R.listAll().forEach(function (d) { if (d.flag && out.indexOf(d.flag) === -1) out.push(d.flag); });
     return out;
   }
@@ -810,13 +810,31 @@
     lsSet(FLAGS_KEY, JSON.stringify({ uid: (window._user && window._user.uid) || null, flags: flags }));
     // A layout switched on or off changes what resolves; re-apply the answer.
     refresh();
+    if (flags[SYSTEM_FLAG]) loadSystemLayer();
   }
   R.setFlagCheck(isFlagOn);
+
+  // NBD OS System layer (phase 1): the tray, Control Center, Notification
+  // Center and Spotlight entries, over EVERY layout. Lazy (no <script> tag, so
+  // the boot budget is untouched) and only while `osSystemLayer` is on. Once
+  // loaded it stays for the page's life; turning the flag off takes effect on
+  // the next load.
+  var SYSTEM_FLAG = 'osSystemLayer';
+  var systemLoading = null;
+  function loadSystemLayer() {
+    if (systemLoading) return systemLoading;
+    systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=1'] } })
+      .then(function () { return loadScriptPath('js/os/system-logic.js?v=1'); })
+      .then(function () { return loadScriptPath('js/os/system.js?v=1'); });
+    return systemLoading;
+  }
 
   function boot() {
     watchPicker();
     window.addEventListener('nbd:flags-loaded', onFlagsLoaded);
     if (liveFlags()) onFlagsLoaded();
+    // last-known on: paint the tray without waiting for the flag read
+    else if (cachedFlags()[SYSTEM_FLAG] === true) loadSystemLayer();
     window.addEventListener('online', function () {
       if (hydrated || !dbReady()) return;
       if (retryT) { clearTimeout(retryT); retryT = null; }
