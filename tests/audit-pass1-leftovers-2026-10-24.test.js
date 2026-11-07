@@ -29,17 +29,18 @@ function ok(name, cond, detail) {
 const px = (s) => Number((/calc\((\d+)px/.exec(s || '') || [])[1]);
 
 const vr = read('docs/pro/css/visit-recorder.css');
-const bar = (/\.nbd-vr-bar\{([^}]*)\}/.exec(vr) || [])[1] || '';
+const bar = (/\.nbd-vr-fab\{([^}]*)\}/.exec(vr) || [])[1] || '';
 const barBottom = px((/bottom:([^;]*);/.exec(bar) || [])[1]);
-ok('control: the Record visit bar is fixed above the bottom nav', /position:fixed/.test(bar) && barBottom > 0, bar);
+ok('control: the record button is fixed above the bottom nav', /position:fixed/.test(bar) && barBottom > 0, bar);
 
 const css = read('docs/pro/css/demo-mode.css');
-const lifted = (/html\.nbd-demo\.nbd-vr-bar-on body:has\(#view-home\.active\) \.nbd-demo-strip \{ bottom: ([^;]*); \}/.exec(css) || [])[1];
-ok('phone: while the Record bar shows on Home, the strip sits above it (bar bottom + its 56px height)', lifted && px(lifted) >= barBottom + 56, lifted);
+// 2026-11-07: the record button shows on every screen, so the strip lifts on every screen (not only Home)
+const lifted = (/html\.nbd-demo\.nbd-vr-bar-on \.nbd-demo-strip \{ bottom: ([^;]*); \}/.exec(css) || [])[1];
+ok('phone: while the record button shows, the strip sits above it (button bottom + its 56px height)', lifted && px(lifted) >= barBottom + 56, lifted + ' vs ' + barBottom);
 const plain = px((/@media \(max-width: 900px\) \{\n  \.nbd-demo-strip \{ bottom: ([^;]*); \}/.exec(css) || [])[1]);
 ok('control: elsewhere the strip keeps its place above the nav', plain === 84, plain);
 ok('Home\'s content gets the strip\'s room on top of the bar\'s', /html\.nbd-demo\.nbd-vr-bar-on #view-home \.view-scroll \{ padding-bottom: calc\(80px \+ 74px \+ \d+px/.test(css));
-ok('demo-mode.js loads the new stylesheet (v=6 or later)', /demo-mode\.css\?v=([6-9]|\d\d+)'/.test(read('docs/pro/js/demo-mode.js')));
+ok('demo-mode.js loads the new stylesheet (v=7 or later)', /demo-mode\.css\?v=([7-9]|\d\d+)'/.test(read('docs/pro/js/demo-mode.js')));
 
 const ds = read('docs/pro/daily-success/index.html');
 ok('control: table inputs still sit in a scrolling wrap (.tbl-wrap)', /class="tbl-wrap"|tbl-wrap/.test(ds + read('docs/pro/daily-success/js/app.js')));

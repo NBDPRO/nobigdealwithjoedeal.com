@@ -73,20 +73,21 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     const I = require(path.join(ROOT, 'docs/pro/js/layouts/island.js'));
     ok('Island: Record visit is the dock\'s ONE primary action', I.DOCK[0].id === 'record' && I.DOCK.filter((d) => d.primary).length === 1 && I.DOCK[0].primary === true);
     ok('Island dock draws it as a [data-nbd-record-visit] button (not a nav item)', /data-nbd-record-visit="" data-source="island-dock"/.test(L('island')));
-    ok('Island hides the floating bar (one bar, not two stacked)', /html\[data-layout="island"\] \.nbd-vr-bar \{ display: none !important; \}/.test(C('island')));
+    ok('Island hides the round record button (one Record entry, not two)', /html\[data-layout="island"\] \.nbd-vr-fab \{ display: none !important; \}/.test(C('island')));
   }
   {
     const lsrc = read('docs/pro/js/visit-recorder-launcher.js');
     const vcss = read('docs/pro/css/visit-recorder.css');
     ok('the launcher says "Record visit" everywhere (no "Record a visit", no "● Record visit")',
       /var RECORD_LABEL = 'Record visit'/.test(lsrc) && !/Record a visit/.test(lsrc) && !/● Record visit/.test(lsrc));
-    ok('the floating bar is Classic and Bento only', /var BAR_LAYOUTS = \{ classic: 1, bento: 1 \}/.test(lsrc) && /show = [^;]*layoutWantsBar\(\)/.test(lsrc));
+    ok('the record button is Classic and Bento only', /var BAR_LAYOUTS = \{ classic: 1, bento: 1 \}/.test(lsrc) && /show = [^;]*layoutWantsBar\(\)/.test(lsrc));
     ['island', 'field', 'focus', 'inbox', 'mission', 'crew'].forEach((id) =>
-      ok('visit-recorder.css hides the bar under ' + id, new RegExp('html\\[data-layout="' + id + '"\\] \\.nbd-vr-bar').test(vcss)));
-    ok('the bar is centred', /\.nbd-vr-bar\{[^}]*justify-content:center/.test(vcss) && /min-width:769px\)\{\s*\.nbd-vr-bar\{ left:24px; right:24px;/.test(vcss));
+      ok('visit-recorder.css hides the record button under ' + id, new RegExp('html\\[data-layout="' + id + '"\\] \\.nbd-vr-fab').test(vcss)));
+    // 2026-11-07: the centred pill bar became one round button, bottom-left (phone: above the 62px nav; desktop: 24px in)
+    ok('the record button sits bottom-left', /\.nbd-vr-fab\{\s*position:fixed; left:16px;\s*bottom:calc\(62px \+ 14px/.test(vcss) && /min-width:769px\)\{\s*\.nbd-vr-fab\{ left:24px; bottom:24px; \}/.test(vcss) && !/right:/.test((/\.nbd-vr-fab\{[^}]*\}/.exec(vcss) || [''])[0]));
     ok('Home reserves room under the bar while it shows (no card under it)',
       /classList\.toggle\('nbd-vr-bar-on', show\)/.test(lsrc) && /html\.nbd-vr-bar-on #view-home \.view-scroll\{ padding-bottom:calc\(74px/.test(vcss));
-    ok('the bar follows a layout switch', /addEventListener\('layoutchange', paintBar\)/.test(lsrc));
+    ok('the record button follows a layout switch', /addEventListener\('layoutchange', paintBar\)/.test(lsrc));
     ok('Recent visits: delegated, and it loads the recorder first (the Record path) before NBDVisitRecorderUI.openRecent()',
       /closest\('\[data-nbd-recent-visits\]'\)[\s\S]{0,80}openRecent\(\)/.test(lsrc)
       && /function openRecent\(\) \{\s*return load\(\)\.then\(function \(\) \{\s*var UI = window\.NBDVisitRecorderUI;\s*if \(UI && typeof UI\.openRecent === 'function'\) \{ UI\.openRecent\(\); return; \}/.test(lsrc)
@@ -95,7 +96,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
   }
   {
     // the launcher's bar, run for real in a stub page: Classic shows it, Island does not
-    function runLauncher(layout) {
+    function runLauncher(layout, onHome) {
       const attrs = {}; const cls = new Set();
       const mk = (tag) => {
         const e = { tagName: tag, hidden: false, children: [], attrs: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
@@ -103,7 +104,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
           appendChild(c) { this.children.push(c); return c; }, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] };
         return e;
       };
-      const home = mk('div'); home.classList.contains = (c) => c === 'active';
+      const home = mk('div'); home.classList.contains = (c) => c === 'active' && onHome !== false;
       const docEl = { getAttribute: (k) => (k === 'data-layout' ? layout : (attrs[k] == null ? null : attrs[k])), setAttribute: (k, v) => { attrs[k] = v; },
         classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); }, contains: (c) => cls.has(c) } };
       const body = mk('body'); const head = mk('head');
@@ -113,14 +114,18 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
         addEventListener() {}, setTimeout: () => 0, URLSearchParams, URL, console };
       win.window = win;
       vm.runInContext(read('docs/pro/js/visit-recorder-launcher.js'), vm.createContext(win));
-      const bar = body.children.find((c) => c.className === 'nbd-vr-bar');
+      const bar = body.children.find((c) => c.className === 'nbd-vr-fab');
       return { bar, cls };
     }
     const classic = runLauncher(null);
     const recBtn = classic.bar && classic.bar.children[0];
-    ok('run: Classic Home shows the bar, labelled Record visit, and reserves room under it',
-      classic.bar && classic.bar.hidden === false && recBtn.children[1].textContent === 'Record visit' && classic.cls.has('nbd-vr-bar-on'));
-    ok('run: Recent visits sits beside Record on the bar', classic.bar.children[1].textContent === 'Recent visits' && 'data-nbd-recent-visits' in classic.bar.children[1].attrs);
+    // 2026-11-07: one round menu button (no label, no pills); Record / Recent / Unfiled live in its menu
+    // (visit-recorder-menu.js, tests/record-button-2026-11-07.test.js)
+    ok('run: Classic Home shows the record button (a menu button) and reserves room under it',
+      classic.bar && classic.bar.hidden === false && recBtn.className === 'nbd-vr-fabbtn' && recBtn.attrs['aria-haspopup'] === 'menu' && classic.cls.has('nbd-vr-bar-on'));
+    ok('run: the button has no pill beside it', classic.bar.children.length === 1);
+    const away = runLauncher(null, false);
+    ok('run: it shows on screens other than Home too', away.bar && away.bar.hidden === false);
     const bento = runLauncher('bento');
     ok('run: Bento shows it too', bento.bar && bento.bar.hidden === false);
     const island = runLauncher('island');

@@ -91,8 +91,8 @@ html[data-layout="island"] .isl-dock .isl-primary { background: var(--orange); c
 html[data-layout="island"] .isl-dock .isl-primary:hover { color: var(--accent-fg, #fff); filter: brightness(1.06); }
 /* Record visit leads the dock; its dot is the recorder's red-dot cue */
 html[data-layout="island"] .isl-dock .isl-rec .lk-ic { fill: currentColor; stroke: none; width: 14px; height: 14px; }
-/* one bar: the floating Home Record bar steps aside for the dock's button */
-html[data-layout="island"] .nbd-vr-bar { display: none !important; }
+/* one Record entry: the round record button steps aside for the dock's button */
+html[data-layout="island"] .nbd-vr-fab { display: none !important; }
 html[data-layout="island"] .isl-dock .isl-on { background: var(--og); color: var(--ui-accent-text, var(--orange)); }
 
 /* ── More: the sidebar's own entries in a floating sheet ── */

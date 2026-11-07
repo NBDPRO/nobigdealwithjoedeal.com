@@ -1513,7 +1513,7 @@ function uploaderStub(log, behaviour) {
   // ── static: no innerHTML, no inline handlers, no inline styles in the new files ──
   console.log('\nVISIT RECORDER - source hygiene (strict CSP)');
   {
-    const files = ['visit-recorder-logic.js', 'visit-recorder.js', 'visit-recorder-ui.js', 'visit-recorder-launcher.js', 'visit-unfiled-today.js'];
+    const files = ['visit-recorder-logic.js', 'visit-recorder.js', 'visit-recorder-ui.js', 'visit-recorder-launcher.js', 'visit-unfiled-today.js', 'visit-recorder-menu.js'];
     const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const BAD = {
       'innerHTML / outerHTML / insertAdjacentHTML / document.write': /\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML\s*\(|document\.write\s*\(/,
@@ -1528,7 +1528,7 @@ function uploaderStub(log, behaviour) {
     // positive control: the detector does fire
     ok('control: the detector flags innerHTML, onclick= and style="', BAD['innerHTML / outerHTML / insertAdjacentHTML / document.write'].test('x.innerHTML = a') && BAD['inline handler attribute (onclick= etc.)'].test('<b onclick="x">') && BAD['inline style attribute'].test('<b style="a:b">'));
     const css = fs.readFileSync(path.join(ROOT, 'docs/pro/css/visit-recorder.css'), 'utf8');
-    ok('css: every control on the phone is at least 44px tall (min-height >= 44px on buttons)', /\.nbd-vr-btn\{[^}]*min-height:48px/.test(css) && /\.nbd-vr-barbtn[\s\S]*?min-height:56px/.test(css) && /\.nbd-vr-chip\{[^}]*min-height:56px/.test(css));
+    ok('css: every control on the phone is at least 44px tall (min-height >= 44px on buttons)', /\.nbd-vr-btn\{[^}]*min-height:48px/.test(css) && /\.nbd-vr-fabbtn\{[^}]*width:56px; height:56px/.test(css) && /\.nbd-vr-mi\{[^}]*min-height:48px/.test(css) && /\.nbd-vr-mi\.is-big\{[^}]*min-height:56px/.test(css) && /\.nbd-vr-chip\{[^}]*min-height:56px/.test(css));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
