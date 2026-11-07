@@ -657,6 +657,7 @@
   // bulk photo-share action, just single-row and persistent (shows current
   // state, not a one-shot button).
   async function toggleHomeownerShare(docId, btn) {
+    if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
     if (!docId || !window._customerId) return;
     var entry = (window._customerDocs || []).filter(function (d) { return d.id === docId; })[0];
     if (!entry || entry.legacy) return; // legacy rows aren't offered the button; guard anyway

@@ -205,6 +205,7 @@ window.closeTaskModal = function() {
 };
 
 window.openEventModal = function() {
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
   document.getElementById('eventTitle').value = '';
   document.getElementById('eventWhen').value = '';
   document.getElementById('eventNotes').value = '';
@@ -1229,6 +1230,7 @@ window.exitPhotoSelectMode = function() {
 // each affected tile (or falls back to a full re-render when the
 // phase changed, since tiles move between phase sections).
 window.applyBulkPhotoUpdate = async function(field, rawValue) {
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
   if (!field || !rawValue) return;
   if (!window._photoSelected || window._photoSelected.size === 0) return;
   if (!window.writeBatch || !window.db || !window.doc) return;
@@ -1276,6 +1278,7 @@ window.applyBulkPhotoUpdate = async function(field, rawValue) {
 };
 
 window.applyBulkPhotoDelete = async function() {
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
   if (!window._photoSelected || window._photoSelected.size === 0) return;
   if (!window.writeBatch || !window.db || !window.doc || !window.deleteDoc) return;
   var ids = Array.from(window._photoSelected);
@@ -1965,6 +1968,7 @@ window.quickSetSeverity = function(sev, btn) {
 };
 
 window.quickSaveMeta = async function() {
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
   // By id, not list position: a refresh while the popup is open reorders
   // _allPhotos (CRM audit 2026-11-06, CU-F03).
   var photo = (window._allPhotos || []).find(function (p) { return p && p.id === window._quickEditPhotoId; });
@@ -2017,6 +2021,7 @@ window.quickSaveMeta = async function() {
 };
 
 window.deletePhoto = async function(photoId) {
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return; // CU-F19
   // native confirm() is patched to silently return true in PWA mode
   // (standalone-compat.js), so route through nbdConfirm to get a real Cancel.
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
