@@ -1,4 +1,4 @@
-// CRM audit 2026-11-06 — six small view fixes (VW-F108, VW-F109, VW-F110, VW-F164, VW-F165, VW-F168).
+// CRM audit 2026-11-06 — seven small view fixes (VW-F108, VW-F109, VW-F110, VW-F163, VW-F164, VW-F165, VW-F168).
 // Each check executes the shipped code where it can, so a revert fails here.
 'use strict';
 const fs = require('fs');
@@ -126,6 +126,24 @@ function check(name, ok) {
       await cctx.out;
       check('VW-F109: a failed save shows an error toast', toasts.some(([m, t]) => /couldn.t save/i.test(m) && t === 'red'));
       check('VW-F109: an unreadable saved copy shows an error toast', toasts.some(([m, t]) => /couldn.t be read/i.test(m) && t === 'red'));
+    }
+
+    // ── VW-F163: the CSV import modal is keyboard-usable ─────────────
+    {
+      const di = read('docs/pro/js/data-import.js');
+      const zoneTag = (di.match(/<div id="nbd-drop-zone"[^>]*>/) || [''])[0];
+      check('VW-F163: the drop zone is focusable as a button', /role="button"/.test(zoneTag) && /tabindex="0"/.test(zoneTag) && /aria-label="[^"]+"/.test(zoneTag));
+      const kd = (di.match(/zone\.addEventListener\('keydown',[\s\S]*?\n\s*\}\);/) || [''])[0];
+      let clicks = 0, prevented = 0;
+      const handlers = {};
+      const zone = { addEventListener: (t, fn) => { handlers[t] = fn; } };
+      const input = { click: () => { clicks++; } };
+      if (kd) vm.runInNewContext(kd, { zone, input });
+      const press = (key) => handlers.keydown && handlers.keydown({ key, preventDefault: () => { prevented++; } });
+      press('Enter'); press(' '); press('a');
+      check('VW-F163: Enter and Space open the file picker, other keys do not', clicks === 2 && prevented === 2);
+      check('VW-F163: the modal joins the shared dialog contract (Escape, Tab trap, focus return)',
+        /window\.nbdOverlay\.attach\(modalEl,\s*\{[^}]*close:\s*closeImport/.test(di));
     }
 
     // ── VW-F168: the installed app description names no company ─────

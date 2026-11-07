@@ -232,6 +232,9 @@
     modalEl.querySelector('#nbd-import-x').addEventListener('click', closeImport);
     modalEl.addEventListener('click', e => { if (e.target === modalEl) closeImport(); });
     renderUploadStep();
+    // CRM audit 2026-11-06 (VW-F163): Escape, Tab trap and focus return, the
+    // shared contract every self-built CRM dialog uses (overlay-a11y.js).
+    if (window.nbdOverlay) window.nbdOverlay.attach(modalEl, { label: 'Import leads', close: closeImport });
   }
 
   function closeImport() {
@@ -242,7 +245,7 @@
   function renderUploadStep() {
     const body = modalEl.querySelector('#nbd-import-body');
     body.innerHTML = `
-      <div id="nbd-drop-zone" class="dim-bd2pxdashe-r12px-p38px20px">
+      <div id="nbd-drop-zone" class="dim-bd2pxdashe-r12px-p38px20px" role="button" tabindex="0" aria-label="Choose a CSV file to import">
         <div class="dix-fs36px-mb10px-opa07">📁</div>
         <div class="dix-fs14px-w600-ct">Drop a CSV here</div>
         <div class="dix-fs12px-cm-mb14px">or click to choose a file</div>
@@ -255,6 +258,10 @@
     const zone = body.querySelector('#nbd-drop-zone');
     const input = body.querySelector('#nbd-import-file');
     zone.addEventListener('click', () => input.click());
+    // VW-F163: the drop zone is the only way to pick a file; Enter / Space open it.
+    zone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
     input.addEventListener('change', () => {
       if (input.files && input.files[0]) handleFile(input.files[0]);
     });
