@@ -279,6 +279,8 @@ function boot(opts) {
     const fab = block('.nbd-vr-fab'), btn = block('.nbd-vr-fabbtn'), big = block('.nbd-vr-mi.is-big');
     ok('phone: bottom-left, just above the 62px bottom nav plus the safe area', /left:16px/.test(fab) && /bottom:calc\(62px \+ 14px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(fab) && !/right:/.test(fab), fab);
     ok('desktop: the same corner, 24px in', /@media \(min-width:769px\)\{\s*\.nbd-vr-fab\{ left:24px; bottom:24px; \}/.test(css));
+    ok('phone: every screen\'s end scrolls clear of the button, not only Home\'s',
+      /@media \(max-width:768px\)\{[\s\S]*?html\.nbd-vr-bar-on \.view-scroll\{ padding-bottom:calc\(80px \+ 74px \+ env\(safe-area-inset-bottom, 0px\)\) !important; \}/.test(css));
     ok('desktop: the sidebar\'s last item gets room under the button', /min-width:769px\)\{[\s\S]*?html\.nbd-vr-bar-on \.sidebar\{ padding-bottom:96px; \}/.test(css));
     ok('a 56px circle', /width:56px; height:56px/.test(btn) && /border-radius:50%/.test(btn));
     ok('brand orange from the theme token, never a hex', /background:var\(--orange\);/.test(btn) && !/#[0-9a-f]{3,8}\b/i.test(btn + fab + block('.nbd-vr-fabbadge') + block('.nbd-vr-fabdot') + block('.nbd-vr-fabdot::after') + big + block('.nbd-vr-mi') + block('.nbd-vr-dim')));

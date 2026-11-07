@@ -43,6 +43,10 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
    room as the comment above promises - the nav's 80px PLUS the button's 74px - but !important so it wins. */
 @media (max-width:768px){
   html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(80px + 74px + env(safe-area-inset-bottom, 0px)) !important; }
+  /* 2026-11-07: the round button is on EVERY screen now, so every screen's end
+     can scroll clear of it (a Settings > Estimates warning's last line sat under
+     it at 412 px, caught by the phone-views E2E). Home keeps the rule above. */
+  html.nbd-vr-bar-on .view-scroll{ padding-bottom:calc(80px + 74px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 .nbd-vr-fabbtn{
   position:relative; width:56px; height:56px; padding:0; margin:0;
