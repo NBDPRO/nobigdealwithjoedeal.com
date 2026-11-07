@@ -162,7 +162,7 @@
       const i = keys.indexOf(_stageKeyOf(l));
       return i === -1 ? keys.length : i;   // pipeline order, unknowns last
     },
-    value:    (l) => Number(l.jobValue) || 0,
+    value:    (l) => _money(l.jobValue),
     age:      (l) => { const d = _created(l);  return d ? d.getTime() : 0; },
     activity: (l) => { const d = _activity(l); return d ? d.getTime() : 0; },
   };
@@ -207,7 +207,7 @@
     const arrow = (key) => _sortKey === key ? (_sortDir === 1 ? ' ▲' : ' ▼') : '';
     const rows = _sorted(_lastList).map((l) => {
       const sk = _stageKeyOf(l);
-      const val = Number(l.jobValue) || 0;
+      const val = _money(l.jobValue);
       const created = _created(l);
       const act = _activity(l);
       const ageD = _ageDays(created);
@@ -287,12 +287,20 @@
     return { next: k, msg: '' };
   }
 
+  // CRM audit 2026-11-06 (PL-F28): the ONE money reader, as crm-pipeline.js
+  // _crmMoney uses, so the list and the board agree on legacy '$45,000' text.
+  function _money(v) {
+    const R = window.NBDCustomerEstimateRows;
+    if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+    return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+  }
+
   function _renderFieldCards(wrap, stageKeys, labelFor) {
     const sortOpts = [['activity', 'Last touch'], ['value', 'Value'], ['name', 'Name'], ['stage', 'Stage'], ['age', 'Age']]
       .map(([k, lbl]) => '<option value="' + k + '"' + (k === _sortKey ? ' selected' : '') + '>' + lbl + '</option>').join('');
     const cards = _sorted(_lastList).map((l) => {
       const sk = _stageKeyOf(l);
-      const val = Number(l.jobValue) || 0;
+      const val = _money(l.jobValue);
       const actD = _ageDays(_activity(l));
       const phone = _digits(l.phone);
       const addr = (l.address || '').trim();

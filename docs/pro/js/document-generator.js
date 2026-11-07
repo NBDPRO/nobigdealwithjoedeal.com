@@ -3637,14 +3637,14 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
     fields.forEach(f => {
       const id = 'docgen_' + f.name;
       if (f.type === 'textarea') {
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
           <textarea id="${id}" rows="3" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;resize:vertical;font-family:inherit;" placeholder="${f.label}"></textarea></div>`;
       } else if (f.type === 'select') {
         const opts = (f.options||[]).map(o => `<option value="${o}"${f.default === o ? ' selected' : ''}>${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('');
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}</label>
           <select id="${id}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;">${opts}</select></div>`;
       } else {
-        fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
+        fieldsHTML += `<div style="margin-bottom:14px;"><label for="${id}" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
           <input type="text" id="${id}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;" placeholder="${f.label}"></div>`;
       }
     });
@@ -3657,11 +3657,11 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         <div style="padding:20px 24px;border-bottom:2px solid #eee;display:flex;justify-content:space-between;align-items:center;">
           <div><div style="font-size:10px;color:#1a3057;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">Generate Document</div>
           <div style="font-size:18px;font-weight:700;color:#12223d;font-family:'Helvetica Neue',Arial,sans-serif;">${docName}</div></div>
-          <button data-dg-action="closeFillModal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;">&times;</button>
+          <button type="button" data-dg-action="closeFillModal" aria-label="Close" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;">&times;</button>
         </div>
         <div style="flex:1;overflow-y:auto;padding:20px 24px;">
           <div style="margin-bottom:16px;">
-            <label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Auto-fill from Lead</label>
+            <label for="docgen_leadSelect" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Auto-fill from Lead</label>
             <select id="docgen_leadSelect" data-dg-leadselect style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;">${leadOptions}</select>
           </div>
           <div style="border-top:1px solid #eee;padding-top:16px;">${fieldsHTML}</div>
@@ -3672,6 +3672,9 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         </div>
       </div>`;
     document.body.appendChild(modal);
+    // CRM audit 2026-11-06 (VW-F56): Escape, Tab trap and focus return, the
+    // shared contract (overlay-a11y.js). Escape does what Cancel does.
+    if (window.nbdOverlay) window.nbdOverlay.attach(modal, { label: 'Generate ' + docName, close: () => modal.remove() });
 
     // Wave 28: change-delegate for the lead-select (replaces inline onchange).
     const _docgenLeadSelect = modal.querySelector('[data-dg-leadselect]');

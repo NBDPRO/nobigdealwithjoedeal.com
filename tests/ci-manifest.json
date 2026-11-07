@@ -198,6 +198,7 @@
     "photo-editor-annotation-persistence.test.js",
     "photo-offline-queue.test.js",
     "photo-queue-durability.test.js",
+    "views-p3d-2026-11-06.test.js",
     "photo-queue-loss-witness.test.js",
     "customer-stage-advance.test.js",
     "customer-invoice-markpaid.test.js",

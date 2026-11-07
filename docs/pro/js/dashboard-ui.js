@@ -1648,6 +1648,19 @@ const openUploadDoc = function(){
 // Blank button ever existed. goTo('docs') now calls it after hydration; it
 // reads data-target from the data-action="docgen" rows and is idempotent.
 function _injectBlankButtons() {
+  // CRM audit 2026-11-06 (VW-F56): rows and category headers are divs with
+  // data-action. Make them reachable by Tab and open them with Enter / Space.
+  document.querySelectorAll('.tl-doc-row, .tl-cat-header').forEach(function(el) {
+    if (el.hasAttribute('data-kbd')) return;
+    el.setAttribute('data-kbd', '');
+    el.tabIndex = 0;
+    if (el.classList.contains('tl-cat-header')) el.setAttribute('role', 'button');
+    el.addEventListener('keydown', function(e) {
+      if (e.target !== el || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      el.click();
+    });
+  });
   document.querySelectorAll('.tl-doc-row').forEach(function(row) {
     if (row.querySelector('.tl-doc-blank')) return;
     var type = row.getAttribute('data-action') === 'docgen' ? (row.getAttribute('data-target') || '') : '';
