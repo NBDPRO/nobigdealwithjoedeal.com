@@ -11,6 +11,56 @@ Jo's answers on 2026-11-06:
 Jo then asked for all phases to be written out first and worked through
 without check-ins until done.
 
+## Status, 2026-11-06 (end of the build session): all six phases built, dark
+
+Every phase below (0 to 5) is built and committed on `feat/nbd-os-plan`, one
+commit per phase. Nothing is on for anyone until Jo flips a flag.
+
+**To try it** (Firestore console, `feature_flags/{your uid}` first, then `_default`):
+1. `osSystemLayer: true` turns on:
+   - the tray in the header
+   - Control Center and Notification Center
+   - Spotlight entries
+   - the boot screen and lock screen
+
+   This applies over whatever layout you use.
+2. `osLayout: true` puts **NBD OS** in Settings, then Appearance, then Layouts. Pick it there:
+   - on a laptop: the desktop, windows, Overview, desks and shelf
+   - on the iPhone: the home screen, dock bar and app switcher
+
+**What was verified, and how:**
+- **Node tests.** Four new suites:
+  - `nbd-os-flags` (20)
+  - `nbd-os-system` (65)
+  - `nbd-os-layout` (87)
+  - `ci-manifest` entries for all three
+
+  Each escaping and guard check was break-tested: mutate the code, watch it fail, restore.
+- **Existing suites still green:** layout system and layouts, theme contract and contrast, boot budget (unchanged: the system layer is a lazy ScriptLoader load, not a `<script>` tag), inline-style ratchet, UI foundation and font consistency.
+- **Browser harness** (scratchpad, not committed). It runs the REAL `layout-system.js` engine with stubbed Firebase. Checked:
+  - at 1024 px, 375 px and 360 px
+  - in nbd-original (dark) and paper (light)
+  - opening, snapping (drag and keyboard), minimising and closing windows
+  - reload restore, and going back to Classic (every view returns to `.content` in its original order)
+  - phone apps, the switcher and edit mode
+  - crossing the phone breakpoint
+  - lock and auto-lock, the boot screen, desks, Overview, pins, all three button styles
+  - no sideways scroll and no tap target under 44 px on the phone
+- **Not verified:**
+  - Against the live dashboard with real auth and data (the harness stubs both).
+  - On a real iPhone: long-press timing, swipe-up on the bar, the safe area.
+  - The Playwright suites (`ds-layouts-phone-fit`, visual) don't run in this checkout because Playwright isn't installed here.
+
+  Jo's daylight iPhone check is the next step, before turning the flags on for anyone else.
+
+**Things a reviewer should know:**
+- A window holds the real `#view-<id>` node. Views that assume they're the only visible one can show stale data in a background window until it's focused: focusing a window calls `goTo(id)`, which re-runs the view's own refresh.
+- The layout follows the CRM's router. It watches which `.view` gets `active` and reacts only to a view's class changing, so `goTo()` stays the one router. That filter fixed a real bug found in testing: the layout's own desk changes were being "routed" back.
+- Auto-lock is a privacy cover, not security. It's off by default, and sign-out is unchanged.
+- The lock screen shows counts only.
+- System sounds are off by default.
+- Per-member state (windows, desks, pins, icons, dock, recents) goes in `userSettings/{uid}.layout.layoutState.os`. It's normalised and well under the registry's 12 KB cap. DND, auto-lock, sounds and button style are this device's own (localStorage).
+
 ## Shape of the solution
 
 Two things, deliberately separate:
