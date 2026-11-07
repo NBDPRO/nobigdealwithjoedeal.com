@@ -1,5 +1,13 @@
 # OSS tools deep dive: what the awesome-lists add (2026-11-06)
 
+> **Update 2026-11-07: two corrections and one item done.**
+> - **Top-10 #1 (OSRM `/trip`) was overstated.** The day route *is* already reordered. `docs/pro/js/layouts/routeplan.js` runs nearest-neighbour plus 2-opt from a fixed first stop, but on straight-line miles. `/trip` would only switch that ordering to real road times, which matters most around the Ohio River crossings.
+>   - It also needs a new `/v1/trip` route in `routing/osrm/proxy.py`, a rebuilt image and a Cloud Run redeploy. `routing/osrm/deploy.sh` is Joe's to run.
+>   - So it is **parked until Joe wants that redeploy**. It is no longer the first thing to build.
+> - **Top-10 #2 (property tests) is done, without the fast-check package:** `tests/deposit-rule-properties-2026-11-07.test.js` checks eight properties over the deposit rule, each break-tested.
+>   - CI's "Unit suites (manifest)" job installs `functions/` packages only, never `tests/`, so a dev dependency would not exist there. The first push failed that way.
+>   - The suite now uses a small seeded generator in the file: the same properties, reproducible, and it prints the input that broke it.
+
 Jo asked for a deep dive into GitHub and the permissively licensed
 "awesome-*" lists. The goal: tools, libraries, features and functions the
 homeowner site or the NBD Pro CRM is missing, or could do better.
