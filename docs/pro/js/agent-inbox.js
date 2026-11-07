@@ -60,6 +60,9 @@
   const DRAFTS = ['draft_text', 'draft_email', 'social_draft'];
   const isDraft = (it) => !!it && DRAFTS.indexOf(it.kind) !== -1;
   let _items = [];
+  // The last load failed (offline / denied). paint() then says so instead of
+  // "All clear" (CRM audit 2026-11-06, VW-F157).
+  let _loadFailed = false;
   let _sentPhone = [];
   let _checks = {};
   let _busy = false;
@@ -327,7 +330,7 @@
     const pend = sortItems(_items);
     const notesAndReminders = pend.filter((i) => i.kind === 'note' || i.kind === 'reminder').length;
     const head = document.getElementById('aiCount');
-    if (head) head.textContent = pend.length ? pend.length + ' waiting' : 'All clear';
+    if (head) head.textContent = pend.length ? pend.length + ' waiting' : (_loadFailed ? 'Could not load' : 'All clear');
     const bulk = document.getElementById('aiBulk');
     if (bulk) { bulk.hidden = notesAndReminders < 2; bulk.textContent = 'Add all ' + notesAndReminders + ' notes & reminders'; }
     const checked = bulkIds(pend, true).length;
@@ -341,6 +344,7 @@
     const social = document.getElementById('aiSocialLink');
     if (social) social.hidden = !_socialSent;
     list.innerHTML = (pend.length ? pend.map(rowHtml).join('')
+      : _loadFailed ? '<div class="ai-empty" role="alert">Could not load the inbox — check your connection, then close and open it again. Nothing was marked done.</div>'
       : '<div class="ai-empty">Nothing waiting. When the bots file notes, reminders, reports or drafts, they show up here for you to add to the CRM, send yourself, or toss.</div>')
       + (_sentPhone.length ? '<div class="ai-meta">Sent from your phone (last 14 days)</div>' + _sentPhone.map(sentRowHtml).join('') : '');
   }
@@ -372,7 +376,8 @@
     document.body.appendChild(ov);
     const first = ov.querySelector(FOCUSABLE);
     if (first) first.focus();
-    try { _items = await load(); } catch (e) { _items = []; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
+    _loadFailed = false;
+    try { _items = await load(); } catch (e) { _items = []; _loadFailed = true; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
     try { _sentPhone = await loadSentPhone(); } catch (e) { _sentPhone = []; console.warn('[agent-inbox] sent list failed:', (e && (e.code || e.message)) || e); }
     _checks = {};
     paint();

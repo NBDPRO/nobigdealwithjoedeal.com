@@ -808,6 +808,10 @@ window.NBDDocGen = {
               showToast('\u2713 Document generated \u2014 use Print or Download PDF to save a copy', 'success');
             }
           }
+          // Tell the viewer whether anything was filed on the customer, so it
+          // doesn't add "Document saved" for a document that was never attached
+          // (no lead picked, or the write failed) - CRM audit 2026-11-06, VW-F51.
+          return attachedToLead ? true : { notSaved: true };
         },
         // Called by NBDDocViewer after the user finalizes signatures
         // inside the iframe. Re-uploads the signed HTML to the same
