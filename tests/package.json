@@ -131,7 +131,6 @@
     "@axe-core/playwright": "4.14.0",
     "@firebase/rules-unit-testing": "^6.0.0",
     "@playwright/test": "^1.64.1",
-    "fast-check": "4.10.2",
     "firebase": "^13.1.0",
     "firebase-tools": "^15.28.2",
     "puppeteer-core": "^25.16.0"
