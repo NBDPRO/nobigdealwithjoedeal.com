@@ -527,15 +527,16 @@
   function render() {
     var el = root();
     var live = {};
-    if (el) el.querySelectorAll('[data-cc-audio] audio').forEach(function (a) { live[a.parentNode.getAttribute('data-cc-audio')] = a; });
+    var canQ = !!(el && typeof el.querySelectorAll === 'function');
+    if (canQ) el.querySelectorAll('[data-cc-audio] audio').forEach(function (a) { live[a.parentNode.getAttribute('data-cc-audio')] = a; });
     renderList();
     Object.keys(live).forEach(function (id) {
-      var slot = el && el.querySelector('[data-cc-audio="' + CSS.escape(id) + '"]');
+      var slot = canQ && el.querySelector('[data-cc-audio="' + CSS.escape(id) + '"]');
       if (slot && !slot.querySelector('audio')) slot.appendChild(live[id]);
     });
   }
   // VW-F15: the recordings are blobs held in memory; free them when the page goes.
-  window.addEventListener('pagehide', function () {
+  if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', function () {
     Object.keys(state.blobUrls).forEach(function (k) { try { URL.revokeObjectURL(state.blobUrls[k]); } catch (_) {} });
     state.blobUrls = {};
   });
