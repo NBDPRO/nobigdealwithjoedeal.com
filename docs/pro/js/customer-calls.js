@@ -173,7 +173,9 @@
     var acts = c.storagePath ? '<button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button>' : '';
     if (!isViewer()) {
       acts += '<button type="button" class="btn pc-play" data-calls-act="' + (c.handledAtMs ? 'pc-unhandled' : 'pc-handled') + '" data-call-id="' + esc(id) + '">' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' +
-        '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>';
+        // A call matched only by number is not filed on any customer, and the
+        // server refuses to move it (steward review of #2946): no move button.
+        (c._byNumber ? '' : '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>');
     }
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
@@ -471,7 +473,21 @@
   var tries = 0;
   (function wait() {
     var ready = window.db && window.auth && window.auth.currentUser && window._customerId && window.getDocs && window.collection;
-    if (ready) { load(); return; }
+    if (ready) {
+      load();
+      // The by-number half reads the lead's phones from window._leadDoc, which
+      // lands after _customerId on a cold load, so that first load had no
+      // number to match (steward review of #2946). Load once more when the lead
+      // doc lands (checked for ~12 s); filed calls show straight away.
+      if (!window._leadDoc) {
+        var leadTries = 0;
+        (function waitLead() {
+          if (window._leadDoc) { load(); return; }
+          if (++leadTries < 40) setTimeout(waitLead, 300);
+        })();
+      }
+      return;
+    }
     if (++tries < 100) setTimeout(wait, 300);
   })();
   window.addEventListener('nbd:data-refreshed', function () { load(); });

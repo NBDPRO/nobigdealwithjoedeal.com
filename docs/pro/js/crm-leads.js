@@ -481,10 +481,17 @@ async function saveLead(){
       // Google Drive folder for this customer (approved additive field, CRM
       // audit 2026-11-06, CU-F07). Omitted when the field isn't on the page;
       // anything that isn't an http(s) URL saves as '' (no javascript: links).
-      ...(document.getElementById('lDriveUrl') ? { driveFolderUrl: (function (v) {
+      // Blank clears it; a bare domain gets https://; anything else that is not
+      // an http(s) link is left out, so an edit keeps the stored link, and the
+      // rep is told (steward review of #2946).
+      ...(document.getElementById('lDriveUrl') ? (function (v) {
         v = String(v || '').trim();
-        return /^https?:\/\/[^\s]+$/i.test(v) ? v : '';
-      })(document.getElementById('lDriveUrl').value) } : {}),
+        if (!v) return { driveFolderUrl: '' };
+        if (!/^[a-z][a-z0-9+.-]*:/i.test(v) && /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(v)) v = 'https://' + v;
+        if (/^https?:\/\/[^\s]+$/i.test(v)) return { driveFolderUrl: v };
+        if (typeof window.showToast === 'function') window.showToast('Drive folder link not saved: paste a link that starts with https://', 'warning');
+        return {};
+      })(document.getElementById('lDriveUrl').value) : {}),
       // Property intel + parcel: written ONLY when Pull Property Intel ran in
       // this modal session (window._modalIntel set). Same omit-when-unknown
       // rule as `trades` and `stage` above: this payload is spread into

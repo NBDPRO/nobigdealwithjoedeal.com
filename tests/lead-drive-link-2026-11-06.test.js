@@ -3,7 +3,8 @@
  * 2026-11-06, CU-F07): a Google Drive folder link on the lead.
  *
  * - Add/Edit Lead modal (dashboard.html #lDriveUrl) saves `driveFolderUrl`.
- * - Only an http(s) URL is stored; anything else (javascript:, text) saves ''.
+ * - Only an http(s) URL is stored (a bare domain gets https://). Anything else
+ *   (javascript:, text) is left out of the save and the rep is told; blank clears it.
  * - Omitted entirely when the field is not on the page (a stale cached page
  *   must not blank a stored link) — same omit-when-unknown rule as trades.
  * - The customer card shows it as a link (customer.html #infoDriveFolder),
@@ -63,8 +64,19 @@ async function save(driveField) {
     ok('an https link is stored, trimmed', p && p.driveFolderUrl === url, p && p.driveFolderUrl);
   }
   {
+    // Since the steward review of #2946: a non-link is left out of the save
+    // (an edit keeps the stored link, and the rep is told), instead of being
+    // written as '' (which wiped a stored link). Still never stored.
     const p = await save('javascript:alert(1)');
-    ok('a javascript: value is stored as ""', p && p.driveFolderUrl === '');
+    ok('a javascript: value is never stored (the key is left out)', p && !('driveFolderUrl' in p), p && JSON.stringify(p.driveFolderUrl));
+  }
+  {
+    const p = await save('drive.google.com/drive/folders/TEST-FOLDER-2');
+    ok('a pasted link without https:// gets it', p && p.driveFolderUrl === 'https://drive.google.com/drive/folders/TEST-FOLDER-2', p && p.driveFolderUrl);
+  }
+  {
+    const p = await save('see the shared folder');
+    ok('plain text is not stored either', p && !('driveFolderUrl' in p));
   }
   {
     const p = await save('');

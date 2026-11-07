@@ -23,3 +23,13 @@ textContent, new tab, `rel=noopener noreferrer`).
 ## Proof
 `tests/customer-calls-by-number-2026-11-06.test.js` (real fetchCalls, stubbed Firestore, 11/11) and
 `tests/lead-drive-link-2026-11-06.test.js` (real saveLead, 10/10); both fail on main.
+
+## Update — PR steward review (2026-11-06 evening)
+
+Three review items, fixed on the same branch (new commit, no force-push):
+
+1. **No move on a by-number row.** A call matched only by number has no `leadId`, and `callCenterAction` `move` refuses such a call ("not filed on a customer — attach it instead"). `renderPhoneCall` no longer offers "Wrong customer → move to…" on those rows. ✓ Handled stays, since the server allows it on an unfiled call.
+2. **Cold load waits for the lead doc.** `_customerId` lands before `_leadDoc`, so `leadDigits()` was empty and the by-number query was skipped. The list now loads at once (filed calls show straight away), then loads again when `_leadDoc` lands (watched for about 12 s), so the by-number calls appear.
+3. **Drive link input.** A pasted link without `https://` gets it added. Any other non-link is left out of the save (an edit keeps the stored link) and the rep sees a toast. A blank box still clears the link. `lead-drive-link-2026-11-06.test.js` changes its expected value from "saved as an empty string" to "never stored".
+
+Test: `tests/customer-calls-review-2026-11-06.test.js` (9 checks; 3 fail on the PR head before this commit).
