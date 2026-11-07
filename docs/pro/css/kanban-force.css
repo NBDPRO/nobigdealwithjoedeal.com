@@ -1174,6 +1174,12 @@
      job-type banner spilled under the table (CRM walk 2026-11-07, PL-15).
      The list now takes the leftover space the same way the board does. */
   body.crm-list-mode #view-crm > .crm-list-wrap{ flex:1 1 0%; min-height:0; }
+  /* Desktop: the fixed FAB stack (add lead, quick capture, voice) sits over
+     the list's right edge, where every row's Call / Open actions are; keep
+     them clear of it. Phones keep their own clearance rule below. */
+  @media (min-width:769px){
+    body.crm-list-mode #view-crm > .crm-list-wrap{ padding-right:76px; }
+  }
   /* Phones: the last card's CALL/TEXT/MAP/OPEN row could not scroll clear of
      the fixed FAB stack + tab bar (QA 2026-09-27: OPEN covered). Same 150px
      clearance the D2D view uses. */

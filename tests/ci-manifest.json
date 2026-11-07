@@ -601,6 +601,7 @@
     "messaging-zero-cap-2026-10-19.test.js",
     "email-queue-recipients-2026-10-19.test.js",
     "r6-texting-2026-10-07.test.js",
+    "pipeline-list-overlap-2026-11-07.test.js",
     "sms-dnc-2026-10-05.test.js",
     "sms-consent-quiet-switch-2026-10-05.test.js",
     "texting-r2-fixes-2026-10-06.test.js",
