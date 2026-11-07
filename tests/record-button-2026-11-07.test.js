@@ -96,7 +96,7 @@ function makeDom() {
     ev.stopPropagation = () => { ev._stop = true; };
     (docListeners.true[type] || []).slice().forEach((fn) => { if (!ev._stop) fn(ev); });
     let n = target;
-    while (n && !ev._stop) { (n.listeners[type] || []).slice().forEach((fn) => fn(ev)); n = n.parentNode; }
+    while (n && !ev._stop) { ev.currentTarget = n; (n.listeners[type] || []).slice().forEach((fn) => fn(ev)); n = n.parentNode; }
     if (!ev._stop) (docListeners.false[type] || []).slice().forEach((fn) => fn(ev));
     return ev;
   }
@@ -116,12 +116,16 @@ function boot(opts) {
   document.body.appendChild(other);
   const store = { nbd_vr_unfiled: String(opts.unfiled == null ? 2 : opts.unfiled) };
   const calls = [];
+  const timers = [];
   const win = {
     document, console, URL, URLSearchParams, Promise,
     location: { search: '', pathname: opts.path || '/pro/dashboard', href: 'https://x' + (opts.path || '/pro/dashboard'), hash: '' },
     history: { replaceState() {} },
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
-    addEventListener() {}, setTimeout: () => 0,
+    addEventListener() {},
+    // timers are held, not run: the test fires the long-press hold (500 ms) itself
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].fn = null; },
+    navigator: { vibrate: (ms) => calls.push(['vibrate', ms]) },
     showToast: (m, tone) => calls.push(['toast', m, tone]),
     // the recorder is already loaded (its idle preload ran), so load() resolves at once
     NBDVisitRecorder: { getState: () => ({ active: false }), subscribe() {}, wire() {}, refreshConfig() {} },
@@ -145,7 +149,10 @@ function boot(opts) {
   const tick = () => new Promise((r) => setImmediate(r));
   async function tap(el) { fire(el, 'pointerdown'); fire(el, 'click'); await tick(); await tick(); }
   const key = (k, el) => fire(el || document.activeElement, 'keydown', { key: k });
-  return { win, document, fire, fab, btn, badge, menu, items, dim, isOpen, tap, key, calls, store, other, label: (el) => el.textContent.trim() };
+  /** Run the pending long-press timer(s) (500 ms), as if the finger stayed down. */
+  const hold = () => timers.filter((t) => t.ms === 500 && t.fn).forEach((t) => { const fn = t.fn; t.fn = null; fn(); });
+  const ptr = (el, type, o) => fire(el, type, Object.assign({ button: 0, pointerId: 1, clientX: 40, clientY: 700 }, o || {}));
+  return { win, document, fire, fab, btn, badge, menu, items, dim, isOpen, tap, key, calls, store, other, hold, ptr, timers, label: (el) => el.textContent.trim() };
 }
 
 (async () => {
@@ -272,6 +279,56 @@ function boot(opts) {
     ok('a failed recorder load shows a toast, not a dead button', !threw && P.calls.some((c) => c[0] === 'toast' && /Could not load the recorder/.test(c[1]) && c[2] === 'error'), JSON.stringify(P.calls));
   }
 
+  console.log('\n4b. long-press: hold, release, it records (skips the menu)');
+  {
+    const P = boot();
+    ok('control: the hold is wired onto the button when the menu file loads', P.btn.getAttribute('data-nbd-hold') === '1');
+    P.ptr(P.btn, 'pointerdown');
+    ok('a press alone does not arm it yet', !P.fab.classList.contains('is-armed'));
+    P.hold();
+    ok('held 500 ms: armed (red ring + "Release to record")', P.fab.classList.contains('is-armed'));
+    ok('...with a short buzz where the phone supports it', P.calls.some((c) => c[0] === 'vibrate'));
+    const up = P.ptr(P.btn, 'pointerup');
+    await new Promise((r) => setImmediate(r)); await new Promise((r) => setImmediate(r));
+    const b = P.calls.find((c) => c[0] === 'begin');
+    ok('release starts the recording through the launcher, source fab', !!b && b[1].source === 'fab', JSON.stringify(P.calls));
+    ok('...and disarms', !P.fab.classList.contains('is-armed') && up.defaultPrevented === true);
+    P.fire(P.btn, 'click'); await new Promise((r) => setImmediate(r)); await new Promise((r) => setImmediate(r));
+    ok('the click that ends the hold does NOT open the menu', !P.isOpen());
+    await new Promise((r) => setTimeout(r, 850));
+    await P.tap(P.btn);
+    ok('a later, ordinary tap opens the menu again (the swallow expires)', P.isOpen());
+  }
+  {
+    const P = boot();
+    P.ptr(P.btn, 'pointerdown'); P.ptr(P.btn, 'pointerup');
+    await P.tap(P.btn);
+    ok('a short tap: no recording, the menu opens', P.isOpen() && !P.calls.some((c) => c[0] === 'begin'));
+  }
+  {
+    const P = boot();
+    P.ptr(P.btn, 'pointerdown'); P.hold(); P.ptr(P.btn, 'pointermove', { clientX: 70 });
+    ok('sliding away (>12 px) disarms', !P.fab.classList.contains('is-armed'));
+    P.ptr(P.btn, 'pointerup'); await new Promise((r) => setImmediate(r));
+    ok('...and releasing then records nothing', !P.calls.some((c) => c[0] === 'begin'));
+    P.ptr(P.btn, 'pointerdown'); P.ptr(P.btn, 'pointermove', { clientX: 46 }); P.hold();
+    ok('a small wobble (<12 px) still arms', P.fab.classList.contains('is-armed'));
+    P.ptr(P.btn, 'pointercancel');
+    ok('the browser taking the touch (pointercancel) disarms', !P.fab.classList.contains('is-armed'));
+    P.ptr(P.btn, 'pointerup'); await new Promise((r) => setImmediate(r));
+    ok('...and records nothing', !P.calls.some((c) => c[0] === 'begin'));
+    P.ptr(P.btn, 'pointerdown', { button: 2 }); P.hold();
+    ok('a right-click / non-primary button never arms', !P.fab.classList.contains('is-armed'));
+    const cm = P.fire(P.btn, 'contextmenu');
+    ok('the long-press context menu / callout is suppressed on the button', cm.defaultPrevented === true);
+  }
+  {
+    const P = boot();
+    await P.tap(P.btn);
+    P.ptr(P.btn, 'pointerdown'); P.hold();
+    ok('with the menu open, a hold does not arm (the tap closes the menu instead)', !P.fab.classList.contains('is-armed'));
+  }
+
   console.log('\n5. CSS: place, size, tokens, hiding');
   {
     const css = read('docs/pro/css/visit-recorder.css');
@@ -296,6 +353,8 @@ function boot(opts) {
       /z-index:10010/.test(block('.nbd-vr-dim')) && /z-index:10011/.test(block('.nbd-vr-fab.is-open')) && /z-index:900/.test(fab));
     ok('the menu opens up and to the right of the button', /left:0; bottom:66px;/.test(block('.nbd-vr-menu')) && /transform-origin:0 100%/.test(block('.nbd-vr-menu')));
     ok('motion uses the duration tokens and stops for reduced motion', /animation:nbd-vr-menu-in var\(--ui-dur-enter\)/.test(css) && /prefers-reduced-motion: reduce\)\{ \.nbd-vr-menu\{ animation:none; \} \}/.test(css));
+    ok('long-press: no callout, selection or double-tap zoom on the button', /-webkit-touch-callout:none; -webkit-user-select:none; user-select:none; touch-action:manipulation;/.test(btn));
+    ok('long-press: armed is a red ring from the token, and a "Release to record" hint', /\.nbd-vr-fab\.is-armed \.nbd-vr-fabbtn\{ box-shadow:0 0 0 4px var\(--red\)/.test(css) && /\.nbd-vr-fab\.is-armed::after\{\s*content:"Release to record"/.test(css));
     ok('the old pill bar\'s rules are gone', !/\.nbd-vr-bar\{|\.nbd-vr-barbtn|\.nbd-vr-unfiled\{/.test(css));
     ok('Island\'s own sheet hides the button too', /html\[data-layout="island"\] \.nbd-vr-fab \{ display: none !important; \}/.test(read('docs/pro/css/layouts/island.css')));
   }
@@ -306,7 +365,7 @@ function boot(opts) {
     const ids = (/const FAB_IDS = \[([\s\S]*?)\];/.exec(coord) || [])[1] || '';
     ok('the FAB coordinator hides it whenever a blocking modal is open', /'nbd-vr-fab'/.test(ids), ids);
     const L = read('docs/pro/js/visit-recorder-launcher.js');
-    ok('the menu file loads with the recorder (FILES), not at boot', /'\/pro\/js\/visit-recorder-menu\.js\?v=\d+'/.test((/var FILES = \[([\s\S]*?)\];/.exec(L) || [])[1] || ''));
+    ok('the menu file loads with the recorder (FILES), not at boot', /'\/pro\/js\/visit-recorder-menu\.js\?v=([2-9]|\d\d+)'/.test((/var FILES = \[([\s\S]*?)\];/.exec(L) || [])[1] || ''));
     const html = read('docs/pro/dashboard.html');
     ok('dashboard.html does not load the menu file at boot (the shipped-bytes budget)', !/visit-recorder-menu\.js/.test(html));
     ok('the launcher is still a deferred boot script', /<script defer src="js\/visit-recorder-launcher\.js\?v=\d+"><\/script>/.test(html));
@@ -319,6 +378,7 @@ function boot(opts) {
     ok('menu: no innerHTML and no inline styles (strict CSP)', !/\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML|\.style\.|setAttribute\(\s*['"]style/.test(M.replace(/\/\*[\s\S]*?\*\//g, '')));
     ok('menu: Record and Recent ride the launcher\'s own delegates (one path for every entry point)',
       /setAttribute\('data-nbd-record-visit', ''\)/.test(M) && /setAttribute\('data-source', 'fab'\)/.test(M) && /setAttribute\('data-nbd-recent-visits', ''\)/.test(M));
+    ok('demo: every phone screen gets the strip\'s room too, not only Home', /html\.nbd-demo\.nbd-vr-bar-on \.view-scroll \{ padding-bottom: calc\(80px \+ 74px \+ 50px/.test(read('docs/pro/css/demo-mode.css')) && /demo-mode\.css\?v=8'/.test(read('docs/pro/js/demo-mode.js')));
     ok('demo strip lifts above the button on every screen (not only Home)', /html\.nbd-demo\.nbd-vr-bar-on \.nbd-demo-strip \{ bottom: calc\(138px/.test(read('docs/pro/css/demo-mode.css')));
   }
 

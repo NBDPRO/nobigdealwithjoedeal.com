@@ -55,9 +55,19 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
   background:var(--orange); color:var(--accent-fg);
   box-shadow:var(--ui-elev-3);
   cursor:pointer; -webkit-tap-highlight-color:transparent;
+  /* a long-press records (visit-recorder-menu.js): no callout, selection or double-tap zoom in the way */
+  -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; touch-action:manipulation;
   transition:transform var(--ui-dur-press) var(--ui-ease);
 }
 .nbd-vr-fabbtn:active{ transform:scale(var(--ui-press-scale)); }
+/* held long enough: armed. A red ring, and a hint to let go */
+.nbd-vr-fab.is-armed .nbd-vr-fabbtn{ box-shadow:0 0 0 4px var(--red), var(--ui-elev-3); transform:scale(1.06); }
+.nbd-vr-fab.is-armed::after{
+  content:"Release to record"; position:absolute; left:66px; top:50%; transform:translateY(-50%);
+  padding:8px 12px; border-radius:var(--ui-radius-pill); white-space:nowrap; pointer-events:none;
+  background:var(--s2); color:var(--t); border:1px solid var(--br); box-shadow:var(--ui-elev-2);
+  font-size:14px; font-weight:700;
+}
 .nbd-vr-fabbtn:focus-visible{ outline:none; box-shadow:var(--ui-focus-ring), var(--ui-elev-3); }
 /* a record dot, not a mic: white disc, red centre */
 .nbd-vr-fabdot{

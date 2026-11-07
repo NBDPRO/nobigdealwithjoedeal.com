@@ -39,7 +39,7 @@
     '/pro/js/visit-recorder-ui.js?v=' + V,
     // the record button's menu (2026-11-07): lazy with the rest, so the boot
     // file only draws the button and its badge (the dashboard's script budget)
-    '/pro/js/visit-recorder-menu.js?v=1',
+    '/pro/js/visit-recorder-menu.js?v=2',
   ];
   // PR 2: the one "N unfiled visits" Today row. Its own file so the Today PRs are
   // untouched, and best-effort: the recorder works without it.
