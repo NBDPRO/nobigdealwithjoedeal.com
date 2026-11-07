@@ -65,9 +65,12 @@
       css: typeof raw.css === 'string' && /^css\/layouts\/[a-z0-9-]+\.css$/.test(raw.css) ? raw.css : null,
       // Shared building blocks (js/layouts/kit.js + css/layouts/kit.css) this
       // layout needs BEFORE its own script runs. Loaded once, shared, kept.
+      // Any same-origin file under js/ or css/ (Field needs js/qr-code.js and
+      // js/review-handoff.js), with an optional ?v=<digits> cache tag. Segments
+      // are [a-z0-9-] only, so no protocol, //, .., absolute path or other query.
       needs: {
-        script: pathList(raw.needs && raw.needs.script, /^js\/layouts\/[a-z0-9-]+\.js$/),
-        css: pathList(raw.needs && raw.needs.css, /^css\/layouts\/[a-z0-9-]+\.css$/),
+        script: pathList(raw.needs && raw.needs.script, /^js\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.js(?:\?v=\d{1,6})?$/),
+        css: pathList(raw.needs && raw.needs.css, /^css\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.css(?:\?v=\d{1,6})?$/),
       },
       supports: {
         wallpaper: supports.wallpaper !== false,
