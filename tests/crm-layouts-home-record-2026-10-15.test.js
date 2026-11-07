@@ -143,7 +143,8 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     Object.keys(insets).forEach((id) => {
       const css = C(id);
       const sel = insets[id].replace('.', '\\.');
-      const rule = (css.match(new RegExp('html\\[data-layout="' + id + '"\\] ' + sel + ' \\{[^}]*\\}')) || [''])[0];
+      // Mission's rules are scoped to its own root (#nbdMissionRoot, 2026-11-07) so its "mc-" classes cannot style Messaging Center or Month Close.
+      const rule = (css.match(new RegExp('html\\[data-layout="' + id + '"\\] (?:#nbdMissionRoot )?' + sel + ' \\{[^}]*\\}')) || [''])[0];
       const bottom = id === 'mission' ? /\.mc-wrap \{[^}]*safe-area-inset-bottom/.test(css) : /safe-area-inset-bottom/.test(rule);
       ok(id + ' ' + insets[id] + ' pads the top inset' + (id === 'mission' ? ' (and .mc-wrap the bottom)' : ' and the bottom inset'), /safe-area-inset-top/.test(rule) && bottom, rule);
     });
@@ -349,8 +350,8 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
       ['inbox', 'html[data-layout="inbox"] .ib-tab', 'min-height'], ['inbox', 'html[data-layout="inbox"] .ib-sheet button', 'min-height'],
       ['inbox', 'html[data-layout="inbox"] .ib-folder', 'min-height'],
       ['island', 'html[data-layout="island"] .isl-lane', 'min-height'],
-      ['mission', 'html[data-layout="mission"] .mc-btn', 'min-height'],   // the rule shared by .mc-tab, .mc-btn ['mission', 'html[data-layout="mission"] .mc-rep input', 'min-height'],
-      ['mission', 'html[data-layout="mission"] .mc-layer', 'min-height'],
+      ['mission', 'html[data-layout="mission"] #nbdMissionRoot .mc-btn', 'min-height'],   // the rule shared by .mc-tab, .mc-btn ['mission', 'html[data-layout="mission"] .mc-rep input', 'min-height'],
+      ['mission', 'html[data-layout="mission"] #nbdMissionRoot .mc-layer', 'min-height'],
       ['crew', 'html[data-layout="crew"] .cw-x', 'height'], ['crew', 'html[data-layout="crew"] .cw-grip', 'min-height'], ['crew', 'html[data-layout="crew"] .cw-stop-nav', 'min-height'],
       ['picker', '.lp-dev', 'min-height'], ['picker', '.lp-btn', 'min-height'], ['picker', '.lp-select', 'min-height'],
       ['mapview', '.nbd-mv .leaflet-touch .leaflet-bar a', 'height'],   // the zoom-size rule (touch and mouse)
