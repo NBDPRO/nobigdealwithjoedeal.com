@@ -137,6 +137,10 @@ ok('sheets are dialogs with a label and Esc closes them', /role="dialog" aria-mo
 ok('the stylesheet uses no hex colours', !/#[0-9a-fA-F]{3,8}\b/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
 ok('every transition uses a --ui-dur token', (CSS.match(/transition:[^;]+/g) || []).every((s) => !/\d+m?s/.test(s.replace(/var\([^)]*\)/g, ''))));
 ok('no transition: all', !/transition:\s*all/.test(CSS));
+// 2026-11-07: the 2px phone gap put the What's New bell under the Settings pill's 44px hit area
+// (header-taps visual audit). The real proof is that audit in the Pro demo walk; this pins the rule.
+ok('phones: the What\'s New bell keeps 3px clear of the Settings pill (beats its inline -3px)',
+  /@media \(max-width: 480px\) \{[\s\S]*?header #nbd-whats-new-bell \{ margin-right: 3px !important; \}/.test(CSS));
 
 console.log('phase 4: session, lock, settings');
 ok('auto-lock choices; junk reads as off', L.lockMinutes(5) === 5 && L.lockMinutes('15') === 15 && L.lockMinutes(7) === 0 && L.lockMinutes('x') === 0);

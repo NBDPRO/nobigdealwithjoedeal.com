@@ -56,6 +56,14 @@
    screen readers), and the right side packs at the tools' own 2px gap. */
 @media (max-width: 480px) {
   header .hright { gap: 2px; }
+  /* The What's New bell carries an inline margin-right:-3px written for the
+     old 10px gap (whats-new.js). At 2px it sat 1px under the Settings pill,
+     whose invisible 44px hit area (dashboard-app.css) then took the bell's
+     top-right corner tap (Pro demo walk, header-taps, 2026-11-07). 3px clears
+     the pill's ~3.5px reach at every phone width; !important beats the inline
+     style. Measured at 390 and 360 px: all four corners of every header
+     button answer, the wordmark keeps its room. */
+  header #nbd-whats-new-bell { margin-right: 3px !important; }
   .os-tray-clock { min-width: 40px; padding: 0; }
   .os-tray-clock .os-tray-time {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
