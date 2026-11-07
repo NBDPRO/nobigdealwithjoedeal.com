@@ -109,6 +109,7 @@ console.log('wiring');
 {
   ok('the taskbar has a slot right after Overview, filled at mount', /aria-label="Overview: every window on this desk">▦<\/button>' \+\n\s*'<div class="os-visit-slot"><\/div>'/.test(OS) && /S\.visitTaskEl\.innerHTML = visitTaskHtml\(\);/.test(OS));
   ok('the Start list puts the Visits group first', /return visits \+ list\.map\(/.test(OS) && /if \(!list\.length && !visits\)/.test(OS));
+  ok('...and the apps start on a fresh row under an Apps heading', /if \(visits && list\.length\) visits \+= '<li class="os-start-group ui-eyebrow" aria-hidden="true">Apps<\/li>';/.test(OS));
   const desk = OS.slice(OS.indexOf('function onDeskClick'), OS.indexOf('function onDeskClick') + 400);
   ok('desk clicks route a visit tap before windows, overview or pins', desk.indexOf('if (vz) { onVisitTap(vz); return; }') !== -1 && desk.indexOf('if (vz) { onVisitTap(vz); return; }') < desk.indexOf('S.overview'));
   const ph = OS.slice(OS.indexOf('function onPhoneClick'), OS.indexOf('function onPhoneClick') + 300);

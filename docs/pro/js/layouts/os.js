@@ -426,6 +426,8 @@
     var list = S.apps.filter(function (a) { return !term || a.label.toLowerCase().indexOf(term) !== -1 || a.id.indexOf(term) !== -1; });
     var visits = visitStartRows(term);
     if (!list.length && !visits) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
+    // the apps start on a fresh row under their own heading, not beside the last visit item
+    if (visits && list.length) visits += '<li class="os-start-group ui-eyebrow" aria-hidden="true">Apps</li>';
     return visits + list.map(function (a) {
       var pinned = S.pins.indexOf(a.id) !== -1;
       return '<li class="os-start-row"><button type="button" class="os-start-app" data-osapp="' + esc(a.id) + '"><span aria-hidden="true">' + esc(a.icon || '▣') + '</span> ' + esc(a.label) + '</button>' +
