@@ -156,9 +156,12 @@ console.log('\n5. registry needs + css');
 {
   R._reset();
   const d = R.register({ id: 'field', name: 'Field', script: 'js/layouts/field.js',
-    needs: { script: ['js/layouts/kit.js', '//evil.example/x.js', 'js/layouts/../x.js', 'js/layouts/ok-2.js'], css: ['css/layouts/kit.css', 'http://x/y.css', 'css/other.css'] } });
-  ok('needs keeps only js/layouts/*.js and css/layouts/*.css paths',
-    d.needs.script.join() === 'js/layouts/kit.js,js/layouts/ok-2.js' && d.needs.css.join() === 'css/layouts/kit.css');
+    needs: { script: ['js/layouts/kit.js', '//evil.example/x.js', 'js/layouts/../x.js', 'js/layouts/ok-2.js', 'https://evil.example/x.js', '/js/abs.js',
+      'js/x.js?v=1&y=2', 'js/x.js?v=', 'js/x.js?y=1', 'js\\x.js', 'js/./x.js', 'js//x.js', 'JS/X.js', 'js/x.js\n', 'css/layouts/kit.css', 'js/qr-code.js?v=1'],
+    css: ['css/layouts/kit.css', 'http://x/y.css', 'css/other.css', 'css/../x.css', 'js/x.css', 'css/x.js', 'data:text/css,x', 'css/review-handoff.css?v=12'] } });
+  ok('needs keeps only same-origin js/**.js and css/**.css paths (optional ?v=<digits>; no protocol, //, .., absolute or other query)',
+    d.needs.script.join() === 'js/layouts/kit.js,js/layouts/ok-2.js,js/qr-code.js?v=1' && d.needs.css.join() === 'css/layouts/kit.css,css/other.css,css/review-handoff.css?v=12',
+    d.needs.script.join() + ' | ' + d.needs.css.join());
   ok('no needs -> empty lists', R.register({ id: 'plain' }).needs.script.length === 0);
   const css = read('docs/pro/css/layouts/kit.css').replace(/\/\*[\s\S]*?\*\//g, '');
   const classes = css.match(/\.[a-z][a-z0-9_-]*/gi) || [];
