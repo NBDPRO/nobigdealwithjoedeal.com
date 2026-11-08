@@ -265,8 +265,21 @@
       const self = !!(window._user && window._user.uid === uid);
       const filters = [window.where('userId', '==', uid)];
       if (!self && claims.companyId) filters.unshift(window.where('companyId', '==', claims.companyId));
-      const q = window.query(window.collection(window.db, 'leads'), ...filters);
-      const snap = await window.getDocs(q);
+      const col = window.collection(window.db, 'leads');
+      // TM-ACTIVITY-PAGED: read only the newest 15, not every lead the member
+      // owns. Own row: (userId, createdAt desc) index; teammate row:
+      // (companyId, userId, createdAt desc). Hosting deploys before indexes,
+      // so while that index is missing or building (failed-precondition) fall
+      // back once to the unbounded read; the sort + slice below finish it.
+      let snap;
+      if (typeof window.orderBy === 'function' && typeof window.limit === 'function') {
+        try {
+          snap = await window.getDocs(window.query(col, ...filters, window.orderBy('createdAt', 'desc'), window.limit(15)));
+        } catch (e) {
+          if (!e || e.code !== 'failed-precondition') throw e;
+        }
+      }
+      if (!snap) snap = await window.getDocs(window.query(col, ...filters));
       const leads = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => {
           const ta = a.createdAt?.toMillis?.() || 0;
