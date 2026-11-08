@@ -443,6 +443,7 @@
     "stripe-crm-invoice-2026-09-29.test.js",
     "money-paper-2026-09-30.test.js",
     "lead-source-roi-refetch-2026-11-06.test.js",
+    "vw-f13-2026-11-08.test.js",
     "data-integrity-guards-2026-10-03.test.js",
     "lead-bridge-updatedat-2026-10-06.test.js",
     "jobs-phase1-2026-09-30.test.js",

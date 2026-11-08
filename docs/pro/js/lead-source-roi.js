@@ -91,6 +91,9 @@
   // Marketing expenses by source (cents) — the fallback spend for a source
   // with no monthly spend and no per-lead cost. null = not fetched yet.
   let _marketingByKey = null;
+  // The last marketing-expenses read failed: a source's fallback spend is
+  // unknown ("…"), not "no spend" ("—") (CRM audit 2026-11-06, VW-F13).
+  let _marketingUnknown = false;
   let _spend = null;
   let _targetId = null;
   let _fetching = false;
@@ -100,14 +103,22 @@
   // history even with Reports closed.
   let _stale = false;
 
+  // Resolves {spendKey: cents}, or null when the read failed (unknown).
   async function _fetchMarketing() {
     const db = window.db || window._db;
     const uid = window._user && window._user.uid;
     const out = {};
     if (!db || !uid || !window.getDocs || !window.query || !window.where || !window.collection || !N()) return out;
+    // Rule-safe scope, the same as expenses.js fetchExpenses(): staff read the
+    // whole tenant (companyId), so a teammate's marketing expenses count too;
+    // everyone else reads only their own (a companyId list read by a non-staff
+    // user is permission-denied). CRM audit 2026-11-06, VW-F13.
+    const cl = window._userClaims || {};
+    const staff = !!cl.companyId && (cl.role === 'company_admin' || cl.role === 'manager' || cl.role === 'admin');
     try {
       const snap = await window.getDocs(window.query(
-        window.collection(db, 'expenses'), window.where('userId', '==', uid)));
+        window.collection(db, 'expenses'),
+        staff ? window.where('companyId', '==', cl.companyId) : window.where('userId', '==', uid)));
       snap.docs.forEach(function (d) {
         const e = d.data();
         if (!e || e.category !== 'marketing') return;
@@ -116,7 +127,7 @@
         // A marketing credit / refund row (flag costCredits, stored positive) nets the source's spend down.
         if (k && c > 0) out[k] = (out[k] || 0) + (e.entryType === 'credit' ? -c : c);
       });
-    } catch (e) { /* no expenses → no fallback */ }
+    } catch (e) { return null; /* unknown, not "no expenses" */ }
     return out;
   }
 
@@ -143,8 +154,9 @@
         _fetchMarketing(),
       ]).then(function (r) {
         _spend = r[0] || { months: {} };
+        _marketingUnknown = r[1] === null;
         _marketingByKey = r[1] || {};
-      }).catch(function () { _spend = { months: {} }; _marketingByKey = {}; })
+      }).catch(function () { _spend = { months: {} }; _marketingByKey = {}; _marketingUnknown = true; })
         .then(function () { _fetching = false; if (_targetId && document.getElementById(_targetId)) render(_targetId); });
     }
     const m = computeMetrics(leads, _invs ? _R.collectedByLead(_invs, null, null) : {}, owner ? _spend : null, owner ? _marketingByKey : null, jobRecs(leads));
@@ -202,7 +214,7 @@
         '<td class="lsroi-num">' + money(r.bookedCents) + '</td>' +
         '<td class="lsroi-num lsroi-rev">' + (_invs ? money(r.collectedCents) : '…') + '</td>' +
         (owner
-          ? '<td class="lsroi-num">' + (r.spendCents > 0 ? money(r.spendCents) : '—') + '</td>' +
+          ? '<td class="lsroi-num">' + (r.spendCents > 0 ? money(r.spendCents) : (_marketingUnknown ? '…' : '—')) + '</td>' +
             '<td class="lsroi-num">' + (r.costPerWonCents == null ? '—' : money(r.costPerWonCents)) + '</td>' +
             '<td class="lsroi-num">' + perDollar(r.bookedPerDollar) + '</td>'
           : '') +
