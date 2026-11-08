@@ -58,6 +58,20 @@
     return companyN + ownN - overlapN;
   }
 
+  // NOT shadow: theme-achievements.js reads this for "Iron Door" (knock 500
+  // doors) instead of downloading every knock doc the rep ever logged
+  // (audit ST-F32, decision D-011). Same predicate that getDocs used:
+  // knocks, userId == uid — one rep's own knocks for every role.
+  // null = cannot count here; the caller falls back to its getDocs.
+  async function knockCount(uid) {
+    const fs = await import(SDK);
+    const db = window._db || window.db;
+    if (!db || typeof fs.getCountFromServer !== 'function') return null;
+    const snap = await fs.getCountFromServer(
+      fs.query(fs.collection(db, 'knocks'), fs.where('userId', '==', uid)));
+    return snap.data().count;
+  }
+
   async function shadowCompare() {
     try {
       if (!window.NBDFlags || !window.NBDFlags.enabled('serverAggregatesShadow')) return null;
@@ -87,6 +101,7 @@
   window.NBDServerAggregates = {
     __sentinel: 'nbd-server-agg-v1',
     leadCount,
+    knockCount,
     shadowCompare,
   };
 })();
