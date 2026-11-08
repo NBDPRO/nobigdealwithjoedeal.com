@@ -257,10 +257,15 @@
         feed.innerHTML = '<div class="amx-cm-fs12px">Firestore SDK not ready.</div>';
         return;
       }
-      const q = window.query(
-        window.collection(window.db, 'leads'),
-        window.where('userId', '==', uid)
-      );
+      // CRM audit 2026-11-06 (ST-F39): a teammate's row must carry
+      // companyId == claim, the only shape the leads rule proves for a
+      // company reader (userId alone was PERMISSION_DENIED). Your own row
+      // stays userId-only so legacy no-companyId leads remain visible.
+      const claims = window._userClaims || {};
+      const self = !!(window._user && window._user.uid === uid);
+      const filters = [window.where('userId', '==', uid)];
+      if (!self && claims.companyId) filters.unshift(window.where('companyId', '==', claims.companyId));
+      const q = window.query(window.collection(window.db, 'leads'), ...filters);
       const snap = await window.getDocs(q);
       const leads = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => {
