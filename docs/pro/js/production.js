@@ -825,6 +825,18 @@
     }, 500);
   });
 
+  // Plan Jobs (js/schedule-planner.js) is not a boot script (2026-11-08): it
+  // loads on the first Schedule visit, goTo('schedule') →
+  // ScriptLoader.preloadForView, after goTo has stamped the view's template,
+  // and renders itself on arrival. Registered HERE, not in the blocking
+  // script-loader.js (no byte headroom: dashboard-boot-budget); this deferred
+  // file runs before DOMContentLoaded, so a #/schedule deep link finds it.
+  const SL = window.ScriptLoader;
+  if (SL && SL.bundles && SL.views) {
+    if (!SL.bundles.schedule) SL.bundles.schedule = ['js/schedule-planner.js?v=6'];
+    if (!SL.views.schedule) SL.views.schedule = ['schedule'];
+  }
+
   // Boot: customer page waits for the lead; the dashboard paints the
   // Schedule view's extras when it is open.
   let _tries = 0;

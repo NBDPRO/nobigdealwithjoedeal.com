@@ -186,8 +186,11 @@ console.log('\n4. wiring');
   const tpl = dash.slice(dash.indexOf('<template id="tpl-view-schedule">'), dash.indexOf('</template>', dash.indexOf('<template id="tpl-view-schedule">')));
   ok('the panel lives in the Schedule view, right after Your Schedule', /id="calUpcoming"[\s\S]*id="schedPlanPanel"[\s\S]*Share With Homeowners/.test(tpl));
   const tag = (n) => dash.indexOf('<script defer src="js/' + n);
+  // 2026-11-08: the UI is no boot tag any more; production.js registers it as the lazy 'schedule' view bundle (tests/lazy-schedule-planner-2026-11-08.test.js).
   const iW = tag('schedule-window.js'), iL = tag('schedule-planner-logic.js'), iU = tag('schedule-planner.js');
-  ok('schedule-window, then the planner rules, then the UI', iW > 0 && iL > iW && iU > iL);
+  const prod = fs.readFileSync(path.join(JS, 'production.js'), 'utf8');
+  ok('schedule-window, then the planner rules (eager); the UI loads with the Schedule view', iW > 0 && iL > iW && iU < 0
+    && /SL\.bundles\.schedule = \['js\/schedule-planner\.js\?v=\d+'\]/.test(prod) && /SL\.views\.schedule = \['schedule'\]/.test(prod));
   const ui = strip(fs.readFileSync(path.join(JS, 'schedule-planner.js'), 'utf8'));
   ok('saves ONLY the schedule fields on leads/{id} (never the whole lead form)', /window\.updateDoc\(window\.doc\(window\.db, 'leads', id\), out\.fields\)/.test(ui) && !/_saveLead/.test(ui));
   ok('hidden for viewers', /role\(\) === 'viewer'\) \{ panel\.hidden = true/.test(ui));

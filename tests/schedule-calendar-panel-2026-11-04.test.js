@@ -164,7 +164,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   ok('Plan Jobs lazy-loads it from its own path', loader.indexOf("ScriptLoader.load('/pro/js/schedule-calendar-panel.js?v=1')") > 0);
   const mr = planner.slice(planner.indexOf('function maybeRender()'), planner.indexOf('function maybeRender()') + 200);
   ok('…on every Schedule visit (maybeRender calls it after the hash check)', mr.indexOf('loadCalendarPanel();') > mr.indexOf("location.hash"));
-  ok('the planner cache-buster was bumped (v=6)', dash.indexOf('js/schedule-planner.js?v=6') > 0);
+  // 2026-11-08: the planner is a lazy bundle registered in production.js, no longer a dashboard.html tag.
+  ok('the planner cache-buster was bumped (v=6)', read('docs/pro/js/production.js').indexOf("'js/schedule-planner.js?v=6'") > 0);
   ok('vendor engine is NOT on the boot path (lazy only)', dash.indexOf('event-calendar.min.js') < 0);
   const sc = read('docs/pro/js/smart-calendar.js');
   ok('smart-calendar.js reads the same two scopes (index parity)', /where\('repUid', '==', uid\)/.test(sc) && /where\('userId', '==', uid\)/.test(sc));
