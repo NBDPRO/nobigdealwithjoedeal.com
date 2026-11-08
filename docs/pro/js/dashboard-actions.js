@@ -418,6 +418,12 @@ function goTo(name, params = {}) {
       if (typeof window.kanbanFilter === 'function') { try { window.kanbanFilter(); } catch (_) {} }
     }
   }
+  // Leaving Door-to-Door closes its live team listener, which otherwise kept
+  // streaming company knocks into the hidden view (CRM audit 2026-11-06,
+  // DT-F12 / VW-F05). D2D.init re-opens it on the way back if team mode is on.
+  if (name !== 'd2d' && window.D2D && typeof window.D2D.leaveView === 'function') {
+    try { window.D2D.leaveView(); } catch (_) {}
+  }
 
   // Update URL hash (without triggering hashchange event)
   if (!params.skipHash) {

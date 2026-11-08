@@ -5078,6 +5078,9 @@
   // INITIALIZATION
   // ============================================================================
   async function initD2D() {
+    // goTo() closes the live team listener when the rep leaves D2D
+    // (window.D2D.leaveView); re-open it on entry while team mode is on.
+    if (state.teamMode && typeof _teamUnsub !== 'function') subscribeTeamActivity();
     if (state.d2dInited) {
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
       if (state.d2dMap) setTimeout(() => state.d2dMap.invalidateSize(), 100);

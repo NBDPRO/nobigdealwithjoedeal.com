@@ -141,6 +141,10 @@
       else { state.unsubscribeTeamActivity(); }
       state.loadKnocks().then(() => state.renderD2D());
     },
+    // goTo() calls this when the rep leaves D2D for another view: it closes
+    // the live team listener (up to 1000 knocks, each snapshot re-rendering a
+    // hidden view). Team mode stays on; init() re-opens it on the way back.
+    leaveView: () => { state.unsubscribeTeamActivity(); },
     getTeamActivity: state.getTeamActivity,
     refreshMap: () => { if (state.d2dMap) { state.d2dMap.invalidateSize(); } },
     // Hail overlay — pulls recent hail reports for the visible map

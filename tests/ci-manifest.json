@@ -836,6 +836,7 @@
     "voice-intel-anthropic-key.test.js",
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
+    "dt-f12-2026-11-08.test.js",
     "faq-schema-sync-2026-10-03.test.js",
     "pro-landing-budget-2026-10-04.test.js",
     "small-misc-2026-11-06.test.js",
