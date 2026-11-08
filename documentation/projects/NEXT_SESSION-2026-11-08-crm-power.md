@@ -27,6 +27,17 @@ lock screens, lock-screen focus / boot-screen announcement, record-button menu g
 each test-first, one commit each, reviewed (two by an agent, five by hand). Not landed: the boot-weight pass
 (16 of 48 read, none refuted) and the findings triage (16 of 96), both captured as tables in the audit note.
 
+**Second Opus batch, same afternoon (after the limit reset):** the five confirmed fix-now findings were implemented
+by Opus agents in worktrees (1.3 M tokens for 5 implementers + 5 reviewers, 13 minutes; the Fable batch earlier cost
+2.0 M for 7) and cherry-picked, one commit each: ED-F11 + VW-F102 (the homeowner estimate page decides NBD by tenant
+key, so a nameless tenant gets a neutral page; server + client, deploy-order safe), ST-F39 (a teammate's Team Manager
+row queries with the companyId claim the rules require), PL-F15 (Quick Add has a Job Type pick, defaulted from the
+board, and sends a numeric job value), PL-F09 (an optimistic edit keeps the cached lead's owner, companyId, job link,
+stage history and customer number), VW-F02 (Prospects marks a follow-up due on its own day and says how many days
+late). Reviewer nits worth a look: the new Quick Add row uses `.mfield` styling and may not match its neighbours on
+desktop (check in a browser); a platform admin with a companyId claim now gets the company filter on teammate rows.
+OR-F07 stays deferred (its only file is held by #2941).
+
 **Approach for the next session: trim.** Use agents for an adversarial review of a finished diff or one hard
 question, not for sweeps. The next concrete work, all with plans already written down:
 

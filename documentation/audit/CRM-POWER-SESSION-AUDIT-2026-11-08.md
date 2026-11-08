@@ -236,3 +236,12 @@ could have been a 200-line Node script plus one agent per *surviving* candidate.
 | VW-F156 | still-present | proposal-only | docs/pro/js/dashboard-sw-bootstrap.js, tests/sw-update-deferral-<date>.test.js, tests/dashboard-boot-budget-2026-10-03.t | Smallest complete shape, sw.js untouched (keeps every sw.js pin intact): in docs/pro/js/dashboard-sw-bootstrap.js route both reload triggers (line 44, the 500 ms reload on SW_UPDATE_AVAILABLE; line 57, the 0 ms reload on controllerchange) through one single-sh | Three independent reasons, any one of which is enough. (1) Decision already taken: overnight/crm/DECISIONS.md:69 (D-009) files VW-F156 as "service-worker update |
 | VW-F154 | still-present | needs-jo | docs/pro/js/email_system.js, tests/stage-email-claim-wording-2026-11-08.test.js, docs/pro/customer.html:2913, documentat | For Jo/attorney to approve the words; the sanctioned vocabulary already exists in the repo (claim-wording-filter.js comment: "I document the damage and write the estimate; you file, and I can meet the adjuster"; tests/claim-wording.test.js:240 and :252 positiv | Three reasons, none of them a failure. (1) The fix is new copy on customer paper: a homeowner-facing email body, and the finding itself says the rewording needs |
 
+
+## Second Opus batch (after the 17:00 UTC reset)
+
+The five confirmed fix-now findings from the triage table above were implemented on Opus agents (one worktree each,
+one Opus reviewer each): 1.3 M tokens and 13 minutes for ten agents, against 2.0 M for the seven-item Fable batch.
+All five approved (one approve, four approve-with-nits, no blocking issues) and cherry-picked. The two Opus-authored
+commits that carry an Opus co-author trailer are named truthfully. ST-F39 took the smallest query the rules accept
+(companyId + userId equality, no orderBy, so no new index); the orderBy + limit version with a three-field index is
+the follow-up the triage described. OR-F07 is deferred until #2941 lands.
