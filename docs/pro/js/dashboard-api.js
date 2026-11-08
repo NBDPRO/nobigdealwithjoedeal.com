@@ -315,8 +315,18 @@ window._gdprRequestErasure = async function () {
   // SUSPENDED, not erased: the server keeps the company's records and their
   // info, and only the owner or an admin can turn them back on (2026-10-08,
   // functions/integrations/erasure-scope.js). Say so before they ask.
+  // An owner hand-off keeps the company id (the former owner's uid), so the
+  // claim alone can't say who owns it: companies/{id}.ownerId decides, as on
+  // the server; the claim comparison stays the fallback.
   const claims = window._userClaims || {};
-  const isTeamMember = !!(claims.companyId && claims.companyId !== window._user.uid);
+  let isTeamMember = !!(claims.companyId && claims.companyId !== window._user.uid);
+  if (claims.companyId && typeof window.getDoc === 'function' && typeof window.doc === 'function') {
+    try {
+      const snap = await window.getDoc(window.doc(window._db || window.db, 'companies', claims.companyId));
+      const ownerId = snap && snap.exists() ? (snap.data() || {}).ownerId : null;
+      if (typeof ownerId === 'string' && ownerId) isTeamMember = ownerId !== window._user.uid;
+    } catch (_) { /* keep the claim comparison */ }
+  }
   const warning = isTeamMember
     ? 'CLOSE YOUR ACCOUNT?\n\n' +
       'You are on a team, so your account will be SUSPENDED, not deleted: your access ends and you can no longer sign in. ' +
