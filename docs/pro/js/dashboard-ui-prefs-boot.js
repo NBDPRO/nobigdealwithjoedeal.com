@@ -235,10 +235,15 @@ function nbdRenderFontGrid() {
     html += '<div class="nbd-font-cat-head" style="grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--m);margin:6px 0 2px;border-bottom:1px solid var(--br);padding-bottom:4px;">' + cat.label + ' <span style="opacity:.6;font-weight:600;">· ' + fonts.length + '</span></div>';
     fonts.forEach(function(f) {
       var active = f.id === saved;
-      html += '<div class="nbd-font-card" data-font-id="' + f.id + '" data-action="call" data-fn="nbdApplyLegacyFont" data-arg="' + f.id + '" style="background:' + (active ? 'color-mix(in srgb, var(--orange) 12%, transparent)' : 'var(--s2)') + ';border:2px solid ' + (active ? 'var(--orange)' : 'var(--br)') + ';border-radius:8px;padding:12px;cursor:pointer;transition:all .15s;text-align:center;' + (active ? 'box-shadow:0 0 0 3px color-mix(in srgb, var(--orange) 18%, transparent);' : '') + '">'
-        + '<div style="font-family:' + f.body + ';font-size:22px;font-weight:700;color:var(--t);margin-bottom:4px;line-height:1;">Aa</div>'
-        + '<div style="font-size:10px;color:var(--m);font-weight:600;">' + f.label + (active ? ' ✓' : '') + '</div>'
-        + '</div>';
+      // CRM audit 2026-11-06 (ST-F34): a <button>, so Tab reaches it and
+      // Enter/Space fire the same delegated click; aria-pressed names the saved
+      // font. A button centres its text and holds phrasing content only, so
+      // the label is its own text. data-font-id (read nowhere; data-arg holds
+      // the id) is gone so this blocking file's shipped size stays flat.
+      html += '<button type="button" class="nbd-font-card" data-action="call" data-fn="nbdApplyLegacyFont" data-arg="' + f.id + '" aria-pressed="' + active + '" style="background:' + (active ? 'color-mix(in srgb, var(--orange) 12%, transparent)' : 'var(--s2)') + ';border:2px solid ' + (active ? 'var(--orange)' : 'var(--br)') + ';border-radius:8px;padding:12px;cursor:pointer;transition:all .15s;font-size:10px;color:var(--m);font-weight:600;' + (active ? 'box-shadow:0 0 0 3px color-mix(in srgb, var(--orange) 18%, transparent);' : '') + '">'
+        + '<span style="display:block;font-family:' + f.body + ';font-size:22px;font-weight:700;color:var(--t);margin-bottom:4px;line-height:1;">Aa</span>'
+        + f.label + (active ? ' ✓' : '')
+        + '</button>';
     });
   });
   grid.innerHTML = html;
