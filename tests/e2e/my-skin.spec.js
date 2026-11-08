@@ -46,6 +46,8 @@ test.describe.serial('My Skin @shard2', () => {
     await page.route(/cloudfunctions\.net|\.run\.app/, (route) => route.abort());
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
+    // 2026-11-08: My Skin is the lazy myskin bundle (my-skin-boot.js) and this account starts with no skin: load it the way Settings does.
+    await safeEvaluate(page, () => (window.ScriptLoader && window.ScriptLoader.loadBundle ? window.ScriptLoader.loadBundle('myskin') : null));
     await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg), null, { timeout: 30_000 });
 
     // A 3000×2000 picture: re-encoded down to the 2560 long edge as JPEG.
@@ -120,6 +122,8 @@ test.describe.serial('My Skin @shard2', () => {
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await page.route(/cloudfunctions.net|.run.app/, (route) => route.abort());
     await loginAs(page, creds);
+    // 2026-11-08: My Skin is the lazy myskin bundle (my-skin-boot.js) and this account starts with no skin: load it the way Settings does.
+    await safeEvaluate(page, () => (window.ScriptLoader && window.ScriptLoader.loadBundle ? window.ScriptLoader.loadBundle('myskin') : null));
     await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg), null, { timeout: 30_000 });
     // theme-engine.js is a LAZY bundle (script-loader 'theme'), not a boot script: nothing
     // loads it until the picker or a saved non-default theme asks. Load it the way the
@@ -212,6 +216,8 @@ test.describe.serial('My Skin @shard2', () => {
     await page.route(/cloudfunctions.net|.run.app/, (route) => route.abort());
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
+    // 2026-11-08: My Skin is the lazy myskin bundle (my-skin-boot.js) and this account starts with no skin: load it the way Settings does.
+    await safeEvaluate(page, () => (window.ScriptLoader && window.ScriptLoader.loadBundle ? window.ScriptLoader.loadBundle('myskin') : null));
     await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg), null, { timeout: 30_000 });
     await safeEvaluate(page, () => {
       const real = window.setDoc;
@@ -220,6 +226,10 @@ test.describe.serial('My Skin @shard2', () => {
     expect(await makePicture(page, 'wallpaper', 600, 400, '#1b5e20')).toBe(true);
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.classList.contains('my-skin-wallpaper'), null, { timeout: 20_000 });
+    // 2026-11-08: a device without the boot hint (a new device) still gets the skin, through my-skin-boot.js's settings read.
+    await safeEvaluate(page, () => { try { localStorage.removeItem('nbd_myskin_boot'); } catch (_) {} });
+    await page.reload();
+    await safeWaitForFunction(page, () => document.documentElement.classList.contains('my-skin-wallpaper'), null, { timeout: 30_000 });
     await clearSkin(creds.email);
   });
 });

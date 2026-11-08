@@ -258,7 +258,8 @@ console.log('\n7. my-skin.js per-theme contract');
   ok('sign-out cleanup: memory, layers, IndexedDB and the nbd_myskin_ session keys',
     /function purgeLocal/.test(J) && /deleteDatabase\(DB_NAME\)/.test(J) && /'nbd_myskin_'/.test(J) && /purgeLocal: purgeLocal/.test(J));
   ok('a different uid on the page drops everything held for the last one', /window\._user\.uid !== uid\) purgeMemory\(\)/.test(J));
-  ok('browser storage is still not used for settings', !/localStorage/.test(J));
+  // 2026-11-08: the one localStorage use allowed is the nbd_myskin_boot load hint for my-skin-boot.js (never settings; an nbd_ key, wiped at sign-out).
+  ok('browser storage is still not used for settings', (J.match(/localStorage/g) || []).length === (J.match(/localStorage\.(?:setItem\('nbd_myskin_boot', '1'\)|removeItem\('nbd_myskin_boot'\))/g) || []).length);
   ok('no innerHTML / inline handler assignments', !/innerHTML\s*=|\.on(click|change|input)\s*=/.test(J.replace(/im\.onload|im\.onerror/g, '')));
   ok('the wallpaper copy reuses the Blob (no fetch of a blob: URL, which connect-src would refuse)', !/fetch\(/.test(J));
   ok('objects are deleted only when nothing else references them', /L\(\)\.referencedPaths\(cfg\)/.test(J) && /!refs\[i\.path\]/.test(J));
@@ -288,9 +289,10 @@ console.log('\n8. CSS, panel, wiring');
   ok('the privacy note is in the panel', /They stay private to you, just like your wallpaper/.test(P));
   ok('the card sits between the wallpaper and the texture slot',
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
+  // 2026-11-08: the scripts' cache-busters live in my-skin-boot.js's `myskin` bundle (v=12: the boot hint), the css stays on both pages.
   ok('cache-busters bumped on both pages',
-    ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=7/.test(h) && /js\/my-skin\.js\?v=11/.test(h); }));
+    ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => /css\/my-skin\.css\?v=6/.test(read(p)))
+    && /js\/my-skin-logic\.js\?v=7/.test(read('docs/pro/js/my-skin-boot.js')) && /js\/my-skin\.js\?v=12/.test(read('docs/pro/js/my-skin-boot.js')));
 
   {
     const bs = L.backgroundStyleChange;
