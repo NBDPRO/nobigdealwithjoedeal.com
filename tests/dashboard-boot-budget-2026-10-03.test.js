@@ -424,8 +424,10 @@ if (!SHIPPED_GATES) {
 // sit just above that so growth trips them; lower them in the PR that moves something off this page's boot.
 // LOWERED the same day (boot-weight batch 4): the Job done hand-off, the supplement engine and the photo report
 // builder load on first use; measured 129 local tags, 1362 KB shipped (2479 KB readable), 190 KB of HTML.
-const CUSTOMER_CEILING = { localScripts: 129, blockingScripts: 1, htmlBytes: 196 * 1024,
-  localBytes: 2490 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1370 * 1024, shippedBlockingBytes: 16 * 1024 };
+// LOWERED again (batch 4b): customer-jobs.js split (the Add job sheet loads on first use) and numbers-logic.js
+// loads only for a card the Numbers panel shows; measured 128 local tags, 1340 KB shipped (2444 KB readable).
+const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
+  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1346 * 1024, shippedBlockingBytes: 16 * 1024 };
 console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
 const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
 ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));
