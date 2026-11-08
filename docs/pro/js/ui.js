@@ -990,9 +990,8 @@ function switchSettingsTab(tab) {
       // module also self-mounts when it loads after this point.
       if (window.NBDThemePreview && typeof window.NBDThemePreview.mount === 'function') window.NBDThemePreview.mount();
 
-      // Init achievements + builder
+      // Init achievements
       if (window.ThemeAchievements?.renderAchievementPanel) window.ThemeAchievements.renderAchievementPanel('te-achievements-panel');
-      if (window.ThemeBuilder?.renderBuilder) window.ThemeBuilder.renderBuilder('te-builder-panel');
     }
     // The Settings font grid (#settings-font-grid) is drawn ONLY by
     // nbdRenderFontGrid() at the top of this branch — the 28-font picker
@@ -1002,11 +1001,6 @@ function switchSettingsTab(tab) {
     // 'nbd-font'), with an active ✓ read from window._nbd_activeFont —
     // which maps.js declares with `let`, so it was never on window and no
     // ✓ ever showed. Two pickers, two keys, one grid: removed 2026-10-03.
-  }
-  // Re-init daily floors when switching to daily tab
-  if (tab === 'daily') {
-    if (typeof dsInitEditor === 'function') dsInitEditor();
-    if (typeof dsLoadThemeGrid === 'function') dsLoadThemeGrid();
   }
   // Load v2 estimate settings when switching to estimates tab
   if (tab === 'estimates') {
