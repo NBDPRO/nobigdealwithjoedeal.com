@@ -164,7 +164,8 @@ console.log('D. execute');
   ok('card buttons are delegated (no inline handlers)', /closest\('\[data-joe-card\]'\)/.test(ai) && !/onclick=/.test(read('docs/pro/js/ask-joe-actions.js')));
   ok('the tool loop is bounded', /const JOE_MAX_ROUNDS = 4;/.test(ai));
   const dash = read('docs/pro/dashboard.html');
-  ok('dashboard loads ask-joe-actions.js before ai.js, plus its CSS', dash.indexOf('js/ask-joe-actions.js?v=') > 0 && dash.indexOf('js/ask-joe-actions.js?v=') < dash.indexOf('js/ai.js?v=') && /css\/ask-joe-actions\.css\?v=\d+/.test(dash));
+  // 2026-11-08: ask-joe-actions.js is lazy (ai.js's `askjoe` bundle, loaded with the Ask Joe view); tests/lazy-ask-joe-actions-2026-11-08.test.js pins the load.
+  ok('dashboard loads ai.js and the actions CSS; ask-joe-actions.js comes from ai.js\'s askjoe bundle, not an eager tag', dash.indexOf('js/ai.js?v=') > 0 && !/<script[^>]*src="js\/ask-joe-actions\.js/.test(dash) && /bundles\.askjoe = \['js\/ask-joe-actions\.js\?v=\d+'\]/.test(ai) && /const A = await joeActionsReady\(\);/.test(ai) && /css\/ask-joe-actions\.css\?v=\d+/.test(dash));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

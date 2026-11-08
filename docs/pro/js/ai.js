@@ -232,8 +232,12 @@ function initJoeChat() {
       ? `Hey ${ctx.firstName} — I've got eyes on your pipeline. You've got ${ctx.activeLeads} active leads worth $${ctx.pipelineValue.toLocaleString()}${ctx.overdueCount ? `, and ${ctx.overdueCount} follow-up${ctx.overdueCount!==1?'s':''} that need attention today` : ''}. What do you want to work on?`
       : `Hey ${ctx.firstName} — Joe here. Looks like you're just getting started. Add your first lead in CRM and I can start giving you real advice based on your actual pipeline. In the meantime, ask me anything about running claims, canvassing, or closing jobs.`;
     appendJoeMessage('joe', greeting);
-  } else {
+  } else if (window.NBDJoeActions) {
     renderJoeMessages();
+  } else {
+    // A saved transcript's cards and tool turns are drawn by ask-joe-actions.js,
+    // which loads with this view: draw it once that lands (or failed).
+    joeActionsReady().then(renderJoeMessages);
   }
 
   const ctx = buildJoeContext();
@@ -256,7 +260,9 @@ function joeEntryHtml(m) {
   if (m.role === 'card') return window.NBDJoeActions ? window.NBDJoeActions.cardHtml(m) : '';
   if (m.role === 'tool') return '';
   const text = typeof m.content === 'string' ? m.content
-    : (window.NBDJoeActions ? window.NBDJoeActions.textOf(m.content) : '');
+    : (window.NBDJoeActions ? window.NBDJoeActions.textOf(m.content)
+      // Module failed to load (text-only chat): still show Joe's text blocks.
+      : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim() : ''));
   return text ? buildJoeBubble(m.role, text) : '';
 }
 
@@ -315,7 +321,7 @@ function appendJoeEntry(entry) {
 
 function repaintJoeCard(card) {
   const old = document.getElementById('joeCard-' + card.id);
-  if (!old) return;
+  if (!old || !window.NBDJoeActions) return;
   const div = document.createElement('div');
   div.innerHTML = window.NBDJoeActions.cardHtml(card);
   old.replaceWith(div.firstChild);
@@ -371,7 +377,7 @@ async function sendJoeMessage() {
 // the loop resumes from the card's Confirm / Cancel (joeResolveCard).
 const JOE_MAX_ROUNDS = 4;
 async function joeRunLoop(ctx) {
-  const A = window.NBDJoeActions || null;
+  const A = await joeActionsReady();
   const systemPrompt = buildJoeSystemPrompt(ctx);
   showJoeTyping();
   try {
@@ -495,6 +501,26 @@ function joeQuick(msg) {
   const inp = document.getElementById('joeInput');
   if(inp) inp.value = msg;
   sendJoeMessage();
+}
+
+// Ask Joe's tools and confirm cards (ask-joe-actions.js, window.NBDJoeActions)
+// load with this view, not at boot (boot-weight lane, 2026-11-08). The 'askjoe'
+// bundle is registered HERE, not in script-loader.js (a blocking script at its
+// byte ceiling), and the 'joe' view preloads it on goTo('joe'). A send and a
+// saved transcript wait for it (joeActionsReady); if it cannot load, the chat
+// stays text-only.
+if (window.ScriptLoader && window.ScriptLoader.bundles && !window.ScriptLoader.bundles.askjoe) {
+  window.ScriptLoader.bundles.askjoe = ['js/ask-joe-actions.js?v=2'];
+}
+if (window.ScriptLoader && window.ScriptLoader.views && !window.ScriptLoader.views.joe) {
+  window.ScriptLoader.views.joe = ['askjoe'];
+}
+async function joeActionsReady() {
+  const SL = window.ScriptLoader;
+  if (!window.NBDJoeActions && SL && typeof SL.loadBundle === 'function') {
+    try { await SL.loadBundle('askjoe'); } catch (e) { /* text-only chat */ }
+  }
+  return window.NBDJoeActions || null;
 }
 
 // Hook into goTo to init chat when tab opens. The previous version

@@ -7506,8 +7506,9 @@
      at load by the builder). -->
 
 <script defer src="js/ask-joe-rules.js?v=2"></script>
-<script defer src="js/ask-joe-actions.js?v=2"></script>
-<script defer src="js/ai.js?v=11"></script>
+<!-- LAZY: ask-joe-actions.js (Ask Joe's tools + confirm cards) is ScriptLoader's `askjoe` bundle since
+     2026-11-08: ai.js registers it and the Ask Joe view fetches it. Its stylesheet stays a late link above. -->
+<script defer src="js/ai.js?v=12"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/review-deck.js?v=3"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
