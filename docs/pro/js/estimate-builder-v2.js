@@ -959,6 +959,13 @@
     return Object.assign({}, applyCompanyPricing(loadSettings()).tierRates);
   }
 
+  // The add-on unit prices a label should QUOTE (CRM audit 2026-11-06, ED-F08):
+  // the same resolution calculatePerSq() charges with, so the V2 Add-Ons
+  // checkboxes read the company's companyProfile.pricing.addonPrices.
+  function effectiveAddonPrices() {
+    return Object.assign({}, applyCompanyPricing(loadSettings()).addonPrices);
+  }
+
   // ═════════════════════════════════════════════════════════
   // SECTION 6 — Shared prep step (measurements → geometry)
   // ═════════════════════════════════════════════════════════
@@ -1615,6 +1622,7 @@
     getResolvedCountySettings,
     getFallbackTaxRate,
     effectiveTierRates,
+    effectiveAddonPrices,
 
     // Calculation
     calcDeposit,

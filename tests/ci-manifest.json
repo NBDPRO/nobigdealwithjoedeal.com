@@ -679,6 +679,7 @@
     "tenant-legal.test.js",
     "admin-tenants-site-address-2026-10-23.test.js",
     "tenant-ready-2026-10-04.test.js",
+    "ed-f08-2026-11-08.test.js",
     "theme-contrast.test.js",
     "dashboard-boot-no-duplicate-toplevel-2026-11-04.test.js",
     "concat-shipped-2026-11-04.test.js",
