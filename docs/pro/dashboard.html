@@ -7348,7 +7348,8 @@
 <script defer src="js/crm-portal-bridge.js?v=9"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
-<script defer src="js/sort-customers.js?v=3"></script>
+<!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
+     on the first Pipeline render, when the banner's mount (inside tpl-view-crm) exists. -->
 <script defer src="js/crm.js?v=36"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=9"></script>
