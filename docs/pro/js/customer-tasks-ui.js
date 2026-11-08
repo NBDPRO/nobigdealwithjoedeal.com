@@ -2784,8 +2784,8 @@ function logGeneratedDoc(type, data) {
   setTimeout(function () { window.NBDCustomerDocs.refresh(); }, 2500);
 }
 
-// Only a FALLBACK. customer-bootstrap.module.js runs first (module scripts and
-// deferred scripts execute in document order) and installs the real pair,
+// Only a FALLBACK. customer-photo-report-generator.js runs first (deferred
+// scripts execute in document order) and installs the real pair,
 // whose open + onClose clear window._docUploadQueue. This file used to
 // overwrite it with a bare open that never cleared the queue, so after a
 // successful upload, reopening the modal showed the same files and Upload
