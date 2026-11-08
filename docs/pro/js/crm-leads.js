@@ -275,15 +275,15 @@ document.addEventListener('DOMContentLoaded',()=>{const tm=document.getElementBy
 async function saveLead(){
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
-  // Paperwork "Filed" stamps (PL-F10, 2026-11-08): a ticked box keeps the stamp
-  // editLead() put on it (data-filed-at, the day it was really filed); a box
-  // ticked in this edit gets now; an unticked box clears the field ('').
-  const filedStamp = (id) => { const e=document.getElementById(id); if(!e||!e.checked) return ''; return (e.dataset && e.dataset.filedAt) || new Date().toISOString(); };
   const mErr=document.getElementById('mErr'),mOk=document.getElementById('mOk');
   const saveBtn=document.querySelector('#leadModal .msave');
   // Lead modal may be absent in standalone/compat mode — bail cleanly.
   if(!mErr||!mOk||!saveBtn){console.warn('saveLead: lead modal not in DOM');return;}
   mErr.style.display='none';mOk.style.display='none';
+  // Paperwork "Filed" stamps (PL-F10, 2026-11-08): a ticked box keeps the stamp
+  // editLead() put on it (data-filed-at, the day it was really filed); a box
+  // ticked in this edit gets now; an unticked box clears the field ('').
+  const filedStamp = (id) => { const e=document.getElementById(id); if(!e||!e.checked) return ''; return (e.dataset && e.dataset.filedAt) || new Date().toISOString(); };
   // Validation feedback. #mErr sits at the TOP of the lead modal while the
   // Save button is ~230 lines of markup lower, so on a phone the rep has
   // scrolled the strip out of view by the time they tap Save — the
