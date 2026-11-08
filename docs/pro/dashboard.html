@@ -6388,7 +6388,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=12"></script>
 <script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=19"></script>
+<script defer src="js/dashboard-actions.js?v=20"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -7578,7 +7578,8 @@
 <script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=3"></script>
-<script defer src="js/onboarding-tour.js?v=4"></script>
+<!-- LAZY (2026-11-08): onboarding-tour.js is the `tour` bundle, registered by dashboard-actions.js and fetched at
+     boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>

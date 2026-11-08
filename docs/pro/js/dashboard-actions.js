@@ -81,13 +81,46 @@ function mQuickAddRoute() {
   if (typeof closeQuickAddLead === 'function') closeQuickAddLead();
   if (typeof openLeadModal === 'function') openLeadModal();
 };
+// First-run tour (boot-weight lane, 2026-11-08): js/onboarding-tour.js is the
+// lazy 'tour' ScriptLoader bundle, registered HERE, not in script-loader.js (a
+// blocking script at its byte ceiling); this deferred file runs at boot, before
+// any tap. Start Tour loads it, then starts it, like openDecisionPicker below.
+function tourLoader() {
+  const sl = window.ScriptLoader;
+  if (!sl || typeof sl.loadBundle !== 'function') return null;
+  if (sl.bundles && !sl.bundles.tour) sl.bundles.tour = ['js/onboarding-tour.js?v=4'];
+  return sl;
+}
 function restartOnboardingTour() {
+  const _start = function () {
+    if (window.OnboardingTour && typeof window.OnboardingTour.forceRestart === 'function') {
+      window.OnboardingTour.forceRestart();
+    } else if (typeof showToast === 'function') {
+      showToast('Tour module loading...', 'error');
+    }
+  };
+  const sl = tourLoader();
   if (window.OnboardingTour && typeof window.OnboardingTour.forceRestart === 'function') {
-    window.OnboardingTour.forceRestart();
-  } else if (typeof showToast === 'function') {
-    showToast('Tour module loading...', 'error');
+    _start();
+  } else if (sl) {
+    sl.loadBundle('tour').then(_start);
+  } else {
+    _start();
   }
 };
+// At boot the tour is fetched only when it can fire: no completion flag yet (a
+// first-run rep) or how-to.html's one-shot "Restart Tour" force flag, the same
+// states in which its maybeAutoStart goes on to wait for leads. It still
+// decides, and it consumes the force flag (never clear it here). A returning
+// rep fetches nothing; a throwing localStorage reads as "no tour", as there.
+function tourWantedAtBoot() {
+  try {
+    return localStorage.getItem('nbd-tour-force') === '1' || localStorage.getItem('nbd-onboarding-complete') !== '1';
+  } catch (e) { return false; }
+}
+if (tourLoader() && tourWantedAtBoot()) {
+  try { window.ScriptLoader.loadBundle('tour'); } catch (e) {}
+}
 function openDecisionPicker() {
   // NEW-D15: the decision-engine bundle is lazy and wired (in script-loader's
   // VIEW_BUNDLES) only to aitree/understand — never to #/joe, where the
