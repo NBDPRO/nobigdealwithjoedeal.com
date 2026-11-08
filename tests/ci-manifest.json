@@ -672,6 +672,7 @@
     "sms-program-page-2026-10-15.test.js",
     "account-erasure-billing.test.js",
     "legal-disclosures-2026-10-03.test.js",
+    "st-f72-2026-11-08.test.js",
     "tenant-brand.test.js",
     "tenant-hardening.test.js",
     "tenant-legal.test.js",

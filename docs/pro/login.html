@@ -266,14 +266,14 @@ body{background:var(--navy-dark);color:var(--white);display:grid;grid-template-c
 <div class="lp">
 
   <!-- TAB SWITCHER -->
-  <div class="access-tabs">
-    <button class="tab-btn active" id="tab-member">Member Login</button>
-    <button class="tab-btn" id="tab-code">Access Code</button>
-    <button class="tab-btn" id="tab-demo">Try Demo</button>
+  <div class="access-tabs" role="tablist" aria-label="Ways to sign in">
+    <button class="tab-btn active" id="tab-member" role="tab" aria-selected="true" aria-controls="view-member">Member Login</button>
+    <button class="tab-btn" id="tab-code" role="tab" aria-selected="false" aria-controls="view-code">Access Code</button>
+    <button class="tab-btn" id="tab-demo" role="tab" aria-selected="false" aria-controls="view-demo">Try Demo</button>
   </div>
 
   <!-- ── MEMBER LOGIN VIEW ── -->
-  <div class="view active" id="view-member">
+  <div class="view active" id="view-member" role="tabpanel" aria-labelledby="tab-member">
     <div class="main-view" id="mainView">
       <div class="eyebrow">Pro Member Access</div>
       <h2 class="view-title">SIGN IN</h2>
@@ -348,7 +348,7 @@ body{background:var(--navy-dark);color:var(--white);display:grid;grid-template-c
   </div>
 
   <!-- ── ACCESS CODE VIEW ── -->
-  <div class="view" id="view-code">
+  <div class="view" id="view-code" role="tabpanel" aria-labelledby="tab-code">
     <div class="eyebrow">Invite Code</div>
     <h2 class="view-title">ENTER YOUR<br>CODE</h2>
     <p class="view-sub">Got a code from Joe? Enter it below to access the dashboard.</p>
@@ -368,7 +368,7 @@ body{background:var(--navy-dark);color:var(--white);display:grid;grid-template-c
   </div>
 
   <!-- ── DEMO VIEW ── -->
-  <div class="view" id="view-demo">
+  <div class="view" id="view-demo" role="tabpanel" aria-labelledby="tab-demo">
     <div class="eyebrow">Try Before You Buy</div>
     <h2 class="view-title">DEMO<br>ACCESS</h2>
     <p class="view-sub" style="margin-bottom:20px">Explore the full NBD Pro dashboard. No sign-up needed.</p>
