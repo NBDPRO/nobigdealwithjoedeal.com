@@ -58,7 +58,9 @@
         if (mine !== false) return mine;
         var c = w._userClaims || {};   // read late: the claims land just after _user
         return has(['companies', c.companyId || uid, 'skin', 'config'], function (d) { return d.enabled === true; }, 0)
-          .catch(function () { return false; });   // refused: no set, as my-skin.js treats it
+          // Refused: no set, as my-skin.js treats it. Any other failure (offline
+          // after the retries) is no answer, so the bundle loads, as before.
+          .catch(function (e) { return e && e.code === 'permission-denied' ? false : null; });
       })
       .then(function (yes) { if (yes !== false) load(); });
   })();

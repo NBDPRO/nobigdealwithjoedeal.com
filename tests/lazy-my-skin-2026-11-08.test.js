@@ -149,6 +149,12 @@ const settle = async (w, ms) => { for (let i = 0; i < (ms || 150); i++) await ti
     ok('the company read is refused: not loaded (no set to paint, as my-skin.js treats it)', w.loads.length === 0, w.loads);
   }
   {
+    // Any other failure is no answer, not "no set": a team's background
+    // must not vanish for the session because one read hit a dead spot.
+    const w = await settle(run(kicker({ docs: { 'companies/u1/skin/config': () => { throw Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' }); } } })), 300);
+    ok('the company read fails offline: loaded (no answer, as before)', w.loads.join() === 'myskin', w.loads);
+  }
+  {
     let threw = false;
     try { const w = run(kicker({ loader: false, docs: { 'userSettings/u1': { mySkin: {} } } })); await settle(w); ok('no ScriptLoader: nothing is read', w.reads.length === 0, w.reads); } catch (e) { threw = e; }
     ok('no ScriptLoader on the page: nothing throws', !threw, threw);
