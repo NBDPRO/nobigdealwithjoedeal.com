@@ -21,9 +21,8 @@
  *     maybeAutoOpenFromHash opens the builder when it lands.
  *
  * A failed fetch leaves the card working without the builder: ScriptLoader
- * resolves (never rejects) and keeps the failed <script> tag, so a later
- * load() finds the tag and does not fetch again. The stub says so and asks
- * for a refresh, which is the only retry.
+ * resolves (never rejects) and drops the dead <script> tag (2026-11-08), so
+ * the next click fetches again. The stub says so and asks for another tap.
  */
 (function () {
   'use strict';
@@ -42,10 +41,10 @@
   // photo-report.js is LAZY on this page (ScriptLoader 'photos' bundle) as of
   // 2026-09-06. Both customer-page entry points resolve the global by NAME at
   // click time — pickPhotoReport() in customer-photo-report-picker.js, and the
-  // "📋 Generate Report" button (customer-bootstrap.module.js:1354, data-action="generatePhotoReport") —
+  // "📋 Generate Report" button (customer-bootstrap.module.js:1705, data-action="generatePhotoReport") —
   // so a load-then-run stub is what keeps the button from being a SILENT
   // no-op: without it the action dispatcher just logs an unknown action and
-  // nothing visible happens. tests/smoke/photo.test.js:1224 pins this, and
+  // nothing visible happens. tests/smoke/photo.test.js:1405 pins this, and
   // caught its removal during the D-6 rewrite of the picker.
   //
   // `arguments` is forwarded whole, so the third builder argument reaches the
@@ -86,7 +85,7 @@
       return sl.loadBundle(BUNDLE).then(function () {
         var fn = window.openPhotoReportPicker;
         if (typeof fn === 'function' && !fn.__nbdLazyPhotoReportPickerStub) return fn.apply(window, args);
-        if (typeof showToast === 'function') showToast('Photo report builder failed to load — refresh the page', 'error');
+        if (typeof showToast === 'function') showToast('Could not load the photo report builder — check your connection and tap again', 'error');
       });
     };
     window.openPhotoReportPicker.__nbdLazyPhotoReportPickerStub = true;

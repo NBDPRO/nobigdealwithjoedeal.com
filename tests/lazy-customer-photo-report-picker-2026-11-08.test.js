@@ -16,13 +16,12 @@
  *     Report" button;
  *   - the #photo-report deep link (photo-review.html, the dashboard chip),
  *     which loads the bundle at boot so the picker's own auto-open runs.
- * Pins, with the REAL script-loader.js in a vm and a fake <head> that keeps
- * every appended tag, as a browser does:
+ * Pins, with the REAL script-loader.js in a vm and a fake <head> that lists
+ * the tags appended to it and lets a tag remove() itself, as a browser does:
  *   - nothing is fetched at boot without the deep link;
  *   - a click before the file lands opens the builder once it lands;
- *   - a failed fetch leaves the card working and says so; ScriptLoader keeps
- *     the failed tag, so the next click does not refetch (it stays failed
- *     until a reload) and says so again;
+ *   - a failed fetch leaves the card working and says so; ScriptLoader drops
+ *     the dead tag, so the next click fetches again and the builder opens;
  *   - the deep link loads the bundle at boot and the builder opens;
  *   - no ScriptLoader: nothing throws, the click says why;
  *   - customer.html carries the boot file, not the picker; script-loader.js
@@ -52,13 +51,15 @@ const CUSTOMER = read('docs/pro/customer.html');
 const flush = () => new Promise((r) => setImmediate(r));
 
 // A customer page: window IS the global (bare showToast / setTimeout resolve
-// the way they do in a browser), and <head> keeps every tag appended to it.
+// the way they do in a browser), and <head> lists the tags appended to it
+// until one remove()s itself (ScriptLoader drops a dead tag on error).
 function makePage(opts) {
   opts = opts || {};
-  const head = [], timers = [], toasts = [], opened = [], replaced = [], warns = [];
+  const head = [], appended = [], timers = [], toasts = [], opened = [], replaced = [], warns = [];
   function el(tag) {
     return {
-      tagName: String(tag).toUpperCase(), attrs: {},
+      tagName: String(tag).toUpperCase(), attrs: {}, parentNode: null,
+      remove() { if (this.parentNode) this.parentNode.removeChild(this); },
       setAttribute(n, v) { this.attrs[n] = String(v); },
       getAttribute(n) {
         if (n === 'src') return this.src == null ? null : this.src;
@@ -71,7 +72,10 @@ function makePage(opts) {
   const document = {
     readyState: 'complete',
     baseURI: 'https://x.test/pro/customer.html',
-    head: { appendChild(e) { head.push(e); return e; } },
+    head: {
+      appendChild(e) { head.push(e); appended.push(e); e.parentNode = document.head; return e; },
+      removeChild(e) { const i = head.indexOf(e); if (i >= 0) head.splice(i, 1); e.parentNode = null; return e; },
+    },
     createElement: el,
     querySelector: () => null,
     querySelectorAll(sel) {
@@ -96,7 +100,7 @@ function makePage(opts) {
   ctx.window = ctx;
   vm.createContext(ctx);
   const page = {
-    ctx, head, timers, toasts, opened, replaced, warns,
+    ctx, head, appended, timers, toasts, opened, replaced, warns,
     run(src, name) { vm.runInContext(src, ctx, { filename: name }); },
     // Call a page global the way the action delegate does; missing = undefined, not a crash.
     call(name, ...a) { return typeof ctx[name] === 'function' ? ctx[name](...a) : undefined; },
@@ -186,15 +190,21 @@ function boot(opts) {
     await flush();
     ok('the click neither throws nor rejects', !threw, threw && threw.message);
     ok('nothing opens', p.opened.length === 0, p.opened);
-    ok('the rep is told, in an error toast that asks for a refresh', p.toasts.some((t) => t[0] === 'error' && /refresh/i.test(t[1])), JSON.stringify(p.toasts));
-    const before = p.scriptTags().length;
+    ok('the rep is told, in an error toast that asks for another tap (not a refresh)',
+      p.toasts.some((t) => t[0] === 'error' && /check your connection/i.test(t[1]) && /tap again/i.test(t[1]) && !/refresh/i.test(t[1])), JSON.stringify(p.toasts));
+    ok('ScriptLoader drops the dead tag from <head>', !!tags[0] && p.pickerTags().length === 0 && tags[0].parentNode === null,
+      p.pickerTags().map((e) => e.src).join(', '));
     p.toasts.length = 0;
-    let threw2 = null;
-    try { await p.call('openPhotoReportPicker'); } catch (e) { threw2 = e; }
+    let threw2 = null, r2 = null;
+    try { r2 = p.call('openPhotoReportPicker'); } catch (e) { threw2 = e; }
     await flush();
-    ok('ScriptLoader keeps the failed tag, so the next click does not refetch (failed until a reload)',
-      p.pickerTags().length === 1 && p.scriptTags().length === before, p.scriptTags().map((e) => e.src).join(', '));
-    ok('...and that click says so again, without throwing', !threw2 && p.toasts.some((t) => t[0] === 'error'), JSON.stringify(p.toasts));
+    const again = p.appended.filter((e) => /customer-photo-report-picker\.js/.test(String(e.src)));
+    ok('the next click fetches again: a second, new tag', again.length === 2 && again[1] !== tags[0], again.length);
+    if (again[1]) { p.run(PICKER, 'customer-photo-report-picker.js'); again[1].onload(); }
+    try { await r2; } catch (e) { threw2 = e; }
+    await flush();
+    ok('...and when it lands, that click opens the builder, with no error toast',
+      !threw2 && p.opened.join() === 'photoReportPicker' && !p.toasts.some((t) => t[0] === 'error'), JSON.stringify({ opened: p.opened, toasts: p.toasts }));
     p.toasts.length = 0;
     const gen = p.call('generatePhotoReport', 'lead-1', 'homeowner');
     await flush();
