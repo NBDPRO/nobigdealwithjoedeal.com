@@ -413,6 +413,25 @@ if (!SHIPPED_GATES) {
   ok('control: without keepNames esbuild drops names (the reason keepNames is on)', run(bare) !== WANT, run(bare));
 }
 
+// The customer page (2026-11-08): the same measure over docs/pro/customer.html, which had no gate at all while
+// the dashboard's was tightened (measured 132 local tags, 1 blocking, 1503 KB shipped, 189 KB of HTML). Ceilings
+// sit just above that so growth trips them; lower them in the PR that moves something off this page's boot.
+const CUSTOMER_CEILING = { localScripts: 132, blockingScripts: 1, htmlBytes: 196 * 1024,
+  localBytes: 2720 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1520 * 1024, shippedBlockingBytes: 16 * 1024 };
+console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
+const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
+ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));
+ok('customer: <template> tags balance to depth 0 at EOF', cm.tplDepthAtEof === 0 && cm.strayTemplateClose === 0);
+ok('customer: blocking scripts: ' + cm.blockingScripts + ' ≤ ' + CUSTOMER_CEILING.blockingScripts, cm.blockingScripts <= CUSTOMER_CEILING.blockingScripts);
+ok('customer: local script tags: ' + cm.localScripts + ' ≤ ' + CUSTOMER_CEILING.localScripts, cm.localScripts <= CUSTOMER_CEILING.localScripts);
+ok('customer: customer.html: ' + kb(cm.htmlBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.htmlBytes), cm.htmlBytes <= CUSTOMER_CEILING.htmlBytes);
+srcBytes('customer blocking bytes', cm.blockingBytes, CUSTOMER_CEILING.blockingBytes);
+srcBytes('customer local script bytes', cm.localBytes, CUSTOMER_CEILING.localBytes);
+if (SHIPPED_GATES) {
+  ok('customer: shipped blocking bytes: ' + kb(cm.shippedBlockingBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.shippedBlockingBytes), cm.shippedBlockingBytes <= CUSTOMER_CEILING.shippedBlockingBytes);
+  ok('customer: shipped local script bytes: ' + kb(cm.shippedLocalBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.shippedLocalBytes), cm.shippedLocalBytes <= CUSTOMER_CEILING.shippedLocalBytes);
+}
+
 // Positive controls: the counter must see what it claims to count.
 const ctl = measure('<script src="js/a.js"></script><script defer src="js/a.js"></script><script type="module" src="js/a.js"></script><!-- <script src="js/a.js"></script> --><script src="https://x.test/b.js"></script>', path.join(__dirname));
 ok('control: counts local tags, skips CDN + commented-out tags, splits blocking from deferred/module',
