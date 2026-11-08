@@ -14,8 +14,9 @@
  *     paints the button and fetches nothing; the click fetches the engine once
  *     and opens the modal when it lands, even for a click made before it landed;
  *   - a failed fetch leaves the card working (toast, no throw, buttons still
- *     paint) and stays failed until a reload: ScriptLoader finds the failed tag
- *     and does not fetch again, so the second click gets the same toast;
+ *     paint), its dead tag is dropped, and the second click fetches the engine
+ *     again (ScriptLoader removes a failed tag), with the same toast if that
+ *     fails too;
  *   - money: the lazily loaded engine prices a supplement exactly as the
  *     required engine does (same totals, same rounding);
  *   - the engine has no load-time side effect but defining
@@ -178,7 +179,7 @@ function makePage(opts) {
       b[0] === 260 && b[1] === 170 && b[2] === 99 && b[4] === 600 && b[5] === 12600 && b[6] === 5, JSON.stringify(b));
   }
 
-  console.log('\nFAILED FETCH: the card keeps working, and it stays failed until a reload');
+  console.log('\nFAILED FETCH: the card keeps working, and the next tap fetches again');
   {
     const p = makePage();
     p.click(p.rows[0]);
@@ -187,12 +188,16 @@ function makePage(opts) {
     try { if (tags[0]) tags[0].onerror(); await settle(); } catch (e) { threw = e; }
     ok('no throw when the fetch fails', threw === null, threw && threw.message);
     ok('no modal', p.modal() === null);
-    ok('the rep is told, with an error toast that says to reload',
-      p.toasts.length === 1 && p.toasts[0][1] === 'error' && /Supplement engine not loaded/.test(p.toasts[0][0]) && /[Rr]eload/.test(p.toasts[0][0]), JSON.stringify(p.toasts));
+    ok('the rep is told, with an error toast that says to tap again',
+      p.toasts.length === 1 && p.toasts[0][1] === 'error' && /Could not load the supplement engine/.test(p.toasts[0][0]) && /tap \+ Supplement again/.test(p.toasts[0][0]), JSON.stringify(p.toasts));
+    ok('the dead tag is gone from <head>', !!tags[0] && tags[0].parentNode.children.indexOf(tags[0]) === -1);
     p.click(p.rows[0]);
     await settle();
-    ok('a second click does NOT fetch again (ScriptLoader finds the failed tag in <head>)', p.engineTags().length === 1, p.engineTags().length);
-    ok('…and gets the same toast, no modal', p.toasts.length === 2 && p.toasts[1][0] === p.toasts[0][0] && p.modal() === null, JSON.stringify(p.toasts));
+    const again = p.engineTags();   // every engine <script> ever appended: one per fetch
+    ok('a second click fetches the engine again (ScriptLoader dropped the dead tag)', again.length === 2 && again[1] !== tags[0], again.length);
+    if (again[1]) again[1].onerror();
+    await settle();
+    ok('…and a second failure gets the same toast, no modal', p.toasts.length === 2 && p.toasts[1][0] === p.toasts[0][0] && p.modal() === null, JSON.stringify(p.toasts));
     const row2 = makeRow('E2');
     p.rows.push(row2);
     p.observers.forEach((cb) => cb([]));
@@ -205,7 +210,7 @@ function makePage(opts) {
     let threw = null;
     try { p.click(p.rows[0]); await settle(); } catch (e) { threw = e; }
     ok('the click does not throw', threw === null, threw && threw.message);
-    ok('it toasts the same message and opens nothing', p.toasts.length === 1 && /Supplement engine not loaded/.test(p.toasts[0][0]) && p.modal() === null, JSON.stringify(p.toasts));
+    ok('it toasts the same message and opens nothing', p.toasts.length === 1 && /Could not load the supplement engine/.test(p.toasts[0][0]) && p.modal() === null, JSON.stringify(p.toasts));
   }
 
   console.log('\nTHE ENGINE: safe to load late, one reader');
