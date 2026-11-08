@@ -4908,7 +4908,11 @@
         <div class="panel">
           <div class="panel-hdr"><div><div class="panel-label">Plans</div><div class="panel-title">Compare Features</div></div></div>
           <div class="panel-body">
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;" id="billingPlanCards">
+            <!-- Five plan cards (dashboard-billing-tab.js): one row when all five
+                 fit at 124px (5 x 124 + 4 gaps = 652px; the Enterprise card needs
+                 ~121px), otherwise three columns (3 + 2), two on a phone. Never
+                 4 + 1 (CRM audit 2026-11-06, ST-F48). -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(max(124px,min((100% - 16px) / 3 - 1px,(652px - 100%) * 10000)),1fr));gap:8px;margin-bottom:14px;" id="billingPlanCards">
               <!-- Rendered by JS below -->
             </div>
             <div style="text-align:center;">
