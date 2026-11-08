@@ -7452,7 +7452,7 @@
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
-     joined the eager chain later; see its own header). See maps.js
+     joined the eager chain later and left it on 2026-11-08, below). See maps.js
      header for the full split rationale. Each module is a classic
      <script> (non-ESM) and shares sibling-scope globals.
      LAZY (2026-09-14, boot-weight containment): maps-routing.js — the
@@ -7461,10 +7461,12 @@
      Proven safe to decouple from this eager chain: vm-sandboxed with
      no Leaflet global defined, it executes cleanly (no top-level code
      calls into L.*), and neither maps-core.js nor maps-overlays.js
-     references anything drawing-tool-specific. -->
-<script defer src="js/maps-core.js?v=9"></script>
+     references anything drawing-tool-specific.
+     LAZY (2026-11-08, boot-weight): maps-customers.js (the Customers
+     layer) is the ScriptLoader bundle `mapcustomers`, registered by
+     maps-core.js and fetched with the 'map' view; its ?v= lives there. -->
+<script defer src="js/maps-core.js?v=10"></script>
 <script defer src="js/maps-overlays.js?v=9"></script>
-<script defer src="js/maps-customers.js?v=12"></script>
 <script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
      /appointments (Cal.com webhook output) for the current rep, cross-
