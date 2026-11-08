@@ -892,12 +892,22 @@
     save();
   }
 
+  // A swipe up or a long-press on the bar already did its work (home / the
+  // switcher); the click that ends the gesture must not also tap what was under
+  // the finger. First thing, before the Record button (whose click would also
+  // bubble to the recorder's document delegate), and it stops propagating.
+  // The flag clears itself: a swipe often ends with no click at all.
+  function armSwallow() {
+    S.barSwiped = true;
+    clearTimeout(S.swallowT);
+    S.swallowT = setTimeout(function () { if (S) S.barSwiped = false; }, 700);
+  }
   function onPhoneClick(ev) {
+    if (S.barSwiped) { S.barSwiped = false; clearTimeout(S.swallowT); ev.preventDefault(); ev.stopPropagation(); return; }
     var vz = ev.target.closest && ev.target.closest('[data-osvisit]');
     if (vz) { onVisitTap(vz); return; }
     var t = ev.target.closest && ev.target.closest('[data-osp]');
     if (!t) return;
-    if (S.barSwiped) { S.barSwiped = false; ev.preventDefault(); return; }
     var what = t.getAttribute('data-osp');
     var id = t.getAttribute('data-id');
     if (what === 'app') {
@@ -926,7 +936,7 @@
     S.pressT = setTimeout(function () {
       if (!S || !S.press) return;
       S.press.fired = true;
-      if (S.press.bar) { S.barSwiped = true; openSwitcher(); }
+      if (S.press.bar) { armSwallow(); openSwitcher(); }
       else if (!S.editing) { S.editing = true; S.editPick = null; S.longPressed = true; phonePaint(); }
     }, 550);
   }
@@ -940,7 +950,7 @@
     if (!p || ev.pointerId !== p.pid) return;
     clearTimeout(S.pressT);
     S.press = null;
-    if (p.bar && !p.fired && p.y - ev.clientY > 36 && S.phoneOpen) { S.barSwiped = true; phoneHome(); }
+    if (p.bar && !p.fired && p.y - ev.clientY > 36 && S.phoneOpen) { armSwallow(); phoneHome(); }
   }
   function onPagesScroll() {
     var p = S && S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
@@ -1132,6 +1142,7 @@
     Object.keys(st.origins).forEach(function (id) { release(id); });
     if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);
     clearTimeout(st.pressT);
+    clearTimeout(st.swallowT);
     doc.documentElement.removeAttribute('data-os-app');
     ['osDesk', 'osPhone', 'osBar'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
     doc.documentElement.removeAttribute('data-os-surface');

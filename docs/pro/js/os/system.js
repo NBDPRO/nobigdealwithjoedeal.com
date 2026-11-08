@@ -256,8 +256,8 @@
     });
     var clock = L.clockText(new Date());
     // Phones show the clock alone, so it carries a dot for anything that
-    // needs attention (offline, storm, away) and says so in its label.
-    var alerts = items.filter(function (it) { return it.tone === 'warn' || (it.tone === 'alert' && it.id !== 'notifs'); });
+    // needs attention (offline, storm, away, Do Not Disturb) and says so in its label.
+    var alerts = L.clockAlerts(items);
     var dotsHtml = alerts.map(function (it) {
       return '<span class="os-clock-dot os-tone-' + esc(it.tone) + '" aria-hidden="true"></span>';
     }).join('');
@@ -505,9 +505,10 @@
   function wrapToast() {
     var orig = w.showToast;
     if (typeof orig !== 'function' || orig.__nbdOs) return;
-    var wrapped = function (message, type) {
-      var held = L.holdToast(type, state.dnd);
-      state.history = L.pushHistory(state.history, { message: message, type: type, ts: Date.now(), held: held });
+    var wrapped = function (a, b) {
+      var t = L.toastEntry(a, b);   // both signatures: ('msg', 'type') and ({ message, type, undoAction })
+      var held = L.holdToast(t.type, state.dnd, t.undo);
+      state.history = L.pushHistory(state.history, { message: t.message, type: t.type, ts: Date.now(), held: held });
       if (state.open === 'notifs') paintSheet();
       if (held) { paintTray(); return undefined; }
       return orig.apply(this, arguments);
