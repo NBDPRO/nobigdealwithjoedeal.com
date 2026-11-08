@@ -831,14 +831,17 @@
     // A layout switched on or off changes what resolves; re-apply the answer.
     refresh();
     if (flags[SYSTEM_FLAG]) loadSystemLayer();
+    // A cache-less first load painted the layer before the flags arrived (boot
+    // below); an exact false takes it down (OS-KILLSWITCH-FIRST-LOAD).
+    else if (systemLoading) systemLoading.then(function () { var S = window.NBDOS; if (S && typeof S.off === 'function') S.off(); });
   }
   R.setFlagCheck(isFlagOn);
 
   // NBD OS System layer (phase 1): the tray, Control Center, Notification
   // Center and Spotlight entries, over EVERY layout. Lazy (no <script> tag, so
   // the boot budget is untouched) and only while `osSystemLayer` is on. Once
-  // loaded it stays for the page's life; turning the flag off takes effect on
-  // the next load.
+  // loaded it stays for the page's life, unless the flag read after a
+  // cache-less first load says false: onFlagsLoaded then takes it down.
   var SYSTEM_FLAG = 'osSystemLayer';
   var systemLoading = null;
   function loadSystemLayer() {

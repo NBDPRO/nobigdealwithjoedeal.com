@@ -25,7 +25,8 @@
  * textContent. No inline handlers or styles: one delegated listener.
  *
  * window.NBDOS: { open(panel), close(), refresh(), isDnd(), setDnd(on), history(),
- *                 registerControl(def) }  (registerControl: phase 4 adds Lock).
+ *                 registerControl(def), off() }  (registerControl: phase 4 adds Lock;
+ *                 off: layout-system.js tears the layer down when the live flag says false).
  */
 (function () {
   'use strict';
@@ -279,7 +280,7 @@
   }
   function paintTray() {
     var host = doc.querySelector('header .hright');
-    if (!host) return;
+    if (!host || state.off) return;
     var tray = byId('osTray');
     if (!tray) {
       tray = doc.createElement('div');
@@ -535,7 +536,7 @@
   var registered = [];
   function registerSpotlight() {
     var C = w.NBDCommand;
-    if (!C || typeof C.registerAction !== 'function') return;
+    if (!C || typeof C.registerAction !== 'function' || state.off) return;
     registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
     registered = [];
     L.settingsActions(settingsTabs()).forEach(function (a) {
@@ -595,6 +596,7 @@
 
   var refreshT = null;
   function refresh() {
+    if (state.off) return;
     clearTimeout(refreshT);
     refreshT = setTimeout(function () { paintTray(); paintSheet(); }, 50);
   }
@@ -611,7 +613,7 @@
     doc.documentElement.classList.add('os-system');
     boot();
     ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { doc.addEventListener(ev, noteActivity, { passive: true, capture: true }); });
-    setInterval(checkIdle, 15000);
+    timers.push(setInterval(checkIdle, 15000));
     // Settings tabs join Spotlight once the Settings view has hydrated (role gating applied)
     var sv = byId('view-settings');
     if (sv && typeof MutationObserver === 'function') {
@@ -627,9 +629,30 @@
     doc.addEventListener('layoutchange', function () { refresh(); registerSpotlight(); });
     doc.addEventListener('themechange', refresh);
     // the clock, and the counts that have no event of their own
-    setInterval(refresh, 30000);
+    timers.push(setInterval(refresh, 30000));
     // the sidebar is filled per role after auth: register apps again once it settles
     setTimeout(registerSpotlight, 4000);
+  }
+
+  // Teardown for layout-system.js: a first load from an empty flag cache paints
+  // the layer before feature_flags arrive; an exact osSystemLayer:false then
+  // takes it down (OS-KILLSWITCH-FIRST-LOAD). Idempotent; painting stays off
+  // for the page's life, so the flag coming back on takes the next load.
+  var timers = [];
+  function off() {
+    if (state.off) return;
+    state.off = true;
+    close();
+    unlock();
+    clearTimeout(refreshT);
+    timers.forEach(function (t) { clearInterval(t); });
+    doc.removeEventListener('click', onClick);
+    doc.removeEventListener('keydown', onKey);
+    var C = w.NBDCommand;
+    if (C && typeof C.unregisterAction === 'function') registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
+    registered = [];
+    ['osTray', 'osSheet', 'osBoot'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
+    doc.documentElement.classList.remove('os-system');
   }
 
   w.NBDOS = {
@@ -637,7 +660,7 @@
     isDnd: function () { return state.dnd; }, setDnd: setDnd,
     history: function () { return state.history.slice(); },
     apps: apps, registerControl: registerControl, settingsTab: settingsTab,
-    lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound,
+    lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
   };
 
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init, { once: true });
