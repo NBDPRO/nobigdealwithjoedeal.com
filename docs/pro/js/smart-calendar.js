@@ -237,7 +237,9 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     } catch (e) {
       // Composite-index errors come back when the index isn't deployed
       // — log and keep going so the userId fallback still runs.
-      console.warn('[smart-cal] repUid query failed:', e?.code || e?.message);
+      // A permission-denied is the read rule (isOwner(userId) || isAdmin())
+      // denying a repUid query for every non-admin BY DESIGN: not logged.
+      if (e?.code !== 'permission-denied') console.warn('[smart-cal] repUid query failed:', e?.code || e?.message);
     }
 
     // ── fallback: userId scope (older docs) ──
