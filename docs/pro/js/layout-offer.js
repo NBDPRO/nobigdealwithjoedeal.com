@@ -218,6 +218,30 @@
     var tab = ev.target && ev.target.closest && ev.target.closest('[data-action="settingsTab"][data-target="appearance"]');
     if (tab) setTimeout(paintSettings, 50);
   });
+  // CRM audit 2026-11-06 (ST-F28): Appearance also opens without a click on its
+  // tab (#/settings/appearance, goTo('settings', { id: 'appearance' }), Apply
+  // Theme's re-open in ui.js), which left this panel on "Loading". Paint on
+  // switchSettingsTab too (the company-docs-ui.js wrap), retrying until the
+  // deferred ui.js defines it. A paint that throws must not stop the other tab
+  // hooks chained on top.
+  function installTabHook() {
+    var prev = w.switchSettingsTab;
+    if (typeof prev !== 'function') return false;
+    if (prev.__loWrapped) return true;
+    var wrapped = function (tab) {
+      var out = prev.apply(this, arguments);
+      if (tab === 'appearance') { try { paintSettings(); } catch (_) { /* the panel keeps its Loading line */ } }
+      return out;
+    };
+    Object.keys(prev).forEach(function (k) { try { wrapped[k] = prev[k]; } catch (_) { /* read-only flag */ } });
+    wrapped.__loWrapped = true;
+    w.switchSettingsTab = wrapped;
+    return true;
+  }
+  if (!installTabHook()) {
+    var hookTries = 0;
+    var hookIv = setInterval(function () { if (installTabHook() || ++hookTries > 120) clearInterval(hookIv); }, 500);
+  }
   var tries = 0;
   (function kick() {
     var E = w.LayoutEngine;
