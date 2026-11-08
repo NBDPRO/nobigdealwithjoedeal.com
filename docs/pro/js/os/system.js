@@ -115,8 +115,9 @@
   // moment the data is there (never longer than the real load), after 6 s at
   // most, or on any tap. Skipped with reduced motion or when already loaded.
   function dataReady() { return Array.isArray(w._leads); }
+  function bootStepsNow() { return L.bootSteps({ signedIn: !!(w._user && w._user.uid), dataReady: dataReady() }); }
   function bootHtml() {
-    var steps = L.bootSteps({ signedIn: !!(w._user && w._user.uid), dataReady: dataReady() });
+    var steps = bootStepsNow();
     var name = companyName();
     return '<div class="os-boot-card">' +
       '<div class="os-boot-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
@@ -124,6 +125,20 @@
       '<ol class="os-boot-steps">' + steps.map(function (s) {
         return '<li class="' + (s.done ? 'is-done' : '') + '"><span class="os-boot-tick" aria-hidden="true">' + (s.done ? '✓' : '') + '</span>' + esc(s.label) + '</li>';
       }).join('') + '</ol></div>';
+  }
+  // Each tick marks the steps that finished IN PLACE (class + tick glyph): the
+  // aria-live region is built once, so a screen reader hears the status once,
+  // not a fresh copy of it every 250 ms.
+  function paintBoot(el) {
+    var steps = bootStepsNow();
+    var items = el.querySelectorAll('.os-boot-steps li');
+    for (var i = 0; i < steps.length && i < items.length; i++) {
+      var done = !!steps[i].done;
+      if (items[i].classList.contains('is-done') === done) continue;
+      items[i].classList.toggle('is-done', done);
+      var tick = items[i].querySelector('.os-boot-tick');
+      if (tick) tick.textContent = done ? '✓' : '';
+    }
   }
   function boot() {
     var seen = false;
@@ -139,7 +154,7 @@
     var started = Date.now();
     var t = setInterval(function () {
       if (!doc.contains(el)) { clearInterval(t); return; }
-      el.innerHTML = bootHtml();
+      paintBoot(el);
       if (dataReady() || Date.now() - started > 6000) { clearInterval(t); finish(); }
     }, 250);
     function finish() {
@@ -182,12 +197,19 @@
     if (!el) return;
     var c = L.clockText(new Date());
     var lines = L.lockLines({ unread: unreadCount(), pending: pendingCount(), online: w.navigator ? w.navigator.onLine !== false : true });
-    el.innerHTML = '<div class="os-lock-inner">' +
-      '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
-      '<div class="os-lock-time ui-num">' + esc(c.time) + '</div>' +
-      '<div class="os-lock-date">' + esc(c.date) + '</div>' +
-      '<ul class="os-lock-lines">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
-      '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+    // Built once. Every 15 s tick after that repaints only the text that
+    // changes (time, counts): the Unlock button node stays, so focus survives.
+    if (!el.firstChild) {
+      el.innerHTML = '<div class="os-lock-inner">' +
+        '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+        '<div class="os-lock-time ui-num"></div>' +
+        '<div class="os-lock-date"></div>' +
+        '<ul class="os-lock-lines"></ul>' +
+        '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+    }
+    el.querySelector('.os-lock-time').textContent = c.time;
+    el.querySelector('.os-lock-date').textContent = c.date;
+    el.querySelector('.os-lock-lines').innerHTML = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
   }
   function unlock() {
     if (!state.locked) return;
