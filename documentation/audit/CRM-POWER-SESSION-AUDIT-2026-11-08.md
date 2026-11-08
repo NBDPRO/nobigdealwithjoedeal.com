@@ -290,3 +290,28 @@ ScriptLoader sees. Use one that lists what was appended (tests/script-loader-ret
 | Local script tags | 215 | 200 |
 | Shipped local bytes | 2,858 KB | 2,563 KB |
 | Shipped blocking bytes | 87,027 B | 87,019 B |
+
+**Batch 4, the customer-page boot moves.** Four moves ran (one worktree and one Opus reviewer each). Three landed:
+
+| Script | Loads when |
+|---|---|
+| review-handoff.js + qr-code.js | the card's stage is Install Done or later (the Job done button's own condition), or the button is tapped |
+| estimate-supplement.js | the first "+ Supplement" tap (`ScriptLoader.load` of the estimates bundle's own entry, so the two dedupe) |
+| customer-photo-report-picker.js | the first "📸 Photo Report" tap, or the `#photo-report` deep link at boot; js/customer-photo-report-lazy.js (1.8 KB shipped) keeps the two stubs on the boot path |
+
+customer-jobs.js was declined, correctly: it paints `#jobsPanel` into the default Overview tab on every card, zero
+jobs included, so it is not boot-idle.
+
+All three were written before the loader fix and pinned the old behaviour ("a failed fetch stays failed until a
+reload"). Each now says "check your connection and tap again", and its test uses a `<head>` that drops a removed tag,
+so the retry is proven (red on the old loader: 3, 2 and 3 checks). The Job done shim had also locked itself off after
+one failure (a `failed` flag); that flag is gone.
+
+| Boot measure (customer.html) | Branch base | After batch 3 | After batch 4 |
+|---|---|---|---|
+| Local script tags | 132 | 131 | 129 |
+| Shipped local bytes | 1,538,419 B | 1,447,748 B | 1,395,041 B |
+| Shipped blocking bytes | 15,798 B | 15,779 B | 15,779 B |
+
+Both pages' ceilings follow the measurements down (tests/dashboard-boot-budget-2026-10-03.test.js): dashboard 200 tags
+and 2,570 KB shipped, customer 129 tags and 1,370 KB shipped. Blocking ceilings are unchanged.

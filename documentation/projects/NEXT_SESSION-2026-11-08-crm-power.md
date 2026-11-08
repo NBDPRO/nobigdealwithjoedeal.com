@@ -49,6 +49,8 @@ the audit note's "Third Opus round"):
   fixed by merged PRs. [findings-status](../../overnight/crm/findings-status.md) is current: 124 merged, 37 on #3016.
 - **Seven dashboard scripts left the boot path** (My Skin, the Customers map layer, Plan Jobs, Ask Joe's tools, the
   tour, the kanban card menu, Sort my customers). Dashboard boot: 207 → 200 tags, 2,741 → 2,563 KB shipped.
+- **Three customer-page scripts left the boot path** (the Job done hand-off, the supplement engine, the photo report
+  builder; customer-jobs.js stays, it paints at boot). Customer boot: 132 → 129 tags, 1,502 → 1,362 KB shipped.
 - **ScriptLoader now retries a failed lazy fetch.** It used to keep the dead tag and treat the file as loaded until a
   reload. One line, inside the 85 KB blocking ceiling.
 - **Team Manager's activity pane reads 15 leads, not all of them**, with a new leads index (companyId, userId,
@@ -73,15 +75,13 @@ the audit note's "Third Opus round"):
 
 ## Good next work, in order (no Jo needed)
 
-1. **Customer-page boot moves (batch 4).** Four were in flight at the end of the session: review-handoff + qr-code,
-   estimate-supplement, customer-jobs, the photo-report picker. Check the PR for which landed.
-2. **Boot weight, next pass:** `ky-insurance-law.js` (27 KB, read by document code only) into the docgen bundle, also on
+1. **Boot weight, next pass:** `ky-insurance-law.js` (27 KB, read by document code only) into the docgen bundle, also on
    customer.html; `numbers-logic.js` (17 KB) with Reports; `deposit-rule.js` (24 KB) is eager though only a lazy file
    reads it. Use a fake `<head>` that lists its tags in the test (the audit note's lesson).
-3. **Open findings:** ST-F10 (three dead legal fields; "valid for 30 days" hard-coded on paper; default 30 so NBD stays
+2. **Open findings:** ST-F10 (three dead legal fields; "valid for 30 days" hard-coded on paper; default 30 so NBD stays
    byte-identical), PL-F11 (a stage chip closes the Edit modal and discards typed edits), OR-F07 once #2941 lands, then
    the triage's 21 proposal-only items.
-4. **Reviewer follow-ups worth a small PR:** Team Manager activity tops up legacy leads with no createdAt (the pins
+3. **Reviewer follow-ups worth a small PR:** Team Manager activity tops up legacy leads with no createdAt (the pins
    loader's count-then-top-up pattern); Ask Joe shows typing dots before the actions module lands; viewers skip the
    Sort-my-customers fetch.
 
