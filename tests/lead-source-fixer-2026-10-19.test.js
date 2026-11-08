@@ -298,7 +298,9 @@ const QI = () => [inv('ZZ_QA_1', [[400, D(2026, 5, 5)]]), inv('ZZ_QA_2', [[15, D
   ok('no inline handlers or styles in generated markup', !/\son[a-z]+=/.test(CODE) && !/style="/.test(CODE));
   const html = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
   ok('dashboard: button ships hidden', /id="leadSourceFixerBtn"[^>]*\shidden/.test(html));
-  ok('dashboard: external deferred script + stylesheet', /<script defer src="js\/lead-source-fixer\.js\?v=\d+"><\/script>/.test(html) && /css\/lead-source-fixer\.css/.test(html));
+  // 2026-11-08: the file is the lazy 'leadsourcefixer' ScriptLoader bundle, registered and loaded by js/dark-features.js when the flag is on; no eager tag.
+  const DF = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dark-features.js'), 'utf8');
+  ok('dashboard: lazy bundle (no eager tag) + stylesheet', !/<script[^>]*src="js\/lead-source-fixer\.js/.test(html) && /leadsourcefixer:\s*\['js\/lead-source-fixer\.js\?v=\d+'\]/.test(DF) && /leadSourceFixer:\s*'leadsourcefixer'/.test(DF) && /<script defer src="js\/dark-features\.js\?v=\d+"><\/script>/.test(html) && /css\/lead-source-fixer\.css/.test(html));
   const css = fs.readFileSync(path.join(ROOT, 'docs/pro/css/lead-source-fixer.css'), 'utf8');
   ok('phone fit: 56px answer buttons, one column and card rows under 480px', /\.lsf-opt[^}]*min-height: 56px/.test(css) && /@media \(max-width: 480px\)[\s\S]*\.lsf-opts \{ grid-template-columns: 1fr/.test(css) && /\.lsf-table tr[\s\S]*display: block/.test(css));
   ok('rules: the field is owner-only and listed in the fixed source set', (() => {

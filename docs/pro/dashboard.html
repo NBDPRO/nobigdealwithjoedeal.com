@@ -7358,14 +7358,10 @@
 <!-- "No next step" (2026-10-03): open leads with no follow-up and no open
      task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
 <script defer src="js/no-next-step.js?v=3"></script>
-<!-- "Clean up stale leads" (2026-10-19): flag bulkCloseStaleLeads, absent = off. -->
-<script defer src="js/stale-leads-cleanup.js?v=1"></script>
-<!-- "Where customers came from" (2026-10-19): flag leadSourceFixer, absent = off. -->
-<script defer src="js/lead-source-fixer.js?v=1"></script>
-<!-- "Reputation" (2026-10-19): flag reputationLoop, absent = off. -->
-<script defer src="js/reputation.js?v=1"></script>
-<!-- "Speed to lead" (2026-10-19): flag speedToLead, absent = off. -->
-<script defer src="js/speed-to-lead.js?v=1"></script>
+<!-- Flag-gated toolbar features (stale leads clean-up, lead-source fixer, reputation, speed to lead, the two
+     follow-up boards) are ScriptLoader bundles since 2026-11-08: dark-features.js fetches one when NBDFlags says its
+     flag is on, so a boot with the flags off ships none of them. -->
+<script defer src="js/dark-features.js?v=1"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
@@ -7388,13 +7384,6 @@
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
 <script defer src="js/phone-share.js?v=3"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
-<!-- "Estimate follow-ups" board (2026-10-19): flag estimateFollowBoard, absent = off. Reads window.NBDEstimateFollowups, so it loads after estimate-followups.js. -->
-<script defer src="js/estimate-follow-board.js?v=1"></script>
-<!-- "Follow-ups" board (2026-11-03): flag followUpBoard, absent = off. Extends the board above, so it loads after it. -->
-<script defer src="js/follow-up-board-logic.js?v=1"></script>
-<script defer src="js/follow-up-board.js?v=2"></script>
-<script defer src="js/opp-approval-logic.js?v=1"></script>
-<script defer src="js/opp-approval.js?v=1"></script>
 <script defer src="js/chibi.js?v=12"></script>
 <script defer src="js/game-sprite.js?v=6"></script>
 <script defer src="js/game-card.js?v=6"></script>

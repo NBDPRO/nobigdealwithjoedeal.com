@@ -274,10 +274,13 @@ const fresh = () => [mk('ZZ_QA_1', { userId: 'u1' }), mk('ZZ_QA_2', { userId: 'u
   ok('no delete, no deleted flag, no raw batch write, no addDoc', !/deleteDoc|\bdeleted\s*:|writeBatch|addDoc|setDoc/.test(CODE));
   ok('only writes through a transaction', /runTransaction/.test(CODE) && !/updateDoc/.test(CODE));
   ok('no inline handlers or script injection in the markup it builds', !/\son[a-z]+\s*=/i.test(CODE) && !/createElement\(['"]script/.test(CODE));
-  ok('dashboard loads it deferred, once, with its stylesheet and a hidden toolbar button',
-    (fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8').match(/<script defer src="js\/speed-to-lead\.js\?v=1"><\/script>/g) || []).length === 1 &&
-    /href="css\/speed-to-lead\.css/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8')) &&
-    /id="speedToLeadBtn"[^>]*\shidden/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8')));
+  // 2026-11-08: the file is the lazy 'speedtolead' ScriptLoader bundle, registered and loaded by js/dark-features.js when the flag is on; no eager tag.
+  ok('dashboard: lazy bundle (no eager tag), its stylesheet and a hidden toolbar button', (() => {
+    const html = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
+    const DF = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dark-features.js'), 'utf8');
+    return !/<script[^>]*src="js\/speed-to-lead\.js/.test(html) && /speedtolead:\s*\['js\/speed-to-lead\.js\?v=1'\]/.test(DF) && /speedToLead:\s*'speedtolead'/.test(DF)
+      && /<script defer src="js\/dark-features\.js\?v=\d+"><\/script>/.test(html) && /css\/speed-to-lead\.css/.test(html) && /id="speedToLeadBtn"[^>]*\shidden/.test(html) && /id="speedToLeadBadge"[^>]*\shidden/.test(html);
+  })());
   ok('phone-fit CSS: 44px targets and a narrow-width block', /min-height: 44px/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/css/speed-to-lead.css'), 'utf8')) && /@media \(max-width: 480px\)/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/css/speed-to-lead.css'), 'utf8')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

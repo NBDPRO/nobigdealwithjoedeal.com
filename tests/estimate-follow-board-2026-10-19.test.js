@@ -376,8 +376,10 @@ const QL = () => [est('ZZ_QA_1', 9, { firstName: 'Big', lastName: 'Deal', jobVal
     ok('no inline handlers, no cost/margin fields read', !/\bon[a-z]+\s*=\s*["']/.test(CODE) && !/materialCost|laborCost|margin|contractorCost|leadCost|miscCosts/.test(CODE));
     ok('every CRM string is escaped before innerHTML', /esc\(r\.name\)/.test(CODE) && /esc\(r\.leadId\)/.test(CODE) && /esc\(r\.openedLabel\)/.test(CODE) && !/\+\s*r\.name\s*\+/.test(CODE));
     const dash = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
-    const iBoard = dash.indexOf('<script defer src="js/estimate-follow-board.js'), iEF = dash.indexOf('<script defer src="js/estimate-followups.js');
-    ok('dashboard: button hidden by default, css linked, script deferred AFTER estimate-followups.js', /id="estimateFollowBoardBtn"[^>]*\bhidden\b/.test(dash) && /css\/estimate-follow-board\.css/.test(dash) && /<script defer src="js\/estimate-follow-board\.js/.test(dash) && iEF > 0 && iBoard > iEF);
+    // 2026-11-08: the board is the lazy 'estimatefollowboard' ScriptLoader bundle (dark-features.js loads it when the
+    // flag is on); estimate-followups.js, the Home card it reads, stays an eager tag so it is always there first.
+    const SL = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dark-features.js'), 'utf8');
+    ok('dashboard: button hidden by default, css linked, the board is a lazy bundle and estimate-followups.js is still eager', /id="estimateFollowBoardBtn"[^>]*\bhidden\b/.test(dash) && /css\/estimate-follow-board\.css/.test(dash) && !/<script[^>]*src="js\/estimate-follow-board\.js/.test(dash) && /estimatefollowboard:\s*\[\s*'js\/estimate-follow-board\.js/.test(SL) && /<script defer src="js\/estimate-followups\.js/.test(dash) && /<script defer src="js\/dark-features\.js/.test(dash));
     const ef = fs.readFileSync(path.join(ROOT, 'docs/pro/js/estimate-followups.js'), 'utf8');
     ok('the Home card exports the one shared stamp and callable', /api\.stampNudge = stampNudge/.test(ef) && /api\.callable = callable/.test(ef));
     const pd = fs.readFileSync(path.join(ROOT, 'functions/pixel-draft.js'), 'utf8');

@@ -328,8 +328,11 @@ console.log('\n2 and 3. the modules in a sandbox, inside the real Follow-up boar
   ok('the board only asks the module for a section and repaints (a few lines)', /NBDOppApproval/.test(board) && /opp\.html\(\)/.test(board) && /NBDOppApproval\.open\(paint\)/.test(board) && /NBDOppApproval\.close\(\)/.test(board));
   ok('44px touch targets for the new textarea come from the shared .fub-btn / .fub-in rules; the new classes exist in the css', /\.opp-card/.test(css) && /\.opp-ta/.test(css) && /min-height: 44px/.test(css));
   const dash = read('docs/pro/dashboard.html');
-  const iBoard = dash.indexOf('<script defer src="js/follow-up-board.js'), iLogic = dash.indexOf('<script defer src="js/opp-approval-logic.js'), iDom = dash.indexOf('<script defer src="js/opp-approval.js');
-  ok('dashboard loads the logic, then the screen, both deferred, after the board', iBoard > 0 && iLogic > iBoard && iDom > iLogic);
+  // 2026-11-08: the feature files are a ScriptLoader bundle (dark-features.js loads it when the flag is on), so the
+  // load order is pinned in dark-features.js, not in dashboard.html.
+  const fub = (read('docs/pro/js/dark-features.js').match(/followupboard:\s*\[([^\]]*)\]/) || [, ''])[1].split(',').map((s) => s.replace(/['"\s]/g, '').split('?')[0]).filter(Boolean);
+  const iBoard = fub.indexOf('js/follow-up-board.js'), iLogic = fub.indexOf('js/opp-approval-logic.js'), iDom = fub.indexOf('js/opp-approval.js');
+  ok('the followupboard bundle loads the logic, then the screen, after the board (lazy, flag followUpBoard)', iBoard >= 0 && iLogic > iBoard && iDom > iLogic && !/<script[^>]*src="js\/opp-approval(-logic)?\.js/.test(dash));
   ok('the stylesheet version was bumped so browsers fetch the new rules', /css\/follow-up-board\.css\?v=2/.test(dash));
   const inlineScripts = (dash.match(/<script(?![^>]*\bsrc=)[^>]*>/g) || []).filter((s) => !/type="(application\/ld\+json|importmap)"/.test(s));
   ok('the dashboard gained no inline script', !inlineScripts.some((s) => /opp-approval/.test(s)));
