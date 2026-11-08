@@ -2637,7 +2637,7 @@
 
   async function loadTerritories() {
     try {
-      const q = window.query(window.collection(window._db, 'territories'), window.where('companyId', '==', state.currentRep?.companyId || 'default'));
+      const q = window.query(window.collection(window._db, 'territories'), window.where('companyId', '==', state.currentRep?.companyId || window._userClaims?.companyId || window._user?.uid));
       const snap = await window.getDocs(q);
       state.territories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (e) { console.error('loadTerritories failed:', e); }
