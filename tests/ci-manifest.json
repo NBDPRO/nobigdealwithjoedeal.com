@@ -331,6 +331,7 @@
     "docs-view-2026-11-06.test.js",
     "monthly-overhead-logic.test.js",
     "team-roles-2026-11-06.test.js",
+    "st-f46-2026-11-08.test.js",
     "notif-bell-merge.test.js",
     "settings-ui-2026-11-06.test.js",
     "followup-notif-flood-2026-10-03.test.js",
