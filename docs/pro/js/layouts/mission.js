@@ -46,6 +46,7 @@
 
   var POLL_MS = 2 * 60 * 1000;
   var REPORTS_MS = 10 * 60 * 1000;
+  var MATRIX_RETRY_MS = 60 * 1000;   // a failed drive-time matrix ask is asked again after this long (route-drive.js's own retry window)
   var MAX_PINS = 500;
 
   // mapLoading: a MV.create() is in flight. It (not mapSeq, which only ever
@@ -369,20 +370,26 @@
       tight: tight, reordered: order.some(function (v, i) { return v !== i; }),
     };
   }
-  /** The drive-time matrix for these stops (any order): asked once, then repaints. */
+  /**
+   * The drive-time matrix for these stops (any order): asked once, then
+   * repaints. A transient failure (a timeout, the service down) is kept only
+   * for the minute route-drive.js keeps its own, then asked again;
+   * 'not_supported' (an older routing image) stands for the mount.
+   */
   function roadMatrix(located) {
     var RD = W.NBDRouteDrive;
     if (!RD || typeof RD.matrix !== 'function' || located.length < 3 || located.length > 25) return null;
     var key = located.map(function (s) { return Number(s.lat).toFixed(4) + ',' + Number(s.lng).toFixed(4); }).join(';');
     var cur = S.route.matrix;
-    if (cur && cur.key === key) return cur;
+    if (cur && cur.key === key && !(cur.retryAt && Date.now() >= cur.retryAt)) return cur;
     var mine = { key: key, status: 'pending' };
     S.route.matrix = mine;
     RD.matrix(located.map(function (s) { return { lat: Number(s.lat), lng: Number(s.lng) }; })).then(function (r) {
       if (!mounted || S.route.matrix !== mine) return;
-      if (r && r.ok) { mine.status = 'ok'; mine.sec = r.sec; } else mine.status = 'fail';
+      if (r && r.ok) { mine.status = 'ok'; mine.sec = r.sec; }
+      else { mine.status = 'fail'; if (!r || r.reason !== 'not_supported') mine.retryAt = Date.now() + MATRIX_RETRY_MS; }
       render();
-    }, function () { if (mounted && S.route.matrix === mine) { mine.status = 'fail'; render(); } });
+    }, function () { if (mounted && S.route.matrix === mine) { mine.status = 'fail'; mine.retryAt = Date.now() + MATRIX_RETRY_MS; render(); } });
     return mine;
   }
   /** The road route for these stops in this order: asked once, then repaints. */
