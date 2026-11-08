@@ -2956,7 +2956,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      out-race a rival window.generatePhotoReport in
      customer-photo-report-generator.js (loaded above at :2156); that dead
      definition is now deleted, so the race is gone. A load-then-run stub in
-     customer-photo-report-picker.js covers both click entry points. The tag
+     customer-photo-report-lazy.js covers both click entry points. The tag
      must stay REMOVED, not merely reordered: ScriptLoader dedupes on the
      resolved path, so an eager tag for this file would make
      loadBundle('photos') a no-op and nothing would actually be deferred. -->
@@ -3112,7 +3112,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   #prpBuilder .prp-move[disabled] { opacity:.35; cursor:default; }
   #prpBuilder .prp-count { font-size:11px; color:var(--m); white-space:nowrap; }
 </style>
-<script defer src="js/customer-photo-report-picker.js?v=2"></script>
+<!-- 2026-11-08: the builder (customer-photo-report-picker.js) is LAZY, the
+     ScriptLoader 'photoreportpicker' bundle. This boot file registers it, and
+     keeps the 📸 / 📋 entry-point stubs and the #photo-report deep link. -->
+<script defer src="js/customer-photo-report-lazy.js?v=1"></script>
 
 <!-- Edit Customer Modal -->
 <div id="editCustomerModal" class="modal-bg" role="dialog" aria-modal="true" style="background:rgba(0,0,0,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
