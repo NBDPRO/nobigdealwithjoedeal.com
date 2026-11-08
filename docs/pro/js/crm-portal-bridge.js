@@ -100,6 +100,7 @@ function toggleBulkMode() {
   const kanbanBoard = document.querySelector('.kanban-board');
 
   if (window._bulkMode) {
+    fillBulkStageSelect();
     if (btn) { btn.textContent = 'Cancel'; btn.classList.add('btn-orange'); btn.classList.remove('btn-ghost'); }
     if (kanbanBoard) kanbanBoard.classList.add('bulk-mode-active');
   } else {
@@ -107,6 +108,28 @@ function toggleBulkMode() {
     if (kanbanBoard) kanbanBoard.classList.remove('bulk-mode-active');
     clearBulkSelection();
   }
+}
+
+// The "Move to stage" list follows the tenant's pipeline: window.STAGE_META
+// (re-pointed by applyPipelineConfig) gives each stage its own label, adds
+// custom stages and leaves hidden ones out. Without it the markup's static
+// options stay. A stage already picked stays picked (CRM audit 2026-11-06,
+// PL-F21).
+function fillBulkStageSelect() {
+  const sel = document.getElementById('bulkStageSelect');
+  const meta = window.STAGE_META;
+  if (!sel || !meta || typeof meta !== 'object') return;
+  const keys = Object.keys(meta).filter((k) => meta[k] && !meta[k].hidden);
+  if (!keys.length) return;
+  const keep = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  keys.forEach((k) => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = meta[k].label || k;
+    sel.appendChild(opt);
+  });
+  sel.value = keys.includes(keep) ? keep : '';
 }
 
 // Force-exit bulk mode regardless of current state. Called on view changes
@@ -211,13 +234,13 @@ async function bulkMoveStage() {
     return;
   }
 
+  const _label = (typeof window.stageLabel === 'function' && window.stageLabel(newStage)) || newStage;
   const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-  if (!(await _ask(`Move ${sel.size} lead(s) to "${newStage}"?`))) {
+  if (!(await _ask(`Move ${sel.size} lead(s) to "${_label}"?`))) {
     return;
   }
 
   const selectedIds = Array.from(sel);
-  const _label = (typeof window.stageLabel === 'function' && window.stageLabel(newStage)) || newStage;
   const _nameOf = (l) => ((l && ((l.firstName || '') + ' ' + (l.lastName || '')).trim()) || (l && l.address) || 'a lead');
 
   try {

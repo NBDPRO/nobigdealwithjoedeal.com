@@ -2156,7 +2156,9 @@
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="selectAllVisibleLeads">☑ Select all visible</button>
         <select class="ui-field-sm" id="bulkStageSelect">
           <option value="">Move to stage...</option>
-          <!-- Populated dynamically, fallback options below -->
+          <!-- Rebuilt from the tenant's pipeline on entering bulk mode
+               (crm-portal-bridge.js fillBulkStageSelect); these are the
+               fallback when the stage engine is not loaded. -->
           <option value="new">New Lead</option>
           <option value="contacted">Contacted</option>
           <option value="inspected">Inspected</option>
@@ -2222,12 +2224,15 @@
         <input id="bulkSourceCustom" type="text" placeholder="…or type custom" maxlength="60" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);width:130px;" />
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignSource">▶ Apply</button>
         <!-- Wave 32: jobType bulk-edit. Routes leads into the
-             insurance / cash / finance pipeline view filters. -->
+             insurance / cash / finance / warranty / service pipeline view
+             filters (JOB_TYPES in crm-stages.js). -->
         <select class="ui-field-sm" id="bulkJobTypeSelect">
           <option value="">Set job type...</option>
           <option value="insurance">Insurance</option>
           <option value="cash">Cash</option>
           <option value="finance">Finance</option>
+          <option value="warranty">Warranty</option>
+          <option value="service">Service</option>
         </select>
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignJobType">▶ Apply</button>
         <!-- Wave 37: bulk snooze. Opens LeadSnooze.bulkPrompt which
