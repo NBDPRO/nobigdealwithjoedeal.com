@@ -497,19 +497,19 @@
       for (var i = 0; i < frames.length; i++) frames[i].removeAttribute('data-src');
     });
   }
-  // Ask Joe's footnote names the model and offers "Change Key" (it clears a
-  // stored API key). Neither is true here: no model is called and there is
-  // no key. Rewrite it in the view template (cloned when Ask Joe opens) and
-  // in any copy already on the page. Found by its clearJoeKey control, so
-  // the real page carries no demo markup.
+  // Ask Joe's footnote names the model. That is not true here: no model is
+  // called. Rewrite it in the view template (cloned when Ask Joe opens) and
+  // in any copy already on the page. Found by its data-joe-foot attribute
+  // (it lost its "Change Key" control, ST-F30), so the real page carries no
+  // demo markup.
   function sampleJoeFootnote() {
     var roots = [document];
     var tpl = document.getElementById('tpl-view-joe');
     if (tpl && tpl.content) roots.push(tpl.content);
     roots.forEach(function (root) {
-      var keys = root.querySelectorAll('[data-fn="clearJoeKey"]');
+      var keys = root.querySelectorAll('[data-joe-foot]');
       for (var i = 0; i < keys.length; i++) {
-        var foot = keys[i].parentNode;
+        var foot = keys[i];
         if (!foot || foot.getAttribute && foot.getAttribute('data-nbd-demo-foot')) continue;
         foot.textContent = 'Joe AI · Sample answers from the sample account · no AI model is called';
         if (foot.setAttribute) foot.setAttribute('data-nbd-demo-foot', '1');

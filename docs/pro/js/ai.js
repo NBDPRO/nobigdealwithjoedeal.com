@@ -38,11 +38,11 @@ function clearJoeKey() {
     localStorage.removeItem(JOE_CHAT_STORE);
   } catch(e){}
   // Without this the settings status line kept showing "✓ Key saved —
-  // Joe AI is active" after the key was gone (NEW-D45b).
+  // Joe AI is active" after the key was gone (NEW-D45b). Joe runs through
+  // the NBD server, so clearing a key changes nothing for the chat: it no
+  // longer empties and redraws it, which threw the history away (ST-F30).
   const status = document.getElementById('joeKeyStatus');
-  if (status) { status.textContent = 'Key cleared — Joe AI is off until you save a new key'; status.style.color = 'var(--m)'; }
-  _joeMessages = [];
-  initJoeChat();
+  if (status) { status.textContent = 'Old saved key cleared. Joe AI runs through the NBD server and stays on.'; status.style.color = 'var(--m)'; }
 }
 
 // ── Build rich context from live Firestore data ─────────────────────

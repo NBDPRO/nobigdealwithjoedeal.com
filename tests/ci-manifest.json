@@ -390,6 +390,7 @@
     "speed-to-lead-2026-10-19.test.js",
     "estimate-follow-board-2026-10-19.test.js",
     "dark-features-lazy-2026-11-08.test.js",
+    "st-f30-2026-11-08.test.js",
     "st-f44-2026-11-08.test.js",
     "script-loader-retry-after-failure-2026-11-08.test.js",
     "lazy-my-skin-2026-11-08.test.js",
