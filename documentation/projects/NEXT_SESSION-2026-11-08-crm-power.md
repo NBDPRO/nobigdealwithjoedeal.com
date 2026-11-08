@@ -5,7 +5,7 @@ the CRM, audited in layers, aimed at cleaning up code, improving the site and up
 the audit and its reasoning are in [CRM-POWER-SESSION-AUDIT-2026-11-08](../audit/CRM-POWER-SESSION-AUDIT-2026-11-08.md).
 It continues the CRM audit lane ([NEXT_SESSION-2026-11-07-crm-audit](NEXT_SESSION-2026-11-07-crm-audit.md)).
 
-## What this session shipped (branch `claude/funny-hawking-t9zyzm`, one draft PR, four commits)
+## What this session shipped (branch `claude/funny-hawking-t9zyzm`, draft [#3016](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3016): one commit per lane plus three follow-through commits from the full bucket)
 
 | Commit | Lane | What |
 |---|---|---|
