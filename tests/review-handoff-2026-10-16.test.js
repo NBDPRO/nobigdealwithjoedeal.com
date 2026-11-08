@@ -223,8 +223,11 @@ function decodeQr(m) {
     ok('a dialog: role, aria-modal, labelled by the title', /setAttribute\('role', 'dialog'\)/.test(src) && /'aria-modal', 'true'/.test(src) && /'aria-labelledby', 'rhTitle'/.test(src));
     const cust = read('docs/pro/customer.html');
     ok('customer.html: a "Job done" button (hidden until Install Done), no inline handler', /<button type="button" class="btn" id="jobDoneHandoffBtn" data-rh-open hidden title="[^"]+">\s*📱 Job done\s*<\/button>/.test(cust));
-    const tags = (h) => /<link rel="stylesheet" href="css\/review-handoff\.css\?v=1">/.test(h) && /<script defer src="js\/qr-code\.js\?v=1"><\/script>\n<script defer src="js\/review-handoff\.js\?v=1"><\/script>/.test(h);
-    ok('customer.html loads the CSS and both scripts with defer + ?v=, QR first', tags(cust));
+    // 2026-11-08: both scripts load lazily on customer.html (review-handoff-lazy.js, at Install Done or later;
+    // tests/lazy-customer-review-handoff-2026-11-08.test.js runs it).
+    const tags = (h) => /<link rel="stylesheet" href="css\/review-handoff\.css\?v=1">/.test(h) && /<script defer src="js\/review-handoff-lazy\.js\?v=1"><\/script>/.test(h)
+      && /var FILES = \['js\/qr-code\.js\?v=1', 'js\/review-handoff\.js\?v=1'\];/.test(read('docs/pro/js/review-handoff-lazy.js'));
+    ok('customer.html loads the CSS, and both scripts lazily with ?v=, QR first', tags(cust));
     ok('the dashboard loads them only with the Field layout (needs, in order, ?v=), so its boot budget does not grow',
       /needs: \{ script: \['js\/layouts\/kit\.js', 'js\/qr-code\.js\?v=1', 'js\/review-handoff\.js\?v=1'\], css: \['css\/layouts\/kit\.css', 'css\/review-handoff\.css\?v=1'\] \}/.test(read('docs/pro/js/layout-system.js'))
       && !/review-handoff|qr-code/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=([5-9]|\d{2,})"/.test(read('docs/pro/dashboard.html')));   // >= 5 (7 since NBD OS + the Field needs fix)

@@ -2967,9 +2967,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/collected-revenue.js?v=4"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/lead-brief.js?v=2"></script>
-<!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). -->
-<script defer src="js/qr-code.js?v=1"></script>
-<script defer src="js/review-handoff.js?v=1"></script>
+<!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). Since 2026-11-08
+     review-handoff-lazy.js loads qr-code.js + review-handoff.js only for a lead at Install Done or later. -->
+<script defer src="js/review-handoff-lazy.js?v=1"></script>
 <script defer src="js/profit-tracker.js?v=8"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
