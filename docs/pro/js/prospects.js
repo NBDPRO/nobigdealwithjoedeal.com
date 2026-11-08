@@ -150,9 +150,29 @@
     const m = (lead.notes || '').match(/D2D Knock #(\d+)/);
     return m ? parseInt(m[1], 10) : 1;
   }
+  // Days past the follow-up's local day (0 = due today, negative = upcoming,
+  // null = none/invalid). Same local-day rule as the pipeline's follow-up chip.
+  function followUpDaysLate(lead) {
+    const v = lead.followUp;
+    if (!v) return null;
+    let day;
+    if (typeof window.nbdFollowUpDay === 'function') day = window.nbdFollowUpDay(v);
+    else {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v).trim());
+      day = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+      day.setHours(0, 0, 0, 0);
+    }
+    if (isNaN(day)) return null;
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return Math.round((t - day) / 86400000);
+  }
   function isFollowUpDue(lead) {
-    if (!lead.followUp) return false;
-    return new Date(lead.followUp + 'T23:59:59') < new Date();
+    const n = followUpDaysLate(lead);
+    return n != null && n >= 0;
+  }
+  function followUpDueText(lead) {
+    const n = followUpDaysLate(lead);
+    return n === 0 ? 'Due today' : n + (n === 1 ? ' day' : ' days') + ' overdue';
   }
 
   // ── Filter pipeline ────────────────────────────────────────────────
@@ -426,7 +446,7 @@
         <div class="prosp-meta">
           <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:color-mix(in srgb, ${disp.color} 50%, var(--t, #e8eaf0));">${disp.label}</span>
           ${days != null ? `<span class="prosp-age">${days === 0 ? 'today' : days + 'd ago'}</span>` : ''}
-          ${fuDue ? `<span class="prosp-fu-due" title="Follow-up overdue">⏰ Due</span>` : ''}
+          ${fuDue ? `<span class="prosp-fu-due" title="${followUpDueText(p)}">⏰ ${followUpDueText(p)}</span>` : ''}
         </div>
         ${photos.length ? `
           <div class="prosp-photos">
@@ -452,7 +472,7 @@
             <span class="prosp-disp" style="background:color-mix(in srgb, ${disp.color} 18%, transparent);color:color-mix(in srgb, ${disp.color} 50%, var(--t, #e8eaf0));">${disp.label}</span>
             <span class="prosp-attempt-inline">Knock #${att}</span>
             ${days != null ? `<span class="prosp-age">${days === 0 ? 'today' : days + 'd'}</span>` : ''}
-            ${fuDue ? `<span class="prosp-fu-due">⏰ Follow-up due</span>` : ''}
+            ${fuDue ? `<span class="prosp-fu-due">⏰ ${followUpDueText(p)}</span>` : ''}
           </div>
         </div>
       </div>
@@ -648,7 +668,7 @@
       badge.textContent = overdue;
       badge.style.display = 'inline-block';
       badge.style.background = 'var(--red)';
-      badge.title = overdue + ' prospect follow-up' + (overdue === 1 ? '' : 's') + ' overdue';
+      badge.title = overdue + ' prospect follow-up' + (overdue === 1 ? '' : 's') + ' due';
     } else if (count > 0) {
       badge.textContent = count;
       badge.style.display = 'inline-block';
