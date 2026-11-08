@@ -178,12 +178,16 @@
     // Full white-label (2026-07-19): tenant estimates rendered under NBD's
     // identity. company comes from getEstimateForView (server-guarded:
     // tenant-set https logo / hex colors only; null-ish name for NBD).
-    var coName = (company && company.name) || 'No Big Deal Home Solutions';
-    var isNbd = coName === 'No Big Deal Home Solutions';
+    // 2026-11-08 (ED-F11): portal.js's blank-name rule — a blank name is NBD
+    // only when the server did not send isNbd:false (decided by tenant key).
+    var _coNamed = !!(company && company.name);
+    var _coNotNbd = !_coNamed && !!company && company.isNbd === false;
+    var coName = _coNamed ? company.name : (_coNotNbd ? '' : 'No Big Deal Home Solutions');
+    var isNbd = _coNotNbd ? false : (!_coNamed || company.name === 'No Big Deal Home Solutions');
     // The page ships a neutral "Your Estimate" title — it used to say
     // "— No Big Deal" until this ran, so another contractor's homeowner saw
     // NBD's name while the estimate loaded. Set it for every company here.
-    document.title = 'Your Estimate — ' + coName;
+    document.title = coName ? 'Your Estimate — ' + coName : 'Your Estimate';
     if (!isNbd) {
       try {
         if (company.colors && company.colors.accent) {
@@ -227,7 +231,7 @@
       html +=   '<div class="ev-badge">Roofing &amp; Restoration</div>';
     } else if (company && company.logoUrl) {
       html +=   '<img class="ev-brand-logo" src="' + escHtml(company.logoUrl) + '" alt="' + escHtml(coName) + '" style="max-height:44px;max-width:220px;display:block;">';
-    } else {
+    } else if (coName) {
       html +=   '<div class="ev-brand">' + escHtml(coName) + '</div>';
     }
     html +=   '</div>';

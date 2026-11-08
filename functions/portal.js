@@ -2818,7 +2818,11 @@ exports.getEstimateForView = onRequest(
     // not the rep uid) with the same guards as portalView: tenant-set values
     // only, https logo, hex colors; NBD → {name} so the client renders its
     // NBD literals byte-identical.
-    let company = { name: 'No Big Deal Home Solutions', logoUrl: null, colors: null };
+    // 2026-11-08 (ED-F11): NBD by the tenant key, as portalView's _portalIsNbd
+    // — a nameless or unreadable profile no longer falls back to NBD's name.
+    const _evTenantKey = (tokLead && tokLead.companyId) || tok.ownerUid;
+    const _evIsNbd = !_evTenantKey || String(_evTenantKey) === PORTAL_NBD_OWNER_UID;
+    let company = { name: _evIsNbd ? 'No Big Deal Home Solutions' : '', isNbd: _evIsNbd, logoUrl: null, colors: null };
     try {
       const leadSnap = await db.doc(`leads/${tok.leadId}`).get();
       const tenantKey = (leadSnap.exists && (leadSnap.data() || {}).companyId) || tok.ownerUid;
