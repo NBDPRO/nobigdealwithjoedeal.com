@@ -99,6 +99,7 @@
     "late-css-2026-11-06.test.js",
     "appcheck-config-per-page-2026-10-06.test.js",
     "google-signin-popup.test.js",
+    "st-f68-2026-11-08.test.js",
     "ci-concurrency.test.js",
     "ci-no-push-run-2026-11-05.test.js",
     "crm-logo-legibility-2026-09-16.test.js",
