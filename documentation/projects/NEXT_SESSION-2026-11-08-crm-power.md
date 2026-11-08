@@ -18,6 +18,27 @@ Every commit: new suite red against main's files, green here; the suites around 
 syntax, site-integrity, partials, sitemap, inline-scripts, projects, llms and vault gates all green; the full node
 bucket green on the first lane's tree (the final tree's run is in the PR body).
 
+## Ultracode phase, afternoon: seven more commits, and a budget lesson
+
+Three workflows ran after the first push (details and the salvaged tables in the audit note's addendum). They hit
+the weekly usage limit after ~50 minutes. What landed on the branch from them: the **seven fresh-code P3 fixes**
+(route-drive 404 log line, Mission Control matrix retry, NBD OS kill switch on first load, tenant mark on boot and
+lock screens, lock-screen focus / boot-screen announcement, record-button menu guard, NBD OS window release order),
+each test-first, one commit each, reviewed (two by an agent, five by hand). Not landed: the boot-weight pass
+(16 of 48 read, none refuted) and the findings triage (16 of 96), both captured as tables in the audit note.
+
+**Approach for the next session: trim.** Use agents for an adversarial review of a finished diff or one hard
+question, not for sweeps. The next concrete work, all with plans already written down:
+
+1. The 7 fix-now findings from the triage, in this order: ED-F11 (homeowner estimate page defaults to NBD identity
+   for a tenant with no legal name; portal.js + estimate-view.js, mirrors the 2026-10-05 rule), ST-F39 (Team Manager
+   activity query), PL-F15 (Quick Add jobValue/jobType), PL-F09 (optimistic edit merge drops fields offline), OR-F07
+   (the wrong tear-off comment; the behaviour half is NEEDS_JOE), VW-F02 (follow-up age/priority), VW-F102.
+2. The 8 lazy-with-work boot candidates, biggest first, each checked by hand against the reader's evidence before
+   any move: my-skin (gate the 72 KB on the boot read), maps-customers (map view bundle), schedule-planner, icons,
+   ask-joe-actions, kanban-context-menu, onboarding-tour, sort-customers.
+3. The remaining 32 boot reads and 80 triages, as a script-first pass, not a fan-out.
+
 ## Waiting on Jo
 
 1. **The boot-budget ceiling.** It was LOWERED (2,864 → 2,748 KB shipped; 215 → 207 tags) to keep the gate biting
