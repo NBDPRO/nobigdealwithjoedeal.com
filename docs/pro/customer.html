@@ -2896,10 +2896,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- "Homeowner picked X — use it?" above the Estimates list (2026-10-03). -->
 <script defer src="js/accepted-tier-chip.js?v=3"></script>
 <!-- Knowing your numbers (2026-10-04): the Numbers panel (sold package, real
-     close date, why it was lost, storm) — rules in numbers-logic.js. -->
-<script defer src="js/numbers-logic.js?v=3"></script>
+     close date, why it was lost, storm) — rules in numbers-logic.js, which
+     customer-numbers.js loads on demand since 2026-11-08 (only for a sale, a
+     loss or a storm lead; an open lead paints nothing from it). -->
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/customer-numbers.js?v=1"></script>
+<script defer src="js/customer-numbers.js?v=2"></script>
 <script defer src="js/customer-tasks-ui.js?v=42"></script>
 <!-- Promise capture (2026-10-12): the Promise button below opens the sheet. -->
 <script defer src="js/promise-logic.js?v=2"></script>
