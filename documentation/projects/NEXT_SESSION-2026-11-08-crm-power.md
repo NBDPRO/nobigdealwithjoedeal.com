@@ -46,7 +46,7 @@ Two more Opus workflows ran and were integrated commit by commit after reading e
 the audit note's "Third Opus round"):
 
 - **25 P3 findings fixed** (23 commits, all approved) plus ST-F44 and ST-F30 by hand. Three more were found already
-  fixed by merged PRs. [findings-status](../../overnight/crm/findings-status.md) is current: 124 merged, 35 on #3016.
+  fixed by merged PRs. [findings-status](../../overnight/crm/findings-status.md) is current: 124 merged, 37 on #3016.
 - **Seven dashboard scripts left the boot path** (My Skin, the Customers map layer, Plan Jobs, Ask Joe's tools, the
   tour, the kanban card menu, Sort my customers). Dashboard boot: 207 → 200 tags, 2,741 → 2,563 KB shipped.
 - **ScriptLoader now retries a failed lazy fetch.** It used to keep the dead tag and treat the file as loaded until a

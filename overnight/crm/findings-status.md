@@ -1,4 +1,4 @@
-Findings: 247 · with a merged PR: 124 · open PR: 0 · held draft: 7 · on draft #3016 (2026-11-08): 35 · no PR: 81
+Findings: 247 · with a merged PR: 124 · open PR: 0 · held draft: 7 · on draft #3016 (2026-11-08): 37 · no PR: 79
 PRs: 40 (merged 37, open 0, draft 3, closed 0)
 
 | Finding | Pri | Tier | PR(s) |
@@ -142,7 +142,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F27 | P3 | B | #3016 draft (2026-11-08) |
 | ST-F28 | P3 | B | #3016 draft (2026-11-08) |
 | ST-F29 | P3 | C | — |
-| ST-F30 | P3 | C | — |
+| ST-F30 | P3 | C | #3016 draft (2026-11-08) |
 | ST-F31 | P3 | C | #3016 draft (2026-11-08) |
 | ST-F32 | P3 | C | #3016 draft (2026-11-08) |
 | ST-F33 | P3 | C | — |
@@ -156,7 +156,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F41 | P3 | A | #2975 merged |
 | ST-F42 | P3 | A | #2975 merged |
 | ST-F43 | P3 | A | #2975 merged |
-| ST-F44 | P3 | B | — |
+| ST-F44 | P3 | B | #3016 draft (2026-11-08) |
 | ST-F45 | P3 | B | — |
 | ST-F46 | P3 | B | #3016 draft (2026-11-08) |
 | ST-F47 | P3 | B | — |
