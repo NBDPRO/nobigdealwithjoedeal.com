@@ -767,6 +767,7 @@
     "render-pdf-brand-mark-square.test.js",
     "resend-webhook.test.js",
     "paperwork-filing.test.js",
+    "quick-add-lead-shape-2026-11-08.test.js",
     "kanban-filter-unification.test.js",
     "customer-files-guards-2026-11-06.test.js",
     "tenant-paper-identity-2026-11-06.test.js",
