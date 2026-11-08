@@ -72,8 +72,15 @@
   function markText() {
     var m = L.companyMark(companyName());
     if (m) return m;
-    var lm = doc.querySelector('header .logo-mark');
-    return lm ? String(lm.textContent || '').trim().slice(0, 4) : '';
+    // The header's .logo-mark is the PLATFORM's letters (dashboard.html), so
+    // only the platform tenant, by identity, falls back to it. Another company
+    // gets the mark of its own brand, read from the RAW override (the merged
+    // profile fills its blanks with the platform's defaults), or none at all.
+    if (typeof w._isNbdPlatformTenant === 'function' && call(function () { return w._isNbdPlatformTenant(); }) === true) {
+      var lm = doc.querySelector('header .logo-mark');
+      return lm ? String(lm.textContent || '').trim().slice(0, 4) : '';
+    }
+    return L.brandMark(typeof w._brandOverride === 'function' ? call(function () { return w._brandOverride(); }) : null);
   }
   function motionReducedNow() {
     if (doc.documentElement.getAttribute('data-motion') === 'reduce') return true;
