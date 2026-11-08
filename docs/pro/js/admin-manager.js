@@ -125,7 +125,7 @@
       console.error('listTeamMembers failed:', e);
       if (container) {
         container.innerHTML = '<div class="empty amx-p30px"><div class="empty-icon">⚠️</div>'
-          + 'Failed to load team: ' + (e.message || 'unknown error') + '</div>';
+          + 'Failed to load team: ' + escapeHTML(e.message || 'unknown error') + '</div>';
       }
       toast('Could not load team roster', 'error');
     } finally {
@@ -669,7 +669,7 @@
       ].join('');
     } catch (e) {
       grid.innerHTML = '<div class="amx-cm">Analytics unavailable: ' +
-        (e.message || 'error') + '</div>';
+        escapeHTML(e.message || 'error') + '</div>';
     }
   }
 
