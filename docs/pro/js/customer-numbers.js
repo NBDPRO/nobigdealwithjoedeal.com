@@ -70,6 +70,7 @@
   // Same file and ?v= as dashboard.html's tag, so one cache key.
   const RULES_SRC = 'js/numbers-logic.js?v=3';
   let rulesLoading = null;
+  let rulesFailed = false;   // a refresh repaints the retry line; only a tap refetches
   function canLoad() { return !!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function'); }
   /** Load numbers-logic.js once. Resolves true when window.NBDNumbers is there; never rejects. */
   function ensureRules() {
@@ -78,7 +79,7 @@
     if (!canLoad()) return Promise.resolve(false);
     let p;
     try { p = Promise.resolve(window.ScriptLoader.load(RULES_SRC)); } catch (_) { p = Promise.resolve(); }
-    const done = () => { rulesLoading = null; return !!N(); };
+    const done = () => { rulesLoading = null; rulesFailed = !N(); return !rulesFailed; };
     rulesLoading = p.then(done, done);
     return rulesLoading;
   }
@@ -110,12 +111,13 @@
     if (!Nn) {
       // Rules not loaded: nothing to show (or no loader) → hidden, as before.
       if (!mayShow(l) || !canLoad()) { host.innerHTML = ''; host.classList.remove('panel'); return; }
-      ensureRules().then((ready) => {
-        if (ready) { render(); return; }
+      const retryLine = () => {
         host.classList.add('panel');
         host.innerHTML = '<div class="panel-title">Numbers</div>' +
           '<button type="button" class="cn-btn cn-btn-ghost" data-cn="retry">Could not load the numbers — check your connection and tap again</button>';
-      });
+      };
+      if (rulesFailed) { retryLine(); return; }
+      ensureRules().then((ready) => { if (ready) render(); else retryLine(); });
       return;
     }
     const vm = viewModel(l);
@@ -168,7 +170,7 @@
   document.addEventListener('click', async (e) => {
     const b = e.target && e.target.closest ? e.target.closest('#numbersPanel [data-cn]') : null;
     if (!b) return;
-    if (b.dataset.cn === 'retry') { render(); return; }
+    if (b.dataset.cn === 'retry') { rulesFailed = false; render(); return; }
     if (b.dataset.cn === 'save-close') {
       const inp = document.querySelector('#numbersPanel [data-cn="close"]');
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String((inp && inp.value) || ''));

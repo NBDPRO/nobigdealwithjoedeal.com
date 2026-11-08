@@ -58,6 +58,38 @@ export function stageActor(labelOverride) {
   return { uid, email, name, label: override || email || name || uid || 'unknown' };
 }
 
+// numbers-logic.js isSale({ stage }), copied for when window.NBDNumbers is not
+// there: customer.html loads the rules on demand (2026-11-08), so a stage
+// change can run before they land or after their fetch failed. Legacy display
+// names fold first ('Approved' → contract_signed, 'won' → closed), as its
+// canonStage does; without that a legacy 'Approved' sale read as no sale and
+// got a fresh closedAt. tests/lazy-customer-numbers-logic-2026-11-08.test.js
+// pins these lists to numbers-logic.js and the result to isSale.
+const _SALE_WON_KEYS = ['closed', 'install_complete', 'final_photos', 'final_payment', 'deductible_collected', 'collections', 'warranty_claim'];
+const _SALE_JOB_KEYS = ['job_created', 'permit_pulled', 'materials_ordered', 'materials_delivered', 'crew_scheduled', 'install_in_progress'];
+const _SALE_VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
+const _SALE_LEGACY = {
+  'new': 'new', 'new lead': 'new', 'inspected': 'inspected', 'estimate sent': 'estimate_submitted',
+  'approved': 'contract_signed', 'in progress': 'install_in_progress', 'complete': 'closed', 'lost': 'lost',
+  'contacted': 'contacted', 'negotiating': 'negotiating', 'closed won': 'closed', 'closed lost': 'lost',
+  'won': 'closed', 'closed_won': 'closed', 'closed-won': 'closed'
+};
+function _saleWithoutRules(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  const lower = s.toLowerCase();
+  const k = !s ? 'new' : (_SALE_LEGACY[lower] || lower.replace(/[\s-]+/g, '_'));
+  let r = null;
+  if (typeof window.stageRole === 'function') {
+    try { r = window.stageRole(k); } catch (_) { r = null; }
+  }
+  if (_SALE_VALID_ROLES.indexOf(r) === -1) {
+    r = _SALE_WON_KEYS.indexOf(k) !== -1 ? 'won' : _SALE_JOB_KEYS.indexOf(k) !== -1 ? 'job' : k === 'lost' ? 'lost' : 'active';
+  }
+  if (r === 'won' || r === 'job') return true;
+  if (r === 'lost') return false;
+  return k === 'contract_signed';
+}
+
 /**
  * Commit a stage change transactionally, with the same race guards
  * moveCard() has always used.
@@ -179,8 +211,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   const _N = window.NBDNumbers;
   const _isSale = (k) => {
     if (_N && typeof _N.isSale === 'function') return _N.isSale({ stage: k });
-    const r = _roleOf(k);
-    return r === 'won' || r === 'job' || String(k || '').toLowerCase() === 'contract_signed';
+    return _saleWithoutRules(k);
   };
   const enteringSale = _isSale(newStage);
   // Sold package: carry the homeowner's accepted pick onto soldTier at the
