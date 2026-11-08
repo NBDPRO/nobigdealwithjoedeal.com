@@ -95,7 +95,11 @@
   function adopt(id, host) {
     var v = viewEl(id);
     if (!v || v.parentNode === host) return v;
-    if (!S.origins[id]) S.origins[id] = { parent: v.parentNode, next: v.nextSibling };
+    if (!S.origins[id]) {
+      S.origins[id] = { parent: v.parentNode };
+      // Classic's order of the siblings: a view's next sibling may itself be in a window when this one goes back
+      S.viewOrder = WM.mergeOrder(S.viewOrder, Array.prototype.slice.call(v.parentNode.children));
+    }
     v.classList.add('os-in-win');
     host.appendChild(v);
     return v;
@@ -107,8 +111,8 @@
     if (!v) return;
     v.classList.remove('os-in-win');
     if (o && o.parent && o.parent.isConnected) {
-      if (o.next && o.next.parentNode === o.parent) o.parent.insertBefore(v, o.next);
-      else o.parent.appendChild(v);
+      var kids = Array.prototype.slice.call(o.parent.children);
+      o.parent.insertBefore(v, kids[WM.restoreIndex(S.viewOrder, v, kids)] || null);
     }
   }
   // opt-in system sounds live in the system layer (off unless the member turned them on)
@@ -1103,7 +1107,7 @@
     if (S) return;
     S = {
       surface: (ctx && ctx.surface) || 'desktop', apps: [], wins: [], focus: null, order: [], icons: [], dock: [], recent: [],
-      origins: {}, unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
+      origins: {}, viewOrder: [], unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
       desk: 0, pins: [], overview: false, deskMenu: null,
     };
     S.apps = readApps();

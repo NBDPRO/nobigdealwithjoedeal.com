@@ -17,6 +17,8 @@
  *     front(wins, id)            raise one window (z 1..n, no gaps)
  *     nextFocus(wins, closedId)  who gets focus after a close / minimise
  *     orderApps(apps, order)     icons in the saved order, new apps at the end
+ *     mergeOrder(order, now)     Classic's order of .content's children, learned as views are adopted
+ *     restoreIndex(order, item, now)  where a released view goes back (an index into `now`)
  *     normalizeState(raw, ids)   a saved state made safe (known apps only, bounded)
  *   Phone
  *     pages(apps, perPage)       the home screen pages
@@ -136,6 +138,37 @@
     });
     list.forEach(function (a) { if (!used[a.id]) { out.push(a); used[a.id] = true; } });
     return out;
+  }
+
+  /**
+   * Classic's order of .content's children, learned as views are adopted into
+   * windows: `now` (the children as they stand, some views away in windows) is
+   * merged into `order`. A child not seen before goes in ahead of the first
+   * child after it that is known, else last; known children keep their place.
+   */
+  function mergeOrder(order, now) {
+    var out = (Array.isArray(order) ? order : []).slice();
+    var kids = Array.isArray(now) ? now : [];
+    var at = out.length;
+    for (var i = kids.length - 1; i >= 0; i--) {
+      var k = out.indexOf(kids[i]);
+      if (k !== -1) at = k; else out.splice(at, 0, kids[i]);
+    }
+    return out;
+  }
+  /**
+   * Where `item` goes back into `now` (the children that are home, in Classic's
+   * relative order): the index of the first one that follows `item` in `order`,
+   * else now.length (append). A released view's old next sibling may itself
+   * still be in a window, so this walk, not that sibling, restores Classic's
+   * column whatever order the windows close in.
+   */
+  function restoreIndex(order, item, now) {
+    var ord = Array.isArray(order) ? order : [], kids = Array.isArray(now) ? now : [];
+    var at = ord.indexOf(item);
+    if (at === -1) return kids.length;
+    for (var i = 0; i < kids.length; i++) if (ord.indexOf(kids[i]) > at) return i;
+    return kids.length;
   }
 
   var ZONE_NAMES = ['max', 'left', 'right', 'tl', 'tr', 'bl', 'br'];
@@ -287,7 +320,7 @@
   var api = {
     MIN_W: MIN_W, MIN_H: MIN_H, MAX_WINS: MAX_WINS, MAX_RECENT: MAX_RECENT, DOCK_DEFAULT: DOCK_DEFAULT,
     clampFrac: clampFrac, toPx: toPx, toFrac: toFrac, snapZone: snapZone, zoneFrac: zoneFrac, keySnap: keySnap,
-    cascadeFrac: cascadeFrac, front: front, nextFocus: nextFocus, orderApps: orderApps, normalizeState: normalizeState,
+    cascadeFrac: cascadeFrac, front: front, nextFocus: nextFocus, orderApps: orderApps, mergeOrder: mergeOrder, restoreIndex: restoreIndex, normalizeState: normalizeState,
     pages: pages, pushRecent: pushRecent, dockApps: dockApps,
     DESKS: DESKS, MAX_PINS: MAX_PINS, BUTTON_STYLES: BUTTON_STYLES, deskIndex: deskIndex, deskCounts: deskCounts,
     taskItems: taskItems, togglePin: togglePin, overviewSlots: overviewSlots, fitInto: fitInto, buttonStyle: buttonStyle,

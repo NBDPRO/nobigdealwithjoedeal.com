@@ -70,6 +70,7 @@
     "nbd-os-tenant-mark-2026-11-08.test.js",
     "nbd-os-visits-2026-11-07.test.js",
     "nbd-os-review-fixes-2026-11-08.test.js",
+    "nbd-os-release-order-2026-11-08.test.js",
     "nbd-os-layout-2026-11-06.test.js",
     "nbd-os-lock-repaint-2026-11-08.test.js",
     "ds-volume-range-2026-11-04.test.js",
