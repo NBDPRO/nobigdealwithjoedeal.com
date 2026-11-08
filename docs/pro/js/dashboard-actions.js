@@ -1309,6 +1309,39 @@ if (typeof window.PhotoEngine === 'undefined' || typeof window.InspectionReportE
     window.generatePhotoReport.__nbdLazyPhotosStub = true;
   }
 }
+
+// 2026-11-08: the kanban card menu (kanban-context-menu.js) is lazy, the
+// ScriptLoader 'kanbanctx' bundle, registered here so the blocking
+// script-loader.js does not grow. Its right-click / long-press listeners only
+// act on a .k-card, and only the Pipeline board has those, so it loads when
+// goTo('crm') reports the board painted (nbd:view-entered). The card's ⋮ and
+// the stage / classification chips (card-detail modal, mobile job detail, both
+// reachable from Home) call window.KanbanContextMenu: this load-then-run stub
+// until the real file lands and replaces it. A failed fetch leaves the stub,
+// so the tap does nothing (as when the file was missing) and the next retries.
+if (typeof window.KanbanContextMenu === 'undefined') {
+  const _kcmSl = window.ScriptLoader;
+  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=4'];
+  const _kcmStub = { __nbdLazyKanbanCtxStub: true, close: function () {} };
+  const _kcmLoad = function () {
+    const sl = window.ScriptLoader;
+    if (window.KanbanContextMenu !== _kcmStub || !sl || typeof sl.loadBundle !== 'function') return Promise.resolve();
+    return sl.loadBundle('kanbanctx');
+  };
+  ['open', 'openStagePicker', 'openTypePicker'].forEach(function (m) {
+    _kcmStub[m] = function () {
+      const a = arguments;
+      _kcmLoad().then(function () {
+        const k = window.KanbanContextMenu;
+        if (k && k !== _kcmStub && typeof k[m] === 'function') k[m].apply(k, a);
+      });
+    };
+  });
+  window.KanbanContextMenu = _kcmStub;
+  window.addEventListener('nbd:view-entered', function (e) {
+    if (e && e.detail && e.detail.name === 'crm') _kcmLoad();
+  });
+}
 // ══════════════════════════════════════════════════════════════════
 // FORWARD-REFERENCE BLOCK — DELETED (Globals Tranche 3, slice T3-A part 1,
 // 2026-08-31). 86 guarded re-exports of the shape

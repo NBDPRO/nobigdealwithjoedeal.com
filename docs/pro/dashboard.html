@@ -7386,10 +7386,13 @@
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
-<!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
-     so the menu picks up Copy/Text Portal Link items on first render. -->
+<!-- Wave 42: portal-link helpers feed the kanban card menu's Copy/Text Portal
+     Link items. LAZY (2026-11-08): the menu, kanban-context-menu.js, is the
+     ScriptLoader `kanbanctx` bundle (dashboard-actions.js), loaded when the
+     Pipeline is entered or a card / chip menu is first opened, so this tag has
+     always run first. Keep this one eager: the deploy joins eager tags, so a
+     bundle entry for it would run it twice. -->
 <script defer src="js/portal-link-helpers.js?v=3"></script>
-<script defer src="js/kanban-context-menu.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
