@@ -13,7 +13,8 @@
  *
  * THE FIX: the confirm names the stage by its label; entering bulk mode
  * rebuilds the stage options from window.STAGE_META (tenant-resolved by
- * applyPipelineConfig: labels, custom stages, hidden stages left out),
+ * applyPipelineConfig: labels, custom stages, hidden stages left out), in the
+ * current board's column order (window._stageKeys) once a board has rendered,
  * keeping the markup's static options when STAGE_META is absent; the job type
  * select lists every JOB_TYPES value.
  *
@@ -157,6 +158,24 @@ const labelFrom = (meta) => (k) => (meta[k] || {}).label || k;
     meta.custom_roof_walk.hidden = true;          // the tenant hides it meanwhile
     r.reg.toggleBulkMode(); r.reg.toggleBulkMode();
     ok('a picked stage that became hidden resets to the placeholder', r.els.bulkStageSelect.value === '' && !r.els.bulkStageSelect.options.some((o) => o.value === 'custom_roof_walk'), r.els.bulkStageSelect.value);
+  }
+  {
+    // A rendered board: the list is that board's columns, in column order,
+    // not every stage the tenant has (the Ins board is 14 columns, the whole
+    // built-in pipeline 33).
+    const meta = tenantMeta();
+    const win = { STAGE_META: meta, _stageKeys: ['new', 'contacted', 'custom_roof_walk', 'estimate_submitted', 'lost', 'new'] };
+    const r = boot(win);
+    r.reg.toggleBulkMode();
+    const vals = r.els.bulkStageSelect.options.map((o) => o.value).slice(1);
+    ok('with a rendered board the list is its columns, in board order, each once',
+      JSON.stringify(vals) === JSON.stringify(['new', 'custom_roof_walk', 'estimate_submitted', 'lost']), vals.join());
+    ok('…a stage that is not a column on this board is not offered', !vals.includes('inspected') && !vals.includes('warranty_scheduled'), vals.join());
+    ok('…and a hidden column stays out', !vals.includes('contacted'), vals.join());
+    win._stageKeys = [];
+    r.reg.toggleBulkMode(); r.reg.toggleBulkMode();
+    const all = r.els.bulkStageSelect.options.map((o) => o.value).slice(1);
+    ok('an empty board key list falls back to every visible stage', JSON.stringify(all) === JSON.stringify(Object.keys(meta).filter((k) => !meta[k].hidden)), all.join());
   }
   {
     const win = {};                               // STAGE_META absent (engine not loaded)

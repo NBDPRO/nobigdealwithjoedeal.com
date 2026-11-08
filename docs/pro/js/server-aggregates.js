@@ -14,7 +14,8 @@
  * stashes — so the comparison is apples-to-apples (window._leads
  * itself is post-filter and would mismatch by design).
  *
- * SHADOW ONLY: nothing in the UI reads these numbers. Behind the
+ * The lead count is SHADOW ONLY: nothing in the UI reads it (knockCount,
+ * below, is the one count the UI reads: theme-achievements.js). Behind the
  * `serverAggregatesShadow` feature flag (feature_flags/_default) so it
  * costs zero reads until deliberately enabled. Mismatches log a
  * console.warn (picked up by Sentry breadcrumbs) with both values;

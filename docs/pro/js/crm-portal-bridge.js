@@ -112,14 +112,17 @@ function toggleBulkMode() {
 
 // The "Move to stage" list follows the tenant's pipeline: window.STAGE_META
 // (re-pointed by applyPipelineConfig) gives each stage its own label, adds
-// custom stages and leaves hidden ones out. Without it the markup's static
-// options stay. A stage already picked stays picked (CRM audit 2026-11-06,
-// PL-F21).
+// custom stages and leaves hidden ones out. It offers the current board's
+// columns (window._stageKeys), the stages the selected cards sit on; every
+// visible stage only when no board has rendered. Without STAGE_META the
+// markup's static options stay. A stage already picked stays picked (CRM
+// audit 2026-11-06, PL-F21).
 function fillBulkStageSelect() {
   const sel = document.getElementById('bulkStageSelect');
   const meta = window.STAGE_META;
   if (!sel || !meta || typeof meta !== 'object') return;
-  const keys = Object.keys(meta).filter((k) => meta[k] && !meta[k].hidden);
+  const board = Array.isArray(window._stageKeys) && window._stageKeys.length ? window._stageKeys : Object.keys(meta);
+  const keys = board.filter((k, i) => meta[k] && !meta[k].hidden && board.indexOf(k) === i);
   if (!keys.length) return;
   const keep = sel.value;
   while (sel.options.length > 1) sel.remove(1);
