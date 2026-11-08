@@ -38,47 +38,52 @@ late). Reviewer nits worth a look: the new Quick Add row uses `.mfield` styling 
 desktop (check in a browser); a platform admin with a companyId claim now gets the company filter on teammate rows.
 OR-F07 stays deferred (its only file is held by #2941).
 
-**Approach for the next session: trim.** Use agents for an adversarial review of a finished diff or one hard
-question, not for sweeps. The next concrete work, all with plans already written down:
+**Approach for the next session: trim.** (Updated in the evening, below: the list that stood here is done.)
 
-1. The 7 fix-now findings from the triage, in this order: ED-F11 (homeowner estimate page defaults to NBD identity
-   for a tenant with no legal name; portal.js + estimate-view.js, mirrors the 2026-10-05 rule), ST-F39 (Team Manager
-   activity query), PL-F15 (Quick Add jobValue/jobType), PL-F09 (optimistic edit merge drops fields offline), OR-F07
-   (the wrong tear-off comment; the behaviour half is NEEDS_JOE), VW-F02 (follow-up age/priority), VW-F102.
-2. The 8 lazy-with-work boot candidates, biggest first, each checked by hand against the reader's evidence before
-   any move: my-skin (gate the 72 KB on the boot read), maps-customers (map view bundle), schedule-planner, icons,
-   ask-joe-actions, kanban-context-menu, onboarding-tour, sort-customers.
-3. The remaining 32 boot reads and 80 triages, as a script-first pass, not a fan-out.
+## Evening: batch 5, batch 3 and a loader fix (updated 2026-11-08, evening)
+
+Two more Opus workflows ran and were integrated commit by commit after reading every diff and its review (details in
+the audit note's "Third Opus round"):
+
+- **25 P3 findings fixed** (23 commits, all approved) plus ST-F44 and ST-F30 by hand. Three more were found already
+  fixed by merged PRs. [findings-status](../../overnight/crm/findings-status.md) is current: 124 merged, 35 on #3016.
+- **Seven dashboard scripts left the boot path** (My Skin, the Customers map layer, Plan Jobs, Ask Joe's tools, the
+  tour, the kanban card menu, Sort my customers). Dashboard boot: 207 → 200 tags, 2,741 → 2,563 KB shipped.
+- **ScriptLoader now retries a failed lazy fetch.** It used to keep the dead tag and treat the file as loaded until a
+  reload. One line, inside the 85 KB blocking ceiling.
+- **Team Manager's activity pane reads 15 leads, not all of them**, with a new leads index (companyId, userId,
+  createdAt desc). Until the index builds after deploy, it falls back to the old read once.
 
 ## Waiting on Jo
 
-1. **The boot-budget ceiling.** It was LOWERED (2,864 → 2,748 KB shipped; 215 → 207 tags) to keep the gate biting
-   after the 117 KB left the boot path, with about 7 KB of headroom on purpose. That is enough for the two drafts held
-   on the budget ([#2994](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2994) ~0.5 KB,
-   [#3008](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3008) ~0.7 KB) once this PR merges and they are
-   rebased: no ceiling raise needed any more. Jo's call whether 7 KB is the right slack.
-2. **The held drafts from the audit lane are unchanged:** #2941 and #2942 (MONEY, line by line), #2981 (tenant stage
-   emails, wording), #2994 and #3008 (budget, see above), #2919 (/inspect header).
-3. **[NEEDS_JOE](../../overnight/crm/NEEDS_JOE.md)** is unchanged; nothing here touched estimate math, template content
-   or warranty strings.
+1. **The boot ceilings.** They are lowered to the new measurements in this PR (see the boot-budget test). Jo's call
+   on how much slack to keep.
+2. **Bulk "Move to stage" (PL-F21).** It now lists the current board's columns with your stage names. Before, it was a
+   fixed list of 9. Say if you'd rather have a different list.
+3. **Dead map code (VW-F59).** The Maps view is retired (it redirects to D2D), so maps-customers.js now never loads.
+   Deleting it and #view-map is a product call.
+4. **icons.js** removal flips the KNOWN BUG R1-10-3 pin: needs Jo's OK in the PR that does it.
+5. **Seven P3s the triage marked needs-Jo:** ST-F66 (plan prices: only Jo can confirm the live Stripe amounts),
+   ST-F69 (login copy names Joe's phone for every tenant: which support channel instead), PL-F25 and ED-F18 (customer
+   paper warranty and GAF default wording), ST-F56 (tier labels and shingle locks: tier/price path), ST-F29 (custom
+   theme count achievement has no writer), VW-F59 (above).
+6. **The held drafts are unchanged:** #2941 and #2942 (MONEY), #2981, #2994 and #3008 (budget: no raise needed after
+   this PR), #2919.
+7. **[NEEDS_JOE](../../overnight/crm/NEEDS_JOE.md)** is unchanged.
 
 ## Good next work, in order (no Jo needed)
 
-1. **Boot weight, next pass**, from the candidate map in the audit note: `ky-insurance-law.js` (27 KB, read by document
-   code only) into the docgen bundle, also on customer.html; `numbers-logic.js` (17 KB) with Reports; then read
-   `my-skin.js` (50 + 22 KB) to see whether a user without a skin needs it at boot, and re-check why `deposit-rule.js`
-   (24 KB) is still eager when only a lazy file reads it today. Register bundles at runtime from a deferred file; never
-   edit `script-loader.js` (blocking, at its 85 KB ceiling).
-2. **Fresh-code P3s** (file:line in the audit note): `route-drive.js` logs nothing on a 404 and the client memoises
-   `not_supported` for 10 min; `mission.js` caches a failed matrix per mount; the `osSystemLayer:false` kill switch on a
-   first load; the "NBD" mark and "NBD OS" name for other tenants; the lock screen's 15 s repaint and dead `os-locked`
-   class; the unguarded `NBDVisitRecorderMenu.toggle` read.
-3. **Open findings, next four:** ST-F39 (Team Manager activity query: `companyId`, `orderBy`, `limit(15)` and a
-   three-field index in `firestore.indexes.json`), PL-F15 (Quick Add `jobValue: ''` and missing jobType), ST-F10 (three
-   dead legal fields; "valid for 30 days" hard-coded on paper; default 30 when unset so NBD stays byte-identical),
-   PL-F11 (a stage chip closes the Edit modal and discards typed edits).
-4. **Bookkeeping:** mark VW-F100 (#2977), ED-F28 (#2954) and ST-F54 (#2985) fixed in
-   [findings-status](../../overnight/crm/findings-status.md), plus the four from this session.
+1. **Customer-page boot moves (batch 4).** Four were in flight at the end of the session: review-handoff + qr-code,
+   estimate-supplement, customer-jobs, the photo-report picker. Check the PR for which landed.
+2. **Boot weight, next pass:** `ky-insurance-law.js` (27 KB, read by document code only) into the docgen bundle, also on
+   customer.html; `numbers-logic.js` (17 KB) with Reports; `deposit-rule.js` (24 KB) is eager though only a lazy file
+   reads it. Use a fake `<head>` that lists its tags in the test (the audit note's lesson).
+3. **Open findings:** ST-F10 (three dead legal fields; "valid for 30 days" hard-coded on paper; default 30 so NBD stays
+   byte-identical), PL-F11 (a stage chip closes the Edit modal and discards typed edits), OR-F07 once #2941 lands, then
+   the triage's 21 proposal-only items.
+4. **Reviewer follow-ups worth a small PR:** Team Manager activity tops up legacy leads with no createdAt (the pins
+   loader's count-then-top-up pattern); Ask Joe shows typing dots before the actions module lands; viewers skip the
+   Sort-my-customers fetch.
 
 ## Gotchas (also in the audit note)
 

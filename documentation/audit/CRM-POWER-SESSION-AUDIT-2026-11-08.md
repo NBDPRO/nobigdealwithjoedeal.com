@@ -245,3 +245,48 @@ All five approved (one approve, four approve-with-nits, no blocking issues) and 
 commits that carry an Opus co-author trailer are named truthfully. ST-F39 took the smallest query the rules accept
 (companyId + userId equality, no orderBy, so no new index); the orderBy + limit version with a three-field index is
 the follow-up the triage described. OR-F07 is deferred until #2941 lands.
+
+## Third Opus round (evening): 25 P3 fixes, seven boot moves, one loader bug
+
+**Batch 5, the P3 fixes.** The triage's fix-now P3s ran as eleven file-groups (one worktree and one Opus reviewer
+each, 21 agents, 3.6 M tokens). All 23 commits were approved, closing 25 finding ids:
+ST-F49, DT-F12, VW-F05, VW-F06, PL-F21, ST-F40, ST-F46, ST-F48, CU-F13, CU-F14, CU-F20, ST-F28, DT-F04, ST-F14, ST-F31,
+ST-F27, ST-F34, ST-F32, ST-F64, ST-F71, ST-F70, ST-F68, ST-F72, VW-F13 and ED-F08. ST-F44 and ST-F30 were done by hand
+afterwards (their files were in batch 3). ST-F18 was already fixed by #2946, ST-F58 by #2984 and VW-F55 by #2978.
+One integrator change: PL-F21's bulk "Move to stage" list offered every visible stage (33 for NBD, up from 9). It now
+offers the current board's columns, the stages the selected cards actually sit on.
+
+**Batch 3, the dashboard boot moves.** Seven eager scripts left the boot path, each registered as a ScriptLoader bundle
+at runtime from a deferred file, with its own trigger:
+
+| Script | Loads when |
+|---|---|
+| my-skin-logic.js + my-skin.js (also customer.html) | the device painted a skin last time, the account or company has one, or Settings opens |
+| maps-customers.js | the 'map' view opens. That view is retired (goTo renames it to d2d), so in practice it never loads: dead weight, deleting it is Jo's call |
+| schedule-planner.js | the first Schedule visit |
+| ask-joe-actions.js | the Ask Joe view; a send or a saved transcript waits for it |
+| onboarding-tour.js | first run, how-to's Restart Tour, or Start Tour |
+| kanban-context-menu.js | entering the Pipeline, or the first card ⋮ / chip tap (a load-then-run stand-in) |
+| sort-customers.js | the first Pipeline render that finds its banner mount |
+
+TM-ACTIVITY-PAGED (the ST-F39 follow-up) also landed: Team Manager's activity pane reads `orderBy('createdAt','desc')`
+plus `limit(15)`, with a new leads index (companyId, userId, createdAt desc) and a one-time unbounded fallback while
+that index builds. Leads with no `createdAt` no longer show on the ordered path; every current writer stamps one.
+
+**The loader bug the reviews found.** ScriptLoader left a failed `<script>` in `<head>`. The next load found it in its
+eager-tag scan and marked the file loaded without fetching, so one dropped request turned a lazy feature off until a
+reload, for every bundle (estimates, photos, docgen, and the seven moves above). Two Opus reviewers reproduced it in
+Chromium. The batch's tests had pinned a retry that never happened, because their fake `<head>` listed no tags. The fix
+is one line in `onerror` (`el.remove?.()`), paid for by a three-byte shorter warning: shipped blocking bytes went
+87,027 → 87,038 of 87,040, and ST-F30's demo-mode change brought them back to 87,019. The Ask Joe, Plan Jobs and kanban
+suites now use a `<head>` that keeps and lists its tags, as a browser does. Their retry checks are red on the old
+loader.
+
+**Lesson for the next lazy move.** A fake DOM whose `querySelectorAll('script[src]')` returns `[]` cannot see what
+ScriptLoader sees. Use one that lists what was appended (tests/script-loader-retry-after-failure-2026-11-08.test.js).
+
+| Boot measure (dashboard.html) | Morning | After batch 3 |
+|---|---|---|
+| Local script tags | 215 | 200 |
+| Shipped local bytes | 2,858 KB | 2,563 KB |
+| Shipped blocking bytes | 87,027 B | 87,019 B |
