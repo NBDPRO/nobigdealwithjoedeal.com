@@ -985,7 +985,17 @@ function switchSettingsTab(tab) {
 
       // Initial render: show all
       window._teRenderSettingsGrid('all');
-      teGrid.dataset.loaded = '1';
+      // CRM audit 2026-11-06 (ST-F27): a fast or deep-linked open runs this
+      // before the lazy 'theme' bundle lands. Marked loaded anyway, the legacy
+      // grid and its lone "All" filter stuck until a reload. Mark it only once
+      // the engine drew it; else load the bundle and redraw if still open.
+      if (TE) teGrid.dataset.loaded = '1';
+      else if (window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+        window.ScriptLoader.loadBundle('theme').then(function () {
+          var _ap = document.getElementById('stab-panel-appearance');
+          if (window.ThemeEngine && !teGrid.dataset.loaded && _ap && _ap.style.display !== 'none') switchSettingsTab('appearance');
+        });
+      }
       // Live-preview panel (A5): mounts above the grid; idempotent, and the
       // module also self-mounts when it loads after this point.
       if (window.NBDThemePreview && typeof window.NBDThemePreview.mount === 'function') window.NBDThemePreview.mount();
