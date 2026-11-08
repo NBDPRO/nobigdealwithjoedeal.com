@@ -345,14 +345,9 @@ function setIfEmpty(id, value) {
 
 async function prefill() {
   const uid = state.user.uid;
-  try {
-    const uSnap = await getDoc(doc(db, 'users', uid));
-    if (uSnap.exists()) {
-      const u = uSnap.data() || {};
-      setIfEmpty('obName', u.company || '');
-    }
-  } catch (_) {}
-  if (!val('obName') && state.user.displayName) setIfEmpty('obName', state.user.displayName);
+  // The brand (Settings) is read FIRST: a company renamed in Settings keeps
+  // its new name on a wizard re-run. users.company is the first-run fallback;
+  // Settings never updates it (CRM audit ST-F61, 2026-11-08).
   try {
     const key = String(state.claims.companyId || uid);
     const pSnap = await getDoc(doc(db, 'companyProfile', key));
@@ -382,6 +377,14 @@ async function prefill() {
       }
     }
   } catch (_) {}
+  try {
+    const uSnap = await getDoc(doc(db, 'users', uid));
+    if (uSnap.exists()) {
+      const u = uSnap.data() || {};
+      setIfEmpty('obName', u.company || '');
+    }
+  } catch (_) {}
+  if (!val('obName') && state.user.displayName) setIfEmpty('obName', state.user.displayName);
   // The login email only as a last resort: the profile's own business email
   // wins on a re-run (CRM audit 2026-11-06, ST-F60).
   setIfEmpty('obEmail', state.user.email || '');

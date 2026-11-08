@@ -790,7 +790,7 @@
       const stamp = new Date().toISOString();
       if (lead) lead.permitFiledAt = stamp;
       const chk = document.getElementById('lPermitFiled');
-      if (chk && (document.getElementById('lEditId')?.value || '') === leadId) chk.checked = true;
+      if (chk && (document.getElementById('lEditId')?.value || '') === leadId) { chk.checked = true; chk.dataset.filedAt = stamp; }
       if (typeof showToast === 'function') showToast('✓ Permit marked as filed', 'success');
     }).catch(err => {
       console.warn('mark_permit_filed write failed:', err && err.message);

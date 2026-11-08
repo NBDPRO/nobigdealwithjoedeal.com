@@ -187,7 +187,7 @@ function _leadModalReset(){
   // this, a filed checkbox ticked while editing lead A would still read
   // checked when the modal reopened blank for "Add Lead", silently stamping
   // a fresh contractFiledAt/etc. on a brand-new lead that was never filed.
-  ['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=false; });
+  ['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'].forEach(id=>{ const e=document.getElementById(id); if(e){ e.checked=false; e.dataset.filedAt=''; } });
   // Hide conditional field blocks. #jobFieldsBlock is NOT one of them since
   // 2026-09-30: it is always shown, so changing Stage no longer inserts it
   // mid-form (see toggleInsuranceFields in dashboard-bootstrap.module.js).
@@ -275,6 +275,10 @@ document.addEventListener('DOMContentLoaded',()=>{const tm=document.getElementBy
 async function saveLead(){
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  // Paperwork "Filed" stamps (PL-F10, 2026-11-08): a ticked box keeps the stamp
+  // editLead() put on it (data-filed-at, the day it was really filed); a box
+  // ticked in this edit gets now; an unticked box clears the field ('').
+  const filedStamp = (id) => { const e=document.getElementById(id); if(!e||!e.checked) return ''; return (e.dataset && e.dataset.filedAt) || new Date().toISOString(); };
   const mErr=document.getElementById('mErr'),mOk=document.getElementById('mOk');
   const saveBtn=document.querySelector('#leadModal .msave');
   // Lead modal may be absent in standalone/compat mode — bail cleanly.
@@ -470,13 +474,14 @@ async function saveLead(){
       // 2026-09-15 (Paperwork Filing) — gate fields for REQUIRED_FIELDS_BY_TYPE
       // (crm-stages.js). '' when unchecked, never false/0 — missingRequiredFields
       // only treats undefined/null/'' as missing. editLead() (crm-portal-bridge.js)
-      // populates these checkboxes from the lead's own filed state on open, so a
-      // re-save of an already-filed field just refreshes its stamp, never blanks it.
-      contractFiledAt: document.getElementById('lContractFiled')?.checked ? new Date().toISOString() : '',
-      permitFiledAt: document.getElementById('lPermitFiled')?.checked ? new Date().toISOString() : '',
-      aobFiledAt: document.getElementById('lAobFiled')?.checked ? new Date().toISOString() : '',
-      warrantyCertFiledAt: document.getElementById('lWarrantyCertFiled')?.checked ? new Date().toISOString() : '',
-      cocFiledAt: document.getElementById('lCocFiled')?.checked ? new Date().toISOString() : '',
+      // populates these checkboxes from the lead's own filed state on open (and
+      // keeps the stored stamp on each box), so a re-save of an already-filed
+      // field keeps its original date, never blanks it and never re-stamps it.
+      contractFiledAt: filedStamp('lContractFiled'),
+      permitFiledAt: filedStamp('lPermitFiled'),
+      aobFiledAt: filedStamp('lAobFiled'),
+      warrantyCertFiledAt: filedStamp('lWarrantyCertFiled'),
+      cocFiledAt: filedStamp('lCocFiled'),
       notes: document.getElementById('lNotes')?.value?.trim() || '',
       // Google Drive folder for this customer (approved additive field, CRM
       // audit 2026-11-06, CU-F07). Omitted when the field isn't on the page;

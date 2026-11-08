@@ -585,7 +585,15 @@ function editLead(id){
   // already-filed timestamp on the next unrelated save (a phone-number fix,
   // say) — populate from the lead's real state so a re-save only refreshes
   // an already-true stamp, never blanks one.
-  const setChecked = (eid, val) => { const e = document.getElementById(eid); if (e) e.checked = !!val; };
+  // The stored stamp rides on the checkbox (data-filed-at) so a re-save keeps
+  // the day the paper was actually filed instead of re-stamping it with today
+  // (CRM audit PL-F10, 2026-11-08). A Firestore Timestamp becomes ISO; any other
+  // non-string value leaves it blank, and saveLead stamps now, as before.
+  const setChecked = (eid, val) => {
+    const e = document.getElementById(eid); if (!e) return;
+    e.checked = !!val;
+    e.dataset.filedAt = typeof val === 'string' ? val : (val && typeof val.toDate === 'function' ? val.toDate().toISOString() : '');
+  };
   setChecked('lContractFiled', l.contractFiledAt);
   setChecked('lPermitFiled', l.permitFiledAt);
   setChecked('lAobFiled', l.aobFiledAt);
