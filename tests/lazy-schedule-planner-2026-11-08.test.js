@@ -13,7 +13,8 @@
  *   - the REAL production.js registers both on the REAL script-loader.js, and
  *     preloadForView('schedule') then injects the planner (views and bundles
  *     are the live maps the loader reads), once; no other view does; a failed
- *     fetch resolves (never rejects) and the next visit retries;
+ *     fetch resolves (never rejects), its dead tag is dropped and the next
+ *     visit fetches again (the fake <head> lists its tags, as a browser does);
  *   - no ScriptLoader / an earlier registration: nothing throws, nothing is
  *     overwritten;
  *   - the REAL planner, arriving after load on #/schedule, renders the panel
@@ -47,11 +48,20 @@ const PLANNER = read('docs/pro/js/schedule-planner.js');
 function page(opts) {
   opts = opts || {};
   const head = [];
+  let plannerFetches = 0;
+  // A browser lists every <script> in <head> (a failed one too) to
+  // querySelectorAll, and ScriptLoader's eager-tag scan reads that list.
   const document = {
     readyState: 'complete', baseURI: 'https://x.test/pro/dashboard.html',
-    addEventListener() {}, getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
-    createElement: (tag) => ({ tagName: String(tag).toUpperCase(), dataset: {}, setAttribute() {} }),
-    head: { appendChild(el) { head.push(el); } },
+    addEventListener() {}, getElementById: () => null, querySelector: () => null,
+    querySelectorAll: (sel) => (String(sel).indexOf('script') === 0 ? head.filter((el) => el.tagName === 'SCRIPT') : []),
+    createElement: (tag) => {
+      const el = { tagName: String(tag).toUpperCase(), dataset: {}, setAttribute() {},
+        getAttribute(k) { return k === 'src' ? el.src : null; },
+        remove() { const i = head.indexOf(el); if (i !== -1) head.splice(i, 1); } };
+      return el;
+    },
+    head: { appendChild(el) { head.push(el); if (el.tagName === 'SCRIPT' && /schedule-planner\.js/.test(el.src)) plannerFetches++; } },
   };
   const window = { addEventListener() {}, document };
   const ctx = { window, document, location: { hash: opts.hash || '', search: '' }, console: quiet, setTimeout: () => 0, clearTimeout() {}, URL, Promise };
@@ -60,7 +70,7 @@ function page(opts) {
   if (opts.before) opts.before(window);
   vm.runInContext(PROD, ctx, { filename: 'production.js' });
   const scripts = () => head.filter((el) => el.tagName === 'SCRIPT');
-  return { ctx, window, head, scripts };
+  return { ctx, window, head, scripts, plannerFetches: () => plannerFetches };
 }
 const plannerTags = (p) => p.scripts().filter((el) => /(^|\/)js\/schedule-planner\.js(\?|$)/.test(el.src));
 
@@ -112,9 +122,10 @@ console.log('\nLAZY PLAN JOBS: registration on the real script-loader.js');
     await tick(); await tick();
     ok('a failed planner fetch resolves, never rejects (goTo and the view carry on)', settled === 'resolved', settled);
     ok('…the planner is not marked loaded', SL.isLoaded('schedule') === false);
+    ok('…and its dead tag is gone from <head>', plannerTags(p).length === 0, plannerTags(p).length);
     SL.preloadForView('schedule');
     await tick(); await tick();
-    ok('…and the next Schedule visit tries again', plannerTags(p).length === 2, plannerTags(p).length);
+    ok('…so the next Schedule visit fetches it again', p.plannerFetches() === 2 && plannerTags(p).length === 1, p.plannerFetches() + ' fetches, ' + plannerTags(p).length + ' tags');
   }
   {
     let threw = null, p = null;

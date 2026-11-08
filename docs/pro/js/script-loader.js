@@ -706,8 +706,12 @@
         // Never reject — a missing lazy module shouldn't break the app.
         // Individual views already tolerate missing modules (they log
         // and render an empty state).
-        console.warn('[ScriptLoader] failed to load:', src);
+        console.warn('[ScriptLoader] load failed:', src);
         pending.delete(key);
+        // Drop the dead tag (2026-11-08): the tag scan above would find it on
+        // the next ask and mark the key loaded, so a failed lazy fetch never
+        // ran again before a reload. ?. : test doubles may lack remove().
+        el.remove?.();
         resolve();
       };
       document.head.appendChild(el);

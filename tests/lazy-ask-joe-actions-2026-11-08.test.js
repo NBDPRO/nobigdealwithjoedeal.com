@@ -20,7 +20,8 @@
  *     toolset and the tools addendum, and a tool_use becomes a card;
  *   - a failed fetch leaves a working text-only chat: the transcript draws,
  *     a send goes out, cancelling a restored pending card never throws, and
- *     the next send retries the fetch;
+ *     the next send retries the fetch (ScriptLoader drops the dead tag; the
+ *     fake <head> keeps every tag and lists it, as a browser does);
  *   - no ScriptLoader, or a loadBundle that throws: the chat still sends;
  *   - dashboard.html has no eager tag for the file, keeps ai.js deferred and
  *     after ask-joe-rules.js, and keeps the late stylesheet.
@@ -67,10 +68,17 @@ function makeEnv(opts) {
   const storage = (seed) => { const s = Object.assign({}, seed || {}); return { getItem: (k) => (k in s ? s[k] : null), setItem: (k, v) => { s[k] = String(v); }, removeItem: (k) => { delete s[k]; }, _s: s }; };
   const els = {};
   ['joeNoKey', 'joeMessages', 'joeInputArea', 'joeContextBar', 'joeInput', 'joeSendBtn'].forEach((id) => { els[id] = new El('div', id); });
+  // A browser keeps every appended tag in <head> and lists it in
+  // querySelectorAll('script[src]'), a failed one too: ScriptLoader's
+  // eager-tag scan sees them, so this fake does the same.
+  const tags = [];
   const head = {
     appendChild(node) {
       if (node.tag !== 'script') { if (node.rel === 'stylesheet' && node.onload) setTimeout(() => node.onload(), 0); return node; }
       env.injected.push(node.src);
+      tags.push(node);
+      node.getAttribute = (k) => (k === 'src' ? node.src : null);
+      node.remove = () => { const i = tags.indexOf(node); if (i !== -1) tags.splice(i, 1); };
       setTimeout(() => {
         if (env.fail) { if (node.onerror) node.onerror(); return; }
         const file = path.join(ROOT, 'docs/pro', String(node.src).split('?')[0]);
@@ -86,7 +94,7 @@ function makeEnv(opts) {
     getElementById: (id) => els[id] || null,
     createElement: (tag) => new El(tag),
     querySelector: () => null,
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => (String(sel).indexOf('script') === 0 ? tags.slice() : []),
     addEventListener() {},
   };
   const ctx = {
