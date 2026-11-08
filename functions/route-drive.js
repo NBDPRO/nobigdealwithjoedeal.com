@@ -94,7 +94,11 @@ async function matrixFor(clean, deps) {
     res = L.shapeMatrix(r && r.data, n);
   } catch (e) {
     const status = (e && e.response && e.response.status) || (e && e.code) || 'error';
-    if (status === 404) return { ok: false, reason: 'not_supported' };
+    if (status === 404) {
+      // Any 404 is not_supported, not only an older image: a mistyped OSRM_URL path or a misrouted revision looks the same, so say so in the log.
+      logger.warn('[routeDrive] routing service has no /v1/table (404): not_supported', { status, path: '/v1/table' });
+      return { ok: false, reason: 'not_supported' };
+    }
     logger.warn('[routeDrive] routing service unavailable (table)', { status });
     return { ok: false, reason: 'unavailable' };
   }
