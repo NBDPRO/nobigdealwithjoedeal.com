@@ -19,7 +19,9 @@
  *   - the REAL callers (cdPickStage / cdPickType from dashboard-actions.js, the
  *     ⋮ handler from crm-pipeline.js) open the REAL menu after a cold load, at
  *     the anchor measured at tap time; afterwards they open it at once;
- *   - a failed fetch opens nothing, throws nothing, and the next tap retries;
+ *   - a failed fetch opens nothing, throws nothing, says so, and the next tap
+ *     fetches again (the fake <head> keeps and lists its tags, as a browser
+ *     does, so this holds only because ScriptLoader drops the dead tag);
  *     no ScriptLoader = nothing happens; a page that already has the real menu
  *     keeps it untouched.
  *
@@ -65,7 +67,9 @@ function makeEnv(opts) {
   const winL = {}, docL = {};
   const mk = (tag) => ({
     tagName: String(tag).toUpperCase(), style: {}, attrs: {}, children: [], innerHTML: '', parentNode: null, id: '',
-    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] == null ? null : this.attrs[k]; },
+    setAttribute(k, v) { this.attrs[k] = String(v); },
+    getAttribute(k) { if (this.attrs[k] != null) return this.attrs[k]; return k === 'src' && this.src != null ? this.src : null; },
+    remove() { if (this.parentNode) this.parentNode.removeChild(this); },
     appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
     removeChild(c) { c.parentNode = null; const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); },
     addEventListener() {}, removeEventListener() {}, querySelectorAll: () => [], querySelector: () => null,
@@ -73,12 +77,19 @@ function makeEnv(opts) {
     contains: () => false, focus() {},
   });
   const headEl = mk('head'), bodyEl = mk('body');
+  // Every <script> the page asks the network for, and the toasts shown.
+  const fetched = [], toasts = [];
+  const headAppend = headEl.appendChild;
+  headEl.appendChild = function (c) { if (c && c.tagName === 'SCRIPT') fetched.push(c.src); return headAppend.call(this, c); };
   const document = {
     readyState: 'complete', baseURI: 'https://x.test/pro/dashboard.html', head: headEl, body: bodyEl,
     addEventListener(t, fn) { (docL[t] = docL[t] || []).push(fn); },
     removeEventListener(t, fn) { const l = docL[t] || []; const i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); },
     getElementById: (id) => bodyEl.children.find((c) => c.id === id) || null,
-    querySelector: () => null, querySelectorAll: () => [], createElement: mk,
+    // A browser lists every <script> in <head>, a failed one too, and
+    // ScriptLoader's eager-tag scan reads that list.
+    querySelector: () => null, createElement: mk,
+    querySelectorAll: (sel) => (String(sel).indexOf('script') === 0 ? headEl.children.filter((c) => c.tagName === 'SCRIPT') : []),
   };
   const win = {
     document, innerWidth: 390, innerHeight: 844,
@@ -90,7 +101,7 @@ function makeEnv(opts) {
     removeEventListener() {},
   };
   const ctx = { window: win, document, navigator: { userAgent: 'test' }, console: { log() {}, warn() {}, error() {}, info() {} },
-    setTimeout, clearTimeout, URL };
+    setTimeout, clearTimeout, URL, showToast: (m, k) => toasts.push([String(m), k]) };
   vm.createContext(ctx);
   if (opts.loader !== false) vm.runInContext(LOADER, ctx, { filename: 'script-loader.js' });
   const bundlesBefore = win.ScriptLoader ? Object.keys(win.ScriptLoader.bundles) : [];
@@ -103,7 +114,7 @@ function makeEnv(opts) {
       + 'globalThis.__overflow = ' + OVERFLOW.replace(/^'card-overflow':/, '') + ';', ctx);
   }
   return {
-    ctx, win, document, winL, docL, headEl, bodyEl, bundlesBefore, threw,
+    ctx, win, document, winL, docL, headEl, bodyEl, bundlesBefore, threw, fetched, toasts,
     scripts: () => headEl.children.filter((c) => c.tagName === 'SCRIPT'),
     menus: () => bodyEl.children.filter((c) => c.id === 'nbd-kanban-ctx-menu'),
     // The browser's half of a fetch: run the file, then fire onload; or fire onerror (offline, 404).
@@ -216,10 +227,12 @@ const overflowEl = { dataset: { id: 'lead-1' }, getBoundingClientRect: () => ({ 
     try { e.arrive(s1, false); await flush(); await flush(); } catch (err) { threw = true; }
     ok('a failed fetch opens nothing and throws nothing', !threw && e.menus().length === 0);
     ok('…and leaves the stand-in, so the caller\'s guard still passes', !!e.win.KanbanContextMenu && typeof e.win.KanbanContextMenu.openTypePicker === 'function');
+    ok('…and tells the rep to tap again', e.toasts.some((x) => /Could not load the card menu/.test(x[0]) && x[1] === 'error'), JSON.stringify(e.toasts));
+    ok('…and its dead tag is gone from <head>', e.scripts().length === 0, e.scripts().length);
     e.ctx.__pickType(chipEl);
     await flush();
-    ok('…and the next tap retries the fetch', e.scripts().length === 2, e.scripts().length);
-    e.arrive(e.scripts()[1], true);
+    ok('…so the next tap fetches the menu file again', e.fetched.length === 2 && e.scripts().length === 1, e.fetched.length + ' fetches, ' + e.scripts().length + ' tags');
+    e.arrive(e.scripts()[0], true);
     await flush(); await flush();
     ok('…which opens the picker once it works', e.menus().length === 1 && e.menus()[0].attrs['aria-label'] === 'Change classification');
   }

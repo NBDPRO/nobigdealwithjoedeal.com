@@ -96,7 +96,7 @@ function restartOnboardingTour() {
     if (window.OnboardingTour && typeof window.OnboardingTour.forceRestart === 'function') {
       window.OnboardingTour.forceRestart();
     } else if (typeof showToast === 'function') {
-      showToast('Tour module loading...', 'error');
+      showToast('Could not load the tour — check your connection and try again', 'error');
     }
   };
   const sl = tourLoader();
@@ -1317,8 +1317,8 @@ if (typeof window.PhotoEngine === 'undefined' || typeof window.InspectionReportE
 // goTo('crm') reports the board painted (nbd:view-entered). The card's ⋮ and
 // the stage / classification chips (card-detail modal, mobile job detail, both
 // reachable from Home) call window.KanbanContextMenu: this load-then-run stub
-// until the real file lands and replaces it. A failed fetch leaves the stub,
-// so the tap does nothing (as when the file was missing) and the next retries.
+// until the real file lands and replaces it. A failed fetch leaves the stub
+// and says so; ScriptLoader drops the dead tag, so the next tap fetches again.
 if (typeof window.KanbanContextMenu === 'undefined') {
   const _kcmSl = window.ScriptLoader;
   if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=4'];
@@ -1334,6 +1334,7 @@ if (typeof window.KanbanContextMenu === 'undefined') {
       _kcmLoad().then(function () {
         const k = window.KanbanContextMenu;
         if (k && k !== _kcmStub && typeof k[m] === 'function') k[m].apply(k, a);
+        else if (k === _kcmStub && typeof showToast === 'function') showToast('Could not load the card menu — check your connection and tap again', 'error');
       });
     };
   });

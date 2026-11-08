@@ -179,6 +179,7 @@ console.log('\nTOUR: Settings → Help → "▶ Start Tour" (restartOnboardingTo
     let threw = null;
     try { r.restart(); await tick(); } catch (e) { threw = e; }
     ok('the fetch fails (loadBundle resolves, no OnboardingTour): a toast, no throw', !threw && r.toasts.length === 1 && r.toasts[0][1] === 'error', threw || JSON.stringify(r.toasts));
+    ok('…which says the tour could not load (not "loading")', /Could not load the tour/.test((r.toasts[0] || [])[0] || ''), JSON.stringify(r.toasts));
   }
   {
     const r = runOpeners({ loader: false, ls: { [DONE]: '1' } });
