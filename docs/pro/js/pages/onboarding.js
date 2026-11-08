@@ -70,6 +70,7 @@ const state = {
   step: 1,
   sealTouched: false, // stop auto-deriving once the rep edits the seal
   colorsTouched: false, // only persist brand.colors if the rep picks one (M1)
+  skipping: false, // one Skip at a time: a double tap provisioned and wrote twice (ST-F71)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -86,6 +87,7 @@ const toDashboard = () => {
 function showErr(msg) { const el = $('wizErr'); if (el) el.textContent = msg || ''; }
 
 function setStep(n) {
+  const moved = n !== state.step;
   state.step = n;
   [1, 2, 3].forEach((i) => {
     const panel = $('step' + i);
@@ -98,6 +100,17 @@ function setStep(n) {
   if (label) label.innerHTML = '<strong>Step ' + n + ' of 3</strong> — ' + labels[n];
   showErr('');
   if (n === 3) renderReview();
+  // Focus follows the step (ST-F71): the first field, or on the review step
+  // (no field) the step label, so a second Enter cannot finish unseen. The
+  // first paint (boot's setStep(1)) leaves focus alone.
+  if (moved) {
+    const panel = $('step' + n);
+    const target = n === 3 ? $('stepLabel') : (panel && panel.querySelector('input, select, textarea'));
+    if (target) {
+      if (n === 3) target.tabIndex = -1;
+      try { target.focus({ preventScroll: true }); } catch (_) {}
+    }
+  }
   try { window.scrollTo(0, 0); } catch (_) {}
 }
 
@@ -312,6 +325,10 @@ async function finish() {
 }
 
 async function skip() {
+  // Every path below ends in toDashboard(), so nothing re-enables (ST-F71).
+  if (state.skipping) return;
+  state.skipping = true;
+  document.querySelectorAll('[data-action="skip"]').forEach((b) => { b.disabled = true; b.textContent = 'Skipping…'; });
   // Best-effort provisioning BEFORE marking onboarded — a skipper used to
   // become permanently tenant-less (onboarded:true with no createCompany
   // attempt at all). Never blocks the skip: on failure ensureProvisioned
