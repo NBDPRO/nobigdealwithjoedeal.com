@@ -137,7 +137,6 @@ const ALLOWED_EAGER_LAZY = [
   '/pro/customer.html /pro/js/customer-signed-doc-upload.js',
   '/pro/customer.html /pro/js/stripe-ledger-ui-logic.js',
   '/pro/customer.html /pro/js/yard-signs-logic.js',
-  '/pro/customer.html /pro/js/estimate-supplement.js',
   '/pro/customer.html /pro/js/supplement-ui.js',
   // the supplement letter refuses to build without the KY wording filter, so it is eager beside it (also in the estimates + photos bundles).
   '/pro/customer.html /pro/js/claim-wording-filter.js',

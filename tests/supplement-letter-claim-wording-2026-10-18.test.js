@@ -134,8 +134,11 @@ const iS = loader.indexOf("'js/estimate-supplement.js");
 ok('script-loader estimates bundle: filter precedes estimate-supplement.js', iF > 0 && iS > 0 && iF < iS);
 const cust = read('docs/pro/customer.html');
 const cF = cust.indexOf('/pro/js/claim-wording-filter.js');
-const cS = cust.indexOf('/pro/js/estimate-supplement.js');
-ok('customer.html: filter tag precedes the estimate-supplement.js tag', cF > 0 && cS > 0 && cF < cS);
+// 2026-11-08: customer.html no longer tags the engine; supplement-ui.js loads it
+// on the first open, after every deferred tag (the filter's included) has run.
+const cS = cust.indexOf('/pro/js/supplement-ui.js');
+ok('customer.html: filter tag precedes supplement-ui.js, which loads estimate-supplement.js on the first open',
+  cF > 0 && cS > 0 && cF < cS && /ScriptLoader\.load\('js\/estimate-supplement\.js\?v=\d+'\)/.test(read('docs/pro/js/supplement-ui.js')));
 ok('supplement-ui.js tells the rep what was removed',
   /wordingRemoved/.test(read('docs/pro/js/supplement-ui.js')));
 

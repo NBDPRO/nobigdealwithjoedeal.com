@@ -186,8 +186,16 @@
 
   // ─── Open the supplement modal for a given estimate ────────────
   async function openForEstimate(estimateId, parentEstimateData) {
+    // The engine is not on customer.html's boot path (2026-11-08): it loads on
+    // the first open, by the estimates bundle's own entry (one cache key). A
+    // failed fetch stays failed until a reload (ScriptLoader keeps the tag),
+    // so the toast below says so.
+    if (!window.EstimateSupplement && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+      try { await window.ScriptLoader.load('js/estimate-supplement.js?v=5'); }
+      catch (e) { console.warn('[supplement-ui] estimate-supplement.js failed to load:', e && e.message); }
+    }
     if (!window.EstimateSupplement) {
-      _toast('Supplement engine not loaded.', 'error');
+      _toast('Supplement engine not loaded. Reload and try again.', 'error');
       return;
     }
     if (!parentEstimateData || !estimateId) {

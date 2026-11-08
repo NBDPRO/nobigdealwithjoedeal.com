@@ -3282,9 +3282,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="/pro/js/offline-banner.js?v=2"></script>
 <!-- W144: Supplement engine + UI entry point. Estimate-supplement.js
      was already shipped but had no UI surface — supplement-ui.js
-     wires the +Supplement button on customer-page estimate rows. -->
+     wires the +Supplement button on customer-page estimate rows.
+     2026-11-08: the engine itself loads on the first open (supplement-ui.js
+     openForEstimate), not at boot; the filter stays eager for the letter. -->
 <script defer src="/pro/js/claim-wording-filter.js?v=1"></script>
-<script defer src="/pro/js/estimate-supplement.js?v=5"></script>
 <script defer src="/pro/js/supplement-ui.js?v=4"></script>
 
 </body>
