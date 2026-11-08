@@ -20,9 +20,9 @@
  *     the button over and the shim's poll stops;
  *   - a click before the files land opens the card when they land, once for a
  *     double tap; a click after they land is review-handoff.js's alone;
- *   - a failed fetch: the button hides again (a failed eager tag never showed
- *     it), a waiting click is told to reload, nothing throws, and nothing is
- *     fetched again (ScriptLoader keeps the failed tag until a reload);
+ *   - a failed fetch: the dead tag is dropped (ScriptLoader removes it), the
+ *     button stays, a waiting click is told to tap again, nothing throws, and
+ *     the next tap fetches the file again and opens the card;
  *   - no ScriptLoader / no button / no lead: nothing shows, nothing throws;
  *   - the shim's job-done rule is review-handoff.js's (same stages, same answers);
  *   - customer.html: one deferred shim tag after script-loader.js, neither file
@@ -63,7 +63,7 @@ function makePage(opts) {
   const held = [];
   let network = opts.network || 'instant';
   let nextTimer = 1;
-  const page = { head, body, listeners, intervals, toasts, errors, opens: 0 };
+  const page = { head, body, listeners, intervals, toasts, errors, opens: 0, fetches: [] };
   const ctx = { console: { log() {}, info() {}, warn() {}, error() {}, debug() {} }, URL, setTimeout, clearTimeout };
 
   function makeEl(tag) {
@@ -85,6 +85,8 @@ function makePage(opts) {
       querySelector() { return null; },
       querySelectorAll() { return []; },
       focus() { doc.activeElement = e; },
+      // A browser element can leave its parent; ScriptLoader drops a dead tag this way.
+      remove() { if (e.parentNode && typeof e.parentNode.removeChild === 'function') e.parentNode.removeChild(e); },
     };
     return e;
   }
@@ -98,9 +100,10 @@ function makePage(opts) {
   const headEl = {
     appendChild(el) {
       head.push(el); el.parentNode = headEl;
-      if (el.tagName === 'SCRIPT') { if (network === 'held') held.push(el); else Promise.resolve().then(() => runScript(el)); }
+      if (el.tagName === 'SCRIPT') { page.fetches.push(String(el.src)); if (network === 'held') held.push(el); else Promise.resolve().then(() => runScript(el)); }
       return el;
     },
+    removeChild(el) { const i = head.indexOf(el); if (i >= 0) head.splice(i, 1); el.parentNode = null; return el; },
   };
   const bodyEl = {
     appendChild(el) { body.push(el); el.parentNode = bodyEl; if (el.className === 'rh-overlay') page.opens++; return el; },
@@ -143,6 +146,7 @@ function makePage(opts) {
   };
   page.release = () => { network = 'instant'; held.splice(0).forEach((el) => Promise.resolve().then(() => runScript(el))); };
   page.scripts = () => head.filter((t) => t.tagName === 'SCRIPT').map((t) => String(t.src));
+  page.heal = () => { opts.fail = null; };
   page.overlays = () => body.filter((el) => el.className === 'rh-overlay').length;
   return page;
 }
@@ -211,14 +215,15 @@ function makePage(opts) {
     p.tick();
     const ev = p.click();
     p.release(); await flush();
-    ok('the failed tag stays in <head>, as in a browser', p.scripts().join() === FILES.join(), p.scripts());
-    ok('the button hides again (a failed eager tag never showed it)', p.btn.hidden === true);
-    ok('the waiting click is told the card did not load and to reload', ev.defaultPrevented === true && p.toasts.length === 1 && /did not load/i.test(p.toasts[0][0]) && /reload/i.test(p.toasts[0][0]) && p.toasts[0][1] === 'error', p.toasts);
+    ok('the dead tag is dropped from <head> (only the QR file stays)', p.scripts().join() === FILES[0], p.scripts());
+    ok('the button stays up, so the rep can tap again', p.btn.hidden === false);
+    ok('the waiting click is told the card could not load and to tap again', ev.defaultPrevented === true && p.toasts.length === 1 && /Could not load the Job done card/.test(p.toasts[0][0]) && /tap again/.test(p.toasts[0][0]) && p.toasts[0][1] === 'error', p.toasts);
     ok('no card, and nothing threw', p.overlays() === 0 && p.errors.length === 0, p.errors.map(String));
     ok('the shim\'s poll has stopped', p.intervals.size === 0, Array.from(p.intervals.keys()));
-    p.tick(); p.tick(); p.click(); await flush();
-    ok('it stays failed until a reload: later polls and clicks fetch nothing and keep the button hidden', p.scripts().length === 2 && p.btn.hidden === true && p.overlays() === 0, p.scripts());
-    ok('...a later click is told to reload again (no silent dead button)', p.toasts.length === 2 && /reload/i.test(p.toasts[1][0]), p.toasts);
+    p.heal();
+    p.click(); await flush();
+    ok('the next tap fetches review-handoff.js again (the QR file is not fetched twice)', p.fetches.filter((s) => /review-handoff\.js/.test(s)).length === 2 && p.fetches.filter((s) => /qr-code\.js/.test(s)).length === 1, JSON.stringify(p.fetches));
+    ok('...and opens the card once it lands', p.opens === 1 && p.overlays() === 1, p.opens);
     ok('...still nothing threw', p.errors.length === 0, p.errors.map(String));
   }
 

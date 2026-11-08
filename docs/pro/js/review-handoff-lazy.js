@@ -15,9 +15,9 @@
  *
  *   - A click before the files land opens the card when they land (once, even
  *     for a double tap).
- *   - A failed fetch hides the button again, as a failed eager tag left it,
- *     and a waiting click is told to reload: ScriptLoader keeps the failed
- *     tag, so it stays failed until the page reloads. The page keeps working.
+ *   - A failed fetch leaves the button up and tells a waiting click to tap
+ *     again: ScriptLoader drops the dead tag, so the next tap fetches the
+ *     files again. The page keeps working.
  *   - css/review-handoff.css stays an eager <link>: it styles the hidden button.
  *
  * tests/lazy-customer-review-handoff-2026-11-08.test.js keeps the stage rule
@@ -58,7 +58,7 @@
     return !!(ms(lead.installCompletedAt) || ms(lead.completedAt));
   }
 
-  var timer = null, loading = null, failed = false, waiting = false, pendingId = '';
+  var timer = null, loading = null, waiting = false, pendingId = '';
 
   function loader() {
     var sl = window.ScriptLoader;
@@ -67,14 +67,13 @@
     return sl;
   }
   function stop() { if (timer !== null) { clearInterval(timer); timer = null; } }
-  // After the bundle: review-handoff.js takes the button over, or (it did not load) the button goes back to hidden.
+  // After the bundle: review-handoff.js takes the button over. If it did not
+  // load, the button stays for the next tap, which asks the loader again.
   function landed() {
     var H = window.NBDReviewHandoff;
     stop();
     if (H) { if (typeof H.syncCustomerButton === 'function') H.syncCustomerButton(); return H; }
-    failed = true;
-    var b = document.getElementById('jobDoneHandoffBtn');
-    if (b) b.hidden = true;
+    loading = null;
     return null;
   }
   /** Load both files once. Resolves to window.NBDReviewHandoff, or null when they did not load. */
@@ -91,7 +90,7 @@
   function sync() {
     if (window.NBDReviewHandoff) { landed(); return; }
     var b = document.getElementById('jobDoneHandoffBtn');
-    if (!b || failed) return;
+    if (!b) return;
     var lead = window._currentLead;
     var show = !!lead && isJobDone(lead) && !!loader();
     b.hidden = !show;
@@ -111,7 +110,7 @@
     load().then(function (H) {
       waiting = false;
       if (H && typeof H.open === 'function') { H.open(pendingId); return; }
-      if (typeof window.showToast === 'function') window.showToast('The Job done card did not load. Reload the page to try again.', 'error');
+      if (typeof window.showToast === 'function') window.showToast('Could not load the Job done card — check your connection and tap again', 'error');
     });
   }
 
