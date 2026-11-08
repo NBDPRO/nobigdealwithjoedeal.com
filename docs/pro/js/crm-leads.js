@@ -187,7 +187,7 @@ function _leadModalReset(){
   // this, a filed checkbox ticked while editing lead A would still read
   // checked when the modal reopened blank for "Add Lead", silently stamping
   // a fresh contractFiledAt/etc. on a brand-new lead that was never filed.
-  ['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'].forEach(id=>{ const e=document.getElementById(id); if(e){ e.checked=false; e.dataset.filedAt=''; } });
+  ['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'].forEach(id=>{ const e=document.getElementById(id); if(e){ e.checked=false; if(e.dataset) e.dataset.filedAt=''; } });
   // Hide conditional field blocks. #jobFieldsBlock is NOT one of them since
   // 2026-09-30: it is always shown, so changing Stage no longer inserts it
   // mid-form (see toggleInsuranceFields in dashboard-bootstrap.module.js).

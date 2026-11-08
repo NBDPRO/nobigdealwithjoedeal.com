@@ -592,7 +592,7 @@ function editLead(id){
   const setChecked = (eid, val) => {
     const e = document.getElementById(eid); if (!e) return;
     e.checked = !!val;
-    e.dataset.filedAt = typeof val === 'string' ? val : (val && typeof val.toDate === 'function' ? val.toDate().toISOString() : '');
+    if (e.dataset) e.dataset.filedAt = typeof val === 'string' ? val : (val && typeof val.toDate === 'function' ? val.toDate().toISOString() : '');
   };
   setChecked('lContractFiled', l.contractFiledAt);
   setChecked('lPermitFiled', l.permitFiledAt);
