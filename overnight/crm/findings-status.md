@@ -1,4 +1,4 @@
-Findings: 247 · with a merged PR: 117 · open PR: 0 · held draft: 7 · no PR: 123
+Findings: 247 · with a merged PR: 121 · open PR: 0 · held draft: 7 · on draft #3016 (2026-11-08): 10 · no PR: 109
 PRs: 40 (merged 37, open 0, draft 3, closed 0)
 
 | Finding | Pri | Tier | PR(s) |
@@ -21,7 +21,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | CU-F16 | P3 | A | #2974 merged |
 | CU-F17 | P3 | A | #2968 merged |
 | CU-F18 | P3 | A | #2968 merged |
-| CU-F19 | P3 | A | — |
+| CU-F19 | P3 | A | #2996 merged (found 2026-11-08) |
 | CU-F20 | P3 | A | — |
 | CU-F21 | P1 | C | — |
 | CU-F22 | P3 | A | #2974 merged |
@@ -54,7 +54,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ED-F08 | P3 | A | — |
 | ED-F09 | P2 | C | — |
 | ED-F10 | P3 | B | — |
-| ED-F11 | P2 | C | — |
+| ED-F11 | P2 | C | #3016 draft (2026-11-08) |
 | ED-F12 | P1 | C | #2943 merged |
 | ED-F13 | P2 | A | #2978 merged, #2943 merged |
 | ED-F14 | P2 | A | #2943 merged |
@@ -71,7 +71,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ED-F25 | P2 | C | — |
 | ED-F26 | P3 | C | — |
 | ED-F27 | P3 | A | — |
-| ED-F28 | P2 | A | — |
+| ED-F28 | P2 | A | #2954 merged (found 2026-11-08) |
 | ED-F29 | P3 | A | #2970 merged |
 | OR-F01 | P2 | A | #2943 merged |
 | OR-F02 | P2 | A | #2943 merged |
@@ -93,13 +93,13 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | PL-F06 | P1 | B | #2939 merged |
 | PL-F07 | P1 | A | #2940 merged |
 | PL-F08 | P2 | A | #2947 merged |
-| PL-F09 | P2 | B | — |
-| PL-F10 | P2 | B | — |
+| PL-F09 | P2 | B | #3016 draft (2026-11-08) |
+| PL-F10 | P2 | B | #3016 draft (2026-11-08) |
 | PL-F11 | P2 | B | — |
 | PL-F12 | P2 | A | #2953 merged |
 | PL-F13 | P2 | A | #2949 merged |
 | PL-F14 | P2 | A | #2953 merged |
-| PL-F15 | P2 | B | — |
+| PL-F15 | P2 | B | #3016 draft (2026-11-08) |
 | PL-F16 | P2 | A | #2952 merged |
 | PL-F17 | P2 | A | #2952 merged |
 | PL-F18 | P3 | A | — |
@@ -136,7 +136,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F21 | P2 | A | #2966 merged, #2957 merged |
 | ST-F22 | P2 | A | #2957 merged |
 | ST-F23 | P2 | A | #2957 merged |
-| ST-F24 | P2 | B | — |
+| ST-F24 | P2 | B | #3016 draft (2026-11-08) |
 | ST-F25 | P2 | B | #2983 merged |
 | ST-F26 | P3 | A | #2966 merged |
 | ST-F27 | P3 | B | — |
@@ -151,7 +151,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F36 | P2 | A | #2956 merged |
 | ST-F37 | P2 | B | #2982 merged |
 | ST-F38 | P2 | B | #2983 merged |
-| ST-F39 | P2 | B | — |
+| ST-F39 | P2 | B | #3016 draft (2026-11-08) |
 | ST-F40 | P3 | A | — |
 | ST-F41 | P3 | A | #2975 merged |
 | ST-F42 | P3 | A | #2975 merged |
@@ -166,16 +166,16 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F51 | P2 | B | #2983 merged |
 | ST-F52 | P2 | A | #2953 merged |
 | ST-F53 | P2 | A | #2953 merged |
-| ST-F54 | P2 | B | — |
+| ST-F54 | P2 | B | #2985 merged (found 2026-11-08) |
 | ST-F55 | P3 | B | — |
 | ST-F56 | P3 | A | — |
 | ST-F57 | P3 | A | #2971 merged |
 | ST-F58 | P3 | B | — |
 | ST-F59 | P3 | B | — |
 | ST-F60 | P1 | A | #2945 merged |
-| ST-F61 | P2 | A | — |
+| ST-F61 | P2 | A | #3016 draft (2026-11-08) |
 | ST-F62 | P2 | A | — |
-| ST-F63 | P2 | B | — |
+| ST-F63 | P2 | B | #3016 draft (2026-11-08) |
 | ST-F64 | P3 | A | — |
 | ST-F65 | P3 | A | #2975 merged |
 | ST-F66 | P3 | B | — |
@@ -186,7 +186,7 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | ST-F71 | P3 | B | — |
 | ST-F72 | P3 | B | — |
 | VW-F01 | P2 | A | #2949 merged |
-| VW-F02 | P2 | B | — |
+| VW-F02 | P2 | B | #3016 draft (2026-11-08) |
 | VW-F03 | P3 | A | #2971 merged |
 | VW-F04 | P2 | A | #2948 merged |
 | VW-F05 | P3 | A | — |
@@ -195,9 +195,9 @@ PRs: 40 (merged 37, open 0, draft 3, closed 0)
 | VW-F08 | P2 | A | #2948 merged |
 | VW-F09 | P2 | A | #2948 merged |
 | VW-F10 | P3 | A | — |
-| VW-F100 | P2 | A | — |
+| VW-F100 | P2 | A | #2977 merged (found 2026-11-08) |
 | VW-F101 | P3 | A | — |
-| VW-F102 | P2 | C | — |
+| VW-F102 | P2 | C | #3016 draft (2026-11-08) |
 | VW-F103 | P3 | A | — |
 | VW-F104 | P3 | A | — |
 | VW-F105 | P3 | A | — |
