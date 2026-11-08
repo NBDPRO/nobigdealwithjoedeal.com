@@ -840,16 +840,16 @@ export const NBDAuth = {
         // the list did not (CRM audit ST-F24, 2026-11-08): light/dark mode
         // choice, theme overlays, GX effects, Professional mode, the sidebar's
         // collapsed/hidden state, bold kanban text, the CRM secondary header.
-        // Looks only, no account data. Hotkey toggles are a prefix (below).
+        // Looks only, no account data. The per-hotkey "disabled" toggles
+        // (dashboard-hotkey-toggles.js, one key per hotkey) are kept by prefix
+        // in the loop below: nbd_hk_disabled_*.
         'nbd_pro_mode_pref', 'nbd-theme-overlays', 'nbd_gx_settings', 'nbd_professional_mode',
         'nbd-sidebar-collapsed', 'nbd_sidebar_hidden', 'nbd-kanban-bold', 'nbd_crm_sec_header_enabled',
       ]);
-      // Kept by prefix: per-hotkey "disabled" toggles (dashboard-hotkey-toggles.js), one key per hotkey.
-      const KEEP_PREFIX = /^nbd_hk_disabled_/;
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && !KEEP.has(k) && !KEEP_PREFIX.test(k) && /^(nbd[_-]|nav-)/.test(k)) drop.push(k);
+        if (k && !KEEP.has(k) && !/^nbd_hk_disabled_/.test(k) && /^(nbd[_-]|nav-)/.test(k)) drop.push(k);
       }
       drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
     } catch (_) { /* best-effort; never block on a storage error */ }
