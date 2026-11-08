@@ -171,7 +171,9 @@ function buildPublicConfig(companyId, companyDoc, profileDoc) {
       primary: hex(colors.primary),
       accent: hex(colors.accent),
     },
-    serviceArea: s(b.serviceArea, 120) || s(p.serviceArea, 120),
+    // Top-level first (ST-F64): the wizard and Settings save serviceArea there;
+    // brand.serviceArea is createCompany's one-time provisioning copy.
+    serviceArea: s(p.serviceArea, 120) || s(b.serviceArea, 120),
     contact: {
       phone: s(c.phone, 30) || s(p.businessPhone, 30),
       email: s(c.email, 200) || s(p.businessEmail, 200),
