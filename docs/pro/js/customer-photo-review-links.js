@@ -22,7 +22,7 @@
                 if (typeof window.showToast === 'function') {
                   window.showToast('Still loading the customer — try again in a moment.', 'error');
                 } else {
-                  alert('Customer still loading — try again in a moment.');
+                  console.warn('Customer still loading — try again in a moment.');
                 }
                 return;
               }
