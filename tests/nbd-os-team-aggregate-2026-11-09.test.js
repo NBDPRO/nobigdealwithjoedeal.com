@@ -297,6 +297,23 @@ const has = (fn) => L && typeof L[fn] === 'function';
   ok('the jobs collectionGroup query has its index (userId ASC, updatedAt ASC, COLLECTION_GROUP)',
     IDX.some((i) => i.collectionGroup === 'jobs' && i.queryScope === 'COLLECTION_GROUP' && J(i.fields.map((f) => [f.fieldPath, f.order])) === J([['userId', 'ASCENDING'], ['updatedAt', 'ASCENDING']])));
 
+
+  console.log('\n8. gate on (Jo, 2026-11-09): every run reads a bounded number of docs');
+  const ENV = read('functions/.env.nobigdeal-pro');
+  ok('functions/.env.nobigdeal-pro turns the gate on, with a dated line saying Jo turned it on and that the indexes deployed with #3019',
+    /^LEADERBOARD_AGGREGATE_ENABLED=true$/m.test(ENV) && /2026-11-09[^\n]*\n(?:#[^\n]*\n)*LEADERBOARD_AGGREGATE_ENABLED=true/.test(ENV) && /#3019/.test(ENV));
+  const ENV_BLOCK = (ENV.match(/# Team leaderboard rows[\s\S]*?\nLEADERBOARD_AGGREGATE_ENABLED=true/) || [''])[0];
+  ok('the env comment says the gate is platform-wide: on, every tenant company is counted each run (maxCompanies Infinity), not only NBD',
+    /every (tenant|company)/i.test(ENV_BLOCK) && /not (just|only) NBD/i.test(ENV_BLOCK) && /maxCompanies: live \? Infinity/.test(SRC));
+  ok('the env comment does not claim the indexes are live in prod (repo-verified only): it says to confirm them in the Firebase console',
+    ENV_BLOCK && !/deployed with that PR/.test(ENV_BLOCK) && /Firebase console/.test(ENV_BLOCK));
+  const TEAM_LINE = (read('documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md').match(/^- \*\*Team\*\* counts[^\n]*/m) || [''])[0];
+  ok('the design doc Team line says the gate is on since 2026-11-09 and that off is the dry run (the date is not on the dry-run clause)',
+    /on since 2026-11-09 \(Jo\); off = a dry run that counts one company per run/.test(TEAM_LINE) && !/dry run counts one company per run \(turned on/.test(TEAM_LINE));
+  ok('one run at a time, every 30 minutes, 300 s timeout and a 240 s budget (the cursor carries the rest)',
+    /maxInstances: 1/.test(SRC) && /timeoutSeconds: 300/.test(SRC) && /const BUDGET_MS = 240000;/.test(SRC) && /deadlineMs: start \+ BUDGET_MS/.test(SRC));
+  ok('a company counts at most 50 members, and each member query reads at most 2000 docs',
+    /const MAX_MEMBERS = 50;/.test(SRC) && /slice\(0, MAX_MEMBERS \+ 1\)/.test(SRC) && /slice\(0, MAX_MEMBERS\)/.test(SRC) && (SRC.match(/\.limit\(CAP\)/g) || []).length === 3 && /const CAP = 2000;/.test(SRC));
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

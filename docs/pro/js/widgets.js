@@ -1048,7 +1048,8 @@ function _saveHomeTasks(tasks) {
 async function _thuFetch() {
   const db = window.db;
   const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
-  if (!db || !uid || !window.query) return [];
+  // A viewer cannot read thursday_calls (Call to Close Q11, 2026-11-09).
+  if (!db || !uid || !window.query || _thuIsViewer()) return [];
   const c = _thuClaims();
   const col = window.collection(db, 'thursday_calls');
   const qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAt', 'desc'), window.limit(25))];
@@ -1149,6 +1150,7 @@ function _thuDraw(el) {
   const list = _thuShowAll ? _thuCalls : _thuCalls.filter(c => !(c.route && c.route.action === 'log_only'));
   const unread = _thuCalls.filter(c => !c.reviewed).length;
   const hiddenCount = _thuCalls.length - list.length;
+  if (_thuIsViewer()) { el.innerHTML = '<div class="w-empty" role="status">Calls are hidden for your role.</div>'; return; }
   if (!_thuCalls.length) {
     // CRM audit 2026-11-06 (VW-F164): the number below is NBD's own Thursday line; other companies never see it.
     const _thuNbd = typeof window._isNbdPlatformTenant === 'function' && window._isNbdPlatformTenant() === true;

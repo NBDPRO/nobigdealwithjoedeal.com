@@ -20,6 +20,17 @@
  *       the same shape as the fixture file ({ cases: [...] } or one case per
  *       file). Run it once per model (Haiku 4.5, Sonnet 5.5) and compare.
  *
+ *   node scripts/eval-call-brief.js --init <dir> [--count 20]
+ *       KIT: writes N empty, valid label files (case-01.json …) plus a
+ *       README into <dir>, for Jo to fill from real calls. <dir> must be
+ *       OUTSIDE this repo and outside any git work tree (transcripts hold
+ *       customer PII and are never committed), and new or empty. No network.
+ *       Runbook: documentation/runbooks/CALL-BRIEF-LIVE-EVAL.md.
+ *
+ *   Blank cases (empty transcript, i.e. an unfilled --init file) are skipped,
+ *   never sent. A label problem (validateCase: a typo'd field key, a promise
+ *   off the list, a date not YYYY-MM-DD) stops the run before any model call.
+ *
  *   Bars (exit 1 when a given bar is missed; none are applied by default,
  *   because Jo sets them):
  *       --bar-precision 0.95   kept facts whose value matches the label
@@ -66,10 +77,157 @@ function loadCases(p) {
     : [target];
   const out = [];
   for (const f of files) {
-    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    let j;
+    try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) {
+      if (!(e instanceof SyntaxError)) throw e;
+      throw new Error(f + ' is not valid JSON (' + e.message + '). A " or line break inside the transcript must be written \\" or \\n; see section 3 of documentation/runbooks/CALL-BRIEF-LIVE-EVAL.md.');
+    }
     for (const c of Array.isArray(j.cases) ? j.cases : [j]) if (c && c.transcript != null) out.push(c);
   }
   return out;
+}
+
+// ── labels: the checker and the --init kit ──────────────────────────────
+const DATE_KEYS = ['dateOfLoss', 'adjusterMeetingYmd'];
+const ENUM_FIELDS = { jobType: ['insurance', 'cash'], workKind: ['repair', 'replace'] };
+const isBool = (v) => v === true || v === false;
+const isBlank = (c) => String(c && c.transcript != null ? c.transcript : '').trim() === '';
+
+/** What is wrong with one labelled case ([] when nothing). Shape only for a blank (--init) case. */
+function validateCase(c) {
+  const p = [];
+  if (!c || typeof c !== 'object') return ['not an object'];
+  if (typeof c.id !== 'string' || !c.id.trim()) p.push('id: a short name is required');
+  if (typeof c.transcript !== 'string') p.push('transcript: must be a string');
+  if (!isBlank(c) && !B.isYmd(c.callYmd)) p.push('callYmd: the call date as YYYY-MM-DD');
+  else if (c.callYmd && !B.isYmd(c.callYmd)) p.push('callYmd: YYYY-MM-DD');
+  if (c.direction != null && !['inbound', 'outbound', ''].includes(c.direction)) p.push('direction: inbound, outbound or ""');
+  const call = c.call;
+  // A walkthrough (source:'visit') is a visit recording: it has no call and no phone gate.
+  if (c.source != null && c.source !== 'visit') p.push('source: "visit" or left out');
+  if (c.source === 'visit') { if (c.scopeFacts != null && (!Array.isArray(c.scopeFacts) || c.scopeFacts.some((f) => typeof f !== 'string'))) p.push('scopeFacts: a list of strings'); }
+  else if (!call || typeof call !== 'object') p.push('call: required ({ status, leadId, attachedBy, alternateLeadIds })');
+  else if (call.alternateLeadIds != null && !Array.isArray(call.alternateLeadIds)) p.push('call.alternateLeadIds: a list');
+  const x = c.expect;
+  if (!x || typeof x !== 'object') { p.push('expect: required'); return p; }
+  if (!isBool(x.reliable)) p.push('expect.reliable: true or false');
+  if (!isBool(x.refused)) p.push('expect.refused: true or false');
+  if (x.cutOff != null && !isBool(x.cutOff)) p.push('expect.cutOff: true, false or null');
+  const f = x.fields;
+  if (!f || typeof f !== 'object' || Array.isArray(f)) p.push('expect.fields: an object');
+  else {
+    for (const k of Object.keys(f)) {
+      if (!B.FIELD_KEYS.includes(k)) { p.push('expect.fields.' + k + ': not a field the brief has (' + B.FIELD_KEYS.join(', ') + ')'); continue; }
+      if (typeof f[k] !== 'string' || !f[k].trim()) p.push('expect.fields.' + k + ': a non-empty string (leave a field out when the call did not say it)');
+      else if (DATE_KEYS.includes(k) && !B.isYmd(f[k])) p.push('expect.fields.' + k + ': YYYY-MM-DD');
+      else if (ENUM_FIELDS[k] && !ENUM_FIELDS[k].includes(f[k])) p.push('expect.fields.' + k + ': one of ' + ENUM_FIELDS[k].join(', '));
+    }
+  }
+  if (!Array.isArray(x.promises)) p.push('expect.promises: a list');
+  else {
+    x.promises.forEach((pr, i) => {
+      const at = 'expect.promises[' + i + ']';
+      if (!pr || typeof pr !== 'object') { p.push(at + ': { who, kind }'); return; }
+      if (!['jo', 'them'].includes(pr.who)) p.push(at + '.who: jo or them');
+      if (!B.PROMISE_KINDS.includes(pr.kind)) p.push(at + '.kind: one of ' + B.PROMISE_KINDS.join(', '));
+      else if (pr.who === 'them' && pr.kind !== 'waiting') p.push(at + ': a "them" promise is always kind waiting');
+      else if (pr.who === 'jo' && pr.kind === 'waiting') p.push(at + ': waiting is for a "them" promise');
+    });
+  }
+  if (c.canned !== undefined && c.canned !== null && typeof c.canned !== 'object') p.push('canned: null or a model answer object');
+  return p;
+}
+
+/** One empty label file. Fictional placeholders only; the call block passes the human-filed gate. */
+function skeleton(id) {
+  return {
+    _help: 'Fill transcript, kind, callYmd, direction and expect from ONE real call. Leave out any field the call did not say. See README.md. Never commit this file.',
+    id,
+    kind: '',
+    callYmd: '',
+    direction: '',
+    call: { status: 'noted', leadId: 'L-' + id, attachedBy: 'jo', alternateLeadIds: [] },
+    transcript: '',
+    expect: { reliable: true, refused: false, cutOff: null, fields: {}, promises: [] },
+    canned: null,
+  };
+}
+
+function kitReadme(n) {
+  return [
+    '# Call Brief live eval: label files',
+    '',
+    'These ' + n + ' files are empty label skeletons written by',
+    '`node scripts/eval-call-brief.js --init`. Fill one file per real call.',
+    '',
+    '**They will hold customer names, addresses and claim numbers. Never commit them,',
+    'never copy them into the repo, never paste them into a chat or an issue.**',
+    'Delete the folder when the eval is done.',
+    '',
+    'Full steps, the label format and a worked example: the repo runbook',
+    '`documentation/runbooks/CALL-BRIEF-LIVE-EVAL.md`.',
+    '',
+    '## In short',
+    '',
+    '1. Paste the call transcript into `transcript` (from the call card: Transcript).',
+    '2. Set `kind` (claim, repair, replace, angry, spanish, cut-off, shared-number, other),',
+    '   `callYmd` (the call date, YYYY-MM-DD) and `direction` (inbound or outbound).',
+    '3. In `expect.fields` put only what the caller actually said: ' + B.FIELD_KEYS.join(', ') + '.',
+    '   Dates as YYYY-MM-DD. jobType is insurance or cash; workKind is repair or replace.',
+    '4. In `expect.promises` list each promise as { "who": "jo" | "them", "kind": ... }.',
+    '   Kinds: ' + B.PROMISE_KINDS.join(', ') + '. A "them" promise is always waiting.',
+    '5. Set `expect.reliable` false for a non-English or garbled transcript, `expect.cutOff`',
+    '   true when it ends mid-call. A shared-number call: alternateLeadIds ["L-other"],',
+    '   remove attachedBy, and `expect.refused` true.',
+    '',
+    'Unfilled files (empty transcript) are skipped, never sent.',
+    '',
+    '## Run (from the repo folder; the --live runs spend real API money)',
+    '',
+    '    node scripts/eval-call-brief.js --cases <this folder>      # free label check, canned answers, no model',
+    '    read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY      # paste the key; never type it into a command (shell history)',
+    '    node scripts/eval-call-brief.js --live --cases <this folder>',
+    '    node scripts/eval-call-brief.js --live --cases <this folder> --model claude-sonnet-5-5',
+    '    unset ANTHROPIC_API_KEY                                     # when done',
+    '',
+  ].join('\n');
+}
+
+/** Why p is inside this repo or any git work tree ('' when it is not). Follows symlinks of the part that exists. */
+function insideRepo(p) {
+  let probe = path.resolve(p);
+  const tail = [];
+  while (!fs.existsSync(probe)) {
+    tail.unshift(path.basename(probe));
+    const up = path.dirname(probe);
+    if (up === probe) break;
+    probe = up;
+  }
+  const real = path.join(fs.realpathSync(probe), ...tail);
+  const root = fs.realpathSync(ROOT);
+  const rel = path.relative(root, real);
+  if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) return 'inside this repo (' + root + ')';
+  for (let d = real; ; d = path.dirname(d)) {
+    if (fs.existsSync(path.join(d, '.git'))) return 'inside a git work tree (' + d + ')';
+    if (path.dirname(d) === d) return '';
+  }
+}
+
+/** --init: writes count skeletons + README into dir. '' when done, else why it refused (nothing written). */
+function initCases(dir, count) {
+  const n = count == null ? 20 : Number(count);
+  if (!dir) return '--init needs a folder outside the repo, e.g. --init ~/nbd-call-eval';
+  if (!Number.isInteger(n) || n < 1 || n > 100) return '--count must be a whole number from 1 to 100';
+  const why = insideRepo(dir);
+  if (why) return 'refusing --init ' + dir + ': it is ' + why + '. Transcripts hold customer PII and stay out of every repo; pick a folder like ~/nbd-call-eval.';
+  if (fs.existsSync(dir) && (!fs.statSync(dir).isDirectory() || fs.readdirSync(dir).length)) return 'refusing --init ' + dir + ': it exists and is not an empty folder (nothing was overwritten).';
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); // the labels will hold customer PII: owner-only
+  for (let i = 1; i <= n; i++) {
+    const id = 'case-' + String(i).padStart(2, '0');
+    fs.writeFileSync(path.join(dir, id + '.json'), JSON.stringify(skeleton(id), null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+  }
+  fs.writeFileSync(path.join(dir, 'README.md'), kitReadme(n), { flag: 'wx', mode: 0o600 });
+  return '';
 }
 
 const norm = (v) => String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -159,8 +317,10 @@ function liveModel(apiKey) {
 }
 
 function parseArgs(argv) {
-  const a = { live: argv.includes('--live'), bars: {} };
+  const a = { live: argv.includes('--live'), init: argv.includes('--init'), bars: {} };
   for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--init') a.initDir = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : '';
+    if (argv[i] === '--count') a.count = argv[i + 1];
     if (argv[i] === '--model') a.model = argv[i + 1];
     if (argv[i] === '--cases') a.cases = argv[i + 1];
     const m = /^--bar-(precision|claim|promise|reliable)$/.exec(argv[i]);
@@ -173,13 +333,25 @@ const pct = (x) => (x == null ? '  n/a' : (100 * x).toFixed(0).padStart(4) + '%'
 
 async function main(argv, env) {
   const args = parseArgs(argv);
+  if (args.init) {
+    const why = initCases(args.initDir, args.count);
+    if (why) { console.error(why); return 2; }
+    console.log('Wrote ' + (args.count == null ? 20 : Number(args.count)) + ' empty label files and README.md to ' + path.resolve(args.initDir) + '. Fill them from real calls; never commit them.');
+    return 0;
+  }
   if (args.model && !B.ALLOWED_MODELS.includes(args.model)) { console.error('--model must be one of ' + B.ALLOWED_MODELS.join(', ')); return 2; }
   let callModel = null;
   if (args.live) {
     if (!env.ANTHROPIC_API_KEY) { console.error('--live needs ANTHROPIC_API_KEY (and Jo\'s OK: it spends real API money).'); return 2; }
     callModel = liveModel(env.ANTHROPIC_API_KEY);
   }
-  const cases = loadCases(args.cases);
+  const loaded = loadCases(args.cases);
+  const cases = loaded.filter((c) => !isBlank(c));
+  const skipped = loaded.length - cases.length;
+  const problems = [].concat(...cases.map((c) => validateCase(c).map((m) => 'LABEL PROBLEM ' + (c.id || '(no id)') + ': ' + m)));
+  if (problems.length) { problems.forEach((m) => console.error(m)); console.error('Fix the labels above; no model was called.'); return 2; }
+  if (!cases.length) { console.error('No filled cases' + (skipped ? ' (' + skipped + ' blank files skipped)' : '') + ': paste a transcript into at least one file. No model was called.'); return 2; }
+  if (skipped) console.log('skipped ' + skipped + ' blank case files (empty transcript)');
   const { rows, overall } = await runEval({ cases, callModel, model: args.model });
   console.log((args.live ? 'LIVE ' + (args.model || B.BRIEF_MODEL) : 'OFFLINE (canned answers)') + ' · ' + cases.length + ' cases · ' + overall.modelCalls + ' model calls');
   console.log('case                         kind           prec  recall claim promise reliable gate');
@@ -201,4 +373,4 @@ if (require.main === module) {
   main(process.argv.slice(2), process.env).then((code) => process.exit(code), (e) => { console.error(e && e.message); process.exit(1); });
 }
 
-module.exports = { loadCases, runEval, scoreCase, parseArgs, main, liveModel, FIXTURES, TENANT };
+module.exports = { loadCases, runEval, scoreCase, parseArgs, main, liveModel, validateCase, initCases, FIXTURES, TENANT };

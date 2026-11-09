@@ -96,7 +96,7 @@ const ROWS = {
     meaning: 'Daily 9:15 AM: a note in your Agent inbox when a sub insurance certificate or license is 30, 14 or 7 days from ending, or has ended. Never goes to a sub or customer. Off = dry run, logs only.' },
   OWNER_WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/WAVE3-ADDONS-RECON-2026-10-22.md',
     meaning: 'Monday 7:30 AM: one note in your Agent inbox with last week collected money, estimates awaiting signature (projected), calls to return and the jobs this week. Never goes to a customer or a rep. Off = dry run, logs only.' },
-  LEADERBOARD_AGGREGATE_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md',
+  LEADERBOARD_AGGREGATE_ENABLED: { group: 'Alerts & away', doc: 'documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md',
     meaning: 'Every 30 minutes: each member\'s counted doors, appointments, estimates sent and deals, today and this week, for the Team widget and the Leaderboard page. Counts only. Off = dry run, logs only.' },
   CALL_RETENTION_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/projects/SESSION-2026-11-09-call-to-close-p2-retention.md',
     meaning: 'Daily 3:20 AM: removes call transcripts and briefs after 24 months and the CRM audio copy after 12. Drive originals and held calls stay. Off = dry run, counts only.' },

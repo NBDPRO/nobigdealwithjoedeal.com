@@ -198,7 +198,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CALL_RETENTION_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED', 'LEADERBOARD_AGGREGATE_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'PORTAL_MOMENT_EMAILS_ENABLED', 'RECEIPT_INBOX_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CALL_RETENTION_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'DOC_LINK_FOLLOWUP_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'OWNER_WEEKLY_DIGEST_ENABLED', 'PORTAL_MOMENT_EMAILS_ENABLED', 'RECEIPT_INBOX_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 
@@ -209,6 +209,9 @@ ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s 
   const flagShaped = names.filter((n) => /_(ENABLED|DISABLED|REQUIRED|MODE)$/.test(n));
   ok('every flag-shaped name in functions/.env.nobigdeal-pro is registered',
     flagShaped.every((n) => regNames.has(n)), JSON.stringify(flagShaped.filter((n) => !regNames.has(n))));
+  // 2026-11-09: Jo turned the Team leaderboard aggregate on; the registry no longer marks it dark.
+  ok('LEADERBOARD_AGGREGATE_ENABLED is on in functions/.env.nobigdeal-pro (Jo, 2026-11-09) and not marked dark',
+    /^LEADERBOARD_AGGREGATE_ENABLED=true$/m.test(envFile) && FLAGS.some((f) => f.name === 'LEADERBOARD_AGGREGATE_ENABLED' && !f.dark));
 }
 
 // ── state semantics, per kind (mirrors how the code reads each value) ─────

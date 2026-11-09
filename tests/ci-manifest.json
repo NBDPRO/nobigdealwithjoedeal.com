@@ -11,7 +11,9 @@
   ],
   "node": [
     "merge-catalog-costs-2026-11-09.test.js",
+    "prod-switches-2026-11-09.test.js",
     "supplier-sweep-data-fixes-2026-11-09.test.js",
+    "designer-nail-step-flashing-2026-11-09.test.js",
     "chibi-2026-10-25.test.js",
     "dashboard-font-consistency-2026-10-25.test.js",
     "field-rules-ky-emergency-2026-10-16.test.js",
@@ -999,6 +1001,7 @@
     "ci-docs-only-skip-2026-11-04.test.js",
     "call-brief-logic-2026-11-09.test.js",
     "call-brief-eval-2026-11-09.test.js",
+    "call-brief-eval-init-2026-11-09.test.js",
     "call-brief-callable-2026-11-09.test.js",
     "call-center-promise-slot-2026-11-09.test.js",
     "call-brief-ui-2026-11-09.test.js",
@@ -1019,7 +1022,8 @@
     "call-to-close-tenantfeed-golden-2026-11-09.test.js",
     "call-to-close-tenantfeed-2026-11-09.test.js",
     "call-to-close-p1-leftovers-2026-11-09.test.js",
-    "call-to-close-decision-map-2026-11-09.test.js"
+    "call-to-close-decision-map-2026-11-09.test.js",
+    "call-to-close-viewers-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1616,6 +1620,7 @@
     "firestore-rules.call-brief-settings.test.js",
     "firestore-rules.call-briefs-visit.test.js",
     "firestore-rules.call-feed.test.js",
+    "firestore-rules.call-content-viewers.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

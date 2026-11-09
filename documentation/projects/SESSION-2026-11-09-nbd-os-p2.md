@@ -33,7 +33,7 @@ One commit each, test first:
 
 ## 4. Open items and known gaps
 
-- **Turn-ons wait on Jo:** `LEADERBOARD_AGGREGATE_ENABLED=true` (and deploy the four new indexes first), and per company `coachAiEnabled`.
+- **Turn-ons wait on Jo:** ~~`LEADERBOARD_AGGREGATE_ENABLED=true` (and deploy the four new indexes first)~~ done 2026-11-09 (§6), and per company `coachAiEnabled` (still a per-company setting in Firestore, not code).
 - **The stale row race.** When a member has left a company, the old company deletes the row it wrote and the new one writes its own. With four companies running at once, the delete can land after the new company's write on that first run; the next run writes it back. Once only.
 - **Real-iPhone pass** for the phone pieces is still open, as in P1.
 - **pro-demo-zero-network** needs Playwright `chromium_headless_shell-1254`; this sandbox has `-1243`, so the browser suites ran through a launch shim pointing at the 1243 binary. CI installs its own browser.
@@ -41,3 +41,42 @@ One commit each, test first:
 ## 5. Verification
 
 Gates and suites run on the branch head: `check-js-syntax`, `run-test-manifest --check`, the dashboard boot budget, the full node bucket, `tests/smoke.test.js`, the new rules emulator suites (`os-team`, `os-coach-ai`), and the three browser suites (through the shim above). Screenshots stay in the scratchpad, not committed.
+
+## 6. Update 2026-11-09: the Team leaderboard aggregate is on
+
+Jo approved turning it on. `functions/.env.nobigdeal-pro` now has `LEADERBOARD_AGGREGATE_ENABLED=true` under a dated comment (Jo, 2026-11-09; the four ASC composite indexes from #3019, and the jobs collectionGroup `userId`/`updatedAt` ASC index the aggregate's jobs query uses, were added to `firestore.indexes.json` in #3019, and `firebase-deploy.yml` deploys that file; their prod build status was not checked from this session, so confirm each shows Enabled in the Firebase console: a missing jobs index falls back to no job-lead map (its query has a try/catch), a missing knocks or leads index makes that company's query throw). `functions/flags-registry.js` no longer marks it dark and the `cron-gates.js` comment says it is on. Pinned in `tests/flags-registry-drift.test.js` and `tests/nbd-os-team-aggregate-2026-11-09.test.js` §8. `coachAiEnabled` is untouched (a per-company prod setting). No other gate changed.
+
+**What changes when it deploys.** Every 30 minutes the run counts EVERY company (the dry run's one-company cap, `DRY_RUN_COMPANIES`, only applies while the gate is off), writes each active member's `leaderboard/{uid}` row, deletes the row of anyone no longer an active member, and keeps its resume cursor in `system/leaderboardAggregate`. The Team widget and the Leaderboard page then show real rows instead of their fallback.
+
+**Is a run's read cost bounded?** Yes, by four things in `functions/leaderboard-aggregate.js`:
+
+- **One run at a time:** `maxInstances: 1`, scheduled every 30 minutes (48 runs a day).
+- **Deadline + cursor:** `timeoutSeconds: 300`; no new company group starts after `BUDGET_MS = 240000` (4 minutes); where it stopped goes to `system/leaderboardAggregate.cursor` and the next run resumes after it and wraps round. A large tenant set is spread over runs, not re-read from the top.
+- **Member cap:** at most `MAX_MEMBERS = 50` members counted a company (`users/{uid}` gets capped at 51).
+- **Per-query cap:** each member's three queries (knocks since Monday, leads updated since Monday, jobs written since Monday) are `limit(CAP)` with `CAP = 2000`; the extra lead gets for jobs whose lead was not updated are at most the jobs returned.
+
+**Reads per run, per company** (from the code; Firestore bills at least one read for a query that returns nothing). With `M` members counted, `R` member rows on file, and for member `i` this week's `K` knocks, `L` leads updated, `J` jobs written and `X` leads read only through a job:
+
+```
+1 (company doc, from the paged companies query) + 1 (companyProfile) + max(1, R) (members)
++ min(M + 1, 51) (users docs)
++ sum over members of [ max(1, K) + max(1, L) + max(1, J) + X ]
++ max(1, existing leaderboard rows)
+```
+
+plus, per run, one `system/leaderboardAggregate` read. Writes per run: `M` row sets (every row is restamped so `asOfMs` shows the last run), plus a delete per departed member, plus one cursor write when a cursor is in play.
+
+**NBD-sized estimate** (code limits and a stated assumption, not prod data). NBD is one company, owner-run (`M` = 1 to a few):
+
+- **Floor, a quiet week (nothing counted yet, Monday morning):** a solo owner with a member row is 1 + 1 + 1 + 1 + 3 + 1 = **8 reads a run**, **384 a day** (48 runs), and 48 writes a day. Each extra member adds about 5 reads a run (member row, users doc, three empty queries), about 240 a day.
+- **Every doc counted adds one read per run** until the week resets on Monday: a knock, lead or job touched this week costs 48 reads a day for the rest of the week. Illustration (assumed volume, not measured): 150 knocks + leads + jobs touched by Sunday, accruing evenly, averages about 75 a run over the week, so about 8 + 75 = 83 reads a run, **about 4,000 reads a day**, and about 7,600 a day on Sunday at the peak.
+- **Code ceiling for one company:** 50 members x (2000 + 2000 + 2000 + 2000) + 51 + 50 + 3 + R, about **400,000 reads a run**. Not reachable at NBD's size; the 4-minute budget cuts a run short well before it and the cursor carries the rest.
+- **Other tenants:** each other company costs its own floor (8 reads a run for a solo owner, so 384 a day each) plus its own counted docs; `C` companies add `C` company-doc reads a run to the paging query.
+
+To pause it: set `LEADERBOARD_AGGREGATE_ENABLED=false` in `functions/.env.nobigdeal-pro` and redeploy (the run falls back to the one-company dry run).
+
+**Not bounded by a limit (noted, not changed):** the members subcollection read and the company's existing-`leaderboard` rows read have no `limit()`. Each is one read per document on file, so it tracks the company's own member count; only the 50-member cap on what is counted and written applies after the read. A later lane could filter the members read (for example `where('status', '==', 'active')`) or give both reads a `limit()`.
+
+**Other tenants get rows from this deploy.** The gate is one global env switch, so from this deploy every tenant company, not only NBD, gets `leaderboard/{uid}` rows written every 30 minutes. Jo approved the switch; the PR body says so plainly.
+
+**Tenant isolation, pre-existing (noted for a future tenant-isolation pass, not changed here):** the knocks, leads and jobs queries in `countedFor` filter on `userId` alone, not `companyId`. The only thing keeping another company's docs out of a row is `membersOf`'s guard that skips a member whose `users/{uid}.companyId` names another company. With the gate on, that is now live code.

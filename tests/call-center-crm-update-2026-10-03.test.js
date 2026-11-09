@@ -59,16 +59,18 @@ function ok(name, cond, detail) {
   console.log('\n2. customer page wiring');
   const cb = read('docs/pro/js/customer-bootstrap.module.js');
   const tl = cb.slice(cb.indexOf('async function loadTimeline('), cb.indexOf('// Sort by time (newest first)'));
-  ok('loadTimeline reads leads/{id}/activity through NBDCallTimeline', /getDocs\(collection\(db, 'leads', leadId, 'activity'\)\)/.test(tl) && /CT\.fromActivity\(d\.id, d\.data\(\)\)/.test(tl));
+  ok('loadTimeline reads leads/{id}/activity through NBDCallTimeline', /await CT\.activityDocs\(window, db, leadId\)/.test(tl) && /CT\.fromActivity\(d\.id, d\.data\(\)\)/.test(tl));
   const render = cb.slice(cb.indexOf('// Sort by time (newest first)'), cb.indexOf("document.getElementById('timelineList').innerHTML = html"));
   ok('…and every row is rendered through esc() (title + desc)', /\$\{esc\(item\.title\)\}/.test(render) && /\$\{esc\(item\.desc\)\}/.test(render));
   const rep = cb.slice(cb.indexOf('async function _gatherTimelineForReport('), cb.indexOf('async function _gatherNotesForReport('));
-  ok('the PDF report gathers the same calls + texts', /collection\(window\.db, 'leads', leadId, 'activity'\)/.test(rep) && /CT\.fromActivity/.test(rep));
+  ok('the PDF report gathers the same calls + texts', /await CT\.activityDocs\(window, window\.db, leadId\)/.test(rep) && /CT\.fromActivity/.test(rep));
   const html = read('docs/pro/customer.html');
   const iCT = html.indexOf('js/call-timeline.js?v='), iCB = html.indexOf('js/customer-bootstrap.module.js?v=');
   ok('customer.html loads call-timeline.js (defer) before the bootstrap module', iCT > 0 && iCB > iCT && /<script defer src="js\/call-timeline\.js\?v=\d+"><\/script>/.test(html));
   const rules = read('firestore.rules');
-  ok('firestore.rules already lets the lead\'s owner / company read activity (no rules change)', /match \/activity\/\{activityId\} \{\s*allow read:\s*if isAuth\(\) && \(isAdmin\(\)\s*\|\| isOwner\(get\(\/databases\/\$\(database\)\/documents\/leads\/\$\(leadId\)\)\.data\.userId\)\s*\|\| parentLeadInMyCompany\(leadId\)\);/.test(rules));
+  // 2026-11-09 (Call to Close Q11, the rest): plus a viewer allowlist that keeps
+  // these call / text entries from a viewer (tests/firestore-rules.call-content-viewers.test.js).
+  ok('firestore.rules lets the lead\'s owner / company read activity (a viewer only rep / visit entries)', /match \/activity\/\{activityId\} \{\s*allow read:\s*if isAuth\(\) && \(isAdmin\(\)\s*\|\| isOwner\(get\(\/databases\/\$\(database\)\/documents\/leads\/\$\(leadId\)\)\.data\.userId\)\s*\|\| parentLeadInMyCompany\(leadId\)\)\s*&& \(notViewer\(\) \|\| resource\.data\.source in \['rep', 'visit-capture'\]\);/.test(rules));
 
   console.log('\n3. call-center-view.js — Call / Text on every card');
   const HA = require(path.join(ROOT, 'docs/pro/js/home-attention.js'));

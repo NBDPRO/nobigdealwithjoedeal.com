@@ -305,7 +305,9 @@ function fakeDeps(files, events, opts) {
     const src = fs.readFileSync(SCRIPT, 'utf8');
     ok('header says Jo runs the write', /Jo runs the write/.test(src));
     ok('header says a tenant\'s own sell price is not consulted', /tenant's own sell price is not consulted/.test(src));
-    ok('firebase-admin is required only inside loadAdmin()', (src.match(/require\('\.\/_admin'\)/g) || []).length === 1 && /function loadAdmin\(\)\s*\{\s*const \{[^}]*\} = require\('\.\/_admin'\)/.test(src));
+    ok('firebase-admin is required only inside loadAdmin()', (src.match(/require\('\.\/_admin'\)/g) || []).length === 1 && /function loadAdmin\(\)\s*\{[\s\S]{0,700}?const \{[^}]*\} = require\('\.\/_admin'\)/.test(src)
+      // 2026-11-09: token mode (NBD_ACCESS_TOKEN) goes through scripts/_firestore-rest.js, also only inside loadAdmin().
+      && (src.match(/require\('\.\/_firestore-rest'\)/g) || []).length <= 1);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

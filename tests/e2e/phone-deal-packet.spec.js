@@ -113,7 +113,9 @@ async function seedLeadWithPhotos(page) {
     const photoIds = [];
     for (let i = 0; i < 3; i++) {
       const p = 'photos/' + uid + '/' + id + '/' + stamp + '_' + i + '.jpg';
-      const ref = await fsMod.addDoc(fsMod.collection(db, 'photos'), {
+      // Resend-safe create (#2865): a raw addDoc here hit ALREADY_EXISTS when the SDK
+      // resent a create the emulator had already saved (P2 PR CI, 2026-11-09).
+      const ref = await window.__e2eAddDoc(fsMod, db, 'photos', {
         userId: uid, companyId, leadId: id, storagePath: p,
         // The shape a real upload has: a Storage download-token URL. It must
         // never reach the homeowner.

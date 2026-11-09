@@ -883,10 +883,28 @@ service cloud.firestore {
       // and restrict `type` to the human-action allowlist. Any
       // financial or webhook-scoped fields are disallowed on client
       // writes; those come only from admin SDK (webhooks).
+      // 2026-11-09 (Call to Close Q11, the rest): a viewer reads no entry that
+      // copies a call or text onto the customer — source 'cube-acr' (Call
+      // Center), 'sms-backup' (Text Inbox), 'thursday' (transcriptExcerpt),
+      // 'call-brief' (an accepted Call Brief summary); every such doc already
+      // carries its source, so no migration. Written as an ALLOWLIST: a viewer
+      // reads only source 'rep' (every client-written entry) and
+      // 'visit-capture' (the visit rows the customer timeline shows), and lists
+      // them with where('source', 'in', <those two>) (js/call-timeline.js
+      // activityQuery); an unconstrained list by a viewer is refused as a
+      // whole. Not a denylist: under the emulator, a viewer query constrained
+      // with not-in / != (any values) was let through a
+      // `!(resource.data.source in [...])` rule and returned a thursday entry,
+      // and a negated .get() let even an unconstrained list through. Only the
+      // positive in / == proof held. Every other server-written source
+      // (webhooks, payments, away hand-backs, voice memos with no source) is
+      // now refused to a viewer too; no viewer screen reads them.
+      // tests/firestore-rules.call-content-viewers.test.js.
       match /activity/{activityId} {
         allow read:  if isAuth() && (isAdmin()
           || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
-          || parentLeadInMyCompany(leadId));
+          || parentLeadInMyCompany(leadId))
+          && (notViewer() || resource.data.source in ['rep', 'visit-capture']);
         // Reps can append their own notes/activity via direct write; the
         // rule enforces shape. Webhook-written activities (measurement,
         // stripe, esign, calcom) bypass these rules via admin SDK.
@@ -3629,8 +3647,8 @@ service cloud.firestore {
       }
 
       // Per-number contact labels (2026-10-12). Read: the solo owner, the
-      // company's pipeline readers (company_admin / manager / viewer — the
-      // thursday_calls audience) and the platform admin. A sales_rep never reads
+      // company's pipeline readers (company_admin / manager / viewer) and the
+      // platform admin. A sales_rep never reads
       // them: a label is keyed by a phone number, and a rep must not see
       // teammates' numbers. Write: the solo owner or company_admin / manager,
       // never a viewer (decision B). Delete = the same writers (undo of a
@@ -3800,7 +3818,7 @@ service cloud.firestore {
     // assignStripeTransaction callable. Read: owner, same-company staff, admin.
     // Roof Care Plan memberships (2026-10-05, functions/care-plan.js). Written
     // only by the server (checkout, Stripe webhook, the owner's invite
-    // callable). Readable inside the tenant, like thursday_calls. The event
+    // callable). Readable inside the tenant (isCompanyReader). The event
     // markers and the Stripe portal config are server-internal.
     match /careplans/{planId} {
       allow read: if isOwner(resource.data.userId)
@@ -4451,15 +4469,20 @@ service cloud.firestore {
     // One doc per call (id bland_calls__{call_id}): transcript, extraction,
     // route, notification state. Admin-SDK only for writes — the webhook, the
     // processing trigger and the thursdayCallAction callable (which enforces
-    // not-viewer + owner/company staff). Reads mirror /leads: the owner, the
-    // platform admin, and the company's pipeline readers (company_admin,
-    // manager, viewer) — sales_rep stays own-leads-only, so a rep never sees
-    // calls about teammates' customers. Recordings live in Storage calls/
+    // not-viewer + owner/company staff). Reads: the owner, the platform admin,
+    // and the company's company_admin / manager — sales_rep stays
+    // own-leads-only, so a rep never sees calls about teammates' customers.
+    // 2026-11-09 (Call to Close Q11, the rest): NOT a viewer, not even for a
+    // call filed under the viewer's own uid — a doc carries call.transcript.
+    // Same audience change as phone_calls below
+    // (tests/firestore-rules.call-content-viewers.test.js).
+    // Recordings live in Storage calls/
     // (server-only) and are streamed by getThursdayRecording, never linked.
     match /thursday_calls/{docId} {
-      allow read: if isOwner(resource.data.userId)
-        || isAdmin()
-        || (isCompanyReader() && sameCompanyAsResource());
+      allow read: if notViewer()
+        && (isOwner(resource.data.userId)
+            || isAdmin()
+            || (isCompanyReader() && sameCompanyAsResource()));
       allow write: if false;
     }
     // Call Center (call-center.js): Jo's phone-call recordings filed from
@@ -4480,20 +4503,22 @@ service cloud.firestore {
       allow write: if false;
     }
     // Text Inbox (text-inbox.js): Jo's texts from the phone's SMS backup.
-    // Server-written only; reads mirror thursday_calls (viewers included,
-    // unlike phone_calls since 2026-11-09).
+    // Server-written only; reads mirror thursday_calls: never a viewer
+    // (2026-11-09, Call to Close Q11, the rest — message bodies).
     match /phone_texts/{docId} {
-      allow read: if isOwner(resource.data.userId)
-        || isAdmin()
-        || (isCompanyReader() && sameCompanyAsResource());
+      allow read: if notViewer()
+        && (isOwner(resource.data.userId)
+            || isAdmin()
+            || (isCompanyReader() && sameCompanyAsResource()));
       allow write: if false;
     }
     // Text notes per conversation-day (text-inbox.js textInboxNotes).
     // Server-written only; same readers as phone_texts.
     match /phone_text_days/{docId} {
-      allow read: if isOwner(resource.data.userId)
-        || isAdmin()
-        || (isCompanyReader() && sameCompanyAsResource());
+      allow read: if notViewer()
+        && (isOwner(resource.data.userId)
+            || isAdmin()
+            || (isCompanyReader() && sameCompanyAsResource()));
       allow write: if false;
     }
     // Per-tenant Thursday settings (notification destinations, SMS flag).

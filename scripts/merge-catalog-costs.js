@@ -308,6 +308,12 @@ function loadXactWindow() {
 // firebase-admin is loaded ONLY when the live doc is read from Firestore, so
 // an offline --live review needs no credentials and no admin install.
 function loadAdmin() {
+  if (process.env.NBD_ACCESS_TOKEN) {
+    // Token mode: Firestore REST with a short-lived access token (scripts/_firestore-rest.js).
+    const R = require('./_firestore-rest');
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'nobigdeal-pro';
+    return { db: R.restFirestore({ projectId, token: process.env.NBD_ACCESS_TOKEN }), FieldPath: R.FieldPath };
+  }
   const { initAdmin, getFirestore, FieldPath } = require('./_admin');
   initAdmin();
   return { db: getFirestore(), FieldPath };

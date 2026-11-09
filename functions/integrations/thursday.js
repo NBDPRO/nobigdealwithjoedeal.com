@@ -68,7 +68,6 @@ const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 const RECORDING_PART_BYTES = 5 * 1024 * 1024;
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 const COMPANY_STAFF = ['company_admin', 'manager'];
-const COMPANY_READERS = ['company_admin', 'manager', 'viewer'];
 
 // Jo's defaults; thursday_config/{companyId} overrides without a deploy.
 // (scripts/thursday-config.js writes that doc.)
@@ -732,8 +731,10 @@ async function loadCallForCaller(request, opts) {
     if (!(isAdmin || isOwner || (sameCompany && COMPANY_STAFF.indexOf(role) !== -1))) {
       throw new HttpsError('permission-denied', 'Not your call.');
     }
-  } else if (!(isAdmin || isOwner || (sameCompany && COMPANY_READERS.indexOf(role) !== -1))) {
-    // Same audience as the firestore.rules read on thursday_calls.
+  } else if (role === 'viewer' || !(isAdmin || isOwner || (sameCompany && COMPANY_STAFF.indexOf(role) !== -1))) {
+    // Same audience as the firestore.rules read on thursday_calls, which keeps
+    // a viewer out (Call to Close Q11, 2026-11-09): the recording is call
+    // content, and a viewer can learn a callId from its Thursday task.
     throw new HttpsError('permission-denied', 'Not your call.');
   }
   return { ref, data: d, callId };

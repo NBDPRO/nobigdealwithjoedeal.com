@@ -665,6 +665,22 @@ function buildTextDayTask({ day, notes, leadId, ownerUid, todayYmd, nowMs }) {
 // made one such stale task; this is why.
 const TASK_WINDOW_MS = 14 * 24 * 3600 * 1000;
 
+const SUMMARY_POINTER = 'The summary is on the customer\'s timeline.';
+
+/**
+ * A follow-up task's notes without the "Call: <AI summary>" paragraph that
+ * tasks filed before 2026-11-09 carry. A move copies the task through this.
+ * Anything else (what Jo said he'd do, text he typed) is kept as it is.
+ * source 'thursday': a Thursday task (thursday-logic.js buildTask) filed
+ * before then carries 'Urgent: <reason>' and 'Summary: <AI summary>' lines
+ * instead; only on such a task are those lines dropped.
+ */
+function scrubTaskSummary(notes, source) {
+  if (typeof notes !== 'string') return notes;
+  if (source === 'thursday') return notes.split('\n').filter((l) => !/^(Summary|Urgent): /.test(l)).join('\n');
+  return notes.split('\n\n').filter((p) => !/^Call: /.test(p)).join('\n\n');
+}
+
 function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
   if (Number.isFinite(nowMs) && (Number(call.startedAtMs) || 0) < nowMs - TASK_WINDOW_MS) return null;
   const mine = notes.promises.filter((p) => p.who === 'jo');
@@ -678,8 +694,11 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
     userId: ownerUid,
     title,
     text: title,
+    // No AI summary here (Call to Close Q11, 2026-11-09): every role that
+    // reads the customer reads its tasks, viewers included; the summary stays
+    // on the timeline entry, which firestore.rules keeps from viewers.
     notes: [
-      notes.summary ? 'Call: ' + notes.summary : '',
+      notes.summary ? SUMMARY_POINTER : '',
       mine.length ? 'You said you would:\n' + mine.map((p) => '• ' + p.text + (p.due ? ' (by ' + p.due + ')' : '')).join('\n') : '',
     ].filter(Boolean).join('\n\n'),
     dueDate: dues[0] || todayYmd,
@@ -1133,6 +1152,7 @@ module.exports = {
   sanitizeNotes,
   buildCallActivity,
   buildFollowUpTask,
+  scrubTaskSummary,
   CALL_TYPES,
   parseCubeAcrName,
   dayFolderDate,

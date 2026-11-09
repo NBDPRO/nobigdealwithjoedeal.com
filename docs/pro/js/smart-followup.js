@@ -558,6 +558,9 @@
 
   /** Reads the lead's timeline + tasks once per 10 minutes. null = unreadable. */
   async function _loadConversation(leadId) {
+    // A viewer reads none of the call / text / Thursday rows this uses (Call to
+    // Close Q11), and the rules refuse the whole list: send no read at all.
+    if ((window._userClaims || {}).role === 'viewer') return null;
     const hit = _convCache.get(leadId);
     if (hit && Date.now() - hit.stamp < CONV_TTL_MS) return hit.conv;
     if (!window.db || typeof window.getDocs !== 'function' || typeof window.collection !== 'function') return null;

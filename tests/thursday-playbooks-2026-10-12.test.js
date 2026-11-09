@@ -328,7 +328,7 @@ function finishC() {
   const loader = read('docs/pro/js/script-loader.js');
   ok('script-loader.js gains no thursday bundle (blocking bytes are at the ceiling)', !/thursday/i.test(loader));
   const cl = read('docs/pro/js/contact-labels.js');
-  ok('contact-labels.js loads the Thursday files lazily, only when the flag is on', /enabled\('thursdayLabelPlaybooks'\)/.test(cl) && /ScriptLoader\.load\('js\/thursday-handled\.js\?v=1'\)/.test(cl));
+  ok('contact-labels.js loads the Thursday files lazily, only when the flag is on', /enabled\('thursdayLabelPlaybooks'\)/.test(cl) && /ScriptLoader\.load\('js\/thursday-handled\.js\?v=2'\)/.test(cl));
   const th = read('docs/pro/js/thursday-handled.js');
   ok('thursday-handled.js is flag-gated at every entry (load, today, panel, sheet)', (th.match(/if \(!enabled\(\)/g) || []).length >= 4);
   ok('thursday-handled.js has no inline handler and no network send', !/\bon(click|change|submit)=/.test(th) && !/sendText|sendSms|sms:|mailto:/.test(th.replace(/\/\*[\s\S]*?\*\//g, '')));

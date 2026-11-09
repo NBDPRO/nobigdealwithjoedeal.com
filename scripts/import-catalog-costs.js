@@ -141,12 +141,19 @@ let req = require;
 try { require.resolve('firebase-admin'); }
 catch (_) { req = require('module').createRequire(path.join(ROOT, 'functions', 'package.json')); }
 
-const admin = req('firebase-admin');
+// Token mode (NBD_ACCESS_TOKEN): Firestore REST with a short-lived access token
+// (scripts/_firestore-rest.js), for a machine without Application Default Credentials.
+const TOKEN = process.env.NBD_ACCESS_TOKEN;
+const REST = TOKEN ? require('./_firestore-rest') : null;
+const admin = TOKEN ? null : req('firebase-admin');
 // firebase-admin v14 removed admin.apps, admin.firestore() AND the
 // admin.firestore.* namespace (so admin.firestore.FieldValue is gone too).
 // getApps()/getFirestore()/FieldValue come from the modular subpaths.
-const { getApps } = req('firebase-admin/app');
-const { getFirestore, FieldValue } = req('firebase-admin/firestore');
+const { getApps } = TOKEN ? { getApps: () => [1] } : req('firebase-admin/app');
+const { getFirestore, FieldValue } = TOKEN
+  ? { getFirestore: () => REST.restFirestore({ projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'nobigdeal-pro', token: TOKEN }),
+      FieldValue: { serverTimestamp: REST.serverTimestamp } }
+  : req('firebase-admin/firestore');
 if (!getApps().length) admin.initializeApp();
 
 (async () => {

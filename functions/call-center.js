@@ -1388,7 +1388,9 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
       .set(Object.assign(L.buildCallActivity({ call, notes: noteOf(call), ownerUid: call.userId || OWNER, companyId: tenantCompanyOf(call) }), { createdAt: FieldValue.serverTimestamp() }));
   }
   if (t.exists) {
-    await createIfAbsent(db.doc('leads/' + toId + '/tasks/cube-' + id), Object.assign({}, t.data(), { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
+    // A task filed before 2026-11-09 still copies the AI summary; the moved
+    // copy drops it (Call to Close Q11: tasks are read by viewers too).
+    await createIfAbsent(db.doc('leads/' + toId + '/tasks/cube-' + id), Object.assign({}, t.data(), typeof t.data().notes === 'string' ? { notes: L.scrubTaskSummary(t.data().notes) } : {}, { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
     taskMoved = true;
   }
   if (a.exists) await oldAct.delete();

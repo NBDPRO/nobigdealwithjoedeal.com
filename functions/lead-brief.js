@@ -52,7 +52,7 @@ function docsOf(snap) {
 }
 
 /** Everything the brief needs about one lead. Each read fails soft. */
-async function gatherFacts({ db, leadId, lead, nowMs, log = logger }) {
+async function gatherFacts({ db, leadId, lead, nowMs, callContent, log = logger }) {
   const leadRef = db.collection('leads').doc(leadId);
   const tenant = lead.companyId || lead.userId || null;
   const soft = (p, what) => p.catch((e) => { log.warn('lead_brief_read_failed', { leadId, what, err: e && e.message }); return null; });
@@ -78,6 +78,7 @@ async function gatherFacts({ db, leadId, lead, nowMs, log = logger }) {
     appointments: docsOf(appts).filter(mine).concat(docsOf(subAppts)),
     nowMs,
     owedDollarsOf,
+    callContent,
   });
 }
 
@@ -87,14 +88,17 @@ async function gatherFacts({ db, leadId, lead, nowMs, log = logger }) {
  */
 async function getBrief(o) {
   const { db, leadId, lead, nowMs, force = false, useAi = true, log = logger } = o;
+  // A viewer's brief (callContent false) carries no call / text content, so
+  // it never reads the shared cache (built from them) and never writes it.
+  const callContent = o.callContent !== false;
   const callModel = o.callModel || anthropicCall;
   const cacheRef = db.collection('lead_briefs').doc(leadId);
-  const cacheSnap = await cacheRef.get().catch(() => null);
+  const cacheSnap = callContent ? await cacheRef.get().catch(() => null) : null;
   const cache = cacheSnap && cacheSnap.exists ? cacheSnap.data() : null;
   if (B.cacheUsable(cache, nowMs, force)) {
     return { oneLine: cache.oneLine, bullets: cache.bullets, source: cache.source || 'ai', generatedAtMs: cache.generatedAtMs, cached: true };
   }
-  const facts = await gatherFacts({ db, leadId, lead, nowMs, log });
+  const facts = await gatherFacts({ db, leadId, lead, nowMs, callContent, log });
   let brief = null;
   let source = 'fallback';
   if (useAi) {
@@ -111,7 +115,7 @@ async function getBrief(o) {
   if (!brief) brief = B.fallbackBrief(facts);
   const out = { oneLine: brief.oneLine, bullets: brief.bullets, source, generatedAtMs: nowMs, cached: false };
   // Only an AI brief is cached for hours; a fallback is retried next time.
-  if (source === 'ai') {
+  if (source === 'ai' && callContent) {
     await cacheRef.set({
       leadId, oneLine: out.oneLine, bullets: out.bullets, source, generatedAtMs: nowMs, model: B.BRIEF_MODEL,
       companyId: lead.companyId || null, userId: lead.userId || null, updatedAt: FieldValue.serverTimestamp(),
@@ -153,13 +157,15 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   const lead = snap.data() || {};
   if (lead.deleted === true || !B.canReadLead(auth, lead)) throw new HttpsError('permission-denied', 'Not your customer.');
   const force = !!(data && data.refresh);
+  const callContent = B.mayReadCallContent(auth);
   let useAi = await aiAllowed(db, auth);
-  // The cap only counts real generations: peek at the cache first.
+  // The cap only counts real generations: peek at the cache first (a
+  // viewer never uses it, so every AI brief of theirs counts).
   if (useAi) {
-    const c = await db.collection('lead_briefs').doc(leadId).get().catch(() => null);
+    const c = callContent ? await db.collection('lead_briefs').doc(leadId).get().catch(() => null) : null;
     if (!B.cacheUsable(c && c.exists ? c.data() : null, nowMs, force)) useAi = await takeQuota(db, auth.uid, nowMs).catch(() => false);
   }
-  return getBrief({ db, leadId, lead, nowMs, force, useAi, callModel, log });
+  return getBrief({ db, leadId, lead, nowMs, force, useAi, callModel, callContent, log });
 }
 
 exports.leadBrief = onCall(

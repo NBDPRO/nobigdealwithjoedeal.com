@@ -120,7 +120,10 @@ function fenceSafe(s) { return String(s || '').replace(/</g, '‹').replace(/>/g
 function buildFacts(o) {
   const lead = o.lead || {};
   const nowMs = Number(o.nowMs) || Date.now();
-  const conv = fitConversation(conversationFromActivity({ activity: o.activity, tasks: o.tasks }));
+  // callContent false (a viewer, Call to Close Q11, 2026-11-09): no call,
+  // text, Thursday or promise line — all of it is call / text content.
+  const conv = o.callContent === false ? { calls: [], thursday: null, texts: [], promises: [] }
+    : fitConversation(conversationFromActivity({ activity: o.activity, tasks: o.tasks }));
   const ests = (o.estimates || []).filter((e) => e && e.deleted !== true)
     .map((e) => ({ totalCents: dollarsToCents(e.grandTotal != null ? e.grandTotal : e.total), status: str(e.status, 30), sent: ymd(toMs(e.sentAt) || toMs(e.createdAt)), _ms: toMs(e.createdAt) }))
     .sort((a, b) => b._ms - a._ms).slice(0, 3).map(({ _ms, ...rest }) => rest);
@@ -234,6 +237,15 @@ function cacheUsable(cache, nowMs, force) {
   return true;
 }
 
+/**
+ * May this caller's brief carry call / text content? Not a viewer (Call to
+ * Close Q11, 2026-11-09): firestore.rules keeps phone_calls, thursday_calls,
+ * texts and the call-sourced timeline entries from them.
+ */
+function mayReadCallContent(auth) {
+  return !!(auth && auth.uid) && String((auth.token || {}).role || '') !== 'viewer';
+}
+
 /** Who may brief on this lead — mirrors the /leads read rule. */
 function canReadLead(auth, lead) {
   if (!auth || !auth.uid || !lead) return false;
@@ -247,6 +259,6 @@ function canReadLead(auth, lead) {
 
 module.exports = {
   BRIEF_MODEL, CACHE_TTL_MS, REFRESH_MIN_MS, NOTES_BUDGET_CHARS, SYSTEM,
-  conversationFromActivity, fitConversation, buildFacts, buildPrompt, buildRequest, fallbackBrief, parseBrief, cacheUsable, canReadLead,
+  conversationFromActivity, fitConversation, buildFacts, buildPrompt, buildRequest, fallbackBrief, parseBrief, cacheUsable, canReadLead, mayReadCallContent,
   fenceSafe, toMs, fmtCents,
 };

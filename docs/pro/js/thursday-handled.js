@@ -39,7 +39,7 @@
   function uid() { return (w._user && w._user.uid) || null; }
   function role() { return claims().role || ''; }
   function tenant() { return claims().companyId || uid() || null; }
-  function canRead() { return !!(uid() && role() !== 'sales_rep'); }
+  function canRead() { return !!(uid() && role() !== 'sales_rep' && role() !== 'viewer'); }
   function canWrite() { return !!(uid() && role() !== 'viewer' && role() !== 'sales_rep'); }
   function enabled() { return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG)); }
   function toast(m, t) { if (typeof w.showToast === 'function') w.showToast(m, t || 'info'); }

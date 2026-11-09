@@ -95,7 +95,9 @@ async function runCc(role) {
     const v = await runCcv('viewer');
     ok('a viewer issues NO phone_calls read', !v.queries.some((q) => q.col === 'phone_calls'), v.queries.map((q) => q.col).join(','));
     ok('…so no "Could not load your calls" banner', v.state.readFailed.length === 0 && !v.state.error, JSON.stringify(v.state.readFailed));
-    ok('a viewer still reads phone_text_days (texts are not part of Q11)', v.queries.some((q) => q.col === 'phone_text_days'));
+    // 2026-11-09 follow-up (Q11, the rest): texts are closed to a viewer too
+    // (tests/call-to-close-viewers-2026-11-09.test.js).
+    ok('a viewer issues no phone_text_days read either (Q11 follow-up)', !v.queries.some((q) => q.col === 'phone_text_days'));
     const m = await runCcv('manager');
     ok('a manager still reads phone_calls by userId and companyId', m.queries.filter((q) => q.col === 'phone_calls').length === 2);
     const a = await runCcv('company_admin');
@@ -124,19 +126,18 @@ async function runCc(role) {
     await sandbox.__f('phone_calls', 'call');
     ok('a failed phone_calls read for a manager still shows "Could not load"', /Could not load calls/.test(sandbox.state.error) && sandbox.state.readFailed.length === 2, JSON.stringify(sandbox.state));
   }
-  ok('the Call Center says "Calls are hidden for your role." for a viewer', /isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role\.<\/div>'/.test(CCV));
-  ok('…and keeps the note above the texts a viewer still sees', /state\.calls\.length && isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note"/.test(CCV));
+  ok('the Call Center says "Calls and texts are hidden for your role." for a viewer', /isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CCV));
 
   console.log('CUSTOMER CARD (customer-calls.js)');
   ok('fetchCalls is found (positive control)', /async function fetchCalls/.test(FETCH_CALLS));
   {
     const v = await runCc('viewer');
     ok('a viewer issues NO phone_calls read (leadId or by-number)', !v.queries.some((q) => q.col === 'phone_calls'), v.queries.map((q) => q.col).join(','));
-    ok('a viewer still reads thursday_calls', v.queries.some((q) => q.col === 'thursday_calls'));
+    ok('a viewer reads no thursday_calls either (Q11 follow-up)', !v.queries.some((q) => q.col === 'thursday_calls'));
     const m = await runCc('manager');
     ok('a manager still reads phone_calls (leadId + by-number)', m.queries.filter((q) => q.col === 'phone_calls').length >= 3);
   }
-  ok('the customer card says calls from the phone are hidden for a viewer', /if \(isViewer\(\)\) top \+= '<div class="pc-meta pc-hidden-note" role="status">Calls from your phone are hidden for your role\.<\/div>'/.test(CC));
+  ok('the customer card says calls and texts are hidden for a viewer', /if \(isViewer\(\)\) top \+= '<div class="pc-meta pc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CC));
   ok('…and a viewer with nothing else sees only that note, not "No calls yet"', /!calls\.length && !texts\.length && isViewer\(\)\) \{ el\.innerHTML = top; return; \}/.test(CC));
 
   console.log('HOME STRIP / INBOX / SPEED-TO-LEAD');
@@ -144,7 +145,7 @@ async function runCc(role) {
   const haReads = HA.match(/jobs\.push\([^\n]*'phone_calls'/g) || [];
   ok('home-attention has two phone_calls reads (positive control)', haReads.length === 2, String(haReads.length));
   ok('both are skipped for a viewer (no failed-read warning)', /const callsHidden = \(c\.role \|\| ''\) === 'viewer';/.test(HA) &&
-    (HA.match(/if \(!callsHidden\) jobs\.push\(/g) || []).length === 2);
+    (HA.match(/if \(!callsHidden\) jobs\.push\([^\n]*'phone_calls'/g) || []).length === 2);
   // Claims-timing edge: a phone_calls read sent before the claims hydrated is
   // denied for a viewer; re-checking the role when it fails keeps that from
   // showing as a failed read.

@@ -58,13 +58,17 @@ async function check(label, expect, promise, opts = {}) {
   }
 }
 
+// emulators:exec exports FIRESTORE_EMULATOR_HOST; a hard-coded 8080 talked to
+// whatever ran there when the emulator was on another port. Default as before.
+const [EMU_HOST, EMU_PORT] = String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
+
 async function run() {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
       rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      host: EMU_HOST,
+      port: Number(EMU_PORT),
     },
   });
 
@@ -621,8 +625,8 @@ async function run() {
 
   // ═══════════════════════════════════════════════════════════
   // THURSDAY CALL LOG (2026-09-26) — thursday_calls holds callers' names,
-  // numbers and transcripts. Reads mirror /leads (owner, admin, company
-  // readers); sales_rep teammates and other tenants are denied; nobody
+  // numbers and transcripts. Reads: owner, admin, company_admin / manager
+  // (never a viewer since 2026-11-09); sales_rep teammates and other tenants are denied; nobody
   // writes from a client (the webhook/trigger/callable use the Admin SDK).
   // ═══════════════════════════════════════════════════════════
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -635,7 +639,8 @@ async function run() {
   const { collection: tcol, query: tq, where: tw, getDocs: tget } = require('firebase/firestore');
   await check('thursday_calls: owner reads own call',          'allow', getDoc(doc(alice,  'thursday_calls/bland_calls__callA')));
   await check('thursday_calls: same-tenant manager reads',     'allow', getDoc(doc(eveMgr, 'thursday_calls/bland_calls__callA')));
-  await check('thursday_calls: same-tenant viewer reads',      'allow', getDoc(doc(vicA,   'thursday_calls/bland_calls__callA')));
+  // 2026-11-09 (Call to Close Q11, the rest): a viewer no longer reads it (the doc carries call.transcript).
+  await check('thursday_calls: same-tenant viewer denied',     'deny',  getDoc(doc(vicA,   'thursday_calls/bland_calls__callA')));
   await check('thursday_calls: same-tenant sales_rep denied',  'deny',  getDoc(doc(dave,   'thursday_calls/bland_calls__callA')));
   await check('thursday_calls: B reads A call',                'deny',  getDoc(doc(bob,    'thursday_calls/bland_calls__callA')));
   await check('thursday_calls: B manager reads A call',        'deny',  getDoc(doc(bobMgr, 'thursday_calls/bland_calls__callA')));
@@ -694,8 +699,8 @@ async function run() {
   await check('phone_calls: no-claim user reads A call',       'deny',  getDoc(doc(noClaim, 'phone_calls/cube_A1')));
 
   // TEXT INBOX (2026-10-01) — phone_texts: Jo's texts from the phone's SMS
-  // backup (numbers, names, bodies). Same readers as thursday_calls (viewers
-  // included, unlike phone_calls since 2026-11-09); no client writes.
+  // backup (numbers, names, bodies). Same readers as thursday_calls (never a
+  // viewer since 2026-11-09, like phone_calls); no client writes.
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'phone_texts/sms_A1'), { userId: 'alice', companyId: 'co-a', phoneDigits: '5135550100', body: 'see you Tuesday', sentAtMs: 1 });
   });
@@ -783,8 +788,8 @@ async function run() {
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
 
     // onLeadDeleted's sweep, run the way the trigger runs it. The rules env
-    // above talks to 127.0.0.1:8080; the admin SDK needs the env var.
-    process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+    // above talks to EMU_HOST:EMU_PORT; the admin SDK needs the env var.
+    process.env.FIRESTORE_EMULATOR_HOST = EMU_HOST + ':' + EMU_PORT;
     const { initializeApp: initAdminApp } = require('firebase-admin/app');
     const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
     const { sweepLeadSubtree, sweepLeadKeyedDocs, makeLeadWatch } = require(path.resolve(__dirname, '../functions/lead-subtree-sweep.js'));

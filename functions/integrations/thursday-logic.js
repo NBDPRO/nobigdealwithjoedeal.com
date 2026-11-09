@@ -829,11 +829,14 @@ function buildTask(args) {
   } else {
     text = (ex.urgent ? '🚨 URGENT — ' : '') + 'Call back ' + who + ' — ' + shortIssue(ex, call);
   }
+  // No AI summary or urgent reason here (Call to Close Q11, 2026-11-09): every
+  // role that reads the customer reads its tasks, viewers included; both stay
+  // on the call and its timeline entry, which firestore.rules keep from
+  // viewers. Same pointer line as call-center-logic.js buildFollowUpTask.
   const notes = [
     ex.callback_window ? 'Best time: ' + ex.callback_window : '',
     'Number: ' + (toE164(ex.callback_number || call.from) || 'unknown'),
-    ex.urgent_reason ? 'Urgent: ' + ex.urgent_reason : '',
-    call.summary ? 'Summary: ' + str(call.summary, 600) : '',
+    call.summary || ex.urgent_reason ? 'The summary is on the customer\'s timeline.' : '',
   ].filter(Boolean).join('\n');
   return {
     leadId: args.leadId,

@@ -349,9 +349,10 @@
       if (channel === 'call') state.error = 'Could not load calls (not signed in yet).';
       return [];
     }
-    // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
-    // 2026-11-09): no read, so no "Could not load" banner; render says why.
-    if (name === 'phone_calls' && isViewer()) return [];
+    // A viewer cannot read phone_calls or phone_text_days (firestore.rules,
+    // Call to Close Q11, 2026-11-09): no read, so no "Could not load" banner;
+    // render says why.
+    if (isViewer()) return [];
     var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
@@ -374,7 +375,7 @@
       } catch (e) {
         console.warn('[call-center] read failed', name, e && e.code);
         // Sent before the claims hydrated, denied for a viewer: hidden, not failed.
-        if (name === 'phone_calls' && isViewer()) continue;
+        if (isViewer()) continue;
         if (i === 0 && channel === 'call') state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
         var what = channel === 'text' ? 'texts' : 'calls';
         state.readFailed.push(i === 0 ? 'your ' + what : "your team's " + what);
@@ -710,8 +711,11 @@
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + healthPanel() + tagPanel() + autoBriefPanel() +
-      '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
+      '</div>' + healthPanel() + tagPanel() + autoBriefPanel();
+    // A viewer reads no calls or texts (Call to Close Q11): with nothing to search or
+    // filter, the "hidden for your role" note shows without the toolbar's tabs and chips.
+    var viewerNote = state.loaded && !state.error && !state.calls.length && isViewer();
+    if (!viewerNote) head += '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
@@ -719,7 +723,7 @@
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
-    else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role.</div>';
+    else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls and texts are hidden for your role.</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
     else if (state.filter === 'rescue') body = rows.length ? '<div class="cc-empty cc-rescue-note">Calls 2-30 days old where nothing happened next' + (state.cappedBefore ? ', from the calls loaded' : '') + '. Brief it, set a follow-up, or dismiss it.</div>' + rows.map(function (c) { return rescueRow(c, L); }).join('')
       : '<div class="cc-empty">' + (state.q || (FX && FX.isActive(flt)) ? 'No calls match.' : 'Every customer call from the last 30 days has a next step.') + '</div>';
@@ -736,14 +740,13 @@
       (rows.length > 150 ? '<div class="cc-empty">Showing the ' + (FX && flt.sort === 'old' ? 'oldest' : 'newest') + ' 150. Search or filter to narrow it down.</div>' : '');
     if (state.loaded && state.cappedBefore) body = capBanner() + body;
     if (state.loaded && readProblems().length) body = readBanner() + body;
-    if (state.loaded && state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role. Texts still show.</div>' + body;
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
     var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
     // A redraw drops keyboard focus: remember which control had it (or which one an arrow key is moving to) and put it back.
     var fk = state.refocus || focusKeyOf(document.activeElement);
     state.refocus = '';
-    el.innerHTML = '<div class="cc-wrap">' + head + '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">' + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
+    el.innerHTML = '<div class="cc-wrap">' + head + (viewerNote ? '<div id="ccPanel" tabindex="-1">' : '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">') + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
     focusedCard();
     a11yPass(el, shownN, active);
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
