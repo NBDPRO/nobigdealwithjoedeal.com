@@ -149,6 +149,14 @@ if (!L || !C) done();
       ['Someone is waiting on you, call back now.', true],
       ['Make it a one-call morning.', true],
       ['Hundreds of doors are waiting.', false],
+      // review fix (2026-11-09): count-implying words and non-digit numerals always fail
+      ['Call both of them back first.', false],
+      ['Make a single call before lunch.', false],
+      ['Call back the \u2161 missed calls first.', false],     // U+2161 ROMAN NUMERAL TWO (Nl), even though 2 is in the evidence
+      ['Call back the \u2171 missed calls first.', false],     // U+2171 SMALL ROMAN NUMERAL TWO
+      ['Call \u2461 people back now.', false],                 // U+2461 CIRCLED DIGIT TWO (No)
+      ['Call back the missed calls\u00b2 first.', false],      // superscript two (No)
+      ['Close the singles out after the calls.', true],          // not "single"
     ];
     T.forEach(([line, want]) => {
       const r = L.checkLine(line, f);

@@ -138,18 +138,22 @@ const OTHER = { hundred: 100, thousand: 1000, million: 1e6, billion: 1e9, dozen:
   second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, twelfth: 12, twentieth: 20, thirtieth: 30,
   // never a whole count the evidence can hold: always fail
   half: NaN, halves: NaN, quarter: NaN, quarters: NaN, dozens: NaN, hundreds: NaN, thousands: NaN, millions: NaN, triple: NaN, double: NaN,
-  zeros: NaN, ones: NaN, twos: NaN, threes: NaN, fours: NaN, fives: NaN, tens: NaN };
+  zeros: NaN, ones: NaN, twos: NaN, threes: NaN, fours: NaN, fives: NaN, tens: NaN,
+  // a count by implication (review, 2026-11-09): always fail too
+  both: NaN, single: NaN };
 // a word that only LOOKS like a count in other senses is still treated as one: a false
 // fallback costs a missing line; a false pass costs an invented number on screen
 
 /**
- * Every number the line states, as values (NaN for a fraction, a decimal or
- * a non-ASCII digit, which no evidence can match). "twenty-one" is 21.
+ * Every number the line states, as values (NaN for a fraction, a decimal,
+ * a non-ASCII digit, or any other Unicode numeral: Roman numerals (Nl),
+ * superscripts and circled digits (No), which no evidence can match).
+ * "twenty-one" is 21.
  */
 function numbersIn(line) {
   const s = String(line || '');
   const out = [];
-  if (/[¼-¾⅐-⅟↉]/.test(s) || /[^\x00-\x7F]/.test(s.replace(/[^\p{Nd}]/gu, ''))) out.push(NaN);
+  if (/[\p{Nl}\p{No}]/u.test(s) || /[^\x00-\x7F]/.test(s.replace(/[^\p{Nd}]/gu, ''))) out.push(NaN);
   for (const m of s.matchAll(/\d+(?:[.,:/]\d+)*/g)) {
     const t = m[0];
     if (/^\d{1,3}(,\d{3})+$/.test(t)) { out.push(Number(t.replace(/,/g, ''))); continue; }
