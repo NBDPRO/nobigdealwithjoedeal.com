@@ -856,9 +856,9 @@ service cloud.firestore {
           && paperworkFieldsOk()
           && confirmedSourceWriteOk()
           && openClaimIdOk()
+          && projectConsentWriteOk()
           && scheduleWindowOk()
           && portalNoteOk()
-          && projectConsentWriteOk()
         );
       allow delete: if (isOwner(resource.data.userId) && notViewer())
         || isAdmin()
