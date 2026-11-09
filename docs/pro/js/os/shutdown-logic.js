@@ -21,8 +21,11 @@
  * owner's _leads carries the team's leads too; those are the rep's to close,
  * not the manager's. A lead with neither field is nobody's here (never listed).
  *
- * "Touched today" is a HUMAN touch by this rep, from stamps only a person's
- * action writes, inside today's local day:
+ * "Touched today" is a HUMAN touch on the rep's own lead, from stamps only a
+ * person's action writes, inside today's local day. Only the stage entry says
+ * who acted (by === uid); lastContactedAt, lastOutboundAt and a task's
+ * completedAt carry no actor field, so a manager's call or a teammate's task
+ * on the rep's lead counts as a touch too (the lead is still the rep's to close):
  *   contact  lastContactedAt   the Call / Text / Email buttons on the customer
  *                              page, and the rep's own recorded calls filed by
  *                              the call center (call-center-logic leadContactPatch)
