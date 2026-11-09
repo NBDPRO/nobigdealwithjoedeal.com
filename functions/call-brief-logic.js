@@ -32,7 +32,7 @@ const PR = require('./promise-logic');
 const SR = require('./stage-roles');
 
 const BRIEF_VERSION = 1;
-// Cost default. The P0 eval (scripts/call-brief-eval.js) decides between the
+// Cost default. The P0 eval (scripts/eval-call-brief.js) decides between the
 // two; nothing else is allowed (handlers/_shared.js allowlist).
 const BRIEF_MODEL = 'claude-haiku-4-5-20251001';
 const ALLOWED_MODELS = ['claude-haiku-4-5-20251001', 'claude-sonnet-5-5'];

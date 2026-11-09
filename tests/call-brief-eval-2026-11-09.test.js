@@ -81,6 +81,9 @@ const quiet = async (fn) => { const log = console.log, err = console.error; cons
   const badModel = await quiet(() => E.main(['--model', 'gpt-4'], {}));
   ok('--model off the allowlist is refused', badModel.code === 2);
   ok('still no network after the CLI runs', fetchCalls === 0);
+  const logicSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'call-brief-logic.js'), 'utf8');
+  ok('call-brief-logic.js names the eval by its real path (scripts/eval-call-brief.js)', /scripts\/eval-call-brief\.js/.test(logicSrc) && !/scripts\/call-brief-eval\.js/.test(logicSrc)
+    && require('fs').existsSync(require('path').join(__dirname, '..', 'scripts', 'eval-call-brief.js')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
