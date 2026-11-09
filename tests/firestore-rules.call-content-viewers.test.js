@@ -8,10 +8,12 @@
  *      customer: source 'cube-acr' (Call Center), 'sms-backup' (Text Inbox),
  *      'thursday' (carries transcriptExcerpt) and 'call-brief' (the accepted
  *      Call Brief summary). Keyed on `source`, which every such doc already
- *      carries, so no migration. A viewer still reads every other entry, but
- *      only through a query that excludes those sources
- *      (where('source', 'not-in', [...])): rules are not filters, so an
- *      unconstrained list by a viewer is refused as a whole.
+ *      carries, so no migration. Written as an allowlist: a viewer reads
+ *      only source 'rep' and 'visit-capture', listed with
+ *      where('source', 'in', [...]). Rules are not filters, so an
+ *      unconstrained list by a viewer is refused as a whole. (A denylist
+ *      with a not-in query was tried first: the emulator let ANY not-in /
+ *      != constrained query through it, returning a thursday entry.)
  *
  * Every other role keeps exactly what it had (positive controls next to each
  * deny), and phone_calls (closed earlier the same day) is not touched here.
@@ -52,6 +54,7 @@ function same(label, got, want) {
 }
 
 const HIDDEN = ['cube-acr', 'sms-backup', 'thursday', 'call-brief'];
+const VIEWER_OK = ['rep', 'visit-capture'];
 
 async function run() {
   const env = await initializeTestEnvironment({
@@ -90,6 +93,8 @@ async function run() {
       await act(lead, 'callbrief-C1', { type: 'note', source: 'call-brief', summary: 'Accepted summary', text: 'Accepted summary' });
       await act(lead, 'a1', { type: 'note', source: 'rep', text: 'Dropped off samples' });
       await act(lead, 'visit-V1', { type: 'visit', source: 'visit-capture', summary: 'Walked the roof' });
+      await act(lead, 'vm1', { type: 'voice_memo', transcript: 'memo words' });          // no source field
+      await act(lead, 'esign-1', { type: 'signature', source: 'esign-webhook', label: 'Signed' });
     }
     await setDoc(doc(db, 'leads/L1/tasks/t1'), { userId: 'alice', companyId: 'co-a', title: 'Call back' });
   });
@@ -134,24 +139,28 @@ async function run() {
   }
   await check('activity: a viewer still gets a rep note (positive control)', 'allow', getOf(vic, 'leads/L1/activity/a1'));
   await check('activity: a viewer still gets a visit entry (not a call source)', 'allow', getOf(vic, 'leads/L1/activity/visit-V1'));
+  await check('activity: a viewer does NOT get an entry with no source (voice memo transcript)', 'deny', getOf(vic, 'leads/L1/activity/vm1'));
+  await check('activity: a viewer does NOT get another server source (allowlist, not denylist)', 'deny', getOf(vic, 'leads/L1/activity/esign-1'));
   await check('activity: a viewer\'s unconstrained list is refused (it could return call summaries)', 'deny', getDocs(collection(vic, 'leads/L1/activity')));
-  await check('activity: a viewer\'s list that excludes the call sources is allowed', 'allow', q(vic, 'leads/L1/activity', where('source', 'not-in', HIDDEN)));
+  await check('activity: a viewer\'s list of the allowed sources is allowed', 'allow', q(vic, 'leads/L1/activity', where('source', 'in', VIEWER_OK)));
   {
     let ids = null;
-    try { ids = (await q(vic, 'leads/L1/activity', where('source', 'not-in', HIDDEN))).docs.map((d) => d.id).sort(); } catch (_) { ids = 'denied'; }
-    same('activity: …and returns only the non-call entries', ids, ['a1', 'visit-V1']);
+    try { ids = (await q(vic, 'leads/L1/activity', where('source', 'in', VIEWER_OK))).docs.map((d) => d.id).sort(); } catch (_) { ids = 'denied'; }
+    same('activity: …and returns only the rep note and the visit', ids, ['a1', 'visit-V1']);
   }
-  await check('activity: a viewer owner of the lead lists with the exclusion', 'allow', q(vico, 'leads/LV/activity', where('source', 'not-in', HIDDEN)));
-  await check('activity: a viewer list excluding only SOME call sources is refused', 'deny', q(vic, 'leads/L1/activity', where('source', 'not-in', ['cube-acr', 'sms-backup'])));
+  await check('activity: a viewer owner of the lead lists the allowed sources', 'allow', q(vico, 'leads/LV/activity', where('source', 'in', VIEWER_OK)));
+  await check('activity: a viewer list by not-in (excluding the call sources) is refused', 'deny', q(vic, 'leads/L1/activity', where('source', 'not-in', HIDDEN)));
+  await check('activity: a viewer list by != is refused', 'deny', q(vic, 'leads/L1/activity', where('source', '!=', 'cube-acr')));
+  await check('activity: a viewer list naming one call source among allowed ones is refused', 'deny', q(vic, 'leads/L1/activity', where('source', 'in', ['rep', 'thursday'])));
   await check('activity: a viewer list asking for call entries is refused', 'deny', q(vic, 'leads/L1/activity', where('source', '==', 'cube-acr')));
   {
     let n = -1;
     try { n = (await getDocs(collection(eve, 'leads/L1/activity'))).size; } catch (_) { n = 'denied'; }
-    same('activity: a manager\'s unconstrained list still returns every entry', n, 6);
+    same('activity: a manager\'s unconstrained list still returns every entry', n, 8);
   }
   await check('activity: the sales_rep owner\'s unconstrained list still works', 'allow', getDocs(collection(alice, 'leads/L1/activity')));
   await check('activity: another tenant\'s company_admin is still refused', 'deny', getOf(bobCA, 'leads/L1/activity/a1'));
-  await check('activity: another tenant\'s list with the exclusion is still refused', 'deny', q(bobCA, 'leads/L1/activity', where('source', 'not-in', HIDDEN)));
+  await check('activity: another tenant\'s list of the allowed sources is still refused', 'deny', q(bobCA, 'leads/L1/activity', where('source', 'in', VIEWER_OK)));
   await check('activity: a viewer still cannot write', 'deny', addDoc(collection(vic, 'leads/L1/activity'), { userId: 'vic', source: 'rep', type: 'note', text: 'x' }));
   await check('tasks: a viewer still reads the lead\'s tasks (unchanged; summaries no longer copied there)', 'allow', getDocs(collection(vic, 'leads/L1/tasks')));
 
