@@ -3326,7 +3326,7 @@ async function uploadSinglePhoto(item, index) {
       if (outcome && outcome.entry) _queueEntry = outcome.entry;
     }
   } catch (e) {
-    console.warn('[uploadSinglePhoto] durable enqueue skipped:', e && e.message);
+    console.warn('[uploadSinglePhoto] durable enqueue skipped:', e?.message);
   }
 
   // Photo system Phase 2: kick off EXIF + slope inference IN PARALLEL
@@ -3339,6 +3339,12 @@ async function uploadSinglePhoto(item, index) {
     ? window.PhotoSmartIngest.analyze(file, window._currentLead || null)
         .catch(e => { console.warn('[smart-ingest] analyze failed:', e.message); return null; })
     : Promise.resolve(null);
+
+  // The photo's own EXIF date + GPS -> capturedAt / geoLocation, read while
+  // the bytes fly. PhotoEngine (the photos bundle loaded above) owns the read
+  // and its 4 s ceiling, so this boot file carries one call (2026-11-09).
+  // Without the bundle the doc is written as before, with no capturedAt.
+  const exif = window.PhotoEngine?.photoExif?.(file, timestamp);
 
   const uploadTask = window.uploadBytesResumable(storageRef, file);
 
@@ -3395,7 +3401,7 @@ async function uploadSinglePhoto(item, index) {
             // lets the dashboard thumbnail cache and team galleries find
             // this photo with one company-scoped query instead of a
             // per-lead parent lookup.
-            companyId: (window._userClaims && window._userClaims.companyId) || window.auth.currentUser.uid,
+            companyId: window._userClaims?.companyId || window.auth.currentUser.uid,
             url: downloadURL,
             storagePath: storagePath,
             filename: file.name,
@@ -3430,7 +3436,8 @@ async function uploadSinglePhoto(item, index) {
             // and roof polygon are available.
             damageType: '',
             severity: '',
-            location: ''
+            location: '',
+            ...(await exif)
           };
 
           if (ingest && ingest.exif) {
@@ -3473,10 +3480,12 @@ async function uploadSinglePhoto(item, index) {
           // .id — the durable store was unavailable when this photo was
           // taken) has nothing in IndexedDB to remove; it is left to expire
           // with the page the same way it always has.
-          if (_queueEntry && _queueEntry.id != null && window.NBDPhotoQueueStore
+          if (_queueEntry?.id != null && window.NBDPhotoQueueStore
               && typeof window.NBDPhotoQueueStore.remove === 'function') {
             try { await window.NBDPhotoQueueStore.remove(_queueEntry.id); }
-            catch (e) { console.warn('[uploadSinglePhoto] queue cleanup failed (harmless — worst case is one redundant future retry):', e && e.message); }
+            // Harmless: the worst case is one redundant future retry. (Said here,
+            // not in the log line, to keep the customer page's boot bytes, 2026-11-09.)
+            catch (e) { console.warn('[uploadSinglePhoto] queue cleanup failed:', e?.message); }
           }
 
           resolve();

@@ -83,6 +83,8 @@ Planned after the 11-09 build day. Recon was read-only, on the integrated NBD OS
 - **BBB accreditation.**
 - **OSHA 10/30** for Jo and the crews.
 
+**Built 2026-11-09 (Fix now, items 1-4):** see [SESSION-2026-11-09-credentials-fix-now](SESSION-2026-11-09-credentials-fix-now.md). Items 1-3 are done and pinned by `tests/credentials-surfaces-2026-11-09.test.js`. Item 4 was left as is, because no NBD-specific TAMKO or American Operator profile URL is recorded anywhere.
+
 Each new credential goes through `ADD-A-CREDENTIAL.md`, then the site strip and schema. Manufacturer and inspector certifications also get a CRM document badge (`company-profile.js` / `nbd-badge-assets.js`), with NBD's documents changing only by the added badge.
 
 ## Jo's answers (2026-11-09)
@@ -101,3 +103,12 @@ Each new credential goes through `ADD-A-CREDENTIAL.md`, then the site strip and 
 3. The photo matcher, which Jo runs on his computer.
 4. The 12-week blog calendar and the Social Studio feed.
 5. Each new credential as Jo obtains it.
+
+## Built (2026-11-09): §2 step 5, the weekly scheduled deploy
+
+Branch `sched-deploy`. A weekly Tuesday run (09:17 UTC) of `.github/workflows/firebase-deploy.yml` deploys
+hosting only when a post or project date passed since the last hosting deploy, never commits, and refuses to run
+when the live site is behind `main` on a deploy path. The `docs/llms.txt` blog list is now the generated
+`LLMS:BLOG` region, and posts dated from 2026-11-10 must fall on a Tuesday, one per ISO week. Details and the
+review round: [SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09](SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09.md).
+Runbook: [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).

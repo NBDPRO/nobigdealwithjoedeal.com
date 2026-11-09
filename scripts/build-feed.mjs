@@ -13,6 +13,13 @@
  * USAGE:
  *   node scripts/build-feed.mjs            # dry run: diff vs docs/feed.xml, exit 1 on drift
  *   node scripts/build-feed.mjs --write    # write docs/feed.xml
+ *   --strict                 dry run without the lag allowance below (exact match for today only)
+ *   --live-on=YYYY-MM-DD     render as of that day instead of today
+ *
+ * LAG (2026-11-09, scripts/lib/date-gate.mjs): a future-dated post joins the feed on the first deploy after its
+ * date, and the weekly scheduled deploy rebuilds the feed inside the job without committing. So the dry run also
+ * passes when docs/feed.xml is exactly the feed as of an earlier day (posts went live since the last --write) and
+ * says so; any other difference is drift and exits 1.
  *
  * DETERMINISM: every timestamp is derived from each post's `published` date
  * (fixed to 12:00:00 GMT), and lastBuildDate is the newest item's pubDate —
@@ -21,6 +28,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
+import { readLiveOn, isLiveOn, lagCuts, lagNotice } from './lib/date-gate.mjs';
 
 const POSTS_FILE = 'docs/assets/js/inline/c00f1acac9.js';
 const FEED_FILE = 'docs/feed.xml';
@@ -28,11 +36,14 @@ const ORIGIN = 'https://nobigdealwithjoedeal.com';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
-const unknown = args.filter((a) => a !== '--write');
+const strict = args.includes('--strict');
+const unknown = args.filter((a) => a !== '--write' && a !== '--strict' && !a.startsWith('--live-on='));
 if (unknown.length) {
-  console.error(`unknown flag(s): ${unknown.join(' ')}\nusage: node scripts/build-feed.mjs [--write]`);
+  console.error(`unknown flag(s): ${unknown.join(' ')}\nusage: node scripts/build-feed.mjs [--write] [--strict] [--live-on=YYYY-MM-DD]`);
   process.exit(2);
 }
+let liveOn;
+try { liveOn = readLiveOn(args); } catch (e) { console.error(e.message); process.exit(2); }
 
 const src = readFileSync(POSTS_FILE, 'utf8');
 const m = src.match(/const POSTS\s*=\s*(\[[\s\S]*?\]);/);
@@ -42,17 +53,15 @@ if (!m) { console.error(`No "const POSTS = [...]" found in ${POSTS_FILE}`); proc
 // trust level as build-blog-index.mjs.
 const POSTS = new Function(`return ${m[1]};`)();
 
-const today = new Date(); today.setHours(0, 0, 0, 0);
-
 // Mirrors renderPosts() / build-blog-index.mjs: homeowner-audience posts with
 // a URL whose publish date has arrived. Scheduled posts stay out of the feed
 // until the first run after their date (the deploy workflow's regen step).
-const live = POSTS.filter((p) => {
+const liveAsOf = (day) => POSTS.filter((p) => {
   if (!p.url || p.audience === 'contractor') return false;
-  const d = new Date(p.published); d.setHours(0, 0, 0, 0);
-  return d <= today;
+  return isLiveOn(p.published, day);
 }).sort((a, b) => (a.published < b.published ? 1 : a.published > b.published ? -1 : 0));
 
+const live = liveAsOf(liveOn.date);
 if (!live.length) { console.error('No live posts — refusing to write an empty feed.'); process.exit(1); }
 
 const esc = (s) => String(s ?? '')
@@ -79,7 +88,7 @@ const item = (p) => `  <item>
     <description>${esc(p.excerpt)}</description>
   </item>`;
 
-const feed = `<?xml version="1.0" encoding="UTF-8"?>
+const renderFeed = (live) => `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
   <title>The No Big Deal Blog — Joe Deal</title>
@@ -92,6 +101,7 @@ ${live.map(item).join('\n')}
 </channel>
 </rss>
 `;
+const feed = renderFeed(live);
 
 // EOL DISCIPLINE — docs/feed.xml is CRLF in a Windows worktree (autocrlf) and
 // LF on CI. The template above always renders LF, so raw-comparing it against
@@ -111,8 +121,17 @@ if (write) {
   renameSync(tmp, FEED_FILE);
   console.log(`OK: ${live.length} items written to ${FEED_FILE}`);
 } else {
+  // Lag allowance: only for a plain dry run (no --strict, no explicit --live-on).
+  const lagged = existingLF === null || existingLF === feed || strict || liveOn.given ? null
+    : lagCuts(POSTS.filter((p) => p.url && p.audience !== 'contractor').map((p) => p.published), liveOn.date)
+      .find((cut) => {
+        const then = liveAsOf(readLiveOn([`--live-on=${cut.iso}`]).date);
+        return then.length > 0 && renderFeed(then) === existingLF;
+      });
   if (existingLF === feed) {
     console.log(`OK: ${FEED_FILE} is current (${live.length} items).`);
+  } else if (lagged) {
+    console.log(lagNotice(FEED_FILE, lagged, 'node scripts/build-feed.mjs --write'));
   } else {
     if (existing === null) {
       console.error(`${FEED_FILE} does not exist. Run with --write to create it.`);

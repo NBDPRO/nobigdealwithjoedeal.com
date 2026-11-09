@@ -466,7 +466,11 @@ const RUNNABLE = ['node', 'smoke'];
 //               text, Thursday lead notes, voicemail source + retag backfill and voicemail-viewers rules suite;
 //               the carried drafts #3008, #2994, #2981, #2941 and #2942. MEASURED
 //               via --check.
-const FLOORS = { node: 1036, smoke: 74, disk: 1175 };
+//   2026-11-09  1036/74/1175 -> 1042/74/1183, plan step 1 in one PR: the credentials fix-now suite
+//               (credentials-surfaces), install-completed-at + photo-exif-capture (node) with the
+//               install-completed-at / photo-exif-fields rules suites, and the scheduled deploy, date-gated
+//               checks and LLMS:BLOG region suites. MEASURED via --check.
+const FLOORS = { node: 1042, smoke: 74, disk: 1183 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

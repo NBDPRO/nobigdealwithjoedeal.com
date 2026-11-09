@@ -114,7 +114,8 @@ console.log('\nWORKFLOW WIRING');
   const hostingAt = WF.indexOf('- name: Deploy Hosting');
   ok('stamp step exists and runs BEFORE Deploy Hosting', stampAt > 0 && hostingAt > stampAt);
   const stampBlock = WF.slice(WF.lastIndexOf('- name:', stampAt), stampAt);
-  ok('stamp step uses the hosting if: (push / scope all / scope hosting)', /github\.event_name == 'push' \|\| github\.event\.inputs\.scope == 'all' \|\| github\.event\.inputs\.scope == 'hosting'/.test(stampBlock));
+  // 2026-11-09: the weekly scheduled run is a hosting run too (tests/scheduled-deploy-2026-11-09.test.js).
+  ok('stamp step uses the hosting if: (push / schedule / scope all / scope hosting)', /github\.event_name == 'push' \|\| github\.event_name == 'schedule' \|\| github\.event\.inputs\.scope == 'all' \|\| github\.event\.inputs\.scope == 'hosting'/.test(stampBlock));
   const job = WF.slice(WF.indexOf('\n  verify-live:'));
   ok('verify-live job exists', job.length > 20);
   ok('verify-live needs deploy and runs only on its success', /needs:\s*\[check, deploy\]/.test(job) && /needs\.deploy\.result == 'success'/.test(job));

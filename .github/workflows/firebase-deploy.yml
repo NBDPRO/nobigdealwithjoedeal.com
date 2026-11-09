@@ -2,6 +2,22 @@ name: Firebase deploy
 
 # Auto-deploys the site to Firebase on every push to main.
 #
+# WEEKLY SCHEDULE (2026-11-09): also runs every Tuesday at 09:17 UTC (04:17 EST /
+# 05:17 EDT), HOSTING ONLY. Future-dated blog posts and projects reach the static
+# blog index, feed.xml, llms.txt and the project pages only when a deploy
+# regenerates them after their date; the blog publishes on Tuesdays, so without
+# this a post waited for the next unrelated merge. A scheduled run:
+#   - first asks the `due` job whether anything went live since the last
+#     hosting deploy (live /version.json deployedAt); nothing due = no deploy;
+#     live behind main over the deploy paths = the run fails loudly instead
+#     (a hosting-only deploy would hide that the backend never shipped);
+#   - then runs exactly the steps a scope=hosting dispatch runs: the generators
+#     rebuild the date-gated files INSIDE this job and Hosting ships that tree.
+#     It never deploys functions / rules / indexes / storage and never commits:
+#     main changes only through PRs, so the committed files may lag the live site
+#     until the next restamp, which the CI --check modes accept as lag, not drift
+#     (scripts/lib/date-gate.mjs). Runbook: documentation/runbooks/BLOG-SCHEDULE.md.
+#
 # Gracefully skips when the FIREBASE_SERVICE_ACCOUNT secret is not
 # configured — that way this file can live in main from day one
 # without generating failure emails before go-live.
@@ -46,6 +62,10 @@ on:
       - 'storage.rules'
       - 'firebase.json'
       - '.github/workflows/firebase-deploy.yml'
+  # Weekly, hosting only — see WEEKLY SCHEDULE above. 09:17 UTC is Tuesday
+  # 04:17 EST / 05:17 EDT; :17, not :00, because GitHub delays top-of-hour runs.
+  schedule:
+    - cron: '17 9 * * 2'
   workflow_dispatch:
     inputs:
       scope:
@@ -116,13 +136,60 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────
+  # due — scheduled runs only. Compares the LIVE site, not the committed files
+  # (review 2026-11-09), via `node scripts/verify-live-deploy.js due`:
+  #   - live /version.json behind main over the deploy paths (a push run this
+  #     pending schedule cancelled — the concurrency group keeps one pending
+  #     run — or one that failed before Hosting): FAIL loudly. A hosting-only
+  #     run would stamp main's sha and verify-live would read green although
+  #     functions / rules / indexes never shipped. Fix: a scope=all dispatch;
+  #   - another deploy run queued/running: skip, it ships main;
+  #   - otherwise due only when a post or project date passed since the live
+  #     stamp's deployedAt day. Nothing new = the deploy job is skipped and the
+  #     run ends green, even while the repo copy lags.
+  # No secrets; read-only token (actions: read is for `gh run list`).
+  # ─────────────────────────────────────────────────────────
+  due:
+    name: Scheduled run - is a post or project newly due?
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      due: ${{ steps.due.outputs.due }}
+    steps:
+      - name: Checkout (full history — the live sha must be diffable)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Compare the live site with main and the post / project dates
+        id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIVE_URL: https://nobigdealwithjoedeal.com
+        run: node scripts/verify-live-deploy.js due
+
+  # ─────────────────────────────────────────────────────────
   # deploy — runs only when credentials are present. Never runs on
   # an un-configured repo, so no more failure emails pre-go-live.
+  # On the weekly schedule it runs only when `due` says so, and then only its
+  # hosting steps (every step's if: below). !cancelled() is what lets it run
+  # on push / dispatch, where `due` is skipped: without a status function a
+  # skipped dependency skips this job too.
   # ─────────────────────────────────────────────────────────
   deploy:
     name: Deploy to Firebase
-    needs: check
-    if: needs.check.outputs.configured == 'true'
+    needs: [check, due]
+    if: ${{ !cancelled() && needs.check.outputs.configured == 'true' && (github.event_name != 'schedule' || needs.due.outputs.due == 'true') }}
     runs-on: ubuntu-latest
     # Bumped 15 -> 30: the real (strict) functions deploy alone can run
     # ~10-13 min; with the tolerant retry now bounded below, this leaves
@@ -159,7 +226,7 @@ jobs:
       # aborting the whole deploy job (hosting + rules + functions) over a
       # blog-card refresh. The ::warning keeps the failure visible in the run.
       - name: Regenerate static blog index
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-blog-index.mjs docs/assets/js/inline/c00f1acac9.js docs/blog/index.html \
             || echo "::warning::static blog index regeneration failed — deploying the committed static block as-is"
@@ -168,7 +235,7 @@ jobs:
       # generated from assets/data/projects.json). Restamping here is what
       # flips a future-dated project live on the first deploy after its date.
       - name: Regenerate static projects gallery
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-projects.mjs \
             || echo "::warning::static projects regeneration failed — deploying the committed static block as-is"
@@ -177,7 +244,7 @@ jobs:
       # pages); existing lastmods are preserved by design and the git-date
       # mode is local-only (CI checkout is shallow, git dates would be wrong).
       - name: Sync sitemap URL set
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-sitemap.js --write \
             || echo "::warning::sitemap regeneration failed — deploying the committed sitemap as-is"
@@ -186,7 +253,7 @@ jobs:
       # the blog index above, so this is what flips a future-dated post into
       # the feed on its first post-date deploy.
       - name: Regenerate RSS feed
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-feed.mjs --write \
             || echo "::warning::feed regeneration failed — deploying the committed feed as-is"
@@ -200,7 +267,7 @@ jobs:
       # that ships. CI gates only the llms.txt regions; the committed
       # llms-full.txt is a seed that may lag (tests/build-llms-modes.test.js).
       - name: Regenerate llms.txt lists + llms-full.txt
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-llms.mjs --write \
             || echo "::warning::llms regeneration failed — deploying the committed llms files as-is"
@@ -211,7 +278,7 @@ jobs:
       # which /search loads. Soft-fail like the generators above: without it
       # /search finds nothing; nothing else depends on it.
       - name: Build the site search index (Pagefind)
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/build-site-search.mjs --install && node scripts/build-site-search.mjs \
             || echo "::warning::site search index failed — /search will not find anything until the next deploy"
@@ -276,7 +343,7 @@ jobs:
       # generators soft-fail by design; this is what catches it when a
       # soft-failed or malformed regeneration would have shipped a broken page.
       - name: Gate — shipped JS must parse + site integrity must hold
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           set -e
           node scripts/check-js-syntax.js --shipped-only
@@ -293,7 +360,7 @@ jobs:
       # site is not behind main (cancelled / skipped deploys). Public on
       # purpose: a commit SHA of this public repo + the run id, nothing else.
       - name: Stamp /version.json with the deployed commit
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: node scripts/verify-live-deploy.js stamp docs/version.json
 
       # Stamp the Sentry release tag with the deploy SHA so every deploy
@@ -306,7 +373,7 @@ jobs:
       # requires the value start with 'web@', so this rewrite doesn't
       # need a matching test-pin update.
       - name: Stamp Sentry release with git SHA
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           set -e
           SHORT_SHA="${GITHUB_SHA::8}"
@@ -333,7 +400,7 @@ jobs:
       # Source maps go to the runner's temp dir and up as a workflow artifact
       # (never into docs/, never served, no sourceMappingURL comment).
       - name: Minify the CRM's JS and CSS for this deploy
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           set +e
           node scripts/minify-shipped.js --install \
@@ -360,7 +427,7 @@ jobs:
       # variable NBD_BUNDLES=0 keeps the boot join but loads every lazy bundle file by file again. The bundle map is one
       # ~7.5 KB script just before script-loader.js; without it the loader takes the old per-file path.
       - name: Join the dashboard's boot scripts for this deploy
-        if: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && (vars.NBD_CONCAT || 'on') != '0' }}
+        if: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && (vars.NBD_CONCAT || 'on') != '0' }}
         env:
           NBD_BUNDLES: ${{ vars.NBD_BUNDLES || 'on' }}
         run: |
@@ -383,13 +450,13 @@ jobs:
       # above so the inlined text is the minified one. Soft-fail: on any error
       # the page keeps its <link>s. docs/index.html is restored below.
       - name: Inline the head CSS of the homepage, service and area pages for this deploy
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           node scripts/inline-head-css.js --write \
             || echo "::warning::Inline head CSS failed - the pages keep their stylesheet links."
 
       - name: Keep the deploy's source maps (artifact, not served)
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shipped-sourcemaps-${{ github.sha }}
@@ -405,7 +472,7 @@ jobs:
       # Frames inside the deploy-joined _concat-*.js files are mapped too (2026-11-06): the join step writes a flat map
       # per joined file into the same maps dir (scripts/lib/sourcemap-concat.js), built from each part's minify map.
       - name: Upload source maps to Sentry
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG || 'no-big-deal-q5' }}
@@ -459,7 +526,7 @@ jobs:
       # the static pre-flight gate above still runs ahead of this step.
       - name: Deploy Hosting
         id: hosting
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
         run: |
@@ -499,7 +566,7 @@ jobs:
       # every gate below (the function smoke suite greps docs/pro source) must
       # read the code as committed. always(): restore even if Hosting failed.
       - name: Restore readable docs/pro and docs/assets after the Hosting deploy
-        if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
+        if: ${{ always() && (github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
         # The joined files are new (untracked), so checkout alone would leave them for the source greps below.
         run: |
           git checkout -- docs/pro docs/assets docs/index.html docs/services docs/areas
@@ -1512,6 +1579,15 @@ jobs:
       - name: Deploy summary
         if: success()
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            {
+              echo "### ✓ Weekly scheduled deploy complete (hosting only)"
+              echo ""
+              echo "Rebuilt the date-gated blog / feed / llms / project files in this job and deployed Hosting to $PRO_PROJECT."
+              echo "Functions, rules, indexes and storage were not touched. Nothing was committed: the repo copies catch up on the next restamp."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           {
             echo "### ✓ Firebase deploy complete"
             echo ""
@@ -1547,7 +1623,9 @@ jobs:
   verify-live:
     name: Verify live site matches main
     needs: [check, deploy]
-    if: ${{ needs.check.outputs.configured == 'true' && needs.deploy.result == 'success' }}
+    # !cancelled(): `due` (an ancestor via deploy) is skipped on push / dispatch,
+    # and a skipped ancestor would skip this job too without a status function.
+    if: ${{ !cancelled() && needs.check.outputs.configured == 'true' && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -1567,6 +1645,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RECONCILE: ${{ github.event.inputs.reconcile || 'false' }}
-          EXPECT_LANDED: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && 'true' || 'false' }}
+          EXPECT_LANDED: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && 'true' || 'false' }}
           LIVE_URL: https://nobigdealwithjoedeal.com
         run: node scripts/verify-live-deploy.js verify

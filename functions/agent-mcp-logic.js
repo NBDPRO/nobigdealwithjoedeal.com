@@ -572,8 +572,11 @@ function rulesReference() {
       crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
     },
     // Confirmed by Jo 2026-10-14. Only these are credentials; never claim any other.
+    // 2026-11-09: must match the ACTIVE rows of docs/assets/data/credentials.json
+    // (IKO is held there as pending, not public, so it is not listed here);
+    // tests/credentials-surfaces-2026-11-09.test.js pins it.
     credentials: {
-      certifications: ['GAF Certified #1162011 (not Master Elite; no Golden or Silver Pledge)', 'TAMKO Pro Gold, Pro ID 181382', 'IKO ROOFPRO Advantage'],
+      certifications: ['GAF Certified #1162011 (not Master Elite; no Golden or Silver Pledge)', 'TAMKO Pro Gold, Pro ID 181382'],
       memberships: ['James Hardie Alliance', 'American Operator'],
       note: 'Memberships are never "certified". Say "Fully insured", never "licensed". Jo installs Owens Corning on request, but there is no Owens Corning credential or OC system warranty to claim.',
     },

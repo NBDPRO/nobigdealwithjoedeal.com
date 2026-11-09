@@ -29,9 +29,25 @@
  * The decision is the pure `decide()` below; tests/deploy-verify-2026-10-04
  * .test.js drives it, the paths parser and the version-stamp writer.
  *
+ * SCHEDULED RUN (2026-11-09, review defects 3 and 5): the weekly Tuesday run of
+ * the deploy workflow deploys HOSTING ONLY, and its `due` job asks `due` below
+ * first. The pure decision is decideDue():
+ *   - another deploy run queued/running → skip: it ships main, regeneration
+ *     included (a newer pending run is the one the concurrency group keeps);
+ *   - live behind main over the deploy paths (a push run this pending schedule
+ *     cancelled, or one that failed before Hosting), live sha unknown, or the
+ *     stamp unreadable → FAIL loudly. A hosting-only run would stamp main's sha
+ *     into /version.json and verify-live would then read green although the
+ *     functions / rules / indexes never shipped. The fix is a scope=all run;
+ *   - otherwise due only when a post / project date passed since the live
+ *     stamp's deployedAt day (a deploy on day D already rendered items dated D),
+ *     so a week with nothing new really skips, even while the repo copy lags.
+ *
  * CLI:
  *   node scripts/verify-live-deploy.js stamp <out.json>      write the stamp
  *   node scripts/verify-live-deploy.js verify                 the job above
+ *   node scripts/verify-live-deploy.js due                    the scheduled run's
+ *     `due` job: writes due=true|false to $GITHUB_OUTPUT, exits 1 on `fail`
  * Env (verify): LIVE_URL (default https://nobigdealwithjoedeal.com),
  *   GITHUB_SHA, RECONCILE ('true' on a dispatched reconcile run),
  *   GITHUB_RUN_ID, GH_TOKEN (for `gh run list` / `gh workflow run`),
@@ -117,6 +133,39 @@ function decide(s) {
   return { action: 'dispatch', reason: drift + ' — re-dispatching the deploy once' };
 }
 
+/**
+ * Pure decision for the weekly scheduled (hosting-only) run.
+ * @param {object} s
+ * @param {{sha:string, deployedAt?:string}|null} s.stamp  live /version.json, null if unreadable
+ * @param {string} s.mainSha               origin/main HEAD (what a hosting run would stamp)
+ * @param {boolean|null} s.liveKnown       live sha is a commit on main
+ * @param {string[]|null} s.changed        deploy-relevant files changed live..main (null if not computable)
+ * @param {boolean} s.otherRunActive       another run of the deploy workflow is queued/running
+ * @param {string[]} s.publishedDays       'YYYY-MM-DD' of every live-able post and project
+ * @param {string} s.today                 'YYYY-MM-DD' in the generators' day (the runner's local date)
+ * @returns {{action: 'deploy'|'skip'|'fail', reason: string}}
+ */
+function decideDue(s) {
+  if (s.otherRunActive) return { action: 'skip', reason: 'another deploy run is queued/running; it ships main with the date-gated files regenerated' };
+  const fix = ' A hosting-only run would stamp main into /version.json and hide that. Run a full deploy: gh workflow run firebase-deploy.yml --ref main -f scope=all';
+  if (!s.stamp || !/^[0-9a-f]{40}$/.test(String(s.stamp.sha))) return { action: 'fail', reason: 'live /version.json is unreadable, so whether the backend is current is unknown.' + fix };
+  if (s.stamp.sha !== s.mainSha) {
+    const live = s.stamp.sha.slice(0, 8);
+    if (s.liveKnown === false) return { action: 'fail', reason: 'live sha ' + live + ' is not a commit on main.' + fix };
+    if (!Array.isArray(s.changed)) return { action: 'fail', reason: 'could not diff live ' + live + '..main.' + fix };
+    if (s.changed.length) {
+      return { action: 'fail', reason: 'live ' + live + ' is behind main: ' + s.changed.length + ' deploy-relevant file(s) changed (e.g. '
+        + s.changed.slice(0, 3).join(', ') + '), so a push deploy was cancelled or failed before Hosting.' + fix };
+    }
+  }
+  const lastDay = /^\d{4}-\d{2}-\d{2}/.test(String(s.stamp.deployedAt || '')) ? String(s.stamp.deployedAt).slice(0, 10) : null;
+  if (!lastDay) return { action: 'deploy', reason: 'live stamp has no deployedAt; redeploying hosting at the code live already serves' };
+  const newly = [...new Set((s.publishedDays || []).map((d) => String(d).slice(0, 10)))]
+    .filter((d) => d > lastDay && d <= s.today).sort();
+  if (!newly.length) return { action: 'skip', reason: 'nothing dated after the last hosting deploy (' + lastDay + ') is live yet' };
+  return { action: 'deploy', reason: 'item(s) dated ' + newly.join(', ') + ' went live since the last hosting deploy (' + lastDay + ')' };
+}
+
 /** Did hosting land? live must equal this run's sha or be a descendant of it. */
 function landed({ liveSha, runSha, isAncestor }) {
   if (!liveSha) return false;
@@ -127,6 +176,52 @@ function landed({ liveSha, runSha, isAncestor }) {
 // ── IO ────────────────────────────────────────────────────────────────────
 function git(args) { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
 function gitOk(args) { try { git(args); return true; } catch (_) { return false; } }
+
+async function fetchLiveStamp(base) {
+  const url = base.replace(/\/$/, '') + '/version.json?t=' + Date.now();
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(15000) });
+      if (res.ok) {
+        const j = await res.json();
+        if (j && /^[0-9a-f]{40}$/.test(String(j.sha))) return { sha: j.sha, deployedAt: typeof j.deployedAt === 'string' ? j.deployedAt : null };
+      }
+    } catch (_) { /* retry */ }
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  return null;
+}
+
+/** Every post (homeowner audience, with a URL: the feed's filter) and project date. Trusted first-party source. */
+function publishedDays() {
+  const src = fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'js', 'inline', 'c00f1acac9.js'), 'utf8');
+  const m = src.match(/const POSTS\s*=\s*(\[[\s\S]*?\]);/);
+  if (!m) throw new Error('no "const POSTS = [...]" in the blog posts file');
+  const posts = new Function('return ' + m[1] + ';')().filter((p) => p.url && p.audience !== 'contractor');
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'data', 'projects.json'), 'utf8'));
+  const projects = Array.isArray(data) ? data : data.projects || [];
+  return [...posts, ...projects].map((p) => String(p.published || '').slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+}
+
+async function due() {
+  const base = process.env.LIVE_URL || 'https://nobigdealwithjoedeal.com';
+  git(['fetch', '--quiet', 'origin', 'main']);
+  const mainSha = git(['rev-parse', 'origin/main']);
+  const stamp = await fetchLiveStamp(base);
+  const liveSha = stamp && stamp.sha;
+  const liveKnown = liveSha ? gitOk(['cat-file', '-e', liveSha + '^{commit}']) && gitOk(['merge-base', '--is-ancestor', liveSha, mainSha]) : null;
+  let changed = null;
+  if (liveSha && liveKnown) {
+    const specs = deployPaths(fs.readFileSync(WORKFLOW, 'utf8')).map(toPathspec);
+    try { changed = git(['diff', '--name-only', liveSha, mainSha, '--', ...specs]).split('\n').filter(Boolean); } catch (_) { changed = null; }
+  }
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const d = decideDue({ stamp, mainSha, liveKnown, changed, otherRunActive: otherActiveRuns(), publishedDays: publishedDays(), today });
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'due=' + (d.action === 'deploy') + '\n');
+  if (d.action === 'fail') { console.log('::error::Scheduled deploy refused: ' + d.reason); process.exitCode = 1; return; }
+  console.log('::notice::' + (d.action === 'deploy' ? 'Due, deploying hosting: ' : 'Nothing due, no deploy: ') + d.reason);
+}
 
 async function fetchLiveSha(base) {
   const url = base.replace(/\/$/, '') + '/version.json?t=' + Date.now();
@@ -199,10 +294,12 @@ if (require.main === module) {
     console.log('stamped ' + (out || 'docs/version.json') + ' → ' + stamp.sha);
   } else if (cmd === 'verify') {
     verify().catch((e) => { console.log('::error::verify-live-deploy crashed: ' + (e && e.stack || e)); process.exitCode = 1; });
+  } else if (cmd === 'due') {
+    due().catch((e) => { console.log('::error::verify-live-deploy due crashed: ' + (e && e.stack || e)); process.exitCode = 1; });
   } else {
-    console.error('usage: verify-live-deploy.js stamp [out.json] | verify');
+    console.error('usage: verify-live-deploy.js stamp [out.json] | verify | due');
     process.exit(2);
   }
 }
 
-module.exports = { deployPaths, toPathspec, versionStamp, decide, landed };
+module.exports = { deployPaths, toPathspec, versionStamp, decide, decideDue, landed };

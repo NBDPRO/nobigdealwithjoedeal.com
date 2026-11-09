@@ -2286,6 +2286,18 @@
     };
   }
 
+  // capturedAt / capturedAtSource / deviceCapturedAt / geoLocation from the
+  // file's EXIF (photo-exif.js, an ES module loaded on first upload). Never
+  // rejects: anything going wrong is the device clock it was handed. The 4 s
+  // ceiling covers the module fetch too, not only the read inside it.
+  function _photoExif(blob, deviceMs) {
+    const device = { capturedAt: deviceMs, capturedAtSource: 'device' };
+    return Promise.race([
+      import('/pro/js/photo-exif.js?v=1').then((m) => m.photoExifFields(blob, deviceMs)),
+      new Promise((resolve) => setTimeout(resolve, 4000, device)),
+    ]).catch(() => device);
+  }
+
   async function uploadPhotoToFirebase(blob, leadId, tags, description, location, opts) {
     const preflight = _uploadPreflightError(leadId);
     if (preflight) {
@@ -2303,7 +2315,11 @@
     // Every value here must be STABLE across retries of the same photo, so it
     // comes from one pure derivation the tests can run directly.
     const ident = _uploadIdentity(uid, leadId, opts);
-    const { uploadId, capturedAt, preset, photoPath, thumbPath } = ident;
+    const { uploadId, preset, photoPath, thumbPath } = ident;
+    // The photo's own EXIF date + GPS (2026-11-09), read while the bytes fly.
+    // ident.capturedAt (the device clock pinned at capture) stays the photo's
+    // identity and the fallback; photo-exif.js loads only now, at upload.
+    const exifPromise = _photoExif(blob, ident.capturedAt);
 
     try {
       // Upload main photo
@@ -2342,6 +2358,7 @@
       // The doc id IS the idempotency key: a retry setDoc()s the same
       // document instead of creating a second gallery entry for one photo.
       const photoId = ident.photoId;
+      const ex = await exifPromise;
       const photoData = {
         id: photoId,
         leadId,
@@ -2382,14 +2399,19 @@
         // no longer the ordering authority. See firestore.indexes.json
         // (photos [userId, createdAt] / [leadId, userId, createdAt]).
         createdAt: serverTimestamp(),
-        capturedAt,
+        // When the photo was TAKEN (epoch ms): its EXIF date when it has one
+        // (capturedAtSource 'exif', the device clock kept in deviceCapturedAt),
+        // else the device clock at capture ('device').
+        ...ex,
         uploadedAt: serverTimestamp(),
         reportSections: [],
-        // One GPS reading per camera session ({lat,lng,accuracy,at}) or null.
+        // The photo's own EXIF GPS when it has one, else one GPS reading per
+        // camera session ({lat,lng,accuracy,at}), else null.
         // CRM-only: the portal and public pages project explicit fields and
         // never read it; the reports print only "on-site", never coordinates.
-        geoLocation: _cap.geo || null,
-        onSite: typeof _cap.onSite === 'boolean' ? _cap.onSite : null
+        geoLocation: ex.geoLocation || _cap.geo || null,
+        onSite: ex.geoLocation ? onSiteFor(ex.geoLocation, _leadForCapture(leadId))
+          : (typeof _cap.onSite === 'boolean' ? _cap.onSite : null)
       };
 
       // A stable doc id makes the retry idempotent — but it also means the
@@ -2819,6 +2841,10 @@
 
   window.PhotoEngine = {
     openCamera,
+    // The photo's EXIF date + GPS for a /photos doc, with the 4 s ceiling
+    // (2026-11-09): the customer page's uploadSinglePhoto calls this after
+    // loading the photos bundle, so photo-exif.js stays out of its boot file.
+    photoExif: _photoExif,
     // Exposed so the retry is an operation the app can trigger, not only an
     // `online` side effect — and so it is testable at all.
     flushUploadQueue,

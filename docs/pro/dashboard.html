@@ -64,7 +64,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=23" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=24" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <!-- Boot module graph (CRM speed-up plan Phase 1.2, 2026-11-04): dashboard-bootstrap / -auth-gate import these, so
      without a hint each is discovered only after its importer downloads (Firebase's base file one hop deeper still).
@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=216"></script>
+<script src="js/script-loader.js?v=217"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=44"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=45"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -6380,7 +6380,7 @@
 <script defer src="js/customer-estimate-rows.js?v=12"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/customer-estimate-hub.js?v=5"></script>
-<script defer src="js/customer-photo-hub.js?v=3"></script>
+<script defer src="js/customer-photo-hub.js?v=4"></script>
 <!-- Mobile job-detail Voice Intel tab. voice-intelligence.js's initVoiceIntel
      is an ES export; this bridge exposes it as window.VoiceIntel for the
      classic dashboard-actions.js mount/unmount wiring to call. -->
@@ -7328,16 +7328,16 @@
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
      crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
-<script defer src="js/today-plan.js?v=8"></script>
+<script defer src="js/today-plan.js?v=9"></script>
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <!-- Lead photos on demand (startup audit 2026-10-04): window.NBDPhotoCache
      replaces the unbounded every-photo read loadLeads used to do at boot. -->
 <script defer src="js/photo-cache.js?v=2"></script>
-<script defer src="js/jobs-store.js?v=5"></script>
+<script defer src="js/jobs-store.js?v=6"></script>
 <!-- Rich card density + board strip (2026-10-11, C5): read by crm-pipeline.js at render time. -->
 <script defer src="js/pipeline-rich-cards.js?v=2"></script>
-<script defer src="js/crm-pipeline.js?v=23"></script>
+<script defer src="js/crm-pipeline.js?v=24"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to

@@ -203,8 +203,9 @@ const NBD_WORDS = /\bJo\b|Jo's|\bNBD\b|No Big Deal|Quinn|TAMKO|HailGuard|jd@|inf
     && L.rulesReference().house_rules.indexOf('Always offer gutter guards.') === -1, nbdTyped && nbdTyped.house_rules);
   const cred = L.rulesReference && L.rulesReference().credentials;
   const credText = JSON.stringify(cred || {});
-  ok('NBD rules list its credentials: GAF, TAMKO, IKO certified; Hardie + American Operator as memberships only', !!cred
-    && /GAF Certified #1162011/.test(credText) && /TAMKO Pro Gold/.test(credText) && /IKO ROOFPRO Advantage/.test(credText)
+  // 2026-11-09: IKO is held (pending, not public) in credentials.json, so it is no longer listed.
+  ok('NBD rules list its credentials: GAF, TAMKO certified (IKO held, not listed); Hardie + American Operator as memberships only', !!cred
+    && /GAF Certified #1162011/.test(credText) && /TAMKO Pro Gold/.test(credText) && !/IKO/.test(credText)
     && cred.memberships.indexOf('American Operator') !== -1 && cred.memberships.indexOf('James Hardie Alliance') !== -1
     && !/American Operator|Hardie/.test(cred.certifications.join(' ')) && !/Master Elite/.test(cred.certifications.join(' ').replace('not Master Elite', '')), credText);
   ok('credentials stay NBD-only (not in another company\'s rules)', !!neutral && neutral.credentials === undefined && !/IKO|TAMKO|GAF Certified/.test(JSON.stringify(neutral)));

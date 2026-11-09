@@ -249,10 +249,11 @@ jobs:
       # and live-post filter as the blog index, deterministic timestamps).
       - name: Check feed drift (dry-run diff)
         run: node scripts/build-feed.mjs
-      # llms.txt drift gate: the SERVICES / AREAS / CASE-STUDIES marker regions
-      # in docs/llms.txt are generated from docs/services/, docs/areas/ and
-      # projects.json; they move only when a page/project is added, removed or
-      # retitled. Exits 1 on drift; writes nothing. docs/llms-full.txt is
+      # llms.txt drift gate: the SERVICES / AREAS / CASE-STUDIES / BLOG marker
+      # regions in docs/llms.txt are generated from docs/services/, docs/areas/,
+      # projects.json and the blog POSTS array; they move only when a page/project/
+      # post is added, removed or retitled (a post whose date passed since the last
+      # restamp is lag, not drift). Exits 1 on drift; writes nothing. docs/llms-full.txt is
       # deliberately NOT gated here — it mirrors the text of ~37 pages, so a
       # gate would redden every copy edit; firebase-deploy.yml regenerates it
       # before the Hosting deploy instead.
@@ -673,6 +674,16 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-csource-test 'node firestore-rules.confirmed-source.test.js'
+      # Install-complete date (2026-11-09): leads/{id}.installCompletedAt rides the first stage move onto Install Done. Own file.
+      - name: Run install-completed-at rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-installdone-test 'node firestore-rules.install-completed-at.test.js'
+      # Photo EXIF fields (2026-11-09): every upload path writes capturedAt / geoLocation from EXIF; /photos create still holds. Own file.
+      - name: Run photo-exif-fields rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-photoexif-test 'node firestore-rules.photo-exif-fields.test.js'
       # Month close (2026-10-19): monthCloses/{companyId_YYYY-MM}, owner-only writes. Own file.
       - name: Run month-close rules tests under emulator
         run: |

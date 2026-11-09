@@ -216,7 +216,7 @@ if (has(/^docs\/.*\.html$|^scripts\/build-sitemap/)) {
 }
 if (has(/^docs\/assets\/data\/projects\.json$|^docs\/our-work|^scripts\/build-projects/)) run('build-projects --check', node, ['scripts/build-projects.mjs', '--check']);
 if (has(/^site-src\/data\/towns\.json$|^docs\/(areas|service-areas)\/|^scripts\/build-town-pages/)) run('build-town-pages --check', node, ['scripts/build-town-pages.mjs', '--check']);
-if (has(/^docs\/llms\.txt$|^scripts\/build-llms|^docs\/blog\//)) run('build-llms --check-regions', node, ['scripts/build-llms.mjs', '--check-regions']);
+if (has(/^docs\/llms\.txt$|^scripts\/build-llms|^scripts\/lib\/date-gate|^docs\/blog\/|^docs\/assets\/js\/inline\/c00f1acac9\.js$/)) run('build-llms --check-regions', node, ['scripts/build-llms.mjs', '--check-regions']);
 if (has(/\.(png|jpe?g|webp|heic)$/i)) run('check-image-privacy', node, ['scripts/check-image-privacy.js']);
 if (has(/^documentation\//)) run('check-vault-index', node, ['scripts/check-vault-index.js']);
 if (has(/^docs\/(?!pro\/)/)) run('marketing-polish-contract', node, ['tests/marketing-polish-contract.test.js']);

@@ -4905,9 +4905,10 @@
       const safeName = (file.name || 'upload').replace(/[^A-Za-z0-9._-]+/g, '_').substring(0, 120);
       const storagePath = `photos/${uid}/${leadId}/${Date.now()}_${safeName}`;
       const r = ref(storage, storagePath);
+      const exif = Promise.race([import('./photo-exif.js?v=1').then((m) => m.photoExifFields(file, Date.now())), new Promise((r) => setTimeout(r, 4000, {}))]).catch(() => ({})); // EXIF date + GPS, 4 s ceiling incl. the fetch (2026-11-09)
       await uploadBytes(r, file);
       const url = await getDownloadURL(r);
-      await addDoc(collection(db,'photos'), {leadId, url, name:file.name, userId:uid, createdAt:serverTimestamp(),
+      await addDoc(collection(db,'photos'), {leadId, url, name:file.name, userId:uid, createdAt:serverTimestamp(), uploadedAt:serverTimestamp(), ...(await exif),
         // Canonical Storage object name — the image pipeline
         // (functions/image-pipeline.js) finds this doc by storagePath
         // equality to stamp `urls:{thumb,med,full}` variants.
