@@ -26,7 +26,10 @@
  * the widget until Done, and once as a toast.
  *
  * Survives a reload: the record (start, end, DND memo, last count, floor) is this
- * device's localStorage nbd_os_focus (an nbd_ key, so sign-out wipes it). os/home.js
+ * device's localStorage nbd_os_focus (an nbd_ key, so sign-out wipes it). A block that
+ * turned DND on also writes nbd_os_focus_dnd (the uid) until DND is put back: it
+ * outlives the record, so a record dropped as over 12 h old, or cleared by Done before
+ * the system layer loaded, still turns DND back off. os/home.js
  * loads this bundle when a home mounts with a record waiting, so a block whose
  * widget was removed still ends and restores DND. One timer: a single timeout at
  * the block's end (and a check when the page shows again), never an interval.
@@ -48,6 +51,7 @@
   if (!FL) return;
 
   var EVENT = 'nbd:os-focus';   // os/home.js repaints its widgets on it
+  var OWE = 'nbd_os_focus_dnd';   // the uid whose block turned DND on and has not put it back (outlives the record)
   var ACTS_DND = 'nbd_os_acts_dnd';   // os/acts.js: a privacy mode owns DND (turned it on, or a block handed it over)
 
   function esc(s) {
@@ -86,15 +90,33 @@
     var A = W.NBDOSActs;
     return lsGet(ACTS_DND) === '1' || !!(A && typeof A.privacy === 'function' && safe(A.privacy) === true);
   }
-  /** Put DND back once the block is over. No system layer yet: try again on the next paint. */
-  function restoreDnd(r) {
-    if (!r || r.dnd === 'done') return r;
+  /** Put back the DND a block turned on. False when there is no system layer yet (the memo waits). */
+  function putBack() {
     var O = sys();
-    if (!O) return r.dnd === 'mine' ? r : Object.assign({}, r, { dnd: 'done' });
-    var how = FL.restore(r, safe(O.isDnd) === true, held());
+    if (!O) return false;
+    var how = FL.restore({ dnd: 'mine' }, safe(O.isDnd) === true, held());
     if (how === 'off') safe(function () { O.setDnd(false); });
     else if (how === 'hand') lsSet(ACTS_DND, '1');   // the mode turns it off when it ends
+    lsSet(OWE, null);
+    return true;
+  }
+  /** Put DND back once the block is over. No system layer yet: the record (and the memo) wait. */
+  function restoreDnd(r) {
+    if (!r || r.dnd === 'done') return r;
+    if (r.dnd === 'mine' && !putBack()) return r;
     return Object.assign({}, r, { dnd: 'done' });
+  }
+  /**
+   * DND owed with no record left to carry it: the record was dropped as over 12 h old (the tab
+   * died mid-block and the rep came back the next morning), or Done cleared it before the system
+   * layer loaded. system.js keeps DND across sessions, so put it back now.
+   */
+  function settleOwed() {
+    var u = uid();
+    if (!u || lsGet(OWE) !== u) return;
+    var r = load();
+    if (r && r.dnd === 'mine') return;   // its record still carries it
+    putBack();
   }
 
   // ── counting the block's doors ─────────────────────────────
@@ -156,6 +178,7 @@
     endT = W.setTimeout(check, Math.max(0, r.end - Date.now()) + 250);
   }
   function check() {
+    settleOwed();
     var r = load();
     if (r && FL.phase(r, Date.now()) === 'over' && r.endedAt == null) end(false);
     else if (r && r.endedAt != null && r.dnd !== 'done') { save(restoreDnd(r)); }
@@ -165,11 +188,12 @@
     var u = uid(), cur = load();
     if (!u || (cur && FL.phase(cur, Date.now()) === 'running')) return;
     var O = sys();
+    settleOwed();   // an earlier block's DND first, so this one sees it as it really is
     var r = FL.begin({ uid: u, now: Date.now(), mins: mins, dndOn: O ? safe(O.isDnd) === true : false, dndAvail: !!O });
     if (!r) return;
     failedAt = 0;
     save(r);
-    if (r.dnd === 'mine') safe(function () { O.setDnd(true); });
+    if (r.dnd === 'mine') { lsSet(OWE, u); safe(function () { O.setDnd(true); }); }
     arm(r);
     count();
     askFloor(r);
@@ -213,7 +237,7 @@
     if (!uid()) return;   // not signed in yet: the next paint asks again
     resumed = true;
     var r = load();
-    if (!r) { if (lsGet(FL.KEY)) save(null); return; }   // another account's, broken or stale
+    if (!r) { if (lsGet(FL.KEY)) save(null); settleOwed(); return; }   // another account's, broken or stale
     if (FL.phase(r, Date.now()) === 'over' && r.endedAt == null) { end(false); return; }
     if (r.endedAt != null) { if (r.dnd !== 'done') save(restoreDnd(r)); return; }
     arm(r);

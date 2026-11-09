@@ -79,7 +79,7 @@ async function mount(items, o) {
   await settle();
   const ph = T.document.getElementById('osPhone');
   return { T, W, ph, log, opts, card: () => byKey(ph, 'focus-1'), dnd: () => dnd, release: (n) => { if (held) { const h = held; held = null; h({ data: () => ({ count: n }) }); } },
-    at: (ms) => { opts.now = ms; } };
+    at: (ms) => { opts.now = ms; }, };
 }
 // the start buttons (the fake DOM has no ^= selector)
 const starts = (card) => (card ? card.querySelectorAll('[data-oshw-focus]') : []).filter((b) => /^start:/.test(b.getAttribute('data-oshw-focus')));
@@ -117,6 +117,7 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     const r = rec(m.T);
     ok('the tap stored the block: start now, end in 60 min, DND turned on by it', !!r && r.start === NOW && r.end === NOW + 60 * MIN && r.dnd === 'mine', J(r));
     ok('Do Not Disturb went on, once', J(m.log.dnd) === J([true]), J(m.log.dnd));
+    ok('...and this account owes it back (a memo that outlives the record)', m.T.store.nbd_os_focus_dnd === 'u1', J(m.T.store.nbd_os_focus_dnd));
     ok('one count at the start: the rep\'s own knocks in the block window', m.log.counts.length === 1 && J(m.log.counts[0]) === J({ c: 'knocks', w: [
       { f: 'userId', op: '==', v: 'u1' }, { f: 'createdAt', op: '>=', v: NOW }, { f: 'createdAt', op: '<', v: NOW + 60 * MIN }] }), J(m.log.counts));
     ok('the widget: 60 min left, the counted doors, the floor, the end time', /60 min left/.test(text(m.card())) && /3 doors this block/.test(text(m.card()))
@@ -143,7 +144,7 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     endT.fn(); endT.fn = null;
     await settle();
     const e = rec(m.T);
-    ok('time up: ended at the planned end, DND put back off', !!e && e.endedAt === NOW + 60 * MIN && e.dnd === 'done' && J(m.log.dnd) === J([true, false]), J([e, m.log.dnd]));
+    ok('time up: ended at the planned end, DND put back off', !!e && e.endedAt === NOW + 60 * MIN && e.dnd === 'done' && J(m.log.dnd) === J([true, false]) && !m.T.store.nbd_os_focus_dnd, J([e, m.log.dnd]));
     ok('a final count over the whole block', m.log.counts.length === 3 && J(m.log.counts[2].w[2]) === J({ f: 'createdAt', op: '<', v: NOW + 60 * MIN }), m.log.counts.length);
     ok('the summary: doors this block, vs the floor', /Block done: 4 doors in 60 min/.test(text(m.card())) && /Today's floor is 40 doors/.test(text(m.card())), text(m.card()));
     ok('one toast says it', m.W.toasts.filter((t) => /Block done/.test(t.msg)).length === 1, J(m.W.toasts));
@@ -239,6 +240,21 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     ok('past the end, with no widget on the home: the bundle still loads', m.W.ScriptLoader.calls.indexOf('osfocus') !== -1, J(m.W.ScriptLoader.calls));
     ok('...the block ends at its planned end and DND goes back off', rec(m.T) && rec(m.T).endedAt === start + 60 * MIN && J(m.log.dnd) === J([false]), J([rec(m.T), m.log.dnd]));
     ok('...with its final count kept for the summary', rec(m.T).doors === 9 && m.log.counts.length === 1, J(rec(m.T)));
+  }
+  {
+    // a 60-minute block at 4 PM; the tab dies and the rep is back after 5 AM: the record is past its
+    // 12 h summary, but the block turned DND on, so it still goes back off
+    const start = NOW - 15 * 3600000;
+    const store = { nbd_os_focus: J({ v: 1, uid: 'u1', start, mins: 60, end: start + 60 * MIN, dnd: 'mine' }), nbd_os_focus_dnd: 'u1' };
+    const m = await mount([{ id: 'focus', s: 'm' }], { store, dndOn: true });
+    ok('a block over 12 h old: dropped, and the DND it turned on goes back off', !m.T.store.nbd_os_focus && !m.T.store.nbd_os_focus_dnd
+      && J(m.log.dnd) === J([false]) && m.log.counts.length === 0 && starts(m.card()).length === 3, J([m.T.store, m.log.dnd]));
+  }
+  {
+    const start = NOW - 15 * 3600000;
+    const store = { nbd_os_focus: J({ v: 1, uid: 'u1', start, mins: 60, end: start + 60 * MIN, dnd: 'kept' }) };
+    const m = await mount([{ id: 'focus', s: 'm' }], { store, dndOn: true });
+    ok('...one whose DND was on before it: dropped, DND left on', !m.T.store.nbd_os_focus && m.log.dnd.length === 0 && m.dnd() === true, J(m.log.dnd));
   }
   {
     const store = { nbd_os_focus: J({ v: 1, uid: 'someone-else', start: NOW - MIN, mins: 30, end: NOW + 29 * MIN, dnd: 'mine' }) };
