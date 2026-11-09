@@ -426,11 +426,17 @@
     var items = B && typeof B.items === 'function' ? (call(function () { return B.items(); }) || []) : [];
     var groups = L.groupNotifications(items);
     var now = Date.now();
+    // a privacy mode ("In a home", os/acts.js): only time-sensitive groups, no message history
+    var A = w.NBDOSActs;
+    var priv = !!(A && typeof A.privacy === 'function' && call(function () { return A.privacy(); }) === true);
+    var pg = priv ? L.privateGroups(groups) : null;
+    if (pg) groups = pg.shown;
     var h = '<div class="os-nc">';
     h += '<div class="os-nc-tools">' +
       '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
       '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
-    if (!groups.length) {
+    if (pg) h += '<p class="ui-caption os-nc-private">' + esc('Privacy mode: only what is due today shows.' + (pg.held ? ' ' + pg.held + (pg.held === 1 ? ' more waits' : ' more wait') + ' until you leave it.' : '')) + '</p>';
+    if (!groups.length && !pg) {
       h += '<div class="ui-empty os-nc-empty"><div class="ui-heading">You\'re all caught up</div>' +
         '<p class="ui-caption">New tasks, estimate views and customer replies show up here.</p></div>';
     }
@@ -445,7 +451,7 @@
       });
       h += '</ul></section>';
     });
-    if (state.history.length) {
+    if (state.history.length && !pg) {
       h += '<section class="os-nc-group" aria-label="Earlier messages"><h3 class="ui-eyebrow os-nc-h">Earlier messages</h3><ul class="os-nc-list">';
       state.history.forEach(function (e) {
         h += '<li class="os-nc-hist os-tone-' + esc(e.type) + '"><span class="os-nc-text">' + esc(e.message) + '</span>' +

@@ -11,6 +11,7 @@
  *   clockAlerts(items)      the tray items the phone's clock carries as dots
  *   pushHistory(list, e)    the session toast history, newest first, capped
  *   groupNotifications(xs)  Notification Center sections, in a fixed order
+ *   privateGroups(groups)   (P2) a privacy mode's sections: the time-sensitive ones, and a held count
  *   readNav(doc)            the sidebar goTo entries (browser; takes the document)
  *   appsFromNav(entries)    the apps a member can open (role-hidden ones gone)
  *   systemActions(apps)     the Spotlight (Cmd+K) entries the layer registers
@@ -108,8 +109,10 @@
 
   // Notification Center sections, always in this order. A type that isn't
   // listed lands in "Other", so a new bell row never disappears.
+  // timely: time-sensitive (due today or overdue), the one group a privacy mode
+  // ("In a home", os/acts.js) still shows.
   var GROUPS = [
-    { id: 'tasks', label: 'Tasks', types: ['overdue-task', 'task-today'] },
+    { id: 'tasks', label: 'Tasks', types: ['overdue-task', 'task-today'], timely: true },
     { id: 'estimates', label: 'Estimates', types: ['stale-estimate', 'fresh-view'] },
     { id: 'leads', label: 'Leads', types: ['stale-lead', 'snooze-expired', 'dol-missing'] },
     { id: 'activity', label: 'Customer activity', server: true },
@@ -131,8 +134,14 @@
     });
     return GROUPS.filter(function (g) { return by[g.id]; }).map(function (g) {
       var list = by[g.id].slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
-      return { id: g.id, label: g.label, items: list, unread: list.filter(function (n) { return !n.read; }).length };
+      return { id: g.id, label: g.label, items: list, unread: list.filter(function (n) { return !n.read; }).length, timely: g.timely === true };
     });
+  }
+  /** A privacy mode's Notification Center: the time-sensitive groups, and how many items wait behind it. */
+  function privateGroups(groups) {
+    var list = Array.isArray(groups) ? groups : [], held = 0;
+    list.forEach(function (g) { if (g && g.timely !== true) held += Array.isArray(g.items) ? g.items.length : 0; });
+    return { shown: list.filter(function (g) { return g && g.timely === true; }), held: held };
   }
 
   var VIEW_RE = /^[a-z][a-z0-9-]{0,31}$/;
@@ -300,7 +309,7 @@
     LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
     companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
-    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
+    groupNotifications: groupNotifications, privateGroups: privateGroups, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
     systemActions: systemActions, clockText: clockText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

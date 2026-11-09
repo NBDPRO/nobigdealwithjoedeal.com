@@ -327,3 +327,19 @@ html.os-locked .os-hw-closes { visibility: hidden; }
 .os-wp-more, .os-wp-done { min-height: 44px; }
 .os-wp-done { min-width: 88px; justify-content: center; }
 .os-wp-done:disabled { opacity: .5; cursor: default; }
+
+/* ── Activities and Focus modes (P2, design §6.3; layouts/os.js, js/os/acts.js) ──
+   The phone's mode chip (only while a mode is on) and the taskbar's Workspaces
+   button. The menu itself is css/os/acts.css (the osacts bundle). No motion. */
+.os-act-row { display: flex; padding: 0 var(--ui-space-3, 12px) var(--ui-space-2, 8px); }
+.os-act-chip {
+  display: inline-flex; align-items: center; gap: var(--ui-space-2, 8px); min-height: 44px; max-width: 100%;
+  padding: 0 var(--ui-space-3, 12px); border-radius: var(--ui-radius-pill, 100px); cursor: pointer;
+  font: inherit; font-size: var(--ui-fs-body-sm, 13px); font-weight: 700; color: var(--t);
+  background: color-mix(in srgb, var(--s) 92%, transparent); border: 1px solid var(--ui-line-strong, var(--br));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.os-act-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--orange); }   /* a ring: New lead is the region's one filled orange */
+.os-act-chip:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-act-task { min-height: 44px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--m); }
+.os-act-task.is-on { color: var(--t); border-color: var(--ui-line-strong, var(--br)); }

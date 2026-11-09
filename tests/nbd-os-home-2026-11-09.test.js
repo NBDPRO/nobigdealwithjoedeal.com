@@ -480,8 +480,10 @@ G(() => {
   // P1 (2026-11-09): the ScriptLoader uses are its own three lazy bundles of same-origin files under js/os/ and css/os/
   const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
   const bundle = /var SD_BUNDLE = \[([^\]]*)\]/.exec(code);
-  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js) and osshutdown (css/os + js/os files)',
-    (code.match(/loadBundle\(/g) || []).length === 3 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+  // P2 (2026-11-09): and osacts (Activities and Focus modes), css/os + js/os files too
+  const acts = /var ACTS_FILES = \[([^\]]*)\]/.exec(code);
+  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js), osshutdown and osacts (css/os + js/os files)',
+    (code.match(/loadBundle\(/g) || []).length === 4 && !!acts && acts[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /SL\.loadBundle\(ACTS_BUNDLE\)/.test(code) && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
       && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
       && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code)
       && !!bundle && bundle[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /loadBundle\('osshutdown'\)/.test(code), files);

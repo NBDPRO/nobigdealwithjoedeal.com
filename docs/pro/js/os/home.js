@@ -29,6 +29,12 @@
  *   Shutdown     (P1) painted by os/shutdown.js, the runtime ScriptLoader bundle
  *                osshutdown this file registers and loads the first time the
  *                widget paints; a tap opens its sheet
+ *   Activities   (P2) while a mode is on (opts.mode(), home-logic activeAct) every
+ *                widget paints through its focus lens (os/acts.js, the runtime
+ *                ScriptLoader bundle osacts, loadActs()): a phase's work only, or
+ *                "In a home": no Money / Closes / Shutdown, no money anywhere, and
+ *                no customer named but the current appointment's. Until the bundle
+ *                lands those widgets say "Loading…"; never the unfiltered day.
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -98,9 +104,17 @@
   // ── what the widgets read: memory only ───────────────────────
   /** An element's visible words, whitespace folded (what the live region reads back). */
   function text(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
-  function todayPlan() {
+  function rawPlan() {
     var T = W.NBDToday;
     return T && typeof T.last === 'function' ? T.last() : null;
+  }
+  // P2 Activities: while a widget paints under a mode, LENS is that mode's focus lens
+  // (os/acts.js): the plan and leads come through it (a phase's work only; "In a home"
+  // names only the current appointment's customer). null when no mode is on.
+  var LENS = null;
+  function todayPlan() {
+    var p = rawPlan();
+    return p && LENS ? LENS.plan(p) : p;
   }
   function apptsFailed() {
     var T = W.NBDToday;
@@ -127,8 +141,8 @@
   /** The urgency ring's data (home-logic urgency): reply stamps only count while speedToLead is on. */
   function urgencyNow() {
     var plan = null;
-    try { plan = todayPlan(); } catch (e) { plan = null; }
-    return HL.urgency({ leads: leadsNow(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
+    try { plan = rawPlan(); } catch (e) { plan = null; }
+    return HL.urgency({ leads: rawLeads(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
       uid: String((W._user && W._user.uid) || '') });
   }
   // the Smart Stack re-picks when this moves: an event, a show, an unlock (never a timer)
@@ -171,6 +185,7 @@
     if (!f || (f.kind !== 'lead' && f.kind !== 'call')) return '';
     var lead = null;
     (leadsNow() || []).forEach(function (l) { if (l && f.id && String(l.id) === f.id) lead = l; });
+    if (lead && LENS && !LENS.nameOk(lead.id)) lead = null;   // "In a home": only the current customer is named
     var name = lead ? (((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || String(lead.name || '') || 'New lead') : (f.kind === 'lead' ? 'New leads' : 'Missed calls');
     // a wait under 90 min in minutes, else in whole hours
     var n = String(f.n), m = f.min < 90 ? String(f.min) + ' min' : String(Math.floor(f.min / 60)) + ' h';
@@ -217,7 +232,8 @@
     try { lite = E && typeof E.ds === 'function' ? E.ds() : null; } catch (e) { lite = null; }
     return HL.dsPersonal(lite, dk, now);
   }
-  function leadsNow() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
+  function rawLeads() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
+  function leadsNow() { var l = rawLeads(); return l && LENS ? LENS.leads(l) : l; }
   function actionHtml(a, cls) {
     if (!a) return '';
     if (a.href) return '<a class="' + esc(cls) + '" href="' + esc(a.href) + '">' + esc(a.label) + '</a>';
@@ -409,6 +425,29 @@
   }
   HL.ids().forEach(function (id) { if (HL.CATALOG[id].p1 && !WIDGETS[id]) WIDGETS[id] = p1(id); });
 
+  // ── P2: Activities and Focus modes, the runtime ScriptLoader bundle 'osacts' ──
+  // Loaded when the layout mounts a home (its menu, Control Center tile and Spotlight
+  // actions) and by any paint under a mode. Until it lands a widget under a mode paints
+  // "Loading…", and if it can't load, "Couldn't load": never the unfiltered day.
+  var ACTS_BUNDLE = 'osacts';
+  var ACTS_FILES = ['css/os/acts.css?v=1', 'js/os/acts-logic.js?v=1', 'js/os/acts.js?v=1'];
+  var actsState = '', actsP = null;   // '' | 'asked' | 'failed'
+  function loadActs() {
+    if (W.NBDOSActs) return Promise.resolve(W.NBDOSActs);
+    if (actsP) return actsP;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') { actsState = 'failed'; return Promise.reject(new Error('no ScriptLoader')); }
+    if (SL.bundles && !SL.bundles[ACTS_BUNDLE]) SL.bundles[ACTS_BUNDLE] = ACTS_FILES.slice();
+    actsState = 'asked';
+    function settle() { actsP = null; actsState = W.NBDOSActs ? '' : 'failed'; mounted.forEach(function (m) { m.repaint(); }); }
+    actsP = Promise.resolve().then(function () { return SL.loadBundle(ACTS_BUNDLE); }).then(function () {
+      settle();
+      if (!W.NBDOSActs) throw new Error('osacts did not load');
+      return W.NBDOSActs;
+    }, function (e) { settle(); throw e; });
+    return actsP;
+  }
+
   function failHtml(key) {
     return '<p class="os-hw-fail">Couldn\'t load · <button type="button" class="ui-btn-quiet os-hw-btn os-hw-retry" data-oshw-retry="' + esc(key) + '">Retry</button></p>';
   }
@@ -440,16 +479,30 @@
     if (desk) el.classList.add('os-hw-board');
     var recs = {}, order = [], cur = [], dirty = false, live = true, held = [];
     var navHidden = typeof o.navHidden === 'function' ? o.navHidden : function () { return false; };
-    function moneyOk() { return !isViewer() && !navHidden('money'); }
-    /** A widget this member's role can't see: its sidebar view is hidden, or it shows money. */
+    /** P2: the mode on for this surface (home-logic activeAct), or null. */
+    function mode() { try { return typeof o.mode === 'function' ? o.mode() : null; } catch (e) { return null; } }
+    function focus() { var a = mode(); return a ? a.focus : null; }
+    /** The lens a paint goes through: null (no mode), 'wait' / 'fail' (the bundle), or os/acts.js's lens. */
+    function lensFor() {
+      var a = mode();
+      if (!a) return null;
+      var A = W.NBDOSActs;
+      if (A && typeof A.lens === 'function') { try { return A.lens(a) || 'fail'; } catch (e) { return 'fail'; } }
+      if (actsState === 'failed') return 'fail';
+      loadActs().catch(function () {});
+      return 'wait';
+    }
+    function moneyOk() { var f = focus(); return !isViewer() && !navHidden('money') && !(f && f.privacy); }
+    /** A widget this member's role can't see (its sidebar view is hidden, or it shows money), or the mode on never paints. */
     function hiddenId(id) {
       var c = HL.CATALOG[id];
-      return !c || !!(c.nav && navHidden(c.nav)) || !!(c.money && !moneyOk());
+      return !c || !!(c.nav && navHidden(c.nav)) || !!(c.money && !moneyOk()) || HL.actHides(focus(), id);
     }
     // what the P1 renderers (os/widgets-p1.js) may read; all memory, no Firestore
     var kit = {
       esc: esc, plan: todayPlan, counts: counts, leads: leadsNow, apptsFailed: apptsFailed, isViewer: isViewer, dsNow: dsNow,
-      uid: function () { return String((W._user && W._user.uid) || ''); }, urgency: urgencyNow, moneyOk: moneyOk, navHidden: navHidden,
+      uid: function () { return String((W._user && W._user.uid) || ''); }, moneyOk: moneyOk, navHidden: navHidden,
+      urgency: function () { var u = urgencyNow(); return LENS ? LENS.urgency(u) : u; },
       hiddenId: hiddenId, has: function (id) { return !!WIDGETS[id]; }, epoch: function () { return epoch; },
       render: function (id, size, cfg, a, rec) { return WIDGETS[id](size, cfg, a, rec, kit); },
     };
@@ -480,11 +533,17 @@
       return { key: key, it: it, el: n, body: b, html: null, ed: null, edHtml: null };
     }
     function paintOne(rec, force) {
-      var html;
-      try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec, kit); }
-      catch (e) {
-        html = failHtml(rec.key);
-        try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
+      var html, ln = lensFor();
+      if (ln === 'wait' || ln === 'fail') {
+        html = '<h3 class="os-hw-title">' + esc(HL.CATALOG[rec.it.id].title) + '</h3>' + (ln === 'wait' ? '<p class="os-hw-empty">Loading…</p>' : failHtml('acts'));
+      } else {
+        LENS = ln;
+        try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec, kit); }
+        catch (e) {
+          html = failHtml(rec.key);
+          try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
+        }
+        LENS = null;
       }
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
       if (showsSd(rec)) rec.sdIn = sdWindow();   // the tick repaints it when this changes
@@ -611,7 +670,9 @@
     }
     // the item cap counts the widgets the role hides too (held, saved after the rest): an add past it would
     // make normalize() cut them off the end of the saved list
-    function fits(list) { return list && HL.weight(list) + HL.weight(held) <= HL.MAX_ITEMS ? list : null; }
+    // a mode's own widgets (P2) hold ACT_ITEMS, a home MAX_ITEMS
+    function cap() { return mode() ? HL.ACT_ITEMS : HL.MAX_ITEMS; }
+    function fits(list) { return list && HL.weight(list) + HL.weight(held) <= cap() ? list : null; }
     function keyAt(list, idx) { var n = 0; for (var j = 0; j <= idx; j++) if (list[j].id === list[idx].id) n++; return list[idx].id + '-' + n; }
     /** Save a changed list (through the layout), then keep focus on the widget and say what changed. */
     function commit(next, focusTag, prefix, focusSel) {
@@ -856,7 +917,7 @@
       var d = doc.createElement('dialog');
       d.className = 'os-hw-add';
       d.setAttribute('aria-labelledby', 'oshwAddTitle');
-      var full = HL.weight(cur) + HL.weight(held) >= HL.MAX_ITEMS;
+      var full = HL.weight(cur) + HL.weight(held) >= cap();
       var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwAddTitle">Add a widget</h2>' +
         '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Close</button></div>';
       if (full) h += '<p class="os-hw-add-full">Your home is full. Remove a widget to add another.</p>';
@@ -911,7 +972,7 @@
         var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !hiddenId(id) && !!WIDGETS[id]; });
         return '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwCardsTitle">Cards in this stack</h2>' +
           '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
-          '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against your home\'s ' + String(HL.MAX_ITEMS) + '.') + '</p>' +
+          '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against your home\'s ' + String(cap()) + '.') + '</p>' +
           '<ul class="os-hw-add-list">' + ids.map(function (id) {
             var on = cards.indexOf(id) !== -1, can = !!fits(HL.toggleCard(tagged(), at, id));
             return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(HL.CATALOG[id].title) + '</span><span class="os-hw-add-about">' + esc(HL.CATALOG[id].about || '') + '</span></div>' +
@@ -954,6 +1015,7 @@
       if (r) {
         var rk = r.getAttribute('data-oshw-retry');
         if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
+        if (rk === 'acts') { if (actsState === 'failed') actsState = ''; order.forEach(function (k) { paintOne(recs[k], true); }); return; }
         if (p1State === 'failed') p1State = '';
         var rec = recs[rk]; if (rec) paintOne(rec, true); return;
       }
@@ -1069,5 +1131,5 @@
     };
   }
 
-  W.NBDOSHome = { mount: mount, urgency: urgencyNow };
+  W.NBDOSHome = { mount: mount, urgency: urgencyNow, loadActs: loadActs };
 })();
