@@ -83,7 +83,7 @@
     var n = r.leads.length + r.promises.length;
     if (size === 's') {
       return TITLE + '<button type="button" class="os-hw-row os-sd-s" data-oshw-sd="open">' +
-        (n ? '<span class="os-sd-big ui-num">' + esc(String(n)) + '</span><span class="os-hw-row-sub">to close</span>'
+        (n ? '<span class="os-sd-big ui-num">' + esc(String(n)) + '</span><span class="os-sd-to">to close</span>'
           : '<span class="os-hw-row-name">All closed</span>') + '</button>';
     }
     var h = TITLE + '<p class="os-hw-next os-sd-line">' + esc(SL.widgetLine(r)) + '</p>';
@@ -118,7 +118,7 @@
       '<div class="os-sd-acts" role="group" aria-label="' + esc('Next step for ' + x.name) + '">' + FU.map(function (f) {
         return '<button type="button" class="btn btn-ghost os-sd-btn" data-sd-fu="' + f[0] + '" data-sd-lead="' + esc(x.leadId) + '" aria-label="' +
           esc('Follow up with ' + x.name + ' ' + f[1].toLowerCase()) + '"' + dis + '>' + esc(f[1]) + '</button>';
-      }).join('') + '<a class="ui-btn-quiet os-sd-btn" href="' + esc(custHref(x.leadId)) + '" aria-label="' + esc('Open ' + x.name) + '">Open</a></div></li>';
+      }).join('') + '<a class="btn btn-ghost os-sd-btn" href="' + esc(custHref(x.leadId)) + '" aria-label="' + esc('Open ' + x.name) + '">Open</a></div></li>';
   }
   function visitRow(x) {
     var t = timeOf(x.ms);
@@ -132,7 +132,7 @@
       '<div class="os-sd-acts"><a class="btn btn-ghost os-sd-btn" href="' + esc(custHref(x.leadId)) + '" aria-label="' + esc('Open ' + x.name) + '">Open</a></div></li>';
   }
   function section(title, list, fn) {
-    return '<section class="os-sd-sec"><h3 class="os-sd-st">' + esc(title) + '</h3><ul class="os-sd-list">' + list.map(fn).join('') + '</ul></section>';
+    return '<div class="os-sd-sec"><h3 class="os-sd-st">' + esc(title) + '</h3><ul class="os-sd-list">' + list.map(fn).join('') + '</ul></div>';
   }
   function render() {
     if (!sheet) return;
@@ -140,7 +140,7 @@
     var r = compute(s.visits);
     var h = '<div class="os-sd-hd"><h2 class="os-sd-title" id="osSdTitle">Shutdown</h2>' +
       '<button type="button" class="btn btn-ghost os-sd-close" data-sd-close="">Done</button></div>' +
-      '<p class="os-sd-lede">Every lead you touched today, with no next step yet. One tap each.</p>';
+      (r.open || !leads() ? '<p class="os-sd-lede">Every lead you touched today, with no next step yet. One tap each.</p>' : '');
     if (!leads() || !uid()) h += '<p class="os-sd-note">Your leads are still loading.</p>';
     else if (r.leads.length) h += section('Touched today, no next step', r.leads, function (x) { return leadRow(x, !!s.busy[x.leadId]); });
     if (s.visits === undefined) h += '<p class="os-sd-note">Checking today\'s visits…</p>';
