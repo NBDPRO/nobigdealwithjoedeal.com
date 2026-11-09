@@ -49,7 +49,7 @@ const CRON_GATES = [
   { name: 'SUB_PAPERWORK_WATCH_ENABLED', polarity: 'enabled', file: 'sub-paperwork-watch.js' },
   // Monday owner digest (2026-10-22): ONE Agent-inbox report to the owner (collected last week, estimates awaiting signature, calls to return, jobs this week). Never a customer or rep. Dark until Jo says go.
   { name: 'OWNER_WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'owner-weekly-digest.js' },
-  // Team leaderboard rows (2026-11-09, NBD OS P2): leaderboard/{uid} per member every 30 min. Counts only, never a message. Dry-run until Jo says go.
+  // Team leaderboard rows (2026-11-09, NBD OS P2): leaderboard/{uid} per member every 30 min. Counts only, never a message. On since 2026-11-09 (Jo).
   { name: 'LEADERBOARD_AGGREGATE_ENABLED', polarity: 'enabled', file: 'leaderboard-aggregate.js' },
   // Call retention (2026-11-09, Call to Close Q7): daily 03:20 ET, transcripts + briefs 24 months, CRM audio copies 12 months, Drive untouched. Dry-run (counts only) until Jo says go.
   { name: 'CALL_RETENTION_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
