@@ -536,29 +536,55 @@
   }
 
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
-  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts'];
+  // (+ on the laptop desk, the action runner's "Type to search" switch, WCAG 2.1.4)
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type'];
   function registerControls() {
     var tries = 0, done = false;
+    var desk = S && S.surface !== 'phone';
     function reg() {
-      if (done || !S || !S.home) return;
+      if (done || !S || !(S.home || desk)) return;
       var O = W.NBDOS;
       if (O && typeof O.registerControl === 'function') {
         done = true;
-        safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
-        safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
+        if (S.home) safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
+        if (S.home) safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
         // P2: Mode (phone) / Workspace (laptop); its hint is the mode on
-        safe(function () {
+        if (S.home) safe(function () {
           O.registerControl({ id: 'os-acts', label: homeSurface() === 'phone' ? 'Mode' : 'Workspace', run: function () { openActs(null); },
             hint: function () { var a = curAct(); return a ? a.name : 'Off'; } });
         });
+        if (desk) safe(function () { O.registerControl({ id: 'os-runner-type', label: 'Type to search', hint: runnerTypeHint, run: toggleRunnerType }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
     }
     // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
     // (capture, so the tiles are in before the sheet paints; a no-op once registered)
-    if (S && S.home) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
     reg();
+  }
+  // ── the action runner (command-runner.js, the lazy `cmdrunner` bundle): type-anywhere + hot corner on the desk ──
+  var RUNNER_SRC = ['js/command-runner.js?v=1'];
+  function attachRunner() {
+    var desk = S && S.deskEl;
+    if (!desk) return;
+    function go() { if (S && S.deskEl === desk && !S.runnerOff && W.NBDRunner) S.runnerOff = W.NBDRunner.attachDesk(desk); }
+    if (W.NBDRunner) return go();
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return;
+    if (SL.bundles && !SL.bundles.cmdrunner) SL.bundles.cmdrunner = RUNNER_SRC.slice();
+    Promise.resolve().then(function () { return SL.loadBundle('cmdrunner'); }).then(go, function () {});
+  }
+  function runnerTypeHint() {
+    var R = W.NBDRunner;
+    return R ? (R.typeOpen.on() ? 'On: type on the desktop' : 'Off') : '';
+  }
+  function toggleRunnerType() {
+    var R = W.NBDRunner;
+    if (!R) return toast('Search is still loading. Try again in a moment.');
+    var on = !R.typeOpen.on();
+    R.typeOpen.set(on);
+    toast(on ? 'Type to search is on: type on the desktop to search.' : 'Type to search is off. Ctrl+K still opens search.');
   }
   function unregisterControls() {
     var O = W.NBDOS;
@@ -1053,6 +1079,7 @@
     if (focusId && viewEl(focusId)) openWin(focusId);
     else paintAllWins();
     registerDeskSpotlight();
+    attachRunner();
   }
 
   // Window buttons: 'chrome' (ChromeOS / Windows, default), 'mac' (traffic
@@ -1696,6 +1723,7 @@
     unregisterControls();
     unregisterActSpotlight();
     if (W.NBDOSActs) safe(function () { W.NBDOSActs.detach(); });
+    if (st.runnerOff) safe(st.runnerOff);
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
     if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(); });   // its blob: URLs, its open picker
