@@ -22,6 +22,9 @@
  *      with one-tap Brief (only when the brief gate says draft), Follow-up
  *      (the existing promise sheet) and Dismiss (callCenterAction); the
  *      logic is fetched when the Call Center opens, never at boot
+ *   4. the sample account stays zero-network on the new paths: Dismiss is
+ *      refused inside the demo SDK, the auto-brief setting goes through the
+ *      page's Firestore bindings, the logic loads from this origin
  *
  * Run: node tests/call-to-close-rescue-queue-2026-11-09.test.js
  */
@@ -133,6 +136,20 @@ const LEADS = { L1: { id: 'L1', firstName: 'Pat', stage: 'new' }, L2: { id: 'L2'
     ok('a dismiss is mirrored on the loaded call and offers Undo', /action === 'rescueDismiss'/.test(cv) && /rescueUndismiss/.test(cv));
     const rows = (cv.match(/function rescueRow[\s\S]*?\n  \}\n/) || [''])[0];
     ok('rows escape every string and carry no inline style or handler', rows.length > 0 && !/style=|\son[a-z]+=/.test(rows) && /esc\(/.test(rows));
+  }
+
+  console.log('\n4. The sample account (demo) stays zero-network');
+  {
+    // tests/pro-demo-zero-network-2026-10-06.test.js walks the demo in a
+    // browser; these pin the three new paths it relies on.
+    const fnSdk = read('docs/pro/demo-sdk/firebase-functions.js');
+    const canned = (fnSdk.match(/const CANNED = \{[\s\S]*?\n\};/) || [''])[0];
+    ok('Dismiss (callCenterAction) is refused inside the demo SDK: not canned, so httpsCallable throws locally', canned.length > 0 && !/\bcallCenterAction\s*:/.test(canned) && /callCenterAction: 'file this call on a customer'/.test(fnSdk));
+    ok('…and the demo httpsCallable never touches the network', !/\bfetch\(|XMLHttpRequest|sendBeacon/.test(fnSdk));
+    const cv = read('docs/pro/js/call-center-view.js');
+    const block = (cv.match(/\/\/ ── Auto-brief switch[\s\S]*?\/\/ ── end auto-brief switch/) || [''])[0];
+    ok('the auto-brief setting reads and writes through the page\'s Firestore bindings (the demo store in the sample), never fetch', /window\.getDoc\(/.test(block) && /window\.setDoc\(/.test(block) && !/fetch\(|httpsCallable/.test(block));
+    ok('call-rescue-logic.js is fetched from this origin (a root-relative /pro/js path)', /ScriptLoader\.load\('\/pro\/js\/call-rescue-logic\.js\?v=\d+'\)/.test(cv));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
