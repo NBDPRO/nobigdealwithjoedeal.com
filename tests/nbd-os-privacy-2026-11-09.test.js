@@ -338,10 +338,34 @@ function phone() {
   });
 }
 
+/** The fake document runs its listeners after the elements': give it a capture phase (as the runner suite does). */
+function withDocCapture(T) {
+  const D = T.document, cap = {};
+  const add = D.addEventListener, rem = D.removeEventListener;
+  const isCap = (o) => o === true || !!(o && o.capture);
+  D.addEventListener = (t, f, o) => { if (isCap(o)) (cap[t] = cap[t] || []).push(f); else add(t, f, o); };
+  D.removeEventListener = (t, f, o) => { if (isCap(o)) cap[t] = (cap[t] || []).filter((x) => x !== f); else rem(t, f, o); };
+  return function fireDoc(target, type, extra) {
+    const ev = Object.assign({
+      type, target, defaultPrevented: false, stopped: false, clientX: 10, clientY: 10,
+      preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, stopImmediatePropagation() { this.stopped = true; },
+    }, extra || {});
+    const chain = [];
+    for (let n = target; n && n.attrs; n = n.parentNode) chain.push(n);
+    const run = (fns) => (fns || []).slice().forEach((f) => { if (!ev.stopped) f(ev); });
+    run(cap[type]);
+    for (let i = chain.length - 1; i >= 0 && !ev.stopped; i--) run(chain[i].capture[type]);
+    for (let i = 0; i < chain.length && !ev.stopped; i++) run(chain[i].listeners[type]);
+    if (!ev.stopped) run(D.listeners[type]);
+    return ev;
+  };
+}
+
 function stored() {
   console.log('\nNBD OS privacy lock: a member who switched one on');
   const Td = boot('desktop', { nbd_os_lock_corner_v1: 'bl' });
   const Tp = boot('phone', { nbd_os_lock_dtap_v1: '1' });
+  const fireDoc = withDocCapture(Tp);   // before the bundle attaches (it loads on the next tick)
   return flush().then(() => {
     ok('a stored hot corner: the bundle loads at mount and the corner is live', Td.W.ScriptLoader.calls.indexOf('osprivacy') >= 0 &&
       Td.W.NBDOSPrivacy.corner.get() === 'bl' && tile(Td).hint() === 'Corner: bottom left');
@@ -355,6 +379,35 @@ function stored() {
       H.fire(Tp.dom, page, 'pointerup', { clientX: 101, clientY: 500, timeStamp: u, pointerType: 'touch' });
     });
     ok('…and a double tap on empty space locks', isLocked(Tp));
+    const ub = Tp.document.querySelector('#osLock .os-lock-btn');
+    const ev = fireDoc(ub, 'click');
+    ok('the second tap\'s click, landing on Unlock under the finger, is swallowed: still locked', isLocked(Tp) && ev.defaultPrevented === true);
+    Tp.fire(700);
+    fireDoc(ub, 'click');
+    ok('a real tap on Unlock after that unlocks', !isLocked(Tp));
+    const vis = Tp.document.querySelector('.os-p-visits');
+    ok('the home has a Visits row', !!vis);
+    if (vis) {
+      [[3000, 3060], [3200, 3250]].forEach(([d, u]) => {
+        H.fire(Tp.dom, vis, 'pointerdown', { clientX: 300, clientY: 90, timeStamp: d, pointerType: 'touch' });
+        H.fire(Tp.dom, vis, 'pointerup', { clientX: 300, clientY: 90, timeStamp: u, pointerType: 'touch' });
+      });
+      ok('the Visits row\'s empty space (beside its icons) is home screen too: locks', isLocked(Tp));
+      Tp.W.NBDOS.unlock();
+      const vi = vis.querySelector('.os-p-icon');
+      if (vi) {
+        [[4000, 4060], [4200, 4250]].forEach(([d, u]) => {
+          H.fire(Tp.dom, vi, 'pointerdown', { clientX: 30, clientY: 90, timeStamp: d, pointerType: 'touch' });
+          H.fire(Tp.dom, vi, 'pointerup', { clientX: 30, clientY: 90, timeStamp: u, pointerType: 'touch' });
+        });
+      }
+      ok('…but a double tap on a visit icon never locks', !!vi && !isLocked(Tp));
+    }
+    const sheetT = tile(Tp);
+    sheetT.run();
+    return flush().then(() => {
+      ok('the phone sheet does not talk about a keyboard', !/Ctrl\+Alt\+L/.test(H.text(Tp.document.querySelector('dialog.os-pv'))));
+    });
   });
 }
 

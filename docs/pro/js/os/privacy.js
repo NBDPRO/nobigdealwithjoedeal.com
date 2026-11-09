@@ -15,8 +15,8 @@
  *            desk's Ctrl+Alt family (Ctrl+Alt+O, 1-4, arrows). Not while AltGr
  *            makes a letter (Ctrl+Alt is AltGr on Windows: Polish AltGr+L
  *            types "ł"), never a bare letter (WCAG 2.1.4).
- *   Phone    double-tap an empty spot of the home screen: not a widget, an
- *            icon or any control, not in edit mode, not during a drag, a
+ *   Phone    double-tap an empty spot of the home screen (its pages, the Visits
+ *            row beside its icons): not a widget, an icon or any control, not in edit mode, not during a drag, a
  *            swipe or a long-press. OFF by default (a pocket or a glove taps
  *            twice by accident, and nobody expects a home screen to lock on
  *            a double tap); one switch in the same tile turns it on.
@@ -101,12 +101,15 @@
     return dt > 0 && dt <= DOUBLE_MS && Math.abs(tap.x - prev.x) + Math.abs(tap.y - prev.y) <= DOUBLE_PX;
   }
   // a widget, an icon, a control, the edit bar, a sheet: none of them is empty space
-  var TAP_BLOCK = '.os-hw, .os-widget, .os-hw-add, .os-p-icon, .os-p-dots, .os-p-edit, .os-hw-team, .os-act-row, .os-visit-row, ' +
+  var TAP_BLOCK = '.os-hw, .os-widget, .os-hw-add, .os-p-icon, .os-p-dots, .os-p-edit, .os-hw-team, .os-act-row, ' +
     '[data-osp], [data-osvisit], button, a, input, textarea, select, label, summary, [contenteditable], [role="dialog"], dialog';
-  /** A press on the home pages' own background (os.js `.os-p-pages`), inside this phone home. */
+  /**
+   * A press on the home screen's own background inside this phone home (os.js): the pages
+   * (`.os-p-pages`), the Visits row beside its icons (`.os-p-visits`), or the home itself.
+   */
   function isEmptyHome(t, home) {
     if (!t || !home || !home.contains || !home.contains(t) || !t.closest) return false;
-    if (!t.closest('.os-p-pages')) return false;
+    if (t !== home && !t.closest('.os-p-pages, .os-p-visits')) return false;
     return !t.closest(TAP_BLOCK);
   }
   // the runner's rule: resting on a window or a control in the corner (a maximized window's buttons) is not a lock
@@ -190,8 +193,8 @@
         }).join('') +
         '</fieldset><p class="os-pv-note os-pv-muted">Top left is the search corner, so it is not offered here.</p>';
     }
-    h += '<p class="os-pv-note os-pv-muted">' + esc(keyName()) + ' locks any time.</p>' +
-      '<p class="os-pv-msg" role="status"></p>' +
+    if (surfaceNow !== 'phone') h += '<p class="os-pv-note os-pv-muted">' + esc(keyName()) + ' locks any time.</p>';
+    h += '<p class="os-pv-msg" role="status"></p>' +
       '<div class="os-pv-ft"><button type="submit" class="btn btn-orange os-pv-done" value="done">Done</button></div></form>';
     return h;
   }
@@ -296,12 +299,29 @@
       if (!isTap(d, tap) || !isEmptyHome(ev.target, el) || busy()) { st.last = null; return; }
       if (isDouble(st.last, tap)) {
         st.last = null;
-        if (dtap.on() && lockNow('dtap') && typeof ev.preventDefault === 'function') ev.preventDefault();
+        if (dtap.on() && lockNow('dtap')) {
+          if (typeof ev.preventDefault === 'function') ev.preventDefault();
+          swallowClick();
+        }
         return;
       }
       st.last = tap;
     }
     function onCancel() { st.down = null; st.last = null; }
+    // the second tap's click lands on the lock screen that just opened under the finger:
+    // it must not press Unlock (centred on a phone) and undo the lock at once
+    function swallowClick() {
+      var until = Date.now() + 600;
+      function eat(e) {
+        doc.removeEventListener('click', eat, true);
+        if (Date.now() > until) return;
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      }
+      doc.addEventListener('click', eat, true);
+      setT(function () { doc.removeEventListener('click', eat, true); }, 700);
+    }
 
     function sync() {
       if (st.off) return;
