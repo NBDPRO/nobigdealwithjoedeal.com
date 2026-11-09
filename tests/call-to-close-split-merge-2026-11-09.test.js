@@ -135,20 +135,42 @@ if (MG) {
 }
 
 // ── callCenterAction ─────────────────────────────────────────────────────
+// Reads yield a turn (setImmediate) so two callable runs interleave like two
+// people tapping at once. runTransaction is optimistic, as Firestore's is: a
+// doc read in the transaction that another write changed before the commit
+// makes the whole function run again on fresh reads.
 function fakeDb(seed) {
   const docs = new Map(Object.entries(seed));
+  const ver = new Map();
   const log = [];
+  const tick = () => new Promise((r) => setImmediate(r));
+  const put = (p, v, o) => { log.push(['set', p, v, o || null]); ver.set(p, (ver.get(p) || 0) + 1); docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : v); };
   const mk = (p) => ({
     id: p.split('/').pop(), path: p,
-    get: async () => ({ exists: docs.has(p), data: () => docs.get(p) }),
-    set: async (v, o) => { log.push(['set', p, v, o || null]); docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : v); },
+    get: async () => { await tick(); return { exists: docs.has(p), data: () => docs.get(p) }; },
+    set: async (v, o) => put(p, v, o),
     create: async (v) => { if (docs.has(p)) { const e = new Error('already exists'); e.code = 6; throw e; } log.push(['create', p, v]); docs.set(p, v); },
     delete: async () => { log.push(['delete', p]); docs.delete(p); },
   });
+  const stats = { retries: 0 };
   return {
-    docs, log, doc: mk,
+    docs, log, stats, doc: mk,
     collection: (n) => ({ doc: (id) => mk(n + '/' + id) }),
     batch: () => { const ops = []; return { set: (ref, v, o) => ops.push(() => ref.set(v, o)), delete: (ref) => ops.push(() => ref.delete()), commit: async () => { for (const f of ops) await f(); } }; },
+    runTransaction: async (fn) => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const seen = new Map(); const ops = [];
+        const tx = {
+          get: async (ref) => { if (ops.length) throw new Error('reads after writes in a transaction'); await tick(); seen.set(ref.path, ver.get(ref.path) || 0); return { exists: docs.has(ref.path), data: () => docs.get(ref.path) }; },
+          set: (ref, v, o) => { ops.push([ref.path, v, o]); return tx; },
+        };
+        const out = await fn(tx);
+        if ([...seen].some(([p, n]) => (ver.get(p) || 0) !== n)) { stats.retries++; continue; }
+        ops.forEach(([p, v, o]) => put(p, v, o));
+        return out;
+      }
+      throw new Error('transaction contention');
+    },
   };
 }
 
@@ -222,6 +244,27 @@ function fakeDb(seed) {
       const db = fakeDb(seed());
       const r = await run(db, { uid, token: { role, companyId: role === 'admin' ? 'zz' : 'co1' } }, { id: S.id, action: 'merge', withId: P.id });
       ok(role + ' may merge', r.r && r.r.merged === true, r.e && r.e.message);
+    }
+
+    {
+      // Two taps at once on a three-way split (review 2026-11-09): one merges
+      // the first call with the redial, the other the redial with a third call.
+      const db = fakeDb(seed());
+      const [a, b] = await Promise.all([
+        run(db, JO, { id: P.id, action: 'merge', withId: S.id }),
+        run(db, JO, { id: S.id, action: 'merge', withId: 'cube_SPLIT0004' }),
+      ]);
+      const won = [a, b].filter((x) => x.r && x.r.merged === true).length;
+      const lost = [a, b].filter((x) => x.e && x.e.code === 'failed-precondition' && /Already merged/.test(x.e.message)).length;
+      ok('two taps at once: one merge wins, the other is refused as already merged', won === 1 && lost === 1, [a, b].map((x) => (x.e ? x.e.message : x.r)));
+      const ids = [P.id, S.id, 'cube_SPLIT0004'];
+      const bad = ids.filter((id) => {
+        const d = get(db, id);
+        if (d.mergedFrom && get(db, d.mergedFrom).mergedInto !== id) return true;
+        if (d.mergedInto && get(db, d.mergedInto).mergedFrom !== id) return true;
+        return !!(d.mergedFrom && d.mergedInto);
+      });
+      ok('...and every mark left has a partner that agrees', bad.length === 0, ids.map((id) => [id, get(db, id).mergedFrom || null, get(db, id).mergedInto || null]));
     }
 
     console.log('\n5. unmerge (Undo)');

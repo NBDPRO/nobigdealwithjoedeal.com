@@ -1219,40 +1219,45 @@ function mayActOn(auth, c) {
 // Call Brief then reads both transcripts (call-brief.js briefInput), so its
 // transcript hash changes and the stored brief is redrafted on the next tap.
 // A repeat is a no-op. unmerge: clears the marks on both (either id).
+// Both run in one transaction that reads both docs, so two taps at once on a
+// three-way split (merge A+B, merge B+C) cannot both commit: the second is
+// re-run on fresh reads and refused as already merged.
 async function mergeAction({ db, auth, call, action, data, nowMs }) {
   const ref = (id) => db.collection(COLLECTION).doc(id);
-  const load = async (id) => { const s = await ref(id).get(); return s.exists ? Object.assign({}, s.data(), { id }) : null; };
+  const load = async (tx, id) => { const s = await tx.get(ref(id)); return s.exists ? Object.assign({}, s.data(), { id }) : null; };
   if (action === 'unmerge') {
-    const otherId = call.mergedInto || call.mergedFrom;
-    if (!otherId) return { ok: true, unmerged: false };
-    if (!MG.isCallId(otherId)) throw new HttpsError('failed-precondition', 'This call is not merged.');
-    const other = await load(String(otherId));
-    const p = call.mergedFrom ? call : other;
-    const s = call.mergedFrom ? other : call;
-    if (!other || !MG.mergedTogether(p, s)) throw new HttpsError('failed-precondition', 'These calls are not merged with each other.');
-    if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
-    const b = db.batch();
-    b.set(ref(p.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
-    b.set(ref(s.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
-    await b.commit();
-    return { ok: true, unmerged: true, primaryId: p.id, secondaryId: s.id };
+    return db.runTransaction(async (tx) => {
+      const me = await load(tx, call.id);
+      if (!me) throw new HttpsError('not-found', 'Call not found.');
+      const otherId = me.mergedInto || me.mergedFrom;
+      if (!otherId) return { ok: true, unmerged: false };
+      if (!MG.isCallId(otherId)) throw new HttpsError('failed-precondition', 'This call is not merged.');
+      const other = await load(tx, String(otherId));
+      const p = me.mergedFrom ? me : other;
+      const s = me.mergedFrom ? other : me;
+      if (!other || !MG.mergedTogether(p, s)) throw new HttpsError('failed-precondition', 'These calls are not merged with each other.');
+      if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+      tx.set(ref(p.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+      tx.set(ref(s.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+      return { ok: true, unmerged: true, primaryId: p.id, secondaryId: s.id };
+    });
   }
   const withId = String((data && data.withId) || '');
   if (!MG.isCallId(withId)) throw new HttpsError('invalid-argument', 'Bad call id.');
   if (withId === call.id) throw new HttpsError('invalid-argument', 'A call cannot merge with itself.');
-  const other = await load(withId);
-  if (!other) throw new HttpsError('not-found', 'Call not found.');
-  if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
-  const { primary, secondary } = MG.orderPair(call, other);
-  if (MG.mergedTogether(primary, secondary)) return { ok: true, merged: false, already: true, primaryId: primary.id, secondaryId: secondary.id };
-  const why = MG.pairProblem(primary, secondary);
-  if (why) throw new HttpsError('failed-precondition', 'These do not look like one call: ' + why);
-  const patch = MG.mergePatch(primary.id, secondary.id, auth.uid, nowMs);
-  const b = db.batch();
-  b.set(ref(primary.id), patch.primary, { merge: true });
-  b.set(ref(secondary.id), patch.secondary, { merge: true });
-  await b.commit();
-  return { ok: true, merged: true, primaryId: primary.id, secondaryId: secondary.id };
+  return db.runTransaction(async (tx) => {
+    const [me, other] = await Promise.all([load(tx, call.id), load(tx, withId)]);
+    if (!me || !other) throw new HttpsError('not-found', 'Call not found.');
+    if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+    const { primary, secondary } = MG.orderPair(me, other);
+    if (MG.mergedTogether(primary, secondary)) return { ok: true, merged: false, already: true, primaryId: primary.id, secondaryId: secondary.id };
+    const why = MG.pairProblem(primary, secondary);
+    if (why) throw new HttpsError('failed-precondition', 'These do not look like one call: ' + why);
+    const patch = MG.mergePatch(primary.id, secondary.id, auth.uid, nowMs);
+    tx.set(ref(primary.id), patch.primary, { merge: true });
+    tx.set(ref(secondary.id), patch.secondary, { merge: true });
+    return { ok: true, merged: true, primaryId: primary.id, secondaryId: secondary.id };
+  });
 }
 
 // Keep the away-mode hand-back timeline row true once Jo clears the person
