@@ -50,7 +50,7 @@ Branch `ctc-p0` (worktree `.claude/worktrees/ctc-p0`), from `2c2647142`. Builds 
 
 Red before green: logic, callable, slot (the slot-0 golden passed on the old code while slot 1 failed), rules (5 allow controls denied with no rule) and buttons all failed first. Gates: see the PR body. Screenshots of the sheet on the sample account at 375x812 and 1280x800 (summary, field diff, claim # confirm, promises, promise confirm, stage, drafts, the seeded proposal); the walk found five layout and copy problems, fixed in `3db267e78`.
 
-## Lane "viewer" (: Q11, viewers no longer read call transcripts)
+## Lane "viewer": Q11, viewers no longer read call transcripts
 
 Design: [CALL-TO-CLOSE-DESIGN-2026-11-09](CALL-TO-CLOSE-DESIGN-2026-11-09.md). Jo took the default for Q11: stop viewers reading `phone_calls`, as a separate fix. Branch `ctc-viewer-fix`, based on `2c2647142`.
 
