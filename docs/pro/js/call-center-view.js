@@ -640,7 +640,7 @@
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + healthPanel() + tagPanel() +
+      '</div>' + healthPanel() + autoBriefPanel() + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
@@ -956,6 +956,55 @@
     return '<div class="panel pc-card cc-health cc-health-' + esc(d.overall) + '" role="status">' + icon + ' ' + esc(line) +
       ' <button type="button" class="btn btn-ghost" data-cc="health-toggle">' + (health.open ? 'Hide' : 'Details') + '</button>' + rows + '</div>';
   }
+
+  // ── Auto-brief switch (Call to Close P1, 2026-11-09) ──────────────────
+  // companies/{companyId}/settings/callBrief.autoBrief (firestore.rules: the
+  // owner or a company_admin writes it; absent = off, Jo's Q2 default). On:
+  // functions/call-brief.js callBriefAuto drafts a brief when a person files a
+  // call, through the same gates and daily caps as the Draft button.
+  var autoBrief = { loaded: false, on: false, busy: false, error: '' };
+  function autoBriefCid() { var me = window._user && window._user.uid; return claims().companyId || me || ''; }
+  function canSetAutoBrief() {
+    var c = claims(), r = String(c.role || ''), me = window._user && window._user.uid;
+    if (!me || isViewer()) return false;
+    if (r === 'company_admin') return !!c.companyId;
+    return (!r || r === 'owner') && (!c.companyId || c.companyId === me);
+  }
+  function autoBriefRef() { return window.doc(window.db, 'companies', autoBriefCid(), 'settings', 'callBrief'); }
+  async function loadAutoBrief() {
+    if (!canSetAutoBrief() || !window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return;
+    try {
+      var cid = autoBriefCid();
+      var snap = await window.getDoc(window.doc(window.db, 'companies', cid, 'settings', 'callBrief'));
+      autoBrief.on = !!(snap && snap.exists() && (snap.data() || {}).autoBrief === true);
+      autoBrief.error = '';
+    } catch (e) { autoBrief.error = 'Could not read the auto-brief setting.'; }
+    autoBrief.loaded = true;
+    if (state.loaded) render();
+  }
+  async function toggleAutoBrief() {
+    if (!canSetAutoBrief() || autoBrief.busy || typeof window.setDoc !== 'function') return;
+    var next = !autoBrief.on, me = window._user && window._user.uid;
+    if (next && typeof window.nbdConfirm === 'function') {
+      var yes = await window.nbdConfirm('Turn on auto-brief? Each call a person files on a customer drafts its brief right away, and counts toward the 20 briefs a day.');
+      if (yes !== true) return;
+    }
+    autoBrief.busy = true; render();
+    try {
+      await window.setDoc(autoBriefRef(), { autoBrief: next, updatedBy: me, updatedAt: window.serverTimestamp() });
+      autoBrief.on = next; autoBrief.error = '';
+    } catch (e) { autoBrief.error = 'Could not save: ' + ((e && e.code) || 'error') + '.'; }
+    autoBrief.busy = false; render();
+  }
+  function autoBriefPanel() {
+    if (!autoBrief.loaded || !canSetAutoBrief() || !state.calls.some(function (c) { return c.channel !== 'text'; })) return '';
+    return '<div class="panel pc-card cc-health cc-autobrief" role="group" aria-label="Auto-brief">' +
+      '<strong>Auto-brief filed calls: ' + (autoBrief.on ? 'On' : 'Off') + '</strong> ' +
+      '<span class="pc-meta">When a person files a call on a customer, its brief is drafted right away, within the same 20 briefs a day. Nothing is filled in, sent or moved: you still review it. Off by default.</span> ' +
+      '<button type="button" class="btn btn-ghost" data-cc="autobrief"' + (autoBrief.busy ? ' disabled' : '') + '>' + (autoBrief.on ? 'Turn off' : 'Turn on') + '</button>' +
+      (autoBrief.error ? ' <span class="pc-meta" role="alert">' + esc(autoBrief.error) + '</span>' : '') + '</div>';
+  }
+  // ── end auto-brief switch
 
   async function loadPromises() {
     if (promises.loading || promises.denied || isViewer()) return;
@@ -1464,6 +1513,7 @@
     else if (a === 'brief') openBrief(id);
     else if (a === 'tx') openBrief(id, 1);
     else if (a === 'rescuedismiss') act(id, 'rescueDismiss');
+    else if (a === 'autobrief') toggleAutoBrief();
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {
@@ -1521,7 +1571,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadAutoBrief(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,

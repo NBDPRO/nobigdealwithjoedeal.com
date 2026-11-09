@@ -276,6 +276,20 @@ async function auto(db, before, after, extra) {
     ok('the trigger never throws back into Firestore (it logs and returns)', /callBriefAuto[\s\S]*catch/.test(src));
   }
 
+  console.log('\n7. The switch on the Call Center (owner / company_admin)');
+  {
+    const cv = read('docs/pro/js/call-center-view.js');
+    const block = (cv.match(/\/\/ ── Auto-brief switch[\s\S]*?\/\/ ── end auto-brief switch/) || [''])[0];
+    ok('a switch block exists in call-center-view.js', block.length > 0);
+    ok('shown to the owner or a company_admin only (never a manager, rep or viewer)', /function canSetAutoBrief\(\)/.test(block) && /company_admin/.test(block) && !/'manager'/.test(block) && /isViewer\(\)/.test(block));
+    ok('reads companies/{companyId}/settings/callBrief; absent = Off', /'companies', cid, 'settings', 'callBrief'/.test(block) && /autoBrief === true/.test(block));
+    ok('writes only autoBrief, updatedBy (the writer) and updatedAt (the rules\' keys)', /setDoc\([\s\S]*?\{ autoBrief: next, updatedBy: me, updatedAt: window\.serverTimestamp\(\) \}/.test(block));
+    ok('turning it ON asks first (nbdConfirm) and names the daily limit', /nbdConfirm/.test(block) && /20 briefs a day/.test(block));
+    ok('says it is off by default and only drafts (nothing is sent or filled in)', /Off by default/.test(block) && /Nothing is filled in, sent or moved/.test(block));
+    ok('no inline style or handler', !/style=|\son[a-z]+=/.test(block));
+    ok('shown only when this account has phone calls loaded (the call pipeline exists)', /channel !== 'text'/.test(block));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
