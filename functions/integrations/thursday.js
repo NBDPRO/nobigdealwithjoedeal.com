@@ -351,7 +351,8 @@ async function applyRoute(args) {
     taskId = T.taskIdForCall(call.callId);
     const task = T.buildTask({ extraction, call, route, leadId, ownerUid });
     // create(): a reprocess must never un-tick a task Jo already completed.
-    await createIfAbsent(db().doc('leads/' + leadId + '/tasks/' + taskId),
+    // Its call text (the issue) goes beside it, viewer-closed (Q11, 2026-11-09).
+    await require('../task-call-text').createTaskIfAbsent(db(), createIfAbsent, 'leads/' + leadId + '/tasks/' + taskId,
       Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
   }
   return { leadId, taskId };

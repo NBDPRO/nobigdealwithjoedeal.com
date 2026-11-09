@@ -96,7 +96,9 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
 
   console.log('\n3. Task + activity shapes');
   const n = L.sanitizeNotes(BUSINESS());
-  const task = L.buildFollowUpTask({ call: { id: 'cube_x', contactName: 'Pat Example' }, notes: n, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-10-01' });
+  // Q11 (2026-11-09): the stored title is generic; these pins read the owner's view (the call text laid over).
+  const built = L.buildFollowUpTask({ call: { id: 'cube_x', contactName: 'Pat Example' }, notes: n, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-10-01' });
+  const task = built && Object.assign({}, built, built.callTextFull ? built.callTextFull.full : {});
   ok('task names Jo\'s promise and who', task && task.title === 'Send the gutter repair quote (Pat Example)');
   ok('task due = earliest of the promise / follow-up dates', task.dueDate === '2026-10-02');
   ok('task notes list only Jo\'s promises', /Send the gutter/.test(task.notes) && !/gate open/.test(task.notes));

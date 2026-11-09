@@ -92,11 +92,25 @@ async function createNotification(userId, type, title, message, leadId, priority
 // Today list and the overdue notification until a full reload (CRM sweep R13,
 // 2026-09-28). loadAllTasks re-reads these once the connection is back.
 const _tasksFromCache = new Set();
+// Call to Close Q11 (Jo, 2026-11-09): a task the server files from a call
+// stores a generic title ("Follow up with Pat"); the promise / issue is in
+// leads/{id}/task_call_text, which a viewer cannot read. Everyone else gets
+// it laid back over the task (js/task-call-text.js, lazy, open tasks only on
+// this whole-book load). A viewer, a failed load or a refused read keeps the
+// generic task.
+async function _overlayCallText(tasks) {
+  try {
+    const w = window;
+    if (!(tasks||[]).some(t=>t&&t.callText===true&&t.done!==true) || ((w._userClaims||{}).role||'')==='viewer') return tasks;
+    if (!w.NBDTaskCallText && w.ScriptLoader) await w.ScriptLoader.load('js/task-call-text.js?v=1');
+    return w.NBDTaskCallText ? await w.NBDTaskCallText.overlay(w, tasks, { openOnly: true }) : tasks;
+  } catch (_) { return tasks; }
+}
 async function _loadTasks(leadId) {
   if (!window._taskCache) window._taskCache = {};
   try {
     const snap = await getDocs(query(collection(db,'leads',leadId,'tasks'), orderBy('createdAt','asc')));
-    const tasks = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const tasks = await _overlayCallText(snap.docs.map(d=>({id:d.id,leadId,...d.data()})));
     window._taskCache[leadId] = tasks;
     if (snap.metadata && snap.metadata.fromCache) _tasksFromCache.add(leadId);
     else _tasksFromCache.delete(leadId);
@@ -167,6 +181,10 @@ async function _loadAllTasksGroup() {
   const cg = window.collectionGroup || (await import(_FS_SDK)).collectionGroup;
   const snap = await getDocs(query(cg(db, spec.group), where(spec.field, '==', spec.value), orderBy(spec.orderBy, spec.dir)));
   const by = plan.groupTasksByLead(snap.docs.map(d=>({ id: d.id, parentPath: d.ref && d.ref.parent ? d.ref.parent.path : '', data: d.data() })));
+  const flat = [];
+  Object.keys(by).forEach(k=>by[k].forEach(t=>flat.push(t.leadId ? t : Object.assign(t, { leadId: k }))));
+  const full = await _overlayCallText(flat);
+  if (full !== flat) { Object.keys(by).forEach(k=>{ by[k] = []; }); full.forEach(t=>by[t.leadId].push(t)); }
   return { by, fromCache: !!(snap.metadata && snap.metadata.fromCache) };
 }
 async function loadAllTasks(opts) {

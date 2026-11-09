@@ -262,7 +262,7 @@ async function runTextNotes({ db, live, nowMs }) {
         const openNotes = Object.assign({}, notes, { promises: notes.promises.filter((p) => !(p && p.keptAtMs)) });
         const newTask = CC.buildTextDayTask({ day: dayInfo, notes: openNotes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
         if (newTask) {
-          if (await createIfAbsent(db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id), Object.assign(newTask, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+          if (await require('./task-call-text').createTaskIfAbsent(db, createIfAbsent, 'leads/' + day.leadId + '/tasks/sms-' + day.id, Object.assign(newTask, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         }
       }
     } catch (e) {

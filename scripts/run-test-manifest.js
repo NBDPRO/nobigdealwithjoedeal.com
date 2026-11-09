@@ -464,6 +464,8 @@ const RUNNABLE = ['node', 'smoke'];
 //               the P3 integration suite. MEASURED via --check.
 //   2026-11-09  1025/74/1163 -> 1026/74/1164, the Q11 task-summary backfill suite (script dry run /
 //               --apply / scope, and the REST adapter's collection-group query). MEASURED via --check.
+//   2026-11-09  1025/74/1163 -> 1026/74/1164, Q11 (Jo's decision on review item 2): the task call text
+//               suite (generic task titles for viewers, the call text beside the task). MEASURED via --check.
 const FLOORS = { node: 1026, smoke: 74, disk: 1164 };
 
 // ── Argument parsing ───────────────────────────────────────────────

@@ -77,11 +77,20 @@ const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (x && typeof x === '
 (async () => {
   console.log('\n1. slot 0 / absent: byte-identical to today');
   // Captured from callCenterAction BEFORE the slot change (2026-11-09, base 2c2647142).
+  // Q11 (Jo, 2026-11-09, review item 2): four fields moved on purpose. text,
+  // title and why are now the chip alone ('Send estimate', why ''), callText
+  // is true, and the old values are the task's call text, pinned below.
+  // Every other field is as captured.
   const GOLDEN_TASK = {
-    kind: 'promise', promiseKind: 'estimate', text: 'Send estimate - Quote by Friday', why: 'Quote by Friday', done: false,
+    kind: 'promise', promiseKind: 'estimate', text: 'Send estimate', why: '', done: false,
     dueDate: '2026-11-06', dueBy: null, madeYmd: '2026-11-05', madeBy: OWN, source: 'call', sourceCallId: ID, missCount: 0, rescheduleCount: 0,
-    leadId: 'L1', userId: OWN, title: 'Send estimate - Quote by Friday', createdBy: 'Promise capture', phoneCallId: ID,
-    updatedAt: '<serverTimestamp>', companyId: 'co1', madeAt: '<serverTimestamp>', createdAt: '<serverTimestamp>',
+    leadId: 'L1', userId: OWN, title: 'Send estimate', createdBy: 'Promise capture', phoneCallId: ID,
+    updatedAt: '<serverTimestamp>', callText: true, companyId: 'co1', madeAt: '<serverTimestamp>', createdAt: '<serverTimestamp>',
+  };
+  const GOLDEN_CALL_TEXT = {
+    leadId: 'L1', taskId: 'promise-' + ID, source: 'call',
+    full: { title: 'Send estimate - Quote by Friday', text: 'Send estimate - Quote by Friday', why: 'Quote by Friday' },
+    generic: { title: 'Send estimate', text: 'Send estimate', why: '' },
   };
   const writesOf = async (extra) => {
     const db = fakeDb(seed());
@@ -96,6 +105,8 @@ const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (x && typeof x === '
   const keysMatch = JSON.stringify(Object.keys(task).sort()) === JSON.stringify(Object.keys(GOLDEN_TASK).sort());
   ok('no slot: the task doc matches the golden, field for field', keysMatch && Object.keys(GOLDEN_TASK).every((k) => JSON.stringify(task[k]) === JSON.stringify(GOLDEN_TASK[k])),
     JSON.stringify(Object.keys(GOLDEN_TASK).filter((k) => JSON.stringify(task[k]) !== JSON.stringify(GOLDEN_TASK[k])).map((k) => [k, task[k], GOLDEN_TASK[k]])) + (keysMatch ? '' : ' keys ' + JSON.stringify(Object.keys(task))));
+  ok('no slot: the call text beside it holds the captured text and why', JSON.stringify(plain(a.db.docs.get('leads/L1/task_call_text/promise-' + ID))) === JSON.stringify(GOLDEN_CALL_TEXT),
+    JSON.stringify(a.db.docs.get('leads/L1/task_call_text/promise-' + ID)));
   ok('no slot: the generic cube- task is retired as superseded', a.db.docs.get('leads/L1/tasks/cube-' + ID).done === true && a.db.docs.get('leads/L1/tasks/cube-' + ID).supersededBy === 'promise-' + ID);
   const call = a.db.docs.get(COLLECTION + '/' + ID);
   ok('no slot: the call is marked handled with the promise task id and kind', call.handledAtMs === NOW && call.handledBy === OWN && call.promiseTaskId === 'promise-' + ID && call.promiseKind === 'estimate');

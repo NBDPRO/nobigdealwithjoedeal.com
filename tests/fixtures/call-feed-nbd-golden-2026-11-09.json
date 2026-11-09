@@ -407,16 +407,36 @@
       "data": {
         "leadId": "lead1",
         "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
-        "title": "Send the quote (Pat Example)",
-        "text": "Send the quote (Pat Example)",
-        "notes": "The summary is on the customer's timeline.\n\nYou said you would:\n• Send the quote (by 2026-10-03)",
+        "title": "Follow up with Pat Example",
+        "text": "Follow up with Pat Example",
+        "notes": "The summary is on the customer's timeline.",
         "dueDate": "2026-10-02",
         "priority": "high",
         "done": false,
         "source": "cube-acr",
         "phoneCallId": "cube_f1",
         "createdBy": "Call Center (AI notes)",
+        "callText": true,
         "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "leads/lead1/task_call_text/cube-cube_f1",
+      "data": {
+        "leadId": "lead1",
+        "taskId": "cube-cube_f1",
+        "source": "cube-acr",
+        "full": {
+          "title": "Send the quote (Pat Example)",
+          "text": "Send the quote (Pat Example)",
+          "notes": "The summary is on the customer's timeline.\n\nYou said you would:\n• Send the quote (by 2026-10-03)"
+        },
+        "generic": {
+          "title": "Follow up with Pat Example",
+          "text": "Follow up with Pat Example",
+          "notes": "The summary is on the customer's timeline."
+        }
       }
     },
     {

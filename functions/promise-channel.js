@@ -15,6 +15,7 @@
  */
 const { logger } = require('firebase-functions/v2');
 const PL = require('./promise-channel-logic');
+const TCT = require('./task-call-text');
 
 const GETALL_CHUNK = 100;
 
@@ -30,6 +31,10 @@ async function readDuePromisePeople({ db, owner, nowMs, labels }) {
       if (!leadId) return;
       tasks.push(Object.assign({}, t, { id: d.id, leadId: String(leadId) }));
     });
+    // The owner's push / bell names the promise: lay each task's call text
+    // (Q11, 2026-11-09: the task itself holds a generic title) back over it.
+    const full = await TCT.overlayTasks(db, tasks);
+    tasks.splice(0, tasks.length, ...full);
     // Only the leads behind tasks that are actually due.
     const due = PL.dueItems(tasks, nowMs);
     const ids = Array.from(new Set(due.map((x) => x.leadId)));

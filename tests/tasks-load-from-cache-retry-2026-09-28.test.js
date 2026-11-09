@@ -52,7 +52,7 @@ function extractFn(src, name) {
 // (tests/tasks-one-query-2026-10-03.test.js); with no NBDTodayPlan on the
 // page it falls back to this per-lead read, which is what this file pins.
 const decls = (SRC.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS|FS_SDK|taskLoadMode|tasksLoaded)\b[^\n]*$/gm) || []).join('\n');
-const code = decls + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, '_loadAllTasksGroup') + '\n' + extractFn(SRC, 'loadAllTasks')
+const code = decls + '\n' + extractFn(SRC, '_overlayCallText') + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, '_loadAllTasksGroup') + '\n' + extractFn(SRC, 'loadAllTasks')
   + '\nglobalThis.loadAllTasks = loadAllTasks;';
 ok('tasks.js declares the from-cache state', /_tasksFromCache/.test(decls), decls);
 

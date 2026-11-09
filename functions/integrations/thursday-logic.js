@@ -24,6 +24,7 @@
 
 const crypto = require('crypto');
 const { phoneDigits10 } = require('../phone-utils');
+const TCT = require('../task-call-text');
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -819,15 +820,21 @@ function buildTask(args) {
   const call = args.call;
   const route = args.route;
   const who = ex.caller_name || toE164(ex.callback_number || call.from) || 'caller';
-  let text;
+  // generic: the title a viewer reads (Jo, 2026-11-09, Q11 review item 2:
+  // "Call back <name>", no issue). The issue rides in the call text
+  // (functions/task-call-text.js), which owners' screens lay back over it.
+  let text, generic;
   if (route.action === 'possible_match') {
-    text = 'Possible match: Thursday call from ' + who + ' — confirm it\'s them, then call back';
+    text = generic = 'Possible match: Thursday call from ' + who + ' — confirm it\'s them, then call back';
   } else if (ex.caller_type === 'adjuster') {
-    text = 'Call adjuster back: ' + who + ' — ' + shortIssue(ex, call);
+    generic = 'Call adjuster back: ' + who;
+    text = generic + ' — ' + shortIssue(ex, call);
   } else if (ex.caller_type === 'supplier_sub') {
-    text = 'Call back ' + who + ' (supplier/sub) — ' + shortIssue(ex, call);
+    generic = 'Call back ' + who + ' (supplier/sub)';
+    text = generic + ' — ' + shortIssue(ex, call);
   } else {
-    text = (ex.urgent ? '🚨 URGENT — ' : '') + 'Call back ' + who + ' — ' + shortIssue(ex, call);
+    generic = (ex.urgent ? '🚨 URGENT — ' : '') + 'Call back ' + who;
+    text = generic + ' — ' + shortIssue(ex, call);
   }
   // No AI summary or urgent reason here (Call to Close Q11, 2026-11-09): every
   // role that reads the customer reads its tasks, viewers included; both stay
@@ -838,7 +845,7 @@ function buildTask(args) {
     'Number: ' + (toE164(ex.callback_number || call.from) || 'unknown'),
     call.summary || ex.urgent_reason ? 'The summary is on the customer\'s timeline.' : '',
   ].filter(Boolean).join('\n');
-  return {
+  return TCT.split({
     leadId: args.leadId,
     userId: args.ownerUid,
     title: str(text, 200),
@@ -850,7 +857,7 @@ function buildTask(args) {
     source: 'thursday',
     thursdayCallId: call.callId,
     createdBy: 'Thursday (AI receptionist)',
-  };
+  }, { title: str(generic, 200), text: str(generic, 200) });
 }
 
 // leads/{id}/activity/thursday-{callId} — read by ai-texting.js for context.
