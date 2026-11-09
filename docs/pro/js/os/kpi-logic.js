@@ -75,7 +75,7 @@
     if (typeof e.stageRole === 'function') { try { return e.stageRole(key); } catch (_) { /* the map falls through too */ } }
     return lead._stageRole || 'active';
   }
-  function valueOf(lead) { return parseFloat(lead.jobValue || lead.value || lead.contractValue || 0) || 0; }
+  function dealValue(lead) { return parseFloat(lead.jobValue || lead.value || lead.contractValue || 0) || 0; }
   function damageKey(lead) {
     var d = String(lead.damageType || '').toLowerCase().trim();
     if (!d) return 'unset';
@@ -90,7 +90,7 @@
     return 'other';
   }
   function valueKey(lead) {
-    var v = valueOf(lead);
+    var v = dealValue(lead);
     if (v >= 50000) return 'v4';
     if (v >= 25000 && v < 50000) return 'v3';
     if (v >= 10000 && v < 25000) return 'v2';
@@ -118,7 +118,7 @@
     }
     // _custValRangePasses
     if (!(st.valMin > 0 || st.valMax < VAL_CAP)) return true;
-    var v = valueOf(lead);
+    var v = dealValue(lead);
     if (v < st.valMin) return false;
     if (st.valMax < VAL_CAP && v > st.valMax) return false;
     return true;
