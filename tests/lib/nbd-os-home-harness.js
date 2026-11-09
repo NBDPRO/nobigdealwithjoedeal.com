@@ -179,12 +179,17 @@ function plan() {
 
 const FILES = [
   'docs/pro/js/os/system-logic.js', 'docs/pro/js/layouts/os-wm-logic.js', 'docs/pro/js/os/home-logic.js',
-  'docs/pro/js/os/coach-logic.js', 'docs/pro/js/os/home.js', 'docs/pro/js/layouts/os.js',
+  'docs/pro/js/os/coach-logic.js', 'docs/pro/js/os/home.js', 'docs/pro/js/layouts/board-logic.js', 'docs/pro/js/layouts/os.js',
 ];
 /**
  * opts: surface, plan (null = none yet), counts, role, home (the saved os-home key), leads, leadsLoaded,
  * store (localStorage seed), stageRole, ds (LayoutEngine.ds() answer), system (true = an NBDOS stub with
- * registerControl), uid, lastThrows, countsThrow, skip (files not to load).
+ * registerControl), uid, lastThrows, countsThrow, skip (files not to load), and for the company
+ * home (P1): company (settings/layout as prefs().company has it; saveCompany merges into it and
+ * records W._coSaves), claims (W._userClaims), coSaveFails (saveCompany answers saved:false).
+ * W.toasts records showToast.
+ * P1 (2026-11-09): nav (more sidebar views, e.g. ['storm']), loader (true = a ScriptLoader stub whose
+ * loadBundle runs a bundle's docs/pro files in this window, synchronously, and records the call).
  */
 function makeWin(opts) {
   const o = opts || {};
@@ -222,7 +227,7 @@ function makeWin(opts) {
     NBDHomeAttention: o.countsThrow ? Object.defineProperty({}, 'lastCounts', { get() { throw new Error('counts boom'); } })
       : { lastCounts: o.counts === undefined ? { calls: 2, signs: 1, stripe: 0, reviews: 0 } : o.counts },
     NBDOfflineSync: { pending: () => 0 },
-    _userClaims: { role: o.role || 'owner', companyId: 'c1' },
+    _userClaims: o.claims || { role: o.role || 'owner', companyId: 'c1' },
     _user: { uid: o.uid || 'u1' },
     _leads: o.leads || [],
     _leadsLoaded: o.leadsLoaded === undefined ? true : o.leadsLoaded,
@@ -243,9 +248,18 @@ function makeWin(opts) {
     };
   }
   let saved = o.home;
+  let company = o.company ? JSON.parse(JSON.stringify(o.company)) : {};
+  W.toasts = [];
+  W.showToast = (msg, kind) => { W.toasts.push({ msg: String(msg), kind }); };
   W.LayoutEngine = {
     implement(id, impl) { W._impl = impl; },
-    prefs() { return { user: { layoutState: saved === undefined ? {} : { 'os-home': saved } }, hydrated: true }; },
+    prefs() { return { user: { layoutState: saved === undefined ? {} : { 'os-home': saved } }, company, hydrated: true }; },
+    saveCompany(p) {
+      (W._coSaves = W._coSaves || []).push(JSON.parse(JSON.stringify(p)));
+      if (o.coSaveFails) return Promise.resolve({ saved: false });
+      company = Object.assign({}, company, JSON.parse(JSON.stringify(p)));
+      return Promise.resolve({ saved: true });
+    },
     saveUser(p) {
       (W._saves = W._saves || []).push(JSON.parse(JSON.stringify(p)));
       if (p && p.layoutState && p.layoutState['os-home']) saved = p.layoutState['os-home'];
@@ -256,7 +270,7 @@ function makeWin(opts) {
   };
   const content = document.createElement('div'); content.className = 'content';
   const sidebar = document.createElement('nav'); sidebar.className = 'sidebar';
-  ['home', 'crm', 'schedule', 'calls', 'money', 'photos', 'settings'].forEach((id) => {
+  ['home', 'crm', 'schedule', 'calls', 'money', 'photos', 'settings'].concat(o.nav || []).forEach((id) => {
     const b = document.createElement('button');
     b.setAttribute('data-action', 'goTo'); b.setAttribute('data-target', id); b.setAttribute('aria-label', id.toUpperCase());
     sidebar.appendChild(b);
@@ -270,6 +284,20 @@ function makeWin(opts) {
   const ctx = vm.createContext(W);
   ctx.window = ctx;
   const skip = o.skip || [];
+  if (o.loader) {
+    ctx.ScriptLoader = {
+      bundles: {}, calls: [],
+      loadBundle(name) {
+        this.calls.push(name);
+        (this.bundles[name] || []).forEach((src) => {
+          const f = 'docs/pro/' + String(src).replace(/\?.*$/, '');
+          const code = read(f);
+          if (code) vm.runInContext(code, ctx, { filename: f });
+        });
+        return Promise.resolve();
+      },
+    };
+  }
   FILES.forEach((f) => { const src = read(f); if (src && skip.indexOf(f) === -1) vm.runInContext(src, ctx, { filename: f }); });
   const fireT = (ms) => timers.forEach((t) => { if (t.fn && t.ms === ms) { const f = t.fn; if (t.kind === 't') t.fn = null; f(); } });
   return { W: ctx, dom, document, timers, fire: fireT, reads, today, winListeners, store, saved: () => saved };

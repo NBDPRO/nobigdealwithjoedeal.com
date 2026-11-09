@@ -1428,6 +1428,14 @@ function uploaderStub(log, behaviour) {
     W.clock.t += 60000;
     let res = await a.R.listAll();
     ok('CONTROL: phone and server agree (L1): nothing changes', (await a.R._getVisit(r.id)).leadId === 'L1' && res.local[0].leadId === 'L1' && W.ls.nbd_vr_unfiled === '0');
+    ok('listAll says the server query ran (remoteOk true)', res.remoteOk === true, J(res.remoteOk));
+    {
+      const keep = a.win.getDocs;
+      a.win.getDocs = async () => { throw new Error('offline'); };
+      const bad = await a.R.listAll();
+      ok('a failed server query: remoteOk false (the phone\'s rows only, so callers do not count from them)', bad.remoteOk === false && bad.local.length === 1 && bad.remote.length === 0, J({ ok: bad.remoteOk, l: bad.local.length }));
+      a.win.getDocs = keep;
+    }
     const doc = W.firestore.docs.get('users/u1/visit_captures/' + r.id);
     doc.leadId = null; doc.attachNote = 'lead_not_reachable';   // the server refused the customer and took it off
     W.clock.t += 60000;

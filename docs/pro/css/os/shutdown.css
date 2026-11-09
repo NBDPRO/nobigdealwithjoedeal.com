@@ -1,0 +1,54 @@
+/* css/os/shutdown.css — the NBD OS Shutdown widget and sheet (2026-11-09, P1;
+   js/os/shutdown.js). Loaded with the `osshutdown` runtime bundle, never at
+   boot. Theme tokens and --ui-* tokens only; no motion of its own. Floors: 44px
+   targets, no text under 11px. The widget card itself is .os-hw (home.css). */
+
+/* the widget */
+.os-sd-go { align-self: flex-start; padding-inline: var(--ui-space-3, 12px); }
+.os-sd-line { white-space: normal; }
+.os-sd-s { flex-direction: row; align-items: baseline; gap: var(--ui-space-2, 8px); }
+.os-sd-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
+.os-sd-to { font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+
+/* the sheet: a native <dialog>, like the Add widget sheet */
+.os-sd {
+  margin: auto; width: min(560px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: min(720px, calc(100vh - 2 * var(--ui-space-4, 16px)));
+  padding: var(--ui-space-4, 16px); overflow-y: auto; color: var(--t); background: var(--s);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2, var(--ui-elev-1));
+}
+.os-sd::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.os-sd-hd { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); }
+.os-sd-title { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-sd-close { min-height: 44px; min-width: 44px; justify-content: center; }
+.os-sd-lede, .os-sd-note { margin: var(--ui-space-1, 4px) 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; color: var(--m); }
+.os-sd-sec { margin: var(--ui-space-3, 12px) 0 0; }
+.os-sd-st {
+  margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-sd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.os-sd-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; padding: var(--ui-space-2, 8px) 0;
+  border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-sd-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 160px; min-width: 0; }
+.os-sd-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; overflow-wrap: anywhere; }
+.os-sd-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-sd-acts { display: flex; flex-wrap: wrap; gap: var(--ui-space-1, 4px); flex: 0 1 auto; }
+.os-sd-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 var(--ui-space-3, 12px); text-decoration: none; white-space: nowrap; }
+.os-sd-btn:disabled { opacity: .5; cursor: default; }
+.os-sd-btn:focus-visible, .os-sd-close:focus-visible, .os-sd-go:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-sd-undo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); margin: var(--ui-space-3, 12px) 0 0;
+  font-size: var(--ui-fs-body-sm, 13px); font-weight: 600;
+}
+.os-sd-undo[hidden] { display: none; }
+.os-sd-ft { margin-top: var(--ui-space-3, 12px); padding-top: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-divider, var(--br)); }
+.os-sd-closed { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 700; }
+.os-sd-closed:empty { display: none; }
+.os-sd-closed:focus { outline: none; }
+
+@media (max-width: 420px) {
+  .os-sd-acts { flex: 1 1 100%; }
+  .os-sd-acts .os-sd-btn { flex: 1 1 auto; }
+}

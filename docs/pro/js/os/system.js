@@ -221,6 +221,8 @@
     doc.documentElement.classList.remove('os-locked');
     state.lastActive = Date.now();
     sound('unlock');
+    // the home's Smart Stack picks its card again on unlock (os/home.js listens)
+    try { w.dispatchEvent(new w.CustomEvent('nbd:os-unlock')); } catch (e) {}
     var back = state.lockReturn;
     state.lockReturn = null;
     if (back && typeof back.focus === 'function' && doc.contains(back)) back.focus();
@@ -550,10 +552,14 @@
   // ── Spotlight ──
   function apps() {
     // a view key with no view section can't be opened (goTo would fall back to the Pipeline)
-    return L.appsFromNav(L.readNav(doc).map(function (e) {
+    var list = L.appsFromNav(L.readNav(doc).map(function (e) {
       if (!byId('view-' + e.id)) e.hidden = true;
       return e;
     }));
+    // the OS layout's link apps (Daily Success), gated by their own sidebar item, as Start, desktop and dock list them
+    var WM = w.NBDOSWm;
+    if (!WM || typeof WM.linkApps !== 'function') return list;
+    return list.concat(WM.linkApps(function (navId) { var n = byId(navId); return !!n && !L.navHidden(n); }));
   }
   var registered = [];
   function registerSpotlight() {
@@ -570,7 +576,8 @@
       C.registerAction({
         id: a.id, label: a.label, keywords: a.keywords, group: a.app ? 'Apps' : 'System', icon: a.app ? '▣' : '⚙',
         run: function () {
-          if (a.app) { if (typeof w.goTo === 'function') w.goTo(a.app); }
+          if (a.href) call(function () { w.open(a.href, '_self'); });   // a link app: its own page, same tab
+          else if (a.app) { if (typeof w.goTo === 'function') w.goTo(a.app); }
           else if (a.toggle === 'dnd') setDnd(!state.dnd);
           else if (a.toggle === 'lock') lock();
           else open(a.panel);

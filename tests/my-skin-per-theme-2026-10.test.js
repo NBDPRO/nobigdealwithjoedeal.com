@@ -289,10 +289,10 @@ console.log('\n8. CSS, panel, wiring');
   ok('the privacy note is in the panel', /They stay private to you, just like your wallpaper/.test(P));
   ok('the card sits between the wallpaper and the texture slot',
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
-  // 2026-11-08: the scripts' cache-busters live in my-skin-boot.js's `myskin` bundle (v=12: the boot hint), the css stays on both pages.
+  // 2026-11-08: the scripts' cache-busters live in my-skin-boot.js's `myskin` bundle (v=13: the NBD OS wallpaper API, 2026-11-09; v=12 the boot hint), the css stays on both pages.
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => /css\/my-skin\.css\?v=6/.test(read(p)))
-    && /js\/my-skin-logic\.js\?v=7/.test(read('docs/pro/js/my-skin-boot.js')) && /js\/my-skin\.js\?v=12/.test(read('docs/pro/js/my-skin-boot.js')));
+    && /js\/my-skin-logic\.js\?v=7/.test(read('docs/pro/js/my-skin-boot.js')) && /js\/my-skin\.js\?v=13/.test(read('docs/pro/js/my-skin-boot.js')));
 
   {
     const bs = L.backgroundStyleChange;

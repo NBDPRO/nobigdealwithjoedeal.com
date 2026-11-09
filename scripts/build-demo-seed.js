@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 9; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt)
+const SEED_VERSION = 10; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt); 10 = two leads called this morning (lastContactedAt), one with no follow-up (NBD OS Shutdown)
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -72,7 +72,7 @@ function build() {
     ['Jordan', 'Avery', storyStreet, cityParts[1], cityParts[2], cityParts[3], 'estimate_submitted', 'insurance', 'Roof - Hail', 'door_knock', S.carrier, preferred.priceCents / 100, 9, 1, 39.0751, -84.4466,
       `Door knock in ${S.zone} after the storm. ${S.squares} squares, ${S.pitch} pitch. Hail bruising on the north and west slopes. Three options sent; homeowner deciding before the carrier decision date.`],
     ['Maya', 'Brooks', '37 Example Hollow Ln', 'Florence', 'KY', '41042', 'new', 'insurance', 'Roof - Hail', 'storm_alert', 'Sample Mutual Insurance', 0, 1, 0, 38.9989, -84.6266, 'Storm alert lead. Wants someone to look before calling the carrier.'],
-    ['Devon', 'Price', '905 Placeholder Pike', 'Mason', 'OH', '45040', 'new', 'cash', 'Roof - Age', 'website', '', 0, 0, 1, 39.3601, -84.3099, 'Website form: 22-year-old roof, a few shingles in the yard after the wind.'],
+    ['Devon', 'Price', '905 Placeholder Pike', 'Mason', 'OH', '45040', 'new', 'cash', 'Roof - Age', 'website', '', 0, 0, null, 39.3601, -84.3099, 'Website form: 22-year-old roof, a few shingles in the yard after the wind.'],
     ['Rita', 'Okafor', '12 Sample Orchard Dr', 'Union', 'KY', '41091', 'new', 'insurance', 'Roof - Wind', 'door_knock', 'Example Home & Auto', 0, 2, -1, 38.9459, -84.6805, 'Missing ridge caps on the back. Not home on the first knock; left a door hanger.'],
     ['Glen', 'Hartley', '480 Example Meadow Rd', 'Loveland', 'OH', '45140', 'contacted', 'cash', 'Gutters', 'referral', '', 0, 6, 2, 39.2689, -84.2638, 'Referred by a past sample customer. Gutters pulling away on the front.'],
     ['Priya', 'Nair', '2210 Placeholder Ave', 'Fort Mitchell', 'KY', '41017', 'contacted', 'insurance', 'Roof - Hail', 'storm_alert', 'Sample Mutual Insurance', 0, 5, 0, 39.0595, -84.5474, 'Called back after the storm alert text. Inspection to book this week.'],
@@ -186,6 +186,9 @@ function build() {
       notes: note
     };
     if (fu !== null) lead.followUp = date(fu);
+    // v10 (NBD OS Shutdown, 2026-11-09): the owner called two new leads this morning. Maya has her
+    // follow-up date; Devon (the website lead, no follow-up yet) is the one the evening Shutdown lists.
+    if (i === 1 || i === 2) { lead.lastContactedAt = ts(0, 8 + i); lead.lastContactType = 'call'; }
     if (carrier) { lead.insuranceCarrier = carrier; lead.insCarrier = carrier; lead.claimNumber = 'SAMPLE-' + (4100 + i); }
     if (stage === 'lost') { lead.lostReason = 'Went with someone else'; lead.lostReasonKey = 'competitor'; lead.lostAt = ts(-6); }
     if (i === 0) {

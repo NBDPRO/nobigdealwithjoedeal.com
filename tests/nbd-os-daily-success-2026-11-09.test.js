@@ -55,8 +55,9 @@ const mount = (opts, items) => {
 console.log('\n1. the catalog entry');
 G(() => {
   const c = HL.CATALOG.daily;
-  ok('Daily Success: S, M, L, read cost 0, a show enum (both / personal / business)',
-    c && J(c.sizes) === J(['s', 'm', 'l']) && c.reads === 0 && J(c.config) === J({ show: ['both', 'personal', 'business'] }), J(c));
+  // P1 (2026-11-09): read cost 2 = goals + today's doors, in the lazy osdsbiz bundle (tests/nbd-os-ds-business-2026-11-09.test.js)
+  ok('Daily Success: S, M, L, read cost 2, a show enum (both / personal / business)',
+    c && J(c.sizes) === J(['s', 'm', 'l']) && c.reads === 2 && J(c.config) === J({ show: ['both', 'personal', 'business'] }), J(c));
   ok('cfg is kept by normalize (enum only)', J(HL.normalize({ phone: [{ id: 'daily', s: 's', cfg: { show: 'personal' } }, { id: 'daily', s: 'm', cfg: { show: 'weight' } }] }).phone)
     === J([{ id: 'daily', s: 's', cfg: { show: 'personal' } }, { id: 'daily', s: 'm' }]));
 });

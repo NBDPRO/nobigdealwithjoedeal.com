@@ -126,7 +126,7 @@ const OS = read('docs/pro/js/layouts/os.js');
 const CSS = read('docs/pro/css/layouts/os.css');
 const def = R.get('os');
 ok('registered as "os", every surface, dark behind osLayout', !!def && def.flag === 'osLayout' && def.surfaces.join() === 'phone,tablet,desktop');
-ok('needs load the shared logic (js/os is an allowed needs path), then the home widgets (P0b) and the Coach rules (P0c)', def && def.needs.script.join() === 'js/os/system-logic.js,js/layouts/os-wm-logic.js,js/os/home-logic.js,js/os/coach-logic.js,js/os/home.js');
+ok('needs load the shared logic (js/os is an allowed needs path), then the home widgets (P0b), the Coach rules (P0c) and the board logic (P1)', def && def.needs.script.join() === 'js/os/system-logic.js,js/layouts/os-wm-logic.js,js/os/home-logic.js,js/os/coach-logic.js,js/os/home.js,js/layouts/board-logic.js');
 ok('hidden from the picker while the flag is off', R.forSurface('desktop').every((d) => d.id !== 'os'));
 ok('implements through the engine', /W\.LayoutEngine\.implement\('os', \{ mount: mount, unmount: unmount \}\)/.test(OS));
 // esc(...) calls, and *Html strings built from esc() pieces, are the only things spliced in

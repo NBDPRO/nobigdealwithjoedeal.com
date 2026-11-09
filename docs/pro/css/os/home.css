@@ -87,6 +87,7 @@
 .os-hw-ds-row.is-strong { font-size: var(--ui-fs-body, 14px); font-weight: 600; color: var(--t); }
 .os-hw-ds-row.is-warn { font-weight: 600; color: var(--t); }
 .os-hw-ds-row.is-label { font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; }
+.os-hw-ds-row.is-label:not(:first-child) { margin-top: var(--ui-space-1, 4px); }
 .os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
 .os-hw-ds-open { align-self: flex-start; text-decoration: none; }
 /* personal numbers never show on the lock screen */
@@ -126,8 +127,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-p-edit.has-home .btn { flex: 1 1 0; justify-content: center; }
 /* the desk column's own buttons */
 .os-hw-tools {
-  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px);
-  padding: var(--ui-space-1, 4px); background: color-mix(in srgb, var(--s) 88%, transparent);
+  display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px);
+  padding: var(--ui-space-1, 4px); background: var(--s);
   border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px);
 }
 .os-hw-tool { flex: 1 1 auto; min-height: 44px; justify-content: center; }
@@ -161,6 +162,32 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw-add-chip { min-width: 44px; min-height: 44px; justify-content: center; padding: 0 var(--ui-space-2, 8px); }
 .os-hw-add-chip:disabled { opacity: .5; cursor: default; }
 
+/* ── company home (P1): Publish to team and Lock team homes, owners and admins in edit mode only ── */
+.os-hw-team {
+  display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px);
+  margin: var(--ui-space-2, 8px) var(--ui-space-4, 16px) 0;
+}
+.os-hw-team .btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
+.os-hw-team:empty { display: none; }
+/* desk column: the team controls sit under the widgets, one per row */
+.os-hw-desk .os-hw-team { margin: 0 0 var(--ui-space-3, 12px); flex-direction: column; }
+.os-hw-desk .os-hw-team .btn { flex: none; }
+.os-hw-lock { gap: var(--ui-space-2, 8px); }
+/* the switch's state is its dot (filled when on) as well as aria-checked, never colour alone */
+.os-hw-lock-dot {
+  flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; background: transparent;
+}
+.os-hw-lock.is-on .os-hw-lock-dot { background: currentColor; }
+.os-hw-locked {
+  flex: 1 1 100%; margin: 0; padding: var(--ui-space-2, 8px);
+  font-size: var(--ui-fs-body-sm, 13px); color: var(--m); text-align: center;
+}
+.os-hw-pub-p { margin: var(--ui-space-2, 8px) 0 0; font-size: var(--ui-fs-body, 14px); line-height: 1.45; overflow-wrap: anywhere; }
+.os-hw-pub-status:empty { display: none; }
+.os-hw-pub-row { display: flex; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-4, 16px); }
+.os-hw-pub-btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
+
 /* ── by the width a widget got ── */
 @container oshw (max-width: 159px) {
   .os-hw-sc { flex-direction: column; }
@@ -186,14 +213,117 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-p-home { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
 .os-p-home::-webkit-scrollbar { display: none; }
 
-/* ── desk: an ordered list in the column, two across on a wide screen ── */
-.os-widgets.os-hw-desk { width: 300px; bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
-.os-hw-desk .os-hw-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-3, 12px); align-content: start; }
-.os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: 1 / -1; }
-.os-hw-desk .os-hw.is-l { min-height: 280px; }
-/* below 1100px: one column, never hidden */
-@media (max-width: 1100px) {
-  .os-hw-desk .os-hw-list { grid-template-columns: 1fr; }
-  .os-widgets.os-hw-desk { width: 220px; }
-  .os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: auto; }
+/* ── desk (P1): a board of 4 columns and 160px rows; each widget at its saved cell ──
+   (S 1x1, M 2x1, L 2x2; js/os/home.js sets os-hw-x<col> / os-hw-y<row>, never a style).
+   ROW_PX / GAP_PX in home.js are these 160px rows and 12px gaps. */
+/* 640px at 1280 wide, never under 480px (the icon grid keeps the left of the desk) */
+.os-widgets.os-hw-desk { width: clamp(480px, calc(100% - 640px), 640px); bottom: var(--ui-space-4, 16px); display: flex; flex-direction: column; overflow: hidden; }
+/* the board scrolls; the Edit Home / Add widget bar (.os-hw-tools) is its own row under it, so it never
+   covers a widget (sticky over the last row at 1280 wide, 2026-11-09) and a focused widget needs no scroll margin */
+.os-hw-desk > .os-hw-board { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.os-hw-desk > .os-hw-tools { position: static; flex: none; }
+.os-hw-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 160px; gap: 12px; align-content: start; }
+.os-hw-board .os-hw { position: relative; grid-column-end: span 1; grid-row-end: span 1; }
+.os-hw-board .os-hw.is-m { grid-column-end: span 2; }
+.os-hw-board .os-hw.is-l { grid-column-end: span 2; grid-row-end: span 2; }
+.os-hw-board .os-hw-x1 { grid-column-start: 1; } .os-hw-board .os-hw-x2 { grid-column-start: 2; } .os-hw-board .os-hw-x3 { grid-column-start: 3; } .os-hw-board .os-hw-x4 { grid-column-start: 4; }
+.os-hw-board .os-hw-y1 { grid-row-start: 1; } .os-hw-board .os-hw-y2 { grid-row-start: 2; } .os-hw-board .os-hw-y3 { grid-row-start: 3; } .os-hw-board .os-hw-y4 { grid-row-start: 4; } .os-hw-board .os-hw-y5 { grid-row-start: 5; } .os-hw-board .os-hw-y6 { grid-row-start: 6; }
+.os-hw-board .os-hw-y7 { grid-row-start: 7; } .os-hw-board .os-hw-y8 { grid-row-start: 8; } .os-hw-board .os-hw-y9 { grid-row-start: 9; } .os-hw-board .os-hw-y10 { grid-row-start: 10; } .os-hw-board .os-hw-y11 { grid-row-start: 11; } .os-hw-board .os-hw-y12 { grid-row-start: 12; }
+.os-hw-board .os-hw-y13 { grid-row-start: 13; } .os-hw-board .os-hw-y14 { grid-row-start: 14; } .os-hw-board .os-hw-y15 { grid-row-start: 15; } .os-hw-board .os-hw-y16 { grid-row-start: 16; } .os-hw-board .os-hw-y17 { grid-row-start: 17; } .os-hw-board .os-hw-y18 { grid-row-start: 18; }
+.os-hw-board .os-hw-y19 { grid-row-start: 19; } .os-hw-board .os-hw-y20 { grid-row-start: 20; } .os-hw-board .os-hw-y21 { grid-row-start: 21; } .os-hw-board .os-hw-y22 { grid-row-start: 22; } .os-hw-board .os-hw-y23 { grid-row-start: 23; } .os-hw-board .os-hw-y24 { grid-row-start: 24; }
+.os-hw-board .os-hw-y25 { grid-row-start: 25; } .os-hw-board .os-hw-y26 { grid-row-start: 26; } .os-hw-board .os-hw-y27 { grid-row-start: 27; } .os-hw-board .os-hw-y28 { grid-row-start: 28; } .os-hw-board .os-hw-y29 { grid-row-start: 29; } .os-hw-board .os-hw-y30 { grid-row-start: 30; }
+.os-hw-board .os-hw-y31 { grid-row-start: 31; } .os-hw-board .os-hw-y32 { grid-row-start: 32; } .os-hw-board .os-hw-y33 { grid-row-start: 33; } .os-hw-board .os-hw-y34 { grid-row-start: 34; } .os-hw-board .os-hw-y35 { grid-row-start: 35; } .os-hw-board .os-hw-y36 { grid-row-start: 36; }
+.os-hw-board .os-hw-y37 { grid-row-start: 37; } .os-hw-board .os-hw-y38 { grid-row-start: 38; } .os-hw-board .os-hw-y39 { grid-row-start: 39; } .os-hw-board .os-hw-y40 { grid-row-start: 40; } .os-hw-board .os-hw-y41 { grid-row-start: 41; } .os-hw-board .os-hw-y42 { grid-row-start: 42; }
+.os-hw-board .os-hw-y43 { grid-row-start: 43; } .os-hw-board .os-hw-y44 { grid-row-start: 44; } .os-hw-board .os-hw-y45 { grid-row-start: 45; } .os-hw-board .os-hw-y46 { grid-row-start: 46; } .os-hw-board .os-hw-y47 { grid-row-start: 47; } .os-hw-board .os-hw-y48 { grid-row-start: 48; }
+/* edit mode: drag a widget to a cell; the corner grip snaps it to S / M / L. Cells snap, nothing slides */
+.os-hw-board .os-hw.is-editing { cursor: grab; }
+.os-hw-grip { position: absolute; right: 0; bottom: 0; width: 44px; height: 44px; cursor: nwse-resize; touch-action: none; }
+.os-hw-grip::after {
+  content: ''; position: absolute; right: 8px; bottom: 8px; width: 12px; height: 12px;
+  border-right: 2px solid var(--m); border-bottom: 2px solid var(--m); border-bottom-right-radius: 3px;
 }
+/* below 1100px: one column in reading order (the DOM order), never hidden; no grip (arrows and the chip still resize) */
+@media (max-width: 1100px) {
+  .os-hw-desk .os-hw-board { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  .os-widgets.os-hw-desk { width: 240px; }
+  .os-hw-board .os-hw.os-hw { grid-column: auto; grid-row: auto; min-height: 96px; }
+  .os-hw-board .os-hw.os-hw.is-l { min-height: 280px; }
+  .os-hw-grip { display: none; }
+}
+
+/* ── drag (P1, phone and desk): touch-action is set on edit-mode widgets before any pointerdown,
+   so a press-and-drag moves the widget instead of scrolling; tap-pick-place keeps working ── */
+.os-hw.is-editing { touch-action: none; }
+.os-hw.is-dragging { z-index: 2; opacity: .7; cursor: grabbing; box-shadow: var(--ui-elev-2, var(--ui-elev-1)); }
+.os-hw.is-editing.is-drop { outline: 2px solid var(--orange); }
+
+/* ── P1 widgets (js/os/widgets-p1.js): Needs you, Storm, Closes this week, Money ── */
+.os-hw-ny-big, .os-hw-money-big { align-items: flex-start; }
+.os-hw-ny-n, .os-hw-money-n { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.15; }
+.os-hw-money-big, .os-hw.is-m .os-hw-money-big { flex-direction: column; align-items: flex-start; }
+.os-hw-ny-row.is-urgent .os-hw-row-name { font-weight: 700; }
+.os-hw-ny-row.is-urgent .os-hw-row-name::before { content: '● '; color: var(--orange); }
+.os-hw-storm-line { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+/* S: two lines at most, then an ellipsis (the M size and Storm Center have the rest) */
+.os-hw.is-s .os-hw-storm-line, .os-hw.is-s .os-hw-empty { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--ui-fs-body-sm, 13px); }
+.os-hw-note { margin: 0; font-size: var(--ui-fs-caption, 12px); line-height: 1.35; color: var(--m); }
+.os-hw-row.is-focus { box-shadow: inset 3px 0 0 var(--orange); }
+.os-hw-focus .os-hw-row-name { font-weight: 700; }
+/* the member's own money never shows on the lock screen */
+html.os-locked .os-hw-money { visibility: hidden; }
+/* nor the deals closing this week: customer names and projected dollars */
+html.os-locked .os-hw-closes { visibility: hidden; }
+
+/* ── Smart Stack: one card, prev / next and "Why this?" (never rotates by itself) ── */
+.os-hw-stack > .os-hw-body { height: 100%; }
+.os-hw-stack-card { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.os-hw-stack-card > * { flex-shrink: 0; }
+.os-hw-stack-bar {
+  display: flex; align-items: center; gap: var(--ui-space-1, 4px); flex: none; min-width: 0;
+  padding-top: var(--ui-space-1, 4px); border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-stack-nav { min-width: 44px; padding-inline: var(--ui-space-2, 8px); font-size: var(--ui-fs-title, 20px); line-height: 1; }
+.os-hw-stack-pos { font-size: var(--ui-fs-caption, 12px); color: var(--m); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.os-hw-stack-why { margin-left: auto; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-why { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; color: var(--t); overflow-wrap: anywhere; flex: none; }
+.os-hw-ed-cards { padding-inline: var(--ui-space-3, 12px); }
+.os-hw-add-chip[aria-pressed="true"] { border-color: var(--orange); font-weight: 700; }
+
+/* ── the urgency ring (#5) on an OS icon: a ring plus a word, never colour alone ── */
+.os-p-icon.is-urgent .os-p-glyph, .os-icon.is-urgent .os-icon-glyph { position: relative; box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 82%, black); }
+.os-bar-btn.is-urgent .os-bar-glyph { position: relative; display: inline-flex; border-radius: var(--ui-radius-md, 8px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 82%, black); }
+.os-urgent-pill {
+  position: absolute; top: -8px; right: -10px; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+  background: color-mix(in srgb, var(--red) 82%, black); color: white; box-shadow: 0 0 0 2px var(--s);
+  font-size: 11px; font-weight: 700; line-height: 20px; letter-spacing: 0; text-align: center; white-space: nowrap;
+}
+/* the phone bar's glyph is small: the word sits up and to its right, not over it */
+.os-bar-btn .os-urgent-pill { top: -10px; right: auto; left: 70%; padding: 0 5px; }
+
+/* ── Wallpaper picker (P1, js/os/wallpaper.js): a native <dialog>, radios ── */
+.os-wp-note { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); font-weight: 600; }
+.os-wp-set { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; }
+.os-wp-legend { padding: 0; margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-wp-opt {
+  display: flex; align-items: center; gap: var(--ui-space-3, 12px); min-height: 56px; margin: 0; padding: var(--ui-space-2, 8px);
+  border-top: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px); cursor: pointer;
+}
+.os-wp-opt:has(.os-wp-radio:checked) { background: color-mix(in srgb, var(--orange) 10%, var(--s)); }
+.os-wp-opt:has(.os-wp-radio:focus-visible) { box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-wp-set:disabled .os-wp-opt { cursor: default; opacity: .6; }
+.os-wp-radio { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
+.os-wp-sw, .os-wp-thumb {
+  flex: none; width: 64px; height: 40px; border-radius: var(--ui-radius-sm, 6px);
+  border: 1px solid var(--ui-line-divider, var(--br)); background: var(--bg); object-fit: cover; overflow: hidden;
+}
+.os-wp-sw-tod { display: flex; }
+.os-wp-band { flex: 1 1 0; background: linear-gradient(180deg, var(--os-wp-a), var(--os-wp-c)); }
+.os-wp-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.os-wp-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-wp-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-wp-pics { display: flex; flex-direction: column; }
+.os-wp-status { margin: 0; padding: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-divider, var(--br)); font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+.os-wp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px); }
+.os-wp-more, .os-wp-done { min-height: 44px; }
+.os-wp-done { min-width: 88px; justify-content: center; }
+.os-wp-done:disabled { opacity: .5; cursor: default; }

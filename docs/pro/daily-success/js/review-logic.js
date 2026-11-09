@@ -8,6 +8,11 @@
  * it is still in progress (the old streak read "broken" every morning). A
  * day with no page at all is a miss: not opening the tracker is not a way
  * around a promise.
+ *
+ * Workdays only (Jo, 2026-11-09, NBD OS P1): floors count Mon–Sat. Sunday is
+ * not required: a Sunday with no page or unmet floors is not a miss and never
+ * breaks a streak (a met Sunday still counts). "Two in a row" is two WORKDAYS
+ * in a row, so a missed Saturday and a missed Monday end it.
  */
 (function () {
   'use strict';
@@ -41,9 +46,12 @@
   /**
    * { count, warned, broken, todayMet }
    *   count   — fully-met days in the live run (single misses don't add, don't end it)
-   *   warned  — the last finished day (yesterday) was a miss: "don't miss twice" today
-   *   broken  — the run ended on two misses in a row and nothing is met since
+   *   warned  — the last finished workday (yesterday; Saturday on a Monday) was a
+   *             miss: "don't miss twice" today
+   *   broken  — the run ended on two workday misses in a row and nothing is met since
+   * A Sunday that is not met is skipped: neither a miss nor a break.
    */
+  const isSunday = (dk) => new Date(dkMs(dk)).getDay() === 0;
   function floorStreak(pages, floors, todayDk) {
     const res = { count: 0, warned: false, broken: false, todayMet: false };
     if (!floors || !floors.length || !isDk(todayDk)) return res;
@@ -52,10 +60,12 @@
     if (!dks.length) return res;
     const first = dks[0];
     if (dayStatus(byDay, floors, todayDk) === 'met') { res.count++; res.todayMet = true; }
-    let run = 0;
+    let run = 0, lastDone = true;   // lastDone: no finished workday looked at yet
     for (let dk = addDays(todayDk, -1); dk >= first; dk = addDays(dk, -1)) {
-      if (dayStatus(byDay, floors, dk) === 'met') { res.count++; run = 0; continue; }
-      if (dk === addDays(todayDk, -1)) res.warned = true;
+      if (dayStatus(byDay, floors, dk) === 'met') { res.count++; run = 0; lastDone = false; continue; }
+      if (isSunday(dk)) continue;   // not required: not a miss
+      if (lastDone) res.warned = true;
+      lastDone = false;
       run++;
       if (run >= 2) { res.broken = res.count === 0; res.warned = res.warned && res.count > 0; break; }
     }

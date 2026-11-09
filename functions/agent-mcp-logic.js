@@ -170,7 +170,7 @@ const TOOLS = {
   },
   // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
   my_today: {
-    description: 'The key owner\'s day in their personal tracker: today\'s floors (their daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and the latest weight. Read only.',
+    description: 'The key owner\'s day in their personal tracker: today\'s floors (their daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it; floors count Monday to Saturday, Sunday is optional and never breaks it, so missed_last_workday on a Monday means Saturday was missed; missed_yesterday is the same value under its old name, deprecated, kept for one release), and the latest weight. Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   my_week: {
@@ -1056,7 +1056,9 @@ function personalToday(snap, nowMs) {
     as_of_hours_ago: snapshotAge(s, nowMs), day: cap(t.dk, 10),
     floors: (Array.isArray(t.floors) ? t.floors : []).slice(0, 12).map((f) => ({ floor: cap(f.label, 60), met: f.met === true })),
     all_met: t.allMet === true,
-    streak: s.streak ? { days: numOr(s.streak.count) || 0, missed_yesterday: s.streak.warned === true, ended: s.streak.broken === true } : null,
+    // missed_last_workday: floors count Mon-Sat (review-logic floorStreak), so on a Monday it means Saturday was missed.
+    // missed_yesterday: the same value under the old name, for one release, so a prompt that reads it does not go quiet.
+    streak: s.streak ? { days: numOr(s.streak.count) || 0, missed_last_workday: s.streak.warned === true, missed_yesterday: s.streak.warned === true, ended: s.streak.broken === true } : null,
     weight: s.weight ? { latest: numOr(s.weight.latest), avg7: numOr(s.weight.avg7) } : null,
   };
 }

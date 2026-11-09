@@ -1275,17 +1275,19 @@
     }).catch(function () { return Object.keys(_memoryRows).map(function (k) { return _memoryRows[k]; }); });
   }
   /** Rows other devices uploaded; one single-field orderBy, filtered here (no composite index). */
-  function listRemote() {
+  function listRemote() { return readRemote().then(function (x) { return x.rows; }); }
+  /** listRemote's read, and whether the server query actually ran: { rows, ok }. Never rejects. */
+  function readRemote() {
     var u = uid();
-    if (!u || !window.db || typeof window.getDocs !== 'function' || typeof window.query !== 'function') return Promise.resolve([]);
+    if (!u || !window.db || typeof window.getDocs !== 'function' || typeof window.query !== 'function') return Promise.resolve({ rows: [], ok: false });
     try {
       var q = window.query(window.collection(window.db, 'users', u, 'visit_captures'), window.orderBy('startedAtMs', 'desc'), window.limit(40));
       return window.getDocs(q).then(function (snap) {
         var out = [];
         snap.forEach(function (d) { var v = d.data() || {}; v.id = d.id; out.push(v); });
-        return out.filter(function (r) { return r.status !== 'discarded'; });
-      }).catch(function () { return []; });
-    } catch (_) { return Promise.resolve([]); }
+        return { rows: out.filter(function (r) { return r.status !== 'discarded'; }), ok: true };
+      }).catch(function () { return { rows: [], ok: false }; });
+    } catch (_) { return Promise.resolve({ rows: [], ok: false }); }
   }
   /**
    * The phone's rows and the server's docs together, with the phone's leadId
@@ -1293,12 +1295,13 @@
    * attach the server took back off, an attach from another device). The phone
    * kept the old customer, so the visit was neither unfiled nor filed
    * (2026-10-15). Never mirrored back: here the server is the truth.
-   * Resolves { local, remote }.
+   * Resolves { local, remote, remoteOk } (remoteOk false: the server query did not run or
+   * failed, so remote is empty and local is this phone's rows alone).
    */
   function listAll() {
     var fetchedAt = now();
-    return Promise.all([list(), listRemote()]).then(function (res) {
-      var local = res[0] || [], remote = res[1] || [];
+    return Promise.all([list(), readRemote()]).then(function (res) {
+      var local = res[0] || [], remote = (res[1] && res[1].rows) || [], remoteOk = !!(res[1] && res[1].ok);
       var byId = {};
       remote.forEach(function (r) { if (r && r.id) byId[r.id] = r; });
       var localIds = {};
@@ -1318,9 +1321,9 @@
         patched.forEach(function (p) { if (p) fixed[p.id] = p; });
         var out = local.map(function (r) { return fixed[r.id] || r; });
         if (fixes.length) emit('row', {});
-        return refreshCounters().then(function () { return { local: out, remote: remote }; });
+        return refreshCounters().then(function () { return { local: out, remote: remote, remoteOk: remoteOk }; });
       });
-    }).catch(function () { return { local: [], remote: [] }; });
+    }).catch(function () { return { local: [], remote: [], remoteOk: false }; });
   }
 
   // ── the public surface ──────────────────────────────────────────────────

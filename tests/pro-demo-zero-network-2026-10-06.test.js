@@ -782,6 +782,37 @@ async function waitFor(page, fn, arg, ms) {
     }
     for (const t of ['ai-tree', 'understand', 'project-codex']) ok('the server served ' + t + ' through its /pro/explore/ rewrite', srv.log.some((e) => e.path === '/pro/explore/' + t && e.kind === 'rewrite'));
 
+    console.log('28. NBD OS: the owner publishes the laptop home to the team and locks it, in the sample store');
+    await page.evaluate(async () => {
+      await window.LayoutEngine.saveUser({ id: 'os', device: window.LayoutEngine.surface() });
+      await window.LayoutEngine.apply('os', { source: 'user' });
+    });
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-layout') === 'os' && !!document.querySelector('#osDesk [data-osdo="homeedit"]'), null, { timeout: 30000 });
+    // the tool windows the walk opened float over the desk (since P1 the widget board is 640px wide
+    // at 1280, so they cover its tools): Show desktop first, the way a member would
+    await page.locator('#osDesk [data-osdo="desktop"]').click();
+    await page.locator('#osDesk [data-osdo="homeedit"]').click();
+    await page.locator('#osDesk [data-osdo="homepublish"]').click();
+    await page.waitForSelector('dialog.os-hw-pub[open]', { timeout: 15000 });
+    await page.locator('dialog.os-hw-pub [data-oshw-pub="go"]').click();
+    await page.waitForFunction(() => !document.querySelector('dialog.os-hw-pub'), null, { timeout: 15000 });
+    const coDoc = async () => page.evaluate(async () => {
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
+      const key = await window._resolveCompanyKey();
+      const d = (await F.getDoc(F.doc(F.getFirestore(), 'companies', key, 'settings', 'layout'))).data() || {};
+      return { desk: ((d.defaultWidgets || {})['os-desk'] || []).map((x) => x.id), locked: d.homeLocked === true,
+        focus: document.activeElement && document.activeElement.getAttribute('data-osdo') };
+    });
+    const pub = await coDoc();
+    ok('Publish to team writes the laptop home to the sample company settings (LayoutEngine.saveCompany)', pub.desk.length > 0 && !pub.locked, JSON.stringify(pub));
+    ok('…and focus is back on Publish to team', pub.focus === 'homepublish', JSON.stringify(pub));
+    await page.locator('#osDesk [data-osdo="homelock"]').click();
+    await page.waitForFunction(() => { const b = document.querySelector('#osDesk [data-osdo="homelock"]'); return b && b.getAttribute('aria-checked') === 'true'; }, null, { timeout: 15000 });
+    const lk = await coDoc();
+    ok('Lock team homes writes homeLocked: true there too, keeping the published home', lk.locked && lk.desk.join() === pub.desk.join(), JSON.stringify(lk));
+    await page.locator('#osDesk [data-osdo="homelock"]').click();   // leave the sample company unlocked
+    await page.waitForFunction(() => { const b = document.querySelector('#osDesk [data-osdo="homelock"]'); return b && b.getAttribute('aria-checked') === 'false'; }, null, { timeout: 15000 });
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));

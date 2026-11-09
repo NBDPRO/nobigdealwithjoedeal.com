@@ -266,8 +266,8 @@ console.log('\n1. wiring: lazy files through the OS layout\'s needs');
 G(() => {
   const R = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
   const def = R.get('os');
-  ok('needs.script loads the home logic and the home after the OS logic (within the 6-path cap; P0c adds the Coach rules)',
-    def && J(def.needs.script) === J(['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js']) && def.needs.script.length <= 6, def && J(def.needs.script));
+  ok('needs.script loads the home logic and the home after the OS logic (within the 6-path cap; P0c adds the Coach rules, P1 the board logic)',
+    def && J(def.needs.script) === J(['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js', 'js/layouts/board-logic.js']) && def.needs.script.length <= 6, def && J(def.needs.script));
   ok('needs.css loads css/os/home.css', def && J(def.needs.css) === J(['css/os/home.css']), def && J(def.needs.css));
   const html = read('docs/pro/dashboard.html');
   ok('no new <script> or <link> tag on the dashboard (boot budget)', !/os\/home(-logic)?\.js|os\/home\.css/.test(html));
@@ -283,7 +283,8 @@ G(() => {
   ok('home.js never calls the Today plan\'s compute()', !/\.compute\s*\(/.test(code) && /\.last\s*\(/.test(code));
   ok('Up Next listens for the existing nbd:today-rendered event', /'nbd:today-rendered'/.test(code));
   ok('counts come from NBDHomeAttention.lastCounts (never re-queried)', /NBDHomeAttention/.test(code) && /lastCounts/.test(code));
-  ok('every catalog widget declares reads: 0', HL.ids().every((id) => HL.CATALOG[id].reads === 0));
+  // P1 (2026-11-09): Daily Success declares 2 (goals + doors, its lazy bundle); every other widget reads nothing
+  ok('every catalog widget declares reads: 0 (Daily Success: 2)', HL.ids().every((id) => HL.CATALOG[id].reads === (id === 'daily' ? 2 : 0)));
 });
 
 console.log('\n3. pure helpers');
@@ -475,7 +476,15 @@ console.log('\n11. demo mode stays zero-network');
 G(() => {
   const code = noComments(HOME_JS);
   ok('home.js adds no request of its own (no fetch, import(), script or link injection)',
-    !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code) && !/ScriptLoader/.test(code));
+    !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code));
+  // P1 (2026-11-09): the ScriptLoader uses are its own three lazy bundles of same-origin files under js/os/ and css/os/
+  const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
+  const bundle = /var SD_BUNDLE = \[([^\]]*)\]/.exec(code);
+  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js) and osshutdown (css/os + js/os files)',
+    (code.match(/loadBundle\(/g) || []).length === 3 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+      && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
+      && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code)
+      && !!bundle && bundle[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /loadBundle\('osshutdown'\)/.test(code), files);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -507,7 +507,9 @@ function buildIntelligenceBrief(p){
 
   // Coaching insight based on patterns
   let coaching = '';
-  if(streakWarned) coaching = "Missed yesterday. Don't miss twice — today keeps the streak alive.";
+  // Floors count Mon-Sat (review-logic.js): on a Monday the missed workday is Saturday.
+  if(streakWarned && new Date(p.dk + 'T12:00:00').getDay() === 1) coaching = "Missed Saturday. Don't miss twice — today keeps the streak alive.";
+  else if(streakWarned) coaching = "Missed yesterday. Don't miss twice — today keeps the streak alive.";
   else if(streak >= 7) coaching = "You're on a 7+ day floor streak. This is elite consistency — protect it.";
   else if(streak >= 3) coaching = "3+ day streak rolling. Momentum is building. Don't break the chain.";
   else if(streakBroken || (streak === 0 && idx > 0)) coaching = "Two misses in a row ended the streak. Today is day one. One floor at a time.";

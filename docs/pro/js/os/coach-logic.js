@@ -133,7 +133,9 @@
   }
   function dsWarned(ds) {
     if (!isObj(ds) || ds.warned !== true) return null;
-    return rule('ds-warned', 'personal', 60, 'You missed your floors yesterday. Don\'t miss twice.', { warned: true },
+    // floors count Mon-Sat (review-logic.js floorStreak): on a Monday the missed workday is Saturday
+    var mon = typeof ds.dk === 'string' && new Date(ds.dk + 'T12:00:00').getDay() === 1;
+    return rule('ds-warned', 'personal', 60, 'You missed your floors ' + (mon ? 'on Saturday' : 'yesterday') + '. Don\'t miss twice.', { warned: true },
       { label: 'Open Daily Success', href: '/pro/daily-success/' });
   }
   function roleFor(l, roleOf) {

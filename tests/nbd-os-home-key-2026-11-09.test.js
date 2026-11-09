@@ -3,10 +3,12 @@
  * (documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md, sections 3.5 and 8).
  *
  * The home screen's arrangement gets its own key, layoutState['os-home'] =
- * { v:1, phone:[{id,s,cfg?}], desk:[{id,s,cfg?}] }, under its own 12,000-char
+ * { v:1, phone:[{id,s,cfg?,items?}], desk:[{id,s,x,y,w,h,cfg?,items?}], wp? } (P1), under its own 12,000-char
  * budget (a separate key, so a full home can never push the OS windows over
  * the budget and drop them). docs/pro/js/os/home-logic.js normalises it:
- *   - at most 12 items per surface; known widget ids only; s is 's'|'m'|'l'
+ *   - at most 24 items per surface (P1 raised it from 12; the desk items also
+ *     carry their board cell, x y w h: tests/nbd-os-desk-board-2026-11-09.test.js);
+ *     known widget ids only; s is 's'|'m'|'l'
  *     (one the widget offers, else its default size)
  *   - cfg: enum values the widget declares, 64 chars of JSON at most
  *   - garbage in, a clean default out; a new user gets
@@ -37,9 +39,10 @@ const R = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
 console.log('\n1. the key and its catalog');
 {
   ok('the key is os-home, a valid layoutState key', H.KEY === 'os-home' && R.isId(H.KEY));
-  ok('caps: 12 items per surface, cfg 64 chars, sizes s/m/l', H.MAX_ITEMS === 12 && H.MAX_CFG === 64 && J(H.SIZES) === J(['s', 'm', 'l']));
-  ok('the P0 catalog: At a Glance, Up Next, Shortcuts (P0b), then Coach and Daily Success (P0c)', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily']));
-  ok('every widget declares a read cost of 0', H.ids().every((id) => H.CATALOG[id].reads === 0));
+  ok('caps: 24 items per surface (P1), cfg 64 chars, sizes s/m/l', H.MAX_ITEMS === 24 && H.MAX_CFG === 64 && J(H.SIZES) === J(['s', 'm', 'l']));
+  ok('the catalog: At a Glance, Up Next, Shortcuts (P0b), Coach and Daily Success (P0c), then the P1 widgets and Shutdown', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown']));
+  // P1 (2026-11-09): Daily Success declares 2 (goals + doors, its lazy bundle); Shutdown 0 (its sheet reads on a tap)
+  ok('every widget declares a read cost of 0 (Daily Success: 2)', H.ids().every((id) => H.CATALOG[id].reads === (id === 'daily' ? 2 : 0)));
   ok('every widget has a title, sizes from s/m/l and a default among them', H.ids().every((id) => {
     const c = H.CATALOG[id];
     return typeof c.title === 'string' && c.title && c.sizes.length && c.sizes.every((s) => H.SIZES.indexOf(s) !== -1) && c.sizes.indexOf(c.def) !== -1;
@@ -52,7 +55,7 @@ console.log('\n2. a new user\'s home');
   const want = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
   const d = H.defaults();
   ok('defaults(): phone glance m, upnext m, shortcuts s', J(d.phone) === J(want), J(d.phone));
-  ok('defaults(): the desk the same', J(d.desk) === J(want), J(d.desk));
+  ok('defaults(): the desk the same, placed on the board (M M on row 1, S under)', J(d.desk) === J([{ id: 'glance', s: 'm', x: 0, y: 0, w: 2, h: 1 }, { id: 'upnext', s: 'm', x: 2, y: 0, w: 2, h: 1 }, { id: 'shortcuts', s: 's', x: 0, y: 1, w: 1, h: 1 }]), J(d.desk));
   ok('defaults() is v:1 and a fresh copy each time', d.v === 1 && H.defaults() !== d && (H.defaults().phone.push({}), J(H.defaults().phone) === J(want)));
   ok('nothing saved (undefined / null) -> the defaults', J(H.normalize(undefined)) === J(d) && J(H.normalize(null)) === J(d));
 }
@@ -69,18 +72,18 @@ console.log('\n3. garbage in, a clean default out');
   ok('an unknown size falls back to the widget\'s default; unknown ids and extra fields are dropped',
     J(mixed.phone) === J([{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'l' }, { id: 'shortcuts', s: 'm', cfg: { clock: 'on' } }]), J(mixed.phone));
   ok('cfg keeps only declared keys with declared values',
-    J(H.normalize({ desk: [{ id: 'shortcuts', s: 's', cfg: { clock: 'maybe' } }, { id: 'shortcuts', s: 's', cfg: 'on' }, { id: 'glance', s: 's', cfg: { clock: 'on' } }] }).desk)
+    J(H.normalize({ desk: [{ id: 'shortcuts', s: 's', cfg: { clock: 'maybe' } }, { id: 'shortcuts', s: 's', cfg: 'on' }, { id: 'glance', s: 's', cfg: { clock: 'on' } }] }).desk.map((it) => ({ id: it.id, s: it.s, cfg: it.cfg })))
       === J([{ id: 'shortcuts', s: 's' }, { id: 'shortcuts', s: 's' }, { id: 'glance', s: 's' }]));
   ok('cfg over 64 chars of JSON is dropped whole', H.cleanCfg('shortcuts', { clock: 'on' }) && J(H.cleanCfg('shortcuts', { clock: 'on' })).length <= 64
     && H.cleanCfg('nope', { clock: 'on' }) === null && H.cleanCfg('shortcuts', null) === null);
   const many = []; for (let i = 0; i < 40; i++) many.push({ id: H.ids()[i % 3], s: 'l' });
-  ok('at most 12 items per surface', H.normalize({ phone: many, desk: many }).phone.length === 12 && H.normalize({ phone: many, desk: many }).desk.length === 12);
+  ok('at most 24 items per surface', H.normalize({ phone: many, desk: many }).phone.length === 24 && H.normalize({ phone: many, desk: many }).desk.length === 24);
   ok('the output never shares objects with the input', (() => { const inp = { phone: [{ id: 'glance', s: 's' }] }; const o = H.normalize(inp); o.phone[0].s = 'l'; return inp.phone[0].s === 's'; })());
 }
 
 console.log('\n4. max-fill fits the 12,000-char budget');
 {
-  // the largest item: the longest id, the largest size and the largest valid cfg
+  // the largest item: the longest id, the largest size and the largest valid cfg (on the desk, its cell too)
   const longestId = H.ids().reduce((a, b) => (b.length > a.length ? b : a));
   const cfgIds = H.ids().filter((id) => H.CATALOG[id].config);
   let worst = { id: longestId, s: 'm' };
@@ -94,8 +97,25 @@ console.log('\n4. max-fill fits the 12,000-char budget');
   const st = H.normalize({ v: 1, phone: fill, desk: fill });
   const len = J(st).length;
   ok('the max-fill state serialises under 12,000 chars (' + len + ')', len <= R.MAX_STATE_JSON && len < 12000, len);
-  ok('the theoretical bound holds too (12 x 2 items of the 64-char cfg cap)', 2 * H.MAX_ITEMS * (J({ id: 'x'.repeat(32), s: 'm', cfg: {} }).length + H.MAX_CFG) + 40 < 12000);
+  ok('the max fill is 24 items a surface, the desk ones placed', st.phone.length === 24 && st.desk.length === 24 && st.desk.every((it) => typeof it.x === 'number' && typeof it.y === 'number'), J(st.desk.slice(-1)));
+  ok('the theoretical bound holds too (24 x 2 items of the 64-char cfg cap, each with the largest cell)',
+    2 * H.MAX_ITEMS * (J({ id: 'x'.repeat(32), s: 'm', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, cfg: {} }).length + H.MAX_CFG) + 40 < 12000);
   ok('LayoutRegistry keeps the max-fill key (its per-key budget)', !!R.normalizeUser({ layoutState: { 'os-home': st } }).layoutState['os-home']);
+  // P1 integration: every lane's fields at once (desk cells, Smart Stack cards, wp, the 24 cap)
+  const cards = H.ids().filter((id) => !H.CATALOG[id].stack).sort((p, q) => q.length - p.length).slice(0, H.STACK_MAX);
+  const stacks = []; for (let i = 0; i < 12; i++) stacks.push({ id: 'stack', s: 'l', items: cards });
+  const mix = []; for (let i = 0; i < 3; i++) mix.push({ id: 'stack', s: 'l', items: cards }); for (let i = 0; i < 20; i++) mix.push(worst);
+  const WP = { phone: 'z'.repeat(16), desk: 'y'.repeat(16) };
+  [['stacks', stacks], ['stacks and widgets', mix], ['widgets', fill]].forEach(([name, list]) => {
+    const k = H.normalize({ v: 1, phone: list, desk: list, wp: WP });
+    const n = J(k).length;
+    ok('max-fill of ' + name + ' with desk cells and wp: within the 24 cap, under 12,000 chars (' + n + ')',
+      H.weight(k.phone) <= 24 && H.weight(k.desk) <= 24 && k.desk.every((it) => typeof it.x === 'number') && k.wp && n < 12000 && n <= R.MAX_STATE_JSON
+        && !!R.normalizeUser({ layoutState: { 'os-home': k } }).layoutState['os-home'], n);
+  });
+  const unit = Math.max(J({ id: 'x'.repeat(32), s: 'm', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, cfg: {} }).length + H.MAX_CFG,
+    Math.ceil(J({ id: 'stack', s: 'l', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, items: ['x'.repeat(32), 'x'.repeat(32), 'x'.repeat(32), 'x'.repeat(32)] }).length / H.STACK_MAX));
+  ok('the theoretical bound with every P1 field (' + (2 * H.MAX_ITEMS * unit + J({ wp: WP }).length + 40) + ')', 2 * H.MAX_ITEMS * unit + J({ wp: WP }).length + 40 < 12000);
 }
 
 console.log('\n5. round trip');

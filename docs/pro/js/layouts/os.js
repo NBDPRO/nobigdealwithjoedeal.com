@@ -64,7 +64,21 @@
     return L.appsFromNav(L.readNav(doc).map(function (e) {
       if (!byId('view-' + e.id)) e.hidden = true;
       return e;
-    }));
+    })).concat(WM.linkApps(navShown));
+  }
+  // a link app's sidebar item, by readNav's hidden test (role gating, the customizer)
+  function navShown(navId) {
+    var n = byId(navId);
+    return !!n && !(n.hidden || (n.classList && n.classList.contains('dn')) || (n.style && n.style.display === 'none') ||
+      n.getAttribute('aria-hidden') === 'true');
+  }
+  /** A link app (Daily Success) opens its own page in the same tab; true when `id` was one. */
+  function openLink(id) {
+    var a = appById(id);
+    if (!a || !a.href) return false;
+    if (S.startOpen) setStart(false);
+    safe(function () { W.open(a.href, '_self'); });   // openDailyTracker's call; the demo's wrapper remaps it
+    return true;
   }
   function appById(id) {
     for (var i = 0; i < S.apps.length; i++) if (S.apps[i].id === id) return S.apps[i];
@@ -95,13 +109,77 @@
     saveT = setTimeout(function () { saveT = null; if (S) writeState(S); }, SAVE_MS);
   }
   // ── home widgets (os/home.js), from layoutState['os-home'] ──
+  // The CRM's company-admin check (layouts/bento.js, layouts/picker.js): the solo
+  // owner or a company_admin. firestore.rules is the real gate on what they write.
+  // Unlike those copies, claims not loaded yet (window._userClaims unset) are not
+  // the solo owner here: that would lift a company home lock until they arrive.
+  function canAdmin() {
+    if (!W._userClaims || typeof W._userClaims !== 'object') return false;
+    var c = W._userClaims;
+    var role = String(c.role || '');
+    if (role === 'viewer' || role === 'sales_rep' || role === 'manager') return false;
+    var u = W._user && W._user.uid;
+    return role === 'company_admin' || !c.companyId || c.companyId === u;
+  }
+  function prefs() { return safe(function () { return W.LayoutEngine.prefs(); }) || {}; }
+  /** The member's own saved key (an edit not written yet first), or null. */
+  function ownHome() {
+    if (S && S.homeNext) return S.homeNext;
+    var p = prefs();
+    return p.user && p.user.layoutState ? p.user.layoutState[W.NBDOSHomeLogic.KEY] || null : null;
+  }
+  /** P1 company home: company lock > own home > company default > built-in (home-logic resolveHome). */
   function homeKey() {
-    var HL = W.NBDOSHomeLogic;
-    if (S && S.homeNext) return HL.normalize(S.homeNext);   // an edit not written yet
-    var p = safe(function () { return W.LayoutEngine.prefs(); });
-    return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null);
+    var co = prefs().company || {};
+    return W.NBDOSHomeLogic.resolveHome({ own: ownHome(), company: co.defaultWidgets, locked: co.homeLocked === true, admin: canAdmin() });
   }
   function homeItems(surface) { return homeKey()[surface]; }
+  // ── P1: frecency (#13) and the urgency ring (#5), both pure in os/home-logic.js ──
+  // Most used lately first (command palette go-<id> counts, this device; the recent list):
+  // the phone's icons only while the member has never arranged them (S.icons empty), so a
+  // manual order always wins; Start has no manual order, so its empty search always uses it.
+  var USAGE_KEY = 'nbd_cmd_usage_v1';   // command-palette-scopes.js
+  function frecent(apps) {
+    var HL = W.NBDOSHomeLogic;
+    if (!HL || typeof HL.frecency !== 'function') return apps;
+    var raw = null;
+    try { raw = W.localStorage.getItem(USAGE_KEY); } catch (e) { raw = null; }
+    return HL.frecency(apps, HL.parseUsage(raw), S.recent);
+  }
+  /** The phone's icon order: the member's own once arranged; else frecency, fixed until the next Home. */
+  function phoneOrder() {
+    if (S.icons && S.icons.length) return WM.orderApps(S.apps, S.icons);
+    if (!S.freq) S.freq = frecent(WM.orderApps(S.apps, S.icons)).map(function (a) { return a.id; });
+    return WM.orderApps(S.apps, S.freq);
+  }
+  /** { id, pill, text } for the app that carries the ring, or null (no data, nobody waiting). */
+  function urgentApp() {
+    var H = W.NBDOSHome, HL = W.NBDOSHomeLogic;
+    if (!H || typeof H.urgency !== 'function' || !HL || typeof HL.urgencyText !== 'function') return null;
+    var t = safe(function () { return HL.urgencyText(H.urgency()); });
+    if (!t) return null;
+    var id = [t.app, 'crm', 'home'].filter(function (x) { return !!appById(x); })[0];
+    return id ? { id: id, pill: t.pill, text: t.text } : null;
+  }
+  function ringKey(u) { return u ? u.id + '|' + u.text : ''; }
+  function ringCls(id) { return S.urg && S.urg.id === id ? ' is-urgent' : ''; }
+  function ringPill(id) { return S.urg && S.urg.id === id ? '<span class="os-urgent-pill" aria-hidden="true">' + esc(S.urg.pill) + '</span>' : ''; }
+  function ringLabel(id, label) { return S.urg && S.urg.id === id ? ' aria-label="' + esc(label + ', ' + S.urg.text) + '"' : ''; }
+  /** On the home's own events (os/home.js onEvent): repaint the ring only when who is waiting changed. */
+  function checkRing() {
+    if (!S) return;
+    var u = urgentApp();
+    if (ringKey(u) === ringKey(S.urg)) return;
+    S.urg = u;
+    if (S.surface === 'phone') { if (S.phoneOpen || S.editing) paintBar(); else phonePaint(); } else paintIcons();
+  }
+  function homeSurface() { return S && S.surface === 'phone' ? 'phone' : 'desk'; }
+  /** The company locked this surface's home for this member: no edit mode. */
+  function homeLocked() { return !!(S && S.home) && homeKey().src[homeSurface()] === 'company-lock'; }
+  var LOCKED_MSG = 'Your company set this home screen, so it can\'t be changed here.';
+  function toast(msg, kind) {
+    if (typeof W.showToast === 'function') safe(function () { W.showToast(msg, kind || 'info'); });
+  }
   function navHidden(id) {
     var e = L.readNav(doc).filter(function (x) { return x.id === id; })[0];
     return !e || !!e.hidden;
@@ -117,6 +195,7 @@
         onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
         onEmpty: function () { focusHomeTool(surface); },
         navHidden: navHidden,
+        onEvent: function () { safe(checkRing); },
         onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
   }
@@ -126,10 +205,9 @@
   // SAVE_MS for the next keystroke, like the window state, and is flushed on
   // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
-    var HL = W.NBDOSHomeLogic;
-    var key = homeKey();
-    key[surface] = list;
-    S.homeNext = HL.normalize(key);
+    if (homeLocked()) return;
+    // own key, this surface replaced: a surface still on the company home stays on it
+    S.homeNext = W.NBDOSHomeLogic.setSurface(ownHome(), surface, list);
     clearTimeout(S.homeSaveT);
     S.homeSaveT = setTimeout(flushHome, SAVE_MS);
     refreshHome();
@@ -150,6 +228,7 @@
   /** Edit mode on or off: the phone's (shared with the icons) or the desk column's. */
   function setHomeEditing(on, focusFirst) {
     if (!S || !S.home) return;
+    if (on && homeLocked()) { toast(LOCKED_MSG); return; }
     if (!on) flushHome();
     if (S.surface === 'phone') {
       if (on && S.phoneOpen) phoneHome();
@@ -174,15 +253,144 @@
   function paintDeskTools() {
     var t = S && S.deskEl && S.deskEl.querySelector('.os-hw-tools');
     if (!t) return;
+    // an owner's team controls head the column in edit mode; Add widget and Done stay pinned at its foot
+    var team = t.parentNode.querySelector('.os-hw-team');
+    if (!team) { team = doc.createElement('div'); team.className = 'os-hw-team'; team.setAttribute('role', 'group'); team.setAttribute('aria-label', 'Team home'); t.parentNode.insertBefore(team, t.parentNode.firstChild); }
+    team.innerHTML = S.homeEditing ? teamHtml('data-osdo', 'os-hw-tool') : '';
     t.innerHTML = S.homeEditing
       ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
         '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
-      : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>' +
+      : (homeLocked() ? '<p class="os-hw-locked">Your company set this home.</p>'
+        : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>') +
         '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="wallpaper">Wallpaper</button>';
   }
-  // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
-  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  // ── company home (P1): an owner or admin publishes this surface's home and locks team homes ──
+  // The two controls show in edit mode for canAdmin() only; their code is the
+  // lazy `oshomeco` bundle (js/os/home-company.js), loaded on the first tap.
+  function teamHtml(attr, cls) {
+    if (!canAdmin()) return '';
+    var on = (prefs().company || {}).homeLocked === true;
+    return '<button type="button" class="btn btn-ghost ' + esc(cls) + '" ' + esc(attr) + '="homepublish">Publish to team</button>' +
+      '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (on ? ' is-on' : '') + '" ' + esc(attr) + '="homelock" role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' +
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>';
+  }
+  function teamAction(what) {
+    if (!S || !S.home || !canAdmin()) return;
+    var surface = homeSurface();
+    function run() {
+      var C = W.NBDOSHomeCompany;
+      if (!S || !C || typeof C[what] !== 'function') return;
+      flushHome();
+      safe(function () { C[what]({ surface: surface, items: homeItems(surface), after: function () { afterTeam('home' + what); } }); });
+    }
+    if (W.NBDOSHomeCompany) return run();
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return toast('Couldn\'t open that just now. Try again.', 'error');
+    if (SL.bundles && !SL.bundles.oshomeco) SL.bundles.oshomeco = ['js/os/home-company.js?v=1'];
+    Promise.resolve(SL.loadBundle('oshomeco')).then(run, function () { toast('Couldn\'t open that just now. Try again.', 'error'); });
+  }
+  /** What the home shows and who may change it, as one string: equal means nothing to repaint. */
+  function homeSig() {
+    return safe(function () { return JSON.stringify([homeKey(), (prefs().company || {}).homeLocked === true, canAdmin()]); }) || '';
+  }
+  function onLayoutPrefs() {
+    if (!S || !S.home) return;
+    var sig = homeSig();
+    if (sig === S.homeSig) return;
+    S.homeSig = sig;
+    if (homeLocked() && (S.homeEditing || S.editing)) { S.homeEditing = false; safe(function () { S.home.setEditing(false); }); }
+    afterTeam();
+  }
+  // after a publish or a lock change: repaint the home and its controls from the saved settings.
+  // The repaint replaces the control that was used; `refocus` ('homepublish' | 'homelock') puts
+  // focus back on its new copy when focus would otherwise fall to <body>.
+  function afterTeam(refocus) {
+    if (!S) return;
+    refreshHome();
+    if (S.surface !== 'phone') paintDeskTools();
+    S.homeSig = homeSig();
+    if (!refocus) return;
+    var a = doc.activeElement;
+    if (a && a !== doc.body && doc.body.contains(a)) return;   // focus moved on by itself: leave it
+    var root = S.surface === 'phone' ? S.phoneEl : S.deskEl;
+    var b = root && root.querySelector('[data-osp="' + esc(refocus) + '"], [data-osdo="' + esc(refocus) + '"]');
+    if (b) safe(function () { b.focus(); });
+  }
+  // ── wallpaper (P1, design §3.6) ───────────────────────────────
+  // Each surface carries data-os-wp (auto | tod | none | img) and data-os-tod
+  // (the period, re-read on the clock tick the surface already runs: no timer
+  // of its own); css/layouts/os.css paints from them. The choice is
+  // layoutState['os-home'].wp (ids only). The picker and the My Skin picture
+  // painter are js/os/wallpaper.js, a ScriptLoader bundle registered here and
+  // loaded only when Wallpaper is tapped or a picture is chosen.
+  var WP_BUNDLE = 'oswp', WP_FILES = ['js/os/wallpaper.js?v=1'];
+  function wpSurface() { return S && S.surface === 'phone' ? 'phone' : 'desk'; }
+  function wpEl() { return S ? (S.surface === 'phone' ? S.phoneEl : S.deskEl) : null; }
+  /** The bundle as a promise, or null when there is no ScriptLoader to load it with. */
+  function loadWp() {
+    if (W.NBDOSWallpaper) return Promise.resolve(W.NBDOSWallpaper);
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return null;
+    if (SL.bundles && !SL.bundles[WP_BUNDLE]) SL.bundles[WP_BUNDLE] = WP_FILES;
+    return Promise.resolve(SL.loadBundle(WP_BUNDLE)).then(function () {
+      if (!W.NBDOSWallpaper) throw new Error('wallpaper bundle missing');
+      return W.NBDOSWallpaper;
+    });
+  }
+  function paintWp() {
+    var el = wpEl(), HL = W.NBDOSHomeLogic;
+    if (!el || !HL || typeof HL.wpPaint !== 'function') return;
+    var surface = wpSurface();
+    var stored = S.wpPreview !== undefined ? S.wpPreview : HL.wpOf(homeKey(), surface);
+    var p = HL.wpPaint(stored, { now: Date.now(), sun: doc.documentElement.classList.contains('sun-all') });
+    if (el.getAttribute('data-os-tod') !== p.tod) el.setAttribute('data-os-tod', p.tod);
+    // a picture shows once it is decoded; until then (or if it can't be read) time of day
+    var shown = p.wp === 'img' ? (S.wpImg === p.img ? 'img' : 'tod') : p.wp;
+    if (el.getAttribute('data-os-wp') !== shown) el.setAttribute('data-os-wp', shown);
+    // a company-enforced My Skin background hides it (css): don't load or read it (the clock tick paints it once lifted)
+    var want = p.wp === 'img' && !doc.documentElement.classList.contains('my-skin-locked');
+    if (want && S.wpWant !== p.img) {
+      var id = p.img;
+      S.wpWant = id; S.wpImg = null;
+      var lp = loadWp();
+      if (lp) lp.then(function (WP) {
+        WP.paint(el, id, function (ok) { if (S && S.wpWant === id) { S.wpImg = ok ? id : null; paintWp(); } });
+      }).catch(function () {});
+    } else if (!want && S.wpWant) {
+      S.wpWant = null; S.wpImg = null;
+      if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
+    }
+  }
+  /** A deliberate pick: written at once (one tap, one save), the other surface kept. */
+  function saveWp(surface, v) {
+    if (!S) return;
+    S.wpPreview = undefined;
+    // the member's own key (never the resolved home): a surface on the company home stays on it
+    S.homeNext = W.NBDOSHomeLogic.setWp(ownHome(), surface, v);
+    flushHome();
+    paintWp();
+  }
+  // Wallpaper (P1): the picker first (Time of day, None, My Skin pictures), with
+  // "More in My Skin settings"; with no loader, My Skin's settings as in P0c.
   function openWallpaper() {
+    var lp = loadWp();
+    if (!lp) { openSkinSettings(); return; }
+    var surface = wpSurface();
+    lp.then(function (WP) {
+      if (!S) return;
+      WP.open({
+        surface: surface,
+        current: W.NBDOSHomeLogic.wpOf(homeKey(), surface),
+        preview: function (v) { if (S) { S.wpPreview = v; paintWp(); } },
+        done: function (v) { saveWp(surface, v); },
+        cancel: function () { if (S) { S.wpPreview = undefined; paintWp(); } },
+        more: openSkinSettings,
+      });
+    }).catch(function () { if (S) openSkinSettings(); });
+  }
+  // My Skin's existing background picker (P0c), no store of our own.
+  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  function openSkinSettings() {
     var B = W.NBDMySkinBoot;
     if (B && typeof B.load === 'function') safe(function () { B.load(); });
     var O = W.NBDOS;
@@ -315,6 +523,7 @@
   /** Open (or restore and focus) the window for view `id`. */
   function openWin(id, opts) {
     var o = opts || {};
+    if (openLink(id)) return;
     if (!viewEl(id)) return;
     var rec = winRec(id);
     if (!rec) {
@@ -530,12 +739,12 @@
   // ── chrome: icons, widgets, taskbar, start ──
   function iconsHtml() {
     return WM.orderApps(S.apps, S.icons).map(function (a) {
-      return '<button type="button" class="os-icon" data-osapp="' + esc(a.id) + '" draggable="false">' +
-        '<span class="os-icon-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span>' +
+      return '<button type="button" class="os-icon' + ringCls(a.id) + '" data-osapp="' + esc(a.id) + '" draggable="false"' + ringLabel(a.id, a.label) + '>' +
+        '<span class="os-icon-glyph" aria-hidden="true">' + esc(a.icon || '▣') + ringPill(a.id) + '</span>' +
         '<span class="os-icon-label">' + esc(a.label) + '</span></button>';
     }).join('');
   }
-  function paintIcons() { if (S.iconsEl) S.iconsEl.innerHTML = iconsHtml(); }
+  function paintIcons() { if (S.iconsEl) { S.urg = urgentApp(); S.iconsEl.innerHTML = iconsHtml(); } }
   function paintClock() {
     if (!S || !S.clockEl) return;
     var c = L.clockText(new Date());
@@ -557,6 +766,7 @@
   function startListHtml(q) {
     var term = String(q || '').trim().toLowerCase();
     var list = S.apps.filter(function (a) { return !term || a.label.toLowerCase().indexOf(term) !== -1 || a.id.indexOf(term) !== -1; });
+    if (!term) list = frecent(list);   // most used lately first (P1 #13)
     var visits = visitStartRows(term);
     if (!list.length && !visits) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
     // the apps start on a fresh row under their own heading, not beside the last visit item
@@ -645,7 +855,8 @@
     applyButtonStyle();
     paintIcons();
     paintClock();
-    S.clockT = setInterval(paintClock, 30000);
+    paintWp();
+    S.clockT = setInterval(function () { paintClock(); paintWp(); }, 30000);
 
     on(desk, 'click', onDeskClick);
     on(desk, 'dblclick', function (ev) {
@@ -742,6 +953,8 @@
     if (what === 'homeedit') return setHomeEditing(true, true);
     if (what === 'homedone') return setHomeEditing(false);
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'homepublish') return teamAction('publish');
+    if (what === 'homelock') return teamAction('lock');
     if (what === 'wallpaper') return openWallpaper();
   }
   function onDeskClick(ev) {
@@ -899,14 +1112,15 @@
   var PER_PAGE = 20;   // 4 columns x 5 rows
   function phoneIconHtml(a, extraClass) {
     var sel = S.editPick === a.id;
-    return '<button type="button" class="os-p-icon' + (extraClass || '') + (sel ? ' is-picked' : '') + '" data-osp="app" data-id="' + esc(a.id) + '"' +
-      (S.editing ? ' aria-pressed="' + (sel ? 'true' : 'false') + '"' : '') + '>' +
-      '<span class="os-p-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span>' +
+    return '<button type="button" class="os-p-icon' + (extraClass || '') + (sel ? ' is-picked' : '') + ringCls(a.id) + '" data-osp="app" data-id="' + esc(a.id) + '"' +
+      (S.editing ? ' aria-pressed="' + (sel ? 'true' : 'false') + '"' : ringLabel(a.id, a.label)) + '>' +
+      '<span class="os-p-glyph" aria-hidden="true">' + esc(a.icon || '▣') + ringPill(a.id) + '</span>' +
       '<span class="os-p-label">' + esc(a.label) + '</span></button>';
   }
   function phonePaint() {
     if (!S || !S.phoneEl) return;
-    var ordered = WM.orderApps(S.apps, S.icons);
+    S.urg = urgentApp();
+    var ordered = phoneOrder();
     // the home widgets fill page 1 first; the icons take the cells left, then pages of 20
     // packed (home-logic pack): any size mix fills whole rows, so pageRoom's icons stay on the page
     var items = S.home ? W.NBDOSHomeLogic.pack(homeItems('phone')) : null;
@@ -921,11 +1135,14 @@
         '<button type="button" class="btn btn-orange os-p-qbtn" data-osp="newlead">New lead</button>' +
         '<button type="button" class="btn btn-ghost os-p-qbtn" data-osp="search">Search</button>' +
       '</div></div>';
+    var locked = homeLocked();
     if (S.editing) {
       h += '<div class="os-p-edit' + (S.home ? ' has-home' : '') + '" role="status"><span>' +
-        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (S.home ? 'Tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.')) + '</span>' +
-        (S.home ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
+        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (locked ? 'Tap an app, then tap where it goes. Your company set the widgets.'
+          : (S.home ? 'Drag a widget, or tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.'))) + '</span>' +
+        (S.home && !locked ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
         '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
+      if (S.home && canAdmin()) h += '<div class="os-hw-team" role="group" aria-label="Team home">' + teamHtml('data-osp', 'btn-sm') + '</div>';
     }
     if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
@@ -943,7 +1160,7 @@
     if (slot) {
       slot.parentNode.insertBefore(S.home.el, slot);
       slot.parentNode.removeChild(slot);
-      S.home.setEditing(!!S.editing);
+      S.home.setEditing(!!S.editing && !locked);   // a locked home's widgets never take edit chrome
       S.home.update(items);
     }
     var pagesEl = S.phoneEl.querySelector('.os-p-pages');
@@ -961,15 +1178,16 @@
       dock.map(function (a, i) {
         var on = S.phoneOpen === a.id;
         var sel = S.editing && S.editPick;
-        return '<button type="button" class="os-bar-btn' + (on ? ' is-on' : '') + (sel ? ' is-target' : '') + '" data-osp="' + (S.editing ? 'dockslot' : 'app') + '" data-id="' + esc(a.id) + '" data-slot="' + String(i) + '"' +
-          (on ? ' aria-current="page"' : '') + '>' +
-          '<span class="os-bar-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span><span class="os-bar-label">' + esc(a.label) + '</span></button>';
+        return '<button type="button" class="os-bar-btn' + (on ? ' is-on' : '') + (sel ? ' is-target' : '') + (S.editing ? '' : ringCls(a.id)) + '" data-osp="' + (S.editing ? 'dockslot' : 'app') + '" data-id="' + esc(a.id) + '" data-slot="' + String(i) + '"' +
+          (on ? ' aria-current="page"' : '') + (S.editing ? '' : ringLabel(a.id, a.label)) + '>' +
+          '<span class="os-bar-glyph" aria-hidden="true">' + esc(a.icon || '▣') + (S.editing ? '' : ringPill(a.id)) + '</span><span class="os-bar-label">' + esc(a.label) + '</span></button>';
       }).join('') +
       '<button type="button" class="os-bar-btn" data-osp="recents" aria-label="Recent apps" aria-haspopup="dialog">' +
         '<span class="os-bar-glyph" aria-hidden="true">❏</span><span class="os-bar-label">Recents</span></button>';
   }
   function phoneOpen(id, opts) {
     var o = opts || {};
+    if (S && openLink(id)) return;
     if (!S || !viewEl(id)) return;
     closeSwitcher();
     S.phoneOpen = id;
@@ -985,7 +1203,9 @@
     S.phoneOpen = null;
     doc.documentElement.removeAttribute('data-os-app');
     if (S.editing) { S.editing = false; S.editPick = null; flushHome(); }
+    S.freq = null;   // frecency re-ranks on each return Home, never under the member's finger
     phonePaint();
+    if (S.home && typeof S.home.show === 'function') safe(function () { S.home.show(); });
     var p = S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
     if (p) p.focus({ preventScroll: true });
   }
@@ -1050,7 +1270,7 @@
       dock[slot] = pick;
       S.dock = dock;
     } else if (id !== pick) {
-      var order = WM.orderApps(S.apps, S.icons).map(function (a) { return a.id; });
+      var order = phoneOrder().map(function (a) { return a.id; });   // the order on screen, frecency or the member's
       var i = order.indexOf(pick), j = order.indexOf(id);
       if (i !== -1 && j !== -1) { order[i] = id; order[j] = pick; S.icons = order; }
     }
@@ -1085,7 +1305,9 @@
     if (what === 'home') return phoneHome();
     if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
     if (what === 'done') { S.editing = false; S.editPick = null; flushHome(); return phonePaint(); }
-    if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'homeadd' && S.home && !homeLocked()) return safe(function () { S.home.openAdd(); });
+    if (what === 'homepublish') return teamAction('publish');
+    if (what === 'homelock') return teamAction('lock');
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
     if (what === 'swclose') return closeSwitcher();
@@ -1152,9 +1374,11 @@
     S.page = 0;
     S.home = makeHome('phone');
     phonePaint();
+    paintWp();
     S.clockT = setInterval(function () {
       var t = S && S.phoneEl && S.phoneEl.querySelector('.os-p-time');
       if (t) t.textContent = L.clockText(new Date()).time;
+      paintWp();
     }, 30000);
     [home, bar].forEach(function (el) {
       on(el, 'click', onPhoneClick);
@@ -1282,6 +1506,19 @@
     watchVisits();
     registerControls();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
+    // settings read after mount (a company home published or locked): show what they say now.
+    // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
+    S.homeSig = homeSig();
+    on(doc, 'nbd:layout-prefs', onLayoutPrefs);
+    // the settings read does not wait for the auth claims: until they load nobody is admin
+    // (canAdmin), so look again when they land, the way a settings read would
+    var claimTries = 0;
+    (function claims() {
+      if (!S) return;
+      if (W._userClaims && typeof W._userClaims === 'object') return onLayoutPrefs();
+      if (++claimTries <= 120) S.claimsT = setTimeout(claims, 500);   // a minute, like layout-system's poll
+    })();
+    on(doc, 'nbd:sunlight', paintWp);   // Sunlight on or off: day at once, not at the next tick
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1308,10 +1545,11 @@
     // a change still waiting to be saved is written now, not dropped
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
     flushHome();
-    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.ctrlT);
+    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.claimsT); clearTimeout(st.ctrlT);
     unregisterControls();
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
+    if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(); });   // its blob: URLs, its open picker
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });
     if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);

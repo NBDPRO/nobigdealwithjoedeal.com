@@ -317,7 +317,23 @@
     return out;
   }
 
+  /**
+   * Apps that are a page of their own, not a view the sidebar can goTo
+   * (P1, design §2: Daily Success can't be framed, X-Frame-Options DENY). Each
+   * opens in the same tab, like widgets.js openDailyTracker; `nav` is the
+   * sidebar item whose hidden test (role gating, the customizer) decides
+   * whether the member gets the app. They go after the view apps; the dock
+   * keeps its defaults (it only takes one when the member puts it there).
+   */
+  var LINK_APPS = [{ id: 'daily-success', label: 'Daily Success', icon: '📅', nav: 'nav-daily', href: '/pro/daily-success/' }];
+  /** The link apps whose sidebar item `shown(navId)` says this member has. */
+  function linkApps(shown) {
+    return LINK_APPS.filter(function (a) { return typeof shown === 'function' && shown(a.nav) === true; })
+      .map(function (a) { return { id: a.id, label: a.label, icon: a.icon, href: a.href }; });
+  }
+
   var api = {
+    LINK_APPS: LINK_APPS, linkApps: linkApps,
     MIN_W: MIN_W, MIN_H: MIN_H, MAX_WINS: MAX_WINS, MAX_RECENT: MAX_RECENT, DOCK_DEFAULT: DOCK_DEFAULT,
     clampFrac: clampFrac, toPx: toPx, toFrac: toFrac, snapZone: snapZone, zoneFrac: zoneFrac, keySnap: keySnap,
     cascadeFrac: cascadeFrac, front: front, nextFocus: nextFocus, orderApps: orderApps, mergeOrder: mergeOrder, restoreIndex: restoreIndex, normalizeState: normalizeState,

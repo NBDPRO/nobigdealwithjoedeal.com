@@ -388,3 +388,57 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
 }
 .os-visit-icon.is-rec .os-p-glyph { background: var(--orange); border-color: var(--orange); }
 .os-visit-icon.is-rec .os-rec-glyph { width: 34px; height: 34px; background: radial-gradient(circle, var(--red) 0 30%, white 32%); }
+
+/* ── wallpaper (P1, design §3.6; os.js paintWp, js/os/wallpaper.js) ──
+   Per surface (the desk, the phone home screen), from layoutState['os-home'].wp.
+   os.js sets data-os-wp (auto | tod | none | img) and data-os-tod (dawn | day |
+   dusk | night, from the clock tick it already runs). Time of day is four
+   gradients mixed from theme tokens only (no new hue, 0 image bytes): mostly
+   --bg, so it is already "pre-dimmed"; each widget keeps its own token glass
+   (--s at 88%, --ui-elev-1) and no card has a backdrop-filter. Every stop is
+   one color-mix(in srgb, var(--a) N%, var(--b)) so
+   tests/nbd-os-wallpaper-2026-11-09.test.js can recompute the contrast of
+   widget text over it for every theme. No motion: a period change just paints. */
+.os-desk[data-os-wp="auto"], .os-desk[data-os-wp="tod"],
+.os-phone[data-os-wp="auto"], .os-phone[data-os-wp="tod"] {
+  background: linear-gradient(180deg, var(--os-wp-a) 0%, var(--os-wp-b) 55%, var(--os-wp-c) 100%);
+}
+[data-os-tod="dawn"] {
+  --os-wp-a: color-mix(in srgb, var(--bg) 84%, var(--gold));
+  --os-wp-b: color-mix(in srgb, var(--bg) 90%, var(--orange));
+  --os-wp-c: color-mix(in srgb, var(--bg) 92%, var(--blue));
+}
+[data-os-tod="day"] {
+  --os-wp-a: color-mix(in srgb, var(--bg) 84%, var(--blue));
+  --os-wp-b: color-mix(in srgb, var(--bg) 90%, var(--s3));
+  --os-wp-c: color-mix(in srgb, var(--bg) 94%, var(--gold));
+}
+[data-os-tod="dusk"] {
+  --os-wp-a: color-mix(in srgb, var(--bg) 86%, var(--orange));
+  --os-wp-b: color-mix(in srgb, var(--bg) 90%, var(--red));
+  --os-wp-c: color-mix(in srgb, var(--bg) 88%, var(--blue));
+}
+[data-os-tod="night"] {
+  --os-wp-a: color-mix(in srgb, var(--bg) 86%, var(--blue));
+  --os-wp-b: color-mix(in srgb, var(--bg) 94%, var(--s3));
+  --os-wp-c: color-mix(in srgb, var(--bg) 92%, var(--blue));
+}
+/* a My Skin picture: one pre-dimmed layer (the veil is --bg at the dim My Skin's
+   own readability guard picked) over --bg, as the surface's own background (no
+   pseudo layer, so no new stacking context); the URL is a blob: object URL
+   os/wallpaper.js sets as --os-wp-img through the CSSOM */
+.os-desk[data-os-wp="img"], .os-phone[data-os-wp="img"] {
+  background: linear-gradient(var(--os-wp-veil), var(--os-wp-veil)), var(--os-wp-img, none) center / cover no-repeat, var(--bg);
+  --os-wp-veil: color-mix(in srgb, var(--bg) var(--os-wp-dim, 55%), transparent);
+}
+/* text that sits straight on the picture (icon labels) gets a token chip: --t on it
+   stays >= 4.5:1 whatever the picture under the veil (black to white) */
+[data-os-wp="img"] .os-icon-label, [data-os-wp="img"] .os-p-label {
+  padding: 0 4px; border-radius: var(--ui-radius-xs, 4px); background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+/* the default gives way to a picture My Skin paints (its own class on <html>) */
+html.my-skin-wallpaper .os-desk[data-os-wp="auto"], html.my-skin-wallpaper .os-phone[data-os-wp="auto"] { background: none; }
+/* a company-enforced My Skin background wins over every choice here */
+html.my-skin-locked .os-desk[data-os-wp], html.my-skin-locked .os-phone[data-os-wp] { background: none; }
+/* Sunlight: day, and nothing behind sunlit text (field-sunlight.css) */
+html.sun-all .os-desk[data-os-wp], html.sun-all .os-phone[data-os-wp] { background: var(--bg); }

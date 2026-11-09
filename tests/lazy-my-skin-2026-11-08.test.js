@@ -198,7 +198,7 @@ const settle = async (w, ms) => { for (let i = 0; i < (ms || 150); i++) await ti
     const v = (re, s) => ((s || '').match(re) || [])[1];
     const reg = (SL.bundles.myskin || []).join(' ');
     ok('the bundle\'s logic cache-buster is the one the encode worker imports', !!v(/my-skin-logic\.js\?v=(\d+)/, reg) && v(/my-skin-logic\.js\?v=(\d+)/, reg) === v(/my-skin-logic\.js\?v=(\d+)/, read('docs/pro/js/my-skin-encode-worker.js')), reg);
-    ok('my-skin.js\'s cache-buster is bumped for the hint it now writes (v=12)', /js\/my-skin\.js\?v=12\b/.test(reg), reg);
+    ok('my-skin.js\'s cache-buster is bumped for the hint it now writes (v=12) and the NBD OS wallpaper API (v=13)', /js\/my-skin\.js\?v=13\b/.test(reg), reg);
   }
 
   console.log('\nMY SKIN BOOT: my-skin.js writes the device hint');
