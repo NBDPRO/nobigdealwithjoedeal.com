@@ -57,7 +57,7 @@
   let _isRecording = false;
   let _isProcessing = false;
   let _currentResult = null; // { transcript, summary }
-  let _onSaved = null; // review()'s caller, told the capture id once Save writes it
+  let _onSaved; // review()'s caller, told the capture id once Save writes it
 
   function isSupported() {
     return typeof window.MediaRecorder === 'function'
@@ -130,17 +130,14 @@
   // A typed note (NBD OS Pocket, 2026-11-09) gets this same result screen and writer.
   function review(text, onSaved) {
     const t = String(text == null ? '' : text).trim().slice(0, 4000);
-    if (!t) return false;
     // never over a voice capture still in hand: close() would stop and drop the recording,
     // the clip being transcribed, or a summary not yet saved. The caller keeps the note.
-    if (_isRecording || _isProcessing || (_currentResult && _currentResult.summary)) return false;
+    if (!t || _isRecording || _isProcessing || _currentResult?.summary) return false;
     close();
     open();
-    const title = document.getElementById('nbd-qc-title');
-    if (title) title.textContent = 'File this note';   // typed, not talked
-    _currentResult = { transcript: t, summary: null };
-    _onSaved = typeof onSaved === 'function' ? onSaved : null;
-    _renderResult(_currentResult);
+    document.getElementById('nbd-qc-title').textContent = 'File this note';   // typed, not talked (open() just built it)
+    _renderResult(_currentResult = { transcript: t, summary: null });
+    _onSaved = onSaved;
     return true;
   }
 
@@ -638,17 +635,15 @@
       // customer-page timeline.
       if (linkedLeadId) {
         try {
+          const s = _currentResult.summary;   // null: a typed Pocket note, a Note kept whole
           await fb.addDoc(
             fb.collection(fb.db, 'leads', linkedLeadId, 'activity'),
             {
               userId: uid,
               type: 'note',
               source: 'rep',
-              // a typed Pocket note (no summary) is a note, whole; a voice capture keeps its label and gist
-              label: _currentResult.summary ? 'Voice capture' : 'Note',
-              text: _currentResult.summary
-                ? (_currentResult.summary.overview || _currentResult.transcript?.slice(0, 200) || '')
-                : (_currentResult.transcript || ''),
+              label: s ? 'Voice capture' : 'Note',
+              text: s?.overview || _currentResult.transcript?.slice(0, s ? 200 : 4e3) || '',
               captureId: captureRef.id,
               createdAt: fb.serverTimestamp(),
             }
@@ -659,7 +654,7 @@
       }
 
       toast(linkedLeadId ? 'Saved & linked ✓' : 'Capture saved ✓', 'success');
-      if (_onSaved) try { _onSaved(captureRef.id); } catch (_) {}
+      try { _onSaved?.(captureRef.id); } catch (_) {}
       close();
     } catch (e) {
       console.warn('[NBDQuickCapture] save failed:', e);
