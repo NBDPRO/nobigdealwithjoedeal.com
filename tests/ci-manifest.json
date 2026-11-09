@@ -11,6 +11,7 @@
   ],
   "node": [
     "q11-task-summary-backfill-2026-11-09.test.js",
+    "q11-call-text-backfill-2026-11-09.test.js",
     "install-completed-at-2026-11-09.test.js",
     "merge-catalog-costs-2026-11-09.test.js",
     "photo-exif-capture-2026-11-09.test.js",
@@ -699,6 +700,7 @@
     "home-widgets-survive-signout-2026-09-29.test.js",
     "product-library-company-2026-09-29.test.js",
     "catalog-sell-refresh-2026-11-09.test.js",
+    "catalog-price-floor-2026-11-09.test.js",
     "builder-rate-units-2026-11-09.test.js",
     "schedule-window-2026-09-29.test.js",
     "schedule-ec-events-2026-11-04.test.js",

@@ -143,4 +143,6 @@ async function overlayTasks(db, tasks, chunk = 100) {
   return list;
 }
 
-module.exports = { COLLECTION, FIELDS, split, apply, sidePath, writeSide, createTaskIfAbsent, moveSide, overlayTasks };
+// sideDoc / writeSideIfAbsent are exported for scripts/backfill-q11-call-text.js
+// (2026-11-09), so the backfill writes the same sidecar shape as the writers.
+module.exports = { COLLECTION, FIELDS, split, apply, sidePath, sideDoc, writeSide, writeSideIfAbsent, createTaskIfAbsent, moveSide, overlayTasks };

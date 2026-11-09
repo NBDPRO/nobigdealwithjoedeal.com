@@ -37,7 +37,14 @@
   // rdeck_004), plus flash_008's coverage text corrected to ~120 LF per
   // bundle. migrateStore refreshes untouched catalog rows only; user-edited,
   // user-added, archived and tombstoned rows are kept as they are.
-  const DATA_VERSION = 6;
+  // DATA_VERSION 7 (2026-11-09, Jo): the 20% floor. Every tier of every
+  // product-data.js SKU clears a 20% margin after labor on the live cost book
+  // (RoofIVent SKUs, roofivent-catalog.js at MSRP, are not covered: Jo's call);
+  // only the thin tiers of 54 SKUs were lifted, each keeping its good/better/
+  // best gaps (tests/catalog-price-floor-2026-11-09.test.js lists them).
+  // flash_007's coverage text now states the spec, 25 LF per bundle. Same
+  // migration rules as version 6.
+  const DATA_VERSION = 7;
 
   // Pull from product-data.js globals
   const CATEGORIES = window.NBD_CATEGORIES || {};
@@ -1320,7 +1327,7 @@ const PRODUCT_MAP = {
   tear:    null,                                                                       // labor only — no product mapping
   starter: { id: 'flash_008',   rateUnit: 'LF', lfPerBundle: 120, unitConvert: 1/120 }, // 120-LF bundle → rate per LF
   drip:    { id: 'flash_003',   rateUnit: 'LF', unitConvert: 1 },                    // product per LF → rate per LF
-  ridge:   { id: 'flash_007',   rateUnit: 'LF', lfPerBundle: 25, unitConvert: 1/25 },  // ~25-LF bundle → rate per LF
+  ridge:   { id: 'flash_007',   rateUnit: 'LF', lfPerBundle: 25, unitConvert: 1/25 },  // 25-LF bundle (Seal-A-Ridge spec) → rate per LF
   iws:     { id: 'under_006',   rateUnit: 'SQ', coverageKey: 'sqPerRoll', unitConvert: 1/2 },  // 2-SQ roll (200 SF) → rate per SQ
   hip:     { id: 'flash_007',   rateUnit: 'LF', lfPerBundle: 25, unitConvert: 1/25 },  // same as ridge
   pipe:    { id: 'flash_002',   rateUnit: 'EA', unitConvert: 1 },                    // product per EA → rate per EA

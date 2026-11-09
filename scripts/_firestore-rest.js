@@ -11,6 +11,8 @@
  * 2026-11-09: plus the one query scripts/backfill-q11-task-summaries.js pages
  * with: db.collectionGroup(id).orderBy('__name__').limit(n).startAfter(snap)
  * .get() -> { empty, size, docs: [{ id, ref, data() }] } (documents:runQuery).
+ * 2026-11-09: plus ref.create(data) (precondition exists: false) and the
+ * document's updateTime on get(), for scripts/backfill-q11-call-text.js.
  * The token is sent in a header only; it is never logged.
  */
 'use strict';
@@ -97,7 +99,19 @@ function restFirestore({ projectId, token, fetchImpl }) {
         if (r.status === 404) return { exists: false, data: () => undefined };
         if (r.status !== 200) throw new Error('Firestore read of ' + path + ' failed: HTTP ' + r.status + ' ' + ((r.json && r.json.error && r.json.error.message) || '').slice(0, 300));
         const data = decodeFields((r.json && r.json.fields) || {});
-        return { exists: true, data: () => data };
+        return { exists: true, updateTime: r.json && r.json.updateTime, data: () => data };
+      },
+      // create(data): write only when the document does not exist. An existing
+      // one fails with code 'already-exists' (HTTP 409), as the Admin SDK's
+      // create() fails with code 6; nothing is overwritten.
+      async create(data) {
+        const { plain, ts } = splitTransforms(data || {});
+        const w = { update: { name, fields: encodeFields(plain) }, currentDocument: { exists: false } };
+        if (ts.length) w.updateTransforms = ts.map((k) => ({ fieldPath: quoteSeg(k), setToServerValue: 'REQUEST_TIME' }));
+        try { return await commit([w]); } catch (e) {
+          if (/HTTP 409\b/.test(String(e.message))) e.code = 'already-exists';
+          throw e;
+        }
       },
       async set(data, opt) {
         const { plain, ts } = splitTransforms(data || {});
