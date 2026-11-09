@@ -923,7 +923,7 @@
       '</div></div>';
     if (S.editing) {
       h += '<div class="os-p-edit' + (S.home ? ' has-home' : '') + '" role="status"><span>' +
-        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (S.home ? 'Tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.')) + '</span>' +
+        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (S.home ? 'Drag a widget, or tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.')) + '</span>' +
         (S.home ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
         '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
     }

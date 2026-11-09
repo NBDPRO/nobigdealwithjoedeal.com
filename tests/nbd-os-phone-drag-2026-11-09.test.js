@@ -39,6 +39,8 @@ G(() => {
   ok('edit mode is on', byKey(ph, 'glance-1').classList.contains('is-editing'));
   const help = T.document.getElementById(byKey(ph, 'coach-1').getAttribute('aria-describedby') || 'none');
   ok('the help says a widget can be dragged, or tapped and placed', /Drag it, or tap it/.test(text(help)), text(help));
+  const bar = text(ph.querySelector('.os-p-edit span'));
+  ok('…and the edit bar on screen says the same: drag a widget, or tap then tap', /^Drag a widget, or tap an app or a widget, then tap where it goes\.$/.test(bar), bar);
   const coach = byKey(ph, 'coach-1');
   const caps = [];
   coach.setPointerCapture = (id) => caps.push('set' + id);
