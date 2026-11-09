@@ -152,6 +152,7 @@
   "leadBridgeThumbtack": "./lead-bridge",
   "leadBrief": "./lead-brief",
   "leadFollowUpSweep": "./lead-followup",
+  "leaderboardAggregate": "./leaderboard-aggregate",
   "listAgentKeys": "./agent-mcp",
   "listStormOutreach": "./agent-mcp",
   "listTeamMembers": "./handlers/admin",

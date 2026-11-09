@@ -966,6 +966,9 @@ exports.subPaperworkWatch = require('./sub-paperwork-watch').subPaperworkWatch;
 // Monday 07:30 ET: one Agent-inbox report to the owner (collected last week, estimates awaiting signature,
 // calls to return, jobs this week). Never a customer or rep. DRY-RUN unless OWNER_WEEKLY_DIGEST_ENABLED=true.
 exports.ownerWeeklyDigest = require('./owner-weekly-digest').ownerWeeklyDigest;
+// Every 30 min (NBD OS P2 Team, 2026-11-09): leaderboard/{uid} rows per active member, today's and this week's
+// counted doors / appointments / estimates sent / deals in the company time zone. DRY-RUN unless LEADERBOARD_AGGREGATE_ENABLED=true.
+exports.leaderboardAggregate = require('./leaderboard-aggregate').leaderboardAggregate;
 // Read-only Messaging Control Center (2026-10-19, flag messagingControlCenter, dark): masked overview
 // for the owner/admin + an hourly alert watch (Agent inbox + bell + push to the owner, never a customer).
 exports.messagingCenter = require('./messaging-center').messagingCenter;
