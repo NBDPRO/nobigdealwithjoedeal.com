@@ -89,7 +89,7 @@ const BRIEF = {
   followUp: null,
   stage: { targetKey: 'inspected', label: 'Inspected', role: 'active', reason: 'The roof was walked.', quote: 'we are up on the roof now' },
   drafts: { estimate: true, proposal: false, followUp: null },
-  flags: { injection: false, unreliable: false, cutOff: false }, people: [], objections: [], competitor: null,
+  flags: { injection: false, unreliable: false, cutOff: false }, people: [], objections: [{ kind: 'timing', quote: 'we are not in a hurry until spring' }], competitor: null,
 };
 const LEAD = { firstName: 'Pat', lastName: 'Example', insCarrier: '', damageType: '', scopeOfWork: '' };
 const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: ROW.startedAtMs, durationSec: 1200 }, lead: LEAD, leadId: 'L1', page: 'customer' };
@@ -158,6 +158,7 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     ok('…each fact once (the said quantity is not listed twice)', (html.match(/about twenty-eight squares/g) || []).length === 1, (html.match(/about twenty-eight squares/g) || []).length);
     ok('every word from the recording is escaped', !/<script|onerror/i.test(html));
     ok('the stories fact is listed once (as the 2-story line, not again as Said)', !/Said: &quot;two stories&quot;|Said: "two stories"/.test(html) && /2-story house \(said at the walkthrough\)/.test(html));
+    ok('no "on the call" heading in walkthrough mode, and the follow-up message does not ask to accept a promise', !/Objections on the call|Promises on the call/.test(html) && !/Accept a promise/.test(html));
     ok('the estimate card says what the homeowner named at the walkthrough (not "the caller")', /named at the walkthrough/.test(html) && !/the caller named/.test(html));
     calls.length = 0;
     await click({ 'data-cb-act': 'skip', 'data-k': 'damageType' });

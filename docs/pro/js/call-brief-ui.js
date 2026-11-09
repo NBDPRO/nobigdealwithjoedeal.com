@@ -527,7 +527,7 @@
   function renderObjections() {
     var tags = objectionTags(S.brief, profile().callPlaybook);
     if (!tags.length) return '';
-    return '<div class="cb-sec" role="group" aria-labelledby="cbObjH"><h3 class="cb-sec-title" id="cbObjH">Objections on the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbObjH"><h3 class="cb-sec-title" id="cbObjH">Objections ' + (isVisit() ? 'at the walkthrough' : 'on the call') + '</h3>' +
       '<div class="cb-meta">What they pushed back on, in their words, with a reply you can copy. Kept in this brief only: nothing goes on the customer and nothing is sent.</div>' +
       tags.map(function (t, i) {
         return '<div class="cb-card"><div class="cb-row-head"><span class="cb-tag">' + esc(t.label) + '</span></div>' + quoteHtml(t.quote) +
@@ -542,7 +542,7 @@
     var draft = msgDraftNow();
     var body;
     if (!draft) {
-      body = '<div class="cb-meta">Accept a promise, the follow-up date or the adjuster meeting above, then a message built from them shows here in fixed wording you can edit.</div>';
+      body = '<div class="cb-meta">Accept ' + (isVisit() ? '' : 'a promise, ') + 'the follow-up date or the adjuster meeting above, then a message built from them shows here in fixed wording you can edit.</div>';
     } else {
       var ch = msgChannel(draft);
       var toggle = '<div class="cb-toggle" role="radiogroup" aria-label="Send it as">' +
