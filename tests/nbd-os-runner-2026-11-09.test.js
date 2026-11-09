@@ -656,6 +656,7 @@ function finishWiring() {
     left.indexOf('nbd_runner_type_v1') >= 0 && left.indexOf('nbd_runner_corner_v1') >= 0, left.join());
   ok('…and still wipes the Quick Keys and account data', left.indexOf('nbd_cmd_quickkeys_v1') < 0 && left.indexOf('nbd_leads_cache') < 0);
   const scss = read('docs/pro/css/command-palette-scopes.css');
+  ok('the search box may shrink, so the header\'s esc key is never clipped at 320px', /#nbd-cmd-input \{ min-width: 0; \}/.test(strip(scss)));
   ok('the scope chips (@ # > = t:) are 44px on a phone / touch screen', /\(max-width: 640px\), \(pointer: coarse\)[\s\S]*\.cmdx-hint, \.cmdx-chip \{ min-height: 44px/.test(scss));
   console.log('\n' + (failed ? 'FAILED ' + failed : 'PASSED ' + passed) + ' (' + passed + ' ok)');
   process.exit(failed ? 1 : 0);
