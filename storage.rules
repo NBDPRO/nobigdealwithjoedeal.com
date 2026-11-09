@@ -421,6 +421,12 @@ service firebase.storage {
     // key, so it can never be played in a browser. The CRM plays them through
     // the getThursdayRecording callable (company-scoped check there); no
     // download token is ever minted. Same posture as pdf-renders.
+    // Cube ACR call audio (functions/call-center.js) lives here too, under
+    // calls/{uid}/cube-acr/. Call to Close Q11 (2026-11-09) took phone_calls
+    // away from viewers, but this owner read is left as it is on purpose: a
+    // viewer can only reach audio filed under their OWN uid, can no longer
+    // learn its path (it was on the phone_calls doc), and in practice only
+    // the tenant owner's uid has calls. Revisit if a viewer ever records.
     match /calls/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if false;
