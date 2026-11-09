@@ -106,8 +106,15 @@ function restFirestore({ projectId, token, fetchImpl }) {
         if (ts.length) w.updateTransforms = ts.map((k) => ({ fieldPath: quoteSeg(k), setToServerValue: 'REQUEST_TIME' }));
         return commit([w]);
       },
-      // update(fieldPath, value, fieldPath, value, ...): the document must exist.
+      // update(fieldPath, value, fieldPath, value, ..., [{ lastUpdateTime }]):
+      // the document must exist; with the trailing precondition (an updateTime
+      // string from a query result) it must also be unchanged since.
       async update(...args) {
+        let pre = null;
+        if (args.length % 2 && args[args.length - 1] && typeof args[args.length - 1] === 'object' && !(args[args.length - 1] instanceof FieldPath)) {
+          pre = args.pop();
+          if (typeof pre.lastUpdateTime !== 'string' || !pre.lastUpdateTime) throw new Error('update precondition needs a lastUpdateTime string');
+        }
         if (!args.length || args.length % 2) throw new Error('update takes fieldPath, value pairs');
         const fields = {}, mask = [], ts = [];
         for (let i = 0; i < args.length; i += 2) {
@@ -120,7 +127,7 @@ function restFirestore({ projectId, token, fetchImpl }) {
           });
           mask.push(fp.toString());
         }
-        const w = { update: { name, fields: encodeFields(fields) }, updateMask: { fieldPaths: mask }, currentDocument: { exists: true } };
+        const w = { update: { name, fields: encodeFields(fields) }, updateMask: { fieldPaths: mask }, currentDocument: pre ? { updateTime: pre.lastUpdateTime } : { exists: true } };
         if (ts.length) w.updateTransforms = ts.map((p) => ({ fieldPath: p, setToServerValue: 'REQUEST_TIME' }));
         return commit([w]);
       },
@@ -145,7 +152,7 @@ function restFirestore({ projectId, token, fetchImpl }) {
         const docs = (Array.isArray(r.json) ? r.json : []).filter((x) => x && x.document).map((x) => {
           const path = x.document.name.slice(root.length + 1);
           const data = decodeFields(x.document.fields || {});
-          return { id: path.split('/').pop(), ref: doc(path), exists: true, data: () => data };
+          return { id: path.split('/').pop(), ref: doc(path), exists: true, updateTime: x.document.updateTime, data: () => data };
         });
         return { empty: !docs.length, size: docs.length, docs };
       },

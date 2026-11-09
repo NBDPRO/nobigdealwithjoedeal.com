@@ -42,8 +42,11 @@ function seed() {
 }
 
 // ── a fake Firestore (admin-like): collectionGroup paging, doc get/update ──
+// Each doc has a version; a query hands it out as updateTime and an update
+// with a { lastUpdateTime } precondition fails when the doc moved on since.
 function fakeDb(docs) {
-  const writes = [], forbidden = [];
+  const writes = [], forbidden = [], ver = {};
+  const edit = (p, fields) => { docs[p] = Object.assign({}, docs[p], fields); ver[p] = (ver[p] || 0) + 1; };
   const isTaskPath = (p) => { const s = p.split('/'); return s.length % 2 === 0 && s[s.length - 2] === 'tasks'; };
   function ref(p) {
     return {
@@ -51,10 +54,12 @@ function fakeDb(docs) {
       get: async () => ({ exists: Object.prototype.hasOwnProperty.call(docs, p), data: () => docs[p] }),
       update: async (...args) => {
         if (!Object.prototype.hasOwnProperty.call(docs, p)) throw new Error('NOT_FOUND ' + p);
+        const pre = args.length % 2 ? args.pop() : null;
+        if (pre && !(pre.lastUpdateTime && pre.lastUpdateTime.v === (ver[p] || 0))) throw new Error('FAILED_PRECONDITION ' + p);
         const patch = {};
         for (let i = 0; i < args.length; i += 2) patch[String(args[i])] = args[i + 1];
-        writes.push({ p, patch });
-        docs[p] = Object.assign({}, docs[p], patch);
+        writes.push({ p, patch, pre });
+        edit(p, patch);
       },
       set: async () => { forbidden.push('set ' + p); },
       delete: async () => { forbidden.push('delete ' + p); },
@@ -68,12 +73,12 @@ function fakeDb(docs) {
       async get() {
         const paths = Object.keys(docs).filter(isTaskPath).sort().filter((p) => after === undefined || p > after);
         const page = lim ? paths.slice(0, lim) : paths;
-        const out = page.map((p) => ({ id: p.split('/').pop(), ref: ref(p), data: () => docs[p] }));
+        const out = page.map((p) => ({ id: p.split('/').pop(), ref: ref(p), updateTime: { v: ver[p] || 0 }, data: () => docs[p] }));
         return { empty: !out.length, size: out.length, docs: out };
       },
     };
   }
-  return { writes, forbidden, db: { doc: ref, collectionGroup: (g) => { if (g !== 'tasks') throw new Error('group ' + g); return query(g); } } };
+  return { writes, forbidden, edit, db: { doc: ref, collectionGroup: (g) => { if (g !== 'tasks') throw new Error('group ' + g); return query(g); } } };
 }
 
 (async () => {
@@ -123,6 +128,7 @@ function fakeDb(docs) {
   ok(JSON.stringify(wrote) === JSON.stringify(['leads/L1/tasks/cube-a', 'leads/L1/tasks/sms-b', 'leads/L1/tasks/thursday-c', 'leads/L2/tasks/cube-d', 'leads/L3/tasks/thursday-e']), 'apply: exactly the five old-form tasks -> ' + wrote.join(','));
   ok(f.writes.every((w) => Object.keys(w.patch).sort().join() === 'notes,updatedAt' && w.patch.updatedAt === SERVER_TS), 'apply: writes notes + updatedAt only');
   ok(f.forbidden.length === 0, 'apply: no set, no delete');
+  ok(f.writes.every((w) => w.pre && w.pre.lastUpdateTime && w.pre.lastUpdateTime.v === 0), 'apply: every write is conditional on the updateTime the page read');
   ok(docs['leads/L1/tasks/cube-a'].notes === 'You said you would:\n• Send the quote' && docs['leads/L1/tasks/cube-a'].title === 'Send the quote', 'cube-a scrubbed, other fields kept');
   ok(docs['leads/L1/tasks/sms-b'].notes === '', 'sms-b scrubbed to empty, task kept');
   ok(docs['leads/L1/tasks/thursday-c'].notes === 'Best time: am\nNumber: +15135550100', 'thursday-c scrubbed');
@@ -170,6 +176,21 @@ function fakeDb(docs) {
   ok(r.counts.failures === 1 && r.counts.written === 4, 'one failure counted, the rest written');
   ok(!lines.join('\n').includes('SECRET'), 'a failure prints no error text from the write');
 
+  // ── a task edited between the page read and the write keeps the edit ──
+  f = fakeDb(seed());
+  const realDoc2 = f.db.doc;
+  f.db.doc = (p) => {
+    const x = realDoc2(p);
+    if (p === 'leads/L1/tasks/cube-a') { const u = x.update; x.update = async (...a) => { f.edit(p, { notes: 'Rep typed this mid-run' }); return u(...a); }; }
+    return x;
+  };
+  lines = [];
+  r = await S.run({ db: f.db, args: S.parseArgs(['--apply']), log, serverTimestamp: () => SERVER_TS });
+  ok(f.writes.every((w) => w.p !== 'leads/L1/tasks/cube-a'), 'edited mid-run: not written');
+  ok(r.counts.failures === 1 && r.counts.written === 4, 'edited mid-run: counted as a failure, the rest written -> ' + JSON.stringify(r.counts));
+  r = await S.run({ db: f.db, args: S.parseArgs(['--apply']), log, serverTimestamp: () => SERVER_TS });
+  ok(r.counts.toChange === 0, 'edited mid-run: the rep\'s new notes have no Call: paragraph, so a rerun leaves them');
+
   // ── REST adapter: collection-group query (token mode) ──
   const calls = [];
   const ROOT = 'projects/nobigdeal-pro/databases/(default)/documents';
@@ -179,7 +200,7 @@ function fakeDb(docs) {
     if (/:runQuery$/.test(url)) {
       if (body.structuredQuery.startAt) return { status: 200, text: async () => JSON.stringify([{ readTime: 'x' }]) };
       return { status: 200, text: async () => JSON.stringify([
-        { document: { name: ROOT + '/leads/L1/tasks/cube-a', fields: { notes: { stringValue: 'n' }, done: { booleanValue: false } } }, readTime: 'x' },
+        { document: { name: ROOT + '/leads/L1/tasks/cube-a', fields: { notes: { stringValue: 'n' }, done: { booleanValue: false } }, updateTime: '2026-11-01T10:00:00.123456Z' }, readTime: 'x' },
         { document: { name: ROOT + '/leads/L 1/tasks/sms-b', fields: {} }, readTime: 'x' },
       ]) };
     }
@@ -195,8 +216,14 @@ function fakeDb(docs) {
   ok(sq.orderBy[0].field.fieldPath === '__name__' && sq.orderBy[0].direction === 'ASCENDING' && sq.limit === 2, 'REST: orderBy __name__, limit');
   ok(s1.size === 2 && !s1.empty && s1.docs[0].id === 'cube-a' && s1.docs[0].ref.path === 'leads/L1/tasks/cube-a' && s1.docs[0].data().notes === 'n' && s1.docs[0].data().done === false, 'REST: docs decode to {id, ref.path, data()}');
   ok(typeof s1.docs[0].ref.update === 'function' && typeof s1.docs[0].ref.get === 'function', 'REST: a result ref is a doc ref');
+  ok(s1.docs[0].updateTime === '2026-11-01T10:00:00.123456Z', 'REST: a result carries the document\'s updateTime, as sent');
+  await rdb.doc('leads/L1/tasks/cube-a').update('notes', 'x', { lastUpdateTime: '2026-11-01T10:00:00.123456Z' });
+  const cw = calls[calls.length - 1].body.writes[0];
+  ok(cw.currentDocument.updateTime === '2026-11-01T10:00:00.123456Z' && !('exists' in cw.currentDocument) && cw.updateMask.fieldPaths.join() === 'notes', 'REST: update(..., {lastUpdateTime}) -> currentDocument.updateTime');
+  let perr = null; try { await rdb.doc('leads/L1/tasks/cube-a').update('notes', 'x', { lastUpdateTime: undefined }); } catch (e) { perr = e; }
+  ok(perr && /lastUpdateTime/.test(perr.message), 'REST: a precondition with no updateTime is refused, never a blind write');
   const s2 = await rdb.collectionGroup('tasks').orderBy('__name__').limit(2).startAfter(s1.docs[1]).get();
-  const st = calls[1].body.structuredQuery.startAt;
+  const st = calls.filter((c) => /:runQuery$/.test(c.url))[1].body.structuredQuery.startAt;
   ok(st && st.before === false && st.values[0].referenceValue === ROOT + '/leads/L 1/tasks/sms-b', 'REST: startAfter -> startAt {before:false, referenceValue}');
   ok(s2.empty === true && s2.size === 0 && s2.docs.length === 0, 'REST: a readTime-only reply is an empty page');
   throws(() => rdb.collectionGroup('a/b'), /collection/, 'REST: bad collection id refused');
@@ -208,6 +235,8 @@ function fakeDb(docs) {
   // ── the whole run over the REST adapter, against a tiny fake Firestore server ──
   const store = seed();
   const restWrites = [];
+  const uts = {}; let clock = 0;
+  const utOf = (p) => uts[p] || (uts[p] = '2026-11-01T00:00:00.' + String(++clock).padStart(6, '0') + 'Z');
   const unq = (n) => n.slice(ROOT.length + 1);
   const serverFetch = async (url, init) => {
     const body = init.body ? JSON.parse(init.body) : null;
@@ -216,11 +245,15 @@ function fakeDb(docs) {
       const q = body.structuredQuery;
       const after = q.startAt ? unq(q.startAt.values[0].referenceValue) : null;
       const paths = Object.keys(store).filter((p) => { const s = p.split('/'); return s.length % 2 === 0 && s[s.length - 2] === q.from[0].collectionId; }).sort().filter((p) => after === null || p > after).slice(0, q.limit || 1e9);
-      const arr = paths.map((p) => ({ document: { name: ROOT + '/' + p, fields: R.encode(store[p]).mapValue.fields }, readTime: 'x' }));
+      const arr = paths.map((p) => ({ document: { name: ROOT + '/' + p, fields: R.encode(store[p]).mapValue.fields, updateTime: utOf(p) }, readTime: 'x' }));
       return { status: 200, text: async () => JSON.stringify(arr.length ? arr : [{ readTime: 'x' }]) };
     }
     if (/:commit$/.test(u)) {
-      for (const w of body.writes) { restWrites.push(w); const p = unq(w.update.name); store[p] = Object.assign({}, store[p], { notes: w.update.fields.notes.stringValue }); }
+      for (const w of body.writes) {
+        const p = unq(w.update.name);
+        if (w.currentDocument.updateTime && w.currentDocument.updateTime !== utOf(p)) return { status: 400, text: async () => JSON.stringify({ error: { message: 'FAILED_PRECONDITION' } }) };
+        restWrites.push(w); store[p] = Object.assign({}, store[p], { notes: w.update.fields.notes.stringValue }); uts[p] = null;
+      }
       return { status: 200, text: async () => '{}' };
     }
     const p = decodeURIComponent(unq(u));
@@ -231,7 +264,7 @@ function fakeDb(docs) {
   lines = [];
   r = await S.run({ db: tdb, args: S.parseArgs(['--apply', '--company', 'co1']), log, serverTimestamp: R.serverTimestamp, pageSize: 3 });
   ok(r.counts.written === 3 && restWrites.length === 3, 'token mode: three writes for co1');
-  ok(restWrites.every((w) => w.updateMask.fieldPaths.join() === 'notes' && w.currentDocument.exists === true && w.updateTransforms[0].fieldPath === 'updatedAt'), 'token mode: notes mask, must-exist, updatedAt transform');
+  ok(restWrites.every((w) => w.updateMask.fieldPaths.join() === 'notes' && /^2026-11-01T/.test(w.currentDocument.updateTime) && w.updateTransforms[0].fieldPath === 'updatedAt'), 'token mode: notes mask, updateTime precondition (the doc must exist, unchanged), updatedAt transform');
   ok(store['leads/L1/tasks/thursday-c'].notes === 'Best time: am\nNumber: +15135550100' && store['leads/L2/tasks/cube-d'].notes === 'Call: SECRET-D', 'token mode: scoped rewrite');
   ok(!lines.join('\n').includes('SECRET'), 'token mode output carries no summary text');
 

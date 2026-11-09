@@ -15,7 +15,9 @@
  *
  * What it writes: notes (the scrubbed text) and updatedAt (server time, as
  * every server-side task write in functions/call-center.js does), with
- * update(), so a task deleted mid-run is never re-created. Nothing else:
+ * update(), so a task deleted mid-run is never re-created, conditional on the
+ * updateTime the page read, so a task edited mid-run keeps the edit (counted
+ * as a failure; a rerun picks it up if it still needs a scrub). Nothing else:
  * never deletes a task, never touches a task whose id does not start with
  * cube- / sms- / thursday-, a task outside leads/{id}/tasks, or a task whose
  * notes scrubTaskSummary leaves as they are. Idempotent: a second run finds
@@ -118,7 +120,7 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
       counts.byPrefix[prefix]++;
       if (!args.apply) continue;
       try {
-        await db.doc(p).update('notes', patch.notes, 'updatedAt', serverTimestamp());
+        await db.doc(p).update('notes', patch.notes, 'updatedAt', serverTimestamp(), { lastUpdateTime: d.updateTime });
         counts.written++;
       } catch (_) {
         counts.failures++; // the error text can quote the document; not printed
