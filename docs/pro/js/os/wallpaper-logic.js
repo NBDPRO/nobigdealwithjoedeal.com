@@ -36,6 +36,7 @@
   var SHARES = [0.3, 0.2, 0.12, 0.06];
   var MIN = 4.5;        // text on a surface (WCAG AA body text)
   var UI_MIN = 3;       // a non-text mark on a surface (WCAG 1.4.11)
+  var ACCENT_KEEP = 0.9;   // the accent keeps 90% of its contrast on --s and --s2 (a 5:1 accent may not slide to 3:1)
   var GLASS = 0.88;     // home.css / os.css: a widget is --s at 88% over the wallpaper
   var HOVER = 0.7;      // a row's hover: --s2 at 70%
   var DIM_DEFAULT = 0.55, DIM_MAX = 0.85;
@@ -75,8 +76,12 @@
     var dim = Math.min(DIM_MAX, Math.max(0, isFinite(dv) ? dv : DIM_DEFAULT));
     // what shows behind a widget: the picture under the theme's veil (os.css --os-wp-veil)
     var behind = L.mixHex(t.bg, avg, dim);
-    // the theme accent (filled buttons) may not blend in more than it already does (accentCheck's 3:1)
-    var acc0 = isHex(t.accent) && typeof L.accentCheck === 'function' ? L.accentCheck(t.accent, t.s).ui : null;
+    // the theme accent (filled buttons, focus rings) on --s and on --s2: never further under
+    // accentCheck's 3:1 than it already is, and above it, no more than ACCENT_KEEP of its contrast lost
+    var accFloor = isHex(t.accent) && typeof L.accentCheck === 'function' ? [t.s, t.s2].map(function (g0) {
+      var a0 = L.accentCheck(t.accent, g0).ui;
+      return a0 < UI_MIN ? a0 : Math.max(UI_MIN, a0 * ACCENT_KEEP);
+    }) : null;
     // pywal keeps the theme's lightness and takes the picture's hue: the wash is the hue at
     // each surface's own lightness, so text contrast moves little and the theme still reads as itself
     var hh = rgbOf(hue), hs = L.rgbToHsl(hh[0], hh[1], hh[2]);
@@ -97,16 +102,13 @@
         return grounds.every(function (gr, k) { return L.contrast(fg, gr) >= keep[j][k] - 1e-9; });
       });
       if (!held) continue;
-      if (acc0 != null) {
-        var acc = L.accentCheck(t.accent, s).ui;
-        if (!(acc >= Math.min(3, acc0) - 1e-9)) continue;
-      }
+      if (accFloor && !([s, s2].every(function (g, k) { return L.accentCheck(t.accent, g).ui >= accFloor[k] - 1e-9; }))) continue;
       return { ok: true, s: s, s2: s2, hue: hue, share: share, min: Math.round(min * 100) / 100 };
     }
     return { ok: false, why: 'contrast' };
   }
 
-  var api = { SHARES: SHARES, MIN: MIN, UI_MIN: UI_MIN, GLASS: GLASS, HOVER: HOVER, allowed: allowed, avgOf: avgOf, surfaceTint: surfaceTint };
+  var api = { SHARES: SHARES, MIN: MIN, UI_MIN: UI_MIN, ACCENT_KEEP: ACCENT_KEEP, GLASS: GLASS, HOVER: HOVER, allowed: allowed, avgOf: avgOf, surfaceTint: surfaceTint };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSWallpaperLogic = api;
 })(typeof window !== 'undefined' ? window : null);

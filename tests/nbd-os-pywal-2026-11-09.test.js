@@ -10,8 +10,10 @@
  *   1. contrast guard: os/wallpaper-logic.js surfaceTint over every theme in
  *      theme-system.css x a spread of pictures: every accepted wash keeps --t and
  *      --m >= 4.5:1 on --s, --s2, the 88% widget glass and the 70% hover over the
- *      veiled picture (recomputed here, independently), and the theme accent does
- *      not blend in further than accentCheck's 3:1; it only ever returns s / s2
+ *      veiled picture (recomputed here, independently), every other theme colour
+ *      stays above the 4.5:1 / 3:1 line it met, and the theme accent, on --s and
+ *      --s2, does not blend in further than accentCheck's 3:1 and keeps 90% of
+ *      its contrast; it only ever returns s / s2
  *   2. fallback: a grey picture, unreadable tokens, a theme whose own text fails,
  *      no My Skin logic -> no wash (ok:false); allowed() needs a KNOWN identity that
  *      is exactly not the platform tenant, no company-enforced background, switch on
@@ -113,8 +115,13 @@ for (let i = 1; i <= 24; i++) PICS.push(photo(i * 7919));
             });
           });
           if (th.tok.accent) {
-            const a0 = L.accentCheck(th.tok.accent, th.tok.s).ui, a1 = L.accentCheck(th.tok.accent, r.s).ui;
-            if (a1 < Math.min(3, a0) - 1e-9) bad.push(th.id + '/' + pi + ' accent ' + a0.toFixed(2) + '->' + a1.toFixed(2));
+            // the accent (filled buttons, focus rings) on --s and on --s2: never further under 3:1,
+            // and above it, it keeps at least 90% of the contrast it had (5:1 may not slide to 3:1)
+            [[th.tok.s, r.s], [th.tok.s2, r.s2]].forEach(([g0, g1], gi) => {
+              const a0 = L.accentCheck(th.tok.accent, g0).ui, a1 = L.accentCheck(th.tok.accent, g1).ui;
+              const floor = a0 < 3 ? a0 : Math.max(3, a0 * 0.9);
+              if (a1 < floor - 1e-9) bad.push(th.id + '/' + pi + '/' + dim + ' accent on ' + (gi ? '--s2 ' : '--s ') + a0.toFixed(2) + '->' + a1.toFixed(2));
+            });
           }
           if (!/^#[0-9a-f]{6}$/.test(r.s) || !/^#[0-9a-f]{6}$/.test(r.s2)) bad.push(th.id + ' not hex ' + r.s + ' ' + r.s2);
         });
