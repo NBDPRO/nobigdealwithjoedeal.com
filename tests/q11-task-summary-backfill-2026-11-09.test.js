@@ -160,6 +160,15 @@ function fakeDb(docs) {
   f = fakeDb(seed());
   r = await S.run({ db: f.db, args: S.parseArgs(['--apply', '--company', 'nobody']), log: () => {}, serverTimestamp: () => SERVER_TS });
   ok(f.writes.length === 0 && r.counts.toChange === 0, 'unknown company: nothing');
+  // scoped counts cover that company only: a clean task of another company is
+  // out of scope, not "clean" (review B: it was counted clean before the scope check)
+  const mixed = seed(); mixed['leads/L3/tasks/cube-clean3'] = { notes: CLEAN_CUBE, source: 'cube-acr' };
+  f = fakeDb(mixed);
+  r = await S.run({ db: f.db, args: S.parseArgs(['--company', 'co1']), log: () => {}, serverTimestamp: () => SERVER_TS });
+  ok(r.counts.alreadyClean === 3 && r.counts.outOfScope === 3 && r.counts.toChange === 3, 'co1 dry run: clean 3, other company 3, to scrub 3 -> ' + JSON.stringify(r.counts));
+  f = fakeDb(mixed);
+  r = await S.run({ db: f.db, args: S.parseArgs([]), log: () => {}, serverTimestamp: () => SERVER_TS });
+  ok(r.counts.alreadyClean === 4 && r.counts.outOfScope === 0, 'unscoped: every clean task counted, nothing out of scope');
 
   // ── a lead that is gone: out of scope when scoped, never written ──
   const orphan = seed(); delete orphan['leads/L3'];

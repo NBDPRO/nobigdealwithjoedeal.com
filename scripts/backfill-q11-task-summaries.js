@@ -113,9 +113,9 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
       if (!m) { counts.notLeadTask++; continue; }
       const prefix = prefixOf(p);
       if (!prefix) { counts.otherPrefix++; continue; }
+      if (args.company && !(await companyOwns(m[1]))) { counts.outOfScope++; continue; }
       const patch = planTask(p, d.data());
       if (!patch) { counts.alreadyClean++; continue; }
-      if (args.company && !(await companyOwns(m[1]))) { counts.outOfScope++; continue; }
       counts.toChange++;
       counts.byPrefix[prefix]++;
       if (!args.apply) continue;
@@ -134,7 +134,7 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
   log('  not under leads/{id}/tasks (skip) : ' + counts.notLeadTask);
   log('  other id prefix (skip)            : ' + counts.otherPrefix);
   log('  cube-/sms-/thursday-, clean       : ' + counts.alreadyClean);
-  if (args.company) log('  old notes, other company (skip)   : ' + counts.outOfScope);
+  if (args.company) log('  other company (skip)              : ' + counts.outOfScope);
   log('  old notes to scrub                : ' + counts.toChange + ' (cube ' + counts.byPrefix.cube + ', sms ' + counts.byPrefix.sms + ', thursday ' + counts.byPrefix.thursday + ')');
   if (!counts.toChange) log('nothing to change');
   else if (args.apply) log('  written: ' + counts.written + ', failures: ' + counts.failures);
