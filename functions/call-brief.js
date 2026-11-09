@@ -243,7 +243,10 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     }
   }
 
-  const entry = { item, decision, aiValue: aiValue == null ? '' : L.str(aiValue, 600), finalValue: L.str(finalValue, 600), written, decidedBy: auth.uid, atMs: nowMs };
+  // gen: the brief this was decided on. Items are keyed by index, so after a
+  // regenerate (a new transcript, or a refresh) the sheet reads only the
+  // decisions made on the brief it shows.
+  const entry = { item, decision, aiValue: aiValue == null ? '' : L.str(aiValue, 600), finalValue: L.str(finalValue, 600), written, decidedBy: auth.uid, atMs: nowMs, gen: Number(stored.generatedAtMs) || 0 };
   // The callCenterAction slot (1-5) a brief promise went to, so the sheet
   // never offers that slot again (slot 0 is the card's own Promise button).
   const slot = Number(data.slot);

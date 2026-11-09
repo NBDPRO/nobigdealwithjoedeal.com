@@ -268,6 +268,19 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('the sheet never sends slot: i (the brief index)', !/slot: i\b/.test(SRC));
   }
 
+  console.log('\n10. A regenerated brief does not inherit index-keyed decisions (review #14)');
+  {
+    const { CB } = load();
+    const old = [{ item: 'promise:0', decision: 'accept', slot: 1, gen: 100 }, { item: 'field:insCarrier', decision: 'skip', gen: 100 }];
+    CB._showWith({ brief: clone(BRIEF), generatedAtMs: 200, decisions: old, call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+    const html = CB._render();
+    ok('a decision from an earlier brief does not mark this brief\'s promise 0 Added', /data-cb-act="promise" data-i="0"/.test(html));
+    ok('…nor this brief\'s carrier row Skipped', /data-cb-act="accept" data-k="insCarrier"/.test(html.split('data-cb-row="field:insCarrier"')[1].split('data-cb-row=')[0]));
+    CB._showWith({ brief: clone(BRIEF), generatedAtMs: 100, decisions: old, call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+    const same = CB._render();
+    ok('the same brief still shows its own decisions', !/data-cb-act="promise" data-i="0"/.test(same) && /cb-skipped/.test(same.split('data-cb-row="field:insCarrier"')[1].split('data-cb-row=')[0]));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

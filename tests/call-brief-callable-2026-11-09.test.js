@@ -318,6 +318,7 @@ async function decide(db, auth, data) {
     const pr1 = await decide(db, OWNER, { item: 'promise:0', decision: 'accept', value: 'estimate 2026-11-06', slot: 2 });
     const lastD = (db.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0];
     ok('a promise decision records the slot it went to (1-5)', pr1.r && lastD.slot === 2, lastD);
+    ok('every decision names the brief it was made on (gen = generatedAtMs; a regenerate re-indexes)', typeof lastD.gen === 'number' && lastD.gen === db.store.get('leads/L1/call_briefs/' + CALL_ID).generatedAtMs, lastD);
     const pr5 = await decide(db, OWNER, { item: 'promise:5', decision: 'accept' });
     ok('promise:5 is not an item (a brief carries five promises, 0-4)', pr5.e && pr5.e.code === 'invalid-argument');
     const stored = db.store.get('leads/L1/call_briefs/' + CALL_ID);

@@ -136,12 +136,15 @@
   }
 
   // ── state ──────────────────────────────────────────────────────────────
-  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange }
+  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange }
   var dlg = null;
 
+  // Decisions are keyed by index ('promise:1', 'field:k'), so only the ones
+  // made on the brief shown count (gen = its generatedAtMs); a regenerated
+  // brief starts clean. Slots used by any earlier brief stay used (usedSlots).
   function decided(item) {
     var ds = (S && S.decisions) || [];
-    for (var i = ds.length - 1; i >= 0; i--) if (ds[i] && ds[i].item === item) return ds[i];
+    for (var i = ds.length - 1; i >= 0; i--) if (ds[i] && ds[i].item === item && (S.gen == null || ds[i].gen === S.gen)) return ds[i];
     return null;
   }
   function initPromises() {
@@ -569,7 +572,7 @@
     try {
       var r = await callable('callBrief', { callId: x.callId });
       if (S !== mine) return;
-      S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.loading = false;
+      S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
       if (!S.brief) S.error = 'The brief did not come back. Try again in a minute.';
       else initPromises();
     } catch (e) {
@@ -583,7 +586,7 @@
   function showWith(o) {
     var x = o || {};
     S = { callId: x.callId || 'cube_PREVIEW', call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
-      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: x.decisions || [], brief: x.brief, onChange: null };
+      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
     initPromises();
     show();
     return dlg;
