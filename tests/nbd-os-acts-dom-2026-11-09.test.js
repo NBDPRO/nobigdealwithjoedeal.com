@@ -284,6 +284,39 @@ const PRIV_HOME = {
     ok('system.js asks the mode and hides the message history in it', /A\.privacy\(\)/.test(SYS) && /state\.history\.length && !pg/.test(SYS));
   });
 
+  console.log('\n8b. the real Notification Center in "In a home": a task row names no customer');
+  await G(async () => {
+    // the bell's task rows as notif-bell.js builds them: { title, text: '"<task text>"', sub: leadName(lead) }
+    const ITEMS = [
+      { id: 'task:L3:t1', leadId: 'L3', type: 'overdue-task', title: 'Overdue task', text: '"Call Lee about the insurance check"', sub: 'Lee Three', ts: NOW - 3600000 },
+      { id: 'task:L4:t2', leadId: 'L4', type: 'task-today', title: 'Task due today', text: '"Collect $9200 from Dee"', sub: 'Dee Four', ts: NOW - 600000 },
+      { id: 'stale:L2', leadId: 'L2', type: 'stale-lead', title: 'Ivy Inbound', sub: 'No contact in 9 days', ts: NOW - 7200000 },
+    ];
+    const boot = (home) => {
+      const T = win({ home });
+      T.W.NotifBell = { items: () => ITEMS.slice(), getCount: () => ITEMS.length };
+      vm.runInContext(read('docs/pro/js/os/system.js'), T.W, { filename: 'docs/pro/js/os/system.js' });
+      return T;
+    };
+    const T = boot(PRIV_HOME);
+    await flush();
+    ok('"In a home" is on (the bundle answers privacy)', !!T.W.NBDOSActs && T.W.NBDOSActs.privacy() === true);
+    T.W.NBDOS.open('notifs');
+    const body = T.document.getElementById('osSheetBody');
+    const t = text(body);
+    ok('the Tasks group shows (it is time-sensitive)', /Overdue task/.test(t) && /Task due today/.test(t), t.slice(0, 300));
+    ok('no other customer\'s name, task text or $ reaches the rendered rows', OTHERS.concat(['insurance', '$']).every((n) => t.indexOf(n) === -1),
+      OTHERS.concat(['insurance', '$']).filter((n) => t.indexOf(n) !== -1).join() + ' :: ' + t.slice(0, 300));
+    ok('...nor any attribute', OTHERS.every((n) => htmlOf(body).indexOf(n) === -1), OTHERS.filter((n) => htmlOf(body).indexOf(n) !== -1).join());
+    ok('the held count says what waits', /1 more waits until you leave it/.test(t), t.slice(0, 300));
+    // the control: with the mode off the same rows name the customer and the task
+    const C = boot(Object.assign({}, PRIV_HOME, { on: undefined }));
+    await flush();
+    C.W.NBDOS.open('notifs');
+    const tc = text(C.document.getElementById('osSheetBody'));
+    ok('control: with the mode off the rows name the customer and the task', /Lee Three/.test(tc) && /insurance check/.test(tc), tc.slice(0, 300));
+  });
+
   console.log('\n9. CSS and markup floors');
   await G(async () => {
     const css = ACTS_CSS + read('docs/pro/css/os/home.css').split('Activities and Focus modes')[1];

@@ -444,10 +444,12 @@
       h += '<section class="os-nc-group" aria-label="' + esc(g.label) + '"><h3 class="ui-eyebrow os-nc-h">' + esc(g.label) +
         (g.unread ? ' <span class="ui-badge is-accent">' + g.unread + '</span>' : '') + '</h3><ul class="os-nc-list">';
       g.items.forEach(function (n) {
+        // in a privacy mode a row is its kind and its time only: the bell's text and sub
+        // carry the customer's name and the task's words (notif-bell.js), never shown here
         h += '<li><button type="button" class="os-nc-item' + (n.read ? '' : ' is-unread') + '" data-os="notif" data-id="' + esc(n.id) + '">' +
           '<span class="os-nc-title">' + esc(n.title) + '</span>' +
-          (n.text ? '<span class="os-nc-text">' + esc(n.text) + '</span>' : '') +
-          '<span class="os-nc-meta ui-caption">' + esc([n.sub, relTime(n.ts, now)].filter(Boolean).join(' · ')) + '</span></button></li>';
+          (n.text && !pg ? '<span class="os-nc-text">' + esc(n.text) + '</span>' : '') +
+          '<span class="os-nc-meta ui-caption">' + esc([pg ? '' : n.sub, relTime(n.ts, now)].filter(Boolean).join(' · ')) + '</span></button></li>';
       });
       h += '</ul></section>';
     });
