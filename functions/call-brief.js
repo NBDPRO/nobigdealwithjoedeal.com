@@ -491,14 +491,18 @@ exports.callBriefDecide = onCall(
 );
 
 // P1 auto-brief: a phone_calls update that is a person filing the call.
-// The pure transition check runs first, so the many other call writes cost
-// one function start and nothing else.
+// P2 (2026-11-09): a field compare first (filingChanged: did a filing field
+// change at all?), then the pure transition check, so the many other call
+// writes cost one function start and nothing else: no read, no Firestore
+// client. 256MiB: the work is one model call (a fetch) and the grounding
+// pass over a transcript of at most 60,000 characters.
 exports.callBriefAuto = onDocumentUpdated(
-  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 120, maxInstances: 5 },
+  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '256MiB', timeoutSeconds: 120, maxInstances: 5 },
   async (event) => {
     try {
       const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
       const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+      if (!L.filingChanged(before, after)) return;
       if (!L.autoBriefTransition(before, after)) return;
       await autoBriefHandler({ db: getFirestore(), callId: event.params.callId, before, after, nowMs: Date.now() });
     } catch (e) {

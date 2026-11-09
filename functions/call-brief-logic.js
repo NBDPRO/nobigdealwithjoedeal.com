@@ -825,6 +825,23 @@ function autoBriefTransition(before, after) {
   return !autoFiled(before) || String(before.leadId || '') !== String(after.leadId || '');
 }
 
+/**
+ * The cheap pre-check before autoBriefTransition (P2, 2026-11-09): did this
+ * write change any field the transition reads? callBriefAuto starts on every
+ * phone_calls update (handled, a label, a lease, rescueDismiss …); when none
+ * of these changed, autoFiled(before) === autoFiled(after) on the same lead,
+ * so the transition is false and the trigger returns before it normalises a
+ * transcript or asks for Firestore. A plain !== on every field the
+ * transition reads (the transcript too: a string compare, no regex).
+ */
+const FILING_FIELDS = ['status', 'callType', 'leadId', 'attachedBy', 'movedBy', 'attachedAtMs', 'movedAtMs', 'refiledFrom', 'transcript'];
+function filingChanged(before, after) {
+  if (!before || !after) return true;
+  for (const k of FILING_FIELDS) if (before[k] !== after[k]) return true;
+  const alts = (c) => (Array.isArray(c.alternateLeadIds) ? c.alternateLeadIds.length : 0);
+  return alts(before) !== alts(after);
+}
+
 /** The person who filed the call last: movedBy when the move is the later act, else attachedBy. */
 function filerOf(call) {
   const c = call || {};
@@ -938,6 +955,27 @@ function mergeVisitScope(brief, facts) {
   return brief;
 }
 
+/**
+ * P2 (2026-11-09): the server half of the promise retype rule. A brief
+ * promise whose due date came from a hard-to-hear quote (retype) starts with
+ * an empty date in the sheet; callCenterAction (slot 1-5, the sheet's Add)
+ * refuses a due date EQUAL to that heard-as date unless the client says the
+ * person typed it (retyped: true). Honour-based, the same rule as
+ * callBriefDecide's retype fields: it stops a mistake (an old client, a
+ * script taking the model's date), not a deliberate bypass. index: the
+ * brief promise the Add came from, when the client says; else every retype
+ * promise of the brief counts. '' when allowed.
+ */
+function promiseRetypeProblem(brief, index, dueYmd, retyped) {
+  const due = String(dueYmd || '');
+  if (!due || retyped === true) return '';
+  const ps = brief && Array.isArray(brief.promises) ? brief.promises : [];
+  const i = Number(index);
+  const pick = Number.isInteger(i) && i >= 0 && i < ps.length ? [ps[i]] : ps;
+  const heard = pick.filter((p) => p && p.retype === true && p.dueYmd).map((p) => String(p.dueYmd));
+  return heard.includes(due) ? 'This date was hard to hear on the recording. Listen to it and type the date yourself.' : '';
+}
+
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
 function cacheState(doc, hash, nowMs, force) {
   if (!doc || doc.v !== BRIEF_VERSION || doc.transcriptHash !== hash || !doc.brief) return 'regenerate';
@@ -953,6 +991,6 @@ module.exports = {
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
   STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom, tenantStageOrders,
-  autoBriefTransition, filerOf,
+  autoBriefTransition, filingChanged, filerOf, promiseRetypeProblem,
   VISIT_ID_RE, UID_RE, visitBriefId, canActOnVisit, visitBriefProblem, groundScopeFacts, mergeVisitScope,
 };
