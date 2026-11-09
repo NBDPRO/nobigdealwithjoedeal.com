@@ -96,7 +96,8 @@
       if (!url) { fin(false); return; }
       drop(el);
       held.push({ el: el, url: url });
-      var dim = Math.round(Math.min(0.85, Math.max(0, Number(r.dim) || 0.55)) * 100);
+      var dv = r.dim == null ? NaN : Number(r.dim);   // 0 is a real dim (the member turned it off)
+      var dim = Math.round(Math.min(0.85, Math.max(0, isFinite(dv) ? dv : 0.55)) * 100);
       el.style.setProperty('--os-wp-img', 'url("' + url + '")');
       el.style.setProperty('--os-wp-dim', dim + '%');
       fin(true);

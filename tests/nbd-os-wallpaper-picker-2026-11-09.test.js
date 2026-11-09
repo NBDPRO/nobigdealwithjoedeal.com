@@ -319,6 +319,22 @@ async function openPicker(T) {
     ok('…and nothing is written onto the detached surface', !props['--os-wp-img'], J(props));
   }
 
+  console.log('\n9. My Skin\'s dim is kept as given, a legitimate 0 included');
+  {
+    const dimOf = async (dim) => {
+      const T = setup({ surface: 'phone', home: { phone: [], desk: [], wp: { phone: PICS[0].id, desk: null } } });
+      T.W.NBDMySkin.imageBlob = () => Promise.resolve(dim === undefined ? { blob: { size: 9 } } : { blob: { size: 9 }, dim });
+      const el = T.document.getElementById('osPhone') || null;
+      T.W._impl.mount({ surface: 'phone' });
+      const props = css(T.document.getElementById('osPhone') || el);
+      await flush();
+      return props['--os-wp-dim'];
+    };
+    ok('dim 0 (the member turned the dim off) paints 0%, not the 55% default', (await dimOf(0)) === '0%', await dimOf(0));
+    ok('no dim given: the 55% default', (await dimOf(undefined)) === '55%', await dimOf(undefined));
+    ok('a dim over My Skin\'s 0.85 cap is held at 85%', (await dimOf(2)) === '85%', await dimOf(2));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ the suite threw: ' + (e && e.stack)); process.exit(1); });
