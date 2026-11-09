@@ -854,6 +854,9 @@
     var ps = window.NBDPhoneShare;
     if (!ps || typeof ps.share !== 'function') { S.msg.err = 'Messages and Mail cannot be opened from this page. Copy the message instead.'; render(); return; }
     var words = kind === 'text' ? (S.msg.text != null ? S.msg.text : draft.text) : (S.msg.body != null ? S.msg.body : draft.body);
+    // preferSms on both: in phone-share.js it means "skip the OS share sheet,
+    // open the app directly", so the email path goes straight to mailto: with
+    // the subject (a share sheet would drop it). No phone, so no text is sent.
     var opts = kind === 'text'
       ? { text: words, phone: lead.phone || lead.phoneDigits, leadId: S.leadId, preferSms: true, source: 'call_brief_followup' }
       : { text: words, email: String(lead.email || '').trim(), subject: S.msg.subject != null ? S.msg.subject : draft.subject, leadId: S.leadId, preferSms: true, source: 'call_brief_followup' };
