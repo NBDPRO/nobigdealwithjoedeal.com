@@ -273,7 +273,8 @@
   function plural(n, one, many) { return String(n) + ' ' + (n === 1 ? one : many); }
   function streakLine(d) {
     if (d.broken) return 'Two misses ended the streak. Today is day one.';
-    if (d.warned) return 'Missed yesterday. Don\'t miss twice.';
+    // floors count Mon-Sat (review-logic.js floorStreak): on a Monday the missed workday is Saturday
+    if (d.warned) return (new Date(d.dk + 'T12:00:00').getDay() === 1 ? 'Missed Saturday.' : 'Missed yesterday.') + ' Don\'t miss twice.';
     return d.met === d.of ? 'All floors met today.' : 'Floors still open today.';
   }
   function dsRow(t, cls) { return '<span class="os-hw-ds-row' + (cls ? ' ' + esc(cls) : '') + '">' + esc(t) + '</span>'; }

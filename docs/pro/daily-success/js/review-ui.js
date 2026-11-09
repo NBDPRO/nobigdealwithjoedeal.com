@@ -144,7 +144,7 @@
     const st = x.streak;
     const streakLine = !x.fl.length ? 'Set your daily floors (⚙️ Customize) to start a streak.'
       : st.broken ? 'Two misses in a row ended the streak. Today is day one.'
-      : st.warned ? '⚠️ Missed yesterday — don\'t miss twice. Today keeps the streak alive.'
+      : st.warned ? '⚠️ Missed ' + (new Date(today() + 'T12:00:00').getDay() === 1 ? 'Saturday' : 'yesterday') + ' — don\'t miss twice. Today keeps the streak alive.'
       : st.todayMet ? 'All floors met today. 🔒' : 'Floors still open today.';
     const goal = x.goal ? '<div class="rv-goal"><div class="rv-goal-bar"><i class="rv-goal-fill" data-pct="' + Math.round(x.goal.pct * 100) + '"></i></div>' +
       '<div class="wc-meta">' + esc(x.goal.now.toFixed(1)) + ' → ' + esc(x.goal.goal) + ' lb · ' + esc(x.goal.left) + ' to go</div></div>' : '';
