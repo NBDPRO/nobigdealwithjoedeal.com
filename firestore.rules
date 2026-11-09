@@ -3429,6 +3429,35 @@ service cloud.firestore {
         allow delete: if goalsWriter();
       }
 
+      // ── CALL BRIEF SETTINGS (2026-11-09, Call to Close P1) ──
+      // companies/{companyId}/settings/callBrief — { autoBrief }: the opt-in
+      // auto-brief (functions/call-brief.js callBriefAuto drafts a brief when
+      // a person files a call). Absent or false = off (Jo's Q2 default). Read
+      // by the tenant (the Call Center shows the switch); written by the solo
+      // owner or a company_admin of that company, or the platform admin —
+      // not a manager, rep or viewer, not another tenant. Only this doc id,
+      // only these keys. tests/firestore-rules.call-brief-settings.test.js.
+      function callBriefSettingsOk() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['autoBrief', 'updatedAt', 'updatedBy'])
+          && d.autoBrief is bool
+          && (!('updatedAt' in d) || d.updatedAt is timestamp)
+          && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
+      }
+      function callBriefSettingsWriter() {
+        return isAuth() && notViewer()
+          && (isAdmin()
+              || ownsTenantByUid(companyId)
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+      match /settings/callBrief {
+        allow read: if isAdmin()
+          || ownsTenantByUid(companyId)
+          || (isAuth() && request.auth.token.get('companyId', '') == companyId);
+        allow create, update: if callBriefSettingsWriter() && callBriefSettingsOk();
+        allow delete: if callBriefSettingsWriter();
+      }
+
       // ── LAYOUT USAGE (2026-10-16, layouts idea #13) ──
       // companies/{companyId}/layoutUsage/{YYYY-MM-DD} = { <layoutId>: n }: how many
       // devices had each layout on screen that day. ANONYMOUS: only known layout
