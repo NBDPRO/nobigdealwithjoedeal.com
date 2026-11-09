@@ -169,6 +169,28 @@ const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (x && typeof x === '
     const db4 = fakeDb(seed());
     await run(db4, { id: ID, action: 'attach', leadId: 'L1' });
     ok('…confirming the same customer (attach to L1) keeps the brief', db4.docs.has('leads/L1/call_briefs/' + ID));
+
+    // Review #4: what the brief put on the customer (the accepted summary note
+    // and the brief's promise tasks, slots 1-5) follows the call.
+    const art = () => Object.assign(seed(), {
+      ['leads/L1/activity/callbrief-' + ID]: { type: 'note', source: 'call-brief', text: 'Hail leak; claim open.', phoneCallId: ID },
+      ['leads/L1/tasks/promise-' + ID + '-1']: { kind: 'promise', promiseKind: 'waiting', leadId: 'L1', text: 'Waiting - adjuster report', done: false },
+      ['leads/L1/tasks/promise-' + ID + '-3']: { kind: 'promise', promiseKind: 'callback', leadId: 'L1', text: 'Call back', done: true },
+    });
+    for (const [label, data] of [['a move', { id: ID, action: 'move', leadId: 'L2' }], ['an attach elsewhere', { id: ID, action: 'attach', leadId: 'L2' }]]) {
+      const d = fakeDb(art());
+      const rr = await run(d, data);
+      ok(label + ': the accepted summary note leaves the old customer', rr.r && !d.docs.has('leads/L1/activity/callbrief-' + ID), JSON.stringify(rr.e && rr.e.message));
+      const note = d.docs.get('leads/L2/activity/callbrief-' + ID);
+      ok('…and lands on the new one, marked moved', note && note.text === 'Hail leak; claim open.' && note.movedFromLeadId === 'L1');
+      const t1 = d.docs.get('leads/L2/tasks/promise-' + ID + '-1');
+      const t3 = d.docs.get('leads/L2/tasks/promise-' + ID + '-3');
+      ok('…the brief\'s promise tasks move too, as they were (open stays open, done stays done)', t1 && t1.leadId === 'L2' && t1.done === false && t1.movedFromLeadId === 'L1' && t3 && t3.done === true
+        && !d.docs.has('leads/L1/tasks/promise-' + ID + '-1') && !d.docs.has('leads/L1/tasks/promise-' + ID + '-3'));
+    }
+    const d5 = fakeDb(art());
+    await run(d5, { id: ID, action: 'attach', leadId: 'L1' });
+    ok('…the same customer keeps them where they are', d5.docs.has('leads/L1/activity/callbrief-' + ID) && d5.docs.has('leads/L1/tasks/promise-' + ID + '-1'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

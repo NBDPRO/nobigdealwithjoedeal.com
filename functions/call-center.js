@@ -1107,13 +1107,35 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
   }
   if (a.exists) await oldAct.delete();
   if (t.exists) await oldTask.delete();
-  // Call to Close P0 (2026-11-09): a Call Brief never stays on the wrong
-  // customer. The new lead gets none until someone taps again.
-  await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
+  await moveBriefOff({ db, id, fromId, toId });
   const patch = L.phonePatchForLead(to, call.phoneDigits);
   if (patch) await db.doc('leads/' + toId).set(Object.assign(patch, { updatedAt: FieldValue.serverTimestamp() }), { merge: true });
   await db.collection(COLLECTION).doc(id).set({ leadId: toId, bucket: 'customer', alternateLeadIds: [], movedFromLeadId: fromId, movedBy: uid, movedAtMs: nowMs }, { merge: true });
   return { activityMoved, taskMoved, phoneAdded: !!patch };
+}
+
+// Call to Close P0 (2026-11-09): when a call leaves a customer, its Call
+// Brief never stays on the wrong one (the new lead gets none until someone
+// taps again), and what the brief put on the customer follows the call: the
+// accepted summary note (activity/callbrief-<id>, written from the call's
+// transcript) and the brief's promise tasks (promise-<id>-1..5), as they
+// were. Copy first, then delete, so a retry finishes the job. The card's own
+// promise-<id> (slot 0) is left as the move always left it.
+async function moveBriefOff({ db, id, fromId, toId }) {
+  const oldNote = db.doc('leads/' + fromId + '/activity/callbrief-' + id);
+  const n = await oldNote.get();
+  if (n.exists) {
+    await createIfAbsent(db.doc('leads/' + toId + '/activity/callbrief-' + id), Object.assign({}, n.data(), { movedFromLeadId: fromId }));
+    await oldNote.delete();
+  }
+  for (let slot = 1; slot <= 5; slot++) {
+    const oldTask = db.doc('leads/' + fromId + '/tasks/promise-' + id + '-' + slot);
+    const t = await oldTask.get();
+    if (!t.exists) continue;
+    await createIfAbsent(db.doc('leads/' + toId + '/tasks/promise-' + id + '-' + slot), Object.assign({}, t.data(), { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
+    await oldTask.delete();
+  }
+  await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
 }
 
 // Keep the away-mode hand-back timeline row true once Jo clears the person
@@ -1295,7 +1317,7 @@ async function callAction({ db, auth, data, nowMs }) {
     if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
     if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
     // Re-filing a filed call elsewhere: its Call Brief leaves the old customer too.
-    if (call.leadId && String(call.leadId) !== leadId) await db.doc('leads/' + String(call.leadId) + '/call_briefs/' + id).delete();
+    if (call.leadId && String(call.leadId) !== leadId) await moveBriefOff({ db, id, fromId: String(call.leadId), toId: leadId });
     const r = await attachCallToLead({ db, call, lead, leadId, uid: auth.uid, nowMs });
     return { ok: true, leadId, phoneAdded: r.phoneAdded, refiled: r.refiled };
   }
