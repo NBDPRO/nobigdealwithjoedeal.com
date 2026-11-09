@@ -1,0 +1,633 @@
+{
+  "ingest": {
+    "state": "ingested",
+    "folders": 2,
+    "seen": 5,
+    "fresh": 5,
+    "stored": 4,
+    "skipped": 1,
+    "failed": 0,
+    "buckets": {
+      "unknown": 3,
+      "contact": 1,
+      "customer": 1
+    },
+    "labelSkipped": 1,
+    "short": 1
+  },
+  "transcribe": {
+    "state": "live",
+    "picked": 3,
+    "noted": 2,
+    "personal": 1,
+    "failed": 0,
+    "tasks": 1,
+    "audioSec": 180,
+    "urgentPushed": 1,
+    "leadsUpdated": 1,
+    "factsReextracted": 1,
+    "aiWorked": true,
+    "suggested": 0
+  },
+  "writes": [
+    {
+      "op": "set",
+      "path": "phone_calls/cube_f3",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "source": "cube-acr",
+        "driveFileId": "f3",
+        "fileName": "2026-10-01 09-00-00 (phone) +1 513-555-0199 ↙.m4a",
+        "sizeBytes": 5000,
+        "mimeType": "audio/mpeg",
+        "startedAtMs": 1790859600000,
+        "ymd": "2026-10-01",
+        "direction": "inbound",
+        "phoneDigits": "5135550199",
+        "contactName": "",
+        "savedContact": false,
+        "tags": [],
+        "bucket": "unknown",
+        "leadId": null,
+        "alternateLeadIds": [],
+        "storagePath": null,
+        "durationSec": null,
+        "status": "personal",
+        "transcript": null,
+        "summary": null,
+        "actionItems": [],
+        "createdAtMs": 1790870400000,
+        "audioRemoved": "label",
+        "capturedByLabel": false,
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "phone_calls/cube_f4",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "source": "cube-acr",
+        "driveFileId": "f4",
+        "fileName": "2026-10-01 09-30-00 (phone) +1 937-555-0142 ↙.m4a",
+        "sizeBytes": 300000,
+        "mimeType": "audio/mpeg",
+        "startedAtMs": 1790861400000,
+        "ymd": "2026-10-01",
+        "direction": "inbound",
+        "phoneDigits": "9375550142",
+        "contactName": "",
+        "savedContact": false,
+        "tags": [],
+        "bucket": "unknown",
+        "leadId": null,
+        "alternateLeadIds": [],
+        "storagePath": "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-10-01/cube_f4.m4a",
+        "durationSec": null,
+        "status": "stored",
+        "transcript": null,
+        "summary": null,
+        "actionItems": [],
+        "createdAtMs": 1790870400000,
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "phone_calls/cube_f5",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "source": "cube-acr",
+        "driveFileId": "f5",
+        "fileName": "2026-10-01 10-15-00 (phone) Mom (+1 614-555-0123) ↗.m4a",
+        "sizeBytes": 200000,
+        "mimeType": "audio/mpeg",
+        "startedAtMs": 1790864100000,
+        "ymd": "2026-10-01",
+        "direction": "outbound",
+        "phoneDigits": "6145550123",
+        "contactName": "Mom",
+        "savedContact": true,
+        "tags": [],
+        "bucket": "contact",
+        "leadId": null,
+        "alternateLeadIds": [],
+        "storagePath": "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-10-01/cube_f5.m4a",
+        "durationSec": null,
+        "status": "stored",
+        "transcript": null,
+        "summary": null,
+        "actionItems": [],
+        "createdAtMs": 1790870400000,
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "phone_calls/cube_f1",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "source": "cube-acr",
+        "driveFileId": "f1",
+        "fileName": "2026-09-30 10-00-00 (phone) Pat Example NBD Customer (+1 812-555-0113) ↗.m4a",
+        "sizeBytes": 400000,
+        "mimeType": "audio/mpeg",
+        "startedAtMs": 1790776800000,
+        "ymd": "2026-09-30",
+        "direction": "outbound",
+        "phoneDigits": "8125550113",
+        "contactName": "Pat Example",
+        "savedContact": true,
+        "tags": [
+          "customer"
+        ],
+        "bucket": "customer",
+        "leadId": "lead1",
+        "alternateLeadIds": [],
+        "storagePath": "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-09-30/cube_f1.m4a",
+        "durationSec": 95,
+        "status": "stored",
+        "transcript": null,
+        "summary": null,
+        "actionItems": [],
+        "createdAtMs": 1790870400000,
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "phone_calls/cube_f2",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "source": "cube-acr",
+        "driveFileId": "f2",
+        "fileName": "2026-09-30 11-00-00 (phone) +1 800-555-1370 ↙.m4a",
+        "sizeBytes": 3000,
+        "mimeType": "audio/mpeg",
+        "startedAtMs": 1790780400000,
+        "ymd": "2026-09-30",
+        "direction": "inbound",
+        "phoneDigits": "8005551370",
+        "contactName": "",
+        "savedContact": false,
+        "tags": [],
+        "bucket": "unknown",
+        "leadId": null,
+        "alternateLeadIds": [],
+        "storagePath": "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-09-30/cube_f2.m4a",
+        "durationSec": 8,
+        "status": "short",
+        "transcript": null,
+        "summary": null,
+        "actionItems": [],
+        "createdAtMs": 1790870400000,
+        "replyDraft": {
+          "kind": "manual",
+          "body": "Hi, it's Joe with No Big Deal Home Solutions. Sorry I missed your call, I'm on a roof. What can I help with? Free inspection: nobigdealwithjoedeal.com/inspect",
+          "smsHref": "sms:+18005551370?body=Hi%2C%20it's%20Joe%20with%20No%20Big%20Deal%20Home%20Solutions.%20Sorry%20I%20missed%20your%20call%2C%20I'm%20on%20a%20roof.%20What%20can%20I%20help%20with%3F%20Free%20inspection%3A%20nobigdealwithjoedeal.com%2Finspect",
+          "createdAtMs": 1790870400000
+        },
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "merge",
+      "path": "integrations/callCenter",
+      "data": {
+        "folderId": "nbdroot",
+        "cursorYmd": "2026-10-01",
+        "floorApplied": "2026-01-01",
+        "lastRunAtMs": 1790870400000,
+        "lastRun": {
+          "live": true,
+          "folders": 2,
+          "seen": 5,
+          "fresh": 5,
+          "stored": 4,
+          "skipped": 1,
+          "failed": 0,
+          "buckets": {
+            "unknown": 3,
+            "contact": 1,
+            "customer": 1
+          },
+          "labelSkipped": 1,
+          "short": 1
+        }
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f5",
+      "data": {
+        "transcribeLease": {
+          "by": "schedule",
+          "untilMs": 1790871300000
+        }
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f5",
+      "data": {
+        "status": "personal",
+        "transcript": null,
+        "durationSec": 60,
+        "summary": "Personal call.",
+        "callType": "personal",
+        "promises": [],
+        "followUpDate": null,
+        "urgent": false,
+        "callerFacts": {
+          "name": null,
+          "street": null,
+          "town": null,
+          "service": null
+        },
+        "factsV": 1,
+        "notedAtMs": 1790870400000,
+        "transcriptSaved": false,
+        "transcribeError": null,
+        "transcribeLease": null,
+        "segIndex": null
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f5",
+      "data": {
+        "storagePath": null,
+        "audioRemoved": "personal"
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f4",
+      "data": {
+        "transcribeLease": {
+          "by": "schedule",
+          "untilMs": 1790871300000
+        }
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f4",
+      "data": {
+        "status": "noted",
+        "transcript": "Hi, this is Dana Rivers on Oak Hill Drive in Florence, I need a roof inspection.",
+        "durationSec": 60,
+        "summary": "Dana wants a roof inspection.",
+        "callType": "lead",
+        "promises": [],
+        "followUpDate": null,
+        "urgent": false,
+        "callerFacts": {
+          "name": "Dana Rivers",
+          "street": "Oak Hill Drive",
+          "town": "Florence",
+          "service": "roof"
+        },
+        "factsV": 1,
+        "notedAtMs": 1790870400000,
+        "transcriptSaved": false,
+        "transcribeError": null,
+        "transcribeLease": null,
+        "segIndex": null
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f4",
+      "data": {
+        "suggestedLeadId": "lead2",
+        "suggestedLeadName": "Dana Rivers",
+        "suggestedWhy": "their name said on the call",
+        "suggestCheckedAtMs": 1790870400000,
+        "suggestRulesV": 3
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f1",
+      "data": {
+        "transcribeLease": {
+          "by": "schedule",
+          "untilMs": 1790871300000
+        }
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f1",
+      "data": {
+        "status": "noted",
+        "transcript": "Hi Jo, water is coming through the ceiling right now. Can you come today? I will send the quote by Friday.",
+        "durationSec": 60,
+        "summary": "Active leak; Jo will come today and send a quote by Friday.",
+        "callType": "customer",
+        "promises": [
+          {
+            "who": "jo",
+            "text": "Send the quote",
+            "due": "2026-10-03"
+          }
+        ],
+        "followUpDate": "2026-10-02",
+        "urgent": true,
+        "callerFacts": {
+          "name": null,
+          "street": null,
+          "town": null,
+          "service": null
+        },
+        "factsV": 1,
+        "notedAtMs": 1790870400000,
+        "transcriptSaved": false,
+        "transcribeError": null,
+        "transcribeLease": null,
+        "segIndex": null
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_f1",
+      "data": {
+        "urgentPushedAtMs": 1790870400000
+      }
+    },
+    {
+      "op": "add",
+      "path": "notifications",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "type": "call_watch",
+        "title": "📞 Urgent call — Pat Example",
+        "message": "Active leak; Jo will come today and send a quote by Friday.",
+        "priority": "high",
+        "clickUrl": "/pro/dashboard.html?call=cube_f1#/calls",
+        "read": false,
+        "dismissed": false,
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "set",
+      "path": "leads/lead1/activity/cube-cube_f1",
+      "data": {
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "companyId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "type": "call",
+        "direction": "outbound",
+        "source": "cube-acr",
+        "label": "You called · Pat Example",
+        "summary": "Active leak; Jo will come today and send a quote by Friday.",
+        "promises": [
+          {
+            "who": "jo",
+            "text": "Send the quote",
+            "due": "2026-10-03"
+          }
+        ],
+        "followUpDate": "2026-10-02",
+        "durationSec": 60,
+        "startedAtMs": 1790776800000,
+        "phoneCallId": "cube_f1",
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "create",
+      "path": "leads/lead1/tasks/cube-cube_f1",
+      "data": {
+        "leadId": "lead1",
+        "userId": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+        "title": "Send the quote (Pat Example)",
+        "text": "Send the quote (Pat Example)",
+        "notes": "Call: Active leak; Jo will come today and send a quote by Friday.\n\nYou said you would:\n• Send the quote (by 2026-10-03)",
+        "dueDate": "2026-10-02",
+        "priority": "high",
+        "done": false,
+        "source": "cube-acr",
+        "phoneCallId": "cube_f1",
+        "createdBy": "Call Center (AI notes)",
+        "createdAt": {}
+      }
+    },
+    {
+      "op": "merge",
+      "path": "leads/lead1",
+      "data": {
+        "lastContactedAt": {
+          "_seconds": 1790776800,
+          "_nanoseconds": 0
+        },
+        "lastContactType": "call",
+        "followUp": "2026-10-02"
+      }
+    },
+    {
+      "op": "merge",
+      "path": "phone_calls/cube_old1",
+      "data": {
+        "callerFacts": {
+          "name": "Sam Lee",
+          "street": "Elm Street",
+          "town": "Erlanger",
+          "service": "siding"
+        },
+        "factsV": 1,
+        "factsAtMs": 1790870400000,
+        "suggestedLeadId": null,
+        "suggestedLeadName": null,
+        "suggestedWhy": null,
+        "suggestCheckedAtMs": 1790870400000,
+        "suggestRulesV": 3
+      }
+    },
+    {
+      "op": "merge",
+      "path": "integrations/callCenter",
+      "data": {
+        "audioSecDay": "2026-10-01",
+        "audioSecUsed": 180
+      }
+    },
+    {
+      "op": "merge",
+      "path": "integrations/callCenter",
+      "data": {
+        "lastTranscribeAtMs": 1790870400000,
+        "lastTranscribe": {
+          "state": "live",
+          "picked": 3,
+          "noted": 2,
+          "personal": 1,
+          "failed": 0,
+          "tasks": 1,
+          "audioSec": 180,
+          "urgentPushed": 1,
+          "leadsUpdated": 1,
+          "factsReextracted": 1,
+          "aiWorked": true,
+          "suggested": 0
+        },
+        "factsDay": "2026-10-01",
+        "factsUsed": 1
+      }
+    }
+  ],
+  "storageSaved": [
+    [
+      "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-10-01/cube_f4.m4a",
+      {
+        "bytes": 3,
+        "contentType": "audio/mp4"
+      }
+    ],
+    [
+      "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-09-30/cube_f1.m4a",
+      {
+        "bytes": 3,
+        "contentType": "audio/mp4"
+      }
+    ],
+    [
+      "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-09-30/cube_f2.m4a",
+      {
+        "bytes": 3,
+        "contentType": "audio/mp4"
+      }
+    ]
+  ],
+  "storageDeleted": [
+    "calls/1phDvAVXHSg82wDLegAbQFq14Ci1/cube-acr/2026-10-01/cube_f5.m4a"
+  ],
+  "drive": [
+    {
+      "url": "https://www.googleapis.com/drive/v3/files",
+      "params": {
+        "q": "name = 'Cube ACR' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "fields": "nextPageToken, files(id, name)",
+        "pageSize": 200,
+        "supportsAllDrives": true,
+        "includeItemsFromAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files",
+      "params": {
+        "q": "'nbdroot' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        "fields": "nextPageToken, files(id, name)",
+        "pageSize": 200,
+        "supportsAllDrives": true,
+        "includeItemsFromAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files",
+      "params": {
+        "q": "'nbdroot_2026-10-01' in parents and trashed = false",
+        "fields": "nextPageToken, files(id, name, size, mimeType, createdTime)",
+        "pageSize": 200,
+        "supportsAllDrives": true,
+        "includeItemsFromAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/f4",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/f5",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files",
+      "params": {
+        "q": "'nbdroot_2026-09-30' in parents and trashed = false",
+        "fields": "nextPageToken, files(id, name, size, mimeType, createdTime)",
+        "pageSize": 200,
+        "supportsAllDrives": true,
+        "includeItemsFromAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/f1",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/s1",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/f2",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files/s2",
+      "params": {
+        "alt": "media",
+        "supportsAllDrives": true
+      }
+    }
+  ],
+  "model": [
+    {
+      "system": "You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.\nReturn ONE JSON object and nothing else:\n{\"call_type\": one of [\"customer\",\"insurance\",\"supplier\",\"sub\",\"lead\",\"personal\",\"spam\",\"other\"],\n \"summary\": \"2-3 plain sentences: who, what about, what was decided\",\n \"promises\": [{\"who\": \"jo\" | \"them\", \"text\": \"a concrete thing someone said they would do, imperative, under 120 chars\", \"due\": \"YYYY-MM-DD\" or null}],\n \"follow_up_date\": \"YYYY-MM-DD\" or null (when Jo should next reach out, if the call implies one),\n \"urgent\": true | false (an active leak, safety issue, or a hard deadline within 48 hours),\n \"caller_name\": ..., \"street\": ..., \"town\": ..., \"service\": ... (see below)}\nRules: only promises actually made on the call, at most 6. Resolve relative dates (\"Thursday\", \"next week\") against the call date given. \nA call about family, friends or anything not business is \"personal\": then summary is \"Personal call.\" and promises is [].\nNever invent prices, names or dates that were not said.\nAlso, about the customer (NOT Jo, NOT an insurance adjuster, supplier or sub). Each is null unless CLEARLY said on the call — never guess, never infer from the phone contact name:\n \"caller_name\": the customer's name as they give it for themselves, or as Jo addresses them (e.g. \"Dana Rivers\", \"Dana\"), or null\n \"street\": the street of the job / their home, house number only if spoken (e.g. \"412 Oak Hill Dr\", \"Oak Hill Drive\"), or null\n \"town\": the town / city of the job (e.g. \"Florence\"), or a 5-digit ZIP if only that was said, or null\n \"service\": one of [\"roof\",\"siding\",\"gutters\",\"repair\",\"insurance\"] — what the call is about — or null",
+      "prompt": "Call date (Eastern): 10/1/2026, 10:15:00 AM\nDirection: Jo called them\nOther party (from Jo's phone contacts): Mom\nNot matched to a CRM customer.\n\nTranscript:\nHey honey, what time is dinner?",
+      "feature": "call-center-notes",
+      "maxTokens": null
+    },
+    {
+      "system": "You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.\nReturn ONE JSON object and nothing else:\n{\"call_type\": one of [\"customer\",\"insurance\",\"supplier\",\"sub\",\"lead\",\"personal\",\"spam\",\"other\"],\n \"summary\": \"2-3 plain sentences: who, what about, what was decided\",\n \"promises\": [{\"who\": \"jo\" | \"them\", \"text\": \"a concrete thing someone said they would do, imperative, under 120 chars\", \"due\": \"YYYY-MM-DD\" or null}],\n \"follow_up_date\": \"YYYY-MM-DD\" or null (when Jo should next reach out, if the call implies one),\n \"urgent\": true | false (an active leak, safety issue, or a hard deadline within 48 hours),\n \"caller_name\": ..., \"street\": ..., \"town\": ..., \"service\": ... (see below)}\nRules: only promises actually made on the call, at most 6. Resolve relative dates (\"Thursday\", \"next week\") against the call date given. \nA call about family, friends or anything not business is \"personal\": then summary is \"Personal call.\" and promises is [].\nNever invent prices, names or dates that were not said.\nAlso, about the customer (NOT Jo, NOT an insurance adjuster, supplier or sub). Each is null unless CLEARLY said on the call — never guess, never infer from the phone contact name:\n \"caller_name\": the customer's name as they give it for themselves, or as Jo addresses them (e.g. \"Dana Rivers\", \"Dana\"), or null\n \"street\": the street of the job / their home, house number only if spoken (e.g. \"412 Oak Hill Dr\", \"Oak Hill Drive\"), or null\n \"town\": the town / city of the job (e.g. \"Florence\"), or a 5-digit ZIP if only that was said, or null\n \"service\": one of [\"roof\",\"siding\",\"gutters\",\"repair\",\"insurance\"] — what the call is about — or null",
+      "prompt": "Call date (Eastern): 10/1/2026, 9:30:00 AM\nDirection: They called Jo\nOther party (from Jo's phone contacts): not a saved contact\nNot matched to a CRM customer.\n\nTranscript:\nHi, this is Dana Rivers on Oak Hill Drive in Florence, I need a roof inspection.",
+      "feature": "call-center-notes",
+      "maxTokens": null
+    },
+    {
+      "system": "You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.\nReturn ONE JSON object and nothing else:\n{\"call_type\": one of [\"customer\",\"insurance\",\"supplier\",\"sub\",\"lead\",\"personal\",\"spam\",\"other\"],\n \"summary\": \"2-3 plain sentences: who, what about, what was decided\",\n \"promises\": [{\"who\": \"jo\" | \"them\", \"text\": \"a concrete thing someone said they would do, imperative, under 120 chars\", \"due\": \"YYYY-MM-DD\" or null}],\n \"follow_up_date\": \"YYYY-MM-DD\" or null (when Jo should next reach out, if the call implies one),\n \"urgent\": true | false (an active leak, safety issue, or a hard deadline within 48 hours),\n \"caller_name\": ..., \"street\": ..., \"town\": ..., \"service\": ... (see below)}\nRules: only promises actually made on the call, at most 6. Resolve relative dates (\"Thursday\", \"next week\") against the call date given. \nA call about family, friends or anything not business is \"personal\": then summary is \"Personal call.\" and promises is [].\nNever invent prices, names or dates that were not said.\nAlso, about the customer (NOT Jo, NOT an insurance adjuster, supplier or sub). Each is null unless CLEARLY said on the call — never guess, never infer from the phone contact name:\n \"caller_name\": the customer's name as they give it for themselves, or as Jo addresses them (e.g. \"Dana Rivers\", \"Dana\"), or null\n \"street\": the street of the job / their home, house number only if spoken (e.g. \"412 Oak Hill Dr\", \"Oak Hill Drive\"), or null\n \"town\": the town / city of the job (e.g. \"Florence\"), or a 5-digit ZIP if only that was said, or null\n \"service\": one of [\"roof\",\"siding\",\"gutters\",\"repair\",\"insurance\"] — what the call is about — or null",
+      "prompt": "Call date (Eastern): 9/30/2026, 10:00:00 AM\nDirection: Jo called them\nOther party (from Jo's phone contacts): Pat Example\nCRM customer this number belongs to: Pat Example\n\nTranscript:\nHi Jo, water is coming through the ceiling right now. Can you come today? I will send the quote by Friday.",
+      "feature": "call-center-notes",
+      "maxTokens": null
+    },
+    {
+      "system": "You read a transcript of a phone call taken or made by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati / Northern Kentucky area.\nReturn ONE JSON object and nothing else: {\"caller_name\": ..., \"street\": ..., \"town\": ..., \"service\": ...}\nAlso, about the customer (NOT Jo, NOT an insurance adjuster, supplier or sub). Each is null unless CLEARLY said on the call — never guess, never infer from the phone contact name:\n \"caller_name\": the customer's name as they give it for themselves, or as Jo addresses them (e.g. \"Dana Rivers\", \"Dana\"), or null\n \"street\": the street of the job / their home, house number only if spoken (e.g. \"412 Oak Hill Dr\", \"Oak Hill Drive\"), or null\n \"town\": the town / city of the job (e.g. \"Florence\"), or a 5-digit ZIP if only that was said, or null\n \"service\": one of [\"roof\",\"siding\",\"gutters\",\"repair\",\"insurance\"] — what the call is about — or null",
+      "prompt": "Transcript:\nHi this is Sam Lee on Elm Street in Erlanger, about the siding.",
+      "feature": "call-center-facts",
+      "maxTokens": null
+    }
+  ],
+  "pushes": [
+    {
+      "uid": "1phDvAVXHSg82wDLegAbQFq14Ci1",
+      "title": "Urgent call — Pat Example",
+      "body": "Active leak; Jo will come today and send a quote by Friday.",
+      "data": {
+        "type": "call_watch",
+        "clickUrl": "/pro/dashboard.html?call=cube_f1#/calls",
+        "notificationId": "call-urgent-cube_f1"
+      }
+    }
+  ]
+}
