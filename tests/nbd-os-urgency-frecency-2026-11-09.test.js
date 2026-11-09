@@ -49,6 +49,10 @@ G(() => {
   ok('speedToLead off: leads are not read (no stamp could exist), missed calls under 30 min are', HL.urgency({ leads: [lead()], now: NOW, stamped: false, plan: { calls: [] } }) === null
     && J(HL.urgency({ now: NOW, stamped: false, plan: { calls: [{ missed: true, latestMs: NOW - 8 * MIN, leadId: 'L2' }] } })) === J({ kind: 'call', n: 1, oldestMin: 8, leadId: 'L2' }));
   ok('…a missed call 31 min old, or one that was not missed: nothing', HL.urgency({ now: NOW, plan: { calls: [{ missed: true, latestMs: NOW - 31 * MIN }, { missed: false, latestMs: NOW }] } }) === null);
+  // a manager's / owner's _leads holds the team's leads: a teammate's new lead is not waiting on THIS member
+  ok('…with uid: a teammate\'s new lead (userId or assignedTo someone else) is not counted', HL.urgency({ leads: [lead({ userId: 'rep2' }), lead({ id: 'N3', assignedTo: 'rep2' })], now: NOW, stamped: true, uid: 'u1' }) === null);
+  ok('…the member\'s own (userId, else assignedTo) and an unowned one are', J(HL.urgency({ leads: [lead({ userId: 'u1' }), lead({ id: 'N2', assignedTo: 'u1', createdAt: NOW - 20 * MIN }), lead({ id: 'N4', createdAt: NOW - 30 * MIN }), lead({ id: 'N5', userId: 'rep2', createdAt: NOW - 50 * MIN })], now: NOW, stamped: true, uid: 'u1' }))
+    === J({ kind: 'lead', n: 3, oldestMin: 30, leadId: '' }));
   ok('no data -> nothing (no leads loaded, no plan, no clock)', HL.urgency({ leads: null, now: NOW, stamped: true }) === null && HL.urgency({ now: NOW }) === null && HL.urgency({ leads: [lead()], stamped: true }) === null);
   ok('urgencyText: words, never colour only', J(HL.urgencyText({ kind: 'lead', n: 2 })) === J({ app: 'crm', pill: 'New', text: '2 new leads waiting for a reply' })
     && J(HL.urgencyText({ kind: 'call', n: 1 })) === J({ app: 'calls', pill: 'Call', text: '1 missed call to return' }) && HL.urgencyText(null) === null);
@@ -67,6 +71,10 @@ G(() => {
   T.W._leads[0].firstRespondedAt = NOW - MIN;
   T.W.dispatchEvent(new T.W.CustomEvent('nbd:data-refreshed'));
   ok('a reply stamped -> the ring goes on the next event', !ph().querySelector('.is-urgent') && !crm().hasAttribute('aria-label'));
+  const Tt = makeWin({ surface: 'phone', uid: 'u1', leads: [lead({ userId: 'rep2' })] });
+  Tt.W.NBDFlags = flags(true);
+  Tt.W._impl.mount({ surface: 'phone' });
+  ok('a teammate\'s new lead in a manager\'s _leads does not ring the CRM icon', !Tt.document.getElementById('osPhone').querySelector('.is-urgent'));
   const T2 = makeWin({ surface: 'phone', leads: [lead()], plan: Object.assign(H.plan(), { calls: [{ key: 'c', missed: true, latestMs: NOW - 5 * MIN, phone: '5135550199' }] }) });
   T2.W.NBDFlags = flags(false);
   T2.W._impl.mount({ surface: 'phone' });

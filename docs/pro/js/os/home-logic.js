@@ -728,6 +728,9 @@
    *   { kind:'call', n, oldestMin, leadId }   else: missed calls in the Today plan from the last
    *                                           30 minutes (the call-back rule)
    * leadId only when one lead / call. Nothing when the data isn't there (no leads, no plan).
+   * uid (the signed-in member): a lead owned by someone else (userId, else assignedTo, the Shutdown
+   * owner rule) is not counted: a manager's or owner's _leads holds the team's leads. An unowned lead
+   * still counts (nobody else is on it).
    */
   function urgency(x) {
     var o = isObj(x) ? x : {};
@@ -735,9 +738,12 @@
     if (!(now > 0)) return null;
     if (o.stamped === true) {
       if (!Array.isArray(o.leads)) return null;
+      var uid = typeof o.uid === 'string' ? o.uid : '';
       var wait = o.leads.filter(function (l) {
         if (!isObj(l) || l.id == null || l.deleted === true || l.isProspect || l.e2eTestData) return false;
         if (l.meter === 'import' || l.importedAt) return false;   // a CSV import (data-import.js) was never inbound: nobody is waiting
+        var owner = l.userId || l.assignedTo;
+        if (uid && owner && String(owner) !== uid) return false;   // a teammate's lead is waiting on them
         var made = toMs(l.createdAt);
         return made > 0 && made <= now + 60000 && now - made <= LEAD_HOURS * 3600000 && !toMs(l.firstRespondedAt) && roleOfLead(l, o.roleOf) === 'new';
       });

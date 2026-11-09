@@ -128,7 +128,8 @@
   function urgencyNow() {
     var plan = null;
     try { plan = todayPlan(); } catch (e) { plan = null; }
-    return HL.urgency({ leads: leadsNow(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null });
+    return HL.urgency({ leads: leadsNow(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
+      uid: String((W._user && W._user.uid) || '') });
   }
   // the Smart Stack re-picks when this moves: an event, a show, an unlock (never a timer)
   var epoch = 1;
