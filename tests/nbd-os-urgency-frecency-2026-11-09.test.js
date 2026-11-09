@@ -40,6 +40,10 @@ G(() => {
   ok('…a stamped reply ends it', HL.urgency({ leads: [lead({ firstRespondedAt: { seconds: (NOW - MIN) / 1000 } })], now: NOW, stamped: true }) === null);
   ok('…older than 24 h, deleted, a prospect or past New: not new inbound', [{ createdAt: NOW - 25 * 3600000 }, { deleted: true }, { isProspect: true }, { stage: 'contacted' }]
     .every((o) => HL.urgency({ leads: [lead(o)], now: NOW, stamped: true }) === null));
+  ok('…a CSV-imported lead (data-import.js: meter import, importedAt) never rings: it was never inbound',
+    HL.urgency({ leads: [lead({ meter: 'import' })], now: NOW, stamped: true }) === null
+    && HL.urgency({ leads: [lead({ importedAt: { seconds: (NOW - MIN) / 1000 } })], now: NOW, stamped: true }) === null
+    && J(HL.urgency({ leads: [lead({ id: 'I1', meter: 'import' }), lead()], now: NOW, stamped: true })) === J({ kind: 'lead', n: 1, oldestMin: 12, leadId: 'N1' }));
   ok('…the tenant\'s stage role decides "new" (own stage names)', !!HL.urgency({ leads: [lead({ stage: 'fresh_web' })], now: NOW, stamped: true, roleOf: (k) => (k === 'fresh_web' ? 'new' : '') }));
   ok('…two waiting: n 2, the oldest\'s minutes, no single lead id', J(HL.urgency({ leads: [lead(), lead({ id: 'N2', createdAt: NOW - 40 * MIN })], now: NOW, stamped: true })) === J({ kind: 'lead', n: 2, oldestMin: 40, leadId: '' }));
   ok('speedToLead off: leads are not read (no stamp could exist), missed calls under 30 min are', HL.urgency({ leads: [lead()], now: NOW, stamped: false, plan: { calls: [] } }) === null

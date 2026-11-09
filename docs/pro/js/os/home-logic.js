@@ -599,7 +599,7 @@
   /**
    * The urgency ring (#5): someone new is waiting on the rep. -> null, or
    *   { kind:'lead', n, oldestMin, leadId }  new leads (stage role new, created in the last 24 h)
-   *                                           with no firstRespondedAt; only when `stamped` (the
+   *                                           with no firstRespondedAt, never a CSV import; only when `stamped` (the
    *                                           speedToLead feature is on, so a reply gets stamped)
    *   { kind:'call', n, oldestMin, leadId }   else: missed calls in the Today plan from the last
    *                                           30 minutes (the call-back rule)
@@ -613,6 +613,7 @@
       if (!Array.isArray(o.leads)) return null;
       var wait = o.leads.filter(function (l) {
         if (!isObj(l) || l.id == null || l.deleted === true || l.isProspect || l.e2eTestData) return false;
+        if (l.meter === 'import' || l.importedAt) return false;   // a CSV import (data-import.js) was never inbound: nobody is waiting
         var made = toMs(l.createdAt);
         return made > 0 && made <= now + 60000 && now - made <= LEAD_HOURS * 3600000 && !toMs(l.firstRespondedAt) && roleOfLead(l, o.roleOf) === 'new';
       });
