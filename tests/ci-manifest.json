@@ -983,7 +983,8 @@
     "call-brief-logic-2026-11-09.test.js",
     "call-brief-eval-2026-11-09.test.js",
     "call-brief-callable-2026-11-09.test.js",
-    "call-center-promise-slot-2026-11-09.test.js"
+    "call-center-promise-slot-2026-11-09.test.js",
+    "call-brief-ui-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
