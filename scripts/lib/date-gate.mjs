@@ -10,13 +10,16 @@
  * scheduled deploy (.github/workflows/firebase-deploy.yml) rebuilds them inside the job without committing. So the
  * committed generated files can lag the live site by exactly the items whose date passed since the last restamp.
  * A --check therefore passes when the committed output equals the render for TODAY or for an earlier cut day —
- * "stamped before item X's date". Each cut is the day before a distinct published date that is not after today;
- * newest first, at most LAG_CUT_LIMIT of them. --strict turns the lag allowance off (exact-today only).
+ * "stamped before item X's date". Each cut is the day before a distinct published date that is not after today,
+ * newest first, with NO cap (review 2026-11-09): nothing forces a restamp, so a repo copy left alone for months must
+ * still read as lag, never as red CI on an unrelated PR. Each cut is one in-process render (feed, llms) or one ~0.2 s
+ * child run (projects), and only on the failing path. --strict turns the lag allowance off (exact-today only).
+ * What lag cannot tell apart: a NEW post dated on or after the newest live date and added without --write passes too,
+ * because "stamped the day before it" explains it exactly. The deploy still regenerates it, so the live site is right.
  *
  * Runbook: documentation/runbooks/BLOG-SCHEDULE.md. Test: tests/date-gated-checks-2026-11-09.test.js.
  */
 
-export const LAG_CUT_LIMIT = 12;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The generators' day: new Date(v), then local midnight. */
@@ -54,14 +57,15 @@ export function readLiveOn(argv = process.argv.slice(2)) {
 
 /**
  * The earlier days a lagging committed tree may have been stamped on, newest first: the day before each distinct
- * published date that is live on `liveOn`. Each entry: { iso: cut day, wentLive: [published days after the cut] }.
+ * published date that is live on `liveOn`, every one of them (no cap, see LAG above). Each entry: { iso: cut day,
+ * wentLive: [published days after the cut] }.
  */
-export function lagCuts(publishedDates, liveOn, limit = LAG_CUT_LIMIT) {
+export function lagCuts(publishedDates, liveOn) {
   const days = [...new Set(publishedDates.map((d) => String(d).slice(0, 10)))]
     .filter((d) => ISO_RE.test(d) && isLiveOn(d, liveOn))
     .sort()
     .reverse();
-  return days.slice(0, limit).map((d, i) => ({ iso: dayBefore(d), wentLive: days.slice(0, i + 1).reverse() }));
+  return days.map((d, i) => ({ iso: dayBefore(d), wentLive: days.slice(0, i + 1).reverse() }));
 }
 
 /** One line for a check that passed on a lagging stamp. */

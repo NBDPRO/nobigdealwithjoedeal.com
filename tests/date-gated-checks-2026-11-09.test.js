@@ -106,6 +106,20 @@ try {
   r = node(tmp, 'build-feed.mjs');
   ok('a new post dated in the past (older than the newest) without a restamp still fails', r.status === 1, out(r));
 
+  // REVIEW 2026-11-09 (defect 2): the lag rule used to look back only 12 go-live dates. One post a week and nobody
+  // restamping for 12+ weeks then turned the feed check red on every unrelated PR. A feed stamped before the 13th
+  // newest live date (13 go-lives behind) is still exactly an earlier day's render, so it must pass.
+  const liveDays = [...new Set(new Function(`return ${postsSrc.match(/const POSTS\s*=\s*(\[[\s\S]*?\]);/)[1]};`)()
+    .filter((p) => p.url && p.audience !== 'contractor').map((p) => String(p.published).slice(0, 10)))]
+    .filter((d) => d <= TODAY).sort().reverse();
+  ok('the POSTS array has at least 14 distinct live dates (fixture for the long-lag case)', liveDays.length >= 14, liveDays.length);
+  const longLagCut = addDays(liveDays[12], -1);
+  r = node(tmp, 'build-feed.mjs', '--write', `--live-on=${longLagCut}`);
+  ok(`scratch feed restamped as of ${longLagCut} (13 go-live dates behind)`, r.status === 0, out(r));
+  r = node(tmp, 'build-feed.mjs');
+  ok('a feed 13 go-live dates behind still passes the default check as lag (no 12-date cap)', r.status === 0 && /lag/i.test(out(r)), out(r));
+  fs.copyFileSync(path.join(ROOT, 'docs', 'feed.xml'), path.join(tmp, 'docs', 'feed.xml'));
+
   // A retitled live post is real drift whatever the date.
   fs.writeFileSync(postsFile, postsSrc.replace(/title: "([^"]+)"/, 'title: "$1 (retitled)"'));
   r = node(tmp, 'build-feed.mjs');
