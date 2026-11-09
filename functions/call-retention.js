@@ -73,6 +73,12 @@ const PHASES = [
 
 const safeId = (v) => typeof v === 'string' && !!v && !v.includes('/');
 
+// Cost note: this pages EVERY record before the cutoff, including ones already
+// stripped or without audio, and they count toward MAX_PER_PHASE. With the
+// 30-day rescan, a phase with more than about 30 x MAX_PER_PHASE (30k)
+// pre-cutoff records can no longer reach newly aged ones before the rescan
+// resets its cursor. Fine at today's volume; past that, filter on retention.*
+// or keep a separate done marker.
 function baseQuery(db, ph, cutoff, docIdField) {
   return ph.source === 'calls'
     ? db.collection('phone_calls').where('createdAtMs', '<', cutoff).orderBy('createdAtMs').orderBy(docIdField)

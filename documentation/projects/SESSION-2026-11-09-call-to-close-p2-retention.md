@@ -40,6 +40,17 @@ Both flags are set by hand in the Firestore console for now (there is no button)
 
 **Never touched.** The Drive original (the sweep never loads a Drive client); the timeline entries on the lead (`activity/cube-<id>`, which copy the call summary and promises: they are the CRM's business record, see the open question below); `thursday_calls`, `phone_texts` and `phone_text_days`.
 
+## Read this before you turn it on (review round, 2026-11-09)
+
+What Q7 covers today, and what it does not. Each of these keeps data **longer** than Q7 says, never shorter; none deletes more.
+
+- **The AI notes have more than one copy.** Stripping `summary` and `promises` from `phone_calls` leaves the same summary and promises in the customer's timeline entry `leads/{id}/activity/cube-{callId}` (`call-center-logic.js` `buildCallActivity`) and in the follow-up task made from the call (`buildFollowUpTask`). Both are kept with no limit. So "transcripts 24 months" today means the transcript and the call's own notes; the customer timeline still shows what the call said. **Open question 1 needs your answer** before Q7 is fully met.
+- **Thursday recordings are not covered.** `thursday_calls` and the visit-capture transcripts keep their transcripts with no limit (open question 4). Q7 is not fully covered until they are.
+- **The backlog is counted from its import, not from the call.** A call's age counts from the later of its start time and `createdAtMs`, and `createdAtMs` is when the CRM filed it (`buildCallDoc`). The Cube ACR history backfilled from Drive in October 2026 therefore counts from October 2026, whatever the real call date: a 2023 call keeps its CRM audio until October 2027 and its transcript until October 2028. **Nothing from that backlog is removed for 12 / 24 months after the import.** If Q7 meant "24 months from the call", say so and the age date becomes `startedAtMs` alone.
+- **Deleting a brief deletes its decisions too.** A brief's `decisions[]` (every accept / edit / reject on it, including an insurance acknowledgement) goes with the brief at 24 months. Leads with an open claim are held, so a claim in flight keeps them.
+- **Orphaned audio is not swept.** Only the object a call's `storagePath` names is ever deleted. A CRM audio file under `calls/{owner}/` that no call points at (an upload whose call write failed, or a personal-call delete that cleared the path but not the object) stays. Sweeping those means listing Storage and dating by the object's own time with no call to check a hold against: a new kind of deletion, so it waits for your OK (open question 5).
+- **"Not personal" brings old audio back.** The Call Center's Not personal action re-copies the recording from Drive to a new `storagePath` on the old call. The audio phase's cursor is already past that call, so the copy stays until the next 30-day rescan picks it up (at most about 30 days past the 12 months).
+
 ## Runbook for Jo
 
 The gate is `CALL_RETENTION_ENABLED` on the `callRetention` function. Unset (the default) is a **dry run**: it reads, counts and logs what it would do and writes nothing, not even its cursor.
@@ -63,8 +74,14 @@ The gate is `CALL_RETENTION_ENABLED` on the `callRetention` function. Unset (the
 1. Should the call's timeline entry on the customer (summary and promises copied at filing time) also be stripped at 24 months? It is left alone now, as a business note.
 2. Is "Denied" an open claim for the hold? It is now.
 3. Should a hold have a button on the customer card? Today it is a console field.
-4. `thursday_calls` (Thursday recordings) also keep transcripts. Q7 named the Cube ACR calls only.
+4. `thursday_calls` (Thursday recordings) and visit-capture transcripts also keep transcripts. Q7 named the Cube ACR calls only; until these are covered, Q7 is only partly met.
+5. Should the sweep also delete CRM audio under `calls/{owner}/` that no call points at (orphans), dated by the object's own upload time?
+6. Should the age of a backfilled call count from the call itself (`startedAtMs`) instead of its import? Today the October 2026 backfill is kept until October 2027 (audio) and October 2028 (transcripts).
 
 ## How it was checked
 
 Red before green: the new suite against `d1f7bfe0c` failed 83 checks and then threw (the modules did not exist). After: all checks pass. Gates: see the lane return.
+
+Process note (review round): in the first round both modules were written before the test file, and the red-before evidence was rebuilt afterwards by running the finished suite against `d1f7bfe0c`. That evidence is real but thin: it fails because the modules are missing, not because each behaviour is wrong. The review-round fixes (open claim on `claimStage` / the insurance track / a claim number; the audio audit row before the delete and the retry list; `stored` to `listed`; the dry-run backlog count; the flag's group) were each written test-first: the new checks were run and seen failing for the behaviour they name before the fix, one commit each.
+
+**Scale (later work).** Every phase pages through every `phone_calls` (or brief) record dated before its cutoff, including ones already stripped or without audio, and they count toward the 1000-a-phase cap. The 30-day rescan starts again from the oldest. Once one phase has more than about 30,000 pre-cutoff records, a pass cannot reach newly aged records before the next rescan resets it. Fine at today's volume; the fix then is a filter on `retention.*` or a separate done marker.
