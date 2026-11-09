@@ -28,7 +28,10 @@
  *
  * Mounted by layout-system.js via LayoutEngine.implement('os', ...).
  * Needs js/os/system-logic.js (readNav / appsFromNav / clockText) and
- * js/layouts/os-wm-logic.js (geometry) — registry `needs`.
+ * js/layouts/os-wm-logic.js (geometry) — registry `needs`; the home widgets
+ * (js/os/home-logic.js + js/os/home.js, P0b) ride the same `needs`. Without
+ * them the desk column and the phone's widget row fall back to the clock and
+ * the New lead / Search buttons.
  */
 (function () {
   'use strict';
@@ -88,6 +91,20 @@
   function save() {
     clearTimeout(saveT);
     saveT = setTimeout(function () { saveT = null; if (S) writeState(S); }, SAVE_MS);
+  }
+  // ── home widgets (os/home.js): read-only, from layoutState['os-home'] ──
+  function homeItems(surface) {
+    var HL = W.NBDOSHomeLogic;
+    var p = safe(function () { return W.LayoutEngine.prefs(); });
+    return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null)[surface];
+  }
+  function makeHome(surface) {
+    var H = W.NBDOSHome;
+    if (!H || !W.NBDOSHomeLogic || typeof H.mount !== 'function') return null;
+    return safe(function () {
+      return H.mount({ surface: surface, items: homeItems(surface), act: surface === 'phone' ? 'data-osp' : 'data-osdo',
+        visible: function () { return !!S && !S.phoneOpen; } });
+    }) || null;
   }
 
   // ── views in and out of windows ─────────────────────────────
@@ -457,15 +474,16 @@
     var desk = doc.createElement('div');
     desk.id = 'osDesk';
     desk.className = 'os-desk';
+    var home = makeHome('desk');
     desk.innerHTML =
       '<div class="os-desk-area">' +
         '<div class="os-icons" role="group" aria-label="Apps"></div>' +
-        '<aside class="os-widgets" aria-label="Desktop widgets">' +
-          '<div class="os-widget os-clock" aria-live="off"></div>' +
+        '<aside class="os-widgets' + (home ? ' os-hw-desk' : '') + '" aria-label="Desktop widgets">' +
+          (home ? '' : '<div class="os-widget os-clock" aria-live="off"></div>' +
           '<div class="os-widget os-quick">' +
             '<button type="button" class="btn btn-orange os-quick-btn" data-osdo="newlead">New lead</button>' +
             '<button type="button" class="btn btn-ghost os-quick-btn" data-osdo="search">Search everything</button>' +
-          '</div>' +
+          '</div>') +
         '</aside>' +
         '<div class="os-wins"></div>' +
         '<div class="os-snap" hidden></div>' +
@@ -490,6 +508,8 @@
       '</nav>';
     content.appendChild(desk);
     S.deskEl = desk;
+    S.home = home;
+    if (home) desk.querySelector('.os-widgets').appendChild(home.el);
     S.iconsEl = desk.querySelector('.os-icons');
     S.clockEl = desk.querySelector('.os-clock');
     S.winsEl = desk.querySelector('.os-wins');
@@ -761,9 +781,13 @@
   function phonePaint() {
     if (!S || !S.phoneEl) return;
     var ordered = WM.orderApps(S.apps, S.icons);
-    var pages = WM.pages(ordered, PER_PAGE);
+    // the home widgets fill page 1 first; the icons take the cells left, then pages of 20
+    var items = S.home ? homeItems('phone') : null;
+    var room = items ? W.NBDOSHomeLogic.pageRoom(items, PER_PAGE) : PER_PAGE;
+    var rest = ordered.slice(room);
+    var pages = [ordered.slice(0, room)].concat(rest.length ? WM.pages(rest, PER_PAGE) : []);
     var c = L.clockText(new Date());
-    var h = '<div class="os-p-widgets">' +
+    var h = S.home ? '' : '<div class="os-p-widgets">' +
       '<div class="os-p-clock"><div class="os-p-time ui-num">' + esc(c.time) + '</div><div class="os-p-date">' + esc(c.date) + '</div></div>' +
       '<div class="os-p-quick">' +
         '<button type="button" class="btn btn-orange os-p-qbtn" data-osp="newlead">New lead</button>' +
@@ -775,8 +799,8 @@
     }
     if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
-      return '<div class="os-p-page" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
-        pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
+      return '<div class="os-p-page' + (S.home && !i ? ' os-p-home' : '') + '" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
+        (S.home && !i ? '<div class="os-hw-slot"></div>' : '') + pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
     }).join('') + '</div>';
     if (pages.length > 1) {
       h += '<div class="os-p-dots" aria-hidden="true">' + pages.map(function (pg, i) {
@@ -784,6 +808,9 @@
       }).join('') + '</div>';
     }
     S.phoneEl.innerHTML = h;
+    // keyed reconcile: the widget nodes move into the new page 1, never rebuilt
+    var slot = S.home && S.phoneEl.querySelector('.os-hw-slot');
+    if (slot) { slot.parentNode.insertBefore(S.home.el, slot); slot.parentNode.removeChild(slot); S.home.update(items); }
     var pagesEl = S.phoneEl.querySelector('.os-p-pages');
     if (pagesEl && S.page) pagesEl.scrollLeft = S.page * pagesEl.clientWidth;
     paintBar();
@@ -987,6 +1014,7 @@
     S.desk = st.desk; S.pins = st.pins;   // the laptop's desk and taskbar pins too; the next save writes them back
     S.focus = st.focus;
     S.page = 0;
+    S.home = makeHome('phone');
     phonePaint();
     S.clockT = setInterval(function () {
       var t = S && S.phoneEl && S.phoneEl.querySelector('.os-p-time');
@@ -1143,6 +1171,7 @@
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
     clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT);
     if (st.mo) st.mo.disconnect();
+    if (st.home) safe(function () { st.home.unmount(); });
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });
     if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);

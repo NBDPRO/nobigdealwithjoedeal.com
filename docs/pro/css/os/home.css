@@ -1,0 +1,102 @@
+/* css/os/home.css — the NBD OS home widgets (2026-11-09, P0b; js/os/home.js).
+   Loaded only with the OS layout (layout-system.js needs.css). Theme tokens and
+   --ui-* tokens only; no motion of its own. Sizes ride on .is-s / .is-m / .is-l,
+   and each widget is its own container, so its content lays out by the width
+   it actually got (container queries), on the phone page and the desk column.
+   Floors: 44px targets, no text under 11px. */
+
+/* ── the card ─────────────────────────────────────────────── */
+.os-hw {
+  container-type: inline-size; container-name: oshw;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  padding: var(--ui-space-3, 12px); color: var(--t);
+  background: color-mix(in srgb, var(--s) 88%, transparent);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-1);
+  -webkit-touch-callout: none;
+}
+.os-hw-body { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; min-height: 0; }
+.os-hw-title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--ui-space-2, 8px); margin: 0;
+  font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; color: var(--m);
+}
+.os-hw-count { font-size: var(--ui-fs-caption, 12px); font-weight: 600; letter-spacing: 0; text-transform: none; }
+
+/* At a Glance */
+.os-hw-clock { display: flex; flex-direction: column; min-width: 0; }
+.os-hw-time { font-size: var(--ui-fs-display, 28px); font-weight: 700; line-height: 1.1; }
+.os-hw-date { font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+.os-hw-next, .os-hw-sub, .os-hw-sync, .os-hw-warn, .os-hw-empty, .os-hw-fail {
+  margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; min-width: 0;
+}
+.os-hw-next { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-hw-sub, .os-hw-empty, .os-hw-sync, .os-hw-fail { color: var(--m); }
+.os-hw-warn { font-weight: 600; color: var(--t); }
+.os-hw-lines { margin: 0; padding-left: 1.1em; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; }
+.os-hw-sync { display: flex; align-items: center; gap: 6px; }
+.os-hw-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--m); }
+.os-hw-dot.os-tone-ok { background: var(--green); }
+.os-hw-dot.os-tone-warn { background: var(--gold); }
+
+/* Up Next */
+.os-hw-rows { display: flex; flex-direction: column; min-width: 0; }
+.os-hw-row {
+  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
+  margin: 0 calc(-1 * var(--ui-space-1, 4px)); padding: 2px var(--ui-space-1, 4px);
+  background: transparent; color: var(--t); border: 0; border-radius: var(--ui-radius-md, 8px);
+  font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.os-hw-row:hover { background: color-mix(in srgb, var(--s2) 70%, transparent); }
+.os-hw-row-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-hw-row-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Shortcuts and every widget button */
+.os-hw-sc { display: flex; gap: var(--ui-space-2, 8px); min-width: 0; }
+.os-hw-sc .os-hw-btn { flex: 1 1 0; min-width: 0; }
+.os-hw-btn { min-height: 44px; justify-content: center; }
+.os-hw-retry { min-width: 44px; }
+.os-hw-fail { display: flex; align-items: center; gap: 6px; }
+.os-hw-row:focus-visible, .os-hw-btn:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+
+/* ── sizes: S one number, M up to three rows, L a list with an action ── */
+.os-hw.is-s { padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); }
+.os-hw.is-s .os-hw-time { font-size: var(--ui-fs-title, 20px); }
+.os-hw.is-s .os-hw-row-sub { display: none; }
+.os-hw.is-m .os-hw-row { flex-direction: row; align-items: center; gap: var(--ui-space-2, 8px); }
+.os-hw.is-m .os-hw-row-name { flex: 1 1 auto; }
+.os-hw.is-m .os-hw-row-sub { flex: 0 1 auto; max-width: 50%; }
+.os-hw.is-l { gap: var(--ui-space-2, 8px); }
+.os-hw.is-l .os-hw-time { font-size: 40px; }
+.os-hw.is-l .os-hw-row { padding-block: 6px; }
+
+/* ── by the width a widget got ── */
+@container oshw (max-width: 159px) {
+  .os-hw-sc { flex-direction: column; }
+  .os-hw-date { display: none; }
+  .os-hw-count { display: none; }
+}
+@container oshw (min-width: 320px) {
+  .os-hw-glance .os-hw-clock { flex-direction: row; align-items: baseline; gap: var(--ui-space-3, 12px); }
+  .os-hw.is-l .os-hw-row-sub { font-size: var(--ui-fs-body-sm, 13px); }
+}
+
+/* ── phone: cells of page 1 of the pager (4 columns x 92px rows) ── */
+.os-hw-list[data-os-home="phone"] { display: contents; }
+.os-p-page .os-hw.is-s { grid-column: span 2; grid-row: span 1; }
+.os-p-page .os-hw.is-m { grid-column: span 4; grid-row: span 2; }
+.os-p-page .os-hw.is-l { grid-column: span 4; grid-row: span 4; }
+.os-p-page .os-hw.is-s .os-hw-sc { flex-direction: row; }
+/* a home taller than the page scrolls inside page 1 only */
+.os-p-home { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
+.os-p-home::-webkit-scrollbar { display: none; }
+
+/* ── desk: an ordered list in the column, two across on a wide screen ── */
+.os-widgets.os-hw-desk { width: 300px; bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
+.os-hw-desk .os-hw-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-3, 12px); align-content: start; }
+.os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: 1 / -1; }
+.os-hw-desk .os-hw.is-l { min-height: 280px; }
+/* below 1100px: one column, never hidden */
+@media (max-width: 1100px) {
+  .os-hw-desk .os-hw-list { grid-template-columns: 1fr; }
+  .os-widgets.os-hw-desk { width: 220px; }
+  .os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: auto; }
+}

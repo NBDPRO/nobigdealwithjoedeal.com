@@ -20,6 +20,16 @@
  *   defaults()        a new member's home
  *   cleanCfg(id, cfg) one widget's settings, or null
  *
+ * What the read-only widgets show (os/home.js paints it), from data the CRM
+ * already holds in memory; nothing here reads, and nothing here names a
+ * customer on the glanceable widget:
+ *   pageRoom(items, perPage)   phone icon cells left on page 1 (S 2, M 8, L 16 cells)
+ *   upNext(plan, opts)         the top rows of the Today plan (NBDToday.last()), each
+ *                              with the tap-through the Today list itself uses
+ *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
+ *   glanceCounts(counts)       NBDHomeAttention.lastCounts as plain lines + a state
+ *   headline(total)            "3 things today" / "Nothing due today"
+ *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
  */
@@ -82,9 +92,118 @@
     return out;
   }
 
+  // ── what the widgets show ─────────────────────────────────────
+  // Phone cells (a page is 4 x 5 = 20): S 2x1, M 4x2, L 4x4.
+  var CELLS = { s: 2, m: 8, l: 16 };
+  function pageRoom(items, perPage) {
+    var used = 0;
+    (Array.isArray(items) ? items : []).forEach(function (it) { used += CELLS[it && it.s] || 0; });
+    return Math.max(0, (Number(perPage) || 20) - used);
+  }
+  function int(v) { var n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 0; }
+  function str(v, max) { return v == null ? '' : String(v).slice(0, max || 80); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function digits10(v) { return String(v == null ? '' : v).replace(/\D/g, '').slice(-10); }
+  function street(a) { return str(String(a == null ? '' : a).split(',')[0].trim(), 60); }
+  var MAPS = 'https://www.google.com/maps/search/?api=1&query=';
+  // Today's own order (today-home.js html()): the sections that count toward its total.
+  var SECTIONS = ['appointments', 'promises', 'calls', 'promised', 'estimates', 'money', 'stalled'];
+
+  /** One Today row as { key, name, sub, href, ext, go }: href a link, go a CRM view for goTo. */
+  function rowFor(sec, r, o) {
+    if (!r || typeof r !== 'object') return null;
+    var lead = r.leadId ? String(r.leadId) : '';
+    var cust = lead ? '/pro/customer.html?id=' + encodeURIComponent(lead) : '';
+    var d = digits10(r.phone);
+    var tel = d.length === 10 ? 'tel:+1' + d : '';
+    var row = { key: str(r.key || sec, 120), name: str(r.name), sub: '', href: '', ext: false, go: '' };
+    if (sec === 'appointments') {
+      row.sub = [str(r.timeLabel, 40), street(r.address)].filter(Boolean).join(' · ');
+      row.href = cust || (r.address ? MAPS + encodeURIComponent(String(r.address)) : '') || tel;
+      row.ext = !cust && !!r.address;
+      if (!row.href) row.go = 'schedule';
+      row.name = row.name || 'Appointment';
+    } else if (sec === 'calls') {
+      row.sub = r.urgent ? 'Urgent call' : (r.missed ? 'Missed call' : (r.text ? 'Texts to answer' : 'Call owed'));
+      row.href = tel;
+      if (!tel) row.go = 'calls';
+      row.name = row.name || 'Unknown caller';
+    } else if (sec === 'money') {
+      if (r.kind === 'stripe') {
+        var n = int(r.count);
+        row.name = plural(n, 'Stripe payment', 'Stripe payments');
+        row.sub = 'Needs a customer';
+      } else {
+        row.sub = r.kind === 'deposit' ? 'Draft deposit, not sent' : (r.overdue ? 'Past due' : 'Money to collect');
+        // the invoice row's one tap is Record payment (a viewer gets the plain record)
+        row.href = cust && r.kind === 'invoice' && !o.viewer ? cust + '&pay=' + encodeURIComponent(String(r.invoiceId || '1')) : cust;
+      }
+      if (!row.href) row.go = 'money';
+    } else {
+      row.href = cust;
+      if (sec === 'promises') {
+        var late = (Array.isArray(r.promiseTasks) ? r.promiseTasks : []).some(function (t) { return t && t.overdue; });
+        row.sub = 'Promise' + (late ? ' · overdue' : '');
+      } else if (sec === 'promised') {
+        row.sub = r.overdue ? 'Overdue' : 'Due today';
+      } else if (sec === 'estimates') {
+        row.sub = 'Estimate to follow up';
+      } else {
+        var dl = int(r.daysLate);
+        row.sub = dl ? plural(dl, 'day', 'days') + ' past follow-up' : 'Follow-up due today';
+      }
+    }
+    if (!row.href && !row.go) row.go = 'home';
+    return row;
+  }
+  /** The first `n` rows of the Today plan, in Today's order. null = no plan yet. */
+  function upNext(plan, opts) {
+    if (!plan || typeof plan !== 'object') return null;
+    var o = opts || {};
+    var n = int(o.n) || 3;
+    var out = [];
+    for (var i = 0; i < SECTIONS.length && out.length < n; i++) {
+      var list = Array.isArray(plan[SECTIONS[i]]) ? plan[SECTIONS[i]] : [];
+      for (var j = 0; j < list.length && out.length < n; j++) {
+        var row = rowFor(SECTIONS[i], list[j], o);
+        if (row) out.push(row);
+      }
+    }
+    return out;
+  }
+  /** The next timed appointment still to come (15 minutes' grace): time and street, never a name. */
+  function nextAppointment(plan, now) {
+    var list = plan && Array.isArray(plan.appointments) ? plan.appointments : [];
+    var t0 = Number(now) - 15 * 60000;
+    var best = null;
+    list.forEach(function (a) {
+      var t = a && !a.allDay ? Number(a.sortMs) : NaN;
+      if (isFinite(t) && t >= t0 && (!best || t < Number(best.sortMs))) best = a;
+    });
+    return best ? { time: str(best.timeLabel, 40), place: street(best.address) } : null;
+  }
+  /** Needs-you counts as lines. state: unknown | pending | failed | clear | ok (a failed read is never "clear"). */
+  function glanceCounts(c) {
+    if (!c || typeof c !== 'object') return { state: 'unknown', lines: [] };
+    var lines = [];
+    var n;
+    if ((n = int(c.calls))) lines.push(plural(n, 'person needs', 'people need') + ' you');
+    if ((n = int(c.signs))) lines.push(plural(n, 'yard sign', 'yard signs') + ' to pick up');
+    if ((n = int(c.stripe))) lines.push(plural(n, 'Stripe payment', 'Stripe payments') + ' to match');
+    if ((n = int(c.reviews))) lines.push(plural(n, 'review ask', 'review asks') + ' waiting');
+    var failed = !!(c.callsFailed || c.stripeFailed || c.signsFailed || c.reviewsFailed || c.oldFailed);
+    var state = failed ? 'failed' : (c.pending ? 'pending' : (lines.length ? 'ok' : 'clear'));
+    return { state: state, lines: lines };
+  }
+  function headline(total) {
+    var n = int(total);
+    return n ? plural(n, 'thing', 'things') + ' today' : 'Nothing due today';
+  }
+
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
+    CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

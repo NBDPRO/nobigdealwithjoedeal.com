@@ -332,7 +332,7 @@
     blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
     surfaces: SURFACES, tier: 'free', flag: 'osLayout',
     script: 'js/layouts/os.js', css: 'css/layouts/os.css',
-    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js'] },
+    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/home.js'], css: ['css/os/home.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
