@@ -130,7 +130,11 @@
     if (!isObj(r) || r.dnd !== 'mine' || dndOn !== true) return 'keep';
     return held === true ? 'hand' : 'off';
   }
-  /** The doors floor for the day of `ms`: the company goal doorsPerDay, Mon-Sat only (Sunday never counts). */
+  /**
+   * The doors floor for the day of `ms`: the company goal doorsPerDay, Mon-Sat only (Sunday never counts).
+   * The day is this device's local day, as Daily Success's own doors count is (os/ds-business.js
+   * startOfDay), not the company time zone: a rep on another zone sees the floor by their own clock.
+   */
   function floorOn(goals, ms) {
     if (!isObj(goals) || !isFloor(goals.doorsPerDay)) return null;
     var d = new Date(Number(ms));
