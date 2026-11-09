@@ -266,8 +266,8 @@ console.log('\n1. wiring: lazy files through the OS layout\'s needs');
 G(() => {
   const R = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
   const def = R.get('os');
-  ok('needs.script loads the home logic and the home after the OS logic (within the 6-path cap; P0c adds the Coach rules)',
-    def && J(def.needs.script) === J(['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js']) && def.needs.script.length <= 6, def && J(def.needs.script));
+  ok('needs.script loads the home logic and the home after the OS logic (within the 6-path cap; P0c adds the Coach rules, P1 the board logic)',
+    def && J(def.needs.script) === J(['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js', 'js/layouts/board-logic.js']) && def.needs.script.length <= 6, def && J(def.needs.script));
   ok('needs.css loads css/os/home.css', def && J(def.needs.css) === J(['css/os/home.css']), def && J(def.needs.css));
   const html = read('docs/pro/dashboard.html');
   ok('no new <script> or <link> tag on the dashboard (boot budget)', !/os\/home(-logic)?\.js|os\/home\.css/.test(html));
