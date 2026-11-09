@@ -100,6 +100,37 @@ async function mount(items, opts) {
         J(b.T.W.NBDOSLayout.state().home.cellItems(items).map((x) => x.id)) === J(['storm', 'glance']));
     }
 
+    console.log('\n2b. a held (role-hidden) widget counts against the item cap (24 in P1), so no edit can push it out');
+    {
+      // a viewer: Money is held (never painted), 23 visible widgets, 24 in all = full
+      const eleven = Array.from({ length: 23 }, () => ({ id: 'glance', s: 's' }));
+      const f = await mount(eleven.concat([{ id: 'money', s: 's' }]), { role: 'viewer' });
+      const L = f.T.W.NBDOSLayout.state();
+      L.home.setEditing(true);
+      L.home.openAdd();
+      const dlg = f.T.document.querySelector('dialog.os-hw-add');
+      ok('the Add sheet says the home is full (23 shown + 1 held)', !!dlg.querySelector('.os-hw-add-full'));
+      ok('…and every Add chip is disabled', [...dlg.querySelectorAll('[data-oshw-add]')].every((b) => b.hasAttribute('disabled')));
+      const chip = dlg.querySelector('[data-oshw-add="glance"][data-size="s"]');
+      chip.removeAttribute('disabled');   // even a forced tap must not add past the cap
+      click(f.T.dom, chip);
+      f.T.fire(700);
+      const s1 = f.T.saved().desk;
+      ok('…a forced Add saves nothing past the cap; Money stays saved', s1.length === 24 && s1.some((x) => x.id === 'money'), J(s1));
+      // a stack: 21 glance + a 2-card stack (23) + held Money = 24; a 3rd card has no room
+      const nine = Array.from({ length: 21 }, () => ({ id: 'glance', s: 's' }));
+      const g = await mount(nine.concat([{ id: 'stack', s: 'm', items: ['upnext', 'daily'] }, { id: 'money', s: 's' }]), { role: 'viewer' });
+      const G = g.T.W.NBDOSLayout.state();
+      G.home.setEditing(true);
+      click(g.T.dom, g.card('stack-1').querySelector('[data-oshw-ed="cards"]'));
+      const cd = g.T.document.querySelector('dialog.os-hw-cards');
+      const off = cd && cd.querySelector('[data-oshw-card="coach"]');
+      ok('the stack\'s Cards sheet disables an Off card when the held widget fills the cap', off && off.hasAttribute('disabled'), cd && cd.innerHTML.slice(0, 300));
+      if (off) { off.removeAttribute('disabled'); click(g.T.dom, off); g.T.fire(700); }
+      const s2 = g.T.saved().desk;
+      ok('…a forced toggle keeps Money saved', s2.some((x) => x.id === 'money') && s2.find((x) => x.id === 'stack').items.length === 2, J(s2));
+    }
+
     console.log('\n3. Needs you: the Today plan\'s own sections, counted');
     {
       const plan = H.plan();

@@ -538,6 +538,9 @@
         return c;
       });
     }
+    // the item cap counts the widgets the role hides too (held, saved after the rest): an add past it would
+    // make normalize() cut them off the end of the saved list
+    function fits(list) { return list && HL.weight(list) + HL.weight(held) <= HL.MAX_ITEMS ? list : null; }
     function keyAt(list, idx) { var n = 0; for (var j = 0; j <= idx; j++) if (list[j].id === list[idx].id) n++; return list[idx].id + '-' + n; }
     /** Save a changed list (through the layout), then keep focus on the widget and say what changed. */
     function commit(next, focusTag, prefix, focusSel) {
@@ -782,7 +785,7 @@
       var d = doc.createElement('dialog');
       d.className = 'os-hw-add';
       d.setAttribute('aria-labelledby', 'oshwAddTitle');
-      var full = HL.weight(cur) >= HL.MAX_ITEMS;
+      var full = HL.weight(cur) + HL.weight(held) >= HL.MAX_ITEMS;
       var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwAddTitle">Add a widget</h2>' +
         '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Close</button></div>';
       if (full) h += '<p class="os-hw-add-full">Your home is full. Remove a widget to add another.</p>';
@@ -794,7 +797,7 @@
           return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(c.title) + '</span><span class="os-hw-add-about">' + esc(c.about || '') + '</span></div>' +
             '<div class="os-hw-add-sizes" role="group" aria-label="' + esc('Add ' + c.title) + '">' + c.sizes.map(function (sz) {
               return '<button type="button" class="btn btn-ghost os-hw-add-chip" data-oshw-add="' + esc(id) + '" data-size="' + esc(sz) + '" aria-label="' +
-                esc(['Add ', c.title, ', ', HL.SIZE_NAME[sz]].join('')) + '"' + (full || !HL.add(cur, id, sz) ? ' disabled' : '') + '>' + esc(sz.toUpperCase()) + '</button>';
+                esc(['Add ', c.title, ', ', HL.SIZE_NAME[sz]].join('')) + '"' + (full || !fits(HL.add(cur, id, sz)) ? ' disabled' : '') + '>' + esc(sz.toUpperCase()) + '</button>';
             }).join('') + '</div></li>';
         }).join('') + '</ul></section>';
       });
@@ -805,7 +808,7 @@
         if (t.closest('[data-oshw-addclose]') || (t === d && outside(d, ev))) { d.close(); return; }
         var b = t.closest('[data-oshw-add]');
         if (!b || b.hasAttribute('disabled')) return;
-        var next = HL.add(tagged(), b.getAttribute('data-oshw-add'), b.getAttribute('data-size'));
+        var next = fits(HL.add(tagged(), b.getAttribute('data-oshw-add'), b.getAttribute('data-size')));
         if (!next) return;
         next[next.length - 1]._k = 'new';
         if (boardOps()) next = HL.deskBoard(next) || next;   // the first gap that fits it
@@ -839,7 +842,7 @@
           '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
           '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against your home\'s ' + String(HL.MAX_ITEMS) + '.') + '</p>' +
           '<ul class="os-hw-add-list">' + ids.map(function (id) {
-            var on = cards.indexOf(id) !== -1, can = !!HL.toggleCard(tagged(), at, id);
+            var on = cards.indexOf(id) !== -1, can = !!fits(HL.toggleCard(tagged(), at, id));
             return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(HL.CATALOG[id].title) + '</span><span class="os-hw-add-about">' + esc(HL.CATALOG[id].about || '') + '</span></div>' +
               '<button type="button" class="btn btn-ghost os-hw-add-chip" data-oshw-card="' + esc(id) + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (can ? '' : ' disabled') +
               ' aria-label="' + esc(HL.CATALOG[id].title + ' in this stack') + '">' + (on ? 'On' : 'Off') + '</button></li>';
@@ -853,7 +856,7 @@
         var b = t.closest('[data-oshw-card]');
         if (!b || b.hasAttribute('disabled')) return;
         var id = b.getAttribute('data-oshw-card');
-        if (!commit(HL.toggleCard(tagged(), order.indexOf(key), id), key, '')) return;
+        if (!commit(fits(HL.toggleCard(tagged(), order.indexOf(key), id)), key, '')) return;
         d.innerHTML = body();
         var nb = d.querySelector('[data-oshw-card="' + esc(id) + '"]');
         announce(HL.CATALOG[id].title + (nb && nb.getAttribute('aria-pressed') === 'true' ? ' added to' : ' taken out of') + ' the stack.');
