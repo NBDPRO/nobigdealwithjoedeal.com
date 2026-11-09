@@ -664,13 +664,16 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
   const anyCaptureOff = Object.keys(labels).some((k) => labels[k] && labels[k].capture === 'off');
   const leadIndex = anyCaptureOff ? L.buildPhoneIndex(await ownerLeads(db)) : new Map();
   const kept = [];
+  let captureOff = 0;
   for (const c of candidates) {
     if (!CL.captureOff(labels, c.phoneDigits, leadIndex.get(c.phoneDigits))) { kept.push(c); continue; }
+    captureOff++;
     if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off', transcript: null, transcriptSaved: false }, { merge: true });
   }
   candidates = kept;
   const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: only ? 1 : TRANSCRIBE_PER_RUN, secLeft });
   const out = { state: only ? 'now' : allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
+  if (captureOff) out.captureOff = captureOff;
   const d = deps();
   let leadsForSuggest = null;
 

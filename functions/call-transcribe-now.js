@@ -90,6 +90,7 @@ const MESSAGES = {
   noted: 'Transcribed. The notes are on the call.',
   already: 'This call is already transcribed.',
   personal: 'Transcribed. It was a personal call, so nothing was kept.',
+  captureOff: 'This number is marked personal and not to be transcribed, so the call was not transcribed.',
   busy: 'This call is being transcribed right now. Check back in a minute.',
   outage: 'The transcription service is not answering right now. The call stays in the queue.',
   failed: 'Transcription did not work this time. The call stays in the queue.',
@@ -145,7 +146,9 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
     await takeQuota(db, auth.uid, companyId, nowMs, -1).catch((e) => log.warn('call_transcribe_now_refund_failed', { callId, err: e && e.message }));
   }
   log.info('call_transcribe_now', { callId, state, by: auth.uid });
-  const res = { state, message: c.status === 'too_large' ? 'This recording is too long to transcribe automatically.' : MESSAGES[state] };
+  // The capture-off rule filed it personal without transcribing anything.
+  const msg = state === 'personal' && out && out.captureOff ? MESSAGES.captureOff : MESSAGES[state];
+  const res = { state, message: c.status === 'too_large' ? 'This recording is too long to transcribe automatically.' : msg };
   if (state === 'noted' || state === 'already') res.transcript = String(c.transcript);
   return res;
 }

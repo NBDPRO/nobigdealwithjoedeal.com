@@ -329,6 +329,17 @@ async function tap(db, auth, data, nowMs) {
     ok(name + ' → no quota spent', ![...db.store.keys()].some((k) => k.startsWith('call_transcribe_quota/')));
   }
 
+  {
+    // A number labeled personal + "stop copying and transcribing": the pass
+    // files the call personal WITHOUT transcribing it; the answer says so.
+    stubDeps();
+    const db = makeDb(seed({ phoneDigits: '5135550100' }, { ['companies/' + OWNER + '/contact_labels/5135550100']: { kind: 'personal', capture: 'off' } }));
+    const { r, e } = await tap(db, AUTH.owner);
+    ok('a capture-off number → not transcribed, filed personal', tCalls === 0 && db.store.get('phone_calls/' + ID).status === 'personal', e ? e.message : db.store.get('phone_calls/' + ID).status);
+    ok('…and the answer does not say "Transcribed"', r && r.message && !/^Transcribed/.test(r.message) && /not transcribed/.test(r.message), r || (e && e.message));
+    ok('…and no quota is kept', !(db.store.get('call_transcribe_quota/2026-11-09__c__' + OWNER) || {}).n);
+  }
+
   console.log('\n8. Daily caps');
   ok('caps are 10 per user and 30 per company', TN && TN.USER_DAY_CAP === 10 && TN.COMPANY_DAY_CAP === 30);
   {
