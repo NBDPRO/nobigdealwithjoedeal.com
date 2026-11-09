@@ -479,7 +479,7 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1044/74/1185 -> 1045/74/1186, Social Studio consented-jobs-first + the "New blog post"
 //               type (social-consent-blog-2026-11-09, node). MEASURED via --check.
 //   2026-11-09  three content-plan lanes in one PR (consent draft, photo matcher, social/blog). MEASURED via --check.
-const FLOORS = { node: 1048, smoke: 74, disk: 1190 };
+const FLOORS = { node: 1048, smoke: 74, disk: 1191 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

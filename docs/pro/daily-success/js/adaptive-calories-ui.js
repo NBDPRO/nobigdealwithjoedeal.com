@@ -22,6 +22,7 @@
   const KEY = 'nbd_ds_food';          // food-log.js's settings (favorites + targets)
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const fmt = (n) => Number(n).toLocaleString('en-US');
   const today = () => {
     if (typeof window.todayKey === 'function') return window.todayKey();
@@ -78,7 +79,7 @@
     const c = foodCfg();
     c.favorites = Array.isArray(c.favorites) ? c.favorites : [];
     c.targets = Object.assign({}, c.targets, { calories: Math.round(cal) });
-    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (_) { toast('Could not save on this device'); return; }
+    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (_) { toastErr('Could not save on this device'); return; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY);
     toast('Calorie target set to ' + fmt(Math.round(cal)));
     refresh();

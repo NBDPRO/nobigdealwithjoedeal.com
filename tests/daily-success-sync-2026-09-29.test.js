@@ -195,7 +195,7 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   const other = run('8');
   ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
   ok('renderPage stamps the page on screen; renderDash clears it',
-    /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\nkillCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
+    /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\n(?:rememberScroll\(\);)?killCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
   ok('boot opens on the dashboard with cur=-1 (tabs and screen agree)', /loadPages\(\);cur=-1;renderTabs\(\);renderDash\(\);/.test(app));
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');

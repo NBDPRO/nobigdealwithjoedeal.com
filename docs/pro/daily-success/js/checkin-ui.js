@@ -13,13 +13,14 @@
   const KEY = 'nbd_ds_coach_ready';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
 
   function load() {
     try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch (_) { return {}; }
   }
   function store(map) {
-    try { localStorage.setItem(KEY, JSON.stringify(map)); return true; } catch (_) { toast('Could not save on this device'); return false; }
+    try { localStorage.setItem(KEY, JSON.stringify(map)); return true; } catch (_) { toastErr('Could not save on this device'); return false; }
   }
   function pageDk() {
     try { const p = typeof pages !== 'undefined' && typeof cur === 'number' ? pages[cur] : null; return p && p.dk ? p.dk : null; } catch (_) { return null; }

@@ -116,9 +116,11 @@
 [data-ui="cockpit"] .today-bar.today-cockpit { position: static; display: block; white-space: normal; padding: 10px 8px 8px; }
 [data-ui="cockpit"] .ck-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 [data-ui="cockpit"] .ck-t { min-width: 0; padding: 7px 8px; border-radius: 8px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); display: block; }
+/* the four day tiles are buttons (audit Q9): same look, 44 px+ */
+[data-ui="cockpit"] button.ck-t { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px; }
 [data-ui="cockpit"] .ck-l, [data-ui="cockpit"] .ck-v, [data-ui="cockpit"] .ck-s { display: block; flex: none; width: auto; height: auto; }
 [data-ui="cockpit"] .ck-t.ok { border-color: var(--grn, #34d399); }
-[data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); overflow-wrap: anywhere; line-height: 1.2; }
 [data-ui="cockpit"] .ck-v { font-size: 17px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 [data-ui="cockpit"] .ck-t.ok .ck-v { color: var(--grn, #34d399); }
 [data-ui="cockpit"] .ck-s { font-size: 11px; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -142,6 +144,7 @@
 [data-ui="rings"] .today-bar.today-rings { position: static; display: block; white-space: normal; padding: 12px 8px 10px; }
 [data-ui="rings"] .rg-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 [data-ui="rings"] .rg-r { text-align: center; min-width: 0; }
+[data-ui="rings"] button.rg-r { background: transparent; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 10px; min-height: 44px; }
 [data-ui="rings"] .rg-c { position: relative; width: 68px; height: 68px; max-width: 100%; margin: 0 auto; }
 [data-ui="rings"] .rg-svg { width: 100%; height: 100%; display: block; }
 [data-ui="rings"] .rg-t { stroke: rgba(255, 255, 255, .14); }

@@ -18,6 +18,7 @@
   const X = () => window.NBDExport;
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
 
   let _files = null;
 
@@ -53,7 +54,7 @@
 
   function open() {
     if (!X()) return;
-    try { _files = X().buildFiles(readStores(), Date.now()); } catch (e) { toast('Could not read your data'); return; }
+    try { _files = X().buildFiles(readStores(), Date.now()); } catch (e) { toastErr('Could not read your data'); return; }
     const p = document.getElementById('exPanel');
     if (p) p.innerHTML = panelHtml(_files);
     const b = document.querySelector('[data-ex-action="open"]');
@@ -71,13 +72,13 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);   // iOS reads the blob late
       toast('Saving ' + f.name);
-    } catch (_) { toast('Download did not start — try Share / Save to Files'); }
+    } catch (_) { toastErr('Download did not start — try Share / Save to Files'); }
   }
   async function share(i) {
     const f = _files && _files[i];
     if (!f) return;
     try { await navigator.share({ files: [fileOf(f)], title: f.label }); }
-    catch (e) { if (!e || e.name !== 'AbortError') toast('Could not open the share sheet'); }
+    catch (e) { if (!e || e.name !== 'AbortError') toastErr('Could not open the share sheet'); }
   }
 
   document.addEventListener('click', (ev) => {
