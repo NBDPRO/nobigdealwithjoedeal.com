@@ -618,6 +618,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-osgoals-test 'node firestore-rules.os-daily-goals.test.js'
+      # NBD OS Coach AI focus line (2026-11-09, P2): companyProfile.coachAiEnabled boolean, owner/admin write; coach_lines + coach_line_quota Admin-SDK only. Own file (positive controls inside).
+      - name: Run NBD OS Coach AI rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-coachai-test 'node firestore-rules.os-coach-ai.test.js'
       # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
       - name: Run job-conflict notice rules tests under emulator
         run: |

@@ -2342,18 +2342,26 @@ service cloud.firestore {
           || (isCompanyAdmin() && companyId == myCompanyId());
       }
       allow read: if cpScoped();
+      // coachAiEnabled (NBD OS P2, 2026-11-09): the company's opt-in to the Coach's
+      // AI focus line (functions/coach-line.js reads it). A boolean or absent; off
+      // unless an owner / company_admin sets it true (the writers above).
+      function cpCoachAiOk(d) {
+        return !('coachAiEnabled' in d) || d.coachAiEnabled is bool;
+      }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).
       allow create: if cpCanWrite()
         && brandPrefix(request.resource.data) == null
-        && brandSeal(request.resource.data) == null;
+        && brandSeal(request.resource.data) == null
+        && cpCoachAiOk(request.resource.data);
       // update: an owner/admin may write anything EXCEPT introducing or changing
       // docPrefix/seal. A deep-merge that doesn't touch them carries the existing
       // value forward (request == resource) and passes; only the admin SDK (which
       // bypasses rules) can actually set/rotate them.
       allow update: if cpCanWrite()
         && brandPrefix(request.resource.data) == brandPrefix(resource.data)
-        && brandSeal(request.resource.data) == brandSeal(resource.data);
+        && brandSeal(request.resource.data) == brandSeal(resource.data)
+        && cpCoachAiOk(request.resource.data);
       // delete: owner/admin only (deleting does NOT release the docPrefixes/{PREFIX}
       // reservation, which is admin-SDK-only, so no prefix-collision abuse).
       allow delete: if cpCanWrite();
@@ -2536,6 +2544,17 @@ service cloud.firestore {
     // the owner's brief; one that could read it learns nothing it can't already
     // see, but there is no reason to allow it. Admin SDK only (morning-brief.js).
     match /morningBriefState/{companyId} { allow read, write: if false; }
+
+    // ── NBD OS COACH AI FOCUS LINE (2026-11-09, P2) ───
+    // coach_lines/{uid}_{ET day} -> { uid, companyId, day, line, rules[] (rule ids),
+    // model, generatedAtMs }: today's checked AI sentence, served again instead of a
+    // second model call. coach_line_quota/{day}__u__{uid} and {day}__c__{companyId}
+    // -> { n }: the 3-a-user / 60-a-company daily caps. Admin SDK only (the
+    // coachLine callable): a client that could write the cache could put any words
+    // in a teammate's Coach, and one that could write the quota could lift the caps.
+    // The rep reads their line through the callable, never straight from Firestore.
+    match /coach_lines/{docId}      { allow read, write: if false; }
+    match /coach_line_quota/{docId} { allow read, write: if false; }
     match /_rate_limits_ip/{docId}  { allow read, write: if false; }
 
     // ── PER-TENANT CATALOG COST BOOK ──────────────────

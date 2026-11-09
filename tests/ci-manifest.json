@@ -1565,6 +1565,7 @@
     "firestore-rules.layout-usage.test.js",
     "firestore-rules.os-company-home.test.js",
     "firestore-rules.os-daily-goals.test.js",
+    "firestore-rules.os-coach-ai.test.js",
     "firestore-rules.portal-note.test.js",
     "firestore-rules.job-conflict-notice.test.js",
     "firestore-rules.doc-drafts.test.js",
