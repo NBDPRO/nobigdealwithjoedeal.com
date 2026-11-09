@@ -1811,7 +1811,12 @@
     //                 current price } — a field still equal to its default
     //                 is untouched, so it follows the price,
     //     dropped:  [{key,label,value}] saved figures that no longer apply }
-    deposit: null
+    deposit: null,
+    // Call to Close P1 (2026-11-09), proposal only: what a filed call said
+    // the work includes that this proposal leaves out (saidVsProposal), and
+    // the lead's briefs it was read from. Shown, never applied by itself.
+    callSaid: [],
+    saidBriefs: []
   };
 
   // True when this document's warranty is decided by the estimate's job type,
@@ -1975,6 +1980,13 @@
       '.dpf-mini-btn{background:var(--s2,#181C22);border:1px solid var(--br,rgba(255,255,255,.09));color:var(--t,#E8EAF0);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:5px 9px;border-radius:5px;cursor:pointer;transition:all .15s;}',
       '.dpf-mini-btn:hover{border-color:var(--orange,#BD5728);color:var(--orange,#BD5728);}',
       '.dpf-mini-btn.danger:hover{border-color:var(--red,#E05252);color:var(--red,#E05252);}',
+      '.dpf-said{border:1px solid color-mix(in srgb, var(--orange,#BD5728) 35%, transparent);border-radius:10px;padding:12px 14px;margin-bottom:14px;}',
+      '.dpf-said-title{font-size:13px;font-weight:700;color:var(--t,#E8EAF0);}',
+      '.dpf-said-help{font-size:12px;color:var(--m,#6B7280);margin:2px 0 8px;}',
+      '.dpf-said-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.09));}',
+      '.dpf-said-row strong{font-size:13px;color:var(--t,#E8EAF0);}',
+      '.dpf-said-quote{font-size:12px;color:var(--m,#6B7280);font-style:italic;margin-top:2px;overflow-wrap:anywhere;}',
+      '.dpf-said-row .dpf-mini-btn{min-height:44px;flex-shrink:0;}',
       '.dpf-li-table{width:100%;border-collapse:collapse;font-size:12px;}',
       '.dpf-li-table th{padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--m,#6B7280);border-bottom:1px solid var(--br,rgba(255,255,255,.09));font-weight:600;}',
       '.dpf-li-table td{padding:6px 8px;border-bottom:1px solid var(--br,rgba(255,255,255,.09));}',
@@ -2497,6 +2509,7 @@
             bannerHTML +
             legalHTML +
             softHTML +
+            (state.type === 'proposal' ? '<div data-dpf-said-host>' + saidHtml() + '</div>' : '') +
             sectionsHTML +
             renderSignersSection() +
           '</div>' +
@@ -2562,6 +2575,9 @@
         renderModal();
         return;
       }
+
+      var saidBtn = t.closest ? t.closest('[data-dpf-said-copy]') : null;
+      if (saidBtn) { said.copy(saidBtn.getAttribute('data-dpf-said-copy')); return; }
 
       var secHead = t.closest ? t.closest('[data-section-toggle]') : null;
       if (secHead) {
@@ -2837,6 +2853,65 @@
     updateLineItemsGrandTotal(key);
     updateFieldMissingState(key);
   }
+
+  // ── Said on a call, not in this proposal (Call to Close P1, 2026-11-09) ──
+  // call-to-close-logic.js (lazy) reads the lead's call briefs and compares
+  // what a call said the work includes (fixed phrases, accepted promises and
+  // grounded mentions only; no model call) with this proposal. Each item
+  // shows the words that were said and "Copy into scope", which only adds a
+  // fixed phrase to the visible scope list: nothing is written until the
+  // person presses Generate, and nothing here ever stops Generate (Q10).
+  var CTC_JS = '/pro/js/call-to-close-logic.js?v=1';
+  function saidProposal() {
+    var v = state.values || {};
+    return { projectDescription: v.projectDescription, scopeItems: v.scopeItems, termsNote: v.termsNote, lineItems: v.lineItems };
+  }
+  async function loadSaid(leadId) {
+    try {
+      if (!window.NBDCallToClose && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') await window.ScriptLoader.load(CTC_JS);
+      var C = window.NBDCallToClose;
+      if (!C || !leadId) return;
+      var cl = window._userClaims || {};
+      var me = window.auth && window.auth.currentUser;
+      var briefs = await C.loadLeadBriefs({
+        db: window.db, collection: window.collection, query: window.query, where: window.where,
+        getDocs: window.getDocs, doc: window.doc, getDoc: window.getDoc,
+      }, { uid: me && me.uid, role: cl.role || '', companyId: cl.companyId || '' }, leadId);
+      if (!state.open || state.type !== 'proposal' || state.customerId !== leadId) return;
+      state.saidBriefs = briefs;
+      state.callSaid = C.saidVsProposal(briefs, saidProposal());
+      redrawSaid();
+    } catch (_) { /* a help, never a gate */ }
+  }
+  function saidHtml() {
+    var items = state.callSaid || [];
+    if (!items.length) return '';
+    return '<div class="dpf-said" role="group" aria-label="Said on a call, not in this proposal">' +
+      '<div class="dpf-said-title">Said on a call, not in this proposal</div>' +
+      '<div class="dpf-said-help">Copy what belongs into the scope list. The quotes are for you and never go on the document. Generate still works either way.</div>' +
+      items.map(function (it) {
+        return '<div class="dpf-said-row"><div><strong>' + esc(it.label) + '</strong><div class="dpf-said-quote">' +
+          (it.quote ? '&ldquo;' + esc(it.quote) + '&rdquo;' : 'Mentioned on the call.') + '</div></div>' +
+          '<button type="button" class="dpf-mini-btn" data-dpf-said-copy="' + esc(it.key) + '">Copy into scope</button></div>';
+      }).join('') + '</div>';
+  }
+  function redrawSaid() {
+    var host = document.querySelector('[data-dpf-said-host]');
+    if (host) host.innerHTML = saidHtml();
+  }
+  var said = {
+    html: saidHtml,
+    redraw: function (key) { redrawField(key); },
+    copy: function (key) {
+      var C = window.NBDCallToClose;
+      var it = (state.callSaid || []).filter(function (x) { return x.key === key; })[0];
+      if (!it || !C || !state.fieldIndex.scopeItems) return;
+      state.values.scopeItems = C.copyIntoScope(state.values.scopeItems, it.phrase);
+      state.callSaid = state.callSaid.filter(function (x) { return x.key !== key; });
+      said.redraw('scopeItems');
+      redrawSaid();
+    },
+  };
 
   // ═══════════════════════════════════════════════════════════════
   // SECTION 9: PERSISTENCE
@@ -3165,7 +3240,11 @@
       };
     });
 
+    state.callSaid = [];
+    state.saidBriefs = [];
     renderModal();
+    // Said vs. proposal: after the form is open, never before or instead of it.
+    if (type === 'proposal') loadSaid(state.customerId);
   }
 
   function close() {
@@ -3598,7 +3677,8 @@
     _applyDocEdits: applyDocEdits,
     _hydrateDerivedFields: hydrateDerivedFields,
     _saveLineItemsToEstimate: saveLineItemsToEstimate,
-    _renderLineItems: renderLineItems
+    _renderLineItems: renderLineItems,
+    _said: said
   };
 
 })();

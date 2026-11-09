@@ -138,7 +138,7 @@ const brief = (over) => Object.assign({
     const doc = { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); }, removeEventListener() {}, createElement: () => ({ style: {} }), head: { appendChild() {} }, body: { appendChild() {} } };
     const ctx = vm.createContext({ window: win, document: doc, console, setTimeout, CSS: { escape: (s) => s } });
     let DP = null;
-    try { vm.runInContext(src, ctx); DP = win.DocPreflight; } catch (e) { ok('doc-preflight.js runs in a sandbox', false, e.message); }
+    try { vm.runInContext(read(LOGIC_PATH), ctx); vm.runInContext(src, ctx); DP = win.DocPreflight; } catch (e) { ok('doc-preflight.js runs in a sandbox', false, e.message); }
     ok('DocPreflight exposes the said check for tests', !!(DP && DP._said && typeof DP._said.copy === 'function' && typeof DP._said.html === 'function'));
     if (DP && DP._said) {
       const st = DP._state;
