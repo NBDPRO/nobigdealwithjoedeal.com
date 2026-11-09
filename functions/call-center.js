@@ -1018,6 +1018,7 @@ exports.callCenterSweep = onSchedule(
 // owner, an admin, or company_admin / manager of the call's company;
 // viewers and sales reps are refused.
 //   handled / unhandled  — drop a call off (or back onto) the sweep
+//   rescueDismiss / rescueUndismiss — off (or back onto) "Needs a next step"
 //   attach {leadId}      — file the call on a customer in the same tenant:
 //                          leadId + bucket 'customer', the caller's number
 //                          onto the lead (blanks only), and — if the call is
@@ -1215,6 +1216,14 @@ async function callAction({ db, auth, data, nowMs }) {
   if (action === 'handled' || action === 'unhandled') {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
     await settleAway(db, call, auth, nowMs);
+    return { ok: true };
+  }
+  // Call to Close P1 (2026-11-09): "Needs a next step" (the lost-lead rescue
+  // list on the Call Center) — Dismiss takes one call off it, and only off
+  // it: nothing else on the call, the customer or a task changes.
+  if (action === 'rescueDismiss' || action === 'rescueUndismiss') {
+    const on = action === 'rescueDismiss';
+    await ref.set({ rescueDismissedAtMs: on ? nowMs : null, rescueDismissedBy: on ? auth.uid : null }, { merge: true });
     return { ok: true };
   }
   // The "Said you'd do" deck (2026-10-03). Done ticks the call's follow-up

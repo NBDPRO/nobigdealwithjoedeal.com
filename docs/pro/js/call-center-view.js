@@ -19,6 +19,10 @@
  * something, a follow-up date has come, it's urgent, or there's no
  * customer on file.
  *
+ * "Needs a next step" (Call to Close P1, 2026-11-09; call-rescue-logic.js) =
+ * a customer whose last call, 2-30 days ago, got no promise, follow-up or
+ * stage move: Brief / Follow-up / Dismiss (callCenterAction rescueDismiss).
+ *
  * Reads mirror firestore.rules on phone_calls: own userId always, plus
  * companyId for company_admin / manager / viewer. Viewers get no buttons.
  * Lazy bundle 'callcenter' (script-loader.js); goTo('calls') calls init().
@@ -257,6 +261,8 @@
 
   var FILTERS = [
     ['attention', 'Needs attention', needsAttention],
+    // Call to Close P1 (2026-11-09): customers whose last call led nowhere (call-rescue-logic.js).
+    ['rescue', 'Needs a next step', function (c) { return !!rescueIdx()[c.id]; }, rescueOn],
     ['all', 'All', function () { return true; }],
     // Promises of Jo's past the 45-day window: one review list, never a silent drop (2026-10-12).
     ['oldpromises', 'Old promises', function (c) { var HA = window.NBDHomeAttention; return !!(HA && HA.isOldPromise && HA.isOldPromise(c, Date.now())); }],
@@ -276,6 +282,44 @@
   ];
   function thEnabled() { var T = window.NBDThursdayHandled; return !!(T && T.enabled()); }
   function filtersNow() { return FILTERS.filter(function (f) { return !f[3] || f[3](); }); }
+
+  // "Needs a next step" (Call to Close P1, design §6 #7): counted from the
+  // calls already loaded, no query of its own. A closed customer (won, lost,
+  // a job) is not a lost lead.
+  function rescueOn() { return !isViewer() && !!window.NBDCallRescue; }
+  function closedLead(l) {
+    var r = String((l && l.stageRole) || '');
+    if (r === 'won' || r === 'lost' || r === 'job') return true;
+    return typeof window.isTerminalStage === 'function' && !!window.isTerminalStage(l && l.stage);
+  }
+  var rescueMemo = { calls: null, leads: null, idx: {} };
+  function rescueIdx() {
+    if (!rescueOn()) return {};
+    if (rescueMemo.calls === state.calls && rescueMemo.leads === window._leads && rescueMemo.ver === state.rescueVer) return rescueMemo.idx;
+    var idx = {};
+    window.NBDCallRescue.list(state.calls, leadsById(), { nowMs: Date.now(), isClosed: closedLead }).forEach(function (r) { idx[r.call.id] = r; });
+    rescueMemo = { calls: state.calls, leads: window._leads, ver: state.rescueVer, idx: idx };
+    return idx;
+  }
+  function rescueRow(c, L) {
+    var lead = L[c.leadId];
+    var r = rescueIdx()[c.id] || {};
+    var who = leadName(lead) || c.contactName || fmtPhone(c.phoneDigits) || 'Customer';
+    var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+    var days = Number(r.days) || 0;
+    var acts = '';
+    if (briefGate(c) === 'draft') acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Brief</button>';
+    acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Follow-up</button>' +
+      '<button type="button" class="btn btn-ghost pc-play" data-cc="rescuedismiss" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Dismiss</button>' +
+      '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(who) + '</a>';
+    return '<div class="panel pc-card cc-card cc-rescue" data-call-id="' + esc(c.id) + '">' +
+      '<div class="pc-head"><div class="pc-who">' + esc(who) + '</div><div class="pc-meta">' + esc(when) + '</div></div>' +
+      '<div class="pc-meta">No promise, follow-up or stage change in ' + esc(days) + ' days since this call.</div>' +
+      (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') +
+      '<div class="pc-actions">' + acts + '</div>' +
+      '<div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' +
+      '</div>';
+  }
 
   async function fetchCalls() {
     var rows = await fetchFrom('phone_calls', 'call');
@@ -607,6 +651,8 @@
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role.</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
+    else if (state.filter === 'rescue') body = rows.length ? '<div class="cc-empty cc-rescue-note">Calls 2-30 days old where nothing happened next' + (state.cappedBefore ? ', from the calls loaded' : '') + '. Brief it, set a follow-up, or dismiss it.</div>' + rows.map(function (c) { return rescueRow(c, L); }).join('')
+      : '<div class="cc-empty">' + (state.q || (FX && FX.isActive(flt)) ? 'No calls match.' : 'Every customer call from the last 30 days has a next step.') + '</div>';
     else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
     else if (state.filter === 'attention') {
@@ -749,11 +795,15 @@
         if (action === 'unhandled') c.handledAtMs = null;
         if (action === 'attach' && r && r.leadId) mirrorFiled(id, r.leadId);
         if (action === 'notpersonal' && r && r.requeued) { c.status = 'stored'; c.notPersonal = true; c.summary = null; }
+        if (action === 'rescueDismiss') c.rescueDismissedAtMs = Date.now();
+        if (action === 'rescueUndismiss') c.rescueDismissedAtMs = null;
+        if (action === 'rescueDismiss' || action === 'rescueUndismiss') state.rescueVer = (state.rescueVer || 0) + 1;
       }
       delete state.busy[id];
       render();
       if (action === 'handled' || action === 'unhandled') refreshHome();
       if (action === 'handled') undoToast('Marked handled', function () { return act(id, 'unhandled'); });
+      if (action === 'rescueDismiss') undoToast('Dismissed from Needs a next step', function () { return act(id, 'rescueUndismiss'); });
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
       return r;
@@ -1377,6 +1427,13 @@
     });
   }
 
+  // "Needs a next step" reads call-rescue-logic.js, fetched once when the
+  // Call Center opens (never at boot; the tab shows once it has arrived).
+  function loadRescue() {
+    if (window.NBDCallRescue || isViewer() || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
+    Promise.resolve(window.ScriptLoader.load('/pro/js/call-rescue-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* the tab stays hidden */ });
+  }
+
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
   async function openBrief(id, tx) {
     var c = byId(id);
@@ -1406,6 +1463,7 @@
     else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
     else if (a === 'brief') openBrief(id);
     else if (a === 'tx') openBrief(id, 1);
+    else if (a === 'rescuedismiss') act(id, 'rescueDismiss');
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {
@@ -1463,7 +1521,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); loadHealth(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,
