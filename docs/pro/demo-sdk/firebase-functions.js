@@ -89,8 +89,10 @@ const CANNED = {
   // Call to Close P0 (2026-11-09): the Call Brief reads a recorded call's
   // transcript, and the sample has none, so no "Draft from this call" button
   // renders. Canned anyway, the same quiet answer, so nothing ever leaves.
-  callBrief: () => { throw noPhoneInSample('callBrief'); },
-  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); },
+  // P2: a walkthrough brief ({ visitId }) reads a visit recording, and the
+  // sample has none either, so no "Brief this walkthrough" button renders.
+  callBrief: (p) => { throw (p && p.visitId ? noVisitInSample : noPhoneInSample)('callBrief'); },
+  callBriefDecide: (p) => { throw (p && p.visitId ? noVisitInSample : noPhoneInSample)('callBriefDecide'); },
   // NBD OS Coach's AI focus line (2026-11-09, P2). The real callable asks Claude
   // Haiku for one sentence from the rules Coach's counts (functions/coach-line.js);
   // the sample answers from the top rule's id with a fixed sentence that states no
@@ -356,6 +358,13 @@ function noPhoneInSample(name) {
   e.code = 'functions/permission-denied';
   e.name = 'FirebaseError';
   e.details = { sampleAccount: true, callable: name };
+  return e;
+}
+
+// The same quiet answer for a walkthrough brief: the sample has no visit recordings.
+function noVisitInSample(name) {
+  const e = noPhoneInSample(name);
+  e.message = 'The sample account has no visit recordings, so there is no walkthrough to brief here.';
   return e;
 }
 
