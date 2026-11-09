@@ -41,6 +41,19 @@
  *      estimate builder with the call's CHOICES filled in (estimate-v2-ui.js
  *      callPrefill). On the dashboard it opens the builder here; on the
  *      customer page it goes to /pro/dashboard.html?lead=<id>&callBrief=<id>.
+ *   9. Follow-up message (P1, design §5.3): built ONLY from the items the
+ *      person accepted (promises, the follow-up date, the adjuster meeting),
+ *      in fixed phrases (never the model's words). A text needs written
+ *      texting consent on file (tcpaConsent + the server's tcpaConsentAt, as
+ *      sms-consent-declined.js consentBasis); a spoken "you can text me" is
+ *      not consent. A text goes through NBDPhoneShare.share (the server's
+ *      ok-to-text check: STOP, Do Not Text, consent, switch, texting hours;
+ *      then the phone's Messages, where the person presses Send); an email
+ *      opens the mail app with the draft written. Copy for either.
+ *  10. Objections (P1, §6 #6; Q4: kept in the brief, never lead fields): a
+ *      tag per objection / named competitor with the words said and a
+ *      playbook reply from fixed phrases (PLAYBOOK; a tenant may override a
+ *      reply through companyProfile.callPlaybook), copy-only.
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
  * signed, and no stage moves without a tap. Everything shown is escaped.
  *
@@ -85,6 +98,22 @@
   var KIND_LABEL = { callback: 'Call back', estimate: 'Send estimate', text: 'Text', order: 'Order materials', permit: 'Check on permit', waiting: 'Waiting on them' };
   var KINDS = ['callback', 'estimate', 'text', 'order', 'permit', 'waiting'];
   var MAX_SLOT = 5;  // callCenterAction promise slots 1-5 (slot 0 is the card's Promise button)
+  // The follow-up message's fixed phrases (design §5.3): what the person
+  // accepted, never the model's wording, never a number but a date.
+  var MSG_PHRASE = { callback: "I'll call you back", estimate: "I'll send over your estimate", text: "I'll text you", order: "I'll get your materials ordered", permit: "I'll check on the permit" };
+  var MSG_SUBJECT = 'Following up on our call';
+  // Objection playbook (design §6 #6): fixed replies, copy-only, tenant-neutral.
+  // A tenant may replace one through companyProfile.callPlaybook.<kind>.
+  var PLAYBOOK = {
+    price: "That's fair to ask. The price comes from your roof's measurements and the materials you pick, and I'm glad to walk you through every line. If another package fits your budget better, we can look at that together.",
+    timing: 'No rush at all. When would be a better time for me to check back with you?',
+    trust: 'Good question to ask. I can send you our license and insurance details and reviews from homeowners near you, so you can check us out first.',
+    insurance: 'Your insurance company decides what the claim covers. I can show you the damage we documented, and you can share our photos and report with your adjuster.',
+    spouse: "Of course. Would a time when you can both be there work? I'm happy to go over everything together.",
+    competitor: 'Getting more than one quote makes sense. When you compare, check that each one covers the same materials, tear-off and warranty, and ask me anything that looks different.',
+    other: 'Thanks for telling me. What would help you feel good about the next step?',
+  };
+  var OBJ_LABEL = { price: 'Price', timing: 'Timing', trust: 'Trust', insurance: 'Insurance', spouse: 'Spouse or partner', competitor: 'Competitor', other: 'Other' };
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -182,6 +211,78 @@
     return what + (dmg ? ' for ' + dmg + ' damage' : '') + (adds.length ? ', including ' + adds.join(', ') : '') + '.';
   }
 
+  function truthy(v) { return v === true || v === 'true' || v === 1 || v === '1'; }
+  /**
+   * May this customer get a text draft? Written consent only: tcpaConsent
+   * true WITH the server's tcpaConsentAt stamp (functions/sms-consent-declined.js
+   * consentBasis treats an unstamped true as no evidence). Nothing said on a
+   * call counts. Do Not Text / opted out / a declined form refuse too.
+   */
+  function textConsent(lead) {
+    var l = lead || {};
+    if (String(l.phone || l.phoneDigits || '').replace(/\D/g, '').length < 10) return { ok: false, why: 'No phone number on file for this customer, so there is no text draft.' };
+    if (truthy(l.doNotContact) || truthy(l.dnc) || truthy(l.doNotText) || truthy(l.smsOptOut) || truthy(l.smsOptedOut)) return { ok: false, why: 'This customer is on Do Not Text or opted out, so there is no text draft. Call or email them.' };
+    if (l.tcpaConsent === false) return { ok: false, why: 'This customer said no to texts on their form, so there is no text draft. Call or email them.' };
+    if (!(l.tcpaConsent === true && l.tcpaConsentAt != null)) {
+      return { ok: false, why: 'No written texting consent on file for this customer, so there is no text draft. Saying "you can text me" on a call is not consent: texts go only to people who ticked the texting box on a form. Use the email draft or call them.' };
+    }
+    return { ok: true, why: '' };
+  }
+  function emailOk(lead) {
+    var l = lead || {};
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(l.email || '').trim())) return { ok: false, why: 'No email address on file for this customer, so there is no email draft.' };
+    if (truthy(l.doNotContact) || truthy(l.dnc) || truthy(l.emailOptOut) || truthy(l.emailUnsubscribed) || truthy(l.unsubscribed)) return { ok: false, why: 'This customer asked not to be emailed, so there is no email draft.' };
+    return { ok: true, why: '' };
+  }
+  function msgDate(ymd) {
+    var y = ymdOf(ymd);
+    if (!y) return '';
+    var d = new Date(y + 'T12:00:00');
+    return isNaN(d) ? '' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function msgLine(it) {
+    var d = msgDate(it.ymd);
+    if (it.kind === 'followUp') return d ? "I'll check in with you on " + d + '.' : '';
+    if (it.kind === 'meeting') return d ? 'See you at the adjuster meeting on ' + d + '.' : '';
+    if (it.kind === 'waiting') return 'When you have a chance, send over what we talked about' + (d ? ' by ' + d : '') + '.';
+    return MSG_PHRASE[it.kind] ? MSG_PHRASE[it.kind] + (d ? ' by ' + d : '') + '.' : '';
+  }
+  /**
+   * The follow-up draft from accepted items only (pure): { text, subject,
+   * body } or null when nothing was accepted. Fixed phrases; the first name
+   * and the company come from the CRM, the dates from what was accepted.
+   */
+  function followUpDraft(items, lead, company) {
+    var lines = [];
+    (items || []).forEach(function (it) { var l = msgLine(it); if (l && lines.indexOf(l) === -1) lines.push(l); });
+    if (!lines.length) return null;
+    var first = String((lead && lead.firstName) || '').trim().split(/\s+/)[0].slice(0, 30);
+    var co = String(company || '').trim().slice(0, 80);
+    var hi = first ? 'Hi ' + first + ',' : 'Hi,';
+    return {
+      text: hi + ' thanks for the call. ' + lines.join(' ') + (co ? ' \u2014 ' + co + '.' : '') + ' Reply STOP to opt out.',
+      subject: MSG_SUBJECT,
+      body: hi + '\n\nThanks for the call. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
+        '\n\nIf anything changes, reply here or give me a call.' + (co ? '\n\n' + co : ''),
+    };
+  }
+  /** Objection and competitor tags with a playbook reply (pure). overrides: companyProfile.callPlaybook. */
+  function objectionTags(brief, overrides) {
+    var b = brief || {};
+    var own = overrides && typeof overrides === 'object' ? overrides : {};
+    var reply = function (k) { var v = own[k]; return typeof v === 'string' && v.trim() && v.length <= 400 ? v.trim() : PLAYBOOK[k]; };
+    var out = [];
+    (Array.isArray(b.objections) ? b.objections : []).forEach(function (o) {
+      if (o && Object.prototype.hasOwnProperty.call(PLAYBOOK, o.kind)) out.push({ kind: o.kind, label: OBJ_LABEL[o.kind], quote: String(o.quote || ''), reply: reply(o.kind) });
+    });
+    if (b.competitor && b.competitor.named === true && !out.some(function (t) { return t.kind === 'competitor'; })) {
+      out.push({ kind: 'competitor', label: 'Competitor named', quote: String(b.competitor.quote || ''), reply: reply('competitor') });
+    }
+    return out;
+  }
+  function profile() { return window._companyProfile || {}; }
+  function tenantName() { var p = profile(), b = p.brand || {}; return String(b.name || p.companyName || p.name || '').trim(); }
+
   // ── state ──────────────────────────────────────────────────────────────
   var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange }
   var dlg = null;
@@ -199,6 +300,41 @@
       var d = decided('promise:' + i);
       return { who: p.who === 'them' ? 'them' : 'jo', kind: p.kind, modelKind: p.kind, dueYmd: p.dueYmd || '', done: !!(d && d.decision === 'accept'), skipped: !!(d && d.decision === 'skip') };
     });
+  }
+
+  /**
+   * What the person accepted on THIS brief, for the follow-up message: this
+   * session's taps (S.done) or a decision logged on this brief (decided()
+   * already drops another generation's). A skip or an untouched item never
+   * counts. Promise who / kind / date are the person's choices, not the model's.
+   */
+  function msgItems() {
+    if (!S || !S.brief) return [];
+    var accepted = function (item) {
+      var d = S.done[item];
+      if (d && d !== 'busy') return d.decision === 'accept' ? { session: true } : null;
+      var p = decided(item);
+      return p && p.decision === 'accept' ? { value: String(p.finalValue || '') } : null;
+    };
+    var mine = [], theirs = [], out = [];
+    (S.brief.promises || []).forEach(function (p, i) {
+      var a = accepted('promise:' + i);
+      if (!a) return;
+      var who, kind, ymd;
+      if (a.session && S.prom[i]) { who = S.prom[i].who; kind = S.prom[i].kind; ymd = S.prom[i].dueYmd; }
+      else {
+        var m = /^(jo|them) ([a-z]+)(?: (\d{4}-\d{2}-\d{2}))?/.exec(a.value || '');
+        if (!m) return;
+        who = m[1]; kind = m[2]; ymd = m[3] || '';
+      }
+      if (who === 'them' || kind === 'waiting') theirs.push({ kind: 'waiting', ymd: ymdOf(ymd) });
+      else if (MSG_PHRASE[kind]) mine.push({ kind: kind, ymd: ymdOf(ymd) });
+    });
+    var meet = accepted('field:adjusterMeetingYmd');
+    if (meet) { var my = ymdOf(meet.session ? (S.lead || {})[LEAD_FIELD.adjusterMeetingYmd] : meet.value); if (my) out.push({ kind: 'meeting', ymd: my }); }
+    var fu = S.fuUndo ? { value: S.fuUndo.to } : accepted('followUp');
+    if (fu && !fu.session) { var fy = ymdOf(fu.value); if (fy) out.push({ kind: 'followUp', ymd: fy }); }
+    return mine.concat(out, theirs);
   }
 
   // ── render ─────────────────────────────────────────────────────────────
@@ -352,6 +488,52 @@
     var r = String(reason).trim().replace(/\.$/, '');
     return PLAIN_START.test(r) && !/^[A-Z]{2}/.test(r) ? r.charAt(0).toLowerCase() + r.slice(1) : r;
   }
+
+  function renderObjections() {
+    var tags = objectionTags(S.brief, profile().callPlaybook);
+    if (!tags.length) return '';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbObjH"><h3 class="cb-sec-title" id="cbObjH">Objections on the call</h3>' +
+      '<div class="cb-meta">What they pushed back on, in their words, with a reply you can copy. Kept in this brief only: nothing goes on the customer and nothing is sent.</div>' +
+      tags.map(function (t, i) {
+        return '<div class="cb-card"><div class="cb-row-head"><span class="cb-tag">' + esc(t.label) + '</span></div>' + quoteHtml(t.quote) +
+          '<div class="cb-reply">' + esc(t.reply) + '</div><div class="cb-acts">' + btn('Copy reply', 'obj-copy', ' data-i="' + i + '"') + '</div>' +
+          (S.objCopied[i] ? '<div class="cb-done" role="status">' + esc(S.objCopied[i]) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
+  }
+
+  function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName()); }
+  function msgChannel(draft) { return S.msg.ch || (textConsent(S.lead).ok || !emailOk(S.lead).ok ? 'text' : 'email'); }
+  function renderMessage() {
+    var draft = msgDraftNow();
+    var body;
+    if (!draft) {
+      body = '<div class="cb-meta">Accept a promise, the follow-up date or the adjuster meeting above, then a message built from them shows here in fixed wording you can edit.</div>';
+    } else {
+      var ch = msgChannel(draft);
+      var toggle = '<div class="cb-toggle" role="radiogroup" aria-label="Send it as">' +
+        '<button type="button" role="radio" aria-checked="' + (ch === 'text') + '" data-cb-act="msg-channel" data-ch="text">Text</button>' +
+        '<button type="button" role="radio" aria-checked="' + (ch === 'email') + '" data-cb-act="msg-channel" data-ch="email">Email</button></div>';
+      var inner;
+      if (ch === 'text') {
+        var tc = textConsent(S.lead);
+        inner = !tc.ok ? '<div class="cb-banner" role="status">' + esc(tc.why) + '</div>'
+          : '<label class="cb-field-lbl" for="cbMsgText">Text message</label><textarea class="cb-text" id="cbMsgText" data-cb-input="msg-text" maxlength="600">' + esc(S.msg.text != null ? S.msg.text : draft.text) + '</textarea>' +
+            '<div class="cb-acts">' + btn('Check and open in Messages', 'msg-text', '', 'btn-orange') + btn('Copy', 'msg-copy') + '</div>' +
+            '<div class="cb-meta">Checks Do Not Text, consent and texting hours first, then opens Messages with this written. You press Send there.</div>';
+      } else {
+        var em = emailOk(S.lead);
+        inner = !em.ok ? '<div class="cb-banner" role="status">' + esc(em.why) + '</div>'
+          : '<label class="cb-field-lbl" for="cbMsgSubj">Subject</label><input class="cb-input" type="text" id="cbMsgSubj" data-cb-input="msg-subject" maxlength="120" value="' + esc(S.msg.subject != null ? S.msg.subject : draft.subject) + '">' +
+            '<label class="cb-field-lbl" for="cbMsgBody">Email</label><textarea class="cb-text" id="cbMsgBody" data-cb-input="msg-body" maxlength="2000">' + esc(S.msg.body != null ? S.msg.body : draft.body) + '</textarea>' +
+            '<div class="cb-acts">' + btn('Open in Mail', 'msg-email', '', 'btn-orange') + btn('Copy', 'msg-copy') + '</div>' +
+            '<div class="cb-meta">Opens your mail app with this written. You press Send there; the CRM does not send it.</div>';
+      }
+      body = '<div class="cb-meta">Built only from what you accepted, in fixed wording. Nothing is sent until you send it yourself.</div>' + toggle + inner +
+        (S.msg.err ? '<div class="cb-err" role="alert">' + esc(S.msg.err) + '</div>' : '') + (S.msg.done ? '<div class="cb-done" role="status">' + esc(S.msg.done) + '</div>' : '');
+    }
+    return '<div class="cb-sec" role="group" aria-labelledby="cbMsgH"><h3 class="cb-sec-title" id="cbMsgH">Follow-up message</h3><div class="cb-card">' + body + '</div></div>';
+  }
+
   function renderStage() {
     var st = S.brief && S.brief.stage;
     if (!st) return '';
@@ -422,7 +604,7 @@
       : '<div class="cb-banner" role="status">' + esc(S.txMsg) + '</div>';
     else if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
     else if (S.error) body = '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>';
-    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderDrafts();
+    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderMessage() + renderHandled() + renderObjections() + renderStage() + renderDrafts();
     dlg.innerHTML = renderHeader() + '<div class="cb-scroll">' + body + '</div>' +
       '<div class="cb-foot"><span class="cb-meta">Nothing here is sent, priced or signed.</span>' + btn('Close', 'close') + '</div>';
   }
@@ -558,6 +740,22 @@
     }
     if (a === 'stage-move' || a === 'stage-yes') { moveStage(a); return; }
     if (a === 'proposal') { draftProposal(); return; }
+    if (a === 'msg-channel') { S.msg.ch = b.getAttribute('data-ch') === 'email' ? 'email' : 'text'; S.msg.err = ''; S.msg.done = ''; render(); return; }
+    if (a === 'msg-text' || a === 'msg-email') { sendMessage(a === 'msg-text' ? 'text' : 'email'); return; }
+    if (a === 'msg-copy') {
+      var dr = msgDraftNow();
+      if (!dr) return;
+      var ch = msgChannel(dr);
+      var words = ch === 'email' ? (S.msg.body != null ? S.msg.body : dr.body) : (S.msg.text != null ? S.msg.text : dr.text);
+      S.msg.done = (await copyText(words)) ? 'Copied.' : 'Could not copy. Select the text and copy it.';
+      render(); return;
+    }
+    if (a === 'obj-copy') {
+      var tag = objectionTags(S.brief, profile().callPlaybook)[i];
+      if (!tag) return;
+      S.objCopied[i] = (await copyText(tag.reply)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
+      render(); return;
+    }
     if (a === 'estimate') { startEstimate(); }
   }
 
@@ -627,6 +825,46 @@
       }
     }
     throw new Error('This call already has ' + MAX_SLOT + ' promises from briefs. Add another on the customer card.');
+  }
+
+  async function copyText(t) {
+    try {
+      var c = window.navigator && window.navigator.clipboard;
+      if (!c || typeof c.writeText !== 'function') return false;
+      await c.writeText(String(t || ''));
+      return true;
+    } catch (_) { return false; }
+  }
+  /**
+   * One tap, through the CRM's existing path to a person's own phone / mail
+   * app (phone-share.js): a text first asks the server whether this customer
+   * may be texted now (STOP, Do Not Text, consent, switch, texting hours) and
+   * then opens Messages with the words written; the person presses Send. Only
+   * a send the person confirms is logged on the brief.
+   */
+  async function sendMessage(kind) {
+    var draft = msgDraftNow();
+    if (!draft) return;
+    var lead = S.lead || {};
+    var gate = kind === 'text' ? textConsent(lead) : emailOk(lead);
+    S.msg.err = ''; S.msg.done = '';
+    if (!gate.ok) { S.msg.err = gate.why; render(); return; }
+    var ps = window.NBDPhoneShare;
+    if (!ps || typeof ps.share !== 'function') { S.msg.err = 'Messages and Mail cannot be opened from this page. Copy the message instead.'; render(); return; }
+    var words = kind === 'text' ? (S.msg.text != null ? S.msg.text : draft.text) : (S.msg.body != null ? S.msg.body : draft.body);
+    var opts = kind === 'text'
+      ? { text: words, phone: lead.phone || lead.phoneDigits, leadId: S.leadId, preferSms: true, source: 'call_brief_followup' }
+      : { text: words, email: String(lead.email || '').trim(), subject: S.msg.subject != null ? S.msg.subject : draft.subject, leadId: S.leadId, preferSms: true, source: 'call_brief_followup' };
+    var mine = S;
+    var r;
+    try { r = await ps.share(opts); } catch (e) { r = { shared: false, reason: errText(e) }; }
+    if (S !== mine) return;
+    if (r && r.shared) {
+      S.msg.done = kind === 'text' ? 'Sent from your phone.' : 'Sent from your mail app.';
+      decide(kind === 'text' ? 'draft:followupText' : 'draft:followupEmail', 'accept', { value: String(words).slice(0, 600) }).catch(function () { /* it went; the log is best effort */ });
+    } else if (r && (r.blocked || r.reason)) S.msg.err = r.reason || 'Not sent.';
+    else S.msg.err = 'Not sent.';
+    render();
   }
 
   function setWho(i, who) {
@@ -768,6 +1006,9 @@
     else if (kind === 'lostReason') S.lostReason = t.value;
     else if (kind === 'edit') S.edit['field:' + t.getAttribute('data-k')] = t.value;
     else if (kind === 'due' && S.prom[i]) S.prom[i].dueYmd = t.value;
+    else if (kind === 'msg-text') S.msg.text = t.value;
+    else if (kind === 'msg-subject') S.msg.subject = t.value;
+    else if (kind === 'msg-body') S.msg.body = t.value;
     else if (kind === 'kind' && S.prom[i] && KINDS.indexOf(t.value) !== -1) {
       S.prom[i].kind = t.value;
       if (e.type === 'change') render();
@@ -793,7 +1034,7 @@
     var x = o || {};
     if (!x.callId) return;
     S = { callId: x.callId, call: Object.assign({}, x.call || {}), lead: Object.assign({}, x.lead || {}), leadId: x.leadId || (x.call && x.call.leadId) || '',
-      page: x.page === 'customer' ? 'customer' : 'calls', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], onChange: x.onChange };
+      page: x.page === 'customer' ? 'customer' : 'calls', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], msg: {}, objCopied: {}, onChange: x.onChange };
     var mine = S;
     show();
     var logic = loadLogic();
@@ -838,7 +1079,7 @@
   function showWith(o) {
     var x = o || {};
     S = { callId: x.callId || 'cube_PREVIEW', call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
-      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
+      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
     initPromises();
     show();
     var mine = S;
@@ -849,6 +1090,7 @@
   window.NBDCallBrief = {
     open: open, transcribe: transcribe, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
+    _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, PLAYBOOK: PLAYBOOK,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
     INSURANCE_WARN: INSURANCE_WARN, CALENDAR_WARN: CALENDAR_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
   };
