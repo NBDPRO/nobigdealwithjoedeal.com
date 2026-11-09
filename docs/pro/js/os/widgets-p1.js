@@ -204,13 +204,14 @@
     // the child paints with the stack's record (its open state, its focus) but its own size
     var inner = k.render(id, childSize, null, act, { it: { id: id, s: childSize }, el: rec.el, open: !!rec.open, focus: picked ? st.focus : null });
     var why = picked ? st.reason : 'You picked this card. The stack picks again when something changes.';
+    var whyId = 'oshwWhy-' + String(rec.key || 'stack');   // the paragraph is always there (hidden when shut) so aria-controls resolves
     var n = cards.length;
     var bar = '<div class="os-hw-stack-bar">' +
       (n > 1 ? '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-stack-nav" data-oshw-stack="prev" aria-label="Previous card">‹</button>' : '') +
       '<span class="os-hw-stack-pos">' + k.esc(String(st.cur + 1) + ' of ' + String(n)) + '</span>' +
       (n > 1 ? '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-stack-nav" data-oshw-stack="next" aria-label="Next card">›</button>' : '') +
-      '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-stack-why" data-oshw-stack="why" aria-expanded="' + (st.why ? 'true' : 'false') + '">Why this?</button>' +
-      '</div>' + (st.why ? '<p class="os-hw-why">' + k.esc(why) + '</p>' : '');
+      '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-stack-why" data-oshw-stack="why" aria-expanded="' + (st.why ? 'true' : 'false') + '" aria-controls="' + k.esc(whyId) + '">Why this?</button>' +
+      '</div><p class="os-hw-why" id="' + k.esc(whyId) + '"' + (st.why ? '' : ' hidden') + '>' + k.esc(why) + '</p>';
     return '<div class="os-hw-stack-card os-hw-' + k.esc(id) + '">' + inner + '</div>' + bar;
   }
   /** prev / next / why on a stack: the card moves, nothing re-picks. */

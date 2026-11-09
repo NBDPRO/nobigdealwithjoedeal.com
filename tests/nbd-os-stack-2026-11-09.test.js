@@ -150,6 +150,16 @@ console.log('\n4. the widget: prev / next, Why this?, no timer, events re-pick')
     click(T.dom, card().querySelector('[data-oshw-stack="why"]'));
     ok('"Why this?" shows the reason (in 55 minutes)', /starts in 55 minutes/.test(text(card().querySelector('.os-hw-why'))), text(card()));
     ok('…and says it is open', card().querySelector('[data-oshw-stack="why"]').getAttribute('aria-expanded') === 'true');
+    {
+      const wb = card().querySelector('[data-oshw-stack="why"]'), wid = wb.getAttribute('aria-controls');
+      const wp = wid && card().querySelector('[id="' + wid + '"]');
+      ok('…and aria-controls names the reason paragraph (an id on .os-hw-why)', !!wp && wp.classList.contains('os-hw-why') && !wp.hasAttribute('hidden'), wid);
+      click(T.dom, wb);
+      const wp2 = card().querySelector('[id="' + wid + '"]');
+      ok('…closed again: the paragraph stays in place, hidden, so aria-controls still resolves', !!wp2 && wp2.hasAttribute('hidden') &&
+        card().querySelector('[data-oshw-stack="why"]').getAttribute('aria-expanded') === 'false');
+      click(T.dom, card().querySelector('[data-oshw-stack="why"]'));
+    }
     click(T.dom, card().querySelector('[data-oshw-stack="next"]'));
     ok('next -> card 2 of 4 (Storm)', pos() === '2 of 4' && /Storm/.test(text(card().querySelector('.os-hw-stack-card'))), text(card()));
     ok('…a stepped-to card says the member picked it', /You picked this card/.test(text(card().querySelector('.os-hw-why'))));
