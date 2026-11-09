@@ -264,6 +264,13 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       ok('…and is logged once it landed', h.calls.some((c) => c.name === 'callBriefDecide' && c.data.item === 'stage' && c.data.mode === 'one-tap'));
     }
     {
+      const h = load({ page: 'calls' });
+      h.win._leads[0].stage = 'estimate_submitted';
+      show(h, CONTACTED, 'calls');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('on #/calls the board\'s own copy of the lead says where it is (a move back asks)', !/data-cb-act="stage-move"/.test(h.CB._render()) && /data-cb-act="stage-ask"/.test(h.CB._render()));
+    }
+    {
       const h = load({ page: 'customer' });
       show(h, INSPECTED, 'customer');
       await new Promise((r) => setTimeout(r, 10));

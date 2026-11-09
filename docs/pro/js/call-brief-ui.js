@@ -326,12 +326,15 @@
 
   // The customer's stage now, and which CRM writer can move it from here
   // ('' = none: the sheet only offers the normal place to change it).
-  function currentStage() { return (S.page === 'customer' && window._currentStage) || (S.lead && S.lead.stage) || ''; }
+  function boardLead() { return (window._leads || []).filter(function (l) { return l && l.id === S.leadId; })[0] || null; }
+  function currentStage() {
+    var live = S.page === 'customer' ? window._currentStage : (boardLead() || {}).stage;
+    return live || (S.lead && S.lead.stage) || '';
+  }
   function stageWriter() {
     // progressStage(target, opts) since P1; an older cached copy takes no target.
     if (S.page === 'customer') return typeof window.progressStage === 'function' && window.progressStage.length >= 1 ? 'customer' : '';
-    var onBoard = (window._leads || []).some(function (l) { return l && l.id === S.leadId; });
-    return typeof window.moveCard === 'function' && onBoard ? 'board' : '';
+    return typeof window.moveCard === 'function' && boardLead() ? 'board' : '';
   }
   function stagePlanNow() {
     var st = S.brief && S.brief.stage;
