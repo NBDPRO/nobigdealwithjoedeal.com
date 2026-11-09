@@ -186,6 +186,17 @@ An independent review approved the lane (no viewer read path found) and named th
 5. The commit count is corrected above.
 
 `tests/q11-task-call-text-2026-11-09.test.js` is 52/52. The call-feed golden is unchanged (11/11): no pinned write moved. Emulator, one at a time on a temporary port: `thursday-pipeline.integration` 38/38, `call-content-viewers` 120/120.
+#### Update 2026-11-09 (lane q11-voicemail): item 4 closed, voicemail rows are source 'voicemail'
+
+Jo decided item 4: a viewer does not read voicemail transcripts. Branch `q11-voicemail`. The simpler route than the two-query allowlist above: the row changes its source, the viewer allowlist and query do not.
+
+- **Writer.** `docs/pro/js/voicemail.js` `writeActivityEntry` writes `source: 'voicemail'` (was `'rep'`); the recording origin stays in `mediaSource`. `dashboard.html` loads `voicemail.js?v=5`.
+- **Rules.** `leads/{id}/activity` create: `source == 'rep'` with the rep type allowlist minus `voicemail`, or `source == 'voicemail' && type == 'voicemail'`. Type `voicemail` is tied to source `voicemail` both ways, so a cached old client's `rep` voicemail is refused (its "NOT saved to the customer timeline" message shows) rather than filed where a viewer reads it. The read rule is unchanged: a viewer reads `rep` and `visit-capture` only.
+- **Query and index.** `NBDCallTimeline.activityQuery` for a viewer is unchanged: one `where('source', 'in', ['rep', 'visit-capture'])`, no `orderBy`. `firestore.indexes.json` has no `activity` composite and no `source` field override, so the automatic single-field index serves it; nothing to deploy. (The emulator does not enforce indexes; the proof is that the query shape did not change.)
+- **Readers.** No client reader keys a voicemail row on `source == 'rep'`: `call-timeline.js` `fromActivity` skips voicemail rows, the customer page and report read through `activityDocs` (whole collection for non-viewers), `smart-followup.js` reads the whole collection, and `lead-brief.js` / `morning-brief.js` are admin-SDK. Owners, managers, company_admins, the lead's rep and the platform admin still get every row.
+- **Old rows.** `scripts/retag-voicemail-activity.js` retags `type 'voicemail', source 'rep'` rows under `leads/{id}/activity` to `source 'voicemail'`. Dry run by default, `--apply` writes (production only with Jo's OK), `--company` scope, conditional on the read's updateTime, counts only (never transcript, summary or ids). ADC only for now: token mode needs the REST adapter's collection-group query from branch `q11-backfill` (same API shape, checked offline against that branch's adapter); on this branch it refuses before any read. **Not run.** Until it runs, those older rows stay viewer-readable (pinned in the emulator suite).
+
+Tests: `tests/voicemail-viewer-hidden-2026-11-09.test.js` (node, 5 of 16 red before, 16/16 after); `tests/firestore-rules.voicemail-viewers.test.js` (emulator, wired in ci.yml; 4 of 39 red on the old rules, 39/39 after: viewer denied a voicemail row, viewer still allowed rep / visit-capture rows, owner / sales_rep owner / manager / company_admin / admin allowed all); `tests/voicemail-retag-backfill-2026-11-09.test.js` (node, 23/23); `firestore-rules.test.js` voicemail case updated (rep voicemail now refused). `firestore-rules.test.js` and `firestore-rules.call-content-viewers.test.js` (100/100) green on the emulator.
 
 ## Lane "estimate" (P1, 2026-11-09)
 
