@@ -31,6 +31,8 @@
  * Public API:
  *   window.NBDQuickCapture.open()
  *   window.NBDQuickCapture.attachFloatingButton()
+ *   window.NBDQuickCapture.review(text, onSaved) - a typed note (NBD OS Pocket) on
+ *     this same result screen and writer; onSaved(captureId) after Save writes it
  *
  * Reuses the W129 `dictate` Cloud Function with mode='summarize'.
  */
@@ -54,6 +56,7 @@
   let _isRecording = false;
   let _isProcessing = false;
   let _currentResult = null; // { transcript, summary }
+  let _onSaved = null; // review()'s caller, told the capture id once Save writes it
 
   function isSupported() {
     return typeof window.MediaRecorder === 'function'
@@ -119,7 +122,20 @@
     document.removeEventListener('keydown', _escHandler);
     window.removeEventListener('pagehide', close);
     _currentResult = null;
+    _onSaved = null;
     _isProcessing = false;
+  }
+
+  // A typed note (NBD OS Pocket, 2026-11-09) gets this same result screen and writer.
+  function review(text, onSaved) {
+    const t = String(text == null ? '' : text).trim().slice(0, 4000);
+    if (!t) return false;
+    close();
+    open();
+    _currentResult = { transcript: t, summary: null };
+    _onSaved = typeof onSaved === 'function' ? onSaved : null;
+    _renderResult(_currentResult);
+    return true;
   }
 
   // W134 HIGH fix: previously gated on `!_isRecording` — meaning if
@@ -402,6 +418,7 @@
     const amounts = Array.isArray(summary.amounts) ? summary.amounts : [];
     const dates = Array.isArray(summary.dates) ? summary.dates : [];
     const category = summary.category || 'other';
+    const typed = !result.summary; // a Pocket note: no AI summary, so no category or transcript
     const here = currentCustomer();
 
     function listChip(label, items) {
@@ -416,8 +433,8 @@
     resultEl.innerHTML =
       '<div class="qcx-bg0a1424-r10px-p16px">' +
         '<div class="qcx-dflex-jcspacebet-aicenter">' +
-          '<div class="qcx-fs11px-c94a3b8-ls006em">SUMMARY</div>' +
-          '<div class="qcx-dinlinebl-p3px9px-bgrgba1617">' + escHtml(category) + '</div>' +
+          '<div class="qcx-fs11px-c94a3b8-ls006em">' + (typed ? 'NOTE' : 'SUMMARY') + '</div>' +
+          (typed ? '' : '<div class="qcx-dinlinebl-p3px9px-bgrgba1617">' + escHtml(category) + '</div>') +
         '</div>' +
         '<div class="qcx-fs14px-lh15-mb14px">' + escHtml(overview) + '</div>' +
 
@@ -452,10 +469,10 @@
       '<button type="button" id="nbd-qc-act-discard" class="qcx-wd100-p9px-bgtranspar">Discard</button>' +
 
       // Transcript reveal
-      '<details class="qcx-mt14px">' +
+      (typed ? '' : '<details class="qcx-mt14px">' +
         '<summary class="qcx-fs11px-c94a3b8-curpointer">Show full transcript</summary>' +
         '<div class="qcx-mt8px-p12px-bg0a1424">' + escHtml(result.transcript || '') + '</div>' +
-      '</details>';
+      '</details>');
 
     resultEl.style.display = 'block';
 
@@ -633,6 +650,7 @@
       }
 
       toast(linkedLeadId ? 'Saved & linked ✓' : 'Capture saved ✓', 'success');
+      if (_onSaved) try { _onSaved(captureRef.id); } catch (_) {}
       close();
     } catch (e) {
       console.warn('[NBDQuickCapture] save failed:', e);
@@ -733,6 +751,7 @@
     isSupported,
     open,
     close,
+    review,
     attachFloatingButton,
     // Pure, for tests (2026-10-13): who "this customer" is, and picker order.
     currentCustomer,
