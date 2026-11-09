@@ -243,6 +243,20 @@ G(() => {
   ok('empty state: a kind "Nothing pressing" line', /Nothing pressing/.test(text(e)), text(e));
   ok('…with no numbers at all', !/\d/.test(text(e).replace(/Coach/, '')), text(e));
 
+  // review nit: rules that fired but are all hidden are not an all-clear
+  const quiet0 = { total: 0, promises: [], promised: [], stalled: [], estimates: [], calls: [], appointments: [] };
+  const T5 = makeWin({ surface: 'phone', leads, plan: quiet0, home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
+  T5.W._impl.mount({ surface: 'phone' });
+  const c5 = () => byKey(T5.document.getElementById('osPhone'), 'coach-1');
+  click(T5.dom, c5().querySelector('[data-oshw-coach="dismiss"]'));
+  ok('every fired rule hidden ("Not today"): a neutral line, never "Nice work"', /Nothing else for now/.test(text(c5())) && !/Nice work|Nothing pressing/.test(text(c5())), text(c5()));
+  const T6 = makeWin({ surface: 'phone', leads, plan: quiet0, store: { nbd_os_coach: JSON.stringify({ d: DK, off: { 'stuck-new': NOW + 3600000 }, run: {} }) }, home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
+  T6.W._impl.mount({ surface: 'phone' });
+  ok('…the same when it is snoozed ("Later")', /Nothing else for now/.test(text(byKey(T6.document.getElementById('osPhone'), 'coach-1'))));
+  const T7 = makeWin({ surface: 'phone', leads, plan: quiet0, store: { nbd_os_coach: JSON.stringify({ d: DK, off: {}, run: { 'stuck-new': { last: '2026-11-08', n: 3 } } }) }, home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
+  T7.W._impl.mount({ surface: 'phone' });
+  ok('…and when it is resting (3 days running)', /Nothing else for now/.test(text(byKey(T7.document.getElementById('osPhone'), 'coach-1'))));
+
   const T4 = makeWin({ surface: 'phone', plan: null, leadsLoaded: false, home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
   T4.W._impl.mount({ surface: 'phone' });
   const ld = byKey(T4.document.getElementById('osPhone'), 'coach-1');

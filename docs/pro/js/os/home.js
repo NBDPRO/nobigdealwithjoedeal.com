@@ -181,13 +181,15 @@
     var memo = parse(lsGet(COACH_KEY));
     var p = CL.pick(rules, memo, HL.dayKey(now), now);
     if (JSON.stringify(p.memo) !== JSON.stringify(memo)) lsSet(COACH_KEY, JSON.stringify(p.memo));
+    p.shown.fired = rules.length;   // rules that fired, shown or not (snoozed, Not today, resting)
     return p.shown;
   }
   function coach(size, cfg, act, rec) {
     var h = '<h3 class="os-hw-title">Coach</h3>';
     var list = coachRules(cfg);
     if (!list) return h + '<p class="os-hw-empty">Getting your day ready…</p>';
-    if (!list.length) return h + '<p class="os-hw-coach-calm">Nothing pressing right now. Nice work.</p>';
+    // "Nice work" only when no rule fired at all; rules that are only hidden are not an all-clear
+    if (!list.length) return h + '<p class="os-hw-coach-calm">' + (list.fired ? 'Nothing else for now.' : 'Nothing pressing right now. Nice work.') + '</p>';
     var top = list[0];
     h += '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
       '<div class="os-hw-coach-acts">' + actionHtml(top.action, 'btn btn-ghost os-hw-btn os-hw-coach-act') +
