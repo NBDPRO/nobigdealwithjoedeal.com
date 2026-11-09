@@ -1608,6 +1608,18 @@ async function callAction({ db, auth, data, nowMs }) {
       const lead = ls.exists ? ls.data() : null;
       if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
       if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+      // Call to Close P2 (2026-11-09): a brief promise whose date was hard
+      // to hear (retype) starts empty in the sheet. A slot 1-5 Add (the
+      // sheet's) with a date EQUAL to that heard-as date is refused unless
+      // the client says the person typed it (retyped: true). Honour-based,
+      // as callBriefDecide's retype rule: it stops a mistake, not a bypass.
+      // One read, only for a dated brief Add.
+      if (slot && built.dueDate && data && data.dueYmd) {
+        const bs = await db.doc('leads/' + leadId + '/call_briefs/' + id).get().catch(() => null);
+        const stored = bs && bs.exists ? (bs.data() || {}).brief : null;
+        const bad = stored ? require('./call-brief-logic').promiseRetypeProblem(stored, data.briefPromise, String(data.dueYmd), data.retyped === true) : '';
+        if (bad) throw new HttpsError('failed-precondition', bad);
+      }
       const taskId = 'promise-' + id + (slot ? '-' + slot : '');
       const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
       const prev = await taskRef.get();

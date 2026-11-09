@@ -745,6 +745,10 @@
       try {
         var data = { id: S.callId, action: 'promise', kind: ps.kind, why: p.text };
         if (ps.dueYmd) data.dueYmd = ps.dueYmd;
+        // P2: the server refuses a retype promise's heard-as date unless it
+        // was typed. A retype date box starts empty, so a date in it was typed.
+        data.briefPromise = i;
+        if (p.retype === true && ps.dueYmd) data.retyped = true;
         if (ps.kind === 'waiting') data.waitingOn = 'customer';
         var res = await addPromise(data);
         ps.done = true;
