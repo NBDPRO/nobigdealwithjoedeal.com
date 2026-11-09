@@ -74,12 +74,15 @@ async function mount(items, o) {
   const SL = W.ScriptLoader;
   const load = SL.loadBundle.bind(SL);
   SL.loadBundle = (name) => { const p = load(name); if (W.NBDOSDsBiz && !W.NBDOSDsBiz.__stub) { W.NBDOSDsBiz.__stub = 1; stubCount(); } return p; };
+  const sysObj = W.NBDOS;
+  if (opts.lateSystem) delete W.NBDOS;   // system.js not loaded yet: bootSystem() brings it and fires its ready event
   if (opts.before) opts.before(W);
   W._impl.mount({ surface: 'phone' });
   await settle();
   const ph = T.document.getElementById('osPhone');
   return { T, W, ph, log, opts, card: () => byKey(ph, 'focus-1'), dnd: () => dnd, release: (n) => { if (held) { const h = held; held = null; h({ data: () => ({ count: n }) }); } },
-    at: (ms) => { opts.now = ms; }, };
+    at: (ms) => { opts.now = ms; },
+    bootSystem: async () => { W.NBDOS = sysObj; W.dispatchEvent(new W.CustomEvent('nbd:os-system-ready')); await settle(); } };
 }
 // the start buttons (the fake DOM has no ^= selector)
 const starts = (card) => (card ? card.querySelectorAll('[data-oshw-focus]') : []).filter((b) => /^start:/.test(b.getAttribute('data-oshw-focus')));
@@ -255,6 +258,25 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     const store = { nbd_os_focus: J({ v: 1, uid: 'u1', start, mins: 60, end: start + 60 * MIN, dnd: 'kept' }) };
     const m = await mount([{ id: 'focus', s: 'm' }], { store, dndOn: true });
     ok('...one whose DND was on before it: dropped, DND left on', !m.T.store.nbd_os_focus && m.log.dnd.length === 0 && m.dnd() === true, J(m.log.dnd));
+  }
+  {
+    // the system layer is not up yet when the block ends and the rep taps Done: DND waits, then goes off
+    const start = NOW - 90 * MIN;
+    const store = { nbd_os_focus: J({ v: 1, uid: 'u1', start, mins: 60, end: start + 60 * MIN, dnd: 'mine', doors: 4 }), nbd_os_focus_dnd: 'u1' };
+    const m = await mount([{ id: 'focus', s: 'm' }], { store, dndOn: true, lateSystem: true, answers: [4] });
+    ok('no system layer: the block ends, DND untouched for now', !!rec(m.T) && rec(m.T).endedAt === start + 60 * MIN && rec(m.T).dnd === 'mine' && m.log.dnd.length === 0, J(rec(m.T)));
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="done"]'));
+    await settle();
+    ok('Done clears the summary but keeps what DND is owed', !m.T.store.nbd_os_focus && m.T.store.nbd_os_focus_dnd === 'u1' && m.dnd() === true, J(m.T.store));
+    await m.bootSystem();
+    ok('the system layer arrives: DND goes back off, the memo is gone', J(m.log.dnd) === J([false]) && !m.T.store.nbd_os_focus_dnd, J([m.log.dnd, m.T.store]));
+  }
+  {
+    const start = NOW - 90 * MIN;
+    const store = { nbd_os_focus: J({ v: 1, uid: 'u1', start, mins: 60, end: start + 60 * MIN, dnd: 'mine' }), nbd_os_focus_dnd: 'u1' };
+    const m = await mount([{ id: 'focus', s: 'm' }], { store, dndOn: true, lateSystem: true, answers: [2] });
+    await m.bootSystem();
+    ok('...or before Done: the ended record is put back on the system layer\'s ready event', J(m.log.dnd) === J([false]) && rec(m.T).dnd === 'done' && !m.T.store.nbd_os_focus_dnd, J([m.log.dnd, rec(m.T)]));
   }
   {
     const store = { nbd_os_focus: J({ v: 1, uid: 'someone-else', start: NOW - MIN, mins: 30, end: NOW + 29 * MIN, dnd: 'mine' }) };

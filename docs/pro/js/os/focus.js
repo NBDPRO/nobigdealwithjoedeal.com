@@ -100,7 +100,7 @@
     lsSet(OWE, null);
     return true;
   }
-  /** Put DND back once the block is over. No system layer yet: the record (and the memo) wait. */
+  /** Put DND back once the block is over. No system layer yet: the record (and the memo) wait for nbd:os-system-ready. */
   function restoreDnd(r) {
     if (!r || r.dnd === 'done') return r;
     if (r.dnd === 'mine' && !putBack()) return r;
@@ -320,6 +320,7 @@
   W.addEventListener('nbd:knocks-changed', onKnock);
   W.addEventListener('nbd:os-dsbiz', onBiz);
   doc.addEventListener('visibilitychange', function () { if (!doc.hidden) check(); });
+  W.addEventListener('nbd:os-system-ready', check);   // DND waiting on the system layer (os/system.js) is put back
 
   W.NBDOSFocus = { widget: widget, tap: tap, key: key, resume: resume };
   resume();
