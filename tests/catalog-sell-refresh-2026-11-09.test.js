@@ -128,7 +128,7 @@ test('SKUs given real sells on 2026-11-09 no longer carry placeholder-pricing no
 // cache entry. Each DATA_VERSION lists the minimum ?v keys that shipped with it;
 // a future bump must add its row (and bump the keys) or this fails.
 const LOADER_SRC = fs.readFileSync(path.join(PRO_JS, 'script-loader.js'), 'utf8');
-const PAIRED_CACHE_KEYS = { 6: { data: 4, lib: 15 } };
+const PAIRED_CACHE_KEYS = { 6: { data: 4, lib: 15 }, 7: { data: 5, lib: 16 } }; // 7: the 20% floor (2026-11-09)
 function loaderKey(file) {
   const m = LOADER_SRC.match(new RegExp("'js/" + file.replace('.', '\\.') + "\\?v=(\\d+)'"));
   return m ? Number(m[1]) : NaN;
