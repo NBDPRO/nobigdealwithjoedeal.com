@@ -13,6 +13,8 @@
  *   - each SKU in PRIOR (its retail sells before this change) went up on at
  *     least one tier, never went down, keeps its ladder order, and keeps (or
  *     widens) each good->better and better->best gap;
+ *   - each of those SKUs sells at exactly its pinned post-floor retail sells
+ *     (NOW), so a sell dropped back between its old and new value fails;
  *   - DATA_VERSION moved past 6 so devices re-read the catalog;
  *   - the ridge/hip rate converts the ridge cap bundle by the coverage the
  *     catalog states for it (25 LF per bundle, the product spec).
@@ -109,6 +111,66 @@ const PRIOR = {
   ext_006: [14, 16, 19],
 };
 
+// Retail sells (good, better, best) after the 20% floor, pinned so a later
+// edit cannot drop a raised sell back below the floor unseen in CI (the
+// margin check needs the private book). Public figures.
+const NOW = {
+  shingle_002: [232, 267, 312],
+  shingle_007: [400, 450, 515],
+  shingle_009: [220, 255, 295],
+  shingle_010: [197, 222, 257],
+  under_008: [152, 172, 202],
+  under_003: [105, 120, 145],
+  under_004: [105, 122, 142],
+  under_005: [50, 56, 64],
+  flash_001: [117, 129, 145],
+  flash_004: [7.5, 8.5, 10],
+  vent_001: [9.5, 11, 13],
+  vent_002: [79, 91, 110],
+  vent_004: [542, 622, 737],
+  vent_006: [125, 140, 165],
+  rdeck_003: [79, 89, 102],
+  rdeck_005: [5.5, 6, 7],
+  siding_004: [549, 624, 729],
+  siding_010: [12.5, 14, 16],
+  paint_005: [7.5, 10, 13.5],
+  acc_005: [125, 145, 170],
+  acc_006: [7.5, 8.5, 10],
+  acc_008: [288, 328, 393],
+  acc_009: [57, 66, 79],
+  acc_010: [59, 66, 76],
+  acc_011: [19, 21, 25],
+  acc_013: [22, 26, 49],
+  acc_024: [200, 220, 250],
+  shingle_015: [105, 120, 140],
+  shingle_016: [107, 121, 139],
+  shingle_017: [95, 107, 120],
+  flash_012: [22, 24, 27],
+  flash_013: [37, 44, 57],
+  flash_015: [55, 64, 80],
+  flash_016: [69, 76, 86],
+  chim_001: [259, 289, 339],
+  chim_002: [374, 439, 549],
+  chim_004: [344, 399, 479],
+  chim_003: [197, 217, 247],
+  chim_005: [98, 111, 128],
+  chim_006: [118, 122, 128],
+  sky_001: [673, 733, 813],
+  sky_002: [894, 974, 1094],
+  sky_004: [569, 619, 699],
+  sky_005: [807, 877, 997],
+  sky_008: [557, 607, 697],
+  sky_007: [103, 113, 131],
+  gut_005: [21, 23, 26],
+  gut_007: [277, 302, 342],
+  maint_001: [168, 183, 198],
+  maint_002: [120, 130, 144],
+  maint_004: [45, 58, 68],
+  ext_001: [225, 317, 347],
+  ext_002: [14, 16, 19],
+  ext_006: [18, 20, 23],
+};
+
 console.log('\ncatalog 20% price floor (2026-11-09)');
 
 test('every PRIOR SKU is still in the catalog with three tier sells', () => {
@@ -141,6 +203,17 @@ test('raised SKUs keep their ladder order and each tier gap', () => {
     }
   }
   if (bad.length) throw new Error(bad.join('; '));
+});
+
+test('every raised SKU sells at exactly its pinned 20%-floor retail sells', () => {
+  const bad = [];
+  if (Object.keys(NOW).sort().join() !== Object.keys(PRIOR).sort().join()) bad.push('NOW and PRIOR list different SKUs');
+  for (const [id, want] of Object.entries(NOW)) {
+    const p = byId(id);
+    if (!p) { bad.push(id + ' missing'); continue; }
+    sells(p).forEach((v, i) => { if (cents(v) !== cents(want[i])) bad.push(id + ':' + TIERS[i]); });
+  }
+  if (bad.length) throw new Error('not at the pinned sell: ' + bad.join(', '));
 });
 
 test('DATA_VERSION was bumped past 6 so stored catalogs re-read the raised sells', () => {
