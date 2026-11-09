@@ -1481,7 +1481,7 @@ async function loadTimeline(leadId, lead) {
           title: 'Thursday took a call' + (c.urgent ? ' — URGENT' : '') + (c.route && c.route.action === 'possible_match' ? ' (possible match)' : ''),
           // Q11 (2026-11-09): the call's notes (issue, urgent reason, best time,
           // carrier, claim #) live on the call now, not on lead.notes.
-          desc: (typeof c.callNotes === 'string' && c.callNotes.trim()) ? c.callNotes.split('\n').map(l => l.trim()).filter(Boolean).join(' · ') : (c.issue || (c.call && c.call.summary) || ''),
+          desc: (typeof c.callNotes === 'string' && c.callNotes.trim()) ? c.callNotes.trim().replace(/\s*\n\s*/g, ' · ') : (c.issue || (c.call && c.call.summary) || ''),
           type: 'communication'
         });
       });
