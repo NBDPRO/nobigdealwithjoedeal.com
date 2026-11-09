@@ -14,7 +14,7 @@
  *   5. injection: instruction-shaped quotes give no stage and no fact
  *   6. reliable:false (and the server's own guards) blank everything but the summary
  *   7. stage keys: one off the tenant list is rejected; won / job roles are not offered
- *   8. promises: KINDS only, 'them' becomes waiting, max six, why 140 chars
+ *   8. promises: KINDS only, 'them' becomes waiting, max five, why 140 chars
  *   9. the prompt: transcript fenced and neutralised, notes never sent, tenant
  *      name and stages from the tenant, no sampling parameters, strict schema
  *  10. gates: the callCenterAction role set, the human-filed gate
@@ -253,7 +253,7 @@ console.log('\n8. Promises');
   ok('an ungrounded promise is dropped', B.sanitizeBrief(r2, ctx()).promises.length === 1);
   const r3 = raw();
   r3.promises = Array.from({ length: 9 }, () => Object.assign({}, raw().promises[0]));
-  ok('at most six promises (slots 0-5)', B.sanitizeBrief(r3, ctx()).promises.length === 6);
+  ok('at most five promises (slots 1-5; slot 0 is the card\'s Promise button)', B.sanitizeBrief(r3, ctx()).promises.length === 5 && B.MAX_PROMISES === 5);
   const r4 = raw();
   r4.promises[0].text = 'x'.repeat(400);
   ok('the promise text (its why) is capped at 140', B.sanitizeBrief(r4, ctx()).promises[0].text.length <= 140);

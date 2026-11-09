@@ -18,7 +18,7 @@
  *   3. Promises: a You / Them toggle on each (the model's guess, which Jo
  *      fixes), the kind and the date, and an explicit Add + a one-line
  *      confirm, because a promise marks the call handled (callCenterAction
- *      promise, slot i).
+ *      promise, the next free slot 1-5, never slot 0).
  *   4. Follow-up: only when the call's date differs from the customer's
  *      (NBDFollowUpDeck.setFollowUp, with its undo; followup-deck.js is
  *      lazy-loaded on the customer page).
@@ -54,6 +54,7 @@
   };
   var KIND_LABEL = { callback: 'Call back', estimate: 'Send estimate', text: 'Text', order: 'Order materials', permit: 'Check on permit', waiting: 'Waiting on them' };
   var KINDS = ['callback', 'estimate', 'text', 'order', 'permit', 'waiting'];
+  var MAX_SLOT = 5;  // callCenterAction promise slots 1-5 (slot 0 is the card's Promise button)
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -246,7 +247,7 @@
         var fields = '<div class="cb-grid"><label class="cb-field-lbl" for="cbKind-' + i + '">What<select class="cb-select" id="cbKind-' + i + '" data-cb-input="kind" data-i="' + i + '">' + kinds + '</select></label>' +
           '<label class="cb-field-lbl" for="cbDue-' + i + '">' + (st.kind === 'waiting' ? 'Chase on' : 'Due') + '<input class="cb-input" type="date" id="cbDue-' + i + '" data-cb-input="due" data-i="' + i + '" value="' + esc(st.dueYmd) + '"></label></div>';
         var acts = S.confirm === item
-          ? '<div class="cb-warn">Add "' + esc(KIND_LABEL[st.kind] || st.kind) + '"' + (st.dueYmd ? ' for ' + esc(fmtYmd(st.dueYmd)) : '') + '? It marks the call handled.</div><div class="cb-acts">' + btn('Add promise', 'promise-yes', ' data-i="' + i + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
+          ? '<div class="cb-warn">Add "' + esc(KIND_LABEL[st.kind] || st.kind) + '"' + (st.dueYmd ? ' for ' + esc(fmtYmd(st.dueYmd)) : '') + '? It adds a new task (it never changes a promise already on the customer) and marks the call handled.</div><div class="cb-acts">' + btn('Add promise', 'promise-yes', ' data-i="' + i + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
           : '<div class="cb-acts">' + btn('Add', 'promise', ' data-i="' + i + '"') + btn('Skip', 'promise-skip', ' data-i="' + i + '"') + '</div>';
         return '<div class="cb-card" data-cb-row="' + esc(item) + '">' + head + toggle + fields + acts + statusFor(item) + '</div>';
       }).join('') + '</div>';
@@ -395,14 +396,14 @@
       var item = 'promise:' + i;
       S.done[item] = 'busy'; S.confirm = ''; render();
       try {
-        var data = { id: S.callId, action: 'promise', kind: ps.kind, why: p.text, slot: i };
+        var data = { id: S.callId, action: 'promise', kind: ps.kind, why: p.text };
         if (ps.dueYmd) data.dueYmd = ps.dueYmd;
         if (ps.kind === 'waiting') data.waitingOn = 'customer';
-        var res = await callable('callCenterAction', data);
+        var res = await addPromise(data);
         ps.done = true;
         mark(item, 'accept', 'Added' + (res && res.dueDate ? ', due ' + fmtYmd(res.dueDate) : ''));
         if (S.call) S.call.handledAtMs = Date.now();
-        decide(item, 'accept', { value: ps.who + ' ' + ps.kind + ' ' + (ps.dueYmd || '') }).catch(function () { /* the promise itself is saved */ });
+        decide(item, 'accept', { value: ps.who + ' ' + ps.kind + ' ' + (ps.dueYmd || ''), slot: data.slot }).catch(function () { /* the promise itself is saved */ });
         changed();
       } catch (e) { fail(item, e); }
       render(); return;
@@ -427,6 +428,36 @@
       return;
     }
     if (a === 'proposal') { draftProposal(); return; }
+  }
+
+  /**
+   * A brief promise never goes to slot 0: that is promise-<callId>, the task
+   * the card's Promise button writes and edits in place (review 2026-11-09).
+   * It takes the lowest of slots 1-5 that no earlier Add used (any brief of
+   * this call, from the decisions log), and the server refuses a slot that is
+   * already taken, so a taken slot moves on to the next one.
+   */
+  function usedSlots() {
+    var used = {};
+    ((S && S.decisions) || []).forEach(function (d) { if (d && /^promise:/.test(d.item) && d.decision === 'accept' && d.slot >= 1) used[d.slot] = true; });
+    Object.keys(S.slotUsed || {}).forEach(function (k) { used[k] = true; });
+    return used;
+  }
+  async function addPromise(data) {
+    S.slotUsed = S.slotUsed || {};
+    for (var n = 1; n <= MAX_SLOT; n++) {
+      if (usedSlots()[n]) continue;
+      data.slot = n;
+      try {
+        var res = await callable('callCenterAction', Object.assign({}, data));
+        S.slotUsed[n] = true;
+        return res;
+      } catch (e) {
+        if (!/already on the customer/.test(errText(e))) throw e;
+        S.slotUsed[n] = true;
+      }
+    }
+    throw new Error('This call already has ' + MAX_SLOT + ' promises from briefs. Add another on the customer card.');
   }
 
   async function followUp(undo) {

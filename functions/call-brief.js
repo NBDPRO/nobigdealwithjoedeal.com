@@ -190,7 +190,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (await switchedOff(false)) throw new HttpsError('failed-precondition', 'Call briefs are switched off right now.');
   const item = data && data.item;
-  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:proposal|field:[A-Za-z]{2,40}|promise:[0-5])$/.test(item)) {
+  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:proposal|field:[A-Za-z]{2,40}|promise:[0-4])$/.test(item)) {
     throw new HttpsError('invalid-argument', 'Decide one item at a time.');
   }
   const decision = data.decision === 'accept' ? 'accept' : data.decision === 'skip' ? 'skip' : '';
@@ -244,6 +244,10 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   }
 
   const entry = { item, decision, aiValue: aiValue == null ? '' : L.str(aiValue, 600), finalValue: L.str(finalValue, 600), written, decidedBy: auth.uid, atMs: nowMs };
+  // The callCenterAction slot (1-5) a brief promise went to, so the sheet
+  // never offers that slot again (slot 0 is the card's own Promise button).
+  const slot = Number(data.slot);
+  if (item.startsWith('promise:') && decision === 'accept' && Number.isInteger(slot) && slot >= 1 && slot <= 5) entry.slot = slot;
   await db.runTransaction(async (tx) => {
     const s = await tx.get(g.briefRef);
     const prev = s.exists && Array.isArray((s.data() || {}).decisions) ? s.data().decisions : [];

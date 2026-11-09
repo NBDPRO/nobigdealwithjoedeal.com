@@ -1208,7 +1208,9 @@ async function callAction({ db, auth, data, nowMs }) {
     // Call to Close P0 (2026-11-09, design §4.3): an optional slot 0-5 so one
     // call can carry several promises (the Call Brief sheet's Add buttons).
     // 0 or absent is today's promise-<callId>, byte-identical; n > 0 writes
-    // promise-<callId>-<n> and never retires the generic task.
+    // promise-<callId>-<n> and never retires the generic task. A slot > 0 is
+    // create-only: it never edits, replaces or reopens a task already there
+    // (review 2026-11-09), so a brief Add cannot overwrite a promise.
     const rawSlot = data && data.slot;
     const slot = rawSlot == null || rawSlot === '' ? 0 : Number(rawSlot);
     if (!(Number.isInteger(slot) && slot >= 0 && slot <= 5)) throw new HttpsError('invalid-argument', 'Bad promise slot.');
@@ -1228,6 +1230,7 @@ async function callAction({ db, auth, data, nowMs }) {
       const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
       const prev = await taskRef.get();
       const old = prev.exists ? (prev.data() || {}) : null;
+      if (slot && old) throw new HttpsError('failed-precondition', 'That promise is already on the customer.');
       const doc = Object.assign({}, built, {
         leadId, userId: lead.userId || call.userId || OWNER,
         title: built.text, createdBy: 'Promise capture', phoneCallId: id, updatedAt: FieldValue.serverTimestamp(),

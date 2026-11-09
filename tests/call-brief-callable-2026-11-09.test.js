@@ -315,9 +315,14 @@ async function decide(db, auth, data) {
     ok('…a second summary accept does not add another (append-only, once)', sm2.e && sm2.e.code === 'failed-precondition' && /again/.test(db.store.get('leads/L1/activity/callbrief-' + CALL_ID).text) === false);
     const pr = await decide(db, OWNER, { item: 'promise:0', decision: 'accept', value: 'estimate 2026-11-06' });
     ok('a promise decision is logged only (the promise itself goes through callCenterAction)', pr.r && pr.r.written === false);
+    const pr1 = await decide(db, OWNER, { item: 'promise:0', decision: 'accept', value: 'estimate 2026-11-06', slot: 2 });
+    const lastD = (db.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0];
+    ok('a promise decision records the slot it went to (1-5)', pr1.r && lastD.slot === 2, lastD);
+    const pr5 = await decide(db, OWNER, { item: 'promise:5', decision: 'accept' });
+    ok('promise:5 is not an item (a brief carries five promises, 0-4)', pr5.e && pr5.e.code === 'invalid-argument');
     const stored = db.store.get('leads/L1/call_briefs/' + CALL_ID);
     const ds = stored.decisions || [];
-    ok('decisions are appended: item, AI value, final value, decidedBy, time', ds.length >= 6 && ds.every((d) => d.item && d.decision && d.decidedBy === 'jo' && typeof d.atMs === 'number')
+    ok('decisions are appended: item, AI value, final value, decidedBy, time', ds.length >= 7 && ds.every((d) => d.item && d.decision && d.decidedBy === 'jo' && typeof d.atMs === 'number')
       && ds.some((d) => d.item === 'field:claimNumber' && d.aiValue === 'H44729' && d.finalValue === 'H44729-A'), ds);
     ok('refused decisions are not logged as made', !ds.some((d) => d.item === 'field:adjusterName'));
     const before = ds.length;

@@ -118,8 +118,27 @@ const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (x && typeof x === '
     ok('a slot > 0 never retires the generic cube- task', db2.docs.get('leads/L1/tasks/cube-' + ID).done === false);
     ok('…but every promise marks the call handled', db2.docs.get(COLLECTION + '/' + ID).handledAtMs === NOW);
     ok('…and a call with no slot-0 promise yet points at the slot it has', db2.docs.get(COLLECTION + '/' + ID).promiseTaskId === 'promise-' + ID + '-2');
-    await run(db2, { id: ID, action: 'promise', kind: 'callback', why: 'Call with a new time', slot: 2 });
-    ok('the same slot again edits that promise (one task)', /new time/.test(db2.docs.get('leads/L1/tasks/promise-' + ID + '-2').text));
+    // Review 2026-11-09 #1/#10: a slot > 0 is create-only. It never edits or
+    // reopens a task already there (only slot 0, the card's Promise button,
+    // edits in place), so a brief Add can never replace a promise.
+    const again = await run(db2, { id: ID, action: 'promise', kind: 'waiting', waitingOn: 'customer', why: 'Call with a new time', slot: 2 });
+    ok('the same slot again is refused (create-only), the task untouched', again.e && again.e.code === 'failed-precondition' && /already on the customer/.test(again.e.message)
+      && !/new time/.test(db2.docs.get('leads/L1/tasks/promise-' + ID + '-2').text) && db2.docs.get('leads/L1/tasks/promise-' + ID + '-2').promiseKind === 'callback', JSON.stringify(again.e && again.e.message));
+    const doneSeed = seed();
+    doneSeed['leads/L1/tasks/promise-' + ID + '-1'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back - done one', done: true, completedAt: 'x', outcome: 'kept' };
+    const db3 = fakeDb(doneSeed);
+    const reopen = await run(db3, { id: ID, action: 'promise', kind: 'waiting', waitingOn: 'customer', why: 'Adjuster report', slot: 1 });
+    const t1 = db3.docs.get('leads/L1/tasks/promise-' + ID + '-1');
+    ok('a done slot-1 promise is never reopened or replaced', reopen.e && t1.done === true && t1.outcome === 'kept' && t1.promiseKind === 'callback');
+    // Jo's own promise (slot 0, from the card), done, then a brief Add on slot 1.
+    const jo = seed();
+    jo['leads/L1/tasks/promise-' + ID] = { kind: 'promise', promiseKind: 'callback', text: 'Call back - Fri', why: 'Fri', done: true, completedAt: 'x', outcome: 'kept' };
+    jo[COLLECTION + '/' + ID] = Object.assign({}, jo[COLLECTION + '/' + ID], { promiseTaskId: 'promise-' + ID, promiseKind: 'callback', handledAtMs: 1 });
+    const db4 = fakeDb(jo);
+    const r4 = await run(db4, { id: ID, action: 'promise', kind: 'waiting', waitingOn: 'customer', why: 'Waiting on adjuster report', slot: 1 });
+    const t0 = db4.docs.get('leads/L1/tasks/promise-' + ID);
+    ok('an existing (done) slot-0 promise stays as Jo left it when a brief adds slot 1', r4.r && t0.done === true && t0.outcome === 'kept' && t0.promiseKind === 'callback' && t0.why === 'Fri', JSON.stringify(t0));
+    ok('…and the call still points at Jo\'s promise', db4.docs.get(COLLECTION + '/' + ID).promiseTaskId === 'promise-' + ID);
     for (const bad of [6, -1, 1.5, 'x', 99]) {
       const r = await run(fakeDb(seed()), { id: ID, action: 'promise', kind: 'callback', slot: bad });
       ok('slot ' + JSON.stringify(bad) + ' → invalid-argument', r.e && r.e.code === 'invalid-argument');

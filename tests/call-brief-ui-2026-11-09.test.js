@@ -36,7 +36,8 @@ function ok(name, cond, detail) {
   else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail !== undefined ? ' — ' + (typeof detail === 'string' ? detail.slice(0, 300) : JSON.stringify(detail)) : '')); }
 }
 
-function load() {
+function load(opts) {
+  const o = opts || {};
   const listeners = {};
   const dlgEl = {
     className: '', innerHTML: '', open: false, attrs: {},
@@ -49,7 +50,7 @@ function load() {
   const calls = [];
   const win = {
     ScriptLoader: { load: async () => {}, loadBundle: async () => {} },
-    _functions: {}, _httpsCallable: (_f, name) => async (data) => { calls.push({ name, data }); return { data: name === 'callCenterAction' ? { ok: true, dueDate: data.dueYmd || '2026-11-06' } : { ok: true } }; },
+    _functions: {}, _httpsCallable: (_f, name) => async (data) => { calls.push({ name, data }); if (o.fail) { const e = o.fail(name, data); if (e) throw e; } return { data: name === 'callCenterAction' ? { ok: true, dueDate: data.dueYmd || '2026-11-06' } : { ok: true } }; },
     auth: { currentUser: { uid: 'jo' } },
   };
   const ctx = vm.createContext({ window: win, document: { createElement: () => dlgEl, body, querySelector: () => null }, console, setTimeout, Date, Event: function () {} });
@@ -207,7 +208,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
       await new Promise((r) => setTimeout(r, 5));
     };
     await click({ 'data-cb-act': 'promise', 'data-i': '1' });
-    ok('Add asks first ("It marks the call handled"), nothing sent yet', /It marks the call handled/.test(dlg.innerHTML) && calls.length === 0);
+    ok('Add asks first ("…marks the call handled"), nothing sent yet', /marks the call handled/.test(dlg.innerHTML) && calls.length === 0);
     await click({ 'data-cb-act': 'promise-yes', 'data-i': '1' });
     const p = calls.find((c) => c.name === 'callCenterAction');
     ok('confirm → callCenterAction promise with slot 1, waiting on the customer', p && p.data.action === 'promise' && p.data.slot === 1 && p.data.kind === 'waiting' && p.data.waitingOn === 'customer' && p.data.id === 'cube_ABCDE12345', p);
@@ -223,6 +224,48 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     await click({ 'data-cb-act': 'accept', 'data-k': 'adjusterName' });
     const d2 = calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'field:adjusterName');
     ok('a field with no warning accepts on one tap, without the acknowledgement', d2 && d2.data.confirmedInsurance === false);
+  }
+
+  console.log('\n9. Brief promises never touch slot 0 (review 2026-11-09 #1/#10)');
+  {
+    const mkClick = (listeners) => async (attrs) => {
+      const b = { disabled: false, getAttribute: (k) => (k in attrs ? attrs[k] : null), closest: () => b };
+      for (const fn of listeners.click) fn({ target: b });
+      await new Promise((r) => setTimeout(r, 5));
+    };
+    const slots = (calls) => calls.filter((c) => c.name === 'callCenterAction').map((c) => c.data.slot);
+    {
+      const { CB, calls, listeners, dlg } = load();
+      CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+      const click = mkClick(listeners);
+      await click({ 'data-cb-act': 'promise', 'data-i': '0' });
+      ok('the confirm says it adds a new task and never changes a promise already on the customer', /adds a new task/.test(dlg.innerHTML) && /never changes/.test(dlg.innerHTML));
+      await click({ 'data-cb-act': 'promise-yes', 'data-i': '0' });
+      await click({ 'data-cb-act': 'promise', 'data-i': '1' });
+      await click({ 'data-cb-act': 'promise-yes', 'data-i': '1' });
+      ok('the brief\'s first promise goes to slot 1, the next to slot 2 (slot 0 is the card\'s Promise button)', JSON.stringify(slots(calls)) === '[1,2]', slots(calls));
+      const logged = calls.filter((c) => c.name === 'callBriefDecide' && /^promise:/.test(c.data.item)).map((c) => c.data.slot);
+      ok('…and each decision records its slot', JSON.stringify(logged) === '[1,2]', logged);
+    }
+    {
+      const { CB, calls, listeners } = load();
+      CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer',
+        decisions: [{ item: 'promise:0', decision: 'accept', slot: 1, gen: 1 }] });
+      const click = mkClick(listeners);
+      await click({ 'data-cb-act': 'promise', 'data-i': '1' });
+      await click({ 'data-cb-act': 'promise-yes', 'data-i': '1' });
+      ok('a slot used by an earlier Add (any brief) is skipped', JSON.stringify(slots(calls)) === '[2]', slots(calls));
+    }
+    {
+      const taken = new Set([1]);
+      const { CB, calls, listeners, dlg } = load({ fail: (name, data) => (name === 'callCenterAction' && taken.has(data.slot) ? new Error('That promise is already on the customer.') : null) });
+      CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+      const click = mkClick(listeners);
+      await click({ 'data-cb-act': 'promise', 'data-i': '0' });
+      await click({ 'data-cb-act': 'promise-yes', 'data-i': '0' });
+      ok('a slot the server says is taken → the next free slot, never an overwrite', JSON.stringify(slots(calls)) === '[1,2]' && /cb-done/.test(dlg.innerHTML), slots(calls));
+    }
+    ok('the sheet never sends slot: i (the brief index)', !/slot: i\b/.test(SRC));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
