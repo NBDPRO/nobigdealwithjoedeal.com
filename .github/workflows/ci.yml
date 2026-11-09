@@ -1439,6 +1439,12 @@ jobs:
         run: |
           cd tests
           node ds-quick-wins-2026-11-09.test.js
+      # The Daily Success flow batch (UX audit M8, M9, M14, M15): back button stays in the app, one honest sync chip, the rest-timer
+      # bar that survives a closed coach and a reload, the foundation tokens. Same server, same Chromium.
+      - name: Run the Daily Success flow batch check
+        run: |
+          cd tests
+          node ds-flow-batch-2-2026-11-09.test.js
       # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
       # the "This Week" tiles populate on a first visit, the sample estimates show
       # an address / squares / sent / signed, the Door-to-Door tab labels stay

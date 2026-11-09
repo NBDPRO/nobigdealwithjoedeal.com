@@ -204,8 +204,9 @@
       '<div class="wc-foot"><button class="btn wc-finish" data-rv-action="save">Save review</button>' +
       '<button class="btn btn-ghost" data-rv-action="copy">Copy scorecard</button></div></div>';
     el.classList.add('open'); document.body.classList.add('wc-lock');
+    if (window.NBDNav) window.NBDNav.opened('review', close);
   }
-  function close() { const el = document.getElementById('rvOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
+  function close() { if (window.NBDNav) window.NBDNav.closed('review'); const el = document.getElementById('rvOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
 
   const val = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
   function collect() {

@@ -157,14 +157,17 @@ function mkPage(dk){const suf=pages.filter(p=>p.dk===dk).length+1;return{id:Date
 const _dsSnap=new Map();
 const DS_TOMB='nbd_dsp_tomb';
 function loadPages(){try{pages=JSON.parse(localStorage.getItem(STORE))||[];}catch{pages=[];}if(window.NBDDsSync)window.NBDDsSync.seedSnapshots(pages,_dsSnap);if(!pages.length){pages=[mkPage(todayKey())];savePages();}}
-function savePages(){if(window.NBDDsSync)window.NBDDsSync.stampChanged(pages,_dsSnap,Date.now());localStorage.setItem(STORE,JSON.stringify(pages));}
+// Returns true when the phone took the write. A full or blocked storage (private mode, quota) used to throw out of every caller; now it
+// says so once in the red toast and returns false (audit M9).
+let _saveErrAt=0;
+function savePages(){try{if(window.NBDDsSync)window.NBDDsSync.stampChanged(pages,_dsSnap,Date.now());localStorage.setItem(STORE,JSON.stringify(pages));return true;}catch(e){if(Date.now()-_saveErrAt>5000){_saveErrAt=Date.now();toastErr('Could not save on this device. Free some space or leave private mode.');}return false;}}
 // A deleted page is remembered until the cloud has been told, or the next
 // sign-in's merge would bring it straight back.
 function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'[]');if(!t.includes(String(id)))t.push(String(id));localStorage.setItem(DS_TOMB,JSON.stringify(t));}catch(e){}}
 // Settings + goal targets sync to userSettings/{uid} (ds-firebase-sync.js);
 // the *_at stamp lets the newer copy win across devices.
 function dsSettingsChanged(key){try{localStorage.setItem(key+'_at',String(Date.now()));}catch(e){}if(window.NBDDsCloud&&typeof window.NBDDsCloud.pushSettings==='function')window.NBDDsCloud.pushSettings();}
-function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();toast('New page created');}
+function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();toast('New page created');}
 function triggerDel(idx){idx=idx??cur;if(!pages[idx]){toast('Open a day first');return;}if(pages.length<=1){toast('Cannot delete the only page');return;}_di=idx;document.getElementById('mDelMsg').textContent=`Delete "${tlbl(pages[idx])}"? This cannot be undone.`;openM('mDel');}
 function doDelete(){closeM('mDel');const i=_di??cur;const gone=pages[i];if(gone)dsTombstone(gone.id);_dsSnap.delete(String(gone&&gone.id));pages.splice(i,1);savePages();cur=Math.min(i>0?i-1:0,pages.length-1);renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();toast('Page deleted');}
 function openRename(){if(cur<0||!pages[cur]){toast('Open a day first');return;}document.getElementById('renInp').value=pages[cur].name||'';openM('mRen');setTimeout(()=>document.getElementById('renInp').focus(),80);}
@@ -174,8 +177,8 @@ function applyRen(){pages[cur].name=document.getElementById('renInp').value.trim
 // the background or the page is hidden. The 30 s timer and the SAVE button stay as they were.
 let _saveT=null;
 function flushDirty(){clearTimeout(_saveT);_saveT=null;if(!dirty||cur<0)return;if(collectPage(true)){syncToWidgetKeys();markSaved();}}
-function markDirty(){clearTimeout(_saveT);_saveT=setTimeout(flushDirty,800);if(dirty)return;dirty=true;const e=document.getElementById('sdot');e.textContent='● UNSAVED';e.className='sdot dirty';}
-function markSaved(){dirty=false;const e=document.getElementById('sdot');e.textContent='● SAVED';e.className='sdot ok';}
+function markDirty(){clearTimeout(_saveT);_saveT=setTimeout(flushDirty,800);if(dirty)return;dirty=true;if(window.NBDSyncChip&&window.NBDSyncChip.setDirty)window.NBDSyncChip.setDirty(true);else{const e=document.getElementById('sdot');e.textContent='● UNSAVED';e.className='sdot dirty';}}
+function markSaved(){dirty=false;if(window.NBDSyncChip&&window.NBDSyncChip.setDirty)window.NBDSyncChip.setDirty(false);else{const e=document.getElementById('sdot');e.textContent='● SAVED';e.className='sdot ok';}}
 function collectPage(silent){
 // Only collect from the page that is ON SCREEN. After a cloud sync the
 // dashboard was shown while `cur` still pointed at a page, and the next tab
@@ -200,7 +203,7 @@ const key=_shownKey=viewKey(),top=_scrollMemo[key]||0;_userMoved=false;window.sc
 [0,250].forEach(ms=>setTimeout(()=>{if(_shownKey===key&&!_userMoved&&Math.abs((window.scrollY||0)-top)>2)window.scrollTo({top:top,behavior:'auto'});},ms));
 }
 function dsRefreshView(){if(cur>=pages.length)cur=pages.length-1;renderTabs();if(cur===-1)renderDash();else renderPage();}
-function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();}
+function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();}
 
 function renderTabs(){
 // Notebook (2026-10-25): the row is Dash · Today · the open page · Notebook (n) · +, never one tab per page. Every page is filed
@@ -993,8 +996,10 @@ window.toggleFloor=toggleFloorPatched;
 // Patch collectPage to sync widget keys after save
 const _origCollectPage=collectPage;
 function collectPagePatched(silent){
-_origCollectPage(silent);
+// Return the original's result: flushDirty() and the 30 s timer mark the page saved only when a collect happened (the chip said UNSAVED forever without it).
+const r=_origCollectPage(silent);
 syncToWidgetKeys();
+return r;
 }
 window.collectPage=collectPagePatched;
 

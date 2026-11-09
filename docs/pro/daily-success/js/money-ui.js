@@ -103,8 +103,8 @@
       '<div class="wc-lbl">Your plan</div><div id="mnPlan">' + planHtml(_draft) + '</div>' +
       '<div class="wc-foot"><button class="btn wc-finish" data-mn-action="save">Save</button><button class="btn btn-ghost" data-mn-action="close">Cancel</button></div></div>';
   }
-  function open() { if (!M()) return; _draft = load(); paint(); const el = sheet(); el.classList.add('open'); document.body.classList.add('wc-lock'); }
-  function close() { const el = document.getElementById('mnOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); _draft = null; }
+  function open() { if (!M()) return; _draft = load(); paint(); const el = sheet(); el.classList.add('open'); document.body.classList.add('wc-lock'); if (window.NBDNav) window.NBDNav.opened('money', close); }
+  function close() { if (window.NBDNav) window.NBDNav.closed('money'); const el = document.getElementById('mnOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); _draft = null; }
 
   function setField(field, i, el) {
     const d = _draft; if (!d) return;
