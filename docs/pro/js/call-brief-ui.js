@@ -345,6 +345,13 @@
     var orders = typeof C.tenantStageOrders === 'function' ? C.tenantStageOrders(cp && cp.pipelines) : [];
     return C.stagePlan(st, currentStage(), orders);
   }
+  // The reason as the end of "…, because …": an ordinary first word goes
+  // lower case; a name ("Joe looked…"), "I" or an acronym keeps its capital.
+  var PLAIN_START = /^(the|a|an|they|he|she|it|we|you|there|this|that|these|those|their|his|her|its|our|your|both|customer|homeowner|caller|owner|insurance|adjuster|roof|after|before|since|when|on|in)\b/i;
+  function becauseText(reason) {
+    var r = String(reason).trim().replace(/\.$/, '');
+    return PLAIN_START.test(r) && !/^[A-Z]{2}/.test(r) ? r.charAt(0).toLowerCase() + r.slice(1) : r;
+  }
   function renderStage() {
     var st = S.brief && S.brief.stage;
     if (!st) return '';
@@ -370,7 +377,7 @@
       body = '<div class="cb-meta">' + esc(plan.why) + '</div><div class="cb-acts">' + btn('Move to ' + st.label + '…', 'stage-ask') + picker + '</div>';
     }
     return '<div class="cb-sec" role="group" aria-labelledby="cbStageH"><h3 class="cb-sec-title" id="cbStageH">Stage</h3><div class="cb-card">' +
-      '<div class="cb-diff">Suggests: <strong>' + to + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote, st.unsure === true) +
+      '<div class="cb-diff">Suggests: <strong>' + to + '</strong>' + (st.reason ? ', because ' + esc(becauseText(st.reason)) : '') + '</div>' + quoteHtml(st.quote, st.unsure === true) +
       body + statusFor('stage-move') + '</div></div>';
   }
 

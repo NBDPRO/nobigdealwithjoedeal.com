@@ -410,6 +410,19 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       ok('a job stage (a stored brief from before the lock) never moves', h.moves.length === 0 && !/data-cb-act="stage-(move|ask)"/.test(h.CB._render()));
     }
     {
+      // P0 lower-cased the reason's first letter, so a name read 'because joe …'.
+      const h = load({ page: 'customer' });
+      show(h, Object.assign({}, CONTACTED, { reason: 'Joe looked at the roof.' }), 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('the reason keeps a name\'s capital: "because Joe looked at the roof"', /, because Joe looked at the roof</.test(h.CB._render()), (h.CB._render().match(/because[^<]*/) || [''])[0]);
+      show(h, Object.assign({}, CONTACTED, { reason: 'They called back.' }), 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('…and still reads as one sentence for an ordinary first word: "because they called back"', /, because they called back</.test(h.CB._render()));
+      show(h, Object.assign({}, CONTACTED, { reason: 'I spoke with them.' }), 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('…"I" stays a capital', /, because I spoke with them</.test(h.CB._render()));
+    }
+    {
       const h = load({ page: 'customer' });
       h.win._currentStage = 'contacted';
       show(h, CONTACTED, 'customer');
