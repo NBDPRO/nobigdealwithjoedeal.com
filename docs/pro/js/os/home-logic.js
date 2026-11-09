@@ -486,9 +486,13 @@
     var w = isObj(v) ? { phone: cleanWp(v.phone), desk: cleanWp(v.desk) } : null;
     return w && (w.phone || w.desk) ? w : null;
   }
-  /** One act from its stored copy (or the preset when there is none), fields in a fixed order. */
+  /**
+   * One act from its stored copy (or the preset when there is none), fields in a fixed order.
+   * Its focus is always the preset's: no member edits a mode's focus, and a stored or pasted
+   * one (Copy my setup) must never drop "In a home"'s privacy or give another mode one.
+   */
   function cleanAct(p, r) {
-    var a = { id: p.id, name: cleanName(r ? r.name : null, p.name), focus: cleanFocus(r && isObj(r.focus) ? r.focus : p.focus) };
+    var a = { id: p.id, name: cleanName(r ? r.name : null, p.name), focus: cleanFocus(p.focus) };
     SURFACES.forEach(function (s) {
       var l = r ? cleanActList(r[s], s === 'desk') : (p[s] ? cleanActList(p[s], s === 'desk') : null);
       if (l) a[s] = l;

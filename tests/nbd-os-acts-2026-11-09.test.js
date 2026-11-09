@@ -66,7 +66,7 @@ console.log('\n2. normalize keeps acts and on, and only clean ones');
   ok('a name is trimmed, control characters out, whitespace folded', k.acts[1].name === 'At the kitchen table', J(k.acts[1].name));
   ok('an empty name falls back to the preset name', k.acts[0].name === 'Canvassing');
   ok('a long name is cut to 24 characters', k.acts[2].name.length === H.ACT_NAME_MAX && H.ACT_NAME_MAX === 24);
-  ok('focus keeps only known values (an unknown phase is dropped)', J(k.acts[1].focus) === J({ privacy: true }) && J(k.acts[0].focus) === J({ phase: 'build' }), J(k.acts.map((a) => a.focus)));
+  ok('focus is the preset\'s whatever is stored (no member can edit it; a paste cannot drop "In a home"\'s privacy)', J(k.acts.map((a) => a.focus)) === J(H.ACT_PRESETS.map((p) => p.focus)), J(k.acts.map((a) => a.focus)));
   ok('a mode\'s phone list is cleaned like a home (unknown widgets dropped)', J(k.acts[1].phone) === J([{ id: 'glance', s: 'l' }]), J(k.acts[1].phone));
   ok('a list that is not a list is no list (the mode shows your home)', !('phone' in k.acts[2]), J(k.acts[2]));
   ok('a mode\'s desk list gets board cells', k.acts[3].desk.length === 2 && k.acts[3].desk.every((it) => typeof it.x === 'number' && typeof it.y === 'number'), J(k.acts[3].desk));

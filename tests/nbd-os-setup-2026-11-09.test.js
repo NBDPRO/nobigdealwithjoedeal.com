@@ -137,6 +137,27 @@ console.log('\n3. hostile or broken text is refused, and nothing in it survives'
   ok('…what it writes fits the os-home budget and the registry keeps it', max.length < 12000 && !!(R && R.normalizeUser({ layoutState: { 'os-home': SU.merge({}, r.home, {}) } }).layoutState['os-home']), max.length);
 }
 
+console.log('\n3b. a paste never changes what a mode does (its focus is the preset\'s)');
+{
+  const pre = (id) => HL.ACT_PRESETS.find((a) => a.id === id).focus;
+  const strip = { nbd: 'nbd-os-setup', v: 1, home: { acts: [
+    { id: 'inhome', name: 'In a home', focus: {}, phone: [{ id: 'nearby', s: 'l' }, { id: 'teamboard', s: 'l' }] },
+    { id: 'canvass', name: 'Canvassing', focus: { privacy: false, phase: 'collect' } },
+    { id: 'storm', name: 'Storm day', focus: { privacy: true, phase: 'build' } },
+    { id: 'office', name: 'Office', focus: 'x' },
+  ] } };
+  const r = SU.parse(J(strip));
+  const by = (h, id) => h.acts.find((a) => a.id === id);
+  ok('a paste that empties "In a home"\'s focus still parses, with privacy kept on', r.ok && J(by(r.home, 'inhome').focus) === J({ privacy: true }), J(r.home && r.home.acts));
+  ok('…no other mode gets privacy or a phase it does not have', ['canvass', 'storm', 'office'].every((id) => J(by(r.home, id).focus) === J(pre(id))), J(r.home && r.home.acts.map((a) => a.focus)));
+  const own = { v: 1, on: { phone: 'inhome', desk: null } };
+  const next = SU.merge(own, r.home, {});
+  const on = HL.activeAct(next, 'phone');
+  ok('after Use this setup, "In a home" is still the privacy mode (money and team widgets hidden)', on && on.focus.privacy === true && HL.actHides(on.focus, 'teamboard') === HL.actHides({ privacy: true }, 'teamboard'), J(on));
+  ok('…and every mode\'s focus is the preset\'s', HL.actsOf(next).every((a) => J(a.focus) === J(pre(a.id))), J(HL.actsOf(next).map((a) => a.focus)));
+  ok('…even merged straight from an unparsed home', HL.actsOf(SU.merge(own, strip.home, {})).every((a) => J(a.focus) === J(pre(a.id))));
+}
+
 console.log('\n4. the company lock wins');
 {
   const p = SU.parse(SU.exportText(HL.resolveHome({ own: MINE }), MINE));
