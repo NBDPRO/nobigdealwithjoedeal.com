@@ -618,6 +618,7 @@
   }
   function onPocketKey(ev) {
     if (!WM.pocketKey || !WM.pocketKey(ev)) return;
+    if (doc.documentElement.classList.contains('os-locked')) return;   // the lock screen hides the desk (os/system.js)
     ev.preventDefault();
     pocket();
   }

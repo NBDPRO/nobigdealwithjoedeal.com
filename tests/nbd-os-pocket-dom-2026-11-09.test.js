@@ -169,6 +169,19 @@ function typeKeep(T, s) {
     key(T.dom, T.document.body, '`', { code: 'Backquote' });
     await flush();
     ok('Ctrl+Alt+` and a bare ` do nothing', loads(T) === 0 && !pocketEl(T));
+    // the lock screen (os/system.js, html.os-locked) hides the desk: Alt+` on its own buttons
+    // must not open a Pocket under display:none that reappears after unlock
+    const lockBtn = T.document.createElement('button');
+    T.document.body.appendChild(lockBtn);
+    lockBtn.focus();
+    T.document.documentElement.classList.add('os-locked');
+    const lk = key(T.dom, lockBtn, '`', ALT);
+    await flush();
+    ok('locked: Alt+` on the lock screen opens nothing and takes no key', loads(T) === 0 && !pocketEl(T) && lk.defaultPrevented === false);
+    T.document.documentElement.classList.remove('os-locked');
+    key(T.dom, lockBtn, '`', ALT);
+    await flush();
+    ok('...and works again once unlocked', !!pocketEl(T));
   });
 
   console.log('\n4. keep, delete, undo: this device only, per user, escaped');
