@@ -311,6 +311,8 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     ok('small, idle: a native length picker (30 / 60 / 90, 60 picked) and one Start', !!sel && sel.getAttribute('aria-label') === 'Block length'
       && J(sel.querySelectorAll('option').map((x) => x.getAttribute('value'))) === J(['30', '60', '90']) && sel.querySelectorAll('option')[1].hasAttribute('selected')
       && !!m.card().querySelector('[data-oshw-focus="start"]'), text(m.card()));
+    ok('small: Start reads as itself after the labelled picker (no aria-label hiding the length)', !m.card().querySelector('[data-oshw-focus="start"]').hasAttribute('aria-label')
+      && text(m.card().querySelector('[data-oshw-focus="start"]')) === 'Start');
     sel.value = '30';
     click(m.T.dom, m.card().querySelector('[data-oshw-focus="start"]'));
     await settle();

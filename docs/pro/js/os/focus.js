@@ -258,7 +258,7 @@
       // three 44px buttons don't fit a narrow small card: a native length picker and one Start
       return '<div class="os-fb-go"><select class="os-fb-sel" aria-label="Block length">' + FL.LENGTHS.map(function (m) {
         return '<option value="' + m + '"' + (m === PICK ? ' selected' : '') + '>' + esc(m + ' min') + '</option>';
-      }).join('') + '</select><button type="button" class="btn btn-ghost os-hw-btn os-fb-start" data-oshw-focus="start" aria-label="Start the knock block">Start</button></div>';
+      }).join('') + '</select><button type="button" class="btn btn-ghost os-hw-btn os-fb-start" data-oshw-focus="start">Start</button></div>';
     }
     return '<div class="os-fb-go" role="group" aria-label="Start a knock block">' + FL.LENGTHS.map(function (m) {
       return '<button type="button" class="btn btn-ghost os-hw-btn os-fb-len" data-oshw-focus="start:' + m + '" aria-label="' +
