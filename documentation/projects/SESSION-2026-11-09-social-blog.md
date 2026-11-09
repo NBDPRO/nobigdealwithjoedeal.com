@@ -49,12 +49,38 @@ so each post waits for Jo's read in its own draft PR.
 
 ## Tests
 
-- `tests/social-consent-blog-2026-11-09.test.js` (node bucket, 42 checks). Written first and run red (the missing
+- `tests/social-consent-blog-2026-11-09.test.js` (node bucket, 58 checks after the review fixes). Written first and run red (the missing
   helpers, the Tuesday pick going to the newer unconsented job, no blog drafts), then green. Covers consent and
   ranking, feed parsing against a fixture and against the committed `docs/feed.xml`, which posts get shared, the
   draft shape, the plan slot, and the server loader (NBD only, dead feed, dedupe), which runs when functions deps are
   installed.
+- `tests/firestore-rules.test.js` §50: four `blogUrl` checks (emulator).
 - FLOORS 1044/74/1185 to 1045/74/1186.
+
+## Review fixes (2026-11-09, same day)
+
+A review round found three things; all fixed test-first (13 new checks red, then green; the rules checks red 3/57
+on the old rules, then 57/57).
+
+1. **X cut the link off blog drafts.** The caption put the link last and X's 280-character cut took it: 25 of the 31
+   posts in `docs/feed.xml` lost the link on X. `blogCaption(post, platform, hashtags)` now builds the caption to fit
+   the platform with its hashtags: the description goes first, then the title is shortened on a word with an
+   ellipsis; the link and hashtags are never cut. `planWeeks` fits each platform's caption separately. A new
+   `blogLinkBlocker` refuses a `blog_post` whose final message (caption + hashtags, as the platform gets it) lacks
+   the full link: the draft builder and planWeeks drop such a row, and `socialApprovePost` refuses to approve one
+   (so an edit that deletes the link is caught too). Tests check every real feed post on every text platform.
+2. **Who can set `projectConsent` is a rules question.** The first version of the `hasProjectConsent` comment said
+   "set only by the owner or an admin". That is true only with the consent-tick lane's rule
+   (`projectConsentWriteOk()` in `firestore.rules`, branch `project-consent-draft`, with its own emulator suite
+   `tests/firestore-rules.project-consent.test.js` that refuses a manager, a rep and a viewer). On this branch
+   alone, any staff member with lead update rights could set it and move a job up the picker and the Tuesday
+   showcase. It only changes order here (eligibility is unchanged, Jo approves each post), but **the integration PR
+   must carry both branches together**, and anything that later treats the tick as consent (project pages) must not
+   ship without that rule. The comment now says so.
+3. **`blogUrl` is server-set and frozen** in `social_posts` rules (create refuses it, update cannot change it), so a
+   client cannot forge a share that suppresses a post. The dedupe no longer reads `kind == blog_post` with an
+   unordered `limit(500)` (which could miss an old share once there were 500); it asks only about the candidate URLs
+   (`blogUrl in [...]`, at most 30, single-field index).
 
 ## Assumptions
 
