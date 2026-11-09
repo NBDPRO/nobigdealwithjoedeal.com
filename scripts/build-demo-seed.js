@@ -43,7 +43,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 10; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt); 10 = two leads called this morning (lastContactedAt), one with no follow-up (NBD OS Shutdown)
+const SEED_VERSION = 11; // 2 = wave 2 (brand, business rules, line items, photos); 3 = wave 3 (D2D, storm, Agent inbox); 4 = wave 4 (invoices, payments, production); 5 = tool pages (AI Usage); 6 = Success Tracker sample week; 7 = the Home game card on, with an avatar; 8 = the owner's Roof Rep row (character wave 22); 9 = sample estimates in the builders' field shape (addr, sq, roofType, tierName, sentAt, signedAt); 10 = two leads called this morning (lastContactedAt), one with no follow-up (NBD OS Shutdown); 11 = the team's leaderboard rows (NBD OS P2 Team: the owner's Team widget, the Leaderboard page)
 const DEPOSIT_RULE = path.join(ROOT, 'docs', 'pro', 'js', 'deposit-rule.js');
 const KY_LAW = path.join(ROOT, 'docs', 'pro', 'js', 'ky-insurance-law.js');
 const BASEMAP = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'basemap.js');
@@ -123,12 +123,25 @@ function build() {
     badges: { ladder: 1, tools: 1 }, name: owner, companyId: UID, at: ts(-1), isSample: true,
     avatar: { skin: 1, hair: 'curly', hairColor: 1, eyes: 'happy', hat: 'cap', hatColor: 2, beard: 'none', shirt: 2, top: 'hoodie', vest: 'none', eyeColor: 1, build: 'regular' },
   });
+  // The team's leaderboard rows (2026-11-09, NBD OS P2 Team): what functions/leaderboard-aggregate.js writes every
+  // 30 minutes, so the owner's Team widget and the Leaderboard page show a team with no network. The two teammates
+  // are invented (Example / Placeholder names) and exist only here; dayKey/weekKey resolve to today, so the rows
+  // always read as current (team-board-logic.js compares the week by its Monday). Counts only, no money.
+  const lbRow = (uid, name, today, week) => ({
+    companyId: UID, uid, name, tz: 'America/New_York', tzSet: true, dayKey: date(0), weekKey: date(0),
+    today: { doors: today[0], appts: today[1], estimates: today[2], deals: today[3] },
+    week: { doors: week[0], appts: week[1], estimates: week[2], deals: week[3] }, isSample: true,
+  });
+  add('leaderboard/' + UID, lbRow(UID, owner, [6, 1, 1, 0], [31, 4, 3, 1]));
+  add('leaderboard/sample-rep-riley', lbRow('sample-rep-riley', 'Riley Example', [11, 2, 1, 1], [42, 6, 4, 2]));
+  add('leaderboard/sample-rep-jordan', lbRow('sample-rep-jordan', 'Jordan Placeholder', [3, 0, 0, 0], [18, 2, 1, 0]));
   add('subscriptions/' + UID, { plan: 'growth', status: 'active', isSample: true, currentPeriodEnd: ts(25) });
   add('companies/' + UID, {
     name: S.company, ownerId: UID, ownerUid: UID, plan: 'growth', seatLimit: 5, isSample: true, createdAt: ts(-120)
   });
   add('companies/' + UID + '/members/' + UID, { uid: UID, role: 'company_admin', displayName: owner, email: 'owner@sample-roofing.example', status: 'active', joinedAt: ts(-120) });
   add('companyProfile/' + UID, {
+    timeZone: 'America/New_York',   // NBD OS P2: Settings > Company Profile > Time zone shows it set
     companyName: S.company, companyId: UID, ownerName: owner, phone: '(859) 555-0100', email: 'office@sample-roofing.example',
     address: '100 Sample Way, Fort Thomas, KY 41075', serviceStates: ['KY', 'OH'], website: '', docPrefix: 'SMP',
     displayName: S.company, legalName: S.company + ' (sample)',
