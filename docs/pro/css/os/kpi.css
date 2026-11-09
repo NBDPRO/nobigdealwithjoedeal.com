@@ -3,8 +3,11 @@
    tokens only; no motion. Floors: no text under 11px, 44px targets (the number is
    an .os-hw-row button, Pick / Change view are .os-hw-btn). The card itself is
    .os-hw (home.css); the picker is the Add widget sheet's <dialog> (.os-hw-add). */
-.os-hw .os-kpi-big { flex-direction: column; align-items: flex-start; justify-content: center; min-height: 44px; gap: 0; }
+.os-hw .os-kpi-big, .os-hw.is-m .os-kpi-big { flex-direction: column; align-items: flex-start; justify-content: center; min-height: 44px; gap: 0; }
 .os-kpi-n { font-size: var(--ui-fs-display, 28px); font-weight: 700; line-height: 1.1; color: var(--t); font-variant-numeric: tabular-nums; }
 .os-kpi-l { font-size: var(--ui-fs-caption, 12px); color: var(--m); }
 .os-hw .os-kpi-pick, .os-hw .os-kpi-change { align-self: flex-start; }
 .os-hw-kpi .os-hw-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* edit mode: View, the size chip and Remove (three 44px chips) fit a phone's narrowest S tile (146px at 320) */
+.os-hw-kpi.is-s .os-hw-edit { gap: 2px; margin-left: -8px; margin-right: -8px; }
+.os-hw .os-kpi-ed { padding: 0 var(--ui-space-1, 4px); }

@@ -850,7 +850,7 @@
       var nx = HL.resize(cur, i, 0);
       var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
       return (c.stack ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="cards" aria-haspopup="dialog" aria-label="' + esc('Cards in ' + c.title) + '">Cards</button>' : '') +
-        (c.cfgId ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="kpiview" aria-haspopup="dialog" aria-label="' + esc(['Which view ', c.title, ' counts'].join('')) + '">View</button>' : '') +
+        (c.cfgId ? '<button type="button" class="os-hw-ed os-kpi-ed" data-oshw-ed="kpiview" aria-haspopup="dialog" aria-label="' + esc(['Which view ', c.title, ' counts'].join('')) + '">View</button>' : '') +
         '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
         '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>' +
         // the laptop corner grip: a pointer-only convenience (Shift+arrows and the chip are the other paths)

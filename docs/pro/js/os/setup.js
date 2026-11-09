@@ -47,17 +47,17 @@
     d.innerHTML =
       '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="osSuTitle">Copy my setup</h2>' +
         '<button type="button" class="btn btn-ghost os-hw-add-close" data-ossu="close">Close</button></div>' +
-      '<section class="os-su-part" aria-labelledby="osSuCopyT"><h3 class="os-hw-add-gt" id="osSuCopyT">Copy</h3>' +
+      '<div class="os-su-part" role="group" aria-labelledby="osSuCopyT"><h3 class="os-hw-add-gt" id="osSuCopyT">Copy</h3>' +
         '<p class="os-su-p">Your widgets, where they sit and their sizes, your wallpaper choices and your modes, as text. No customer, lead or money data.</p>' +
         '<label class="os-su-label" for="osSuOut">Your setup</label>' +
         '<textarea class="os-su-text" id="osSuOut" rows="3" readonly spellcheck="false">' + esc(text) + '</textarea>' +
         '<div class="os-su-row"><button type="button" class="btn btn-ghost os-hw-btn" data-ossu="copy">Copy text</button>' +
-        '<p class="os-su-status" role="status" aria-live="polite" data-ossu-copied=""></p></div></section>' +
-      '<section class="os-su-part" aria-labelledby="osSuPasteT"><h3 class="os-hw-add-gt" id="osSuPasteT">Paste a setup</h3>' +
+        '<p class="os-su-status" role="status" aria-live="polite" data-ossu-copied=""></p></div></div>' +
+      '<div class="os-su-part" role="group" aria-labelledby="osSuPasteT"><h3 class="os-hw-add-gt" id="osSuPasteT">Paste a setup</h3>' +
         '<label class="os-su-label" for="osSuIn">Paste a setup copied on another device or by a teammate</label>' +
         '<textarea class="os-su-text" id="osSuIn" rows="3" spellcheck="false" autocomplete="off"></textarea>' +
         '<div class="os-su-row"><button type="button" class="btn btn-ghost os-hw-btn" data-ossu="check">Check it</button></div>' +
-        '<div class="os-su-preview" data-ossu-preview="" aria-live="polite"></div></section>';
+        '<div class="os-su-preview" data-ossu-preview="" aria-live="polite"></div></div>';
     var out = d.querySelector('#osSuOut'), inp = d.querySelector('#osSuIn');
     var copied = d.querySelector('[data-ossu-copied]'), prev = d.querySelector('[data-ossu-preview]');
 
