@@ -8,8 +8,10 @@
  * those two tokens. The hue is My Skin's own accentFromSample; the checks are
  * My Skin's contrast() / accentCheck(), over the picture as My Skin's dim guard
  * (effectiveDim) veils it. The wash is accepted only if every text-on-surface
- * pair stays >= 4.5:1; otherwise there is no wash and the theme's own tokens
- * stay (a fallback, never a "nearly" colour).
+ * pair stays >= 4.5:1 (--t and --m always; every other theme colour that met
+ * 4.5:1, or the 3:1 UI floor, on a ground keeps meeting it there); otherwise
+ * there is no wash and the theme's own tokens stay (a fallback, never a
+ * "nearly" colour).
  *
  * No DOM, no clock, no storage, no network. L is NBDMySkinLogic (passed in, so
  * this file needs no My Skin at load time and tests can require both).
@@ -22,7 +24,8 @@
  *                   and the member's own toggle not off (default on).
  *   avgOf(sample)   the mean colour of a 32x32 RGBA sample, '#rrggbb' or null
  *   surfaceTint(tok, sample, L, opts)
- *                   tok: the theme's { s, s2, t, m, bg, accent } as '#rrggbb';
+ *                   tok: the theme's { s, s2, t, m, bg, accent } as '#rrggbb',
+ *                   plus more: [ '#rrggbb' ] its other colours (red, green, ...);
  *                   opts: { dim } the veil My Skin chose for this picture.
  *                   -> { ok:true, s, s2, hue, share, min } or { ok:false, why }
  */
@@ -32,12 +35,16 @@
   // The wash, strongest first: the first share that keeps every pair readable wins.
   var SHARES = [0.3, 0.2, 0.12, 0.06];
   var MIN = 4.5;        // text on a surface (WCAG AA body text)
+  var UI_MIN = 3;       // a non-text mark on a surface (WCAG 1.4.11)
   var GLASS = 0.88;     // home.css / os.css: a widget is --s at 88% over the wallpaper
   var HOVER = 0.7;      // a row's hover: --s2 at 70%
   var DIM_DEFAULT = 0.55, DIM_MAX = 0.85;
 
   function isHex(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/.test(v); }
   function hex2(n) { var x = Math.max(0, Math.min(255, Math.round(n))).toString(16); return x.length < 2 ? '0' + x : x; }
+
+  /** The line a pair may not fall below once washed: the highest of 4.5 / 3 it met before (none under 3). */
+  function keepOf(before) { return before >= MIN ? MIN : before >= UI_MIN ? UI_MIN : 0; }
 
   function rgbOf(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
 
@@ -75,6 +82,10 @@
     var hh = rgbOf(hue), hs = L.rgbToHsl(hh[0], hh[1], hh[2]);
     function at(base) { var b = rgbOf(base); return L.hslToHex(hs[0], hs[1], L.rgbToHsl(b[0], b[1], b[2])[2]); }
     var wS = at(t.s), wS2 = at(t.s2);
+    // every other theme colour (the accent, red, green, ...) on the theme's own grounds, before any wash
+    var more = [t.accent].concat(Array.isArray(t.more) ? t.more : []).filter(isHex);
+    var grounds0 = [t.s, t.s2, L.mixHex(t.s, behind, GLASS), L.mixHex(t.s2, behind, HOVER)];
+    var keep = more.map(function (fg) { return grounds0.map(function (g0) { return keepOf(L.contrast(fg, g0)); }); });
     for (var i = 0; i < SHARES.length; i++) {
       var share = SHARES[i];
       var s = L.mixHex(t.s, wS, 1 - share), s2 = L.mixHex(t.s2, wS2, 1 - share);
@@ -82,6 +93,10 @@
       var min = Infinity;
       grounds.forEach(function (gr) { [t.t, t.m].forEach(function (fg) { min = Math.min(min, L.contrast(fg, gr)); }); });
       if (min < MIN) continue;
+      var held = more.every(function (fg, j) {
+        return grounds.every(function (gr, k) { return L.contrast(fg, gr) >= keep[j][k] - 1e-9; });
+      });
+      if (!held) continue;
       if (acc0 != null) {
         var acc = L.accentCheck(t.accent, s).ui;
         if (!(acc >= Math.min(3, acc0) - 1e-9)) continue;
@@ -91,7 +106,7 @@
     return { ok: false, why: 'contrast' };
   }
 
-  var api = { SHARES: SHARES, MIN: MIN, GLASS: GLASS, HOVER: HOVER, allowed: allowed, avgOf: avgOf, surfaceTint: surfaceTint };
+  var api = { SHARES: SHARES, MIN: MIN, UI_MIN: UI_MIN, GLASS: GLASS, HOVER: HOVER, allowed: allowed, avgOf: avgOf, surfaceTint: surfaceTint };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSWallpaperLogic = api;
 })(typeof window !== 'undefined' ? window : null);

@@ -64,7 +64,8 @@ function themes() {
   while ((m = re.exec(css))) {
     const v = {};
     m[2].split(';').forEach((p) => { const i = p.indexOf(':'); if (i > 0) v[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
-    out.push({ id: m[1], tok: { s: L.toHex(v['--s']), s2: L.toHex(v['--s2']), t: L.toHex(v['--t']), m: L.toHex(v['--m']), bg: L.toHex(v['--bg']), accent: L.toHex(v['--orange']) } });
+    out.push({ id: m[1], tok: { s: L.toHex(v['--s']), s2: L.toHex(v['--s2']), t: L.toHex(v['--t']), m: L.toHex(v['--m']), bg: L.toHex(v['--bg']), accent: L.toHex(v['--orange']),
+      more: ['--red', '--green', '--gold', '--blue', '--purple'].map((k) => L.toHex(v[k] || '')).filter(Boolean) } });
   }
   return out.filter((t) => ['s', 's2', 't', 'm', 'bg'].every((k) => t.tok[k]));
 }
@@ -76,7 +77,8 @@ function photo(seed) {   // a busy picture: two colour fields and noise
   for (let i = 0; i < 1024; i++) { const c = (i % 32) < 16 ? c1 : c2; a.push(...c.map((v) => Math.max(0, Math.min(255, Math.round(v + (r() - 0.5) * 60)))), 255); }
   return a;
 }
-const PICS = [flat(40, 90, 200), flat(40, 160, 70), flat(230, 120, 40), flat(220, 60, 160), flat(250, 250, 250), flat(5, 5, 5)];
+const PICS = [flat(40, 90, 200), flat(40, 160, 70), flat(230, 120, 40), flat(220, 60, 160), flat(250, 250, 250), flat(5, 5, 5),
+  flat(200, 40, 40), flat(60, 200, 200), flat(120, 60, 200)];
 for (let i = 1; i <= 24; i++) PICS.push(photo(i * 7919));
 
 (async () => {
@@ -100,6 +102,16 @@ for (let i = 1; i <= 24; i++) PICS.push(photo(i * 7919));
           const grounds = [r.s, r.s2, L.mixHex(r.s, behind, 0.88), L.mixHex(r.s2, behind, 0.7)];
           const min = Math.min(...grounds.map((g) => Math.min(L.contrast(th.tok.t, g), L.contrast(th.tok.m, g))));
           if (min < 4.5) bad.push(th.id + '/' + pi + '/' + dim + ' min ' + min.toFixed(2));
+          // every other theme colour (the accent, red, green, gold, blue, purple): a pair at
+          // 4.5:1 or better on a ground stays there, and one at the 3:1 UI floor stays at it
+          const grounds0 = [th.tok.s, th.tok.s2, L.mixHex(th.tok.s, behind, 0.88), L.mixHex(th.tok.s2, behind, 0.7)];
+          [th.tok.accent].concat(th.tok.more).filter(Boolean).forEach((fg) => {
+            grounds0.forEach((g0, gi) => {
+              const before = L.contrast(fg, g0), after = L.contrast(fg, grounds[gi]);
+              const keep = before >= 4.5 ? 4.5 : before >= 3 ? 3 : 0;
+              if (after < keep - 1e-9) bad.push(th.id + '/' + pi + '/' + dim + ' ' + fg + ' on ground ' + gi + ' ' + before.toFixed(2) + '->' + after.toFixed(2));
+            });
+          });
           if (th.tok.accent) {
             const a0 = L.accentCheck(th.tok.accent, th.tok.s).ui, a1 = L.accentCheck(th.tok.accent, r.s).ui;
             if (a1 < Math.min(3, a0) - 1e-9) bad.push(th.id + '/' + pi + ' accent ' + a0.toFixed(2) + '->' + a1.toFixed(2));
@@ -108,7 +120,7 @@ for (let i = 1; i <= 24; i++) PICS.push(photo(i * 7919));
         });
       });
     });
-    ok('no accepted wash puts --t or --m under 4.5:1 on any ground, nor lets the accent blend in further (' + accepted + ' accepted, ' + refused + ' fell back)', bad.length === 0, bad.slice(0, 8).join('; '));
+    ok('no accepted wash puts --t or --m under 4.5:1 on any ground, drops another theme colour below a 4.5:1 or 3:1 line it met, nor lets the accent blend in further (' + accepted + ' accepted, ' + refused + ' fell back)', bad.length === 0, bad.slice(0, 8).join('; '));
     ok('the guard is not vacuous: it accepts some and refuses some', accepted > 100 && refused > 100, accepted + '/' + refused);
     const nbdTheme = TH.filter((t) => t.id === 'nbd-original')[0];
     const r = P.surfaceTint(nbdTheme.tok, PICS[0], L, { dim: 0.6 });

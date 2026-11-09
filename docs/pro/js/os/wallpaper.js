@@ -104,6 +104,8 @@
     [['s', '--s'], ['s2', '--s2'], ['t', '--t'], ['m', '--m'], ['bg', '--bg'], ['accent', '--orange']].forEach(function (p) {
       tok[p[0]] = L.toHex(String(cs.getPropertyValue(p[1]) || ''));
     });
+    // the theme's other colours: a wash may not push one that read on --s / --s2 below its line
+    tok.more = ['--red', '--green', '--gold', '--blue', '--purple'].map(function (k) { return L.toHex(String(cs.getPropertyValue(k) || '')); }).filter(Boolean);
     return tok;
   }
   function wash(h) {
