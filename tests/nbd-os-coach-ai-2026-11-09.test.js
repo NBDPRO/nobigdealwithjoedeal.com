@@ -11,7 +11,9 @@
  *      a "Today's focus (AI)" button sits above the top rule; NO call on paint
  *   3. one tap = one call, carrying rule ids and whole numbers only (a tenant
  *      stage name never leaves); the line shows above the rules, escaped, and
- *      is kept for the day (no second call); tomorrow it can be asked again
+ *      is kept for the page only (no second call; never on the device, so the
+ *      server's kill switch can pull it back at a reload); tomorrow it can be
+ *      asked again
  *   4. no line (checked / capped / off) = nothing for the day; a failed call
  *      offers Try again
  *   5. the owner's switch: in edit mode for an owner / company_admin only,
@@ -105,7 +107,7 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('read cost 0 so far', T.reads.length === 0, J(T.reads));
   }
 
-  console.log('\n3. one tap, one call, counts only; kept for the day');
+  console.log('\n3. one tap, one call, counts only; the line kept for the page, no line for the day');
   {
     click(T.dom, card(T).querySelector('[data-oshw-coach="ai"]'));
     ok('while it waits: "Finding today\'s focus…" (a status line)', /Finding today's focus/.test(text(card(T))) && !!card(T).querySelector('.os-hw-ai-busy[role="status"]'));
@@ -123,23 +125,38 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     const kids = card(T).querySelector('.os-hw-body').children.filter((c) => c.attrs);
     ok('…above the top rule, and the rules list still stands', kids.indexOf(line) < kids.indexOf(card(T).querySelector('.os-hw-coach-line')) && card(T).querySelectorAll('.os-hw-coach-more li').length >= 1);
     ok('no button any more today', !card(T).querySelector('[data-oshw-coach="ai"]'));
-    const kept = JSON.parse(T.store.nbd_os_coach_ai || 'null');
-    ok('kept for the day on this device (nbd_os_coach_ai: day, uid, line)', kept && kept.d === DK && kept.u === 'u1' && /missed calls/.test(kept.line), T.store.nbd_os_coach_ai);
+    // review fix (2026-11-09): the line is kept for this page only, never on the device, so an operator's
+    // kill switch (checked by the server before its day cache) pulls it back at the next reload
+    ok('the line is NOT written to the device (nothing in nbd_os_coach_ai)', !T.store.nbd_os_coach_ai, T.store.nbd_os_coach_ai);
     T.W.dispatchEvent(new T.W.CustomEvent('nbd:data-refreshed'));
     ok('a repaint shows the kept line with no second call', T.calls.length === 1 && /Call back the missed calls/.test(text(card(T))));
-    // a fresh mount the same day (reload): from the device copy, no call
-    const R = setup({ store: { nbd_os_coach_ai: T.store.nbd_os_coach_ai } });
+    // a fresh mount the same day (reload): the button again; a tap re-reads the server's day cache
+    const R = setup({ store: { nbd_os_coach_ai: J({ d: DK, u: 'u1', line: 'An old device copy of a line.' }) } });
     await tick(); await tick();
-    ok('after a reload the same day: the kept line, no call', /Call back the missed calls/.test(text(card(R))) && R.calls.length === 0);
-    const O = setup({ store: { nbd_os_coach_ai: J(Object.assign({}, kept, { u: 'someone-else' })) } });
+    ok('after a reload: no line from a device copy, the button is back, no call on paint', !/old device copy/.test(text(card(R))) && !!card(R).querySelector('[data-oshw-coach="ai"]') && R.calls.length === 0, text(card(R)));
+    R.answer = { line: 'Call back the missed calls first.', cached: true };
+    click(R.dom, card(R).querySelector('[data-oshw-coach="ai"]'));
     await tick(); await tick();
-    ok('another user\'s line on this device never shows', !/Call back the missed calls/.test(text(card(O))) && !!card(O).querySelector('[data-oshw-coach="ai"]'));
-    const Y = setup({ store: { nbd_os_coach_ai: J(Object.assign({}, kept, { d: '2026-11-08' })) } });
+    ok('…a tap gets the server\'s cached line (one call, no model spend on the server)', R.calls.length === 1 && /Call back the missed calls first/.test(text(card(R))));
+    const K = setup();
     await tick(); await tick();
-    ok('yesterday\'s line is gone: the button is back', !/Call back the missed calls/.test(text(card(Y))) && !!card(Y).querySelector('[data-oshw-coach="ai"]'));
-    const N = setup({ profile: { coachAiEnabled: false }, store: { nbd_os_coach_ai: T.store.nbd_os_coach_ai } });
+    K.answer = { line: null, cached: false, reason: 'unavailable' };
+    click(K.dom, card(K).querySelector('[data-oshw-coach="ai"]'));
     await tick(); await tick();
-    ok('the company turned it off: even today\'s kept line hides', !card(N).querySelector('.os-hw-ai'));
+    ok('the kill switch on (reason unavailable) → no line and no button for the day', !card(K).querySelector('.os-hw-ai, [data-oshw-coach="ai"]') && JSON.parse(K.store.nbd_os_coach_ai).none === true);
+    const noneToday = K.store.nbd_os_coach_ai;
+    const S = setup({ store: { nbd_os_coach_ai: noneToday } });
+    await tick(); await tick();
+    ok('…kept as none on the device for the day (a reload shows no button)', !card(S).querySelector('[data-oshw-coach="ai"]'));
+    const O = setup({ store: { nbd_os_coach_ai: J(Object.assign({}, JSON.parse(noneToday), { u: 'someone-else' })) } });
+    await tick(); await tick();
+    ok('another user\'s none on this device never applies', !!card(O).querySelector('[data-oshw-coach="ai"]'));
+    const Y = setup({ store: { nbd_os_coach_ai: J(Object.assign({}, JSON.parse(noneToday), { d: '2026-11-08' })) } });
+    await tick(); await tick();
+    ok('yesterday\'s none is gone: the button is back', !!card(Y).querySelector('[data-oshw-coach="ai"]'));
+    const N = setup({ profile: { coachAiEnabled: false } });
+    await tick(); await tick();
+    ok('the company turned it off: no AI markup', !card(N).querySelector('.os-hw-ai, [data-oshw-coach="ai"]'));
   }
 
   console.log('\n3b. an M Coach on the phone: 2 rows have no room for it while rules wait behind More');

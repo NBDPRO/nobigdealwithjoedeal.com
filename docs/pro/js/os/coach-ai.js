@@ -6,9 +6,12 @@
  * an owner or company_admin turns it on in edit mode's team controls) and the
  * rules Coach has something to say. Never on paint: the rep taps "Today's focus"
  * once, the coachLine callable (functions/coach-line.js) answers with one
- * sentence or with no line, and the answer is kept for the day on this device
- * (localStorage nbd_os_coach_ai: { d: day key, u: uid, line } or { d, u, none };
- * an nbd_ key, wiped at sign-out). What is sent is the rules' counted evidence
+ * sentence or with no line. The line is kept for this page only (memory), never
+ * on the device: after a reload a tap re-reads the server's day cache (no model
+ * call), which checks the AI kill switches first, so an operator can pull a line
+ * back the same day. "No line" is kept for the day on this device (localStorage
+ * nbd_os_coach_ai: { d: day key, u: uid, none }; an nbd_ key, wiped at sign-out).
+ * What is sent is the rules' counted evidence
  * only: rule ids and whole numbers, no names, no text (the server drops anything
  * else too). A failed call can be tried again; "no line" is final for the day.
  *
@@ -29,7 +32,7 @@
 
   var KEY = 'nbd_os_coach_ai';
   var IDS = /^[a-z-]{1,24}$/;
-  var busy = false, failed = false;
+  var busy = false, failed = false, mem = null;   // mem: { d, u, line }, this page's line
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -40,15 +43,16 @@
     var HL = W.NBDOSHomeLogic;
     return HL && typeof HL.dayKey === 'function' ? HL.dayKey(Date.now()) : '';
   }
-  /** Today's answer for this user on this device, or null. */
+  function mine(v) { return !!v && typeof v === 'object' && !!v.d && v.d === dk() && v.u === uid(); }
+  /** Today's answer for this user: this page's line, or a "no line" kept on the device; else null. */
   function today() {
+    if (mine(mem)) return { line: mem.line };
     var v = null;
     try { v = JSON.parse(W.localStorage.getItem(KEY) || 'null'); } catch (e) { v = null; }
-    if (!v || typeof v !== 'object' || v.d !== dk() || !v.d || v.u !== uid()) return null;
-    if (typeof v.line === 'string' && v.line && v.line.length <= 200) return { line: v.line };
-    return v.none === true ? { none: true } : null;
+    return mine(v) && v.none === true ? { none: true } : null;
   }
   function keep(v) {
+    if (v.line) { mem = { d: dk(), u: uid(), line: v.line }; return; }
     try { W.localStorage.setItem(KEY, JSON.stringify(Object.assign({ d: dk(), u: uid() }, v))); } catch (e) {}
   }
   function on() {
