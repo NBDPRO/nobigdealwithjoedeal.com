@@ -25,6 +25,10 @@ const POINTER = 'The summary is on the customer\'s timeline.';
 
 // ── old-shape fixtures, written by hand (the strings the old writers wrote) ──
 const YOU_SAID = 'You said you would:\n• Send the PROMISESECRET quote (by 2026-11-12)\n• Call the adjuster';
+// What the call doc holds (call-center.js writes promises / summary /
+// followUpDate on it; the task was built from the same notes).
+const PROMISES = [{ who: 'jo', text: 'Send the PROMISESECRET quote', due: '2026-11-12' }, { who: 'customer', text: 'Send photos' }, { who: 'jo', text: 'Call the adjuster' }];
+const PAT = { contactName: 'NAMESECRET Pat', promises: PROMISES };
 const EX = T.sanitizeExtraction({ caller_name: 'NAMESECRET halina', callback_number: '5135559876', issue: 'ISSUESECRET shingles off', urgent: true, urgent_reason: 'URGENTSECRET tarp', insurance: { involved: 'yes', carrier: 'CARRIERSECRET', claim_filed: 'yes', claim_number: 'CLM-SECRET' } });
 const TCALL = { callId: 'CALLIDX9', from: '+15135559876', startedAt: '2026-11-01T14:00:00.000Z', summary: 'SUMMARYSECRET storm' };
 const EX2 = T.sanitizeExtraction({ caller_name: 'NAMESECRET bob', callback_number: '5135550000', issue: 'ISSUESECRET gutter', insurance: { involved: 'no' } });
@@ -37,14 +41,14 @@ function seed() {
     'leads/LEADIDX1': { companyId: 'co1', userId: 'u1' },
     'leads/LEADIDX2': { userId: 'solo1' },
     'leads/LEADIDX3': { companyId: 'co2', userId: 'u3' },
-    'phone_calls/CUBEIDX1': { contactName: 'NAMESECRET Pat' },
-    'phone_calls/CUBEIDX2': { contactName: 'NAMESECRET Pat' },
-    'phone_calls/CUBEIDX3': {},
-    'phone_calls/CUBEIDX4': { contactName: 'NAMESECRET Pat' },
-    'phone_calls/CUBEIDX5': { contactName: 'NAMESECRET Pat' },
-    'phone_calls/CUBEIDX6': { contactName: 'NAMESECRET Pat' },
-    'phone_calls/CUBEIDX7': { contactName: 'NAMESECRET Pat' },
-    'phone_text_days/TXTIDX1': { contactName: 'NAMESECRET Sam' },
+    'phone_calls/CUBEIDX1': PAT,
+    'phone_calls/CUBEIDX2': Object.assign({ summary: 'SUMMARYSECRET' }, PAT),
+    'phone_calls/CUBEIDX3': { promises: [{ who: 'jo', text: 'Order PROMISESECRET shingles' }] },
+    'phone_calls/CUBEIDX4': PAT,
+    'phone_calls/CUBEIDX5': Object.assign({ summary: 'SUMMARYSECRET' }, PAT),
+    'phone_calls/CUBEIDX6': { contactName: 'NAMESECRET Pat', promises: [], followUpDate: '2026-11-20' },
+    'phone_calls/CUBEIDX7': PAT,
+    'phone_text_days/TXTIDX1': { contactName: 'NAMESECRET Sam', promises: [{ who: 'jo', text: 'Text the PROMISESECRET photos', due: '2026-11-03' }] },
     'thursday_calls/bland_calls__CALLIDX9': { extraction: EX, call: TCALL, route: { action: 'create_lead' }, issue: EX.issue },
     'thursday_calls/bland_calls__CALLIDX8': { extraction: EX2, call: TCALL2, route: { action: 'attach' }, issue: EX2.issue, callNotes: OLD_LEAD_NOTES2 },
     'thursday_calls/bland_calls__CALLIDX7': { extraction: EX2, call: Object.assign({}, TCALL2, { callId: 'CALLIDX7' }), route: { action: 'attach' }, issue: 'ISSUESECRET something else' },
@@ -147,21 +151,33 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
 (async () => {
   // ── pure planners ──
   ok(S.POINTER === POINTER, 'POINTER is the writer\'s pointer line');
-  let pl = S.planFollowUp('cube', 'cube-CUBEIDX1', seed()[T1], { contactName: 'NAMESECRET Pat' });
+  let pl = S.planFollowUp('cube', 'cube-CUBEIDX1', seed()[T1], PAT);
   ok(pl.generic && pl.generic.title === 'Follow up with NAMESECRET Pat' && pl.generic.text === pl.generic.title && pl.generic.notes === '', 'cube: Follow up with <who>, notes drop the You said block -> ' + JSON.stringify(pl));
-  pl = S.planFollowUp('cube', 'cube-CUBEIDX2', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX2'], { contactName: 'NAMESECRET Pat' });
+  pl = S.planFollowUp('cube', 'cube-CUBEIDX2', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX2'], seed()['phone_calls/CUBEIDX2']);
   ok(pl.generic && pl.generic.notes === POINTER, 'cube with pointer: generic notes keep the pointer');
-  pl = S.planFollowUp('cube', 'cube-CUBEIDX3', seed()['leads/LEADIDX2/tasks/cube-CUBEIDX3'], {});
+  pl = S.planFollowUp('cube', 'cube-CUBEIDX3', seed()['leads/LEADIDX2/tasks/cube-CUBEIDX3'], seed()['phone_calls/CUBEIDX3']);
   ok(pl.generic && pl.generic.title === 'Follow up with customer', 'no contactName: the writer\'s "customer"');
   ok(S.planFollowUp('cube', 'cube-X', seed()[T1], null).skip === 'whoUnknown', 'call gone: whoUnknown');
-  ok(S.planFollowUp('cube', 'cube-X', seed()[T1], { contactName: 'Someone Else' }).skip === 'edited', 'contactName changed since: title no longer the server\'s -> edited');
-  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX4'], { contactName: 'NAMESECRET Pat' }).skip === 'edited', 'edited title: edited');
-  ok(S.planFollowUp('cube', 'cube-X', Object.assign({}, seed()[T1], { notes: YOU_SAID + '\n\nJo note' }), { contactName: 'NAMESECRET Pat' }).skip === 'edited', 'extra notes paragraph: edited');
-  ok(S.planFollowUp('cube', 'cube-X', Object.assign({}, seed()[T1], { text: 'other' }), { contactName: 'NAMESECRET Pat' }).skip === 'edited', 'text differs from title: edited');
-  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX5'], { contactName: 'NAMESECRET Pat' }).skip === 'needsSummaryScrub', 'Call: paragraph: summary scrub first');
-  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX6'], { contactName: 'NAMESECRET Pat' }).skip === 'alreadyGeneric', 'follow-up date only: already generic');
+  ok(S.planFollowUp('cube', 'cube-X', seed()[T1], Object.assign({}, PAT, { contactName: 'Someone Else' })).skip === 'edited', 'contactName changed since: title no longer the server\'s -> edited');
+  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX4'], PAT).skip === 'edited', 'edited title: edited');
+  ok(S.planFollowUp('cube', 'cube-X', Object.assign({}, seed()[T1], { notes: YOU_SAID + '\n\nJo note' }), PAT).skip === 'edited', 'extra notes paragraph: edited');
+  ok(S.planFollowUp('cube', 'cube-X', Object.assign({}, seed()[T1], { text: 'other' }), PAT).skip === 'edited', 'text differs from title: edited');
+  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX5'], PAT).skip === 'needsSummaryScrub', 'Call: paragraph: summary scrub first');
+  ok(S.planFollowUp('cube', 'cube-X', seed()['leads/LEADIDX1/tasks/cube-CUBEIDX6'], seed()['phone_calls/CUBEIDX6']).skip === 'alreadyGeneric', 'follow-up date only: already generic');
+  // An owner's edit inside the "You said you would" list (review 2026-11-09):
+  // the list is rebuilt from the call doc, not from the task's own bullets.
+  const t1n = (notes) => Object.assign({}, seed()[T1], { notes });
+  ok(S.planFollowUp('cube', 'cube-X', t1n(YOU_SAID.replace('• Call the adjuster', '• Call the adjuster -- Jo: gate code 4411')), PAT).skip === 'edited', 'a later bullet edited by hand: edited');
+  ok(S.planFollowUp('cube', 'cube-X', t1n(YOU_SAID + '\n• Jo added EDITSECRET'), PAT).skip === 'edited', 'a bullet added by hand: edited');
+  ok(S.planFollowUp('cube', 'cube-X', t1n(YOU_SAID.replace('(by 2026-11-12)', '(by 2026-11-30)')), PAT).skip === 'edited', 'the first bullet\'s due date changed: edited');
+  ok(S.planFollowUp('cube', 'cube-X', t1n('You said you would:\n• Send the PROMISESECRET quote (by 2026-11-12)'), PAT).skip === 'edited', 'a bullet removed: not what the server wrote, edited');
+  // promise-cleanup stamps keptAtMs after filing; a day of texts files only
+  // its open promises (text-inbox.js): both still match.
+  const kept = { contactName: 'NAMESECRET Pat', promises: [PROMISES[0], PROMISES[1], Object.assign({ keptAtMs: 5 }, PROMISES[2])] };
+  ok(S.planFollowUp('cube', 'cube-X', seed()[T1], kept).generic, 'a promise kept after filing: still the server\'s task');
+  ok(S.planFollowUp('sms', 'sms-X', t1n('You said you would:\n• Send the PROMISESECRET quote (by 2026-11-12)'), kept).generic, 'a day filed without its kept promise: matches');
   const byText = { title: 'Fix it (by Friday) (P)', text: 'Fix it (by Friday) (P)', notes: 'You said you would:\n• Fix it (by Friday)' };
-  ok(S.planFollowUp('sms', 'sms-X', byText, { contactName: 'P' }).generic, 'a promise text that itself ends "(by …)" still matches');
+  ok(S.planFollowUp('sms', 'sms-X', byText, { contactName: 'P', promises: [{ who: 'jo', text: 'Fix it (by Friday)' }] }).generic, 'a promise text that itself ends "(by …)" still matches');
   ok(S.planThursday(seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], seed()['thursday_calls/bland_calls__CALLIDX9']).generic.title === '🚨 URGENT — Call back NAMESECRET halina', 'thursday: cut at " — <issue>"');
   ok(S.planThursday(seed()['leads/LEADIDX1/tasks/thursday-CALLIDX7'], seed()['thursday_calls/bland_calls__CALLIDX7']).skip === 'issueMismatch', 'thursday: issue not the title suffix -> issueMismatch');
   ok(S.planThursday(Object.assign({}, seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], { text: 'x' }), seed()['thursday_calls/bland_calls__CALLIDX9']).skip === 'edited', 'thursday: text edited -> edited');

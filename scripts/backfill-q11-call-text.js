@@ -15,8 +15,10 @@
  *   cube-<callId> / sms-<dayId>   title / text become "Follow up with <who>"
  *       (who: the phone_calls / phone_text_days doc's contactName, exactly as
  *       call-center-logic.js buildFollowUpTask computes it); the notes drop the
- *       "You said you would" block. A task whose call / text day is gone is
- *       skipped ("who unknown").
+ *       "You said you would" block. The task is rebuilt from the call doc's
+ *       promises / summary / followUpDate (what it was built from), so a
+ *       bullet an owner edited or added counts as an edit. A task whose call /
+ *       text day is gone is skipped ("who unknown").
  *   thursday-<callId>   title / text are cut at " — <issue>". The expected
  *       title is rebuilt with thursday-logic.js buildTask from the call doc's
  *       stored extraction, call and route, and its issue suffix must be the
@@ -24,7 +26,7 @@
  *   promise-<callId>[-n] with a why   text / title become
  *       promise-logic.js taskText(kind, '', waitingOn), why ''.
  * Each is changed only when the task still holds exactly what the server
- * wrote (rebuilt with the live writer from the task's own content); anything
+ * wrote (rebuilt with the live writer); anything
  * else is an owner's edit and is skipped ("edited"). The full text goes in
  * leads/{leadId}/task_call_text/{taskId} as { full, generic } through
  * task-call-text.js split / sideDoc (the shape the writers write), with
@@ -108,42 +110,36 @@ function sourcePathOf(kind, taskId) {
   return null;
 }
 
-/** The "You said you would" bullets parsed back to promises; two readings of the first when its text ends "(by …)". */
-function promiseReadings(block) {
-  const lines = block.split('\n');
-  if (lines[0] !== 'You said you would:' || lines.length < 2) return null;
-  const bullets = lines.slice(1);
-  if (!bullets.every((b) => b.startsWith('• ') && b.length > 2)) return null;
-  const parse = (b, split) => {
-    const t = b.slice(2);
-    const m = split ? /^(.*) \(by ([^()]*)\)$/.exec(t) : null;
-    return m ? { who: 'jo', text: m[1], due: m[2] } : { who: 'jo', text: t };
-  };
-  const rest = bullets.slice(1).map((b) => parse(b, true));
-  return [true, false].map((s) => [parse(bullets[0], s)].concat(rest));
-}
+/**
+ * The notes a cube-/sms- task was built from, as call-center.js noteOf()
+ * reads them off the phone_calls / phone_text_days doc (the notes pass
+ * writes summary / promises / followUpDate / urgent there).
+ */
+const notesOf = (src, promises) => ({ summary: src.summary || '', promises, followUpDate: src.followUpDate || null, urgent: !!src.urgent });
 
 /**
  * A cube-/sms- task: { generic } or { skip: reason }. src is the phone_calls /
- * phone_text_days doc (null when gone).
+ * phone_text_days doc (null when gone). The task is rebuilt with the live
+ * writer from the call doc, never from the task's own notes, so a bullet an
+ * owner edited or added is an edit (review 2026-11-09). Two promise lists are
+ * tried: every promise (call-center.js) and those not kept (text-inbox.js
+ * files only open ones; promise-cleanup stamps keptAtMs after filing).
  */
 function planFollowUp(kind, taskId, data, src) {
   if (!src) return { skip: 'whoUnknown' };
   const notes = typeof data.notes === 'string' ? data.notes : '';
-  const paras = notes ? notes.split('\n\n') : [];
-  if (paras.some((p) => /^Call: /.test(p))) return { skip: 'needsSummaryScrub' };
-  const hasPointer = paras.includes(POINTER);
-  const rest = paras.filter((p) => p !== POINTER);
-  if (rest.length > 1) return { skip: 'edited' };
-  const readings = rest.length ? promiseReadings(rest[0]) : [[]];
-  if (!readings) return { skip: 'edited' };
+  if (notes.split('\n\n').some((p) => /^Call: /.test(p))) return { skip: 'needsSummaryScrub' };
   const id = String(taskId).slice(kind.length + 1);
-  for (const promises of readings) {
-    const n = { promises, summary: hasPointer ? 'x' : '', followUpDate: promises.length ? null : 'x', urgent: false };
-    const args = { notes: n, leadId: 'x', ownerUid: 'x', todayYmd: 'x' };
-    const built = kind === 'sms'
-      ? L.buildTextDayTask(Object.assign({ day: { id, contactName: src.contactName } }, args))
-      : L.buildFollowUpTask(Object.assign({ call: { id, contactName: src.contactName } }, args));
+  const all = (Array.isArray(src.promises) ? src.promises : []).filter((p) => p && typeof p === 'object');
+  const open = all.filter((p) => !p.keptAtMs);
+  for (const promises of open.length === all.length ? [all] : [all, open]) {
+    const args = { notes: notesOf(src, promises), leadId: 'x', ownerUid: 'x', todayYmd: 'x' };
+    let built = null;
+    try {
+      built = kind === 'sms'
+        ? L.buildTextDayTask(Object.assign({ day: { id, contactName: src.contactName } }, args))
+        : L.buildFollowUpTask(Object.assign({ call: { id, contactName: src.contactName } }, args));
+    } catch (_) { built = null; }
     if (!built) continue;
     const full = Object.assign({ title: built.title, text: built.text, notes: built.notes }, built.callTextFull ? built.callTextFull.full : {});
     if (data.title !== full.title || data.text !== full.text || notes !== full.notes) continue;
