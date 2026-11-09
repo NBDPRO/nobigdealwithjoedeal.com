@@ -89,10 +89,10 @@ const SERVER_TS = { __ts: true };
   const w = calls[calls.length - 1].body.writes[0];
   ok(/:commit$/.test(calls[calls.length - 1].url) && w.update.fields.autoBrief.booleanValue === true && !w.update.fields.updatedAt, 'set: fields without the sentinel');
   ok(w.updateMask.fieldPaths.join() === 'autoBrief' && w.updateTransforms[0].fieldPath === 'updatedAt' && w.updateTransforms[0].setToServerValue === 'REQUEST_TIME', 'merge mask + server timestamp transform');
-  await rdb.doc('catalogCosts/c1').update(new R.FieldPath('xactCosts', 'RFG DRPE-AL', 'materialCost'), 0.77);
+  await rdb.doc('catalogCosts/c1').update(new R.FieldPath('xactCosts', 'TEST ITEM-X', 'materialCost'), 1.25);
   const u = calls[calls.length - 1].body.writes[0];
-  ok(u.updateMask.fieldPaths[0] === 'xactCosts.`RFG DRPE-AL`.materialCost', 'field path with a space is backtick-quoted');
-  ok(u.update.fields.xactCosts.mapValue.fields['RFG DRPE-AL'].mapValue.fields.materialCost.doubleValue === 0.77, 'nested update value');
+  ok(u.updateMask.fieldPaths[0] === 'xactCosts.`TEST ITEM-X`.materialCost', 'field path with a space is backtick-quoted');
+  ok(u.update.fields.xactCosts.mapValue.fields['TEST ITEM-X'].mapValue.fields.materialCost.doubleValue === 1.25, 'nested update value');
   ok(u.currentDocument && u.currentDocument.exists === true, 'update requires the doc to exist');
 
   console.log(pass + ' passed, ' + fail + ' failed');
