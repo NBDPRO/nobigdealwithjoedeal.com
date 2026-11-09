@@ -25,6 +25,11 @@
  * 'Updated', is the last run), and deletes the row of anyone no longer an
  * active member.
  *
+ * Time budget: companies run four at a time; a run stops starting companies 4
+ * minutes in (timeoutSeconds 300), keeps where it stopped in
+ * system/leaderboardAggregate { cursor }, and the next run resumes after it and
+ * wraps round, so no company is silently left out of a large tenant set.
+ *
  * Gate: LEADERBOARD_AGGREGATE_ENABLED=true. Anything else computes and LOGS
  * counts only and writes nothing (the page and widget then show their own
  * fallback / empty state).
@@ -37,6 +42,8 @@ const jobsLogic = require('./jobs-logic');
 
 const enabled = () => process.env.LEADERBOARD_AGGREGATE_ENABLED === 'true';
 const MAX_MEMBERS = 50;
+const STATE_DOC = 'system/leaderboardAggregate';
+const BUDGET_MS = 240000;  // stop starting companies 4 minutes in (timeoutSeconds 300); the next run resumes
 const CAP = 2000;          // knocks / leads per member per week: far above one rep's week
 
 const all = (snap) => { const out = []; snap.forEach((d) => out.push(Object.assign({ id: d.id }, d.data()))); return out; };
@@ -127,26 +134,49 @@ async function runCompany(db, companyId, company, nowMs, live, out) {
   }
 }
 
-async function runAggregate({ db, nowMs, live }) {
-  const out = { companies: 0, written: 0, unchanged: 0, removed: 0, wouldWrite: 0, wouldRemove: 0, failed: 0 };
-  let cursor = null;
-  // page the companies by id (a single limit(500) read would skip company 501+)
-  for (;;) {
-    let q = db.collection('companies').orderBy(FieldPath.documentId()).limit(500);
-    if (cursor) q = q.startAfter(cursor);
-    const cs = await q.get();
-    if (cs.empty) break;
-    cursor = cs.docs[cs.docs.length - 1];
-    for (const d of cs.docs) {
-      out.companies++;
-      try {
-        await runCompany(db, d.id, d.data() || {}, nowMs, live, out);
-      } catch (e) {
-        out.failed++;
-        logger.warn('[leaderboardAggregate] company failed', { msg: e && e.message });
-      }
+/**
+ * Every company, in id order, starting after `startAfter` (the cursor a run that ran out of
+ * time left) and wrapping round to the start, so a large tenant set is counted across runs
+ * instead of the companies past a timeout never being counted. Companies run `concurrency`
+ * at a time; before each group the clock is checked against `deadlineMs`, and an
+ * out-of-time run stops with partial:true and next = the last company it finished.
+ */
+async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = Infinity, clock = Date.now, concurrency = 4 }) {
+  const out = { companies: 0, written: 0, unchanged: 0, removed: 0, wouldWrite: 0, wouldRemove: 0, failed: 0, partial: false, next: null };
+  const one = async (d) => {
+    out.companies++;
+    try {
+      await runCompany(db, d.id, d.data() || {}, nowMs, live, out);
+    } catch (e) {
+      out.failed++;
+      logger.warn('[leaderboardAggregate] company failed', { msg: e && e.message });
     }
-    if (cs.docs.length < 500) break;
+  };
+  const width = Math.max(1, concurrency | 0);
+  let last = null;
+  // pass 1: after the cursor to the end; pass 2 (a resumed run): the start up to the cursor
+  const passes = startAfter ? [{ after: String(startAfter), until: null }, { after: null, until: String(startAfter) }] : [{ after: null, until: null }];
+  for (const pass of passes) {
+    let cursor = null;
+    let first = true;
+    // page the companies by id (a single limit(500) read would skip company 501+)
+    for (;;) {
+      let q = db.collection('companies').orderBy(FieldPath.documentId()).limit(500);
+      if (cursor) q = q.startAfter(cursor);
+      else if (first && pass.after) q = q.startAfter(pass.after);
+      first = false;
+      const cs = await q.get();
+      if (cs.empty) break;
+      cursor = cs.docs[cs.docs.length - 1];
+      const docs = pass.until ? cs.docs.filter((d) => d.id <= pass.until) : cs.docs;
+      for (let i = 0; i < docs.length; i += width) {
+        if (clock() >= deadlineMs) { out.partial = true; out.next = last; return out; }
+        const group = docs.slice(i, i + width);
+        await Promise.all(group.map(one));
+        last = group[group.length - 1].id;
+      }
+      if (cs.docs.length < 500 || docs.length < cs.docs.length) break;
+    }
   }
   return out;
 }
@@ -156,7 +186,13 @@ exports.leaderboardAggregate = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'America/New_York', maxInstances: 1, timeoutSeconds: 300, memory: '512MiB' },
   async () => {
     const live = enabled();
-    const r = await runAggregate({ db: getFirestore(), nowMs: Date.now(), live });
+    const db = getFirestore();
+    const start = Date.now();
+    // the resume cursor (server only: firestore.rules closes system/{doc} to every client)
+    const state = live ? ((await docData(db.doc(STATE_DOC)).catch(() => null)) || {}) : {};
+    const r = await runAggregate({ db, nowMs: start, live, startAfter: state.cursor || null, deadlineMs: start + BUDGET_MS });
+    if (live && (r.next || state.cursor)) await db.doc(STATE_DOC).set({ cursor: r.next || null, at: Date.now() });
+    if (r.partial) logger.warn('leaderboard_aggregate_partial', { next: r.next, companies: r.companies });
     logger.info(live ? 'leaderboard_aggregate_run' : 'leaderboard_aggregate_dry_run', r);
   },
 );

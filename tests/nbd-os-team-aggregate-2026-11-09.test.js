@@ -213,6 +213,25 @@ const has = (fn) => L && typeof L[fn] === 'function';
       await AGG.runAggregate({ db: fakeDb(solo), nowMs: now, live: true });
       ok('a plain solo owner (no other company) still gets their row', !!solo['leaderboard/u5'] && solo['leaderboard/u5'].companyId === 'u5', J(solo['leaderboard/u5']));
     }
+    {
+      // review 2026-11-09: a run that would outlast its timeout stops on a time budget and says where; the
+      // next run resumes after that company and wraps round, so no company is silently never counted.
+      const mk = () => { const st = {}; ['c1', 'c2', 'c3', 'c4', 'c5'].forEach((c, i) => { st['companies/' + c] = { ownerId: 'o' + (i + 1) }; }); return st; };
+      const st = mk();
+      const dbr = fakeDb(st);
+      let t = 0;
+      const clock = () => (t += 100);
+      const p1 = await AGG.runAggregate({ db: dbr, nowMs: now, live: true, clock, deadlineMs: 250, concurrency: 1 });
+      ok('out of time: stops after the companies it finished and names the next cursor', p1.companies === 2 && p1.partial === true && p1.next === 'c2' && !!st['leaderboard/o1'] && !!st['leaderboard/o2'] && !st['leaderboard/o3'], J(p1));
+      const p2 = await AGG.runAggregate({ db: dbr, nowMs: now, live: true, startAfter: 'c2' });
+      ok('the next run starts after the cursor and wraps round to the start: every company counted, cursor cleared',
+        p2.companies === 5 && p2.partial === false && p2.next === null && ['o1', 'o2', 'o3', 'o4', 'o5'].every((u) => !!st['leaderboard/' + u]), J(p2));
+      const order = dbr.queries.filter((q) => /^companies\/c\d\/members$/.test(q.coll)).slice(2).map((q) => q.coll.split('/')[1]);
+      ok('in that order: c3, c4, c5, then c1, c2', J(order) === J(['c3', 'c4', 'c5', 'c1', 'c2']), J(order));
+      const SRCX = read('functions/leaderboard-aggregate.js');
+      ok('the scheduled run keeps its cursor in system/leaderboardAggregate (server only) and budgets under its timeout',
+        /system\/leaderboardAggregate/.test(SRCX) && /deadlineMs:/.test(SRCX) && /timeoutSeconds: 300/.test(SRCX));
+    }
     ok('the reads are bounded: knocks and leads by userId from the week start, never a whole collection',
       db.queries.every((q) => q.coll !== 'knocks' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'createdAt' && w[1] === '>=')))
       && db.queries.every((q) => q.coll !== 'leads' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'updatedAt' && w[1] === '>='))), J(db.queries.slice(0, 6)));
@@ -262,7 +281,7 @@ function fakeDb(store) {
       where: (f, op, v) => coll(cp, Object.assign({}, q, { where: q.where.concat([[f, op, v]]) }), group),
       orderBy: (f, dir) => coll(cp, Object.assign({}, q, { order: [f, dir || 'asc'] }), group),
       limit: (n) => coll(cp, Object.assign({}, q, { lim: n }), group),
-      startAfter: (d) => coll(cp, Object.assign({}, q, { after: d && d.id }), group),
+      startAfter: (d) => coll(cp, Object.assign({}, q, { after: typeof d === 'string' ? d : d && d.id }), group),   // a snapshot, or the id itself (orderBy documentId)
       get: async () => {
         queries.push({ coll: cp, group: !!group, where: q.where.map((w) => [w[0], w[1]]) });
         const depth = cp.split('/').length + 1;
