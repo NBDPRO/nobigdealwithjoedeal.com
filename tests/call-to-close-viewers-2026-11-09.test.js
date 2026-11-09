@@ -109,7 +109,7 @@ const cols = (qs) => qs.map((q) => q.col);
       const sb = { window: win, document: { getElementById: () => null, activeElement: null }, Object, String, Number,
         root: () => el, leadsById: () => ({}), FX: null, flt: {}, FILTERS: [['all', 'All', () => true]],
         filtersNow: () => [['all', 'All', () => true], ['attention', 'Needs attention', () => true]],
-        groupNeeds: () => [], matchesSearch: () => true, healthPanel: () => '', tagPanel: () => '', autoBriefPanel: () => '',
+        groupNeeds: () => [], withAway: (rows) => rows, matchesSearch: () => true, healthPanel: () => '', tagPanel: () => '', autoBriefPanel: () => '',
         esc: (s) => String(s), promises: { items: [], loaded: false }, readProblems: () => [], capBanner: () => '', readBanner: () => '',
         focusKeyOf: () => '', focusedCard() {}, a11yPass() {}, restoreFocus() {}, renderCall: () => '<div class="cc-card"></div>',
         groupPromises: () => [], isViewer: () => role === 'viewer', filterBar: () => '<div class="cc-fbar"></div>',

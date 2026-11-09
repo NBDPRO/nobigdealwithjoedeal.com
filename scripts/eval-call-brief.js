@@ -103,7 +103,10 @@ function validateCase(c) {
   else if (c.callYmd && !B.isYmd(c.callYmd)) p.push('callYmd: YYYY-MM-DD');
   if (c.direction != null && !['inbound', 'outbound', ''].includes(c.direction)) p.push('direction: inbound, outbound or ""');
   const call = c.call;
-  if (!call || typeof call !== 'object') p.push('call: required ({ status, leadId, attachedBy, alternateLeadIds })');
+  // A walkthrough (source:'visit') is a visit recording: it has no call and no phone gate.
+  if (c.source != null && c.source !== 'visit') p.push('source: "visit" or left out');
+  if (c.source === 'visit') { if (c.scopeFacts != null && (!Array.isArray(c.scopeFacts) || c.scopeFacts.some((f) => typeof f !== 'string'))) p.push('scopeFacts: a list of strings'); }
+  else if (!call || typeof call !== 'object') p.push('call: required ({ status, leadId, attachedBy, alternateLeadIds })');
   else if (call.alternateLeadIds != null && !Array.isArray(call.alternateLeadIds)) p.push('call.alternateLeadIds: a list');
   const x = c.expect;
   if (!x || typeof x !== 'object') { p.push('expect: required'); return p; }

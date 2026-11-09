@@ -16,6 +16,12 @@
  * written by this file at d1f7bfe0c, before the feed changed. Regenerate only
  * with Jo's OK: UPDATE_GOLDEN=1 node tests/call-to-close-tenantfeed-golden-2026-11-09.test.js
  *
+ * Regenerated 2026-11-09 when Jo's viewer follow-ups (Q11, approved) joined P2:
+ * one field moved, writes[17].data.notes, the follow-up task's first line is now
+ * "The summary is on the customer's timeline." instead of "Call: <summary>", so a
+ * viewer reading tasks never sees call content. Every other write, Drive request,
+ * Storage call, model prompt and push is byte-identical to the d1f7bfe0c fixture.
+ *
  * It runs twice: once as before (no multi-tenant env), once with
  * CALL_CENTER_MULTI_TENANT_ENABLED=true and an enabled tenant config sitting
  * in Firestore; NBD's own pass must write exactly the same either way.

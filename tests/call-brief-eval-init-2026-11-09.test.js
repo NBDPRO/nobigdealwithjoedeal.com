@@ -148,6 +148,11 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
     ok('jobType off insurance/cash', /jobType/.test(probs((x) => { x.expect.fields.jobType = 'retail'; })));
     ok('workKind off repair/replace', /workKind/.test(probs((x) => { x.expect.fields.workKind = 'new'; })));
     ok('a filled case with no call date', /callYmd/.test(probs((x) => { x.callYmd = ''; })));
+    // Integration (2026-11-09): P2's walkthrough cases (source:'visit') carry no call.
+    ok('a phone case with no call is still flagged', /call: required/.test(probs((x) => { delete x.call; })));
+    ok('a walkthrough case needs no call', !/call: required/.test(probs((x) => { delete x.call; x.source = 'visit'; x.scopeFacts = ['ridge vent']; })));
+    ok('a walkthrough scopeFacts that is not a list of strings', /scopeFacts/.test(probs((x) => { delete x.call; x.source = 'visit'; x.scopeFacts = [3]; })));
+    ok('a source other than visit', /source/.test(probs((x) => { x.source = 'sms'; })));
     ok('reliable / refused must be true or false', /reliable/.test(probs((x) => { x.expect.reliable = 'yes'; })) && /refused/.test(probs((x) => { delete x.expect.refused; })));
     ok('a missing id', /id/.test(probs((x) => { x.id = ''; })));
 
