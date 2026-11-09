@@ -1107,6 +1107,9 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
   }
   if (a.exists) await oldAct.delete();
   if (t.exists) await oldTask.delete();
+  // Call to Close P0 (2026-11-09): a Call Brief never stays on the wrong
+  // customer. The new lead gets none until someone taps again.
+  await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
   const patch = L.phonePatchForLead(to, call.phoneDigits);
   if (patch) await db.doc('leads/' + toId).set(Object.assign(patch, { updatedAt: FieldValue.serverTimestamp() }), { merge: true });
   await db.collection(COLLECTION).doc(id).set({ leadId: toId, bucket: 'customer', alternateLeadIds: [], movedFromLeadId: fromId, movedBy: uid, movedAtMs: nowMs }, { merge: true });
@@ -1202,6 +1205,13 @@ async function callAction({ db, auth, data, nowMs }) {
   if (action === 'promise') {
     const today = etToday(nowMs);
     const kind = String((data && data.kind) || '');
+    // Call to Close P0 (2026-11-09, design §4.3): an optional slot 0-5 so one
+    // call can carry several promises (the Call Brief sheet's Add buttons).
+    // 0 or absent is today's promise-<callId>, byte-identical; n > 0 writes
+    // promise-<callId>-<n> and never retires the generic task.
+    const rawSlot = data && data.slot;
+    const slot = rawSlot == null || rawSlot === '' ? 0 : Number(rawSlot);
+    if (!(Number.isInteger(slot) && slot >= 0 && slot <= 5)) throw new HttpsError('invalid-argument', 'Bad promise slot.');
     const built = PR.buildTask({
       kind, dueYmd: data && data.dueYmd ? String(data.dueYmd) : '', why: data && data.why, todayYmd: today,
       uid: auth.uid, source: isText ? 'text' : 'call', sourceCallId: id,
@@ -1214,7 +1224,7 @@ async function callAction({ db, auth, data, nowMs }) {
       const lead = ls.exists ? ls.data() : null;
       if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
       if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
-      const taskId = 'promise-' + id;
+      const taskId = 'promise-' + id + (slot ? '-' + slot : '');
       const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
       const prev = await taskRef.get();
       const old = prev.exists ? (prev.data() || {}) : null;
@@ -1233,6 +1243,14 @@ async function callAction({ db, auth, data, nowMs }) {
         doc.createdAt = FieldValue.serverTimestamp();
       }
       await taskRef.set(doc, { merge: true });
+      if (slot) {
+        // A further promise: the call is handled, and it keeps pointing at its
+        // first promise (slot 0) when it has one.
+        const keep = call.promiseTaskId && call.promiseTaskId !== taskId;
+        await ref.set(Object.assign({ handledAtMs: nowMs, handledBy: auth.uid }, keep ? {} : { promiseTaskId: taskId, promiseKind: kind }), { merge: true });
+        await settleAway(db, call, auth, nowMs);
+        return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
+      }
       const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
       const g = await genericRef.get();
       if (g.exists && (g.data() || {}).done !== true) {
@@ -1243,6 +1261,7 @@ async function callAction({ db, auth, data, nowMs }) {
       return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
     }
     if (kind === 'waiting') throw new HttpsError('failed-precondition', 'File this call on a customer first - waiting needs a customer.');
+    if (slot) throw new HttpsError('failed-precondition', 'File this call on a customer first - more than one promise needs a customer.');
     const prevPromise = call.promise && call.promise.kind === 'promise' ? call.promise : null;
     const promise = Object.assign({}, built);
     if (prevPromise) ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy'].forEach((k) => { if (prevPromise[k] != null) promise[k] = prevPromise[k]; });
@@ -1275,6 +1294,8 @@ async function callAction({ db, auth, data, nowMs }) {
     const lead = ls.exists ? ls.data() : null;
     if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
     if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+    // Re-filing a filed call elsewhere: its Call Brief leaves the old customer too.
+    if (call.leadId && String(call.leadId) !== leadId) await db.doc('leads/' + String(call.leadId) + '/call_briefs/' + id).delete();
     const r = await attachCallToLead({ db, call, lead, leadId, uid: auth.uid, nowMs });
     return { ok: true, leadId, phoneAdded: r.phoneAdded, refiled: r.refiled };
   }
