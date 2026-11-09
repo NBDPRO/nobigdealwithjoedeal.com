@@ -29,7 +29,7 @@ Branch `ctc-p0` (worktree `.claude/worktrees/ctc-p0`), from `2c2647142`. Builds 
 | 8 | Repair calls use the builder (P1) | Not built. |
 | 9 | Sales reps do not get briefs | The callCenterAction role set exactly; a rep who does not own the call is refused by the callable, the rules and the button. |
 | 10 | Do not seed docOverrides | Scope items are never seeded. |
-| 11 | Stop viewers reading phone_calls transcripts, as a separate fix | Not in this PR. Briefs themselves are never viewer-readable. |
+| 11 | Stop viewers reading phone_calls transcripts, as a separate fix | Built as its own lane (below) and shipped in the same PR. Briefs themselves are never viewer-readable. |
 
 ## Assumptions (the safer reading where the design left room)
 
