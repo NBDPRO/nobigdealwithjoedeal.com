@@ -177,7 +177,7 @@ function rowDoc(a) {
     today: Object.assign(zero(), a.metrics.today), week: Object.assign(zero(), a.metrics.week), asOfMs: a.nowMs,
   };
 }
-/** Same row apart from when it was computed (so an unchanged run writes nothing). */
+/** Same row apart from when it was computed (the run logs how many rows' numbers did not change). */
 function sameRow(a, b) {
   if (!a || !b) return false;
   const k = ['companyId', 'uid', 'name', 'tz', 'tzSet', 'dayKey', 'weekKey', 'today', 'week'];

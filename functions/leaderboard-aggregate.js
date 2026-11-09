@@ -21,8 +21,9 @@
  * such job whose lead was not updated, and the company's existing rows. A sale
  * or an estimate move this week stamps updatedAt this week on what it moved
  * (stage-write.js on the lead, NBDJobs.update on a second job), so these hold
- * every one of them. Writes only rows that changed, and deletes the row of
- * anyone no longer an active member.
+ * every one of them. Rewrites each member's row every run (asOfMs, shown as
+ * 'Updated', is the last run), and deletes the row of anyone no longer an
+ * active member.
  *
  * Gate: LEADERBOARD_AGGREGATE_ENABLED=true. Anything else computes and LOGS
  * counts only and writes nothing (the page and widget then show their own
@@ -106,8 +107,12 @@ async function runCompany(db, companyId, company, nowMs, live, out) {
     const row = L.rowDoc({ companyId, uid: m.uid, name: m.name, metrics: rows[m.uid], bounds: b, zone, nowMs });
     const prev = existing[m.uid];
     delete existing[m.uid];
-    if (L.sameRow(row, prev)) { out.unchanged++; continue; }
-    if (!live) { out.wouldWrite++; continue; }
+    // Every row is restamped each run, numbers unchanged or not: asOfMs is when it was last
+    // counted, which the Team widget and the Leaderboard page show as 'Updated h:mm' (a skipped
+    // write made that the time of the last change, and hid a run that had stopped).
+    const same = L.sameRow(row, prev);
+    if (same) out.unchanged++;
+    if (!live) { if (!same) out.wouldWrite++; continue; }
     await db.collection('leaderboard').doc(m.uid).set(row);
     out.written++;
   }

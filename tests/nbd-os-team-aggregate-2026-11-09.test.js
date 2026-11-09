@@ -20,8 +20,8 @@
  * Covered here: the zone day / week boundaries (New York both DST switches,
  * Phoenix, Kolkata's half hour, Santiago's missing midnight, UTC), the metric
  * rules, the row shape, and the runner over a fake Firestore (rows written with
- * companyId, a removed member's row deleted, an unchanged second run writes
- * nothing, the dry run writes nothing), plus the export, the index entry and
+ * companyId, a removed member's row deleted, an unchanged second run restamps
+ * asOfMs, the dry run writes nothing), plus the export, the index entry and
  * the cron gate.
  *
  * Run: node tests/nbd-os-team-aggregate-2026-11-09.test.js
@@ -183,7 +183,10 @@ const has = (fn) => L && typeof L[fn] === 'function';
     ok('no invited (uid-less) member gets a row', Object.keys(store).filter((k) => /^leaderboard\//.test(k)).length === 3);
     const writes = db.writes.length;
     const r2 = await AGG.runAggregate({ db, nowMs: now + 60000, live: true });
-    ok('an unchanged second run writes nothing', r2.written === 0 && r2.unchanged === 2 && db.writes.length === writes, J(r2));
+    // review 2026-11-09: asOfMs is when the row was last COUNTED (the widget's and page's 'Updated h:mm'),
+    // so a run whose numbers did not change still stamps it; the log still says the numbers were unchanged.
+    ok('an unchanged second run restamps each row with this run\'s time (Updated = the last run, not the last change)',
+      r2.written === 2 && r2.unchanged === 2 && db.writes.length === writes + 2 && store['leaderboard/u1'].asOfMs === now + 60000 && store['leaderboard/u2'].asOfMs === now + 60000, J(r2));
     const db3 = fakeDb(Object.assign({}, store, { 'leaderboard/u1': undefined }));
     const r3 = await AGG.runAggregate({ db: db3, nowMs: now, live: false });
     ok('the dry run (gate off) computes but writes nothing', db3.writes.length === 0 && r3.written === 0 && r3.wouldWrite >= 1, J(r3));
