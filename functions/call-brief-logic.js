@@ -995,7 +995,9 @@ function mergeVisitScope(brief, facts) {
  * callBriefDecide's retype fields: it stops a mistake (an old client, a
  * script taking the model's date), not a deliberate bypass. index: the
  * brief promise the Add came from, when the client says; else every retype
- * promise of the brief counts. '' when allowed.
+ * promise of the brief counts (an old client that sends no briefPromise: a
+ * non-retype promise sharing a retype promise's heard-as date is refused
+ * too, the conservative side). '' when allowed.
  */
 function promiseRetypeProblem(brief, index, dueYmd, retyped) {
   const due = String(dueYmd || '');

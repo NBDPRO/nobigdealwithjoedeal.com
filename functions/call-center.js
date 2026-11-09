@@ -1613,8 +1613,13 @@ async function callAction({ db, auth, data, nowMs }) {
       // sheet's) with a date EQUAL to that heard-as date is refused unless
       // the client says the person typed it (retyped: true). Honour-based,
       // as callBriefDecide's retype rule: it stops a mistake, not a bypass.
-      // One read, only for a dated brief Add.
+      // One read, only for a dated brief Add. Not covered, on purpose (the
+      // sheet never does either): slot 0 / no slot (the card's Promise
+      // button, not a brief promise) and an Add with no dueYmd (a date from
+      // waitingDays alone). The sheet always sends slot 1-5 and dueYmd.
       if (slot && built.dueDate && data && data.dueYmd) {
+        // Fail-open on purpose: a brief read error lets the date through
+        // (an honour rule must never block a promise on a Firestore blip).
         const bs = await db.doc('leads/' + leadId + '/call_briefs/' + id).get().catch(() => null);
         const stored = bs && bs.exists ? (bs.data() || {}).brief : null;
         const bad = stored ? require('./call-brief-logic').promiseRetypeProblem(stored, data.briefPromise, String(data.dueYmd), data.retyped === true) : '';
