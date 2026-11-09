@@ -212,6 +212,18 @@ async function mount(items, opts) {
     const e1 = early.card('kpi-1'), e2 = early.card('kpi-2');
     ok('profile not loaded yet: a picked tile says the views are loading, never "no saved map views"', /Loading your team's views/.test(text(e1)) && !/no saved/i.test(text(e1)) && !e1.querySelector('.os-kpi-n') && !e1.querySelector('[data-oshw-kpi="pick"]'), text(e1));
     ok('…and an unpicked one too (S)', /Loading your team's views/.test(text(e2)) && !/no saved/i.test(text(e2)), text(e2));
+    // a profile read that failed (company-profile.js never sets the flag) must not say "Loading" forever
+    let asks = 0, answer = false;
+    early.T.W._ensureCompanyProfile = () => { asks++; return Promise.resolve(answer); };
+    early.T.W.dispatchEvent(new early.T.W.CustomEvent('nbd:data-refreshed'));
+    const rb = early.card('kpi-1').querySelector('[data-oshw-kpi="reload"]');
+    ok('…with a Try again button that asks for the profile again (company-profile.js _ensureCompanyProfile)', !!rb && /Try again/.test(text(rb)), text(early.card('kpi-1')));
+    click(early.T.dom, rb);
+    for (let i = 0; i < 4; i++) await tick();
+    ok('…a read that fails again: says so in words, still no number, Try again stays', asks === 1 && /did not load/.test(text(early.card('kpi-1'))) && !/Loading/.test(text(early.card('kpi-1'))) && !early.card('kpi-1').querySelector('.os-kpi-n') && !!early.card('kpi-1').querySelector('[data-oshw-kpi="reload"]'), text(early.card('kpi-1')));
+    const s2 = early.card('kpi-2');
+    ok('…an S tile says it in a short line (its phone row is 92px: kpi.css drops the title there) with Try again', /Views loading/.test(text(s2)) && !!s2.querySelector('.os-kpi-wait-t') && !!s2.querySelector('[data-oshw-kpi="reload"]') && /\.os-p-page \.os-hw-kpi\.is-s \.os-kpi-wait-t \{ display: none; \}/.test(read('docs/pro/css/os/kpi.css')), text(s2));
+    answer = true;
     early.T.W._companyProfile = { mapViews: VIEWS };
     early.T.W._companyProfileLoaded = true;
     early.T.W.dispatchEvent(new early.T.W.CustomEvent('nbd:company-profile-loaded'));

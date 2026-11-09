@@ -1343,6 +1343,10 @@
       if (krec) {
         if (kb.getAttribute('data-oshw-kpi') === 'pick') { kpiPick(krec.key, kb); return; }
         var K = W.NBDOSKpi;
+        if (K && kb.getAttribute('data-oshw-kpi') === 'reload') {
+          K.reload().then(function (ok) { paintOne(krec, true); if (!ok) announce('Your team\'s views did not load.'); });
+          return;
+        }
         if (K && krec.it.cfg && !K.open(krec.it.cfg.view)) { paintOne(krec, true); announce('That saved view is gone.'); }
         return;
       }

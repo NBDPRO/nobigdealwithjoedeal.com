@@ -18,6 +18,7 @@
  *   NBDOSKpi.widget(size, cfg, { locked })  the tile's markup (every value escaped); locked: no Pick / Change view
  *   NBDOSKpi.pick({ current, onPick, returnFocus })  a native <dialog> of the views
  *   NBDOSKpi.open(id)                 the Map with that view; false when it is gone
+ *   NBDOSKpi.reload()                 Try again on a profile read that never landed; Promise<boolean>
  *
  * Loaded as the runtime ScriptLoader bundle 'oskpi' that os/home.js registers
  * (css/os/kpi.css, os/kpi-logic.js, this file). No inline handlers, no style
@@ -41,6 +42,21 @@
   // View list on the same flag (_custViewsReady). The home repaints on nbd:company-profile-loaded.
   function profileReady() { return W._companyProfileLoaded === true; }
   var LOADING = 'Loading your team\'s views';
+  // that read can fail for good (company-profile.js leaves the flag unset): Try again asks once more
+  // (_ensureCompanyProfile, on a tap only: the tile itself reads nothing), and a miss says so
+  var missed = false;
+  function reload() {
+    var E = W._ensureCompanyProfile;
+    var p = typeof E === 'function' ? Promise.resolve().then(E) : Promise.resolve(false);
+    return p.then(function (ok) { missed = ok !== true && !profileReady(); return !missed; }, function () { missed = true; return false; });
+  }
+  function notReady(size) {
+    if (typeof W._ensureCompanyProfile !== 'function') return title('Saved view') + '<p class="os-hw-empty">' + esc(LOADING) + '</p>';
+    // S: a short line, and on the phone's 92px row no title (kpi.css), so Try again is never cut
+    var line = size === 's' ? (missed ? 'Didn\'t load' : 'Views loading') : (missed ? 'Your team\'s views did not load.' : LOADING);
+    return '<h3 class="os-hw-title os-kpi-wait-t">Saved view</h3><p class="os-hw-empty">' + esc(line) + '</p>' +
+      '<button type="button" class="ui-btn-quiet os-hw-btn os-kpi-reload" data-oshw-kpi="reload">Try again</button>';
+  }
   function leads() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
   function env() { return { normalizeStage: W.normalizeStage, stageRole: W.stageRole }; }
   function viewOf(cfg) { return cfg && typeof cfg.view === 'string' ? KL.findView(profile(), cfg.view) : null; }
@@ -54,7 +70,7 @@
     // a company-locked home: no Pick / Change view (os.js saveHome would refuse the pick)
     var fixed = !!(opt && opt.locked);
     var pickBtn = fixed ? '' : PICK;
-    if (!profileReady()) return title('Saved view') + '<p class="os-hw-empty">' + esc(LOADING) + '</p>';
+    if (!profileReady()) return notReady(size);
     var all = KL.listViews(profile());
     var picked = cfg && typeof cfg.view === 'string';
     var v = viewOf(cfg);
@@ -148,5 +164,5 @@
     return true;
   }
 
-  W.NBDOSKpi = { widget: widget, pick: pick, open: open };
+  W.NBDOSKpi = { widget: widget, pick: pick, open: open, reload: reload };
 })();
