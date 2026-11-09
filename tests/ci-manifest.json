@@ -456,6 +456,7 @@
     "nbd-os-focus-2026-11-09.test.js",
     "nbd-os-focus-widget-2026-11-09.test.js",
     "nbd-os-p2-integration-2026-11-09.test.js",
+    "nbd-os-p3-integration-2026-11-09.test.js",
     "nbd-os-goals-editor-2026-11-09.test.js",
     "estimate-follow-callable-2026-10-19.test.js",
     "follow-up-board-2026-11-03.test.js",
