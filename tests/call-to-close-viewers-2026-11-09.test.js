@@ -156,7 +156,30 @@ const cols = (qs) => qs.map((q) => q.col);
     const s = await runCc('');
     ok('a solo owner still reads thursday_calls and phone_texts', cols(s.queries).includes('thursday_calls') && cols(s.queries).includes('phone_texts'));
   }
-  ok('the card tells a viewer calls and texts are hidden', /if \(isViewer\(\)\) top \+= '<div class="pc-meta pc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CC));
+  // Final round (2026-11-09): the section subtitle promised a viewer a
+  // "summary, transcript and recording" right above the hidden line.
+  {
+    const RENDER = ccs('  function render() {', '\n  }\n');
+    ok('customer-calls render is found (positive control)', /function render\(\)/.test(RENDER));
+    const HTML = read('docs/pro/customer.html');
+    ok('the Calls subtitle has an id the script can find', /<div class="ui-note" id="callsSub">Calls Thursday answered for this customer: summary, transcript and recording\.<\/div>/.test(HTML));
+    function runRender(role) {
+      const el = { innerHTML: '' }, sub = { hidden: false };
+      const win = { _userClaims: { role } };
+      const sb = { window: win, document: { getElementById: (id) => (id === 'callsSub' ? sub : null) }, Object, String, Number, Date,
+        root: () => el, esc: (s) => String(s), notice: '', noticeLead: '', calls: [], texts: [],
+        claims: () => win._userClaims, isViewer: () => role === 'viewer' };
+      vm.createContext(sb);
+      vm.runInContext(RENDER + '\nglobalThis.__r = render;', sb);
+      sb.__r();
+      return { html: el.innerHTML, sub };
+    }
+    const v = runRender('viewer');
+    ok('customer Calls, viewer: the subtitle is hidden', v.sub.hidden === true && /pc-hidden-note/.test(v.html), v);
+    const m = runRender('manager');
+    ok('customer Calls, manager: the subtitle still shows (positive control)', m.sub.hidden === false && /No calls yet/.test(m.html), m);
+  }
+  ok('the card tells a viewer calls and texts are hidden',/if \(isViewer\(\)\) top \+= '<div class="pc-meta pc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CC));
 
   // ── 1. Thursday widget (widgets.js) + Thursday-handled ─────────────────
   console.log('THURSDAY WIDGET (widgets.js) / THURSDAY-HANDLED');

@@ -309,6 +309,9 @@
     var top = notice ? '<div class="panel pc-notice" data-calls-notice>' + esc(notice) +
       (noticeLead ? ' <a class="cc-link" href="/pro/customer.html?id=' + encodeURIComponent(noticeLead) + '">Open them →</a>' : '') + '</div>' : '';
     if (isViewer()) top += '<div class="pc-meta pc-hidden-note" role="status">Calls and texts are hidden for your role.</div>';
+    // The section subtitle promises a summary, transcript and recording; a viewer gets none.
+    var sub = document.getElementById('callsSub');
+    if (sub) sub.hidden = isViewer();
     if (!calls.length && !texts.length && isViewer()) { el.innerHTML = top; return; }
     if (!calls.length && !texts.length) {
       el.innerHTML = top + '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
