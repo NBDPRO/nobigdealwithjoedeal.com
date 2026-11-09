@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 /**
  * functions/call-retention-logic.js — pure decisions for the call retention
  * sweep (Call to Close P2, Q7, 2026-11-09). No firebase imports.
@@ -202,6 +204,15 @@ function audioPatch(nowMs) {
   return { storagePath: null, audioRemoved: 'retention', retention: { audioDeletedAtMs: nowMs, v: POLICY_VERSION } };
 }
 
+/**
+ * A fixed call_retention_log id for an audio deletion, so a retry rewrites the
+ * same row instead of adding a second one. A new path (a re-copy after
+ * "not personal") gets its own row.
+ */
+function auditId(kind, callId, storagePath) {
+  return kind + '_' + callId + '_' + crypto.createHash('sha1').update(String(storagePath || '')).digest('hex').slice(0, 12);
+}
+
 /** One audit row. Ids and dates only: never a transcript, quote or summary. */
 function auditEntry({ kind, callId, leadId, call, docPath, storagePath, fields, ageMs, cutoff, months, runId, nowMs }) {
   const c = call || {};
@@ -229,5 +240,5 @@ module.exports = {
   TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS, STAGE_TO_STATUS, INSURANCE_STAGES,
   etYmd, etMidnightMs, minusMonths, cutoffMs, callAgeMs, briefAgeMs, isPast,
   holdReason, openClaim, transcriptFieldsPresent, transcriptPatch, isCrmAudioPath, audioPatch,
-  auditEntry, shouldRescan,
+  auditId, auditEntry, shouldRescan,
 };

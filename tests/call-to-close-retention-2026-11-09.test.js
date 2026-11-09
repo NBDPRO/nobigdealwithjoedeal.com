@@ -392,6 +392,50 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     let r6; try { r6 = await run(base(db6, b6, { live: true })); } catch (e) { r6 = { err: e.message }; }
     ok('a failed brief query stops only that phase; audio and transcript still run and the cursor is saved', r6 && r6.phases && r6.phases.brief.stoppedBy === 'error' && r6.phases.audio.done === 2 && r6.phases.transcript.done === 2 && db6.store.has('system/callRetention'), r6 && (r6.err || r6.phases));
     ok('a failed record is counted and the run carries on', r5 && r5.phases && r5.phases.audio.failed === 1 && r5.phases.audio.done === 1, r5 && r5.phases && r5.phases.audio);
+
+    // Audio: the audit row goes in BEFORE the Storage delete, so a delete is never unlogged.
+    const logsOf = (db, id) => [...db.store].filter(([p, v]) => p.startsWith('call_retention_log/') && v.kind === 'audio' && v.callId === id).map(([, v]) => v);
+    {
+      const db7 = makeDb(seed()); const b7 = makeBucket(); const seenAtDelete = [];
+      const f7 = b7.file; b7.file = (p) => { const h = f7(p); const del = h.delete; h.delete = async (o) => { seenAtDelete.push(logsOf(db7, p.split('/').pop().replace('.m4a', '')).map((l) => l.state).join(',')); return del(o); }; return h; };
+      await run(base(db7, b7, { live: true }));
+      ok('each audio audit row is written (state pending) before its Storage delete', seenAtDelete.length === 2 && seenAtDelete.every((x) => x === 'pending'), seenAtDelete);
+      ok('...and marked done in the same batch as the call patch', logsOf(db7, 'old1').length === 1 && logsOf(db7, 'old1')[0].state === 'done' && logsOf(db7, 'mid1')[0].state === 'done');
+    }
+    {
+      // The patch batch fails after the delete: the row stays pending (the delete is logged),
+      // the call goes on a retry list, and the next run (cursor already past it) finishes it.
+      const db8 = makeDb(seed()); const b8 = makeBucket();
+      db8.opts.failCommitFor = (ops) => ops.length === 2 && JSON.stringify(db8.store.get('phone_calls/old1')).includes('old1.m4a') && !db8.opts.done8 && (db8.opts.done8 = true);
+      let r8; try { r8 = await run(base(db8, b8, { live: true })); } catch (e) { r8 = { err: e.message }; }
+      ok('a failed patch after the delete leaves a pending audit row (the deletion is logged)', r8.phases && r8.phases.audio.failed === 1 && logsOf(db8, 'old1').length === 1 && logsOf(db8, 'old1')[0].state === 'pending', logsOf(db8, 'old1'));
+      const st8 = db8.store.get('system/callRetention') || {};
+      ok('...and the call is on the retry list in system/callRetention', st8.retry && Array.isArray(st8.retry.audio) && st8.retry.audio.includes('old1'), st8.retry);
+      // A hold lands on the lead before the retry: the audio is already gone, so the retry still records that.
+      const lead1 = db8.store.get('leads/L1'); lead1.legalHold = true; db8.store.set('leads/L1', lead1);
+      let r9; try { r9 = await run(base(db8, b8, { live: true, nowMs: NOW + 86400e3 })); } catch (e) { r9 = { err: e.message }; }
+      const o8 = db8.store.get('phone_calls/old1') || {};
+      ok('the next run retries it first and finishes the patch (storagePath null), even under a new hold', o8.storagePath === null && o8.audioRemoved === 'retention' && r9.phases && r9.phases.audio.retried === 1, { o8: o8.storagePath, ph: r9.phases && r9.phases.audio });
+      ok('...one audit row for that deletion, now done; the retry list is empty', logsOf(db8, 'old1').length === 1 && logsOf(db8, 'old1')[0].state === 'done' && Array.isArray(((db8.store.get('system/callRetention') || {}).retry || {}).audio) && !(db8.store.get('system/callRetention')).retry.audio.length);
+    }
+    {
+      // The Storage delete itself throws: the row says failed, the path stays, the retry deletes it.
+      const db10 = makeDb(seed()); const b10 = makeBucket(); let boom = true;
+      const f10 = b10.file; b10.file = (p) => { const h = f10(p); const del = h.delete; h.delete = async (o) => { if (boom && p.endsWith('old1.m4a')) { boom = false; throw new Error('storage 503'); } return del(o); }; return h; };
+      await run(base(db10, b10, { live: true }));
+      ok('a failed Storage delete marks its audit row failed and keeps storagePath', logsOf(db10, 'old1')[0] && logsOf(db10, 'old1')[0].state === 'failed' && (db10.store.get('phone_calls/old1') || {}).storagePath === 'calls/jo/cube-acr/2024-06-01/old1.m4a');
+      await run(base(db10, b10, { live: true, nowMs: NOW + 86400e3 }));
+      ok('...and the retry deletes it and the row ends done', (db10.store.get('phone_calls/old1') || {}).storagePath === null && logsOf(db10, 'old1').length === 1 && logsOf(db10, 'old1')[0].state === 'done');
+    }
+    {
+      // A transcript batch that fails is retried the next day, not left for the 30-day rescan.
+      const db11 = makeDb(seed()); const b11 = makeBucket(); let first = true;
+      db11.opts.failCommitFor = (ops) => { if (first && ops.length === 4) { first = false; return true; } return false; }; // old1: patch + row + brief delete + row
+      await run(base(db11, b11, { live: true }));
+      ok('a failed transcript batch leaves old1 whole and on the retry list', (db11.store.get('phone_calls/old1') || {}).transcript === T_SECRET && (((db11.store.get('system/callRetention') || {}).retry || {}).transcript || []).includes('old1'));
+      await run(base(db11, b11, { live: true, nowMs: NOW + 86400e3 }));
+      ok('...and the next run strips it', (db11.store.get('phone_calls/old1') || {}).transcript === null && !db11.store.has('leads/L1/call_briefs/old1'));
+    }
   }
 
   console.log('\n8. Wiring');

@@ -29,11 +29,19 @@
  * one minute inside the timeout. Each phase keeps a cursor (the ordered date
  * plus the doc id / path) in system/callRetention, so the next run carries on
  * where this one stopped; a full pass restarts every 30 days so a lifted hold
- * or a failed record is looked at again.
+ * is looked at again. A record that fails goes on that phase's retry list in
+ * the same doc (at most RETRY_MAX) and is tried first on the next run, so the
+ * cursor moving past it never leaves it for the 30-day rescan.
  *
  * Audit: every deletion writes one call_retention_log row (ids and dates
- * only, never what was said), in the same batch as the change. The
- * collection is server-only (firestore.rules catch-all deny).
+ * only, never what was said). Transcript and brief rows go in the same batch
+ * as the change. An audio row cannot (Storage is not in a Firestore batch),
+ * so it is written FIRST with state 'pending' under a fixed id (kind, call,
+ * path), then the object is deleted, then the call patch and state 'done'
+ * commit together. A failed delete marks the row 'failed'; a failed patch
+ * leaves it 'pending', and the retry finishes the patch even if a hold
+ * landed in between (the audio is already gone). So a deleted object always
+ * has a row. The collection is server-only (firestore.rules catch-all deny).
  *
  * DRY RUN unless CALL_RETENTION_ENABLED === 'true': it reads, counts and logs
  * what it would do, and writes nothing at all (no Storage delete, no
@@ -51,6 +59,7 @@ const STATE_DOC = 'system/callRetention';
 const LOG = 'call_retention_log';
 const BATCH = 100;
 const MAX_PER_PHASE = 1000;
+const RETRY_MAX = 100;
 const TIMEOUT_S = 540;
 const DEADLINE_MS = (TIMEOUT_S - 60) * 1000;
 
@@ -89,6 +98,8 @@ async function runRetention({
   const state = (stateSnap && stateSnap.exists && stateSnap.data()) || {};
   const rescan = R.shouldRescan(state, nowMs);
   const cursors = rescan ? {} : Object.assign({}, state.cursors || {});
+  const oldRetry = state.retry || {};
+  const retry = {};
 
   const leads = new Map();
   async function getLead(id) {
@@ -112,11 +123,13 @@ async function runRetention({
   for (const ph of PHASES) {
     const cutoff = R.cutoffMs(nowMs, ph.months);
     out.cutoffs[ph.key] = { months: ph.months, cutoffMs: cutoff, cutoffYmd: R.etYmd(cutoff) };
-    const st = { scanned: 0, eligible: 0, done: 0, held: {}, skipped: 0, badPath: 0, failed: 0, stoppedBy: null };
+    const st = { scanned: 0, eligible: 0, done: 0, held: {}, skipped: 0, badPath: 0, failed: 0, retried: 0, stoppedBy: null };
     out.phases[ph.key] = st;
     let cursor = cursors[ph.key] || null;
+    const failedKeys = [];
+    const keyOf = (d) => (ph.source === 'calls' ? d.id : d.ref.path);
 
-    const handle = async (d) => {
+    const handle = async (d, isRetry) => {
       const data = d.data() || {};
       if (ph.source === 'calls') {
         const call = data;
@@ -127,16 +140,31 @@ async function runRetention({
           const p = call.storagePath;
           if (!p) { st.skipped++; return; }
           if (!R.isCrmAudioPath(p, call)) { st.badPath++; log.warn('call_retention_bad_path', { callId: d.id }); return; }
-          const why = R.holdReason({ call, lead });
-          if (why) { st.held[why] = (st.held[why] || 0) + 1; return; }
+          const logRef = db.collection(LOG).doc(R.auditId('audio', d.id, p));
+          // A retry of a call whose object is already gone (row still 'pending'):
+          // finish the patch whatever the hold says now; the audio cannot come back.
+          let finishing = false;
+          if (isRetry && live) {
+            const ls = await logRef.get();
+            finishing = !!(ls && ls.exists && (ls.data() || {}).state === 'pending');
+          }
+          if (!finishing) {
+            const why = R.holdReason({ call, lead });
+            if (why) { st.held[why] = (st.held[why] || 0) + 1; return; }
+          }
           st.eligible++;
           if (!live) return;
-          // Storage first: if the batch below fails, the next run finds the
-          // path still set and deletes again (ignoreNotFound), then logs.
-          await bucket.file(p).delete({ ignoreNotFound: true });
+          if (!finishing) {
+            // Row first (pending), then the delete: a deleted object always has a row.
+            await logRef.set(Object.assign(R.auditEntry({ kind: 'audio', callId: d.id, leadId: call.leadId, call, docPath: 'phone_calls/' + d.id, storagePath: p, fields: ['storagePath'], ageMs: age, cutoff, months: ph.months, runId, nowMs }), { state: 'pending', createdAt: ts() }));
+            try { await bucket.file(p).delete({ ignoreNotFound: true }); } catch (e) {
+              try { await logRef.set({ state: 'failed', failedAtMs: nowMs, error: String((e && e.message) || e).slice(0, 200) }, { merge: true }); } catch (_) { /* the retry rewrites it */ }
+              throw e;
+            }
+          }
           await commitWith((b) => {
-            b.set(d.ref, R.audioPatch(nowMs), { merge: true });
-            audit(b, R.auditEntry({ kind: 'audio', callId: d.id, leadId: call.leadId, call, docPath: 'phone_calls/' + d.id, storagePath: p, fields: ['storagePath'], ageMs: age, cutoff, months: ph.months, runId, nowMs }));
+            b.set(d.ref, R.audioPatch(nowMs, call), { merge: true });
+            b.set(logRef, { state: 'done', doneAtMs: nowMs }, { merge: true });
           });
           st.done++;
           return;
@@ -183,6 +211,23 @@ async function runRetention({
       st.done++;
     };
 
+    // Last run's failures first. A key is a phone_calls id or a brief path.
+    for (const key of (Array.isArray(oldRetry[ph.key]) ? oldRetry[ph.key] : []).slice(0, RETRY_MAX)) {
+      if (clock() >= deadline) { failedKeys.push(key); continue; }
+      const p = ph.source === 'calls' ? (safeId(key) ? 'phone_calls/' + key : null) : (typeof key === 'string' && matchDocPath(R.BRIEF_PATH, key) ? key : null);
+      if (!p) continue;
+      try {
+        const ref = db.doc(p);
+        const snap = await ref.get();
+        if (!snap || !snap.exists) continue;
+        st.retried++;
+        await handle({ id: ref.id, ref, data: () => snap.data() }, true);
+      } catch (e) {
+        st.failed++; failedKeys.push(key);
+        log.warn('call_retention_failed', { phase: ph.key, path: p, retry: true, err: e && e.message });
+      }
+    }
+
     outer: for (;;) {
       if (clock() >= deadline) { st.stoppedBy = 'deadline'; break; }
       if (st.scanned >= maxPerPhase) { st.stoppedBy = 'cap'; break; }
@@ -198,8 +243,9 @@ async function runRetention({
       for (const d of docs) {
         if (clock() >= deadline) { st.stoppedBy = 'deadline'; break outer; }
         st.scanned++;
-        try { await handle(d); } catch (e) {
+        try { await handle(d, false); } catch (e) {
           st.failed++;
+          if (!failedKeys.includes(keyOf(d))) failedKeys.push(keyOf(d));
           log.warn('call_retention_failed', { phase: ph.key, path: d.ref && d.ref.path, err: e && e.message });
         }
         const v = d.data() || {};
@@ -208,14 +254,15 @@ async function runRetention({
       if (docs.length < n) { st.stoppedBy = 'end'; break; }
     }
     cursors[ph.key] = cursor;
+    retry[ph.key] = failedKeys.slice(0, RETRY_MAX);
   }
 
   if (live) {
     await db.doc(STATE_DOC).set({
-      cursors,
+      cursors, retry,
       passStartedAtMs: rescan ? nowMs : (Number(state.passStartedAtMs) || nowMs),
       lastRunAtMs: nowMs, lastRunId: runId,
-      lastRun: Object.fromEntries(Object.entries(out.phases).map(([k, s]) => [k, { scanned: s.scanned, done: s.done, held: s.held, failed: s.failed, stoppedBy: s.stoppedBy }])),
+      lastRun: Object.fromEntries(Object.entries(out.phases).map(([k, s]) => [k, { scanned: s.scanned, done: s.done, held: s.held, failed: s.failed, retried: s.retried, stoppedBy: s.stoppedBy }])),
     }, { merge: false });
   }
   return out;
@@ -230,4 +277,4 @@ exports.callRetention = onSchedule(
   }
 );
 
-exports._test = { runRetention, PHASES, STATE_DOC, LOG, BATCH, MAX_PER_PHASE, DEADLINE_MS };
+exports._test = { runRetention, PHASES, STATE_DOC, LOG, BATCH, MAX_PER_PHASE, RETRY_MAX, DEADLINE_MS };
