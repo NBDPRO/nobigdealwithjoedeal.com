@@ -751,6 +751,21 @@ function stageOneTapAllowed(key, role, fromKey) {
   return !(a !== -1 && b !== -1 && a < b);
 }
 
+/**
+ * The stage the lead moved to `key` from, by its own stageHistory (the CRM
+ * writer appends { from, to } on every move): the latest entry into `key`.
+ * '' when the history does not say (a legacy lead, or no such move).
+ */
+function stageMovedFrom(lead, key) {
+  const k = normStageKey(key);
+  const h = lead && Array.isArray(lead.stageHistory) ? lead.stageHistory : [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    const e = h[i];
+    if (e && typeof e === 'object' && normStageKey(e.to) === k && e.from != null && String(e.from).trim()) return str(String(e.from), 40);
+  }
+  return '';
+}
+
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
 function cacheState(doc, hash, nowMs, force) {
   if (!doc || doc.v !== BRIEF_VERSION || doc.transcriptHash !== hash || !doc.brief) return 'regenerate';
@@ -765,5 +780,5 @@ module.exports = {
   normalizeSpeech, groundQuote, digitsInQuote, LOW_LOGPROB, unsureQuotes, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
-  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed,
+  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom,
 };

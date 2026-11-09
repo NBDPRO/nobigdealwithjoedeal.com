@@ -149,7 +149,7 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       ok('an unknown mode is refused', r4.e && r4.e.code === 'invalid-argument');
       const contacted = { targetKey: 'contacted', label: 'Contacted', role: 'active', reason: 'Spoke with them.', quote: 'thanks for calling back' };
       const db2 = makeDb(seed(contacted));
-      const r5 = await decide(db2, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      const r5 = await decide(db2, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'new' });
       const ds = db2.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || [];
       ok('a one-tap accept of a plain forward move is logged (mode one-tap, AI value, final value, brief gen)', r5.r && ds.length === 1 && ds[0].mode === 'one-tap' && ds[0].aiValue === 'contacted' && ds[0].finalValue === 'contacted' && ds[0].gen === GEN, ds);
       await decide(db2, OWNER, { decision: 'skip', value: 'opened the stage picker' });
@@ -165,7 +165,7 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       ok('a viewer is refused', v.e && v.e.code === 'permission-denied');
       const rep = await decide(makeDb(seed(contacted)), { uid: 'rep', token: { role: 'sales_rep', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
       ok('a sales rep who does not own the call is refused', rep.e && rep.e.code === 'permission-denied');
-      const ca = await decide(makeDb(seed(contacted)), { uid: 'ca', token: { role: 'company_admin', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      const ca = await decide(makeDb(seed(contacted)), { uid: 'ca', token: { role: 'company_admin', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'new' });
       // The log comes AFTER the writer moved the lead, so the stage it moved
       // from travels with it (fromStage); the lead itself already reads the target.
       const back = makeDb(seed(contacted));
@@ -176,6 +176,24 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       ok('a one-tap log after the move landed (the lead already reads the target) is accepted', moved.r && moved.r.ok === true, moved.e && moved.e.message);
       const rb2 = await decide(back, OWNER, { decision: 'accept', value: 'contacted', mode: 'confirmed', fromStage: 'estimate_submitted' });
       ok('…confirmed, it is logged', rb2.r && rb2.r.ok === true);
+      // fromStage comes from the client: a one-tap log without it says
+      // nothing about a move back, so it is refused (review 2026-11-09).
+      const nofrom = await decide(makeDb(seed(contacted)), OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      ok('a one-tap log with no fromStage is refused (a move back cannot be ruled out)', nofrom.e && nofrom.e.code === 'failed-precondition', nofrom.e ? nofrom.e.message : nofrom.r);
+      // The lead's own stageHistory (written by the CRM writer) outranks the
+      // client's fromStage: a forged later-looking fromStage cannot launder a move back.
+      const hist = makeDb(seed(contacted));
+      hist.store.set('leads/L1', { userId: 'jo', companyId: 'co1', stage: 'contacted', stageHistory: [
+        { from: 'New', to: 'estimate_submitted', timestamp: '2026-11-01T10:00:00Z' },
+        { from: 'estimate_submitted', to: 'contacted', timestamp: '2026-11-05T18:00:01Z' },
+      ] });
+      const forged = await decide(hist, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'new' });
+      ok('a one-tap log is checked against the lead\'s stageHistory, not the client\'s fromStage', forged.e && forged.e.code === 'failed-precondition', forged.e ? forged.e.message : forged.r);
+      const histOk = makeDb(seed(contacted));
+      histOk.store.set('leads/L1', { userId: 'jo', companyId: 'co1', stage: 'contacted', stageHistory: [{ from: 'New', to: 'contacted', timestamp: '2026-11-05T18:00:01Z' }] });
+      const real = await decide(histOk, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'estimate_submitted' });
+      const rd = (histOk.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0] || {};
+      ok('…a real forward move is logged with the stage history\'s from, whatever the client said', real.r && real.r.ok === true && rd.fromStage === 'New', real.e ? real.e.message : rd);
       ok('a same-company company_admin may (the callCenterAction set)', ca.r && ca.r.ok === true, ca.e && ca.e.message);
     }
   }

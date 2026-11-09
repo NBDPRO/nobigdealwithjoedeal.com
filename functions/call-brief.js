@@ -217,14 +217,21 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   // says a never-one-tap stage (Inspected, install_complete, an appointment,
   // Lost) went in one tap, or a stage a call may not suggest at all.
   let mode = '';
+  let fromStage = '';
   if (item === 'stage' && decision === 'accept') {
     const st = (stored.brief && stored.brief.stage) || {};
     if (data.value != null && String(data.value) !== String(st.targetKey)) throw new HttpsError('invalid-argument', 'Only the stage the call suggested.');
     mode = data.mode === 'one-tap' || data.mode === 'confirmed' ? data.mode : '';
     if (!mode) throw new HttpsError('invalid-argument', 'Say how the stage was moved.');
     if (!L.stageOfferable(st.targetKey, st.role)) throw new HttpsError('failed-precondition', 'A call never moves a customer to a signed contract, a job or a won stage.');
-    // fromStage: where the lead was before the writer moved it (the lead reads the target by now).
-    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, L.str(data.fromStage, 40))) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
+    // fromStage: where the lead was before the writer moved it (the lead reads
+    // the target by now). The client's value is advisory: the lead's own
+    // stageHistory (the CRM writer appends { from, to }) outranks it, and a
+    // one-tap log that knows neither is refused, since a move back cannot be
+    // ruled out (review 2026-11-09).
+    fromStage = L.stageMovedFrom(g.lead, st.targetKey) || L.str(data.fromStage, 40);
+    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, fromStage)) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
+    if (mode === 'one-tap' && !fromStage) throw new HttpsError('failed-precondition', 'Say which stage it moved from.');
   }
 
   let finalValue = decision === 'skip' ? '' : (data.value == null ? String(aiValue || '') : L.str(data.value, item === 'summary' ? 600 : 200));
@@ -276,7 +283,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   // never offers that slot again (slot 0 is the card's own Promise button).
   const slot = Number(data.slot);
   if (item.startsWith('promise:') && decision === 'accept' && Number.isInteger(slot) && slot >= 1 && slot <= 5) entry.slot = slot;
-  if (mode) { entry.mode = mode; if (data.fromStage) entry.fromStage = L.str(data.fromStage, 40); }
+  if (mode) { entry.mode = mode; if (fromStage) entry.fromStage = fromStage; }
   await db.runTransaction(async (tx) => {
     const s = await tx.get(g.briefRef);
     const prev = s.exists && Array.isArray((s.data() || {}).decisions) ? s.data().decisions : [];
