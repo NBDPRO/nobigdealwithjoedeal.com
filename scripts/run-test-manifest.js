@@ -449,7 +449,11 @@ const RUNNABLE = ['node', 'smoke'];
 //               the P2 node suites (Activities, runner, peek, Welcome Recap, drive-off, Coach
 //               AI line, team board/aggregate/time zone, goals editor, P1 follow-ups,
 //               integration) and the os-coach-ai and os-team emulator suites. MEASURED via --check.
-const FLOORS = { node: 991, smoke: 74, disk: 1125 };
+//   2026-11-09  991/74/1125 -> 999/74/1134, Call to Close P1 joins NBD OS P2 on this branch:
+//               transcribe now, segment confidence, estimate prefill + repair quick quote,
+//               said vs proposal, one-tap stage moves, follow-up draft, auto-brief, rescue
+//               queue, objections, and the call-brief-settings emulator suite. MEASURED via --check.
+const FLOORS = { node: 999, smoke: 74, disk: 1134 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
