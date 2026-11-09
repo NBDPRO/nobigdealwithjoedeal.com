@@ -108,3 +108,16 @@ Branch `ctc-p1-estimate`. The Call Brief sheet's **Start estimate** ("Start repa
 - **Accessibility.** `#v2rawSqft` names the said-square-count hint in `aria-describedby`.
 - **Phone.** The strip keeps the rep's fold across repaints; on a phone it starts folded once this device has shown one (`localStorage nbd.callStripSeen`).
 - **Not done:** chimney / skylight chips have no quote (the brief keeps mentions as yes/no); the chip says "no exact words kept". Keeping a quote for mentions is a `call-brief-logic.js` change for a later lane.
+
+## P1 lane "followup" (2026-11-09): follow-up draft, auto-brief switch, rescue list, objections
+
+Branch `ctc-p1-followup`, from `88eb11bcf`. Builds §5.3, §6 #6 and #7, and the auto-brief item of §9 P1 of [CALL-TO-CLOSE-DESIGN-2026-11-09](CALL-TO-CLOSE-DESIGN-2026-11-09.md).
+
+| Piece | Files | What a user sees |
+|---|---|---|
+| Follow-up message | `docs/pro/js/call-brief-ui.js`, `css/call-brief.css` | A "Follow-up message" card in the brief sheet, built only from what the person accepted (promises with their own who / kind / date, the follow-up date, the adjuster meeting) in fixed phrases. Text needs written consent on file (`tcpaConsent` + the server's `tcpaConsentAt`, as `sms-consent-declined.js` `consentBasis`); otherwise it says why, and "you can text me" on a call is not consent. "Check and open in Messages" goes through `NBDPhoneShare.share` (the server's ok-to-text check, then Messages; the person presses Send). Email opens the mail app with the draft written (`email_system.js` untouched; there is no non-held CRM email composer). Only a confirmed send is logged (`draft:followupText` / `draft:followupEmail`). |
+| Objections | same | Tags for each objection and a named competitor, the words said, a playbook reply from fixed phrases (`PLAYBOOK`; a tenant can override a reply via `companyProfile.callPlaybook.<kind>`), Copy only. Never a lead field (Q4). |
+| Auto-brief | `functions/call-brief.js` (`callBriefAuto`, `autoBriefHandler`), `call-brief-logic.js` (`autoBriefTransition`, `filerOf`), `firestore.rules`, `call-center-view.js` | Owner / company_admin see "Auto-brief filed calls: Off" on the Call Center (only with phone calls loaded). On, a person filing a call drafts its brief as that person, through callBrief's gates and caps. Off by default. |
+| Rescue list | `docs/pro/js/call-rescue-logic.js`, `call-center-view.js`, `functions/call-center.js` (`rescueDismiss`) | A "Needs a next step" tab: customers whose newest contact is a noted business call 2-30 days old with no promise, follow-up or stage move since. Brief / Follow-up (the existing promise sheet) / Dismiss (with Undo). |
+
+Assumptions: no call settings tab exists, so the switch sits on the Call Center next to the pipeline health line; "business call" = not personal / spam / supplier / sub, on a customer; a customer's own follow-up on or after the call counts as a next step; the rescue logic is fetched when the Call Center opens (not added to the `callcenter` bundle, whose contents three older suites pin). Boot bytes: 0 on both pages.
