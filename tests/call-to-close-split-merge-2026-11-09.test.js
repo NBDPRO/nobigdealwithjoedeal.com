@@ -488,6 +488,19 @@ function fakeDb(seed) {
     ok('phone_calls stays server-written (allow write: if false)', /allow (create, update, delete|write): if false/.test(pc), pc.slice(0, 200));
   }
 
+  console.log('\n9. The demo');
+  {
+    // Review 2026-11-09: a Merge tap in the sample account said "this would file this call on a customer".
+    const { pathToFileURL } = require('url');
+    let FN = null;
+    try { FN = await import(pathToFileURL(path.join(ROOT, 'docs/pro/demo-sdk/firebase-functions.js')).href); } catch (e) { console.log('  (demo functions did not load: ' + e.message + ')'); }
+    const say = (a) => (FN ? FN.sampleCallableMessage('callCenterAction', a === undefined ? undefined : { id: P.id, action: a, withId: S.id }) : '');
+    ok('Merge in the demo says it would merge the two calls', /would merge these two calls into one/.test(say('merge')) && !/file this call/.test(say('merge')), say('merge'));
+    ok('Undo merge says it would split them back', /would split this call back into two/.test(say('unmerge')) && !/file this call/.test(say('unmerge')), say('unmerge'));
+    ok('control: filing still says it would file the call', /would file this call on a customer/.test(say('attach')) && /would file this call on a customer/.test(say()));
+    ok('the refusal the visitor sees carries the payload through', /callableError\(name, payload\)/.test(read('docs/pro/demo-sdk/firebase-functions.js')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
   process.exit(0);

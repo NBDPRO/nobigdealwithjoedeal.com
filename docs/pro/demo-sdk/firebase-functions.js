@@ -335,16 +335,27 @@ function sampleGameCard() {
   };
 }
 
-export function sampleCallableMessage(name) {
-  const doing = WOULD[name];
+// One callable, several actions: the action's own words (Call to Close P2,
+// 2026-11-09: a Merge tap said it would file the call on a customer).
+const WOULD_ACTION = {
+  callCenterAction: {
+    merge: 'merge these two calls into one (both recordings and notes stay)',
+    unmerge: 'split this call back into two',
+  },
+};
+
+export function sampleCallableMessage(name, payload) {
+  const act = payload && typeof payload === 'object' ? String(payload.action || '') : '';
+  const byAct = WOULD_ACTION[name];
+  const doing = (byAct && Object.prototype.hasOwnProperty.call(byAct, act) && byAct[act]) || WOULD[name];
   return doing
     ? 'In your real account this would ' + doing + '. The sample account never contacts anyone.'
     // Plain words, no function name (UI sweep 2026-10-24: visitors saw '"getAdjusterTacticBoard" runs on…').
     : 'That runs on NBD Pro servers, so it is not in the sample account.';
 }
 
-function callableError(name) {
-  const e = new Error(sampleCallableMessage(name));
+function callableError(name, payload) {
+  const e = new Error(sampleCallableMessage(name, payload));
   e.code = 'functions/failed-precondition';
   e.name = 'FirebaseError';
   e.details = { sampleAccount: true, callable: name };
@@ -378,7 +389,7 @@ export function httpsCallable(_functions, name) {
     // Wave 2: a send-to-sign callable shows exactly what it would have sent
     // (read-only) before it says no. send-preview.js.
     const shown = await previewFor(name, payload);
-    const e = callableError(name);
+    const e = callableError(name, payload);
     // The preview already says it; a second toast on top of it is noise.
     if (!shown && !QUIET.has(name)) demoNotice(e.message, { kind: 'callable', callable: name });
     throw e;
