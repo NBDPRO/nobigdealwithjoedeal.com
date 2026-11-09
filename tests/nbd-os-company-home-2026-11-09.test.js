@@ -306,6 +306,25 @@ G(() => {
     ok('…and the company desk home shows', J(ids(col)) === J(['coach-1', 'glance-1']), J(ids(col)));
     ok('…with no Edit Home button', !col.querySelector('[data-osdo="homeedit"]'));
   });
+  console.log('\n8. before the claims load');
+  G(() => {
+    const prefsEv = (T) => (T.document.listeners['nbd:layout-prefs'] || []).forEach((f) => f({ type: 'nbd:layout-prefs' }));
+    // claims not loaded yet (window._userClaims unset): a member must not be treated as the owner
+    const T = makeWin({ surface: 'desktop', uid: 'u2', home: OWN, company: coDoc(true) });
+    T.W._userClaims = undefined;
+    T.W._impl.mount({ surface: 'desktop' });
+    const col = deskCol(T);
+    ok('claims not loaded yet: the company lock still binds (the locked desk home shows)', J(ids(col)) === J(['coach-1', 'glance-1']), J(ids(col)));
+    ok('…and there is no Edit Home way around it', !col.querySelector('[data-osdo="homeedit"]') && !!col.querySelector('.os-hw-locked'));
+    T.W._userClaims = { companyId: 'u2' };   // they arrive: this is the solo owner
+    prefsEv(T);
+    ok('when the claims say owner, the next settings read gives them their own home', J(ids(col)) === J(['upnext-1']), J(ids(col)));
+    ok('…with Edit Home back', !!col.querySelector('[data-osdo="homeedit"]'));
+    T.W._userClaims = {};   // loaded, no companyId at all: still the solo owner (the CRM's rule)
+    prefsEv(T);
+    ok('loaded claims with no companyId are still the solo owner', J(ids(col)) === J(['upnext-1']));
+
+  });
   G(() => {
     ok('no new <script> tag for the owner code', !/home-company\.js/.test(DASH));
     ok('no layout-system needs slot taken', !/home-company/.test(LAYOUT_SYS));

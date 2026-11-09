@@ -97,8 +97,11 @@
   // ── home widgets (os/home.js), from layoutState['os-home'] ──
   // The CRM's company-admin check (layouts/bento.js, layouts/picker.js): the solo
   // owner or a company_admin. firestore.rules is the real gate on what they write.
+  // Unlike those copies, claims not loaded yet (window._userClaims unset) are not
+  // the solo owner here: that would lift a company home lock until they arrive.
   function canAdmin() {
-    var c = W._userClaims || {};
+    if (!W._userClaims || typeof W._userClaims !== 'object') return false;
+    var c = W._userClaims;
     var role = String(c.role || '');
     if (role === 'viewer' || role === 'sales_rep' || role === 'manager') return false;
     var u = W._user && W._user.uid;
