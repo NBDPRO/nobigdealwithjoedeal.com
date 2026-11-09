@@ -1010,7 +1010,8 @@
     "call-to-close-said-2026-11-09.test.js",
     "call-to-close-auto-brief-2026-11-09.test.js",
     "call-to-close-rescue-queue-2026-11-09.test.js",
-    "call-to-close-followup-draft-2026-11-09.test.js"
+    "call-to-close-followup-draft-2026-11-09.test.js",
+    "call-to-close-walkthrough-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1605,6 +1606,7 @@
     "firestore-rules.receipt-inbox.test.js",
     "firestore-rules.call-briefs.test.js",
     "firestore-rules.call-brief-settings.test.js",
+    "firestore-rules.call-briefs-visit.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",
