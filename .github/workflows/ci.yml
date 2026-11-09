@@ -623,6 +623,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-coachai-test 'node firestore-rules.os-coach-ai.test.js'
+      # NBD OS team (2026-11-09, P2): leaderboard/{uid} company read, no client write; companyProfile.timeZone string <= 64. Own file (positive controls inside).
+      - name: Run NBD OS team rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-osteam-test 'node firestore-rules.os-team.test.js'
       # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
       - name: Run job-conflict notice rules tests under emulator
         run: |

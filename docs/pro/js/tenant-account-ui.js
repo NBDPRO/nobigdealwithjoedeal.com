@@ -105,4 +105,7 @@
   });
 
   window.NBDTenantAccountUI = { uploadLogo: uploadLogo, exportAll: exportAll };
+  // Company Profile's Time zone panel (NBD OS P2 Team, 2026-11-09) rides this lazy bundle: loaded from
+  // here at runtime, because the bundle list lives in script-loader.js, blocking and at its shipped ceiling.
+  try { if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') window.ScriptLoader.load('js/company-timezone-settings.js?v=1'); } catch (e) { /* Settings works without it */ }
 })();

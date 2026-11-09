@@ -2348,12 +2348,19 @@ service cloud.firestore {
       function cpCoachAiOk(d) {
         return !('coachAiEnabled' in d) || d.coachAiEnabled is bool;
       }
+      // timeZone (NBD OS P2 Team, 2026-11-09): the company's IANA zone, a string of
+      // at most 64 chars or absent. The settings picker checks it is a real zone
+      // (Intl); the server (leaderboard-aggregate-logic.js) re-checks before use.
+      function cpTzOk(d) {
+        return !('timeZone' in d) || (d.timeZone is string && d.timeZone.size() <= 64);
+      }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).
       allow create: if cpCanWrite()
         && brandPrefix(request.resource.data) == null
         && brandSeal(request.resource.data) == null
-        && cpCoachAiOk(request.resource.data);
+        && cpCoachAiOk(request.resource.data)
+        && cpTzOk(request.resource.data);
       // update: an owner/admin may write anything EXCEPT introducing or changing
       // docPrefix/seal. A deep-merge that doesn't touch them carries the existing
       // value forward (request == resource) and passes; only the admin SDK (which
@@ -2361,7 +2368,8 @@ service cloud.firestore {
       allow update: if cpCanWrite()
         && brandPrefix(request.resource.data) == brandPrefix(resource.data)
         && brandSeal(request.resource.data) == brandSeal(resource.data)
-        && cpCoachAiOk(request.resource.data);
+        && cpCoachAiOk(request.resource.data)
+        && cpTzOk(request.resource.data);
       // delete: owner/admin only (deleting does NOT release the docPrefixes/{PREFIX}
       // reservation, which is admin-SDK-only, so no prefix-collision abuse).
       allow delete: if cpCanWrite();
