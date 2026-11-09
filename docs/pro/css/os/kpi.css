@@ -25,3 +25,8 @@
 .os-p-page .os-hw-kpi.is-m .os-hw-body { flex: 1 1 auto; }
 .os-p-page .os-hw-kpi.is-m .os-kpi-big { flex: 1 1 auto; }
 .os-p-page .os-hw-kpi.is-m .os-kpi-n { font-size: calc(var(--ui-fs-num-lg, 28px) * 1.5); }
+/* the one-column desk below 1100px sizes rows to a 96px floor: an M keeps a full 160px row, so
+   Change view / Pick a view at its foot is never cut in half (Nearby and Up Next with Peek do the same) */
+@media (max-width: 1100px) {
+  .os-hw-board .os-hw.os-hw.os-hw-kpi.is-m { min-height: 160px; }
+}

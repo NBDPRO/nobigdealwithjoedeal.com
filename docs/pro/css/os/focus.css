@@ -41,3 +41,8 @@
 .os-hw.is-s .os-fb-doors, .os-hw.is-s .os-fb-done { font-size: var(--ui-fs-body-sm, 13px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .os-fb-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* the one-column desk below 1100px sizes rows to a 96px floor: an M keeps a full 160px row, so
+   "Do Not Disturb goes on" and a running block's End, bar and lines are not cut off */
+@media (max-width: 1100px) {
+  .os-hw-board .os-hw.os-hw.os-hw-focus.is-m { min-height: 160px; }
+}

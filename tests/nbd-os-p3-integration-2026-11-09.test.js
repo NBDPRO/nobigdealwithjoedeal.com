@@ -155,6 +155,17 @@ const HOME_JS = read('docs/pro/js/os/home.js');
     }
   });
 
+  // the one-column desk below 1100px gives each widget a 96px floor; an M whose foot holds a 44px
+  // control (Saved view's Change view / Pick a view, the Knock block's End and its lines) keeps the
+  // full 160px row, as Nearby and Up Next with Peek do (seen cut in half at 1000px)
+  console.log('\n8. the one-column desk (< 1100px): M tiles with a control at the foot keep a 160px row');
+  await G(async () => {
+    const one = (f) => { const c = read(f).replace(/\/\*[\s\S]*?\*\//g, ''); const m = /@media \(max-width: 1100px\) \{([\s\S]*?)\n\}/.exec(c); return m ? m[1] : ''; };
+    ok('Nearby M (its own rule, unchanged)', /\.os-hw-board \.os-hw\.os-hw\.os-hw-nearby\.is-m \{ min-height: 160px; \}/.test(one('docs/pro/css/os/nearby.css')));
+    ok('Saved view M', /\.os-hw-board \.os-hw\.os-hw\.os-hw-kpi\.is-m \{ min-height: 160px; \}/.test(one('docs/pro/css/os/kpi.css')), one('docs/pro/css/os/kpi.css'));
+    ok('Knock block M', /\.os-hw-board \.os-hw\.os-hw\.os-hw-focus\.is-m \{ min-height: 160px; \}/.test(one('docs/pro/css/os/focus.css')), one('docs/pro/css/os/focus.css'));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) process.exit(1);
 })();
