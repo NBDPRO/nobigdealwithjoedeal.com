@@ -2750,6 +2750,7 @@
         else v = el.value;
         state.values[key] = v;
         updateFieldMissingState(key);
+        said.refresh();
         // Deposit rule (2026-09-25): an untouched deposit follows the price;
         // the note re-states the plan on every price or deposit edit.
         if (state.deposit && (key === 'totalPrice' || Object.prototype.hasOwnProperty.call(state.deposit.defaults, key))) {
@@ -2780,6 +2781,7 @@
         }
         state.values[key2] = arr;
         updateLineItemsGrandTotal(key2);
+        said.refresh();
         return;
       }
 
@@ -2790,6 +2792,7 @@
         var arr3 = Array.isArray(state.values[key3]) ? state.values[key3].slice() : [];
         arr3[idx3] = el.value;
         state.values[key3] = arr3;
+        said.refresh();
         return;
       }
     };
@@ -2901,6 +2904,16 @@
   }
   var said = {
     html: saidHtml,
+    // Recompute from the briefs already read (no new read): a row or a
+    // description typed by hand clears its item without a Copy.
+    refresh: function () {
+      var C = window.NBDCallToClose;
+      if (!C || state.type !== 'proposal' || !(state.saidBriefs || []).length) return;
+      var next = C.saidVsProposal(state.saidBriefs, saidProposal());
+      if (JSON.stringify(next) === JSON.stringify(state.callSaid || [])) return;
+      state.callSaid = next;
+      redrawSaid();
+    },
     redraw: function (key) { redrawField(key); },
     copy: function (key) {
       var C = window.NBDCallToClose;

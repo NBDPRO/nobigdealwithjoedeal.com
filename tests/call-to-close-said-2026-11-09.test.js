@@ -138,6 +138,7 @@ const brief = (over) => Object.assign({
     const submitBody = (src.split('async function submit()')[1] || '').split('\n  function applyPaymentAgreementPlan')[0];
     ok('Generate (submit) never waits on or reads the call check', submitBody.length > 0 && !/said|NBDCallToClose|call_briefs/i.test(submitBody));
     ok('the check is wired for a proposal only, and loads the logic lazily', /type === 'proposal'[\s\S]{0,200}loadSaid|loadSaid[\s\S]{0,400}'proposal'/.test(src) && /ScriptLoader\.load\([^)]*call-to-close-logic\.js|call-to-close-logic\.js/.test(src));
+    ok('the loader busts the doc-preflight.js cache (the said panel ships with it)', !/doc-preflight\.js\?v=14'/.test(read('docs/pro/js/script-loader.js')));
     ok('no <script> tag for the logic in any page', !/call-to-close-logic\.js/.test(read('docs/pro/customer.html')) && !/call-to-close-logic\.js/.test(read('docs/pro/dashboard.html')));
     // Run the real file in a sandbox and drive the panel's copy action.
     const listeners = {};
@@ -173,6 +174,23 @@ const brief = (over) => Object.assign({
       ok('an unknown item changes nothing', st.values.scopeItems.join('|') === 'Tear off|Gutters');
       st.callSaid = [];
       ok('no items → no panel', DP._said.html() === '');
+      // A scope row typed by hand removes the matching item, without a Copy (review 2026-11-09).
+      ok('the said check can be recomputed from the briefs it read', typeof DP._said.refresh === 'function');
+      if (typeof DP._said.refresh === 'function') {
+        st.saidBriefs = [{ callId: 'cube_A', brief: brief({ scope: { service: { value: 'Roof replacement', quote: 'we want a whole new roof' }, mentions: { gutters: true, chimney: true } } }), decisions: [], generatedAtMs: GEN }];
+        st.values = { projectDescription: 'Complete roof replacement.', scopeItems: ['Tear off'] };
+        DP._said.refresh();
+        const k1 = st.callSaid.map((x) => x.key).sort().join(',');
+        st.values.scopeItems = ['Tear off', 'Seamless gutters'];
+        DP._said.refresh();
+        const k2 = st.callSaid.map((x) => x.key).sort().join(',');
+        ok('…typing "gutters" into a scope row drops Gutters from the panel', k1 === 'chimney,gutters' && k2 === 'chimney', [k1, k2]);
+        st.values.projectDescription = 'Roof and chimney flashing.';
+        DP._said.refresh();
+        ok('…so does the description', st.callSaid.length === 0, st.callSaid);
+      }
+      const ih = (src.split('var inputHandler = function (e) {')[1] || '').split('modal.addEventListener(\'input\', inputHandler);')[0];
+      ok('the input handler recomputes it on a field, line-item and scope-row edit', (ih.match(/said\.refresh\(\)/g) || []).length >= 3, (ih.match(/said\.refresh\(\)/g) || []).length);
     }
     const openBody = (src.split('  function open(type, customerId) {')[1] || '').split('\n  function close()')[0];
     ok('open() never seeds the scope list from a call (Q10): no copy before a tap', !/copyIntoScope|callSaid\s*=\s*[^[]/.test(openBody.replace(/state\.callSaid = \[\];/, '')));
