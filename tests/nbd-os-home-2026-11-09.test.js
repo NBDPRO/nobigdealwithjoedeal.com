@@ -484,12 +484,13 @@ G(() => {
   // P2 (2026-11-09): and osacts (Activities and Focus modes), osp2peek (Peek, Recap) and oscoachai
   // (css/os/coach-ai.css, js/os/coach-ai.js, the opted-in Coach's AI focus line), css/os + js/os files too
   const acts = /var ACTS_FILES = \[([^\]]*)\]/.exec(code);
-  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js), osshutdown, osacts, osp2peek (css/os + js/os files), oscoachai, osteam, osdsgoals (js/os/ds-goals.js) and (P3) osfocus and oskpi (css/os + js/os files)',
-    (code.match(/loadBundle\(/g) || []).length === 10 && /loadBundle\('osfocus'\)/.test(code) && /SL\.loadBundle\('oskpi'\)/.test(code)
+  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js), osshutdown, osacts, osp2peek (css/os + js/os files), oscoachai, osteam, osdsgoals (js/os/ds-goals.js) and (P3) osfocus, oskpi and osnearby (css/os + js/os files)',
+    (code.match(/loadBundle\(/g) || []).length === 11 && /loadBundle\('osfocus'\)/.test(code) && /SL\.loadBundle\('oskpi'\)/.test(code)
       && /var KPI_BUNDLE = \[([^\]]*)\]/.exec(code)[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x))
       && /var FOCUS_BUNDLE = \[([^\]]*)\]/.exec(code)[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && !!acts && acts[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /SL\.loadBundle\(ACTS_BUNDLE\)/.test(code)
       && /SL\.bundles\.oscoachai = \['css\/os\/coach-ai\.css\?v=1', 'js\/os\/coach-ai\.js\?v=1'\];/.test(code) && /loadBundle\('oscoachai'\)/.test(code) && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
       && /loadBundle\('osteam'\)/.test(code)
+      && /loadBundle\('osnearby'\)/.test(code) && /var NB_BUNDLE = \[([^\]]*)\]/.exec(code)[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x))
       && /SL\.bundles\.osdsgoals = \['js\/os\/ds-goals\.js\?v=1'\];/.test(code) && /loadBundle\('osdsgoals'\)/.test(code)
       && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
       && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=2'\];/.test(code)

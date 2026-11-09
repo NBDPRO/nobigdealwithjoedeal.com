@@ -55,6 +55,10 @@
  *   Team         (P2, owner only: catalog owner) painted by os/team.js, the runtime
  *                ScriptLoader bundle osteam registered and loaded here on first paint;
  *                reads the company's leaderboard rows (at most 50 docs, every 5 min at most)
+ *   Nearby       (P3) painted by os/nearby.js, the runtime ScriptLoader bundle osnearby
+ *                registered and loaded here on first paint: the member's leads nearest to
+ *                them from the lat / lng they carry; the position is read only on its Find
+ *                nearby tap (taps on [data-oshw-nb] go to NBDOSNearby.tap), never kept
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -113,7 +117,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus', 'nbd:os-kpi', 'nbd:company-profile-loaded'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus', 'nbd:os-kpi', 'nbd:company-profile-loaded', 'nbd:os-nearby'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -619,7 +623,26 @@
     return h + '<p class="os-hw-empty">Loading…</p>';
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock, kpi: kpi };
+  // ── Nearby (P3): os/nearby.js paints it, loaded as the runtime ScriptLoader bundle osnearby
+  // the first time the widget paints; it asks for the position only on its own Find nearby tap
+  var NB_BUNDLE = ['css/os/nearby.css?v=1', 'js/os/nearby-logic.js?v=1', 'js/os/nearby.js?v=1'];
+  var nbState = '';   // '' | 'asked' | 'failed'
+  function nearby(size, cfg, act, rec, kit) {
+    var NB = W.NBDOSNearby;
+    if (NB && typeof NB.widget === 'function') return NB.widget(size, cfg, kit);
+    var h = '<h3 class="os-hw-title">Nearby</h3>';
+    if (nbState === 'failed') return h + failHtml('nearby');
+    var SL = W.ScriptLoader;
+    if (nbState !== 'asked' && SL && typeof SL.loadBundle === 'function') {
+      nbState = 'asked';
+      if (SL.bundles && !SL.bundles.osnearby) SL.bundles.osnearby = NB_BUNDLE.slice();
+      var done = function () { nbState = W.NBDOSNearby ? '' : 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-nearby')); } catch (e) {} };
+      Promise.resolve().then(function () { return SL.loadBundle('osnearby'); }).then(done, done);
+    }
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock, kpi: kpi, nearby: nearby };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -1294,6 +1317,11 @@
           order.forEach(function (k) { if (recs[k].it.id === 'teamboard') paintOne(recs[k], true); });
           return;
         }
+        if (rk === 'nearby') {
+          if (nbState === 'failed') nbState = '';
+          order.forEach(function (k) { if (recs[k].it.id === 'nearby') paintOne(recs[k], true); });
+          return;
+        }
         if (p1State === 'failed') p1State = '';
         var rec = recs[rk]; if (rec) paintOne(rec, true); return;
       }
@@ -1317,6 +1345,8 @@
         if (K && krec.it.cfg && !K.open(krec.it.cfg.view)) { paintOne(krec, true); announce('That saved view is gone.'); }
         return;
       }
+      var nb = t.closest('[data-oshw-nb]');
+      if (nb) { if (W.NBDOSNearby && typeof W.NBDOSNearby.tap === 'function') W.NBDOSNearby.tap(nb); return; }
       var sd = t.closest('[data-oshw-sd]');
       if (sd) { openShutdown(sd); return; }
       var fb = t.closest('[data-oshw-focus]');

@@ -137,10 +137,14 @@
     // here the view's (os/kpi-logic.js viewId), never its name or its filters. nostack: a stack card has no
     // settings, so it never goes in a Smart Stack. Several may sit on one home.
     kpi: { title: 'Saved view', sizes: ['s', 'm'], def: 's', reads: 0, cfgId: ['view'], nostack: true, bundle: 'oskpi', cat: 'tools', nav: 'crm', about: 'How many leads match one of your team\'s saved map views' },
+    // P3 (os/nearby.js, the lazy osnearby bundle): the member's leads nearest to them, by the lat / lng the leads
+    // already carry (in memory, no reads). The position is asked for only on a tap, never watched or kept.
+    // names: it lists customers by name, so "In a home" never paints it (actHides)
+    nearby: { title: 'Nearby', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, bundle: 'osnearby', cat: 'tools', nav: 'crm', names: true, about: 'Your leads closest to where you are, when you tap' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus', 'kpi'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus', 'kpi', 'nearby'];
   var CFG_ID_RE = /^[0-9a-f]{8}$/;
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
