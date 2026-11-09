@@ -29,6 +29,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const MessagingControls = require('./messaging-controls');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
+const MG = require('./call-merge-logic');
 const PR = require('./promise-logic');
 const CL = require('./contact-labels');
 const PV = require('./ping-volume-logic'); // digest dedupe + the repeat-number summary line (audit F6/F7)
@@ -1032,6 +1033,8 @@ exports.callCenterSweep = onSchedule(
 //                          leadId + bucket 'customer', the caller's number
 //                          onto the lead (blanks only), and — if the call is
 //                          already noted — the timeline entry + follow-up task
+//   merge {withId} / unmerge — Call to Close P2: mark two split calls as one
+//                          (mergeAction below), and Undo
 // ═══════════════════════════════════════════════════════════════════════
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const COMPANY_STAFF = ['company_admin', 'manager'];
@@ -1196,6 +1199,60 @@ async function moveBriefOff({ db, id, fromId, toId }) {
     await oldTask.delete();
   }
   await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
+}
+
+// The role test at the top of callAction, for the OTHER call of a merge.
+function mayActOn(auth, c) {
+  const token = auth.token || {};
+  const role = String(token.role || '');
+  if (role === 'viewer') return false;
+  const sameCompany = !!(token.companyId && c.companyId && token.companyId === c.companyId);
+  return role === 'admin' || auth.uid === c.userId || (sameCompany && COMPANY_STAFF.includes(role));
+}
+
+// Call to Close P2 (2026-11-09): merging split calls (call-merge-logic.js).
+// merge {withId}: two calls that look like one dropped-and-redialed call
+// (MG.pairProblem, re-checked here on the stored docs) are marked: the
+// earlier one is primary (mergedFrom = the other), the later one secondary
+// (mergedInto = the primary). Nothing else on either doc changes: neither is
+// deleted, no audio moves, notes / tasks / timeline rows stay. The primary's
+// Call Brief then reads both transcripts (call-brief.js briefInput), so its
+// transcript hash changes and the stored brief is redrafted on the next tap.
+// A repeat is a no-op. unmerge: clears the marks on both (either id).
+async function mergeAction({ db, auth, call, action, data, nowMs }) {
+  const ref = (id) => db.collection(COLLECTION).doc(id);
+  const load = async (id) => { const s = await ref(id).get(); return s.exists ? Object.assign({}, s.data(), { id }) : null; };
+  if (action === 'unmerge') {
+    const otherId = call.mergedInto || call.mergedFrom;
+    if (!otherId) return { ok: true, unmerged: false };
+    if (!MG.isCallId(otherId)) throw new HttpsError('failed-precondition', 'This call is not merged.');
+    const other = await load(String(otherId));
+    const p = call.mergedFrom ? call : other;
+    const s = call.mergedFrom ? other : call;
+    if (!other || !MG.mergedTogether(p, s)) throw new HttpsError('failed-precondition', 'These calls are not merged with each other.');
+    if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+    const b = db.batch();
+    b.set(ref(p.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+    b.set(ref(s.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+    await b.commit();
+    return { ok: true, unmerged: true, primaryId: p.id, secondaryId: s.id };
+  }
+  const withId = String((data && data.withId) || '');
+  if (!MG.isCallId(withId)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  if (withId === call.id) throw new HttpsError('invalid-argument', 'A call cannot merge with itself.');
+  const other = await load(withId);
+  if (!other) throw new HttpsError('not-found', 'Call not found.');
+  if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+  const { primary, secondary } = MG.orderPair(call, other);
+  if (MG.mergedTogether(primary, secondary)) return { ok: true, merged: false, already: true, primaryId: primary.id, secondaryId: secondary.id };
+  const why = MG.pairProblem(primary, secondary);
+  if (why) throw new HttpsError('failed-precondition', 'These do not look like one call: ' + why);
+  const patch = MG.mergePatch(primary.id, secondary.id, auth.uid, nowMs);
+  const b = db.batch();
+  b.set(ref(primary.id), patch.primary, { merge: true });
+  b.set(ref(secondary.id), patch.secondary, { merge: true });
+  await b.commit();
+  return { ok: true, merged: true, primaryId: primary.id, secondaryId: secondary.id };
 }
 
 // Keep the away-mode hand-back timeline row true once Jo clears the person
@@ -1409,6 +1466,10 @@ async function callAction({ db, auth, data, nowMs }) {
     if (!leadInCallTenant(to, call) || (from && !leadInCallTenant(from, call))) throw new HttpsError('permission-denied', 'That customer is not in your company.');
     const r = await moveCallToLead({ db, call, fromId, toId, to, uid: auth.uid, nowMs });
     return Object.assign({ ok: true, leadId: toId, moved: true }, r);
+  }
+  if (action === 'merge' || action === 'unmerge') {
+    if (isText) throw new HttpsError('invalid-argument', 'Only phone calls are merged.');
+    return mergeAction({ db, auth, call, action, data, nowMs });
   }
   if (action === 'notpersonal') {
     // The model called it personal: its CRM audio copy was deleted and no
