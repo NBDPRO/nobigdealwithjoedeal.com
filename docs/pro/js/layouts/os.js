@@ -102,6 +102,45 @@
     return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null);
   }
   function homeItems(surface) { return homeKey()[surface]; }
+  // ── P1: frecency (#13) and the urgency ring (#5), both pure in os/home-logic.js ──
+  // Most used lately first (command palette go-<id> counts, this device; the recent list):
+  // the phone's icons only while the member has never arranged them (S.icons empty), so a
+  // manual order always wins; Start has no manual order, so its empty search always uses it.
+  var USAGE_KEY = 'nbd_cmd_usage_v1';   // command-palette-scopes.js
+  function frecent(apps) {
+    var HL = W.NBDOSHomeLogic;
+    if (!HL || typeof HL.frecency !== 'function') return apps;
+    var raw = null;
+    try { raw = W.localStorage.getItem(USAGE_KEY); } catch (e) { raw = null; }
+    return HL.frecency(apps, HL.parseUsage(raw), S.recent);
+  }
+  /** The phone's icon order: the member's own once arranged; else frecency, fixed until the next Home. */
+  function phoneOrder() {
+    if (S.icons && S.icons.length) return WM.orderApps(S.apps, S.icons);
+    if (!S.freq) S.freq = frecent(WM.orderApps(S.apps, S.icons)).map(function (a) { return a.id; });
+    return WM.orderApps(S.apps, S.freq);
+  }
+  /** { id, pill, text } for the app that carries the ring, or null (no data, nobody waiting). */
+  function urgentApp() {
+    var H = W.NBDOSHome, HL = W.NBDOSHomeLogic;
+    if (!H || typeof H.urgency !== 'function' || !HL || typeof HL.urgencyText !== 'function') return null;
+    var t = safe(function () { return HL.urgencyText(H.urgency()); });
+    if (!t) return null;
+    var id = [t.app, 'crm', 'home'].filter(function (x) { return !!appById(x); })[0];
+    return id ? { id: id, pill: t.pill, text: t.text } : null;
+  }
+  function ringKey(u) { return u ? u.id + '|' + u.text : ''; }
+  function ringCls(id) { return S.urg && S.urg.id === id ? ' is-urgent' : ''; }
+  function ringPill(id) { return S.urg && S.urg.id === id ? '<span class="os-urgent-pill" aria-hidden="true">' + esc(S.urg.pill) + '</span>' : ''; }
+  function ringLabel(id, label) { return S.urg && S.urg.id === id ? ' aria-label="' + esc(label + ', ' + S.urg.text) + '"' : ''; }
+  /** On the home's own events (os/home.js onEvent): repaint the ring only when who is waiting changed. */
+  function checkRing() {
+    if (!S) return;
+    var u = urgentApp();
+    if (ringKey(u) === ringKey(S.urg)) return;
+    S.urg = u;
+    if (S.surface === 'phone') { if (S.phoneOpen || S.editing) paintBar(); else phonePaint(); } else paintIcons();
+  }
   function navHidden(id) {
     var e = L.readNav(doc).filter(function (x) { return x.id === id; })[0];
     return !e || !!e.hidden;
@@ -117,6 +156,7 @@
         onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
         onEmpty: function () { focusHomeTool(surface); },
         navHidden: navHidden,
+        onEvent: function () { safe(checkRing); },
         onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
   }
@@ -530,12 +570,12 @@
   // ── chrome: icons, widgets, taskbar, start ──
   function iconsHtml() {
     return WM.orderApps(S.apps, S.icons).map(function (a) {
-      return '<button type="button" class="os-icon" data-osapp="' + esc(a.id) + '" draggable="false">' +
-        '<span class="os-icon-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span>' +
+      return '<button type="button" class="os-icon' + ringCls(a.id) + '" data-osapp="' + esc(a.id) + '" draggable="false"' + ringLabel(a.id, a.label) + '>' +
+        '<span class="os-icon-glyph" aria-hidden="true">' + esc(a.icon || '▣') + ringPill(a.id) + '</span>' +
         '<span class="os-icon-label">' + esc(a.label) + '</span></button>';
     }).join('');
   }
-  function paintIcons() { if (S.iconsEl) S.iconsEl.innerHTML = iconsHtml(); }
+  function paintIcons() { if (S.iconsEl) { S.urg = urgentApp(); S.iconsEl.innerHTML = iconsHtml(); } }
   function paintClock() {
     if (!S || !S.clockEl) return;
     var c = L.clockText(new Date());
@@ -557,6 +597,7 @@
   function startListHtml(q) {
     var term = String(q || '').trim().toLowerCase();
     var list = S.apps.filter(function (a) { return !term || a.label.toLowerCase().indexOf(term) !== -1 || a.id.indexOf(term) !== -1; });
+    if (!term) list = frecent(list);   // most used lately first (P1 #13)
     var visits = visitStartRows(term);
     if (!list.length && !visits) return '<li class="os-start-empty ui-caption">No app matches. Press Enter to search everything.</li>';
     // the apps start on a fresh row under their own heading, not beside the last visit item
@@ -899,14 +940,15 @@
   var PER_PAGE = 20;   // 4 columns x 5 rows
   function phoneIconHtml(a, extraClass) {
     var sel = S.editPick === a.id;
-    return '<button type="button" class="os-p-icon' + (extraClass || '') + (sel ? ' is-picked' : '') + '" data-osp="app" data-id="' + esc(a.id) + '"' +
-      (S.editing ? ' aria-pressed="' + (sel ? 'true' : 'false') + '"' : '') + '>' +
-      '<span class="os-p-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span>' +
+    return '<button type="button" class="os-p-icon' + (extraClass || '') + (sel ? ' is-picked' : '') + ringCls(a.id) + '" data-osp="app" data-id="' + esc(a.id) + '"' +
+      (S.editing ? ' aria-pressed="' + (sel ? 'true' : 'false') + '"' : ringLabel(a.id, a.label)) + '>' +
+      '<span class="os-p-glyph" aria-hidden="true">' + esc(a.icon || '▣') + ringPill(a.id) + '</span>' +
       '<span class="os-p-label">' + esc(a.label) + '</span></button>';
   }
   function phonePaint() {
     if (!S || !S.phoneEl) return;
-    var ordered = WM.orderApps(S.apps, S.icons);
+    S.urg = urgentApp();
+    var ordered = phoneOrder();
     // the home widgets fill page 1 first; the icons take the cells left, then pages of 20
     // packed (home-logic pack): any size mix fills whole rows, so pageRoom's icons stay on the page
     var items = S.home ? W.NBDOSHomeLogic.pack(homeItems('phone')) : null;
@@ -961,9 +1003,9 @@
       dock.map(function (a, i) {
         var on = S.phoneOpen === a.id;
         var sel = S.editing && S.editPick;
-        return '<button type="button" class="os-bar-btn' + (on ? ' is-on' : '') + (sel ? ' is-target' : '') + '" data-osp="' + (S.editing ? 'dockslot' : 'app') + '" data-id="' + esc(a.id) + '" data-slot="' + String(i) + '"' +
-          (on ? ' aria-current="page"' : '') + '>' +
-          '<span class="os-bar-glyph" aria-hidden="true">' + esc(a.icon || '▣') + '</span><span class="os-bar-label">' + esc(a.label) + '</span></button>';
+        return '<button type="button" class="os-bar-btn' + (on ? ' is-on' : '') + (sel ? ' is-target' : '') + (S.editing ? '' : ringCls(a.id)) + '" data-osp="' + (S.editing ? 'dockslot' : 'app') + '" data-id="' + esc(a.id) + '" data-slot="' + String(i) + '"' +
+          (on ? ' aria-current="page"' : '') + (S.editing ? '' : ringLabel(a.id, a.label)) + '>' +
+          '<span class="os-bar-glyph" aria-hidden="true">' + esc(a.icon || '▣') + (S.editing ? '' : ringPill(a.id)) + '</span><span class="os-bar-label">' + esc(a.label) + '</span></button>';
       }).join('') +
       '<button type="button" class="os-bar-btn" data-osp="recents" aria-label="Recent apps" aria-haspopup="dialog">' +
         '<span class="os-bar-glyph" aria-hidden="true">❏</span><span class="os-bar-label">Recents</span></button>';
@@ -985,7 +1027,9 @@
     S.phoneOpen = null;
     doc.documentElement.removeAttribute('data-os-app');
     if (S.editing) { S.editing = false; S.editPick = null; flushHome(); }
+    S.freq = null;   // frecency re-ranks on each return Home, never under the member's finger
     phonePaint();
+    if (S.home && typeof S.home.show === 'function') safe(function () { S.home.show(); });
     var p = S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
     if (p) p.focus({ preventScroll: true });
   }
@@ -1050,7 +1094,7 @@
       dock[slot] = pick;
       S.dock = dock;
     } else if (id !== pick) {
-      var order = WM.orderApps(S.apps, S.icons).map(function (a) { return a.id; });
+      var order = phoneOrder().map(function (a) { return a.id; });   // the order on screen, frecency or the member's
       var i = order.indexOf(pick), j = order.indexOf(id);
       if (i !== -1 && j !== -1) { order[i] = id; order[j] = pick; S.icons = order; }
     }
