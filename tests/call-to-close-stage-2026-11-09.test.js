@@ -416,6 +416,17 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
     ok('the stage button still calls it with no arguments', /data-action="progressStage"(?![^>]*data-arg)/.test(read('docs/pro/customer.html')));
   }
 
+  console.log('\n5b. moveCard keeps the sheet\'s Lost reason for a custom lost-role stage');
+  {
+    const src = read('docs/pro/js/crm-pipeline.js');
+    const mc = (src.split('async function moveCard(id, newStage, opts){')[1] || '').split('\n}\n')[0];
+    const def = (mc.match(/const isLostMove = [^;]+;/) || [''])[0];
+    ok('a move to a lost-role key with a reason given is a lost move (the reason is written)', /stageRole\(/.test(def) && /'lost'/.test(def) && /_givenLostReason/.test(def), def);
+    ok('…the reason is read before isLostMove is decided', mc.indexOf('const _givenLostReason') !== -1 && mc.indexOf('const _givenLostReason') < mc.indexOf('const isLostMove'));
+    ok('…a plain drag to a custom lost-role key (no reason given) keeps today\'s behaviour', /\/\^lost\$\/i\.test/.test(def));
+    ok('dashboard.html busts the crm-pipeline.js cache', !/crm-pipeline\.js\?v=22"/.test(read('docs/pro/dashboard.html')));
+  }
+
   console.log('\n6. Boot + CSP');
   {
     ok(LOGIC_PATH + ' exists', exists(LOGIC_PATH));
