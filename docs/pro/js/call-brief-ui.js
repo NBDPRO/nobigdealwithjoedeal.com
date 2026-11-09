@@ -611,8 +611,10 @@
    * nothing by itself. On the dashboard (the builder, or its load-then-run
    * stub, is here) it opens over this page. On the customer page it goes to
    * the dashboard's ?lead= branch, which opens the builder for that customer;
-   * the dashboard cleans its URL before the lazy builder loads, so the pair is
-   * also handed over in sessionStorage (estimate-v2-ui.js reads it once).
+   * the dashboard cleans its URL before the lazy builder loads, so the brief
+   * this sheet got from the callBrief callable is handed over in
+   * sessionStorage (estimate-v2-ui.js reads it once). The builder never reads
+   * the stored brief itself, so the callable's kill switch covers both paths.
    */
   function startEstimate() {
     var leadId = S.leadId, callId = S.callId, brief = S.brief, onDashboard = S.page !== 'customer';
@@ -623,7 +625,7 @@
       window.openEstimateV2Builder({ leadId: leadId, callPrefill: { callId: callId, brief: brief } });
       return;
     }
-    try { window.sessionStorage.setItem('nbd.callBriefLink', JSON.stringify({ leadId: leadId, callId: callId, at: Date.now() })); } catch (_) { /* the URL still carries it */ }
+    try { window.sessionStorage.setItem('nbd.callBriefLink', JSON.stringify({ leadId: leadId, callId: callId, brief: brief, at: Date.now() })); } catch (_) { /* no hand-off: the builder opens without the call's choices */ }
     window.location.href = '/pro/dashboard.html?lead=' + encodeURIComponent(leadId) + '&callBrief=' + encodeURIComponent(callId);
   }
 

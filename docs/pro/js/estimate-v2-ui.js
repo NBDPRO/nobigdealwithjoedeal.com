@@ -5584,8 +5584,10 @@
   // link /pro/dashboard.html?lead=<id>&callBrief=<callId>. The dashboard's
   // ?lead= branch (dashboard-bootstrap.module.js) opens this builder for the
   // lead and cleans its URL, usually before this lazy bundle has loaded, so
-  // the customer page also hands the pair over in sessionStorage (one use,
-  // five minutes, same customer only).
+  // the customer page hands the brief over in sessionStorage (one use, five
+  // minutes, same customer and call only). The builder never reads the
+  // stored brief itself: every brief it uses came from the callBrief
+  // callable, so the callBriefDisabled kill switch covers this path too.
   //
   // The call sets CHOICES only (estimate-call-prefill.js: job mode, work
   // kind, tier, stories, layers, chimney / skylight flashing), each through
@@ -5611,29 +5613,33 @@
   }
 
   // Where this open's call comes from: the sheet's brief in hand, else the
-  // deep link's call id (URL, then the sessionStorage hand-off). null = none.
+  // customer page's sessionStorage hand-off (its brief, for this customer,
+  // and for the call in the URL when the URL still names one). null = none.
   function _callPrefillSource(leadId, opts) {
     const c = opts && opts.callPrefill;
     if (c && typeof c === 'object') {
       const callId = CALL_ID_RE.test(String(c.callId || '')) ? String(c.callId) : '';
       const brief = c.brief && typeof c.brief === 'object' ? c.brief : null;
-      return (brief || callId) ? { callId, brief } : null;
+      return brief ? { callId, brief } : null;
     }
-    let callId = '';
+    let urlCallId = '';
     try {
       const p = new URLSearchParams((window.location && window.location.search) || '');
-      if (p.get('lead') === leadId) callId = p.get('callBrief') || '';
-    } catch (_) { callId = ''; }
+      if (p.get('lead') === leadId) urlCallId = p.get('callBrief') || '';
+    } catch (_) { urlCallId = ''; }
+    let h = null;
     try {
       const ss = window.sessionStorage;
       const raw = ss && ss.getItem(CALL_LINK_KEY);
       if (raw) {
         ss.removeItem(CALL_LINK_KEY);
-        const h = JSON.parse(raw);
-        if (!callId && h && h.leadId === leadId && Date.now() - (Number(h.at) || 0) < CALL_LINK_TTL_MS) callId = String(h.callId || '');
+        h = JSON.parse(raw);
       }
-    } catch (_) { /* storage blocked: the URL is the only source */ }
-    return CALL_ID_RE.test(callId) ? { callId, brief: null } : null;
+    } catch (_) { h = null; /* storage blocked: no prefill, a plain open */ }
+    if (!h || h.leadId !== leadId || !(Date.now() - (Number(h.at) || 0) < CALL_LINK_TTL_MS)) return null;
+    const callId = String(h.callId || '');
+    if (!CALL_ID_RE.test(callId) || (urlCallId && urlCallId !== callId)) return null;
+    return h.brief && typeof h.brief === 'object' ? { callId, brief: h.brief } : null;
   }
 
   function _loadCallPrefillLib() {
@@ -5642,20 +5648,11 @@
     return Promise.reject(new Error('ScriptLoader is missing'));
   }
 
-  // The stored brief (rules: the callCenterAction audience may read it).
-  async function _readCallBrief(leadId, callId) {
-    if (!window.db || typeof window.doc !== 'function' || typeof window.getDoc !== 'function') return null;
-    const snap = await window.getDoc(window.doc(window.db, 'leads', leadId, 'call_briefs', callId));
-    const d = snap && typeof snap.exists === 'function' && snap.exists() ? snap.data() : null;
-    return d && d.brief && typeof d.brief === 'object' ? d.brief : null;
-  }
-
   async function _callPrefillStart(leadId, src) {
     const token = ++_callToken;
     let brief = src.brief || null;
     try {
       await _loadCallPrefillLib();
-      if (!brief && src.callId) brief = await _readCallBrief(leadId, src.callId);
     } catch (e) {
       console.warn('[EstimateV2UI] call prefill failed:', e);
       brief = null;

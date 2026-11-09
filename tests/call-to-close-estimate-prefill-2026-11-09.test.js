@@ -17,10 +17,11 @@
  *      untouched puts every old value back; a template goes in only on a tap,
  *      through JobTemplates.insertIntoV2, and the engine prices it
  *   C. the deep link from the customer page: ?lead=<id>&callBrief=<callId>
- *      (or the same pair handed over in sessionStorage, because the dashboard
- *      cleans its URL before the lazy builder loads) reads
- *      leads/{leadId}/call_briefs/{callId}; a stale or other-customer hand-off
- *      is ignored
+ *      plus a sessionStorage hand-off carrying the brief the callBrief
+ *      callable returned (the dashboard cleans its URL before the lazy
+ *      builder loads). The builder never reads the stored brief itself, so
+ *      the callable's kill switch covers this path; a URL alone, a stale,
+ *      other-customer or other-call hand-off prefills nothing
  *   D. the sheet (call-brief-ui.js): "Start estimate" / "Start repair quote";
  *      on the dashboard it opens the builder with the brief, on the customer
  *      page it goes to the dashboard deep link; never on an unreliable brief
@@ -339,6 +340,11 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('a plain open shows no call panel and autosaves as before', CP().applied().length === 0 && env.store[DRAFT_KEY] !== undefined);
 
     section('C. the deep link from the customer page');
+    // Kill switch (review 2026-11-09): the builder never reads the stored
+    // brief itself. The brief arrives only from the sheet, which got it from
+    // the callBrief callable (and that checks callBriefDisabled), handed over
+    // in sessionStorage because the dashboard cleans its URL before the lazy
+    // builder loads. A ?lead=&callBrief= URL alone prefills nothing.
     leads([{ id: 'L7', firstName: 'Jo', lastName: 'Kay', address: '7 Elm St', jobType: '' }]);
     docs['leads/L7/call_briefs/cube_MNO'] = { callId: 'cube_MNO', leadId: 'L7', brief: clone(BRIEF) };
     env.location.search = '?lead=L7&callBrief=cube_MNO';
@@ -346,56 +352,56 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     try { delete env.store[DRAFT_KEY]; } catch (_) {}
     W.openEstimateV2Builder({ leadId: 'L7' });   // exactly what the dashboard's ?lead= branch calls
     await tick(600);
-    ok('?lead=<id>&callBrief=<callId> → reads leads/{leadId}/call_briefs/{callId}', reads.indexOf('leads/L7/call_briefs/cube_MNO') !== -1, reads);
-    ok('…and applies it', st().jobMode === 'cash' && st().workKind === 'repair' && st().measurements.stories === 2);
-    ok('…without writing anything', writes.length === 0 && env.store[DRAFT_KEY] === undefined, writes.map((w) => w.path));
+    ok('a hand-typed ?lead=<id>&callBrief=<callId> alone reads no brief (the kill switch is only checked by the callable)', reads.length === 0, reads);
+    ok('…and prefills nothing: a plain open, autosave as usual', st().workKind == null && CP().applied().length === 0 && env.store[DRAFT_KEY] !== undefined);
     W.closeEstimateV2Builder();
     env.location.search = '';
 
-    // The dashboard cleans its URL before the lazy bundle loads, so the
-    // customer page also hands the pair over in sessionStorage.
+    // The customer page hands the brief the callable returned over in sessionStorage.
     leads([{ id: 'L8', firstName: 'Bo', lastName: 'Ng', address: '8 Elm St', jobType: '' }]);
-    docs['leads/L8/call_briefs/cube_PQR'] = { brief: clone(BRIEF) };
-    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L8', callId: 'cube_PQR', at: Date.now() });
-    reads.length = 0;
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L8', callId: 'cube_PQR', brief: clone(BRIEF), at: Date.now() });
+    reads.length = 0; writes.length = 0;
+    try { delete env.store[DRAFT_KEY]; } catch (_) {}
     W.openEstimateV2Builder({ leadId: 'L8' });
     await tick(600);
-    ok('the sessionStorage hand-off works when the URL is already clean', reads.indexOf('leads/L8/call_briefs/cube_PQR') !== -1 && st().workKind === 'repair', reads);
+    ok('the sessionStorage hand-off (brief included) prefills when the URL is already clean', st().workKind === 'repair' && st().jobMode === 'cash' && st().measurements.stories === 2);
+    ok('…with no Firestore read', reads.length === 0, reads);
+    ok('…without writing anything', writes.length === 0 && env.store[DRAFT_KEY] === undefined, writes.map((w) => w.path));
     ok('…and is used once (removed)', env.sstore['nbd.callBriefLink'] === undefined);
     W.closeEstimateV2Builder();
 
     leads([{ id: 'L9', firstName: 'Cy', lastName: 'Po', address: '9 Elm St', jobType: '' }]);
-    docs['leads/L9/call_briefs/cube_STU'] = { brief: clone(BRIEF) };
-    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L9', callId: 'cube_STU', at: Date.now() - 6 * 60 * 1000 });
-    reads.length = 0;
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L9', callId: 'cube_STU', brief: clone(BRIEF), at: Date.now() - 6 * 60 * 1000 });
     W.openEstimateV2Builder({ leadId: 'L9' });
     await tick(300);
-    ok('a stale hand-off (over 5 minutes) is ignored', reads.length === 0 && st().workKind == null, reads);
+    ok('a stale hand-off (over 5 minutes) is ignored', st().workKind == null && CP().applied().length === 0);
     W.closeEstimateV2Builder();
     leads([{ id: 'L10', firstName: 'Di', lastName: 'Ox', address: '10 Elm St', jobType: '' }]);
-    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L9', callId: 'cube_STU', at: Date.now() });
-    env.location.search = '?lead=L9&callBrief=cube_STU';
-    reads.length = 0;
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L9', callId: 'cube_STU', brief: clone(BRIEF), at: Date.now() });
     W.openEstimateV2Builder({ leadId: 'L10' });
     await tick(300);
-    ok('a hand-off or URL for another customer is ignored', reads.length === 0 && st().workKind == null, reads);
-    env.location.search = '';
+    ok('a hand-off for another customer is ignored', st().workKind == null && CP().applied().length === 0);
     W.closeEstimateV2Builder();
     leads([{ id: 'L11', firstName: 'Ed', lastName: 'Lu', address: '11 Elm St', jobType: '' }]);
-    env.location.search = '?lead=L11&callBrief=..%2F..%2Fusers%2Fjo';
-    reads.length = 0;
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L11', callId: '../../users/jo', brief: clone(BRIEF), at: Date.now() });
     W.openEstimateV2Builder({ leadId: 'L11' });
     await tick(300);
-    ok('a call id that is not an id (path tricks) is ignored', reads.length === 0, reads);
-    env.location.search = '';
+    ok('a call id that is not an id (path tricks) is ignored', st().workKind == null && CP().applied().length === 0);
     W.closeEstimateV2Builder();
     leads([{ id: 'L12', firstName: 'Fa', lastName: 'Mo', address: '12 Elm St', jobType: '' }]);
-    env.location.search = '?lead=L12&callBrief=cube_NONE';
-    reads.length = 0;
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L12', callId: 'cube_VWX', brief: clone(BRIEF), at: Date.now() });
+    env.location.search = '?lead=L12&callBrief=cube_OTHER';
     W.openEstimateV2Builder({ leadId: 'L12' });
-    await tick(600);
-    ok('no brief stored → the builder opens as usual, and autosave is not held back', reads.length === 1 && CP().applied().length === 0 && env.store[DRAFT_KEY] !== undefined);
+    await tick(300);
+    ok('a hand-off whose call is not the one in the URL is ignored', st().workKind == null && CP().applied().length === 0);
     env.location.search = '';
+    W.closeEstimateV2Builder();
+    leads([{ id: 'L12b', firstName: 'Ga', lastName: 'No', address: '12 Elm St', jobType: '' }]);
+    env.sstore['nbd.callBriefLink'] = JSON.stringify({ leadId: 'L12b', callId: 'cube_YZA', at: Date.now() });
+    try { delete env.store[DRAFT_KEY]; } catch (_) {}
+    W.openEstimateV2Builder({ leadId: 'L12b' });
+    await tick(600);
+    ok('a hand-off with no brief → the builder opens as usual, and autosave is not held back', reads.length === 0 && CP().applied().length === 0 && env.store[DRAFT_KEY] !== undefined);
     W.closeEstimateV2Builder();
   }
 
@@ -460,6 +466,7 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       ok('on the customer page it goes to the dashboard deep link ?lead=<id>&callBrief=<callId>', t.win.location.href === '/pro/dashboard.html?lead=L1&callBrief=cube_ABCDE12345', t.win.location.href);
       const hand = JSON.parse(t.sstore['nbd.callBriefLink'] || 'null');
       ok('…and hands the same pair over in sessionStorage (the dashboard cleans its URL first)', hand && hand.leadId === 'L1' && hand.callId === 'cube_ABCDE12345' && Math.abs(Date.now() - hand.at) < 5000, hand);
+      ok('…with the brief the callable returned (the builder never reads the stored brief itself)', hand && hand.brief && hand.brief.fields && hand.brief.fields.workKind.value === 'replace', hand && Object.keys(hand));
     }
     {
       const t = load({ builder: true });
@@ -491,7 +498,7 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     const callBlock = (v2.split('CALL TO CLOSE P1')[1] || '').split('KENTUCKY SIGNING GATE')[0] || '';
     ok('the builder\'s call-prefill block exists', callBlock.length > 500);
     ok('…never assigns rawSqft, a price, the claim money or the scope', !/rawSqft\s*=|\.rawSqft\]?\s*=|claim\.(deductible|acv)\s*=|\.total\s*=|minJobCharge\s*=|passThru\s*=|scope\.push|scope\s*=/.test(strip(callBlock)), (strip(callBlock).match(/rawSqft\s*=|claim\.(deductible|acv)\s*=|\.total\s*=|minJobCharge\s*=|scope\.push|scope\s*=/) || [])[0]);
-    ok('…never writes Firestore itself (only getDoc for the brief)', !/setDoc|updateDoc|addDoc|deleteDoc|pushDraftToFirestore/.test(strip(callBlock)) && /getDoc/.test(callBlock));
+    ok('…never reads or writes Firestore itself (the brief comes from the callable, through the sheet)', !/getDoc|setDoc|updateDoc|addDoc|deleteDoc|pushDraftToFirestore|call_briefs/.test(strip(callBlock)));
     ok('…inserts templates only through JobTemplates.insertIntoV2', /insertIntoV2\(/.test(callBlock));
     ok('…escapes what it shows', /_callEsc\(/.test(callBlock) && !/innerHTML\s*=\s*[^;]*\+\s*(it|h|q)\.(quote|label|name)\b/.test(callBlock));
     ok('no style= attribute and no inline handler added', !/\sstyle=/.test(callBlock) && !/\son[a-z]+=\\?["']/i.test(callBlock));
