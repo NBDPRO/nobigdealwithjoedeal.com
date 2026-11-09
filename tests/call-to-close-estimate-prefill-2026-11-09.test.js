@@ -302,6 +302,20 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('a chip with the caller\'s words shows them, the chimney chip too', /title="“the best one you have”"/.test(html) && /title="“the flashing around the chimney”"/.test(chimChip), chimChip.slice(0, 160));
     ok('measurements and money untouched', moneySnapshot() === base3, [base3, moneySnapshot()]);
     ok('still no draft write after the full prefill', draftWrites().length === 0 && env.store[DRAFT_KEY] === undefined);
+
+    // P2 integration: a walkthrough brief (callId visit_<visitId>) opens the
+    // same strip, worded for the walkthrough (the sheet already is).
+    W.openEstimateV2Builder({ leadId: 'L3' });
+    await tick(450);
+    W.openEstimateV2Builder({ leadId: 'L3', callPrefill: { callId: 'visit_vWalk0000001', brief: clone(BRIEF) } });
+    await tick(600);
+    const vh = CP().panelHtml();
+    ok('P2 integration: a walkthrough\'s strip says "From the walkthrough" and "mentioned at the walkthrough", never "on the call"', /From the walkthrough/.test(vh) && /Gutters mentioned at the walkthrough/.test(vh) && !/on the call|From the call/.test(vh), vh.slice(0, 400));
+    ok('…and its square-count words say "Said at the walkthrough"', /^Said at the walkthrough/.test(CP().sqftHintHtml()), CP().sqftHintHtml());
+    const PFM = W.NBDEstimateCallPrefill;
+    const noWords = { scope: { mentions: { chimney: true }, mentionQuotes: { chimney: '' } } };
+    ok('…a walkthrough mention with no words says "mentioned at the walkthrough"', PFM && PFM.fromBrief(noWords, { visit: true }).hints.unsure.some((x) => /Chimney was mentioned at the walkthrough/.test(x)));
+    ok('…a call\'s line is unchanged', PFM && PFM.fromBrief(noWords).hints.unsure.some((x) => /Chimney was mentioned on the call/.test(x)));
     const tpls = CP().templates();
     ok('repair call: the panel offers repair templates (JobTemplates.search, jobType repair)', tpls.length > 0 && tpls.every((t) => { const x = W.JobTemplates.get(t.id); return x && x.jobType === 'repair'; }), tpls);
     ok('…shown as buttons that insert on a tap', (CP().panelHtml().match(/data-action="call-template"/g) || []).length === tpls.length);

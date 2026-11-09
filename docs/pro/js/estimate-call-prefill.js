@@ -68,8 +68,10 @@
    * sanitizeBrief). Reads named paths only; anything else on the object is
    * ignored. → { items:[{key,value,quote,name,label}], hints:{sqft[],said[],
    * mentions[]}, workKind, words }
+   * opts.visit (P2): a walkthrough's brief, so its lines say "at the walkthrough".
    */
-  function fromBrief(brief) {
+  function fromBrief(brief, opts) {
+    var where = opts && opts.visit ? 'at the walkthrough' : 'on the call';
     var out = { items: [], hints: { sqft: [], said: [], mentions: [], unsure: [] }, workKind: null, words: '' };
     var b = brief && typeof brief === 'object' ? brief : null;
     if (!b) return out;
@@ -106,7 +108,7 @@
       if (q && mu[x[0]] === true) out.hints.unsure.push(x[2] + ' was hard to hear on the recording (\u201c' + q + '\u201d), so its flashing is not switched on. Check it and set it yourself.');
       else if (q) out.items.push(item(x[1], true, q));
       // A full line beside the "not filled in" ones (the builder lists hints.unsure as written).
-      else out.hints.unsure.push(x[2] + ' was mentioned on the call, but no exact words were kept, so its flashing is not switched on. Check it and set it yourself.');
+      else out.hints.unsure.push(x[2] + ' was mentioned ' + where + ', but no exact words were kept, so its flashing is not switched on. Check it and set it yourself.');
     });
     if (men.gutters === true) out.hints.mentions.push('Gutters');
     if (men.decking === true) out.hints.mentions.push('Decking');
