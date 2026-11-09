@@ -126,10 +126,17 @@
     d.className = 'os-pk' + (kind === 'recap' ? ' os-rc' : '');
     d.setAttribute('aria-labelledby', titleId);
     d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } });
-    d.addEventListener('close', cleanup);
+    // 'close' fires asynchronously: only this sheet, while it is still the current one, cleans up,
+    // so an old sheet's late event never tears down the one open() just showed
+    d.addEventListener('close', function () { if (cur && cur.d === d) cleanup(); });
     return d;
   }
-  function close() { if (cur && cur.d.open) cur.d.close(); else if (cur) cleanup(); }
+  function close() {
+    var s = cur;
+    if (!s) return;
+    if (s.d.open) s.d.close();
+    if (cur === s) cleanup();   // now, not on the async event
+  }
   function cleanup() {
     var s = cur;
     if (!s) return;

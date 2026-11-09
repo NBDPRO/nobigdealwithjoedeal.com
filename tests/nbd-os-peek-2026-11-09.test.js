@@ -288,6 +288,23 @@ const setNow = (T, ms) => { const B = T.W.Date; T.W.Date = class extends B { con
     ok('once loaded, the same Peek shows the notes and the brief button', /Dog in the yard/.test(text(dialog(T))) && !!dialog(T).querySelector('[data-pk-brief]'));
   });
 
+  console.log('\n9. an old sheet\'s late close event never tears down the new one');
+  await G(async () => {
+    const T = win();
+    await flush();
+    click(T.dom, byKey(phone(T), 'upnext-1').querySelector('[data-oshw-peek]'));
+    await flush(); await flush();
+    const a = dialog(T);
+    // a browser fires 'close' asynchronously: hold it back, the way showModal's real close does
+    const late = [];
+    a.close = function () { this.open = false; this.removeAttribute('open'); late.push(() => (this.listeners.close || []).slice().forEach((f) => f({ type: 'close', target: this }))); };
+    T.W.NBDOSPeek.open({ key: 'appt:1' });   // open() while a sheet is open: close(), then show()
+    const b = Array.from(T.document.querySelectorAll('dialog.os-pk')).filter((x) => x !== a)[0];
+    late.forEach((f) => f());
+    ok('the old dialog\'s close event leaves the new sheet open and current', !!b && b.isConnected && b.open === true && T.W.NBDOSPeek.isOpen() === true);
+    ok('...and the old one is gone from the page', !a.isConnected);
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();
