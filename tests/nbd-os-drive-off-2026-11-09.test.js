@@ -99,7 +99,12 @@ const sheetBody = (T) => T.document.getElementById('osSheetBody');
     await flush(); await flush();
     const cc = sheetBody(T);
     ok('the Control Center says "Safe to drive off?" -> "2 photos still uploading"', /Safe to drive off\?/.test(text(cc)) && /2 photos still uploading/.test(text(cc)), text(cc).slice(0, 200));
-    ok('...as a status line, labelled', !!cc.querySelector('.os-cc-drive[role="status"]') && /^Not yet: 2 photos still uploading/.test(cc.querySelector('.os-cc-drive-line').getAttribute('aria-label')));
+    const line = cc.querySelector('.os-cc-drive-line');
+    ok('...as a status line; no aria-label on the plain <p> (a generic role cannot be named)', !!cc.querySelector('.os-cc-drive[role="status"]') && !!line && !line.hasAttribute('aria-label'));
+    const sr = line && line.querySelector('.os-cc-drive-sr');
+    ok('...the full sentence is visually-hidden text a screen reader reads, the short visible text is aria-hidden',
+      !!sr && /^Not yet: 2 photos still uploading/.test(text(sr)) && !!line.querySelector('[aria-hidden="true"].os-cc-drive-text') &&
+      /\.os-cc-drive-sr \{[^}]*clip: rect\(0 0 0 0\)/.test(read('docs/pro/css/os/system.css')));
     const T0 = sys({ writes: 0, photos: 0 });
     await flush(); await flush();
     T0.W.NBDOS.open('control');

@@ -126,6 +126,7 @@
 .os-cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-2, 8px); }
 /* P2 (design §6 #8): "Safe to drive off?", a status line from the real upload queues */
 .os-cc-drive-line { display: flex; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; color: var(--t); }
+.os-cc-drive-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .os-tile {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
   min-height: 64px; width: 100%; padding: var(--ui-space-3, 12px);

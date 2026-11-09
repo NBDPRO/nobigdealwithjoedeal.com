@@ -286,7 +286,9 @@
     var d = L.driveOff({ online: w.navigator ? w.navigator.onLine !== false : true, writes: state.bg.writes, photos: state.bg.photos });
     if (!d) return '';   // unknown: say nothing rather than guess
     return '<div class="os-cc-block os-cc-drive" role="status"><div class="ui-eyebrow">Safe to drive off?</div>' +
-      '<p class="os-cc-drive-line os-tone-' + esc(d.tone) + '" aria-label="' + esc(d.label) + '"><span class="os-tray-dot" aria-hidden="true"></span>' + esc(d.text) + '</p></div>';
+      // a <p> is the generic role, which cannot carry a name: the full sentence is visually-hidden text
+      '<p class="os-cc-drive-line os-tone-' + esc(d.tone) + '"><span class="os-tray-dot" aria-hidden="true"></span>' +
+      '<span class="os-cc-drive-text" aria-hidden="true">' + esc(d.text) + '</span><span class="os-cc-drive-sr">' + esc(d.label) + '</span></p></div>';
   }
   function unreadCount() {
     var B = w.NotifBell;
