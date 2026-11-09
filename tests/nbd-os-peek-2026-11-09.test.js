@@ -272,6 +272,22 @@ const setNow = (T, ms) => { const B = T.W.Date; T.W.Date = class extends B { con
     ok('every interpolation in peek.js goes through esc() (no raw f./v./x./a. fields in markup)', !/'\s*\+\s*(?:f|v|x|a|r)\.[a-zA-Z]+\s*\+\s*'/.test(code));
   });
 
+  console.log('\n8. a Peek before the leads load says so, never "no customer linked"');
+  await G(async () => {
+    const T = win({ win: { leadsLoaded: false } });
+    await flush();
+    click(T.dom, byKey(phone(T), 'upnext-1').querySelector('[data-oshw-peek]'));
+    await flush(); await flush();
+    const t = text(dialog(T));
+    ok('the leads are still loading: no "No customer in the CRM is linked"', !!dialog(T) && !/No customer in the CRM is linked/.test(t), t);
+    ok('...it says the customers are still loading, with no brief button', /still loading/.test(t) && !dialog(T).querySelector('[data-pk-brief]'), t);
+    key(T.dom, dialog(T), 'Escape');
+    T.W._leadsLoaded = true;
+    click(T.dom, byKey(phone(T), 'upnext-1').querySelector('[data-oshw-peek]'));
+    await flush(); await flush();
+    ok('once loaded, the same Peek shows the notes and the brief button', /Dog in the yard/.test(text(dialog(T))) && !!dialog(T).querySelector('[data-pk-brief]'));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();

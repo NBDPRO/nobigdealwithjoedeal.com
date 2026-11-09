@@ -52,7 +52,8 @@
     var T = W.NBDToday;
     try { return !!(T && typeof T.appointmentsFailed === 'function' && T.appointmentsFailed()); } catch (e) { return false; }
   }
-  function leads() { return Array.isArray(W._leads) ? W._leads : []; }
+  /** The CRM's leads once they are loaded (home.js leadsNow's gate), else null: not known yet. */
+  function leads() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
   function outside(d, ev) {
     if (typeof d.getBoundingClientRect !== 'function') return false;
     var r = d.getBoundingClientRect();
@@ -157,6 +158,7 @@
       (f.mapsHref ? '<a class="btn btn-ghost os-pk-btn" href="' + esc(f.mapsHref) + '" target="_blank" rel="noopener">Directions</a>' : '') +
       (f.custHref ? '<a class="btn btn-ghost os-pk-btn" href="' + esc(f.custHref) + '">Open customer</a>' : '') +
       '</div></div>';
+    if (f.leadsPending) return h + '<p class="os-pk-muted os-pk-sec">Your customers are still loading, so this appointment\'s notes, promises and brief are not here yet. Close and Peek again in a moment.</p>';
     if (!f.linked) return h + '<p class="os-pk-muted os-pk-sec">No customer in the CRM is linked to this appointment, so there are no notes, promises or brief to show.</p>';
     h += '<div class="os-pk-sec"><h3 class="os-pk-st">Last notes</h3>' +
       (f.notes ? '<p class="os-pk-notes">' + esc(f.notes) + (f.notesCut ? '…' : '') + '</p>' : '<p class="os-pk-muted">No notes on this customer.</p>') + '</div>';
@@ -168,7 +170,9 @@
   }
   function open(opts) {
     var o = opts || {};
-    var f = PL.facts({ plan: plan(), leads: leads(), key: String(o.key || '') });
+    var known = leads();
+    var f = PL.facts({ plan: plan(), leads: known || [], key: String(o.key || '') });
+    if (f && !known && f.leadId) f.leadsPending = true;   // linked or not is not known yet
     if (cur) close();
     var d = shell('peek', 'osPkTitle');
     var s = { d: d, kind: 'peek', returnFocus: o.returnFocus || null, key: f ? f.key : '' };
@@ -217,8 +221,10 @@
     var now = Date.now();
     var uid = String((W._user && W._user.uid) || '');
     var raw = lsGet(CARRY_KEY);
-    if (cur || !HL.recapDue(raw, lsGet(RECAP_KEY), uid, now)) return null;
-    var r = PL.recap({ carry: HL.parseCarry(raw), leads: leads(), plan: plan(), now: now, apptsFailed: apptsFailed() });
+    var known = leads(), p = plan();
+    // the leads or the plan not loaded yet: null, and os/home.js asks again on the next data event
+    if (cur || !known || !p || !HL.recapDue(raw, lsGet(RECAP_KEY), uid, now)) return null;
+    var r = PL.recap({ carry: HL.parseCarry(raw), leads: known, plan: p, now: now, apptsFailed: apptsFailed() });
     if (!r) return null;   // every carried lead is gone and no visits: nothing to say
     var d = shell('recap', 'osRcTitle');
     d.innerHTML = recapHtml(r);

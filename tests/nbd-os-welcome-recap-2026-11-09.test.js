@@ -51,8 +51,10 @@ const PLAN = { total: 2, promises: [], calls: [], promised: [], estimates: [], m
 function win(o) {
   o = o || {};
   const store = Object.assign({}, o.carry === null ? {} : { nbd_os_carry: o.carry || carry() }, o.store || {});
-  const T = makeWin(Object.assign({ surface: 'phone', now: MORNING, plan: PLAN, leads: LEADS, uid: UID, store,
-    home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } }, o.win || {}));
+  const opts = Object.assign({ surface: 'phone', now: MORNING, plan: PLAN, leads: LEADS, uid: UID, store,
+    home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } }, o.win || {});
+  const T = makeWin(opts);
+  T.opts = opts;   // T.opts.now moves the page's clock
   const W = T.W;
   W.bundleLoads = [];
   W.ScriptLoader = {
@@ -181,6 +183,46 @@ const dialog = (T) => T.document.querySelector('dialog.os-rc');
       /CustomEvent\('nbd:os-unlock'\)/.test(sys) && !/nbd_os_carry|NBDOSPeek/.test(sys));
     const home = read('docs/pro/js/os/home.js');
     ok('home.js removes its unlock listener on unmount', /W\.removeEventListener\('nbd:os-unlock', maybeRecap\)/.test(home));
+  });
+
+  console.log('\n7. a cold load: the recap waits for the leads and the plan');
+  await G(async () => {
+    const T = win({ win: { leadsLoaded: false, plan: null } });
+    await flush(); await flush();
+    ok('mounted before the leads and the plan are in: nothing loads, nothing shows', T.W.bundleLoads.length === 0 && !dialog(T), J(T.W.bundleLoads));
+    ok('...and nothing is marked seen', T.store.nbd_os_recap === undefined);
+    T.W._leadsLoaded = true;
+    T.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush(); await flush();
+    ok('leads in, the plan still not: still waiting', !dialog(T) && T.W.bundleLoads.length === 0);
+    T.today.value = PLAN;
+    T.W.dispatchEvent({ type: 'nbd:today-rendered' });
+    await flush(); await flush();
+    const d = dialog(T);
+    const t = text(d);
+    ok('the plan arrives: the recap shows with the carried leads AND today\'s first appointment', !!d && /Ann <b>Able<\/b>/.test(t) && /Pat Promise/.test(t) && /9:00 AM · Early Bird/.test(t), t);
+    // the visits-only carry before the leads load: never a visits-only recap that eats the day
+    const Tv = win({ carry: carry({ leads: ['A'], visits: ['v1'], promises: [] }), win: { leadsLoaded: false } });
+    await flush(); await flush();
+    ok('visits on the carry, leads not loaded: no visits-only recap', !dialog(Tv) && Tv.store.nbd_os_recap === undefined);
+    Tv.W._leadsLoaded = true;
+    Tv.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush(); await flush();
+    ok('...the leads arrive: the recap lists Ann and the visit', /Ann <b>Able<\/b>/.test(text(dialog(Tv))) && /1 visit still on no customer/.test(text(dialog(Tv))));
+  });
+
+  console.log('\n8. a recap that could not show is asked again');
+  await G(async () => {
+    const T = win({ carry: null });
+    await flush(); await flush();
+    // a Peek sheet is open when the recap comes due: recap() returns null, so ask again later
+    T.W.NBDOSPeek = { recap() { T.W.recapTries = (T.W.recapTries || 0) + 1; return null; }, open() {}, close() {}, isOpen: () => true };
+    T.store.nbd_os_carry = carry();
+    T.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush(); await flush();
+    T.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush(); await flush();
+    ok('recap() returned null: the next data event asks again', T.W.recapTries === 2, T.W.recapTries);
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

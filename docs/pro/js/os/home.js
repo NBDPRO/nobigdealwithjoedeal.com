@@ -436,7 +436,13 @@
     try { p = HL.peekAppt(todayPlan(), Date.now()); } catch (e) { p = null; }
     return p ? p.key : '';
   }
-  /** The Welcome Recap: due (home-logic recapDue) on the day's first unlock or first home, once per page. */
+  /**
+   * The Welcome Recap: due (home-logic recapDue) on the day's first unlock or first home, once per page,
+   * and only once the CRM's leads (_leadsLoaded) and the Today plan are in: before that the carried ids
+   * resolve to nothing and the first appointment is unknown, so the data events (nbd:today-rendered,
+   * nbd:data-refreshed) ask again. A recap that did not show (a sheet was open, the bundle failed) is
+   * asked again too.
+   */
   var recapAsked = false;
   function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function maybeRecap() {
@@ -445,8 +451,11 @@
     if (!HL.recapDue(lsGet('nbd_os_carry'), lsGet('nbd_os_recap'), uid, Date.now())) return;
     var O = W.NBDOS;
     if (O && typeof O.isLocked === 'function' && O.isLocked()) return;   // the unlock asks again
+    var p = null;
+    try { p = todayPlan(); } catch (e) { p = null; }
+    if (!leadsNow() || !p) return;   // not loaded yet: the next data event asks again
     recapAsked = true;
-    loadPeek().then(function (ok) { if (ok) W.NBDOSPeek.recap(); else recapAsked = false; });
+    loadPeek().then(function (ok) { if (!ok || !W.NBDOSPeek.recap()) recapAsked = false; });
   }
 
   var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown };
@@ -1137,6 +1146,7 @@
     function onEvent() {
       epoch++;
       paint();
+      maybeRecap();   // the leads or the plan may have just arrived
       // the layout's own read of the same data (the urgency ring on its icons)
       if (typeof o.onEvent === 'function') { try { o.onEvent(); } catch (e) {} }
     }
