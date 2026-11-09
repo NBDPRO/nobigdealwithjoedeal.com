@@ -135,6 +135,9 @@ const USERS = {
   vic: { uid: 'vic', emailVerified: true, customClaims: { role: 'viewer', companyId: 'co1' } },
   unv: { uid: 'unv', emailVerified: false, customClaims: { role: 'company_admin', companyId: 'co1' } },
   off: { uid: 'off', emailVerified: true, disabled: true, customClaims: { role: 'company_admin', companyId: 'co1' } },
+  // A former owner whose claims were stripped (tenant-guard.js "ghost"): no
+  // companyId claim, and companies/gho now names someone else as owner.
+  gho: { uid: 'gho', emailVerified: true, customClaims: {} },
 };
 const getUser = async (uid) => { if (!USERS[uid]) { const e = new Error('no user'); e.code = 'auth/user-not-found'; throw e; } return USERS[uid]; };
 let modelCalls = [];
@@ -217,6 +220,9 @@ async function auto(db, before, after, extra) {
       ok('a filer who no longer exists → nothing', ghost.state === 'gated');
       const dis = await auto(makeDb(seed()), UNFILED, Object.assign({}, FILED, { attachedBy: 'off' }));
       ok('a disabled filer → nothing', dis.state === 'gated');
+      const ghostSeed = seed({ 'companies/gho': { ownerId: 'jo' }, 'subscriptions/gho': { plan: 'growth', status: 'active' } });
+      const gh = await auto(makeDb(ghostSeed), UNFILED, Object.assign({}, FILED, { userId: 'gho', attachedBy: 'gho' }));
+      ok('a filer tenant-guard calls a ghost (claims stripped, company handed off) → nothing, as the callables refuse them', gh.state === 'gated' && /no longer belongs/.test(gh.why || ''), gh);
       const unv = await auto(makeDb(seed()), UNFILED, Object.assign({}, FILED, { attachedBy: 'unv' }));
       ok('an unverified email → nothing', unv.state === 'plan');
       const s = seed(); delete s['subscriptions/co1'];

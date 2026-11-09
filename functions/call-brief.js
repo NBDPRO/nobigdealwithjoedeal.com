@@ -342,6 +342,8 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   try { user = await (getUser || ((uid) => require('firebase-admin/auth').getAuth().getUser(uid)))(filer); } catch (e) { return { state: 'gated', why: 'filer not found' }; }
   if (!user || user.disabled === true) return { state: 'gated', why: 'filer disabled' };
   const auth = { uid: filer, token: Object.assign({}, user.customClaims || {}, { email_verified: user.emailVerified === true }) };
+  // The callables run assertNotGhost; so does this, on the filer's claims now.
+  if (await require('./tenant-guard').isGhost(filer, auth.token, db)) return { state: 'gated', why: require('./tenant-guard').GHOST_MESSAGE };
   let g;
   try { g = await loadGated(db, auth, { callId }); } catch (e) { return { state: 'gated', why: (e && e.message) || 'gated' }; }
   const transcript = String(g.call.transcript || '');
