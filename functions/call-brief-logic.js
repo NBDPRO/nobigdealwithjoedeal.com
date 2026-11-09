@@ -792,11 +792,22 @@ function stageMovedFrom(lead, key) {
  * a filed call whose notes just arrived, or a move to another customer. Any
  * other write on an already-briefable call (handled, a re-note) is false, so
  * a call is never auto-briefed twice for one filing.
+ *
+ * A call swept onto the customer by ANOTHER call's attach (call-center.js
+ * refileNumber stamps refiledFrom) is not one the person filed: one tap must
+ * not draft a brief for every earlier call from the number. A later move by
+ * a person (movedBy, the later act) or a direct attach (which clears
+ * refiledFrom) is a real filing again. Those calls still brief on tap.
  */
+function sweptOn(c) {
+  if (!c.refiledFrom) return false;
+  return !(c.movedBy && (Number(c.movedAtMs) || 0) >= (Number(c.attachedAtMs) || 0));
+}
+function autoFiled(c) { return humanFiledProblem(c) === '' && !sweptOn(c); }
 function autoBriefTransition(before, after) {
-  if (!after || humanFiledProblem(after) !== '') return false;
+  if (!after || !autoFiled(after)) return false;
   if (!before) return true;
-  return humanFiledProblem(before) !== '' || String(before.leadId || '') !== String(after.leadId || '');
+  return !autoFiled(before) || String(before.leadId || '') !== String(after.leadId || '');
 }
 
 /** The person who filed the call last: movedBy when the move is the later act, else attachedBy. */

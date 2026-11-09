@@ -162,6 +162,14 @@ async function auto(db, before, after, extra) {
         ok('never a ' + n + ' call', tr(UNFILED, Object.assign({}, FILED, over)) === false);
       }
       ok('a created doc (no before) that is somehow filed: yes', tr(null, FILED) === true);
+      // One attach re-files every earlier unfiled call from the number
+      // (call-center.js refileNumber → fileCallOnLead extra { refiledFrom }).
+      // The person filed ONE call: the swept ones are never auto-briefed.
+      const REFILED = Object.assign({}, FILED, { refiledFrom: 'cube_OTHER0001' });
+      ok('a call swept onto the customer by another call\'s attach (refiledFrom): no', tr(UNFILED, REFILED) === false);
+      ok('…nor when its notes arrive later', tr(Object.assign({}, REFILED, { status: 'stored', transcript: '' }), REFILED) === false);
+      ok('…but a person moving it afterwards: yes (movedBy is the later act)', tr(REFILED, Object.assign({}, REFILED, { leadId: 'L2', movedBy: 'ca', movedAtMs: NOW })) === true);
+      ok('…and a person attaching it themselves (refiledFrom cleared): yes', tr(REFILED, Object.assign({}, REFILED, { refiledFrom: null, attachedAtMs: NOW })) === true);
       ok('the filer is the latest person: movedBy after attachedBy', L.filerOf(Object.assign({}, FILED, { movedBy: 'ca', movedAtMs: NOW })) === 'ca' && L.filerOf(FILED) === 'jo');
     }
   }
@@ -192,6 +200,8 @@ async function auto(db, before, after, extra) {
       modelCalls = [];
       const nf = await auto(makeDb(seed()), UNFILED, Object.assign({}, UNFILED, { handledAtMs: NOW }));
       ok('an unfiled call → nothing, before the flag is read', nf.state === 'not-filed-now' && modelCalls.length === 0);
+      const rf = await auto(makeDb(seed()), UNFILED, Object.assign({}, FILED, { refiledFrom: 'cube_OTHER0001' }));
+      ok('a call swept on by another call\'s attach → nothing, no quota (one tap never drafts many briefs)', rf.state === 'not-filed-now' && modelCalls.length === 0, rf);
       flags = { aiDisabled: true };
       const k1 = await auto(makeDb(seed()), UNFILED, FILED);
       flags = { callBriefDisabled: true };

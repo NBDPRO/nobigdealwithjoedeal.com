@@ -277,6 +277,16 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   const ra = await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
   const sib = (k) => db.docs.get(COLLECTION + '/' + k);
   ok('the attached call itself is filed', sib('cube_AAAAA1').leadId === 'L1');
+  {
+    // Call to Close P1: callBriefAuto skips a call whose filing was a sweep
+    // (refiledFrom). A person attaching that call themselves later is a real
+    // filing, so the marker must not survive it.
+    const db2 = fakeDb(rseed());
+    await run(db2, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
+    const swept = db2.docs.get(COLLECTION + '/cube_SIB001').refiledFrom;
+    await run(db2, owner, { id: 'cube_SIB001', action: 'attach', leadId: 'L1' });
+    ok('a swept call a person then attaches themselves loses refiledFrom (only the sweep sets it)', swept === 'cube_AAAAA1' && db2.docs.get(COLLECTION + '/cube_SIB001').refiledFrom == null, JSON.stringify(db2.docs.get(COLLECTION + '/cube_SIB001')));
+  }
   ok('an earlier noted call from the number is re-filed on the lead', sib('cube_SIB001').leadId === 'L1' && sib('cube_SIB001').bucket === 'customer' && sib('cube_SIB001').refiledFrom === 'cube_AAAAA1', JSON.stringify(sib('cube_SIB001')));
   ok('…with the same timeline entry the notes pass writes', JSON.stringify(Object.assign({}, db.docs.get('leads/L1/activity/cube-cube_SIB001'), { createdAt: 0 }))
     === JSON.stringify(Object.assign(L.buildCallActivity({ call: Object.assign({}, sib('cube_SIB001'), { id: 'cube_SIB001' }), notes: { summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false }, ownerUid: OWN }), { createdAt: 0 })));

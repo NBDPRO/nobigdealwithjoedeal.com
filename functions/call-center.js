@@ -1042,10 +1042,12 @@ function leadInCallTenant(lead, call) {
 // One call onto one lead: the call doc, and — for a noted call — the same
 // timeline entry and create-only follow-up task the notes pass writes. Both
 // ids are deterministic (cube-<callId>), so a repeat is a no-op.
+// refiledFrom marks a call swept on by another call's attach (refileNumber);
+// a direct filing clears it, so callBriefAuto treats only the sweep as one.
 async function fileCallOnLead({ db, call, leadId, uid, nowMs, extra }) {
   await db.collection(COLLECTION).doc(call.id).set(Object.assign({
     leadId, bucket: 'customer', alternateLeadIds: [], attachedBy: uid, attachedAtMs: nowMs,
-    suggestedLeadId: null, suggestedLeadName: null, suggestedWhy: null,
+    suggestedLeadId: null, suggestedLeadName: null, suggestedWhy: null, refiledFrom: null,
   }, extra || {}), { merge: true });
   if (call.status !== 'noted') return;
   const owner = call.userId || OWNER;
