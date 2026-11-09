@@ -120,11 +120,13 @@ function parkedUntil(c, now, opts) {
 
 function callNeedsYou(c, now, ctx) {
   const t = now == null ? Date.now() : now;
-  // A merged redial (Call to Close P2) is carried by its first call.
-  if (!c || c.handledAtMs || c.status === 'personal' || c.mergedInto) return false;
+  if (!c || c.handledAtMs || c.status === 'personal') return false;
   if (c.callType === 'spam' || c.taskDone === true) return false;
   // Parked with a date (snooze / moved task): not open until that day arrives.
   if (parkedUntil(c, t)) return false;
+  // A merged redial (Call to Close P2) is carried by its first call, except a
+  // promise Jo made on it: a promise always surfaces (as on the Said-you'd-do deck).
+  if (c.mergedInto) return (toMs(c.startedAtMs) || 0) >= t - PROMISE_WINDOW && openJoPromise(c, t);
   // Mirror of home-attention.js: a promise Jo made outlives the 14-day window
   // up to 45 days (then Home's single "old promises" row takes it).
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
@@ -232,7 +234,7 @@ function isOldPromise(c, now) {
   const t = now == null ? Date.now() : now;
   // A texted promise is a promise too (QA 2026-10-13: it appeared nowhere past
   // 45 days); the same rows, the same PEOPLE count as Home.
-  if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.mergedInto) return false;
+  if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true) return false;
   return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c, t);
 }
 function oldPromiseCount(rows, now) {

@@ -237,7 +237,7 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
     ok('chips, date boxes and Clear are 44px targets', /\.cc-date \{[^}]*min-height: 44px/.test(css) && /\.cc-clear \{[^}]*min-height: 44px/.test(css) && /\.cc-tab \{\s*min-height: 44px/.test(css));
     ok('no inline handlers or inline styles in the new markup (CSP)', !/cc-fchip[^>]*(onclick|style=)/.test(view) && !/cc-date[^>]*(onclick|style=)/.test(view));
     ok('the view still works without the filter module (guarded by FX)', /var FX = window\.NBDCallCenterFilters \|\| null;/.test(view) && /if \(!FX\) return '<div class="cc-filter-sum cc-filter-down" role="alert">/.test(view));
-    ok('the sidebar badge is computed from the unfiltered list', /var navCount = base === state\.calls \? counts\.attention : groupNeeds\(state\.calls\)\.length;/.test(view));
+    ok('the sidebar badge is computed from the unfiltered list', /var navCount = base === state\.calls \? counts\.attention : groupNeeds\((state\.calls|withAway\(state\.calls\))\)\.length;/.test(view));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -17,7 +17,9 @@
  *      card was tapped, a repeat is a no-op
  *   5. unmerge (Undo): clears both, idempotent, refuses marks that disagree
  *   6. lists hide merged secondaries: the Call Center (counts too), the
- *      customer page, Home's needs-you rule and its server twin (callWatch)
+ *      customer page, Home's needs-you rule and its server twin (callWatch),
+ *      except while the redial carries an open promise of Jo's (it then stays
+ *      on Needs attention / Old promises, as on the Said-you'd-do deck)
  *   7. the Call Center card: "Looks like one call" on both calls of a pair,
  *      Merge goes through callCenterAction, the merged first call carries the
  *      redial (Play, Undo); viewers and a rep who does not own the call see
@@ -317,10 +319,19 @@ function fakeDb(seed) {
     const NOWL = T0 + 60 * MIN;
     const open = call('cube_OPEN00001', { leadId: null, bucket: 'unknown', promises: [{ who: 'jo', text: 'Call back' }] });
     ok('control: an open call needs you (Home and callWatch)', HA.callNeedsYou(open, NOWL) === true && CW.callNeedsYou(open, NOWL) === true);
+    const quiet = call('cube_OPEN00002', { leadId: null, bucket: 'unknown', mergedInto: P.id });
+    ok('control: the same unknown call unmerged needs you', HA.callNeedsYou(Object.assign({}, quiet, { mergedInto: null }), NOWL) === true);
+    ok('a merged redial with no promise of Jo\'s never needs you on Home', HA.callNeedsYou(quiet, NOWL) === false);
+    ok('...nor in callWatch (the server twin)', CW.callNeedsYou(quiet, NOWL) === false);
+    // Never forget (review 2026-11-09): a promise Jo made only on the redial
+    // still surfaces, as it does on the Said-you'd-do deck and the sweep email.
     const away = Object.assign({}, open, { mergedInto: P.id });
-    ok('a merged redial never needs you on Home', HA.callNeedsYou(away, NOWL) === false);
-    ok('...nor in callWatch (the server twin)', CW.callNeedsYou(away, NOWL) === false);
-    ok('...nor as an old promise (both)', HA.isOldPromise(Object.assign({}, away, { startedAtMs: NOWL - 60 * 86400000 }), NOWL) === false && CW.isOldPromise(Object.assign({}, away, { startedAtMs: NOWL - 60 * 86400000 }), NOWL) === false);
+    ok('a merged redial carrying an open promise of Jo\'s still needs you (Home and callWatch)', HA.callNeedsYou(away, NOWL) === true && CW.callNeedsYou(away, NOWL) === true);
+    const kept = Object.assign({}, away, { promises: [{ who: 'jo', text: 'Call back', keptAtMs: NOWL - MIN }] });
+    ok('...until the promise is kept (both)', HA.callNeedsYou(kept, NOWL) === false && CW.callNeedsYou(kept, NOWL) === false);
+    const old = (c) => Object.assign({}, c, { startedAtMs: NOWL - 60 * 86400000 });
+    ok('an old merged redial with an open promise is an old promise (both)', HA.isOldPromise(old(away), NOWL) === true && CW.isOldPromise(old(away), NOWL) === true);
+    ok('...with none, it is not (both)', HA.isOldPromise(old(quiet), NOWL) === false && CW.isOldPromise(old(quiet), NOWL) === false);
     ok('control: the merged first call still can', HA.callNeedsYou(Object.assign({}, open, { mergedFrom: S.id }), NOWL) === true);
 
     // The customer page's fetchCalls, run with fake reads.
@@ -361,7 +372,8 @@ function fakeDb(seed) {
       constructor(...a) { if (a.length) super(...a); else super(NOWV); }
       static now() { return NOWV; }
     }
-    function boot(claims, uid, calls) {
+    // withHA: the real needs-you rule (home-attention.js) instead of the view's fallback.
+    function boot(claims, uid, calls, withHA) {
       const listeners = {}; const view = { innerHTML: '' }; const badge = { textContent: '', classList: { toggle() {} } };
       const sent = [];
       const rowsDb = { phone_calls: calls, phone_text_days: [] };
@@ -371,6 +383,7 @@ function fakeDb(seed) {
         _httpsCallable: (fns, name) => async (data) => { sent.push([name, data]); if (name === 'callCenterAction' && data.action === 'merge') { rowsDb.phone_calls = rowsDb.phone_calls.map((r) => (r.id === P.id ? Object.assign({}, r, { mergedFrom: S.id }) : r.id === S.id ? Object.assign({}, r, { mergedInto: P.id }) : r)); return { data: { ok: true, merged: true, primaryId: P.id, secondaryId: S.id } }; } return { data: { items: [] } }; },
         showToast: (o) => sent.push(['toast', o.message]),
         localStorage: { getItem: () => null, setItem() {} } };
+      if (withHA) win.NBDHomeAttention = require(path.join(ROOT, 'docs/pro/js/home-attention.js'));
       const sandbox = { window: win, document, console, setTimeout, Promise, URLSearchParams, Date: FakeDate, Object, Array, String, Number, JSON, Math, RegExp, CSS: { escape: (s) => String(s) }, history: { replaceState() {} } };
       win.history = sandbox.history; vm.createContext(sandbox);
       vm.runInContext(read('docs/pro/js/call-center-filters-logic.js'), sandbox);
@@ -405,13 +418,24 @@ function fakeDb(seed) {
 
     // Merged on load: every tab and count leaves the redial out.
     const merged = [Object.assign({}, STORE(P), { id: P.id, mergedFrom: S.id, promises: [{ who: 'jo', text: 'Call back' }] }), Object.assign({}, STORE(S), { id: S.id, mergedInto: P.id, leadId: null, bucket: 'unknown', promises: [{ who: 'jo', text: 'Send photos' }] })];
-    const w = boot({ companyId: 'co1' }, 'jo', merged);
+    const w = boot({ companyId: 'co1' }, 'jo', merged, true);
     await w.CC.reload();
-    const tabs = ['attention', 'all', 'customer', 'unknown'];
+    const tabs = ['all', 'customer', 'unknown'];
     const seen = [];
     for (const t of tabs) { w.click({ 'data-cc': 'filter', 'data-arg': t }); if (/data-call-id="cube_SPLIT0002"/.test(w.view.innerHTML)) seen.push(t); }
-    ok('merged on load: the redial is on no tab (' + tabs.join(', ') + ')', seen.length === 0, seen);
-    ok('...and no count includes it (Unknown 0)', /data-arg="unknown">Unknown <span class="cc-count">0<\/span>/.test(w.view.innerHTML), (/data-arg="unknown">[^<]*<span class="cc-count">\d+/.exec(w.view.innerHTML) || [''])[0]);
+    ok('merged on load: the redial is on no list tab (' + tabs.join(', ') + ')', seen.length === 0, seen);
+    ok('...and no list count includes it (Unknown 0)', /data-arg="unknown">Unknown <span class="cc-count">0<\/span>/.test(w.view.innerHTML), (/data-arg="unknown">[^<]*<span class="cc-count">\d+/.exec(w.view.innerHTML) || [''])[0]);
+    // Never forget: while its own promise of Jo's is open, the redial stays on
+    // Needs attention (the same rule Home, callWatch and the deck read).
+    w.click({ 'data-cc': 'filter', 'data-arg': 'attention' });
+    const att = w.view.innerHTML;
+    ok('merged on load, the redial\'s promise open: it is on Needs attention, counted', /data-call-id="cube_SPLIT0002"/.test(att) && /Send photos/.test(att) && /data-arg="attention">Needs attention <span class="cc-count">2<\/span>/.test(att), (/data-arg="attention">[^<]*<span class="cc-count">\d+/.exec(att) || [''])[0]);
+    ok('...and its card says it was merged and why it shows', /Merged into the .* call\. It shows here while your promise on it is open\./.test(card(att, S.id)), card(att, S.id).slice(0, 500));
+    const keptRows = merged.map((r) => (r.id === S.id ? Object.assign({}, r, { promises: [{ who: 'jo', text: 'Send photos', keptAtMs: T0 }] }) : r));
+    const wk = boot({ companyId: 'co1' }, 'jo', keptRows, true);
+    await wk.CC.reload();
+    wk.click({ 'data-cc': 'filter', 'data-arg': 'attention' });
+    ok('control: its promise kept, the redial leaves Needs attention too', !/data-call-id="cube_SPLIT0002"/.test(wk.view.innerHTML) && /data-arg="attention">Needs attention <span class="cc-count">1<\/span>/.test(wk.view.innerHTML));
 
     for (const [name, cl, uid] of [['a viewer', { role: 'viewer', companyId: 'co1' }, 'v'], ['a sales rep who does not own the calls', { role: 'sales_rep', companyId: 'co1' }, 'rep']]) {
       const x = boot(cl, uid, rowsPair());

@@ -26,8 +26,9 @@
  * "Looks like one call" (Call to Close P2, 2026-11-09; call-merge-logic.js):
  * two calls from one number, the second within 10 minutes of the first's
  * end, get a Merge button (callCenterAction merge; Undo = unmerge). The
- * redial (mergedInto) leaves every list; the first call's card says so,
- * still plays it, and its Call Brief reads both transcripts.
+ * redial (mergedInto) leaves every list (except Needs attention / Old
+ * promises while a promise of Jo's on it is open: never forget); the first
+ * call's card says so, still plays it, and its Call Brief reads both.
  *
  * Reads mirror firestore.rules on phone_calls: own userId always, plus
  * companyId for company_admin / manager / viewer. Viewers get no buttons.
@@ -466,8 +467,19 @@
   }
   function clock(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
   function gapText(ms) { var m = Math.round(Math.max(0, Number(ms) || 0) / 60000); return m < 1 ? 'under a minute' : m + ' min'; }
+  // The calls plus the merged redials (the needs-you rule keeps a redial only while a promise of Jo's on it is open).
+  function withAway(rows, narrowed) {
+    var away = Object.keys(state.mergedAway).map(function (k) { return state.mergedAway[k]; });
+    if (narrowed) away = away.filter(fltPass);
+    return away.length ? rows.concat(away) : rows;
+  }
   function mergeRow(c) {
     if (!c || c.channel === 'text' || !canActOn(c)) return '';
+    if (c.mergedInto) {
+      var first = byId(c.mergedInto);
+      return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Merged into the ' + (first ? esc(clock(first.startedAtMs)) + ' ' : 'earlier ') +
+        'call. It shows here while your promise on it is open.</span></div>';
+    }
     if (c.mergedFrom) {
       // The redial may be older than the calls loaded: the card still says so and can split them.
       var away = state.mergedAway[c.id] && state.mergedAway[c.id].id === c.mergedFrom ? state.mergedAway[c.id] : null;
@@ -672,22 +684,24 @@
     var counts = {};
     // base = the list after the date / direction filters; the tab counts, the list and the people-grouping all read it.
     var base = FX && FX.isActive(flt) ? state.calls.filter(fltPass) : state.calls;
-    filtersNow().forEach(function (f) { counts[f[0]] = base.filter(f[2]).length; });
+    // A merged redial is off every list but the promise ones (Needs attention, Old promises) while it carries an open promise of Jo's.
+    var promiseBase = withAway(base, FX && FX.isActive(flt));
+    filtersNow().forEach(function (f) { counts[f[0]] = (f[0] === 'oldpromises' ? promiseBase : base).filter(f[2]).length; });
     // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
-    counts.attention = groupNeeds(base).length;
+    counts.attention = groupNeeds(promiseBase).length;
     // The sidebar badge and the "One at a time" deck are never narrowed by the filters: they are the real open list.
-    var navCount = base === state.calls ? counts.attention : groupNeeds(state.calls).length;
+    var navCount = base === state.calls ? counts.attention : groupNeeds(withAway(state.calls)).length;
     var badge = document.getElementById('callsNavBadge');
     if (badge) { badge.textContent = navCount ? String(navCount) : ''; badge.classList.toggle('dn', !navCount); }
     var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
-    var rows = base.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
+    var rows = (state.filter === 'attention' || state.filter === 'oldpromises' ? promiseBase : base).filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     if (FX && state.filter !== 'attention') rows = FX.sortCalls(rows, flt.sort);
     // what the filter line reports: the people shown on Needs attention, the rows everywhere else
     var shownN = rows.length;
     if (state.filter === 'attention') {
       var seen = {};
       rows.forEach(function (c) { seen[c.id] = true; });
-      shownN = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
+      shownN = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
     }
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title"><span aria-hidden="true">📞</span> Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
@@ -714,7 +728,7 @@
       // A person shows when any of their open calls matches the search.
       var hit = {};
       rows.forEach(function (c) { hit[c.id] = true; });
-      body = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
+      body = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
         .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
     }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
@@ -944,7 +958,7 @@
   }
   function openDeck() {
     if (!window.NBDTriageDeck) return;
-    var groups = groupNeeds(state.calls).map(function (g) { return Object.assign({ id: g.key }, g); });
+    var groups = groupNeeds(withAway(state.calls)).map(function (g) { return Object.assign({ id: g.key }, g); });
     window.NBDTriageDeck.open({
       id: 'calls-attention',
       title: 'Needs attention',
@@ -1346,7 +1360,7 @@
     var tries = 0, refetch = 0;
     (function wait() {
       if (!state.loaded) { if (++tries <= 80) setTimeout(wait, 250); return; }
-      var t = focusTarget(state.calls, id, needsAttention);
+      var t = focusTarget(withAway(state.calls), id, needsAttention);
       // A cold-boot read can come back from the empty local cache (Firestore
       // still connecting): read again a few times before giving up.
       if (!t) {
