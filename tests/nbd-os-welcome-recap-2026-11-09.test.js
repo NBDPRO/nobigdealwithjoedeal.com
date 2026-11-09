@@ -238,6 +238,15 @@ const dialog = (T) => T.document.querySelector('dialog.os-rc');
     ok('Tuesday, the same page (no reload): the tick shows Tuesday\'s recap', !!dialog(T2) && /Shutdown yesterday/.test(text(dialog(T2))), text(dialog(T2)));
   });
 
+  console.log('\n10. Open on a recap row counts as seeing it');
+  await G(async () => {
+    const T = win();
+    await flush(); await flush();
+    const a = dialog(T).querySelector('[data-rc-lead="A"] a');
+    click(T.dom, a);
+    ok('tapping Open remembers the day, so the recap does not come back on the way back', T.store.nbd_os_recap === '2026-11-09', T.store.nbd_os_recap);
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();

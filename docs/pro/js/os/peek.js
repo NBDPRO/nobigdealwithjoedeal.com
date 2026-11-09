@@ -12,8 +12,8 @@
  *                               (demo-sdk/firebase-functions.js).
  *   recap()                     the Welcome Recap: what yesterday's Shutdown left open
  *                               (localStorage nbd_os_carry, ids only, resolved against
- *                               _leads now) and today's first appointment. "Got it" (or
- *                               Escape) remembers the day in localStorage nbd_os_recap,
+ *                               _leads now) and today's first appointment. "Got it",
+ *                               Escape or a row's Open remembers the day in localStorage nbd_os_recap,
  *                               so it shows once a day; os/home.js decides when it is due
  *                               (home-logic recapDue) and never loads this file otherwise.
  *
@@ -231,7 +231,10 @@
     d.addEventListener('click', function (ev) {
       var t = ev.target;
       if (!t || !t.closest) return;
-      if (t.closest('[data-pk-close]') || (t === d && outside(d, ev))) close();
+      if (t.closest('[data-pk-close]') || (t === d && outside(d, ev))) { close(); return; }
+      // Open on a row counts as seeing the recap: the link navigates in this tab, and the way
+      // back to the dashboard the same day must not bring it up again
+      if (t.closest('.os-pk-row a')) lsSet(RECAP_KEY, HL.dayKey(Date.now()));
     });
     show({ d: d, kind: 'recap', returnFocus: o.returnFocus || doc.activeElement || null });
     if (!focusIn(d, '.os-pk-row a')) focusIn(d, '.os-pk-ft [data-pk-close]');
