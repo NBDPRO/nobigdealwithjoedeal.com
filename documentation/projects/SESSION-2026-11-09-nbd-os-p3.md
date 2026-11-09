@@ -52,3 +52,13 @@ Everything here is dark behind `osLayout` (and `osSystemLayer` for the Control C
 - **Double tap at 320px:** page 1 has no free cell once the P3 widgets fill it, so the empty space is the gap in the Visits row (verified to lock) or page 2.
 - **Real-iPhone pass** for Pocket, the double tap and Nearby's location prompt is still open, as in P1 and P2.
 - The browser suites ran through the Playwright launch shim in this sandbox (its Chromium build differs from CI's).
+
+## 6. Update 2026-11-09: the final review round
+
+- **"In a home" cannot be switched off by a paste.** `home-logic.js cleanAct` took each mode's `focus` from the stored or pasted record; Copy my setup let pasted text reach it (an `inhome` entry with `focus: {}` parsed, the preview listed only names). A mode's focus is now always its preset's (`ACT_PRESETS`, by id); the P2 normalize test that pinned the pass-through is flipped.
+- **Copy my setup drops garbage instead of applying defaults.** `parse` keeps only the modes the text names and only the wallpaper surfaces that hold an id; `merge` applies wallpaper by surface and modes by id; the preview lists only what changes.
+- **Alt+` waits while a modal `<dialog>` is open** (the sheet would sit inert under the top layer until it closed).
+- **Spotlight's focus return passes `preventScroll`** (a global change to every palette close).
+- **Saved view tile: Try again** when the company profile read never lands (`_ensureCompanyProfile` on a tap; a miss says so in words). An S tile uses a short line and drops its title on the phone row.
+- Left as is (not defects): the Knock block's early-End window (documented trade-off, no number invented) and a taskbar button under the privacy hot corner (fails safe).
+- Gates re-run: syntax, manifest `--check`, node bucket 1002/1002, smoke 4434, boot budget 36, rules emulator os-coach-ai 47, os-team 41, os-company-home 33, os-daily-goals 40, browser suites 49 / 95 / 126. New screenshots 15 to 18 (hostile paste preview, the pasted "In a home" on, the Saved view's Try again and its miss) in the session scratchpad.
