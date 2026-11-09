@@ -302,6 +302,11 @@ const has = (fn) => L && typeof L[fn] === 'function';
   const ENV = read('functions/.env.nobigdeal-pro');
   ok('functions/.env.nobigdeal-pro turns the gate on, with a dated line saying Jo turned it on and that the indexes deployed with #3019',
     /^LEADERBOARD_AGGREGATE_ENABLED=true$/m.test(ENV) && /2026-11-09[^\n]*\n(?:#[^\n]*\n)*LEADERBOARD_AGGREGATE_ENABLED=true/.test(ENV) && /#3019/.test(ENV));
+  const ENV_BLOCK = (ENV.match(/# Team leaderboard rows[\s\S]*?\nLEADERBOARD_AGGREGATE_ENABLED=true/) || [''])[0];
+  ok('the env comment says the gate is platform-wide: on, every tenant company is counted each run (maxCompanies Infinity), not only NBD',
+    /every (tenant|company)/i.test(ENV_BLOCK) && /not (just|only) NBD/i.test(ENV_BLOCK) && /maxCompanies: live \? Infinity/.test(SRC));
+  ok('the env comment does not claim the indexes are live in prod (repo-verified only): it says to confirm them in the Firebase console',
+    ENV_BLOCK && !/deployed with that PR/.test(ENV_BLOCK) && /Firebase console/.test(ENV_BLOCK));
   ok('one run at a time, every 30 minutes, 300 s timeout and a 240 s budget (the cursor carries the rest)',
     /maxInstances: 1/.test(SRC) && /timeoutSeconds: 300/.test(SRC) && /const BUDGET_MS = 240000;/.test(SRC) && /deadlineMs: start \+ BUDGET_MS/.test(SRC));
   ok('a company counts at most 50 members, and each member query reads at most 2000 docs',
