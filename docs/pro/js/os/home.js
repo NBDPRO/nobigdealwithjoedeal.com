@@ -287,8 +287,7 @@
   }
 
   var LONG_PRESS_MS = 550;   // the OS layout's long-press (layouts/os.js onPhoneDown)
-  var HELP = 'Tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
-  var HELP_DRAG = 'Drag it, or tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
+  var HELP = 'Drag it, or tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
   // the desk board's geometry: css/os/home.css .os-hw-board (grid-auto-rows 160px, gap 12px)
   var ROW_PX = 160, GAP_PX = 12, DRAG_PX = 8, EDGE_PX = 48;
   function posClasses(n) { return String(n.className).split(/\s+/).filter(function (c) { return /^os-hw-[xy]\d+$/.test(c); }); }
@@ -324,7 +323,7 @@
     help.className = 'os-hw-live';
     help.setAttribute('id', helpId);
     help.hidden = true;
-    help.textContent = HELP_DRAG;
+    help.textContent = HELP;
     el.appendChild(liveEl);
     el.appendChild(help);
 

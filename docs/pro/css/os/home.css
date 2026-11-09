@@ -189,7 +189,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 /* ── desk (P1): a board of 4 columns and 160px rows; each widget at its saved cell ──
    (S 1x1, M 2x1, L 2x2; js/os/home.js sets os-hw-x<col> / os-hw-y<row>, never a style).
    ROW_PX / GAP_PX in home.js are these 160px rows and 12px gaps. */
-.os-widgets.os-hw-desk { width: min(640px, calc(100% - 140px)); bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
+/* 640px at 1280 wide, never under 480px (the icon grid keeps the left of the desk) */
+.os-widgets.os-hw-desk { width: clamp(480px, calc(100% - 640px), 640px); bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
 .os-hw-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 160px; gap: 12px; align-content: start; }
 .os-hw-board .os-hw { position: relative; grid-column-end: span 1; grid-row-end: span 1; }
 .os-hw-board .os-hw.is-m { grid-column-end: span 2; }
