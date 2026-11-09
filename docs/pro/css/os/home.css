@@ -167,6 +167,10 @@ html.os-locked .os-hw-daily { visibility: hidden; }
   margin: var(--ui-space-2, 8px) var(--ui-space-4, 16px) 0;
 }
 .os-hw-team .btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
+.os-hw-team:empty { display: none; }
+/* desk column: the team controls sit under the widgets, one per row */
+.os-hw-desk .os-hw-team { margin: 0 0 var(--ui-space-3, 12px); flex-direction: column; }
+.os-hw-desk .os-hw-team .btn { flex: none; }
 .os-hw-lock { gap: var(--ui-space-2, 8px); }
 /* the switch's state is its dot (filled when on) as well as aria-checked, never colour alone */
 .os-hw-lock-dot {

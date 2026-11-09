@@ -236,9 +236,12 @@
   function paintDeskTools() {
     var t = S && S.deskEl && S.deskEl.querySelector('.os-hw-tools');
     if (!t) return;
+    // an owner's team controls head the column in edit mode; Add widget and Done stay pinned at its foot
+    var team = t.parentNode.querySelector('.os-hw-team');
+    if (!team) { team = doc.createElement('div'); team.className = 'os-hw-team'; team.setAttribute('role', 'group'); team.setAttribute('aria-label', 'Team home'); t.parentNode.insertBefore(team, t.parentNode.firstChild); }
+    team.innerHTML = S.homeEditing ? teamHtml('data-osdo', 'os-hw-tool') : '';
     t.innerHTML = S.homeEditing
       ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
-        teamHtml('data-osdo', 'os-hw-tool') +
         '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
       : (homeLocked() ? '<p class="os-hw-locked">Your company set this home.</p>'
         : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>') +
