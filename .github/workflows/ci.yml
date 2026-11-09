@@ -1433,6 +1433,12 @@ jobs:
         run: |
           cd tests
           node ds-layouts-phone-fit-2026-10-25.test.js
+      # The Daily Success quick wins (UX audit 2026-11-09): save on the way out, red failures, safe-area offsets,
+      # Today-bar buttons, search lands on the match, scroll kept per view, the two named streaks. Same server, same Chromium.
+      - name: Run the Daily Success quick-wins check
+        run: |
+          cd tests
+          node ds-quick-wins-2026-11-09.test.js
       # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
       # the "This Week" tiles populate on a first visit, the sample estimates show
       # an address / squares / sent / signed, the Door-to-Door tab labels stay

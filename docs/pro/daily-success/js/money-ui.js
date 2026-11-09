@@ -21,6 +21,7 @@
   const KEY = 'nbd_ds_money';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
   const dollars = (c) => (c ? (Math.round(c) / 100).toFixed(2).replace(/\.00$/, '') : '');
 
@@ -132,7 +133,7 @@
     const raw = _draft;
     if (['bills', 'cards', 'subs', 'saves'].some((l) => raw[l].some((r) => M().badName(r.name)))) { toast('Remove the account / card number from a name first'); return; }
     const clean = M().normalize(raw);
-    try { localStorage.setItem(KEY, JSON.stringify(clean)); } catch (_) { toast('Could not save on this device'); return; }
+    try { localStorage.setItem(KEY, JSON.stringify(clean)); } catch (_) { toastErr('Could not save on this device'); return; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY);
     close();
     toast('Money plan saved');

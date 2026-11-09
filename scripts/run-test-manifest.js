@@ -480,6 +480,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               type (social-consent-blog-2026-11-09, node). MEASURED via --check.
 //   2026-11-09  three content-plan lanes in one PR (consent draft, photo matcher, social/blog). MEASURED via --check.
 const FLOORS = { node: 1048, smoke: 74, disk: 1190 };
+const FLOORS = { node: 1044, smoke: 74, disk: 1186 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

@@ -34,6 +34,7 @@
   const writeJson = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const fmtDay = (ymd) => { const [y, m, d] = String(ymd).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
 
   function settings() {
@@ -513,7 +514,7 @@
     if (!r) { toast('Add a set first - there is nothing to save yet'); return; }
     const before = routines;
     routines = C().normRoutines(routines.concat([r]));
-    if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
+    if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
     toast('Saved as ' + name + ' - rename it under the gear');
     render();
   }
@@ -537,7 +538,7 @@
     if (custom.length >= 30) { toast('That is plenty - remove one first'); return; }
     const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
     if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
-    if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toast(SAVE_FAILED); return; }
+    if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toastErr(SAVE_FAILED); return; }
     custom = next;
     cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
     toast('Added ' + name);
@@ -547,7 +548,7 @@
     reloadLists();
     const before = custom;
     custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
-    if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toast(SAVE_FAILED); return; }
+    if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toastErr(SAVE_FAILED); return; }
     render();
   }
 
@@ -718,7 +719,7 @@
     };
     const all = C().mergeSessions([session].concat(prior), []);
     // If the device will not store it (full / blocked storage) keep the workout open instead of showing "done" and losing it.
-    if (!writeJson(SESS, all)) { toast("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
+    if (!writeJson(SESS, all)) { toastErr("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
     try { const pushed = window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function' ? window.NBDDsCloud.pushWorkout(session) : null; if (pushed && typeof pushed.catch === 'function') pushed.catch(() => {}); } catch (_) { /* the cloud copy is best-effort; the device copy above is saved */ }
     const wrotePage = writeToPage(session);
     summary = {
@@ -777,7 +778,7 @@
         reloadLists();
         const before = routines;
         routines = routines.filter((r) => r.id !== String(t.dataset.id || ''));
-        if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
+        if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
         render(); return;
       }
       case 'custom-add': addCustom(); return;
@@ -954,12 +955,12 @@
     if (el && el.dataset && el.dataset.coachField === 'rt-name') {
       reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toast(SAVE_FAILED); }
+      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); }
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'exnote') {
       if (ev.type !== 'change' || !window.NBDExNotes) return;
-      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toast(SAVE_FAILED); return; }
+      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toastErr(SAVE_FAILED); return; }
       if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(NOTES);
       return;
     }

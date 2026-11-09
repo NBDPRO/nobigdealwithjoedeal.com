@@ -20,6 +20,7 @@
   const DB = 'nbd_ds_photos';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
   // Who is signed in (ds-firebase-sync.js) and which account the phone last settled on (nbd_last_uid).
   const acctUid = () => (window.NBDDsAuth && typeof window.NBDDsAuth.uid === 'function' ? window.NBDDsAuth.uid() : null);
@@ -37,7 +38,7 @@
   let draft = '';
 
   const list = () => (M() ? M().clean(readJson(KEY, [])) : []);
-  const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); return true; } catch (_) { toast('Could not save on this device'); return false; } };
+  const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); return true; } catch (_) { toastErr('Could not save on this device'); return false; } };
 
   /* ---------- measurements ---------- */
   function msHtml() {
@@ -121,7 +122,7 @@
       const drop = PH().prune(await allPhotos());
       for (const id of drop) await delPhoto(id);
       toast('Photo saved on this phone');
-    } catch (_) { toast('Could not save that photo'); }
+    } catch (_) { toastErr('Could not save that photo'); }
     refreshPhotos();
   }
 

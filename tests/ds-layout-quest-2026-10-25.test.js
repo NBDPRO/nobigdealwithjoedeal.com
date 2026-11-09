@@ -71,7 +71,7 @@ console.log('\n2. the board markup');
   ok('level badge, XP bar as a 5%-step class with progressbar semantics, the XP count', /class="qb-lv">Lv \d/.test(h) && /role="progressbar"[^>]*aria-valuenow="\d+"><i class="qb-w(\d|[1-9]\d|100)"><\/i>/.test(h) && /\d+ \/ \d+ XP/.test(h));
   ok('a floor quest is a button with the toggle-floor action app.js already handles', /<button type="button" class="qb-q done floor" data-action="toggle-floor" data-floor-id="sleep" aria-pressed="true">/.test(h) && /class="qb-q floor" data-action="toggle-floor" data-floor-id="task" aria-pressed="false"/.test(h));
   ok('the bonus row is not a button; the open workout quest carries data-quest="workout"', /<div class="qb-q bonus">/.test(h) && /class="qb-q workout" data-quest="workout"/.test(h));
-  ok('streak and today XP lines', /🔥 1-day streak/.test(h) && /\+0 XP today/.test(h));
+  ok('streak and today XP lines', /🔥 1-day training streak/.test(h) && /\+0 XP today/.test(h));
   ok('"3 quests left today" (one of four done)', /3 quests left today/.test(h));
   ok('the skill tree is a folded <details> under the board, naming the unlocked lift', /<details class="qb-tree"><summary>Skill tree · 1 lift unlocked<\/summary>/.test(h) && /<span class="qb-node unlocked" title="1 session">Bench<\/span>/.test(h));
   ok('no inline style attribute', !/style="/.test(h));

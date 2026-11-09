@@ -31,6 +31,7 @@
   const FOOD = 'nbd_ds_food';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
   const allPages = () => (typeof pages !== 'undefined' && Array.isArray(pages) ? pages : []);
   const floors = () => { try { return typeof getFloors === 'function' ? getFloors() : []; } catch (_) { return []; } };
@@ -42,7 +43,7 @@
     return { goal: v.goal && typeof v.goal === 'object' ? v.goal : {}, weeks: v.weeks && typeof v.weeks === 'object' ? v.weeks : {} };
   }
   function save(s) {
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) { toast('Could not save on this device'); return false; }
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) { toastErr('Could not save on this device'); return false; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY);
     return true;
   }
@@ -142,9 +143,9 @@
     if (!R()) return '';
     const x = snapshot();
     const st = x.streak;
-    const streakLine = !x.fl.length ? 'Set your daily floors (⚙️ Customize) to start a streak.'
-      : st.broken ? 'Two misses in a row ended the streak. Today is day one.'
-      : st.warned ? '⚠️ Missed ' + (new Date(today() + 'T12:00:00').getDay() === 1 ? 'Saturday' : 'yesterday') + ' — don\'t miss twice. Today keeps the streak alive.'
+    const streakLine = !x.fl.length ? 'Set your daily floors (⚙️ Customize) to start a floor streak.'
+      : st.broken ? 'Two misses in a row ended the floor streak. Today is day one.'
+      : st.warned ? '⚠️ Missed ' + (new Date(today() + 'T12:00:00').getDay() === 1 ? 'Saturday' : 'yesterday') + ' — don\'t miss twice. Today keeps the floor streak alive.'
       : st.todayMet ? 'All floors met today. 🔒'
       : new Date(today() + 'T12:00:00').getDay() === 0 ? 'Sunday is optional: it never breaks the streak.' : 'Floors still open today.';
     const goal = x.goal ? '<div class="rv-goal"><div class="rv-goal-bar"><i class="rv-goal-fill" data-pct="' + Math.round(x.goal.pct * 100) + '"></i></div>' +
@@ -182,7 +183,7 @@
       '<div class="wc-title">Weekly review</div><span></span></div>' +
       '<div class="wc-hint">' + esc(w.from) + ' → ' + esc(w.to) + '</div>' +
       '<div class="wc-lbl">1 · Floors</div>' +
-      (w.rows.length ? '<div class="wc-sum"><div><b>' + (w.pct != null ? w.pct : 0) + '%</b> hit</div><div><b>' + w.fullDays + '/7</b> full days</div><div><b>' + x.streak.count + '</b> streak</div></div>' + rows +
+      (w.rows.length ? '<div class="wc-sum"><div><b>' + (w.pct != null ? w.pct : 0) + '%</b> hit</div><div><b>' + w.fullDays + '/7</b> full days</div><div><b>' + x.streak.count + '</b> floor streak</div></div>' + rows +
         '<div class="rv-tax"><div><b>Miss tax: $' + (w.missTaxCents / 100).toFixed(0) + '</b> <small>(' + w.misses + ' missed × $5)</small></div>' +
         (w.missTaxCents ? '<label class="rv-check"><input type="checkbox" id="rvTaxMoved"' + (saved.taxMoved ? ' checked' : '') + '> I moved it to savings</label>' : '<div class="wc-meta">Nothing owed. Clean week.</div>') + '</div>'
         : '<div class="wc-meta">No daily floors set yet — set them under ⚙️ Customize.</div>') +
@@ -250,7 +251,7 @@
     const f = readJson(FOOD, {}) || {};
     f.targets = Object.assign({}, f.targets, { calories: x.weight.newCalories });
     if (!Array.isArray(f.favorites)) f.favorites = [];
-    try { localStorage.setItem(FOOD, JSON.stringify(f)); } catch (_) { toast('Could not save on this device'); return; }
+    try { localStorage.setItem(FOOD, JSON.stringify(f)); } catch (_) { toastErr('Could not save on this device'); return; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(FOOD);
     toast('Daily calories set to ' + x.weight.newCalories);
     open();
@@ -263,7 +264,7 @@
     if (!key) return;
     const cur = readJson(key, {}) || {};
     const next = id === 'workouts' ? T.applyWorkouts(cur, it.to) : T.applyCalories(cur, it.to);
-    try { localStorage.setItem(key, JSON.stringify(next)); } catch (_) { toast('Could not save on this device'); return; }
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch (_) { toastErr('Could not save on this device'); return; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(key);
     _accepted[id] = true;
     const box = document.getElementById('rvActs');

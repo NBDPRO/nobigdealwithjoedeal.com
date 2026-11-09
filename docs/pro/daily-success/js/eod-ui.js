@@ -13,6 +13,7 @@
   const KEY = 'nbd_ds_eod';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : E().addDays(new Date().toISOString().slice(0, 10), 0));
   let editing = null; // the date whose questions are open
 
@@ -20,7 +21,7 @@
     try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch (_) { return {}; }
   }
   function store(map) {
-    try { localStorage.setItem(KEY, JSON.stringify(map)); } catch (_) { toast('Could not save on this device'); return false; }
+    try { localStorage.setItem(KEY, JSON.stringify(map)); } catch (_) { toastErr('Could not save on this device'); return false; }
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY);
     return true;
   }
