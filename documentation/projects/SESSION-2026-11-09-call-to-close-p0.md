@@ -117,12 +117,61 @@ Two reviewers, 17 items. Fixed (each test-first, one commit each):
 **For Jo (put these in the PR body). Call-derived text a viewer can still read:**
 
 1. **Old tasks, until the backfill runs.** Tasks filed before this branch still carry `Call: <summary>` (`cube-*`, `sms-*`) or `Summary:` / `Urgent:` lines (`thursday-*`). The backfill above is described, not written or run. It needs Jo's OK.
-2. **Task titles and "You said you would".** `cube-*` / `sms-*` task titles come from the first promise the AI pulled from the call, and their notes list those promises. A viewer reads tasks, while a viewer's lead brief drops PROMISE lines as call content. The two halves disagree. They were kept because the promise is the task's whole point. Thursday task titles still read `Call back <who> — <issue>` (issue up to 90 characters). **Jo: accept, or strip promises and issue for viewers too?**
-3. **A lead that Thursday creates.** `thursday-logic.js` `callNotes()` writes `lead.notes`: the issue or summary, the urgent reason, the insurance carrier and claim number. A viewer reads the lead. This is not closed. Closing it would mean a viewer-safe lead shape or moving those lines off `lead.notes`. **Jo: decide.**
+2. **Task titles and "You said you would".** `cube-*` / `sms-*` task titles come from the first promise the AI pulled from the call, and their notes list those promises. A viewer reads tasks, while a viewer's lead brief drops PROMISE lines as call content. The two halves disagree. They were kept because the promise is the task's whole point. Thursday task titles still read `Call back <who> — <issue>` (issue up to 90 characters). **Jo: accept, or strip promises and issue for viewers too?** *(Decided 2026-11-09: strip for viewers. Built in the lane q11-views section below.)*
+3. **A lead that Thursday creates.** `thursday-logic.js` `callNotes()` writes `lead.notes`: the issue or summary, the urgent reason, the insurance carrier and claim number. A viewer reads the lead. This is not closed. Closing it would mean a viewer-safe lead shape or moving those lines off `lead.notes`. **Jo: decide.** *(Decided 2026-11-09: move them off `lead.notes`. Built in the lane q11-views section below.)*
 4. **Voicemail transcripts.** `voicemail.js` writes `source: 'rep'`, `type: 'voicemail'` with the full transcript and an AI summary. `rep` is on the viewer allowlist. No viewer screen renders those rows (`call-timeline.js` `fromActivity` skips them), but a direct read returns them. It is a recording the rep uploads, outside the four. Not closed here, because the fix changes rules and queries and cannot be proven offline. A viewer allowlist of `source == 'visit-capture' || (source == 'rep' && type in [<rep types except voicemail>])` needs two viewer queries, or two `in` clauses in one, and its production index needs are unproven. **Jo: decide.**
 5. **What viewers lose (narrowing only).** The allowlist also hides from a viewer: voice memos (no `source`, so a viewer's own memos too), away hand-back rows, and webhook, payment and e-sign rows, on the customer timeline and in the PDF report. `smart-followup.js` `_loadConversation` (unfiltered `orderBy createdAt, limit 40`) is refused for a viewer and falls back to its no-timeline draft. That is the intended outcome, since its conversation is call content.
 6. **Brief quota.** A viewer's brief never uses the `lead_briefs` cache, so every brief a viewer asks for counts against `takeQuota`. The cap still holds.
 7. **Boot.** Lane total: customer.html +251 then +274 bytes (shipped local, `activityDocs`), so +525. dashboard.html +158. Each page is under 600. The integrator should reconcile how the lane budget applies across the two pages.
+
+#### Update 2026-11-09 (lane q11-views): Jo's decisions on review items 2 and 3, built
+
+Branch `q11-views` (from the integrated NBD OS P3 branch). Three commits, each test-first.
+
+**Item 2, generic task titles for viewers.** Rules cannot hide a field and tasks have collection-group readers, so hiding on the client alone would leave the text in a viewer's reads. The call text now lives in a sibling doc.
+
+- `leads/{id}/task_call_text/{taskId}` (`firestore.rules`): read is the tasks audience minus a viewer (the same split as the call entries on `activity`). Writes: Cloud Functions only.
+- The task keeps a generic title and `callText: true`:
+  - Call Center `cube-*` and Text Inbox `sms-*`: "Follow up with <who>". The notes keep only the pointer line ("You said you would" moves).
+  - Thursday `thursday-*`: "Call back <who>" (urgent prefix kept), "Call adjuster back: <who>" or "Call back <who> (supplier/sub)". A possible match was already generic. Best time and number stay in the notes.
+  - A call's promise `promise-<callId>[-n]`: the chip alone ("Send estimate", "Waiting on the adjuster"), with `why` set to `''`.
+  - The sidecar holds `{ full, generic }` for title / text / notes / why.
+- `functions/task-call-text.js`:
+  - `split()` puts the call text on a non-enumerable property. A writer that forgets the sidecar, or copies the task, stores the generic task, so a mistake loses the text instead of leaking it.
+  - `apply()` restores only the fields that still hold the generic value, so an owner's later edit wins.
+- Writers: ingest, file-on-lead, text days, Text Inbox, Thursday and the promise action. A call move takes the sidecar with the cube task and the brief slots.
+- Owners see the full text where they did before:
+  - `tasks.js` (the dashboard's one load; the bell, Today, the panel and the badges read its cache) and the customer page's two task reads (timeline and PDF report) lay the sidecar back over the task. They use `docs/pro/js/task-call-text.js`, loaded lazily with no boot tag. It is never read for a viewer, and a refused read keeps the generic task.
+  - The promise channel's push / bell does the same on the server.
+- Golden (`call-to-close-tenantfeed-golden`), re-captured with `UPDATE_GOLDEN=1`:
+  - `writes[17]` (`leads/lead1/tasks/cube-cube_f1`): title / text "Send the quote (Pat Example)" became "Follow up with Pat Example". Notes lost "You said you would:\n• Send the quote (by 2026-10-03)". `callText: true` was added.
+  - New `writes[18]`: set `leads/lead1/task_call_text/cube-cube_f1` with the old title / text / notes.
+  - Nothing else moved. The multi-tenant run still equals NBD's pass (11/11).
+- The promise-slot golden changed four fields on purpose: text, title, why and `callText`. A new pin covers the sidecar.
+
+**Item 3, Thursday lead notes.** On a lead that Thursday creates, `lead.notes` is now "📞 From a Thursday call on <day>. The details are on the call." The old lines (issue / summary, urgent reason, best time, alt contact, heard-about, insurance carrier and claim #, language) are written to `thursday_calls/<id>.callNotes`, which a viewer cannot read. The customer page's Thursday row shows them to owners; a viewer never reads `thursday_calls`.
+
+**Tests:**
+
+- `tests/q11-task-call-text-2026-11-09.test.js`: 15 pass and 21 fail before the change, 42/42 after.
+- `tests/q11-thursday-lead-notes-2026-11-09.test.js`: 3 pass and 7 fail before, 10/10 after.
+- Emulator `call-content-viewers`: 112/120 on the old rules, 120/120 after. A viewer is denied the sidecar (get and list, own lead or not) and still reads the generic task and the collection-group load.
+- `cross-tenant` 482/482. `firestore-rules` passes.
+
+**For Jo, still open:**
+
+1. **Old tasks and old leads need a backfill. The `q11-backfill` branch does not cover them.** That script scrubs the notes (`Call:` / `Summary:` / `Urgent:`) only. Old titles, "You said you would" lists and promise `why`s are still on tasks filed before this branch. A second pass would write, per old task:
+   - `cube-*` / `sms-*`: title / text become "Follow up with <who>" (who from the call / text-day doc's `contactName`), and the notes drop the "You said you would" block.
+   - `thursday-*`: the title is cut at its last " — <issue>", using the call's `issue` to find the cut.
+   - `promise-*` with a `why`: text / title become `taskText(kind, '', waitingOn)`, and `why` becomes `''`.
+
+   Each one writes `task_call_text/<taskId>` with `{ full, generic }` and sets `callText: true`, only when the task still holds what the server wrote. It would run dry by default, with `--apply` only on Jo's OK. Leads Thursday created before today need the same: `publicLeadCollection == 'thursday_calls'` with `notes` still starting "📞 Thursday call ". Those get `callNotes` copied onto the call doc (when missing) and `notes` set to the pointer. Not written here.
+2. **A lead's insurance fields stay viewer-readable.** `insCarrier`, `claimNumber` and `claimStatus` are the CRM's own fields: every insurance lead has them, and the paperwork reads them. Only the notes text moved. Hiding them from viewers would be a separate lead-shape decision.
+3. **Owner surfaces that now show the generic title:**
+   - The dashboard lays the call text over open tasks only (one read per open call task at load). A done call task shows the generic title in dashboard lists; the customer page shows every task in full.
+   - `agent-mcp` (open tasks for the owner's agent) and the ICS / Google calendar feeds (event-type tasks only, not call tasks) do not overlay.
+   - `promise-ui`'s local mirror after a sheet save keeps the full text until the next load, which then overlays it.
+4. **Best time and number stay on the Thursday task's notes.** They are scheduling facts the caller gave, not the issue. Say so if they should move too.
 
 ## Lane "estimate" (P1, 2026-11-09)
 
