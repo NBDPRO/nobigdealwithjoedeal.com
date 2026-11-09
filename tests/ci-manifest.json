@@ -447,6 +447,7 @@
     "nbd-os-coach-line-2026-11-09.test.js",
     "nbd-os-coach-ai-2026-11-09.test.js",
     "nbd-os-p1-followups-2026-11-09.test.js",
+    "nbd-os-focus-2026-11-09.test.js",
     "nbd-os-p2-integration-2026-11-09.test.js",
     "nbd-os-goals-editor-2026-11-09.test.js",
     "estimate-follow-callable-2026-10-19.test.js",
