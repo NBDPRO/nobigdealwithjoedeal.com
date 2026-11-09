@@ -480,14 +480,41 @@ function unsureQuotes(transcript, seg) {
     joined += s + ' ';
     return r;
   });
+  const allLow = (hit) => hit.length > 0 && hit.every((i) => Number(lps[i]) < LOW_LOGPROB);
+  // A boundary inside a word or a spoken digit run ("four four | seven two
+  // nine") splits it in `joined`, but grounding normalises the whole
+  // transcript, where it is one token. Fallback: place the quote there, and
+  // find segment i's start in it as the normalised length of the text before
+  // it (cached; a binary search, so a few prefixes per quote, only here).
+  let whole = null;
+  const cut = new Map();
+  const bound = (i) => {
+    if (i <= 0) return 0;
+    if (i >= offs.length) return Infinity;
+    if (!cut.has(i)) cut.set(i, normalizeSpeech(t.slice(0, Number(offs[i]) || 0)).length);
+    return cut.get(i);
+  };
+  function placeWhole(q) {
+    if (whole === null) whole = normalizeSpeech(t);
+    const at = whole.indexOf(q);
+    if (at < 0) return null;
+    const end = at + q.length;
+    let lo = 0, hi = offs.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (bound(mid + 1) > at) hi = mid; else lo = mid + 1; }
+    const hit = [];
+    for (let i = lo; i < offs.length && bound(i) < end; i++) hit.push(i);
+    return hit;
+  }
   return function unsure(quote) {
     const q = normalizeSpeech(quote);
     if (!q) return false;
     const at = joined.indexOf(q);
-    if (at < 0) return true;
+    if (at < 0) {
+      const hit = placeWhole(q);
+      return hit === null ? true : allLow(hit);
+    }
     const end = at + q.length;
-    const hit = spans.map((r, i) => (r[0] < end && r[1] > at ? i : -1)).filter((i) => i >= 0);
-    return hit.length > 0 && hit.every((i) => Number(lps[i]) < LOW_LOGPROB);
+    return allLow(spans.map((r, i) => (r[0] < end && r[1] > at ? i : -1)).filter((i) => i >= 0));
   };
 }
 

@@ -117,6 +117,20 @@ const CTX = { transcript: TRANSCRIPT, callYmd: '2026-11-05' };
     ok('spoken numbers normalise the same way as grounding', U('the claim number is four four seven two nine') === true);
     ok('a quote the index cannot place → unsure (not known to be clear)', U('nothing like this was said') === true);
   }
+  // A segment boundary inside a spoken digit run or inside a word: the
+  // whole-transcript grounding joins it, so placing the quote must too.
+  if (typeof L.unsureQuotes === 'function') {
+    const T2 = 'The claim number is four four seven two nine. Thanks for calling.';
+    const cut2 = [0, T2.indexOf('seven'), T2.indexOf('Thanks')];
+    const U2 = (lp) => L.unsureQuotes(T2, { off: cut2, lp });
+    ok('a digit run split across two clear segments → sure', U2([-0.2, -0.3, -0.2])('the claim number is four four seven two nine') === false);
+    ok('…split across one low and one clear segment → sure (one clear is enough)', U2([-1.6, -0.3, -0.2])('the claim number is 4 4 7 2 9') === false);
+    ok('…split across two low segments → unsure', U2([-1.6, -1.4, -0.2])('the claim number is 4 4 7 2 9') === true);
+    const T3 = 'We need a new roof on the garage. Call me back.';
+    const cut3 = [0, T3.indexOf('age.'), T3.indexOf('Call')];
+    ok('a boundary inside a word, clear segments → sure', L.unsureQuotes(T3, { off: cut3, lp: [-0.2, -0.2, -0.2] })('a new roof on the garage') === false);
+    ok('a boundary inside a word, low segments → unsure', L.unsureQuotes(T3, { off: cut3, lp: [-1.2, -1.3, -0.2] })('a new roof on the garage') === true);
+  }
   const noIdx = typeof L.unsureQuotes === 'function' ? L.unsureQuotes(TRANSCRIPT, null) : null;
   ok('no index (a call transcribed before P1) → nothing is unsure', noIdx && noIdx('the claim number is 4 4 7 2 9') === false && noIdx('anything') === false);
   const allLow = CL.buildSegIndex ? CL.buildSegIndex(SEGS.map((s) => Object.assign({}, s, { avgLogprob: -1.0 })), TRANSCRIPT) : null;
