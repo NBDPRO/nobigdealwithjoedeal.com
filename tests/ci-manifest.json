@@ -11,6 +11,7 @@
   ],
   "node": [
     "q11-task-summary-backfill-2026-11-09.test.js",
+    "q11-call-text-backfill-2026-11-09.test.js",
     "install-completed-at-2026-11-09.test.js",
     "merge-catalog-costs-2026-11-09.test.js",
     "photo-exif-capture-2026-11-09.test.js",
