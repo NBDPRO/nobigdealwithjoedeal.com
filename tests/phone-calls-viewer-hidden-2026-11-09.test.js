@@ -37,31 +37,35 @@ function slicer(SRC) {
   };
 }
 
-function stubWin(role, queries) {
-  return {
+// late: the claims have not hydrated when the read starts (window._userClaims
+// undefined, so role reads as ''); they arrive while the read is in flight.
+function stubWin(role, queries, late) {
+  const win = {
     db: {}, auth: { currentUser: { uid: 'u1' } }, _user: { uid: 'u1' }, _leadDoc: { phone: '5550101000' },
-    _userClaims: { role, companyId: 'co' },
+    _userClaims: late ? undefined : { role, companyId: 'co' },
     where: (f, op, v) => ({ f, v }), orderBy: () => ({}), limit: () => ({}),
     collection: (db, name) => ({ col: name }),
     query: (c, ...fs) => ({ col: c.col, filters: fs.filter((x) => x && x.f) }),
     getDocs: async (q) => {
       queries.push(q);
+      if (late) win._userClaims = { role, companyId: 'co' };
       if (q.col === 'phone_calls' && role === 'viewer') { const e = new Error('denied'); e.code = 'permission-denied'; throw e; }
       return { docs: [] };
     },
   };
+  return win;
 }
 
 // ── call-center-view.js: fetchFrom ────────────────────────────────────
 const CCV = read('docs/pro/js/call-center-view.js');
 const ccvSlice = slicer(CCV);
 const FETCH_FROM = ccvSlice('  async function fetchFrom(name, channel) {', '\n  }\n');
-async function runCcv(role) {
+async function runCcv(role, late) {
   const queries = [];
-  const win = stubWin(role, queries);
+  const win = stubWin(role, queries, late);
   const sandbox = { window: win, console: { log() {}, warn() {}, error() {} }, Object, Date, Infinity,
     state: { readFailed: [], error: '', cappedBefore: 0 }, LIMIT: 300, PROMISE_WINDOW_MS: 1,
-    claims: () => win._userClaims, isViewer: () => win._userClaims.role === 'viewer' };
+    claims: () => win._userClaims || {}, isViewer: () => (win._userClaims || {}).role === 'viewer' };
   vm.createContext(sandbox);
   vm.runInContext(FETCH_FROM + '\nglobalThis.__f = fetchFrom;', sandbox);
   const rows = await sandbox.__f('phone_calls', 'call');
@@ -98,6 +102,27 @@ async function runCc(role) {
     ok('a company_admin still reads phone_calls', a.queries.some((q) => q.col === 'phone_calls'));
     const s = await runCcv('');
     ok('a solo owner (no role) still reads own phone_calls', s.queries.some((q) => q.col === 'phone_calls' && q.filters.some((f) => f.f === 'userId')));
+    // Claims-timing edge (review 2026-11-09): the read starts before the
+    // claims hydrate, so it is issued and denied. Once the denial lands the
+    // role is known: that is "hidden for your role", not "Could not load".
+    const lv = await runCcv('viewer', true);
+    ok('late claims: the viewer read that went out before them was issued (positive control)', lv.queries.some((q) => q.col === 'phone_calls'));
+    ok('late claims: its denial shows no "Could not load" banner for a viewer', lv.state.readFailed.length === 0 && !lv.state.error, JSON.stringify(lv.state));
+    const lm = await runCcv('manager', true);
+    ok('late claims: a non-viewer still reads phone_calls fine', lm.state.readFailed.length === 0 && lm.queries.some((q) => q.col === 'phone_calls'));
+  }
+  {
+    // A real failure for a non-viewer is still a banner.
+    const queries = [];
+    const win = stubWin('manager', queries);
+    win.getDocs = async (q) => { queries.push(q); const e = new Error('x'); e.code = 'unavailable'; throw e; };
+    const sandbox = { window: win, console: { log() {}, warn() {}, error() {} }, Object, Date, Infinity,
+      state: { readFailed: [], error: '', cappedBefore: 0 }, LIMIT: 300, PROMISE_WINDOW_MS: 1,
+      claims: () => win._userClaims || {}, isViewer: () => (win._userClaims || {}).role === 'viewer' };
+    vm.createContext(sandbox);
+    vm.runInContext(FETCH_FROM + '\nglobalThis.__f = fetchFrom;', sandbox);
+    await sandbox.__f('phone_calls', 'call');
+    ok('a failed phone_calls read for a manager still shows "Could not load"', /Could not load calls/.test(sandbox.state.error) && sandbox.state.readFailed.length === 2, JSON.stringify(sandbox.state));
   }
   ok('the Call Center says "Calls are hidden for your role." for a viewer', /isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role\.<\/div>'/.test(CCV));
   ok('…and keeps the note above the texts a viewer still sees', /state\.calls\.length && isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note"/.test(CCV));
@@ -120,8 +145,18 @@ async function runCc(role) {
   ok('home-attention has two phone_calls reads (positive control)', haReads.length === 2, String(haReads.length));
   ok('both are skipped for a viewer (no failed-read warning)', /const callsHidden = \(c\.role \|\| ''\) === 'viewer';/.test(HA) &&
     (HA.match(/if \(!callsHidden\) jobs\.push\(/g) || []).length === 2);
+  // Claims-timing edge: a phone_calls read sent before the claims hydrated is
+  // denied for a viewer; re-checking the role when it fails keeps that from
+  // showing as a failed read.
+  const haCatches = HA.match(/'phone_calls'[\s\S]*?\.catch\(\(\) => \{[^\n]*\}\)\);/g) || [];
+  ok('home-attention: both phone_calls reads have a catch (positive control)', haCatches.length === 2, String(haCatches.length));
+  ok('home-attention: a denial that lands once the role reads viewer is not a failed read',
+    haCatches.length === 2 && haCatches.every((b) => /\.catch\(\(\) => \{ if \(!viewerNow\(\)\) out\.(callsFailed|oldFailed) = true; \}\)\);$/.test(b)) &&
+    /const viewerNow = \(\) => \(claims\(\)\.role \|\| ''\) === 'viewer';/.test(HA));
   const IB = read('docs/pro/js/layouts/inbox.js');
   ok('the Inbox layout skips its phone_calls read for a viewer', /var a = \(claims\(\)\.role \|\| ''\) === 'viewer' \? Promise\.resolve\(\) : W\.getDocs\(W\.query\(W\.collection\(W\.db, 'phone_calls'\)/.test(IB));
+  ok('the Inbox layout: a phone_calls denial once the role reads viewer still loads the texts',
+    /\.catch\(function \(e\) \{ if \(\(claims\(\)\.role \|\| ''\) === 'viewer'\) return; throw e; \}\);/.test(IB));
   const STL = read('docs/pro/js/speed-to-lead.js');
   ok('speed-to-lead call matching already never runs for a viewer', /function available\(\) \{ return flagOn\(\) && !isViewer\(\); \}/.test(STL) && /async function matchCalls\(\) \{\s*if \(matching \|\| !available\(\)/.test(STL));
 
