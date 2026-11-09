@@ -52,6 +52,7 @@ Planned after the 11-09 build day. Recon was read-only, on the integrated NBD OS
    - New consented jobs feed Social Studio's weekly plan.
    - Add a "new blog post" social post type.
    - Check Meta auto-publish in production with Jo.
+   **Built 2026-11-09 (steps 1-2):** the owner-only consent tick `leads/{id}.projectConsent` (rules plus a lazy "Project Page" control on the customer page) and `scripts/draft-project-page.mjs` (dry run by default; `--write` appends to the local projects.json only, and the CRM shows the command instead of opening a PR). See [SESSION-2026-11-09-project-consent-draft](SESSION-2026-11-09-project-consent-draft.md).
 4. **Blog:** a 12-week calendar, one post every Tuesday, never backdated (`tests/blog-dates-not-backdated-2026-11-04.test.js`).
    - The mix: job case studies, seasonal posts (ice dams, spring storm season), and reader questions.
    - Each post is drafted as a PR with a future `published` date.
