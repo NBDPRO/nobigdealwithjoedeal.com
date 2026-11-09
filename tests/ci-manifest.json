@@ -407,6 +407,7 @@
     "lazy-customer-numbers-logic-2026-11-08.test.js",
     "nbd-os-phone-keeps-desk-pins-2026-11-09.test.js",
     "nbd-os-save-patch-only-2026-11-09.test.js",
+    "nbd-os-home-key-2026-11-09.test.js",
     "estimate-follow-callable-2026-10-19.test.js",
     "follow-up-board-2026-11-03.test.js",
     "follow-up-board-sync-2026-11-04.test.js",
