@@ -8,6 +8,9 @@
  * Covers only what scripts/prod-switches.js and scripts/merge-catalog-costs.js
  * use: db.doc(path).get() -> { exists, data() }, ref.set(data, { merge }),
  * ref.update(fieldPath, value, ...), FieldPath, serverTimestamp().
+ * 2026-11-09: plus the one query scripts/backfill-q11-task-summaries.js pages
+ * with: db.collectionGroup(id).orderBy('__name__').limit(n).startAfter(snap)
+ * .get() -> { empty, size, docs: [{ id, ref, data() }] } (documents:runQuery).
  * The token is sent in a header only; it is never logged.
  */
 'use strict';
@@ -123,7 +126,33 @@ function restFirestore({ projectId, token, fetchImpl }) {
       },
     };
   }
-  return { doc };
+
+  // A collection-group query paged by document name, the one shape the
+  // backfill scripts use. No filters: a collection-group filter needs an
+  // index scope the project may not have; the caller filters what it reads.
+  function collectionGroup(collectionId) {
+    if (typeof collectionId !== 'string' || !collectionId || collectionId.includes('/')) throw new Error('bad collection id: ' + collectionId);
+    const make = (lim, afterPath) => ({
+      orderBy(field) { if (field !== '__name__') throw new Error('only orderBy(\'__name__\') is supported'); return make(lim, afterPath); },
+      limit(n) { if (!Number.isInteger(n) || n < 1) throw new Error('limit must be a positive integer'); return make(n, afterPath); },
+      startAfter(snap) { const p = snap && snap.ref ? snap.ref.path : snap; return make(lim, String(p)); },
+      async get() {
+        const sq = { from: [{ collectionId, allDescendants: true }], orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }] };
+        if (lim) sq.limit = lim;
+        if (afterPath) sq.startAt = { values: [{ referenceValue: root + '/' + afterPath }], before: false };
+        const r = await call('POST', root + ':runQuery', { structuredQuery: sq });
+        if (r.status !== 200) throw new Error('Firestore query of ' + collectionId + ' failed: HTTP ' + r.status + ' ' + ((r.json && r.json.error && r.json.error.message) || '').slice(0, 300));
+        const docs = (Array.isArray(r.json) ? r.json : []).filter((x) => x && x.document).map((x) => {
+          const path = x.document.name.slice(root.length + 1);
+          const data = decodeFields(x.document.fields || {});
+          return { id: path.split('/').pop(), ref: doc(path), exists: true, data: () => data };
+        });
+        return { empty: !docs.length, size: docs.length, docs };
+      },
+    });
+    return make(0, null);
+  }
+  return { doc, collectionGroup };
 }
 
 module.exports = { restFirestore, FieldPath, serverTimestamp: () => SERVER_TS, encode, decode, quoteSeg, SERVER_TS };
