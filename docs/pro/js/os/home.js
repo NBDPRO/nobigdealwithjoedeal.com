@@ -42,7 +42,7 @@
  *                brief callable runs only on a second tap inside it. The Welcome
  *                Recap loads the same bundle only when home-logic recapDue says
  *                yesterday's Shutdown left something open: on the day's first home
- *                (mount) or the lock screen's unlock, once per page.
+ *                (mount) or the lock screen's unlock, once per page a day.
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -441,21 +441,23 @@
    * and only once the CRM's leads (_leadsLoaded) and the Today plan are in: before that the carried ids
    * resolve to nothing and the first appointment is unknown, so the data events (nbd:today-rendered,
    * nbd:data-refreshed) ask again. A recap that did not show (a sheet was open, the bundle failed) is
-   * asked again too.
+   * asked again too. Asked is per day, so a home left open past midnight gets the next day's recap
+   * from the 30 s tick.
    */
-  var recapAsked = false;
+  var recapDay = '';   // the day key this page last asked on
   function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function maybeRecap() {
-    if (recapAsked || doc.hidden) return;
+    var now = Date.now(), today = HL.dayKey(now);
+    if (recapDay === today || doc.hidden) return;
     var uid = String((W._user && W._user.uid) || '');
-    if (!HL.recapDue(lsGet('nbd_os_carry'), lsGet('nbd_os_recap'), uid, Date.now())) return;
+    if (!HL.recapDue(lsGet('nbd_os_carry'), lsGet('nbd_os_recap'), uid, now)) return;
     var O = W.NBDOS;
     if (O && typeof O.isLocked === 'function' && O.isLocked()) return;   // the unlock asks again
     var p = null;
     try { p = todayPlan(); } catch (e) { p = null; }
     if (!leadsNow() || !p) return;   // not loaded yet: the next data event asks again
-    recapAsked = true;
-    loadPeek().then(function (ok) { if (!ok || !W.NBDOSPeek.recap()) recapAsked = false; });
+    recapDay = today;
+    loadPeek().then(function (ok) { if ((!ok || !W.NBDOSPeek.recap()) && recapDay === today) recapDay = ''; });
   }
 
   var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown };
@@ -1169,6 +1171,7 @@
       if (w !== null) order.forEach(function (k) { var r = recs[k]; if (showsSd(r) && r.sdIn !== w) paintOne(r); });
       var pk = peekKey();
       order.forEach(function (k) { var r = recs[k]; if (r && showsUp(r) && r.pk !== pk) paintOne(r); });
+      maybeRecap();   // past midnight on an open page: the new day's recap
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
     doc.addEventListener('visibilitychange', onVis);

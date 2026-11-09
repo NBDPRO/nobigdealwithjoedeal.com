@@ -225,6 +225,19 @@ const dialog = (T) => T.document.querySelector('dialog.os-rc');
     ok('recap() returned null: the next data event asks again', T.W.recapTries === 2, T.W.recapTries);
   });
 
+  console.log('\n9. a page left open past midnight gets the next day\'s recap');
+  await G(async () => {
+    const T2 = win();
+    await flush(); await flush();
+    click(T2.dom, dialog(T2).querySelector('.os-pk-ft [data-pk-close]'));
+    ok('Monday: shown and dismissed', !dialog(T2) && T2.store.nbd_os_recap === '2026-11-09');
+    T2.store.nbd_os_carry = carry({ dk: '2026-11-09' });   // Monday night's Shutdown
+    T2.opts.now = new Date(2026, 10, 10, 7, 30).getTime();  // the page is still open Tuesday morning
+    T2.fire(30000);
+    await flush(); await flush();
+    ok('Tuesday, the same page (no reload): the tick shows Tuesday\'s recap', !!dialog(T2) && /Shutdown yesterday/.test(text(dialog(T2))), text(dialog(T2)));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();
