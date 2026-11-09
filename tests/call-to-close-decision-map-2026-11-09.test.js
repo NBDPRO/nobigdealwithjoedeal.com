@@ -136,6 +136,21 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     const old = clone(s); delete old.scope.mentionQuotes;
     ok('a brief from before P2 (no mentionQuotes) → no chip either', !P.fromBrief(old).items.some((i) => i.key === 'hasChimneyFlash'));
     ok('every chip the prefill makes carries a quote', P.fromBrief(s).items.every((i) => typeof i.quote === 'string' && i.quote.length > 0), P.fromBrief(s).items);
+    // Review fix: a chimney quote from a hard-to-hear segment is marked unsure
+    // (like stories / layers), and the builder never switches that flashing on.
+    const SENTS = TRANSCRIPT.split(/(?<=[.?]) /);
+    const off = []; let at = 0; SENTS.forEach((x) => { const k = TRANSCRIPT.indexOf(x, at); off.push(k); at = k + x.length; });
+    const segIndex = { off, lp: SENTS.map((x) => (/chimney/.test(x) ? -1.6 : -0.2)) };
+    const u = B.sanitizeBrief(raw(), Object.assign(ctx(), { segIndex }));
+    ok('a chimney quote from a hard-to-hear segment is marked unsure (skylight is not)', u.scope.mentionUnsure && u.scope.mentionUnsure.chimney === true && u.scope.mentionUnsure.skylight === false, u.scope.mentionUnsure);
+    ok('…and counts toward lowConfidence', u.flags.lowConfidence >= 1, u.flags);
+    ok('a clear call marks no mention unsure', s.scope.mentionUnsure && s.scope.mentionUnsure.chimney === false && s.scope.mentionUnsure.skylight === false, s.scope.mentionUnsure);
+    const unrelU = B.sanitizeBrief(raw({ transcript_ok: { reliable: false, cutOff: false, why: 'garbled' } }), ctx());
+    ok('an unreliable transcript blanks mentionUnsure too', unrelU.scope.mentionUnsure && unrelU.scope.mentionUnsure.chimney === false, unrelU.scope);
+    const preU = P.fromBrief(u);
+    ok('an unsure chimney mention is never switched on (no chip)', !preU.items.some((i) => i.key === 'hasChimneyFlash'), preU.items);
+    ok('…it is a "hard to hear, not switched on" line with the words', preU.hints.unsure.some((h) => /^Chimney/.test(h) && /hard to hear/.test(h) && /leaking by the chimney/.test(h) && /not switched on/.test(h)), preU.hints.unsure);
+    ok('…the clear skylight mention is still a chip', preU.items.some((i) => i.key === 'hasSkylightFlash'), preU.items);
   }
 
   console.log('\n4. The sheet: "Who decides"');

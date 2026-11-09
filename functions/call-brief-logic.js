@@ -656,6 +656,10 @@ function sanitizeBrief(raw, ctx) {
   const mq = sc.mentionQuotes && typeof sc.mentionQuotes === 'object' ? sc.mentionQuotes : {};
   const mentionQuote = (k) => (scope.mentions[k] && /\S/.test(String(mq[k] || '')) && new RegExp(k, 'i').test(String(mq[k])) && grounded(mq[k]) ? str(mq[k], 300) : '');
   scope.mentionQuotes = { chimney: mentionQuote('chimney'), skylight: mentionQuote('skylight') };
+  // A mention quote heard in a hard-to-hear segment is unsure, as stories /
+  // layers: the builder shows it as a line and never switches that flashing on.
+  const mentionUnsure = (k) => !!scope.mentionQuotes[k] && !!mark({}, scope.mentionQuotes[k], false).unsure;
+  scope.mentionUnsure = { chimney: mentionUnsure('chimney'), skylight: mentionUnsure('skylight') };
   // P1 integration: stories / layers fill the estimate builder, so a digit
   // heard in a hard-to-hear segment is retype there too (never filled in).
   mark(scope.stories, scope.stories && scope.stories.quote, true);
@@ -724,7 +728,7 @@ function sanitizeBrief(raw, ctx) {
   if (!reliable) {
     // Unreliable text grounds garbage: only the summary survives.
     for (const k of Object.keys(out.fields)) out.fields[k] = null;
-    out.scope = { service: null, tierInterest: null, stories: null, layers: null, mentions: { gutters: false, chimney: false, skylight: false, decking: false }, mentionQuotes: { chimney: '', skylight: '' }, saidQuantities: [] };
+    out.scope = { service: null, tierInterest: null, stories: null, layers: null, mentions: { gutters: false, chimney: false, skylight: false, decking: false }, mentionQuotes: { chimney: '', skylight: '' }, mentionUnsure: { chimney: false, skylight: false }, saidQuantities: [] };
     out.promises = []; out.followUp = null; out.objections = []; out.competitor = null; out.people = []; out.stage = null;
     out.drafts = { estimate: false, proposal: false, followUp: null };
   }
