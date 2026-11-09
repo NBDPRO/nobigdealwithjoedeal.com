@@ -289,6 +289,14 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       } else if (enteringSale && (!cur.closedAt || !_isSale(cur.stage))) {
         payload.closedAt = window.serverTimestamp();
       }
+      // Install-complete date (2026-11-09): the FIRST move onto Install Done
+      // records when, once. stageStartedAt was the only date and the next
+      // move overwrites it. A stored date is never replaced (read from the
+      // server copy here); the quiet backfill carries its own day in
+      // completedAt. job-spine-logic.js movePayload does the same server-side.
+      if (newStage === 'install_complete' && !backfill && !cur.installCompletedAt) {
+        payload.installCompletedAt = window.serverTimestamp();
+      }
       const _tier = _soldTierPatch(cur);
       if (_tier) Object.assign(payload, _tier);
       if (backfill) backfillResult = _backfillPatch(payload, cur);

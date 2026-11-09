@@ -673,6 +673,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-csource-test 'node firestore-rules.confirmed-source.test.js'
+      # Install-complete date (2026-11-09): leads/{id}.installCompletedAt rides the first stage move onto Install Done. Own file.
+      - name: Run install-completed-at rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-installdone-test 'node firestore-rules.install-completed-at.test.js'
       # Month close (2026-10-19): monthCloses/{companyId_YYYY-MM}, owner-only writes. Own file.
       - name: Run month-close rules tests under emulator
         run: |

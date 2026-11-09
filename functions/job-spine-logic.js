@@ -22,7 +22,8 @@
  *   - A move writes exactly what the client's commitStageChange writes
  *     (docs/pro/js/stage-write.js): stage, stageRole, stageStartedAt,
  *     stageHistory, updatedAt, closedAt on entering a won stage (PR #2118's
- *     rule), a timeline note, and the stage-entry task (stage-checklist.js).
+ *     rule), installCompletedAt on the first entry to Install Done, a timeline
+ *     note, and the stage-entry task (stage-checklist.js).
  *   - Internal only: nothing here sends to a customer. (The client also fires
  *     EmailDrip on a stage change; the spine deliberately does NOT.)
  *
@@ -246,6 +247,9 @@ function movePayload(lead, plan, ctx, fv) {
   // stale _stageKey (same normalisation planJobEvent used).
   if (needsClosedAt(Object.assign({}, lead, { _stageKey: plan.fromKey }), plan.to)) p.closedAt = fv.serverTimestamp();
   if (lead && Object.prototype.hasOwnProperty.call(lead, '_stageKey')) p._stageKey = plan.to;
+  // The first move onto Install Done records when, once (2026-11-09; the
+  // client's commitStageChange does the same). A stored date is never replaced.
+  if (plan.to === 'install_complete' && !(lead && lead.installCompletedAt)) p.installCompletedAt = fv.serverTimestamp();
   return { payload: p, historyEvent };
 }
 

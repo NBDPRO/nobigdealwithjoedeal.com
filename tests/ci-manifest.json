@@ -11,6 +11,7 @@
   ],
   "node": [
     "q11-task-summary-backfill-2026-11-09.test.js",
+    "install-completed-at-2026-11-09.test.js",
     "merge-catalog-costs-2026-11-09.test.js",
     "prod-switches-2026-11-09.test.js",
     "supplier-sweep-data-fixes-2026-11-09.test.js",
@@ -1645,6 +1646,7 @@
     "firestore-rules.call-feed.test.js",
     "firestore-rules.call-content-viewers.test.js",
     "firestore-rules.voicemail-viewers.test.js",
+    "firestore-rules.install-completed-at.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",
