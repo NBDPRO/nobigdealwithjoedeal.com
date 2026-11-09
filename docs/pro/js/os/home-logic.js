@@ -80,6 +80,8 @@
  *   cleanWp / wpOf / setWp     (P1) the per-surface wallpaper id
  *   todPeriod(ms)              'dawn' | 'day' | 'dusk' | 'night' for a local time
  *   wpPaint(stored, ctx)       what a surface paints: { wp:'auto'|'tod'|'none'|'img', tod, img }
+ *   tintOf(key) / setTint(key, on)  (P3 #12) the member's "colour my widgets from my picture"
+ *                              switch: tint:false in the key when off, absent (on) by default
  *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
@@ -493,12 +495,22 @@
     var o = { phone: actIdx(raw.phone) !== -1 ? raw.phone : null, desk: actIdx(raw.desk) !== -1 ? raw.desk : null };
     return o.phone || o.desk ? o : null;
   }
-  /** Copy a key's acts and on (cleaned) onto `out`: every key op keeps them. */
+  /** Copy a key's acts and on (cleaned) onto `out`: every key op keeps them. P3: and tint, the same way. */
   function carryActs(r, out) {
     var a = cleanActs(r && r.acts);
     if (a) out.acts = a;
     var on = cleanOn(r && r.on);
     if (on) out.on = on;
+    if (r && r.tint === false) out.tint = false;
+    return out;
+  }
+  // ── P3 #12: wallpaper to palette, the member's own switch ─────
+  // tint:false = "don't colour my widgets from my picture"; absent = on (the default
+  // for a tenant; the platform tenant never gets a wash whatever this says).
+  function tintOf(key) { return !(isObj(key) && key.tint === false); }
+  function setTint(key, on) {
+    var out = keepKey(key);
+    if (on === false) out.tint = false; else delete out.tint;
     return out;
   }
   /** The four modes of a key: its own, else the presets (a fresh copy). */
@@ -1052,7 +1064,7 @@
     needsYou: needsYou, urgency: urgency, urgencyText: urgencyText, parseUsage: parseUsage, frecency: frecency,
     stormNow: stormNow, monthStart: monthStart, moneyMonth: moneyMonth, toMs: toMs,
     PEEK_AHEAD: PEEK_AHEAD, peekAppt: peekAppt, parseCarry: parseCarry, recapDue: recapDue,
-    WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint,
+    WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint, tintOf: tintOf, setTint: setTint,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
