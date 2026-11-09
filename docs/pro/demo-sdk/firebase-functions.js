@@ -90,8 +90,26 @@ const CANNED = {
   // transcript, and the sample has none, so no "Draft from this call" button
   // renders. Canned anyway, the same quiet answer, so nothing ever leaves.
   callBrief: () => { throw noPhoneInSample('callBrief'); },
-  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); }
+  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); },
+  // NBD OS Coach's AI focus line (2026-11-09, P2). The real callable asks Claude
+  // Haiku for one sentence from the rules Coach's counts (functions/coach-line.js);
+  // the sample answers from the top rule's id with a fixed sentence that states no
+  // number, so nothing leaves the tab and nothing is made up.
+  coachLine: (p) => sampleCoachLine(p || {})
 };
+
+const SAMPLE_COACH_LINES = {
+  'missed-calls': 'Call back the missed calls before anything else, while they still remember you.',
+  overdue: 'Keep the promises you already made before you start anything new today.',
+  estimates: 'Chase the estimates waiting on an answer; a quick check-in often closes them.',
+  'ds-warned': 'Hit your daily floors early today so yesterday stays a blip.',
+  'stuck-new': 'Give the leads sitting in your first stage a real touch today.',
+};
+function sampleCoachLine(p) {
+  const top = Array.isArray(p.rules) && p.rules[0] ? String(p.rules[0].id || '') : '';
+  const line = Object.prototype.hasOwnProperty.call(SAMPLE_COACH_LINES, top) ? SAMPLE_COACH_LINES[top] : null;
+  return line ? { line, cached: false, sample: true } : { line: null, cached: false, reason: 'no-facts', sample: true };
+}
 
 function haversineMi(la1, lo1, la2, lo2) {
   const R = 3958.8, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;

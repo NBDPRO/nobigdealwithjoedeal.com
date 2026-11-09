@@ -918,6 +918,11 @@ exports.leadBrief = require('./lead-brief').leadBrief;
 // (functions/call-brief.js, call-brief-logic.js).
 exports.callBrief = require('./call-brief').callBrief;
 exports.callBriefDecide = require('./call-brief').callBriefDecide;
+// NBD OS Coach's AI focus line (2026-11-09, P2): one sentence a day from the
+// rules Coach's counted evidence; opt-in per company (companyProfile
+// coachAiEnabled), digit / number-word post-check, 3 a day per user
+// (functions/coach-line.js).
+exports.coachLine = require('./coach-line').coachLine;
 
 // Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
 // quoted later evidence; every change logged (functions/promise-cleanup.js).

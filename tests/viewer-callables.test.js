@@ -566,6 +566,10 @@ const VERDICTS = {
   // the per-uid daily quota (lead_brief_quota caps fresh AI generations), so
   // a viewer reading a customer may be briefed on it.
   leadBrief: 'read-paid',
+  // NBD OS Coach AI focus line (coach-line.js, 2026-11-09): one sentence from
+  // counts the caller sends; writes only the server's own cache and daily caps.
+  // A viewer sees the same Coach, so may ask for its line.
+  coachLine: 'read-paid',
   // Real drive times (route-drive.js, 2026-10-16): minutes and miles between
   // points the caller sends; writes only the server's own route_cache (a hash,
   // no coordinates). A viewer looking at the day route may see road times.
