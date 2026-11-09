@@ -54,8 +54,12 @@ try {
   };
   for (const d of ['areas', 'services', 'blog', 'our-work', 'the-pledge', 'assets/data']) copy(path.join(ROOT, 'docs', d), path.join(tmp, 'docs', d));
   for (const f of ['index.html', 'about.html', 'credentials.html', 'llms.txt', 'llms-full.txt', 'sitemap.xml']) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(tmp, 'docs', f));
-  fs.mkdirSync(path.join(tmp, 'scripts'));
-  for (const f of ['build-llms.mjs', 'indexnow-ping.mjs']) fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(tmp, 'scripts', f));
+  fs.mkdirSync(path.join(tmp, 'scripts', 'lib'), { recursive: true });
+  for (const f of ['build-llms.mjs', 'indexnow-ping.mjs', 'lib/date-gate.mjs']) fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(tmp, 'scripts', f));
+  // The LLMS:BLOG region (2026-11-09) reads the blog's POSTS array.
+  const postsRel = path.join('assets', 'js', 'inline', 'c00f1acac9.js');
+  fs.mkdirSync(path.join(tmp, 'docs', path.dirname(postsRel)), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'docs', postsRel), path.join(tmp, 'docs', postsRel));
 
   // Bring the seed current first, so the checks below measure only our edits.
   ok('--write-full in the copy succeeds', run(tmp, '--write-full').status === 0);

@@ -829,6 +829,7 @@
     "seo-audit-fixes-2026-10-06.test.js",
     "blog-dates-not-backdated-2026-11-04.test.js",
     "date-gated-checks-2026-11-09.test.js",
+    "llms-blog-region-2026-11-09.test.js",
     "seo-hub-vs-town-2026-10-06.test.js",
     "seo-gsc-titles-2026-10-07.test.js",
     "meta-description-cuts-2026-10-26.test.js",
