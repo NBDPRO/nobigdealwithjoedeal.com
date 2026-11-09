@@ -176,6 +176,16 @@ Branch `q11-views` (from the integrated NBD OS P3 branch). Four commits: three t
    - **Run order.** Run `scripts/backfill-q11-task-summaries.js` first. A cube-/sms- task whose notes still hold a `Call:` paragraph is skipped as "summary scrub first".
    - **Options.** Dry run by default; `--apply`, `--company`, `--project`. Credentials are ADC, or token mode through `scripts/_firestore-rest.js`, which gains `create()` and `get()` updateTime. Output is counts only.
    - **Tests.** `tests/q11-call-text-backfill-2026-11-09.test.js` (node, offline): red with the module missing, then 85/85.
+   - **Review round (2026-11-09, lane q11-backfill2).** Three independent reviews; each finding was checked, and eight commits act on them (seven shown red first, one test-only). The suite is now 109/109.
+     - **Crash resume.** An existing sidecar is compared field by field: Firestore returns map keys sorted, so the old whole-object compare read an identical sidecar as "other" for ever. The fake db now returns sorted keys.
+     - **Hand-edited bullets.** A cube-/sms- task is rebuilt from its call doc (`summary`, `promises`, `followUpDate`, as `call-center.js` `noteOf` reads them; every promise, then the not-yet-kept ones), not from its own notes. A reworded, added or re-dated bullet is now an edit. `noteOf` is not exported (it lives in the trigger module); the script reads the same four fields.
+     - **Tasks the summary scrub cleaned.** If the call has a summary, the generic notes become the pointer line, and the sidecar is the live writer's own (pointer + "You said you would"). A sidecar the live writer already left on such a task is accepted.
+     - **Dry-run counts.** The dry run reads the sidecar, so "other sidecar" and "to change" are the numbers `--apply` will find. Under `--company`, every count except "read" belongs to that company.
+     - **No stale sidecar.** The task is re-read just before its sidecar is created. An edit made after the page read leaves no sidecar of the old text, and the update stays conditional on the page's updateTime.
+     - **Thursday run order.** A Thursday task whose notes still hold `Summary:` / `Urgent:` lines waits for the summary scrub, like cube-/sms- tasks.
+     - **What "edited" counts.** The count also holds tasks no owner touched: a changed `contactName`, a day of texts re-noted with new promises, an older shape. All are skipped. The dry-run line says "edited, or no longer what the server would write". Expect re-noted text days here.
+     - **No `contactName`.** The title becomes "Follow up with customer" (the writer's default). Only a missing call or text day counts as "who unknown".
+     - **Not acted on.** The Thursday `issue` check is redundant with `buildTask` in practice (the handler writes `issue` from `extraction.issue`), but the brief asks for it, so it stays. Still not run against production.
 
 2. **A lead's insurance fields stay viewer-readable.** `insCarrier`, `claimNumber` and `claimStatus` are the CRM's own fields: every insurance lead has them, and the paperwork reads them. Only the notes text moved. Hiding them from viewers would be a separate lead-shape decision.
 3. **Owner surfaces that now show the generic title:**
