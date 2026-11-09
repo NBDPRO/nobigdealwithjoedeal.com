@@ -35,6 +35,14 @@
  *                "In a home": no Money / Closes / Shutdown, no money anywhere, and
  *                no customer named but the current appointment's. Until the bundle
  *                lands those widgets say "Loading…"; never the unfiltered day.
+ *   Peek, Recap  (P2) Up Next (and a Smart Stack showing it) carries a Peek button
+ *                while the next appointment starts within 30 min; the 30 s tick
+ *                repaints it as that window opens or shuts. A tap loads the
+ *                runtime bundle osp2peek (os/peek.js) and opens its sheet; the lead
+ *                brief callable runs only on a second tap inside it. The Welcome
+ *                Recap loads the same bundle only when home-logic recapDue says
+ *                yesterday's Shutdown left something open: on the day's first home
+ *                (mount) or the lock screen's unlock, once per page.
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -203,10 +211,12 @@
     if (f && f.kind === 'appt') rows.forEach(function (r, i) { if (r.key === f.key && i) { rows.splice(i, 1); rows.unshift(r); } });
     if (!rows.length) {
       var c = counts();
+      if (HL.peekAppt(plan, Date.now())) return h + peekBtn(plan);   // never "Nothing due" beside an appointment
       var unsure = apptsFailed() || !!(c && c.callsFailed);
       return h + '<p class="os-hw-empty">' + esc(unsure ? 'Can\'t confirm your day yet' : 'Nothing due today') + '</p>';
     }
     h += '<div class="os-hw-rows">' + rows.map(function (r, i) { return rowHtml(r, !i && !!f && f.kind === 'appt' && r.key === f.key); }).join('') + '</div>';
+    h += peekBtn(plan);
     if (size === 'l') h += '<button type="button" class="btn btn-ghost os-hw-btn" data-oshw-go="home">See your whole day</button>';
     return h;
   }
@@ -396,6 +406,46 @@
     });
   }
 
+  // ── P2: the pre-flight peek and the Welcome Recap (design §6 #6, #7). os/peek.js paints both,
+  // loaded as the runtime ScriptLoader bundle osp2peek on a Peek tap or a due recap, never at boot
+  var PK_BUNDLE = ['css/os/peek.css?v=1', 'js/os/peek-logic.js?v=1', 'js/os/peek.js?v=1'];
+  var pkLoad = null;
+  function loadPeek() {
+    if (W.NBDOSPeek) return Promise.resolve(true);
+    if (pkLoad) return pkLoad;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return Promise.resolve(false);
+    if (SL.bundles && !SL.bundles.osp2peek) SL.bundles.osp2peek = PK_BUNDLE.slice();
+    pkLoad = Promise.resolve().then(function () { return SL.loadBundle('osp2peek'); }).then(function () {
+      pkLoad = null; return !!W.NBDOSPeek;
+    }, function () { pkLoad = null; return false; });
+    return pkLoad;
+  }
+  /** Up Next's Peek button: only while the next appointment starts within 30 min (home-logic peekAppt). */
+  function peekBtn(plan) {
+    var p = HL.peekAppt(plan, Date.now());
+    if (!p) return '';
+    return '<button type="button" class="btn btn-ghost os-hw-btn os-hw-peek" data-oshw-peek="' + esc(p.key) + '" aria-label="' +
+      esc('Peek at ' + p.name + (p.time ? ', ' + p.time : '')) + '">Peek</button>';
+  }
+  function peekKey() {
+    var p = null;
+    try { p = HL.peekAppt(todayPlan(), Date.now()); } catch (e) { p = null; }
+    return p ? p.key : '';
+  }
+  /** The Welcome Recap: due (home-logic recapDue) on the day's first unlock or first home, once per page. */
+  var recapAsked = false;
+  function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
+  function maybeRecap() {
+    if (recapAsked || doc.hidden) return;
+    var uid = String((W._user && W._user.uid) || '');
+    if (!HL.recapDue(lsGet('nbd_os_carry'), lsGet('nbd_os_recap'), uid, Date.now())) return;
+    var O = W.NBDOS;
+    if (O && typeof O.isLocked === 'function' && O.isLocked()) return;   // the unlock asks again
+    recapAsked = true;
+    loadPeek().then(function (ok) { if (ok) W.NBDOSPeek.recap(); else recapAsked = false; });
+  }
+
   var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
@@ -547,9 +597,11 @@
       }
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
       if (showsSd(rec)) rec.sdIn = sdWindow();   // the tick repaints it when this changes
+      if (showsUp(rec)) rec.pk = peekKey();      // and Up Next when the Peek window opens or shuts
     }
     /** A Shutdown widget, or a Smart Stack whose card on screen is Shutdown (repainting it never re-picks). */
     function showsSd(rec) { return rec.it.id === 'shutdown' || (!!rec.stack && rec.stack.cardAt === 'shutdown'); }
+    function showsUp(rec) { return rec.it.id === 'upnext' || (!!rec.stack && rec.stack.cardAt === 'upnext'); }
     function paint() {
       if (!live) return;
       if (doc.hidden || !visible()) { dirty = true; return; }
@@ -1046,6 +1098,12 @@
       }
       var sd = t.closest('[data-oshw-sd]');
       if (sd) { openShutdown(sd); return; }
+      var pk = t.closest('[data-oshw-peek]');
+      if (pk) {
+        var pkKey = pk.getAttribute('data-oshw-peek');
+        loadPeek().then(function (ok) { if (ok) W.NBDOSPeek.open({ key: pkKey, returnFocus: pk }); });
+        return;
+      }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
       if (crec) {
@@ -1079,7 +1137,7 @@
       // the layout's own read of the same data (the urgency ring on its icons)
       if (typeof o.onEvent === 'function') { try { o.onEvent(); } catch (e) {} }
     }
-    function onVis() { if (!doc.hidden) { epoch++; if (dirty || order.length) paint(); } }
+    function onVis() { if (!doc.hidden) { epoch++; if (dirty || order.length) paint(); maybeRecap(); } }
     /** The home is on screen again (the layout's Home button, an unlock): the stack may pick anew. */
     function show() { epoch++; paint(); }
     // one visibility-aware ticker: only the clock text changes, so focus inside a widget stays put;
@@ -1096,6 +1154,8 @@
       for (var i = 0; i < ns.length; i++) ns[i].textContent = ns[i].getAttribute('data-oshw-clock') === 'date' ? c.date : c.time;
       var w = sdWindow();
       if (w !== null) order.forEach(function (k) { var r = recs[k]; if (showsSd(r) && r.sdIn !== w) paintOne(r); });
+      var pk = peekKey();
+      order.forEach(function (k) { var r = recs[k]; if (r && showsUp(r) && r.pk !== pk) paintOne(r); });
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
     doc.addEventListener('visibilitychange', onVis);
@@ -1121,6 +1181,7 @@
       W.clearTimeout(pressT);
       W.clearTimeout(swallowT);
       EVENTS.forEach(function (t) { W.removeEventListener(t, onEvent); });
+      W.removeEventListener('nbd:os-unlock', maybeRecap);
       doc.removeEventListener('visibilitychange', onVis);
       el.removeEventListener('click', onCapture, true);
       el.removeEventListener('click', onClick);
@@ -1138,6 +1199,8 @@
       cur = [];
     }
     update(o.items);
+    W.addEventListener('nbd:os-unlock', maybeRecap);
+    maybeRecap();
     return {
       el: el, update: update, paint: paint, unmount: unmount,
       setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd, cellItems: cellItems, show: show,

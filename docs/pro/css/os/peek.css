@@ -1,0 +1,38 @@
+/* css/os/peek.css — NBD OS P2: the Peek sheet and the Welcome Recap (2026-11-09;
+   js/os/peek.js). Loaded with the `osp2peek` runtime bundle, never at boot.
+   Theme tokens and --ui-* tokens only; no motion of its own. Floors: 44px
+   targets, no text under 11px. Both are native <dialog>s, like Shutdown's sheet. */
+
+.os-pk {
+  margin: auto; width: min(520px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: min(720px, calc(100vh - 2 * var(--ui-space-4, 16px)));
+  padding: var(--ui-space-4, 16px); overflow-y: auto; color: var(--t); background: var(--s);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2, var(--ui-elev-1));
+}
+.os-pk::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.os-pk-hd { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); }
+.os-pk-title { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-pk-close { min-height: 44px; min-width: 44px; justify-content: center; }
+.os-pk-sec { margin: var(--ui-space-3, 12px) 0 0; padding-top: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-divider, var(--br)); }
+.os-pk-st {
+  margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-pk-name { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; overflow-wrap: anywhere; }
+.os-pk-sub, .os-pk-addr { margin: 2px 0 0; font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-pk-lede, .os-pk-muted, .os-pk-visits { margin: var(--ui-space-1, 4px) 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; color: var(--m); }
+.os-pk-visits { color: var(--t); font-weight: 600; }
+.os-pk-notes, .os-pk-one { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.os-pk-one { font-weight: 600; }
+.os-pk-err { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); color: var(--t); }
+.os-pk-list { margin: var(--ui-space-1, 4px) 0; padding-left: 1.2em; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.45; }
+.os-pk-acts { display: flex; flex-wrap: wrap; gap: var(--ui-space-1, 4px); margin-top: var(--ui-space-2, 8px); }
+.os-pk-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 var(--ui-space-3, 12px); text-decoration: none; white-space: nowrap; }
+.os-pk-btn:focus-visible, .os-pk-close:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-pk-brief:focus { outline: none; }
+.os-pk-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.os-pk-row {
+  display: flex; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; padding: var(--ui-space-2, 8px) 0;
+  border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-pk-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.os-pk-ft { display: flex; justify-content: flex-end; margin-top: var(--ui-space-3, 12px); }

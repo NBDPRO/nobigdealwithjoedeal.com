@@ -79,6 +79,10 @@ const CANNED = {
   // path for an owner-only panel that is not this account's (a permission-denied
   // answer hides the strip and the Match / Said-you'd-do buttons, no banner):
   // the sample takes it, instead of canning a "healthy" it does not have.
+  // NBD OS P2 pre-flight peek (os/peek.js) and the customer page's Brief me: the real
+  // callable is a paid AI summary (functions/lead-brief.js). The sample answers from the
+  // sample lead's own fields only, says it is a sample, and adds no number of its own.
+  leadBrief: (p) => sampleLeadBrief(p || {}),
   callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
   callPromisesList: () => { throw noPhoneInSample('callPromisesList'); },
   // Call to Close P0 (2026-11-09): the Call Brief reads a recorded call's
@@ -101,6 +105,26 @@ function hailHistory(p) {
   // The swath travels on the first hit, the way a provider swath does.
   if (hits.length && swath) hits[0] = Object.assign({}, hits[0], { polygon: { type: 'Polygon', coordinates: [swath] } });
   return { hits, sample: true, source: 'Sample storm reports (not real NWS data)' };
+}
+
+function sampleLeadBrief(p) {
+  const id = typeof p.leadId === 'string' ? p.leadId : '';
+  const l = id ? rawGet('leads/' + id) : null;
+  if (!l || l.deleted === true) {
+    const e = new Error('That customer is not in the sample account.');
+    e.code = 'functions/not-found';
+    throw e;
+  }
+  const name = nameOf(l) || 'This customer';
+  const stage = String(l.stage || '').replace(/_/g, ' ');
+  const bullets = [];
+  if (l.notes) bullets.push('Notes on file: ' + String(l.notes).slice(0, 240));
+  if (l.damageType) bullets.push('Damage: ' + String(l.damageType));
+  if (l.insuranceCarrier || l.insCarrier) bullets.push('Carrier: ' + String(l.insuranceCarrier || l.insCarrier));
+  return {
+    oneLine: 'Sample brief for ' + name + (stage ? ' (' + stage + ')' : '') + '. In your real account this sums up the calls, promises, estimates and money on file.',
+    bullets, source: 'sample', generatedAtMs: Date.now(), cached: false, sample: true,
+  };
 }
 
 function nameOf(l) { return l ? (l.name || ((l.firstName || '') + ' ' + (l.lastName || '')).trim()) : ''; }

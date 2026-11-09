@@ -61,6 +61,8 @@
  *   stormNow(cache, now)       Storm Center's cache as none / stale / clear / alert
  *   moneyMonth(invs, uid, now, collect) the member's own collected this month, in cents
  *   stackItems / weight / toggleCard   a Smart Stack's cards and the cap
+ *   P2: peekAppt(plan, now)    the appointment starting within 30 min: Up Next's Peek button
+ *   parseCarry(raw) / recapDue(raw, seen, uid, now)  Shutdown's carry-over and the Welcome Recap's due check
  *
  * The company home (P1): an owner or company_admin publishes one surface's
  * arrangement to companies/{cid}/settings/layout.defaultWidgets['os-phone' |
@@ -966,6 +968,47 @@
     return { cents: Math.round(r.total * 100), count: int(r.count) };
   }
 
+  // ── P2 (design §6 #6, #7): the pre-flight peek and the Welcome Recap's due check ──
+  var PEEK_AHEAD = 30, PEEK_GRACE = 15, RECAP_DAYS = 3;
+  /**
+   * The appointment the Peek button is for: the next timed one (nextAppointment's 15 minutes' grace)
+   * when it starts within 30 minutes. { key, leadId, name, time, min } (min < 0: under way), else null.
+   */
+  function peekAppt(plan, now) {
+    var list = plan && Array.isArray(plan.appointments) ? plan.appointments : [];
+    var t = Number(now), best = null;
+    if (!isFinite(t)) return null;
+    list.forEach(function (a) {
+      var s = a && !a.allDay ? Number(a.sortMs) : NaN;
+      if (isFinite(s) && s >= t - PEEK_GRACE * 60000 && (!best || s < Number(best.sortMs))) best = a;
+    });
+    if (!best || Number(best.sortMs) - t > PEEK_AHEAD * 60000) return null;
+    return { key: str(best.key, 120), leadId: best.leadId ? str(best.leadId, 120) : '', name: str(best.name) || 'Appointment',
+      time: str(best.timeLabel, 40), min: Math.round((Number(best.sortMs) - t) / 60000) };
+  }
+  /** Shutdown's device-only carry-over (localStorage nbd_os_carry) parsed and checked, or null. */
+  function parseCarry(raw) {
+    var c = null;
+    try { c = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return null; }
+    if (!isObj(c) || c.v !== 1 || typeof c.uid !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.dk))) return null;
+    function idList(v) { return (Array.isArray(v) ? v : []).filter(function (x) { return typeof x === 'string' && x; }).map(function (x) { return x.slice(0, 120); }).slice(0, 30); }
+    return { uid: c.uid, dk: c.dk, leads: idList(c.leads), visits: idList(c.visits), promises: idList(c.promises) };
+  }
+  /**
+   * Show the Welcome Recap? Only a carry-over this uid left on an earlier day (at most 3 days back,
+   * so Saturday's reaches Monday), with something still on it, and not dismissed today (seen = the
+   * day key the member dismissed it on).
+   */
+  function recapDue(raw, seen, uid, now) {
+    var c = parseCarry(raw);
+    if (!c || typeof uid !== 'string' || !uid || c.uid !== uid) return false;
+    var today = dayKey(now);
+    if (seen === today || c.dk >= today) return false;
+    var d = new Date(Number(now)); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - RECAP_DAYS);
+    if (c.dk < dayKey(d.getTime())) return false;
+    return c.leads.length + c.visits.length + c.promises.length > 0;
+  }
+
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
@@ -975,6 +1018,7 @@
     STACK_MAX: STACK_MAX, STACK_DEFAULT: STACK_DEFAULT, stackItems: stackItems, weight: weight, toggleCard: toggleCard,
     needsYou: needsYou, urgency: urgency, urgencyText: urgencyText, parseUsage: parseUsage, frecency: frecency,
     stormNow: stormNow, monthStart: monthStart, moneyMonth: moneyMonth, toMs: toMs,
+    PEEK_AHEAD: PEEK_AHEAD, peekAppt: peekAppt, parseCarry: parseCarry, recapDue: recapDue,
     WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
