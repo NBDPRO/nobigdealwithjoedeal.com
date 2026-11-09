@@ -201,8 +201,10 @@ function requirement(q) {
     else if (INEQ_OPS.has(w.op)) ineq.push(w.field);
   }
   const order = q.orderBy.filter((o) => o.field !== '__name__').map((o) => ({ field: o.field, dir: o.dir }));
-  // An inequality's field is implicitly the first sort key when not ordered explicitly.
-  for (const f of ineq) if (!order.some((o) => o.field === f)) order.unshift({ field: f, dir: null });
+  // An inequality's field is implicitly the first sort key when not ordered explicitly, and
+  // that implicit sort is ASCENDING (2026-11-09): a composite index is not read backwards, so
+  // (a ASC, b DESC) does not serve a == + b >= with no orderBy (the doors count did, silently).
+  for (const f of ineq) if (!order.some((o) => o.field === f)) order.unshift({ field: f, dir: 'asc' });
   const fields = new Set([...eq, ...arr, ...ineq, ...order.map((o) => o.field)]);
   const composite = fields.size >= 2 && (order.length > 0 || arr.length > 0);
   return { eq: [...new Set(eq)], arr: [...new Set(arr)], order, fields: [...fields], composite };

@@ -67,6 +67,17 @@ console.log('\nSCANNER — synthetic controls');
   ok('collectionGroup equality without the override → flagged', run("db.collectionGroup('jobs').where('userId','==',u).get()").some((f) => f.kind === 'group-field'));
   ok('dynamic field names are skipped, never guessed', run("db.collection('leads').where(field,'==',u).orderBy('x').get()").length === 0);
   ok('array-contains + another field → flagged', run("db.collection('leads').where('tags','array-contains','a').where('userId','==',u).get()").length === 1);
+  // 2026-11-09 (NBD OS P1 follow-ups): an inequality with no orderBy sorts its field ASCENDING
+  // (then __name__), and a composite index is not read backwards: (userId ASC, createdAt DESC)
+  // does not serve userId == + createdAt >=. The scanner used to treat that sort as direction-free.
+  ok('eq + inequality, no orderBy, only a DESC index → flagged (implicit sort is ascending)',
+    run("db.collection('leads').where('userId','==',u).where('createdAt','>=',t).get()").length === 1);
+  ok('eq + inequality, no orderBy, an ASC index → clean',
+    run("db.collectionGroup('tasks').where('userId','==',u).where('dueAt','>=',t).get()").length === 0);
+  ok('modular: eq + inequality, no orderBy, only a DESC index → flagged',
+    run("getCountFromServer(query(collection(db,'leads'), where('userId','==',u), where('createdAt','>=',t)))").length === 1);
+  ok('eq + inequality WITH orderBy desc on that field → still served by the DESC index',
+    run("db.collection('leads').where('userId','==',u).where('createdAt','>=',t).orderBy('createdAt','desc').get()").length === 0);
 }
 
 console.log('\nLIVE SCAN — functions/ + docs/pro/js vs firestore.indexes.json');
@@ -88,6 +99,16 @@ console.log('\nLIVE SCAN — functions/ + docs/pro/js vs firestore.indexes.json'
   ok('recordings has a COLLECTION-scope (userId, recordedAt desc) index (Voice Intel tab)',
     idx.indexes.some((i) => i.collectionGroup === 'recordings' && i.queryScope === 'COLLECTION'
       && i.fields.map((f) => f.fieldPath + ':' + f.order).join(',') === 'userId:ASCENDING,recordedAt:DESCENDING'));
+  // 2026-11-09: the four equality + range queries (no orderBy) the implicit-ascending fix found.
+  // Each read sat behind a DESC-only index and a catch that turns FAILED_PRECONDITION into empty.
+  const has = (coll, scope, shape) => idx.indexes.filter((i) => i.collectionGroup === coll && (i.queryScope || 'COLLECTION') === scope
+    && i.fields.map((f) => f.fieldPath + ':' + f.order).join(',') === shape).length === 1;
+  ok('recordings COLLECTION_GROUP (companyId, recordedAt ASC): getAdjusterTacticBoard', has('recordings', 'COLLECTION_GROUP', 'companyId:ASCENDING,recordedAt:ASCENDING'));
+  ok('api_usage (companyId, timestamp ASC): admin usage, Claude tokens 30d', has('api_usage', 'COLLECTION', 'companyId:ASCENDING,timestamp:ASCENDING'));
+  ok('api_usage (uid, timestamp ASC): exportMyData', has('api_usage', 'COLLECTION', 'uid:ASCENDING,timestamp:ASCENDING'));
+  ok('ai_drafts COLLECTION_GROUP (userId, generatedAt ASC): getAiTextingStats', has('ai_drafts', 'COLLECTION_GROUP', 'userId:ASCENDING,generatedAt:ASCENDING'));
+  ok('the DESC twins the ordered reads use are kept', has('recordings', 'COLLECTION_GROUP', 'companyId:ASCENDING,recordedAt:DESCENDING')
+    && has('api_usage', 'COLLECTION', 'uid:ASCENDING,timestamp:DESCENDING') && has('ai_drafts', 'COLLECTION_GROUP', 'userId:ASCENDING,generatedAt:DESCENDING'));
 }
 
 console.log('\nALERT — the production backstop file');
