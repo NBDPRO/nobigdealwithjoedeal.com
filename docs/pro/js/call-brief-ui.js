@@ -606,7 +606,11 @@
       : '<div class="cb-banner" role="status">' + esc(S.txMsg) + '</div>';
     else if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
     else if (S.error) body = '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>';
-    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderMessage() + renderHandled() + renderObjections() + renderStage() + renderDrafts();
+    // One sheet, in the order a person works a call (P1 integration): what was
+    // said, the fields, promises and follow-up date, this call, the stage,
+    // the objections, then what to send or start (follow-up message, estimate,
+    // proposal). Drafts stays last: its card ends at the sheet's foot.
+    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderObjections() + renderMessage() + renderDrafts();
     dlg.innerHTML = renderHeader() + '<div class="cb-scroll">' + body + '</div>' +
       '<div class="cb-foot"><span class="cb-meta">Nothing here is sent, priced or signed.</span>' + btn('Close', 'close') + '</div>';
   }
