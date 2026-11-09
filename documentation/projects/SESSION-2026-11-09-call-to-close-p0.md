@@ -121,3 +121,16 @@ Branch `ctc-p1-followup`, from `88eb11bcf`. Builds §5.3, §6 #6 and #7, and the
 | Rescue list | `docs/pro/js/call-rescue-logic.js`, `call-center-view.js`, `functions/call-center.js` (`rescueDismiss`) | A "Needs a next step" tab: customers whose newest contact is a noted business call 2-30 days old with no promise, follow-up or stage move since. Brief / Follow-up (the existing promise sheet) / Dismiss (with Undo). |
 
 Assumptions: no call settings tab exists, so the switch sits on the Call Center next to the pipeline health line; "business call" = not personal / spam / supplier / sub, on a customer; a customer's own follow-up on or after the call counts as a next step; the rescue logic is fetched when the Call Center opens (not added to the `callcenter` bundle, whose contents three older suites pin). Boot bytes: 0 on both pages.
+
+### Review fixes (2026-11-09, second pass)
+
+- **The owner sees the switch.** `canSetAutoBrief` now allows role `admin`: `mintOwnerClaims` stamps the owner accounts `{ owner: true, role: 'admin' }`, so Jo never saw it before. The suite runs the function with real claim shapes.
+- **One tap, one auto-brief.** `attach` re-files every earlier unfiled call from the number (`refileNumber`, `refiledFrom`), each with `attachedBy` = the filer. `autoBriefTransition` now skips a call whose filing was that sweep (until a person moves it, or attaches it themselves, which clears `refiledFrom`). Swept calls still brief on tap.
+- **Ghost filer.** `callBriefAuto` checks tenant-guard `isGhost` on the filer, as the callables run `assertNotGhost`.
+- **Undone follow-up.** The sheet's follow-up Undo is not logged, so the follow-up message only uses a logged follow-up date while the customer still carries it.
+- **Rescue Dismiss** refuses `txt_` ids (the list holds calls only).
+- **Cache-busters** bumped: `call-brief-ui.js` v=2, `call-brief.css` v=2, `call-center-view.js` v=28, `customer-calls.js` v=10, `script-loader.js` v=211.
+- **Which company the switch sets.** The client writes `companies/{companyId claim || uid}`; the server reads `companies/{call.companyId || call.userId}`. A solo owner sees the switch only when their `companyId` is missing or equals their uid (the rules' `ownsTenantByUid`). A tenant whose calls carry a `companyId` that is not the owner's uid can be switched only by a `company_admin` of that company (or the platform admin), as the rules allow.
+- **Handled calls are in "Needs a next step".** A call marked handled with no promise, follow-up or stage move after it still lists: "handled" says someone dealt with the call, not that the customer has a next step. Dismiss takes one off.
+- **Trigger cost.** `callBriefAuto` starts on every `phone_calls` update (ingest, notes, facts, handled). The pure transition check returns before any read, but each start is a 512MiB instance holding the Anthropic secret, `maxInstances: 5`; an ingest burst queues behind those. Kept at 512MiB because it runs the same generate and grounding pass as `callBrief`; noted in `FUNCTIONS_INDEX.md`.
+- **Not changed: the settings doc's read rule.** A same-company viewer or rep can read `companies/{cid}/settings/callBrief`. It holds one boolean and who set it; narrowing it buys nothing and would hide whether auto-brief is on from the people whose filing triggers it.

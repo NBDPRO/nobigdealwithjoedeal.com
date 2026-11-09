@@ -14,6 +14,8 @@
  *     not on or after the call's day
  *   - no stage move since the call (lead.stageStartedAt)
  *   - not dismissed (rescueDismissedAtMs, callCenterAction rescueDismiss)
+ * A call marked handled still counts: handled says someone dealt with the
+ * call, not that the customer has a next step (Dismiss takes one off).
  * Never a personal / spam / supplier / sub call, a call with no notes yet, a
  * call on no customer (those are already on Needs attention), a customer this
  * page did not load, a deleted or closed customer (opts.isClosed). One row per
