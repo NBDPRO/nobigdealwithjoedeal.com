@@ -5820,7 +5820,7 @@
     const c = _callPrefill;
     if (!c) return '';
     const h = c.hints || {};
-    const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'From the call') + '">' +
+    const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'Mentioned on the call; no exact words kept') + '">' +
       '<span class="v2-call-k">' + _callEsc(a.name) + '</span> ' + _callEsc(a.label) +
       '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + ' from the call') + '">×</button></span>').join('');
     const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said on the call, not filled in (' + a.why + ')')

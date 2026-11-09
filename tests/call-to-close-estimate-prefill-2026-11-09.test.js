@@ -293,6 +293,10 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('the panel shows the square-count words beside the area, labelled not typed in', /twenty-eight squares/.test(CP().sqftHintHtml()) && /not typed in/i.test(CP().sqftHintHtml()));
     ok('the panel says prices come from the price book and nothing saves until Save', /price book/i.test(html) && /Save/.test(html));
     ok('gutters (mentioned) shows as a note, not a setting', /Gutters mentioned/.test(html));
+    // Design §5.1 wants a quote on each choice; a mention (chimney, skylight)
+    // is a yes/no in the brief, with no words kept, so its chip says so.
+    const chimChip = (html.split('data-arg="hasChimneyFlash"')[0].split('<span class="v2-call-chip"').pop() || '');
+    ok('a chip with the caller\'s words shows them; a mention chip says no exact words were kept', /title="“the best one you have”"/.test(html) && /title="Mentioned on the call; no exact words kept"/.test(chimChip), chimChip.slice(0, 160));
     ok('measurements and money untouched', moneySnapshot() === base3, [base3, moneySnapshot()]);
     ok('still no draft write after the full prefill', draftWrites().length === 0 && env.store[DRAFT_KEY] === undefined);
     const tpls = CP().templates();
