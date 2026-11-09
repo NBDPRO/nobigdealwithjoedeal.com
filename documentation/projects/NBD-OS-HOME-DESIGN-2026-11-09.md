@@ -9,7 +9,7 @@ P2 is built on branch `os-p2` (on `os-p1`), dark behind `osLayout`; the session 
 - **Smart Stack default:** Shutdown *replaces* Coach (`['upnext', 'storm', 'daily', 'shutdown']`). The P1 default already held four cards, so "add Shutdown when a stack has room" never applied. It reaches new stacks and saved stacks with no valid card.
 - **"In a home" (§6.3)** covers the home surfaces: the widgets, the Notification Center, toasts, Peek, the Recap and the Coach AI line. Phone apps opened from the home (Pipeline, Money) still show money and names.
 - **The Coach AI line** is opt-in per company (`coachAiEnabled`), 3 a day per user and 60 per company; viewers may ask for it (`read-paid`), so a viewer can spend the company cap.
-- **Team** counts doors, appointments set, estimates sent and deals in the company's time zone (`companyProfile.timeZone`), weeks from Monday, every 30 minutes; dark behind `LEADERBOARD_AGGREGATE_ENABLED`, whose dry run counts one company per run.
+- **Team** counts doors, appointments set, estimates sent and deals in the company's time zone (`companyProfile.timeZone`), weeks from Monday, every 30 minutes; behind `LEADERBOARD_AGGREGATE_ENABLED`, whose dry run counts one company per run (turned on 2026-11-09 on Jo's go).
 - **P1 debt paid:** `bento.js` now builds its math from `board-logic.js`; the goals editor exists (large Daily Success widget).
 
 ## Update 2026-11-09 (later): what shipped in P1

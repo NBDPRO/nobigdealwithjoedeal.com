@@ -9,7 +9,7 @@ The NBD OS P2 lane only, not the live brief: see the **Current handoff** pointer
 
 ## What waits on Jo
 
-1. Turn on `LEADERBOARD_AGGREGATE_ENABLED` once the new composite indexes in `firestore.indexes.json` are deployed. Until then the run logs one company's counts every 30 minutes and writes nothing.
+1. Turn on `LEADERBOARD_AGGREGATE_ENABLED` once the new composite indexes in `firestore.indexes.json` are deployed. Until then the run logs one company's counts every 30 minutes and writes nothing. **Update 2026-11-09:** done on Jo's go: on in `functions/.env.nobigdeal-pro`; the read estimate is in [SESSION-2026-11-09-nbd-os-p2](SESSION-2026-11-09-nbd-os-p2.md) §6.
 2. Per company, `companyProfile.coachAiEnabled` for the Coach AI line (an owner switch in the Coach). Stop it with the `coachLineDisabled` or `aiDisabled` kill switch.
 3. The real-iPhone pass for phone drag, page 1's nested scroll, and the P2 phone sheets (Peek, Recap, modes).
 
