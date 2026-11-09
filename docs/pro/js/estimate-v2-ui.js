@@ -1018,6 +1018,8 @@
       .v2-call-tpl { min-height:44px; padding:0 14px; border-radius:8px; border:1px solid var(--br,#2a2f35); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font:inherit; font-size:13px; font-weight:700; text-align:left; cursor:pointer; }
       .v2-call-meta { font-size:12px; line-height:1.45; color:var(--m,#8b8e96); }
       .v2-call-hint { margin-top:6px; padding-left:8px; border-left:3px solid var(--orange,#BD5728); font-size:12px; line-height:1.45; color:var(--m,#8b8e96); }
+      /* The V3 wizard's step body is a centred 560 px column: the strip takes it too. */
+      #estV2Modal.v3-on .v2-call-wrap { width:100%; max-width:560px; margin:0 auto; box-sizing:border-box; }
       @media (max-width: 600px) { .v2-call-wrap { max-height:32vh; } }
       </style>
 

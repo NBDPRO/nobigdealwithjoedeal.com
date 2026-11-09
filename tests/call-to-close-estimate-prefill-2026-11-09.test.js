@@ -679,6 +679,13 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('…escapes what it shows', /_callEsc\(/.test(callBlock) && !/innerHTML\s*=\s*[^;]*\+\s*(it|h|q)\.(quote|label|name)\b/.test(callBlock));
     ok('no style= attribute and no inline handler added', !/\sstyle=/.test(callBlock) && !/\son[a-z]+=\\?["']/i.test(callBlock));
     ok('the folded strip shows it can open (a chevron on the summary, which display:flex strips of its marker)', /\.v2-call summary::after\s*\{[^}]*content:/.test(v2) && /\.v2-call\[open\] summary::after\s*\{[^}]*content:/.test(v2));
+    // Review 2026-11-09 (builder-2-strip-open-desktop): in the V3 wizard the
+    // step body is a centred 560 px column, so a full-width strip sat apart
+    // from the builder at desktop width. It takes the same column.
+    const v3 = read('docs/pro/js/estimate-v3-wizard.js');
+    const bodyW = (v3.match(/#estV2Modal\.v3-on \.v2-body \{[^}]*max-width:(\d+)px; margin:0 auto/) || [])[1];
+    const stripRule = (v2.match(/#estV2Modal\.v3-on \.v2-call-wrap \{([^}]*)\}/) || [])[1] || '';
+    ok('in the V3 wizard the strip takes the step body\'s centred column', !!bodyW && new RegExp('max-width:' + bodyW + 'px').test(stripRule) && /margin:0 auto/.test(stripRule) && /box-sizing:border-box/.test(stripRule), { bodyW, stripRule });
     const ui = read('docs/pro/js/call-brief-ui.js');
     ok('the sheet links to the dashboard\'s ?lead= branch (dashboard-bootstrap.module.js stays held)', /\/pro\/dashboard\.html\?lead=' \+ encodeURIComponent\(leadId\) \+ '&callBrief=' \+ encodeURIComponent\(callId\)/.test(ui));
     const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
