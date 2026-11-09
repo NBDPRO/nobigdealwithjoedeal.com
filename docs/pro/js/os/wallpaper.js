@@ -36,6 +36,8 @@
   var SKIN_TRIES = 20, SKIN_MS = 250;   // My Skin answers within ~5 s, or the picker says it has no pictures
   var PERIODS = ['dawn', 'day', 'dusk', 'night'];   // the swatch: one band each (css/layouts/os.css)
   var held = [];      // { el, url } a surface's picture
+  var asks = [];      // { el, n } each surface's latest paint: an older one that answers late is dropped
+  var seq = 0;
   var dlg = null;     // the open picker
   var dlgUrls = [];   // its thumbnails' object URLs
 
@@ -74,13 +76,22 @@
       return false;
     });
   }
+  function ask(el) {
+    var n = ++seq;
+    asks = asks.filter(function (a) { return a.el !== el; });
+    asks.push({ el: el, n: n });
+    return n;
+  }
+  function current(el, n) { return asks.some(function (a) { return a.el === el && a.n === n; }); }
   function paint(el, id, done) {
     var fin = typeof done === 'function' ? done : function () {};
     if (!el || typeof id !== 'string') { fin(false); return; }
+    var n = ask(el);
     skin().then(function (M) {
       if (!M || hidden(M) || typeof M.imageBlob !== 'function') return null;
       return M.imageBlob(id);
     }).then(function (r) {
+      if (!current(el, n)) { fin(false); return; }   // a newer choice (or a clear) came first: leave its picture be
       var url = r && makeUrl(r.blob);
       if (!url) { fin(false); return; }
       drop(el);

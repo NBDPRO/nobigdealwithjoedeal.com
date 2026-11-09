@@ -268,6 +268,40 @@ async function openPicker(T) {
     ok('a whole open / preview / save round: zero Firestore reads, zero fetches (the save is saveUser\'s own)', T.reads.length === 0, J(T.reads));
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n7. a paint that answers late never paints over a newer choice');
+  {
+    const T = setup({ surface: 'phone', home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } });
+    T.W._impl.mount({ surface: 'phone' });
+    const el = T.document.getElementById('osPhone');
+    const props = css(el);
+    const pend = {};
+    const thumbBlob = T.W.NBDMySkin.imageBlob;
+    T.W.NBDMySkin.imageBlob = (id, op) => {
+      if (op && op.thumb) return thumbBlob(id, op);
+      T.W.blobAsks.push(id);
+      return new Promise((res) => { pend[id] = () => res({ blob: { size: 9, id }, dim: 0.62 }); });
+    };
+    const d = await openPicker(T);
+    choose(T, d, PICS[0].id);   // A: slow (not cached, Storage getBlob)
+    await flush();
+    choose(T, d, PICS[1].id);   // B: fast (IndexedDB)
+    await flush();
+    ok('(both pictures were asked for)', !!pend[PICS[0].id] && !!pend[PICS[1].id], J(Object.keys(pend)));
+    const made0 = T.W.urls.made.length;
+    pend[PICS[1].id]();
+    await flush();
+    const bUrl = T.W.urls.made[made0];
+    ok('B answers first: B shows', el.getAttribute('data-os-wp') === 'img' && props['--os-wp-img'] === 'url("' + bUrl + '")', J(props));
+    pend[PICS[0].id]();
+    await flush();
+    ok('A answers after: B still shows (A\'s late answer is dropped)', props['--os-wp-img'] === 'url("' + bUrl + '")' && T.W.urls.revoked.indexOf(bUrl) === -1, J({ props, urls: T.W.urls }));
+    ok('…and A\'s URL, if one was made, is revoked at once', T.W.urls.made.slice(made0 + 1).every((u) => T.W.urls.revoked.indexOf(u) !== -1), J(T.W.urls));
+    click(T.dom, d.querySelector('[data-oswp-done]'));
+    await flush();
+    ok('Done: B is saved and B is still on screen', T.W._saves[T.W._saves.length - 1].layoutState['os-home'].wp.phone === PICS[1].id && props['--os-wp-img'] === 'url("' + bUrl + '")', J(props));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ the suite threw: ' + (e && e.stack)); process.exit(1); });
