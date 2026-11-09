@@ -80,7 +80,12 @@ const CANNED = {
   // answer hides the strip and the Match / Said-you'd-do buttons, no banner):
   // the sample takes it, instead of canning a "healthy" it does not have.
   callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
-  callPromisesList: () => { throw noPhoneInSample('callPromisesList'); }
+  callPromisesList: () => { throw noPhoneInSample('callPromisesList'); },
+  // Call to Close P0 (2026-11-09): the Call Brief reads a recorded call's
+  // transcript, and the sample has none, so no "Draft from this call" button
+  // renders. Canned anyway, the same quiet answer, so nothing ever leaves.
+  callBrief: () => { throw noPhoneInSample('callBrief'); },
+  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); }
 };
 
 function haversineMi(la1, lo1, la2, lo2) {

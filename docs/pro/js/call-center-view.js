@@ -71,6 +71,14 @@
   }
   function claims() { return window._userClaims || {}; }
   function isViewer() { return claims().role === 'viewer'; }
+  // Call to Close P0 (2026-11-09): 'draft' | 'confirm' | '' for "Draft from
+  // this call" (functions/call-brief-logic.js canActOnCall + humanFiledProblem; the server re-checks).
+  function briefGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    if (isViewer() || !(cl.role === 'admin' || me === c.userId || (cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')))) return '';
+    if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
+    return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
+  }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
     var s = String(d || '');
@@ -408,6 +416,9 @@
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
       // Promise capture (2026-10-12): what did you promise? A dated task, never forgotten.
       if (!c.handledAtMs && c.status !== 'personal') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>';
+      var bg = c.leadId ? briefGate(c) : '';
+      if (bg === 'draft') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Draft from this call</button>';
+      else if (bg === 'confirm') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Confirm the customer first</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -1359,6 +1370,18 @@
     });
   }
 
+  // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
+  async function openBrief(id) {
+    var c = byId(id);
+    if (!c) return;
+    try {
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
+    } catch (_) { /* reported below */ }
+    if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
+    var lead = c.leadId ? leadsById()[c.leadId] : null;
+    window.NBDCallBrief.open({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
@@ -1374,6 +1397,7 @@
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
+    else if (a === 'brief') openBrief(id);
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {

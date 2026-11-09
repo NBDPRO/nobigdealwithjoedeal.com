@@ -54,6 +54,16 @@
   }
   function claims() { return window._userClaims || {}; }
   function isViewer() { return claims().role === 'viewer'; }
+  // Call to Close P0 (2026-11-09): may this card offer "Draft from this call"?
+  // 'draft' | 'confirm' (auto-matched or a shared number: a person files it
+  // first) | ''. Mirrors functions/call-brief-logic.js canActOnCall +
+  // humanFiledProblem; the server re-checks both.
+  function briefGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    if (isViewer() || !(cl.role === 'admin' || me === c.userId || (cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')))) return '';
+    if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
+    return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
+  }
 
   async function callable(name, data) {
     if (!window._functions || !window._httpsCallable) {
@@ -180,6 +190,9 @@
         // A call matched only by number is not filed on any customer, and the
         // server refuses to move it (steward review of #2946): no move button.
         (c._byNumber ? '' : '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>');
+      var bg = briefGate(c);
+      if (bg === 'draft') acts += '<button type="button" class="btn pc-play" data-calls-act="pc-brief" data-call-id="' + esc(id) + '">📝 Draft from this call</button>';
+      else if (bg === 'confirm') acts += '<button type="button" class="btn pc-play" data-calls-act="pc-confirm" data-call-id="' + esc(id) + '">Confirm the customer first</button>';
     }
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
@@ -452,11 +465,31 @@
     }
   }
 
+  // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
+  async function openBrief(id) {
+    var pc = phoneCall(id);
+    if (!pc) return;
+    try {
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
+    } catch (_) { /* reported below */ }
+    if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
+    window.NBDCallBrief.open({ callId: pc._id, call: pc, lead: window._leadDoc || {}, leadId: window._customerId, page: 'customer', onChange: load });
+  }
+  async function confirmCustomer(id) {
+    var pc = phoneCall(id);
+    if (!pc || !window.confirm('File this call on ' + leadLabel(window._leadDoc || {}) + '? A shared number can belong to someone else, so check it is them.')) return;
+    status(id, 'Filing…');
+    try { await callable('callCenterAction', { id: pc._id, action: 'attach', leadId: window._customerId }); await load(); }
+    catch (e) { status(id, (e && e.message) || 'That did not save.'); }
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-calls-act]') : null;
     if (!b) return;
     var id = b.getAttribute('data-call-id');
     var a = b.getAttribute('data-calls-act');
+    if (a === 'pc-brief') { openBrief(id); return; }
+    if (a === 'pc-confirm') { confirmCustomer(id); return; }
     if (a === 'pc-handled' || a === 'pc-unhandled') { setHandled(id, a === 'pc-handled'); return; }
     if (a === 'pc-moveopen') { openMove(id); return; }
     if (a === 'pc-move') { moveCall(id, b); return; }
