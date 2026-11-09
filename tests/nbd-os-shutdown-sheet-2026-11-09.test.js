@@ -62,7 +62,7 @@ function win(o) {
   const T = makeWin(Object.assign({ surface: 'phone', now: EVENING, plan: PLAN, leads: leads(), uid: UID,
     home: { phone: [{ id: 'shutdown', s: o.size || 'm' }], desk: [] } }, o.win || {}));
   const W = T.W;
-  W.NBDNoNextStep = { _pure: NNS };
+  if (!o.noNns) W.NBDNoNextStep = { _pure: NNS };
   W._taskCache = {};
   W.serverTimestamp = () => ({ __server: true });
   W.writes = [];
@@ -243,6 +243,17 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     const line = text(dialog(T).querySelector('.os-sd-closed'));
     ok('no recorder: the visits count is not said (never a 0 it did not count)', /^Loop closed: 1 lead · /.test(line) && !/visit/.test(line), line);
     ok('and the sheet says it could not check them', /Couldn't check today's visits/.test(text(dialog(T))));
+    const Tn = win({ noNns: true });
+    await flush();
+    const wn = text(widgetOf(Tn));
+    ok('no-next-step.js missing: the widget makes no claim (no count, no "every lead has a next step")',
+      !/\d/.test(wn) && !/has a next step|All closed/.test(wn) && !!widgetOf(Tn).querySelector('[data-oshw-sd]'), wn);
+    click(Tn.dom, widgetOf(Tn).querySelector('[data-oshw-sd]'));
+    await flush(); await flush();
+    const dn = text(dialog(Tn));
+    ok('...and the sheet says it could not check the leads, no "Loop closed", no "Nothing left open"',
+      /Couldn't check your leads/.test(dn) && !/Loop closed/.test(dn) && !/Nothing left open/.test(dn) && !dialog(Tn).querySelector('[data-sd-row^="lead:"]'), dn);
+    ok('...and no carry-over is stored from it', !Tn.store.nbd_os_carry, Tn.store.nbd_os_carry);
     const Tv = win({ win: { role: 'viewer' } });
     await flush();
     click(Tv.dom, widgetOf(Tv).querySelector('[data-oshw-sd]'));

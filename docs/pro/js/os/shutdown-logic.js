@@ -38,7 +38,8 @@
  * storm alerts make leads with the owner's uid on them). no-next-step.js
  * lastTouchMs takes the max of all of those, so it is not used here.
  *
- *   build(input)        -> { leads, visits, promises, closed:{leads, visits|null}, open }
+ *   build(input)        -> { leads|null, visits|null, promises, closed:{leads|null, visits|null}, open }
+ *                          (leads null: no-next-step.js's pure half is missing, so unknown)
  *   inWindow(now)       16:00-20:00 local: the widget speaks only then (or on tap)
  *   followUpYmd(n, now) 'YYYY-MM-DD' n days from today: the followUp field's format
  *   closedLine(closed)  "Loop closed: 3 leads, 1 visit" from the counts, never a default
@@ -128,12 +129,14 @@
 
   /**
    * Own open leads touched today: rows for those with no next step, and the count of those that have one.
+   * null when no-next-step.js's pure half is missing: the leads are unknown, never "none open".
    * env: { stageRole, normalizeStage, nns }
    */
   function leadRows(leads, uid, now, taskCache, env) {
     var N = nnsApi(env);
+    if (!N) return null;
     var out = { rows: [], closed: 0 };
-    if (!N || !uid) return out;
+    if (!uid) return out;
     var range = dayRange(now);
     var e = { stageRole: env && env.stageRole, normalizeStage: env && env.normalizeStage };
     var tc = isObj(taskCache) ? taskCache : {};
@@ -201,12 +204,12 @@
     var i = isObj(input) ? input : {};
     var now = Number(i.now);
     var uid = typeof i.uid === 'string' ? i.uid : '';
-    var L = leadRows(i.leads, uid, now, i.taskCache, i);
+    var L = leadRows(i.leads, uid, now, i.taskCache, i);   // null: the leads could not be checked
     var V = visitRows(i.visits, now, i);
     var P = promiseRows(i.plan);
     // a promise row's lead is on the list once
     var onList = {};
-    L.rows.forEach(function (r) { onList[r.leadId] = true; });
+    if (L) L.rows.forEach(function (r) { onList[r.leadId] = true; });
     // only the rep's own leads: a manager's, admin's or viewer's Today plan reads tasks company-wide,
     // so it holds teammates' promises. A lead not in _leads has no known owner: dropped.
     var mine = {};
@@ -214,9 +217,9 @@
     P = P.filter(function (r) { return mine[r.leadId] && !onList[r.leadId]; });
     var vrows = V.rows || [];
     return {
-      leads: L.rows, visits: V.rows, promises: P,
-      closed: { leads: L.closed, visits: V.filed },
-      open: L.rows.length + vrows.length + P.length,
+      leads: L ? L.rows : null, visits: V.rows, promises: P,
+      closed: { leads: L ? L.closed : null, visits: V.filed },
+      open: (L ? L.rows.length : 0) + vrows.length + P.length,
     };
   }
 
@@ -231,7 +234,7 @@
   }
   /** The widget's one line from the in-memory rows (no visits there: they need a read). */
   function widgetLine(result) {
-    if (!isObj(result)) return '';
+    if (!isObj(result) || !Array.isArray(result.leads)) return '';   // leads unknown: say nothing
     var n = arr(result.leads).length, p = arr(result.promises).length;
     if (!n && !p) return 'Every lead you touched today has a next step';
     var parts = [];
@@ -245,7 +248,7 @@
    * Kept device-only in localStorage nbd_os_carry (an nbd_ key: sign-out wipes it).
    */
   function carry(result, uid, now) {
-    if (!isObj(result) || typeof uid !== 'string' || !uid) return null;
+    if (!isObj(result) || !Array.isArray(result.leads) || typeof uid !== 'string' || !uid) return null;
     function ids(list, k) { return arr(list).map(function (r) { return r[k]; }).filter(Boolean).slice(0, CARRY_MAX); }
     return {
       v: 1, uid: uid, dk: dayKey(now), at: Number(now),

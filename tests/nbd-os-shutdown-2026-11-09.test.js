@@ -96,6 +96,14 @@ G(() => {
     return seen.join() === 'a';
   })());
   ok('in Node it finds no-next-step.js on its own (no env.nns)', S.build({ leads: [CASES[0][1]], uid: UID, now: NOW }).leads.length === 1);
+  ok('no-next-step.js missing (a browser window without NBDNoNextStep._pure): leads unknown (null), never "0 open"', (() => {
+    const vm = require('vm');
+    const w = {};
+    vm.runInNewContext(SRC, { window: w });
+    const B = w.NBDOSShutdownLogic;
+    const r = B.build({ leads: [lead('a', { lastContactedAt: TODAY_10 })], uid: UID, now: NOW, visits: [], plan: { promises: [{ leadId: 'a', name: 'Lee a', promiseTasks: [{ overdue: true }] }] } });
+    return r.leads === null && r.closed.leads === null && B.closedLine(r.closed) === '' && B.widgetLine(r) === '' && B.carry(r, UID, NOW) === null;
+  })());
   ok('the tenant\'s stage role decides open (a renamed won stage is not listed)', (() => {
     const l = lead('w', { stage: 'paid_up', lastContactedAt: TODAY_10 });
     const r = S.build({ leads: [l], uid: UID, now: NOW, nns: NNS, stageRole: (k) => (k === 'paid_up' ? 'won' : 'active') });

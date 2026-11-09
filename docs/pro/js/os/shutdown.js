@@ -80,6 +80,10 @@
     }
     if (!leads() || !uid()) return TITLE + '<p class="os-hw-empty">Getting your day ready…</p>';
     var r = compute();
+    if (!r.leads) {   // no-next-step.js missing: the leads are unknown, so no count and no "all closed"
+      return TITLE + (size === 's' ? '' : '<p class="os-hw-empty">Couldn\'t check your leads.</p>') +
+        '<button type="button" class="ui-btn-quiet os-hw-btn os-sd-go" data-oshw-sd="open">Open Shutdown</button>';
+    }
     var n = r.leads.length + r.promises.length;
     if (size === 's') {
       return TITLE + '<button type="button" class="os-hw-row os-sd-s" data-oshw-sd="open">' +
@@ -138,27 +142,29 @@
     if (!sheet) return;
     var s = sheet;
     var r = compute(s.visits);
+    var known = !!leads() && !!r.leads;   // false: loading, or no-next-step.js missing
     var h = '<div class="os-sd-hd"><h2 class="os-sd-title" id="osSdTitle">Shutdown</h2>' +
       '<button type="button" class="btn btn-ghost os-sd-close" data-sd-close="">Done</button></div>' +
       (r.open || !leads() ? '<p class="os-sd-lede">Every lead you touched today, with no next step yet. One tap each.</p>' : '');
     if (!leads() || !uid()) h += '<p class="os-sd-note">Your leads are still loading.</p>';
+    else if (!r.leads) h += '<p class="os-sd-note">Couldn\'t check your leads.</p>';
     else if (r.leads.length) h += section('Touched today, no next step', r.leads, function (x) { return leadRow(x, !!s.busy[x.leadId]); });
     if (s.visits === undefined) h += '<p class="os-sd-note">Checking today\'s visits…</p>';
     else if (s.visits === null) h += '<p class="os-sd-note">Couldn\'t check today\'s visits.</p>';
     else if (r.visits && r.visits.length) h += section('Visits not filed', r.visits, visitRow);
     if (r.promises.length) h += section('Promises past due', r.promises, promiseRow);
-    if (!r.open && leads() && s.visits !== undefined) h += '<p class="os-sd-note">Nothing left open. Every lead you touched today has a next step.</p>';
+    if (!r.open && known && s.visits !== undefined) h += '<p class="os-sd-note">Nothing left open. Every lead you touched today has a next step.</p>';
     if (s.last) {
       h += '<p class="os-sd-undo" role="status">' + esc(s.last.text) +
         ' <button type="button" class="ui-btn-quiet os-sd-btn" data-sd-undo="">Undo</button></p>';
     }
-    var line = leads() ? SL.closedLine(r.closed) : '';
+    var line = known ? SL.closedLine(r.closed) : '';
     h += '<div class="os-sd-ft"><p class="os-sd-closed" tabindex="-1">' + esc(line) + (line && r.open ? ' · ' + esc(String(r.open) + ' still open') : '') + '</p></div>';
     var keep = focusKey(s.d);
     s.d.innerHTML = h;
     if (keep) focusIn(keep);
     var c = SL.carry(r, uid(), Date.now());
-    if (c && leads()) lsSet(SL.CARRY_KEY, JSON.stringify(c));
+    if (c && known) lsSet(SL.CARRY_KEY, JSON.stringify(c));
   }
   /** A repaint replaces the sheet's markup: the selector of the focused control, to put focus back on its twin. */
   function focusKey(d) {
