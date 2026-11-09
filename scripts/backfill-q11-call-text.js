@@ -17,7 +17,11 @@
  *       call-center-logic.js buildFollowUpTask computes it); the notes drop the
  *       "You said you would" block. The task is rebuilt from the call doc's
  *       promises / summary / followUpDate (what it was built from), so a
- *       bullet an owner edited or added counts as an edit. A task whose call /
+ *       bullet an owner edited or added counts as an edit. A task the summary
+ *       scrub cleaned (no "Call:" paragraph, no pointer line) whose call has a
+ *       summary gets the pointer as its generic notes and the writer's full
+ *       notes (pointer + "You said you would") in the sidecar, as a fresh
+ *       filing would. A task whose call /
  *       text day is gone is skipped ("who unknown").
  *   thursday-<callId>   title / text are cut at " — <issue>". The expected
  *       title is rebuilt with thursday-logic.js buildTask from the call doc's
@@ -142,9 +146,14 @@ function planFollowUp(kind, taskId, data, src) {
     } catch (_) { built = null; }
     if (!built) continue;
     const full = Object.assign({ title: built.title, text: built.text, notes: built.notes }, built.callTextFull ? built.callTextFull.full : {});
-    if (data.title !== full.title || data.text !== full.text || notes !== full.notes) continue;
+    // A task the summary scrub cleaned lost "Call: …" without gaining the
+    // pointer line the writer now puts in its place: the same task.
+    const scrubbed = full.notes.split('\n\n').filter((p) => p !== POINTER).join('\n\n');
+    if (data.title !== full.title || data.text !== full.text || (notes !== full.notes && notes !== scrubbed)) continue;
     if (!built.callTextFull) return { skip: 'alreadyGeneric' };
-    return { generic: built.callTextFull.generic };
+    // full: what the live writer keeps in the sidecar (the pointer included),
+    // so the sidecar is the one a fresh filing writes.
+    return { generic: built.callTextFull.generic, full: built.callTextFull.full };
   }
   return { skip: 'edited' };
 }
@@ -248,7 +257,7 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
     if (!args.apply) return;
     if (!d.updateTime) { counts.failures++; return; }
     // The task as the writers store it: split() puts { full, generic } on it.
-    const split = TCT.split(Object.assign({}, data), plan.generic);
+    const split = TCT.split(Object.assign({}, data, plan.full), plan.generic);
     if (!split.callTextFull) { counts.alreadyGeneric++; return; }
     try {
       // Sidecar first: a crash after it leaves the full task, never a bare generic one.

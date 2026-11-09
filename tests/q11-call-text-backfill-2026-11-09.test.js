@@ -277,6 +277,31 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   r = await runArgs(f, ['--apply']);
   ok(d2[T1].callText === true && r.counts.otherSidecar === 0 && !f.ops.some((o) => o.op === 'create' && o.p.endsWith('/cube-CUBEIDX1')), 'crash resume: identical sidecar kept, the task finished');
 
+  // ── a task the summary scrub already cleaned, its call with a summary ──
+  // (review 2026-11-09): the scrub dropped "Call: …" and left no pointer; the
+  // live writer would store the pointer as the generic notes and put
+  // pointer + "You said you would" in the sidecar. The backfill writes the same.
+  {
+    const SP = 'leads/LEADIDX1/tasks/cube-CUBEIDXS';
+    const call = Object.assign({ summary: 'SUMMARYSECRET' }, PAT);
+    const liveTask = require(path.join(ROOT, 'functions', 'call-center-logic.js')).buildFollowUpTask({ call: Object.assign({ id: 'CUBEIDXS' }, call), notes: { summary: call.summary, promises: PROMISES, followUpDate: null, urgent: false }, leadId: 'x', ownerUid: 'x', todayYmd: 'x' });
+    const mk = () => ({ 'leads/LEADIDX1': { companyId: 'co1' }, 'phone_calls/CUBEIDXS': call, [SP]: { title: seed()[T1].title, text: seed()[T1].text, notes: YOU_SAID, source: 'cube-acr' } });
+    pl = S.planFollowUp('cube', 'cube-CUBEIDXS', mk()[SP], call);
+    ok(pl.generic && pl.generic.notes === POINTER, 'scrubbed task, call with a summary: generic notes are the pointer -> ' + JSON.stringify(pl));
+    let dd = mk();
+    f = fakeDb(dd);
+    r = await runArgs(f, ['--apply']);
+    const sd = dd['leads/LEADIDX1/task_call_text/cube-CUBEIDXS'];
+    ok(dd[SP].notes === POINTER && dd[SP].callText === true && r.counts.tasksWritten === 1, 'scrubbed task: stored notes are the pointer, as the live writer stores them');
+    ok(sd && JSON.stringify(sortKeys(sd)) === JSON.stringify(sortKeys(TCT.sideDoc(SP, liveTask))), 'scrubbed task: the sidecar is the live writer\'s sidecar');
+    // a sidecar the live writer already left on that old task (createTaskIfAbsent) is the same one: the task goes on
+    dd = mk();
+    dd['leads/LEADIDX1/task_call_text/cube-CUBEIDXS'] = TCT.sideDoc(SP, liveTask);
+    f = fakeDb(dd);
+    r = await runArgs(f, ['--apply']);
+    ok(dd[SP].callText === true && r.counts.otherSidecar === 0, 'a live-written sidecar on the old task: the task is finished -> ' + JSON.stringify(r.counts));
+  }
+
   // ── a task edited between the page read and the write keeps the edit ──
   d2 = seed();
   f = fakeDb(d2);
