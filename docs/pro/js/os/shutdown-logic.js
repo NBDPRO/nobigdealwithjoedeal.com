@@ -251,6 +251,6 @@
     CARRY_KEY: CARRY_KEY, WINDOW_FROM: WINDOW_FROM, WINDOW_TO: WINDOW_TO,
     dayRange: dayRange, dayKey: dayKey, inWindow: inWindow, followUpYmd: followUpYmd,
     ownerOf: ownerOf, isMine: isMine, touchOf: touchOf, leadRows: leadRows, visitRows: visitRows, promiseRows: promiseRows,
-    build: build, closedLine: closedLine, widgetLine: widgetLine, carry: carry, toMs: toMs,
+    build: build, nameOf: nameOf, closedLine: closedLine, widgetLine: widgetLine, carry: carry, toMs: toMs,
   };
 });

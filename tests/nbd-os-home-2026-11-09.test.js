@@ -477,12 +477,14 @@ G(() => {
   const code = noComments(HOME_JS);
   ok('home.js adds no request of its own (no fetch, import(), script or link injection)',
     !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code));
-  // P1 (2026-11-09): the ScriptLoader uses are its own two lazy bundles of same-origin files under js/os/
+  // P1 (2026-11-09): the ScriptLoader uses are its own three lazy bundles of same-origin files under js/os/ and css/os/
   const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
-  ok('…its ScriptLoader loads are the oshomep1 bundle (js/os/stack-logic.js, js/os/widgets-p1.js) and the osdsbiz bundle (js/os/ds-business.js)',
-    (code.match(/loadBundle\(/g) || []).length === 2 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+  const bundle = /var SD_BUNDLE = \[([^\]]*)\]/.exec(code);
+  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js) and osshutdown (css/os + js/os files)',
+    (code.match(/loadBundle\(/g) || []).length === 3 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
       && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
-      && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code), files);
+      && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code)
+      && !!bundle && bundle[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /loadBundle\('osshutdown'\)/.test(code), files);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

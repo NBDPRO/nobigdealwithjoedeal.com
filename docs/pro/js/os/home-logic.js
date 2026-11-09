@@ -105,10 +105,13 @@
     money: { title: 'Money', sizes: ['s', 'm'], def: 's', reads: 0, cat: 'money', nav: 'money', money: true, p1: true, about: 'What you collected this month' },
     // a stack holds up to STACK_MAX other widgets (items), each counted against the cap
     stack: { title: 'Smart Stack', sizes: ['m', 'l'], def: 'm', reads: 0, cat: 'today', stack: true, p1: true, about: 'One card that follows your day, with Why this?' },
+    // P1: the evening loop (os/shutdown.js, the lazy osshutdown bundle). The widget paints from memory;
+    // the sheet it opens reads today's visits once (tapReads), only on a tap.
+    shutdown: { title: 'Shutdown', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, tapReads: 1, bundle: 'osshutdown', cat: 'today', nav: 'crm', about: 'From 4 PM: give every lead you touched today a next step' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown'];
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'coach'];

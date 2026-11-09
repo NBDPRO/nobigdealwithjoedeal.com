@@ -26,6 +26,9 @@
  *                sidebar view the role hides (catalog nav), or Money for a role
  *                that can't see money, is not painted at all; it stays saved.
  *                The stack re-picks its card on show, unlock and events only.
+ *   Shutdown     (P1) painted by os/shutdown.js, the runtime ScriptLoader bundle
+ *                osshutdown this file registers and loads the first time the
+ *                widget paints; a tap opens its sheet
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -84,7 +87,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -343,7 +346,40 @@
     return h + parts.join('');
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily };
+  // ── Shutdown (P1): os/shutdown.js paints it, loaded as the runtime ScriptLoader bundle
+  // osshutdown the first time the widget paints (registered here: the layout's needs are full)
+  var SD_BUNDLE = ['css/os/shutdown.css?v=1', 'js/os/shutdown-logic.js?v=1', 'js/os/shutdown.js?v=1'];
+  var sdLoad = null, sdFailed = false;
+  function loadShutdown() {
+    if (W.NBDOSShutdown) return Promise.resolve(true);
+    if (sdLoad) return sdLoad;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') { sdFailed = true; return Promise.resolve(false); }
+    if (SL.bundles && !SL.bundles.osshutdown) SL.bundles.osshutdown = SD_BUNDLE.slice();
+    sdFailed = false;
+    sdLoad = Promise.resolve().then(function () { return SL.loadBundle('osshutdown'); }).then(function () {
+      sdLoad = null;
+      sdFailed = !W.NBDOSShutdown;
+      try { W.dispatchEvent(new W.CustomEvent('nbd:os-shutdown')); } catch (e) {}   // repaint, loaded or not (never loops: no auto-retry)
+      return !sdFailed;
+    }, function () { sdLoad = null; sdFailed = true; return false; });
+    return sdLoad;
+  }
+  function shutdown(size, cfg) {
+    var SD = W.NBDOSShutdown;
+    if (SD && typeof SD.widget === 'function') return SD.widget(size, cfg);
+    var h = '<h3 class="os-hw-title">Shutdown</h3>';
+    if (sdFailed) return h + failHtml('sd');
+    loadShutdown();
+    return h + '<p class="os-hw-empty">Getting ready…</p>';
+  }
+  function openShutdown(from) {
+    loadShutdown().then(function (ok) {
+      if (ok && W.NBDOSShutdown) W.NBDOSShutdown.open({ returnFocus: from });
+    });
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -911,7 +947,12 @@
       var t = ev.target;
       if (!t || !t.closest) return;
       var r = t.closest('[data-oshw-retry]');
-      if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (p1State === 'failed') p1State = ''; if (rec) paintOne(rec, true); return; }
+      if (r) {
+        var rk = r.getAttribute('data-oshw-retry');
+        if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
+        if (p1State === 'failed') p1State = '';
+        var rec = recs[rk]; if (rec) paintOne(rec, true); return;
+      }
       var sb = t.closest('[data-oshw-stack]');
       var srec = sb && recs[(sb.closest('[data-oshw]') || sb).getAttribute('data-oshw')];
       if (srec && W.NBDOSHomeP1 && typeof W.NBDOSHomeP1.stackTap === 'function') {
@@ -924,6 +965,8 @@
         if (sw !== 'why') announce(text(srec.el.querySelector('.os-hw-stack-pos')) + ', ' + text(srec.el.querySelector('.os-hw-stack-card .os-hw-title')));
         return;
       }
+      var sd = t.closest('[data-oshw-sd]');
+      if (sd) { openShutdown(sd); return; }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
       if (crec) {
