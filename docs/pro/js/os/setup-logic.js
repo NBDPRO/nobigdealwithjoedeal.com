@@ -22,7 +22,8 @@
  *   merge(own, home, locked) the member's next own key: the pasted surfaces, wallpaper and
  *                            modes over their own; a surface the company locked keeps theirs
  *                            (locked: { phone, desk } booleans; the lock wins)
- *   summary(home, locked)    plain lines for the preview
+ *   summary(home, locked)    plain lines for the preview (a My Skin picture id may not carry over:
+ *                            it is the exporter's, and shows as Time of day where it is missing)
  *   same(a, b)               two keys that save the same thing
  *
  * Classic script: window.NBDOSSetupLogic; require()-able for tests (it requires
@@ -104,6 +105,7 @@
       return t;
     }).filter(function (t, i, a) { return a.indexOf(t) === i; }).map(function (t) { return seen[t] > 1 ? t + ' (' + seen[t] + ')' : t; });
   }
+  function isPic(v) { return typeof v === 'string' && !!v && v !== 'tod' && v !== 'none'; }
   function wpName(v) { return v === 'tod' ? 'Time of day' : v === 'none' ? 'None' : v ? 'a My Skin picture' : 'the default'; }
 
   function summary(home, locked) {
@@ -118,6 +120,12 @@
     if (list(h.acts)) out.push('Modes: ' + h.acts.map(function (a) { return a.name; }).join(', '));
     var kpis = SURF.some(function (k) { return list(h[k]) && lk[k] !== true && h[k].some(function (it) { return it.id === 'kpi'; }); });
     if (kpis) out.push('A Saved view tile counts only a view your team has saved; any other shows no number.');
+    // a My Skin picture id is the exporter's: on another account it does not resolve, and the
+    // surface shows Time of day instead (layouts/os.js paintWp), so the preview says so
+    var pics = [h.wp].concat(list(h.acts) ? h.acts.map(function (a) { return a && a.wp; }) : []).some(function (w) {
+      return isObj(w) && [w.phone, w.desk].some(isPic);
+    });
+    if (pics) out.push('A My Skin picture shows only on an account that has that picture; anywhere else it is Time of day.');
     return out;
   }
 

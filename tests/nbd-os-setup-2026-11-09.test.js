@@ -81,7 +81,12 @@ console.log('\n2. round trip: export, paste, the same home');
     'Wallpaper: phone Time of day, laptop a My Skin picture',
     'Modes: Knocking, In a home, Storm day, Office',
     'A Saved view tile counts only a view your team has saved; any other shows no number.',
+    'A My Skin picture shows only on an account that has that picture; anywhere else it is Time of day.',
   ]), J(SU.summary(p.home, {})));
+  const SKIN_NOTE = /My Skin picture shows only on an account that has that picture/;
+  ok('…the My Skin note is only there when a picture id is (built-in wallpapers carry over as they are)', !SKIN_NOTE.test(J(SU.summary({ wp: { phone: 'tod', desk: 'none' } }, {}))) && !SKIN_NOTE.test(J(SU.summary({ phone: [{ id: 'glance', s: 'm' }] }, {}))));
+  const actImg = SU.parse(J({ nbd: 'nbd-os-setup', v: 1, home: { acts: HL.keep(MINE).acts.map((a, i) => (i ? a : Object.assign({}, a, { wp: { phone: 'abcd1234', desk: null } }))) } }));
+  ok('…and it is there for a mode\'s own picture too', actImg.ok && SKIN_NOTE.test(J(SU.summary(actImg.home, {}))), J(actImg));
 }
 
 console.log('\n3. hostile or broken text is refused, and nothing in it survives');
