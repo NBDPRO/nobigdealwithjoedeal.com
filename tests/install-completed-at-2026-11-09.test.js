@@ -175,6 +175,60 @@ function mkWin(seed, opts) {
     ok('control: a job moved elsewhere records none', !('installCompletedAt' in await move({ stage: 'install_in_progress' }, 'final_photos')));
   }
 
+  console.log('\n2c. two jobs on one customer: the date is per job (review 2026-11-09, defect 1)');
+  {
+    // installCompletedAt rides on the lead for its ACTIVE job, so it must be a
+    // per-job field (JOB_FIELDS): carried onto other jobs' cards from the job,
+    // nulled on promotion, mirrored to the job doc. Real jobs-store.js cardsFor,
+    // real jobs-logic.js promotion/mirror, real _moveJobCard and commitStageChange.
+    const JS = require(path.join(ROOT, 'docs/pro/js/jobs-store.js'));
+    const JL = require(path.join(ROOT, 'functions/jobs-logic.js'));
+    const TP = require(path.join(ROOT, 'docs/pro/js/today-plan.js'));
+    ok('installCompletedAt is a per-job field on the server list', JL.JOB_FIELDS.includes('installCompletedAt'));
+    ok('…and on both client copies (jobs-store.js, today-plan.js)', JS.JOB_FIELDS.includes('installCompletedAt') && TP.JOB_FIELDS.includes('installCompletedAt'));
+
+    // Job 1 installed (stamped) and still the active job; job 2 open, never installed.
+    const lead = { id: 'L9', firstName: 'Pat', activeJobId: 'j1', stage: 'install_complete', stageRole: 'won', closedAt: 'T-SOLD', installCompletedAt: 'T-J1' };
+    const j1 = { id: 'j1', stage: 'install_complete', stageRole: 'won', closedAt: 'T-SOLD', installCompletedAt: 'T-J1', createdAt: 1 };
+    const j2 = { id: 'j2', stage: 'install_in_progress', stageRole: 'job', closedAt: 'T-SOLD2', createdAt: 2 };
+    const card2 = JS.cardsFor(lead, [j1, j2]).find((c) => c._jobId === 'j2');
+    ok('job 2\'s card carries job 2\'s date (none), not job 1\'s from the lead', card2 && card2.installCompletedAt === null, card2 && String(card2.installCompletedAt));
+    ok('control: the active job\'s card (the lead) keeps job 1\'s date', JS.cardsFor(lead, [j1, j2])[0].installCompletedAt === 'T-J1');
+    const rec2 = JL.jobRecords([lead], { L9: [j1, j2] }).find((r) => r._jobId === 'j2');
+    ok('server jobRecords: job 2 has no install date either', rec2 && rec2.installCompletedAt === null);
+
+    // _moveJobCard with the REAL cardsFor: job 2's own first Install Done is stamped.
+    const CP = fs.readFileSync(path.join(ROOT, 'docs/pro/js/crm-pipeline.js'), 'utf8');
+    const start = CP.indexOf('async function _moveJobCard(');
+    let depth = 0, i = CP.indexOf('{', CP.indexOf(')', start));
+    for (; i < CP.length; i++) { if (CP[i] === '{') depth++; else if (CP[i] === '}' && --depth === 0) { i++; break; } }
+    const rec = { patch: null };
+    const sb = {
+      window: {
+        NBDJobs: { cardsFor: JS.cardsFor, forLead: () => [j1, j2], update: async (l, id, p) => { rec.patch = p; } },
+        normalizeStage: (x) => x, stageRole: ROLE, arrayUnion: (x) => ({ u: x }), _user: { uid: 'u1' },
+      },
+      showToast() {}, renderLeads() {}, console: { warn() {}, log() {} }, Date, Object,
+    };
+    vm.createContext(sb);
+    vm.runInContext(CP.slice(start, i) + '\nglobalThis.__m = _moveJobCard;', sb);
+    await sb.__m(lead, 'j2', 'install_complete', false);
+    ok('job 2 moved onto Install Done records ITS date while job 1 (active) already has one',
+      rec.patch && rec.patch.installCompletedAt && typeof rec.patch.installCompletedAt.getTime === 'function', JSON.stringify(rec.patch));
+
+    // Promotion: job 1 paid in full, job 2 takes over the card.
+    const promo = JL.promotionPatch(j2);
+    ok('promotion clears job 1\'s date off the lead (job 2 has none)', Object.prototype.hasOwnProperty.call(promo, 'installCompletedAt') && promo.installCompletedAt === null, JSON.stringify(promo));
+    ok('control: promotion carries the promoted job\'s own date when it has one', JL.promotionPatch(Object.assign({}, j2, { installCompletedAt: 'T-J2' })).installCompletedAt === 'T-J2');
+    // …so job 2's own move through commitStageChange on the lead is its FIRST.
+    const { win, rec: r2, state } = mkWin(Object.assign({}, lead, promo));
+    await loadSW(win).commitStageChange('L9', 'install_complete', 'install_in_progress', {});
+    ok('after promotion, job 2\'s move onto Install Done stamps a fresh date', (r2.patches[0] || {}).installCompletedAt === '__TS__' && state.lead.installCompletedAt !== 'T-J1', JSON.stringify(r2.patches[0]));
+
+    // Mirror: the lead's stamp reaches the active job's doc.
+    ok('the mirror copies the lead\'s date onto the active job doc', JL.mirrorPatch({ installCompletedAt: 'T-J2' }, { id: 'j2' }).installCompletedAt === 'T-J2');
+  }
+
   console.log('\n3. the readers take it first');
   {
     const src = fs.readFileSync(path.join(ROOT, 'functions/social-studio.js'), 'utf8');

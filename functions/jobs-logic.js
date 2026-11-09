@@ -39,6 +39,8 @@ const JOB_FIELDS = Object.freeze([
   'adjusterMeetingDate', 'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'crew',
   // paperwork
   'contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt',
+  // done (2026-11-09: per job, so a second job never inherits the first one's date)
+  'installCompletedAt',
 ]);
 
 // The first job of every customer has a fixed id, so a retried trigger or a

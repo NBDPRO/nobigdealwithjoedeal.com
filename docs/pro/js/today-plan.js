@@ -268,6 +268,7 @@
     'scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledEndDate', 'scheduledDurationMin',
     'adjusterMeetingDate', 'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'crew',
     'contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt',
+    'installCompletedAt',
   ];
   function jobView(lead, job) {
     var v = Object.assign({}, lead || {});

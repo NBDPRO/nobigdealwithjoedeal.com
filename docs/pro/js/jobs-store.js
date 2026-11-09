@@ -44,6 +44,7 @@
     'scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledEndDate', 'scheduledDurationMin',
     'adjusterMeetingDate', 'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'crew',
     'contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt',
+    'installCompletedAt',
   ];
 
   const ms = (t) => (t && typeof t.toMillis === 'function') ? t.toMillis()
