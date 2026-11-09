@@ -466,7 +466,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               text, Thursday lead notes, voicemail source + retag backfill and voicemail-viewers rules suite;
 //               the carried drafts #3008, #2994, #2981, #2941 and #2942. MEASURED
 //               via --check.
-const FLOORS = { node: 1036, smoke: 74, disk: 1175 };
+//   2026-11-09  1036/74/1175 -> 1037/74/1176, credentials fix-now (cred-fixes, rebased onto the Q11
+//               integration): the credentials-surfaces suite (AI assistant list, llms.txt region, footer
+//               disclaimer vs credentials.json). MEASURED via --check.
+const FLOORS = { node: 1037, smoke: 74, disk: 1176 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
