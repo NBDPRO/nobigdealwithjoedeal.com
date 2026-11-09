@@ -142,6 +142,21 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('the company turned it off: even today\'s kept line hides', !card(N).querySelector('.os-hw-ai'));
   }
 
+  console.log('\n3b. an M Coach on the phone: 2 rows have no room for it while rules wait behind More');
+  {
+    const Mm = setup({ home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
+    await tick(); await tick();
+    ok('M, closed, with More: no AI markup (the card would clip)', !!card(Mm).querySelector('[data-oshw-coach="more"]') && !card(Mm).querySelector('.os-hw-ai, [data-oshw-coach="ai"]'), text(card(Mm)));
+    click(Mm.dom, card(Mm).querySelector('[data-oshw-coach="more"]'));
+    await tick(); await tick();
+    const btn = card(Mm).querySelector('[data-oshw-coach="ai"]');
+    ok('…opened (the rows of an L): the button is there, above the top rule', !!btn && card(Mm).classList.contains('is-open'));
+    const one = { total: 1, appointments: [], promises: [], calls: [], promised: [{ key: 'p', leadId: 'L3', overdue: true }], estimates: [], money: [], stalled: [] };
+    const M1 = setup({ leads: [], plan: one, home: { phone: [{ id: 'coach', s: 'm' }], desk: [] } });
+    await tick(); await tick();
+    ok('M with one rule (no More): the button shows', !card(M1).querySelector('[data-oshw-coach="more"]') && !!card(M1).querySelector('[data-oshw-coach="ai"]'), text(card(M1)));
+  }
+
   console.log('\n4. no line, and failures');
   {
     const A = setup();

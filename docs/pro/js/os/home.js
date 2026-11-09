@@ -293,15 +293,17 @@
     // "Nice work" only when no rule fired at all; rules that are only hidden are not an all-clear
     if (!list.length) return h + '<p class="os-hw-coach-calm">' + (list.fired ? 'Nothing else for now.' : 'Nothing pressing right now. Nice work.') + '</p>';
     var top = list[0];
-    h += coachAi(list) + '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
+    var rest = list.slice(1, 3);
+    // nothing left behind More: an open M Coach closes, so it never keeps 4 rows with no Show less
+    if (!rest.length && rec && rec.open) { rec.open = false; rec.el.classList.remove('is-open'); }
+    var open = size === 'l' || !!(rec && rec.open);
+    // P2: a closed M Coach with rules behind More has no room for the AI line (2 rows); it rides the open card
+    h += (size !== 'm' || !rest.length || open ? coachAi(list) : '') + '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
       '<div class="os-hw-coach-acts">' + actionHtml(top.action, 'btn btn-ghost os-hw-btn os-hw-coach-act') +
         '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="snooze" data-rule="' + esc(top.id) + '">Later</button>' +
         '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="dismiss" data-rule="' + esc(top.id) + '">Not today</button>' +
       '</div>';
-    var rest = list.slice(1, 3);
-    // nothing left behind More: an open M Coach closes, so it never keeps 4 rows with no Show less
-    if (!rest.length) { if (rec && rec.open) { rec.open = false; rec.el.classList.remove('is-open'); } return h; }
-    var open = size === 'l' || !!(rec && rec.open);
+    if (!rest.length) return h;
     if (size !== 'l') h += '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-coach-toggle" data-oshw-coach="more" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Show less' : 'More') + '</button>';
     if (open) h += '<ul class="os-hw-coach-more">' + rest.map(function (r) {
       return '<li><span class="os-hw-coach-text">' + esc(r.text) + '</span>' + actionHtml(r.action, 'ui-btn-quiet os-hw-btn os-hw-coach-go') + '</li>';
