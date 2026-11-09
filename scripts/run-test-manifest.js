@@ -475,6 +475,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1043/74/1184 -> 1044/74/1185, the Q11 call-text backfill suite
 //               (q11-call-text-backfill, node), same PR as the price floor. MEASURED via --check.
 const FLOORS = { node: 1046, smoke: 74, disk: 1188 };
+//   2026-11-09  1044/74/1185 -> 1045/74/1186, the job-photo matcher suite (match-job-photos, node;
+//               plan §1 steps 1-2). MEASURED via --check.
+const FLOORS = { node: 1045, smoke: 74, disk: 1186 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
