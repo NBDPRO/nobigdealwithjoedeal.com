@@ -29,11 +29,11 @@
  *
  * Credentials: Application Default Credentials (`gcloud auth
  * application-default login`). Token mode (NBD_ACCESS_TOKEN, Firestore REST
- * via scripts/_firestore-rest.js) needs the adapter's collection-group query
- * and update precondition, which branch q11-backfill adds with this same API
- * shape (db.collectionGroup(id).orderBy('__name__').limit(n).startAfter(snap)
- * .get(); ref.update(field, value, { lastUpdateTime })). Until that is merged,
- * token mode refuses to start and says so.
+ * via scripts/_firestore-rest.js) uses the adapter's collection-group query
+ * and update precondition (db.collectionGroup(id).orderBy('__name__').limit(n)
+ * .startAfter(snap).get(); ref.update(field, value, { lastUpdateTime })), added
+ * with the Q11 task-summary backfill in the same PR. A client without
+ * collectionGroup still refuses to start and says so.
  *
  * Usage:
  *   node scripts/retag-voicemail-activity.js                        # dry run, every company
