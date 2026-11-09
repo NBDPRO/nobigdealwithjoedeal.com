@@ -980,7 +980,8 @@
     "blog-callout-links-2026-10-26.test.js",
     "script-loader-parallel-download-2026-11-04.test.js",
     "ci-docs-only-skip-2026-11-04.test.js",
-    "call-brief-logic-2026-11-09.test.js"
+    "call-brief-logic-2026-11-09.test.js",
+    "call-brief-eval-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
