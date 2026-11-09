@@ -133,6 +133,15 @@ const fanOut = (reads) => reads.filter((r) => ['leads', 'knocks', 'invoices', 'g
 
   console.log('\n2. the page with the aggregate (N reads, no fan-out)');
   const LB = read('docs/pro/js/pages/leaderboard.js');
+  {
+    // screenshot pass 2026-11-09: body is a flex column (assets/css/nbd-mobile.css), where a block with
+    // margin auto shrinks to its content: the summary stacked in one 140px column, the board was 350px
+    // wide and the rank banner read 'Your rank: #231 Doors' (#2 run into 31). They fill up to 720px.
+    const css = read('docs/pro/leaderboard.html');
+    const rule = (sel) => (css.match(new RegExp('\\n\\s*' + sel.replace('.', '\\.') + ' \\{([^}]*)\\}')) || [])[1] || '';
+    ok('the page\'s 720px blocks take the full width up to 720px (summary, rank banner, board, feed)',
+      ['.stat-summary', '.my-rank-banner', '.board', '.feed'].every((c) => /max-width: 720px/.test(rule(c)) && /width: 100%/.test(rule(c).replace(/max-width/g, ''))), ['.stat-summary', '.my-rank-banner', '.board', '.feed'].map(rule).join(' | '));
+  }
   ok('leaderboard.html loads team-board-logic.js before the module', /<script defer src="js\/team-board-logic\.js\?v=\d+"><\/script>[\s\S]*<script type="module" src="js\/pages\/leaderboard\.js/.test(read('docs/pro/leaderboard.html')));
   {
     const rows = [row('u1', 'Riley', M(3, 1, 0, 1), M(12, 3, 2, 2)), row('u2', '<img src=x onerror=alert(1)>', M(5, 0, 1, 0), M(20, 1, 1, 3)), row('zz', 'Other Co', M(99, 0, 0, 0), M(99, 0, 0, 0), { companyId: 'co-b' })];
