@@ -746,7 +746,7 @@
     // A redraw drops keyboard focus: remember which control had it (or which one an arrow key is moving to) and put it back.
     var fk = state.refocus || focusKeyOf(document.activeElement);
     state.refocus = '';
-    el.innerHTML = '<div class="cc-wrap">' + head + '<div id="ccPanel"' + (viewerNote ? '' : ' role="tabpanel" aria-labelledby="ccTab-' + active[0] + '"') + ' tabindex="-1">' + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
+    el.innerHTML = '<div class="cc-wrap">' + head + (viewerNote ? '<div id="ccPanel" tabindex="-1">' : '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">') + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
     focusedCard();
     a11yPass(el, shownN, active);
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
