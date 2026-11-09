@@ -5865,6 +5865,7 @@
     const input = document.getElementById('v2rawSqft');
     if (!hintHtml) {
       if (hint) hint.remove();
+      _callDescribedBy(input, false);
     } else if (input && input.parentNode) {
       if (!hint) {
         hint = document.createElement('div');
@@ -5873,7 +5874,16 @@
         input.parentNode.appendChild(hint);
       }
       hint.innerHTML = hintHtml;
+      _callDescribedBy(input, true);
     }
+  }
+  // The area input names the said-square-count hint, so a screen reader reads it at the field.
+  function _callDescribedBy(input, on) {
+    if (!input || typeof input.getAttribute !== 'function') return;
+    const ids = String(input.getAttribute('aria-describedby') || '').split(/\s+/).filter((x) => x && x !== 'v2callSqftHint');
+    if (on) ids.push('v2callSqftHint');
+    if (ids.length) input.setAttribute('aria-describedby', ids.join(' '));
+    else input.removeAttribute('aria-describedby');
   }
 
   // ═════════════════════════════════════════════════════════

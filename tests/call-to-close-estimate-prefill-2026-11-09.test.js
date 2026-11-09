@@ -496,6 +496,27 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       ok('a click with no action (a label, the backdrop) does not count', isAct({ type: 'click', isTrusted: true, target: { closest: () => null } }) === false);
       ok('a synthetic event never counts', isAct(Object.assign(click('set-tier'), { isTrusted: false })) === false);
     }
+
+    section('C6. the said square count is tied to the area input (review 2026-11-09)');
+    {
+      const input = W.document.getElementById('v2rawSqft');
+      const attrs = { 'aria-describedby': 'v2areaHelp' };
+      const kids = [];
+      input.setAttribute = (k, v) => { attrs[k] = String(v); };
+      input.getAttribute = (k) => (k in attrs ? attrs[k] : null);
+      input.removeAttribute = (k) => { delete attrs[k]; };
+      input.parentNode = { appendChild: (x) => { kids.push(x); return x; } };
+      leads([{ id: 'L16', firstName: 'Lo', lastName: 'Ma', address: '16 Elm St', jobType: '' }]);
+      W.openEstimateV2Builder({ leadId: 'L16', callPrefill: { callId: 'cube_SQ1', brief: clone(BRIEF) } });
+      await tick(600);
+      const hintEl = kids.find((k) => k && k.id === 'v2callSqftHint');
+      ok('the hint is placed beside #v2rawSqft', !!hintEl && /twenty-eight squares/.test(hintEl.innerHTML), kids.map((k) => k && k.id));
+      ok('…and #v2rawSqft names it in aria-describedby (keeping what was there)', (attrs['aria-describedby'] || '').split(' ').sort().join(' ') === 'v2areaHelp v2callSqftHint', attrs);
+      W.closeEstimateV2Builder();
+      await tick(50);
+      ok('closing takes it out of aria-describedby again', attrs['aria-describedby'] === 'v2areaHelp', attrs);
+      input.parentNode = null;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════
