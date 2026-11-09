@@ -2841,6 +2841,10 @@
 
   window.PhotoEngine = {
     openCamera,
+    // The photo's EXIF date + GPS for a /photos doc, with the 4 s ceiling
+    // (2026-11-09): the customer page's uploadSinglePhoto calls this after
+    // loading the photos bundle, so photo-exif.js stays out of its boot file.
+    photoExif: _photoExif,
     // Exposed so the retry is an operation the app can trigger, not only an
     // `online` side effect — and so it is testable at all.
     flushUploadQueue,

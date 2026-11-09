@@ -206,9 +206,12 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
     if (!m) throw new Error('end not found for ' + startStr);
     return src.slice(i, m.index + m[0].length);
   }
-  async function runCustomerUpload(file, stall) {
-    let fn = sliceFn('docs/pro/js/customer-bootstrap.module.js', 'async function uploadSinglePhoto(item, index) {', /\n\}\n/g);
-    fn = fn.replace(/import\(\s*'\.\/photo-exif\.js(\?v=\d+)?'\s*\)/g, '__exif()');
+  // The customer page asks PhotoEngine (the photos bundle it loads first) for
+  // the fields, so its boot file carries one call (review round 2026-11-09:
+  // the customer boot budget had 8 B of room). `engine`: the real PhotoEngine
+  // from loadEngine(), or null for a page whose photos bundle did not load.
+  async function runCustomerUpload(file, stall, engine) {
+    const fn = sliceFn('docs/pro/js/customer-bootstrap.module.js', 'async function uploadSinglePhoto(item, index) {', /\n\}\n/g);
     const added = [];
     const win = {
       _customerId: 'L1', _currentLead: { id: 'L1', lat: 39.1, lng: -84.5 },
@@ -220,7 +223,8 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
       collection: (_db, c) => ({ path: c }),
       addDoc: async (c, d) => { added.push(d); return { id: 'P1' }; },
     };
-    const sb = { window: win, __exif: stall ? STALL_EXIF : async () => injected, console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, setTimeout: stall ? fastCeiling : setTimeout, updateUploadPreviewItem() {}, updateGlobalUploadStatus() {} };
+    win.PhotoEngine = engine === undefined ? loadEngine(null, stall).PE : engine;
+    const sb = { window: win, console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, setTimeout: stall ? fastCeiling : setTimeout, updateUploadPreviewItem() {}, updateGlobalUploadStatus() {} };
     vm.createContext(sb);
     const uploadSinglePhoto = vm.runInContext('(' + fn.replace(/^async function uploadSinglePhoto/, 'async function') + ')', sb);
     await uploadSinglePhoto({ file }, 0);
@@ -234,6 +238,11 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
     const t0 = Date.now();
     const p = await runCustomerUpload(asFile(plainJpeg(), 'x.jpg'));
     ok('control: no EXIF → capturedAt is the device clock, no geoLocation', typeof p.capturedAt === 'number' && p.capturedAt >= t0 - 5 && p.capturedAtSource === 'device' && !('geoLocation' in p), JSON.stringify({ c: p.capturedAt, s: p.capturedAtSource }));
+    const n = await runCustomerUpload(asFile(exifJpeg()), false, null);
+    ok('no photos bundle (PhotoEngine missing): the doc is still written, as before, with no capturedAt', n.leadId === 'L1' && n.url && !('capturedAt' in n), JSON.stringify(n.capturedAt));
+    const cb = read('docs/pro/js/customer-bootstrap.module.js');
+    ok('the customer boot file reaches photo-exif.js only through PhotoEngine.photoExif (no import of its own)',
+      /window\.PhotoEngine\?\.photoExif\?\.\(file, timestamp\)/.test(cb) && !/photo-exif\.js/.test(cb.replace(/\/\/[^\n]*/g, '')));
   });
 
   console.log('\n4. dashboard-bootstrap.module.js _uploadPhoto (real function text in a vm)');
