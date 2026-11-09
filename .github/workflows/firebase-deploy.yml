@@ -7,8 +7,10 @@ name: Firebase deploy
 # blog index, feed.xml, llms.txt and the project pages only when a deploy
 # regenerates them after their date; the blog publishes on Tuesdays, so without
 # this a post waited for the next unrelated merge. A scheduled run:
-#   - first asks the `due` job whether anything went live since the committed
-#     files were stamped (strict feed + projects checks); nothing due = no deploy;
+#   - first asks the `due` job whether anything went live since the last
+#     hosting deploy (live /version.json deployedAt); nothing due = no deploy;
+#     live behind main over the deploy paths = the run fails loudly instead
+#     (a hosting-only deploy would hide that the backend never shipped);
 #   - then runs exactly the steps a scope=hosting dispatch runs: the generators
 #     rebuild the date-gated files INSIDE this job and Hosting ships that tree.
 #     It never deploys functions / rules / indexes / storage and never commits:
@@ -134,13 +136,18 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────
-  # due — scheduled runs only. Is a blog post or project newly live, i.e. does
-  # the committed feed / project surfaces differ from TODAY's render? --strict
-  # turns off the lag allowance the CI checks use, so a passed date reads as
-  # "due". The feed covers the blog index and llms.txt's BLOG list (same POSTS
-  # filter); the projects check covers the gallery, detail pages, llms.txt's
-  # case studies and the sitemap's project URLs. Nothing due: the deploy job is
-  # skipped and the run ends green. No secrets, read-only token.
+  # due — scheduled runs only. Compares the LIVE site, not the committed files
+  # (review 2026-11-09), via `node scripts/verify-live-deploy.js due`:
+  #   - live /version.json behind main over the deploy paths (a push run this
+  #     pending schedule cancelled — the concurrency group keeps one pending
+  #     run — or one that failed before Hosting): FAIL loudly. A hosting-only
+  #     run would stamp main's sha and verify-live would read green although
+  #     functions / rules / indexes never shipped. Fix: a scope=all dispatch;
+  #   - another deploy run queued/running: skip, it ships main;
+  #   - otherwise due only when a post or project date passed since the live
+  #     stamp's deployedAt day. Nothing new = the deploy job is skipped and the
+  #     run ends green, even while the repo copy lags.
+  # No secrets; read-only token (actions: read is for `gh run list`).
   # ─────────────────────────────────────────────────────────
   due:
     name: Scheduled run - is a post or project newly due?
@@ -149,31 +156,27 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     outputs:
       due: ${{ steps.due.outputs.due }}
     steps:
-      - name: Checkout
+      - name: Checkout (full history — the live sha must be diffable)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
-      - name: Compare the committed date-gated files with today's render
+      - name: Compare the live site with main and the post / project dates
         id: due
-        run: |
-          due=false
-          if ! node scripts/build-feed.mjs --strict; then due=true; fi
-          if ! node scripts/build-projects.mjs --check --strict; then due=true; fi
-          echo "due=$due" >> "$GITHUB_OUTPUT"
-          if [ "$due" = true ]; then
-            echo "::notice::A post or project went live since the last stamp - deploying hosting."
-          else
-            echo "::notice::Nothing newly due - no deploy this week."
-          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIVE_URL: https://nobigdealwithjoedeal.com
+        run: node scripts/verify-live-deploy.js due
 
   # ─────────────────────────────────────────────────────────
   # deploy — runs only when credentials are present. Never runs on

@@ -9,8 +9,9 @@
  *
  * THE CONTRACT this suite pins, by evaluating every step's `if:` for each kind of run (zero deps, no YAML library):
  *   - the schedule fires on Tuesday between midnight and 07:00 US Eastern in both EST and EDT, off the top of the hour;
- *   - a `due` job (schedule only, no secrets, read-only token) runs the strict date-gated checks and the deploy job
- *     waits for it: a scheduled run with nothing newly due deploys nothing;
+ *   - a `due` job (schedule only, no secrets, read-only token) compares the LIVE site with main and the dates, and the
+ *     deploy job waits for it: nothing newly live since the last hosting deploy = no deploy; live behind main over
+ *     the deploy paths = the run fails loudly instead of a hosting-only deploy that would hide it (review 2026-11-09);
  *   - on a scheduled run every hosting step runs (the in-job regeneration of the date-gated files included) and NO
  *     functions / rules / indexes / storage step does;
  *   - push and workflow_dispatch behave exactly as before (every scope still picks its own steps);
@@ -94,10 +95,50 @@ const due = jobBlock('due');
 ok('a `due` job exists', !!due);
 ok('…runs only on the schedule', !!due && /github\.event_name == 'schedule'/.test(jobIf('due') || ''), jobIf('due'));
 ok('…reads no secret', !!due && !/secrets\./.test(due));
-ok('…has a read-only token', !!due && /permissions:\s*\n\s+contents: read\s*(\n|$)/.test(due));
-ok('…runs the strict feed check and the strict projects check',
-  !!due && /node scripts\/build-feed\.mjs --strict/.test(due) && /node scripts\/build-projects\.mjs --check --strict/.test(due));
+// REVIEW 2026-11-09 (defects 3 and 5): `due` compares the LIVE site, not the committed files. It reads the live
+// /version.json: if live is behind main over the deploy paths (a push deploy cancelled by this pending run, or one
+// that failed before Hosting), a hosting-only run would stamp main's sha and hide that functions / rules never
+// shipped, so the run fails loudly instead. Otherwise it is due only when a post or project date passed since the
+// last hosting deploy (deployedAt), so a week with nothing new really skips, even while the repo copy lags.
+const permBlock = (due || '').match(/^    permissions:\s*\n((?:      .+\n?)+)/m);
+const perms = permBlock ? permBlock[1].trim().split(/\n\s*/).map((l) => l.replace(/\s*#.*$/, '').trim()).sort() : [];
+ok('…token: contents read + actions read, nothing writable', JSON.stringify(perms) === JSON.stringify(['actions: read', 'contents: read']), perms.join(', '));
+ok('…checks out full history (the live sha must be diffable against main)', !!due && /fetch-depth:\s*0/.test(due));
+ok('…decides with `node scripts/verify-live-deploy.js due` against the live site',
+  !!due && /node scripts\/verify-live-deploy\.js due\b/.test(due) && /LIVE_URL:\s*https:\/\/nobigdealwithjoedeal\.com/.test(due));
+ok('…no longer decides from the committed files (strict feed / projects checks)',
+  !!due && !/build-feed\.mjs --strict/.test(due) && !/build-projects\.mjs --check --strict/.test(due));
 ok('…publishes a `due` output', !!due && /outputs:\s*\n\s+due:\s*\$\{\{\s*steps\.\w+\.outputs\.due\s*\}\}/.test(due));
+
+console.log('\nverify-live-deploy.js decideDue(): the scheduled run\'s decision');
+const v = require(path.join(ROOT, 'scripts', 'verify-live-deploy.js'));
+ok('decideDue is exported', typeof v.decideDue === 'function');
+if (typeof v.decideDue === 'function') {
+  const A = 'a'.repeat(40), B = 'b'.repeat(40);
+  const base = { stamp: { sha: B, deployedAt: '2026-11-10T09:20:00.000Z' }, mainSha: B, liveKnown: true, changed: [],
+    otherRunActive: false, publishedDays: ['2026-11-03', '2026-11-10', '2026-11-17', '2026-12-01'], today: '2026-11-17' };
+  const d = (o) => v.decideDue({ ...base, ...o });
+  ok('live == main, a post dated after the last deploy and on/before today → deploy',
+    d({}).action === 'deploy' && /2026-11-17/.test(d({}).reason), JSON.stringify(d({})));
+  ok('live == main, nothing dated after the last deploy → skip (green, no deploy)',
+    d({ today: '2026-11-16' }).action === 'skip', JSON.stringify(d({ today: '2026-11-16' })));
+  ok('a post dated the same day as the last deploy was already rendered by it → skip',
+    d({ stamp: { sha: B, deployedAt: '2026-11-17T01:00:00.000Z' } }).action === 'skip');
+  ok('future-dated items never make it due', d({ today: '2026-11-16', publishedDays: ['2026-12-01'] }).action === 'skip');
+  ok('main moved past live only outside the deploy paths → still decided by the dates',
+    d({ stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, changed: [] }).action === 'deploy');
+  const behind = d({ stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, changed: ['functions/index.js'] });
+  ok('live behind main over the deploy paths → fail loudly (a hosting-only run would hide that the backend never shipped)',
+    behind.action === 'fail' && /scope=all/.test(behind.reason), JSON.stringify(behind));
+  ok('…even when nothing is newly due', d({ today: '2026-11-16', stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, changed: ['firestore.rules'] }).action === 'fail');
+  ok('live sha not on main → fail', d({ stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, liveKnown: false, changed: null }).action === 'fail');
+  ok('live..main diff not computable → fail, not a silent deploy', d({ stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, changed: null }).action === 'fail');
+  ok('live /version.json unreadable → fail', d({ stamp: null }).action === 'fail');
+  ok('another deploy run queued/running → skip (it ships main, regeneration included)',
+    d({ otherRunActive: true, stamp: { sha: A, deployedAt: '2026-11-10T09:20:00.000Z' }, changed: ['functions/index.js'] }).action === 'skip');
+  ok('live == main but no deployedAt in the stamp → deploy (hosting at the sha live already serves is harmless)',
+    d({ stamp: { sha: B }, today: '2026-11-16' }).action === 'deploy');
+}
 
 console.log('\nthe deploy job waits for `due` on a schedule, and only then');
 const deployNeeds = ((jobBlock('deploy') || '').match(/^    needs:\s*(.+)$/m) || [])[1] || '';
