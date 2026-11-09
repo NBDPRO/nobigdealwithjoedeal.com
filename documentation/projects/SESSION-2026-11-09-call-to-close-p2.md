@@ -16,7 +16,7 @@ The five lanes were cherry-picked in this order, every commit kept: walkthrough 
 
 ## Integration decisions
 
-- **One sheet, one order.** `call-brief-ui.js` renders: banners, summary, customer details, promises, follow-up date, this call (phone only), stage, objections, who decides, follow-up message, drafts (estimate, proposal). One filled button, picked by `primaryAct()`. On a walkthrough every heading and badge says "at the walkthrough" (Who decides now says "Heard at the walkthrough").
+- **One sheet, one order.** `call-brief-ui.js` renders: banners, summary, customer details, promises, follow-up date, this call (phone only), stage, objections, who decides, follow-up message, drafts (estimate, proposal). One filled button, picked by `primaryAct()`. On a walkthrough every heading says "at the walkthrough" (Who decides now says "Heard at the walkthrough", once, in its lead-in line: the per-card badge was dropped in the final review).
 - **Cache-busting.** The walkthrough and split-merge lanes had already moved `call-brief-ui.js` to `?v=3` and `call-center-view.js` to `?v=29`; decision map wanted the same numbers. Kept as is: they are still above what P1 shipped (`v=2` / `v=28`), and `customer-calls.js` is `v=11`, `script-loader.js` is `v=212` on both pages. Boot budget 36/36.
 - **`call-brief.js`.** `gateFor(data)` picks the walkthrough or the call gate; `briefInput` then reads the merged transcript for a call (a visit has no `mergedFrom`, so it reads its own). Both the visit's `source / visitId / visitUid` and the call's `mergedFrom` are stored on the brief.
 - **Flags.** The registry pins 56 flags (`CALL_RETENTION_ENABLED` and `CALL_CENTER_MULTI_TENANT_ENABLED` both added).
@@ -39,12 +39,30 @@ The five lanes were cherry-picked in this order, every commit kept: walkthrough 
 4. **Split-call merge:** confirm the two readings in the design note (a promise found only on the redial still surfaces; an unfiled redial stays unfiled).
 5. **Walkthrough:** the live eval of walkthrough cases (`scripts/eval-call-brief.js`, `source: 'visit'`) on real recordings, to see how many scope facts survive grounding.
 
+## Final review round (2026-11-09)
+
+Two reviewers, deduped to these fixes, each test first, one commit each:
+
+- **Merge: an unfiled first call never takes a filed redial** (`call-merge-logic.js`, server and client twin): "File the first call on the customer first." Before, the redial hid on its customer's page while the unfiled first call showed there only by number, and neither could be briefed. Split-merge suite, 3 new cases (2 red).
+- **Merge deletes the redial's own half-call brief** (`leads/{lead}/call_briefs/{redialId}`) in the same transaction, so an older client cannot serve it from the cache. Split-merge suite (2 red).
+- **Walkthrough wording:** the drafts copy ("each marked from the walkthrough"), the Copy list header ("Who decides (heard at the walkthrough):") and the estimate builder strip's footer no longer say "call" on a walkthrough. Walkthrough-ui (2 red), estimate-prefill (1 red).
+- **Who decides** says "Heard on the call / at the walkthrough" once, in the lead-in line; the per-card badge that repeated it is gone. Decision-map and walkthrough-ui (2 red).
+- **"Brief this walkthrough"** on the customer timeline is a ghost button (btn-ghost tokens on `.tl-row-btn`), so the card's Add Task stays its one filled button. Walkthrough-ui (1 red).
+- **Retention note:** the runbook now says not to turn `CALL_RETENTION_ENABLED` on until Jo answers open questions 1 (timeline rows keep the summary and promises) and 4 (visit-capture and `thursday_calls` transcripts); a new question 7 (a merged pair's brief keeps the redial's words until the first call is processed, normally the same night); and the scan-cost limit (about 30k pre-cutoff records a phase) is tracked as work to do before a second tenant goes live.
+
+**P1 behaviour change, name it in the PR body.** `groundQuote` in `functions/call-brief-logic.js` now matches a quote on whole words only (`' ' + q + ' '`). That tightens grounding for every call brief, P1 calls included, not only P2's. It is safer (a quote can no longer ground on part of a word), and the eval and logic suites pass, but it is a change to P1.
+
+**Process.** The integrator's rules-suite results came from a stray emulator (pid 12947, started with another worktree's rules, `single_project_mode`, project `nbd-probe-x`). Each suite loads this worktree's `firestore.rules` into its own project id, so those results held, and a reviewer re-ran them all with fresh project ids. In this round every rules suite ran on its own dedicated emulator (`firebase emulators:exec` in a private network namespace, so the stray on port 8080 was neither used nor touched), one suite at a time.
+
 ## Gaps (not built)
 
 - Visit recordings made before this deploy have no `segIndex`, so their walkthrough briefs mark nothing unsure (the digit rule still applies).
 - Visit transcripts themselves (`users/{uid}/visit_captures`) and `thursday_calls` are not swept by retention; only the briefs made from walkthroughs are (retention note, question 4).
 - The sheet's footer Close button is under 44 px tall at desktop width (44 px on a phone); not changed here.
 - The sheet does not say on a merged call's brief that it read two recordings (the Call Center card does).
+- Both of the above are follow-ups, agreed in the final review.
+- If a merged pair's calls are both unfiled and the redial is filed later, the redial hides on that customer's page (its first call shows there by number only). The final-review rule refuses the merge only when it is made; filing a merged redial is not blocked.
+- Retention's per-phase scan counts records already stripped (retention note, Scale): needs a done marker or a `retention.*` filter before tenants scale up.
 
 ## Screenshots (375x812 and 1280x800, the sample account)
 
@@ -53,3 +71,5 @@ The integrated sheet for a merged call and for a walkthrough (every section), th
 ## How it was checked
 
 Each cross-lane rule was seen failing before its fix (retention §7b: 4 red; walkthrough §6: 11 red; walkthrough-ui wording: 1 red; estimate-prefill wording: 3 red). Gates on the final head: syntax, site integrity, inline scripts, partials, vault index, manifest check (1008 / 74 / 1145), boot budget 36/36, the full node bucket, smoke 4434/4434, the rules emulator suites one at a time (call-briefs-visit 25, call-feed 21, call-briefs 20, cross-tenant 482, company-docs 47), and the two browser suites (pro-demo-zero-network 122, crm-layouts-render 49).
+
+**Final review round gates (head after the fixes):** syntax (2395 files), manifest check (1008 / 74 / 1145, FLOORS unchanged: no suites added), boot budget 36/36, the full node bucket 1008/1008, smoke 4434/4434, the rules suites one at a time on a dedicated emulator (call-briefs-visit 25, call-feed 21, call-briefs 20, company-docs 47, cross-tenant 482), and the browser suites (pro-demo-zero-network 122, crm-layouts-render 49).
