@@ -113,3 +113,5 @@ when the live site is behind `main` on a deploy path. The `docs/llms.txt` blog l
 `LLMS:BLOG` region, and posts dated from 2026-11-10 must fall on a Tuesday, one per ISO week. Details and the
 review round: [SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09](SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09.md).
 Runbook: [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).
+
+**Built 2026-11-09 (§1 steps 1-2, the photo matcher):** `scripts/match-job-photos.js` on branch `photo-matcher`, dry run by default; `--apply` needs Jo's OK per run. See [SESSION-2026-11-09-photo-matcher](SESSION-2026-11-09-photo-matcher.md).
