@@ -127,7 +127,7 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 /* the desk column's own buttons */
 .os-hw-tools {
   position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px);
-  padding: var(--ui-space-1, 4px); background: color-mix(in srgb, var(--s) 88%, transparent);
+  padding: var(--ui-space-1, 4px); background: var(--s);   /* opaque: the widgets scroll under it */
   border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px);
 }
 .os-hw-tool { flex: 1 1 auto; min-height: 44px; justify-content: center; }
