@@ -5827,7 +5827,7 @@
       '<span class="v2-call-k">' + _callEsc(a.name) + '</span> ' + _callEsc(a.label) +
       '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + ' from the call') + '">×</button></span>').join('');
     const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said on the call, not filled in (' + a.why + ')')
-      .concat((h.mentions || []).map((m) => m + ' mentioned on the call')).concat((h.said || []).map((q) => 'Said: “' + q + '”'));
+      .concat((h.mentions || []).map((m) => m + ' mentioned on the call')).concat((h.said || []).map((q) => 'Said: “' + q + '”')).concat(h.unsure || []);
     const repair = c.applied.some((a) => a.key === 'workKind' && a.to === 'repair') || (state.workKind === 'repair');
     const tpls = c.templates.length
       ? '<div class="v2-call-sub">' + (repair ? 'Repair quick quote: tap a repair template, priced from your price book' : 'Templates for this job, priced from your price book') + '</div>' +

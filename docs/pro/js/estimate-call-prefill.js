@@ -67,7 +67,7 @@
    * mentions[]}, workKind, words }
    */
   function fromBrief(brief) {
-    var out = { items: [], hints: { sqft: [], said: [], mentions: [] }, workKind: null, words: '' };
+    var out = { items: [], hints: { sqft: [], said: [], mentions: [], unsure: [] }, workKind: null, words: '' };
     var b = brief && typeof brief === 'object' ? brief : null;
     if (!b) return out;
     // Unreliable text grounds garbage: nothing from it (the server blanks it too).
@@ -89,7 +89,7 @@
     [['stories', sc.stories, 'Stories'], ['tearOffLayers', sc.layers, 'Layers']].forEach(function (x) {
       var n = smallInt(factValue(x[1]));
       if (!n) return;
-      if (x[1].retype === true) out.hints.said.push(x[2] + ': "' + (factQuote(x[1]) || label(x[0], n)) + '" (hard to hear on the recording; not filled in)');
+      if (x[1].retype === true) out.hints.unsure.push(x[2] + ' was hard to hear on the recording (\u201c' + (factQuote(x[1]) || label(x[0], n)) + '\u201d), so it is not filled in. Check it and set it yourself.');
       else out.items.push(item(x[0], n, factQuote(x[1])));
     });
     var men = sc.mentions && typeof sc.mentions === 'object' ? sc.mentions : {};

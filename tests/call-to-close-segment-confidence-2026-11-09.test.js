@@ -256,7 +256,9 @@ const CTX = { transcript: TRANSCRIPT, callYmd: '2026-11-05' };
     const EP = require(path.join(ROOT, 'docs/pro/js/estimate-call-prefill.js'));
     const pre = EP.fromBrief(b2);
     ok('the estimate prefill never fills stories or layers heard as hard to hear', !pre.items.some((x) => x.key === 'stories' || x.key === 'tearOffLayers'), pre.items.map((x) => x.key));
-    ok('…it shows them as said-on-the-call words, marked hard to hear', pre.hints.said.some((w) => /hard to hear/i.test(w) && /stor/i.test(w)) && pre.hints.said.some((w) => /hard to hear/i.test(w) && /layer/i.test(w)), pre.hints.said);
+    ok('…it lists them apart (hints.unsure), each naming the choice and saying it was hard to hear', Array.isArray(pre.hints.unsure) && pre.hints.unsure.some((w) => /hard to hear/i.test(w) && /^Stories/.test(w)) && pre.hints.unsure.some((w) => /hard to hear/i.test(w) && /^Layers/.test(w)), pre.hints.unsure);
+    ok('…never inside the plain said-words list (the strip wraps those in quote marks)', !pre.hints.said.some((w) => /hard to hear/i.test(w)), pre.hints.said);
+    ok('the builder strip renders hints.unsure as its own lines', /\(h\.unsure \|\| \[\]\)/.test(read('docs/pro/js/estimate-v2-ui.js')));
     const preClear = EP.fromBrief(plain2);
     ok('…a clear stories / layers is still filled in', preClear.items.some((x) => x.key === 'stories') && preClear.items.some((x) => x.key === 'tearOffLayers'));
 
