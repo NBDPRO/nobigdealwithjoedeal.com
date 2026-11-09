@@ -459,6 +459,25 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('a call tier that swaps nothing (best) still applies on the same scope', st().tier === 'best' && JSON.stringify(st().scope) === scope14);
     W.closeEstimateV2Builder();
     await tick(450);
+
+    section('C4. an autosave still pending from before the open (review 2026-11-09)');
+    // The rep edits, then (inside the 400 ms debounce) Start estimate opens
+    // the builder for the same customer. The pending save must keep the
+    // rep's state, not pick up the call's choices when it fires.
+    leads([{ id: 'L15', firstName: 'Ka', lastName: 'Le', address: '15 Elm St', jobType: '' }]);
+    W.openEstimateV2Builder({ leadId: 'L15' });
+    await tick(450);
+    try { delete env.store[DRAFT_KEY]; } catch (_) {}
+    V2.addToScope('RFG 240-TAMKO-HERITAGE');   // queues the debounced autosave
+    W.openEstimateV2Builder({ leadId: 'L15', callPrefill: { callId: 'cube_PEND1', brief: clone(BRIEF) } });
+    await tick(600);
+    let saved15 = null;
+    try { saved15 = JSON.parse(env.store[DRAFT_KEY] || 'null'); } catch (_) { saved15 = null; }
+    ok('(the call\'s choices did apply)', st().jobMode === 'cash' && st().workKind === 'repair');
+    ok('the rep\'s pending edit is saved (the Heritage line)', !!saved15 && (saved15.scope || []).some((x) => x.code === 'RFG 240-TAMKO-HERITAGE'), saved15 && saved15.scope);
+    ok('…from the state before the call\'s choices (no cash, no repair in the draft)', !!saved15 && saved15.jobMode !== 'cash' && saved15.workKind !== 'repair', saved15 && { jobMode: saved15.jobMode, workKind: saved15.workKind });
+    W.closeEstimateV2Builder();
+    await tick(450);
   }
 
   // ════════════════════════════════════════════════════════════════════

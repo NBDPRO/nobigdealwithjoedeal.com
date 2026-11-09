@@ -3809,6 +3809,7 @@
     clearTimeout(_draftLocalTimer);
     _draftLocalTimer = setTimeout(() => {
       _draftLocalTimer = null;   // "pending" is observable (_flushDraftNow)
+      if (state._callPrefillClean) return;   // the call's choices are never saved by themselves
       try {
         const payload = collectDraft();
         localStorage.setItem(DRAFT_KEY_LOCAL, JSON.stringify(payload));
@@ -3840,7 +3841,7 @@
     if (!_draftLocalTimer) return;
     clearTimeout(_draftLocalTimer);
     _draftLocalTimer = null;
-    if (state._reopenedClean) return;
+    if (state._reopenedClean || state._callPrefillClean) return;
     try { localStorage.setItem(DRAFT_KEY_LOCAL, JSON.stringify(collectDraft())); } catch (e) { /* best effort */ }
   }
 
@@ -5536,7 +5537,10 @@
     // Call to Close P1: a call brief's choices (the sheet's Start estimate,
     // or the customer page's ?lead=<id>&callBrief=<callId> deep link).
     const callSrc = leadId ? _callPrefillSource(leadId, opts) : null;
-    if (callSrc) state._callPrefillClean = true;
+    if (callSrc) {
+      _flushDraftNow();   // a save still pending from the rep's last edit keeps the rep's state
+      state._callPrefillClean = true;
+    }
     if (leadId) {
       prefillFromLead(leadId);
       if (pendingImport) {
