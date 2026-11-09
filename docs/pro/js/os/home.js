@@ -487,6 +487,13 @@
     function onUp(ev) { if (press && ev.pointerId === press.pid) { W.clearTimeout(pressT); press = null; } }
 
     // ── Add widget: a native <dialog>, the catalog grouped, minus what the role hides ──
+    // a click whose target is the <dialog> itself may be its own padding or a gap between
+    // groups: only a point outside its box is the backdrop
+    function outside(d, ev) {
+      var r = d.getBoundingClientRect();
+      var x = ev.clientX, y = ev.clientY;
+      return typeof x === 'number' && typeof y === 'number' && (x < r.left || y < r.top || x > r.left + r.width || y > r.top + r.height);
+    }
     function openAdd() {
       if (addEl && addEl.parentNode) addEl.parentNode.removeChild(addEl);
       var d = doc.createElement('dialog');
@@ -513,7 +520,7 @@
       d.addEventListener('click', function (ev) {
         var t = ev.target;
         if (!t || !t.closest) return;
-        if (t === d || t.closest('[data-oshw-addclose]')) { d.close(); return; }
+        if (t.closest('[data-oshw-addclose]') || (t === d && outside(d, ev))) { d.close(); return; }
         var b = t.closest('[data-oshw-add]');
         if (!b || b.hasAttribute('disabled')) return;
         var next = HL.add(tagged(), b.getAttribute('data-oshw-add'), b.getAttribute('data-size'));

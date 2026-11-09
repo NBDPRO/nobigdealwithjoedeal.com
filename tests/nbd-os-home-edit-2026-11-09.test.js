@@ -212,6 +212,13 @@ G(() => {
   const esc = key(T4.dom, T4.document.querySelector('dialog.os-hw-add .os-hw-add-chip'), 'Escape');
   ok('Escape closes the sheet (even when a page-wide key handler would swallow the dialog\'s cancel)', !T4.document.querySelector('dialog.os-hw-add') && esc.defaultPrevented);
   ok('…and edit mode stays on underneath', byKey(phoneOf(T4), 'glance-1').classList.contains('is-editing'));
+  // review nit: a tap on the sheet's own padding (target === the <dialog>) is not a backdrop tap
+  click(T4.dom, phoneOf(T4).querySelector('[data-osp="homeadd"]'));
+  const d4 = T4.document.querySelector('dialog.os-hw-add');
+  fire(T4.dom, d4, 'click', { clientX: 20, clientY: 30 });
+  ok('a tap on the sheet\'s padding or a gap between groups keeps it open', d4.open === true && !!T4.document.querySelector('dialog.os-hw-add'));
+  fire(T4.dom, d4, 'click', { clientX: 2000, clientY: 30 });
+  ok('…a tap outside its box (the backdrop) closes it', d4.open === false && !T4.document.querySelector('dialog.os-hw-add'));
 });
 
 console.log('\n6. the Control Center tile (system layer, when loaded)');
