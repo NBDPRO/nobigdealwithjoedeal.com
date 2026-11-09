@@ -31,8 +31,27 @@ On a customer's timeline, a visit recording that has notes shows **Brief this wa
 
 - "Said on a call, not in this proposal" (`call-to-close-logic.js` `loadLeadBriefs`) reads only phone-call briefs; walkthrough briefs are not in that check yet.
 - Accepting the summary does not repaint the timeline until the page reloads (the button passes no `onChange`, to keep the boot-loaded code small).
-- Retention of walkthrough briefs follows the brief retention lane (they live under `leads/`, so account erasure covers them).
+- Retention: there is **no sweeper for `leads/*/call_briefs` in `functions/`** (Q7 default: briefs 24 months; design §9 lists retention as its own P2 item), and walkthrough briefs add more transcript-derived text to that collection. Account erasure covers them (they live under `leads/`), but nothing purges by age. **When the retention lane lands it must sweep `visit_*` briefs as well as phone-call briefs** (same collection, ids `visit_<visitId>`, `generatedAtMs` on every doc). Tracked here on purpose; not built in this lane.
 
 ## How it was checked
 
 Red before green, against `d1f7bfe0c`: the server suite 22 passed / 62 failed, the UI suite 12 / 10, the rules suite 19 / 6. Boot growth on `customer.html`: 594 shipped bytes (787 readable); `dashboard.html` 0. Screenshots of the timeline button, the sample account's quiet answer, the filled sheet and the proposal list at 375x812 and 1280x800; `window.__NBD_DEMO__.blocked` empty.
+
+## Review round (2026-11-09)
+
+Two reviewers, 13 items, deduped. Each fix is test-first, one commit.
+
+| Item | Fix |
+|---|---|
+| A stored `visit_<visitId>` brief is never checked against the caller's `visitUid` (ids are client-chosen; visit-capture.js `visit_id_conflict` was the only guard) | `callBrief` / `callBriefDecide` refuse (permission-denied) a stored walkthrough brief whose `visitUid` is not the caller's, before it is served, regenerated over or decided. |
+| `loadGatedVisit` answered not-found before the role test (an existence oracle on `users/{uid}/visit_captures/{id}`) | A missing visit runs `canActOnVisit` against the recorder's company first: a caller who may not act gets the same permission-denied as for a real one. |
+| `groundQuote` was a bare substring match ("2 layers" grounded in "12 layers"); on the walkthrough path `digitsInQuote` is always true, so the digit rule rested on it | Whole-word match (both sides are single-space-joined tokens, padded with spaces). Applies to every brief quote; every call-brief / call-to-close suite still passes. |
+| `MONEY_RE` missed "15k", "fifteen thousand", "8 hundred" | Dropped too; "hundred" / "thousand" followed by an area or length unit ("fifteen hundred square feet") is a measurement and is kept. |
+| A failed sheet load made the tap silent (`.catch(() => {})`) | The call card's toast: "Could not open the call brief. Try again in a moment." |
+| Every walkthrough button had the same accessible name | `aria-label="Brief this walkthrough from <time>"` (visible words lead: label in name). |
+| The button borrowed the receipt button's class | Its own `tl-row-btn` (44px, 6px top margin) in `invoice-pipeline.css`, `?v=7`. |
+| scope_facts are paraphrases, so production may keep few | The eval kit (`scripts/eval-call-brief.js`) takes walkthrough cases (`source: 'visit'`, `scopeFacts`) and reports **scope kept** per case and overall; one synthetic fixture (4 of 6 kept). Jo's live run on real walkthroughs is the measurement. |
+| Retention (Q7) has no sweeper for `call_briefs` | Not built here (its own P2 lane); tracked in "Not done" above, including `visit_*`. |
+| Accepting the summary does not repaint the timeline | Left as is (already in "Not done"; no `onChange`, to keep the boot path small). |
+
+Boot growth of this round on `customer.html`: +96 readable bytes in `call-timeline.js`, +71 in `customer-bootstrap.module.js` (shipped 1344 KB of 1346 KB). Re-shot on the demo at 375x812 and 1280x800 (the row, the sample's quiet answer, the toast when the sheet cannot load); the button reads `doc-btn tl-row-btn`, 44px, with a per-visit `aria-label`; `window.__NBD_DEMO__.blocked` empty. The toast shares the bottom edge with the demo's Sample account bar on a phone; that is the page-wide toast position, not this button's.
