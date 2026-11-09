@@ -118,6 +118,7 @@
     "call-ladder-2026-10-12.test.js",
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "never-forget-client-2026-10-13.test.js",
+    "estimate-settings-hydrate-2026-11-06.test.js",
     "home-strip-failed-reads-2026-10-13.test.js",
     "today-ux-walk-2026-10-13.test.js",
     "crm-walk-spacing-polish-2026-11-07.test.js",
