@@ -68,6 +68,12 @@ const CASES = [
   ['same owner, different company', P, call('cube_B', { startedAtMs: T0 + 5 * MIN, companyId: 'co2' }), 'Different owners.'],
   ['filed on two different customers', P, call('cube_B', { startedAtMs: T0 + 5 * MIN, leadId: 'L2' }), 'Filed on two different customers.'],
   ['both on the same customer', P, call('cube_B', { startedAtMs: T0 + 5 * MIN, leadId: 'L1' }), ''],
+  // Review 2026-11-09: an unfiled first call never takes a filed redial. The
+  // redial would hide on its customer's page (mergedInto) while the unfiled
+  // primary shows there only by number, and neither could be briefed.
+  ['an unfiled first call and a redial filed on a customer', call('cube_A', { leadId: null }), call('cube_B', { startedAtMs: T0 + 5 * MIN, leadId: 'L1' }), 'File the first call on the customer first.'],
+  ['the same pair, tapped from the redial', call('cube_B', { startedAtMs: T0 + 5 * MIN, leadId: 'L1' }), call('cube_A', { leadId: null }), 'File the first call on the customer first.'],
+  ['both unfiled', call('cube_A', { leadId: null }), call('cube_B', { startedAtMs: T0 + 5 * MIN, leadId: null }), ''],
   ['the first call has no length', call('cube_A', { durationSec: null }), call('cube_B', { startedAtMs: T0 + 5 * MIN }), 'The first call has no length.'],
   ['the first is already a merged primary', call('cube_A', { mergedFrom: 'cube_Z' }), call('cube_B', { startedAtMs: T0 + 5 * MIN }), 'Already merged.'],
   ['the second is already merged into another', P, call('cube_B', { startedAtMs: T0 + 5 * MIN, mergedInto: 'cube_Z' }), 'Already merged.'],

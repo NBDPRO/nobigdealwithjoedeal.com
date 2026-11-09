@@ -61,6 +61,9 @@
     var gap = startOf(o.secondary) - end;
     if (startOf(o.secondary) <= startOf(o.primary) || gap < -OVERLAP_GRACE_MS) return 'The calls overlap.';
     if (gap > MERGE_GAP_MS) return 'More than 10 minutes apart.';
+    // An unfiled first call never takes a redial filed on a customer (the
+    // server twin says why).
+    if (!o.primary.leadId && o.secondary.leadId) return 'File the first call on the customer first.';
     return '';
   }
 

@@ -14,7 +14,8 @@
  *                       not: same customer number, same owner tenant
  *                       (userId + companyId), never two different customers,
  *                       the second starts within 10 minutes of the first's
- *                       end, neither already merged, neither personal / spam
+ *                       end, an unfiled first call never takes a filed
+ *                       redial, neither already merged, neither personal / spam
  *                       / a missed call with no recording / a text day.
  *   orderPair(a, b)     { primary, secondary }: the earlier call is primary.
  *   candidates(calls)   [{ primaryId, secondaryId, gapMs }] for a list, each
@@ -83,6 +84,10 @@ function pairProblem(a, b) {
   const gap = startOf(secondary) - end;
   if (startOf(secondary) <= startOf(primary) || gap < -OVERLAP_GRACE_MS) return 'The calls overlap.';
   if (gap > MERGE_GAP_MS) return 'More than 10 minutes apart.';
+  // An unfiled first call never takes a redial filed on a customer: the
+  // redial would hide on that customer's page while the primary shows there
+  // only by number, and neither could be briefed (review 2026-11-09).
+  if (!primary.leadId && secondary.leadId) return 'File the first call on the customer first.';
   return '';
 }
 
