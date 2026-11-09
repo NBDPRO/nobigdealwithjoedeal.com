@@ -1224,6 +1224,8 @@ async function callAction({ db, auth, data, nowMs }) {
   // list on the Call Center) — Dismiss takes one call off it, and only off
   // it: nothing else on the call, the customer or a task changes.
   if (action === 'rescueDismiss' || action === 'rescueUndismiss') {
+    // The list holds calls only (call-rescue-logic.js skips texts).
+    if (isText) throw new HttpsError('invalid-argument', 'Needs a next step holds calls only.');
     const on = action === 'rescueDismiss';
     await ref.set({ rescueDismissedAtMs: on ? nowMs : null, rescueDismissedBy: on ? auth.uid : null }, { merge: true });
     return { ok: true };

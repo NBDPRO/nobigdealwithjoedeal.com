@@ -111,6 +111,11 @@ const LEADS = { L1: { id: 'L1', firstName: 'Pat', stage: 'new' }, L2: { id: 'L2'
     ok('another tenant is refused', other.e && other.e.code === 'permission-denied');
     const mgr = await run({ uid: 'mg', token: { role: 'manager', companyId: 'co1' } }, { action: 'rescueDismiss' });
     ok('a same-company manager may dismiss', mgr.r && mgr.r.ok === true);
+    // The list never shows a day of texts, so the action takes calls only.
+    const TXT = 'txt_5135550100_20261105';
+    docs.set('phone_text_days/' + TXT, { userId: 'jo', companyId: 'co1', status: 'noted', leadId: 'L1', channel: 'text' });
+    const tx = await run({ uid: 'jo', token: {} }, { id: TXT, action: 'rescueDismiss' });
+    ok('a day of texts (txt_ id) is refused and not written', tx.e && tx.e.code === 'invalid-argument' && docs.get('phone_text_days/' + TXT).rescueDismissedAtMs === undefined, tx.e ? tx.e.message : tx.r);
   }
 
   console.log('\n3. The view');
