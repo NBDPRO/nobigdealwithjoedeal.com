@@ -32,7 +32,9 @@
  *
  * Gate: LEADERBOARD_AGGREGATE_ENABLED=true. Anything else computes and LOGS
  * counts only and writes nothing (the page and widget then show their own
- * fallback / empty state).
+ * fallback / empty state), and counts ONE company per run (the first by id,
+ * DRY_RUN_COMPANIES), so a dark feature does not bill every company's reads
+ * 48 times a day.
  */
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
@@ -43,6 +45,7 @@ const jobsLogic = require('./jobs-logic');
 const enabled = () => process.env.LEADERBOARD_AGGREGATE_ENABLED === 'true';
 const MAX_MEMBERS = 50;
 const STATE_DOC = 'system/leaderboardAggregate';
+const DRY_RUN_COMPANIES = 1; // the dry run (gate off) counts this many companies per run, enough to check its log
 const BUDGET_MS = 240000;  // stop starting companies 4 minutes in (timeoutSeconds 300); the next run resumes
 const CAP = 2000;          // knocks / leads per member per week: far above one rep's week
 
@@ -153,8 +156,8 @@ async function runCompany(db, companyId, company, nowMs, live, out) {
  * out-of-time run stops with partial:true and next = the last company it finished (or, when
  * it finished none, the cursor it was given, so the resume point is never lost).
  */
-async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = Infinity, clock = Date.now, concurrency = 4 }) {
-  const out = { companies: 0, written: 0, unchanged: 0, removed: 0, wouldWrite: 0, wouldRemove: 0, failed: 0, partial: false, next: null };
+async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = Infinity, clock = Date.now, concurrency = 4, maxCompanies = Infinity }) {
+  const out = { companies: 0, written: 0, unchanged: 0, removed: 0, wouldWrite: 0, wouldRemove: 0, failed: 0, partial: false, capped: false, next: null };
   const one = async (d) => {
     out.companies++;
     try {
@@ -181,11 +184,13 @@ async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = I
       if (cs.empty) break;
       cursor = cs.docs[cs.docs.length - 1];
       const docs = pass.until ? cs.docs.filter((d) => d.id <= pass.until) : cs.docs;
-      for (let i = 0; i < docs.length; i += width) {
+      for (let i = 0; i < docs.length; ) {
         if (clock() >= deadlineMs) { out.partial = true; out.next = last; return out; }
-        const group = docs.slice(i, i + width);
+        if (out.companies >= maxCompanies) { out.capped = true; return out; }   // the dry run's cap: no cursor kept
+        const group = docs.slice(i, i + Math.min(width, maxCompanies - out.companies));
         await Promise.all(group.map(one));
         last = group[group.length - 1].id;
+        i += group.length;
       }
       if (cs.docs.length < 500 || docs.length < cs.docs.length) break;
     }
@@ -202,7 +207,7 @@ exports.leaderboardAggregate = onSchedule(
     const start = Date.now();
     // the resume cursor (server only: firestore.rules closes system/{doc} to every client)
     const state = live ? ((await docData(db.doc(STATE_DOC)).catch(() => null)) || {}) : {};
-    const r = await runAggregate({ db, nowMs: start, live, startAfter: state.cursor || null, deadlineMs: start + BUDGET_MS });
+    const r = await runAggregate({ db, nowMs: start, live, startAfter: state.cursor || null, deadlineMs: start + BUDGET_MS, maxCompanies: live ? Infinity : DRY_RUN_COMPANIES });
     if (live && (r.next || state.cursor)) await db.doc(STATE_DOC).set({ cursor: r.next || null, at: Date.now() });
     if (r.partial) logger.warn('leaderboard_aggregate_partial', { next: r.next, companies: r.companies });
     logger.info(live ? 'leaderboard_aggregate_run' : 'leaderboard_aggregate_dry_run', r);

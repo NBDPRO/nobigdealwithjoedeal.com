@@ -262,6 +262,20 @@ const has = (fn) => L && typeof L[fn] === 'function';
         dbm.writes.filter((w) => w[1] === 'leaderboard/u7').length === 3 && J(dbm.writes.slice(w1).filter((w) => w[1] === 'leaderboard/u7')) === J([['set', 'leaderboard/u7']]), J(dbm.writes));
       ok('a member whose users doc names their own company (or no company) is still counted', !!st['leaderboard/o1'] && st['leaderboard/o1'].companyId === 'c1' && !!st['leaderboard/o2']);
     }
+    {
+      // review 2026-11-09 (final): while the feature is dark the dry run counts ONE company per run (the
+      // first by id), not every company's members, knocks, leads and jobs 48 times a day.
+      const st = {};
+      ['c1', 'c2', 'c3'].forEach((c, i) => { st['companies/' + c] = { ownerId: 'o' + (i + 1) }; });
+      const dbd = fakeDb(st);
+      const d = await AGG.runAggregate({ db: dbd, nowMs: now, live: false, maxCompanies: 1 });
+      const memberReads = dbd.queries.filter((q) => /^companies\/c\d\/members$/.test(q.coll)).map((q) => q.coll.split('/')[1]);
+      ok('maxCompanies: 1 counts the first company only and says it stopped on the cap (not on time)', d.companies === 1 && d.capped === true && d.partial === false && J(memberReads) === J(['c1']), J([d, memberReads]));
+      const SRCD = read('functions/leaderboard-aggregate.js');
+      ok('the scheduled dry run passes the one-company cap; the live run has none', /maxCompanies:\s*live\s*\?\s*Infinity\s*:\s*DRY_RUN_COMPANIES/.test(SRCD) && /const DRY_RUN_COMPANIES = 1;/.test(SRCD));
+      const all3 = await AGG.runAggregate({ db: fakeDb(Object.assign({}, st)), nowMs: now, live: false });
+      ok('without the cap every company is counted', all3.companies === 3 && !all3.capped, J(all3));
+    }
     ok('the reads are bounded: knocks and leads by userId from the week start, never a whole collection',
       db.queries.every((q) => q.coll !== 'knocks' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'createdAt' && w[1] === '>=')))
       && db.queries.every((q) => q.coll !== 'leads' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'updatedAt' && w[1] === '>='))), J(db.queries.slice(0, 6)));
