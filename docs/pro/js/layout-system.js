@@ -870,7 +870,7 @@
     if (systemLoading) return systemLoading;
     systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=1'] } })
       .then(function () { return loadScriptPath('js/os/system-logic.js'); })
-      .then(function () { return loadScriptPath('js/os/system.js?v=1'); });
+      .then(function () { return loadScriptPath('js/os/system.js?v=2'); });
     return systemLoading;
   }
 
