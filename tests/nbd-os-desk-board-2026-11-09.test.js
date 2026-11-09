@@ -200,6 +200,37 @@ G(() => {
   ok('no Firestore read, no fetch', T.reads.length === 0, J(T.reads));
 });
 
+console.log('\n4b. the column scrolls mid-drag (wheel): the board moves, the drag keeps up');
+G(() => {
+  const T = mountDesk({ phone: [], desk: [{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }] });
+  const col = deskCol(T);
+  const list = col.querySelector('.os-hw-list');
+  let top = 50;
+  list.getBoundingClientRect = () => ({ left: 100, top, width: 636, height: 800 });
+  click(T.dom, col.querySelector('[data-osdo="homeedit"]'));
+  // a cell drag: the widget stays under the pointer, so after a scroll it is over the content now under it
+  const sc = byKey(col, 'shortcuts-1');
+  sc.getBoundingClientRect = () => ({ left: 100, top: 222, width: 150, height: 160 });
+  fire(T.dom, sc.querySelector('.os-hw-body'), 'pointerdown', { clientX: 160, clientY: 300, pointerId: 21 });
+  fire(T.dom, sc, 'pointermove', { clientX: 160, clientY: 320, pointerId: 21 });
+  ok('cell drag before the scroll: row 2', pos(sc) === 'os-hw-x1 os-hw-y2', pos(sc));
+  top = 50 + 172;   // scrolled up a row: the board slid down under a still pointer
+  fire(T.dom, sc, 'pointermove', { clientX: 160, clientY: 321, pointerId: 21 });
+  ok('…after the scroll: the row now under the pointer (row 1)', pos(sc) === 'os-hw-x1 os-hw-y1', pos(sc));
+  fire(T.dom, sc, 'pointercancel', { clientX: 160, clientY: 321, pointerId: 21 });
+  // the grip: the widget's corner moved with the board, so the size is measured from where it is now
+  top = 50;
+  const g = byKey(col, 'glance-1');
+  g.getBoundingClientRect = () => ({ left: 100, top: 50, width: 312, height: 160 });
+  fire(T.dom, g.querySelector('[data-oshw-grip]'), 'pointerdown', { clientX: 400, clientY: 200, pointerId: 22 });
+  fire(T.dom, g, 'pointermove', { clientX: 410, clientY: 50 + 2 * 172, pointerId: 22 });
+  ok('grip before the scroll: two rows down is L', g.classList.contains('is-l'), g.className);
+  top = 50 + 172;   // the board (and Glance with it) slid down a row; the pointer is one row below Glance's top
+  fire(T.dom, g, 'pointermove', { clientX: 410, clientY: 50 + 2 * 172 + 1, pointerId: 22 });
+  ok('…after the scroll the grip reaches one row from Glance\'s top now: M, not a stale L', g.classList.contains('is-m') && !g.classList.contains('is-l'), g.className);
+  fire(T.dom, g, 'pointercancel', { clientX: 410, clientY: 395, pointerId: 22 });
+});
+
 console.log('\n5. the CSS and the files');
 G(() => {
   const css = read('docs/pro/css/os/home.css').replace(/\n/g, ' ');

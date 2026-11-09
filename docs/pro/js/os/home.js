@@ -565,7 +565,7 @@
       if (grip && !board) return;
       var r = rect(sec);
       drag = { pid: ev.pointerId, key: key, sec: sec, x0: ev.clientX, y0: ev.clientY, on: false,
-        mode: grip ? 'size' : (board ? 'cell' : 'drop'), r0: r, base: tagged(), next: null, drop: null, edge: 0, edgeT: null };
+        mode: grip ? 'size' : (board ? 'cell' : 'drop'), r0: r, g0: rect(el), base: tagged(), next: null, drop: null, edge: 0, edgeT: null };
     }
     function liftDrag() {
       drag.on = true;
@@ -617,8 +617,10 @@
         c.y = Math.max(0, Math.min(HL.DESK_MAX_Y, c.y));
         next = HL.deskMoveTo(drag.base, i, c.x, c.y);
       } else {
-        // the grip: the cells the pointer reaches, snapped to a size the widget offers
-        var w = Math.round((ev.clientX - r0.left) / (cw + g.gap)), h = Math.round((ev.clientY - r0.top) / (ROW_PX + g.gap));
+        // the grip: the cells the pointer reaches from the widget's corner where it is now (the column may
+        // have scrolled since pointerdown), snapped to a size the widget offers
+        var g0 = drag.g0 || g, ox = r0.left + (g.left - g0.left), oy = r0.top + (g.top - g0.top);
+        var w = Math.round((ev.clientX - ox) / (cw + g.gap)), h = Math.round((ev.clientY - oy) / (ROW_PX + g.gap));
         var s = h >= 2 ? 'l' : (w >= 2 ? 'm' : 's');
         var sizes = HL.CATALOG[drag.base[i].id].sizes;
         if (sizes.indexOf(s) === -1) s = sizes.reduce(function (a, b) { return Math.abs(HL.SIZES.indexOf(b) - HL.SIZES.indexOf(s)) < Math.abs(HL.SIZES.indexOf(a) - HL.SIZES.indexOf(s)) ? b : a; });
