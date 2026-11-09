@@ -58,6 +58,20 @@
  *   moneyMonth(invs, uid, now, collect) the member's own collected this month, in cents
  *   stackItems / weight / toggleCard   a Smart Stack's cards and the cap
  *
+ * The company home (P1): an owner or company_admin publishes one surface's
+ * arrangement to companies/{cid}/settings/layout.defaultWidgets['os-phone' |
+ * 'os-desk'] (ids and sizes only, never anyone's numbers) and may lock it.
+ *   companyList(defaultWidgets, surface)  that surface's published home, cleaned; null when none
+ *   resolveHome({ own, company, locked, admin })
+ *                              per surface: company lock > own home > company default > built-in,
+ *                              -> { v, phone, desk, src: { phone, desk } }; src is
+ *                              'company-lock' | 'user' | 'company-default' | 'default'. The lock
+ *                              binds members, not the owner or admins who set it, and only a
+ *                              surface that has a published home. A member on a company home sees
+ *                              only the business half of Coach and Daily Success (their own counts).
+ *   setSurface(own, surface, list)  the member's own key with one surface replaced (the other
+ *                              surface stays theirs only if it already was)
+ *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
  */
@@ -282,6 +296,55 @@
     if (!it || !known(it.id)) return '';
     if (oneCol || cellInt(it.x) === null || cellInt(it.y) === null) return describe(list, i);
     return CATALOG[it.id].title + ', ' + SIZE_NAME[it.s] + ', row ' + (it.y + 1) + ' column ' + (it.x + 1);
+  }
+
+  // ── the company home (P1) ─────────────────────────────────────
+  var CO_KEY = { phone: 'os-phone', desk: 'os-desk' };
+  function companyList(dw, surface) {
+    var raw = isObj(dw) && CO_KEY[surface] ? dw[CO_KEY[surface]] : null;
+    if (!Array.isArray(raw)) return null;
+    var out = [], used = 0, desk = surface === 'desk';
+    for (var i = 0; i < raw.length && used < MAX_ITEMS; i++) {
+      var it = desk ? cleanDeskItem(raw[i]) : cleanItem(raw[i]);
+      if (it && used + weightOf(it) <= MAX_ITEMS) { out.push(it); used += weightOf(it); }
+    }
+    if (raw.length && !out.length) return null;   // all garbage = nothing published
+    return desk ? deskBoard(out) : out;
+  }
+  /** Company-level means business-level: a widget with a personal half shows only the business half. */
+  function businessOnly(list) {
+    return list.map(function (it) {
+      var c = CATALOG[it.id].config;
+      if (!c || !c.show || c.show.indexOf('business') === -1) return it;
+      var o = copyItem(it);
+      o.cfg = {};
+      Object.keys(it.cfg || {}).forEach(function (k) { o.cfg[k] = it.cfg[k]; });
+      o.cfg.show = 'business';
+      return o;
+    });
+  }
+  function resolveHome(input) {
+    var inp = isObj(input) ? input : {};
+    var own = isObj(inp.own) ? inp.own : null;
+    var mine = own ? normalize(own) : null;
+    var out = { v: 1, src: {} };
+    SURFACES.forEach(function (s) {
+      var co = companyList(inp.company, s);
+      if (co && inp.locked === true && inp.admin !== true) { out[s] = businessOnly(co); out.src[s] = 'company-lock'; }
+      else if (mine && Array.isArray(own[s])) { out[s] = mine[s]; out.src[s] = 'user'; }
+      else if (co) { out[s] = inp.admin === true ? co : businessOnly(co); out.src[s] = 'company-default'; }
+      else { out[s] = s === 'desk' ? deskBoard(copyList(DEFAULT)) : copyList(DEFAULT); out.src[s] = 'default'; }
+    });
+    return out;
+  }
+  function setSurface(own, surface, list) {
+    var r = isObj(own) ? own : {};
+    var out = { v: 1 };
+    SURFACES.forEach(function (s) {
+      if (s === surface) out[s] = cleanList(Array.isArray(list) ? list : [], s === 'desk');
+      else if (Array.isArray(r[s])) out[s] = cleanList(r[s], s === 'desk');
+    });
+    return out;
   }
 
   // ── what the widgets show ─────────────────────────────────────
@@ -697,6 +760,7 @@
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
+    CO_KEY: CO_KEY, companyList: companyList, resolveHome: resolveHome, setSurface: setSurface,
     CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, jobsLeft: jobsLeft, glanceCounts: glanceCounts, headline: headline, noMoreLine: noMoreLine,
     dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
     STACK_MAX: STACK_MAX, STACK_DEFAULT: STACK_DEFAULT, stackItems: stackItems, weight: weight, toggleCard: toggleCard,

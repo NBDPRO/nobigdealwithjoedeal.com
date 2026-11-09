@@ -95,11 +95,26 @@
     saveT = setTimeout(function () { saveT = null; if (S) writeState(S); }, SAVE_MS);
   }
   // ── home widgets (os/home.js), from layoutState['os-home'] ──
+  // The CRM's company-admin check (layouts/bento.js, layouts/picker.js): the solo
+  // owner or a company_admin. firestore.rules is the real gate on what they write.
+  function canAdmin() {
+    var c = W._userClaims || {};
+    var role = String(c.role || '');
+    if (role === 'viewer' || role === 'sales_rep' || role === 'manager') return false;
+    var u = W._user && W._user.uid;
+    return role === 'company_admin' || !c.companyId || c.companyId === u;
+  }
+  function prefs() { return safe(function () { return W.LayoutEngine.prefs(); }) || {}; }
+  /** The member's own saved key (an edit not written yet first), or null. */
+  function ownHome() {
+    if (S && S.homeNext) return S.homeNext;
+    var p = prefs();
+    return p.user && p.user.layoutState ? p.user.layoutState[W.NBDOSHomeLogic.KEY] || null : null;
+  }
+  /** P1 company home: company lock > own home > company default > built-in (home-logic resolveHome). */
   function homeKey() {
-    var HL = W.NBDOSHomeLogic;
-    if (S && S.homeNext) return HL.normalize(S.homeNext);   // an edit not written yet
-    var p = safe(function () { return W.LayoutEngine.prefs(); });
-    return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null);
+    var co = prefs().company || {};
+    return W.NBDOSHomeLogic.resolveHome({ own: ownHome(), company: co.defaultWidgets, locked: co.homeLocked === true, admin: canAdmin() });
   }
   function homeItems(surface) { return homeKey()[surface]; }
   // ── P1: frecency (#13) and the urgency ring (#5), both pure in os/home-logic.js ──
@@ -141,6 +156,13 @@
     S.urg = u;
     if (S.surface === 'phone') { if (S.phoneOpen || S.editing) paintBar(); else phonePaint(); } else paintIcons();
   }
+  function homeSurface() { return S && S.surface === 'phone' ? 'phone' : 'desk'; }
+  /** The company locked this surface's home for this member: no edit mode. */
+  function homeLocked() { return !!(S && S.home) && homeKey().src[homeSurface()] === 'company-lock'; }
+  var LOCKED_MSG = 'Your company set this home screen, so it can\'t be changed here.';
+  function toast(msg, kind) {
+    if (typeof W.showToast === 'function') safe(function () { W.showToast(msg, kind || 'info'); });
+  }
   function navHidden(id) {
     var e = L.readNav(doc).filter(function (x) { return x.id === id; })[0];
     return !e || !!e.hidden;
@@ -166,10 +188,9 @@
   // SAVE_MS for the next keystroke, like the window state, and is flushed on
   // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
-    var HL = W.NBDOSHomeLogic;
-    var key = homeKey();
-    key[surface] = list;
-    S.homeNext = HL.normalize(key);
+    if (homeLocked()) return;
+    // own key, this surface replaced: a surface still on the company home stays on it
+    S.homeNext = W.NBDOSHomeLogic.setSurface(ownHome(), surface, list);
     clearTimeout(S.homeSaveT);
     S.homeSaveT = setTimeout(flushHome, SAVE_MS);
     refreshHome();
@@ -190,6 +211,7 @@
   /** Edit mode on or off: the phone's (shared with the icons) or the desk column's. */
   function setHomeEditing(on, focusFirst) {
     if (!S || !S.home) return;
+    if (on && homeLocked()) { toast(LOCKED_MSG); return; }
     if (!on) flushHome();
     if (S.surface === 'phone') {
       if (on && S.phoneOpen) phoneHome();
@@ -216,9 +238,42 @@
     if (!t) return;
     t.innerHTML = S.homeEditing
       ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
+        teamHtml('data-osdo', 'os-hw-tool') +
         '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
-      : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>' +
+      : (homeLocked() ? '<p class="os-hw-locked">Your company set this home.</p>'
+        : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>') +
         '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="wallpaper">Wallpaper</button>';
+  }
+  // ── company home (P1): an owner or admin publishes this surface's home and locks team homes ──
+  // The two controls show in edit mode for canAdmin() only; their code is the
+  // lazy `oshomeco` bundle (js/os/home-company.js), loaded on the first tap.
+  function teamHtml(attr, cls) {
+    if (!canAdmin()) return '';
+    var on = (prefs().company || {}).homeLocked === true;
+    return '<button type="button" class="btn btn-ghost ' + esc(cls) + '" ' + esc(attr) + '="homepublish">Publish to team</button>' +
+      '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (on ? ' is-on' : '') + '" ' + esc(attr) + '="homelock" role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' +
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>';
+  }
+  function teamAction(what) {
+    if (!S || !S.home || !canAdmin()) return;
+    var surface = homeSurface();
+    function run() {
+      var C = W.NBDOSHomeCompany;
+      if (!S || !C || typeof C[what] !== 'function') return;
+      flushHome();
+      safe(function () { C[what]({ surface: surface, items: homeItems(surface), after: afterTeam }); });
+    }
+    if (W.NBDOSHomeCompany) return run();
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return toast('Couldn\'t open that just now. Try again.', 'error');
+    if (SL.bundles && !SL.bundles.oshomeco) SL.bundles.oshomeco = ['js/os/home-company.js?v=1'];
+    Promise.resolve(SL.loadBundle('oshomeco')).then(run, function () { toast('Couldn\'t open that just now. Try again.', 'error'); });
+  }
+  // after a publish or a lock change: repaint the home and its controls from the saved settings
+  function afterTeam() {
+    if (!S) return;
+    refreshHome();
+    if (S.surface !== 'phone') paintDeskTools();
   }
   // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
   // Load My Skin (a same-origin bundle), then open Settings at its panel.
@@ -783,6 +838,8 @@
     if (what === 'homeedit') return setHomeEditing(true, true);
     if (what === 'homedone') return setHomeEditing(false);
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'homepublish') return teamAction('publish');
+    if (what === 'homelock') return teamAction('lock');
     if (what === 'wallpaper') return openWallpaper();
   }
   function onDeskClick(ev) {
@@ -963,11 +1020,14 @@
         '<button type="button" class="btn btn-orange os-p-qbtn" data-osp="newlead">New lead</button>' +
         '<button type="button" class="btn btn-ghost os-p-qbtn" data-osp="search">Search</button>' +
       '</div></div>';
+    var locked = homeLocked();
     if (S.editing) {
       h += '<div class="os-p-edit' + (S.home ? ' has-home' : '') + '" role="status"><span>' +
-        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (S.home ? 'Drag a widget, or tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.')) + '</span>' +
-        (S.home ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
+        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (locked ? 'Tap an app, then tap where it goes. Your company set the widgets.'
+          : (S.home ? 'Drag a widget, or tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.'))) + '</span>' +
+        (S.home && !locked ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
         '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
+      if (S.home && canAdmin()) h += '<div class="os-hw-team" role="group" aria-label="Team home">' + teamHtml('data-osp', 'btn-sm') + '</div>';
     }
     if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
@@ -985,7 +1045,7 @@
     if (slot) {
       slot.parentNode.insertBefore(S.home.el, slot);
       slot.parentNode.removeChild(slot);
-      S.home.setEditing(!!S.editing);
+      S.home.setEditing(!!S.editing && !locked);   // a locked home's widgets never take edit chrome
       S.home.update(items);
     }
     var pagesEl = S.phoneEl.querySelector('.os-p-pages');
@@ -1129,7 +1189,9 @@
     if (what === 'home') return phoneHome();
     if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
     if (what === 'done') { S.editing = false; S.editPick = null; flushHome(); return phonePaint(); }
-    if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'homeadd' && S.home && !homeLocked()) return safe(function () { S.home.openAdd(); });
+    if (what === 'homepublish') return teamAction('publish');
+    if (what === 'homelock') return teamAction('lock');
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
     if (what === 'swclose') return closeSwitcher();
@@ -1326,6 +1388,12 @@
     watchVisits();
     registerControls();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
+    // settings read after mount (a company home published or locked): show what they say now
+    on(doc, 'nbd:layout-prefs', function () {
+      if (!S || !S.home) return;
+      if (homeLocked() && (S.homeEditing || S.editing)) { S.homeEditing = false; safe(function () { S.home.setEditing(false); }); }
+      afterTeam();
+    });
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
