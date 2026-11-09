@@ -529,7 +529,6 @@
    * from the 30 s tick.
    */
   var recapDay = '';   // the day key this page last asked on
-  function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function maybeRecap() {
     var now = Date.now(), today = HL.dayKey(now);
     if (recapDay === today || doc.hidden || privateNow()) return;   // "In a home": it names carried leads; the tick asks again
