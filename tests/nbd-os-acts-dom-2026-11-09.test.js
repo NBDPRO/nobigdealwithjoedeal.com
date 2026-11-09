@@ -233,6 +233,11 @@ const PRIV_HOME = {
     click(T.dom, phoneEl(T).querySelector('.os-act-chip'));
     await flush();
     ok('the chip opens the menu too', d.open);
+    const esc = H.key(T.dom, d.querySelector('.os-acts-pick'), 'Escape');
+    ok('Escape closes it itself (whatever else listens for Escape), focus back on the chip',
+      !d.open && esc.defaultPrevented && T.document.activeElement === phoneEl(T).querySelector('.os-act-chip'), String(T.document.activeElement && T.document.activeElement.className));
+    click(T.dom, phoneEl(T).querySelector('.os-act-chip'));
+    await flush();
     click(T.dom, d.querySelector('[data-osacts="rename"][data-id="inhome"]'));
     const input = d.querySelector('.os-acts-input');
     ok('Rename shows a labelled field, 24 characters at most', !!input && input.getAttribute('maxlength') === '24');
