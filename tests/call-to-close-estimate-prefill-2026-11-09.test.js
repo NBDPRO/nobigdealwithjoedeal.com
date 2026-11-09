@@ -430,6 +430,35 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('…so the draft the rep\'s own act saves holds none of the call\'s choices', !saved13 || (saved13.jobMode !== 'cash' && saved13.workKind !== 'repair'), saved13 && { jobMode: saved13.jobMode, workKind: saved13.workKind });
     W.EstimateV3 = prevV3;
     W.closeEstimateV2Builder();
+
+    section('C3. a call tier that would switch the shingle line is not set (review 2026-11-09)');
+    // setTierChoice runs _v2EnforceTierShingles: Beyond → HailGuard, Economy →
+    // no 3-tab. On a same-customer reopen that already has a shingle line, a
+    // call that says "beyond" would swap it, and neither × nor an untouched
+    // close swaps it back. The call never sets the scope, so that tier is
+    // offered, not set.
+    leads([{ id: 'L14', firstName: 'Iv', lastName: 'Jo', address: '14 Elm St', jobType: '' }]);
+    W.openEstimateV2Builder({ leadId: 'L14' });
+    await tick(450);
+    V2.addToScope('RFG 240-TAMKO-HERITAGE');
+    await tick(450);
+    const scope14 = JSON.stringify(st().scope);
+    const tier14 = st().tier;
+    ok('(a Heritage shingle line is in scope)', (st().scope || []).some((x) => x.code === 'RFG 240-TAMKO-HERITAGE'), st().scope);
+    const beyond = clone(BRIEF); beyond.scope.tierInterest = { value: 'beyond', quote: 'the hail one' };
+    W.openEstimateV2Builder({ leadId: 'L14', callPrefill: { callId: 'cube_BEY1', brief: beyond } });
+    await tick(600);
+    ok('the call\'s "beyond" is not set, and the shingle line is untouched', st().tier === tier14 && JSON.stringify(st().scope) === scope14 && !CP().applied().some((a) => a.key === 'tier'), { tier: st().tier, scope: st().scope });
+    ok('…it is offered instead, with the reason', typeof CP().suggested === 'function' && CP().suggested().some((a) => a.key === 'tier' && a.to === 'beyond') && /shingle/i.test(CP().panelHtml()));
+    ok('…the other choices still apply', st().jobMode === 'cash' && st().measurements.stories === 2);
+    W.closeEstimateV2Builder();
+    await tick(450);
+    ok('closed untouched → the scope is exactly as before', JSON.stringify(st().scope) === scope14 && st().tier === tier14);
+    W.openEstimateV2Builder({ leadId: 'L14', callPrefill: { callId: 'cube_BEY2', brief: clone(BRIEF) } });
+    await tick(600);
+    ok('a call tier that swaps nothing (best) still applies on the same scope', st().tier === 'best' && JSON.stringify(st().scope) === scope14);
+    W.closeEstimateV2Builder();
+    await tick(450);
   }
 
   // ════════════════════════════════════════════════════════════════════

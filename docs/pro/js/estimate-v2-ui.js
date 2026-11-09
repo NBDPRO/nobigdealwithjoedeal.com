@@ -97,6 +97,19 @@
     }
     return swapped;
   }
+  // Would _v2EnforceTierShingles(tier) change a scope line? Same test, no
+  // change made (Call to Close P1: a call's tier never sets the scope).
+  function _v2TierWouldSwap(tier) {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const swap = _V2_TIER_SWAP[tier];
+    if (!swap || !cfg || typeof cfg.isShingleItem !== 'function') return false;
+    const cat = window.NBD_XACT_CATALOG;
+    if (!cat || typeof cat.find !== 'function' || !cat.find(swap.to)) return false;
+    return (state.scope || []).some(x => {
+      const it = cat.find(x.code);
+      return !!it && cfg.isShingleItem(it) && it.code !== swap.to && swap.when(it);
+    });
+  }
   // Tier-appropriateness signal (GBB backlog, 2026-09-17). Every catalog
   // entry in estimate-catalog-xactimate.js already self-declares a tier
   // (good/better/best/any) but nothing in the real add-to-scope path ever
@@ -5679,6 +5692,9 @@
     const late = !state._callPrefillClean;
     plan.forEach((it) => {
       if (late) suggested.push(Object.assign({}, it, { why: 'you had already started' }));
+      // Beyond / Economy swap the scope's shingle line, and putting the old
+      // tier back would not swap it back: the call never sets the scope.
+      else if (it.key === 'tier' && _v2TierWouldSwap(it.to)) suggested.push(Object.assign({}, it, { why: 'it would switch the shingle line in your scope' }));
       else if (_callSet(it.key, it.to)) applied.push(it);
     });
     _callPrefill = { leadId, callId: src.callId || '', applied, suggested, hints: pre.hints || {}, templates: P.templateMatches(window.JobTemplates, pre, 5) };
