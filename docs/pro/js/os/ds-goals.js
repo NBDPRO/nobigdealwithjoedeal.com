@@ -11,7 +11,13 @@
  *
  *   open(o)   a native <dialog>. o: { admin, goals (cleanGoals() or null),
  *             companyId, uid, returnFocus, after() }.
- *             admin: three number fields and Save. One setDoc of all three
+ *             admin: three number fields and Save. The sheet reads the goals
+ *             doc again when it opens (one getDoc) and prefills from that,
+ *             never from o.goals: the widget's answer can be 5 minutes old
+ *             (another admin) or unknown (its read failed), and Save writes
+ *             all three keys, so a stale prefill would overwrite real goals.
+ *             Until that read lands, and for good if it fails, the fields
+ *             and Save are disabled and the sheet says why. One setDoc of all three
  *             keys plus updatedAt (serverTimestamp) and updatedBy. A blank
  *             field is 0 (no goal); anything not a whole number 0-500 is
  *             refused on the field, nothing is written. On success the
@@ -20,7 +26,7 @@
  *             not admin: the goals read-only, and who sets them.
  *
  * Pure (tests/nbd-os-goals-editor-2026-11-09.test.js): parseGoal(text),
- * payload(values, uid, stamp), rows(goals).
+ * payload(values, uid, stamp), rows(goals), prefill(data).
  *
  * Loaded on the first tap as the runtime ScriptLoader bundle `osdsgoals`
  * (os/home.js registers it), never at boot. Every value goes into the DOM
@@ -64,7 +70,14 @@
       .map(function (f) { return { label: f.label, n: g[f.k] }; });
   }
 
-  var api = { FIELDS: FIELDS, MAX: MAX, parseGoal: parseGoal, payload: payload, rows: rows };
+  /** The goals doc's data -> each field's prefill text: a whole goal 1-500, else '' (0, missing or junk = no goal). */
+  function prefill(data) {
+    var g = data && typeof data === 'object' ? data : {}, out = {};
+    FIELDS.forEach(function (f) { var n = g[f.k]; out[f.k] = typeof n === 'number' && Math.floor(n) === n && n >= 1 && n <= MAX ? String(n) : ''; });
+    return out;
+  }
+
+  var api = { FIELDS: FIELDS, MAX: MAX, parseGoal: parseGoal, payload: payload, rows: rows, prefill: prefill };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!W || !W.document) return;
   var doc = W.document;
@@ -82,6 +95,14 @@
     var x = ev.clientX, y = ev.clientY;
     return typeof x === 'number' && typeof y === 'number' && (x < r.left || y < r.top || x > r.left + r.width || y > r.top + r.height);
   }
+  /** The goals doc as it is now: { ok: true, data } (data null when there is no doc), or { ok: false }. */
+  function readNow(cid) {
+    if (!cid || typeof W.getDoc !== 'function' || typeof W.doc !== 'function' || !W.db) return Promise.resolve({ ok: false });
+    return Promise.resolve().then(function () { return W.getDoc(W.doc(W.db, 'companies', cid, 'settings', 'goals')); }).then(function (snap) {
+      var ex = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap.exists);
+      return { ok: true, data: ex && typeof snap.data === 'function' ? snap.data() : null };
+    }, function () { return { ok: false }; });
+  }
   function write(cid, data) {
     if (!cid || typeof W.setDoc !== 'function' || typeof W.doc !== 'function' || !W.db) return Promise.reject(new Error('no firestore'));
     return Promise.resolve().then(function () { return W.setDoc(W.doc(W.db, 'companies', cid, 'settings', 'goals'), data); });
@@ -96,18 +117,27 @@
     d.className = 'os-hw-add os-hw-pub os-hw-goals';
     d.setAttribute('aria-labelledby', 'oshwGoalsTitle');
     var body;
-    if (admin) {
-      body = '<p class="os-hw-pub-p">Your team\'s daily targets. Daily Success shows doors done against the doors goal. Leave a box blank for no goal.</p>' +
+    // admin: 'reading' (the open-time read is out), 'ready' (prefilled from it), 'failed' (no edit: the goals on file are unknown)
+    function adminBody(state, vals) {
+      var off = state === 'ready' ? '' : ' disabled';
+      var msg = state === 'reading' ? 'Reading the goals on file…'
+        : state === 'failed' ? 'Couldn\'t read the goals on file, so they can\'t be changed right now. Try again with a connection.' : '';
+      return '<p class="os-hw-pub-p">Your team\'s daily targets. Daily Success shows doors done against the doors goal. Leave a box blank for no goal.</p>' +
         '<div class="os-hw-goals-f">' + FIELDS.map(function (f) {
-          var v = typeof g[f.k] === 'number' ? String(g[f.k]) : '';
+          var v = vals && typeof vals[f.k] === 'string' ? vals[f.k] : '';
           return '<label class="os-hw-goals-row"><span class="os-hw-goals-l">' + esc(f.label) + '</span>' +
-            '<input class="os-hw-goals-in" type="number" inputmode="numeric" min="0" max="' + MAX + '" step="1" name="' + esc(f.k) + '" data-oshw-goal="' + esc(f.k) + '" value="' + esc(v) + '"></label>';
+            '<input class="os-hw-goals-in" type="number" inputmode="numeric" min="0" max="' + MAX + '" step="1" name="' + esc(f.k) + '" data-oshw-goal="' + esc(f.k) + '" value="' + esc(v) + '"' + off + '></label>';
         }).join('') + '</div>' +
-        '<p class="os-hw-pub-p os-hw-pub-status" role="status"></p>' +
+        '<p class="os-hw-pub-p os-hw-pub-status" role="status">' + esc(msg) + '</p>' +
         '<div class="os-hw-pub-row">' +
           '<button type="button" class="btn btn-ghost os-hw-pub-btn" data-oshw-goals="cancel">Cancel</button>' +
-          '<button type="button" class="btn btn-orange os-hw-pub-btn" data-oshw-goals="save">Save goals</button>' +
+          '<button type="button" class="btn btn-orange os-hw-pub-btn" data-oshw-goals="save"' + off + '>Save goals</button>' +
         '</div>';
+    }
+    var ready = false;
+    var title = '<h2 class="os-hw-add-title" id="oshwGoalsTitle">' + (admin ? 'Set daily goals' : 'Team daily goals') + '</h2>';
+    if (admin) {
+      body = adminBody('reading', null);
     } else {
       var list = rows(g);
       body = (list.length
@@ -116,10 +146,11 @@
         '<p class="os-hw-pub-p">Your owner or admin sets these.</p>' +
         '<div class="os-hw-pub-row"><button type="button" class="btn btn-ghost os-hw-pub-btn" data-oshw-goals="cancel">Close</button></div>';
     }
-    d.innerHTML = '<h2 class="os-hw-add-title" id="oshwGoalsTitle">' + (admin ? 'Set daily goals' : 'Team daily goals') + '</h2>' + body;
+    d.innerHTML = title + body;
     var busy = false;
     function status(t) { var st = d.querySelector('.os-hw-pub-status'); if (st) st.textContent = t; }
     function save() {
+      if (!ready) return;   // the goals on file are not known yet (or could not be read): writing would overwrite them
       var vals = {}, bad = null;
       FIELDS.forEach(function (f) {
         var inp = d.querySelector('[data-oshw-goal="' + f.k + '"]');
@@ -166,8 +197,20 @@
     doc.body.appendChild(d);
     openEl = d;
     if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
-    var first = d.querySelector('.os-hw-goals-in') || d.querySelector('[data-oshw-goals="cancel"]');
-    if (first) { try { first.focus(); } catch (e) {} }
+    function focusFirst() {
+      var live = Array.prototype.filter.call(d.querySelectorAll('.os-hw-goals-in'), function (i) { return !i.hasAttribute('disabled'); });
+      var first = live[0] || d.querySelector('[data-oshw-goals="cancel"]');
+      if (first) { try { first.focus(); } catch (e) {} }
+    }
+    focusFirst();
+    if (admin) {
+      readNow(String(opts.companyId || '')).then(function (r) {
+        if (openEl !== d) return;   // closed (or replaced) while the read was out
+        ready = r.ok === true;
+        d.innerHTML = title + adminBody(ready ? 'ready' : 'failed', ready ? prefill(r.data) : null);
+        focusFirst();
+      });
+    }
   }
 
   api.open = open;

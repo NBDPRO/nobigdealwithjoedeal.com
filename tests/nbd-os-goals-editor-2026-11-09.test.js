@@ -50,6 +50,8 @@ async function run() {
   ok('the payload\'s keys are exactly the ones firestore.rules goalsDocOk allows', J(Object.keys(P).sort()) === J(keys.split(',').map((k) => k.trim().replace(/'/g, '')).sort()), keys);
   ok('rows(): only the goals that are set, in order', J(GL.rows({ callsPerDay: 10, doorsPerDay: 40, followUpsPerDay: 0 })) === J([{ label: 'Calls a day', n: 10 }, { label: 'Doors a day', n: 40 }])
     && J(GL.rows(null)) === '[]');
+  ok('prefill(): whole goals 1-500 as text; 0, missing, junk or no doc -> blank', J(GL.prefill({ callsPerDay: 10, followUpsPerDay: 0, doorsPerDay: 501 })) === J({ callsPerDay: '10', followUpsPerDay: '', doorsPerDay: '' })
+    && J(GL.prefill(null)) === J({ callsPerDay: '', followUpsPerDay: '', doorsPerDay: '' }) && GL.prefill({ callsPerDay: '7', doorsPerDay: 2.5 }).callsPerDay === '');
 
   console.log('\n2. the widget: Set goals for an owner or admin, Team goals for anyone else');
   const summary = JSON.stringify({ v: 1, uid: 'u1', asOf: NOW - 20 * 60000, calls: 3, followUps: 5, jobs: 2 });
@@ -59,7 +61,7 @@ async function run() {
       store: { nbd_today_summary: summary }, home: { phone: [{ id: 'daily', s: opt.s || 'l' }], desk: [] } });
     const W = T.W;
     const log = { getDoc: [], setDoc: [], goals: opt.goals };
-    W.getDoc = (ref) => { log.getDoc.push(ref); return Promise.resolve({ exists: () => log.goals !== undefined, data: () => log.goals }); };
+    W.getDoc = (ref) => { log.getDoc.push(ref); if (log.readFail) return Promise.reject(new Error('unavailable')); return Promise.resolve({ exists: () => log.goals !== undefined, data: () => log.goals }); };
     W.doc = (...a) => a.slice(1).join('/');
     W.setDoc = (ref, data) => {
       log.setDoc.push([ref, JSON.parse(JSON.stringify(data))]);
@@ -86,6 +88,7 @@ async function run() {
     ok('three number fields, 0-500, whole numbers, each with its label', ins.length === 3 && ins.every((i) => i.getAttribute('type') === 'number' && i.getAttribute('min') === '0'
       && i.getAttribute('max') === '500' && i.getAttribute('step') === '1') && /Calls a day/.test(text(dlg())) && /Follow-ups a day/.test(text(dlg())) && /Doors a day/.test(text(dlg())));
     ok('prefilled from the goals on file (doors 40, the others blank)', ins.map((i) => i.getAttribute('value')).join() === ',,40');
+    ok('the sheet reads the goals doc again when it opens (the widget\'s answer can be 5 minutes old)', log.getDoc.filter((r) => r === 'companies/c1/settings/goals').length >= 2, J(log.getDoc));
     ok('focus starts on the first field', T.document.activeElement === ins[0]);
     ins[0].value = '12'; ins[1].value = '501'; ins[2].value = '40';
     click(T.dom, dlg().querySelector('[data-oshw-goals="save"]'));
@@ -101,6 +104,44 @@ async function run() {
     ok('the sheet closes and says so', !dlg() && W.toasts.some((t) => /Daily goals saved/.test(t.msg)));
     await settle();
     ok('the widget reads the goals again (the osdsbiz cache was dropped)', log.getDoc.length > reads, log.getDoc.length + ' vs ' + reads);
+  }
+  {
+    // review 2026-11-09: the widget's goals can be stale (another admin, inside the 5-minute TTL) or
+    // unknown (the read failed, cache goals null). Save writes all three keys, so a sheet prefilled from
+    // that would overwrite the real goals with blanks. The sheet re-reads the doc on open.
+    const { T, log, card, dlg } = widget({ goals: { doorsPerDay: 40 } });
+    await settle();
+    log.goals = { callsPerDay: 25, followUpsPerDay: 8, doorsPerDay: 60 };   // another admin changed them since
+    click(T.dom, card().querySelector('[data-oshw-goals]'));
+    await settle();
+    const ins = dlg().querySelectorAll('[data-oshw-goal]');
+    ok('prefilled from the doc as it is now, not the widget\'s cached answer', ins.map((i) => i.getAttribute('value')).join() === '25,8,60', ins.map((i) => i.getAttribute('value')).join());
+    ok('the fields and Save are live once the read lands', ins.every((i) => !i.hasAttribute('disabled')) && !dlg().querySelector('[data-oshw-goals="save"]').hasAttribute('disabled'));
+  }
+  {
+    const { T, log, card, dlg } = widget({ goals: { doorsPerDay: 40 } });
+    await settle();
+    log.readFail = true;   // the goals read fails now
+    click(T.dom, card().querySelector('[data-oshw-goals]'));
+    await settle();
+    const ins = dlg().querySelectorAll('[data-oshw-goal]');
+    const sv = dlg().querySelector('[data-oshw-goals="save"]');
+    ok('a failed read: the fields and Save are disabled and the sheet says why', ins.length === 3 && ins.every((i) => i.hasAttribute('disabled'))
+      && !!sv && sv.hasAttribute('disabled') && /Couldn't read the goals on file/.test(text(dlg())), text(dlg()));
+    ins.forEach((i) => { i.value = '1'; });
+    click(T.dom, sv);
+    key(T.dom, ins[0], 'Enter');
+    await settle();
+    ok('...and nothing can be written over goals nobody could read', log.setDoc.length === 0, J(log.setDoc));
+  }
+  {
+    const { T, log, card, dlg } = widget({ goals: { doorsPerDay: 40 } });
+    await settle();
+    delete log.goals;   // the doc was deleted since: no goals on file
+    click(T.dom, card().querySelector('[data-oshw-goals]'));
+    await settle();
+    const ins = dlg().querySelectorAll('[data-oshw-goal]');
+    ok('no goals doc: three blank live fields (blank is the truth, not a guess)', ins.map((i) => i.getAttribute('value')).join() === ',,' && ins.every((i) => !i.hasAttribute('disabled')));
   }
   {
     const { T, log, card, dlg } = widget({ goals: { doorsPerDay: 40 }, fail: true });
