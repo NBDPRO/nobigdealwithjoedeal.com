@@ -145,6 +145,20 @@ G(() => {
   ok('a tenant\'s own New-role stage counts; a stage merely named "new" with another role does not', r && r.evidence.leads === 2, r && J(r.evidence));
   const stamped = C.evaluate({ nowMs: NOW, leads: [{ id: 'a', stage: 'whatever', _stageRole: 'new', createdAt: NOW - 45 * DAY }], roleOf: () => 'active' })[0];
   ok('the role stamped at load (_stageRole) wins over a lookup', stamped && stamped.evidence.leads === 1);
+  // review nit: the text names the tenant's own stage, never a hard-coded "New"
+  const labelOf = (k) => ({ 'fresh-inquiry': 'Fresh Inquiry', 'new': 'New' }[k] || '');
+  const one = C.evaluate({ nowMs: NOW, leads: [leads[0], leads[2]], roleOf, labelOf })[0];
+  ok('the tenant\'s own label for its new-role stage (stageLabel)', one && /still in Fresh Inquiry after 30\+ days/.test(one.text) && !/\bNew\b/.test(one.text), one && one.text);
+  ok('…its numbers still come from evidence only', one && fromEvidence(one) && !/\d/.test(one.tpl), one && one.tpl);
+  const none = C.evaluate({ nowMs: NOW, leads: [leads[0]], roleOf })[0];
+  ok('no label helper: neutral wording ("still in your first stage")', none && /still in your first stage/.test(none.text) && !/\bNew\b/.test(none.text), none && none.text);
+  const mixed = C.evaluate({ nowMs: NOW, leads: [{ id: 'm1', _stageRole: 'new', _stageKey: 'fresh-inquiry', createdAt: NOW - 45 * DAY }, { id: 'm2', _stageRole: 'new', _stageKey: 'web-lead', createdAt: NOW - 45 * DAY }], labelOf: (k) => k })[0];
+  ok('two different new-role stages: neutral wording, not one stage\'s name', mixed && /your first stage/.test(mixed.text), mixed && mixed.text);
+  const digits = C.evaluate({ nowMs: NOW, leads: [leads[0]], roleOf, labelOf: () => 'Stage 1' })[0];
+  ok('a label with digits is not used (every number on screen is counted)', digits && /your first stage/.test(digits.text), digits && digits.text);
+  const thrower = C.evaluate({ nowMs: NOW, leads: [leads[0]], roleOf, labelOf: () => { throw new Error('x'); } })[0];
+  ok('a label helper that throws: neutral wording, never a crash', thrower && /your first stage/.test(thrower.text));
+  ok('the widget passes the CRM\'s window.stageLabel', /stageLabel/.test(noComments(HOME_JS)));
   ok('a roleOf that throws counts nothing (never a crash)', J(C.evaluate({ nowMs: NOW, leads, roleOf: () => { throw new Error('x'); } })) === '[]');
 });
 

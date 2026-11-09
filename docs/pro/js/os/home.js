@@ -177,7 +177,7 @@
     if (!CL || (!plan && !leads)) return null;
     var now = Date.now();
     var rules = CL.evaluate({ plan: plan, leads: leads, roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
-      ds: dsNow(), nowMs: now, show: cfg && cfg.show });
+      labelOf: typeof W.stageLabel === 'function' ? W.stageLabel : null, ds: dsNow(), nowMs: now, show: cfg && cfg.show });
     var memo = parse(lsGet(COACH_KEY));
     var p = CL.pick(rules, memo, HL.dayKey(now), now);
     if (JSON.stringify(p.memo) !== JSON.stringify(memo)) lsSet(COACH_KEY, JSON.stringify(p.memo));

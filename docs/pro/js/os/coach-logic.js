@@ -6,9 +6,9 @@
  * runs it in plain Node). os/home.js passes in what the CRM already holds in
  * memory and writes the dismiss / snooze memo to localStorage itself.
  *
- *   evaluate({ plan, leads, roleOf, ds, nowMs, show }) -> rules, highest priority first
+ *   evaluate({ plan, leads, roleOf, labelOf, ds, nowMs, show }) -> rules, highest priority first
  *     plan    NBDToday.last() (never compute(): it mutates the handled-call state)
- *     leads   window._leads; roleOf the CRM's tenant-aware stageRole
+ *     leads   window._leads; roleOf the CRM's tenant-aware stageRole, labelOf its stageLabel
  *     ds      the validated same-day Daily Success snapshot (home-logic dsPersonal)
  *     show    'both' | 'business' | 'personal' (the widget's cfg)
  *   Each rule is { id, half, priority, tpl, text, evidence, action:{ label, href | go } }.
@@ -27,7 +27,8 @@
  *                   rows, estimate-followups.js buckets d5 / d10)
  *     ds-warned     Daily Success: yesterday's floors were missed (streak.warned)
  *     stuck-new     leads whose stage ROLE is "new" (the tenant's own stage
- *                   names, never the NBD stage name) and created 30+ days ago
+ *                   names, never the NBD stage name) and created 30+ days ago; the
+ *                   text names that stage by the tenant's label, else "your first stage"
  *
  *   pick(rules, memo, dayKey, nowMs) -> { shown, memo }
  *     drops what was dismissed today or is snoozed, rests a rule that topped
@@ -140,7 +141,16 @@
     if (typeof roleOf !== 'function') return '';
     try { return String(roleOf(l._stageKey || l.stage || '') || ''); } catch (e) { return ''; }
   }
-  function stuckNew(leads, roleOf, now) {
+  /** The tenant's own name for the stage the stuck leads share (labelOf: the CRM's stageLabel), '' when they differ or it has digits. */
+  function stageName(stuck, labelOf) {
+    if (typeof labelOf !== 'function') return '';
+    var keys = stuck.map(function (l) { return String(l._stageKey || l.stage || ''); });
+    if (!keys[0] || keys.some(function (k) { return k !== keys[0]; })) return '';
+    var name;
+    try { name = String(labelOf(keys[0]) || '').trim(); } catch (e) { return ''; }
+    return name && name.length <= 40 && !/\d/.test(name) ? name : '';
+  }
+  function stuckNew(leads, roleOf, now, labelOf) {
     if (!Array.isArray(leads) || !now) return null;
     var stuck = leads.filter(function (l) {
       if (!isObj(l) || l.deleted === true || l.e2eTestData) return false;
@@ -149,14 +159,17 @@
     });
     if (!stuck.length) return null;
     var action = stuck.length === 1 && stuck[0].id != null ? leadAction(stuck[0].id, 'Open') : { label: 'Open pipeline', go: 'crm' };
-    return rule('stuck-new', 'business', 40, '{leads} {leads?lead:leads} still New after {days}+ days', { leads: stuck.length, days: NEW_DAYS }, action);
+    var ev = { leads: stuck.length, days: NEW_DAYS };
+    var name = stageName(stuck, labelOf);
+    if (name) ev.stage = name;
+    return rule('stuck-new', 'business', 40, '{leads} {leads?lead:leads} still in ' + (name ? '{stage}' : 'your first stage') + ' after {days}+ days', ev, action);
   }
 
   function evaluate(input) {
     var x = isObj(input) ? input : {};
     var now = whole(x.nowMs);
     var show = HALVES.indexOf(x.show) !== -1 ? x.show : 'both';
-    var out = [missedCalls(x.plan, now), overdue(x.plan), estimates(x.plan), dsWarned(x.ds), stuckNew(x.leads, x.roleOf, now)]
+    var out = [missedCalls(x.plan, now), overdue(x.plan), estimates(x.plan), dsWarned(x.ds), stuckNew(x.leads, x.roleOf, now, x.labelOf)]
       .filter(function (r) { return r && (show === 'both' || r.half === show); });
     return out.sort(function (a, b) { return b.priority - a.priority || (a.id < b.id ? -1 : 1); });
   }
