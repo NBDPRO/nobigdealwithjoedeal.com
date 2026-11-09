@@ -189,6 +189,27 @@ const brief = (over) => Object.assign({
         DP._said.refresh();
         ok('…so does the description', st.callSaid.length === 0, st.callSaid);
       }
+      // Close + reopen the same lead while the briefs load: only the newest load renders.
+      ok('the said loader is exposed for tests', typeof DP._said.load === 'function');
+      if (typeof DP._said.load === 'function') {
+        const Cw = win.NBDCallToClose;
+        const realLoad = Cw.loadLeadBriefs;
+        const pending = [];
+        Cw.loadLeadBriefs = () => new Promise((r) => pending.push(r));
+        st.customerId = 'L1'; st.type = 'proposal'; st.open = true;
+        st.values = { projectDescription: 'Complete roof replacement.', scopeItems: ['Tear off'] };
+        const A = DP._said.load('L1');
+        const B = DP._said.load('L1');
+        await new Promise((r) => setTimeout(r, 5));
+        const bBriefs = [{ callId: 'cube_B', brief: brief({ scope: { service: { value: 'Roof', quote: 'roof' }, mentions: { chimney: true } } }), decisions: [], generatedAtMs: GEN }];
+        const aBriefs = [{ callId: 'cube_A', brief: brief({ scope: { service: { value: 'Roof', quote: 'roof' }, mentions: { gutters: true } } }), decisions: [], generatedAtMs: GEN }];
+        pending[1] && pending[1](bBriefs);
+        await B;
+        pending[0] && pending[0](aBriefs);
+        await A;
+        ok('a stale load (from before a reopen) never overwrites the newer one', pending.length === 2 && st.saidBriefs === bBriefs && st.callSaid.map((x) => x.key).join(',') === 'chimney', st.callSaid.map((x) => x.key));
+        Cw.loadLeadBriefs = realLoad;
+      }
       const ih = (src.split('var inputHandler = function (e) {')[1] || '').split('modal.addEventListener(\'input\', inputHandler);')[0];
       ok('the input handler recomputes it on a field, line-item and scope-row edit', (ih.match(/said\.refresh\(\)/g) || []).length >= 3, (ih.match(/said\.refresh\(\)/g) || []).length);
     }

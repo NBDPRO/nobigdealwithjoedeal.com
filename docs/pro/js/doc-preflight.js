@@ -2869,7 +2869,11 @@
     var v = state.values || {};
     return { projectDescription: v.projectDescription, scopeItems: v.scopeItems, termsNote: v.termsNote, lineItems: v.lineItems };
   }
+  // Each load takes a ticket; close() and a newer load void the older ones,
+  // so a reopen of the same lead never shows a stale result.
+  var saidTicket = 0;
   async function loadSaid(leadId) {
+    var mine = ++saidTicket;
     try {
       if (!window.NBDCallToClose && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') await window.ScriptLoader.load(CTC_JS);
       var C = window.NBDCallToClose;
@@ -2880,7 +2884,7 @@
         db: window.db, collection: window.collection, query: window.query, where: window.where,
         getDocs: window.getDocs, doc: window.doc, getDoc: window.getDoc,
       }, { uid: me && me.uid, role: cl.role || '', companyId: cl.companyId || '' }, leadId);
-      if (!state.open || state.type !== 'proposal' || state.customerId !== leadId) return;
+      if (mine !== saidTicket || !state.open || state.type !== 'proposal' || state.customerId !== leadId) return;
       state.saidBriefs = briefs;
       state.callSaid = C.saidVsProposal(briefs, saidProposal());
       redrawSaid();
@@ -2904,6 +2908,7 @@
   }
   var said = {
     html: saidHtml,
+    load: loadSaid,
     // Recompute from the briefs already read (no new read): a row or a
     // description typed by hand clears its item without a Copy.
     refresh: function () {
@@ -3265,6 +3270,7 @@
     if (m) m.remove();
     document.removeEventListener('keydown', escHandler);
     state.open = false;
+    saidTicket++;
     state.type = null;
     state.schema = null;
     state.values = {};
