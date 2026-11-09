@@ -132,6 +132,8 @@
     if (!t) return false;
     close();
     open();
+    const title = document.getElementById('nbd-qc-title');
+    if (title) title.textContent = 'File this note';   // typed, not talked
     _currentResult = { transcript: t, summary: null };
     _onSaved = typeof onSaved === 'function' ? onSaved : null;
     _renderResult(_currentResult);
@@ -166,7 +168,7 @@
         '<div class="qcx-dflex-aicenter-jcspacebet">' +
           '<div>' +
             '<div class="qcx-fs11px-c94a3b8-ls008em">QUICK CAPTURE</div>' +
-            '<div class="qcx-fs20px-w700">Talk it out</div>' +
+            '<div id="nbd-qc-title" class="qcx-fs20px-w700">Talk it out</div>' +
           '</div>' +
           '<button type="button" id="nbd-qc-close" class="qcx-bgtranspar-bdnone-c94a3b8">×</button>' +
         '</div>' +
@@ -638,8 +640,11 @@
               userId: uid,
               type: 'note',
               source: 'rep',
-              label: 'Voice capture',
-              text: _currentResult.summary?.overview || _currentResult.transcript?.slice(0, 200) || '',
+              // a typed Pocket note (no summary) is a note, whole; a voice capture keeps its label and gist
+              label: _currentResult.summary ? 'Voice capture' : 'Note',
+              text: _currentResult.summary
+                ? (_currentResult.summary.overview || _currentResult.transcript?.slice(0, 200) || '')
+                : (_currentResult.transcript || ''),
               captureId: captureRef.id,
               createdAt: fb.serverTimestamp(),
             }

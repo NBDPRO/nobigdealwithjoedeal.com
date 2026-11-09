@@ -355,6 +355,8 @@ function typeKeep(T, s) {
       !!dom.document.getElementById('nbd-qc-act-save') && !!dom.document.getElementById('nbd-qc-act-link') && !!dom.document.getElementById('nbd-qc-act-discard'));
     ok('no "Make N tasks" (a typed note has no action items)', !dom.document.getElementById('nbd-qc-act-tasks'));
     ok('labelled a note: no made-up category, no transcript repeat', /NOTE/.test(text(res)) && !/SUMMARY|other|transcript/i.test(text(res)), text(res).slice(0, 200));
+    const modalTxt = text(dom.document.getElementById('nbd-qc-modal'));
+    ok('the screen is titled for a typed note, not "Talk it out"', !/Talk it out/.test(modalTxt) && /File this note/.test(modalTxt), modalTxt.slice(0, 120));
     click(dom, dom.document.getElementById('nbd-qc-act-save'));
     await flush();
     ok('Save writes one capture with quick-capture\'s own shape', writes.length === 1 && writes[0].col === 'users/u1/captures' &&
@@ -370,6 +372,49 @@ function typeKeep(T, s) {
     click(dom, dom.document.getElementById('nbd-qc-act-save'));
     await flush();
     ok('a closed review\'s onSaved never fires for a later save', J(saved) === J(['cap1']) && writes.length === 2, J(saved));
+  });
+
+  console.log('\n9. quick-capture.js review(): a lead link is labelled a note and keeps the whole text');
+  await G(async () => {
+    const dom = makeDom();
+    const writes = [];
+    let n = 0;
+    const recs = [];
+    function MR() { this.state = 'inactive'; this.ls = {}; recs.push(this); }
+    MR.isTypeSupported = () => true;
+    MR.prototype.addEventListener = function (t, f) { this.ls[t] = f; };
+    MR.prototype.start = function () { this.state = 'recording'; };
+    MR.prototype.stop = function () { this.state = 'inactive'; this.stopped = true; };
+    const W = {
+      document: dom.document, console: { log() {}, info() {}, warn() {}, error() {} },
+      navigator: { mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [] }) } },
+      MediaRecorder: MR,
+      location: { pathname: '/pro/customer.html' },
+      _customerId: 'L1', _leadDoc: { id: 'L1', firstName: 'Ann', lastName: 'Lee' },
+      setTimeout: (f) => 0, clearTimeout() {}, cancelAnimationFrame() {}, requestAnimationFrame() { return 0; },
+      addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
+      CustomEvent: function (t, i) { this.type = t; this.detail = i && i.detail; },
+      _user: { uid: 'u1' }, db: { name: 'db' },
+      collection: (db, ...p) => p.join('/'),
+      doc: (db, ...p) => p.join('/'),
+      addDoc: (col, data) => { writes.push({ col, data }); return Promise.resolve({ id: 'cap' + (++n) }); },
+      updateDoc: (ref, data) => { writes.push({ upd: ref, data }); return Promise.resolve(); },
+      serverTimestamp: () => 'TS',
+      toasts: [], showToast(m) { W.toasts.push(String(m)); },
+    };
+    const ctx = vm.createContext(W);
+    ctx.window = ctx;
+    vm.runInContext(read('docs/pro/js/quick-capture.js'), ctx, { filename: 'quick-capture.js' });
+    const QC = ctx.NBDQuickCapture;
+    const long = 'Gate code 4471. ' + 'x'.repeat(1500) + ' END';
+    QC.review(long);
+    click(dom, dom.document.getElementById('nbd-qc-act-here'));
+    await flush();
+    const act = writes.filter((w) => w.col === 'leads/L1/activity')[0];
+    ok('linked to the customer: one capture and one lead activity', writes.length === 2 && !!act, J(writes.map((w) => w.col)));
+    ok('...the activity is labelled a note, not "Voice capture"', act && act.data.label === 'Note', act && act.data.label);
+    ok('...and carries the whole typed text, not its first 200 characters', act && act.data.text === long, act && act.data.text.length);
+
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
