@@ -95,7 +95,14 @@ async function run() {
     await settle();
     ok('501 is refused on its field: nothing written, the field marked and focused, the reason said', log.setDoc.length === 0 && ins[1].getAttribute('aria-invalid') === 'true'
       && T.document.activeElement === ins[1] && /Follow-ups a day: a whole number from 0 to 500/.test(text(dlg().querySelector('.os-hw-pub-status'))), text(dlg()));
-    ins[1].value = '';
+    // review 2026-11-09: a type=number field holding '1e', '-' or a lone 'e' reports value '' to JS with
+    // validity.badInput set; parseGoal('') is 0 (no goal), so the typo used to clear that goal silently
+    ins[1].value = ''; ins[1].validity = { badInput: true };
+    click(T.dom, dlg().querySelector('[data-oshw-goals="save"]'));
+    await settle();
+    ok('a field the browser could not parse (badInput, value \'\') is refused, never read as blank = no goal', log.setDoc.length === 0 && ins[1].getAttribute('aria-invalid') === 'true'
+      && T.document.activeElement === ins[1] && /Follow-ups a day: a whole number from 0 to 500/.test(text(dlg().querySelector('.os-hw-pub-status'))), text(dlg()));
+    ins[1].validity = { badInput: false };
     const reads = log.getDoc.length;
     click(T.dom, dlg().querySelector('[data-oshw-goals="save"]'));
     await settle();

@@ -19,8 +19,9 @@
  *             Until that read lands, and for good if it fails, the fields
  *             and Save are disabled and the sheet says why. One setDoc of all three
  *             keys plus updatedAt (serverTimestamp) and updatedBy. A blank
- *             field is 0 (no goal); anything not a whole number 0-500 is
- *             refused on the field, nothing is written. On success the
+ *             field is 0 (no goal); anything not a whole number 0-500, or
+ *             text the number field could not parse (validity.badInput,
+ *             which reports value ''), is refused on the field, nothing is written. On success the
  *             osdsbiz cache is dropped and `nbd:os-dsbiz` fires, so the
  *             widget reads the goals again.
  *             not admin: the goals read-only, and who sets them.
@@ -154,7 +155,8 @@
       var vals = {}, bad = null;
       FIELDS.forEach(function (f) {
         var inp = d.querySelector('[data-oshw-goal="' + f.k + '"]');
-        var n = parseGoal(inp ? inp.value : '');
+        // a number field holding '1e', '-' or 'e' reports value '' (badInput): refused, never read as blank = no goal
+        var n = inp && inp.validity && inp.validity.badInput ? null : parseGoal(inp ? inp.value : '');
         if (inp) { if (n === null) inp.setAttribute('aria-invalid', 'true'); else inp.removeAttribute('aria-invalid'); }
         if (n === null && !bad) bad = { f: f, el: inp };
         vals[f.k] = n;
