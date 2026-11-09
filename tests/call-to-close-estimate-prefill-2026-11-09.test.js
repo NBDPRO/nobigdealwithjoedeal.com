@@ -678,6 +678,7 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('…inserts templates only through JobTemplates.insertIntoV2', /insertIntoV2\(/.test(callBlock));
     ok('…escapes what it shows', /_callEsc\(/.test(callBlock) && !/innerHTML\s*=\s*[^;]*\+\s*(it|h|q)\.(quote|label|name)\b/.test(callBlock));
     ok('no style= attribute and no inline handler added', !/\sstyle=/.test(callBlock) && !/\son[a-z]+=\\?["']/i.test(callBlock));
+    ok('the folded strip shows it can open (a chevron on the summary, which display:flex strips of its marker)', /\.v2-call summary::after\s*\{[^}]*content:/.test(v2) && /\.v2-call\[open\] summary::after\s*\{[^}]*content:/.test(v2));
     const ui = read('docs/pro/js/call-brief-ui.js');
     ok('the sheet links to the dashboard\'s ?lead= branch (dashboard-bootstrap.module.js stays held)', /\/pro\/dashboard\.html\?lead=' \+ encodeURIComponent\(leadId\) \+ '&callBrief=' \+ encodeURIComponent\(callId\)/.test(ui));
     const boot = read('docs/pro/js/dashboard-bootstrap.module.js');

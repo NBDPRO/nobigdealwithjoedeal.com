@@ -1004,6 +1004,9 @@
       .v2-call-wrap { flex-shrink:0; padding:4px 16px 8px; border-bottom:1px solid var(--br,#2a2f35); background:var(--s,#111418); max-height:40vh; overflow-y:auto; }
       .v2-call summary { cursor:pointer; min-height:44px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:var(--t,#e8eaf0); }
       .v2-call-n { font-size:12px; font-weight:600; color:var(--m,#8b8e96); }
+      .v2-call summary::-webkit-details-marker { display:none; }
+      .v2-call summary::after { content:'▸'; margin-left:auto; font-size:14px; color:var(--m,#8b8e96); }
+      .v2-call[open] summary::after { content:'▾'; }
       .v2-call-chips { display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px; }
       .v2-call-chip { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 0 0 12px; border-radius:22px; border:1px dashed var(--orange,#BD5728); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font-size:13px; font-weight:700; }
       .v2-call-k { font-weight:600; color:var(--m,#8b8e96); }
