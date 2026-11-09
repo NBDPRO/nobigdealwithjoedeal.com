@@ -359,9 +359,35 @@
       if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
     }
   }
-  // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
-  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  /** A deliberate pick: written at once (one tap, one save), the other surface kept. */
+  function saveWp(surface, v) {
+    if (!S) return;
+    S.wpPreview = undefined;
+    S.homeNext = W.NBDOSHomeLogic.setWp(homeKey(), surface, v);
+    flushHome();
+    paintWp();
+  }
+  // Wallpaper (P1): the picker first (Time of day, None, My Skin pictures), with
+  // "More in My Skin settings"; with no loader, My Skin's settings as in P0c.
   function openWallpaper() {
+    var lp = loadWp();
+    if (!lp) { openSkinSettings(); return; }
+    var surface = wpSurface();
+    lp.then(function (WP) {
+      if (!S) return;
+      WP.open({
+        surface: surface,
+        current: W.NBDOSHomeLogic.wpOf(homeKey(), surface),
+        preview: function (v) { if (S) { S.wpPreview = v; paintWp(); } },
+        done: function (v) { saveWp(surface, v); },
+        cancel: function () { if (S) { S.wpPreview = undefined; paintWp(); } },
+        more: openSkinSettings,
+      });
+    }).catch(function () { if (S) openSkinSettings(); });
+  }
+  // My Skin's existing background picker (P0c), no store of our own.
+  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  function openSkinSettings() {
     var B = W.NBDMySkinBoot;
     if (B && typeof B.load === 'function') safe(function () { B.load(); });
     var O = W.NBDOS;

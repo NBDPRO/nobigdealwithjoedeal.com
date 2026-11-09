@@ -130,6 +130,7 @@ G(() => {
   ok('a My Skin picture is ONE pre-dimmed layer: a --bg veil over var(--os-wp-img) in a single ::before',
     /\[data-os-wp="img"\]::before[^{]*\{[^}]*background: linear-gradient\(var\(--os-wp-veil\), var\(--os-wp-veil\)\), var\(--os-wp-img, none\)/.test(WP_CSS)
     && /--os-wp-veil: color-mix\(in srgb, var\(--bg\) var\(--os-wp-dim, 55%\), transparent\)/.test(WP_CSS));
+  ok('on a picture, icon labels get a token chip (--bg at 72%)', /\[data-os-wp="img"\] \.os-icon-label, \[data-os-wp="img"\] \.os-p-label \{[^}]*background: color-mix\(in srgb, var\(--bg\) 72%, transparent\)/.test(WP_CSS));
   ok('the default gives way to a My Skin picture (html.my-skin-wallpaper)', /html\.my-skin-wallpaper \.os-desk\[data-os-wp="auto"\][^{]*\{\s*background: none/.test(WP_CSS));
   ok('a company-enforced My Skin background wins over every choice (html.my-skin-locked)', /html\.my-skin-locked \.os-desk\[data-os-wp\][^{]*\{\s*background: none/.test(WP_CSS) && /html\.my-skin-locked \[data-os-wp\]::before \{ content: none; \}/.test(WP_CSS));
   ok('Sunlight: a plain background, no picture (html.sun-all)', /html\.sun-all \.os-desk\[data-os-wp\][^{]*\{\s*background: var\(--bg\)/.test(WP_CSS) && /html\.sun-all \[data-os-wp\]::before \{ content: none; \}/.test(WP_CSS));
@@ -201,6 +202,25 @@ G(() => {
     check(T).forEach((x) => ['t', 'm', 'bare'].forEach((k) => { if (base[k] >= 4.5 && x[k] < 4.5) drops.push(id + ' ' + x.p + x.s + ' ' + k + ' ' + x[k].toFixed(2)); }));
   });
   ok('no theme drops under 4.5:1 on any period where it read at 4.5:1 without a wallpaper (' + usable.length + ' themes x 4 periods)', drops.length === 0, drops.slice(0, 12).join('; '));
+});
+
+console.log('\n5b. a My Skin picture: the label chip over the veil, the worst pictures');
+G(() => {
+  const src = read('docs/pro/js/theme-engine.js');
+  const t0 = src.indexOf('  const THEMES = {'); const t1 = src.indexOf('\n  };\n', t0) + 5;
+  const h0 = src.indexOf('function parseHex'); const h1 = src.indexOf('function pickContrastingPair', h0);
+  const ctx = {}; vm.createContext(ctx);
+  vm.runInContext(src.slice(t0, t1).replace('const THEMES', 'var THEMES') + '\n' + src.slice(h0, h1) + '\nthis.X = { THEMES, adjustHex, contrastRatio, parseHex };', ctx);
+  const { THEMES, adjustHex, contrastRatio, parseHex } = ctx.X;
+  const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const mix = (a, p, b) => { const A = parseHex(a), B = parseHex(b), f = p / 100; return hex({ r: A.r * f + B.r * (1 - f), g: A.g * f + B.g * (1 - f), b: A.b * f + B.b * (1 - f) }); };
+  const worst = ['nbd-original', 'midnight', 'paper'].map((id) => {
+    const th = THEMES[id], c = th.colors, light = th.mode === 'light';
+    const bg = c.outerBg || (light ? adjustHex(c.bg, 0.02) : adjustHex(c.bg, -0.18));
+    // the veil at 0% (no dim at all) is the worst case; the guard only raises it
+    return Math.min.apply(null, ['#000000', '#ffffff', '#808080', '#ff0000', '#ffff00'].map((pic) => contrastRatio(c.text, mix(bg, 72, mix(bg, 0, pic)))));
+  });
+  ok('--t on the chip over a black, white, grey, red or yellow picture with no veil at all: >= 4.5:1 (' + worst.map((n) => n.toFixed(2)).join(', ') + ')', worst.every((n) => n >= 4.5));
 });
 
 console.log('\n6. the company lock comes from My Skin\'s own precedence');

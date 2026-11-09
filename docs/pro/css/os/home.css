@@ -298,3 +298,31 @@ html.os-locked .os-hw-closes { visibility: hidden; }
 }
 /* the phone bar's glyph is small: the word sits up and to its right, not over it */
 .os-bar-btn .os-urgent-pill { top: -10px; right: auto; left: 70%; padding: 0 5px; }
+
+/* ── Wallpaper picker (P1, js/os/wallpaper.js): a native <dialog>, radios ── */
+.os-wp-note { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); font-weight: 600; }
+.os-wp-set { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; }
+.os-wp-legend { padding: 0; margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-wp-opt {
+  display: flex; align-items: center; gap: var(--ui-space-3, 12px); min-height: 56px; margin: 0; padding: var(--ui-space-2, 8px);
+  border-top: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px); cursor: pointer;
+}
+.os-wp-opt:has(.os-wp-radio:checked) { background: color-mix(in srgb, var(--orange) 10%, var(--s)); }
+.os-wp-opt:has(.os-wp-radio:focus-visible) { box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-wp-set:disabled .os-wp-opt { cursor: default; opacity: .6; }
+.os-wp-radio { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
+.os-wp-sw, .os-wp-thumb {
+  flex: none; width: 64px; height: 40px; border-radius: var(--ui-radius-sm, 6px);
+  border: 1px solid var(--ui-line-divider, var(--br)); background: var(--bg); object-fit: cover; overflow: hidden;
+}
+.os-wp-sw-tod { display: flex; }
+.os-wp-band { flex: 1 1 0; background: linear-gradient(180deg, var(--os-wp-a), var(--os-wp-c)); }
+.os-wp-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.os-wp-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-wp-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-wp-pics { display: flex; flex-direction: column; }
+.os-wp-status { margin: 0; padding: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-divider, var(--br)); font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+.os-wp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px); }
+.os-wp-more, .os-wp-done { min-height: 44px; }
+.os-wp-done { min-width: 88px; justify-content: center; }
+.os-wp-done:disabled { opacity: .5; cursor: default; }

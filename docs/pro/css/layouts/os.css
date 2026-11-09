@@ -433,6 +433,11 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
   background: linear-gradient(var(--os-wp-veil), var(--os-wp-veil)), var(--os-wp-img, none) center / cover no-repeat;
   --os-wp-veil: color-mix(in srgb, var(--bg) var(--os-wp-dim, 55%), transparent);
 }
+/* text that sits straight on the picture (icon labels) gets a token chip: --t on it
+   stays >= 4.5:1 whatever the picture under the veil (black to white) */
+[data-os-wp="img"] .os-icon-label, [data-os-wp="img"] .os-p-label {
+  padding: 0 4px; border-radius: var(--ui-radius-xs, 4px); background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
 /* the default gives way to a picture My Skin paints (its own class on <html>) */
 html.my-skin-wallpaper .os-desk[data-os-wp="auto"], html.my-skin-wallpaper .os-phone[data-os-wp="auto"] { background: none; }
 /* a company-enforced My Skin background wins over every choice here */
