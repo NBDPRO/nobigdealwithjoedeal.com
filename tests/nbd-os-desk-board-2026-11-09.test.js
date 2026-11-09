@@ -260,6 +260,8 @@ G(() => {
   ok('below 1100px: one column, never hidden, no grip', /@media \(max-width: 1100px\) \{[^@]*grid-template-columns: 1fr;[^@]*\.os-hw-grip \{ display: none; \}/.test(css) && !/\.os-hw-board[^{]*\{[^}]*display: none/.test(css));
   ok('edit-mode widgets carry touch-action:none before any pointerdown', /\.os-hw\.is-editing \{ touch-action: none; \}/.test(css));
   ok('the grip is a 44px target', /\.os-hw-grip \{[^}]*width: 44px; height: 44px;/.test(css));
+  ok('a widget focused by keyboard scrolls clear of the sticky Add widget / Done bar (scroll-margin-bottom on the widgets, not scroll-padding: the bar\'s own buttons never scroll it)',
+    !/scroll-padding[a-z-]*:/.test(css) && /\.os-hw-desk \.os-hw \{ scroll-margin-bottom: calc\(44px \+ 2 \* var\(--ui-space-1, 4px\) \+ 2px \+ var\(--ui-space-3, 12px\)\);/.test(css));
   ok('no transition or animation in the drag rules (cells snap; both reduce-motion switches have nothing to stop)', !/transition|animation/.test(css.slice(css.indexOf('desk (P1)'))));
   ok('no style attribute, no .style. and no setProperty in home.js or home-logic.js', !/style\s*=|\.style\.|setProperty/.test(noComments(js)) && !/style\s*=|\.style\.|setProperty/.test(noComments(read('docs/pro/js/os/home-logic.js'))));
   ok('pointer capture, not a library (no SortableJS)', /setPointerCapture/.test(js) && /releasePointerCapture/.test(js) && !/Sortable/i.test(js));
