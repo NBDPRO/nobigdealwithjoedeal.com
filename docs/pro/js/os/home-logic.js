@@ -95,7 +95,8 @@
     // P0c: rules over in-memory data (os/coach-logic.js); show = which half
     coach: { title: 'Coach', sizes: ['m', 'l'], def: 'm', reads: 0, config: { show: ['both', 'business', 'personal'] }, cat: 'today', nav: 'crm', about: 'One thing worth doing next, from your own numbers' },
     // P0c: the tracker's own snapshot (personal) and Today's counts (business)
-    daily: { title: 'Daily Success', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, config: { show: ['both', 'personal', 'business'] }, cat: 'you', about: 'Your floors and streak, and what is left today' },
+    // P1: reads 2 = the goals getDoc + today's doors count, in its lazy bundle (os/ds-business.js), at most every 5 min
+    daily: { title: 'Daily Success', sizes: ['s', 'm', 'l'], def: 'm', reads: 2, config: { show: ['both', 'personal', 'business'] }, cat: 'you', about: 'Your floors and streak, and what is left today' },
     // P1 (os/widgets-p1.js, a runtime ScriptLoader bundle): p1 marks a renderer that lives there.
     // money: the member's role must see the Money view (and not be a viewer) or it never shows.
     needsyou: { title: 'Needs you', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, cat: 'today', nav: 'crm', p1: true, about: 'What is waiting on you, by kind, one tap to each' },

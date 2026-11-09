@@ -84,7 +84,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -277,6 +277,25 @@
     if (d.warned) return (new Date(d.dk + 'T12:00:00').getDay() === 1 ? 'Missed Saturday.' : 'Missed yesterday.') + ' Don\'t miss twice.';
     return d.met === d.of ? 'All floors met today.' : 'Floors still open today.';
   }
+  // P1: goals and today's doors come from the lazy `osdsbiz` bundle (os/ds-business.js, 1 getDoc +
+  // 1 count per refresh, at most every 5 min, only on paint), registered and loaded here on first use
+  var BIZ = 'osdsbiz', bizAsked = false, navHid = null;
+  function bizNow() {
+    var B = W.NBDOSDsBiz, SL = W.ScriptLoader;
+    if (!B) {
+      if (!bizAsked && SL && typeof SL.loadBundle === 'function') {
+        bizAsked = true;
+        try {
+          if (SL.bundles && !SL.bundles[BIZ]) SL.bundles[BIZ] = ['js/os/ds-business.js?v=1'];
+          Promise.resolve(SL.loadBundle(BIZ)).then(function () { try { W.dispatchEvent(new W.CustomEvent('nbd:os-dsbiz')); } catch (e) {} });
+        } catch (e) {}
+      }
+      return null;
+    }
+    var uid = String((W._user && W._user.uid) || ''), c = W._userClaims || {};
+    var x = B.current({ uid: uid, companyId: String(c.companyId || uid), doors: !!navHid && navHid('d2d') === false, now: Date.now() });
+    return x ? B.bizRows(null, x.doors, x.goals).doors : '';
+  }
   function dsRow(t, cls) { return '<span class="os-hw-ds-row' + (cls ? ' ' + esc(cls) : '') + '">' + esc(t) + '</span>'; }
   function daily(size, cfg) {
     var show = cfg && cfg.show ? cfg.show : 'both';
@@ -290,6 +309,7 @@
     var items = b ? [plural(b.calls, 'call', 'calls'), plural(b.followUps, 'follow-up', 'follow-ups'), plural(b.jobs, 'job', 'jobs')] : [];
     var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF) + '">Open Daily Success</a>';
     var noBiz = '<p class="os-hw-empty">Today\'s numbers load with your Today list.</p>';
+    var doors = show !== 'personal' ? bizNow() : '';
     if (size === 's') {
       // one thing: the floors, else what is left, else the way in
       if (d) return h + open + '<span class="os-hw-ds-big ui-num">' + esc(String(d.met) + '/' + String(d.of)) + '</span>' + dsRow('Floors') + '</a>';
@@ -312,6 +332,7 @@
       else parts.push(open + (size === 'l'
         ? dsRow('Left today', 'is-label') + items.map(function (t) { return dsRow(t); }).join('')
         : dsRow('Left today: ' + items.join(' · '))) + '</a>');
+      if (doors) parts.push(open + dsRow(doors) + '</a>');
     }
     return h + parts.join('');
   }
@@ -369,6 +390,7 @@
     // the OS layout's own click attribute (data-osp on the phone, data-osdo on the desk)
     var act = /^data-os[a-z]{1,8}$/.test(o.act || '') ? o.act : 'data-oshw-do';
     var visible = typeof o.visible === 'function' ? o.visible : function () { return true; };
+    if (typeof o.navHidden === 'function') navHid = o.navHidden;   // Daily Success counts doors only for a member who has D2D
     var el = doc.createElement('div');
     el.className = 'os-hw-list';
     el.setAttribute('data-os-home', surface);

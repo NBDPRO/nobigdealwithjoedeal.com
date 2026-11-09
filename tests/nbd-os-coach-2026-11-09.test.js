@@ -248,8 +248,9 @@ G(() => {
   click(T.dom, card().querySelector('[data-oshw-coach="snooze"]'));
   ok('"Later" snoozes the next one', memo && JSON.parse(T.store.nbd_os_coach).off[Object.keys(JSON.parse(T.store.nbd_os_coach).off)[1]] > NOW);
   ok('read cost 0 and never compute()', T.reads.length === 0 && T.today.computeCalls === 0, J(T.reads));
-  // P1 (2026-11-09): home.js now loads its own 'oshomep1' bundle (nbd-os-home suite pins it); never home-strips
-  ok('home-strips is not loaded (no ScriptLoader call in the Coach)', !/homestrips|NBDHomeStrips/.test(noComments(HOME_JS)) && !/loadBundle\((?!P1_BUNDLE\))/.test(noComments(HOME_JS)));
+  // P1 (2026-11-09): home.js's ScriptLoader loads are its own bundles (oshomep1, osdsbiz), never home-strips
+  ok('home-strips is not loaded (no ScriptLoader call in the Coach)', !/homestrips|NBDHomeStrips/.test(noComments(HOME_JS))
+    && (noComments(HOME_JS).match(/loadBundle\(/g) || []).length === 2 && /loadBundle\(P1_BUNDLE\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(BIZ\)/.test(noComments(HOME_JS)));
 
   const T2 = makeWin({ surface: 'desktop', leads, store, home: { desk: [{ id: 'coach', s: 'l' }], phone: [] } });
   T2.W._impl.mount({ surface: 'desktop' });

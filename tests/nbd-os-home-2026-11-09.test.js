@@ -283,7 +283,8 @@ G(() => {
   ok('home.js never calls the Today plan\'s compute()', !/\.compute\s*\(/.test(code) && /\.last\s*\(/.test(code));
   ok('Up Next listens for the existing nbd:today-rendered event', /'nbd:today-rendered'/.test(code));
   ok('counts come from NBDHomeAttention.lastCounts (never re-queried)', /NBDHomeAttention/.test(code) && /lastCounts/.test(code));
-  ok('every catalog widget declares reads: 0', HL.ids().every((id) => HL.CATALOG[id].reads === 0));
+  // P1 (2026-11-09): Daily Success declares 2 (goals + doors, its lazy bundle); every other widget reads nothing
+  ok('every catalog widget declares reads: 0 (Daily Success: 2)', HL.ids().every((id) => HL.CATALOG[id].reads === (id === 'daily' ? 2 : 0)));
 });
 
 console.log('\n3. pure helpers');
@@ -476,11 +477,12 @@ G(() => {
   const code = noComments(HOME_JS);
   ok('home.js adds no request of its own (no fetch, import(), script or link injection)',
     !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code));
-  // P1 (2026-11-09): the one ScriptLoader use is its own lazy bundle of two same-origin files under js/os/
+  // P1 (2026-11-09): the ScriptLoader uses are its own two lazy bundles of same-origin files under js/os/
   const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
-  ok('…its only ScriptLoader load is the oshomep1 bundle: js/os/stack-logic.js and js/os/widgets-p1.js',
-    (code.match(/loadBundle\(/g) || []).length === 1 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
-      && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"]), files);
+  ok('…its ScriptLoader loads are the oshomep1 bundle (js/os/stack-logic.js, js/os/widgets-p1.js) and the osdsbiz bundle (js/os/ds-business.js)',
+    (code.match(/loadBundle\(/g) || []).length === 2 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+      && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
+      && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code), files);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
