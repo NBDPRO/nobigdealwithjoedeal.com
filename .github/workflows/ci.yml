@@ -684,6 +684,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-photoexif-test 'node firestore-rules.photo-exif-fields.test.js'
+      # Project-page consent tick (2026-11-09): leads/{id}.projectConsent, owner side only, {on, by, at}. Own file.
+      - name: Run project-consent rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-pconsent-test 'node firestore-rules.project-consent.test.js'
       # Month close (2026-10-19): monthCloses/{companyId_YYYY-MM}, owner-only writes. Own file.
       - name: Run month-close rules tests under emulator
         run: |

@@ -195,3 +195,15 @@ job". It must still go through this runbook (you review the draft, the build
 validates it, nothing auto-publishes). Drafts must never reuse CRM
 `photo.location`/`photo.description`/caption text verbatim — property-derived
 wording stays out of public pages.
+
+## Update 2026-11-09: consent tick + draft script
+
+A CRM job can now carry the owner's consent tick (`leads/{id}.projectConsent`,
+the customer page's "Project Page" button; only the owner side can set it).
+For a ticked job, `node scripts/draft-project-page.mjs --lead <id>` (token mode,
+read only) or `--from <export.json>` prints a draft entry for step 4 above: town
+only, a rounded range (a fixed band), templated alt text. It refuses an unticked
+job, another tenant's job (only NBD's leads; `--tenant` overrides) and a joint
+or subbed one, including one named only in the job text (hard rule 3). `--write` appends it to projects.json; steps
+3, 5 and 6 still apply. Details:
+[SESSION-2026-11-09-project-consent-draft](../projects/SESSION-2026-11-09-project-consent-draft.md).

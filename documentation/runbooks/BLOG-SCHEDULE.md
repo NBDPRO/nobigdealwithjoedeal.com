@@ -16,6 +16,11 @@ Written 2026-11-09 with the weekly scheduled deploy
   first-commit date). A new `POSTS` date is **not** checked against its commit date: that one is on the author and
   the reviewer.
 
+## What to write
+
+The next 12 Tuesdays (from 2026-11-17) are planned in [BLOG-CALENDAR-2026-11-17](BLOG-CALENDAR-2026-11-17.md).
+Those posts are not queued: each waits for Jo's read in its own draft PR before it merges.
+
 ## Queueing a post
 
 1. Write the post page under `docs/blog/<slug>.html` with its `published` date in the future (a Tuesday).

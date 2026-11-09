@@ -20,12 +20,6 @@
  */
 'use strict';
 
-const { initAdmin, getFirestore } = require('./_admin');
-const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
-const args = process.argv.slice(2);
-const COMPANY = (args.find(a => a.startsWith('--company=')) || '').split('=')[1] || '';
-if (!COMPANY) { console.error('--company=<id> required'); process.exit(2); }
-
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 // "1004 Larkspur Dr, Maineville, OH 45039" -> "1004 Larkspur"
@@ -43,6 +37,16 @@ function addrKeysInFilename(f) {
   while ((m = re.exec(t))) out.push(`${m[1]} ${m[2]}`);
   return out;
 }
+
+// 2026-11-09: addrKey / addrKeysInFilename are shared with
+// scripts/match-job-photos.js; requiring this file runs nothing.
+module.exports = { norm, addrKey, addrKeysInFilename };
+if (require.main === module) {
+const { initAdmin, getFirestore } = require('./_admin');
+const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
+const args = process.argv.slice(2);
+const COMPANY = (args.find(a => a.startsWith('--company=')) || '').split('=')[1] || '';
+if (!COMPANY) { console.error('--company=<id> required'); process.exit(2); }
 
 (async () => {
   initAdmin({ projectId: PROJECT });
@@ -111,3 +115,4 @@ function addrKeysInFilename(f) {
   console.log('READ ONLY — nothing was written.');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
+}

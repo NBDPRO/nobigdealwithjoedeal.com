@@ -52,6 +52,7 @@ Planned after the 11-09 build day. Recon was read-only, on the integrated NBD OS
    - New consented jobs feed Social Studio's weekly plan.
    - Add a "new blog post" social post type.
    - Check Meta auto-publish in production with Jo.
+   **Built 2026-11-09 (steps 1-2):** the owner-only consent tick `leads/{id}.projectConsent` (rules plus a lazy "Project Page" control on the customer page) and `scripts/draft-project-page.mjs` (dry run by default; `--write` appends to the local projects.json only, and the CRM shows the command instead of opening a PR). See [SESSION-2026-11-09-project-consent-draft](SESSION-2026-11-09-project-consent-draft.md).
 4. **Blog:** a 12-week calendar, one post every Tuesday, never backdated (`tests/blog-dates-not-backdated-2026-11-04.test.js`).
    - The mix: job case studies, seasonal posts (ice dams, spring storm season), and reader questions.
    - Each post is drafted as a PR with a future `published` date.
@@ -112,3 +113,7 @@ when the live site is behind `main` on a deploy path. The `docs/llms.txt` blog l
 `LLMS:BLOG` region, and posts dated from 2026-11-10 must fall on a Tuesday, one per ISO week. Details and the
 review round: [SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09](SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09.md).
 Runbook: [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).
+
+**Built 2026-11-09 (§1 steps 1-2, the photo matcher):** `scripts/match-job-photos.js` on branch `photo-matcher`, dry run by default; `--apply` needs Jo's OK per run. See [SESSION-2026-11-09-photo-matcher](SESSION-2026-11-09-photo-matcher.md). Review round the same day: row written before the upload (thumbnails), `--uid` checked against the company, only the company's leads read, `--out` kept out of the repo.
+**Built (2026-11-09): §2 steps 3-4.** Social Studio prefers consented jobs for the Tuesday showcase and drafts a "New blog post" share from the deployed feed; the 12-week calendar is [BLOG-CALENDAR-2026-11-17](../runbooks/BLOG-CALENDAR-2026-11-17.md). Session note: [SESSION-2026-11-09-social-blog](SESSION-2026-11-09-social-blog.md).
+**Built (2026-11-09): §2 steps 3-4.** Social Studio prefers consented jobs for the Tuesday showcase and drafts a "New blog post" share from the deployed feed; the 12-week calendar is [BLOG-CALENDAR-2026-11-17](../runbooks/BLOG-CALENDAR-2026-11-17.md). Session note: [SESSION-2026-11-09-social-blog](SESSION-2026-11-09-social-blog.md). Review fixes the same day: the blog link now survives X's 280 characters, `blogUrl` is server-only, and the consent ranking needs the consent-tick lane's rule to ship with it.

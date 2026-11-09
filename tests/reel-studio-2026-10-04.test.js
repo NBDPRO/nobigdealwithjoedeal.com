@@ -349,8 +349,8 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
     ok('callable core: a real photo cannot be posted through the AI path', err && /not found/.test(err.message));
   }
   const rules = read('firestore.rules');
-  ok('rules: client may not create a post carrying reelId / video / aiGenerated', /hasAny\(\['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'reelId', 'video', 'aiGenerated'\]\)/.test(rules));
-  ok('rules: aiGenerated / reelId / video frozen on update + AI never a showcase', /'captionFilter', 'reelId', 'video', 'aiGenerated'\]\)\s*&& socialAiRuleOk\(\)/.test(rules) && /get\('aiGenerated', false\) == true\s*&& request\.resource\.data\.get\('kind', ''\) == 'job_showcase'/.test(rules));
+  ok('rules: client may not create a post carrying reelId / video / aiGenerated', /hasAny\(\['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'reelId', 'video', 'aiGenerated'(?:, '[A-Za-z]+')*\]\)/.test(rules));
+  ok('rules: aiGenerated / reelId / video frozen on update + AI never a showcase', /'captionFilter', 'reelId', 'video', 'aiGenerated'(?:, '[A-Za-z]+')*\]\)\s*&& socialAiRuleOk\(\)/.test(rules) && /get\('aiGenerated', false\) == true\s*&& request\.resource\.data\.get\('kind', ''\) == 'job_showcase'/.test(rules));
 
   // ── F. privacy flags + gating ───────────────────────────────────────────
   console.log('F. privacy flags + approval gating');

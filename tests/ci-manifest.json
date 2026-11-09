@@ -10,6 +10,9 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "project-consent-ui-2026-11-09.test.js",
+    "draft-project-page-2026-11-09.test.js",
+    "match-job-photos-2026-11-09.test.js",
     "q11-task-summary-backfill-2026-11-09.test.js",
     "q11-call-text-backfill-2026-11-09.test.js",
     "install-completed-at-2026-11-09.test.js",
@@ -560,6 +563,7 @@
     "lead-sources-confirmed-2026-10-22.test.js",
     "margin-review-2026-10-23.test.js",
     "social-studio-2026-10-04.test.js",
+    "social-consent-blog-2026-11-09.test.js",
     "reel-studio-2026-10-04.test.js",
     "agent-tenant-bots-2026-10-04.test.js",
     "tenant-texts-2026-11-06.test.js",
@@ -1654,6 +1658,7 @@
     "firestore-rules.voicemail-viewers.test.js",
     "firestore-rules.install-completed-at.test.js",
     "firestore-rules.photo-exif-fields.test.js",
+    "firestore-rules.project-consent.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",
