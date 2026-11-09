@@ -151,6 +151,14 @@ const setNow = (T, ms) => { const B = T.W.Date; T.W.Date = class extends B { con
     Td.W._impl.mount({ surface: 'desk' });
     const wd = Td.document.querySelector('[data-oshw="upnext-1"]');
     ok('on the desk board (one 160px row) M keeps 1 row beside the button', !!wd && wd.querySelectorAll('.os-hw-row').length === 1 && !!wd.querySelector('[data-oshw-peek]'), wd && wd.querySelectorAll('.os-hw-row').length);
+    // the cut follows the box the card is in, not the board: an L Smart Stack's M card is two board rows tall
+    const Tds = makeWin({ surface: 'desk', loader: true, plan: busy, leads: LEADS, uid: 'u1', home: { phone: [], desk: [{ id: 'stack', s: 'l', items: ['upnext', 'coach'] }] } });
+    Tds.W._impl.mount({ surface: 'desk' });
+    Tds.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush();
+    const ws = Tds.document.querySelector('[data-oshw="stack-1"]');
+    ok('an L Smart Stack on the desk board showing Up Next keeps its 3 rows beside the button (its card has the room)',
+      !!ws && !!ws.querySelector('[data-oshw-peek]') && ws.querySelectorAll('.os-hw-row').length === 3, ws && ws.querySelectorAll('.os-hw-row').length);
     const Tl = win({ size: 'l', win: { plan: busy } });
     await flush();
     ok('L keeps its rows and adds the button', byKey(phone(Tl), 'upnext-1').querySelectorAll('.os-hw-row').length === 3 && !!byKey(phone(Tl), 'upnext-1').querySelector('[data-oshw-peek]'));
