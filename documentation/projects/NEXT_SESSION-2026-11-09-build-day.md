@@ -53,3 +53,6 @@ Jo approved shipping three parked drafts through the follow-up branch. Each PR's
 **Dashboard boot budget:** no raise was needed. Shipped local scripts measured 2,627,237 B before and 2,628,313 B after #3008 + #2994, against the 2,631,680 B (2570 KB) ceiling. Template-deferred scripts measured 72,557 B before and 73,193 B after, against 74,752 B.
 
 **Open for Jo: the customer page budget.** `email_system.js` loads at boot on `customer.html`, so #2981 puts that page's shipped local scripts at 1,378,526 B against a 1,378,304 B (1346 KB) ceiling, 222 B over. Raising that ceiling was not part of the approval, so it was not raised. The smallest raise that passes is 1346 to 1347 KB in `CUSTOMER_CEILING.shippedLocalBytes`.
+## 6. Next plan
+
+[CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md): job photos into the CRM by street and date (run on Jo's computer), a content and blog schedule from consented jobs, and the credentials to add. Jo's answers are in it.
