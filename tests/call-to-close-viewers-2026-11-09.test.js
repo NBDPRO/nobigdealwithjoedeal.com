@@ -198,6 +198,7 @@ const cols = (qs) => qs.map((q) => q.col);
 
   // ── 3 + 4. Server ───────────────────────────────────────────────────────
   console.log('SERVER (call-center-logic.js, call-center.js, lead-brief)');
+  const CCM = require(path.join(ROOT, 'functions/call-center.js'));   // real modules, like the call-center-action suite
   const silent = { info() {}, warn() {}, error() {}, debug() {} };
   const STUBS = {
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => '' }) },
@@ -223,9 +224,38 @@ const cols = (qs) => qs.map((q) => q.col);
   ok('scrubTaskSummary removes the old "Call: …" paragraph and keeps the rest',
     typeof L.scrubTaskSummary === 'function' && L.scrubTaskSummary('Call: SECRET\n\nYou said you would:\n• X') === 'You said you would:\n• X'
     && L.scrubTaskSummary('Call: SECRET') === '' && L.scrubTaskSummary('Typed by Jo') === 'Typed by Jo' && L.scrubTaskSummary(null) === null);
-  const CCJ = read('functions/call-center.js');
-  const move = (CCJ.match(/async function moveCallToLead\([\s\S]*?\n\}\n/) || [''])[0];
-  ok('a move copies the old task with its summary scrubbed', /notes: L\.scrubTaskSummary\(t\.data\(\)\.notes\)/.test(move), move.slice(0, 0));
+  // A real move through callCenterAction (in-memory Firestore, the shape
+  // tests/call-center-action-2026-10-01.test.js uses).
+  {
+    const docs = new Map(Object.entries({
+      'phone_calls/cube_MOVEA1': { userId: 'co1', companyId: 'co1', leadId: 'L1', phoneDigits: '5135550100', status: 'noted', startedAtMs: NOW - 3600e3, summary: 'SECRET SUMMARY', promises: [], bucket: 'customer', attachedBy: 'co1' },
+      'leads/L1': { userId: 'co1', companyId: 'co1', firstName: 'Pat' },
+      'leads/L2': { userId: 'co1', companyId: 'co1', firstName: 'Sam' },
+      'leads/L1/activity/cube-cube_MOVEA1': { source: 'cube-acr', summary: 'SECRET SUMMARY' },
+      'leads/L1/tasks/cube-cube_MOVEA1': { source: 'cube-acr', title: 'Send the estimate (Pat)', notes: 'Call: SECRET SUMMARY\n\nYou said you would:\n• Send the estimate', done: false },
+      'phone_calls/cube_MOVEB2': { userId: 'co1', companyId: 'co1', leadId: 'L1', phoneDigits: '5135550101', status: 'noted', startedAtMs: NOW - 3600e3, summary: 's', promises: [], bucket: 'customer', attachedBy: 'co1' },
+      'leads/L1/tasks/cube-cube_MOVEB2': { source: 'cube-acr', title: 'No notes task', done: false },
+    }));
+    const mk = (p) => ({ id: p.split('/').pop(), path: p,
+      get: async () => ({ exists: docs.has(p), data: () => docs.get(p) }),
+      set: async (v, o) => { if (Object.values(v).some((x) => x === undefined)) throw new Error('undefined field in ' + p); docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : v); },
+      create: async (v) => { if (docs.has(p)) { const e = new Error('exists'); e.code = 6; throw e; } if (Object.values(v).some((x) => x === undefined)) throw new Error('undefined field in ' + p); docs.set(p, v); },
+      delete: async () => { docs.delete(p); } });
+    const query = (name, filters) => ({ where: (f, op, v) => query(name, filters.concat([[f, v]])), orderBy: () => query(name, filters), limit: () => query(name, filters),
+      get: async () => { const depth = name.split('/').length + 1; const rows = [...docs.entries()].filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === depth && filters.every(([f, val]) => v[f] === val)).map(([k, v]) => ({ id: k.split('/').pop(), ref: mk(k), exists: true, data: () => v })); return { docs: rows, size: rows.length, empty: !rows.length, forEach: (fn) => rows.forEach(fn) }; } });
+    const db = { docs, doc: mk, collection: (n) => Object.assign(query(n, []), { doc: (id) => mk(n + '/' + id) }),
+      collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }),
+      batch: () => { const ops = []; return { set: (r, v, o) => ops.push(() => r.set(v, o)), commit: async () => { for (const f of ops) await f(); } }; } };
+    let err = null;
+    for (const id of ['cube_MOVEA1', 'cube_MOVEB2']) {
+      try { await CCM._test.callAction({ db, auth: { uid: 'co1', token: {} }, data: { id, action: 'move', leadId: 'L2' }, nowMs: NOW }); } catch (e) { err = e; }
+    }
+    const moved = docs.get('leads/L2/tasks/cube-cube_MOVEA1');
+    ok('a move runs (positive control: the task reached the new customer)', !err && !!moved && !docs.has('leads/L1/tasks/cube-cube_MOVEA1'), err && err.message);
+    ok('…and the moved copy drops the old "Call: <summary>" paragraph, keeping what Jo said', moved && moved.notes === 'You said you would:\n• Send the estimate', moved && moved.notes);
+    const moved2 = docs.get('leads/L2/tasks/cube-cube_MOVEB2');
+    ok('…a task with no notes moves without gaining a notes key', moved2 && !('notes' in moved2), moved2);
+  }
 
   const B = require(path.join(ROOT, 'functions/lead-brief-logic.js'));
   const activity = [
