@@ -200,6 +200,26 @@ const CTX = { transcript: TRANSCRIPT, callYmd: '2026-11-05' };
   ok('the retype save sends retyped: true', /retyped = true/.test(src) || /retyped: true/.test(src));
   ok('the sheet CSS styles the unsure quote', /\.cb-quote\.is-unsure/.test(read('docs/pro/css/call-brief.css')));
 
+  // Cancel on the insurance confirm keeps the value typed into the retype box
+  // (it has no prefill: losing it means listening and typing again).
+  {
+    const on = {};
+    const dlgM = { setAttribute() {}, addEventListener(t, fn) { on[t] = fn; }, className: '', innerHTML: '', open: false, showModal() { this.open = true; }, querySelector: () => null, contains: () => true };
+    const doc2 = Object.assign({}, doc, { createElement: () => dlgM });
+    const ctx2 = vm.createContext({ window: { auth: { currentUser: { uid: 'jo' } } }, document: doc2, console, setTimeout, Date, Object, Number, String, Array, JSON, Math, RegExp, Promise, Event: function () {} });
+    vm.runInContext(src, ctx2);
+    const UI2 = ctx2.window.NBDCallBrief;
+    UI2._showWith({ brief: b, lead: {}, leadId: 'L1', page: 'customer', callId: CALL_ID });
+    const el = (attrs) => ({ disabled: false, value: attrs.value, getAttribute: (n) => (n in attrs ? attrs[n] : null), closest() { return this; } });
+    on.input({ type: 'input', target: el({ 'data-cb-input': 'edit', 'data-k': 'claimNumber', value: '44792' }) });
+    await on.click({ target: el({ 'data-cb-act': 'edit-save', 'data-k': 'claimNumber' }) });
+    const confirmHtml = UI2._render();
+    ok('Save on the retyped claim # asks the insurance confirm, naming the value', /Fill it in as 44792\?/.test(confirmHtml), confirmHtml.slice(0, 300));
+    await on.click({ target: el({ 'data-cb-act': 'cancel' }) });
+    const after = (UI2._render().split('data-cb-row="field:claimNumber"')[1] || '').split('data-cb-row=')[0];
+    ok('Cancel on that confirm keeps the typed value in the retype box', /data-cb-input="edit" data-k="claimNumber"[^>]*value="44792"/.test(after), after.slice(0, 600));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('Failed:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

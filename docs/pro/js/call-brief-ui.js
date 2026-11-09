@@ -268,7 +268,7 @@
         } else if (editing) {
           acts = '<label class="cb-field-lbl" for="cbEdit-' + esc(r.key) + '">Your value</label>' +
             '<input class="cb-input" id="cbEdit-' + esc(r.key) + '" data-cb-input="edit" data-k="' + esc(r.key) + '"' + (r.isDate ? ' type="date"' : ' type="text" maxlength="120"') + ' value="' + esc(S.edit[item]) + '">' +
-            '<div class="cb-acts">' + btn('Save', 'edit-save', ' data-k="' + esc(r.key) + '"') + btn('Cancel', 'cancel') + '</div>' + statusFor(item);
+            '<div class="cb-acts">' + btn('Save', 'edit-save', ' data-k="' + esc(r.key) + '"') + btn('Cancel', 'cancel', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
         } else {
           acts = '<div class="cb-acts">' + btn('Accept', 'accept', ' data-k="' + esc(r.key) + '"') + btn('Edit', 'edit', ' data-k="' + esc(r.key) + '"') + btn('Skip', 'skip', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
         }
@@ -401,7 +401,9 @@
     var k = b.getAttribute('data-k');
     var i = Number(b.getAttribute('data-i'));
     if (a === 'close') { close(); return; }
-    if (a === 'cancel') { S.confirm = ''; Object.keys(S.edit).forEach(function (x) { delete S.edit[x]; }); render(); return; }
+    // An edit box's Cancel closes that box; a confirm's Cancel closes only the
+    // confirm and keeps what was typed (a retype box has no prefill).
+    if (a === 'cancel') { if (k) delete S.edit['field:' + k]; else S.confirm = ''; render(); return; }
     if (a === 'summary') { S.confirm = 'summary'; render(); return; }
     if (a === 'summary-yes') {
       var text = S.summaryText != null ? S.summaryText : ((S.brief.summary || {}).text || '');
