@@ -131,7 +131,7 @@ console.log('\n3. hostile or broken text is refused, and nothing in it survives'
   ok('…a stack keeps known cards only, never itself or a Saved view, 4 at most', J(r.home.phone.find((it) => it.id === 'stack').items) === J(['glance', 'daily', 'coach', 'money']));
   ok('…a desk cell is clamped onto the board', r.home.desk[0].x >= 0 && r.home.desk[0].x <= 3 && r.home.desk[0].y <= HL.DESK_MAX_Y);
   ok('…wallpaper that is not an id is dropped', !r.home.wp);
-  ok('…mode names cut to 24 and control characters gone (escaped where shown)', r.home.acts[1].name.length <= 24 && !/[\u0000-\u001f]/.test(r.home.acts[1].name) && r.home.acts.length === 4 && !r.home.acts.some((a) => a.id === 'zzz'), J(r.home.acts[1]));
+  ok('…mode names cut to 24 and control characters gone (escaped where shown)', r.home.acts[0].id === 'inhome' && r.home.acts[0].name.length <= 24 && !/[\u0000-\u001f]/.test(r.home.acts[0].name) && r.home.acts.length === 1 && !r.home.acts.some((a) => a.id === 'zzz'), J(r.home.acts));
   ok('…and which mode is on is never taken from a paste', !('on' in r.home) && !('on' in SU.merge({}, r.home, {})));
   const max = J(HL.normalize(r.home));
   ok('…what it writes fits the os-home budget and the registry keeps it', max.length < 12000 && !!(R && R.normalizeUser({ layoutState: { 'os-home': SU.merge({}, r.home, {}) } }).layoutState['os-home']), max.length);
@@ -156,6 +156,25 @@ console.log('\n3b. a paste never changes what a mode does (its focus is the pres
   ok('after Use this setup, "In a home" is still the privacy mode (money and team widgets hidden)', on && on.focus.privacy === true && HL.actHides(on.focus, 'teamboard') === HL.actHides({ privacy: true }, 'teamboard'), J(on));
   ok('…and every mode\'s focus is the preset\'s', HL.actsOf(next).every((a) => J(a.focus) === J(pre(a.id))), J(HL.actsOf(next).map((a) => a.focus)));
   ok('…even merged straight from an unparsed home', HL.actsOf(SU.merge(own, strip.home, {})).every((a) => J(a.focus) === J(pre(a.id))));
+}
+
+console.log('\n3c. garbage modes or wallpaper are dropped, not applied as the defaults');
+{
+  const MY = { v: 1, wp: { phone: 'none', desk: 'tod' }, acts: [{ id: 'canvass', name: 'Knocking', phone: [{ id: 'upnext', s: 'm' }] }, { id: 'office', name: 'Desk day', phone: [{ id: 'money', s: 'm' }] }] };
+  const junkActs = SU.parse(J({ nbd: 'nbd-os-setup', v: 1, home: { phone: [{ id: 'glance', s: 'm' }], acts: [{ id: 'zzz', name: 'x' }, null, 7, 'inhome'] } }));
+  ok('an acts list with no known mode is not part of the paste', junkActs.ok && !('acts' in junkActs.home), J(junkActs));
+  ok('…so the member keeps their own mode names and widgets', J(SU.merge(MY, junkActs.home, {}).acts) === J(HL.keep(MY).acts));
+  ok('…and the preview does not list modes', !/Modes:/.test(J(SU.summary(junkActs.home, {}))));
+  const oneAct = SU.parse(J({ nbd: 'nbd-os-setup', v: 1, home: { acts: [{ id: 'storm', name: 'Hail day' }, { id: 'zzz' }] } }));
+  const m1 = SU.merge(MY, oneAct.home, {});
+  ok('a paste with one mode changes that mode only; the others stay the member\'s', oneAct.ok && HL.actsOf(m1)[2].name === 'Hail day' && HL.actsOf(m1)[0].name === 'Knocking' && HL.actsOf(m1)[3].name === 'Desk day', J(HL.actsOf(m1).map((a) => a.name)));
+  ok('…and the preview lists only that mode', J(SU.summary(oneAct.home, {})) === J(['Modes: Hail day']), J(SU.summary(oneAct.home, {})));
+  const badWp = SU.parse(J({ nbd: 'nbd-os-setup', v: 1, home: { wp: { phone: 'javascript:alert(1)', desk: 'tod' } } }));
+  const mw = SU.merge(MY, badWp.home, {});
+  ok('a wallpaper that is not an id leaves that surface\'s wallpaper as it was', badWp.ok && mw.wp.phone === 'none' && mw.wp.desk === 'tod', J(mw.wp));
+  ok('…and the preview names only the surface that changes', J(SU.summary(badWp.home, {})) === J(['Wallpaper: laptop Time of day']), J(SU.summary(badWp.home, {})));
+  const allBad = SU.parse(J({ nbd: 'nbd-os-setup', v: 1, home: { wp: { phone: 'javascript:x' } } }));
+  ok('a paste whose only wallpaper is garbage is refused (nothing in it is a setup)', allBad.ok === false, J(allBad));
 }
 
 console.log('\n4. the company lock wins');

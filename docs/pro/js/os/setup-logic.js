@@ -18,9 +18,12 @@
  *
  *   exportKey(seen, own)     { nbd, v, home } from the home on screen (resolveHome) and the own key
  *   exportText(seen, own)    that, as JSON text
- *   parse(text)              { ok:true, home } | { ok:false, error } (a plain sentence)
+ *   parse(text)              { ok:true, home } | { ok:false, error } (a plain sentence); home.wp
+ *                            holds only the surfaces with a wallpaper id, home.acts only the
+ *                            modes the text names (garbage is left out, never a default)
  *   merge(own, home, locked) the member's next own key: the pasted surfaces, wallpaper and
- *                            modes over their own; a surface the company locked keeps theirs
+ *                            modes over their own (wallpaper by surface, modes by id); a surface
+ *                            the company locked keeps theirs
  *                            (locked: { phone, desk } booleans; the lock wins)
  *   summary(home, locked)    plain lines for the preview (a My Skin picture id may not carry over:
  *                            it is the exporter's, and shows as Time of day where it is missing)
@@ -81,9 +84,19 @@
       if (a && (!a.length || anyKnown(a))) pick[k] = a;
     });
     if (isObj(r.wp)) pick.wp = r.wp;
-    if (list(r.acts)) pick.acts = r.acts;
+    // only the modes the text names (a known id, first copy): an acts list of garbage, or one
+    // that leaves a mode out, must not reset the member's own modes to the presets
+    var named = {};
+    if (list(r.acts)) r.acts.forEach(function (a) { if (isObj(a) && H.ACT_PRESETS.some(function (p) { return p.id === a.id; })) named[a.id] = true; });
+    if (Object.keys(named).length) pick.acts = r.acts;
     var home = H.keep(pick);
     delete home.on;
+    // a wallpaper that is not an id is left out, not applied as the default
+    if (home.wp) {
+      SURF.forEach(function (k) { if (home.wp[k] === null) delete home.wp[k]; });
+      if (!Object.keys(home.wp).length) delete home.wp;
+    }
+    if (home.acts) home.acts = home.acts.filter(function (a) { return named[a.id]; });
     if (!home.phone && !home.desk && !home.wp && !home.acts) return { ok: false, error: 'Nothing in that text is part of a home setup.' };
     return { ok: true, home: home };
   }
@@ -92,8 +105,17 @@
     var H = HL(), lk = isObj(locked) ? locked : {}, h = isObj(home) ? home : {};
     var out = H.keep(own);
     SURF.forEach(function (k) { if (list(h[k]) && lk[k] !== true) out[k] = h[k]; });
-    if (isObj(h.wp)) out.wp = h.wp;
-    if (list(h.acts)) out.acts = h.acts;
+    if (isObj(h.wp)) {
+      var wp = isObj(out.wp) ? out.wp : { phone: null, desk: null };
+      SURF.forEach(function (k) { if (typeof h.wp[k] === 'string') wp[k] = h.wp[k]; });
+      out.wp = wp;
+    }
+    // a pasted mode replaces the member's own of that id; a mode the paste leaves out stays theirs
+    if (list(h.acts)) {
+      var by = {};
+      h.acts.forEach(function (a) { if (isObj(a)) by[a.id] = a; });
+      out.acts = H.actsOf(out).map(function (a) { return by[a.id] || a; });
+    }
     return H.keep(out);
   }
 
@@ -116,7 +138,12 @@
       var n = H.weight(h[k]);
       out.push(SURF_NAME[k] + ': ' + (h[k].length ? String(n) + (n === 1 ? ' widget' : ' widgets') + ' (' + titles(h[k]).join(', ') + ')' : 'no widgets'));
     });
-    if (isObj(h.wp)) out.push('Wallpaper: phone ' + wpName(h.wp.phone) + ', laptop ' + wpName(h.wp.desk));
+    if (isObj(h.wp)) {
+      var w = [];
+      if ('phone' in h.wp) w.push('phone ' + wpName(h.wp.phone));
+      if ('desk' in h.wp) w.push('laptop ' + wpName(h.wp.desk));
+      if (w.length) out.push('Wallpaper: ' + w.join(', '));
+    }
     if (list(h.acts)) out.push('Modes: ' + h.acts.map(function (a) { return a.name; }).join(', '));
     var kpis = SURF.some(function (k) { return list(h[k]) && lk[k] !== true && h[k].some(function (it) { return it.id === 'kpi'; }); });
     if (kpis) out.push('A Saved view tile counts only a view your team has saved; any other shows no number.');
