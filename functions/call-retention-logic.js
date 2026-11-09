@@ -200,8 +200,17 @@ function isCrmAudioPath(p, call) {
   return typeof owner === 'string' && !!owner && segs[1] === owner;
 }
 
-function audioPatch(nowMs) {
-  return { storagePath: null, audioRemoved: 'retention', retention: { audioDeletedAtMs: nowMs, v: POLICY_VERSION } };
+/**
+ * The merge patch after the CRM audio copy is deleted. A call still 'stored'
+ * (never transcribed) becomes 'listed', the status call-center-logic gives a
+ * call with no stored audio, so it leaves the transcribe queue and
+ * pipeline-health's 'waiting' count instead of sitting there with nothing
+ * to transcribe.
+ */
+function audioPatch(nowMs, call) {
+  const patch = { storagePath: null, audioRemoved: 'retention', retention: { audioDeletedAtMs: nowMs, v: POLICY_VERSION } };
+  if (call && call.status === 'stored') patch.status = 'listed';
+  return patch;
 }
 
 /**

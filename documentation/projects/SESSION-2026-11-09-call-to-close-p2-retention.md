@@ -15,7 +15,7 @@ Nothing changes in the browser. No page, script tag or rule changed.
 
 ## What it does, phase by phase
 
-1. **Audio (12 months).** A `phone_calls` doc older than 12 months that still has `storagePath`: the Storage object is deleted (`ignoreNotFound`), then the call gets `storagePath: null`, `audioRemoved: 'retention'`, `retention.audioDeletedAtMs`. Only a path of the shape `calls/{the call's userId}/...` is ever deleted. Any other path is counted as `badPath` and left alone.
+1. **Audio (12 months).** A `phone_calls` doc older than 12 months that still has `storagePath`: the Storage object is deleted (`ignoreNotFound`), then the call gets `storagePath: null`, `audioRemoved: 'retention'`, `retention.audioDeletedAtMs`. A call still `stored` (its audio never transcribed) also becomes `listed`, the status a call with no CRM audio already has, so it leaves the transcribe queue and the Pipeline Health "waiting" count. Only a path of the shape `calls/{the call's userId}/...` is ever deleted. Any other path is counted as `badPath` and left alone.
 2. **Transcript (24 months).** A `phone_calls` doc older than 24 months: `transcript`, `segIndex`, `summary`, `callerFacts` become `null`, `promises` and `actionItems` become `[]`, `transcriptSaved: false`, and `retention.transcriptStrippedAtMs` is set. The call's brief at `leads/{leadId}/call_briefs/{callId}` is deleted with it. **The `phone_calls` doc is never deleted**: its date, number, customer, duration, status and `driveFileId` stay.
 3. **Brief (24 months).** Any `leads/{leadId}/call_briefs/{callId}` with `generatedAtMs` over 24 months old is deleted. A doc named `call_briefs` anywhere else is never touched (`collection-group-paths.js` `matchDocPath`).
 

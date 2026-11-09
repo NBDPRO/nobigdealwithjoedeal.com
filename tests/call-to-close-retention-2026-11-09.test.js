@@ -336,6 +336,20 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     ok('the next run starts after the cursor (scans nothing already scanned)', r2 && r2.phases && r2.phases.audio.scanned === 0 && r2.phases.transcript.scanned === 0, r2 && r2.phases);
   }
 
+  console.log('\n5b. A never-transcribed call leaves the transcribe queue with its audio');
+  {
+    const db = makeDb({
+      'leads/L5': {},
+      'phone_calls/wait1': call({ id: 'wait1', leadId: 'L5', status: 'stored', transcript: null, summary: null, promises: [], segIndex: null, callerFacts: null, actionItems: [], startedAtMs: MID, createdAtMs: MID, storagePath: 'calls/jo/cube-acr/2025-06-01/wait1.m4a' }),
+      'phone_calls/short1': call({ id: 'short1', leadId: 'L5', status: 'short', transcript: null, startedAtMs: MID, createdAtMs: MID, storagePath: 'calls/jo/cube-acr/2025-06-01/short1.m4a' }),
+    });
+    await run(base(db, makeBucket(), { live: true }));
+    const w = db.store.get('phone_calls/wait1') || {};
+    ok('a "stored" call whose audio is removed becomes "listed" (no audio, so not waiting to transcribe)', w.storagePath === null && w.status === 'listed', { status: w.status, storagePath: w.storagePath });
+    ok('...a call in any other status keeps it', (db.store.get('phone_calls/short1') || {}).status === 'short');
+    ok('audioPatch leaves status alone for a call that is not "stored"', !('status' in (R.audioPatch(NOW, { status: 'noted' }) || {})));
+  }
+
   console.log('\n6. Drive is never touched');
   {
     const src = read('functions/call-retention.js') + read('functions/call-retention-logic.js');
