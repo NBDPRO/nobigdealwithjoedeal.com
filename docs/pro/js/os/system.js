@@ -175,8 +175,51 @@
     for (var i = 0; i < ds.length; i++) if (call(function () { return ds[i].matches(':modal'); }) === true) top = ds[i];
     return top;
   }
+  // The host dialog can close (its own code, a timer) or be removed while locked: the cover then
+  // moves to the next open modal dialog or to <body>, so the lock never ends without unlock().
+  var lockHost = null, lockMo = null;
+  function onHostCancel(e) { if (state.locked) e.preventDefault(); }   // a close request (Android back) on the host
+  function release() {
+    if (lockHost) { lockHost.removeEventListener('close', rehost); lockHost.removeEventListener('cancel', onHostCancel); lockHost = null; }
+    if (lockMo) { lockMo.disconnect(); lockMo = null; }
+  }
+  function unhide() {
+    hiddenForLock.forEach(function (c) { c.removeAttribute('aria-hidden'); });
+    hiddenForLock = [];
+  }
+  function place(el) {
+    release();
+    unhide();
+    var h = topModal();
+    (h || doc.body).appendChild(el);
+    if (h) {
+      lockHost = h;
+      h.addEventListener('close', rehost);
+      h.addEventListener('cancel', onHostCancel);
+      if (typeof MutationObserver === 'function') {
+        lockMo = new MutationObserver(function () { if (!doc.contains(el)) rehost(); });
+        lockMo.observe(doc.body, { childList: true, subtree: true });
+      }
+    }
+    // everything else leaves the accessibility tree while locked (the siblings at each level up to <body>)
+    for (var n = el; n && n !== doc.body && n.parentNode; n = n.parentNode) {
+      Array.prototype.forEach.call(n.parentNode.children, function (c) {
+        if (c === n || !c.getAttribute || c.getAttribute('aria-hidden') === 'true') return;
+        c.setAttribute('aria-hidden', 'true');
+        hiddenForLock.push(c);
+      });
+    }
+  }
+  function rehost() {
+    var el = state.lockEl;
+    if (!state.locked || !el) return;
+    if (doc.contains(el) && (!lockHost || lockHost.open)) return;   // still where it belongs
+    place(el);
+    var b = el.querySelector('button');
+    if (b) b.focus();
+  }
   function lock() {
-    if (state.locked) return;
+    if (state.locked) { rehost(); return; }
     close();
     state.locked = true;
     state.lockReturn = doc.activeElement;
@@ -186,21 +229,24 @@
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
     el.setAttribute('aria-label', 'Screen locked');
-    (topModal() || doc.body).appendChild(el);
-    // everything else leaves the accessibility tree while locked (the siblings at each level up to <body>)
-    hiddenForLock = [];
-    for (var n = el; n && n !== doc.body && n.parentNode; n = n.parentNode) {
-      Array.prototype.forEach.call(n.parentNode.children, function (c) {
-        if (c === n || !c.getAttribute || c.getAttribute('aria-hidden') === 'true') return;
-        c.setAttribute('aria-hidden', 'true');
-        hiddenForLock.push(c);
-      });
-    }
+    state.lockEl = el;
+    place(el);
     paintLock();
     doc.documentElement.classList.add('os-locked');
     sound('lock');
     var b = el.querySelector('button');
     if (b) b.focus();
+  }
+  // While locked, Escape and Tab are the cover's, taken in the capture phase: each OS sheet's
+  // own Escape handler (peek, shutdown, home, wallpaper, ds-goals) stops propagation and closes
+  // its dialog, which held the cover, so a bubbling listener never heard it.
+  function onLockKey(e) {
+    if (!state.locked || (e.key !== 'Escape' && e.key !== 'Tab')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') { unlock(); return; }
+    var ub = state.lockEl && state.lockEl.querySelector('button');
+    if (ub) ub.focus();
   }
   function paintLock() {
     var el = byId('osLock');
@@ -224,10 +270,11 @@
   function unlock() {
     if (!state.locked) return;
     state.locked = false;
-    var el = byId('osLock');
+    var el = state.lockEl;
+    state.lockEl = null;
+    release();
     if (el && el.parentNode) el.parentNode.removeChild(el);
-    hiddenForLock.forEach(function (c) { c.removeAttribute('aria-hidden'); });
-    hiddenForLock = [];
+    unhide();
     doc.documentElement.classList.remove('os-locked');
     state.lastActive = Date.now();
     sound('unlock');
@@ -240,7 +287,7 @@
   function noteActivity() { if (!state.locked) state.lastActive = Date.now(); }
   function checkIdle() {
     if (!state.locked && L.shouldLock(state.lastActive, Date.now(), state.lockMin)) lock();
-    else if (state.locked) paintLock();
+    else if (state.locked) { rehost(); paintLock(); }
   }
 
   // Settings tabs the member can see, once the Settings view has hydrated.
@@ -664,11 +711,7 @@
     }
   }
   function onKey(e) {
-    if (state.locked) {
-      if (e.key === 'Tab') { e.preventDefault(); var ub = doc.querySelector('#osLock button'); if (ub) ub.focus(); }
-      else if (e.key === 'Escape') { e.preventDefault(); unlock(); }
-      return;
-    }
+    if (state.locked) return;   // the cover's keys: onLockKey, in the capture phase
     if (!state.open) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
     if (e.key !== 'Tab') return;
@@ -719,6 +762,7 @@
     registerSpotlight();
     doc.addEventListener('click', onClick);
     doc.addEventListener('keydown', onKey);
+    doc.addEventListener('keydown', onLockKey, true);
     ['nbd:notifs-updated', 'nbd:data-refreshed', 'online', 'offline', 'nbd:flags-loaded'].forEach(function (ev) { w.addEventListener(ev, refresh); });
     ['online', 'offline'].forEach(function (ev) { w.addEventListener(ev, function () { refreshBg(true); }); });
     refreshBg(true);
@@ -744,6 +788,7 @@
     timers.forEach(function (t) { clearInterval(t); });
     doc.removeEventListener('click', onClick);
     doc.removeEventListener('keydown', onKey);
+    doc.removeEventListener('keydown', onLockKey, true);
     var C = w.NBDCommand;
     if (C && typeof C.unregisterAction === 'function') registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
     registered = [];
