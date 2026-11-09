@@ -3,7 +3,7 @@
  * (documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md, sections 3.5 and 8).
  *
  * The home screen's arrangement gets its own key, layoutState['os-home'] =
- * { v:1, phone:[{id,s,cfg?}], desk:[{id,s,cfg?}] }, under its own 12,000-char
+ * { v:1, phone:[{id,s,cfg?,items?}], desk:[{id,s,x,y,w,h,cfg?,items?}], wp? } (P1), under its own 12,000-char
  * budget (a separate key, so a full home can never push the OS windows over
  * the budget and drop them). docs/pro/js/os/home-logic.js normalises it:
  *   - at most 24 items per surface (P1 raised it from 12; the desk items also
@@ -101,6 +101,21 @@ console.log('\n4. max-fill fits the 12,000-char budget');
   ok('the theoretical bound holds too (24 x 2 items of the 64-char cfg cap, each with the largest cell)',
     2 * H.MAX_ITEMS * (J({ id: 'x'.repeat(32), s: 'm', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, cfg: {} }).length + H.MAX_CFG) + 40 < 12000);
   ok('LayoutRegistry keeps the max-fill key (its per-key budget)', !!R.normalizeUser({ layoutState: { 'os-home': st } }).layoutState['os-home']);
+  // P1 integration: every lane's fields at once (desk cells, Smart Stack cards, wp, the 24 cap)
+  const cards = H.ids().filter((id) => !H.CATALOG[id].stack).sort((p, q) => q.length - p.length).slice(0, H.STACK_MAX);
+  const stacks = []; for (let i = 0; i < 12; i++) stacks.push({ id: 'stack', s: 'l', items: cards });
+  const mix = []; for (let i = 0; i < 3; i++) mix.push({ id: 'stack', s: 'l', items: cards }); for (let i = 0; i < 20; i++) mix.push(worst);
+  const WP = { phone: 'z'.repeat(16), desk: 'y'.repeat(16) };
+  [['stacks', stacks], ['stacks and widgets', mix], ['widgets', fill]].forEach(([name, list]) => {
+    const k = H.normalize({ v: 1, phone: list, desk: list, wp: WP });
+    const n = J(k).length;
+    ok('max-fill of ' + name + ' with desk cells and wp: within the 24 cap, under 12,000 chars (' + n + ')',
+      H.weight(k.phone) <= 24 && H.weight(k.desk) <= 24 && k.desk.every((it) => typeof it.x === 'number') && k.wp && n < 12000 && n <= R.MAX_STATE_JSON
+        && !!R.normalizeUser({ layoutState: { 'os-home': k } }).layoutState['os-home'], n);
+  });
+  const unit = Math.max(J({ id: 'x'.repeat(32), s: 'm', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, cfg: {} }).length + H.MAX_CFG,
+    Math.ceil(J({ id: 'stack', s: 'l', x: 3, y: H.DESK_MAX_Y, w: 2, h: 2, items: ['x'.repeat(32), 'x'.repeat(32), 'x'.repeat(32), 'x'.repeat(32)] }).length / H.STACK_MAX));
+  ok('the theoretical bound with every P1 field (' + (2 * H.MAX_ITEMS * unit + J({ wp: WP }).length + 40) + ')', 2 * H.MAX_ITEMS * unit + J({ wp: WP }).length + 40 < 12000);
 }
 
 console.log('\n5. round trip');
