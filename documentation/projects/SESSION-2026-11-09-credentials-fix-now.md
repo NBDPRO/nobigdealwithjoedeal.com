@@ -1,6 +1,6 @@
 # Session 2026-11-09: credentials "Fix now" (built)
 
-Branch `cred-fixes` (worktree `.claude/worktrees/cred-fixes`), from `main` after the NBD OS P3 merge. Builds section 3 "Fix now" of the plan note `CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09` (on branch `plan-note`; not yet on `main`, so this note stands in for its "Built" section). Source of truth throughout: [docs/assets/data/credentials.json](../../docs/assets/data/credentials.json); only `status: "active"` rows may be claimed. Runbook updated: [ADD-A-CREDENTIAL](../runbooks/ADD-A-CREDENTIAL.md).
+Branch `cred-fixes` (worktree `.claude/worktrees/cred-fixes`), from `main` after the NBD OS P3 merge. Builds section 3 "Fix now" of the plan note `CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09` ([CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md), which now points here from section 3). Source of truth throughout: [docs/assets/data/credentials.json](../../docs/assets/data/credentials.json); only `status: "active"` rows may be claimed. Runbook updated: [ADD-A-CREDENTIAL](../runbooks/ADD-A-CREDENTIAL.md).
 
 ## What was built
 
@@ -11,9 +11,20 @@ Branch `cred-fixes` (worktree `.claude/worktrees/cred-fixes`), from `main` after
 
 ## Tests
 
-New suite `tests/credentials-surfaces-2026-11-09.test.js` (node bucket; floors 1026/74/1164): A agent list, B llms region content, C footer vs /credentials issuer set. Each section was shown red before its fix. `tests/build-llms-modes.test.js` gains: holding a row back turns `--check-regions` red and `--write-regions` fixes it; a Master Elite name is fatal.
+New suite `tests/credentials-surfaces-2026-11-09.test.js` (node bucket; floors 1037/74/1176 after the rebase below): A agent list, B llms region content, C footer vs /credentials issuer set. Each section was shown red before its fix. `tests/build-llms-modes.test.js` gains: holding a row back turns `--check-regions` red and `--write-regions` fixes it; a Master Elite name is fatal.
 
 ## Open
 
-- The plan note itself (branch `plan-note`) should get a dated "Built" pointer to this note when both land.
 - Real profile verify links for TAMKO and American Operator, if the issuers provide them.
+
+## Update 2026-11-09: independent review acted on
+
+Verdict was approve. One required step and seven non-blocking findings.
+
+- **Rebased** onto `claude/funny-hawking-t9zyzm` (the Q11 integration branch, which now carries the plan note). The FLOORS conflict was resolved to 1037/74/1176 with a rewritten dated comment, as `--check` measures. The first commit's message still says 1026/74/1164, which was true before the rebase. On the merged tree, `apply-partials --check`, `build-llms --check-regions` and `build-credentials --check` are clean.
+- **Fixed: the 13 hand-carried footers were untested.** Section C now scans every `docs/` page with the cert bar (290), outside `/pro`. A local revert of `docs/index.html` turned it red.
+- **Fixed: the llms.txt heading promised a verify link for every row.** Insurance and James Hardie have no `verifyUrl`. The heading now says a verify link follows each one the issuer lists publicly. Pinned (red, then green).
+- **Not changed: `gaf-timberline` line 921, and `tamko-impact-resistant-shingles` line 962, which the reviewer did not list.** These are page-specific copyright and trademark lines that name the marks those pages show. They are not the site-wide independence list, and the test leaves them out on purpose. The same goes for blog posts saying "either manufacturer".
+- **Not changed: `scripts/add-footer-cert-bar.js`.** It is a one-off 2026-07-20 sweep that nothing runs. It also predates the American Operator and Hardie badges, so editing only its sentence would still leave it producing a stale cert bar. If anyone revives it, it should stamp the footer partial instead. Mentioned for the PR body.
+- **Not changed: "American Operator certifies No Big Deal...".** This is the `summary` in `credentials.json`, and it is the same on /credentials and in the footer alt text. Making it agree with the AI note "Memberships are never 'certified'" is Jo's wording call in the data file.
+- **Not changed: the logic copied between `build-llms.mjs` and `build-credentials.mjs`.** `build-credentials.mjs` validates and runs at import, so it can't be imported. `build-llms-modes` and section B cover the copy. Extracting a shared module would be a refactor nobody asked for.

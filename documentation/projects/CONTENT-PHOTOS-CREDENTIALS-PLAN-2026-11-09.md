@@ -83,6 +83,8 @@ Planned after the 11-09 build day. Recon was read-only, on the integrated NBD OS
 - **BBB accreditation.**
 - **OSHA 10/30** for Jo and the crews.
 
+**Built 2026-11-09 (Fix now, items 1-4):** see [SESSION-2026-11-09-credentials-fix-now](SESSION-2026-11-09-credentials-fix-now.md). Items 1-3 are done and pinned by `tests/credentials-surfaces-2026-11-09.test.js`. Item 4 was left as is, because no NBD-specific TAMKO or American Operator profile URL is recorded anywhere.
+
 Each new credential goes through `ADD-A-CREDENTIAL.md`, then the site strip and schema. Manufacturer and inspector certifications also get a CRM document badge (`company-profile.js` / `nbd-badge-assets.js`), with NBD's documents changing only by the added badge.
 
 ## Jo's answers (2026-11-09)
