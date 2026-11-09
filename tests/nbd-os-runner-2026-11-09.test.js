@@ -629,6 +629,21 @@ function finishWiring() {
   const undef = used.filter((t) => !defined(t));
   ok('css: every theme token it reads exists (' + used.length + ')', used.length >= 5 && undef.length === 0, undef.join(', '));
   ok('css: 44px targets, no text under 11px', /min-height: 44px/.test(css) && !(css.match(/font-size:\s*(\d+(?:\.\d+)?)px/g) || []).some((m) => parseFloat(m.replace(/[^\d.]/g, '')) < 11));
+  // sign-out (nbd-auth.js purgeAccountStorage) keeps the two device settings, like the per-hotkey toggles
+  const AUTH = read('docs/pro/js/nbd-auth.js');
+  const ki = AUTH.indexOf('      const KEEP = new Set([');
+  const kEnd = '      drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });';
+  const kj = AUTH.indexOf(kEnd, ki);
+  const purge = (keys) => {
+    const st = {}; keys.forEach((k) => { st[k] = 'v'; });
+    const c = vm.createContext({ localStorage: { get length() { return Object.keys(st).length; }, key: (n) => Object.keys(st)[n], removeItem: (k) => { delete st[k]; } }, Set, RegExp });
+    vm.runInContext(AUTH.slice(ki, kj + kEnd.length), c);
+    return Object.keys(st);
+  };
+  const left = ki >= 0 && kj > ki ? purge(['nbd_runner_type_v1', 'nbd_runner_corner_v1', 'nbd_cmd_quickkeys_v1', 'nbd_leads_cache']) : [];
+  ok('sign-out keeps "Type to search" and the hot corner (a rep who turned typing off for WCAG 2.1.4 stays off)',
+    left.indexOf('nbd_runner_type_v1') >= 0 && left.indexOf('nbd_runner_corner_v1') >= 0, left.join());
+  ok('…and still wipes the Quick Keys and account data', left.indexOf('nbd_cmd_quickkeys_v1') < 0 && left.indexOf('nbd_leads_cache') < 0);
   const scss = read('docs/pro/css/command-palette-scopes.css');
   ok('the scope chips (@ # > = t:) are 44px on a phone / touch screen', /\(max-width: 640px\), \(pointer: coarse\)[\s\S]*\.cmdx-hint, \.cmdx-chip \{ min-height: 44px/.test(scss));
   console.log('\n' + (failed ? 'FAILED ' + failed : 'PASSED ' + passed) + ' (' + passed + ' ok)');

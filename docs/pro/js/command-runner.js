@@ -27,8 +27,8 @@
  *   - on the NBD OS laptop desk: type-anywhere opens the runner with the key
  *     typed, ONLY when focus is on the desk itself (never an input or a
  *     window) and only while the "Type to search" setting is on (default on
- *     for laptops; off in the Control Center or the Quick Keys editor), so it
- *     meets WCAG 2.1.4; an opt-in hot corner (top-left, 250 ms dwell, off by
+ *     for laptops; off in the Control Center or the Quick Keys editor; kept at
+ *     sign-out, nbd-auth.js KEEP), so it meets WCAG 2.1.4; an opt-in hot corner (top-left, 250 ms dwell, off by
  *     default) opens it too.
  *
  * Reads nothing new: no Firestore, no network. Every field is escaped.
