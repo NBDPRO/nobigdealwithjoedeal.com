@@ -2602,6 +2602,9 @@
       ? window.NBDAuth.purgeSmsOutbox()
       : Promise.resolve(window.NBDSmsOutbox && typeof window.NBDSmsOutbox.purgeAll === 'function'
         ? window.NBDSmsOutbox.purgeAll() : false);
+    // CRM audit 2026-11-06 (PL-F27): stop the live estimates listener before
+    // the token goes, so it never errors permission-denied and re-fetches.
+    if (typeof window._unsubscribeEstimates === 'function') window._unsubscribeEstimates();
     return Promise.resolve(purgeSms).catch(() => false)
       .then(() => signOut(auth))
       // Firestore's on-phone cache (customer records) goes with the session —
@@ -2689,8 +2692,11 @@
   });
   
   function showShortcutsHelp() {
+    // CRM audit 2026-11-06 (PL-F23): one copy at a time; "Got it" targets the
+    // overlay by id (it is class-styled, so div[style*=fixed] never matched).
+    if (document.getElementById('nbdShortcutsHelp')) return;
     const helpHTML = `
-      <div class="dbx-posfixed-top0-lef0" data-action="removeSelf">
+      <div id="nbdShortcutsHelp" class="dbx-posfixed-top0-lef0" data-action="removeSelf">
         <div class="dbx-bgs-bd1pxsolid-r12px" data-action="stopProp">
           <div class="dbx-fs18px-w700-mb16px">⌨️ Keyboard Shortcuts</div>
           <div class="dbx-dgrid-gtcauto1fr-gap8px16px">
@@ -2705,11 +2711,14 @@
             <kbd class="kbd-input">?</kbd>
             <span>Show This Help</span>
           </div>
-          <button class="btn btn-orange dbx-wd100-mt16px-jccenter" data-action="removeClosest" data-target="div[style*=fixed]">Got it</button>
+          <button class="btn btn-orange dbx-wd100-mt16px-jccenter" data-action="removeClosest" data-target="#nbdShortcutsHelp">Got it</button>
         </div>
       </div>
     `;
     document.body.insertAdjacentHTML('beforeend', helpHTML);
+    // Escape, Tab trap and focus return (overlay-a11y.js), as every CRM dialog has.
+    const ov = document.getElementById('nbdShortcutsHelp');
+    if (ov && window.nbdOverlay) window.nbdOverlay.attach(ov, { label: 'Keyboard shortcuts', close: () => ov.remove() });
   }
 
   // ── RECENTLY VIEWED CUSTOMERS ──
@@ -4319,6 +4328,10 @@
       }, onErr));
     }
     _estimatesUnsub = () => unsubs.forEach(u => { try { u(); } catch(e) {} });
+  };
+  // PL-F27: sign-out calls this before signOut(auth).
+  window._unsubscribeEstimates = function () {
+    if (_estimatesUnsub) { try { _estimatesUnsub(); } catch(e) {} _estimatesUnsub = null; }
   };
 
   window._saveEstimate = async (data) => {
