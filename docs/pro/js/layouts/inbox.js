@@ -581,7 +581,10 @@
       '<button type="button" role="tab" class="ib-tab' + (S.pane === 'inbox' ? ' is-on' : '') + '" data-ib="pane" data-pane="inbox" aria-selected="' + (S.pane === 'inbox') + '">Inbox</button>' +
       '<button type="button" role="tab" class="ib-tab' + (S.pane === 'pipeline' ? ' is-on' : '') + '" data-ib="pane" data-pane="pipeline" aria-selected="' + (S.pane === 'pipeline') + '">Pipeline</button></div>';
     if (S.pane === 'inbox') {
+      // A viewer reads no calls or texts (Call to Close Q11): no Texts / Calls folder that can never fill.
+      var viewer = (claims().role || '') === 'viewer';
       FOLDERS.forEach(function (f) {
+        if (viewer && (f[0] === 'texts' || f[0] === 'calls')) return;
         h += '<button type="button" class="ib-folder' + (S.folder === f[0] ? ' is-on' : '') + '" data-ib="folder" data-folder="' + f[0] + '">' +
           '<span>' + esc(f[1]) + '</span><span class="ib-count">' + (counts[f[0]] || 0) + '</span></button>';
       });

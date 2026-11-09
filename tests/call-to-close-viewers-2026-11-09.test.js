@@ -237,6 +237,25 @@ const cols = (qs) => qs.map((q) => q.col);
   ok('the Inbox skips its phone_text_days read for a viewer', /var b = \(claims\(\)\.role \|\| ''\) === 'viewer' \? Promise\.resolve\(\) : W\.getDocs\(W\.query\(W\.collection\(W\.db, 'phone_text_days'\)/.test(IB));
   ok('…a texts denial once the role reads viewer does not fail the feed', /'phone_text_days'[\s\S]{0,400}\.catch\(function \(e\) \{ if \(\(claims\(\)\.role \|\| ''\) === 'viewer'\) return; throw e; \}\);/.test(IB));
   ok('…and the Inbox says calls and texts are hidden for a viewer', /Calls and texts are hidden for your role\./.test(IB) && /role="status"/.test(IB));
+  // Final round (2026-11-09): a viewer's rail no longer offers "Texts 0" and
+  // "Calls 0" folders that can never fill.
+  {
+    const RAIL = slicer(IB)('  function railHtml(counts) {', '\n  }\n');
+    ok('Inbox railHtml is found (positive control)', /function railHtml\(counts\)/.test(RAIL));
+    const FOLDERS_SRC = (IB.match(/  var FOLDERS = \[[\s\S]*?\];\n/) || [''])[0];
+    function runRail(role) {
+      const W = { _userClaims: { role } };
+      const sb = { W, S: { pane: 'inbox', folder: 'all', menu: false }, esc: (s) => String(s), K: { menuItems: () => '' },
+        claims: () => W._userClaims || {} };
+      vm.createContext(sb);
+      vm.runInContext(FOLDERS_SRC + RAIL + '\nglobalThis.__r = railHtml;', sb);
+      return sb.__r({});
+    }
+    const v = runRail('viewer');
+    ok('Inbox, viewer: no Texts or Calls folder in the rail', !/data-folder="(texts|calls)"/.test(v) && /data-folder="all"/.test(v) && /data-folder="leads"/.test(v), v);
+    const m = runRail('manager');
+    ok('Inbox, manager: Texts and Calls folders still show (positive control)', /data-folder="texts"/.test(m) && /data-folder="calls"/.test(m), m);
+  }
 
   // ── 1 + 3. Customer timeline (customer-bootstrap + call-timeline) ───────
   console.log('CUSTOMER TIMELINE (customer-bootstrap.module.js, call-timeline.js)');
