@@ -151,6 +151,37 @@ Names and documents only; the details are in the private file.
   sums today).
 - **RoofIVent:** freight per order, which the contract price does not include.
 
+## Update 2026-11-09 (later): the 20% price floor
+
+Jo's call (2026-11-09): every tier of every catalog SKU clears a 20% margin
+after labor on the live cost book. Branch `price-floor`; no figure below is a
+cost or a margin.
+
+- **Sells (public):** 54 SKUs in `docs/pro/js/product-data.js` had a thin
+  tier; 160 tier sells went up, none went down. Each tier rises to the
+  smallest whole-dollar (or half-dollar) sell that clears the floor, and a
+  tier above a lifted one rises by at least as much, so every SKU keeps its
+  good/better/best gaps (the #3021 ladder). The list of SKUs and their prior
+  retail sells is in `tests/catalog-price-floor-2026-11-09.test.js`.
+- **Devices:** `product-library.js` DATA_VERSION 6 -> 7, with the paired
+  cache keys (product-data.js ?v=5, product-library.js ?v=16) and
+  script-loader.js ?v=216 on dashboard.html and customer.html.
+- **Stand-in costs:** the three stand-ins (TAMKO hip & ridge, TAMKO starter,
+  soffit intake vent) were corrected from the exact-product supplier rows in
+  the sweep, in a new private import file (v3) in the session scratchpad. Not
+  imported anywhere; applying it is Jo's step. Their sells were not lowered.
+- **Ridge/hip coverage:** the evidence states the ridge cap's spec, 25 LF per
+  bundle (GAF Seal-A-Ridge), so the rate stays 25; the catalog text no longer
+  says "about 25".
+- **Not changed, for Jo:** RoofIVent sells are the manufacturer's MSRP and
+  were left alone, although none clears the floor after labor; a few labor-
+  heavy SKUs rose sharply and their carried labor blocks are worth a look;
+  `maps-routing.js` sizes hip & ridge with its own 31.7 LF per bundle.
+- **Guard:** the new suite checks the raised sells, the ladder gaps,
+  DATA_VERSION and the ridge coverage from public data. Its margin check runs
+  only when `NBD_PRIVATE_COST_BOOK` points at a private cost-book file, and
+  names SKU and tier only.
+
 ## Related
 
 - [CATALOG-UNDER-COST-2026-08-19](../audit/CATALOG-UNDER-COST-2026-08-19.md),
