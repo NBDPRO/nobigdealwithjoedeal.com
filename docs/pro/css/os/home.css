@@ -243,6 +243,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw-focus .os-hw-row-name { font-weight: 700; }
 /* the member's own money never shows on the lock screen */
 html.os-locked .os-hw-money { visibility: hidden; }
+/* nor the deals closing this week: customer names and projected dollars */
+html.os-locked .os-hw-closes { visibility: hidden; }
 
 /* ── Smart Stack: one card, prev / next and "Why this?" (never rotates by itself) ── */
 .os-hw-stack > .os-hw-body { height: 100%; }

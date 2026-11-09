@@ -218,6 +218,7 @@ async function mount(items, opts) {
       const bad = await mount([{ id: 'money', s: 's' }], { revenue: 'none', revStatus: 'failed' });
       ok('a failed load says so, no number', /Couldn't load payments/.test(text(bad.card('money-1'))) && !/\d/.test(text(bad.card('money-1'))));
       ok('money is hidden on the lock screen', /html\.os-locked \.os-hw-money \{ visibility: hidden; \}/.test(HOME_CSS));
+      ok('Closes this week (names, projected $) is hidden on the lock screen', /html\.os-locked \.os-hw-closes \{ visibility: hidden; \}/.test(HOME_CSS));
     }
 
     console.log('\n7. read cost, CSP, escaping, bundle');
