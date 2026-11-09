@@ -260,7 +260,7 @@
     var co = String(company || '').trim().slice(0, 80);
     var hi = first ? 'Hi ' + first + ',' : 'Hi,';
     return {
-      text: hi + ' thanks for the call. ' + lines.join(' ') + (co ? ' \u2014 ' + co + '.' : '') + ' Reply STOP to opt out.',
+      text: hi + ' thanks for the call. ' + lines.join(' ') + (co ? ' \u2014 ' + co + (/[.!?]$/.test(co) ? '' : '.') : '') + ' Reply STOP to opt out.',
       subject: MSG_SUBJECT,
       body: hi + '\n\nThanks for the call. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
         '\n\nIf anything changes, reply here or give me a call.' + (co ? '\n\n' + co : ''),
@@ -863,7 +863,7 @@
       S.msg.done = kind === 'text' ? 'Sent from your phone.' : 'Sent from your mail app.';
       decide(kind === 'text' ? 'draft:followupText' : 'draft:followupEmail', 'accept', { value: String(words).slice(0, 600) }).catch(function () { /* it went; the log is best effort */ });
     } else if (r && (r.blocked || r.reason)) S.msg.err = r.reason || 'Not sent.';
-    else S.msg.err = 'Not sent.';
+    else S.msg.done = 'Not sent. The message is still here.';
     render();
   }
 

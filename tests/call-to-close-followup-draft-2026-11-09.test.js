@@ -155,6 +155,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     ok('_followUpDraft is pure and fixed: text ends with the STOP line, email has a subject', /Reply STOP to opt out\.$/.test(d.text) && d.subject === 'Following up on our call' && /Hi Pat,/.test(d.body));
     ok('…with no company and no name it still reads cleanly', /^Hi,/.test(CB._followUpDraft(items, {}, '').text) && !/undefined|null/.test(JSON.stringify(CB._followUpDraft(items, {}, ''))));
     ok('…no items → no draft', CB._followUpDraft([], { firstName: 'Pat' }, 'X') === null);
+    ok('…a company name ending in a period is not doubled ("Co..")', !/\.\./.test(CB._followUpDraft(items, { firstName: 'Pat' }, 'Sample Roofing Co.').text));
   }
 
   console.log('\n2. Texting consent');
