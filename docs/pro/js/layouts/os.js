@@ -365,7 +365,8 @@
   function saveWp(surface, v) {
     if (!S) return;
     S.wpPreview = undefined;
-    S.homeNext = W.NBDOSHomeLogic.setWp(homeKey(), surface, v);
+    // the member's own key (never the resolved home): a surface on the company home stays on it
+    S.homeNext = W.NBDOSHomeLogic.setWp(ownHome(), surface, v);
     flushHome();
     paintWp();
   }

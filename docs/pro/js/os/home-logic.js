@@ -371,15 +371,20 @@
   var WP_IMAGE_RE = /^[a-z0-9]{8,16}$/;
   function cleanWp(v) { return typeof v === 'string' && (WP_BUILTIN.indexOf(v) !== -1 || WP_IMAGE_RE.test(v)) ? v : null; }
   function wpOf(key, surface) { var k = normalize(key); return k.wp && SURFACES.indexOf(surface) !== -1 ? k.wp[surface] : null; }
-  /** A new key with one surface's wallpaper set (null = back to the default); the other surface kept. */
+  /**
+   * A new key with one surface's wallpaper set (null = back to the default); the other surface's
+   * wallpaper kept. Like setSurface, only the widget lists the member saved are kept (cleaned):
+   * a member still on the company home (P1) stays on it after picking a wallpaper.
+   */
   function setWp(key, surface, v) {
-    var k = normalize(key);
-    if (SURFACES.indexOf(surface) === -1) return k;
-    var w = { phone: k.wp ? k.wp.phone : null, desk: k.wp ? k.wp.desk : null };
-    w[surface] = cleanWp(v);
-    delete k.wp;
-    k.wp = w;
-    return normalize(k);
+    var r = isObj(key) ? key : {};
+    var out = { v: 1 };
+    SURFACES.forEach(function (s) { if (Array.isArray(r[s])) out[s] = cleanList(r[s], s === 'desk'); });
+    var old = isObj(r.wp) ? r.wp : {};
+    var w = { phone: cleanWp(old.phone), desk: cleanWp(old.desk) };
+    if (SURFACES.indexOf(surface) !== -1) w[surface] = cleanWp(v);
+    if (w.phone || w.desk) out.wp = w;
+    return out;
   }
   /** Fixed local hours: dawn 5-8, day 8-17, dusk 17-20, night 20-5. */
   function todPeriod(ms) {

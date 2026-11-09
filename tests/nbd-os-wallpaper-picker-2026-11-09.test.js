@@ -192,6 +192,25 @@ async function openPicker(T) {
   }
 
   // ═════════════════════════════════════════════════════════════════════
+  console.log('\n3b. P1 integration: a wallpaper never takes a member off the company home');
+  {
+    const CO = { defaultWidgets: { 'os-phone': [{ id: 'upnext', s: 'm' }], 'os-desk': [{ id: 'coach', s: 'm' }] }, homeLocked: false };
+    const T = setup({ surface: 'phone', home: undefined, company: CO, claims: { role: 'sales_rep', companyId: 'c1' } });
+    T.W._impl.mount({ surface: 'phone' });
+    const HLw = T.W.NBDOSHomeLogic;
+    const d = await openPicker(T);
+    const saves0 = (T.W._saves || []).length;
+    choose(T, d, 'none');
+    click(T.dom, d.querySelector('[data-oswp-done]'));
+    const s = (T.W._saves || []).slice(saves0);
+    const k = s[0] && s[0].layoutState['os-home'];
+    ok('Done saves the wallpaper only: no phone or desk list copied into the member\'s own key', !!k && J(k.wp) === J({ phone: 'none', desk: null }) && !('phone' in k) && !('desk' in k), J(k));
+    const r = HLw.resolveHome({ own: k, company: CO.defaultWidgets, locked: false });
+    ok('…so both surfaces still follow the company default, and the wallpaper is theirs', r.src.phone === 'company-default' && r.src.desk === 'company-default' && J(r.wp) === J({ phone: 'none', desk: null }), J(r));
+    ok('setWp on an empty key adds only wp', J(HLw.setWp(null, 'desk', 'tod')) === J({ v: 1, wp: { phone: null, desk: 'tod' } }));
+    ok('setWp keeps the surfaces a member did save, and only those', J(Object.keys(HLw.setWp({ v: 1, phone: [{ id: 'glance', s: 's' }] }, 'phone', 'none'))) === J(['v', 'phone', 'wp']));
+  }
+
   console.log('\n4. a My Skin picture on a surface');
   {
     const T = setup({ surface: 'phone', home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } });
