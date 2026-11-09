@@ -38,7 +38,8 @@
   // bundle. migrateStore refreshes untouched catalog rows only; user-edited,
   // user-added, archived and tombstoned rows are kept as they are.
   // DATA_VERSION 7 (2026-11-09, Jo): the 20% floor. Every tier of every
-  // product-data.js SKU clears a 20% margin after labor on the live cost book;
+  // product-data.js SKU clears a 20% margin after labor on the live cost book
+  // (RoofIVent SKUs, roofivent-catalog.js at MSRP, are not covered: Jo's call);
   // only the thin tiers of 54 SKUs were lifted, each keeping its good/better/
   // best gaps (tests/catalog-price-floor-2026-11-09.test.js lists them).
   // flash_007's coverage text now states the spec, 25 LF per bundle. Same
@@ -1304,7 +1305,7 @@ const DEFAULT_RATES = {
 // the value stored in window.R[key]."
 //
 // Product prices are native to their own units (per SQ for shingles,
-// per 25-LF bundle for ridge (the Seal-A-Ridge spec, confirmed 2026-11-09), etc.). unitConvert bridges that to the
+// per 25-LF bundle for ridge, etc.). unitConvert bridges that to the
 // rate unit required by the calcTierPrices formulas.
 //
 // For SF-based items the target unit is PER SQ (100 SF), matching
