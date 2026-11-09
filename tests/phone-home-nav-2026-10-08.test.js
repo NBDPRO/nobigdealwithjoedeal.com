@@ -70,7 +70,7 @@ console.log('\n2. progressStage asks only through the rule; Undo for a plain mov
   const guard = ps.indexOf('if (mustAsk) {');
   ok('exactly one ask, and it is inside if (mustAsk)', asks.length === 1 && guard !== -1 && asks[0] > guard && asks[0] - guard < 200, 'asks=' + asks.length);
   ok('the cancellation-window wording is kept', /Move customer to "\$\{label\}" stage anyway\?/.test(ps));
-  ok('a plain move offers Undo through the toast', /undoAction: \(\) => _undoStageMove\(lead, oldStage, nextStage\)/.test(ps) && /let undoable = !mustAsk;/.test(ps));
+  ok('a plain move offers Undo through the toast', /undoAction: \(\) => _undoStageMove\(lead, oldStage, nextStage(, o\.onUndone)?\)/.test(ps) && /let undoable = !mustAsk;/.test(ps));
   ok('warranty-claim moves are not undoable from a toast', (ps.match(/undoable = false;/g) || []).length === 2);
   const u = cb.indexOf('async function _undoStageMove(');
   const undo = stripJs(cb.slice(u, cb.indexOf('\n}\n', u)));
