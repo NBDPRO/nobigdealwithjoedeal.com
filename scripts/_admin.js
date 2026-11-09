@@ -60,28 +60,11 @@ const { getStorage } = req('firebase-admin/storage');
  */
 function initAdmin(opts) {
   if (!getApps().length) {
-    const tok = process.env.NBD_ACCESS_TOKEN;
-    const o = Object.assign({ credential: tok ? tokenCredential(tok) : applicationDefault() }, opts || {});
+    const o = Object.assign({ credential: applicationDefault() }, opts || {});
     if (o.credential === null) delete o.credential;
     initializeApp(o);
-    // Token mode talks to Firestore over plain HTTPS (REST), so it also works
-    // through an HTTPS proxy that adds the Authorization header (a Claude Code
-    // cloud session's saved credential); gRPC would bypass that proxy.
-    if (tok) getFirestore().settings({ preferRest: true });
   }
   return getApp();
-}
-
-/**
- * A credential from a short-lived OAuth access token, e.g. the output of
- * `gcloud auth print-access-token`, given as NBD_ACCESS_TOKEN. Lets a script
- * run where Application Default Credentials are not set up. The token is
- * never logged or written; it expires on Google's schedule (about an hour).
- */
-function tokenCredential(token) {
-  const t = String(token || '').trim();
-  if (!t) throw new Error('NBD_ACCESS_TOKEN is empty');
-  return { getAccessToken: async () => ({ access_token: t, expires_in: 3000 }) };
 }
 
 /** projectId of the initialised app, with the usual env fallbacks. */
@@ -95,7 +78,6 @@ function projectId() {
 
 module.exports = {
   initAdmin,
-  tokenCredential,
   projectId,
   // modular re-exports — import from here, never off the default export
   getApp,

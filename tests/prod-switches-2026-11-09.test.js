@@ -70,12 +70,30 @@ const SERVER_TS = { __ts: true };
   try { await S.run({ db: f.db, args: S.parseArgs(['--company', 'nope', '--coach-ai', 'on', '--yes']), log, serverTimestamp: () => SERVER_TS }); } catch (e) { err = e; }
   ok(err && /no companies\/nope/.test(err.message) && f.writes.length === 0, 'missing company refused, nothing written');
 
-  // ── _admin token credential ──
-  const A = require(path.join(__dirname, '..', 'scripts', '_admin.js'));
-  const tc = A.tokenCredential('  ya29.abc  ');
-  const t = await tc.getAccessToken();
-  ok(t.access_token === 'ya29.abc' && t.expires_in > 0, 'token credential trims and returns the token');
-  throws(() => A.tokenCredential(''), /empty/, 'empty token refused');
+  // REST adapter (token mode) with a fake fetch
+  const R = require(path.join(__dirname, '..', 'scripts', '_firestore-rest.js'));
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    calls.push({ url, init, body: init.body ? JSON.parse(init.body) : null });
+    if (init.method === 'GET' && /missing$/.test(url)) return { status: 404, text: async () => '{}' };
+    if (init.method === 'GET') return { status: 200, text: async () => JSON.stringify({ fields: { coachAiEnabled: { booleanValue: true }, n: { integerValue: '7' }, m: { mapValue: { fields: { 'RFG X': { doubleValue: 1.5 } } } } } }) };
+    return { status: 200, text: async () => '{}' };
+  };
+  throws(() => R.restFirestore({ projectId: 'p', token: ' ' }), /empty/, 'empty token refused');
+  const rdb = R.restFirestore({ projectId: 'nobigdeal-pro', token: 'tok', fetchImpl: fakeFetch });
+  const g = await rdb.doc('companyProfile/c1').get();
+  ok(g.exists && g.data().coachAiEnabled === true && g.data().n === 7 && g.data().m['RFG X'] === 1.5, 'decodes bool, int, nested double');
+  ok(calls[0].init.headers.Authorization === 'Bearer tok' && /documents\/companyProfile\/c1$/.test(calls[0].url), 'bearer header, document url');
+  ok((await rdb.doc('companies/missing').get()).exists === false, '404 -> not exists');
+  await rdb.doc('companies/c1/settings/callBrief').set({ autoBrief: true, updatedAt: R.serverTimestamp() }, { merge: true });
+  const w = calls[calls.length - 1].body.writes[0];
+  ok(/:commit$/.test(calls[calls.length - 1].url) && w.update.fields.autoBrief.booleanValue === true && !w.update.fields.updatedAt, 'set: fields without the sentinel');
+  ok(w.updateMask.fieldPaths.join() === 'autoBrief' && w.updateTransforms[0].fieldPath === 'updatedAt' && w.updateTransforms[0].setToServerValue === 'REQUEST_TIME', 'merge mask + server timestamp transform');
+  await rdb.doc('catalogCosts/c1').update(new R.FieldPath('xactCosts', 'RFG DRPE-AL', 'materialCost'), 0.77);
+  const u = calls[calls.length - 1].body.writes[0];
+  ok(u.updateMask.fieldPaths[0] === 'xactCosts.`RFG DRPE-AL`.materialCost', 'field path with a space is backtick-quoted');
+  ok(u.update.fields.xactCosts.mapValue.fields['RFG DRPE-AL'].mapValue.fields.materialCost.doubleValue === 0.77, 'nested update value');
+  ok(u.currentDocument && u.currentDocument.exists === true, 'update requires the doc to exist');
 
   console.log(pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

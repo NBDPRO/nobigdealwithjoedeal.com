@@ -13,7 +13,8 @@
  *
  * Credentials: Application Default Credentials (`gcloud auth
  * application-default login`), or a short-lived token in NBD_ACCESS_TOKEN
- * (`NBD_ACCESS_TOKEN=$(gcloud auth print-access-token)`); see scripts/_admin.js.
+ * (`NBD_ACCESS_TOKEN=$(gcloud auth print-access-token)`), which goes over
+ * Firestore REST (scripts/_firestore-rest.js).
  *
  * Usage:
  *   node scripts/prod-switches.js --company <companyId> --coach-ai on --auto-brief on          # dry run
@@ -93,6 +94,13 @@ if (require.main === module) {
   (async () => {
     let args;
     try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
+    if (process.env.NBD_ACCESS_TOKEN) {
+      // Token mode: Firestore REST with a short-lived access token (scripts/_firestore-rest.js).
+      const R = require('./_firestore-rest');
+      const db = R.restFirestore({ projectId: args.project, token: process.env.NBD_ACCESS_TOKEN });
+      await run({ db, args, serverTimestamp: R.serverTimestamp });
+      return;
+    }
     const { initAdmin, getFirestore, FieldValue } = require('./_admin');
     initAdmin({ projectId: args.project });
     await run({ db: getFirestore(), args, serverTimestamp: () => FieldValue.serverTimestamp() });
