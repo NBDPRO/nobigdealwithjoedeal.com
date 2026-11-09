@@ -188,6 +188,7 @@
     if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said ' + where + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
     if (s.tierInterest && s.tierInterest.value) out.push('Asked about the ' + s.tierInterest.value + ' package');
     var said = {};
+    if (s.stories && s.stories.quote) said[s.stories.quote] = true;   // already the "N-story house" line
     (s.saidQuantities || []).forEach(function (q) { said[q.quote] = true; out.push('Said: "' + q.quote + '"'); });
     // P2: a walkthrough's scope facts whose words were said (server-grounded), each once.
     (s.visitFacts || []).forEach(function (f) { if (f && f.quote && !said[f.quote]) { said[f.quote] = true; out.push('Said: "' + f.quote + '"'); } });
@@ -603,7 +604,7 @@
     if (b.transcriptOk && b.transcriptOk.reliable === false) return '';
     var wk = b.fields && b.fields.workKind && b.fields.workKind.value;
     var label = wk === 'repair' ? 'Start repair quote' : 'Start estimate';
-    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons the caller named, each marked from call. ' +
+    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons ' + (isVisit() ? 'named at the walkthrough' : 'the caller named') + ', each marked from call. ' +
       (wk === 'repair' ? 'Repair templates are offered for a quick quote. ' : '') +
       'Measurements and prices come from you and your price book; nothing is saved until you press Save.</div>' +
       (S.err && S.err['draft:estimate'] ? '<div class="cb-err" role="alert">' + esc(S.err['draft:estimate']) + '</div>' : '') +

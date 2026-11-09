@@ -157,6 +157,8 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     ok('the proposal list says "From the walkthrough" and lists the grounded facts', /From the walkthrough/.test(html) && /The chimney flashing is pulling away/.test(html) && !/From the call/.test(html));
     ok('…each fact once (the said quantity is not listed twice)', (html.match(/about twenty-eight squares/g) || []).length === 1, (html.match(/about twenty-eight squares/g) || []).length);
     ok('every word from the recording is escaped', !/<script|onerror/i.test(html));
+    ok('the stories fact is listed once (as the 2-story line, not again as Said)', !/Said: &quot;two stories&quot;|Said: "two stories"/.test(html) && /2-story house \(said at the walkthrough\)/.test(html));
+    ok('the estimate card says what the homeowner named at the walkthrough (not "the caller")', /named at the walkthrough/.test(html) && !/the caller named/.test(html));
     calls.length = 0;
     await click({ 'data-cb-act': 'skip', 'data-k': 'damageType' });
     const d = calls.find((c) => c.name === 'callBriefDecide');
