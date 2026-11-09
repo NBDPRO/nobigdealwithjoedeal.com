@@ -58,8 +58,11 @@
  * precondition, so a doc that changed between the read and the write fails
  * the update instead of being merged over.
  *
- * Exit codes: 0 = ok, 1 = a tier/code was refused or skipped for a conflict
- * (the rest were still planned / written), 2 = fatal (nothing written).
+ * Exit codes: 0 = ok, 1 = a tier/code was refused, or a named SKU/code was
+ * skipped (not in the proposal, no live entry, or changed since --expect), so
+ * a typo'd id in the approved list never reads as a clean run; the rest were
+ * still planned / written. A single tier the proposal leaves blank is skipped
+ * without raising the code. 2 = fatal (nothing written).
  */
 
 'use strict';
@@ -228,6 +231,17 @@ function planXactMerge({ proposal, live, only, xactWin, expect }) {
   return rows;
 }
 
+/**
+ * 1 when any row needs a human: a refusal, or a whole SKU/code skipped (typo,
+ * no live entry, --expect conflict). A per-tier skip (the proposal left that
+ * tier blank) is not one: --tiers exists to name a subset.
+ */
+function exitCodeFor(rows) {
+  const flagged = rows.some((r) => r.status === 'refused' ||
+    (r.status === 'skipped' && !(r.kind === 'sku' && r.field !== '*')));
+  return flagged ? 1 : 0;
+}
+
 /** Only 'write' rows become writes. */
 function buildWrites(rows) {
   return rows.filter((r) => r.status === 'write').map((r) => ({ segments: r.path, value: r.to }));
@@ -360,7 +374,7 @@ async function run(argv, deps) {
     log(formatTable(rows));
     log('');
     log('to write ' + count('write') + ' · unchanged ' + count('same') + ' · refused ' + count('refused') + ' · skipped ' + count('skipped'));
-    const code = (count('refused') || rows.some((r) => r.status === 'skipped' && /--expect/.test(r.reason || ''))) ? 1 : 0;
+    const code = exitCodeFor(rows);
 
     if (!a.yes) {
       log('\nDRY RUN — no write. Re-run with --yes to write the ' + count('write') + ' field(s) above.');
@@ -392,6 +406,7 @@ module.exports = {
   planSkuMerge,
   planXactMerge,
   validateSkuTier,
+  exitCodeFor,
   buildWrites,
   applyWritesToObject,
   formatTable,

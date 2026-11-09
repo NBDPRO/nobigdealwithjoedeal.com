@@ -226,6 +226,45 @@ function fakeDeps(files, events, opts) {
     ok('missing book: message points at import-catalog-costs.js', errs.some((s) => /does not exist/.test(s) && /import-catalog-costs\.js/.test(s)));
   }
 
+  {
+    // A named id that has no proposal value or no live entry is a typo or a
+    // stale list until proven otherwise: exit 1, so it cannot pass as clean.
+    const cases = [
+      ['typo\'d SKU (not in the proposal)', ['--only', 'sku_a,sku_c,sku_typo'], { 'p.json': JSON.stringify({ costs: { sku_a: { cost: { good: 45 } }, sku_c: PROPOSAL.costs.sku_c } }) }],
+      ['SKU with no live entry', ['--only', 'sku_c,sku_new'], { 'p.json': JSON.stringify({ costs: { sku_c: PROPOSAL.costs.sku_c, sku_new: { cost: { good: 1 } } } }) }],
+    ];
+    for (const [label, only, extra] of cases) {
+      const events = [];
+      const f = fakeDeps(Object.assign(clone(files), extra), events);
+      const code = await M.run(['--company', 'co_test', '--in', 'p.json'].concat(only), f.deps);
+      ok(label + ' → dry run exits 1', code === 1);
+    }
+    const xcases = [
+      ['typo\'d xact code (not in the proposal)', 'TST ONE,TST TYPO'],
+      ['xact code with no live entry', 'TST ONE,TST TWO'],
+    ];
+    for (const [label, codes] of xcases) {
+      const events = [];
+      const f = fakeDeps(Object.assign(clone(files), { 'x2.json': JSON.stringify({ xactCosts: { 'TST ONE': { materialCost: 4 }, 'TST TWO': { materialCost: 1 } } }) }), events);
+      const code = await M.run(['--company', 'co_test', '--xact', 'x2.json', '--only-xact', codes], f.deps);
+      ok(label + ' → dry run exits 1', code === 1);
+    }
+    {
+      const events = [];
+      const f = fakeDeps(Object.assign(clone(files), { 'p.json': JSON.stringify({ costs: { sku_c: PROPOSAL.costs.sku_c } }) }), events);
+      const code = await M.run(['--company', 'co_test', '--in', 'p.json', '--only', 'sku_c', '--yes'], f.deps);
+      ok('clean run (every named id planned) exits 0 and writes', code === 0 && f.updates.length === 1);
+    }
+    {
+      // A partial proposal (one tier only) is not a typo: the missing tiers
+      // are skipped per tier and the run stays clean.
+      const events = [];
+      const f = fakeDeps(Object.assign(clone(files), { 'p.json': JSON.stringify({ costs: { sku_c: { cost: { good: 5 } } } }) }), events);
+      const code = await M.run(['--company', 'co_test', '--in', 'p.json', '--only', 'sku_c'], f.deps);
+      ok('partial proposal (missing tiers only) exits 0', code === 0);
+    }
+  }
+
   console.log('\nCLI — offline --live dry run, no credentials');
   {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cc-'));
