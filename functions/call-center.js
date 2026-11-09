@@ -1264,6 +1264,10 @@ const TEXTS = 'phone_texts';
 const etToday = (nowMs) => new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 const noteOf = (c) => ({ summary: c.summary || '', promises: Array.isArray(c.promises) ? c.promises : [], followUpDate: c.followUpDate || null, urgent: !!c.urgent });
 
+// A tenant call's own company (Call to Close P2): NBD's calls keep the
+// shape they always had (companyId = the owner uid, no companyId on a task).
+const tenantCompanyOf = (call) => (call.userId && call.userId !== OWNER && call.companyId ? call.companyId : undefined);
+
 function leadInCallTenant(lead, call) {
   return !!((lead.companyId && lead.companyId === call.companyId) || (lead.userId && lead.userId === call.userId));
 }
@@ -1281,9 +1285,11 @@ async function fileCallOnLead({ db, call, leadId, uid, nowMs, extra }) {
   if (call.status !== 'noted') return;
   const owner = call.userId || OWNER;
   const notes = noteOf(call);
+  const companyId = tenantCompanyOf(call);
   await db.doc('leads/' + leadId + '/activity/cube-' + call.id)
-    .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner }), { createdAt: FieldValue.serverTimestamp() }));
+    .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner, companyId }), { createdAt: FieldValue.serverTimestamp() }));
   const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: etToday(nowMs), nowMs });
+  if (task && companyId) task.companyId = companyId;
   if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
 }
 
@@ -1379,7 +1385,7 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
     activityMoved = true;
   } else if (call.status === 'noted') {
     await db.doc('leads/' + toId + '/activity/cube-' + id)
-      .set(Object.assign(L.buildCallActivity({ call, notes: noteOf(call), ownerUid: call.userId || OWNER }), { createdAt: FieldValue.serverTimestamp() }));
+      .set(Object.assign(L.buildCallActivity({ call, notes: noteOf(call), ownerUid: call.userId || OWNER, companyId: tenantCompanyOf(call) }), { createdAt: FieldValue.serverTimestamp() }));
   }
   if (t.exists) {
     await createIfAbsent(db.doc('leads/' + toId + '/tasks/cube-' + id), Object.assign({}, t.data(), { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));

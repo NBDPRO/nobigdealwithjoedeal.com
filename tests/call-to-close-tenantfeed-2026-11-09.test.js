@@ -426,6 +426,25 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     }
   });
 
+  // ── 8b. Filing a tenant call by hand (review fix) ──────────────────────
+  console.log('\n8b. Filing a tenant call by hand keeps the tenant');
+  await tryRun('manual filing', async () => {
+    const ID = 'cube_acmeHand0001';
+    const noted = { userId: A.owner, companyId: A.cid, status: 'noted', startedAtMs: NOW - 600e3, direction: 'inbound', phoneDigits: '8125550113', summary: 'Roof leak.', promises: [{ who: 'jo', text: 'Come look', due: '2026-10-03' }], followUpDate: '2026-10-02' };
+    const caA = { uid: 'caA', token: { role: 'company_admin', companyId: A.cid } };
+    const run = async (db, data) => { try { return { r: await T.callAction({ db, auth: caA, data: Object.assign({ id: ID }, data), nowMs: NOW }) }; } catch (e) { return { e }; } };
+    let db = fakeDb(world({ ['phone_calls/' + ID]: noted, 'leads/aLead2': { companyId: A.cid, userId: A.owner, firstName: 'Ash', lastName: 'Acme' } }));
+    let o = await run(db, { action: 'attach', leadId: 'aLead' });
+    ok('a teammate attaches the tenant call', o.r && o.r.ok, o.e && o.e.message);
+    const act = db.docs.get('leads/aLead/activity/cube-' + ID), task = db.docs.get('leads/aLead/tasks/cube-' + ID);
+    ok('…the timeline entry carries the tenant\'s company, not the owner uid', act && act.companyId === A.cid && act.userId === A.owner, act);
+    ok('…and so does the follow-up task', task && task.companyId === A.cid && task.userId === A.owner, task);
+    db = fakeDb(world({ ['phone_calls/' + ID]: Object.assign({}, noted, { leadId: 'aLead' }), 'leads/aLead2': { companyId: A.cid, userId: A.owner, firstName: 'Ash', lastName: 'Acme' } }));
+    o = await run(db, { action: 'move', leadId: 'aLead2' });
+    const act2 = db.docs.get('leads/aLead2/activity/cube-' + ID);
+    ok('a move that rebuilds the timeline entry keeps the tenant\'s company', o.r && act2 && act2.companyId === A.cid, o.e ? o.e.message : act2);
+  });
+
   // ── 9. Wiring ──────────────────────────────────────────────────────────
   console.log('\n9. Wiring');
   await tryRun('wiring', async () => {
