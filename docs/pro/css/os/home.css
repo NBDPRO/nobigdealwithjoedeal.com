@@ -74,6 +74,10 @@
 .os-hw-coach-text { flex: 1 1 auto; min-width: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; overflow-wrap: anywhere; }
 .os-hw-coach-go { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
 .os-hw-coach-act { text-decoration: none; }
+/* a Coach can hold more than its rows at 320px (the P2 AI line, up to 180 characters, over a long rule):
+   its body scrolls inside the card, so an action or the last rule is never cut off out of reach.
+   No overscroll containment: at its end a swipe carries on to the phone page's own scroll */
+.os-hw-coach > .os-hw-body { overflow-y: auto; scrollbar-width: thin; }
 
 /* Daily Success: floors / streak state / week %, and what is left today */
 .os-hw-ds-link {

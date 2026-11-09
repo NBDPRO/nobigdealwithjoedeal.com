@@ -329,6 +329,13 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('coach-ai.css: theme tokens only, no motion, nothing under 11px', !/#[0-9a-fA-F]{3,6}\b|rgb\(/.test(AI_CSS) && !/transition|animation/.test(AI_CSS)
       && (AI_CSS.match(/font-size:\s*([^;]+);/g) || []).every((d) => /var\(--ui-fs-(label|body-sm|body), 1[1-4]px\)/.test(d)), AI_CSS);
     ok('…the ask button keeps a 44px target (os-hw-btn) and min-width 44px', /\.os-hw-ai-ask \{[^}]*min-width: 44px/.test(AI_CSS) && /os-hw-btn os-hw-ai-ask/.test(code));
+    // review fix (2026-11-09): at 320px a long AI line (up to 180 characters) runs a Coach past its rows; the
+    // card clipped its actions or last rule out of reach. A Coach's body now scrolls inside the card, and
+    // chains to the page's scroll at its end (no overscroll containment, which would trap the swipe)
+    const HOME_CSS = read('docs/pro/css/os/home.css');
+    const coachBody = (HOME_CSS.match(/\.os-hw-coach > \.os-hw-body \{([^}]*)\}/) || [])[1] || '';
+    ok('home.css: a Coach\'s body scrolls (overflow-y: auto), so no action or row is cut off unreachable', /overflow-y: auto;/.test(coachBody), coachBody);
+    ok('…without trapping the page\'s swipe (no overscroll-behavior on it)', !/overscroll-behavior/.test(coachBody));
     const dash = read('docs/pro/dashboard.html');
     ok('nothing new on the dashboard\'s boot (no <script> or <link> for it)', !/coach-ai/.test(dash));
     const R = require(require('path').join(H.ROOT, 'docs/pro/js/layout-system.js'));
