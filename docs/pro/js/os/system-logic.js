@@ -239,7 +239,6 @@
 
   // ── phase 4: session, lock screen, settings entries ──────────
 
-  /** Auto-lock choices in minutes; 0 = off (the default). Anything else reads as off. */
   /**
    * "Safe to drive off?" (P2, design §6 #8): input { online, writes, photos }, each count a
    * number from a real queue or null when it can't be known (writes: Firestore's on-device
@@ -263,6 +262,7 @@
     return null;
   }
 
+  /** Auto-lock choices in minutes; 0 = off (the default). Anything else reads as off. */
   var LOCK_CHOICES = [0, 5, 15, 30];
   function lockMinutes(v) {
     var n = Number(v);
