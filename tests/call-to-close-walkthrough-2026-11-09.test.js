@@ -368,6 +368,21 @@ async function decide(db, auth, data) {
     ok('…the recorder\'s own brief still decides', d2.r && d2.r.written === true, d2.e && d2.e.message);
   }
 
+  console.log('\n7. A caller who may not act on the walkthrough cannot tell whether it exists (review 2026-11-09)');
+  {
+    const REP = { uid: 'rep', token: { role: 'sales_rep', companyId: 'co1', email_verified: true } };
+    const OTHER_CA = { uid: 'c2', token: { role: 'company_admin', companyId: 'co2', email_verified: true } };
+    for (const [name, auth] of [['another rep of the same company', REP], ['another tenant\'s company_admin', OTHER_CA]]) {
+      const there = await brief(makeDb(seed()), auth);
+      const gone = await brief(makeDb(seed()), auth, { visitId: 'vNoSuch00001' });
+      ok(name + ': a missing visit and a real one answer the same (permission-denied, same words)', there.e && gone.e && there.e.code === 'permission-denied' && gone.e.code === there.e.code && gone.e.message === there.e.message, [there.e && there.e.code, gone.e && gone.e.code, gone.e && gone.e.message]);
+      const dg = await decide(makeDb(seed()), auth, { visitId: 'vNoSuch00001', item: 'summary', decision: 'skip' });
+      ok(name + ': …callBriefDecide too', dg.e && dg.e.code === 'permission-denied', dg.e && dg.e.code);
+    }
+    const mg = await brief(makeDb(seed()), MG, { visitId: 'vNoSuch00001' });
+    ok('a same-company manager (who may act on it) still hears not-found', mg.e && mg.e.code === 'not-found', mg.e && mg.e.code);
+  }
+
   console.log('\n5. Wiring');
   {
     const fi = read('functions/FUNCTIONS_INDEX.md');

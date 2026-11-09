@@ -133,8 +133,15 @@ async function loadGatedVisit(db, auth, data) {
   if (!L.VISIT_ID_RE.test(visitId)) throw new HttpsError('invalid-argument', 'Bad visit id.');
   if (!L.UID_RE.test(visitUid)) throw new HttpsError('invalid-argument', 'Bad visit owner.');
   if (String((auth.token || {}).role || '') === 'viewer') throw new HttpsError('permission-denied', 'Your role is view-only.');
+  const us = await db.doc('users/' + visitUid).get();
+  const ownerCompany = String((us.exists && (us.data() || {}).companyId) || visitUid);
   const snap = await db.doc('users/' + visitUid + '/visit_captures/' + visitId).get();
-  if (!snap.exists) throw new HttpsError('not-found', 'Walkthrough not found.');
+  // No existence oracle: a caller who may not act on this recorder's visits
+  // hears the same refusal whether or not the visit is there.
+  if (!snap.exists) {
+    if (!L.canActOnVisit(auth, { ownerUid: visitUid, companyId: ownerCompany })) throw new HttpsError('permission-denied', 'Not your walkthrough.');
+    throw new HttpsError('not-found', 'Walkthrough not found.');
+  }
   const visit = snap.data() || {};
   const leadId = String(visit.attachedLeadId || '');
   let lead = null;
@@ -142,8 +149,6 @@ async function loadGatedVisit(db, auth, data) {
     const ls = await db.doc('leads/' + leadId).get();
     lead = ls.exists ? ls.data() : null;
   }
-  const us = await db.doc('users/' + visitUid).get();
-  const ownerCompany = String((us.exists && (us.data() || {}).companyId) || visitUid);
   const companyId = String((lead && (lead.companyId || lead.userId)) || ownerCompany);
   if (!L.canActOnVisit(auth, { ownerUid: visitUid, companyId })) throw new HttpsError('permission-denied', 'Not your walkthrough.');
   const problem = L.visitBriefProblem(visit, leadId);
