@@ -126,13 +126,16 @@ async function scan(dirs, cachePath, year) {
       const st = fs.statSync(p);
       const key = p + '|' + st.size + '|' + st.mtimeMs;
       if (!cache[key]) {
-        let ex = null;
-        try { ex = await exifr.parse(p, { gps: true, pick: ['DateTimeOriginal', 'CreateDate', 'latitude', 'longitude'] }); } catch (_) { /* unreadable: keep file date */ }
+        // Two reads on purpose: a `pick` list on parse() silently drops the GPS fields
+        // (found 2026-11-09: 0 of 41 real iPhone photos showed GPS), so GPS uses gps().
+        let ex = null, g = null;
+        try { ex = await exifr.parse(p, { pick: ['DateTimeOriginal', 'CreateDate'] }); } catch (_) { /* unreadable */ }
+        try { g = await exifr.gps(p); } catch (_) { /* no GPS */ }
         const d = ex && (ex.DateTimeOriginal || ex.CreateDate);
         cache[key] = {
           takenAt: d instanceof Date ? d.toISOString() : null,
-          lat: ex && Number.isFinite(ex.latitude) ? ex.latitude : null,
-          lng: ex && Number.isFinite(ex.longitude) ? ex.longitude : null
+          lat: g && Number.isFinite(g.latitude) ? g.latitude : null,
+          lng: g && Number.isFinite(g.longitude) ? g.longitude : null
         };
       }
       const c = cache[key];
