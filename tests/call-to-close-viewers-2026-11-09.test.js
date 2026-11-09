@@ -231,6 +231,32 @@ const cols = (qs) => qs.map((q) => q.col);
       getDocs: async () => { const e = new Error('unavailable'); e.code = 'unavailable'; throw e; } }; try { await CT.activityDocs(W, {}, 'L1'); return null; } catch (e) { return e.code; } })();
     ok('activityDocs: any other failure is passed on (the caller\'s catch decides)', other === 'unavailable', other);
   } else ok('call-timeline exports activityDocs', false);
+  // Final round (2026-11-09): smart-followup's AI draft reads the customer
+  // timeline for call / text / Thursday lines. A viewer can read none of those
+  // rows, and the whole-collection list is refused, so it sends no read at all.
+  {
+    const SF = read('docs/pro/js/smart-followup.js');
+    const sfs = slicer(SF);
+    const LOAD = sfs('  async function _loadConversation(leadId) {', '\n  }\n');
+    ok('smart-followup _loadConversation is found (positive control)', /async function _loadConversation/.test(LOAD));
+    async function runSf(role) {
+      const queries = [];
+      const win = stubWin(role, queries);
+      win.getDocs = async (q) => { queries.push(q); if (role === 'viewer' && !q.filters) { const e = new Error('denied'); e.code = 'permission-denied'; throw e; } return { forEach() {} }; };
+      win.query = (c, ...f) => ({ col: c.col, filters: f.filter((x) => x && x.f).length ? f.filter((x) => x && x.f) : undefined });
+      const sb = { window: win, Date, Map, Promise, Object, CONV_TTL_MS: 1, _convCache: new Map(),
+        _conversationFrom: () => ({ calls: [], thursday: null, texts: [], promises: [] }) };
+      vm.createContext(sb);
+      vm.runInContext(LOAD + '\nglobalThis.__l = _loadConversation;', sb);
+      const conv = await sb.__l('L1');
+      return { conv, queries };
+    }
+    const v = await runSf('viewer');
+    ok('smart-followup: a viewer sends no activity read (none of its rows are readable to a viewer)', !cols(v.queries).includes('leads/L1/activity'), cols(v.queries).join(','));
+    ok('…and the draft goes on without a timeline (null), as when the read fails', v.conv === null, v.conv);
+    const m = await runSf('manager');
+    ok('smart-followup: a manager still reads the activity timeline (positive control)', cols(m.queries).includes('leads/L1/activity') && m.conv !== null, cols(m.queries).join(','));
+  }
   const RULES = read('firestore.rules');
   const actRule = (RULES.match(/match \/activity\/\{activityId\} \{[\s\S]*?allow create/) || [''])[0];
   const ruleList = (actRule.match(/notViewer\(\) \|\| resource\.data\.source in (\[[^\]]*\])/) || [])[1];
