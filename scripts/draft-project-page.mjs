@@ -8,16 +8,20 @@
  *   - refuses unless leads/{id}.projectConsent.on === true (the owner's
  *     consent tick, docs/pro/js/project-consent.js; firestore.rules lets only
  *     the owner side write it). That tick is what consentOnFile: true attests.
+ *   - refuses a lead from any tenant but the site's (NBD's): another
+ *     contractor's consent tick is not consent to this website.
  *   - refuses a joint or subcontracted job (a sub on the job: subId, or the
- *     legacy free-text crew; or jointJob / subcontracted marked true). Runbook
- *     hard rule 3: how such a job is presented is Jo's call, not a script's.
+ *     free-text crew; or job text naming a sub, another company or a joint
+ *     job). Runbook hard rule 3: how such a job is presented is Jo's call.
  *   - town only ("Mason, OH"), never the street; a rounded retail RANGE from
  *     lead.jobValue, never the sold price and never a cost / margin figure;
  *   - case-study fields (problem, scope, materials, timeline) from the job only
  *     when the text is clean: any house number, phone, email, URL, dollar
- *     figure, cost word or the customer's name drops the field with a warning;
+ *     figure, cost word, street word, claim number, a name on the lead
+ *     (customer, carrier, adjuster) or any other capitalised name drops the
+ *     field with a warning;
  *   - fresh alt text from a template, never CRM photo captions or locations.
- *     The alt text and description are DRAFTS: read them against the photos.
+ *     Every text field is a DRAFT: read it against the job and the photos.
  *
  * Default is a DRY RUN: it prints the entry and the next steps. --write
  * appends it to the LOCAL docs/assets/data/projects.json (a repo file, not
@@ -35,6 +39,9 @@
  *   --year <yyyy>       when the job has no completion date on file
  *   --slug <slug>       choose the slug (kebab-case)
  *   --projects <path>   projects.json to read / --write (tests use a copy)
+ *   --tenant <id>       the site's tenant (default: NBD_OWNER_UID env, else
+ *                       functions/tenant-ops-logic.js). Another tenant's lead
+ *                       is refused: its consent is not consent to this site.
  *   --write             append the entry to that projects.json
  *
  * Tested by tests/draft-project-page-2026-11-09.test.js.
@@ -85,17 +92,44 @@ export function toDate(v) {
 }
 
 // ── refusals ─────────────────────────────────────────────────────────
-export function refusalFor(lead) {
+// The tenant whose website projects.json is: NBD's, from --tenant, else the
+// NBD_OWNER_UID env, else functions/tenant-ops-logic.js (the one config the
+// functions read). A lead's tenant is its companyId (a solo owner's own uid);
+// a legacy lead with no companyId falls back to its userId.
+export function siteTenantDefault() {
+  if (str(process.env.NBD_OWNER_UID)) return str(process.env.NBD_OWNER_UID);
+  try {
+    const require = createRequire(import.meta.url);
+    return str(require(path.join(ROOT, 'functions', 'tenant-ops-logic.js')).NBD_OWNER_UID) || null;
+  } catch (e) { return null; }
+}
+const leadTenant = (l) => str(l.companyId) || str(l.userId);
+
+// Text in the job that says a sub, another company or a joint job was on it.
+// "sub-fascia" / "subfloor" are roof parts, not subs.
+const SUB_TEXT_RE = /\bsub(?:s|contract\w*)?\b(?!-)|\bjoint(?:ly| job| project| venture| install)\b|\b(?:LLC|L\.L\.C\.|Inc\.?|Corp\.?)(?=\W|$)|\b[A-Z][\w&'-]*\s+(?:Roofing|Construction|Exteriors|Contracting|Contractors|Builders|Restoration)\b/i;
+const SUB_TEXT_FIELDS = ['scopeOfWork', 'damageType', 'jobType', 'subType', 'roofType', 'shingleType', 'material'];
+
+export function refusalFor(lead, opts = {}) {
   const l = lead || {};
   if (!(l.projectConsent && l.projectConsent.on === true)) {
     return 'no project-page consent on this job: the owner ticks it on the customer page (Project Page) first. '
       + 'Without lead.projectConsent.on === true there is no consentOnFile.';
   }
+  const site = str(opts.siteTenant);
+  if (!site) return 'no site tenant: the website is NBD\'s tenant (pass --tenant <companyId>); nothing is drafted without it.';
+  const lt = leadTenant(l);
+  if (!lt) return 'this lead has no tenant (companyId / userId): it cannot be shown to be NBD\'s job.';
+  if (lt !== site) {
+    return 'this lead belongs to another tenant (' + lt + '), not the site\'s: its consent tick is consent to that '
+      + 'contractor, never to a page on this website.';
+  }
   const why = [];
   if (str(l.subId)) why.push('a sub is assigned (subId)');
   if (str(l.crew)) why.push('a crew is named (crew)');
-  if (l.jointJob === true || l.joint === true) why.push('it is marked joint');
-  if (l.subcontracted === true) why.push('it is marked subcontracted');
+  for (const k of SUB_TEXT_FIELDS) {
+    if (SUB_TEXT_RE.test(str(l[k]))) { why.push('the ' + k + ' text names a sub, another company or a joint job'); break; }
+  }
   if (why.length) {
     return 'this job needs Jo\'s call before it is published: ' + why.join(', ') + '. '
       + 'Runbook hard rule 3 (documentation/runbooks/PUBLISH-PROJECT.md): a joint or subcontracted job goes to Jo, '
@@ -131,20 +165,18 @@ export function townFromLead(lead) {
 }
 
 // ── rounded retail range ─────────────────────────────────────────────
-// About ±10% around the sold price, widened outward to the runbook's rounding
-// ($1,000 from $10k, $500 from $1k, $100 below), so the page never shows what
-// one household paid. Only the retail jobValue is read; no cost field ever is.
+// A fixed band on a grid, not a window centred on the sold price: every price
+// in [low, high) prints the same range, so its midpoint says nothing about
+// what one household paid (hard rule 2). Bounds are multiples of $500 or more
+// (hard rule 1). Under $500 there is no range: skipping the price is allowed.
+// Only the retail jobValue is read; no cost field ever is.
 export function roundedRange(jobValue) {
   const v = Number(jobValue);
   if (!Number.isFinite(v) || v <= 0) return null;
-  const step = v >= 10000 ? 1000 : v >= 1000 ? 500 : 100;
-  let low = Math.floor((v * 0.9) / step) * step;
-  let high = Math.ceil((v * 1.1) / step) * step;
-  if (low <= 0) low = step;
-  if (low >= v) low -= step;
-  if (high <= v) high += step;
-  if (low <= 0) return { priceLow: step, priceHigh: Math.max(high, step * 2) };
-  return { priceLow: low, priceHigh: high };
+  const width = v < 2000 ? 500 : v < 5000 ? 1000 : v < 10000 ? 2000 : v < 30000 ? 5000 : v < 60000 ? 10000 : 20000;
+  const low = Math.floor(v / width) * width;
+  if (low <= 0) return null;
+  return { priceLow: low, priceHigh: low + width };
 }
 
 // ── services ─────────────────────────────────────────────────────────
@@ -169,22 +201,91 @@ export function servicesFromLead(lead) {
 
 // ── clean job text only ──────────────────────────────────────────────
 // Returns the cleaned text, or '' with the reason, so the caller can warn.
+// Fail-safe: a field that might name a person, a company, a place or a claim
+// is DROPPED (the operator writes it by hand), never published.
+
+// Every person / company name the lead carries: the customer (all the name
+// fields the CRM writes), the carrier and the adjuster. Split into words, so
+// a surname is caught on its own; two-letter names (Li, Wu, Ng) count.
+const NAME_FIELDS = ['firstName', 'lastName', 'fname', 'lname', 'name', 'customerName', 'spouseName',
+  'insCarrier', 'insuranceCarrier', 'carrier', 'adjuster', 'adjusterName'];
+const NAME_STOP = new Set(['mr', 'mrs', 'ms', 'dr', 'jr', 'sr', 'ii', 'iii', 'and', 'the', 'of', 'llc', 'inc', 'co',
+  'corp', 'company', 'insurance', 'ins', 'mutual', 'group', 'n/a', 'na', 'none', 'unknown', 'family']);
+function nameTokens(l) {
+  const out = new Set();
+  for (const k of NAME_FIELDS) {
+    const v = l[k];
+    if (typeof v !== 'string' || v.length > 120) continue;
+    for (const t of v.toLowerCase().split(/[^a-z']+/)) {
+      const w = t.replace(/^'+|'+$/g, '');
+      if (w.length >= 2 && !NAME_STOP.has(w)) out.add(w);
+    }
+  }
+  return out;
+}
+
+// Capitalised words that may stand anywhere: roofing brands, product lines,
+// colours, trade acronyms. Any other capitalised word (after the first word
+// of a sentence) reads as a name: an adjuster, a carrier, a sub, a store.
+const PROPER_OK = new Set(('I OH KY IN GAF HDZ UHDZ HD Timberline Owens Corning Duration TruDefinition CertainTeed '
+  + 'Landmark Atlas Pinnacle StormMaster IKO Dynasty Cambridge Tamko Heritage Malarkey Vista Legacy Hardie HardiePlank '
+  + 'James LP SmartSide Alside Mastic Norandex OSB CDX EPDM TPO PVC SBS Class Ice Water Shield StormGuard WeatherWatch '
+  + 'FeltBuster Deck-Armor Cobra Pro-Start Seal-A-Ridge TimberTex Lifetime Golden Pledge System Plus Silver Platinum '
+  + 'Preferred Warranty Energy Star Charcoal Weathered Wood Pewter Gray Grey Slate Hickory Barkwood Shakewood Mission '
+  + 'Brown Hunter Green Driftwood Estate Onyx Black Sierra Teak Brownwood Desert Tan Oyster Moire Colonial Aged Copper '
+  + 'Harbor Fog Midnight Blue White Granite Sand Dune Sable Sienna Red Rustic Cedar Williamsburg '
+  + 'January February March April May June July August September October November December').split(' '));
+// Words a sentence may start with (a capital there is grammar, not a name).
+const STARTERS = new Set(('A An The We Our This These That It Its Their They He She His Her After Before Then Once '
+  + 'When While Full New Old All Both Each Every Most Some Hail Storm Wind Water Roof Roofing Siding Gutters Gutter '
+  + 'Shingles Shingle Ice Leak Leaks Damage Tear Tore Removed Replaced Installed Repaired Stripped Added Put Fixed '
+  + 'Patched Sealed Cleaned Inspected Found Built Framed Ran Swapped Upgraded Matched Finished Completed Wrapped '
+  + 'Re-roofed Reroofed Re-sided Covered Laid Nailed Hand-sealed Also Plus Including Included With Without Missing '
+  + 'Architectural Three-tab Asphalt Metal Vinyl Fiber Cement Aluminum Seamless Synthetic Underlayment Decking '
+  + 'Ridge Drip Step Flashing Chimney Skylight Skylights Vent Vents Soffit Fascia Downspouts Insurance Approved').split(' '));
+
 export function cleanJobText(text, lead) {
   const s = str(text).replace(/\s+/g, ' ');
   if (!s) return { text: '', why: '' };
   const l = lead || {};
-  const names = [l.firstName, l.lastName, l.name, l.customerName].map(str).filter((n) => n.length >= 3);
   const checks = [
-    [/\b\d{1,6}\s+[A-Za-z]/, 'a house number or address'],
+    // A number then a word is a house number; a 19xx / 20xx year before a
+    // lower-case word ("the 2025 hail storm") is not (a capitalised word
+    // after it is still caught below as a possible street name).
+    [/\b(?!(?:19|20)\d\d\s+[a-z])\d{1,6}\s+[A-Za-z]/, 'a house number or address'],
     [/\d{3}[-.\s)]+\d{3}[-.\s]+\d{4}/, 'a phone number'],
     [/@/, 'an email'],
     [/https?:|www\./i, 'a link'],
     [/\$|\b\d[\d,]*\s*(?:dollars|usd)\b/i, 'a dollar figure'],
     [/cost|margin|markup|profit|contractor|supplier|wholesale/i, 'a cost or margin word'],
-    [/\b(?:street|st\.|avenue|ave\.|lane|ln\.|drive|dr\.|court|ct\.|road|rd\.|blvd)\b/i, 'a street name'],
+    [/\b(?:street|st\.|avenue|ave\.|lane|ln\.|drive|dr\.|court|ct\.|road|rd\.|blvd|boulevard|pkwy|parkway|hwy|highway|pike)\b/i, 'a street name'],
+    // Street words that are also plain English ("in place", "the way") only
+    // when capitalised.
+    [/\b(?:Way|Circle|Cir|Place|Pl|Trail|Trl|Terrace|Ter|Loop|Crossing|Run)\b/, 'a street name'],
+    // A claim / policy number: letters and digits run together, or a long
+    // bare number (a 19xx / 20xx year is fine).
+    [/\b(?=[A-Za-z]*\d)(?=\d*[A-Za-z])[A-Za-z0-9]{5,}\b/, 'a claim or policy number'],
+    [/\b(?!(?:19|20)\d\d\b)\d{4,}\b/, 'a claim or policy number'],
   ];
   for (const [re, why] of checks) if (re.test(s)) return { text: '', why };
-  for (const n of names) if (s.toLowerCase().includes(n.toLowerCase())) return { text: '', why: 'the customer\'s name' };
+
+  const names = nameTokens(l);
+  for (const n of names) {
+    const re = new RegExp('\\b' + n.replace(/[.*+?^${}()|[\]\\']/g, '\\$&') + '(?:\'?s|es|s\')?\\b', 'i');
+    if (re.test(s)) return { text: '', why: 'a name on the job (customer, carrier or adjuster)' };
+  }
+
+  const townWords = new Set(str(townFromLead(l)).split(/[^A-Za-z'-]+/).filter(Boolean));
+  const wordRe = /[A-Za-z][A-Za-z'’-]*/g;
+  let m;
+  while ((m = wordRe.exec(s))) {
+    const w = m[0].replace(/['’]s?$/, '');
+    if (!/^[A-Z]/.test(w) || PROPER_OK.has(w) || townWords.has(w)) continue;
+    const before = s.slice(0, m.index).replace(/["'(\s]+$/, '');
+    const sentenceStart = before === '' || /[.!?:;]$/.test(before);
+    if (sentenceStart && STARTERS.has(w)) continue;
+    return { text: '', why: 'a capitalised word that may be a name or place ("' + w + '")' };
+  }
   if (s.length > 600) return { text: '', why: 'over 600 characters' };
   return { text: s, why: '' };
 }
@@ -213,7 +314,7 @@ function todayYmd() {
 // ── the entry ────────────────────────────────────────────────────────
 export function buildEntry(lead, opts = {}) {
   const l = lead || {};
-  const refusal = refusalFor(l);
+  const refusal = refusalFor(l, { siteTenant: opts.siteTenant });
   if (refusal) throw new Error(refusal);
   const warnings = [];
 
@@ -256,7 +357,8 @@ export function buildEntry(lead, opts = {}) {
       : (i === n && n > 2 ? 'The completed ' + what + ' on a home in ' + town + ', another angle' : what.charAt(0).toUpperCase() + what.slice(1) + ' work on a home in ' + town + ', photo ' + i + ' of ' + n);
     photos.push({ src: '/assets/images/projects/' + slug + '-' + i + '.jpg', alt });
   }
-  warnings.push('alt text and description are drafts: read each against its photo and rewrite in your words');
+  warnings.push('every text field is a draft (description, scope, problem, materials, alt text): read each against the job '
+    + 'and the photos, take out any name, place or detail that points at the household, and rewrite it in your words');
 
   const scope = cleanJobText(l.scopeOfWork, l);
   if (str(l.scopeOfWork) && !scope.text) warnings.push('scope left out: the job\'s scope of work has ' + scope.why);
@@ -302,6 +404,7 @@ function parseArgs(argv) {
     else if (k === '--year') a.year = Number.parseInt(next(), 10);
     else if (k === '--slug') a.slug = next();
     else if (k === '--projects') a.projects = next();
+    else if (k === '--tenant') a.tenant = next();
     else throw new Error('unknown option ' + k);
   }
   return a;
@@ -336,7 +439,7 @@ async function main() {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
   if (!args.lead && !args.from) {
-    console.error('usage: node scripts/draft-project-page.mjs (--lead <leadId> | --from <lead.json>) [--photos n] [--published YYYY-MM-DD] [--services a,b] [--year yyyy] [--slug s] [--write]');
+    console.error('usage: node scripts/draft-project-page.mjs (--lead <leadId> | --from <lead.json>) [--photos n] [--published YYYY-MM-DD] [--services a,b] [--year yyyy] [--slug s] [--tenant companyId] [--write]');
     process.exit(2);
   }
   const projectsPath = path.resolve(args.projects || DEFAULT_PROJECTS);
@@ -345,7 +448,8 @@ async function main() {
     const manifest = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     const list = Array.isArray(manifest.projects) ? manifest.projects : [];
     const slugs = list.map((p) => p && p.slug).filter(Boolean);
-    const opts = { photos: args.photos, published: args.published, services: args.services, year: args.year, slug: args.slug };
+    const siteTenant = str(args.tenant) || siteTenantDefault();
+    const opts = { photos: args.photos, published: args.published, services: args.services, year: args.year, slug: args.slug, siteTenant };
 
     // Strict for --write: a base slug already on file is probably this job again.
     const { entry, warnings } = buildEntry(lead, Object.assign({}, opts, { existingSlugs: args.write ? [] : slugs }));
