@@ -275,6 +275,8 @@ const CTX = { transcript: TRANSCRIPT, callYmd: '2026-11-05' };
     const p1 = (h3.split('data-cb-row="promise:1"')[1] || '').split('data-cb-row=')[0];
     ok('…a clear promise keeps its date', /id="cbDue-1"[^>]*value="2026-11-06"/.test(p1));
     ok('nothing accepted yet: the follow-up message names no date', UI3._followUpItems().length === 0);
+    const hints3 = UI3._scopeHints(b2);
+    ok('the proposal\'s "From the call" line for a hard-to-hear story count says so', hints3.some((x) => /2-story/.test(x) && /hard to hear/i.test(x)), hints3);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

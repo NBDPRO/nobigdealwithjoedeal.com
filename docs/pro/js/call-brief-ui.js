@@ -176,7 +176,7 @@
     if (s.service && s.service.value) out.push(s.service.value);
     var m = s.mentions || {};
     ['gutters', 'chimney', 'skylight', 'decking'].forEach(function (k) { if (m[k] === true) out.push(k.charAt(0).toUpperCase() + k.slice(1) + ' mentioned on the call'); });
-    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said on the call)');
+    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said on the call' + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
     if (s.tierInterest && s.tierInterest.value) out.push('Asked about the ' + s.tierInterest.value + ' package');
     (s.saidQuantities || []).forEach(function (q) { out.push('Said: "' + q.quote + '"'); });
     return out;
