@@ -97,6 +97,7 @@
   // ── home widgets (os/home.js), from layoutState['os-home'] ──
   function homeKey() {
     var HL = W.NBDOSHomeLogic;
+    if (S && S.homeNext) return HL.normalize(S.homeNext);   // an edit not written yet
     var p = safe(function () { return W.LayoutEngine.prefs(); });
     return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null);
   }
@@ -120,15 +121,26 @@
     }) || null;
   }
   // Edit mode (P0c): one surface's list changed. The whole key is normalised
-  // (the other surface kept as saved) and written through saveUser as its own
-  // layoutState key; then the home re-reads what was saved.
+  // (the other surface kept as saved) and the home re-reads it at once; the
+  // write through saveUser (its own layoutState key, a Firestore setDoc) waits
+  // SAVE_MS for the next keystroke, like the window state, and is flushed on
+  // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
     var HL = W.NBDOSHomeLogic;
     var key = homeKey();
     key[surface] = list;
-    var next = HL.normalize(key);
-    safe(function () { W.LayoutEngine.saveUser({ layoutState: { 'os-home': next } }); });
+    S.homeNext = HL.normalize(key);
+    clearTimeout(S.homeSaveT);
+    S.homeSaveT = setTimeout(flushHome, SAVE_MS);
     refreshHome();
+  }
+  function flushHome() {
+    if (!S) return;
+    clearTimeout(S.homeSaveT);
+    S.homeSaveT = null;
+    var next = S.homeNext;
+    S.homeNext = null;
+    if (next) safe(function () { W.LayoutEngine.saveUser({ layoutState: { 'os-home': next } }); });
   }
   function refreshHome() {
     if (!S || !S.home) return;
@@ -138,6 +150,7 @@
   /** Edit mode on or off: the phone's (shared with the icons) or the desk column's. */
   function setHomeEditing(on, focusFirst) {
     if (!S || !S.home) return;
+    if (!on) flushHome();
     if (S.surface === 'phone') {
       if (on && S.phoneOpen) phoneHome();
       S.editing = !!on;
@@ -966,7 +979,7 @@
     closeSwitcher();
     S.phoneOpen = null;
     doc.documentElement.removeAttribute('data-os-app');
-    if (S.editing) { S.editing = false; S.editPick = null; }
+    if (S.editing) { S.editing = false; S.editPick = null; flushHome(); }
     phonePaint();
     var p = S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
     if (p) p.focus({ preventScroll: true });
@@ -1066,7 +1079,7 @@
     if (what === 'dockslot') return editTap(id, Number(t.getAttribute('data-slot')));
     if (what === 'home') return phoneHome();
     if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
-    if (what === 'done') { S.editing = false; S.editPick = null; return phonePaint(); }
+    if (what === 'done') { S.editing = false; S.editPick = null; flushHome(); return phonePaint(); }
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
@@ -1150,7 +1163,7 @@
     on(doc, 'keydown', function (ev) {
       if (ev.key !== 'Escape') return;
       if (S.switcherEl) { ev.preventDefault(); closeSwitcher(); }
-      else if (S.editing) { S.editing = false; S.editPick = null; phonePaint(); }
+      else if (S.editing) { S.editing = false; S.editPick = null; flushHome(); phonePaint(); }
     });
     // the phone opens on the home screen
     doc.documentElement.removeAttribute('data-os-app');
@@ -1263,6 +1276,7 @@
     watchViews();
     watchVisits();
     registerControls();
+    on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1288,6 +1302,7 @@
     var st = S;
     // a change still waiting to be saved is written now, not dropped
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
+    flushHome();
     clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.ctrlT);
     unregisterControls();
     if (st.mo) st.mo.disconnect();

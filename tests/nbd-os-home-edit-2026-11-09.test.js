@@ -39,7 +39,10 @@ const OS_JS = read('docs/pro/js/layouts/os.js');
 const SYSTEM_JS = read('docs/pro/js/os/system.js');
 
 const ids = (root) => hw(root).map((n) => n.getAttribute('data-oshw'));
-const lastSave = (T) => (T.W._saves || [])[(T.W._saves || []).length - 1];
+// edits are saved after a short debounce (review nit): run the timer, then read the last os-home write
+const SAVE_MS = 700;
+const homeSaves = (T) => (T.W._saves || []).filter((p) => p && p.layoutState && p.layoutState['os-home']);
+const lastSave = (T) => { T.fire(SAVE_MS); const s = homeSaves(T); return s[s.length - 1]; };
 const live = (root) => text(root.querySelector('.os-hw-live'));
 const phoneOf = (T) => T.document.getElementById('osPhone');
 const deskCol = (T) => T.document.getElementById('osDesk').querySelector('.os-widgets');
@@ -296,6 +299,42 @@ G(() => {
   const T6 = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }], desk: [] });
   longPress(T6, byKey(phoneOf(T6), 'upnext-1'));
   ok('phone long-press: focus on the pressed widget too', act(T6) === byKey(phoneOf(T6), 'upnext-1'));
+});
+
+console.log('\n6c. the save is debounced, applied at once, and never lost (review nit)');
+G(() => {
+  const T = mountDesk({ phone: [], desk: [{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }] });
+  const col = deskCol(T);
+  click(T.dom, col.querySelector('[data-osdo="homeedit"]'));
+  key(T.dom, byKey(col, 'shortcuts-1'), 'ArrowUp');
+  key(T.dom, byKey(col, 'shortcuts-1'), 'ArrowUp');
+  key(T.dom, byKey(col, 'coach-1'), 'ArrowRight', { shiftKey: true });
+  ok('three quick keystrokes: the home changes at once', J(ids(col)) === J(['shortcuts-1', 'glance-1', 'coach-1']) && byKey(col, 'coach-1').classList.contains('is-l'), J(ids(col)));
+  ok('…but nothing is written yet (no setDoc per keystroke)', homeSaves(T).length === 0, homeSaves(T).length);
+  T.fire(SAVE_MS);
+  ok('…then one write, with the final state', homeSaves(T).length === 1 && J(homeSaves(T)[0].layoutState['os-home'].desk) === J([{ id: 'shortcuts', s: 's' }, { id: 'glance', s: 'm' }, { id: 'coach', s: 'l' }]), J(homeSaves(T)));
+  key(T.dom, byKey(col, 'glance-1'), 'Delete');
+  ok('a pending change is still shown to the next edit (the list re-reads it)', J(ids(col)) === J(['shortcuts-1', 'coach-1']));
+  key(T.dom, byKey(col, 'coach-1'), 'Escape');
+  ok('leaving edit mode writes the pending change at once', homeSaves(T).length === 2 && homeSaves(T)[1].layoutState['os-home'].desk.length === 2, homeSaves(T).length);
+  T.fire(SAVE_MS);
+  ok('…and only once', homeSaves(T).length === 2);
+  // pagehide and unmount flush too
+  const T2 = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }], desk: [] });
+  longPress(T2, byKey(phoneOf(T2), 'glance-1'));
+  key(T2.dom, byKey(phoneOf(T2), 'glance-1'), 'ArrowDown');
+  ok('phone: nothing written mid-edit', homeSaves(T2).length === 0);
+  const T3 = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }], desk: [] });
+  longPress(T3, byKey(phoneOf(T3), 'glance-1'));
+  key(T3.dom, byKey(phoneOf(T3), 'glance-1'), 'ArrowDown');
+  click(T3.dom, phoneOf(T3).querySelector('[data-osp="done"]'));
+  ok('phone Done writes the pending change at once', homeSaves(T3).length === 1, homeSaves(T3).length);
+  T2.W.dispatchEvent({ type: 'pagehide' });
+  ok('pagehide writes the pending change', homeSaves(T2).length === 1 && homeSaves(T2)[0].layoutState['os-home'].phone[0].id === 'upnext', J(homeSaves(T2)));
+  key(T2.dom, byKey(phoneOf(T2), 'glance-1'), 'Delete');
+  T2.W._impl.unmount();
+  ok('unmount writes the pending change', homeSaves(T2).length === 2 && homeSaves(T2)[1].layoutState['os-home'].phone.length === 1, J(homeSaves(T2)));
+  ok('the debounce reuses the window state\'s SAVE_MS idea', /SAVE_MS/.test(OS_JS) && /pagehide/.test(OS_JS));
 });
 
 console.log('\n7. CSS: 44px targets, no jiggle, CSP');
