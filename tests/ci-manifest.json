@@ -436,6 +436,7 @@
     "nbd-os-team-leaderboard-page-2026-11-09.test.js",
     "nbd-os-team-timezone-2026-11-09.test.js",
     "nbd-os-team-widget-2026-11-09.test.js",
+    "nbd-os-nearby-2026-11-09.test.js",
     "nbd-os-wallpaper-2026-11-09.test.js",
     "nbd-os-wallpaper-picker-2026-11-09.test.js",
     "nbd-os-pywal-2026-11-09.test.js",
