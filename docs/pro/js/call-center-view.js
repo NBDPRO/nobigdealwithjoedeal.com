@@ -19,6 +19,10 @@
  * something, a follow-up date has come, it's urgent, or there's no
  * customer on file.
  *
+ * "Needs a next step" (Call to Close P1, 2026-11-09; call-rescue-logic.js) =
+ * a customer whose last call, 2-30 days ago, got no promise, follow-up or
+ * stage move: Brief / Follow-up / Dismiss (callCenterAction rescueDismiss).
+ *
  * Reads mirror firestore.rules on phone_calls: own userId always, plus
  * companyId for company_admin / manager / viewer. Viewers get no buttons.
  * Lazy bundle 'callcenter' (script-loader.js); goTo('calls') calls init().
@@ -78,6 +82,12 @@
     if (isViewer() || !(cl.role === 'admin' || me === c.userId || (cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')))) return '';
     if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
+  }
+  // P1: "Transcribe now" on a stored call with no transcript, same roles
+  // (functions/call-transcribe-now.js re-checks).
+  function txGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
   }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
@@ -251,6 +261,8 @@
 
   var FILTERS = [
     ['attention', 'Needs attention', needsAttention],
+    // Call to Close P1 (2026-11-09): customers whose last call led nowhere (call-rescue-logic.js).
+    ['rescue', 'Needs a next step', function (c) { return !!rescueIdx()[c.id]; }, rescueOn],
     ['all', 'All', function () { return true; }],
     // Promises of Jo's past the 45-day window: one review list, never a silent drop (2026-10-12).
     ['oldpromises', 'Old promises', function (c) { var HA = window.NBDHomeAttention; return !!(HA && HA.isOldPromise && HA.isOldPromise(c, Date.now())); }],
@@ -270,6 +282,44 @@
   ];
   function thEnabled() { var T = window.NBDThursdayHandled; return !!(T && T.enabled()); }
   function filtersNow() { return FILTERS.filter(function (f) { return !f[3] || f[3](); }); }
+
+  // "Needs a next step" (Call to Close P1, design §6 #7): counted from the
+  // calls already loaded, no query of its own. A closed customer (won, lost,
+  // a job) is not a lost lead.
+  function rescueOn() { return !isViewer() && !!window.NBDCallRescue; }
+  function closedLead(l) {
+    var r = String((l && l.stageRole) || '');
+    if (r === 'won' || r === 'lost' || r === 'job') return true;
+    return typeof window.isTerminalStage === 'function' && !!window.isTerminalStage(l && l.stage);
+  }
+  var rescueMemo = { calls: null, leads: null, idx: {} };
+  function rescueIdx() {
+    if (!rescueOn()) return {};
+    if (rescueMemo.calls === state.calls && rescueMemo.leads === window._leads && rescueMemo.ver === state.rescueVer) return rescueMemo.idx;
+    var idx = {};
+    window.NBDCallRescue.list(state.calls, leadsById(), { nowMs: Date.now(), isClosed: closedLead }).forEach(function (r) { idx[r.call.id] = r; });
+    rescueMemo = { calls: state.calls, leads: window._leads, ver: state.rescueVer, idx: idx };
+    return idx;
+  }
+  function rescueRow(c, L) {
+    var lead = L[c.leadId];
+    var r = rescueIdx()[c.id] || {};
+    var who = leadName(lead) || c.contactName || fmtPhone(c.phoneDigits) || 'Customer';
+    var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+    var days = Number(r.days) || 0;
+    var acts = '';
+    if (briefGate(c) === 'draft') acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Brief</button>';
+    acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Follow-up</button>' +
+      '<button type="button" class="btn btn-ghost pc-play" data-cc="rescuedismiss" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Dismiss</button>' +
+      '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(who) + '</a>';
+    return '<div class="panel pc-card cc-card cc-rescue" data-call-id="' + esc(c.id) + '">' +
+      '<div class="pc-head"><div class="pc-who">' + esc(who) + '</div><div class="pc-meta">' + esc(when) + '</div></div>' +
+      '<div class="pc-meta">No promise, follow-up or stage change in ' + esc(days) + ' days since this call.</div>' +
+      (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') +
+      '<div class="pc-actions">' + acts + '</div>' +
+      '<div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' +
+      '</div>';
+  }
 
   async function fetchCalls() {
     var rows = await fetchFrom('phone_calls', 'call');
@@ -419,6 +469,7 @@
       var bg = c.leadId ? briefGate(c) : '';
       if (bg === 'draft') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Draft from this call</button>';
       else if (bg === 'confirm') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Confirm the customer first</button>';
+      if (txGate(c)) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="tx" data-id="' + esc(c.id) + '">Transcribe now</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -589,7 +640,7 @@
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + healthPanel() + tagPanel() +
+      '</div>' + healthPanel() + tagPanel() + autoBriefPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
@@ -600,6 +651,8 @@
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role.</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
+    else if (state.filter === 'rescue') body = rows.length ? '<div class="cc-empty cc-rescue-note">Calls 2-30 days old where nothing happened next' + (state.cappedBefore ? ', from the calls loaded' : '') + '. Brief it, set a follow-up, or dismiss it.</div>' + rows.map(function (c) { return rescueRow(c, L); }).join('')
+      : '<div class="cc-empty">' + (state.q || (FX && FX.isActive(flt)) ? 'No calls match.' : 'Every customer call from the last 30 days has a next step.') + '</div>';
     else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
     else if (state.filter === 'attention') {
@@ -742,11 +795,15 @@
         if (action === 'unhandled') c.handledAtMs = null;
         if (action === 'attach' && r && r.leadId) mirrorFiled(id, r.leadId);
         if (action === 'notpersonal' && r && r.requeued) { c.status = 'stored'; c.notPersonal = true; c.summary = null; }
+        if (action === 'rescueDismiss') c.rescueDismissedAtMs = Date.now();
+        if (action === 'rescueUndismiss') c.rescueDismissedAtMs = null;
+        if (action === 'rescueDismiss' || action === 'rescueUndismiss') state.rescueVer = (state.rescueVer || 0) + 1;
       }
       delete state.busy[id];
       render();
       if (action === 'handled' || action === 'unhandled') refreshHome();
       if (action === 'handled') undoToast('Marked handled', function () { return act(id, 'unhandled'); });
+      if (action === 'rescueDismiss') undoToast('Dismissed from Needs a next step', function () { return act(id, 'rescueUndismiss'); });
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
       return r;
@@ -899,6 +956,59 @@
     return '<div class="panel pc-card cc-health cc-health-' + esc(d.overall) + '" role="status">' + icon + ' ' + esc(line) +
       ' <button type="button" class="btn btn-ghost" data-cc="health-toggle">' + (health.open ? 'Hide' : 'Details') + '</button>' + rows + '</div>';
   }
+
+  // ── Auto-brief switch (Call to Close P1, 2026-11-09) ──────────────────
+  // companies/{companyId}/settings/callBrief.autoBrief (firestore.rules: the
+  // owner or a company_admin writes it; absent = off, Jo's Q2 default). On:
+  // functions/call-brief.js callBriefAuto drafts a brief when a person files a
+  // call, through the same gates and daily caps as the Draft button.
+  var autoBrief = { loaded: false, on: false, busy: false, error: '' };
+  function autoBriefCid() { var me = window._user && window._user.uid; return claims().companyId || me || ''; }
+  function canSetAutoBrief() {
+    var c = claims(), r = String(c.role || ''), me = window._user && window._user.uid;
+    if (!me || isViewer()) return false;
+    // The owner accounts carry mintOwnerClaims' { owner: true, role: 'admin' }
+    // (functions/handlers/auth.js); the rules let isAdmin() write it.
+    if (r === 'admin') return true;
+    if (r === 'company_admin') return !!c.companyId;
+    return (!r || r === 'owner') && (!c.companyId || c.companyId === me);
+  }
+  function autoBriefRef() { return window.doc(window.db, 'companies', autoBriefCid(), 'settings', 'callBrief'); }
+  async function loadAutoBrief() {
+    if (!canSetAutoBrief() || !window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return;
+    try {
+      var cid = autoBriefCid();
+      var snap = await window.getDoc(window.doc(window.db, 'companies', cid, 'settings', 'callBrief'));
+      autoBrief.on = !!(snap && snap.exists() && (snap.data() || {}).autoBrief === true);
+      autoBrief.error = '';
+    } catch (e) { autoBrief.error = 'Could not read the auto-brief setting.'; }
+    autoBrief.loaded = true;
+    if (state.loaded) render();
+  }
+  async function toggleAutoBrief() {
+    if (!canSetAutoBrief() || autoBrief.busy || typeof window.setDoc !== 'function') return;
+    var next = !autoBrief.on, me = window._user && window._user.uid;
+    if (next) {
+      var ask = window.nbdConfirm || function (m) { return Promise.resolve(typeof window.confirm === 'function' && window.confirm(m)); };
+      var yes = await ask('Turn on auto-brief? Each call a person files on a customer drafts its brief right away, and counts toward the 20 briefs a day.');
+      if (yes !== true) return;
+    }
+    autoBrief.busy = true; render();
+    try {
+      await window.setDoc(autoBriefRef(), { autoBrief: next, updatedBy: me, updatedAt: window.serverTimestamp() });
+      autoBrief.on = next; autoBrief.error = '';
+    } catch (e) { autoBrief.error = 'Could not save: ' + ((e && e.code) || 'error') + '.'; }
+    autoBrief.busy = false; render();
+  }
+  function autoBriefPanel() {
+    if (!autoBrief.loaded || !canSetAutoBrief() || !state.calls.some(function (c) { return c.channel !== 'text'; })) return '';
+    return '<div class="panel pc-card cc-health cc-autobrief" role="group" aria-label="Auto-brief">' +
+      '<strong>Auto-brief filed calls: ' + (autoBrief.on ? 'On' : 'Off') + '</strong> ' +
+      '<span class="pc-meta">When a person files a call on a customer, its brief is drafted right away, within the same 20 briefs a day. Nothing is filled in, sent or moved: you still review it. Off by default.</span> ' +
+      '<button type="button" class="btn btn-ghost" data-cc="autobrief"' + (autoBrief.busy ? ' disabled' : '') + '>' + (autoBrief.on ? 'Turn off' : 'Turn on') + '</button>' +
+      (autoBrief.error ? ' <span class="pc-meta" role="alert">' + esc(autoBrief.error) + '</span>' : '') + '</div>';
+  }
+  // ── end auto-brief switch
 
   async function loadPromises() {
     if (promises.loading || promises.denied || isViewer()) return;
@@ -1370,16 +1480,23 @@
     });
   }
 
+  // "Needs a next step" reads call-rescue-logic.js, fetched once when the
+  // Call Center opens (never at boot; the tab shows once it has arrived).
+  function loadRescue() {
+    if (window.NBDCallRescue || isViewer() || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
+    Promise.resolve(window.ScriptLoader.load('/pro/js/call-rescue-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* the tab stays hidden */ });
+  }
+
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
-  async function openBrief(id) {
+  async function openBrief(id, tx) {
     var c = byId(id);
     if (!c) return;
     try {
-      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=2');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     var lead = c.leadId ? leadsById()[c.leadId] : null;
-    window.NBDCallBrief.open({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
+    window.NBDCallBrief[tx ? 'transcribe' : 'open']({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
   }
 
   document.addEventListener('click', function (e) {
@@ -1398,6 +1515,9 @@
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
     else if (a === 'brief') openBrief(id);
+    else if (a === 'tx') openBrief(id, 1);
+    else if (a === 'rescuedismiss') act(id, 'rescueDismiss');
+    else if (a === 'autobrief') toggleAutoBrief();
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {
@@ -1455,7 +1575,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); loadHealth(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadAutoBrief(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,

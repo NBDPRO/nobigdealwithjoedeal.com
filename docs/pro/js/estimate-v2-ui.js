@@ -97,6 +97,19 @@
     }
     return swapped;
   }
+  // Would _v2EnforceTierShingles(tier) change a scope line? Same test, no
+  // change made (Call to Close P1: a call's tier never sets the scope).
+  function _v2TierWouldSwap(tier) {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const swap = _V2_TIER_SWAP[tier];
+    if (!swap || !cfg || typeof cfg.isShingleItem !== 'function') return false;
+    const cat = window.NBD_XACT_CATALOG;
+    if (!cat || typeof cat.find !== 'function' || !cat.find(swap.to)) return false;
+    return (state.scope || []).some(x => {
+      const it = cat.find(x.code);
+      return !!it && cfg.isShingleItem(it) && it.code !== swap.to && swap.when(it);
+    });
+  }
   // Tier-appropriateness signal (GBB backlog, 2026-09-17). Every catalog
   // entry in estimate-catalog-xactimate.js already self-declares a tier
   // (good/better/best/any) but nothing in the real add-to-scope path ever
@@ -987,6 +1000,27 @@
         border:1px solid var(--br,#2a2f35); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font:inherit; font-size:14px;
       }
       #estV2Modal .v2-status-err { color:var(--red,#ff6b6b) !important; }
+      /* Call to Close P1 (2026-11-09): the "From the call" strip under the header. */
+      .v2-call-wrap { flex-shrink:0; padding:4px 16px 8px; border-bottom:1px solid var(--br,#2a2f35); background:var(--s,#111418); max-height:40vh; overflow-y:auto; }
+      .v2-call summary { cursor:pointer; min-height:44px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:var(--t,#e8eaf0); }
+      .v2-call-n { font-size:12px; font-weight:600; color:var(--m,#8b8e96); }
+      .v2-call summary::-webkit-details-marker { display:none; }
+      .v2-call summary::after { content:'▸'; margin-left:auto; font-size:14px; color:var(--m,#8b8e96); }
+      .v2-call[open] summary::after { content:'▾'; }
+      .v2-call-chips { display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px; }
+      .v2-call-chip { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 0 0 12px; border-radius:22px; border:1px dashed var(--orange,#BD5728); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font-size:13px; font-weight:700; }
+      .v2-call-k { font-weight:600; color:var(--m,#8b8e96); }
+      .v2-call-x { min-width:44px; min-height:44px; border:0; border-radius:22px; background:transparent; color:var(--m,#8b8e96); font:inherit; font-size:18px; line-height:1; cursor:pointer; }
+      .v2-call-x:hover, .v2-call-x:focus-visible { color:var(--t,#e8eaf0); }
+      .v2-call-notes { margin:0 0 8px; padding-left:18px; font-size:12px; line-height:1.5; color:var(--m,#8b8e96); }
+      .v2-call-sub { margin:4px 0 6px; font-size:12px; font-weight:700; color:var(--m,#8b8e96); }
+      .v2-call-tpls { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+      .v2-call-tpl { min-height:44px; padding:0 14px; border-radius:8px; border:1px solid var(--br,#2a2f35); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font:inherit; font-size:13px; font-weight:700; text-align:left; cursor:pointer; }
+      .v2-call-meta { font-size:12px; line-height:1.45; color:var(--m,#8b8e96); }
+      .v2-call-hint { margin-top:6px; padding-left:8px; border-left:3px solid var(--orange,#BD5728); font-size:12px; line-height:1.45; color:var(--m,#8b8e96); }
+      /* The V3 wizard's step body is a centred 560 px column: the strip takes it too. */
+      #estV2Modal.v3-on .v2-call-wrap { width:100%; max-width:560px; margin:0 auto; box-sizing:border-box; }
+      @media (max-width: 600px) { .v2-call-wrap { max-height:32vh; } }
       </style>
 
       <div class="v2-hdr">
@@ -1443,6 +1477,13 @@
     // all so the file runs clean under the Report-Only CSP
     // (script-src-attr 'none').
     // ─────────────────────────────────────────────────────
+    // Call to Close P1: a call-prefilled estimate autosaves only once the rep
+    // acts (a real tap or keystroke; navigation and V3's own clicks do not count).
+    const _callActs = (ev) => {
+      if (state._callPrefillClean && _callIsAct(ev)) _callUserActed();
+    };
+    ['click', 'input', 'change'].forEach((t) => modal.addEventListener(t, _callActs, true));
+
     modal.addEventListener('click', (ev) => {
       const target = ev.target.closest('[data-action]');
       if (!target || !modal.contains(target)) return;
@@ -1474,6 +1515,13 @@
           // estimate-config.js TIER_RATES. (Body extracted to
           // setTierChoice so Phase-3 presentation tier cards share it.)
           if (arg) setTierChoice(arg);
+          break;
+        case 'call-clear':
+          // Call to Close P1: × on a "from call" chip puts the old value back.
+          if (arg) _callPrefillClear(arg);
+          break;
+        case 'call-template':
+          if (arg) _callPrefillTemplate(arg);
           break;
         case 'cp-work-kind':
           // Roof Care Plan: the rep says what kind of work this is.
@@ -3755,9 +3803,12 @@
     // in-progress new-estimate draft. Once they actually edit (_reopenedClean
     // flips false) autosave resumes normally.
     if (state._reopenedClean) return;
+    // Call to Close P1: the call's choices are never saved by themselves.
+    if (state._callPrefillClean) return;
     clearTimeout(_draftLocalTimer);
     _draftLocalTimer = setTimeout(() => {
       _draftLocalTimer = null;   // "pending" is observable (_flushDraftNow)
+      if (state._callPrefillClean) return;   // the call's choices are never saved by themselves
       try {
         const payload = collectDraft();
         localStorage.setItem(DRAFT_KEY_LOCAL, JSON.stringify(payload));
@@ -3789,7 +3840,7 @@
     if (!_draftLocalTimer) return;
     clearTimeout(_draftLocalTimer);
     _draftLocalTimer = null;
-    if (state._reopenedClean) return;
+    if (state._reopenedClean || state._callPrefillClean) return;
     try { localStorage.setItem(DRAFT_KEY_LOCAL, JSON.stringify(collectDraft())); } catch (e) { /* best effort */ }
   }
 
@@ -5444,6 +5495,7 @@
     if (window.EstimateV3 && typeof window.EstimateV3.onOpen === 'function') {
       try { window.EstimateV3.onOpen({ reopened: !!opts.estimateId }); } catch (e) { console.warn('[v3] onOpen failed:', e); }
     }
+    _callPrefillReset();   // Call to Close P1: an untouched earlier prefill is undone
     // A previous session's pending undo / open row editor belong to it.
     _dismissUndo();
     _rowEdit = null;
@@ -5481,6 +5533,13 @@
       _flushDraftNow();
       _resetEstimateState();
     }
+    // Call to Close P1: a call brief's choices (the sheet's Start estimate,
+    // or the customer page's ?lead=<id>&callBrief=<callId> deep link).
+    const callSrc = leadId ? _callPrefillSource(leadId, opts) : null;
+    if (callSrc) {
+      _flushDraftNow();   // a save still pending from the rep's last edit keeps the rep's state
+      state._callPrefillClean = true;
+    }
     if (leadId) {
       prefillFromLead(leadId);
       if (pendingImport) {
@@ -5488,6 +5547,7 @@
         if (typeof window.showToast === 'function') window.showToast('Drawing measurements imported into V2 Builder', 'success');
       }
       render();
+      if (callSrc) _callPrefillStart(leadId, callSrc);
       return;
     }
     restoreDraft().then((restored) => {
@@ -5518,6 +5578,7 @@
     const m = document.getElementById('estV2Modal');
     if (m) m.classList.remove('open');
     closePresentation(); // Phase 3: never leave the overlay armed for next open
+    _callPrefillReset();   // Call to Close P1: closed untouched → every old value back
     _dismissUndo();      // a removal is committed once the builder closes
     _rowEdit = null;
     // 3B: closing a reopened estimate clears the replay + editing state so a
@@ -5528,6 +5589,318 @@
       state._reopenedDoc = null;
       state._reopenedClean = false;
     }
+  }
+
+  // ═════════════════════════════════════════════════════════
+  // CALL TO CLOSE P1 (2026-11-09): estimate prefill from a call brief
+  //
+  // Design: documentation/projects/CALL-TO-CLOSE-DESIGN-2026-11-09.md §5.1.
+  // open({ leadId, callPrefill: { callId, brief } }) from the Call Brief
+  // sheet (call-brief-ui.js) on the dashboard, or the customer page's deep
+  // link /pro/dashboard.html?lead=<id>&callBrief=<callId>. The dashboard's
+  // ?lead= branch (dashboard-bootstrap.module.js) opens this builder for the
+  // lead and cleans its URL, usually before this lazy bundle has loaded, so
+  // the customer page hands the brief over in sessionStorage (one use, five
+  // minutes, same customer and call only). The builder never reads the
+  // stored brief itself: every brief it uses came from the callBrief
+  // callable, so the callBriefDisabled kill switch covers this path too.
+  //
+  // The call sets CHOICES only (estimate-call-prefill.js: job mode, work
+  // kind, tier, stories, layers, chimney / skylight flashing), each through
+  // the builder's own setter and each shown as a "from call" chip whose ×
+  // puts the old value back. A said square count is shown as words beside
+  // the area input, never typed in. No measurement, price, rate, total,
+  // deductible, ACV, warranty or signed tier comes from the call; templates
+  // go in only on the rep's tap, through JobTemplates.insertIntoV2, so the
+  // engine prices them. Autosave (estimate_drafts/{uid} + the local draft)
+  // holds back until the rep acts; closing untouched undoes every choice.
+  // ═════════════════════════════════════════════════════════
+  const CALL_PREFILL_JS = '/pro/js/estimate-call-prefill.js?v=1';
+  const CALL_LINK_KEY = 'nbd.callBriefLink';
+  const CALL_LINK_TTL_MS = 5 * 60 * 1000;
+  const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+  // Taps that move around the builder without changing the estimate.
+  const CALL_NAV_ACTS = ['close', 'mstep', 'next', 'back', 'jump', 'jump-open', 'sheet-close', 'more', 'toggle',
+    'search', 'present', 'pres-close', 'set-packet', 'toggle-packet-photo', 'set-category'];
+  let _callPrefill = null;   // { leadId, callId, applied:[{key,from,to,quote,name,label}], hints, templates }
+  let _callToken = 0;
+
+  function _callEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // Where this open's call comes from: the sheet's brief in hand, else the
+  // customer page's sessionStorage hand-off (its brief, for this customer,
+  // and for the call in the URL when the URL still names one). null = none.
+  function _callPrefillSource(leadId, opts) {
+    const c = opts && opts.callPrefill;
+    if (c && typeof c === 'object') {
+      const callId = CALL_ID_RE.test(String(c.callId || '')) ? String(c.callId) : '';
+      const brief = c.brief && typeof c.brief === 'object' ? c.brief : null;
+      return brief ? { callId, brief } : null;
+    }
+    let urlCallId = '';
+    try {
+      const p = new URLSearchParams((window.location && window.location.search) || '');
+      if (p.get('lead') === leadId) urlCallId = p.get('callBrief') || '';
+    } catch (_) { urlCallId = ''; }
+    let h = null;
+    try {
+      const ss = window.sessionStorage;
+      const raw = ss && ss.getItem(CALL_LINK_KEY);
+      if (raw) {
+        ss.removeItem(CALL_LINK_KEY);
+        h = JSON.parse(raw);
+      }
+    } catch (_) { h = null; /* storage blocked: no prefill, a plain open */ }
+    if (!h || h.leadId !== leadId || !(Date.now() - (Number(h.at) || 0) < CALL_LINK_TTL_MS)) return null;
+    const callId = String(h.callId || '');
+    if (!CALL_ID_RE.test(callId) || (urlCallId && urlCallId !== callId)) return null;
+    return h.brief && typeof h.brief === 'object' ? { callId, brief: h.brief } : null;
+  }
+
+  function _loadCallPrefillLib() {
+    if (window.NBDEstimateCallPrefill) return Promise.resolve();
+    if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') return window.ScriptLoader.load(CALL_PREFILL_JS);
+    return Promise.reject(new Error('ScriptLoader is missing'));
+  }
+
+  async function _callPrefillStart(leadId, src) {
+    const token = ++_callToken;
+    let brief = src.brief || null;
+    try {
+      await _loadCallPrefillLib();
+    } catch (e) {
+      console.warn('[EstimateV2UI] call prefill failed:', e);
+      brief = null;
+    }
+    if (token !== _callToken) return;   // closed or reopened meanwhile
+    const P = window.NBDEstimateCallPrefill;
+    if (!brief || !P) {
+      // Nothing to fill in: the open behaves as a plain open, autosave included.
+      state._callPrefillClean = false;
+      saveDraftDebounced();
+      if (typeof window.showToast === 'function') window.showToast('Could not read that call’s brief. The estimate opened without it.', 'warning');
+      return;
+    }
+    const pre = P.fromBrief(brief);
+    const lead = (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === leadId))
+      || (window._leadDoc && window._leadDoc.id === leadId ? window._leadDoc : null);
+    const plan = P.plan(pre, { state, leadJobType: lead && lead.jobType, tiers: _v2Tiers() });
+    const applied = [];
+    const suggested = [];
+    // The rep tapped or typed while the brief was on its way: they have
+    // started their own estimate, so the call's choices are only offered
+    // (applying them now would autosave choices the rep never tapped, and
+    // closing would no longer undo them).
+    const late = !state._callPrefillClean;
+    plan.forEach((it) => {
+      if (late) suggested.push(Object.assign({}, it, { why: 'you had already started' }));
+      // Beyond / Economy swap the scope's shingle line, and putting the old
+      // tier back would not swap it back: the call never sets the scope.
+      else if (it.key === 'tier' && _v2TierWouldSwap(it.to)) suggested.push(Object.assign({}, it, { why: 'it would switch the shingle line in your scope' }));
+      else if (_callSet(it.key, it.to)) applied.push(it);
+    });
+    _callPrefill = { leadId, callId: src.callId || '', applied, suggested, hints: pre.hints || {}, templates: P.templateMatches(window.JobTemplates, pre, 5) };
+    _callSyncInputs();
+    render();
+    _callPaint();
+    // V3 picks Repair or Full roof once per open: a call that set the work
+    // kind re-runs its open so a repair call lands on the repair steps.
+    if (applied.some((a) => a.key === 'workKind') && window.EstimateV3 && typeof window.EstimateV3.onOpen === 'function') {
+      try { window.EstimateV3.onOpen({ reopened: false }); } catch (e) { console.warn('[v3] onOpen failed:', e); }
+      render();
+    }
+  }
+
+  // One choice, through the builder's own setter. Refuses anything off the list.
+  function _callSet(key, value) {
+    const P = window.NBDEstimateCallPrefill;
+    if (!P || P.KEYS.indexOf(key) === -1) return false;
+    switch (key) {
+      case 'jobMode':
+        if (value !== 'insurance' && value !== 'cash') return false;
+        setJobMode(value);
+        return true;
+      case 'workKind':
+        if (value !== null && value !== 'repair' && value !== 'replacement') return false;
+        setWorkKind(value);
+        return true;
+      case 'tier':
+        if (_v2Tiers().indexOf(value) === -1) return false;
+        setTierChoice(value);
+        return true;
+      case 'stories':
+      case 'tearOffLayers':
+        if ([1, 2, 3].indexOf(value) === -1) return false;
+        state.measurements[key] = value;
+        state._reopenedClean = false;
+        return true;
+      case 'hasChimneyFlash':
+      case 'hasSkylightFlash':
+        state.measurements[key] = value === true;
+        state._reopenedClean = false;
+        return true;
+      default:
+        return false;
+    }
+  }
+  // Only the controls a call can change (syncMeasurementInputs would also put
+  // a 0 back into every blank measurement box).
+  function _callSyncInputs() {
+    if (typeof document === 'undefined' || !document.getElementById) return;
+    const m = state.measurements;
+    const sel = [['v2stories', m.stories], ['v2layers', m.tearOffLayers]];
+    sel.forEach(([id, v]) => { const el = document.getElementById(id); if (el && v != null) el.value = String(v); });
+    const chk = [['v2chimneyFlash', m.hasChimneyFlash], ['v2skylightFlash', m.hasSkylightFlash]];
+    chk.forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.checked = !!v; });
+  }
+  function _callRevertOne(it) {
+    let v = it.from;
+    if (it.key === 'stories' || it.key === 'tearOffLayers') v = [1, 2, 3].indexOf(v) === -1 ? 1 : v;
+    else if (it.key === 'hasChimneyFlash' || it.key === 'hasSkylightFlash') v = v === true;
+    else if (it.key === 'workKind') v = (v === 'repair' || v === 'replacement') ? v : null;
+    _callSet(it.key, v);
+  }
+
+  function _callUserActed() { state._callPrefillClean = false; }
+  // Does this trusted tap or keystroke change the estimate? A click needs an
+  // action that is not navigation; typing counts, except the catalog search.
+  function _callIsAct(ev) {
+    if (!ev || ev.isTrusted === false) return false;
+    const tg = ev.target;
+    if (ev.type === 'click') {
+      const t = tg && tg.closest ? tg.closest('[data-action],[data-v3-act]') : null;
+      const act = t ? (t.getAttribute('data-action') || t.getAttribute('data-v3-act') || '') : '';
+      return !!act && CALL_NAV_ACTS.indexOf(act) === -1;
+    }
+    return !(tg && typeof tg.getAttribute === 'function' && tg.getAttribute('data-action') === 'search');
+  }
+
+  // Every open and close: an untouched prefill is undone, the strip goes.
+  function _callPrefillReset() {
+    _callToken++;
+    if (_callPrefill && state._callPrefillClean) {
+      _callPrefill.applied.slice().reverse().forEach(_callRevertOne);
+      _callSyncInputs();
+    }
+    _callPrefill = null;
+    state._callPrefillClean = false;
+    _callPaint();
+  }
+
+  // × on a chip: the old value back (the rep acted, so autosave resumes).
+  function _callPrefillClear(key) {
+    if (!_callPrefill) return;
+    const i = _callPrefill.applied.findIndex((a) => a.key === key);
+    if (i === -1) return;
+    _callUserActed();
+    _callRevertOne(_callPrefill.applied[i]);
+    _callPrefill.applied.splice(i, 1);
+    _callSyncInputs();
+    render();
+    _callPaint();
+  }
+
+  // A template tap: in through the Job Templates engine, priced like any insert.
+  function _callPrefillTemplate(id) {
+    if (!_callPrefill || !_callPrefill.templates.some((t) => t.id === id)) return null;
+    const JT = window.JobTemplates;
+    if (!JT || typeof JT.insertIntoV2 !== 'function') {
+      if (typeof window.showToast === 'function') window.showToast('Templates are still loading. Try again in a moment.', 'warning');
+      return null;
+    }
+    _callUserActed();
+    let r = null;
+    try { r = JT.insertIntoV2([{ templateId: id }]) || {}; } catch (e) { console.warn('[EstimateV2UI] template insert failed:', e); }
+    if (r && typeof window.showToast === 'function') {
+      const n = Number(r.added) || 0;
+      window.showToast(n ? n + ' line' + (n === 1 ? '' : 's') + ' added from the template' : 'Already in this estimate', n ? 'success' : 'info');
+    }
+    _callPaint();
+    return r;
+  }
+
+  function _callPanelHtml(open) {
+    const c = _callPrefill;
+    if (!c) return '';
+    const h = c.hints || {};
+    const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'Mentioned on the call; no exact words kept') + '">' +
+      '<span class="v2-call-k">' + _callEsc(a.name) + '</span> ' + _callEsc(a.label) +
+      '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + ' from the call') + '">×</button></span>').join('');
+    const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said on the call, not filled in (' + a.why + ')')
+      .concat((h.mentions || []).map((m) => m + ' mentioned on the call')).concat((h.said || []).map((q) => 'Said: “' + q + '”')).concat(h.unsure || []);
+    const repair = c.applied.some((a) => a.key === 'workKind' && a.to === 'repair') || (state.workKind === 'repair');
+    const tpls = c.templates.length
+      ? '<div class="v2-call-sub">' + (repair ? 'Repair quick quote: tap a repair template, priced from your price book' : 'Templates for this job, priced from your price book') + '</div>' +
+        '<div class="v2-call-tpls">' + c.templates.map((t) => '<button type="button" class="v2-call-tpl" data-action="call-template" data-arg="' + _callEsc(t.id) + '">' + _callEsc(t.name) + '</button>').join('') + '</div>'
+      : '';
+    const n = c.applied.length;
+    if (!n && !notes.length && !tpls && !(h.sqft || []).length) return '';
+    return '<details class="v2-call"' + (open === false ? '' : ' open') + '><summary>From the call <span class="v2-call-n">' + n + ' choice' + (n === 1 ? '' : 's') + ' filled in</span></summary>' +
+      (chips ? '<div class="v2-call-chips">' + chips + '</div>' : '') +
+      (notes.length ? '<ul class="v2-call-notes">' + notes.map((x) => '<li>' + _callEsc(x) + '</li>').join('') + '</ul>' : '') +
+      tpls +
+      '<div class="v2-call-meta">Choices only, each marked from call: × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
+  }
+  const CALL_STRIP_SEEN_KEY = 'nbd.callStripSeen';
+  function _callStripStartsOpen() {
+    let phone = false;
+    try { phone = typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 600px)').matches; } catch (_) { phone = false; }
+    if (!phone || !_callPrefill) return true;
+    let seen = false;
+    try { seen = window.localStorage.getItem(CALL_STRIP_SEEN_KEY) === '1'; window.localStorage.setItem(CALL_STRIP_SEEN_KEY, '1'); } catch (_) { seen = false; }
+    return !seen;
+  }
+  function _callSqftHintHtml() {
+    const q = (_callPrefill && _callPrefill.hints && _callPrefill.hints.sqft) || [];
+    return q.length ? 'Said on the call: ' + q.map((x) => '“' + _callEsc(x) + '”').join(', ') + '. Measure the roof; this is not typed in.' : '';
+  }
+  function _callPaint() {
+    if (typeof document === 'undefined' || !document.getElementById) return;
+    const modal = document.getElementById('estV2Modal');
+    if (!modal || typeof modal.querySelector !== 'function') return;
+    let panel = modal.querySelector('#v2callPanel');
+    // A repaint keeps the strip as the rep left it; a new strip opens, except
+    // on a phone once the rep has seen one (it takes up to a third of the screen).
+    const shown = panel && typeof panel.querySelector === 'function' ? panel.querySelector('details') : null;
+    const html = _callPanelHtml(shown ? !!shown.open : _callStripStartsOpen());
+    if (!html) {
+      if (panel) panel.remove();
+    } else {
+      const hdr = modal.querySelector('.v2-hdr');
+      if (!panel && hdr) {
+        panel = document.createElement('div');
+        panel.id = 'v2callPanel';
+        panel.className = 'v2-call-wrap';
+        hdr.after(panel);
+      }
+      if (panel) panel.innerHTML = html;
+    }
+    const hintHtml = _callSqftHintHtml();
+    let hint = modal.querySelector('#v2callSqftHint');
+    const input = document.getElementById('v2rawSqft');
+    if (!hintHtml) {
+      if (hint) hint.remove();
+      _callDescribedBy(input, false);
+    } else if (input && input.parentNode) {
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.id = 'v2callSqftHint';
+        hint.className = 'v2-call-hint';
+        input.parentNode.appendChild(hint);
+      }
+      hint.innerHTML = hintHtml;
+      _callDescribedBy(input, true);
+    }
+  }
+  // The area input names the said-square-count hint, so a screen reader reads it at the field.
+  function _callDescribedBy(input, on) {
+    if (!input || typeof input.getAttribute !== 'function') return;
+    const ids = String(input.getAttribute('aria-describedby') || '').split(/\s+/).filter((x) => x && x !== 'v2callSqftHint');
+    if (on) ids.push('v2callSqftHint');
+    if (ids.length) input.setAttribute('aria-describedby', ids.join(' '));
+    else input.removeAttribute('aria-describedby');
   }
 
   // ═════════════════════════════════════════════════════════
@@ -6075,6 +6448,18 @@
       packetPhotoIds: packetPhotoIds,
       togglePacketPhoto: togglePacketPhoto,
       renderPacket: renderPacket,
+      // Call to Close P1 — tests/call-to-close-estimate-prefill-2026-11-09.test.js.
+      callPrefill: {
+        applied: () => (_callPrefill ? _callPrefill.applied.slice() : []),
+        templates: () => (_callPrefill ? _callPrefill.templates.slice() : []),
+        clear: _callPrefillClear,
+        acted: _callUserActed,
+        isAct: _callIsAct,
+        suggested: () => (_callPrefill && _callPrefill.suggested ? _callPrefill.suggested.slice() : []),
+        template: _callPrefillTemplate,
+        panelHtml: _callPanelHtml,
+        sqftHintHtml: _callSqftHintHtml,
+      },
     },
   };
 

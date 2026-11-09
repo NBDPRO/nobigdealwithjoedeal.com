@@ -114,6 +114,8 @@
 .cc-health { margin-bottom: 12px; font-size: 14px; overflow-wrap: anywhere; border-left: 4px solid var(--green, #2e9e5b); }
 .cc-health-warn { border-left-color: var(--orange, #BD5728); }
 .cc-health-bad { border-left-color: var(--red, #e05252); }
+/* Auto-brief switch (Call to Close P1): .btn is 36 px at desktop width; this one is a 44 px target. */
+.cc-autobrief [data-cc="autobrief"] { min-height: 44px; }
 .cc-health-rows { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-tag-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-tag-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }

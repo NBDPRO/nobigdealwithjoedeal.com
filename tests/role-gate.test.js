@@ -413,7 +413,7 @@ async function partB() {
     ['customer-signed-doc-upload.js', 'function uploadSignedDoc(mode) {', null, ['file']],
     ['warranty-claim.js', 'async function promptIntake(lead) {', null, [{ id: 'l1' }], false],
     ['warranty-claim.js', 'async function promptResolution(lead) {', null, [{ id: 'l1', openWarrantyClaimId: 'c1' }], false],
-    ['customer-bootstrap.module.js', 'window.progressStage = async function() {'],
+    ['customer-bootstrap.module.js', 'window.progressStage = async function(target, opts) {'],
     ['customer-bootstrap.module.js', 'const originalOpenUploadModal = window.openUploadModal;\nwindow.openUploadModal = function() {'],
     ['customer-bootstrap.module.js', 'window.uploadPhotos = async function() {'],
     // onDrop runs three lines of drag bookkeeping before the guard; bind them.

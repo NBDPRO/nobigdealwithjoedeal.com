@@ -923,6 +923,16 @@ exports.callBriefDecide = require('./call-brief').callBriefDecide;
 // coachAiEnabled), digit / number-word post-check, 3 a day per user
 // (functions/coach-line.js).
 exports.coachLine = require('./coach-line').coachLine;
+// Call to Close P1 (2026-11-09): "Transcribe now" — one stored call through
+// the callCenterTranscribe pass now instead of at the next half hour.
+// callCenterAction's roles, 10 per user / 30 per company a day, the AI kill
+// switch + CALL_CENTER_TRANSCRIBE_ENABLED (functions/call-transcribe-now.js).
+exports.callTranscribeNow = require('./call-transcribe-now').callTranscribeNow;
+// Call to Close P1 (2026-11-09): the opt-in auto-brief. A phone_calls update
+// that is a person filing the call drafts the same brief, when the company's
+// companies/{id}/settings/callBrief.autoBrief is true (default off). Same
+// gates, caps and kill switches as callBrief.
+exports.callBriefAuto = require('./call-brief').callBriefAuto;
 
 // Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
 // quoted later evidence; every change logged (functions/promise-cleanup.js).

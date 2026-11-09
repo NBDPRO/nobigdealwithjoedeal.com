@@ -1000,7 +1000,15 @@
     "call-brief-callable-2026-11-09.test.js",
     "call-center-promise-slot-2026-11-09.test.js",
     "call-brief-ui-2026-11-09.test.js",
-    "call-brief-buttons-2026-11-09.test.js"
+    "call-brief-buttons-2026-11-09.test.js",
+    "call-to-close-transcribe-now-2026-11-09.test.js",
+    "call-to-close-segment-confidence-2026-11-09.test.js",
+    "call-to-close-estimate-prefill-2026-11-09.test.js",
+    "call-to-close-stage-2026-11-09.test.js",
+    "call-to-close-said-2026-11-09.test.js",
+    "call-to-close-auto-brief-2026-11-09.test.js",
+    "call-to-close-rescue-queue-2026-11-09.test.js",
+    "call-to-close-followup-draft-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1594,6 +1602,7 @@
     "firestore-rules.reputation.test.js",
     "firestore-rules.receipt-inbox.test.js",
     "firestore-rules.call-briefs.test.js",
+    "firestore-rules.call-brief-settings.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

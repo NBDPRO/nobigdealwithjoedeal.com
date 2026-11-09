@@ -455,6 +455,69 @@ function parseResponse(resp) {
 
 function transcriptHash(t) { return crypto.createHash('sha256').update(String(t || '')).digest('hex'); }
 
+// ── segment confidence (P1, 2026-11-09) ──────────────────────────────────
+// The call's segIndex (call-center-logic buildSegIndex) holds Whisper's
+// avg_logprob per segment. Below LOW_LOGPROB (-1.0, Whisper's own
+// logprob_threshold for "decode this again") a segment was hard to hear.
+const LOW_LOGPROB = -1;
+/**
+ * unsure(quote) for this transcript: true when the quote falls ONLY in
+ * low-confidence segments (one clear segment under it is enough), or when the
+ * index cannot place it (not known to be clear). No index (a call transcribed
+ * before P1): nothing is unsure.
+ */
+function unsureQuotes(transcript, seg) {
+  const t = String(transcript || '');
+  const offs = seg && Array.isArray(seg.off) ? seg.off : [];
+  const lps = seg && Array.isArray(seg.lp) ? seg.lp : [];
+  if (!t || !offs.length || offs.length !== lps.length) return () => false;
+  // Each segment's slice, normalised the way grounding normalises, joined by
+  // one space, with its range in the joined string.
+  let joined = '';
+  const spans = offs.map((a, i) => {
+    const s = normalizeSpeech(t.slice(Number(a) || 0, i + 1 < offs.length ? Number(offs[i + 1]) || t.length : t.length));
+    const r = [joined.length, joined.length + s.length];
+    joined += s + ' ';
+    return r;
+  });
+  const allLow = (hit) => hit.length > 0 && hit.every((i) => Number(lps[i]) < LOW_LOGPROB);
+  // A boundary inside a word or a spoken digit run ("four four | seven two
+  // nine") splits it in `joined`, but grounding normalises the whole
+  // transcript, where it is one token. Fallback: place the quote there, and
+  // find segment i's start in it as the normalised length of the text before
+  // it (cached; a binary search, so a few prefixes per quote, only here).
+  let whole = null;
+  const cut = new Map();
+  const bound = (i) => {
+    if (i <= 0) return 0;
+    if (i >= offs.length) return Infinity;
+    if (!cut.has(i)) cut.set(i, normalizeSpeech(t.slice(0, Number(offs[i]) || 0)).length);
+    return cut.get(i);
+  };
+  function placeWhole(q) {
+    if (whole === null) whole = normalizeSpeech(t);
+    const at = whole.indexOf(q);
+    if (at < 0) return null;
+    const end = at + q.length;
+    let lo = 0, hi = offs.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (bound(mid + 1) > at) hi = mid; else lo = mid + 1; }
+    const hit = [];
+    for (let i = lo; i < offs.length && bound(i) < end; i++) hit.push(i);
+    return hit;
+  }
+  return function unsure(quote) {
+    const q = normalizeSpeech(quote);
+    if (!q) return false;
+    const at = joined.indexOf(q);
+    if (at < 0) {
+      const hit = placeWhole(q);
+      return hit === null ? true : allLow(hit);
+    }
+    const end = at + q.length;
+    return allLow(spans.map((r, i) => (r[0] < end && r[1] > at ? i : -1)).filter((i) => i >= 0));
+  };
+}
+
 // ── the server's own reliability guards ──────────────────────────────────
 const SPANISH = new Set(['que', 'el', 'la', 'los', 'las', 'por', 'para', 'usted', 'sí', 'si', 'gracias', 'señor', 'señora', 'techo', 'una', 'tiene', 'está', 'pero', 'muy', 'bueno', 'buenos', 'días', 'hola', 'aseguranza', 'seguro', 'cuando', 'martes', 'lunes', 'casa']);
 function serverReliability(transcript) {
@@ -481,6 +544,18 @@ function sanitizeBrief(raw, ctx) {
   const callYmd = c.callYmd;
   const dropped = { ungrounded: 0, digits: 0, injection: 0, dates: 0, offList: 0 };
   let injection = INSTRUCTION_RES.some((re) => re.test(transcript));
+  const unsureOf = unsureQuotes(transcript, c.segIndex);
+  let lowConfidence = 0;
+  // Marks a fact whose quote was hard to hear (only when it was: a P0-shaped
+  // fact otherwise). A FIELD value with a digit (claim #, a date) from such a
+  // quote is never offered for one-tap fill: retype.
+  function mark(o, quote, field) {
+    if (!o || !unsureOf(quote)) return o;
+    o.unsure = true;
+    lowConfidence++;
+    if (field && /\d/.test(String(o.value || ''))) o.retype = true;
+    return o;
+  }
 
   function grounded(q) {
     const s = str(q, 400);
@@ -526,6 +601,8 @@ function sanitizeBrief(raw, ctx) {
   const sm = r.summary && typeof r.summary === 'object' ? r.summary : {};
   const quotes = (Array.isArray(sm.quote) ? sm.quote : []).map((q) => str(q, 300)).filter((q) => q && grounded(q)).slice(0, 4);
   const summary = { text: str(sm.text, 600), quotes, inferred: quotes.length === 0 };
+  const sumUnsure = quotes.map((q, i) => (unsureOf(q) ? i : -1)).filter((i) => i >= 0);
+  if (sumUnsure.length) { summary.unsure = sumUnsure; lowConfidence += sumUnsure.length; }
 
   const fIn = r.fields && typeof r.fields === 'object' ? r.fields : {};
   const fields = {
@@ -538,6 +615,7 @@ function sanitizeBrief(raw, ctx) {
     jobType: enumFact(fIn.jobType, ['insurance', 'cash']),
     workKind: enumFact(fIn.workKind, ['repair', 'replace']),
   };
+  for (const k of Object.keys(fields)) mark(fields[k], fields[k] && fields[k].quote, true);
 
   const sc = r.scope && typeof r.scope === 'object' ? r.scope : {};
   const small = (v, q) => (['1', '2', '3'].includes(String(v)) && grounded(q) && digitsInQuote(String(v), q) ? { value: Number(v), quote: str(q, 300) } : null);
@@ -558,6 +636,11 @@ function sanitizeBrief(raw, ctx) {
     saidQuantities: (Array.isArray(sc.saidQuantities) ? sc.saidQuantities : []).map((q) => q && factOf({ value: q.text, quote: q.quote }, 80))
       .filter(Boolean).slice(0, 6).map((f) => ({ text: f.value, quote: f.quote })),
   };
+  // P1 integration: stories / layers fill the estimate builder, so a digit
+  // heard in a hard-to-hear segment is retype there too (never filled in).
+  mark(scope.stories, scope.stories && scope.stories.quote, true);
+  mark(scope.layers, scope.layers && scope.layers.quote, true);
+  mark(scope.tierInterest, scope.tierInterest && scope.tierInterest.quote, false);
 
   const promises = [];
   for (const p of Array.isArray(r.promises) ? r.promises : []) {
@@ -573,7 +656,10 @@ function sanitizeBrief(raw, ctx) {
     if (!dueYmd && !dueSpoken && str(p.dueSpoken, 80) === '' && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (!dueYmd && dueSpoken && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (dueYmd && !dateInWindow(dueYmd, callYmd, 'future')) { dropped.dates++; dueYmd = ''; }
-    promises.push({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) });
+    const pr = mark({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) }, p.quote, false);
+    // A due date from a hard-to-hear quote is typed by the person, never one tap.
+    if (pr.unsure && pr.dueYmd) pr.retype = true;
+    promises.push(pr);
   }
 
   let stage = null;
@@ -582,7 +668,7 @@ function sanitizeBrief(raw, ctx) {
     const meta = stageList.find((s) => s.key === st.targetKey);
     if (!stageKeys.has(st.targetKey) || !meta) dropped.offList++;
     else if (!looksLikeInstruction(st.reason) && grounded(st.quote)) {
-      stage = { targetKey: meta.key, label: meta.label, role: meta.role, reason: str(st.reason, 160), quote: str(st.quote, 400) };
+      stage = mark({ targetKey: meta.key, label: meta.label, role: meta.role, reason: str(st.reason, 160), quote: str(st.quote, 400) }, st.quote, false);
     } else if (looksLikeInstruction(st.reason)) { dropped.injection++; injection = true; }
   }
 
@@ -593,12 +679,12 @@ function sanitizeBrief(raw, ctx) {
     .slice(0, 6).map((p) => ({ role: p.role, name: str(p.name, 60) || null, quote: str(p.quote, 300) }));
   const dr = r.drafts && typeof r.drafts === 'object' ? r.drafts : {};
   const drafts = { estimate: dr.estimate === true, proposal: dr.proposal === true, followUp: dr.followUp === 'text' || dr.followUp === 'email' ? dr.followUp : null };
-  const followUp = dateOf(r.followUp, 'future');
+  const followUp = mark(dateOf(r.followUp, 'future'), r.followUp && r.followUp.quote, true);
 
   const out = {
     v: BRIEF_VERSION, transcriptOk, summary, fields, scope, promises, followUp: followUp && followUp.value ? followUp : null,
     objections, competitor, people, stage, drafts,
-    flags: { injection: !!injection, unreliable: !reliable, cutOff: transcriptOk.cutOff },
+    flags: Object.assign({ injection: !!injection, unreliable: !reliable, cutOff: transcriptOk.cutOff }, lowConfidence ? { lowConfidence } : {}),
     dropped,
   };
   if (!reliable) {
@@ -647,6 +733,98 @@ function humanFiledProblem(call) {
   return '';
 }
 
+// ── stage moves (P1) ─────────────────────────────────────────────────────
+// The server twin of docs/pro/js/call-to-close-logic.js stagePlan: may the
+// brief's stage go in ONE tap? Never Inspected or install_complete (a $3
+// measurement / the after-install steps), never a stage that sets an
+// appointment, never Lost / Archived / Cancelled, and never a stage a call
+// may not suggest (a signed contract, a job, a won stage).
+// tests/call-to-close-stage-2026-11-09.test.js holds the two equal.
+const STAGE_CONFIRM_KEYS = ['inspected', 'install_complete'];
+const STAGE_APPOINTMENT_RE = /(^|_)(appointment|appt|appts|meeting|scheduled?|booked|booking|visit)(_|$)/;
+const STAGE_CLOSE_OUT_RE = /(^|[_\s-])(lost|archived?|cancell?ed)($|[_\s-])/;
+const normStageKey = (k) => String(k == null ? '' : k).trim().toLowerCase().replace(/[\s-]+/g, '_');
+/** May a call's suggestion move to this stage at all (from the sheet, with a confirm if needed)? */
+function stageOfferable(key, role) {
+  const k = normStageKey(key);
+  return !!k && !NEVER_OFFER.has(k) && OFFER_ROLES.includes(normStageKey(role));
+}
+const STAGE_ORDER = DEFAULT_STAGES.map((s) => s.key);
+/** A tenant's pipeline orders: each companyProfile.pipelines view's stage list, keys normalised. */
+function tenantStageOrders(pipelines) {
+  const views = pipelines && typeof pipelines === 'object' && pipelines.views && typeof pipelines.views === 'object' ? pipelines.views : {};
+  const out = [];
+  for (const vk of Object.keys(views)) {
+    const v = views[vk];
+    if (!v || typeof v !== 'object' || !Array.isArray(v.stages)) continue;
+    const list = v.stages.filter((k) => typeof k === 'string' && k.trim()).map(normStageKey);
+    if (list.length > 1) out.push(list);
+  }
+  return out;
+}
+/**
+ * fromKey: the stage the lead moved from, when known; orders: the tenant's
+ * pipeline orders (tenantStageOrders). A move back is never one tap: by the
+ * tenant's order when a view lists both stages, else by the default order.
+ */
+function stageOneTapAllowed(key, role, fromKey, orders) {
+  const k = normStageKey(key);
+  if (!stageOfferable(k, role) || STAGE_APPOINTMENT_RE.test(k) || STAGE_CONFIRM_KEYS.includes(k)) return false;
+  if (normStageKey(role) === 'lost' || STAGE_CLOSE_OUT_RE.test(k)) return false;
+  const f = normStageKey(fromKey);
+  const own = (Array.isArray(orders) ? orders : []).filter((o) => Array.isArray(o) && o.includes(k) && o.includes(f));
+  if (own.length) return !own.some((o) => o.indexOf(k) < o.indexOf(f));
+  const a = STAGE_ORDER.indexOf(k), b = STAGE_ORDER.indexOf(f);
+  return !(a !== -1 && b !== -1 && a < b);
+}
+
+/**
+ * The stage the lead moved to `key` from, by its own stageHistory (the CRM
+ * writer appends { from, to } on every move): the latest entry into `key`.
+ * '' when the history does not say (a legacy lead, or no such move).
+ */
+function stageMovedFrom(lead, key) {
+  const k = normStageKey(key);
+  const h = lead && Array.isArray(lead.stageHistory) ? lead.stageHistory : [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    const e = h[i];
+    if (e && typeof e === 'object' && normStageKey(e.to) === k && e.from != null && String(e.from).trim()) return str(String(e.from), 40);
+  }
+  return '';
+}
+
+/**
+ * P1 auto-brief (design §3.1): true when this write is the moment a PERSON
+ * filed the call. The call is briefable now (humanFiledProblem is '') and it
+ * was not briefable on this same customer before: auto-matched → attached,
+ * a filed call whose notes just arrived, or a move to another customer. Any
+ * other write on an already-briefable call (handled, a re-note) is false, so
+ * a call is never auto-briefed twice for one filing.
+ *
+ * A call swept onto the customer by ANOTHER call's attach (call-center.js
+ * refileNumber stamps refiledFrom) is not one the person filed: one tap must
+ * not draft a brief for every earlier call from the number. A later move by
+ * a person (movedBy, the later act) or a direct attach (which clears
+ * refiledFrom) is a real filing again. Those calls still brief on tap.
+ */
+function sweptOn(c) {
+  if (!c.refiledFrom) return false;
+  return !(c.movedBy && (Number(c.movedAtMs) || 0) >= (Number(c.attachedAtMs) || 0));
+}
+function autoFiled(c) { return humanFiledProblem(c) === '' && !sweptOn(c); }
+function autoBriefTransition(before, after) {
+  if (!after || !autoFiled(after)) return false;
+  if (!before) return true;
+  return !autoFiled(before) || String(before.leadId || '') !== String(after.leadId || '');
+}
+
+/** The person who filed the call last: movedBy when the move is the later act, else attachedBy. */
+function filerOf(call) {
+  const c = call || {};
+  if (c.movedBy && (!c.attachedBy || (Number(c.movedAtMs) || 0) >= (Number(c.attachedAtMs) || 0))) return String(c.movedBy);
+  return c.attachedBy ? String(c.attachedBy) : '';
+}
+
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
 function cacheState(doc, hash, nowMs, force) {
   if (!doc || doc.v !== BRIEF_VERSION || doc.transcriptHash !== hash || !doc.brief) return 'regenerate';
@@ -658,7 +836,9 @@ function cacheState(doc, hash, nowMs, force) {
 module.exports = {
   BRIEF_VERSION, BRIEF_MODEL, ALLOWED_MODELS, MAX_TOKENS, TRANSCRIPT_MAX, REFRESH_MIN_MS, USER_DAY_CAP, COMPANY_DAY_CAP,
   MAX_PROMISES, PROMISE_KINDS, TIERS, FIELD_KEYS, LEAD_FIELD, LEAD_FIELD_ALIASES, leadFieldValue, DATE_FIELDS, DEFAULT_STAGES, OFFER_ROLES,
-  normalizeSpeech, groundQuote, digitsInQuote, looksLikeInstruction, resolveSpokenDate, tenantStages,
+  normalizeSpeech, groundQuote, digitsInQuote, LOW_LOGPROB, unsureQuotes, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
+  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom, tenantStageOrders,
+  autoBriefTransition, filerOf,
 };

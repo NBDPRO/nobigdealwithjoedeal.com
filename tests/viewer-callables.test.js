@@ -510,6 +510,9 @@ const VERDICTS = {
   // and a sales rep unless they own the call). Proven in tests/call-brief-callable-2026-11-09.test.js sections 1 and 8.
   callBrief: 'role-gated',
   callBriefDecide: 'role-gated',
+  // Call to Close P1 (2026-11-09, functions/call-transcribe-now.js): the same callCenterAction role test. Proven in
+  // tests/call-to-close-transcribe-now-2026-11-09.test.js section 4.
+  callTranscribeNow: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', transferCompanyOwnership: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',

@@ -2125,9 +2125,13 @@ async function moveCard(id, newStage, opts){
   // earlier loss. Cancel cancels the move.
   let lostReason = null;
   let lostFields = null;
-  const isLostMove = /^lost$/i.test(String(newStage || ''));
   const _givenLostReason = (opts && typeof opts.lostReason === 'string' && opts.lostReason.trim())
     ? opts.lostReason.trim().slice(0, 300) : null;
+  // A tenant's custom lost-role key counts too when the caller already gave
+  // the reason (the call brief's Lost sheet, 2026-11-09), so that reason is
+  // written; a plain drag to such a column keeps today's behaviour.
+  const isLostMove = /^lost$/i.test(String(newStage || ''))
+    || (!!_givenLostReason && typeof window.stageRole === 'function' && window.stageRole(newStage) === 'lost');
   if (isLostMove) {
     if (_givenLostReason) {
       lostFields = _lostFieldsFromText(_givenLostReason, opts && opts.lostReasonKey);

@@ -90,3 +90,47 @@ Q11 named `phone_calls`, so these were left alone. Each needs Jo's decision. **T
 2. **`phone_texts` / `phone_text_days`** (message bodies and per-day text notes) are viewer-readable. This was already listed as skipped in the first pass.
 3. **Call summaries and notes copied to leads.** `callCenterAction` `attach` / `move` (`functions/call-center.js` `attachCallToLead` / `moveCallToLead`) put the call's timeline entry and follow-up task on the lead. A viewer reads lead activity and tasks, so the AI summary reaches them that way.
 4. **Lead briefs.** `functions/lead-brief-logic.js` `canReadLead` lets a same-company `viewer` through and builds `CALL <date>: <summary>` lines from lead activity. Briefs are not a P0 viewer surface (Q2 / Q9). **The Call to Close brief lane must not widen `canReadLead` for viewers.** If anything, a viewer's brief should drop the CALL lines.
+
+## Lane "estimate" (P1, 2026-11-09)
+
+Branch `ctc-p1-estimate`. The Call Brief sheet's **Start estimate** ("Start repair quote" on a repair call) opens the estimate builder with the caller's choices (job mode, work kind, tier, stories, layers, chimney / skylight flashing), each a "from call" chip whose × puts the old value back. A said square count is a hint beside the area input, never typed in. Repair calls are offered repair templates, inserted only on a tap through `JobTemplates.insertIntoV2`. Autosave holds back until the rep acts; closing untouched undoes every choice. Test: `tests/call-to-close-estimate-prefill-2026-11-09.test.js`.
+
+**For Jo: the deep link differs from design §5.1.** It is `/pro/dashboard.html?lead=<id>&callBrief=<callId>`, not `?edit=<leadId>`: the held `dashboard-bootstrap.module.js` opens the lead *editor* for `?edit=` and the *estimate builder* for `?lead=`, so the existing `?lead=` branch is used and the bootstrap is not edited. The bootstrap cleans its URL before the lazy builder loads, so the customer page also writes a sessionStorage hand-off (`nbd.callBriefLink`: lead id, call id, the brief the callable returned, a time). The builder reads it once, within five minutes, for the same customer and the same call as the URL (when the URL still names one). The hand-off exists only because of that URL clean; editing the bootstrap's parser would remove the need for it.
+
+### Review round (2026-11-09)
+
+- **Kill switch.** The builder no longer reads `leads/{leadId}/call_briefs/{callId}` (clients cannot read `feature_flags/global`, so it could not check `callBriefDisabled` itself). Every brief it uses came from the `callBrief` callable. The sheet awaits the `draft:estimate` log, and `callBriefDecide` refuses when the switch is on, so nothing opens. A hand-typed URL alone prefills nothing.
+- **Log wording.** The tap is logged as "tapped Start estimate" (it used to say "opened the estimate builder" before the open had happened). A log that fails for any other reason (network) still opens the builder.
+- **Late brief.** If the rep taps or types before the brief lands, its choices are listed as "said on the call, not filled in (you had already started)", never applied, and V3 is not re-opened over the rep's step.
+- **Shingle swap.** A call tier that would switch the scope's shingle line (Beyond → HailGuard, Economy → no 3-tab) is listed, not set, so the call never sets the scope and × / an untouched close undo everything.
+- **Pending autosave.** A save queued by the rep's last edit is flushed before the prefill arms, and the timer and `_flushDraftNow` skip while the prefill is untouched.
+- **Navigation.** The catalog search, the presentation, the packet choice, packet photo toggles and catalog categories no longer count as the rep acting.
+- **Accessibility.** `#v2rawSqft` names the said-square-count hint in `aria-describedby`.
+- **Phone.** The strip keeps the rep's fold across repaints; on a phone it starts folded once this device has shown one (`localStorage nbd.callStripSeen`).
+- **Not done:** chimney / skylight chips have no quote (the brief keeps mentions as yes/no); the chip says "no exact words kept". Keeping a quote for mentions is a `call-brief-logic.js` change for a later lane.
+
+## P1 lane "followup" (2026-11-09): follow-up draft, auto-brief switch, rescue list, objections
+
+Branch `ctc-p1-followup`, from `88eb11bcf`. Builds §5.3, §6 #6 and #7, and the auto-brief item of §9 P1 of [CALL-TO-CLOSE-DESIGN-2026-11-09](CALL-TO-CLOSE-DESIGN-2026-11-09.md).
+
+| Piece | Files | What a user sees |
+|---|---|---|
+| Follow-up message | `docs/pro/js/call-brief-ui.js`, `css/call-brief.css` | A "Follow-up message" card in the brief sheet, built only from what the person accepted (promises with their own who / kind / date, the follow-up date, the adjuster meeting) in fixed phrases. Text needs written consent on file (`tcpaConsent` + the server's `tcpaConsentAt`, as `sms-consent-declined.js` `consentBasis`); otherwise it says why, and "you can text me" on a call is not consent. "Check and open in Messages" goes through `NBDPhoneShare.share` (the server's ok-to-text check, then Messages; the person presses Send). Email opens the mail app with the draft written (`email_system.js` untouched; there is no non-held CRM email composer). Only a confirmed send is logged (`draft:followupText` / `draft:followupEmail`). |
+| Objections | same | Tags for each objection and a named competitor, the words said, a playbook reply from fixed phrases (`PLAYBOOK`; a tenant can override a reply via `companyProfile.callPlaybook.<kind>`), Copy only. Never a lead field (Q4). |
+| Auto-brief | `functions/call-brief.js` (`callBriefAuto`, `autoBriefHandler`), `call-brief-logic.js` (`autoBriefTransition`, `filerOf`), `firestore.rules`, `call-center-view.js` | Owner / company_admin see "Auto-brief filed calls: Off" on the Call Center (only with phone calls loaded). On, a person filing a call drafts its brief as that person, through callBrief's gates and caps. Off by default. |
+| Rescue list | `docs/pro/js/call-rescue-logic.js`, `call-center-view.js`, `functions/call-center.js` (`rescueDismiss`) | A "Needs a next step" tab: customers whose newest contact is a noted business call 2-30 days old with no promise, follow-up or stage move since. Brief / Follow-up (the existing promise sheet) / Dismiss (with Undo). |
+
+Assumptions: no call settings tab exists, so the switch sits on the Call Center next to the pipeline health line; "business call" = not personal / spam / supplier / sub, on a customer; a customer's own follow-up on or after the call counts as a next step; the rescue logic is fetched when the Call Center opens (not added to the `callcenter` bundle, whose contents three older suites pin). Boot bytes: 0 on both pages.
+
+### Review fixes (2026-11-09, second pass)
+
+- **The owner sees the switch.** `canSetAutoBrief` now allows role `admin`: `mintOwnerClaims` stamps the owner accounts `{ owner: true, role: 'admin' }`, so Jo never saw it before. The suite runs the function with real claim shapes.
+- **One tap, one auto-brief.** `attach` re-files every earlier unfiled call from the number (`refileNumber`, `refiledFrom`), each with `attachedBy` = the filer. `autoBriefTransition` now skips a call whose filing was that sweep (until a person moves it, or attaches it themselves, which clears `refiledFrom`). Swept calls still brief on tap.
+- **Ghost filer.** `callBriefAuto` checks tenant-guard `isGhost` on the filer, as the callables run `assertNotGhost`.
+- **Undone follow-up.** The sheet's follow-up Undo is not logged, so the follow-up message only uses a logged follow-up date while the customer still carries it.
+- **Rescue Dismiss** refuses `txt_` ids (the list holds calls only).
+- **Cache-busters** bumped: `call-brief-ui.js` v=2, `call-brief.css` v=2, `call-center-view.js` v=28, `customer-calls.js` v=10, `script-loader.js` v=211.
+- **Which company the switch sets.** The client writes `companies/{companyId claim || uid}`; the server reads `companies/{call.companyId || call.userId}`. A solo owner sees the switch only when their `companyId` is missing or equals their uid (the rules' `ownsTenantByUid`). A tenant whose calls carry a `companyId` that is not the owner's uid can be switched only by a `company_admin` of that company (or the platform admin), as the rules allow.
+- **Handled calls are in "Needs a next step".** A call marked handled with no promise, follow-up or stage move after it still lists: "handled" says someone dealt with the call, not that the customer has a next step. Dismiss takes one off.
+- **Trigger cost.** `callBriefAuto` starts on every `phone_calls` update (ingest, notes, facts, handled). The pure transition check returns before any read, but each start is a 512MiB instance holding the Anthropic secret, `maxInstances: 5`; an ingest burst queues behind those. Kept at 512MiB because it runs the same generate and grounding pass as `callBrief`; noted in `FUNCTIONS_INDEX.md`.
+- **Not changed: the settings doc's read rule.** A same-company viewer or rep can read `companies/{cid}/settings/callBrief`. It holds one boolean and who set it; narrowing it buys nothing and would hide whether auto-brief is on from the people whose filing triggers it.

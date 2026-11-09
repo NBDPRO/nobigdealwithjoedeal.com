@@ -208,7 +208,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
       ok(page + ' has no <script> tag for the sheet (it loads on tap)', !/call-brief-ui\.js/.test(read(page)) && !/call-brief\.css/.test(read(page)));
     }
-    ok('the stylesheet loads with the sheet through ScriptLoader', /CSS_HREF = '\/pro\/css\/call-brief\.css\?v=1'/.test(SRC) && /ScriptLoader\.load\(CSS_HREF\)/.test(SRC));
+    ok('the stylesheet loads with the sheet through ScriptLoader', /CSS_HREF = '\/pro\/css\/call-brief\.css\?v=2'/.test(SRC) && /ScriptLoader\.load\(CSS_HREF\)/.test(SRC));
     const css = read('docs/pro/css/call-brief.css');
     ok('the sheet CSS: 44px targets, no transition:all, no hex outside var() fallbacks', /min-height: 44px/.test(css) && !/transition:\s*all/.test(css) && !(css.replace(/var\([^()]*(\([^()]*\))?[^()]*\)/g, '').match(/#[0-9a-f]{3,8}\b/gi)));
     ok('a bottom sheet on phones', /@media \(max-width: 600px\)[\s\S]*\.cb-sheet \{[^}]*margin: auto 0 0/.test(css));

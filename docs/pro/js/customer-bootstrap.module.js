@@ -2484,20 +2484,21 @@ window.NBDCancelWindow = { render: (lead) => _renderCancelWindowChip(lead) };
 //  4. No more window.location.reload() — the stage change updates local
 //     state + the visible button/label in place, the way every other save
 //     on this page already works.
-window.progressStage = async function() {
+// Call to Close P1 (2026-11-09): the call brief's stage card passes its own
+// target (opts: lostReason; asked = it already confirmed; onUndone = its
+// toast's Undo committed). The button passes none.
+window.progressStage = async function(target, opts) {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
   const lead = window._currentLead || window._leadDoc || {};
   const current = window._currentStage || lead.stage || 'new';
-  const next = _nextStageFor({ ...lead, stage: current });
+  const o = (typeof target === 'string' && opts) || {};
+  const next = typeof target === 'string'
+    ? (target && target !== current ? { nextStage: target, label: (window.stageLabel && window.stageLabel(target)) || target } : null)
+    : _nextStageFor({ ...lead, stage: current });
   if (!next) return;
   const { nextStage, label } = next;
 
-  // Use nbdConfirm when available — native confirm() is patched by
-  // standalone-compat.js to silently return true in PWA mode, which
-  // means the user never actually sees the prompt. nbdConfirm renders
-  // a real themed modal in both modes.
-  const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   // 3-day cancellation window (2026-10-04): a move that starts the work
   // (materials ordered, crew scheduled, …) before lead.cancelBy says so in
   // the confirm. Warn, never block — "Move" still moves.
@@ -2516,6 +2517,13 @@ window.progressStage = async function() {
         J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile));
     }
   } catch (_) { cxlWarn = ''; }
+  // Use nbdConfirm when available — native confirm() is patched by
+  // standalone-compat.js to silently return true in PWA mode, which
+  // means the user never actually sees the prompt. nbdConfirm renders
+  // a real themed modal in both modes.
+  // The call brief's sheet already asked (o.asked): no second ask, unless a
+  // cancellation-window warning applies.
+  const ask = (m) => (o.asked && !cxlWarn ? Promise.resolve(true) : (window.nbdConfirm || ((x) => Promise.resolve(window.confirm(x))))(m));
   const _destRole = (typeof window.stageRole === 'function') ? window.stageRole(nextStage) : null;
   const mustAsk = _stageMoveNeedsConfirm(nextStage, { warning: cxlWarn, role: _destRole });
   if (mustAsk) {
@@ -2617,6 +2625,7 @@ window.progressStage = async function() {
     await _commitStageChange(window._customerId, nextStage, oldStage, {
       actorLabel: window.auth?.currentUser?.email,
       jobType: lead.jobType || null,
+      ...((_destRole === 'lost' || nextStage === 'lost') && o.lostReason ? { isLostMove: true, lostReason: o.lostReason } : {}),
     });
 
     // In-place update — no reload (see _applyStageOnPage).
@@ -2628,12 +2637,13 @@ window.progressStage = async function() {
         // moved it meanwhile — then refresh rather than clobber).
         window.showToast({
           message: '✓ Stage moved to ' + label, type: 'success', duration: 6000, undoText: 'Undo',
-          undoAction: () => _undoStageMove(lead, oldStage, nextStage),
+          undoAction: () => _undoStageMove(lead, oldStage, nextStage, o.onUndone),
         });
       } else {
         window.showToast('✓ Stage moved to ' + label, 'success');
       }
     }
+    return true;
   } catch (e) {
     // STAGE_RACE_NOOP / STAGE_RACE_LOST: another tab (kanban or this same
     // page open elsewhere) already moved this lead since our `oldStage`
@@ -2695,7 +2705,9 @@ function _applyStageOnPage(lead, stage, label) {
 // Undo a one-tap stage move (2026-10-08): the same transaction-guarded write
 // back to the stage it came from. Not a delete — the history keeps both
 // entries, the honest record of what happened.
-async function _undoStageMove(lead, fromStage, movedTo) {
+// onUndone: the caller's hook once the move back committed (the call brief
+// logs its stage accept as undone).
+async function _undoStageMove(lead, fromStage, movedTo, onUndone) {
   if (!window._customerId || !fromStage) return;
   if ((window._currentStage || lead.stage) !== movedTo) return;   // moved again since
   try {
@@ -2706,6 +2718,7 @@ async function _undoStageMove(lead, fromStage, movedTo) {
     const back = (typeof window.stageLabel === 'function' && window.stageLabel(fromStage)) || fromStage;
     _applyStageOnPage(lead, fromStage, back);
     if (window.showToast) window.showToast('Moved back to ' + back, 'info');
+    if (typeof onUndone === 'function') { try { onUndone(); } catch (_) { /* the move back is saved */ } }
   } catch (e) {
     if (e && (e.message === 'STAGE_RACE_NOOP' || e.message === 'STAGE_RACE_LOST')) {
       if (window.showToast) window.showToast('Another tab moved this lead — refreshing.', 'info');

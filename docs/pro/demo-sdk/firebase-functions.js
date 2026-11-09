@@ -95,7 +95,10 @@ const CANNED = {
   // Haiku for one sentence from the rules Coach's counts (functions/coach-line.js);
   // the sample answers from the top rule's id with a fixed sentence that states no
   // number, so nothing leaves the tab and nothing is made up.
-  coachLine: (p) => sampleCoachLine(p || {})
+  coachLine: (p) => sampleCoachLine(p || {}),
+  // Call to Close P1 (2026-11-09): "Transcribe now" sends a recording to the
+  // transcriber, and the sample has no recordings. The same quiet answer.
+  callTranscribeNow: () => { throw noPhoneInSample('callTranscribeNow'); }
 };
 
 const SAMPLE_COACH_LINES = {

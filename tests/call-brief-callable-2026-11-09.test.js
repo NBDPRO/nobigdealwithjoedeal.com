@@ -357,6 +357,12 @@ async function decide(db, auth, data) {
     await decide(db, OWNER, { item: 'stage', decision: 'skip' });
     ok('append-only: earlier decisions stay, one more is added', (db.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).length === before + 1
       && JSON.stringify((db.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(0, before)) === JSON.stringify(ds));
+    // P1 (estimate lane): "Start estimate" logs its tap; it writes nothing to the lead.
+    const leadBefore = JSON.stringify(db.store.get('leads/L1'));
+    const est = await decide(db, OWNER, { item: 'draft:estimate', decision: 'accept', value: 'opened the estimate builder' });
+    const estD = (db.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0] || {};
+    ok('draft:estimate is accepted and logged', est.r && est.r.ok !== false && estD.item === 'draft:estimate' && estD.decision === 'accept', est.e ? est.e.message : estD);
+    ok('…and writes nothing to the customer', JSON.stringify(db.store.get('leads/L1')) === leadBefore);
     flags = { callBriefDisabled: true };
     const off = await decide(db, OWNER, { item: 'stage', decision: 'skip' });
     ok('callBriefDisabled stops decisions too', off.e && off.e.code === 'failed-precondition');

@@ -298,6 +298,46 @@ function estimateAudioSec(sizeBytes) {
   return Math.max(1, Math.round((Number(sizeBytes) || 0) / 4000));
 }
 
+// The segment index (Call to Close P1, 2026-11-09; design §3.2 point 4):
+// Whisper's own confidence per segment, kept on the call doc as
+// `segIndex: { v, start[], end[], off[], lp[], merged }` (parallel number
+// arrays: Firestore has no nested arrays). start / end are seconds (0.1 s),
+// off is the segment's first character in the STORED transcript, lp is
+// Groq's avg_logprob (2 decimals). The brief marks a quote that falls only in
+// low-confidence segments "unsure" (call-brief-logic LOW_LOGPROB).
+// Cap: SEG_MAX entries (~10 KB as JSON). A longer call merges neighbours in
+// equal groups; a group keeps its first start, last end, first offset and its
+// WORST logprob, so one bad segment is never averaged away.
+const SEG_MAX = 400;
+const SEG_V = 1;
+function buildSegIndex(segments, transcript) {
+  const t = String(transcript || '');
+  const segs = (Array.isArray(segments) ? segments : []).filter((s) => s && typeof s === 'object' && s.avgLogprob != null && Number.isFinite(Number(s.avgLogprob)));
+  if (!t || !segs.length) return null;
+  const rows = [];
+  let cur = 0;
+  for (const s of segs) {
+    const txt = String(s.text || '').trim();
+    let at = txt ? t.indexOf(txt, cur) : -1;
+    if (at < 0) at = cur;  // Whisper re-spaced it: it starts where the last one ended
+    if (at >= t.length) break;  // past the stored (sliced) transcript
+    rows.push({ start: Number(s.start) || 0, end: Number(s.end) || 0, off: at, lp: Number(s.avgLogprob) });
+    cur = Math.min(t.length, at + Math.max(1, txt.length));
+  }
+  if (!rows.length) return null;
+  const k = Math.ceil(rows.length / SEG_MAX);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const out = { v: SEG_V, start: [], end: [], off: [], lp: [], merged: k };
+  for (let i = 0; i < rows.length; i += k) {
+    const g = rows.slice(i, i + k);
+    out.start.push(r1(g[0].start));
+    out.end.push(r1(g[g.length - 1].end));
+    out.off.push(g[0].off);
+    out.lp.push(Math.round(Math.min(...g.map((x) => x.lp)) * 100) / 100);
+  }
+  return out;
+}
+
 // Groq's free tier also caps audio per HOUR, and rejects with 429 "Rate
 // limit reached for model …". That is about the account, not the call.
 // Takes an Error (status 429) or the stored transcribeError string.
@@ -995,6 +1035,9 @@ module.exports = {
   DAY_AUDIO_CAP_MAX_HOURS,
   dayAudioCapSec,
   estimateAudioSec,
+  SEG_MAX,
+  SEG_V,
+  buildSegIndex,
   pickToTranscribe,
   isRateLimited,
   classifyProviderError,

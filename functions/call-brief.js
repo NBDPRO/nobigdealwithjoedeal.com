@@ -33,9 +33,17 @@
  * summary becomes one activity note. Promises, follow-ups and handled go
  * through their own writers (callCenterAction, NBDFollowUpDeck); this only
  * logs them. Nothing here moves a stage, prices, sends or signs anything.
+ * A stage accept (P1) is logged with how it was moved ('one-tap' or
+ * 'confirmed'); the move itself went through the CRM's stage writer.
+ *
+ * callBriefAuto (P1, Firestore trigger on phone_calls/{callId}): the opt-in
+ * auto-brief. Off unless companies/{companyId}/settings/callBrief.autoBrief
+ * is true; then a person filing a call drafts the brief they would get on
+ * tap, as that person, through the same gates and caps (autoBriefHandler).
  */
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { secretValue } = require('./integrations/_shared');
@@ -49,6 +57,7 @@ const MAX_DECISIONS = 300;
 // adjusterMeetingDate feeds the calendar feed and Google Calendar (google-calendar-logic WATCHED).
 const CALENDAR_ACK = 'This puts the adjuster meeting on the calendar and on Google Calendar when it is connected. Confirm it first.';
 const INSURANCE_ACK = 'This makes the job an insurance job: Kentucky notices and the cancellation form will apply. Confirm it first.';
+const RETYPE_ACK = 'This was hard to hear on the recording. Listen to it and type the value yourself.';
 
 /** Default model call: raw /v1/messages (the repo's server pattern). */
 async function anthropicCall(req) {
@@ -152,6 +161,16 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   if (over === 'user') throw new HttpsError('resource-exhausted', 'You have drafted ' + L.USER_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
   if (over === 'company') throw new HttpsError('resource-exhausted', 'Your company has drafted ' + L.COMPANY_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
 
+  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached });
+  return answer(doc, { cached: false });
+}
+
+/**
+ * Ask the model, ground the answer and store the brief (the one writer of
+ * leads/{leadId}/call_briefs/{callId}). The caller has already run every gate
+ * and taken the quota. opts.auto marks a brief the P1 auto-brief drafted.
+ */
+async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto }) {
   const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
   const profile = ps && ps.exists ? ps.data() : {};
   const stages = L.tenantStages(profile.pipelines);
@@ -167,15 +186,17 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('call-brief', req.model, resp), { db, nowMs, log });
   const raw = L.parseResponse(resp);
   if (!raw) throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
-  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd });
+  // segIndex (P1): Whisper's per-segment confidence; hard-to-hear quotes are marked unsure.
+  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex: g.call.segIndex || null });
   const doc = {
     callId: g.callId, leadId: g.leadId, companyId: g.companyId, userId: g.call.userId || null,
     v: L.BRIEF_VERSION, transcriptHash: hash, model: req.model, generatedAtMs: nowMs, generatedBy: auth.uid,
     brief, decisions: cached && Array.isArray(cached.decisions) ? cached.decisions : [],
     updatedAt: FieldValue.serverTimestamp(),
   };
+  if (auto) doc.auto = true;
   await g.briefRef.set(doc);
-  return answer(doc, { cached: false });
+  return doc;
 }
 
 const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
@@ -193,7 +214,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (await switchedOff(false)) throw new HttpsError('failed-precondition', 'Call briefs are switched off right now.');
   const item = data && data.item;
-  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:proposal|field:[A-Za-z]{2,40}|promise:[0-4])$/.test(item)) {
+  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:(proposal|estimate|followupText|followupEmail)|field:[A-Za-z]{2,40}|promise:[0-4])$/.test(item)) {
     throw new HttpsError('invalid-argument', 'Decide one item at a time.');
   }
   const decision = data.decision === 'accept' ? 'accept' : data.decision === 'skip' ? 'skip' : '';
@@ -208,6 +229,32 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   if ((fieldKey || item.startsWith('promise:') || item === 'stage' || item === 'followUp') && aiValue === null) {
     throw new HttpsError('failed-precondition', 'The brief did not suggest that.');
   }
+  // P1 one-tap stage moves: the client moved the stage through the CRM's own
+  // writer (progressStage / moveCard); this logs it, and refuses a log that
+  // says a never-one-tap stage (Inspected, install_complete, an appointment,
+  // Lost) went in one tap, or a stage a call may not suggest at all.
+  let mode = '';
+  let fromStage = '';
+  if (item === 'stage' && decision === 'accept') {
+    const st = (stored.brief && stored.brief.stage) || {};
+    if (data.value != null && String(data.value) !== String(st.targetKey)) throw new HttpsError('invalid-argument', 'Only the stage the call suggested.');
+    mode = data.mode === 'one-tap' || data.mode === 'confirmed' ? data.mode : '';
+    if (!mode) throw new HttpsError('invalid-argument', 'Say how the stage was moved.');
+    if (!L.stageOfferable(st.targetKey, st.role)) throw new HttpsError('failed-precondition', 'A call never moves a customer to a signed contract, a job or a won stage.');
+    // fromStage: where the lead was before the writer moved it (the lead reads
+    // the target by now). The client's value is advisory: the lead's own
+    // stageHistory (the CRM writer appends { from, to }) outranks it, and a
+    // one-tap log that knows neither is refused, since a move back cannot be
+    // ruled out (review 2026-11-09).
+    fromStage = L.stageMovedFrom(g.lead, st.targetKey) || L.str(data.fromStage, 40);
+    let orders = [];
+    if (mode === 'one-tap') {
+      const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
+      orders = L.tenantStageOrders(ps && ps.exists ? (ps.data() || {}).pipelines : null);
+    }
+    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, fromStage, orders)) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
+    if (mode === 'one-tap' && !fromStage) throw new HttpsError('failed-precondition', 'Say which stage it moved from.');
+  }
 
   let finalValue = decision === 'skip' ? '' : (data.value == null ? String(aiValue || '') : L.str(data.value, item === 'summary' ? 600 : 200));
   let written = false;
@@ -215,6 +262,9 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     const leadField = L.LEAD_FIELD[fieldKey];
     finalValue = L.str(finalValue, fieldKey === 'claimNumber' ? 40 : 120);
     if (!finalValue) throw new HttpsError('invalid-argument', 'Nothing to fill in.');
+    // P1: digits from a hard-to-hear quote are never one-tap; the person types them.
+    const fact = ((stored.brief || {}).fields || {})[fieldKey];
+    if (fact && fact.retype === true && !(data.retyped === true && data.value != null && L.str(data.value, 200))) throw new HttpsError('failed-precondition', RETYPE_ACK);
     if (L.DATE_FIELDS.includes(fieldKey) && !L.isYmd(finalValue)) throw new HttpsError('invalid-argument', 'Use a date (YYYY-MM-DD).');
     if (fieldKey === 'jobType' && !['insurance', 'cash'].includes(finalValue)) throw new HttpsError('invalid-argument', 'Job type is insurance or cash.');
     const insurance = fieldKey === 'insCarrier' || fieldKey === 'claimNumber' || (fieldKey === 'jobType' && finalValue === 'insurance');
@@ -255,6 +305,9 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   // never offers that slot again (slot 0 is the card's own Promise button).
   const slot = Number(data.slot);
   if (item.startsWith('promise:') && decision === 'accept' && Number.isInteger(slot) && slot >= 1 && slot <= 5) entry.slot = slot;
+  if (mode) { entry.mode = mode; if (fromStage) entry.fromStage = fromStage; }
+  // The writer's Undo after a stage move: a skip that says so (the accept before it stays, append-only).
+  if (item === 'stage' && decision === 'skip' && data.undone === true) entry.undone = true;
   await db.runTransaction(async (tx) => {
     const s = await tx.get(g.briefRef);
     const prev = s.exists && Array.isArray((s.data() || {}).decisions) ? s.data().decisions : [];
@@ -262,6 +315,54 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   });
   log.info('call_brief_decided', { callId: g.callId, item, decision, written });
   return { ok: true, written, item, decision };
+}
+
+/**
+ * P1 auto-brief (design §3.1; Jo's Q2: briefs on tap, an auto-brief flag is
+ * opt-in, default OFF). When a PERSON files a call (L.autoBriefTransition)
+ * and the company has turned on companies/{companyId}/settings/callBrief
+ * .autoBrief, the server drafts the brief the filer would get on tap. It runs
+ * as the filer and through exactly callBrief's gates: both kill switches, the
+ * filer's role (callCenterAction's test: never a viewer, never a sales rep who
+ * does not own the call), the human-filed and tenant gates, the cache, a
+ * verified email + paid plan, and the same per-user / per-company day caps.
+ * It only stores the brief: nothing is accepted, written to the lead, sent or
+ * moved. Returns { state, why? }; never throws (a trigger must not retry-loop).
+ */
+async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, getUser, log = logger }) {
+  if (!L.autoBriefTransition(before, after)) return { state: 'not-filed-now' };
+  if (await switchedOff(true)) return { state: 'switched-off' };
+  const companyId = String(after.companyId || after.userId || '');
+  if (!companyId || companyId.includes('/')) return { state: 'flag-off' };
+  const fs = await db.doc('companies/' + companyId + '/settings/callBrief').get().catch(() => null);
+  if (!(fs && fs.exists && (fs.data() || {}).autoBrief === true)) return { state: 'flag-off' };
+  const filer = L.filerOf(after);
+  if (!filer) return { state: 'gated', why: 'no filer' };
+  let user;
+  try { user = await (getUser || ((uid) => require('firebase-admin/auth').getAuth().getUser(uid)))(filer); } catch (e) { return { state: 'gated', why: 'filer not found' }; }
+  if (!user || user.disabled === true) return { state: 'gated', why: 'filer disabled' };
+  const auth = { uid: filer, token: Object.assign({}, user.customClaims || {}, { email_verified: user.emailVerified === true }) };
+  // The callables run assertNotGhost; so does this, on the filer's claims now.
+  if (await require('./tenant-guard').isGhost(filer, auth.token, db)) return { state: 'gated', why: require('./tenant-guard').GHOST_MESSAGE };
+  let g;
+  try { g = await loadGated(db, auth, { callId }); } catch (e) { return { state: 'gated', why: (e && e.message) || 'gated' }; }
+  const transcript = String(g.call.transcript || '');
+  const hash = L.transcriptHash(transcript);
+  const cs = await g.briefRef.get().catch(() => null);
+  const cached = cs && cs.exists ? cs.data() : null;
+  if (L.cacheState(cached, hash, nowMs, false) === 'use') return { state: 'cached' };
+  const t = auth.token;
+  if (!(t.role === 'admin' || t.email_verified === true) || !(await aiAllowed(db, auth))) return { state: 'plan' };
+  const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
+  if (over) return { state: 'quota', why: over };
+  try {
+    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true });
+  } catch (e) {
+    log.warn('call_brief_auto_failed', { callId, err: e && e.message });
+    return { state: 'failed' };
+  }
+  log.info('call_brief_auto', { callId, leadId: g.leadId, by: filer });
+  return { state: 'briefed' };
 }
 
 exports.callBrief = onCall(
@@ -280,4 +381,21 @@ exports.callBriefDecide = onCall(
   }
 );
 
-exports._test = { briefCallable, decideCallable, takeQuota, loadGated, tenantOf, INSURANCE_ACK };
+// P1 auto-brief: a phone_calls update that is a person filing the call.
+// The pure transition check runs first, so the many other call writes cost
+// one function start and nothing else.
+exports.callBriefAuto = onDocumentUpdated(
+  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 120, maxInstances: 5 },
+  async (event) => {
+    try {
+      const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+      const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+      if (!L.autoBriefTransition(before, after)) return;
+      await autoBriefHandler({ db: getFirestore(), callId: event.params.callId, before, after, nowMs: Date.now() });
+    } catch (e) {
+      logger.warn('call_brief_auto_error', { callId: event.params && event.params.callId, err: e && e.message });
+    }
+  }
+);
+
+exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, tenantOf, INSURANCE_ACK };
