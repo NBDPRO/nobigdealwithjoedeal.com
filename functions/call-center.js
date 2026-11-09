@@ -608,7 +608,9 @@ function segPatch(t, stored) {
 // The transcribe lease (Call to Close P1, 2026-11-09). "Transcribe now"
 // (call-transcribe-now.js) and this schedule can reach the same stored call
 // at once. Each claims it first in one transaction: still 'stored', and no
-// live lease held by someone else, then `transcribeLease: { by, untilMs }`.
+// live lease at all (not even one with its own `by`: the same person's double
+// tap, second tab or other card is a second run too), then
+// `transcribeLease: { by, untilMs }`.
 // Every write that ends the call's turn sets it back to null; a run that
 // dies leaves it to expire. 15 min outlives both the scheduled run (540 s)
 // and the callable (300 s), so a live lease always means a live run.
@@ -619,7 +621,7 @@ async function claimTranscribe(db, ref, nowMs, by) {
     const c = s.exists ? (s.data() || {}) : null;
     if (!c || c.status !== 'stored') return null;
     const l = c.transcribeLease;
-    if (l && Number(l.untilMs) > nowMs && l.by !== by) return null;
+    if (l && Number(l.untilMs) > nowMs) return null;
     tx.set(ref, { transcribeLease: { by, untilMs: nowMs + TRANSCRIBE_LEASE_MS } }, { merge: true });
     return c;
   });

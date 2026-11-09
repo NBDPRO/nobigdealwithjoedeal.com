@@ -280,6 +280,19 @@ async function tap(db, auth, data, nowMs) {
     ok('one of them says noted, the other already / busy', both.map((x) => x.r && x.r.state).sort().join() === 'busy,noted' || both.map((x) => x.r && x.r.state).sort().join() === 'already,noted', both.map((x) => (x.r ? x.r.state : x.e && x.e.message)));
     const q = db3.store.get('call_transcribe_quota/2026-11-09__c__' + OWNER);
     ok('…and only the run that transcribed keeps a quota count', q && q.n === 1, q);
+
+    // The same person twice (a double tap, two tabs, both cards): the lease
+    // holder's own id is no pass either.
+    stubDeps();
+    tDelay = 30;
+    const db4 = makeDb(seed());
+    const same = await Promise.all([tap(db4, AUTH.owner), tap(db4, AUTH.owner)]);
+    tDelay = 0;
+    const sameStates = same.map((x) => x.r && x.r.state).sort().join();
+    ok('the same user tapping twice at once → ONE Groq call', tCalls === 1, tCalls);
+    ok('…one says noted, the other already / busy', sameStates === 'busy,noted' || sameStates === 'already,noted', same.map((x) => (x.r ? x.r.state : x.e && x.e.message)));
+    const q4 = db4.store.get('call_transcribe_quota/2026-11-09__c__' + OWNER);
+    ok('…and the quota counts it once', q4 && q4.n === 1, q4);
   }
 
   console.log('\n6. Switches');
