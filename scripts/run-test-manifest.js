@@ -474,6 +474,9 @@ const FLOORS = { node: 1037, smoke: 74, disk: 1176 };
 //               install-completed-at and photo-exif-capture node suites and the install-completed-at and
 //               photo-exif-fields emulator rules suites. MEASURED via --check.
 const FLOORS = { node: 1038, smoke: 74, disk: 1179 };
+//   2026-11-09  1036/74/1175 -> 1039/74/1178, the weekly scheduled deploy lane (rebased on the integration PR):
+//               date-gated-checks, llms-blog-region and scheduled-deploy suites. MEASURED via --check.
+const FLOORS = { node: 1039, smoke: 74, disk: 1178 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
