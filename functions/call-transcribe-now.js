@@ -23,7 +23,8 @@
  * today's audio allowance); not already being transcribed (the lease); and
  * the daily caps: USER_DAY_CAP per user and COMPANY_DAY_CAP per company per
  * ET day, in one transaction. A run that transcribed nothing gives the count
- * back.
+ * back, except a provider outage, which keeps it (a real request was made and
+ * an outage is no strike).
  *
  * Idempotent: two taps (or a tap and the schedule) never transcribe one call
  * twice. runTranscribe claims the call in a transaction (transcribeLease) and
@@ -141,8 +142,10 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
   else if (out && out.providerOutage) state = 'outage';
   else if (!out || out.leased || leased(c, nowMs)) state = 'busy';
   else state = 'failed';
-  // Only a run that did the work keeps its count.
-  if (!(out && (out.noted > 0 || out.personal > 0))) {
+  // Only a run that did the work keeps its count, and a provider outage: it
+  // made a real Groq / Anthropic request and adds no strike, so without the
+  // count nothing would bound repeated taps while the provider is down.
+  if (!(out && (out.noted > 0 || out.personal > 0 || out.providerOutage))) {
     await takeQuota(db, auth.uid, companyId, nowMs, -1).catch((e) => log.warn('call_transcribe_now_refund_failed', { callId, err: e && e.message }));
   }
   log.info('call_transcribe_now', { callId, state, by: auth.uid });

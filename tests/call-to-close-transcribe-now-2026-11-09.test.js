@@ -24,7 +24,8 @@
  *   7. which calls: short, personal, too large, no recording, not in the
  *      owner's queue, three failed tries, today's audio allowance spent
  *   8. caps: 10 per user and 30 per company per ET day, one transaction; a
- *      run that transcribed nothing gives the quota back
+ *      run that transcribed nothing gives the quota back, except a provider
+ *      outage (a real Groq request, no strike), which keeps its count
  *   9. wiring: App Check, ghost check, both secrets, index.js, function-map,
  *      FUNCTIONS_INDEX.md, the demo answer
  *  10. the buttons: "Transcribe now" on a stored call with no transcript, for
@@ -364,6 +365,21 @@ async function tap(db, auth, data, nowMs) {
     const db4 = makeDb(seed({}, { ['call_transcribe_quota/2026-11-10__u__' + OWNER]: { n: 10 } }));
     const r4 = await tap(db4, AUTH.owner);
     ok('a cap is per ET day (yesterday\'s count does not block today)', r4.r && r4.r.state === 'noted', r4.e && r4.e.message);
+
+    // A provider outage made a real Groq request and adds no strike: the tap
+    // keeps its count, so the daily cap bounds repeated taps in an outage.
+    stubDeps();
+    CC._test.setDeps({ transcribe: async () => { tCalls++; const e = new Error('Groq rejected: HTTP 429'); e.status = 429; throw e; } });
+    const db5 = makeDb(seed());
+    const r5 = await tap(db5, AUTH.owner);
+    const q5 = db5.store.get('call_transcribe_quota/2026-11-09__u__' + OWNER);
+    ok('a Groq outage → "outage", the call stays queued', r5.r && r5.r.state === 'outage' && db5.store.get('phone_calls/' + ID).status === 'stored', r5.r || (r5.e && r5.e.message));
+    ok('…and the tap keeps its quota count (an outage is no strike)', q5 && q5.n === 1, q5);
+    tCalls = 0;
+    const db6 = makeDb(seed({}, { ['call_transcribe_quota/2026-11-09__u__' + OWNER]: { n: 9 } }));
+    await tap(db6, AUTH.owner);
+    const r6 = await tap(db6, AUTH.owner);
+    ok('…so taps in an outage stop at the daily cap', r6.e && r6.e.code === 'resource-exhausted' && tCalls === 1, { e: r6.e && r6.e.code, tCalls });
   }
 
   console.log('\n9. Wiring');
