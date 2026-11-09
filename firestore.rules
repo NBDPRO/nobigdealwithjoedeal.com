@@ -1000,6 +1000,24 @@ service cloud.firestore {
           );
         allow create, delete: if false;
       }
+      // Call to Close P0 (2026-11-09): a Call Brief of one phone call
+      // (functions/call-brief.js). Server-written only. Read = exactly
+      // callCenterAction's audience, taken from the CALL (phone_calls/{callId})
+      // rather than the lead: its owner, a platform admin, or a same-company
+      // company_admin / manager; never a viewer (briefs copy transcript
+      // quotes), never a sales rep who does not own the call. And only while
+      // the call is still filed on this lead (a move deletes the old brief).
+      // tests/firestore-rules.call-briefs.test.js.
+      match /call_briefs/{callId} {
+        allow read: if isAuth() && notViewer()
+          && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('leadId', '') == leadId
+          && (isOwner(get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('userId', ''))
+              || isAdmin()
+              || (isCompanyStaff()
+                  && request.auth.token.get('companyId', null) != null
+                  && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('companyId', null) == request.auth.token.companyId));
+        allow write: if false;
+      }
       match /notes/{noteId} {
         allow read:   if isAuth() && (isAdmin()
           || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)

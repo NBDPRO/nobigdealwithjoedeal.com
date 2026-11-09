@@ -1574,6 +1574,7 @@
     "firestore-rules.month-close.test.js",
     "firestore-rules.reputation.test.js",
     "firestore-rules.receipt-inbox.test.js",
+    "firestore-rules.call-briefs.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",
