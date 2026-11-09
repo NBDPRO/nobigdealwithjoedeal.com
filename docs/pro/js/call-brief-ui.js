@@ -54,6 +54,12 @@
  *      tag per objection / named competitor with the words said and a
  *      playbook reply from fixed phrases (PLAYBOOK; a tenant may override a
  *      reply through companyProfile.callPlaybook), copy-only.
+ *  11. Who decides (P2, §6 #5; Q4: kept in the brief, never lead fields):
+ *      the people the call says must agree, approve or sign, labelled with
+ *      the words used for them ("my husband", "the HOA") and the quote.
+ *      Heard on the call (no speaker labels), copy-only, nothing written.
+ *  One filled button (P2): the act being confirmed, else the follow-up
+ *  message's send, else a one-tap stage move, else the drafts button.
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
  * signed, and no stage moves without a tap. Everything shown is escaped.
  *
@@ -297,6 +303,22 @@
     }
     return out;
   }
+  // Who decides (P2): a role's plain words when the call gave no name or label.
+  var ROLE_WORDS = { owner: 'The homeowner', spouse: 'Spouse or partner', tenant: 'The tenant', adjuster: 'The adjuster', other: 'Someone else' };
+  /** The deciders the brief heard (pure): [{ label, quote, unsure }], said > name > role. */
+  function whoDecides(brief) {
+    var out = [], seen = {};
+    ((brief && Array.isArray(brief.people)) ? brief.people : []).forEach(function (p) {
+      if (!p || p.decides !== true || !String(p.quote || '').trim()) return;
+      var label = String(p.said || '').trim() || String(p.name || '').trim() || ROLE_WORDS[p.role] || ROLE_WORDS.other;
+      var key = label.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push({ label: label, quote: String(p.quote), unsure: p.unsure === true });
+    });
+    return out.slice(0, 6);
+  }
+  function whoLine(d) { return d.label + ': \u201c' + d.quote + '\u201d'; }
   function profile() { return window._companyProfile || {}; }
   function tenantName() { var p = profile(), b = p.brand || {}; return String(b.name || p.companyName || p.name || '').trim(); }
 
@@ -364,7 +386,30 @@
 
   // ── render ─────────────────────────────────────────────────────────────
   function btn(label, act, extra, cls) {
+    // One filled button per sheet (P2): a btn-orange ask is filled only for the act render() picked.
+    if (cls === 'btn-orange' && S && S.primary !== act) cls = 'btn-ghost';
     return '<button type="button" class="btn ' + (cls || 'btn-ghost') + '" data-cb-act="' + esc(act) + '"' + (extra || '') + '>' + esc(label) + '</button>';
+  }
+  /**
+   * The sheet's one filled button: the Yes of the confirm being asked, else
+   * the follow-up message's send (when it renders), else a one-tap stage
+   * move, else the drafts card's button (Draft proposal on the customer page,
+   * Start estimate on the Call Center).
+   */
+  function primaryAct() {
+    var c = S.confirm || '';
+    if (c === 'summary') return 'summary-yes';
+    if (c === 'stage') return 'stage-yes';
+    if (/^field:/.test(c)) return 'accept-yes';
+    if (/^promise:/.test(c)) return 'promise-yes';
+    var draft = msgDraftNow();
+    if (draft) {
+      var ch = msgChannel(draft);
+      if (ch === 'text' ? textConsent(S.lead).ok : emailOk(S.lead).ok) return ch === 'text' ? 'msg-text' : 'msg-email';
+    }
+    var plan = S.brief && S.brief.stage ? stagePlanNow() : null;
+    if (plan && plan.kind === 'one-tap' && stageWriter()) return 'stage-move';
+    return S.page === 'customer' ? 'proposal' : 'estimate';
   }
   function quoteHtml(q, unsure) {
     if (!q) return '';
@@ -536,6 +581,20 @@
       }).join('') + '</div>';
   }
 
+  function renderWhoDecides() {
+    var list = whoDecides(S.brief);
+    if (!list.length) return '';
+    var copied = S.dmCopied || {};
+    return '<div class="cb-sec" role="group" aria-labelledby="cbWhoH"><h3 class="cb-sec-title" id="cbWhoH">Who decides</h3>' +
+      '<div class="cb-meta">Heard on the call: who has a say, in the words that were said. The recording has no speaker labels, so check it. Kept in this brief only: it is never written to the customer and nothing is sent.</div>' +
+      list.map(function (d, i) {
+        return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(d.label) + '</span><span class="cb-badge">Heard on the call</span></div>' + quoteHtml(d.quote, d.unsure) +
+          '<div class="cb-acts">' + btn('Copy', 'dm-copy', ' data-i="' + i + '"') + '</div>' +
+          (copied[i] ? '<div class="cb-done" role="status">' + esc(copied[i]) + '</div>' : '') + '</div>';
+      }).join('') +
+      '<div class="cb-acts">' + btn('Copy list', 'dm-copy-all') + '</div>' + (copied.all ? '<div class="cb-done" role="status">' + esc(copied.all) + '</div>' : '') + '</div>';
+  }
+
   function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName(), isVisit() ? 'visit' : ''); }
   function msgChannel(draft) { return S.msg.ch || (textConsent(S.lead).ok || !emailOk(S.lead).ok ? 'text' : 'email'); }
   function renderMessage() {
@@ -644,7 +703,10 @@
     // said, the fields, promises and follow-up date, this call, the stage,
     // the objections, then what to send or start (follow-up message, estimate,
     // proposal). Drafts stays last: its card ends at the sheet's foot.
-    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderObjections() + renderMessage() + renderDrafts();
+    else {
+      S.primary = primaryAct();
+      body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderObjections() + renderWhoDecides() + renderMessage() + renderDrafts();
+    }
     dlg.innerHTML = renderHeader() + '<div class="cb-scroll">' + body + '</div>' +
       '<div class="cb-foot"><span class="cb-meta">Nothing here is sent, priced or signed.</span>' + btn('Close', 'close') + '</div>';
   }
@@ -799,6 +861,15 @@
       var tag = objectionTags(S.brief, profile().callPlaybook)[i];
       if (!tag) return;
       S.objCopied[i] = (await copyText(tag.reply)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
+      render(); return;
+    }
+    if (a === 'dm-copy' || a === 'dm-copy-all') {
+      var who = whoDecides(S.brief);
+      var one = a === 'dm-copy' ? who[i] : null;
+      if (a === 'dm-copy' && !one) return;
+      var txt = one ? whoLine(one) : 'Who decides (heard on the call):\n' + who.map(function (d) { return '- ' + whoLine(d); }).join('\n');
+      S.dmCopied = S.dmCopied || {};
+      S.dmCopied[one ? i : 'all'] = (await copyText(txt)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
       render(); return;
     }
     if (a === 'estimate') { startEstimate(); }
@@ -1159,7 +1230,7 @@
   window.NBDCallBrief = {
     open: open, openVisit: openVisit, transcribe: transcribe, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
-    _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, PLAYBOOK: PLAYBOOK,
+    _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, _whoDecides: whoDecides, PLAYBOOK: PLAYBOOK,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
     INSURANCE_WARN: INSURANCE_WARN, CALENDAR_WARN: CALENDAR_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
   };

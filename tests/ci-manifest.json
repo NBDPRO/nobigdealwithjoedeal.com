@@ -1018,7 +1018,8 @@
     "call-to-close-retention-2026-11-09.test.js",
     "call-to-close-tenantfeed-golden-2026-11-09.test.js",
     "call-to-close-tenantfeed-2026-11-09.test.js",
-    "call-to-close-p1-leftovers-2026-11-09.test.js"
+    "call-to-close-p1-leftovers-2026-11-09.test.js",
+    "call-to-close-decision-map-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
