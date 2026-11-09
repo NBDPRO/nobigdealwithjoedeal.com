@@ -637,7 +637,17 @@
 
   // ── settings ─────────────────────────────────────────────────────────
   var typeOpen = { on: function () { return ls(TYPE_KEY) !== '0'; }, set: function (on) { ls(TYPE_KEY, on ? '1' : '0'); } };
-  var corner = { on: function () { return ls(CORNER_KEY) === '1'; }, set: function (on) { ls(CORNER_KEY, on ? '1' : null); } };
+  // the hot corner's setting is read once and cached (it is checked on mouse moves);
+  // attached desks are told when it changes, so they listen only while it is on
+  var cornerVal = null, cornerWatch = [];
+  function cornerChanged() { cornerWatch.slice().forEach(function (f) { try { f(); } catch (e) {} }); }
+  var corner = {
+    on: function () { if (cornerVal === null) cornerVal = ls(CORNER_KEY) === '1'; return cornerVal; },
+    set: function (on) { cornerVal = !!on; ls(CORNER_KEY, on ? '1' : null); cornerChanged(); },
+  };
+  if (root && typeof root.addEventListener === 'function') {
+    try { root.addEventListener('storage', function (e) { if (e && e.key === CORNER_KEY) { cornerVal = null; cornerChanged(); } }); } catch (e) {}
+  }
 
   // ── the NBD OS desk: type-anywhere and the hot corner ────────────────
   // the widget column's empty space is desk; its widgets, tools and the Add sheet are not
@@ -702,13 +712,21 @@
     doc.addEventListener('pointerdown', onDown, true);
     doc.addEventListener('focusin', onFocus, true);
     doc.addEventListener('keydown', onKeyDown, true);
-    doc.addEventListener('pointermove', onMove, { passive: true });
+    var moveOn = false;
+    function syncCorner() {
+      var want = corner.on();
+      if (want && !moveOn) { moveOn = true; doc.addEventListener('pointermove', onMove, { passive: true }); }
+      else if (!want && moveOn) { moveOn = false; doc.removeEventListener('pointermove', onMove, { passive: true }); clearCorner(); }
+    }
+    cornerWatch.push(syncCorner);
+    syncCorner();
     return function detach() {
+      cornerWatch = cornerWatch.filter(function (f) { return f !== syncCorner; });
+      if (moveOn) { moveOn = false; doc.removeEventListener('pointermove', onMove, { passive: true }); }
       clearCorner();
       doc.removeEventListener('pointerdown', onDown, true);
       doc.removeEventListener('focusin', onFocus, true);
       doc.removeEventListener('keydown', onKeyDown, true);
-      doc.removeEventListener('pointermove', onMove, { passive: true });
     };
   }
 
