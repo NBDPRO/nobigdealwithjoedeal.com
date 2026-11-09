@@ -75,4 +75,8 @@ plus, per run, one `system/leaderboardAggregate` read. Writes per run: `M` row s
 
 To pause it: set `LEADERBOARD_AGGREGATE_ENABLED=false` in `functions/.env.nobigdeal-pro` and redeploy (the run falls back to the one-company dry run).
 
-**Not bounded by a limit (noted, not changed):** the members subcollection read and the company's existing-`leaderboard` rows read have no `limit()`. Each is one read per document on file, so it tracks the company's own member count; only the 50-member cap on what is counted and written applies after the read.
+**Not bounded by a limit (noted, not changed):** the members subcollection read and the company's existing-`leaderboard` rows read have no `limit()`. Each is one read per document on file, so it tracks the company's own member count; only the 50-member cap on what is counted and written applies after the read. A later lane could filter the members read (for example `where('status', '==', 'active')`) or give both reads a `limit()`.
+
+**Other tenants get rows from this deploy.** The gate is one global env switch, so from this deploy every tenant company, not only NBD, gets `leaderboard/{uid}` rows written every 30 minutes. Jo approved the switch; the PR body says so plainly.
+
+**Tenant isolation, pre-existing (noted for a future tenant-isolation pass, not changed here):** the knocks, leads and jobs queries in `countedFor` filter on `userId` alone, not `companyId`. The only thing keeping another company's docs out of a row is `membersOf`'s guard that skips a member whose `users/{uid}.companyId` names another company. With the gate on, that is now live code.
