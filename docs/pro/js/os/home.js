@@ -97,7 +97,7 @@
     else if (gc.lines.length) h += '<p class="os-hw-sub">' + esc(gc.lines.join(' · ')) + '</p>';
     if (gc.state === 'failed') h += '<p class="os-hw-warn">Some counts didn\'t load. This is not an all-clear.</p>';
     var s = sync();
-    if (s) h += '<p class="os-hw-sync" aria-label="' + esc(s.label) + '"><span class="os-hw-dot os-tone-' + esc(s.tone) + '" aria-hidden="true"></span>' + esc(s.text) + '</p>';
+    if (s) h += '<p class="os-hw-sync"><span class="os-hw-dot os-tone-' + esc(s.tone) + '" aria-hidden="true"></span>' + esc(s.text) + '</p>';
     if (size === 'l' && plan) h += '<p class="os-hw-sub">' + esc(HL.headline(plan.total)) + '</p>';
     return h;
   }
