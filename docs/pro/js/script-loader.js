@@ -369,7 +369,7 @@
       'js/lead-events.js?v=1',
       // Door-list CSV import (2026-10-16), read by the Routes tab and the shim.
       'js/d2d-door-import.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=17',
+      'js/d2d-tracker-core-2026b.js?v=18',
       'js/d2d-tracker-ui-2026b.js?v=12',
       'js/d2d-tracker-2026b.js?v=6'
     ],

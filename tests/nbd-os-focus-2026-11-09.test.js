@@ -121,11 +121,51 @@ ok('running: toward today\'s floor', F.view(fl, NOW + MIN).floor === 'Toward tod
 ok('summary: today\'s floor', F.view(F.finish(fl, NOW + 60 * MIN), NOW + 61 * MIN).floor === 'Today\'s floor is 40 doors');
 ok('no floor: no floor line', F.view(c7, NOW + MIN).floor === '' && !('floor' in F.withFloor(fl, null)));
 
-console.log('\n8. the source: pure');
+console.log('\n8. the block count reuses Daily Success\'s doors path (os/ds-business.js countKnocks)');
+const vm = require('vm');
+async function countCase() {
+  const log = { count: [] };
+  class TS { constructor(ms) { this.ms = ms; } static fromDate(d) { return new TS(d.getTime()); } }
+  const W = { Date, Promise, JSON, Math, console, db: { db: 1 },
+    collection: (db, name) => ({ coll: name }), where: (f, op, v) => ({ f, op, v: v instanceof TS ? v.ms : v }), query: (c, ...w) => ({ c, w }),
+    CustomEvent: function (t) { this.type = t; }, dispatchEvent: () => true };
+  W.window = W;
+  vm.createContext(W);
+  vm.runInContext(read('docs/pro/js/os/ds-business.js'), W, { filename: 'ds-business.js' });
+  const B = W.NBDOSDsBiz;
+  if (!B || typeof B.countKnocks !== 'function') return { B: null };
+  let answer = 7;
+  B.fsImport = () => Promise.resolve({ Timestamp: TS, getCountFromServer: (q) => { log.count.push(q);
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve({ data: () => ({ count: answer }) }); } });
+  const n = await B.countKnocks('u1', NOW, NOW + 60 * MIN);
+  answer = new Error('offline');
+  const fail = await B.countKnocks('u1', NOW, NOW + 60 * MIN);
+  answer = 2.5;
+  const junk = await B.countKnocks('u1', NOW, NOW + 60 * MIN);
+  const none = await B.countKnocks('', NOW, NOW + MIN);
+  return { B, log, n, fail, junk, none };
+}
+
+(async () => {
+  const c = await countCase();
+  ok('ds-business exports countKnocks', !!c.B);
+  if (c.B) {
+    ok('one count: the rep\'s own knocks in the block window', J(c.log.count[0]) === J({ c: { coll: 'knocks' }, w: [
+      { f: 'userId', op: '==', v: 'u1' }, { f: 'createdAt', op: '>=', v: NOW }, { f: 'createdAt', op: '<', v: NOW + 60 * MIN }] }), J(c.log.count[0]));
+    ok('a whole count comes back', c.n === 7);
+    ok('a failed or junk count is undefined (not counted), never 0', c.fail === undefined && c.junk === undefined);
+    ok('no uid: no query at all', c.none === undefined && c.log.count.length === 3);
+  }
+  const d2d = read('docs/pro/js/d2d-tracker-core-2026b.js');
+  ok('the D2D tracker says when a knock was saved or removed (nbd:knocks-changed), no other write', (d2d.match(/dispatchEvent\(new CustomEvent\('nbd:knocks-changed'\)\)/g) || []).length === 3,
+    (d2d.match(/nbd:knocks-changed/g) || []).length);
+
+  console.log('\n9. the source: pure');
 const SRC = read('docs/pro/js/os/focus-logic.js');
 const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 ok('no DOM, storage, network or clock of its own', !/document|localStorage|fetch\(|getDoc|getCount|Date\.now|setTimeout|setInterval/.test(code));
 ok('dashboard.html has no focus script tag', !/os\/focus/.test(read('docs/pro/dashboard.html')));
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-process.exit(failed ? 1 : 0);
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  process.exit(failed ? 1 : 0);
+})().catch((e) => { console.log('  ✗ threw: ' + (e && e.stack)); process.exit(1); });

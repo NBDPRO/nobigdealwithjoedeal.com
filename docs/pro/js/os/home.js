@@ -368,7 +368,7 @@
       if (!bizAsked && SL && typeof SL.loadBundle === 'function') {
         bizAsked = true;
         try {
-          if (SL.bundles && !SL.bundles[BIZ]) SL.bundles[BIZ] = ['js/os/ds-business.js?v=1'];
+          if (SL.bundles && !SL.bundles[BIZ]) SL.bundles[BIZ] = ['js/os/ds-business.js?v=2'];
           Promise.resolve(SL.loadBundle(BIZ)).then(function () { try { W.dispatchEvent(new W.CustomEvent('nbd:os-dsbiz')); } catch (e) {} });
         } catch (e) {}
       }

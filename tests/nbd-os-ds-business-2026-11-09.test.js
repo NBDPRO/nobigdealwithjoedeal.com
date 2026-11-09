@@ -240,7 +240,7 @@ function fakeWin(o) {
     await settle();
     W.dispatchEvent(new W.CustomEvent('nbd:data-refreshed'));
     await settle();
-    ok('home.js registers the osdsbiz bundle (js/os/ds-business.js) and loads it once', J(W.loaded) === J([['osdsbiz', ['js/os/ds-business.js?v=1']]]), J(W.loaded));
+    ok('home.js registers the osdsbiz bundle (js/os/ds-business.js) and loads it once', J(W.loaded) === J([['osdsbiz', ['js/os/ds-business.js?v=2']]]), J(W.loaded));
     ok('...and paints the doors when it lands', /Doors 4 of 40/.test(text(card())), text(card()));
   }
   {

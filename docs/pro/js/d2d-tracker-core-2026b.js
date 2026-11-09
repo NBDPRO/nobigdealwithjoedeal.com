@@ -2155,6 +2155,8 @@
         12000,
         'addDoc(knocks)'
       );
+      // NBD OS knock-block focus session (os/focus.js) recounts its block on this
+      try { window.dispatchEvent(new CustomEvent('nbd:knocks-changed')); } catch (_) {}
       await loadKnocks();
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
       refreshMapMarkers();
@@ -2206,6 +2208,7 @@
     if (!state.isOnline) { enqueueOffline('deleteKnock', { id }); return; }
     try {
       await window.deleteDoc(window.doc(window._db, 'knocks', id));
+      try { window.dispatchEvent(new CustomEvent('nbd:knocks-changed')); } catch (_) {}
       if (window.D2D && typeof window.D2D.closeKnockDetail === 'function') window.D2D.closeKnockDetail();
       await loadKnocks();
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
@@ -2236,6 +2239,7 @@
     }
     try {
       await _withTimeout(window.deleteDoc(window.doc(window._db, 'knocks', ref)), 12000, 'deleteDoc(knocks)');
+      try { window.dispatchEvent(new CustomEvent('nbd:knocks-changed')); } catch (_) {}
       await loadKnocks();
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
       refreshMapMarkers();
