@@ -169,6 +169,14 @@ Branch `q11-views` (from the integrated NBD OS P3 branch). Four commits: three t
    - `promise-*` with a `why`: text / title become `taskText(kind, '', waitingOn)`, and `why` becomes `''`.
 
    Each one writes `task_call_text/<taskId>` with `{ full, generic }` and sets `callText: true`, only when the task still holds what the server wrote. It would run dry by default, with `--apply` only on Jo's OK. Leads Thursday created before today need the same: `publicLeadCollection == 'thursday_calls'` with `notes` still starting "📞 Thursday call ". Those get `callNotes` copied onto the call doc (when missing) and `notes` set to the pointer. Not written here.
+
+   **Update 2026-11-09 (lane q11-backfill2): the script exists. It has NOT been run.** `scripts/backfill-q11-call-text.js` does the pass above. Production `--apply` needs Jo's OK for each run.
+   - **How it decides.** It rebuilds what the server wrote with the live writers themselves: `buildFollowUpTask` / `buildTextDayTask` (`functions/call-center-logic.js`), `buildTask` / `callNotes` / `leadNotesPointer` (`functions/integrations/thursday-logic.js`), `taskText` / `cleanWhy` (`functions/promise-logic.js`). It writes the sidecar through `split` / `sideDoc` (`functions/task-call-text.js`; `sideDoc` and `writeSideIfAbsent` are now exported, with no behaviour change). A task or lead that no longer matches is counted and skipped (edited, who unknown, issue mismatch).
+   - **Write order.** The sidecar is written with `create()` before the task, so an existing sidecar is never overwritten. The task update is conditional on the updateTime the page read. For a lead, the call doc gets `callNotes` (only when it has none) before `lead.notes` becomes the pointer.
+   - **Run order.** Run `scripts/backfill-q11-task-summaries.js` first. A cube-/sms- task whose notes still hold a `Call:` paragraph is skipped as "summary scrub first".
+   - **Options.** Dry run by default; `--apply`, `--company`, `--project`. Credentials are ADC, or token mode through `scripts/_firestore-rest.js`, which gains `create()` and `get()` updateTime. Output is counts only.
+   - **Tests.** `tests/q11-call-text-backfill-2026-11-09.test.js` (node, offline): red with the module missing, then 85/85.
+
 2. **A lead's insurance fields stay viewer-readable.** `insCarrier`, `claimNumber` and `claimStatus` are the CRM's own fields: every insurance lead has them, and the paperwork reads them. Only the notes text moved. Hiding them from viewers would be a separate lead-shape decision.
 3. **Owner surfaces that now show the generic title:**
    - The dashboard lays the call text over open tasks only (one read per open call task at load). A done call task shows the generic title in dashboard lists; the customer page shows every task in full.
