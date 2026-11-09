@@ -66,7 +66,10 @@
     Promise.resolve().then(fetchRows).then(function (rows) {
       S.rows = rows; S.at = Date.now(); S.state = 'ok';
     }, function () {
-      S.state = S.rows ? 'ok' : 'failed';   // a failed refresh keeps the last good rows
+      // a failed refresh keeps the last good rows and waits the 5-minute floor too (else every
+      // repaint it triggers would read again, a microtask loop that never yields)
+      S.at = Date.now();
+      S.state = S.rows ? 'ok' : 'failed';
     }).then(function () {
       S.inflight = false;
       try { W.dispatchEvent(new W.CustomEvent('nbd:os-team')); } catch (e) {}

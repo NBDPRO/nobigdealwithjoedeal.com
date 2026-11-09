@@ -154,6 +154,20 @@ async function mount(items, opts) {
     for (let i = 0; i < 4; i++) await tick();
     ok('Retry reads again', fsCalls.filter((x) => x[0] === 'getDocs').length === 2);
   }
+  {
+    // review 2026-11-09: a refresh that fails while rows are cached must wait the 5-minute floor too,
+    // not re-read on every repaint (home.js repaints on nbd:os-team, the paint calls ensure() again).
+    const { T, card, fsCalls } = await mount([{ id: 'teamboard', s: 'm' }]);
+    let reads = 0;
+    T.W.getDocs = () => { reads++; return reads > 50 ? new Promise(() => {}) : Promise.reject(new Error('offline')); };
+    T.W.NBDOSTeam.retry();
+    for (let i = 0; i < 20; i++) await tick();
+    ok('a failed refresh with rows cached reads once, not in a loop', reads === 1, 'reads ' + reads);
+    ok('it keeps the last good rows on screen', /13 doors/.test(text(card('teamboard-1'))), text(card('teamboard-1')));
+    T.W.dispatchEvent(new T.W.CustomEvent('nbd:data-refreshed'));
+    for (let i = 0; i < 6; i++) await tick();
+    ok('a repaint after the failed refresh reads nothing new inside 5 minutes', reads === 1 && fsCalls.filter((x) => x[0] === 'getDocs').length === 1, 'reads ' + reads);
+  }
 
   console.log('\n4. the role gate (owner only)');
   for (const role of ['sales_rep', 'manager', 'viewer']) {
