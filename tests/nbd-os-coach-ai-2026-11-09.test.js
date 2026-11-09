@@ -107,6 +107,24 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('read cost 0 so far', T.reads.length === 0, J(T.reads));
   }
 
+  console.log('\n2b. the bundle failed to load: a later paint tries again (review fix, 2026-11-09)');
+  {
+    const F = setup();
+    let fail = 1;
+    const real = F.W.ScriptLoader.loadBundle;
+    // ScriptLoader never rejects: a failed fetch resolves with nothing defined
+    F.W.ScriptLoader.loadBundle = function (name) { if (fail > 0) { fail--; F.loads.push(name); return Promise.resolve(); } return real.call(this, name); };
+    await tick(); await tick();
+    ok('the first load failed: no button, and no reload loop on its own', F.loads.length === 1 && !F.W.NBDOSCoachAI && !card(F).querySelector('[data-oshw-coach="ai"]'), J(F.loads));
+    F.W.dispatchEvent(new F.W.CustomEvent('nbd:data-refreshed'));
+    await tick(); await tick();
+    ok('the next paint asks for the bundle again, and the button shows', F.loads.length === 2 && !!F.W.NBDOSCoachAI && !!card(F).querySelector('[data-oshw-coach="ai"]'), J(F.loads));
+    const G = setup();
+    G.W.ScriptLoader.loadBundle = function (name) { G.loads.push(name); return Promise.resolve(); };
+    for (let i = 0; i < 6; i++) { G.W.dispatchEvent(new G.W.CustomEvent('nbd:data-refreshed')); await tick(); await tick(); }
+    ok('…at most 3 tries a page, so a dead file is not fetched on every paint', G.loads.length === 3, J(G.loads));
+  }
+
   console.log('\n3. one tap, one call, counts only; the line kept for the page, no line for the day');
   {
     click(T.dom, card(T).querySelector('[data-oshw-coach="ai"]'));

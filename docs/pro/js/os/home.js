@@ -270,19 +270,22 @@
     p.shown.fired = rules.length;   // rules that fired, shown or not (snoozed, Not today, resting)
     return p.shown;
   }
-  // P2: the AI focus line (os/coach-ai.js), a runtime bundle loaded the first time an opted-in Coach paints
-  var aiAsked = false;
+  // P2: the AI focus line (os/coach-ai.js), a runtime bundle loaded the first time an opted-in Coach paints.
+  // A failed load (ScriptLoader resolves with nothing defined) is tried again on a later paint, 3 tries a page.
+  var aiAsked = false, aiTries = 0;
   function coachAi(list) {
     var p = W._companyProfile;
     if (!list.length || !p || p.coachAiEnabled !== true) return '';
     var A = W.NBDOSCoachAI, SL = W.ScriptLoader;
     if (A) return A.html(list);
-    if (!aiAsked && SL && typeof SL.loadBundle === 'function') {
+    if (!aiAsked && aiTries < 3 && SL && typeof SL.loadBundle === 'function') {
       aiAsked = true;
+      aiTries++;
       if (SL.bundles && !SL.bundles.oscoachai) SL.bundles.oscoachai = ['css/os/coach-ai.css?v=1', 'js/os/coach-ai.js?v=1'];
       Promise.resolve().then(function () { return SL.loadBundle('oscoachai'); }).then(function () {
+        if (!W.NBDOSCoachAI) { aiAsked = false; return; }   // no repaint here: that would retry in a loop
         try { W.dispatchEvent(new W.CustomEvent('nbd:os-coachai')); } catch (e) {}
-      }, function () {});
+      }, function () { aiAsked = false; });
     }
     return '';
   }
