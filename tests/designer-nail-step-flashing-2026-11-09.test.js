@@ -15,6 +15,8 @@
  *   2. Same unit and the same quantity as a sibling tier at the same
  *      measurements: nails per SQ, step flashing from wallLf (0 when the roof
  *      has no walls).
+ *   2b. Step-flashing labor (LAB INST-STP) matches the Better tier, and a
+ *      Designer total with walls is pinned (no other suite pins wallLf > 0).
  *   3. Prices come from the catalog: the template data carries no figure.
  *
  * Pure Node. Run: node tests/designer-nail-step-flashing-2026-11-09.test.js
@@ -101,6 +103,42 @@ Object.entries(MEAS).forEach(([mk, m]) => {
   ok('step flashing follows wallLf (34 LF of wall -> a non-zero line)', !!f && Number(f.quantity) > 0, f && f.quantity);
   const z = lineOf(DESIGNER, 'RFG STPF-AL', MEAS.noWalls);
   ok('no walls -> the step-flashing line is still there and resolves to 0', !!z && Number(z.quantity) === 0, z ? z.quantity : 'missing line');
+}
+
+console.log('\n2b. Step-flashing labor and a Designer total with walls');
+{
+  // The engine prices step-flashing labor through LABOR_BY_CODE
+  // (RFG STPF-AL -> LAB INST-STP); the Designer line must carry the same
+  // labor and money as the Better tier's line at the same measurements.
+  const d = lineOf(DESIGNER, 'RFG STPF-AL', MEAS.walls);
+  const s = lineOf('jt_fr_asphalt_better', 'RFG STPF-AL', MEAS.walls);
+  ok('step flashing carries LAB INST-STP labor on Designer, as on Better',
+    !!d && !!s && d.laborId === 'LAB INST-STP' && s.laborId === 'LAB INST-STP', d && s ? [d.laborId, s.laborId].join() : 'missing line');
+  ['materialTotal', 'laborTotal', 'lineTotal'].forEach((k) => {
+    ok('step flashing ' + k + ' matches the Better tier (cents)',
+      !!d && !!s && Math.round(Number(d[k]) * 100) === Math.round(Number(s[k]) * 100), d && s ? [d[k], s[k]].join() : 'missing line');
+  });
+  ok('step-flashing labor is non-zero with 34 LF of wall', !!d && Number(d.laborTotal) > 0, d && d.laborTotal);
+
+  // A Designer total with walls. Every measurement set pinned in
+  // system-plus-standard-and-up-2026-10-05 has wallLf 0, so this is the only
+  // pin on what walls add. Captured 2026-11-09 from the tree that adds the
+  // lines (catalog prices, no tenant book); hard cost etc. in cents.
+  const tot = (meas, mode) => JT.resolveSelection([{ templateId: DESIGNER }], { tier: 'better', jobMode: mode, measurements: meas }).totals;
+  const noWallSameRoof = Object.assign({}, MEAS.walls, { wallLf: 0 });
+  const c = (n) => Math.round(Number(n) * 100);
+  const PIN = {
+    cash: { walls: '23125,1584225,953775,630450,1800794', noWalls: '23025,1577425,951225,626200,1793356' },
+    insurance: { walls: '21600,1584225,953775,630450,1800794', noWalls: '21525,1577425,951225,626200,1793356' }
+  };
+  const fmt = (t) => [t.total, c(t.hardCost), c(t.materialCost), c(t.laborCost), c(t.retailBeforeOHP)].join(',');
+  Object.entries(PIN).forEach(([mode, p]) => {
+    const tw = tot(MEAS.walls, mode), t0 = tot(noWallSameRoof, mode);
+    ok(mode + ': Designer total with 34 LF of wall is pinned', fmt(tw) === p.walls, fmt(tw));
+    ok(mode + ': the same roof with no walls is pinned', fmt(t0) === p.noWalls, fmt(t0));
+    ok(mode + ': walls add exactly the step-flashing line to hard cost',
+      !!d && c(tw.hardCost) - c(t0.hardCost) === c(d.lineTotal), [c(tw.hardCost) - c(t0.hardCost), d && c(d.lineTotal)].join());
+  });
 }
 
 console.log('\n3. The template data publishes no figure');
