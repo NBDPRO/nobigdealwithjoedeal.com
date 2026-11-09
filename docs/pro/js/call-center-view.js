@@ -91,10 +91,11 @@
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
   }
   // P1: "Transcribe now" on a stored call with no transcript, same roles
-  // (functions/call-transcribe-now.js re-checks).
+  // (functions/call-transcribe-now.js re-checks). P2: not while the call's
+  // tenant feed is off (txOff, kept by call-center.js syncTenantTxFlags).
   function txGate(c) {
     var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
-    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript && !c.txOff;
   }
   // P2: Merge / Undo merge, same roles (functions/call-center.js mergeAction re-checks both calls).
   function canActOn(c) {
