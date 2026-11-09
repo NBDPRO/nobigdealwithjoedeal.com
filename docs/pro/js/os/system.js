@@ -432,9 +432,12 @@
     var pg = priv ? L.privateGroups(groups) : null;
     if (pg) groups = pg.shown;
     var h = '<div class="os-nc">';
-    h += '<div class="os-nc-tools">' +
-      '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
-      '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
+    // not in a privacy mode: both act on every group, the hidden ones too (a tap would clear what the rep never saw)
+    if (!pg) {
+      h += '<div class="os-nc-tools">' +
+        '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
+        '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
+    }
     if (pg) h += '<p class="ui-caption os-nc-private">' + esc('Privacy mode: only what is due today shows.' + (groups.length ? '' : ' Nothing is due right now.') + (pg.held ? ' ' + pg.held + (pg.held === 1 ? ' more waits' : ' more wait') + ' until you leave it.' : '')) + '</p>';
     if (!groups.length && !pg) {
       h += '<div class="ui-empty os-nc-empty"><div class="ui-heading">You\'re all caught up</div>' +

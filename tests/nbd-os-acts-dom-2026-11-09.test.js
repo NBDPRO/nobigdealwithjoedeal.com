@@ -309,12 +309,15 @@ const PRIV_HOME = {
       OTHERS.concat(['insurance', '$']).filter((n) => t.indexOf(n) !== -1).join() + ' :: ' + t.slice(0, 300));
     ok('...nor any attribute', OTHERS.every((n) => htmlOf(body).indexOf(n) === -1), OTHERS.filter((n) => htmlOf(body).indexOf(n) !== -1).join());
     ok('the held count says what waits', /1 more waits until you leave it/.test(t), t.slice(0, 300));
+    ok('no Mark all read or Clear all: they would act on the groups it hides',
+      !body.querySelector('[data-key="readall"]') && !body.querySelector('[data-key="clearall"]'), t.slice(0, 120));
     // the control: with the mode off the same rows name the customer and the task
     const C = boot(Object.assign({}, PRIV_HOME, { on: undefined }));
     await flush();
     C.W.NBDOS.open('notifs');
     const tc = text(C.document.getElementById('osSheetBody'));
     ok('control: with the mode off the rows name the customer and the task', /Lee Three/.test(tc) && /insurance check/.test(tc), tc.slice(0, 300));
+    ok('control: with the mode off Mark all read and Clear all are there', !!C.document.getElementById('osSheetBody').querySelector('[data-key="clearall"]'));
   });
 
   console.log('\n9. CSS and markup floors');
