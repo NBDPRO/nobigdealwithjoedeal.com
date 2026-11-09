@@ -25,6 +25,24 @@ Lane notes with the detail: [SESSION-2026-11-09-call-to-close-p1-transcribe](SES
 - **Cache-bust.** `estimate-v2-ui.js` was changed by the estimate lane with no bump; it is now `v=37` in `script-loader.js` (a cached v=36 would ignore the call prefill).
 - **FLOORS** 976/74/1108 → 984/74/1117 (8 node suites, 1 emulator rules suite).
 
+## Final review round (two reviewers, eleven items)
+
+Fixed, test-first, one commit each:
+
+- **Day audio allowance under-counted on overlap (items 1 and 7).** `runTranscribe` wrote `usedSec + out.audioSec`, where `usedSec` was read at the start. A Transcribe-now tap during a scheduled pass (or the reverse) dropped the other run's seconds. The seconds are now added in a transaction on what is stored at the end; a new ET day still starts over.
+- **Transcribe now deadline (item 2).** `callTranscribeNow` ran 300 s, the same as Groq's own request timeout, with the FLAC re-encode before and the notes step after. It now runs 540 s (as the schedule, under the 15-minute lease), so a paid transcript is still kept and the quota refund still runs. Found on the way: the Firebase SDK gives up on a callable after 70 s, so the button would have called a long recording a failure while the server was still working. The button now waits 540 s.
+- **Builder strip at desktop width (item 6).** In the V3 wizard the "From the call" strip takes the step body's centred 560 px column, so it no longer looks detached from the builder.
+- **Auto-brief switch target (item 11).** The Turn on / Turn off button was 36 px tall at desktop width; it is 44 px at every width (`phone-calls.css` `?v=14`; `call-center-filters-2026-10-21` now pins the version as at least 13, not exactly 13).
+- **callBriefAuto invocation count (item 8).** Its `FUNCTIONS_INDEX.md` row now names every write it starts on: label, `rescueDismiss`, and both the claim and the clear of a `transcribeLease`, so one transcription is at least three starts.
+
+Checked and left as they are:
+
+- **"Sent from your phone" (item 3).** Not a defect. With `preferSms`, `NBDPhoneShare.share` returns `shared: true` only after the person answers yes to "Did the text go out from your phone?" (or "Did the email go out?"); a no is `cancelled` and nothing is logged. The wording reports what the person confirmed.
+- **One-tap stage move on the customer page (item 4).** Not a defect. `progressStage` asks only when `stageMoveNeedsConfirm` is true. A one-tap plan is never Lost / Archived / Cancelled (the same pattern as `stagePlan`'s close-out rule), so it asks only when the 3-day cancellation-window warning applies, the page's deliberate "warn, never block" confirm. Otherwise it is one tap, as on the board.
+- **Retype attestation (item 5).** As written under "Decide" below: `retyped: true` is a client attestation that stops mistakes. It does not prove the person typed the value, and the AI's own digits sent back with it are accepted.
+- **The server's one-tap check is a log integrity check, not a move gate (item 9).** `callBriefDecide`'s `stageOneTapAllowed` checks the decision-log entry only: by the time it runs, the client has already moved the stage through `progressStage` or `moveCard`. The client's `stagePlan` (`call-to-close-logic.js`) is the real gate, and the writers keep their own confirms.
+- **Fuzzy-grounded quotes count as unsure (item 10).** `unsureQuotes` treats a grounded quote it cannot place in the normalised transcript as unsure, so with a `segIndex` present a digit from such a quote always goes to retype. That errs on the safe side. Counting how often it happens in `scripts/eval-call-brief.js` is a P2 follow-up.
+
 ## What Jo must run or decide
 
 - **Deploy order.** Functions first (`callTranscribeNow`, `callBriefAuto`, the `callBriefDecide` changes, `rescueDismiss`), then rules (`companies/{cid}/settings/callBrief`), then hosting. The client degrades if hosting lands first (the callables answer not-found and the sheet shows the error).
@@ -53,5 +71,7 @@ All on the integrated branch:
 - Emulator rules, one at a time: `call-brief-settings` 23/23, `call-briefs` 20/20, `cross-tenant` 482/482, `company-docs` 47/47.
 - Browser: `pro-demo-zero-network-2026-10-06` 122/122, `crm-layouts-render-2026-10-15` 49/49.
 - Test-first for the integration fixes: `call-to-close-segment-confidence-2026-11-09` section 5 went red (8, then 3, then 1) before each fix; 57/57 after. Every `call-to-close-*`, `call-brief-*` and `call-center-*` suite passes.
+
+After the final review round (same branch, five fix commits): `check-js-syntax` clean (2347 files); `run-test-manifest --check` 1117 suites, floors current (no suite added); `check-site-integrity`, `check-inline-html-scripts`, `apply-partials --check`, `gen-function-map --check`, `check-vault-index` clean; `dashboard-boot-budget-2026-10-03` 36/36; full node bucket 984/984; `tests/smoke.test.js` 4434 passed, 0 failed; emulator rules one at a time `call-brief-settings` 23/23, `call-briefs` 20/20, `cross-tenant` 482/482, `company-docs` 47/47; browser `pro-demo-zero-network-2026-10-06` 122/122, `crm-layouts-render-2026-10-15` 49/49. The integrated screenshots were taken again: the builder strip sits in the step column at 1280x800, and the auto-brief button measures 44 px tall at both widths.
 
 Screenshots of the integrated sheet, the Call Center and the builder at 375x812 and 1280x800 (demo account, no network): the section order above, no sideways scroll, no one-tap follow-up for a hard-to-hear date, an empty date on the hard-to-hear promise, the builder listing the hard-to-hear story count as a line and not filling it, 2 rescue rows with one Brief button, Transcribe now on the stored call, nothing blocked by the demo tripwire, no page errors.
