@@ -772,11 +772,19 @@ function hideCustomersLayer() {
 
 // The NBD OS "Saved view" tile's tap (docs/pro/js/os/kpi.js, after goTo('map')): the
 // Customers layer on, with the saved view of this name applied, as picking it in the
-// panel's View list does. goTo('map') builds the map a frame or more later, so this waits
-// for it (up to ~6 s); a name no saved view has does nothing.
-function openCustomersView(name, tries) {
+// panel's View list does. goTo('map') builds the map a frame or more later: until then
+// the name waits for maps-core.js initMainMap's nbd:mainmap-ready (one listener, the
+// last tap wins; no timer). A name no saved view has does nothing.
+let _custPendingView = null;
+function _custOpenPending() {
+  const name = _custPendingView;
+  _custPendingView = null;
+  if (name !== null && mainMap) openCustomersView(name);
+}
+function openCustomersView(name) {
   if (!mainMap) {
-    if ((tries || 0) < 40) setTimeout(function () { openCustomersView(name, (tries || 0) + 1); }, 150);
+    if (_custPendingView === null && typeof window.addEventListener === 'function') window.addEventListener('nbd:mainmap-ready', _custOpenPending, { once: true });
+    _custPendingView = String(name);
     return;
   }
   const list = _loadCustViews();

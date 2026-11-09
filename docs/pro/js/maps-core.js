@@ -146,6 +146,9 @@ function initMainMap() {
   if (typeof window.nbdRepList !== 'function') _withMapCustomers(() => { if (typeof window.renderSavedZones === 'function') window.renderSavedZones(); });
   // Build heat + jobs layers from existing data
   setTimeout(()=>{ buildHeatLayer(); buildJobsLayer(); updatePinStats(); if(overlayState.pins && typeof renderPinDispPanel==='function') renderPinDispPanel(); if(typeof window.renderSavedZones==='function') window.renderSavedZones(); }, 400);
+  // The map exists now: maps-customers.js openCustomersView (the NBD OS Saved view tile's
+  // tap, made before goTo('map') built it) waits for this.
+  try { window.dispatchEvent(new CustomEvent('nbd:mainmap-ready')); } catch (e) { /* no event target */ }
 }
 
 // ── OVERLAY TOGGLE ──────────────────────────────

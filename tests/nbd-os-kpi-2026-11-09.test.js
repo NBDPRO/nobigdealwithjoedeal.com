@@ -304,7 +304,14 @@ async function mount(items, opts) {
     const applied = [], toggles = [];
     const tog = { id: 'tog-customers' };
     const panelSel = { value: '' };
-    const win = { _companyProfile: { mapViews: VIEWS }, _leads: [], toggleOverlay: (t, el) => { toggles.push([t, el === tog]); sandbox.overlayState.customers = true; } };
+    const listeners = {};
+    const win = {
+      _companyProfile: { mapViews: VIEWS }, _leads: [],
+      toggleOverlay: (t, el) => { toggles.push([t, el === tog]); sandbox.overlayState.customers = true; },
+      addEventListener: (type, fn, opt) => { (listeners[type] = listeners[type] || []).push({ fn, once: !!(opt && opt.once) }); },
+      removeEventListener: (type, fn) => { listeners[type] = (listeners[type] || []).filter((l) => l.fn !== fn); },
+    };
+    const fire = (type) => { const ls = (listeners[type] || []).slice(); listeners[type] = ls.filter((l) => !l.once); ls.forEach((l) => l.fn({ type })); };
     const timers = [];
     const sandbox = {
       window: win, document: { getElementById: (id) => (id === 'tog-customers' ? tog : null), createElement() { return { style: {} }; }, head: { appendChild() {} } },
@@ -312,19 +319,22 @@ async function mount(items, opts) {
     };
     vm.createContext(sandbox);
     vm.runInContext(MAPS_SRC + '\n;this.__setPanel = function (p) { _custPanelEl = p; };', sandbox, { filename: 'maps-customers.js' });
-    sandbox.buildCustomersLayer = function () { applied.push(JSON.stringify(sandbox.__state ? 1 : 0)); };
+    sandbox.buildCustomersLayer = function () { applied.push(1); };
+    sandbox.window.openCustomersView(VIEWS[0].name);
     sandbox.window.openCustomersView(VIEWS[1].name);
-    ok('the map not built yet: it waits (a bounded retry), nothing applied', timers.length === 1 && applied.length === 0 && toggles.length === 0);
+    ok('the map not built yet: no timer, one listener for the map being built, nothing applied', timers.length === 0 && (listeners['nbd:mainmap-ready'] || []).length === 1 && applied.length === 0 && toggles.length === 0, J([timers.length, Object.keys(listeners)]));
     sandbox.mainMap = {};
     sandbox.__setPanel({ querySelector: (s) => (s === '[data-cust-view]' ? panelSel : null) });
-    timers.shift()();
-    ok('then: the Customers layer on (its own toggle), the view applied, the View list showing it', J(toggles) === J([['customers', true]]) && applied.length === 1 && panelSel.value === '1', J([toggles, applied, panelSel]));
+    fire('nbd:mainmap-ready');
+    ok('then (maps-core.js initMainMap fires nbd:mainmap-ready): the Customers layer on, the LAST tapped view applied once, the View list showing it', J(toggles) === J([['customers', true]]) && applied.length === 1 && panelSel.value === '1' && !(listeners['nbd:mainmap-ready'] || []).length, J([toggles, applied, panelSel]));
     sandbox.window.openCustomersView('No such view');
     ok('a name no view has does nothing', applied.length === 1 && toggles.length === 1);
-    sandbox.mainMap = null;
-    const t0 = timers.length;
-    sandbox.window.openCustomersView(VIEWS[0].name, 40);
-    ok('it stops waiting after 40 tries', timers.length === t0);
+    sandbox.window.openCustomersView(VIEWS[0].name);
+    ok('the map already built: applied at once', applied.length === 2 && panelSel.value === '0');
+    const core = noComments(read('docs/pro/js/maps-core.js'));
+    const init = core.slice(core.indexOf('function initMainMap('), core.indexOf('\n}', core.indexOf('function initMainMap(')));
+    ok('maps-core.js initMainMap announces the built map (nbd:mainmap-ready on window)', /window\.dispatchEvent\(new CustomEvent\('nbd:mainmap-ready'\)\)/.test(init));
+    ok('…and dashboard.html loads the changed maps-core.js under a new ?v=', /js\/maps-core\.js\?v=11"/.test(read('docs/pro/dashboard.html')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
