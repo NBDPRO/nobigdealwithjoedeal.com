@@ -1467,7 +1467,8 @@ async function loadTimeline(leadId, lead) {
       scopes.push([where('leadId', '==', leadId), where('companyId', '==', claims.companyId)]);
     }
     const seen = new Set();
-    for (const scope of scopes) {
+    // Call to Close Q11 (2026-11-09): a viewer cannot read thursday_calls.
+    if ((claims.role || '') !== 'viewer') for (const scope of scopes) {
       const snap = await getDocs(query(collection(db, 'thursday_calls'), ...scope));
       snap.docs.forEach(d => {
         if (seen.has(d.id)) return;
@@ -1496,7 +1497,7 @@ async function loadTimeline(leadId, lead) {
   try {
     const CT = window.NBDCallTimeline;
     if (CT) {
-      const actSnap = await getDocs(collection(db, 'leads', leadId, 'activity'));
+      const actSnap = await getDocs(CT.activityQuery(window, db, leadId));
       actSnap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
         if (row) timeline.push(Object.assign(row, { icon: row.icon || (row.kind === 'text' ? '💬' : '📞'), callEntry: row.kind === 'call' || row.kind === 'text' }));
@@ -4248,7 +4249,7 @@ async function _gatherTimelineForReport(leadId, lead) {
   try {
     const CT = window.NBDCallTimeline;
     if (CT) {
-      const snap = await getDocs(collection(window.db, 'leads', leadId, 'activity'));
+      const snap = await getDocs(CT.activityQuery(window, window.db, leadId));
       snap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
         // the away hand-back line is an internal note to the owner: not in a report

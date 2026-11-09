@@ -9,8 +9,8 @@
  *      Inbox, Home strip, customer card), with the quiet "hidden for your
  *      role" note instead of "Could not load".
  *   3. Call / text summaries copied onto a customer: the customer page reads
- *      activity through a query that leaves out the call sources for a viewer
- *      (the rule refuses anything else; proven in
+ *      a viewer's activity through a query for the only sources the rule lets
+ *      a viewer read, 'rep' and 'visit-capture' (proven in
  *      tests/firestore-rules.call-content-viewers.test.js), and the follow-up
  *      task the Call Center files no longer copies the AI summary (a task is
  *      readable by every role that reads the customer); a move scrubs an old
@@ -45,7 +45,7 @@ function slicer(SRC) {
     return e < 0 ? '' : SRC.slice(s, e + end.length + (EOL.length - 1) * (end.split('\n').length - 1));
   };
 }
-const HIDDEN = ['cube-acr', 'sms-backup', 'thursday', 'call-brief'];
+const VIEWER_OK = ['rep', 'visit-capture'];
 
 // A stub window with a Firestore that records every read.
 function stubWin(role, queries, opts) {
@@ -172,16 +172,16 @@ const cols = (qs) => qs.map((q) => q.col);
   ok('the timeline\'s thursday_calls read is found (positive control)', /collection\(db, 'thursday_calls'\)/.test(thuBlock));
   ok('…and skipped for a viewer', /if \(\(claims\.role \|\| ''\) !== 'viewer'\) for \(const scope of scopes\)/.test(thuBlock), thuBlock.slice(0, 0));
   const actReads = CB.match(/getDocs\([^\n]*'activity'[^\n]*\)/g) || [];
-  ok('the customer page reads activity in two places (positive control)', (CB.match(/'activity'/g) || []).length >= 2);
+  ok('the customer page reads activity in two places, both through NBDCallTimeline (positive control)', (CB.match(/const CT = window\.NBDCallTimeline;/g) || []).length === 2);
   ok('both activity reads go through NBDCallTimeline.activityQuery (the viewer-safe query)', (CB.match(/getDocs\(CT\.activityQuery\(window, (db|window\.db), leadId\)\)/g) || []).length === 2 && actReads.length === 0, actReads.join(' | '));
   delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/call-timeline.js'))];
   const CT = require(path.join(ROOT, 'docs/pro/js/call-timeline.js'));
-  ok('call-timeline exports activityQuery and the hidden sources', typeof CT.activityQuery === 'function' && Array.isArray(CT.VIEWER_HIDDEN_SOURCES));
+  ok('call-timeline exports activityQuery and the viewer sources', typeof CT.activityQuery === 'function' && JSON.stringify(CT.VIEWER_SOURCES) === JSON.stringify(VIEWER_OK));
   if (typeof CT.activityQuery === 'function') {
     const W = (role) => ({ _userClaims: role == null ? undefined : { role }, collection: (db, ...p) => ({ col: p.join('/') }),
       query: (c, ...f) => ({ col: c.col, filters: f }), where: (f, op, v) => ({ f, op, v }) });
     const v = CT.activityQuery(W('viewer'), {}, 'L1');
-    ok('a viewer\'s activity read excludes exactly the call sources', v.col === 'leads/L1/activity' && v.filters.length === 1 && v.filters[0].f === 'source' && v.filters[0].op === 'not-in' && JSON.stringify(v.filters[0].v) === JSON.stringify(HIDDEN), JSON.stringify(v));
+    ok('a viewer\'s activity read asks for exactly the sources the rule allows a viewer', v.col === 'leads/L1/activity' && v.filters.length === 1 && v.filters[0].f === 'source' && v.filters[0].op === 'in' && JSON.stringify(v.filters[0].v) === JSON.stringify(VIEWER_OK), JSON.stringify(v));
     const m = CT.activityQuery(W('manager'), {}, 'L1');
     ok('a manager\'s activity read is the whole collection, as before', m.col === 'leads/L1/activity' && !m.filters);
     const s = CT.activityQuery(W(null), {}, 'L1');
@@ -189,9 +189,8 @@ const cols = (qs) => qs.map((q) => q.col);
   }
   const RULES = read('firestore.rules');
   const actRule = (RULES.match(/match \/activity\/\{activityId\} \{[\s\S]*?allow create/) || [''])[0];
-  const ruleList = (actRule.match(/resource\.data\.source in (\[[^\]]*\])/) || [])[1];
-  ok('the activity rule hides the same sources from a viewer as the client excludes', ruleList && JSON.stringify(JSON.parse(ruleList.replace(/'/g, '"'))) === JSON.stringify(HIDDEN), ruleList);
-  ok('…with the bare field (resource.data.source), not .get(): the emulator lets an unconstrained list through a negated .get()', /notViewer\(\) \|\| !\(resource\.data\.source in \[/.test(actRule));
+  const ruleList = (actRule.match(/notViewer\(\) \|\| resource\.data\.source in (\[[^\]]*\])/) || [])[1];
+  ok('the activity rule lets a viewer read the same sources the client asks for (an allowlist, bare field)', ruleList && JSON.stringify(JSON.parse(ruleList.replace(/'/g, '"'))) === JSON.stringify(VIEWER_OK), ruleList);
   for (const col of ['thursday_calls', 'phone_texts', 'phone_text_days']) {
     const b = (RULES.match(new RegExp('match \\/' + col + '\\/\\{docId\\} \\{[\\s\\S]*?\\n    \\}')) || [''])[0];
     ok(col + ' read requires notViewer()', /allow read: if notViewer\(\)\s*&& \(isOwner\(resource\.data\.userId\)/.test(b) && /allow write: if false;/.test(b));

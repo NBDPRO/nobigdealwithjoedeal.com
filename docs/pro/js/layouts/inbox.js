@@ -404,8 +404,10 @@
       .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'call' }, d.data())); }); })
       // sent before the claims hydrated and denied for a viewer: texts still load
       .catch(function (e) { if ((claims().role || '') === 'viewer') return; throw e; });
-    var b = W.getDocs(W.query(W.collection(W.db, 'phone_text_days'), W.where('userId', '==', u), W.orderBy('startedAtMs', 'desc'), W.limit(TEXT_LIMIT)))
-      .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'text' }, d.data())); }); });
+    // Nor phone_text_days (2026-11-09).
+    var b = (claims().role || '') === 'viewer' ? Promise.resolve() : W.getDocs(W.query(W.collection(W.db, 'phone_text_days'), W.where('userId', '==', u), W.orderBy('startedAtMs', 'desc'), W.limit(TEXT_LIMIT)))
+      .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'text' }, d.data())); }); })
+      .catch(function (e) { if ((claims().role || '') === 'viewer') return; throw e; });
     return Promise.all([a, b]).then(function () {
       var HA = W.NBDHomeAttention;
       if (!HA || typeof HA.groupNeeds !== 'function') {
@@ -561,8 +563,9 @@
     if (feeds.drafts.state === 'error') bad.push('reply drafts (' + feeds.drafts.err + ')');
     if (feeds.agent.state === 'error') bad.push('team drafts (' + feeds.agent.err + ')');
     if (W._leadsLoaded !== true && leads().length === 0) return '';
-    if (!bad.length) return '';
-    return '<div class="ib-banner" role="alert">Some feeds did not load: ' + esc(bad.join('; ')) +
+    var hid = (claims().role || '') === 'viewer' ? '<div class="ib-note" role="status">Calls and texts are hidden for your role.</div>' : '';
+    if (!bad.length) return hid;
+    return hid + '<div class="ib-banner" role="alert">Some feeds did not load: ' + esc(bad.join('; ')) +
       '. What you see below may be missing items. <button type="button" class="ib-linkbtn" data-ib="reload">Try again</button></div>';
   }
   function loadingAny() {

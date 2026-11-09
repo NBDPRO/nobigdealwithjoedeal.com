@@ -122,7 +122,16 @@
     };
   }
 
-  const api = { fromActivity };
+  // Call to Close Q11 (2026-11-09): a viewer reads only these activity
+  // sources (firestore.rules allowlist; no call or text summary), and only
+  // through a query that names them.
+  const VIEWER_SOURCES = ['rep', 'visit-capture'];
+  function activityQuery(W, db, leadId) {
+    const col = W.collection(db, 'leads', leadId, 'activity');
+    return (W._userClaims || {}).role === 'viewer' ? W.query(col, W.where('source', 'in', VIEWER_SOURCES)) : col;
+  }
+
+  const api = { fromActivity, activityQuery, VIEWER_SOURCES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallTimeline = api;
   if (root) root.nbdVisitBrief = (v, u) => root.ScriptLoader.load('js/call-brief-ui.js?v=4').then(() => root.NBDCallBrief.openVisit({ visitId: v, visitUid: u })).catch(() => root.showToast && root.showToast('Could not open the call brief. Try again in a moment.', 'error'));

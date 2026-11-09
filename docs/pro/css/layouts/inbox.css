@@ -63,6 +63,8 @@ html[data-layout="inbox"] .ib-banner {
   margin: 8px 10px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--red, #dc2626);
   background: color-mix(in srgb, var(--red, #dc2626) 12%, var(--s)); color: var(--t); font-size: 13px; line-height: 1.4;
 }
+/* Call to Close Q11 (2026-11-09): the quiet "hidden for your role" line a viewer sees */
+html[data-layout="inbox"] .ib-note { margin: 8px 10px 0; padding: 0 2px; color: var(--m); font-size: 13px; line-height: 1.4; }
 html[data-layout="inbox"] .ib-linkbtn { border: 0; background: none; color: var(--ui-accent-text, var(--orange)); font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; padding: 0; }
 
 html[data-layout="inbox"] .ib-row {

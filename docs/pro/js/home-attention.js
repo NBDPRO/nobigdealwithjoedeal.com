@@ -490,13 +490,14 @@
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.recentCalls) { out.callsCapped = true; out.callsCap = READ.recentCalls; }
         }).catch(() => { if (!viewerNow()) out.callsFailed = true; }));
-      jobs.push(qWin('phone_text_days', READ.recentTexts)
+      // Nor phone_text_days (2026-11-09).
+      if (!callsHidden) jobs.push(qWin('phone_text_days', READ.recentTexts)
         .then((snap) => {
           if (unconfirmedEmpty(snap)) { if (unconfirmed('texts') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
           delete _unconf.texts;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data())));
           if (snap.docs.length >= READ.recentTexts) { out.textsCapped = true; out.textsCap = READ.recentTexts; }
-        }).catch(() => { out.callsFailed = true; }));
+        }).catch(() => { if (!viewerNow()) out.callsFailed = true; }));
       // Open promises older than the window roll into one review row: their own
       // bounded read. A failed one is a warning (oldFailed), not "no old promises".
       if (!callsHidden) jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
