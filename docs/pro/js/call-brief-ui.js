@@ -585,10 +585,11 @@
     var list = whoDecides(S.brief);
     if (!list.length) return '';
     var copied = S.dmCopied || {};
+    var heard = isVisit() ? 'Heard at the walkthrough' : 'Heard on the call';
     return '<div class="cb-sec" role="group" aria-labelledby="cbWhoH"><h3 class="cb-sec-title" id="cbWhoH">Who decides</h3>' +
-      '<div class="cb-meta">Heard on the call: who has a say, in the words that were said. The recording has no speaker labels, so check it. Kept in this brief only: it is never written to the customer and nothing is sent.</div>' +
+      '<div class="cb-meta">' + heard + ': who has a say, in the words that were said. The recording has no speaker labels, so check it. Kept in this brief only: it is never written to the customer and nothing is sent.</div>' +
       list.map(function (d, i) {
-        return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(d.label) + '</span><span class="cb-badge">Heard on the call</span></div>' + quoteHtml(d.quote, d.unsure) +
+        return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(d.label) + '</span><span class="cb-badge">' + heard + '</span></div>' + quoteHtml(d.quote, d.unsure) +
           '<div class="cb-acts">' + btn('Copy', 'dm-copy', ' data-i="' + i + '" aria-label="' + esc('Copy: ' + d.label) + '"') + '</div>' +
           (copied[i] ? '<div class="cb-done" role="status">' + esc(copied[i]) + '</div>' : '') + '</div>';
       }).join('') +

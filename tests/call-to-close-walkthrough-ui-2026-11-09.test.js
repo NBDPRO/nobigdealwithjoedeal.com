@@ -217,6 +217,18 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     ok('…a call\'s message is unchanged', dc && /thanks for the call/.test(dc.text));
     ok('CSP: no inline handler or style added to the sheet', !/\son[a-z]+=/i.test(SRC) && !/style="/.test(SRC));
   }
+  {
+    // P2 integration: Who decides (dmmap lane) in walkthrough mode.
+    const B = Object.assign(clone(BRIEF), { people: [{ role: 'spouse', name: null, said: 'my husband', decides: true, quote: 'I need to ask my husband first' }] });
+    const { CB, dlg } = load({ brief: B, generatedAtMs: 1, decisions: [] });
+    await CB.openVisit(clone(OPEN));
+    const html = dlg.innerHTML;
+    ok('P2 integration: Who decides shows on a walkthrough brief', /Who decides/.test(html) && /my husband/.test(html));
+    ok('…worded for the walkthrough ("Heard at the walkthrough"), never "Heard on the call"', /Heard at the walkthrough/.test(html) && !/Heard on the call/.test(html));
+    ok('…and the sheet still has exactly one filled button', (html.match(/class="btn btn-orange"/g) || []).length === 1, (html.match(/class="btn btn-orange"/g) || []).length);
+    const order = ['cbSumH', 'cbObjH', 'cbWhoH'].map((id) => html.indexOf('id="' + id + '"'));
+    ok('…after the objections, in the one sheet order (summary, …, objections, who decides, drafts)', order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], order);
+  }
   finish();
 
   function finish() {
