@@ -125,6 +125,11 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     ok('…through the page\'s data-action delegate with escaped ids (no inline handler)', /data-action="nbdVisitBrief" data-arg="\$\{esc\(item\.vb\[0\]\)\}" data-arg2="\$\{esc\(item\.vb\[1\]\)\}"/.test(BOOT) && !/onclick/i.test(BOOT.split('Brief this walkthrough')[0].slice(-400)));
     const vbBtn = (BOOT.split('\n').find((l) => /data-action="nbdVisitBrief"/.test(l)) || '');
     ok('each walkthrough button has its own accessible name (the visit\'s time, escaped), so a list of visits never reads as duplicates; the visible words lead it (label in name)', /aria-label="Brief this walkthrough from \$\{esc\(item\.time\.toLocaleString\(\)\)\}"/.test(vbBtn), vbBtn.trim());
+    const css = read('docs/pro/css/invoice-pipeline.css');
+    ok('the button has its own neutral class (tl-row-btn), not the receipt button\'s', /class="doc-btn tl-row-btn"/.test(vbBtn) && !/tl-send-receipt/.test(vbBtn), vbBtn.trim());
+    ok('…a 44 px target with the receipt button\'s spacing, from the shared stylesheet', /\.tl-row-btn\.tl-row-btn\.tl-row-btn[^{]*\{[^}]*min-height:\s*44px/.test(css) && /\.tl-row-btn\.tl-row-btn\.tl-row-btn[^{]*\{[^}]*margin-top:\s*6px/.test(css));
+    const cssV = Number((/invoice-pipeline\.css\?v=(\d+)/.exec(read('docs/pro/customer.html')) || [])[1]);
+    ok('…and customer.html asks for the new stylesheet (cache-bust past v6)', cssV > 6, cssV);
     const loads = []; const opened = [];
     const win = { ScriptLoader: { load: async (u) => { loads.push(u); win.NBDCallBrief = { openVisit: (o) => opened.push(o) }; } }, _leadDoc: { firstName: 'Pat' }, _customerId: 'L1' };
     timeline(win);
