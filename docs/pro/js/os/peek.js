@@ -17,7 +17,8 @@
  *                               so it shows once a day; os/home.js decides when it is due
  *                               (home-logic recapDue) and never loads this file otherwise.
  *
- * Both are native <dialog>s (showModal). Every value goes in escaped; no inline
+ * Both are native <dialog>s (showModal); their parts are <div>s, not <section>s (nbd-mobile.css
+ * pads every <section> with !important). Every value goes in escaped; no inline
  * handlers, no style attributes; css/os/peek.css. Writes nothing to the CRM: its
  * only storage is the nbd_os_recap day key.
  *
@@ -148,21 +149,21 @@
 
   function peekHtml(f) {
     var h = HD('osPkTitle', 'Peek') +
-      '<section class="os-pk-sec"><h3 class="os-pk-st">Appointment</h3>' +
+      '<div class="os-pk-sec"><h3 class="os-pk-st">Appointment</h3>' +
       '<p class="os-pk-name">' + esc(f.name) + '</p>' +
       '<p class="os-pk-sub">' + esc([f.time, f.title].filter(Boolean).join(' · ')) + '</p>' +
       (f.address ? '<p class="os-pk-addr">' + esc(f.address) + '</p>' : '') +
       '<div class="os-pk-acts">' +
       (f.mapsHref ? '<a class="btn btn-ghost os-pk-btn" href="' + esc(f.mapsHref) + '" target="_blank" rel="noopener">Directions</a>' : '') +
       (f.custHref ? '<a class="btn btn-ghost os-pk-btn" href="' + esc(f.custHref) + '">Open customer</a>' : '') +
-      '</div></section>';
+      '</div></div>';
     if (!f.linked) return h + '<p class="os-pk-muted os-pk-sec">No customer in the CRM is linked to this appointment, so there are no notes, promises or brief to show.</p>';
-    h += '<section class="os-pk-sec"><h3 class="os-pk-st">Last notes</h3>' +
-      (f.notes ? '<p class="os-pk-notes">' + esc(f.notes) + (f.notesCut ? '…' : '') + '</p>' : '<p class="os-pk-muted">No notes on this customer.</p>') + '</section>';
-    h += '<section class="os-pk-sec"><h3 class="os-pk-st">Promises due</h3>' +
+    h += '<div class="os-pk-sec"><h3 class="os-pk-st">Last notes</h3>' +
+      (f.notes ? '<p class="os-pk-notes">' + esc(f.notes) + (f.notesCut ? '…' : '') + '</p>' : '<p class="os-pk-muted">No notes on this customer.</p>') + '</div>';
+    h += '<div class="os-pk-sec"><h3 class="os-pk-st">Promises due</h3>' +
       (f.promises.length ? '<ul class="os-pk-list">' + f.promises.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'
-        : '<p class="os-pk-muted">No promises due on this customer.</p>') + '</section>';
-    h += '<section class="os-pk-sec"><h3 class="os-pk-st">Lead brief</h3><div class="os-pk-brief" data-pk-briefbody="" aria-live="polite">' + briefHtml(f.leadId) + '</div></section>';
+        : '<p class="os-pk-muted">No promises due on this customer.</p>') + '</div>';
+    h += '<div class="os-pk-sec"><h3 class="os-pk-st">Lead brief</h3><div class="os-pk-brief" data-pk-briefbody="" aria-live="polite">' + briefHtml(f.leadId) + '</div></div>';
     return h;
   }
   function open(opts) {
@@ -203,10 +204,10 @@
     }
     if (r.visits) h += '<p class="os-pk-visits">' + esc(PL.visitsLine(r.visits)) + '</p>';
     var a = r.first;
-    if (a === 'none') h += '<section class="os-pk-sec"><h3 class="os-pk-st">Today</h3><p class="os-pk-muted">No appointments today.</p></section>';
+    if (a === 'none') h += '<div class="os-pk-sec"><h3 class="os-pk-st">Today</h3><p class="os-pk-muted">No appointments today.</p></div>';
     else if (a) {
-      h += '<section class="os-pk-sec"><h3 class="os-pk-st">Today\'s first appointment</h3><p class="os-pk-name">' + esc(a.time) + ' · ' + esc(a.name) + '</p>' +
-        (a.place ? '<p class="os-pk-sub">' + esc(a.place) + '</p>' : '') + '</section>';
+      h += '<div class="os-pk-sec"><h3 class="os-pk-st">Today\'s first appointment</h3><p class="os-pk-name">' + esc(a.time) + ' · ' + esc(a.name) + '</p>' +
+        (a.place ? '<p class="os-pk-sub">' + esc(a.place) + '</p>' : '') + '</div>';
     }
     return h + '<div class="os-pk-ft"><button type="button" class="btn btn-ghost os-pk-btn" data-pk-close="">Got it</button></div>';
   }

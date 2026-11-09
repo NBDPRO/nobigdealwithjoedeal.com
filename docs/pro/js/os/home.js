@@ -205,7 +205,10 @@
     var plan = todayPlan();
     if (!plan) return '<h3 class="os-hw-title">Up Next</h3><p class="os-hw-empty">Loading your day…</p>';
     var f = rec && rec.focus;
-    var rows = HL.upNext(plan, { n: size === 's' ? 1 : 3, viewer: isViewer() }) || [];
+    // M gives rows to the Peek button while one is due (the card's height is fixed): one on the
+    // phone's 4x2 cells, two on the desk board's 160px row
+    var board = !!(rec && rec.el && typeof rec.el.closest === 'function' && rec.el.closest('.os-hw-board'));
+    var rows = HL.upNext(plan, { n: size === 's' ? 1 : (size === 'm' && HL.peekAppt(plan, Date.now()) ? (board ? 1 : 2) : 3), viewer: isViewer() }) || [];
     var h = '<h3 class="os-hw-title">Up Next <span class="os-hw-count">' + esc(HL.headline(plan.total)) + '</span></h3>' + focusHtml(f);
     // focused on an appointment: its row leads, marked
     if (f && f.kind === 'appt') rows.forEach(function (r, i) { if (r.key === f.key && i) { rows.splice(i, 1); rows.unshift(r); } });

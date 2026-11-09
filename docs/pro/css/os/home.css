@@ -248,6 +248,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
   .os-widgets.os-hw-desk { width: 240px; }
   .os-hw-board .os-hw.os-hw { grid-column: auto; grid-row: auto; min-height: 96px; }
   .os-hw-board .os-hw.os-hw.is-l { min-height: 280px; }
+  /* P2: Up Next M carrying the Peek button keeps a full 160px row, so the button is never cut off */
+  .os-hw-board .os-hw.os-hw.is-m:has(.os-hw-peek) { min-height: 160px; }
   .os-hw-grip { display: none; }
 }
 
