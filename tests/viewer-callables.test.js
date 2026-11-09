@@ -542,7 +542,10 @@ const VERDICTS = {
   // 2026-09-27): the recording stream reads only; the inbox action refuses
   // a viewer in its own loadCallForCaller({ write: true }) before any write,
   // proven by tests/thursday-pipeline.integration.test.js ("viewer refused").
-  getThursdayRecording: 'read', thursdayCallAction: 'already', callCenterAction: 'already',
+  // The recording stream refuses a viewer by role since 2026-11-09 (Call to
+  // Close Q11: call audio is call content), proven in
+  // tests/call-to-close-viewers-2026-11-09.test.js.
+  getThursdayRecording: 'role-gated', thursdayCallAction: 'already', callCenterAction: 'already',
   // The Call Center 'Said you'd do' deck list: owner or platform admin only
   // (call-center.js promisesList), so a viewer is refused by role.
   callPromisesList: 'role-gated',

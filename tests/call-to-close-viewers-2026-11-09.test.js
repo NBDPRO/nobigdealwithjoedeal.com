@@ -315,6 +315,40 @@ const cols = (qs) => qs.map((q) => q.col);
     ok('…the viewer\'s brief did go to the model (positive control)', models.length === 1, models.length);
     ok('…and what was sent carries no call content', !/CALLSECRET|TEXTSECRET|PROMISESECRET/.test(JSON.stringify(models)));
   }
+  // getThursdayRecording streams the call audio. A viewer reads no thursday_calls
+  // doc, but can learn a callId from the task leads/{id}/tasks/thursday-{callId}
+  // (its thursdayCallId field), so the callable must refuse a viewer itself.
+  {
+    const TL = require(path.join(ROOT, 'functions/integrations/thursday-logic.js'));
+    const callId = 'C1-thursday-call';
+    const recDocs = { ['thursday_calls/' + TL.callDocId(callId)]: { userId: 'jo', companyId: 'jo', recordingPath: 'thursday/jo/C1.mp3' } };
+    const downloads = [];
+    Object.assign(STUBS, {
+      'firebase-functions/v2/firestore': { onDocumentWritten: (o, h) => ({ __opts: o, __handler: h }) },
+      'firebase-admin/firestore': { getFirestore: () => ({ doc: (p) => ({ get: async () => ({ exists: !!recDocs[p], data: () => recDocs[p] }) }) }),
+        FieldValue: { serverTimestamp: () => ({ __ts: true }), increment: (n) => n } },
+      'firebase-admin/storage': { getStorage: () => ({ bucket: () => ({ file: (p) => ({
+        getMetadata: async () => [{ size: 4, contentType: 'audio/mpeg' }],
+        download: async () => { downloads.push(p); return [Buffer.from('AUDI')]; } }) }) }) },
+    });
+    const TH = require(path.join(ROOT, 'functions/integrations/thursday.js'));
+    const rec = TH.getThursdayRecording && TH.getThursdayRecording.__handler;
+    async function play(token, uid) {
+      try { return { res: await rec({ auth: { uid: uid || 'x', token }, data: { callId, part: 0 } }) }; }
+      catch (e) { return { err: e.code || e.message }; }
+    }
+    ok('getThursdayRecording is reachable for the test (positive control)', typeof rec === 'function');
+    if (typeof rec === 'function') {
+      const own = await play({ role: 'admin' }, 'jo');
+      ok('the owner still plays the recording (positive control)', own.res && own.res.base64 === Buffer.from('AUDI').toString('base64'), own);
+      const mgr = await play({ role: 'manager', companyId: 'jo' }, 'm');
+      ok('…a same-company manager still plays it', mgr.res && mgr.res.parts === 1, mgr);
+      const n0 = downloads.length;
+      const vw = await play({ role: 'viewer', companyId: 'jo' }, 'v');
+      ok('a same-company viewer is refused the call audio', vw.err === 'permission-denied', vw);
+      ok('…and nothing was downloaded for them', downloads.length === n0, downloads);
+    }
+  }
   Module._load = realLoad;
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
