@@ -23,10 +23,26 @@
  * Legal hold. A record is held (skipped, counted, never deleted) when:
  *   - the call has legalHold === true, or
  *   - its lead has legalHold === true, or
- *   - its lead has an open insurance claim: claimStatus is set and is not
- *     "No Claim" or "Paid Out". "Denied" counts as open, because a denied
- *     claim is the one most often disputed. Jo clears a hold by setting the
- *     claim to Paid Out / No Claim, or legalHold to false.
+ *   - its lead has an open insurance claim (openClaim below). "Denied"
+ *     counts as open, because a denied claim is the one most often disputed.
+ *     Jo clears a claim hold by setting claimStatus to "Paid Out", and a
+ *     legal hold by setting legalHold to false.
+ *
+ * Open claim. Any one of these, unless claimStatus is "Paid Out" (Jo's
+ * explicit close, which also clears a stale stage or claim number):
+ *   - claimStatus is set and is not "No Claim" ("in_progress" and other
+ *     off-list values count as open);
+ *   - claimStage maps through claim-core.js STAGE_TO_STATUS to anything but
+ *     "No Claim" / "Paid Out", or is a stage the map does not know.
+ *     insurance-claim.js writes claimStage with no claimStatus when ClaimCore
+ *     is not loaded, and the lead modal saves "No Claim" by default, so a
+ *     "No Claim" status does not clear an open stage;
+ *   - the lead's pipeline stage is on the insurance track
+ *     (ky-insurance-law.js INSURANCE_STAGES);
+ *   - a claim number is on file.
+ * A carrier alone is not a hold: intake records the homeowner's insurer
+ * before any claim exists (ky-insurance-law.js counts it as a sign for the
+ * claim panel, not as a filed claim).
  */
 
 const TZ = 'America/New_York';
@@ -41,6 +57,25 @@ const ARRAY_FIELDS = Object.freeze(['promises', 'actionItems']);
 
 // Claim statuses that are NOT open (claim-core.js STATUS_VALUES).
 const CLOSED_CLAIM = Object.freeze(['', 'no claim', 'paid out']);
+// docs/pro/js/claim-core.js STAGE_TO_STATUS, copied (the browser file cannot
+// be required here); tests/call-to-close-retention-2026-11-09.test.js pins it.
+const STAGE_TO_STATUS = Object.freeze({
+  initial_inspection: 'No Claim',
+  documentation: 'No Claim',
+  claim_filed: 'Claim Filed',
+  adjuster_scheduled: 'Adjuster Scheduled',
+  adjuster_visit: 'Adjuster Scheduled',
+  estimate_review: 'Adjuster Scheduled',
+  supplement_filed: 'Supplementing',
+  approved: 'Approved',
+  work_scheduled: 'Approved',
+  completed: 'Paid Out',
+  denied: 'Denied',
+});
+// functions/ky-insurance-law.js INSURANCE_STAGES (the insurance track's
+// pipeline stages), pinned by the same test.
+const INSURANCE_STAGES = Object.freeze(['claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done',
+  'scope_received', 'supplement_requested', 'supplement_approved']);
 
 const BRIEF_PATH = 'leads/{leadId}/call_briefs/{callId}';
 
@@ -104,14 +139,29 @@ function briefAgeMs(brief) { return fin((brief || {}).generatedAtMs); }
 
 function isPast(ageMs, cutoff) { return ageMs != null && Number.isFinite(cutoff) && ageMs < cutoff; }
 
+const lc = (v) => (v == null ? '' : String(v).trim().toLowerCase());
+
+/** True when the lead shows an insurance claim still in flight (see the header). */
+function openClaim(lead) {
+  if (!lead) return false;
+  const status = lc(lead.claimStatus);
+  if (status === 'paid out') return false;
+  if (!CLOSED_CLAIM.includes(status)) return true;
+  const stage = lc(lead.claimStage);
+  if (stage) {
+    const mapped = lc(Object.prototype.hasOwnProperty.call(STAGE_TO_STATUS, stage) ? STAGE_TO_STATUS[stage] : 'unknown');
+    if (!CLOSED_CLAIM.includes(mapped)) return true;
+  }
+  if (INSURANCE_STAGES.includes(lc(lead.stage))) return true;
+  if (lc(lead.claimNumber)) return true;
+  return false;
+}
+
 /** Why a record is held, or null. */
 function holdReason({ call, lead } = {}) {
   if (call && call.legalHold === true) return 'call_legal_hold';
   if (lead && lead.legalHold === true) return 'lead_legal_hold';
-  if (lead && lead.claimStatus != null) {
-    const s = String(lead.claimStatus).trim().toLowerCase();
-    if (!CLOSED_CLAIM.includes(s)) return 'open_claim';
-  }
+  if (openClaim(lead)) return 'open_claim';
   return null;
 }
 
@@ -176,8 +226,8 @@ function shouldRescan(state, nowMs) {
 }
 
 module.exports = {
-  TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS,
+  TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS, STAGE_TO_STATUS, INSURANCE_STAGES,
   etYmd, etMidnightMs, minusMonths, cutoffMs, callAgeMs, briefAgeMs, isPast,
-  holdReason, transcriptFieldsPresent, transcriptPatch, isCrmAudioPath, audioPatch,
+  holdReason, openClaim, transcriptFieldsPresent, transcriptPatch, isCrmAudioPath, audioPatch,
   auditEntry, shouldRescan,
 };

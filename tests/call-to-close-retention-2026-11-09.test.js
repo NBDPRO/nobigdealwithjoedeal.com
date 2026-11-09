@@ -183,6 +183,35 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
       ok('claimStatus "' + s + '" is not open', tryv(() => h({ call: {}, lead: { claimStatus: s } })) === null);
     }
     ok('no lead, no hold flag → not held', tryv(() => h({ call: {}, lead: null })) === null);
+    // A lead written by insurance-claim.js without ClaimCore has claimStage and no
+    // claimStatus (ClaimCore.normalizeClaim falls back to claimStage the same way).
+    for (const st of ['claim_filed', 'adjuster_scheduled', 'adjuster_visit', 'estimate_review', 'supplement_filed', 'approved', 'work_scheduled', 'denied', 'some_new_stage']) {
+      ok('claimStage "' + st + '" with no claimStatus is an open claim → held', tryv(() => h({ call: {}, lead: { claimStage: st } })) === 'open_claim');
+      ok('claimStage "' + st + '" with claimStatus "No Claim" (the dropdown default) → held', tryv(() => h({ call: {}, lead: { claimStage: st, claimStatus: 'No Claim' } })) === 'open_claim');
+    }
+    for (const st of ['initial_inspection', 'documentation', 'completed', '']) {
+      ok('claimStage "' + st + '" alone is not an open claim', tryv(() => h({ call: {}, lead: { claimStage: st } })) === null);
+    }
+    ok('claimStatus "Paid Out" is Jo\'s explicit close: it clears a stale open claimStage', tryv(() => h({ call: {}, lead: { claimStatus: 'Paid Out', claimStage: 'approved' } })) === null);
+    ok('an open claimStatus is held whatever the stage says', tryv(() => h({ call: {}, lead: { claimStatus: 'Claim Filed', claimStage: 'completed' } })) === 'open_claim');
+    for (const st of ['claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done', 'scope_received', 'supplement_requested', 'supplement_approved']) {
+      ok('pipeline stage "' + st + '" (the insurance track) → held', tryv(() => h({ call: {}, lead: { stage: st } })) === 'open_claim');
+    }
+    ok('a pipeline insurance stage with claimStatus "Paid Out" → not held', tryv(() => h({ call: {}, lead: { stage: 'scope_received', claimStatus: 'Paid Out' } })) === null);
+    ok('a claim number on file (a filed claim) with no status → held', tryv(() => h({ call: {}, lead: { claimNumber: 'CLM-123' } })) === 'open_claim');
+    ok('a claim number with claimStatus "Paid Out" → not held', tryv(() => h({ call: {}, lead: { claimNumber: 'CLM-123', claimStatus: 'Paid Out' } })) === null);
+    ok('a carrier alone (intake records the homeowner\'s insurer before any claim) is not a hold', tryv(() => h({ call: {}, lead: { insCarrier: 'State Farm', carrier: 'State Farm', insuranceCarrier: 'State Farm' } })) === null);
+    ok('pipeline stage "closed_won" is not an insurance stage', tryv(() => h({ call: {}, lead: { stage: 'closed_won' } })) === null);
+    {
+      // The stage → status map is claim-core.js's, copied server-side; it must not drift.
+      const core = read('docs/pro/js/claim-core.js');
+      const m = core.match(/var STAGE_TO_STATUS = \{([\s\S]*?)\};/);
+      const browser = m ? Object.fromEntries([...m[1].matchAll(/(\w+):\s*'([^']+)'/g)].map((x) => [x[1], x[2]])) : null;
+      ok('call-retention-logic STAGE_TO_STATUS matches claim-core.js', !!browser && JSON.stringify(R.STAGE_TO_STATUS) === JSON.stringify(browser), { server: R.STAGE_TO_STATUS, browser });
+      const ky = read('functions/ky-insurance-law.js').match(/var INSURANCE_STAGES = \[([\s\S]*?)\];/);
+      const kyStages = ky ? [...ky[1].matchAll(/'([^']+)'/g)].map((x) => x[1]) : null;
+      ok('call-retention-logic INSURANCE_STAGES matches ky-insurance-law.js', !!kyStages && JSON.stringify(R.INSURANCE_STAGES) === JSON.stringify(kyStages), { server: R.INSURANCE_STAGES, ky: kyStages });
+    }
   }
 
   console.log('\n3. Paths: only the CRM copy under calls/{owner}/');

@@ -24,7 +24,13 @@ Nothing changes in the browser. No page, script tag or rule changed.
 **Holds (chosen here; tell me if you want it different).** A record is skipped and counted, never deleted, when any of these is true:
 - the call has `legalHold === true`;
 - its lead has `legalHold === true`;
-- its lead has an **open insurance claim**: `claimStatus` set and not "No Claim" or "Paid Out". "Denied" counts as open, because a denied claim is the one most often disputed.
+- its lead has an **open insurance claim**, unless `claimStatus` is "Paid Out" (your explicit close, which also clears a stale stage or claim number). Open means any one of:
+  - `claimStatus` set and not "No Claim" ("Denied" counts as open, because a denied claim is the one most often disputed; off-list values such as the old `in_progress` count too);
+  - `claimStage` past filing: anything but `initial_inspection`, `documentation` or `completed` (claim-core.js `STAGE_TO_STATUS`, copied server-side and pinned by the test). The claim panel writes `claimStage` with no `claimStatus` when ClaimCore is not loaded, and the lead modal saves "No Claim" by default, so "No Claim" does not clear an open stage;
+  - the lead's pipeline `stage` is on the insurance track (`claim_filed` through `supplement_approved`, ky-insurance-law.js `INSURANCE_STAGES`);
+  - a `claimNumber` is on file.
+
+  A carrier alone is **not** a hold: intake records the homeowner's insurer before any claim exists. Tell me if you want it to be one.
 
 Both flags are set by hand in the Firestore console for now (there is no button). A hold covers every phase.
 
