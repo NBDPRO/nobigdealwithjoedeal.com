@@ -543,7 +543,7 @@
 
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
   // (+ on the laptop desk, the action runner's "Type to search" switch, WCAG 2.1.4)
-  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type', 'os-pocket'];
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type', 'os-pocket', 'os-privacy'];
   function registerControls() {
     var tries = 0, done = false;
     var desk = S && S.surface !== 'phone';
@@ -561,6 +561,7 @@
         });
         if (desk) safe(function () { O.registerControl({ id: 'os-runner-type', label: 'Type to search', hint: runnerTypeHint, run: toggleRunnerType }); });
         safe(function () { O.registerControl({ id: 'os-pocket', label: 'Pocket', hint: function () { return desk ? 'Alt+`' : ''; }, run: function () { pocket(); } }); });
+        safe(function () { O.registerControl({ id: 'os-privacy', label: 'Privacy lock', hint: privacyHint, run: openPrivacy }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
@@ -581,6 +582,40 @@
     if (!SL || typeof SL.loadBundle !== 'function') return;
     if (SL.bundles && !SL.bundles.cmdrunner) SL.bundles.cmdrunner = RUNNER_SRC.slice();
     Promise.resolve().then(function () { return SL.loadBundle('cmdrunner'); }).then(go, function () {});
+  }
+  // ── P3: the privacy lock (os/privacy.js, the lazy `osprivacy` bundle): hot corner, Ctrl+Alt+L, double tap.
+  // Loaded only when wanted: at mount while one of its opt-ins is on (this device's keys), on the
+  // first Ctrl+Alt+L, or from the Control Center's "Privacy lock" tile.
+  var PRIVACY_SRC = ['css/os/privacy.css?v=1', 'js/os/privacy.js?v=1'];
+  var PRIVACY_KEYS = ['nbd_os_lock_corner_v1', 'nbd_os_lock_dtap_v1'];
+  function privacyLoad() {
+    var st = S;
+    function go() {
+      var el = st && (st.surface === 'phone' ? st.phoneEl : st.deskEl);
+      if (S !== st || !el || !W.NBDOSPrivacy) return null;
+      if (!st.privacyOff) st.privacyOff = W.NBDOSPrivacy.attach({ surface: st.surface, el: el, state: function () { return S; } });
+      return W.NBDOSPrivacy;
+    }
+    if (W.NBDOSPrivacy) return Promise.resolve(go());
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return Promise.resolve(null);
+    if (SL.bundles && !SL.bundles.osprivacy) SL.bundles.osprivacy = PRIVACY_SRC.slice();
+    return Promise.resolve().then(function () { return SL.loadBundle('osprivacy'); }).then(go, function () { return null; });
+  }
+  function attachPrivacy() {
+    var want = !!W.NBDOSPrivacy || PRIVACY_KEYS.some(function (k) { return !!safe(function () { return W.localStorage.getItem(k); }); });
+    if (want) privacyLoad();
+    // until it is attached, the first Ctrl+Alt+L loads it; privacy.js then judges the key (AltGr, fields) and locks
+    on(doc, 'keydown', function (ev) {
+      if (!S || S.privacyOff || !ev.ctrlKey || !ev.altKey || ev.metaKey || ev.shiftKey || ev.code !== 'KeyL') return;
+      var k = { ctrlKey: true, altKey: true, code: ev.code, key: ev.key, repeat: ev.repeat, getModifierState: function (m) { return safe(function () { return ev.getModifierState(m); }) === true; } };
+      var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || !!(ev.target && ev.target.isContentEditable);
+      privacyLoad().then(function (P) { if (P && P._pure.isLockKey(k, typing)) P.lockNow('key'); });
+    });
+  }
+  function privacyHint() { var P = W.NBDOSPrivacy; return P && S && S.privacyOff ? P.hint() : 'Ctrl+Alt+L'; }
+  function openPrivacy() {
+    privacyLoad().then(function (P) { if (P) P.openSettings(); else toast('Couldn\'t open that just now. Try again.', 'error'); });
   }
   function runnerTypeHint() {
     var R = W.NBDRunner;
@@ -1734,6 +1769,7 @@
     watchViews();
     watchVisits();
     registerControls();
+    attachPrivacy();
     registerActSpotlight();
     registerPocketSpotlight();
     on(doc, 'keydown', onPocketKey);
@@ -1784,6 +1820,7 @@
     unregisterPocket();
     if (W.NBDOSActs) safe(function () { W.NBDOSActs.detach(); });
     if (st.runnerOff) safe(st.runnerOff);
+    if (st.privacyOff) safe(st.privacyOff);
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
     if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(); });   // its blob: URLs, its open picker

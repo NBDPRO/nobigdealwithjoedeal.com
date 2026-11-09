@@ -1,0 +1,40 @@
+/* css/os/privacy.css — NBD OS P3: the privacy lock's settings sheet and the
+   lock screen's status line (2026-11-09; js/os/privacy.js). Loaded with the
+   `osprivacy` runtime bundle, never at boot. Theme tokens and --ui-* tokens
+   only; no motion of its own. Floors: 44px targets, no text under 11px. */
+
+/* the settings sheet: a native <dialog>, like the Wallpaper picker */
+.os-pv {
+  margin: auto; width: min(420px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: min(640px, calc(100vh - 2 * var(--ui-space-4, 16px)));
+  padding: var(--ui-space-4, 16px); overflow-y: auto; color: var(--t); background: var(--s);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2, var(--ui-elev-1));
+}
+.os-pv::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.os-pv-form { margin: 0; }
+.os-pv-title { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-pv-note { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; }
+.os-pv-muted { color: var(--m); }
+.os-pv-set { margin: 0 0 var(--ui-space-1, 4px); padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; }
+.os-pv-legend { padding: 0; margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-pv-opt {
+  display: flex; align-items: center; gap: var(--ui-space-3, 12px); min-height: 48px; margin: 0; padding: var(--ui-space-2, 8px);
+  border-top: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px); cursor: pointer;
+}
+.os-pv-opt:has(input:checked) { background: color-mix(in srgb, var(--orange) 10%, var(--s)); }
+.os-pv-opt:has(input:focus-visible) { box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-pv-radio, .os-pv-box { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
+.os-pv-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.os-pv-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-pv-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-pv-msg { margin: 0; min-height: 1.4em; font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+.os-pv-ft { display: flex; justify-content: flex-end; margin-top: var(--ui-space-3, 12px); }
+.os-pv-done { min-height: 44px; min-width: 88px; justify-content: center; }
+
+/* the lock screen's "why it locked" line: read out, not shown */
+.os-pv-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+
+/* double-tap to lock is on: a double tap on the pages must not zoom the page instead */
+html.os-dtap .os-p-pages { touch-action: manipulation; }
