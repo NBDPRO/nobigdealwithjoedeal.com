@@ -462,6 +462,42 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     }
   }
 
+  console.log('\n7b. P2 integration: merged calls, walkthrough briefs, another tenant');
+  {
+    const VW = 'vWalk0000001', VH = 'vHeldVisit01', VC = 'vClaimVisit1';
+    const s = {
+      'leads/LC': { claimStatus: 'Claim Filed' },
+      'leads/L5': {},
+      // A merged pair (call-merge-logic): the primary is on an open claim, the redial is on no customer.
+      'phone_calls/mp1': call({ id: 'mp1', leadId: 'LC', mergedFrom: 'mr1', startedAtMs: OLD, createdAtMs: OLD, storagePath: 'calls/jo/cube-acr/2024-06-01/mp1.m4a' }),
+      'phone_calls/mr1': call({ id: 'mr1', leadId: null, mergedInto: 'mp1', startedAtMs: OLD + 600e3, createdAtMs: OLD + 600e3, storagePath: 'calls/jo/cube-acr/2024-06-01/mr1.m4a' }),
+      // A merged pair with no hold: both go, as two plain calls would.
+      'phone_calls/mp2': call({ id: 'mp2', leadId: 'L5', mergedFrom: 'mr2', startedAtMs: OLD, createdAtMs: OLD, storagePath: 'calls/jo/cube-acr/2024-06-01/mp2.m4a' }),
+      'phone_calls/mr2': call({ id: 'mr2', leadId: null, mergedInto: 'mp2', startedAtMs: OLD + 600e3, createdAtMs: OLD + 600e3, storagePath: 'calls/jo/cube-acr/2024-06-01/mr2.m4a' }),
+      // A walkthrough brief (call-brief.js loadGatedVisit): no phone_calls doc.
+      ['leads/L5/call_briefs/visit_' + VW]: { generatedAtMs: OLD, source: 'visit', visitId: VW, visitUid: 'jo', brief: {} },
+      ['leads/LC/call_briefs/visit_' + VC]: { generatedAtMs: OLD, source: 'visit', visitId: VC, visitUid: 'jo', brief: {} },
+      ['leads/L5/call_briefs/visit_' + VH]: { generatedAtMs: OLD, source: 'visit', visitId: VH, visitUid: 'jo', brief: {} },
+      ['users/jo/visit_captures/' + VH]: { attachedLeadId: 'L5', legalHold: true },
+      // Another tenant's feed (call-center feeds): its owner's own Storage folder only.
+      'phone_calls/t1': call({ id: 't1', userId: 'tOwner', companyId: 'tco', leadId: null, startedAtMs: OLD, createdAtMs: OLD, storagePath: 'calls/tOwner/cube-acr/2024-06-01/t1.m4a' }),
+      'phone_calls/t2': call({ id: 't2', userId: 'tOwner', companyId: 'tco', leadId: null, startedAtMs: OLD, createdAtMs: OLD, storagePath: 'calls/jo/cube-acr/2024-06-01/t2.m4a' }),
+    };
+    const db = makeDb(s); const bucket = makeBucket();
+    let r; try { r = await run(base(db, bucket, { live: true })); } catch (e) { r = { err: e.message }; }
+    const S = db.store; const del = bucket.deleted.map((d) => d.p);
+    ok('a merged redial is held with its primary\'s open claim (audio kept)', !del.includes('calls/jo/cube-acr/2024-06-01/mr1.m4a') && (S.get('phone_calls/mr1') || {}).storagePath === 'calls/jo/cube-acr/2024-06-01/mr1.m4a', del);
+    ok('...and its transcript kept, so the merged brief still reads both halves', (S.get('phone_calls/mr1') || {}).transcript === T_SECRET && (S.get('phone_calls/mp1') || {}).transcript === T_SECRET);
+    ok('...counted as held because of the partner', r.phases && r.phases.transcript.held && r.phases.transcript.held.merged_partner_hold >= 1, r.phases && r.phases.transcript.held);
+    ok('a merged pair with no hold goes like any two calls (both audio, both transcripts)', del.includes('calls/jo/cube-acr/2024-06-01/mp2.m4a') && del.includes('calls/jo/cube-acr/2024-06-01/mr2.m4a')
+      && (S.get('phone_calls/mp2') || {}).transcript === null && (S.get('phone_calls/mr2') || {}).transcript === null);
+    ok('a walkthrough brief older than 24 months is deleted (no phone_calls doc needed)', !S.has('leads/L5/call_briefs/visit_' + VW));
+    ok('a walkthrough brief on an open claim is held', S.has('leads/LC/call_briefs/visit_' + VC));
+    ok('a walkthrough brief whose visit has legalHold is held', S.has('leads/L5/call_briefs/visit_' + VH) && r.phases.brief.held && r.phases.brief.held.visit_legal_hold === 1, r.phases && r.phases.brief.held);
+    ok('another tenant\'s call: its audio in calls/{its owner}/ is deleted', del.includes('calls/tOwner/cube-acr/2024-06-01/t1.m4a'));
+    ok('another tenant\'s call pointing into NBD\'s folder is never deleted (badPath)', !del.includes('calls/jo/cube-acr/2024-06-01/t2.m4a') && (S.get('phone_calls/t2') || {}).storagePath === 'calls/jo/cube-acr/2024-06-01/t2.m4a');
+  }
+
   console.log('\n8. Wiring');
   {
     const src = read('functions/call-retention.js');

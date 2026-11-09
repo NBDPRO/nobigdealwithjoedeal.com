@@ -120,6 +120,27 @@ async function runRetention({
     return leads.get(id);
   }
 
+  // P2 integration: a merged pair is held together (call-retention-logic
+  // mergedPartnerId), and a walkthrough brief (leads/{id}/call_briefs/
+  // visit_<visitId>, call-brief.js) also honours its visit's legalHold.
+  async function holdOf(call, lead, callId) {
+    const why = R.holdReason({ call, lead });
+    if (why) return why;
+    const pid = R.mergedPartnerId(call);
+    if (!pid || pid === callId) return null;
+    const ps = await db.doc('phone_calls/' + pid).get();
+    const partner = ps && ps.exists ? (ps.data() || {}) : null;
+    if (!partner || !R.mergedBack(partner, callId)) return null;
+    const pLead = partner.leadId ? await getLead(partner.leadId) : null;
+    return R.holdReason({ call: partner, lead: pLead }) ? 'merged_partner_hold' : null;
+  }
+  async function visitHold(brief) {
+    const b = brief || {};
+    if (b.source !== 'visit' || !safeId(b.visitUid) || !safeId(b.visitId)) return null;
+    const vs = await db.doc('users/' + b.visitUid + '/visit_captures/' + b.visitId).get();
+    return vs && vs.exists && (vs.data() || {}).legalHold === true ? 'visit_legal_hold' : null;
+  }
+
   const out = { mode: live ? 'live' : 'dry-run', runId, rescan, cutoffs: {}, phases: {} };
 
   async function commitWith(fn) {
@@ -167,7 +188,7 @@ async function runRetention({
             finishing = !!(ls && ls.exists && (ls.data() || {}).state === 'pending');
           }
           if (!finishing) {
-            const why = R.holdReason({ call, lead });
+            const why = await holdOf(call, lead, d.id);
             if (why) { st.held[why] = (st.held[why] || 0) + 1; return; }
           }
           st.eligible++;
@@ -193,7 +214,7 @@ async function runRetention({
         const briefSnap = briefRef ? await briefRef.get() : null;
         const hasBrief = !!(briefSnap && briefSnap.exists);
         if (!tp && !hasBrief) { st.skipped++; return; }
-        const why = R.holdReason({ call, lead });
+        const why = await holdOf(call, lead, d.id);
         if (why) { st.held[why] = (st.held[why] || 0) + 1; return; }
         st.eligible++;
         if (!live) return;
@@ -218,7 +239,7 @@ async function runRetention({
       const callSnap = await db.doc('phone_calls/' + m.callId).get();
       const call = callSnap && callSnap.exists ? (callSnap.data() || {}) : null;
       const lead = await getLead(m.leadId);
-      const why = R.holdReason({ call, lead });
+      const why = (call ? await holdOf(call, lead, m.callId) : R.holdReason({ call, lead })) || await visitHold(data);
       if (why) { st.held[why] = (st.held[why] || 0) + 1; return; }
       st.eligible++;
       if (!live) return;

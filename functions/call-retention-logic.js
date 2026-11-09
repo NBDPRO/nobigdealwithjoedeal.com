@@ -167,6 +167,24 @@ function holdReason({ call, lead } = {}) {
   return null;
 }
 
+/**
+ * P2 integration (2026-11-09): a merged call (call-merge-logic: mergedFrom on
+ * the earlier call, mergedInto on the redial) is one conversation, and the
+ * primary's brief reads both transcripts. The partner's id when this call is
+ * merged, else ''. The caller holds the pair together: a hold on either half
+ * (or its customer) keeps both, so a held call's brief never loses a half.
+ */
+function mergedPartnerId(call) {
+  const c = call || {};
+  const id = String(c.mergedFrom || c.mergedInto || '');
+  return /^[A-Za-z0-9_-]{1,200}$/.test(id) ? id : '';
+}
+/** True when partner's mark points back at callId (both marks agree). */
+function mergedBack(partner, callId) {
+  const p = partner || {};
+  return String(p.mergedFrom || '') === String(callId) || String(p.mergedInto || '') === String(callId);
+}
+
 const present = (v) => v != null && !(Array.isArray(v) && v.length === 0) && !(typeof v === 'string' && !v.trim())
   && !(typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
 
@@ -246,7 +264,7 @@ function shouldRescan(state, nowMs) {
 }
 
 module.exports = {
-  TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS, STAGE_TO_STATUS, INSURANCE_STAGES,
+  mergedPartnerId, mergedBack, TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS, STAGE_TO_STATUS, INSURANCE_STAGES,
   etYmd, etMidnightMs, minusMonths, cutoffMs, callAgeMs, briefAgeMs, isPast,
   holdReason, openClaim, transcriptFieldsPresent, transcriptPatch, isCrmAudioPath, audioPatch,
   auditId, auditEntry, shouldRescan,
