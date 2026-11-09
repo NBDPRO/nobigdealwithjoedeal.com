@@ -10,7 +10,12 @@
  *   socialPlanWeeks     (callable) "Plan N weeks": proposes a mix (job
  *                       showcases, tips, storm-season PSAs, reviews, behind
  *                       the scenes) across platforms as DRAFTS. Jo approves
- *                       each one.
+ *                       each one. Jobs with Jo's consent tick
+ *                       (lead.projectConsent.on === true) are the preferred
+ *                       showcase picks (2026-11-09); for NBD, a blog post
+ *                       that went live in the last three weeks and was never
+ *                       shared takes a Thursday slot as a "New blog post"
+ *                       draft (read from the deployed /feed.xml).
  *   socialApprovePost   (callable) the ONLY way a post becomes approved /
  *                       scheduled: re-cleans caption + hashtags with the
  *                       source lead's private terms, then flips status.
@@ -188,12 +193,15 @@ async function eligibleJobs(db, ctx, limit) {
   const won = [];
   for (const [id, lead] of seen) {
     if (lead.deleted || !leadInCompany(lead, ctx.companyId, ctx.uid) || !SR.isWon(lead)) continue;
-    won.push({ id, lead, at: L.ms(lead.installCompletedAt) || L.ms(lead.completedAt) || L.ms(lead.stageStartedAt) || L.ms(lead.updatedAt) });
+    won.push({ id, lead, consented: L.hasProjectConsent(lead), at: L.ms(lead.installCompletedAt) || L.ms(lead.completedAt) || L.ms(lead.stageStartedAt) || L.ms(lead.updatedAt) });
   }
   won.sort((a, b) => b.at - a.at);
+  // 2026-11-09: jobs Jo ticked for consent go first (then newest first). This
+  // only reorders the jobs that were already eligible; it adds none.
+  const ranked = L.rankShowcaseJobs(won);
   const posted = await existingShowcaseLeads(db, ctx.companyId);
   const out = [];
-  for (const w of won.slice(0, limit || 40)) {
+  for (const w of ranked.slice(0, limit || 40)) {
     const photos = await leadPhotos(db, w.id, w.lead, ctx);
     if (!photos.length) continue;
     const sel = L.choosePhotos(photos, 10);
@@ -204,10 +212,35 @@ async function eligibleJobs(db, ctx, limit) {
       // CRM-only label so Jo recognises the job. Never stored on a post.
       label: name, town: facts.town, state: facts.state, packageLabel: facts.packageLabel,
       stage: String(w.lead.stage || ''), photoCount: photos.length, format: sel.format,
-      alreadyPosted: posted.has(w.id), completedAtMs: w.at || null,
+      alreadyPosted: posted.has(w.id), completedAtMs: w.at || null, consented: w.consented,
     });
   }
   return out;
+}
+
+/**
+ * The blog posts this company's plan should share (2026-11-09). The blog is
+ * NBD's: any other company gets none and the feed is not fetched. Reads the
+ * deployed /feed.xml (the functions bundle cannot read the POSTS array under
+ * docs/); a dead feed means no blog posts, never a failed plan. A URL already
+ * drafted or posted (any status but cancelled) is not shared again.
+ */
+async function loadBlogShares(db, companyId, nowMs, fetchImpl) {
+  if (String(companyId) !== NBD_OWNER_UID) return [];
+  let xml = '';
+  try {
+    const f = fetchImpl || fetch;
+    const res = await f(L.BLOG_FEED_URL, { signal: AbortSignal.timeout(8000) });
+    if (!res || !res.ok) return [];
+    xml = await res.text();
+  } catch (e) {
+    logger.warn('social: blog feed unreadable', { err: e && e.message });
+    return [];
+  }
+  const shared = new Set();
+  const snap = await postsCol(db, companyId).where('kind', '==', 'blog_post').limit(500).get();
+  snap.forEach((d) => { const v = d.data() || {}; if (v.blogUrl && v.status !== 'cancelled') shared.add(v.blogUrl); });
+  return L.blogPostsToShare(L.parseBlogFeed(xml), { nowMs, sharedUrls: shared });
 }
 
 const callOpts = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true };
@@ -251,7 +284,8 @@ exports.socialPlanWeeks = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
         .map((x) => ({ text: x.text }));
     } catch (_) { reviews = []; }
   }
-  const proposals = L.planWeeks({ weeks, platforms, startMs, jobs: jobs.map((j) => ({ leadId: j.leadId, facts: j, format: j.format })), reviews, seed: Math.floor(Math.random() * 1000) });
+  const blogPosts = await loadBlogShares(db, ctx.companyId, Date.now()).catch(() => []);
+  const proposals = L.planWeeks({ weeks, platforms, startMs, jobs: jobs.map((j) => ({ leadId: j.leadId, facts: j, format: j.format, consented: j.consented })), reviews, blogPosts, seed: Math.floor(Math.random() * 1000) });
   const created = [];
   const doneLeads = new Set();
   for (const p of proposals) {
@@ -268,6 +302,7 @@ exports.socialPlanWeeks = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
     await ref.set({
       kind: p.kind, platform: p.platform, format: 'text', caption: p.caption, hashtags: p.hashtags, media: [],
       town: '', state: '', packageLabel: '', shingle: '', sourceLeadId: null, status: 'draft',
+      blogUrl: p.kind === 'blog_post' && p.blogUrl ? p.blogUrl : null,
       captionFilter: { dropped: 0 }, companyId: ctx.companyId, createdBy: ctx.uid, groupId: null,
       scheduledAt: Timestamp.fromMillis(p.scheduledAtMs), source: 'plan',
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
@@ -425,4 +460,4 @@ exports.socialMedia = onRequest({ region: 'us-central1', maxInstances: 20, concu
   }
 });
 
-exports._test = { requireSocialManager, leadInCompany, leadPhotos, prepareMedia, mediaUrl, cleanPlatforms, approvalBlockers, parseRange, MEDIA_PATH_RE };
+exports._test = { requireSocialManager, leadInCompany, leadPhotos, prepareMedia, mediaUrl, cleanPlatforms, approvalBlockers, parseRange, MEDIA_PATH_RE, loadBlogShares, NBD_OWNER_UID };

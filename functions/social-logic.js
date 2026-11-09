@@ -54,6 +54,7 @@ const KINDS = Object.freeze({
   storm_psa:     'Storm-season PSA',
   review:        'Customer review',
   behind_scenes: 'Behind the scenes',
+  blog_post:     'New blog post',
 });
 
 const STATUSES = Object.freeze(['draft', 'approved', 'scheduled', 'publishing', 'ready', 'posted', 'failed', 'cancelled']);
@@ -275,6 +276,7 @@ const KIND_TAGS = {
   storm_psa: ['stormseason', 'hailseason'],
   review: ['customerreview', 'shoplocal'],
   behind_scenes: ['behindthescenes', 'smallbusiness'],
+  blog_post: ['rooftips', 'homeowners'],
 };
 const REGION_TAGS = { KY: ['NKY', 'NorthernKentucky'], OH: ['Cincinnati', 'CincyHomes'] };
 
@@ -457,6 +459,111 @@ function composeMessage(post) {
   return limitCaption(msg, post && post.platform);
 }
 
+// ── Consent (2026-11-09) ────────────────────────────────────────────────
+/**
+ * Jo's per-job consent tick: lead.projectConsent = { on, by, at }, set only by
+ * the owner or an admin. Only on === true counts (the same value that maps to
+ * projects.json consentOnFile: true). Social Studio uses it to PREFER a job for
+ * the Tuesday showcase; it does not widen what is eligible.
+ */
+function hasProjectConsent(lead) {
+  return !!(lead && lead.projectConsent && typeof lead.projectConsent === 'object' && lead.projectConsent.on === true);
+}
+
+/** Consented jobs first; order otherwise kept (stable). Never adds or drops one. */
+function rankShowcaseJobs(list) {
+  const a = Array.isArray(list) ? list.slice() : [];
+  return a.filter((j) => j && j.consented === true).concat(a.filter((j) => !(j && j.consented === true)));
+}
+
+// ── "New blog post" (2026-11-09) ────────────────────────────────────────
+// The functions bundle cannot read the POSTS array (it lives under docs/), so
+// the server reads the deployed feed (/feed.xml, built from POSTS by
+// scripts/build-feed.mjs at deploy, live posts only). Only links to this
+// site's /blog/ are ever used.
+const SITE_ORIGIN = 'https://nobigdealwithjoedeal.com';
+const BLOG_FEED_URL = SITE_ORIGIN + '/feed.xml';
+const BLOG_URL_RE = /^https:\/\/nobigdealwithjoedeal\.com\/blog\/[a-z0-9][a-z0-9-]{0,120}(\.html)?$/;
+// "New" = published within this window. Older posts that were never shared
+// are left alone, so the first plan does not dump the whole archive.
+const BLOG_SHARE_WINDOW_MS = 21 * 86400000;
+
+function xmlText(s) {
+  return String(s == null ? '' : s)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (m, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** RSS 2.0 → [{ title, url, description, publishedMs }], same-site /blog/ only, newest first. */
+function parseBlogFeed(xml) {
+  const out = [];
+  const src = typeof xml === 'string' ? xml : '';
+  const re = /<item>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const tag = (name) => { const t = new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>').exec(m[1]); return t ? xmlText(t[1]) : ''; };
+    const url = tag('link');
+    const title = tag('title').slice(0, 200);
+    const publishedMs = Date.parse(tag('pubDate'));
+    if (!BLOG_URL_RE.test(url) || !title || !(publishedMs > 0)) continue;
+    out.push({ title, url, description: tag('description').slice(0, 400), publishedMs });
+  }
+  return out.sort((a, b) => b.publishedMs - a.publishedMs);
+}
+
+/**
+ * The posts to share: live (published on or before nowMs), within the "new"
+ * window, not already shared (sharedUrls), newest first.
+ */
+function blogPostsToShare(items, opts) {
+  const o = opts || {};
+  const now = Number(o.nowMs) || Date.now();
+  const shared = o.sharedUrls instanceof Set ? o.sharedUrls : new Set(o.sharedUrls || []);
+  return (items || []).filter((p) => p && BLOG_URL_RE.test(String(p.url || '')) && p.publishedMs <= now
+    && now - p.publishedMs <= BLOG_SHARE_WINDOW_MS && !shared.has(p.url))
+    .sort((a, b) => b.publishedMs - a.publishedMs);
+}
+
+/** "New on the blog" caption, or '' when the title itself trips the wording rules. */
+function blogCaption(post) {
+  const title = cleanLabel(post && post.title, 200);
+  if (!title || cleanCaption(title, {}).dropped.length) return '';
+  const desc = cleanCaption(cleanLabel(post.description, 400), {}).text;
+  return 'New on the blog: ' + title.replace(/[.!?]*$/, '') + '.' + (desc ? ' ' + desc : '') + '\n\nRead it here: ' + post.url;
+}
+
+/**
+ * One platform's draft for a blog post, or null (offsite URL, a title that
+ * trips the rules, or a platform that needs media). Always a draft:
+ * socialApprovePost is the only way it is approved or scheduled.
+ */
+function buildBlogPostDraft(opts) {
+  const o = opts || {};
+  const post = o.post || {};
+  const p = PLATFORMS[o.platform];
+  if (!p || p.needsMedia || !BLOG_URL_RE.test(String(post.url || ''))) return null;
+  const caption = blogCaption(post);
+  if (!caption) return null;
+  const cleaned = cleanCaption(caption, {});
+  return {
+    kind: 'blog_post',
+    platform: o.platform,
+    format: 'text',
+    caption: limitCaption(cleaned.text, o.platform),
+    hashtags: limitHashtags(hashtagsFor({}, 'blog_post'), o.platform),
+    media: [],
+    town: '', state: '', packageLabel: '', shingle: '',
+    sourceLeadId: null,
+    blogUrl: post.url,
+    status: 'draft',
+    captionFilter: { dropped: cleaned.dropped.length },
+  };
+}
+
 // ── "Plan N weeks" ──────────────────────────────────────────────────────
 const TZ = 'America/New_York';
 
@@ -500,9 +607,12 @@ const SLOTS = [
 
 /**
  * Proposals for `weeks` weeks starting the day after startMs.
- *   jobs:     [{ leadId, facts, format, mediaReady }] — showcases, used once
+ *   jobs:     [{ leadId, facts, format, mediaReady, consented }] — showcases,
+ *             used once; consented jobs are picked first (rankShowcaseJobs)
  *   reviews:  [{ text }] — public review text (already public), used once
- * → [{ kind, platform, scheduledAtMs, caption, hashtags, leadId?, format }]
+ *   blogPosts: [{ title, url, description, publishedMs }] — each takes the
+ *             first Thursday slot on or after its date, in place of the tip
+ * → [{ kind, platform, scheduledAtMs, caption, hashtags, leadId?, format, blogUrl? }]
  * Text-only proposals skip media-only platforms.
  */
 function planWeeks(opts) {
@@ -510,8 +620,9 @@ function planWeeks(opts) {
   const weeks = Math.min(8, Math.max(1, Math.floor(Number(o.weeks) || 1)));
   const platforms = (o.platforms || ['facebook']).filter((p) => PLATFORMS[p]);
   const startMs = Number(o.startMs) || Date.now();
-  const jobs = (o.jobs || []).slice();
+  const jobs = rankShowcaseJobs(o.jobs || []);
   const reviews = (o.reviews || []).slice();
+  const blogs = (o.blogPosts || []).filter((b) => b && blogCaption(b)).sort((a, b) => a.publishedMs - b.publishedMs);
   const out = [];
   let seed = Number(o.seed) || 0;
   const first = zonedYmd(startMs + 86400000);
@@ -523,8 +634,12 @@ function planWeeks(opts) {
     const slot = SLOTS.find((s) => s.dow === dow);
     if (!slot) continue;
     const at = zonedMs(dd.getUTCFullYear(), dd.getUTCMonth() + 1, dd.getUTCDate(), slot.hour, slot.minute);
-    let kind, facts = {}, leadId = null, format = 'text';
-    if (slot.kinds[0] === 'job_showcase' && jobs.length) {
+    let kind, facts = {}, leadId = null, format = 'text', blog = null;
+    const bi = slot.kinds[0] === 'tip' ? blogs.findIndex((b) => b.publishedMs <= at) : -1;
+    if (bi >= 0) {
+      blog = blogs.splice(bi, 1)[0];
+      kind = 'blog_post';
+    } else if (slot.kinds[0] === 'job_showcase' && jobs.length) {
       const j = jobs.shift();
       kind = 'job_showcase'; facts = j.facts || {}; leadId = j.leadId || null; format = j.format || 'single';
     } else if (slot.kinds[0] === 'tip') {
@@ -536,11 +651,13 @@ function planWeeks(opts) {
     }
     dayIdx++;
     seed++;
-    const caption = cleanCaption(templateCaption(kind, facts, seed), {}).text;
+    const caption = cleanCaption(blog ? blogCaption(blog) : templateCaption(kind, facts, seed), {}).text;
     const hashtags = hashtagsFor(facts, kind);
     for (const p of platforms) {
       if (format === 'text' && PLATFORMS[p].needsMedia) continue;
-      out.push({ kind, platform: p, scheduledAtMs: at, caption: limitCaption(caption, p), hashtags: limitHashtags(hashtags, p), leadId, format });
+      const row = { kind, platform: p, scheduledAtMs: at, caption: limitCaption(caption, p), hashtags: limitHashtags(hashtags, p), leadId, format };
+      if (blog) row.blogUrl = blog.url;
+      out.push(row);
     }
   }
   return out;
@@ -558,4 +675,6 @@ module.exports = {
   hashtagsFor, templateCaption, choosePhotos, jobFacts, buildJobDraft, composeMessage,
   limitCaption, limitHashtags, planWeeks, zonedMs, zonedYmd, isStormSeason, canApprove, canReschedule,
   SOCIAL_RULES, ms,
+  hasProjectConsent, rankShowcaseJobs,
+  SITE_ORIGIN, BLOG_FEED_URL, BLOG_URL_RE, BLOG_SHARE_WINDOW_MS, parseBlogFeed, blogPostsToShare, blogCaption, buildBlogPostDraft,
 };

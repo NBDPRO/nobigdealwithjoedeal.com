@@ -477,6 +477,8 @@ const RUNNABLE = ['node', 'smoke'];
 const FLOORS = { node: 1046, smoke: 74, disk: 1188 };
 //   2026-11-09  1044/74/1185 -> 1045/74/1186, the job-photo matcher suite (match-job-photos, node;
 //               plan §1 steps 1-2). MEASURED via --check.
+//   2026-11-09  1044/74/1185 -> 1045/74/1186, Social Studio consented-jobs-first + the "New blog post"
+//               type (social-consent-blog-2026-11-09, node). MEASURED via --check.
 const FLOORS = { node: 1045, smoke: 74, disk: 1186 };
 
 // ── Argument parsing ───────────────────────────────────────────────

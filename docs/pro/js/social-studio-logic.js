@@ -31,6 +31,7 @@
   };
   var KIND_LABELS = {
     job_showcase: 'Job showcase', tip: 'Roof tip', storm_psa: 'Storm PSA', review: 'Review', behind_scenes: 'Behind the scenes',
+    blog_post: 'New blog post',
   };
 
   function ms(v) {
