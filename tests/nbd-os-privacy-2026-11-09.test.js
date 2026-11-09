@@ -203,6 +203,11 @@ function desk() {
     key(body, 'l', { ctrlKey: true, altKey: true, code: 'KeyL' });
     ok('Ctrl+Alt+L while locked does nothing more (one cover, one status line)', D.getElementById('osLock') === lk && D.querySelectorAll('#osLock .os-pv-sr').length === 1);
     W.NBDOS.unlock();
+    W.NBDOSPrivacy.lockNow('key');
+    const early = D.querySelector('#osLock .os-pv-sr');
+    W.NBDOS.unlock();   // within 150 ms
+    T.fire(150);
+    ok('an unlock within 150 ms cancels the status line (nothing written to a detached node)', !!early && early.textContent === '' && !early.isConnected);
 
     // the settings sheet
     W.NBDOSPrivacy.corner.set('');

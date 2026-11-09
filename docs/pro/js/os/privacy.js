@@ -151,6 +151,7 @@
   };
   if (root && typeof root.addEventListener === 'function') {
     try {
+      root.addEventListener('nbd:os-unlock', function () { clearMsg(); });   // an unlock inside 150 ms: no late status line
       root.addEventListener('storage', function (e) {
         if (e && e.key === CORNER_KEY) { cornerVal = null; changed(); }
         else if (e && e.key === DTAP_KEY) { dtapVal = null; changed(); }
@@ -168,10 +169,13 @@
    * else leaves the accessibility tree while locked). The line is added empty and filled
    * a moment later, so a screen reader hears it as a change.
    */
+  var msgT = 0;
+  function clearMsg() { if (msgT) { clrT(msgT); msgT = 0; } }
   function lockNow(how) {
     var O = sys();
     if (!O || locked()) return false;
     try { O.lock(); } catch (e) { return false; }
+    clearMsg();
     var lk = doc && doc.getElementById('osLock');
     var msg = MSG[how];
     if (lk && msg) {
@@ -180,7 +184,7 @@
       p.setAttribute('role', 'status');
       p.setAttribute('aria-live', 'polite');
       lk.appendChild(p);
-      setT(function () { p.textContent = msg; }, 150);
+      msgT = setT(function () { msgT = 0; if (p.isConnected) p.textContent = msg; }, 150);
     }
     return true;
   }
