@@ -149,6 +149,9 @@ const fanOut = (reads) => reads.filter((r) => ['leads', 'knocks', 'invoices', 'g
     ok('the summary is the team\'s: 32 doors, 5 deals; revenue and close rate are not claimed', P.el('sumKnocks').textContent === '32' && P.el('sumDeals').textContent === '5' && P.el('sumRevenue').textContent === '—' && P.el('sumRate').textContent === '—', J([P.el('sumKnocks').textContent, P.el('sumDeals').textContent, P.el('sumRevenue').textContent, P.el('sumRate').textContent]));
     ok('my rank banner: #2 with 12 doors', /#2/.test(P.el('my-rank-banner').innerHTML) && /12/.test(P.el('my-rank-banner').innerHTML), P.el('my-rank-banner').innerHTML);
     ok('each row says appointments and estimates sent (counted), never a close rate it does not have', /appointments/.test(board) && /estimates sent/.test(board) && !/close rate/.test(board) && !/NaN|undefined|null/.test(board), board.slice(0, 400));
+    // screenshot pass 2026-11-09: a count of one read '1 appointments · 1 estimates sent'
+    ok('one of a thing is singular: 1 appointment, 1 estimate sent (3 appointments, 2 estimates sent stay plural)',
+      /\b1 appointment ·/.test(board) && /\b1 estimate sent/.test(board) && !/\b1 appointments|\b1 estimates/.test(board) && /3 appointments/.test(board) && /2 estimates sent/.test(board), board.slice(0, 600));
     P.periods[0].click(); await P.settle();
     ok('Today: ranked by today (Jordan 5, Riley 3), still no fan-out', fanOut(P.reads).length === 0 && /5/.test(P.el('board').innerHTML) && P.el('sumKnocks').textContent === '8');
     P.tabs[1].click(); await P.settle();

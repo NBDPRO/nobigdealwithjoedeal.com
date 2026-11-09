@@ -371,10 +371,11 @@ function renderBoard(reps) {
     const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
     const name = entry.name || 'NBD Member';
     const team = entry.rate == null;
+    const many = (n, one, more) => n + ' ' + (n === 1 ? one : more);
     const sub = team
       ? (currentTab === 'deals'
-        ? entry.estimates + ' estimates sent · ' + entry.knocks + ' doors'
-        : entry.appointments + ' appointments · ' + entry.estimates + ' estimates sent')
+        ? many(entry.estimates, 'estimate', 'estimates') + ' sent · ' + many(entry.knocks, 'door', 'doors')
+        : many(entry.appointments, 'appointment', 'appointments') + ' · ' + many(entry.estimates, 'estimate', 'estimates') + ' sent')
       : currentTab === 'doors'
       ? entry.appointments + ' appointments · ' + entry.rate + '% close rate'
       : currentTab === 'deals'
