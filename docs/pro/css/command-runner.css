@@ -3,8 +3,8 @@
    (--s3/--br/--t/--m/--orange/--og), so every theme reskins it. Injected by
    js/command-runner.js the first time it is used. No motion. */
 
-.cmdr-row { flex-wrap: wrap; }
-.cmdr-verbs { display: inline-flex; flex-wrap: wrap; gap: 6px; flex: 0 1 auto; justify-content: flex-end; }
+.cmdr-row .cmdx-main { flex: 1 1 0; }
+.cmdr-verbs { display: inline-flex; gap: 6px; flex: 0 0 auto; justify-content: flex-end; }
 .cmdr-verb, .cmdr-btn {
   min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 8px; cursor: pointer;
   font: inherit; font-size: 13px; font-weight: 600; color: var(--t);
@@ -38,10 +38,12 @@
 .cmdr-ed-msg { margin: 0; min-height: 1.2em; color: var(--m); font-size: 12px; }
 .cmdr-ed-opts { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--br); padding-top: 8px; }
 .cmdr-check { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.cmdr-check input { width: 20px; height: 20px; flex: 0 0 auto; }
+.cmdr-check input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--orange); }
 .cmdr-ed-foot { display: flex; justify-content: space-between; gap: 8px; }
 
+/* a phone: the verbs go on their own line under the name */
 @media (max-width: 640px) {
-  .cmdr-verbs { flex: 1 0 100%; justify-content: flex-start; padding-left: 32px; }
+  .cmdr-row { flex-wrap: wrap; }
+  .cmdr-verbs { flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; padding-left: 32px; }
   .cmdr-ed-target { max-width: 100%; }
 }

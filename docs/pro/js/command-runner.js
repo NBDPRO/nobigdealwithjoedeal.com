@@ -438,7 +438,7 @@
 
   // ── rows, verbs and keys ─────────────────────────────────────────────
   function rowHtml(item, idx) {
-    var v = curVerb(item);
+    var v = R.sel.id === item.id ? curVerb(item) : -1;   // only the selected row has a lit verb
     var c = item.card || {};
     var bits = [item.sublabel, c.stage, c.value].filter(function (b) { return b; });
     var i = Number(idx) || 0;
@@ -459,7 +459,7 @@
     l.querySelectorAll('.cmdr-row').forEach(function (row) {
       var item = R.last[Number(row.getAttribute('data-idx'))];
       if (!item || !item.verbs) return;
-      var v = curVerb(item);
+      var v = R.sel.id === item.id ? curVerb(item) : -1;
       row.querySelectorAll('[data-cmdr-v]').forEach(function (b) {
         var on = Number(b.getAttribute('data-cmdr-v')) === v;
         b.classList.toggle('is-on', on);
@@ -618,14 +618,25 @@
   var corner = { on: function () { return ls(CORNER_KEY) === '1'; }, set: function (on) { ls(CORNER_KEY, on ? '1' : null); } };
 
   // ── the NBD OS desk: type-anywhere and the hot corner ────────────────
-  var BLOCK = '.os-win, .os-taskbar, .os-start, .os-widgets, .os-deskmenu, .os-snap, button, a, input, textarea, select, label, [contenteditable], [role="dialog"]';
+  // the widget column's empty space is desk; its widgets, tools and the Add sheet are not
+  var BLOCK = '.os-win, .os-taskbar, .os-start, .os-hw, .os-hw-tools, .os-hw-add, .os-widget, .os-deskmenu, .os-snap, ' +
+    'button, a, input, textarea, select, label, [contenteditable], [role="dialog"]';
   /** A press on the desk's own background (not a window, the taskbar, a widget or any control). */
   function isBareDesk(t, desk) {
     if (!t || !desk || !desk.contains || !desk.contains(t)) return false;
     return !(t.closest && t.closest(BLOCK));
   }
   function paletteOpen() { return !!(doc && doc.getElementById('nbd-cmd-modal')); }
-  function modalOpen() { return !!(doc && doc.querySelector('dialog[open], [aria-modal="true"]')); }
+  /** An open dialog on screen. The dashboard keeps hidden aria-modal sheets in the page: those do not count. */
+  function modalOpen() {
+    if (!doc) return false;
+    var list = doc.querySelectorAll('dialog[open], [aria-modal="true"]');
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (!n.hidden && (typeof n.getClientRects !== 'function' || n.getClientRects().length > 0)) return true;
+    }
+    return false;
+  }
   function openPrefilled(ch) {
     var C = cmd();
     if (!C || typeof C.open !== 'function') return;
