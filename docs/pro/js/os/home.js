@@ -715,7 +715,7 @@
     // desk board: the widget follows the pointer cell by cell (move) or snaps S/M/L (the grip);
     // phone and the one-column desk: it drops onto another widget's place
     function rect(n) { try { return n.getBoundingClientRect(); } catch (e) { return null; } }
-    function scroller(n) { return n.closest ? (n.closest('.os-p-home') || n.closest('.os-widgets')) : null; }
+    function scroller(n) { return n.closest ? (n.closest('.os-p-home') || n.closest('.os-hw-board') || n.closest('.os-widgets')) : null; }
     function startDrag(ev, sec) {
       var key = sec.getAttribute('data-oshw');
       var grip = ev.target.closest('[data-oshw-grip]');

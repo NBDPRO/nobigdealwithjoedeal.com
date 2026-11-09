@@ -260,8 +260,13 @@ G(() => {
   ok('below 1100px: one column, never hidden, no grip', /@media \(max-width: 1100px\) \{[^@]*grid-template-columns: 1fr;[^@]*\.os-hw-grip \{ display: none; \}/.test(css) && !/\.os-hw-board[^{]*\{[^}]*display: none/.test(css));
   ok('edit-mode widgets carry touch-action:none before any pointerdown', /\.os-hw\.is-editing \{ touch-action: none; \}/.test(css));
   ok('the grip is a 44px target', /\.os-hw-grip \{[^}]*width: 44px; height: 44px;/.test(css));
-  ok('a widget focused by keyboard scrolls clear of the sticky Add widget / Done bar (scroll-margin-bottom on the widgets, not scroll-padding: the bar\'s own buttons never scroll it)',
-    !/scroll-padding[a-z-]*:/.test(css) && /\.os-hw-desk \.os-hw \{ scroll-margin-bottom: calc\(44px \+ 2 \* var\(--ui-space-1, 4px\) \+ 2px \+ var\(--ui-space-3, 12px\)\);/.test(css));
+  // the Edit Home / Add widget bar is its own row under the board, never over a widget (it was sticky over the
+  // last row at 1280, 2026-11-09): the column is a flex column, the board scrolls, the bar does not
+  ok('the desk column is a flex column that does not scroll itself; the board is the scroller', /\.os-widgets\.os-hw-desk \{[^}]*display: flex; flex-direction: column;[^}]*overflow: hidden;/.test(css)
+    && /\.os-hw-desk > \.os-hw-board \{[^}]*min-height: 0;[^}]*overflow-y: auto;/.test(css), (css.match(/\.os-widgets\.os-hw-desk \{[^}]*\}/) || [''])[0]);
+  ok('...the bar takes its own row (no sticky, no flex shrink), so no widget ever sits under it, and nothing needs a scroll margin',
+    /\.os-hw-desk > \.os-hw-tools \{[^}]*position: static;[^}]*flex: none;/.test(css) && !/scroll-margin|scroll-padding[a-z-]*:/.test(css));
+  ok('...and the drag\'s edge scroll moves the board, the desk\'s scroller', /function scroller\(n\) \{[^}]*closest\('\.os-hw-board'\)/.test(js));
   ok('no transition or animation in the drag rules (cells snap; both reduce-motion switches have nothing to stop)', !/transition|animation/.test(css.slice(css.indexOf('desk (P1)'))));
   ok('no style attribute, no .style. and no setProperty in home.js or home-logic.js', !/style\s*=|\.style\.|setProperty/.test(noComments(js)) && !/style\s*=|\.style\.|setProperty/.test(noComments(read('docs/pro/js/os/home-logic.js'))));
   ok('pointer capture, not a library (no SortableJS)', /setPointerCapture/.test(js) && /releasePointerCapture/.test(js) && !/Sortable/i.test(js));

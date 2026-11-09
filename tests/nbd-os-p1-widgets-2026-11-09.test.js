@@ -236,8 +236,8 @@ async function mount(items, opts) {
         (code.match(/' \+ (?!k\.esc\(|String\(|\(|'|title\(|goBtn\(|inner \+|bar|h\b)[a-zA-Z_.]+(?:\[[^\]]+\])? \+ '/g) || []).slice(0, 4).join(' | '));
       ok('no new font size under 11px in home.css', (HOME_CSS.match(/font-size:\s*(\d+)px/g) || []).every((d) => Number(d.match(/\d+/)[0]) >= 11));
       ok('no motion of its own', !/@keyframes|animation:|transition:/.test(HOME_CSS));
-      ok('the desk column\'s sticky Edit Home / Wallpaper bar is opaque: a taller P1 widget scrolling under it never shows through',
-        /\.os-hw-tools \{[^}]*position: sticky;[^}]*background: var\(--s\);/.test(HOME_CSS), (HOME_CSS.match(/\.os-hw-tools \{[^}]*\}/) || [''])[0]);
+      ok('the desk column\'s Edit Home / Wallpaper bar is opaque and sits under the board, never over a taller P1 widget',
+        /\.os-hw-tools \{[^}]*background: var\(--s\);/.test(HOME_CSS) && /\.os-hw-desk > \.os-hw-tools \{[^}]*position: static;/.test(HOME_CSS), (HOME_CSS.match(/\.os-hw-tools \{[^}]*\}/) || [''])[0]);
       ok('home.js paints a P1 widget "Loading…" until its bundle lands (no fake number)', /Loading…<\/p>'/.test(HOME_JS));
     }
   } catch (e) { ok('section ran without throwing', false, e && e.stack); }
