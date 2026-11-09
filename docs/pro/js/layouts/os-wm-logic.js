@@ -289,6 +289,18 @@
   /** Window-button style: 'chrome' (ChromeOS / Windows, the default), 'mac' or 'linux'. */
   function buttonStyle(v) { return BUTTON_STYLES.indexOf(v) !== -1 ? v : 'chrome'; }
 
+  /**
+   * Pocket's shortcut (P3, design §6 #9): Alt+` by key position (code Backquote), so
+   * macOS's Option+` dead key and other layouts match too. Never with Ctrl, Cmd or Shift,
+   * on auto-repeat, mid-IME, after another handler took the key, or inside a field.
+   */
+  function pocketKey(ev) {
+    if (!ev || ev.code !== 'Backquote' || !ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return false;
+    if (ev.repeat || ev.isComposing || ev.defaultPrevented) return false;
+    var t = ev.target;
+    return !(t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || t.isContentEditable));
+  }
+
   // ── phone ──────────────────────────────────────────────────
   /** Home screen pages of `perPage` icons (default 4 columns x 5 rows). */
   function pages(apps, perPage) {
@@ -340,6 +352,7 @@
     pages: pages, pushRecent: pushRecent, dockApps: dockApps,
     DESKS: DESKS, MAX_PINS: MAX_PINS, BUTTON_STYLES: BUTTON_STYLES, deskIndex: deskIndex, deskCounts: deskCounts,
     taskItems: taskItems, togglePin: togglePin, overviewSlots: overviewSlots, fitInto: fitInto, buttonStyle: buttonStyle,
+    pocketKey: pocketKey,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSWm = api;

@@ -543,7 +543,7 @@
 
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
   // (+ on the laptop desk, the action runner's "Type to search" switch, WCAG 2.1.4)
-  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type'];
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type', 'os-pocket'];
   function registerControls() {
     var tries = 0, done = false;
     var desk = S && S.surface !== 'phone';
@@ -560,6 +560,7 @@
             hint: function () { var a = curAct(); return a ? a.name : 'Off'; } });
         });
         if (desk) safe(function () { O.registerControl({ id: 'os-runner-type', label: 'Type to search', hint: runnerTypeHint, run: toggleRunnerType }); });
+        safe(function () { O.registerControl({ id: 'os-pocket', label: 'Pocket', hint: function () { return desk ? 'Alt+`' : ''; }, run: function () { pocket(); } }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
@@ -591,6 +592,52 @@
     var on = !R.typeOpen.on();
     R.typeOpen.set(on);
     toast(on ? 'Type to search is on: type on the desktop to search.' : 'Type to search is off. Ctrl+K still opens search.');
+  }
+  // ── Pocket (P3, design §6 #9): a drop-down quick note over any app, i3's scratchpad ──
+  // Alt+` (os-wm-logic pocketKey: never inside a field), the Control Center tile, Spotlight and
+  // the phone's Pocket icon. js/os/pocket.js is the runtime bundle `ospocket`, loaded on the
+  // first toggle, never at mount. It changes nothing here: no window, desk or save.
+  var POCKET_BUNDLE = 'ospocket', POCKET_FILES = ['css/os/pocket.css?v=1', 'js/os/pocket-logic.js?v=1', 'js/os/pocket.js?v=1'];
+  function pocket(trigger) {
+    if (!S) return;
+    var back = trigger || doc.activeElement;   // read before the bundle loads: focus goes back here on close
+    var opts = { surface: S.surface === 'phone' ? 'phone' : 'desktop', returnFocus: back };
+    if (W.NBDOSPocket) return safe(function () { W.NBDOSPocket.toggle(opts); });
+    var SL = W.ScriptLoader;
+    if (S.pocketLoading || !SL || typeof SL.loadBundle !== 'function') return;
+    S.pocketLoading = true;
+    if (SL.bundles && !SL.bundles[POCKET_BUNDLE]) SL.bundles[POCKET_BUNDLE] = POCKET_FILES.slice();
+    Promise.resolve().then(function () { return SL.loadBundle(POCKET_BUNDLE); }).then(function () {
+      if (!S) return;
+      S.pocketLoading = false;
+      if (W.NBDOSPocket) safe(function () { W.NBDOSPocket.open(opts); });
+    }, function () {
+      if (S) S.pocketLoading = false;
+      toast('Pocket did not load. Check your connection and try again.');
+    });
+  }
+  function onPocketKey(ev) {
+    if (!WM.pocketKey || !WM.pocketKey(ev)) return;
+    ev.preventDefault();
+    pocket();
+  }
+  function registerPocketSpotlight() {
+    var C = W.NBDCommand;
+    if (!C || typeof C.registerAction !== 'function') return;
+    safe(function () {
+      C.registerAction({ id: 'os:pocket', label: 'Pocket: a quick note', keywords: 'pocket scratchpad note jot capture quick memo',
+        group: 'System', icon: '✎', run: function () { pocket(); } });
+    });
+  }
+  function unregisterPocket() {
+    var C = W.NBDCommand;
+    if (C && typeof C.unregisterAction === 'function') safe(function () { C.unregisterAction('os:pocket'); });
+    if (W.NBDOSPocket) safe(function () { W.NBDOSPocket.close(); });
+  }
+  // the phone's Pocket icon: page 1's top row, in the cell after the visit icons (css .os-p-toprow)
+  function pocketIconHtml() {
+    return '<div class="os-p-pocket" role="group" aria-label="Pocket"><button type="button" class="os-p-icon os-pocket-icon" data-osp="pocket" aria-haspopup="dialog" aria-label="Pocket: a quick note">' +
+      '<span class="os-p-glyph" aria-hidden="true">✎</span><span class="os-p-label">Pocket</span></button></div>';
   }
   function unregisterControls() {
     var O = W.NBDOS;
@@ -1322,7 +1369,7 @@
       if (S.home && canAdmin()) h += '<div class="os-hw-team" role="group" aria-label="Team home">' + teamHtml('data-osp', 'btn-sm') + '</div>';
     }
     if (!S.editing) h += actChipHtml();
-    if (!S.editing) h += visitPhoneRowHtml();
+    if (!S.editing) h += '<div class="os-p-toprow">' + visitPhoneRowHtml() + pocketIconHtml() + '</div>';
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
       return '<div class="os-p-page' + (S.home && !i ? ' os-p-home' : '') + '" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
         (S.home && !i ? '<div class="os-hw-slot"></div>' : '') + pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
@@ -1490,6 +1537,7 @@
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
     if (what === 'acts') return openActs(t);
+    if (what === 'pocket') return pocket(t);
     if (what === 'swclose') return closeSwitcher();
     if (what === 'swopen') return phoneOpen(id);
     if (what === 'swremove') return removeRecent(id);
@@ -1686,6 +1734,8 @@
     watchVisits();
     registerControls();
     registerActSpotlight();
+    registerPocketSpotlight();
+    on(doc, 'keydown', onPocketKey);
     startActs();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
     // settings read after mount (a company home published or locked): show what they say now.
@@ -1730,6 +1780,7 @@
     clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.claimsT); clearTimeout(st.ctrlT);
     unregisterControls();
     unregisterActSpotlight();
+    unregisterPocket();
     if (W.NBDOSActs) safe(function () { W.NBDOSActs.detach(); });
     if (st.runnerOff) safe(st.runnerOff);
     if (st.mo) st.mo.disconnect();

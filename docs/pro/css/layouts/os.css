@@ -387,6 +387,11 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
   padding: 0 var(--ui-space-3, 12px) var(--ui-space-2, 8px);
 }
 .os-visit-icon.is-rec .os-p-glyph { background: var(--orange); border-color: var(--orange); }
+/* P3: the Visits row and Pocket's icon share one row of page 1's four columns (js/os/pocket.js) */
+.os-p-toprow { display: flex; gap: 4px; padding: 0 var(--ui-space-3, 12px) var(--ui-space-2, 8px); }
+.os-p-toprow .os-p-visits { flex: 0 0 calc((100% - 12px) * .75 + 8px); grid-template-columns: repeat(3, 1fr); padding: 0; }
+.os-p-pocket { flex: 1 1 0; min-width: 0; display: flex; }
+.os-p-pocket .os-p-icon { flex: 1 1 auto; }
 .os-visit-icon.is-rec .os-rec-glyph { width: 34px; height: 34px; background: radial-gradient(circle, var(--red) 0 30%, white 32%); }
 
 /* ── wallpaper (P1, design §3.6; os.js paintWp, js/os/wallpaper.js) ──

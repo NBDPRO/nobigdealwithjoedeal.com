@@ -116,7 +116,9 @@ console.log('wiring');
   const ph = OS.slice(OS.indexOf('function onPhoneClick'), OS.indexOf('function onPhoneClick') + 450);
   ok('phone clicks route a visit tap before the app handlers', ph.indexOf('if (vz) { onVisitTap(vz); return; }') !== -1 && ph.indexOf('if (vz) { onVisitTap(vz); return; }') < ph.indexOf("closest('[data-osp]')"));
   ok('the phone bar has Record right after Home, not while rearranging the dock', /<span class="os-bar-label">Home<\/span><\/button>' \+\n\s*\(S\.editing \? '' : visitBarHtml\(\)\) \+/.test(OS));
-  ok('the home screen has the Visits row above the pages, not while rearranging', /if \(!S\.editing\) h \+= visitPhoneRowHtml\(\);\n\s*h \+= '<div class="os-p-pages"/.test(OS));
+  // P3 (2026-11-09): Pocket's phone icon may share the row (.os-p-toprow)
+  ok('the home screen has the Visits row above the pages, not while rearranging',
+    /if \(!S\.editing\) h \+= (?:'<div class="os-p-toprow">' \+ )?visitPhoneRowHtml\(\)(?: \+ pocketIconHtml\(\) \+ '<\/div>')?;\n\s*h \+= '<div class="os-p-pages"/.test(OS));
   ok('mount watches the count; unmount stops the retry', /watchViews\(\);\n\s*watchVisits\(\);/.test(OS) && /clearTimeout\(st\.visitT\)/.test(OS));
   ok('the count follows another tab (storage) and the recorder\'s counters event', /on\(W, 'storage'/.test(body) && /R\.subscribe\(function \(k\) \{ if \(k === 'counters'\) paintVisits\(\); \}\)/.test(body) && /S\.unbind\.push\(off\)/.test(body));
   ok('every value in the markup is escaped or a number', !/\+ it\.label \+|\+ it\.icon \+/.test(body));
