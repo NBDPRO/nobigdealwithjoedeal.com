@@ -4908,7 +4908,7 @@
       const exif = import('./photo-exif.js?v=1').then((m) => m.photoExifFields(file, Date.now())).catch(() => ({})); // EXIF date + GPS (2026-11-09)
       await uploadBytes(r, file);
       const url = await getDownloadURL(r);
-      await addDoc(collection(db,'photos'), {leadId, url, name:file.name, userId:uid, createdAt:serverTimestamp(), ...(await exif),
+      await addDoc(collection(db,'photos'), {leadId, url, name:file.name, userId:uid, createdAt:serverTimestamp(), uploadedAt:serverTimestamp(), ...(await exif),
         // Canonical Storage object name — the image pipeline
         // (functions/image-pipeline.js) finds this doc by storagePath
         // equality to stamp `urls:{thumb,med,full}` variants.

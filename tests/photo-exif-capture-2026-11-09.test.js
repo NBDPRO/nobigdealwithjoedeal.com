@@ -251,6 +251,13 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
     ok('…and still returns the URL and stamps createdAt / storagePath / companyId', url === 'https://dl.example/x' && d.createdAt && d.storagePath && d.companyId === 'c1');
     const p = (await runDashUpload(asFile(plainJpeg(), 'x.jpg'))).d;
     ok('control: no EXIF → the device clock', typeof p.capturedAt === 'number' && p.capturedAtSource === 'device' && !('geoLocation' in p));
+    // Review 2026-11-09 defect 4: the photo CSV's uploadedAt column falls back
+    // to capturedAt when a doc has no uploadedAt, and this path wrote none, so
+    // the column would now show the EXIF capture date. It stamps upload time
+    // like the other two paths.
+    ok('the dashboard modal stamps uploadedAt with server time (the CSV column reads it, not the EXIF date)', d.uploadedAt && d.uploadedAt.__ts === true, JSON.stringify(d.uploadedAt));
+    ok('control: the photo CSV export takes uploadedAt before its capturedAt fallback',
+      /uploadedAt:\s*p\.uploadedAt\?\.toDate\?\.\(\)\?\.toISOString\(\)\s*\|\|\s*\(p\.capturedAt/.test(read('docs/pro/js/dashboard-bootstrap.module.js')));
   });
 
   console.log('\n5. capturedAt readers');
