@@ -241,7 +241,6 @@ if (BOOK && fs.existsSync(BOOK)) {
     const costs = JSON.parse(fs.readFileSync(BOOK, 'utf8')).costs || {};
     const thin = [], missing = [];
     for (const p of catalog) {
-      if (String(p.id).startsWith('riv_')) continue;
       const c = costs[p.id];
       if (!c || !c.cost) { missing.push(p.id); continue; }
       const labor = cents((c.labor && c.labor.perUnit) || 0);
