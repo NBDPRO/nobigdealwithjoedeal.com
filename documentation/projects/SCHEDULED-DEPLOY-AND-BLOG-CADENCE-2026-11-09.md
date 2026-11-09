@@ -1,7 +1,7 @@
 # Weekly scheduled deploy, generated llms.txt blog list, Tuesday cadence (2026-11-09)
 
-Built from `CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09` §2 step 5 (the plan note lives on the `plan-note`
-branch; it is not in this tree). Branch `sched-deploy`. The runbook is [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).
+Built from [CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md) §2 step 5
+(the branch is now rebased onto the base that carries the plan; its dated "Built" section points here). Branch `sched-deploy`. The runbook is [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).
 
 ## Built
 
@@ -19,7 +19,8 @@ branch; it is not in this tree). Branch `sched-deploy`. The runbook is [BLOG-SCH
    Suite: `tests/llms-blog-region-2026-11-09.test.js`.
 3. **Weekly scheduled deploy**: cron `17 9 * * 2` (Tuesday 04:17 EST / 05:17 EDT) in
    `.github/workflows/firebase-deploy.yml`.
-   - A `due` job (no secrets, read-only token) runs the strict checks. When nothing is due, nothing deploys.
+   - A `due` job (no secrets, read-only token) decides; when nothing is due, nothing deploys. (First version: the
+     strict checks on the committed files. Since the review round below: the live site.)
    - When something is due, the job runs exactly the steps of a `scope=hosting` run and nothing on the
      functions, rules, indexes or storage side. It never commits.
    - `deploy` and `verify-live` gained `!cancelled()`. Without it, the `due` job being skipped on push would
@@ -30,11 +31,32 @@ branch; it is not in this tree). Branch `sched-deploy`. The runbook is [BLOG-SCH
 4. **Cadence in the dates test**: posts published on or after 2026-11-10 must fall on a Tuesday, one per ISO
    week (`tests/blog-dates-not-backdated-2026-11-04.test.js`).
 
+## Review round (2026-11-09)
+
+An independent review asked for changes. Acted on, test first, one commit each:
+
+1. **Rebased** onto `claude/funny-hawking-t9zyzm` (34 commits behind). FLOORS re-measured on top of the base's.
+2. **No cap on the lag rule.** `lagCuts()` looked back 12 go-live dates. Nothing forces a restamp, so 12 weeks
+   without one would have turned `build-feed.mjs` and `build-llms --check-regions` red on every PR. Every live
+   date is now a candidate cut (date-gated-checks: a feed 13 dates behind passes).
+3. **`due` reads the live site.** It compared the committed files, so (a) once the repo copy lagged it fired
+   every Tuesday, and (b) a pending scheduled run that cancelled a pending push run then deployed hosting at
+   `main` and stamped `main`'s sha, hiding that the push's functions / rules never shipped. Now
+   `node scripts/verify-live-deploy.js due` (pure `decideDue()`): another run active = skip; live behind `main`
+   on a deploy path, or stamp unreadable = fail loudly (fix: a `scope=all` run); else due only when a post or
+   project date falls after the live stamp's `deployedAt` day. The schedule never dispatches the backend.
+4. **Docs corrected.** A new post dated on or after the newest live post, added without a restamp, passes CI
+   (the lag rule cannot tell it apart); the first report said it fails. "Never backdated" is enforced only for
+   `SEASONAL_MAP`, not for new `POSTS` dates. The runbook says both.
+
+Not changed: the IndexNow ping stays push-only (open item below).
+
 ## Open
 
 - Scheduled go-lives are not pinged to IndexNow, because the ping diffs push SHAs. A follow-up could ping the
   newly live URLs from the `due` result.
-- `verify-live` on a scheduled run can still re-dispatch `scope=all` once, but only when the live site is behind
-  `main` on a deploy path (a missed push deploy). That is the existing self-heal, not the schedule.
+- A scheduled run that finds live behind `main` fails and waits for a person to run `scope=all`; it does not
+  re-dispatch itself (the schedule never deploys the backend). The push path's `verify-live` self-heal is
+  unchanged.
 - The repo copies of the generated files lag the live site until the next restamp. This is accepted by design,
   and CI says so.
