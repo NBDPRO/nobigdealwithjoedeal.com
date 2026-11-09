@@ -22,8 +22,8 @@
  *             field is 0 (no goal); anything not a whole number 0-500, or
  *             text the number field could not parse (validity.badInput,
  *             which reports value ''), is refused on the field, nothing is written. On success the
- *             osdsbiz cache is dropped and `nbd:os-dsbiz` fires, so the
- *             widget reads the goals again.
+ *             osdsbiz answer takes the goals just written (NBDOSDsBiz.saved)
+ *             and `nbd:os-dsbiz` fires, so the widget repaints with them.
  *             not admin: the goals read-only, and who sets them.
  *
  * Pure (tests/nbd-os-goals-editor-2026-11-09.test.js): parseGoal(text),
@@ -174,7 +174,9 @@
         busy = false;
         if (!okd) { status('Couldn\'t save the goals. Only an owner or admin can, and you need a connection.'); return; }
         var B = W.NBDOSDsBiz;
-        if (B && typeof B.reset === 'function') { try { B.reset(); } catch (e) {} }
+        // the widget's answer takes the goals just written (no blank repaint while a re-read is out)
+        if (B && typeof B.saved === 'function') { try { B.saved(String(opts.uid || ''), data, Date.now()); } catch (e) {} }
+        else if (B && typeof B.reset === 'function') { try { B.reset(); } catch (e) {} }
         d.close();
         toast('Daily goals saved.');
         try { W.dispatchEvent(new W.CustomEvent('nbd:os-dsbiz')); } catch (e) {}

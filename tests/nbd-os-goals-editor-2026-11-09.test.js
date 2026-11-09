@@ -109,8 +109,13 @@ async function run() {
     ok('Save writes one doc: companies/c1/settings/goals, blank = 0, stamped, updatedBy = the writer', log.setDoc.length === 1 && log.setDoc[0][0] === 'companies/c1/settings/goals'
       && J(log.setDoc[0][1]) === J({ callsPerDay: 12, followUpsPerDay: 0, doorsPerDay: 40, updatedAt: { ts: 'server' }, updatedBy: 'u1' }), J(log.setDoc));
     ok('the sheet closes and says so', !dlg() && W.toasts.some((t) => /Daily goals saved/.test(t.msg)));
-    await settle();
-    ok('the widget reads the goals again (the osdsbiz cache was dropped)', log.getDoc.length > reads, log.getDoc.length + ' vs ' + reads);
+    // review 2026-11-09: dropping the osdsbiz cache after a save repainted the widget with no goals
+    // button (and no "Doors x of y") until a re-read landed. The saved goals go into the cache instead.
+    const gb = card().querySelector('[data-oshw-goals]');
+    ok('the widget repaints at once with the saved goals: the button stays, no flicker', !!gb && text(gb) === 'Set goals', text(card()));
+    ok('the osdsbiz cache holds what was written (doors 40 kept, follow-ups 0 = no goal), with no extra read',
+      J(W.NBDOSDsBiz.current({ uid: 'u1', companyId: 'c1', doors: false, now: NOW }).goals) === J({ callsPerDay: 12, doorsPerDay: 40 }) && log.getDoc.length === reads,
+      J(W.NBDOSDsBiz.current({ uid: 'u1', companyId: 'c1', doors: false, now: NOW })) + ' reads ' + log.getDoc.length + ' vs ' + reads);
   }
   {
     // review 2026-11-09: the widget's goals can be stale (another admin, inside the 5-minute TTL) or
