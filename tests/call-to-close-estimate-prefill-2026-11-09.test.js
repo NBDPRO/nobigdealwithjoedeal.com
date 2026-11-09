@@ -478,6 +478,24 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('…from the state before the call\'s choices (no cash, no repair in the draft)', !!saved15 && saved15.jobMode !== 'cash' && saved15.workKind !== 'repair', saved15 && { jobMode: saved15.jobMode, workKind: saved15.workKind });
     W.closeEstimateV2Builder();
     await tick(450);
+
+    section('C5. which taps count as the rep acting (review 2026-11-09)');
+    // Moving around the builder (search, the presentation, the packet
+    // choice) changes no estimate input, so it does not end the hold on autosave.
+    const isAct = CP().isAct;
+    ok('(test seam: the act test exists)', typeof isAct === 'function');
+    if (typeof isAct === 'function') {
+      const click = (act, attr) => ({ type: 'click', isTrusted: true, target: { closest: () => ({ getAttribute: (k) => (k === (attr || 'data-action') ? act : null) }) } });
+      const typed = (action) => ({ type: 'input', isTrusted: true, target: { getAttribute: (k) => (k === 'data-action' ? action : null), closest: () => null } });
+      const nav = ['present', 'pres-close', 'set-packet', 'toggle-packet-photo', 'set-category', 'mstep', 'next', 'back', 'close'];
+      ok('navigation taps do not count: ' + nav.join(', '), nav.every((a) => isAct(click(a)) === false), nav.filter((a) => isAct(click(a))));
+      ok('typing in (or tapping into) the catalog search does not count', isAct(click('search')) === false && isAct(typed('search')) === false && isAct(Object.assign(typed('search'), { type: 'change' })) === false);
+      const acts = ['set-tier', 'set-job-mode', 'add-to-scope', 'call-clear', 'call-template', 'pres-tier', 'toggle-photo', 'open-job-templates', 'save'];
+      ok('choices and edits do count: ' + acts.join(', '), acts.every((a) => isAct(click(a)) === true), acts.filter((a) => !isAct(click(a))));
+      ok('typing in a measurement counts', isAct(typed(null)) === true);
+      ok('a click with no action (a label, the backdrop) does not count', isAct({ type: 'click', isTrusted: true, target: { closest: () => null } }) === false);
+      ok('a synthetic event never counts', isAct(Object.assign(click('set-tier'), { isTrusted: false })) === false);
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════

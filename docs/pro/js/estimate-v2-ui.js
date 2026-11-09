@@ -1475,13 +1475,7 @@
     // Call to Close P1: a call-prefilled estimate autosaves only once the rep
     // acts (a real tap or keystroke; navigation and V3's own clicks do not count).
     const _callActs = (ev) => {
-      if (!state._callPrefillClean || ev.isTrusted === false) return;
-      if (ev.type === 'click') {
-        const t = ev.target && ev.target.closest ? ev.target.closest('[data-action],[data-v3-act]') : null;
-        const act = t ? (t.getAttribute('data-action') || t.getAttribute('data-v3-act') || '') : '';
-        if (!act || CALL_NAV_ACTS.indexOf(act) !== -1) return;
-      }
-      _callUserActed();
+      if (state._callPrefillClean && _callIsAct(ev)) _callUserActed();
     };
     ['click', 'input', 'change'].forEach((t) => modal.addEventListener(t, _callActs, true));
 
@@ -5621,7 +5615,8 @@
   const CALL_LINK_TTL_MS = 5 * 60 * 1000;
   const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
   // Taps that move around the builder without changing the estimate.
-  const CALL_NAV_ACTS = ['close', 'mstep', 'next', 'back', 'jump', 'jump-open', 'sheet-close', 'more', 'toggle'];
+  const CALL_NAV_ACTS = ['close', 'mstep', 'next', 'back', 'jump', 'jump-open', 'sheet-close', 'more', 'toggle',
+    'search', 'present', 'pres-close', 'set-packet', 'toggle-packet-photo', 'set-category'];
   let _callPrefill = null;   // { leadId, callId, applied:[{key,from,to,quote,name,label}], hints, templates }
   let _callToken = 0;
 
@@ -5764,6 +5759,18 @@
   }
 
   function _callUserActed() { state._callPrefillClean = false; }
+  // Does this trusted tap or keystroke change the estimate? A click needs an
+  // action that is not navigation; typing counts, except the catalog search.
+  function _callIsAct(ev) {
+    if (!ev || ev.isTrusted === false) return false;
+    const tg = ev.target;
+    if (ev.type === 'click') {
+      const t = tg && tg.closest ? tg.closest('[data-action],[data-v3-act]') : null;
+      const act = t ? (t.getAttribute('data-action') || t.getAttribute('data-v3-act') || '') : '';
+      return !!act && CALL_NAV_ACTS.indexOf(act) === -1;
+    }
+    return !(tg && typeof tg.getAttribute === 'function' && tg.getAttribute('data-action') === 'search');
+  }
 
   // Every open and close: an untouched prefill is undone, the strip goes.
   function _callPrefillReset() {
@@ -6420,6 +6427,7 @@
         templates: () => (_callPrefill ? _callPrefill.templates.slice() : []),
         clear: _callPrefillClear,
         acted: _callUserActed,
+        isAct: _callIsAct,
         suggested: () => (_callPrefill && _callPrefill.suggested ? _callPrefill.suggested.slice() : []),
         template: _callPrefillTemplate,
         panelHtml: _callPanelHtml,
