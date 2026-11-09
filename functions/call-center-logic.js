@@ -671,9 +671,13 @@ const SUMMARY_POINTER = 'The summary is on the customer\'s timeline.';
  * A follow-up task's notes without the "Call: <AI summary>" paragraph that
  * tasks filed before 2026-11-09 carry. A move copies the task through this.
  * Anything else (what Jo said he'd do, text he typed) is kept as it is.
+ * source 'thursday': a Thursday task (thursday-logic.js buildTask) filed
+ * before then carries 'Urgent: <reason>' and 'Summary: <AI summary>' lines
+ * instead; only on such a task are those lines dropped.
  */
-function scrubTaskSummary(notes) {
+function scrubTaskSummary(notes, source) {
   if (typeof notes !== 'string') return notes;
+  if (source === 'thursday') return notes.split('\n').filter((l) => !/^(Summary|Urgent): /.test(l)).join('\n');
   return notes.split('\n\n').filter((p) => !/^Call: /.test(p)).join('\n\n');
 }
 

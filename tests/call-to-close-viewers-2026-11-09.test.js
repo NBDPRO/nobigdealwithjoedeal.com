@@ -220,6 +220,23 @@ const cols = (qs) => qs.map((q) => q.col);
   ok('…and points to where the summary lives', t && /summary is on the customer's timeline/.test(t.notes), t && t.notes);
   const td = L.buildTextDayTask({ day: { id: 'day1', contactName: 'Kim', startedAtMs: NOW - 3600e3 }, notes, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-11-09', nowMs: NOW });
   ok('a day of texts: the task has no summary either', td && td.source === 'sms-backup' && !/SECRET SUMMARY/.test(JSON.stringify(td)));
+  {
+    // Thursday's own follow-up task (leads/{id}/tasks/thursday-{callId}) is read
+    // by the same roles; it gets the same treatment as the cube / sms tasks.
+    const TL = require(path.join(ROOT, 'functions/integrations/thursday-logic.js'));
+    const ex = TL.sanitizeExtraction ? TL.sanitizeExtraction({ caller_name: 'Kim Nowicka', callback_number: '5135550100', issue: 'Leak over the kitchen',
+      urgent: true, urgent_reason: 'URGENTSECRET water inside', callback_window: 'after 3pm', caller_type: 'homeowner' }) : null;
+    const tt = ex && TL.buildTask({ extraction: ex, call: { callId: 'abc123', from: '+15135550100', summary: 'THURSDAYSECRET summary of the call' },
+      route: { action: 'attach' }, leadId: 'L1', ownerUid: 'U', now: NOW });
+    ok('a Thursday call still makes its task (positive control)', tt && tt.source === 'thursday' && tt.thursdayCallId === 'abc123' && tt.priority === 'high'
+      && /Best time: after 3pm/.test(tt.notes) && /Number: \+15135550100/.test(tt.notes), tt);
+    ok('the Thursday task no longer copies the AI summary or the urgent reason', tt && !/THURSDAYSECRET|URGENTSECRET/.test(JSON.stringify(tt)), tt && tt.notes);
+    ok('…and points to where the summary lives', tt && tt.notes.indexOf(L.SUMMARY_POINTER || 'The summary is on the customer\'s timeline.') !== -1, tt && tt.notes);
+    ok('scrubTaskSummary(notes, \'thursday\') drops an old Thursday task\'s Summary / Urgent lines',
+      L.scrubTaskSummary('Best time: am\nNumber: +1513\nUrgent: SECRET\nSummary: SECRET', 'thursday') === 'Best time: am\nNumber: +1513');
+    ok('…but only on a Thursday task (a cube task\'s lines are left alone)',
+      L.scrubTaskSummary('Summary: typed by Jo', 'cube-acr') === 'Summary: typed by Jo' && L.scrubTaskSummary('Summary: typed by Jo') === 'Summary: typed by Jo');
+  }
   ok('the timeline entry still carries the summary (rules keep it from viewers)', L.buildCallActivity({ call: { id: 'c' }, notes, ownerUid: 'U' }).summary === notes.summary);
   ok('scrubTaskSummary removes the old "Call: …" paragraph and keeps the rest',
     typeof L.scrubTaskSummary === 'function' && L.scrubTaskSummary('Call: SECRET\n\nYou said you would:\n• X') === 'You said you would:\n• X'
