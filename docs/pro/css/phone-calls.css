@@ -108,6 +108,9 @@
 .cc-suggest { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); display: flex; flex-direction: column; gap: 6px; }
 .cc-suggest-note { font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
 .cc-suggest-btn { align-self: flex-start; max-width: 100%; overflow-wrap: anywhere; }
+/* Call to Close P2: a merged call's row (Play the redial / Undo merge). Its audio and status slots take no room until used. */
+.cc-merge .pc-actions { margin-top: 0; }
+.cc-merge .pc-audio:empty, .cc-merge .pc-status:empty { display: none; }
 .cc-deck-item + .cc-deck-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br, #2a2f35); }
 .cc-tagmatch { margin-bottom: 12px; }
 /* Pipeline health strip (callPipelineHealth, 2026-10-12): one line when well, red when not. */
