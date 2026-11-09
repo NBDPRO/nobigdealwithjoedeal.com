@@ -21,7 +21,7 @@
  *                else one "Open Daily Success" link; business half: calls,
  *                follow-ups and jobs left (nbd_today_summary). Opens Daily
  *                Success in the same tab. Each half hideable (cfg show).
- *                P2: Set goals (owner / company_admin) or Team goals (anyone,
+ *                P2: on L, Set goals (owner / company_admin) or Team goals (anyone,
  *                once goals exist) opens os/ds-goals.js, the runtime bundle
  *                osdsgoals this file registers and loads on the first tap.
  *   P1           Needs you, Storm, Closes this week, Money and the Smart Stack
@@ -446,7 +446,8 @@
       if (doors) rows += size === 'l' ? dsRow('Done today', 'is-label') + dsRow(doors) : dsRow(doors);
     }
     flush();
-    if (show !== 'personal') parts.push(goalsBtn(biz));
+    // the goals button only on L: an M card (one 160px desk row) has no room left for a 44px target
+    if (show !== 'personal' && size === 'l') parts.push(goalsBtn(biz));
     return h + parts.join('');
   }
 

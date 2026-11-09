@@ -6,7 +6,7 @@
  * companies/{companyId}/settings/goals { callsPerDay, followUpsPerDay,
  * doorsPerDay } had a reader (os/ds-business.js) and rules (firestore.rules
  * "DAILY GOALS", tests/firestore-rules.os-daily-goals.test.js) but no writer.
- * The Daily Success widget now carries:
+ * The Daily Success widget (L; an M card has no room) now carries:
  *   - "Set goals" for the solo owner or a company_admin (the layout's
  *     canAdmin): a native <dialog> with three number fields; Save writes the
  *     one doc the rules allow (all three goals, updatedAt, updatedBy = the
@@ -144,6 +144,10 @@ async function run() {
     const { card } = widget({ goals: { doorsPerDay: 40 }, s: 's' });
     await settle();
     ok('the small widget stays one thing: no goals button', !card().querySelector('[data-oshw-goals]'));
+    const m = widget({ goals: { doorsPerDay: 40 }, s: 'm' });
+    await settle();
+    // screenshots (2026-11-09): a 44px button clipped at the foot of the 160px desk M card
+    ok('the medium widget has no room for it either: L only', !m.card().querySelector('[data-oshw-goals]') && /Doors 0 of 40|Doors \d+ of 40|Left today/.test(text(m.card())), text(m.card()));
   }
 
   console.log('\n3. house rules');
