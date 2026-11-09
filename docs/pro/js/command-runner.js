@@ -501,6 +501,7 @@
     ev.preventDefault();
     ev.stopPropagation();
     var C = cmd();
+    if (C && typeof C.noteUse === 'function') { try { C.noteUse(item.id); } catch (e) {} }   // counts like Enter on the row
     if (C && typeof C.close === 'function') C.close();
     runVerb(verb);
   }

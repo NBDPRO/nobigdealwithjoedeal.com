@@ -714,11 +714,16 @@
   }
 
   // ─── Execute selected ───────────────────────────────────────────
+  /** A row was used: recents + the usage ranking (Enter here, a verb click in command-runner.js). */
+  function _noteUse(id) {
+    _bumpRecent(id);
+    const x = _X();
+    if (x && id && !/^(math|themes):/.test(String(id))) x.bump(id);
+  }
   function _execute(item) {
     if (!item) return;
-    _bumpRecent(item.id);
+    _noteUse(item.id);
     const x = _X();
-    if (x && item.id && !/^(math|themes):/.test(String(item.id))) x.bump(item.id);
     const pinned = x ? x.contextLead() : null;
     close();
     // Defer execution so the modal closes cleanly (focus returns
@@ -788,6 +793,7 @@
       const r = window.NBDRunner;
       if (r) r.registerProvider(p); else (window.__nbdCmdProviders = window.__nbdCmdProviders || []).push(p);
     },
+    noteUse: _noteUse,
   };
 
   if (document.readyState === 'loading') {

@@ -358,9 +358,13 @@ console.log('\nRUNNER — the real palette, layer and runner in a fake DOM');
   (input2.listeners.input || []).forEach((f) => f({ target: input2 }));
   const list2 = document.getElementById('nbd-cmd-results');
   const nav = list2.querySelectorAll('.cmdr-row')[0].querySelectorAll('[data-cmdr-v]')[3];
+  const used0 = JSON.parse(store.nbd_cmd_usage_v1 || '{}')['lead:L1'] || 0;
+  store.nbd_cmd_recent_v1 = '["go-crm"]';
   H.fire(dom, nav, 'click');
   ok('clicking Navigate opens Maps and closes the palette (the row\'s own run never fires)',
     W.opened.length === 1 && /google\.com\/maps/.test(W.opened[0][0]) && !document.getElementById('nbd-cmd-modal'));
+  ok('a verb click counts like Enter on the row: recents and the usage ranking',
+    JSON.parse(store.nbd_cmd_recent_v1)[0] === 'lead:L1' && JSON.parse(store.nbd_cmd_usage_v1 || '{}')['lead:L1'] === used0 + 1, store.nbd_cmd_recent_v1 + ' ' + store.nbd_cmd_usage_v1);
   // the custom prefix provider
   C.open();
   const input3 = document.getElementById('nbd-cmd-input');
