@@ -725,6 +725,28 @@ function humanFiledProblem(call) {
   return '';
 }
 
+// ── stage moves (P1) ─────────────────────────────────────────────────────
+// The server twin of docs/pro/js/call-to-close-logic.js stagePlan: may the
+// brief's stage go in ONE tap? Never Inspected or install_complete (a $3
+// measurement / the after-install steps), never a stage that sets an
+// appointment, never Lost / Archived / Cancelled, and never a stage a call
+// may not suggest (a signed contract, a job, a won stage).
+// tests/call-to-close-stage-2026-11-09.test.js holds the two equal.
+const STAGE_CONFIRM_KEYS = ['inspected', 'install_complete'];
+const STAGE_APPOINTMENT_RE = /(^|_)(appointment|appt|appts|meeting|scheduled?|booked|booking|visit)(_|$)/;
+const STAGE_CLOSE_OUT_RE = /(^|[_\s-])(lost|archived?|cancell?ed)($|[_\s-])/;
+const normStageKey = (k) => String(k == null ? '' : k).trim().toLowerCase().replace(/[\s-]+/g, '_');
+/** May a call's suggestion move to this stage at all (from the sheet, with a confirm if needed)? */
+function stageOfferable(key, role) {
+  const k = normStageKey(key);
+  return !!k && !NEVER_OFFER.has(k) && OFFER_ROLES.includes(normStageKey(role));
+}
+function stageOneTapAllowed(key, role) {
+  const k = normStageKey(key);
+  if (!stageOfferable(k, role) || STAGE_APPOINTMENT_RE.test(k) || STAGE_CONFIRM_KEYS.includes(k)) return false;
+  return normStageKey(role) !== 'lost' && !STAGE_CLOSE_OUT_RE.test(k);
+}
+
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
 function cacheState(doc, hash, nowMs, force) {
   if (!doc || doc.v !== BRIEF_VERSION || doc.transcriptHash !== hash || !doc.brief) return 'regenerate';
@@ -739,4 +761,5 @@ module.exports = {
   normalizeSpeech, groundQuote, digitsInQuote, LOW_LOGPROB, unsureQuotes, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
+  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed,
 };
