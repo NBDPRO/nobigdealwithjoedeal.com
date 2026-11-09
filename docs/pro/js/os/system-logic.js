@@ -162,6 +162,12 @@
    * sidebar customizer hide (class "dn", display:none, hidden); a COLLAPSED
    * nav section is not hidden, it's folded. Feed the result to appsFromNav.
    */
+  /** A sidebar item hidden by role gating or the customizer (readNav's test; also the link apps'). */
+  function navHidden(n) {
+    var cls = n.classList;
+    return !!(n.hidden || (cls && cls.contains('dn')) || (n.style && n.style.display === 'none') ||
+      n.getAttribute('aria-hidden') === 'true');
+  }
   function readNav(doc) {
     var out = [];
     if (!doc || typeof doc.querySelectorAll !== 'function') return out;
@@ -175,9 +181,7 @@
         if (kids[k].nodeType === 3) label += kids[k].nodeValue;
       }
       var iconEl = n.querySelector ? n.querySelector('.ni-icon') : null;
-      var cls = n.classList;
-      var hidden = !!(n.hidden || (cls && cls.contains('dn')) || (n.style && n.style.display === 'none') ||
-        n.getAttribute('aria-hidden') === 'true');
+      var hidden = navHidden(n);
       out.push({ id: id, label: label || n.getAttribute('aria-label') || '', icon: iconEl ? String(iconEl.textContent || '').trim() : '', hidden: hidden });
     }
     return out;
@@ -196,7 +200,9 @@
       { id: 'os:lock', label: 'Lock screen', keywords: 'lock privacy hide screen away', toggle: 'lock' },
     ];
     (Array.isArray(apps) ? apps : []).forEach(function (a) {
-      acts.push({ id: 'os:app:' + a.id, label: 'Open ' + a.label, keywords: 'app open go ' + a.label.toLowerCase() + ' ' + a.id, app: a.id });
+      var act = { id: 'os:app:' + a.id, label: 'Open ' + a.label, keywords: 'app open go ' + a.label.toLowerCase() + ' ' + a.id, app: a.id };
+      if (typeof a.href === 'string' && a.href) act.href = a.href;   // a link app (os-wm-logic LINK_APPS): its own page
+      acts.push(act);
     });
     return acts;
   }
@@ -294,7 +300,7 @@
     LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
     companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
-    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav,
+    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
     systemActions: systemActions, clockText: clockText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

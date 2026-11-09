@@ -117,6 +117,28 @@ G(() => {
   ok('Start opens it', J(T.W.opened) === J([['/pro/daily-success/', '_self']]), J(T.W.opened));
 });
 
+console.log('\n6b. Spotlight lists it too (os/system.js, like Start, desktop and dock)');
+G(() => {
+  const vm = require('vm');
+  const run = (T) => {
+    T.W.acts = [];
+    T.W.NBDCommand = { open() {}, registerAction(a) { T.W.acts = T.W.acts.filter((x) => x.id !== a.id).concat([a]); }, unregisterAction(id) { T.W.acts = T.W.acts.filter((x) => x.id !== id); } };
+    T.W.MutationObserver = undefined;
+    vm.runInContext(read('docs/pro/js/os/system.js'), T.W, { filename: 'docs/pro/js/os/system.js' });
+    return T.W.acts;
+  };
+  const T = boot();
+  const acts = run(T);
+  const a = acts.filter((x) => x.id === 'os:app:daily-success')[0];
+  ok('an "Open Daily Success" Spotlight entry in the Apps group', !!a && a.label === 'Open Daily Success' && a.group === 'Apps', J(acts.map((x) => x.id)));
+  T.W.opened.length = 0; T.W.goTos.length = 0;
+  if (a) a.run();
+  ok('...that opens the tracker in the same tab, never goTo', J(T.W.opened) === J([['/pro/daily-success/', '_self']]) && T.W.goTos.length === 0, J([T.W.opened, T.W.goTos]));
+  ok('the view apps still route with goTo', (() => { const c = acts.filter((x) => x.id === 'os:app:crm')[0]; if (!c) return false; c.run(); return T.W.goTos.indexOf('crm') >= 0; })());
+  ok('hidden #nav-daily (.dn): no Spotlight entry', !run(boot({ navClass: 'dn' })).some((x) => x.id === 'os:app:daily-success'));
+  ok('no #nav-daily: no Spotlight entry', !run(boot({ nav: false })).some((x) => x.id === 'os:app:daily-success'));
+});
+
 console.log('\n6. the source');
 G(() => {
   ok('os.js opens a link app with window.open(href, \'_self\'), never a new tab', /W\.open\(a\.href, '_self'\)/.test(OS) && !/_blank/.test(OS));
