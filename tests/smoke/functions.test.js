@@ -1154,8 +1154,10 @@ section('D3: leads/*/activity subcollection rules');
   // F-05: rule body grew to include type allowlist + financial-field
   // reject list, so the window widened. `allow update, delete: if false`
   // is still the terminal statement of the match block.
+  // 2600→3200 (2026-11-09): Q11 item 4 ties type 'voicemail' to source
+  // 'voicemail' in the create rule (the block is 2855 chars to this line).
   assert('activity writes restrict update/delete',
-    /match \/activity\/\{activityId\}[\s\S]{0,2600}allow update, delete: if false/.test(src));
+    /match \/activity\/\{activityId\}[\s\S]{0,3200}allow update, delete: if false/.test(src));
   assert('activity type allowlist enforced (F-05)',
     /request\.resource\.data\.type in \[[\s\S]*?'note'[\s\S]*?\]/.test(src));
   assert('activity rejects financial webhook fields (F-05)',

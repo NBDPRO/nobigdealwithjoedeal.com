@@ -16,6 +16,7 @@
 const path = require('path');
 const L = require(path.join(__dirname, '..', 'functions', 'call-center-logic.js'));
 const M = require(path.join(__dirname, '..', 'functions', 'call-center.js'));
+const TCT = require(path.join(__dirname, '..', 'functions', 'task-call-text.js')); // Q11: a call task's call text, owners' view
 const { callAction, COLLECTION } = M._test;
 
 let passed = 0, failed = 0; const fails = [];
@@ -127,7 +128,8 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('call filed on the customer', a.r.ok && c.leadId === 'L1' && c.bucket === 'customer');
   ok('caller number saved as altPhone (phone kept)', db.docs.get('leads/L1').altPhone === '(513) 555-0100' && db.docs.get('leads/L1').phone === '(513) 555-0111' && a.r.phoneAdded === true);
   ok('noted call → timeline entry', !!db.docs.get('leads/L1/activity/cube-cube_AAAAA1'));
-  const t = db.docs.get('leads/L1/tasks/cube-cube_AAAAA1');
+  // Q11 (2026-11-09): the stored title is generic; the owner reads it with its call text laid over.
+  const t = TCT.apply(db.docs.get('leads/L1/tasks/cube-cube_AAAAA1'), db.docs.get('leads/L1/task_call_text/cube-cube_AAAAA1'));
   ok('noted call with Jo\'s promise → follow-up task', t && /Send photos to the adjuster/.test(t.title) && t.dueDate === '2026-10-03');
   db.docs.set('leads/L1/tasks/cube-cube_AAAAA1', Object.assign({}, t, { done: true }));
   await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
@@ -291,7 +293,7 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   // Call to Close P2: a tenant call's entry carries its own company (co1), as the notes pass's does for a tenant feed.
   ok('…with the same timeline entry the notes pass writes', JSON.stringify(Object.assign({}, db.docs.get('leads/L1/activity/cube-cube_SIB001'), { createdAt: 0 }))
     === JSON.stringify(Object.assign(L.buildCallActivity({ call: Object.assign({}, sib('cube_SIB001'), { id: 'cube_SIB001' }), notes: { summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false }, ownerUid: OWN, companyId: 'co1' }), { createdAt: 0 })));
-  ok('…and the same follow-up task', db.docs.get('leads/L1/tasks/cube-cube_SIB001') && /Call the adjuster back/.test(db.docs.get('leads/L1/tasks/cube-cube_SIB001').title) && db.docs.get('leads/L1/tasks/cube-cube_SIB001').leadId === 'L1');
+  ok('…and the same follow-up task', db.docs.get('leads/L1/tasks/cube-cube_SIB001') && /Call the adjuster back/.test(TCT.apply(db.docs.get('leads/L1/tasks/cube-cube_SIB001'), db.docs.get('leads/L1/task_call_text/cube-cube_SIB001')).title) && db.docs.get('leads/L1/tasks/cube-cube_SIB001').leadId === 'L1');
   ok('a not-yet-noted call is filed (the notes pass adds its entry later)', sib('cube_SIB002').leadId === 'L1' && !db.docs.has('leads/L1/activity/cube-cube_SIB002'));
   ok('a call already on another customer stays there', sib('cube_SIB003').leadId === 'L2' && !db.docs.has('leads/L1/activity/cube-cube_SIB003'));
   ok('another tenant\'s call from the same number is untouched', sib('cube_SIB004').leadId === null);

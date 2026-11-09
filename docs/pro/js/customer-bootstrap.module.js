@@ -1315,7 +1315,7 @@ async function loadTimeline(leadId, lead) {
     const taskSnap = await getDocs(
       query(collection(db, 'leads', leadId, 'tasks'))
     );
-    taskSnap.docs.forEach(d => {
+    (await _overlayCallText(leadId, taskSnap.docs)).forEach(d => {
       const task = d.data();
       if (task.type === 'event') {
         const when = task.eventAt ? new Date(task.eventAt) : (task.createdAt?.toDate ? task.createdAt.toDate() : new Date());
@@ -1479,7 +1479,9 @@ async function loadTimeline(leadId, lead) {
           time: when,
           icon: '📞',
           title: 'Thursday took a call' + (c.urgent ? ' — URGENT' : '') + (c.route && c.route.action === 'possible_match' ? ' (possible match)' : ''),
-          desc: c.issue || (c.call && c.call.summary) || '',
+          // Q11 (2026-11-09): the call's notes (issue, urgent reason, best time,
+          // carrier, claim #) live on the call now, not on lead.notes.
+          desc: (typeof c.callNotes === 'string' && c.callNotes.trim()) ? c.callNotes.trim().replace(/\s*\n\s*/g, ' · ') : (c.issue || (c.call && c.call.summary) || ''),
           type: 'communication'
         });
       });
@@ -4131,6 +4133,23 @@ window.exportCustomerPDF = async function() {
   }
 };
 
+// Call to Close Q11 (Jo, 2026-11-09): a task the server files from a call
+// stores a generic title; the call text is in leads/{id}/task_call_text,
+// which a viewer cannot read. Everyone else gets it laid back over the task
+// (js/task-call-text.js, lazy). Takes and returns { id, data() } rows, so the
+// two task reads below keep their shape; a viewer or any failure keeps the
+// generic rows.
+async function _overlayCallText(leadId, docs) {
+  const rows = (docs || []).map(d => ({ id: d.id, leadId, ...(d.data() || {}) }));
+  try {
+    if (!rows.some(t => t.callText === true) || ((window._userClaims || {}).role || '') === 'viewer') return docs;
+    if (!window.NBDTaskCallText && window.ScriptLoader) await window.ScriptLoader.load('js/task-call-text.js?v=1');
+    if (!window.NBDTaskCallText) return docs;
+    const full = await window.NBDTaskCallText.overlay(window, rows);
+    return full.map((t, i) => (t === rows[i] ? docs[i] : { id: docs[i].id, data: () => { const { leadId: _l, id: _i, ...rest } = t; if ('leadId' in (docs[i].data() || {})) rest.leadId = _l; return rest; } }));
+  } catch (_) { return docs; }
+}
+
 // Rebuild the activity timeline from source collections so the exported
 // PDF isn't capped by what the on-screen timeline happened to render.
 // Mirrors loadTimeline() above but returns a plain array instead of HTML.
@@ -4169,7 +4188,7 @@ async function _gatherTimelineForReport(leadId, lead) {
     // Unified store: leads/{leadId}/tasks (title on customer-created
     // docs, text on dashboard/quick-capture ones).
     const snap = await getDocs(query(collection(window.db, 'leads', leadId, 'tasks')));
-    snap.docs.forEach(d => {
+    (await _overlayCallText(leadId, snap.docs)).forEach(d => {
       const t = d.data();
       const created = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : new Date());
       timeline.push({

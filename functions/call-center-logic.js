@@ -29,6 +29,7 @@
 
 const { phoneDigits10 } = require('./phone-utils');
 const SW = require('./schedule-window');
+const TCT = require('./task-call-text');
 
 const DIRECTION = { '↗': 'outbound', '↙': 'inbound' };
 
@@ -689,7 +690,13 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
   const first = mine[0];
   const title = clip(first ? first.text + ' (' + who + ')' : 'Follow up with ' + who, 200);
   const dues = mine.map((p) => p.due).filter(Boolean).concat(notes.followUpDate ? [notes.followUpDate] : []).sort();
-  return {
+  // Jo, 2026-11-09 (Q11 review item 2): the promise the AI pulled and the
+  // "You said you would" list are call content, and every reader of the
+  // customer reads its tasks, viewers included. The stored task is generic;
+  // the full title / notes ride on callTextFull for the writer to put in
+  // leads/{id}/task_call_text/<taskId> (functions/task-call-text.js).
+  const generic = clip('Follow up with ' + who, 200);
+  return TCT.split({
     leadId,
     userId: ownerUid,
     title,
@@ -707,7 +714,7 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
     source: 'cube-acr',
     phoneCallId: call.id,
     createdBy: 'Call Center (AI notes)',
-  };
+  }, { title: generic, text: generic, notes: notes.summary ? SUMMARY_POINTER : '' });
 }
 
 // ── Stage 3: the "you said you'd…" sweep (2026-10-01) ────────────────────

@@ -16,6 +16,12 @@
  * cost find() sums through the tenant's own cost book.
  *
  * Pins:
+ *   UPDATED 2026-11-06 (CRM audit OR-F06, MONEY/LOGIC PR #2941, Jo OK 2026-11-09): 198 of the 390
+ *      values below, every selection that includes the Best asphalt template,
+ *      moved because RFG IWS-HT stopped billing ice & water over the WHOLE deck
+ *      (eave band now, like RFG IWS). Best at default measurements: $24,125 ->
+ *      $20,275. Every other value is unchanged; the fold this test protects is
+ *      untouched.
  *   1. TOTALS ARE BYTE-IDENTICAL. BASELINE below was captured from the code on
  *      origin/main BEFORE this change (c10facd8): five template selections
  *      (incl. two merged ones) × three measurement sets × cash/insurance × all
@@ -149,36 +155,36 @@ function snapshot(root) {
 // wallLf 0, so only the coil nails move these totals.
 // BASELINE:START
 const BASELINE = {
-  "tpl|nobook|best|default|cash|economy": "24125,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|cash|good": "24125,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|cash|better": "24125,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|cash|best": "24125,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|cash|beyond": "24125,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|insurance|economy": "22550,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|insurance|good": "22550,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|insurance|better": "22550,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|insurance|best": "22550,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|default|insurance|beyond": "22550,1635584,1061944,573640,1879195",
-  "tpl|nobook|best|big|cash|economy": "39825,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|cash|good": "39825,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|cash|better": "39825,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|cash|best": "39825,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|cash|beyond": "39825,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|insurance|economy": "37225,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|insurance|good": "37225,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|insurance|better": "37225,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|insurance|best": "37225,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|big|insurance|beyond": "37225,2684064,1755859,928205,3101153",
-  "tpl|nobook|best|small|cash|economy": "14050,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|cash|good": "14050,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|cash|better": "14050,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|cash|best": "14050,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|cash|beyond": "14050,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|insurance|economy": "13125,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|insurance|good": "13125,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|insurance|better": "13125,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|insurance|best": "13125,963065,608470,354595,1093308",
-  "tpl|nobook|best|small|insurance|beyond": "13125,963065,608470,354595,1093308",
+  "tpl|nobook|best|default|cash|economy": "20275,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|cash|good": "20275,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|cash|better": "20275,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|cash|best": "20275,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|cash|beyond": "20275,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|insurance|economy": "18950,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|insurance|good": "18950,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|insurance|better": "18950,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|insurance|best": "18950,1387424,855144,532280,1579335",
+  "tpl|nobook|best|default|insurance|beyond": "18950,1387424,855144,532280,1579335",
+  "tpl|nobook|best|big|cash|economy": "32975,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|cash|good": "32975,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|cash|better": "32975,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|cash|best": "32975,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|cash|beyond": "32975,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|insurance|economy": "30825,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|insurance|good": "30825,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|insurance|better": "30825,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|insurance|best": "30825,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|big|insurance|beyond": "30825,2243184,1388459,854725,2568423",
+  "tpl|nobook|best|small|cash|economy": "11875,823805,492420,331385,925035",
+  "tpl|nobook|best|small|cash|good": "11875,823805,492420,331385,925035",
+  "tpl|nobook|best|small|cash|better": "11875,823805,492420,331385,925035",
+  "tpl|nobook|best|small|cash|best": "11875,823805,492420,331385,925035",
+  "tpl|nobook|best|small|cash|beyond": "11875,823805,492420,331385,925035",
+  "tpl|nobook|best|small|insurance|economy": "11100,823805,492420,331385,925035",
+  "tpl|nobook|best|small|insurance|good": "11100,823805,492420,331385,925035",
+  "tpl|nobook|best|small|insurance|better": "11100,823805,492420,331385,925035",
+  "tpl|nobook|best|small|insurance|best": "11100,823805,492420,331385,925035",
+  "tpl|nobook|best|small|insurance|beyond": "11100,823805,492420,331385,925035",
   "tpl|nobook|designer|default|cash|economy": "18525,1272800,768100,504700,1442950", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "tpl|nobook|designer|default|cash|good": "18525,1272800,768100,504700,1442950", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "tpl|nobook|designer|default|cash|better": "18525,1272800,768100,504700,1442950", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
@@ -239,81 +245,81 @@ const BASELINE = {
   "tpl|nobook|better|small|insurance|better": "7575,577928,304648,273280,632214",
   "tpl|nobook|better|small|insurance|best": "7575,577928,304648,273280,632214",
   "tpl|nobook|better|small|insurance|beyond": "7575,577928,304648,273280,632214",
-  "tpl|nobook|bestPlusDesigner|default|cash|economy": "41450,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|cash|good": "41450,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|cash|better": "41450,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|cash|best": "41450,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|cash|beyond": "41450,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|insurance|economy": "38750,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|insurance|good": "38750,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|insurance|better": "38750,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|insurance|best": "38750,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|default|insurance|beyond": "38750,2803884,1786044,1017840,3228520", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|cash|economy": "69425,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|cash|good": "69425,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|cash|better": "69425,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|cash|best": "69425,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|cash|beyond": "69425,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|insurance|economy": "64900,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|insurance|good": "64900,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|insurance|better": "64900,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|insurance|best": "64900,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|big|insurance|beyond": "64900,4682249,2989914,1692335,5407852", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|cash|economy": "23800,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|cash|good": "23800,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|cash|better": "23800,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|cash|best": "23800,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|cash|beyond": "23800,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|insurance|economy": "22250,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|insurance|good": "22250,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|insurance|better": "22250,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|insurance|best": "22250,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|bestPlusDesigner|small|insurance|beyond": "22250,1623563,1010688,612875,1854360", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|nobook|betterPlusBest|default|cash|economy": "37400,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|cash|good": "37400,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|cash|better": "37400,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|cash|best": "37400,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|cash|beyond": "37400,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|insurance|economy": "34950,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|insurance|good": "34950,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|insurance|better": "34950,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|insurance|best": "34950,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|default|insurance|beyond": "34950,2541344,1572104,969240,2912495",
-  "tpl|nobook|betterPlusBest|big|cash|economy": "62500,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|cash|good": "62500,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|cash|better": "62500,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|cash|best": "62500,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|cash|beyond": "62500,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|insurance|economy": "58400,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|insurance|good": "58400,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|insurance|better": "58400,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|insurance|best": "58400,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|big|insurance|beyond": "58400,4235238,2616428,1618810,4867471",
-  "tpl|nobook|betterPlusBest|small|cash|economy": "20950,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|cash|good": "20950,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|cash|better": "20950,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|cash|best": "20950,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|cash|beyond": "20950,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|insurance|economy": "19575,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|insurance|good": "19575,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|insurance|better": "19575,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|insurance|best": "19575,1436493,869118,567375,1631897",
-  "tpl|nobook|betterPlusBest|small|insurance|beyond": "19575,1436493,869118,567375,1631897",
-  "insert|nobook|best|default": "24125,1635584",
-  "insert|nobook|best|big": "39825,2684064",
-  "insert|nobook|best|small": "14050,963065",
+  "tpl|nobook|bestPlusDesigner|default|cash|economy": "37600,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|cash|good": "37600,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|cash|better": "37600,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|cash|best": "37600,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|cash|beyond": "37600,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|insurance|economy": "35150,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|insurance|good": "35150,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|insurance|better": "35150,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|insurance|best": "35150,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|default|insurance|beyond": "35150,2555724,1579244,976480,2928660", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|cash|economy": "62600,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|cash|good": "62600,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|cash|better": "62600,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|cash|best": "62600,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|cash|beyond": "62600,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|insurance|economy": "58500,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|insurance|good": "58500,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|insurance|better": "58500,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|insurance|best": "58500,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|big|insurance|beyond": "58500,4241369,2622514,1618855,4875122", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|cash|economy": "21650,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|cash|good": "21650,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|cash|better": "21650,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|cash|best": "21650,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|cash|beyond": "21650,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|insurance|economy": "20225,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|insurance|good": "20225,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|insurance|better": "20225,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|insurance|best": "20225,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|bestPlusDesigner|small|insurance|beyond": "20225,1484303,894638,589665,1686087", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|nobook|betterPlusBest|default|cash|economy": "33550,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|cash|good": "33550,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|cash|better": "33550,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|cash|best": "33550,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|cash|beyond": "33550,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|insurance|economy": "31350,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|insurance|good": "31350,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|insurance|better": "31350,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|insurance|best": "31350,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|default|insurance|beyond": "31350,2293184,1365304,927880,2612635",
+  "tpl|nobook|betterPlusBest|big|cash|economy": "55650,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|cash|good": "55650,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|cash|better": "55650,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|cash|best": "55650,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|cash|beyond": "55650,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|insurance|economy": "52025,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|insurance|good": "52025,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|insurance|better": "52025,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|insurance|best": "52025,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|big|insurance|beyond": "52025,3794358,2249028,1545330,4334741",
+  "tpl|nobook|betterPlusBest|small|cash|economy": "18800,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|cash|good": "18800,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|cash|better": "18800,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|cash|best": "18800,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|cash|beyond": "18800,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|insurance|economy": "17575,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|insurance|good": "17575,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|insurance|better": "17575,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|insurance|best": "17575,1297233,753068,544165,1463625",
+  "tpl|nobook|betterPlusBest|small|insurance|beyond": "17575,1297233,753068,544165,1463625",
+  "insert|nobook|best|default": "20275,1387424",
+  "insert|nobook|best|big": "32975,2243184",
+  "insert|nobook|best|small": "11875,823805",
   "insert|nobook|designer|default": "18525,1272800", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|nobook|designer|big": "30825,2102685", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|nobook|designer|small": "10975,764998", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|nobook|better|default": "14475,1010260",
   "insert|nobook|better|big": "23875,1655675",
   "insert|nobook|better|small": "8125,577928",
-  "insert|nobook|bestPlusDesigner|default": "35050,2361184", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|nobook|bestPlusDesigner|big": "59350,3980649", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|nobook|bestPlusDesigner|small": "20150,1367928", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|nobook|betterPlusBest|default": "33400,2255744",
-  "insert|nobook|betterPlusBest|big": "55875,3757988",
-  "insert|nobook|betterPlusBest|small": "19250,1310868",
+  "insert|nobook|bestPlusDesigner|default": "31200,2113024", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|nobook|bestPlusDesigner|big": "52525,3539769", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|nobook|bestPlusDesigner|small": "17975,1228668", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|nobook|betterPlusBest|default": "29550,2007584",
+  "insert|nobook|betterPlusBest|big": "49025,3317108",
+  "insert|nobook|betterPlusBest|small": "17075,1171608",
   "persq|a|cash|economy": "10325",
   "persq|a|cash|good": "12675",
   "persq|a|cash|better": "15025",
@@ -374,36 +380,36 @@ const BASELINE = {
   "lineitem|c|insurance|better": "7850",
   "lineitem|c|insurance|best": "9050",
   "lineitem|c|insurance|beyond": "9050",
-  "tpl|book|best|default|cash|economy": "24200,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|cash|good": "24200,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|cash|better": "24200,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|cash|best": "24200,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|cash|beyond": "24200,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|insurance|economy": "22625,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|insurance|good": "22625,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|insurance|better": "22625,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|insurance|best": "22625,1641084,1064944,576140,1885445",
-  "tpl|book|best|default|insurance|beyond": "22625,1641084,1064944,576140,1885445",
-  "tpl|book|best|big|cash|economy": "39900,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|cash|good": "39900,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|cash|better": "39900,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|cash|best": "39900,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|cash|beyond": "39900,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|insurance|economy": "37300,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|insurance|good": "37300,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|insurance|better": "37300,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|insurance|best": "37300,2689564,1758859,930705,3107403",
-  "tpl|book|best|big|insurance|beyond": "37300,2689564,1758859,930705,3107403",
-  "tpl|book|best|small|cash|economy": "14125,968565,611470,357095,1099558",
-  "tpl|book|best|small|cash|good": "14125,968565,611470,357095,1099558",
-  "tpl|book|best|small|cash|better": "14125,968565,611470,357095,1099558",
-  "tpl|book|best|small|cash|best": "14125,968565,611470,357095,1099558",
-  "tpl|book|best|small|cash|beyond": "14125,968565,611470,357095,1099558",
-  "tpl|book|best|small|insurance|economy": "13200,968565,611470,357095,1099558",
-  "tpl|book|best|small|insurance|good": "13200,968565,611470,357095,1099558",
-  "tpl|book|best|small|insurance|better": "13200,968565,611470,357095,1099558",
-  "tpl|book|best|small|insurance|best": "13200,968565,611470,357095,1099558",
-  "tpl|book|best|small|insurance|beyond": "13200,968565,611470,357095,1099558",
+  "tpl|book|best|default|cash|economy": "20350,1392924,858144,534780,1585585",
+  "tpl|book|best|default|cash|good": "20350,1392924,858144,534780,1585585",
+  "tpl|book|best|default|cash|better": "20350,1392924,858144,534780,1585585",
+  "tpl|book|best|default|cash|best": "20350,1392924,858144,534780,1585585",
+  "tpl|book|best|default|cash|beyond": "20350,1392924,858144,534780,1585585",
+  "tpl|book|best|default|insurance|economy": "19025,1392924,858144,534780,1585585",
+  "tpl|book|best|default|insurance|good": "19025,1392924,858144,534780,1585585",
+  "tpl|book|best|default|insurance|better": "19025,1392924,858144,534780,1585585",
+  "tpl|book|best|default|insurance|best": "19025,1392924,858144,534780,1585585",
+  "tpl|book|best|default|insurance|beyond": "19025,1392924,858144,534780,1585585",
+  "tpl|book|best|big|cash|economy": "33050,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|cash|good": "33050,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|cash|better": "33050,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|cash|best": "33050,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|cash|beyond": "33050,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|insurance|economy": "30900,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|insurance|good": "30900,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|insurance|better": "30900,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|insurance|best": "30900,2248684,1391459,857225,2574673",
+  "tpl|book|best|big|insurance|beyond": "30900,2248684,1391459,857225,2574673",
+  "tpl|book|best|small|cash|economy": "11950,829305,495420,333885,931285",
+  "tpl|book|best|small|cash|good": "11950,829305,495420,333885,931285",
+  "tpl|book|best|small|cash|better": "11950,829305,495420,333885,931285",
+  "tpl|book|best|small|cash|best": "11950,829305,495420,333885,931285",
+  "tpl|book|best|small|cash|beyond": "11950,829305,495420,333885,931285",
+  "tpl|book|best|small|insurance|economy": "11175,829305,495420,333885,931285",
+  "tpl|book|best|small|insurance|good": "11175,829305,495420,333885,931285",
+  "tpl|book|best|small|insurance|better": "11175,829305,495420,333885,931285",
+  "tpl|book|best|small|insurance|best": "11175,829305,495420,333885,931285",
+  "tpl|book|best|small|insurance|beyond": "11175,829305,495420,333885,931285",
   "tpl|book|designer|default|cash|economy": "18600,1278300,771100,507200,1449200", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "tpl|book|designer|default|cash|good": "18600,1278300,771100,507200,1449200", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "tpl|book|designer|default|cash|better": "18600,1278300,771100,507200,1449200", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
@@ -464,81 +470,81 @@ const BASELINE = {
   "tpl|book|better|small|insurance|better": "7575,577928,304648,273280,632214",
   "tpl|book|better|small|insurance|best": "7575,577928,304648,273280,632214",
   "tpl|book|better|small|insurance|beyond": "7575,577928,304648,273280,632214",
-  "tpl|book|bestPlusDesigner|default|cash|economy": "41625,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|cash|good": "41625,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|cash|better": "41625,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|cash|best": "41625,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|cash|beyond": "41625,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|insurance|economy": "38900,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|insurance|good": "38900,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|insurance|better": "38900,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|insurance|best": "38900,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|default|insurance|beyond": "38900,2814884,1792044,1022840,3241020", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|cash|economy": "69600,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|cash|good": "69600,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|cash|better": "69600,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|cash|best": "69600,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|cash|beyond": "69600,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|insurance|economy": "65050,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|insurance|good": "65050,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|insurance|better": "65050,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|insurance|best": "65050,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|big|insurance|beyond": "65050,4693249,2995914,1697335,5420352", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|cash|economy": "23975,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|cash|good": "23975,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|cash|better": "23975,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|cash|best": "23975,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|cash|beyond": "23975,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|insurance|economy": "22400,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|insurance|good": "22400,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|insurance|better": "22400,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|insurance|best": "22400,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|bestPlusDesigner|small|insurance|beyond": "22400,1634563,1016688,617875,1866860", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "tpl|book|betterPlusBest|default|cash|economy": "37475,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|cash|good": "37475,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|cash|better": "37475,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|cash|best": "37475,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|cash|beyond": "37475,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|insurance|economy": "35025,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|insurance|good": "35025,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|insurance|better": "35025,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|insurance|best": "35025,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|default|insurance|beyond": "35025,2546844,1575104,971740,2918745",
-  "tpl|book|betterPlusBest|big|cash|economy": "62575,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|cash|good": "62575,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|cash|better": "62575,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|cash|best": "62575,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|cash|beyond": "62575,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|insurance|economy": "58475,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|insurance|good": "58475,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|insurance|better": "58475,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|insurance|best": "58475,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|big|insurance|beyond": "58475,4240738,2619428,1621310,4873721",
-  "tpl|book|betterPlusBest|small|cash|economy": "21025,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|cash|good": "21025,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|cash|better": "21025,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|cash|best": "21025,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|cash|beyond": "21025,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|insurance|economy": "19650,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|insurance|good": "19650,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|insurance|better": "19650,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|insurance|best": "19650,1441993,872118,569875,1638147",
-  "tpl|book|betterPlusBest|small|insurance|beyond": "19650,1441993,872118,569875,1638147",
-  "insert|book|best|default": "24200,1641084",
-  "insert|book|best|big": "39900,2689564",
-  "insert|book|best|small": "14125,968565",
+  "tpl|book|bestPlusDesigner|default|cash|economy": "37775,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|cash|good": "37775,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|cash|better": "37775,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|cash|best": "37775,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|cash|beyond": "37775,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|insurance|economy": "35300,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|insurance|good": "35300,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|insurance|better": "35300,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|insurance|best": "35300,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|default|insurance|beyond": "35300,2566724,1585244,981480,2941160", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|cash|economy": "62750,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|cash|good": "62750,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|cash|better": "62750,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|cash|best": "62750,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|cash|beyond": "62750,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|insurance|economy": "58650,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|insurance|good": "58650,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|insurance|better": "58650,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|insurance|best": "58650,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|big|insurance|beyond": "58650,4252369,2628514,1623855,4887622", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|cash|economy": "21800,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|cash|good": "21800,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|cash|better": "21800,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|cash|best": "21800,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|cash|beyond": "21800,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|insurance|economy": "20375,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|insurance|good": "20375,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|insurance|better": "20375,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|insurance|best": "20375,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|bestPlusDesigner|small|insurance|beyond": "20375,1495303,900638,594665,1698587", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "tpl|book|betterPlusBest|default|cash|economy": "33625,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|cash|good": "33625,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|cash|better": "33625,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|cash|best": "33625,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|cash|beyond": "33625,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|insurance|economy": "31425,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|insurance|good": "31425,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|insurance|better": "31425,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|insurance|best": "31425,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|default|insurance|beyond": "31425,2298684,1368304,930380,2618885",
+  "tpl|book|betterPlusBest|big|cash|economy": "55750,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|cash|good": "55750,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|cash|better": "55750,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|cash|best": "55750,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|cash|beyond": "55750,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|insurance|economy": "52100,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|insurance|good": "52100,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|insurance|better": "52100,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|insurance|best": "52100,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|big|insurance|beyond": "52100,3799858,2252028,1547830,4340991",
+  "tpl|book|betterPlusBest|small|cash|economy": "18875,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|cash|good": "18875,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|cash|better": "18875,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|cash|best": "18875,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|cash|beyond": "18875,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|insurance|economy": "17650,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|insurance|good": "17650,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|insurance|better": "17650,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|insurance|best": "17650,1302733,756068,546665,1469875",
+  "tpl|book|betterPlusBest|small|insurance|beyond": "17650,1302733,756068,546665,1469875",
+  "insert|book|best|default": "20350,1392924",
+  "insert|book|best|big": "33050,2248684",
+  "insert|book|best|small": "11950,829305",
   "insert|book|designer|default": "18600,1278300", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|book|designer|big": "30900,2108185", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|book|designer|small": "11050,770498", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
   "insert|book|better|default": "14475,1010260",
   "insert|book|better|big": "23875,1655675",
   "insert|book|better|small": "8125,577928",
-  "insert|book|bestPlusDesigner|default": "35150,2366684", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|book|bestPlusDesigner|big": "59450,3986149", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|book|bestPlusDesigner|small": "20225,1373428", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
-  "insert|book|betterPlusBest|default": "33475,2261244",
-  "insert|book|betterPlusBest|big": "55950,3763488",
-  "insert|book|betterPlusBest|small": "19325,1316368"
+  "insert|book|bestPlusDesigner|default": "31300,2118524", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|book|bestPlusDesigner|big": "52600,3545269", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|book|bestPlusDesigner|small": "18075,1234168", // 2026-11-09 Designer nail + step-flashing lines (Jo OK)
+  "insert|book|betterPlusBest|default": "29625,2013084",
+  "insert|book|betterPlusBest|big": "49100,3322608",
+  "insert|book|betterPlusBest|small": "17175,1177108"
 };
 // BASELINE:END
 
@@ -555,8 +561,9 @@ function compareTotals(now, label) {
 const NOW = snapshot();
 compareTotals(NOW, 'templates × measurements × modes × 5 tiers (± tenant book), insert-into-V2, V2 per-SQ + line-item');
 // 2026-11-09 Designer gained nail + step-flashing lines (Jo OK): $18,375 -> $18,525.
-ok('the two templates that carried the line still total exactly $24,125 / $18,525 at default measurements, every tier',
-  TIERS.every((t) => NOW['tpl|nobook|best|default|cash|' + t].split(',')[0] === '24125' && NOW['tpl|nobook|designer|default|cash|' + t].split(',')[0] === '18525'));
+// 2026-11-09 #2941 (Jo OK): Best's ice & water is an eave band now: $24,125 -> $20,275.
+ok('the two templates that carried the line still total exactly $20,275 / $18,525 at default measurements, every tier',
+  TIERS.every((t) => NOW['tpl|nobook|best|default|cash|' + t].split(',')[0] === '20275' && NOW['tpl|nobook|designer|default|cash|' + t].split(',')[0] === '18525'));
 ok('…and at the big and small roofs too (fixed $/job fold — no drift with size)',
   ['big', 'small'].every((mk) => TIERS.every((t) => NOW['tpl|nobook|best|' + mk + '|cash|' + t] === BASELINE['tpl|nobook|best|' + mk + '|cash|' + t]
     && NOW['tpl|nobook|designer|' + mk + '|cash|' + t] === BASELINE['tpl|nobook|designer|' + mk + '|cash|' + t])));

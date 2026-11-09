@@ -237,7 +237,10 @@ const TODAY = '2026-10-12';
   const task = db.docs.get('leads/L1/tasks/promise-cube_AAAAA1');
   ok('promise on a filed call -> ok, a task on the lead', x.r && x.r.ok === true && x.r.on === 'task' && x.r.taskId === 'promise-cube_AAAAA1' && !!task);
   ok('the task is a dated, owned promise tied to the call', task.kind === 'promise' && task.promiseKind === 'estimate' && task.dueDate === '2026-10-14' && task.leadId === 'L1'
-    && task.userId === OWN && task.companyId === 'co1' && task.phoneCallId === 'cube_AAAAA1' && task.done === false && task.why === 'Quoted 14k, text it Friday' && task.title === task.text);
+    && task.userId === OWN && task.companyId === 'co1' && task.phoneCallId === 'cube_AAAAA1' && task.done === false && task.title === task.text
+    // Q11 (Jo, 2026-11-09): the why is call content; the task reads the chip, the why is in task_call_text.
+    && task.why === '' && task.text === 'Send estimate' && task.callText === true
+    && (db.docs.get('leads/L1/task_call_text/promise-cube_AAAAA1') || { full: {} }).full.why === 'Quoted 14k, text it Friday');
   ok('the call is handled by the promise', !!db.docs.get(COLLECTION + '/cube_AAAAA1').handledAtMs && db.docs.get(COLLECTION + '/cube_AAAAA1').promiseTaskId === 'promise-cube_AAAAA1');
   ok('the generic follow-up task is retired as superseded (not owed twice)', db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').done === true && db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').supersededBy === 'promise-cube_AAAAA1');
   // idempotent + history kept

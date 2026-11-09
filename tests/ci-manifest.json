@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "q11-task-summary-backfill-2026-11-09.test.js",
     "merge-catalog-costs-2026-11-09.test.js",
     "prod-switches-2026-11-09.test.js",
     "supplier-sweep-data-fixes-2026-11-09.test.js",
@@ -117,6 +118,7 @@
     "call-ladder-2026-10-12.test.js",
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "never-forget-client-2026-10-13.test.js",
+    "estimate-settings-hydrate-2026-11-06.test.js",
     "home-strip-failed-reads-2026-10-13.test.js",
     "today-ux-walk-2026-10-13.test.js",
     "crm-walk-spacing-polish-2026-11-07.test.js",
@@ -527,6 +529,7 @@
     "production-flow-2026-10-04.test.js",
     "roof-3d-2026-10-02.test.js",
     "perf-watch-2026-10-02.test.js",
+    "settings-deeplink-tab-hooks-2026-11-07.test.js",
     "suggest-job-type-2026-10-01.test.js",
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",
@@ -563,6 +566,7 @@
     "no-placeholder-home-addresses-2026-10-06.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
+    "email-tenant-2026-11-06.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
     "crm-search-not-sticky-2026-10-02.test.js",
     "public-invoker-2026-10-02.test.js",
@@ -667,6 +671,8 @@
     "coach-supersets-2026-10-20.test.js",
     "coach-last-time-pr-2026-10-21.test.js",
     "daily-success-default-theme-2026-10-21.test.js",
+    "shortcuts-help-close-2026-11-07.test.js",
+    "signout-estimates-unsub-2026-11-07.test.js",
     "coach-rep-range-pr-2026-10-21.test.js",
     "coach-rpe-2026-10-21.test.js",
     "viewer-guard-customer-2026-11-07.test.js",
@@ -949,6 +955,7 @@
     "command-palette-scopes-2026-10-11.test.js",
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
+    "estimate-iws-qty-2026-11-06.test.js",
     "care-plan-crm-2026-10-05.test.js",
     "pipeline-rich-cards-2026-10-11.test.js",
     "r4-silent-jobs-2026-10-06.test.js",
@@ -1034,7 +1041,11 @@
     "call-to-close-tenantfeed-2026-11-09.test.js",
     "call-to-close-p1-leftovers-2026-11-09.test.js",
     "call-to-close-decision-map-2026-11-09.test.js",
-    "call-to-close-viewers-2026-11-09.test.js"
+    "call-to-close-viewers-2026-11-09.test.js",
+    "q11-task-call-text-2026-11-09.test.js",
+    "q11-thursday-lead-notes-2026-11-09.test.js",
+    "voicemail-viewer-hidden-2026-11-09.test.js",
+    "voicemail-retag-backfill-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1632,6 +1643,7 @@
     "firestore-rules.call-briefs-visit.test.js",
     "firestore-rules.call-feed.test.js",
     "firestore-rules.call-content-viewers.test.js",
+    "firestore-rules.voicemail-viewers.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

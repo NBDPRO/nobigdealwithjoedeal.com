@@ -63,7 +63,9 @@ const H = 3600e3, D = 86400e3;
   {
     const call = (extra) => Object.assign({ id: 'cube_X1', status: 'noted', direction: 'inbound', contactName: 'Kim', startedAtMs: NOW - 2 * H, promises: [], followUpDate: null, urgent: false, summary: 's' }, extra || {});
     const prev = (c) => LP.followUpPreview(c, NOW, TODAY);
-    const server = (c) => SERVER.buildFollowUpTask({ call: c, notes: { summary: c.summary || '', promises: c.promises || [], followUpDate: c.followUpDate || null, urgent: !!c.urgent }, leadId: 'L1', ownerUid: 'U', todayYmd: TODAY, nowMs: NOW });
+    // Q11 (2026-11-09): the preview is the owner's view, the server task with its call text laid over.
+    const ownerView = (t) => t && Object.assign({}, t, t.callTextFull ? t.callTextFull.full : {});
+    const server = (c) => ownerView(SERVER.buildFollowUpTask({ call: c, notes: { summary: c.summary || '', promises: c.promises || [], followUpDate: c.followUpDate || null, urgent: !!c.urgent }, leadId: 'L1', ownerUid: 'U', todayYmd: TODAY, nowMs: NOW }));
     const cases = {
       'a promise of Jo\'s': call({ promises: [{ who: 'jo', text: 'Send the estimate', due: '2026-10-23' }] }),
       'a promise with no date (due today)': call({ promises: [{ who: 'jo', text: 'Call back' }] }),

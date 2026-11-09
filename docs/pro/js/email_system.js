@@ -133,6 +133,23 @@ See you then!
     };
   },
 
+  // Is the active brand NBD? Same test as _brandFields.
+  _isNbdBrand() {
+    let b = null;
+    try { if (typeof window._brand === 'function') b = window._brand() || null; } catch (e) { b = null; }
+    return !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+  },
+
+  // NBD-only sentences → what another company's homeowners get instead.
+  _NBD_ONLY: [
+    ['This includes all materials and labor, a written labor warranty of up to 20 years depending on the package, and the NBD Pledge: for as long as you own the home, we\'ll come back and make it right. We offer Standard, Preferred, and Elite options to fit your budget.',
+     'This includes all materials and labor. Your estimate lists the warranty and package options.'],
+    ['Multiple lenders compete for your approval through the Acorn Finance marketplace, so you\'ll see the rates and terms you qualify for. Rates and terms vary by credit.',
+     'You\'ll see the rates and terms you qualify for. Rates and terms vary by credit.'],
+    ['If you know anyone who needs roofing or home exterior work, we\'d appreciate the referral. We offer a $100 referral bonus for every referred job, once it is paid in full.',
+     'If you know anyone who needs roofing or home exterior work, we\'d appreciate the referral.'],
+  ],
+
   // Populate template with customer data
   populateTemplate(templateKey, data) {
     const template = this.templates[templateKey];
@@ -740,6 +757,14 @@ window.emailSystem.buildStageEmail = async function(leadId) {
   });
   // An empty fill-in line (no length known) leaves no blank gap.
   body = body.replace(/\n{3,}/g, '\n\n');
+  // CRM audit 2026-11-06 (VW-F151, VW-F152): three stage-email sentences are
+  // NBD's own offer (its labor-warranty years, the NBD Pledge and package
+  // names; the Acorn Finance marketplace; the $100 referral bonus) and went to
+  // every company's homeowners. Another company gets the same sentence without
+  // NBD's terms; NBD's emails are unchanged.
+  if (!window.emailSystem._isNbdBrand()) {
+    window.emailSystem._NBD_ONLY.forEach(([nbd, neutral]) => { body = body.split(nbd).join(neutral); });
+  }
 
   return { to: email, subject, body, stage, leadId, customerName };
 };

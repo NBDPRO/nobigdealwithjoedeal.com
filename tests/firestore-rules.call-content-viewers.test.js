@@ -15,6 +15,11 @@
  *      with a not-in query was tried first: the emulator let ANY not-in /
  *      != constrained query through it, returning a thursday entry.)
  *
+ *   4. (Jo, 2026-11-09, review item 2) the call text of a task. A task the
+ *      server files from a call keeps a generic title ("Follow up with Pat")
+ *      that a viewer reads; the promise / issue / "You said you would" lives
+ *      in leads/{id}/task_call_text/{taskId}, which a viewer cannot read.
+ *
  * Every other role keeps exactly what it had (positive controls next to each
  * deny), and phone_calls (closed earlier the same day) is not touched here.
  *
@@ -72,7 +77,7 @@ async function run() {
   const bobCA = ctx('bobca', { role: 'company_admin', companyId: 'co-b' });
   const joe = ctx('joe', { role: 'admin' });
   const anon = env.unauthenticatedContext().firestore();
-  const { setDoc, doc, getDoc, getDocs, collection, query, where, addDoc } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, getDocs, collection, collectionGroup, query, where, addDoc } = require('firebase/firestore');
 
   await env.withSecurityRulesDisabled(async (c) => {
     const db = c.firestore();
@@ -97,6 +102,12 @@ async function run() {
       await act(lead, 'esign-1', { type: 'signature', source: 'esign-webhook', label: 'Signed' });
     }
     await setDoc(doc(db, 'leads/L1/tasks/t1'), { userId: 'alice', companyId: 'co-a', title: 'Call back' });
+    // 4: a call's follow-up task as the server now files it, and its call text.
+    for (const lead of ['L1', 'L2', 'LV']) {
+      const owner = lead === 'L1' ? 'alice' : lead === 'LV' ? 'vico' : 'co-a';
+      await setDoc(doc(db, 'leads/' + lead + '/tasks/cube-C1'), { userId: owner, companyId: 'co-a', leadId: lead, title: 'Follow up with Pat', text: 'Follow up with Pat', notes: 'The summary is on the customer\'s timeline.', callText: true, source: 'cube-acr' });
+      await setDoc(doc(db, 'leads/' + lead + '/task_call_text/cube-C1'), { leadId: lead, taskId: 'cube-C1', source: 'cube-acr', full: { title: 'Send the hail quote (Pat)', text: 'Send the hail quote (Pat)', notes: 'You said you would:\n• Send the hail quote' }, generic: { title: 'Follow up with Pat', text: 'Follow up with Pat', notes: 'The summary is on the customer\'s timeline.' } });
+    }
   });
 
   const getOf = (db, p) => getDoc(doc(db, p));
@@ -163,6 +174,36 @@ async function run() {
   await check('activity: another tenant\'s list of the allowed sources is still refused', 'deny', q(bobCA, 'leads/L1/activity', where('source', 'in', VIEWER_OK)));
   await check('activity: a viewer still cannot write', 'deny', addDoc(collection(vic, 'leads/L1/activity'), { userId: 'vic', source: 'rep', type: 'note', text: 'x' }));
   await check('tasks: a viewer still reads the lead\'s tasks (unchanged; summaries no longer copied there)', 'allow', getDocs(collection(vic, 'leads/L1/tasks')));
+
+  // ── 4: the call text of a task (task_call_text) ────────────────────────
+  await check('task_call_text: a same-company viewer does NOT get it', 'deny', getOf(vic, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: a viewer who owns the lead does NOT get it', 'deny', getOf(vico, 'leads/LV/task_call_text/cube-C1'));
+  await check('task_call_text: a viewer list is refused', 'deny', getDocs(collection(vic, 'leads/L1/task_call_text')));
+  await check('task_call_text: a viewer owner\'s list is refused', 'deny', getDocs(collection(vico, 'leads/LV/task_call_text')));
+  await check('tasks: a viewer gets the call task itself (generic title)', 'allow', getOf(vic, 'leads/L1/tasks/cube-C1'));
+  {
+    let got = null;
+    try { const d = (await getOf(vic, 'leads/L1/tasks/cube-C1')).data() || {}; got = [d.title, d.text, d.notes]; } catch (_) { got = 'denied'; }
+    same('tasks: …and the task a viewer reads carries no promise text', got, ['Follow up with Pat', 'Follow up with Pat', 'The summary is on the customer\'s timeline.']);
+  }
+  await check('tasks: a viewer\'s companyId collection-group task load still works', 'allow', getDocs(query(collectionGroup(vic, 'tasks'), where('companyId', '==', 'co-a'))));
+  await check('task_call_text: the lead\'s sales_rep owner gets it', 'allow', getOf(alice, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: the sales_rep owner lists the lead\'s', 'allow', getDocs(collection(alice, 'leads/L1/task_call_text')));
+  await check('task_call_text: a same-company manager gets it', 'allow', getOf(eve, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: a same-company company_admin gets it', 'allow', getOf(carol, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: a manager gets it on a viewer-owned lead', 'allow', getOf(eve, 'leads/LV/task_call_text/cube-C1'));
+  await check('task_call_text: the tenant owner (no role) gets it on their own lead', 'allow', getOf(solo, 'leads/L2/task_call_text/cube-C1'));
+  await check('task_call_text: the platform admin gets it', 'allow', getOf(joe, 'leads/L1/task_call_text/cube-C1'));
+  {
+    let full = null;
+    try { full = ((await getOf(alice, 'leads/L1/task_call_text/cube-C1')).data() || {}).full.title; } catch (_) { full = 'denied'; }
+    same('task_call_text: …and the owner reads the promise text', full, 'Send the hail quote (Pat)');
+  }
+  await check('task_call_text: a same-company sales_rep who does not own the lead is refused', 'deny', getOf(dave, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: another tenant\'s company_admin is refused', 'deny', getOf(bobCA, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: signed out is refused', 'deny', getOf(anon, 'leads/L1/task_call_text/cube-C1'));
+  await check('task_call_text: the lead owner cannot write it (server only)', 'deny', setDoc(doc(alice, 'leads/L1/task_call_text/cube-C1'), { full: { title: 'x' } }));
+  await check('task_call_text: a manager cannot create one', 'deny', setDoc(doc(eve, 'leads/L1/task_call_text/new1'), { full: { title: 'x' } }));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

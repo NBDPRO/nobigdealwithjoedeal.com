@@ -278,7 +278,7 @@
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=13',
       'js/estimate-catalog-xactimate.js?v=4',
-      'js/estimate-logic-engine.js?v=8',
+      'js/estimate-logic-engine.js?v=9',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
       'js/care-plan-discount.js?v=1',

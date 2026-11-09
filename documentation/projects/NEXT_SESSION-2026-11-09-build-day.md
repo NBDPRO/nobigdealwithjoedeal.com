@@ -41,3 +41,18 @@ All are recorded, with undo steps, in [PROD-CHANGES-2026-11-09](PROD-CHANGES-202
 
 - `@shard2` / `@shard3` authed E2E legs are still not required and not in the merge queue (2026-10-23 decision). `phone-deal-packet` was made resend-safe in #3023.
 - Seen in screenshots, older than this run: the phone Pipeline app's sticky card name and FAB stay over the home after Home; at 320px the top bar's logo and filter icon overlap; at 1000px At a Glance M clips; the demo customer card's Calls section says "Loading calls…" for every role.
+
+## 6. Update 2026-11-09 (later): three parked drafts carried
+
+Jo approved shipping three parked drafts through the follow-up branch. Each PR's own change was ported (not merged; their branches were stale) with its tests, manifest line and note:
+
+- **#3008:** Settings tabs opened by a link load (Team no longer shows NBD's "JD" placeholder). Suite `settings-deeplink-tab-hooks-2026-11-07`.
+- **#2994:** Keyboard Shortcuts "Got it" closes the panel, and sign-out stops the estimates listener (PL-F23, PL-F27). Suites `shortcuts-help-close-2026-11-07` and `signout-estimates-unsub-2026-11-07`; note [CRM-SHORTCUTS-HELP-2026-11-07](../audit/CRM-SHORTCUTS-HELP-2026-11-07.md). Bootstrap cache key `?v=43`. The bootstrap edits in `docs/pro/js/dashboard-bootstrap.module.js` are three additions and two edited lines. The additions: lines 2605-2607 in `_signOut` (stop the estimates listener before `signOut`), lines 2695-2697 at the top of `showShortcutsHelp` (one copy at a time) and lines 2719-2721 after it (overlay-a11y attach), plus lines 4332-4335 after the estimates listener (`window._unsubscribeEstimates`). The edited lines: line 2699 (the overlay gains `id="nbdShortcutsHelp"`) and line 2714 (the "Got it" `data-target` becomes `#nbdShortcutsHelp`). Those two edited lines are where #2942's rebase is most likely to conflict, and #2942 will also need to bump the cache key past `?v=43`.
+- **#2981:** stage emails stop sending NBD's own offer to other companies' homeowners (VW-F151/F152). Suite `email-tenant-2026-11-06`; note [CRM-EMAIL-TENANT-2026-11-06](../audit/CRM-EMAIL-TENANT-2026-11-06.md). NBD's stage emails were compared byte for byte before and after and did not change.
+
+**Dashboard boot budget:** no raise was needed. Shipped local scripts measured 2,627,237 B before and 2,628,313 B after #3008 + #2994, against the 2,631,680 B (2570 KB) ceiling. Template-deferred scripts measured 72,557 B before and 73,193 B after, against 74,752 B.
+
+**Open for Jo: the customer page budget.** `email_system.js` loads at boot on `customer.html`, so #2981 puts that page's shipped local scripts at 1,378,526 B against a 1,378,304 B (1346 KB) ceiling, 222 B over. Raising that ceiling was not part of the approval, so it was not raised. The smallest raise that passes is 1346 to 1347 KB in `CUSTOMER_CEILING.shippedLocalBytes`.
+## 6. Next plan
+
+[CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md): job photos into the CRM by street and date (run on Jo's computer), a content and blog schedule from consented jobs, and the credentials to add. Jo's answers are in it.

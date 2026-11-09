@@ -917,19 +917,27 @@ service cloud.firestore {
           // still applies to them unchanged.
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && request.resource.data.source == 'rep'
           // F-05 allowlist of rep-authored, first-party activity types. These
           // are UI/timeline labels (drive timeline icons + lead-score signals)
           // — NOT webhook/payment-shaped — and remain gated by source=='rep',
           // the parent-lead owner check, and the financial-key denylist below.
           // ('voicemail','supplement_created','lead_created' added 2026-06-23:
           // these legit rep actions were silently permission-denied without it.)
-          && request.resource.data.type in [
-               'note', 'call', 'sms_out', 'email_out',
-               'photo_added', 'task_done', 'appointment_set',
-               'door_knock', 'follow_up', 'status_change',
-               'voicemail', 'supplement_created', 'lead_created'
-             ]
+          // 2026-11-09 (Call to Close Q11 item 4, Jo): a voicemail row carries
+          // the transcript and an AI summary, so it is source 'voicemail', off
+          // the viewer read allowlist above, and type 'voicemail' is tied to
+          // it both ways: an old cached client's source-'rep' voicemail is
+          // refused rather than filed where a viewer reads it.
+          // tests/firestore-rules.voicemail-viewers.test.js.
+          && ((request.resource.data.source == 'rep'
+               && request.resource.data.type in [
+                    'note', 'call', 'sms_out', 'email_out',
+                    'photo_added', 'task_done', 'appointment_set',
+                    'door_knock', 'follow_up', 'status_change',
+                    'supplement_created', 'lead_created'
+                  ])
+              || (request.resource.data.source == 'voicemail'
+                  && request.resource.data.type == 'voicemail'))
           && !(request.resource.data.keys().hasAny([
                'stripeInvoiceId', 'stripeCustomerId', 'stripePaymentIntentId',
                'amountCents', 'hostedInvoiceUrl',
@@ -960,6 +968,22 @@ service cloud.firestore {
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)));
+      }
+      // ── CALL TEXT OF A TASK (Call to Close Q11, Jo 2026-11-09) ──────────
+      // A task the server files from a call (Thursday thursday-*, Call Center
+      // cube-* / sms-*, a call's promise-<callId>[-n]) keeps a generic title
+      // ("Call back Pat") on the task, which every reader of the customer
+      // reads, viewers included. What came from the call (the issue, the
+      // promise the AI pulled, "You said you would") lives here, under the
+      // task's id, written by Cloud Functions only (functions/task-call-text.js).
+      // Read: the tasks audience above minus a viewer, the same split as the
+      // call entries on activity. The owners' screens lay it over the task
+      // (docs/pro/js/task-call-text.js). tests/firestore-rules.call-content-viewers.test.js.
+      match /task_call_text/{taskId} {
+        allow read: if isAuth() && notViewer() && (isAdmin()
+          || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          || parentLeadInMyCompany(leadId));
+        allow write: if false;
       }
       // ── DOC DRAFTS (stage-triggered "Docs to review", 2026-10-13) ──────
       // The server (functions/doc-drafts.js, admin SDK) drafts the customer

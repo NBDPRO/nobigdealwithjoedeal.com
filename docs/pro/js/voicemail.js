@@ -339,9 +339,11 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
             dates:       Array.isArray(summary.dates)       ? summary.dates       : [],
             category:    summary.category || 'other'
           },
-          // F-05 rule requires source:'rep' on client-written activity;
-          // keep the recording origin ('recorded'/'uploaded') in mediaSource.
-          source: 'rep',
+          // Q11 item 4 (2026-11-09): source 'voicemail', not 'rep', so a
+          // viewer (who reads rep rows) never reads the transcript; the rule
+          // ties type 'voicemail' to it. The recording origin
+          // ('recorded'/'uploaded') stays in mediaSource.
+          source: 'voicemail',
           mediaSource: source,
           filename: filename || null,
           mimeType: mimeType || null,

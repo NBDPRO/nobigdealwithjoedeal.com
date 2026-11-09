@@ -351,7 +351,8 @@ async function applyRoute(args) {
     taskId = T.taskIdForCall(call.callId);
     const task = T.buildTask({ extraction, call, route, leadId, ownerUid });
     // create(): a reprocess must never un-tick a task Jo already completed.
-    await createIfAbsent(db().doc('leads/' + leadId + '/tasks/' + taskId),
+    // Its call text (the issue) goes beside it, viewer-closed (Q11, 2026-11-09).
+    await require('../task-call-text').createTaskIfAbsent(db(), createIfAbsent, 'leads/' + leadId + '/tasks/' + taskId,
       Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
   }
   return { leadId, taskId };
@@ -540,6 +541,10 @@ async function processCall(ref, data) {
     callerName: extraction ? extraction.caller_name : '',
     town: extraction ? extraction.town : '',
     issue: extraction ? extraction.issue : T.str(call.summary, 300),
+    // What a lead Thursday creates used to carry in lead.notes (issue, urgent
+    // reason, carrier, claim #): kept here, on the call, which a viewer
+    // cannot read (Q11, Jo 2026-11-09). The customer page's Thursday row shows it.
+    callNotes: extraction ? T.callNotes(extraction, call) : null,
     urgent: !!(extraction && extraction.urgent),
     route: {
       action: route.action, label: route.label,

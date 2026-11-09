@@ -1945,6 +1945,11 @@
       _notifFirestoreSynced = true;
       _syncNotifSettingsFromFirestore();
     }
+    // Same for the per-device estimate settings the sign-out purge removed
+    // (ST-F01). Fire-and-forget.
+    if (typeof _hydrateEstimateSettingsFromFirestore === 'function') {
+      _hydrateEstimateSettingsFromFirestore();
+    }
     // Load custom claims for role-based access (Enterprise)
     // Claims include: companyId, role, plan, subscriptionStatus
     try {
@@ -2602,6 +2607,9 @@
       ? window.NBDAuth.purgeSmsOutbox()
       : Promise.resolve(window.NBDSmsOutbox && typeof window.NBDSmsOutbox.purgeAll === 'function'
         ? window.NBDSmsOutbox.purgeAll() : false);
+    // CRM audit 2026-11-06 (PL-F27): stop the live estimates listener before
+    // the token goes, so it never errors permission-denied and re-fetches.
+    if (typeof window._unsubscribeEstimates === 'function') window._unsubscribeEstimates();
     return Promise.resolve(purgeSms).catch(() => false)
       .then(() => signOut(auth))
       // Firestore's on-phone cache (customer records) goes with the session —
@@ -2689,8 +2697,11 @@
   });
   
   function showShortcutsHelp() {
+    // CRM audit 2026-11-06 (PL-F23): one copy at a time; "Got it" targets the
+    // overlay by id (it is class-styled, so div[style*=fixed] never matched).
+    if (document.getElementById('nbdShortcutsHelp')) return;
     const helpHTML = `
-      <div class="dbx-posfixed-top0-lef0" data-action="removeSelf">
+      <div id="nbdShortcutsHelp" class="dbx-posfixed-top0-lef0" data-action="removeSelf">
         <div class="dbx-bgs-bd1pxsolid-r12px" data-action="stopProp">
           <div class="dbx-fs18px-w700-mb16px">⌨️ Keyboard Shortcuts</div>
           <div class="dbx-dgrid-gtcauto1fr-gap8px16px">
@@ -2705,11 +2716,14 @@
             <kbd class="kbd-input">?</kbd>
             <span>Show This Help</span>
           </div>
-          <button class="btn btn-orange dbx-wd100-mt16px-jccenter" data-action="removeClosest" data-target="div[style*=fixed]">Got it</button>
+          <button class="btn btn-orange dbx-wd100-mt16px-jccenter" data-action="removeClosest" data-target="#nbdShortcutsHelp">Got it</button>
         </div>
       </div>
     `;
     document.body.insertAdjacentHTML('beforeend', helpHTML);
+    // Escape, Tab trap and focus return (overlay-a11y.js), as every CRM dialog has.
+    const ov = document.getElementById('nbdShortcutsHelp');
+    if (ov && window.nbdOverlay) window.nbdOverlay.attach(ov, { label: 'Keyboard shortcuts', close: () => ov.remove() });
   }
 
   // ── RECENTLY VIEWED CUSTOMERS ──
@@ -4319,6 +4333,10 @@
       }, onErr));
     }
     _estimatesUnsub = () => unsubs.forEach(u => { try { u(); } catch(e) {} });
+  };
+  // PL-F27: sign-out calls this before signOut(auth).
+  window._unsubscribeEstimates = function () {
+    if (_estimatesUnsub) { try { _estimatesUnsub(); } catch(e) {} _estimatesUnsub = null; }
   };
 
   window._saveEstimate = async (data) => {
@@ -5957,6 +5975,18 @@
     if (!EB2) return;
     const defaults = EB2.getDefaultSettings();
     EB2.saveSettings(defaults);
+    // Reset must also clear the account copy that sign-in restores from
+    // (_hydrateEstimateSettingsFromFirestore, ST-F01) — otherwise the reset
+    // values came back on the next sign-in or device. Fire-and-forget, like
+    // Save All's write of the same field.
+    try {
+      if (window._db && window._user) {
+        const { setDoc, doc, deleteField } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
+        Promise.resolve(setDoc(doc(window._db, 'userSettings', window._user.uid),
+          { estimateSettingsV2: deleteField(), updatedAt: new Date().toISOString() }, { merge: true }))
+          .catch((e) => { console.warn('Estimate settings reset sync failed:', e); });
+      }
+    } catch (e) { console.warn('Estimate settings reset sync failed:', e); }
 
     // Clearing localStorage alone would be cosmetic for counties: the tenant
     // overlay re-applies the company's saved values on the very next calc, so
@@ -6836,6 +6866,53 @@
   // Pull saved settings from Firestore userSettings/{uid}, cache to
   // localStorage, and refresh the UI if the panel is open. Tolerates
   // missing doc / missing notifications subfield (returns silently).
+  // Estimate settings (Settings → Estimates "Save All": markup / overhead /
+  // profit, cost basis, job + repair minimums, round-to, dump fee, extra-layer
+  // price) live per device in localStorage 'nbd_est_settings_v3', which the
+  // sign-out purge (nbd-auth.js) deletes so the next account on a shared
+  // device can't inherit them. _saveEstimateDefaultsV2 also writes the same
+  // patch to userSettings/{uid}.estimateSettingsV2 — but nothing ever read it
+  // back, so every sign-in after a sign-out (and every new device) priced at
+  // factory defaults while Settings said the values apply to every estimate
+  // (CRM audit 2026-11-06, ST-F01). Restore the signed-in user's OWN saved
+  // patch when this device has none. This device's own saved values win.
+  async function _hydrateEstimateSettingsFromFirestore() {
+    const KEY = 'nbd_est_settings_v3';
+    const _db = window._db || window.db;
+    const uid = window._user && window._user.uid;
+    if (!_db || !uid) return;
+    try { if (localStorage.getItem(KEY)) return; } catch (_) { return; }
+    try {
+      const { getDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
+      const snap = await (window.nbdRetryOffline || (f => f()))(() => getDoc(doc(_db, 'userSettings', uid)));
+      if (!snap.exists()) return;
+      const saved = snap.data() && snap.data().estimateSettingsV2;
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+      // The read is async: bail if the rep saved on this device meanwhile, or a
+      // different account signed in before it landed.
+      if (localStorage.getItem(KEY)) return;
+      // auth.currentUser moves first on a switch; window._user is set later in
+      // the auth callback, so check both.
+      const _cur = (auth && auth.currentUser) || null;
+      if (!_cur || _cur.uid !== uid || !window._user || window._user.uid !== uid) return;
+      const EB2 = window.EstimateBuilderV2;
+      if (EB2 && typeof EB2.updateSettings === 'function') EB2.updateSettings(saved);
+      // Engine not loaded yet (lazy 'estimates' bundle): its loadSettings()
+      // merges a partial saved object over the defaults, so the patch alone is
+      // a valid store.
+      else localStorage.setItem(KEY, JSON.stringify(saved));
+      // Settings → Estimates painted before this landed shows defaults, and a
+      // Save All from it would write them back. Repaint the device half —
+      // unless the rep is typing in that panel right now.
+      const panel = document.getElementById('stab-panel-estimates');
+      if (panel && !panel.contains(document.activeElement) && EB2 && typeof EB2.loadSettings === 'function') {
+        try { _paintDeviceEstimateInputs(EB2.loadSettings()); } catch (_) { /* paint is cosmetic here */ }
+      }
+    } catch (e) {
+      console.warn('Estimate settings server sync failed:', e && e.message);
+    }
+  }
+
   async function _syncNotifSettingsFromFirestore() {
     const _db = window._db || window.db;
     const uid = window._user && window._user.uid;

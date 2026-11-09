@@ -426,8 +426,10 @@ if (!SHIPPED_GATES) {
 // builder load on first use; measured 129 local tags, 1362 KB shipped (2479 KB readable), 190 KB of HTML.
 // LOWERED again (batch 4b): customer-jobs.js split (the Add job sheet loads on first use) and numbers-logic.js
 // loads only for a card the Numbers panel shows; measured 128 local tags, 1340 KB shipped (2444 KB readable).
+// RAISED 2026-11-09 by 1 KB (Jo: "Raise 1 KB, merge both" for the parked boot PRs, "Ship it" for #2981): the
+// tenant stage emails (#2981) and the Q11 task call text put the page 222 B over 1346 KB; measured 1347 KB shipped.
 const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
-  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1346 * 1024, shippedBlockingBytes: 16 * 1024 };
+  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1347 * 1024, shippedBlockingBytes: 16 * 1024 };
 console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
 const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
 ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));

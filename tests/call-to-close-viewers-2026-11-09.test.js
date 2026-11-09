@@ -355,9 +355,10 @@ const cols = (qs) => qs.map((q) => q.col);
   const NOW = Date.parse('2026-11-09T15:00:00Z');
   const notes = { summary: 'SECRET SUMMARY: hail on the north slope, adjuster Friday', promises: [{ who: 'jo', text: 'Send the estimate', due: '2026-11-12' }], followUpDate: null, urgent: false };
   const t = L.buildFollowUpTask({ call: { id: 'cube_X1', contactName: 'Kim', startedAtMs: NOW - 3600e3 }, notes, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-11-09', nowMs: NOW });
-  ok('a call still makes its follow-up task (positive control)', t && t.title === 'Send the estimate (Kim)' && t.source === 'cube-acr' && t.phoneCallId === 'cube_X1');
+  // Q11 Jo's decision (2026-11-09): the stored title is generic; the promise is the task's call text.
+  ok('a call still makes its follow-up task (positive control)', t && t.title === 'Follow up with Kim' && t.callTextFull && t.callTextFull.full.title === 'Send the estimate (Kim)' && t.source === 'cube-acr' && t.phoneCallId === 'cube_X1');
   ok('the task no longer copies the AI summary (every role that reads the customer reads its tasks)', t && !/SECRET SUMMARY/.test(JSON.stringify(t)), t && t.notes);
-  ok('…it keeps what Jo said he would do', t && /You said you would:\n• Send the estimate \(by 2026-11-12\)/.test(t.notes));
+  ok('…it keeps what Jo said he would do, in the call text (tests/q11-task-call-text-2026-11-09.test.js)', t && t.callTextFull && /You said you would:\n• Send the estimate \(by 2026-11-12\)/.test(t.callTextFull.full.notes) && !/You said you would/.test(t.notes));
   ok('…and points to where the summary lives', t && /summary is on the customer's timeline/.test(t.notes), t && t.notes);
   const td = L.buildTextDayTask({ day: { id: 'day1', contactName: 'Kim', startedAtMs: NOW - 3600e3 }, notes, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-11-09', nowMs: NOW });
   ok('a day of texts: the task has no summary either', td && td.source === 'sms-backup' && !/SECRET SUMMARY/.test(JSON.stringify(td)));

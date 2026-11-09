@@ -22,6 +22,16 @@
  * viewer reading tasks never sees call content. Every other write, Drive request,
  * Storage call, model prompt and push is byte-identical to the d1f7bfe0c fixture.
  *
+ * Regenerated again 2026-11-09 for Jo's decision on Q11 review item 2 (a
+ * viewer's task list shows no call content). writes[17] (the follow-up task
+ * leads/lead1/tasks/cube-cube_f1): title and text "Send the quote (Pat
+ * Example)" -> "Follow up with Pat Example", notes lose the "You said you
+ * would" list (the pointer line stays), callText: true added. One write
+ * inserted after it, writes[18]: set leads/lead1/task_call_text/cube-cube_f1
+ * holding the old title / text / notes (functions/task-call-text.js). Every
+ * other write (shifted by one), Drive request, Storage call, model prompt and
+ * push is unchanged, and the multi-tenant run still equals NBD's own pass.
+ *
  * It runs twice: once as before (no multi-tenant env), once with
  * CALL_CENTER_MULTI_TENANT_ENABLED=true and an enabled tenant config sitting
  * in Firestore; NBD's own pass must write exactly the same either way.

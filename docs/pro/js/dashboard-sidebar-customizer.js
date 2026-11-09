@@ -110,6 +110,10 @@
             _prev3(tab);
             if (tab === 'appearance') renderSidebarCustomizerGrid();
           };
+          // Deep link (#/settings/appearance) opened the tab before this
+          // script loaded: render now (same race as dashboard-team-tab.js).
+          var _on = document.getElementById('stab-appearance');
+          if (_on && _on.classList.contains('stab-active')) renderSidebarCustomizerGrid();
         }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', _nbdInstallSidebarHook);

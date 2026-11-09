@@ -13,6 +13,7 @@ const path = require('path');
 const T = require(path.join(__dirname, '..', 'functions', 'text-inbox-logic.js'));
 const TI = require(path.join(__dirname, '..', 'functions', 'text-inbox.js'));
 const CCF = require(path.join(__dirname, '..', 'functions', 'call-center.js'));
+const TCT = require(path.join(__dirname, '..', 'functions', 'task-call-text.js')); // Q11: a call task's call text, owners' view
 const { runTextNotes, setNotes, OWNER, DAYS, COLLECTION } = TI._test;
 
 let passed = 0, failed = 0; const fails = [];
@@ -83,7 +84,8 @@ const BUSINESS = { call_type: 'customer', summary: 'Pat asked for Thursday; Jo w
   const day = db.docs.get(DAYS + '/txt_5135550100_20261005');
   ok('business day noted with promises + signature', day && day.status === 'noted' && day.promises.length === 1 && day.sig === d1.sig && day.channel === 'text' && day.messageCount === 2);
   ok('timeline entry on the customer', /Texts · Pat Example \(2\)/.test((db.docs.get('leads/L1/activity/sms-txt_5135550100_20261005') || {}).label || ''));
-  const task = db.docs.get('leads/L1/tasks/sms-txt_5135550100_20261005');
+  // Q11 (2026-11-09): the owner's view, the stored generic task with its call text laid over.
+  const task = TCT.apply(db.docs.get('leads/L1/tasks/sms-txt_5135550100_20261005'), db.docs.get('leads/L1/task_call_text/sms-txt_5135550100_20261005'));
   ok('one follow-up task for Jo\'s texted promise', task && /Bring shingle samples/.test(task.title) && task.source === 'sms-backup' && task.done === false && !('phoneCallId' in task));
   const pd = db.docs.get(DAYS + '/txt_5135550177_20261004');
   ok('personal day: no detail, no promises, nothing on a lead', pd.status === 'personal' && pd.summary === 'Personal texts.' && pd.promises.length === 0);

@@ -31,6 +31,7 @@ const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 const MG = require('./call-merge-logic');
 const PR = require('./promise-logic');
+const TCT = require('./task-call-text'); // a call task's call text, off the viewer-readable task (Q11)
 const CL = require('./contact-labels');
 const PV = require('./ping-volume-logic'); // digest dedupe + the repeat-number summary line (audit F6/F7)
 
@@ -970,7 +971,7 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         // (scoped by companyId) sees it; NBD's stays as it was.
         if (task && !fd.nbd) task.companyId = fd.companyId;
         // create(): a re-run must never un-tick a task Jo already completed.
-        if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+        if (task && await TCT.createTaskIfAbsent(db, createIfAbsent, 'leads/' + call.leadId + '/tasks/cube-' + call.id, Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         // The lead itself knows Jo talked to them (lastContactedAt, followUp).
         if (leadDoc && leadDoc.deleted !== true && await applyLeadContact({ db, leadId: call.leadId, lead: leadDoc, call, notes, todayYmd: today, nowMs })) out.leadsUpdated = (out.leadsUpdated || 0) + 1;
       }
@@ -1290,7 +1291,7 @@ async function fileCallOnLead({ db, call, leadId, uid, nowMs, extra }) {
     .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner, companyId }), { createdAt: FieldValue.serverTimestamp() }));
   const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: etToday(nowMs), nowMs });
   if (task && companyId) task.companyId = companyId;
-  if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
+  if (task) await TCT.createTaskIfAbsent(db, createIfAbsent, 'leads/' + leadId + '/tasks/cube-' + call.id, Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
 }
 
 // A day of texts onto one lead, with the timeline entry + task text notes write.
@@ -1302,7 +1303,7 @@ async function fileTextDayOnLead({ db, day, leadId, uid, nowMs, extra }) {
   await db.doc('leads/' + leadId + '/activity/sms-' + day.id)
     .set(Object.assign(L.buildTextDayActivity({ day, notes, ownerUid: owner }), { createdAt: FieldValue.serverTimestamp() }), { merge: true });
   const task = L.buildTextDayTask({ day, notes, leadId, ownerUid: owner, todayYmd: etToday(nowMs), nowMs });
-  if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/sms-' + day.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
+  if (task) await TCT.createTaskIfAbsent(db, createIfAbsent, 'leads/' + leadId + '/tasks/sms-' + day.id, Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
 }
 
 /**
@@ -1391,6 +1392,8 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
     // A task filed before 2026-11-09 still copies the AI summary; the moved
     // copy drops it (Call to Close Q11: tasks are read by viewers too).
     await createIfAbsent(db.doc('leads/' + toId + '/tasks/cube-' + id), Object.assign({}, t.data(), typeof t.data().notes === 'string' ? { notes: L.scrubTaskSummary(t.data().notes) } : {}, { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
+    // Its call text (leads/{id}/task_call_text, Q11) goes with it.
+    await TCT.moveSide(db, 'leads/' + fromId + '/tasks/cube-' + id, 'leads/' + toId + '/tasks/cube-' + id);
     taskMoved = true;
   }
   if (a.exists) await oldAct.delete();
@@ -1421,6 +1424,7 @@ async function moveBriefOff({ db, id, fromId, toId }) {
     const t = await oldTask.get();
     if (!t.exists) continue;
     await createIfAbsent(db.doc('leads/' + toId + '/tasks/promise-' + id + '-' + slot), Object.assign({}, t.data(), { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
+    await TCT.moveSide(db, 'leads/' + fromId + '/tasks/promise-' + id + '-' + slot, 'leads/' + toId + '/tasks/promise-' + id + '-' + slot);
     await oldTask.delete();
   }
   await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
@@ -1639,10 +1643,15 @@ async function callAction({ db, auth, data, nowMs }) {
       const prev = await taskRef.get();
       const old = prev.exists ? (prev.data() || {}) : null;
       if (slot && old) throw new HttpsError('failed-precondition', 'That promise is already on the customer.');
-      const doc = Object.assign({}, built, {
+      // Q11 (Jo, 2026-11-09): the why (typed, or the promise the brief pulled
+      // from the call) is call content. The task reads the chip alone
+      // ("Send estimate"); the full text goes in task_call_text beside it.
+      const generic = PR.taskText(kind, '', built.waitingOn);
+      const doc = TCT.split(Object.assign({}, built, {
         leadId, userId: lead.userId || call.userId || OWNER,
         title: built.text, createdBy: 'Promise capture', phoneCallId: id, updatedAt: FieldValue.serverTimestamp(),
-      });
+      }), { title: generic, text: generic, why: '' });
+      if (!doc.callText) doc.callText = false;
       if (lead.companyId || call.companyId) doc.companyId = lead.companyId || call.companyId;
       if (old && old.kind === 'promise') {
         // Editing the same promise: keep its history, never reset a miss count.
@@ -1654,6 +1663,9 @@ async function callAction({ db, auth, data, nowMs }) {
         doc.createdAt = FieldValue.serverTimestamp();
       }
       await taskRef.set(doc, { merge: true });
+      // With no why the task is its own full text (callText false), so a call
+      // text left from an earlier choice is never read; nothing is deleted.
+      if (doc.callTextFull) await TCT.writeSide(db, 'leads/' + leadId + '/tasks/' + taskId, doc);
       if (!slot) {
         const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
         const g = await genericRef.get();
