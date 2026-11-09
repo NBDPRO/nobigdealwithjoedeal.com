@@ -174,6 +174,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 
 /* ── phone: cells of page 1 of the pager (4 columns x 92px rows) ── */
 .os-hw-list[data-os-home="phone"] { display: contents; }
+/* a home taller than the screen scrolls down inside its page (the pager scrolls sideways only) */
+.os-p-page { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
 .os-p-page .os-hw.is-s { grid-column: span 2; grid-row: span 1; }
 .os-p-page .os-hw.is-m { grid-column: span 4; grid-row: span 2; }
 .os-p-page .os-hw.is-l { grid-column: span 4; grid-row: span 4; }

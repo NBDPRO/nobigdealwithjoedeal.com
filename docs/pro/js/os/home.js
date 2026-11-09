@@ -197,7 +197,8 @@
         '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="dismiss" data-rule="' + esc(top.id) + '">Not today</button>' +
       '</div>';
     var rest = list.slice(1, 3);
-    if (!rest.length) return h;
+    // nothing left behind More: an open M Coach closes, so it never keeps 4 rows with no Show less
+    if (!rest.length) { if (rec && rec.open) { rec.open = false; rec.el.classList.remove('is-open'); } return h; }
     var open = size === 'l' || !!(rec && rec.open);
     if (size !== 'l') h += '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-coach-toggle" data-oshw-coach="more" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Show less' : 'More') + '</button>';
     if (open) h += '<ul class="os-hw-coach-more">' + rest.map(function (r) {
@@ -572,8 +573,11 @@
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
       if (crec) {
         var what = cb.getAttribute('data-oshw-coach');
+        var wasOpen = !!crec.open;
         coachTap(crec, what, cb.getAttribute('data-rule'), o.onResize);
         paintOne(crec, true);
+        // a dismiss that emptied More closed the Coach: the phone page recounts its icons
+        if (what !== 'more' && wasOpen && !crec.open && crec.it.s === 'm' && typeof o.onResize === 'function') o.onResize();
         coachFocus(crec, what);
         return;
       }

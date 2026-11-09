@@ -117,6 +117,25 @@ G(() => {
   ok('Show less gives page 1 its icons back', icons1() === 7 && phoneOf(T).querySelectorAll('.os-p-page').length === 1);
 });
 
+// review round 2: an open M Coach whose extra rules are all dismissed must not stay 4 rows tall with no Show less
+G(() => {
+  const DAY = 86400000;
+  const T = mountPhone({ phone: [{ id: 'coach', s: 'm' }], desk: [] }, { leads: [{ id: 'old1', _stageRole: 'new', createdAt: H.NOW - 50 * DAY }] });
+  const card = () => byKey(phoneOf(T), 'coach-1');
+  const pages = () => phoneOf(T).querySelectorAll('.os-p-page').length;
+  click(T.dom, card().querySelector('[data-oshw-coach="more"]'));
+  ok('three rules, More open: icons pushed to page 2', card().classList.contains('is-open') && pages() === 2, pages());
+  click(T.dom, card().querySelector('[data-oshw-coach="dismiss"]'));
+  click(T.dom, card().querySelector('[data-oshw-coach="dismiss"]'));
+  ok('one rule left: the Coach closes (no 4-row span, no orphan open state)', !card().classList.contains('is-open') && !card().querySelector('[data-oshw-coach="more"]'), card().className);
+  ok('…and page 1 gets its icons back', pages() === 1, pages());
+});
+
+// review round 2: the phone page scrolls down, so a home taller than the screen is still reachable
+G(() => {
+  ok('page 1 scrolls vertically when the home is taller than the screen', /\.os-p-page\s*\{[^}]*overflow-y:\s*auto/.test(HOME_CSS));
+});
+
 console.log('\n2. the pure edit ops');
 G(() => {
   const L = [{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }];
