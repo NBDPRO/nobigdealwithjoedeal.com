@@ -47,7 +47,8 @@
         st.dismissals = next;
       } catch (e) { console.warn('[suggest] dismissals read failed', e && e.code); }
       try {
-        if (w.query && w.where && w.limit) {
+        // A viewer cannot read thursday_calls (Call to Close Q11): skip the read.
+        if (w.query && w.where && w.limit && role() !== 'viewer') {
           var ts = await w.getDocs(w.query(w.collection(w.db, 'thursday_calls'), w.where('userId', '==', uid()), w.limit(150)));
           st.thursday = ts.docs.map(function (d) { var x = d.data() || {}; return { from: x.from, callerType: x.callerType }; });
         }

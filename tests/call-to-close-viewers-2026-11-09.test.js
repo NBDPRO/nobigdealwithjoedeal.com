@@ -153,6 +153,27 @@ const cols = (qs) => qs.map((q) => q.col);
   const CL = read('docs/pro/js/contact-labels.js');
   ok('contact-suggest (reads thursday_calls) is already off for a viewer: it needs canWrite, which excludes viewers',
     /function canSuggest\(\) \{ return !!\(uid\(\) && w\.NBDContactLabels && w\.NBDContactLabels\.canWrite\(\)\); \}/.test(CS) && /function canWrite\(\) \{ return !!\(uid\(\) && role\(\) !== 'viewer'/.test(CL));
+  // Final round (2026-11-09): contact-suggest checks the role itself before its
+  // thursday_calls read, so a viewer never sends a read the rules deny, even if
+  // canWrite were ever widened.
+  async function runSuggest(role) {
+    const queries = [];
+    const win = stubWin(role, queries);
+    win.NBDContactLabelsLogic = {}; win.NBDContactSuggestLogic = {};
+    win.NBDContactLabels = { canWrite: () => true, current: () => ({}) };
+    win.dispatchEvent = () => {}; win.addEventListener = () => {};
+    const sb = { window: win, document: { addEventListener() {} }, console: { log() {}, warn() {}, error() {} }, CustomEvent: function () {}, setTimeout, clearTimeout, Date, Object, Array, String };
+    vm.createContext(sb);
+    vm.runInContext(CS, sb);
+    await win.NBDContactSuggest.load(true);
+    return cols(queries);
+  }
+  {
+    const v = await runSuggest('viewer');
+    ok('contact-suggest: a viewer sends NO thursday_calls read (role checked before the read)', !v.includes('thursday_calls'), v.join(','));
+    const m = await runSuggest('manager');
+    ok('contact-suggest: a manager still reads thursday_calls (positive control)', m.includes('thursday_calls'), m.join(','));
+  }
 
   // ── 2. Home strip + Inbox ───────────────────────────────────────────────
   console.log('HOME STRIP (home-attention.js) / INBOX (layouts/inbox.js)');
