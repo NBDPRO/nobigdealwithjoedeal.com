@@ -2,6 +2,16 @@
 
 Design note for Jo. Read-only recon at HEAD c178a7818. It merges the design brief, the adversarial critique of that brief (every correction applied), and the ranked macOS / Linux / web-desktop research. Parent plan: [NBD-OS-PLAN-2026-11-06](NBD-OS-PLAN-2026-11-06.md). Related: [CRM-STYLE-D5-BENTO-BOARD-2026-10-12](CRM-STYLE-D5-BENTO-BOARD-2026-10-12.md), [DAILY-SUCCESS-BUSINESS-TILE-2026-10-23](DAILY-SUCCESS-BUSINESS-TILE-2026-10-23.md), [DAILY-SUCCESS-EOD-REVIEW-2026-10-22](DAILY-SUCCESS-EOD-REVIEW-2026-10-22.md), [VISUAL-AUDIT-LAYOUTS-2026-10-19](../audit/VISUAL-AUDIT-LAYOUTS-2026-10-19.md), [CHARACTER-STYLE-BAR-2026-10-25](CHARACTER-STYLE-BAR-2026-10-25.md), [DESIGN.md](../../DESIGN.md).
 
+## Update 2026-11-09 (evening): what shipped in P2
+
+P2 is built on branch `os-p2` (on `os-p1`), dark behind `osLayout`; the session note is [SESSION-2026-11-09-nbd-os-p2](SESSION-2026-11-09-nbd-os-p2.md). Where it differs from §6 and §8 below:
+
+- **Smart Stack default:** Shutdown *replaces* Coach (`['upnext', 'storm', 'daily', 'shutdown']`). The P1 default already held four cards, so "add Shutdown when a stack has room" never applied. It reaches new stacks and saved stacks with no valid card.
+- **"In a home" (§6.3)** covers the home surfaces: the widgets, the Notification Center, toasts, Peek, the Recap and the Coach AI line. Phone apps opened from the home (Pipeline, Money) still show money and names.
+- **The Coach AI line** is opt-in per company (`coachAiEnabled`), 3 a day per user and 60 per company; viewers may ask for it (`read-paid`), so a viewer can spend the company cap.
+- **Team** counts doors, appointments set, estimates sent and deals in the company's time zone (`companyProfile.timeZone`), weeks from Monday, every 30 minutes; dark behind `LEADERBOARD_AGGREGATE_ENABLED`, whose dry run counts one company per run.
+- **P1 debt paid:** `bento.js` now builds its math from `board-logic.js`; the goals editor exists (large Daily Success widget).
+
 ## Update 2026-11-09 (later): what shipped in P1
 
 P1 is built on branch `os-p1`, dark behind `osLayout`; the session note is [SESSION-2026-11-09-nbd-os-p1](SESSION-2026-11-09-nbd-os-p1.md). Where it differs from §5 and §8 below:
