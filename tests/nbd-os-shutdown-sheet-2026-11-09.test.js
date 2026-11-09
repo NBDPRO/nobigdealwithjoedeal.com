@@ -92,7 +92,7 @@ function win(o) {
     W.NBDVisitRecorder = { listAll: () => Promise.resolve({ local: o.visits || [
       { id: 'v1', startedAtMs: TEN + 2 * 3600000, status: 'uploaded' },
       { id: 'v2', startedAtMs: TEN, status: 'uploaded', leadId: 'A' },
-    ], remote: [] }) };
+    ], remote: [], remoteOk: o.remoteOk === undefined ? true : o.remoteOk }) };
   }
   W._impl.mount({ surface: 'phone' });
   return T;
@@ -243,6 +243,20 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     const line = text(dialog(T).querySelector('.os-sd-closed'));
     ok('no recorder: the visits count is not said (never a 0 it did not count)', /^Loop closed: 1 lead · /.test(line) && !/visit/.test(line), line);
     ok('and the sheet says it could not check them', /Couldn't check today's visits/.test(text(dialog(T))));
+    const Tp = win({ remoteOk: false });
+    await flush();
+    click(Tp.dom, widgetOf(Tp).querySelector('[data-oshw-sd]'));
+    await flush(); await flush();
+    const lp = text(dialog(Tp).querySelector('.os-sd-closed'));
+    ok('the server\'s visits not read (offline, rules): this phone\'s unfiled visit is still listed', !!dialog(Tp).querySelector('[data-sd-row="visit:v1"]'));
+    ok('...but the visits count is not said (it would be this phone\'s alone)', /^Loop closed: 1 lead · /.test(lp) && !/visit/.test(lp), lp);
+    ok('...and the sheet says only this phone\'s visits were checked', /only this phone's visits/i.test(text(dialog(Tp))), text(dialog(Tp)));
+    const To = win();
+    To.W.NBDVisitRecorder.listAll = () => Promise.resolve({ local: [{ id: 'v1', startedAtMs: TEN + 2 * 3600000, status: 'uploaded' }], remote: [] });
+    await flush();
+    click(To.dom, widgetOf(To).querySelector('[data-oshw-sd]'));
+    await flush(); await flush();
+    ok('an older recorder with no remoteOk counts as not read (never a count from half the rows)', !/visit/.test(text(dialog(To).querySelector('.os-sd-closed'))), text(dialog(To).querySelector('.os-sd-closed')));
     const Tn = win({ noNns: true });
     await flush();
     const wn = text(widgetOf(Tn));

@@ -21,7 +21,10 @@
  *                      and ends with "Loop closed: N leads, N visits" from the
  *                      counts. Today's visits are read when the sheet opens
  *                      (NBDVisitRecorder.listAll: this phone's rows plus one
- *                      query of the server's); never on a widget paint.
+ *                      query of the server's); never on a widget paint. If
+ *                      the server query did not run (remoteOk not true), this
+ *                      phone's unfiled visits are still listed but the visits
+ *                      count is left out of the Loop closed line.
  *
  * The OS writes no CRM data of its own: the only write is setFollowUp's
  * `followUp` + `updatedAt` (and its undo). What is still open is kept for the
@@ -142,6 +145,7 @@
     if (!sheet) return;
     var s = sheet;
     var r = compute(s.visits);
+    if (s.visitsPartial) r.closed.visits = null;   // this phone's rows alone: listed, never counted
     var known = !!leads() && !!r.leads;   // false: loading, or no-next-step.js missing
     var h = '<div class="os-sd-hd"><h2 class="os-sd-title" id="osSdTitle">Shutdown</h2>' +
       '<button type="button" class="btn btn-ghost os-sd-close" data-sd-close="">Done</button></div>' +
@@ -151,7 +155,10 @@
     else if (r.leads.length) h += section('Touched today, no next step', r.leads, function (x) { return leadRow(x, !!s.busy[x.leadId]); });
     if (s.visits === undefined) h += '<p class="os-sd-note">Checking today\'s visits…</p>';
     else if (s.visits === null) h += '<p class="os-sd-note">Couldn\'t check today\'s visits.</p>';
-    else if (r.visits && r.visits.length) h += section('Visits not filed', r.visits, visitRow);
+    else {
+      if (r.visits && r.visits.length) h += section('Visits not filed', r.visits, visitRow);
+      if (s.visitsPartial) h += '<p class="os-sd-note">Couldn\'t reach the server: only this phone\'s visits were checked.</p>';
+    }
     if (r.promises.length) h += section('Promises past due', r.promises, promiseRow);
     if (!r.open && known && s.visits !== undefined) h += '<p class="os-sd-note">Nothing left open. Every lead you touched today has a next step.</p>';
     if (s.last) {
@@ -195,7 +202,9 @@
         var local = (res && res.local) || [], remote = (res && res.remote) || [];
         var have = {};
         local.forEach(function (x) { if (x && x.id) have[x.id] = true; });
-        return local.concat(remote.filter(function (x) { return x && x.id && !have[x.id]; }).map(function (x) { return Object.assign({ remoteOnly: true }, x); }));
+        var rows = local.concat(remote.filter(function (x) { return x && x.id && !have[x.id]; }).map(function (x) { return Object.assign({ remoteOnly: true }, x); }));
+        // remoteOk true only when the server query ran (an older recorder never says so: partial)
+        return { rows: rows, complete: !!(res && res.remoteOk === true) };
       });
     }).catch(function () { return null; });
   }
@@ -263,7 +272,7 @@
     var d = doc.createElement('dialog');
     d.className = 'os-sd';
     d.setAttribute('aria-labelledby', 'osSdTitle');
-    sheet = { d: d, visits: undefined, busy: {}, last: null, returnFocus: o.returnFocus || null };
+    sheet = { d: d, visits: undefined, visitsPartial: false, busy: {}, last: null, returnFocus: o.returnFocus || null };
     var s = sheet;
     d.addEventListener('click', function (ev) {
       var t = ev.target;
@@ -283,7 +292,8 @@
     if (!focusIn('[data-sd-fu]') && !focusIn('.os-sd-row a')) focusIn('[data-sd-close]');   // nothing is busy yet
     readVisits().then(function (v) {
       if (sheet !== s) return;
-      s.visits = v;   // null: the visits could not be read, so their count stays unsaid
+      s.visits = v ? v.rows : null;   // null: the visits could not be read, so their count stays unsaid
+      s.visitsPartial = !!v && !v.complete;
       render();
     });
     return d;
