@@ -653,14 +653,19 @@ async function fileFailure({ db, bucket, ref, uid, visitId, nowMs }) {
 }
 
 /**
- * Undo a filing: the row, and the tasks that are still open. Only what THIS
- * person's capture made (visitUid), so another rep's capture that happens to
- * share a visit id is never touched. A task already ticked stays.
+ * Undo a filing: the row, the tasks that are still open, and the walkthrough's
+ * Call Brief (call-brief.js, leads/{id}/call_briefs/visit_<visitId>: a brief
+ * never stays on the wrong customer). Only what THIS person's capture made
+ * (visitUid), so another rep's capture that happens to share a visit id is
+ * never touched. A task already ticked stays.
  */
 async function retract({ db, leadId, visitId, uid }) {
   const actRef = db.doc('leads/' + leadId + '/activity/visit-' + visitId);
   const act = await actRef.get();
   if (act.exists && (act.data() || {}).visitUid === uid) await actRef.delete().catch(() => {});
+  const briefRef = db.doc('leads/' + leadId + '/call_briefs/visit_' + visitId);
+  const brief = await briefRef.get().catch(() => null);
+  if (brief && brief.exists && (brief.data() || {}).visitUid === uid) await briefRef.delete().catch(() => {});
   const snap = await db.collection('leads/' + leadId + '/tasks').where('visitId', '==', visitId).where('visitUid', '==', uid).get();
   const jobs = [];
   snap.forEach((t) => {
