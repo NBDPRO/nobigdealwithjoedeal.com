@@ -137,6 +137,44 @@ function mkWin(seed, opts) {
     ok('a legacy "Install Complete" display name is the same stage, not a fresh entry', L.planJobEvent({ stage: 'Install Complete', jobType: 'cash' }, 'installed').action === 'skip');
   }
 
+  console.log('\n2b. client: a job card moved on the kanban (crm-pipeline.js _moveJobCard)');
+  {
+    // _moveJobCard writes the job doc (or the lead, for its primary job) through
+    // NBDJobs.update, not commitStageChange, and stamps its dates on the client
+    // clock (the job cache keeps the patch, so no server sentinels in it).
+    const CP = fs.readFileSync(path.join(ROOT, 'docs/pro/js/crm-pipeline.js'), 'utf8');
+    const lift = (src, name) => {
+      const start = src.indexOf('async function ' + name + '(');
+      if (start < 0) return '';
+      let depth = 0, i = src.indexOf('{', src.indexOf(')', start));
+      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) { i++; break; } }
+      return src.slice(start, i);
+    };
+    const move = async (job, to) => {
+      const rec = { patch: null };
+      const sb = {
+        window: {
+          NBDJobs: {
+            cardsFor: (lead, jobs) => jobs.map((j) => Object.assign({}, lead, j, { _jobId: j.id })),
+            forLead: () => [Object.assign({ id: 'j2' }, job)],
+            update: async (lead, jobId, patch) => { rec.patch = patch; },
+          },
+          normalizeStage: (x) => x, stageRole: ROLE, arrayUnion: (x) => ({ u: x }), _user: { uid: 'u1' },
+        },
+        showToast() {}, renderLeads() {}, console: { warn() {}, log() {} }, Date, Object,
+      };
+      vm.createContext(sb);
+      vm.runInContext(lift(CP, '_moveJobCard') + '\nglobalThis.__m = _moveJobCard;', sb);
+      await sb.__m({ id: 'L1' }, 'j2', to, false);
+      return rec.patch || {};
+    };
+    const p = await move({ stage: 'install_in_progress' }, 'install_complete');
+    ok('a job moved onto Install Done records installCompletedAt (same moment as its stageStartedAt)',
+      p.installCompletedAt && typeof p.installCompletedAt.getTime === 'function' && p.installCompletedAt.getTime() === p.stageStartedAt.getTime(), JSON.stringify(p));
+    ok('…not when the job already has one', !('installCompletedAt' in await move({ stage: 'final_photos', installCompletedAt: 'T-FIRST' }, 'install_complete')));
+    ok('control: a job moved elsewhere records none', !('installCompletedAt' in await move({ stage: 'install_in_progress' }, 'final_photos')));
+  }
+
   console.log('\n3. the readers take it first');
   {
     const src = fs.readFileSync(path.join(ROOT, 'functions/social-studio.js'), 'utf8');

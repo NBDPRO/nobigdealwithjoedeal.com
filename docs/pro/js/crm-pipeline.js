@@ -1948,6 +1948,8 @@ async function _moveJobCard(lead, jobId, newStage, isDrag) {
   const now = new Date();
   const patch = { stage: newStage, stageStartedAt: now };
   if (jobLost) Object.assign(patch, jobLost, { closedAt: now });
+  // The first move onto Install Done records when, once (2026-11-09; stage-write.js does the same for a lead).
+  if (toKey === 'install_complete' && !card.installCompletedAt) patch.installCompletedAt = now;
   if (role) patch.stageRole = role;
   if (typeof window.arrayUnion === 'function') {
     patch.stageHistory = window.arrayUnion({ from: card.stage || null, to: newStage, at: now.toISOString(), by: (window._user && window._user.uid) || null, drag: !!isDrag });
