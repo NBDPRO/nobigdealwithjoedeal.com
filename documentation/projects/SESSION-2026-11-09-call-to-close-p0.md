@@ -126,7 +126,7 @@ Two reviewers, 17 items. Fixed (each test-first, one commit each):
 
 #### Update 2026-11-09 (lane q11-views): Jo's decisions on review items 2 and 3, built
 
-Branch `q11-views` (from the integrated NBD OS P3 branch). Three commits, each test-first.
+Branch `q11-views` (from the integrated NBD OS P3 branch). Four commits: three test-first code commits and this note. (Corrected 2026-11-09, review round below: the note first said three.)
 
 **Item 2, generic task titles for viewers.** Rules cannot hide a field and tasks have collection-group readers, so hiding on the client alone would leave the text in a viewer's reads. The call text now lives in a sibling doc.
 
@@ -170,8 +170,22 @@ Branch `q11-views` (from the integrated NBD OS P3 branch). Three commits, each t
 3. **Owner surfaces that now show the generic title:**
    - The dashboard lays the call text over open tasks only (one read per open call task at load). A done call task shows the generic title in dashboard lists; the customer page shows every task in full.
    - `agent-mcp` (open tasks for the owner's agent) and the ICS / Google calendar feeds (event-type tasks only, not call tasks) do not overlay.
+   - The owner's AI lead brief (`functions/lead-brief.js`) lists a lead's tasks by their stored title, so it now reads the generic one.
    - `promise-ui`'s local mirror after a sheet save keeps the full text until the next load, which then overlays it.
 4. **Best time and number stay on the Thursday task's notes.** They are scheduling facts the caller gave, not the issue. Say so if they should move too.
+5. **Slot 0 is covered too, a little wider than Jo's list.** The generic title also applies to `promise-<callId>` (slot 0, the call card's Promise button), so a `why` the owner typed there is hidden from viewers as well. Name it in the PR body.
+
+##### Review round (2026-11-09, lane q11-views)
+
+An independent review approved the lane (no viewer read path found) and named three robustness defects and two note gaps. All five are acted on; three code commits, each shown red first:
+
+1. **The dashboard regrouped tasks by the stored `leadId` field** (`docs/pro/js/tasks.js`). A task whose stored `leadId` differed from its path made `by[t.leadId]` undefined, the regroup threw, and the session fell back to ~234 per-lead reads; the call text was also read at the stored lead. Each task is now paired with the lead in its path (the group load and the per-lead read), and keeps its own `leadId` field. `tasks.js?v=11`. Test: 3 red, then green.
+2. **A move could overwrite the target task's call text** (`functions/task-call-text.js` `moveSide`). The review suggested moving only when the task copy was created; that would drop the call text on a retry whose task copy landed first. Instead the target is written with `create()`: a target that already has call text keeps it, a retry still carries it, and the source copy is removed either way. Test: 1 red, then green.
+3. **A call-text write that failed once was never retried** (`createTaskIfAbsent`). When the task already exists, the call text is now created if it is missing (`create()`, so text already there is never rewritten). Test: 1 red, then green.
+4. The lead-brief owner surface is added to item 3 above.
+5. The commit count is corrected above.
+
+`tests/q11-task-call-text-2026-11-09.test.js` is 52/52. The call-feed golden is unchanged (11/11): no pinned write moved. Emulator, one at a time on a temporary port: `thursday-pipeline.integration` 38/38, `call-content-viewers` 120/120.
 
 ## Lane "estimate" (P1, 2026-11-09)
 
