@@ -163,6 +163,17 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     setNow(Tc, new Date(2026, 10, 9, 20, 0, 10).getTime());
     Tc.fire(30000);
     ok('the tick after 8 PM repaints it: quiet again, no count', /Close out now/.test(text(widgetOf(Tc))) && !/with no next step/.test(text(widgetOf(Tc))), text(widgetOf(Tc)));
+    // the same inside a Smart Stack showing the Shutdown card: the tick repaints the card, never re-picks
+    const Tk = win({ win: { now: new Date(2026, 10, 9, 15, 59, 50).getTime(), home: { phone: [{ id: 'stack', s: 'l', items: ['shutdown'] }], desk: [] } } });
+    await flush();
+    const stackOf = () => byKey(phone(Tk), 'stack-1');
+    ok('CONTROL stack at 3:59 PM: the Shutdown card is quiet', !!stackOf() && /Close out now/.test(text(stackOf())) && !/with no next step/.test(text(stackOf())), stackOf() && text(stackOf()));
+    setNow(Tk, new Date(2026, 10, 9, 16, 0, 20).getTime());
+    Tk.fire(30000);
+    ok('the tick after 4 PM repaints the Shutdown card inside a stack: the count shows', /2 leads with no next step/.test(text(stackOf())), text(stackOf()));
+    setNow(Tk, new Date(2026, 10, 9, 20, 0, 10).getTime());
+    Tk.fire(30000);
+    ok('...and after 8 PM it goes quiet again', /Close out now/.test(text(stackOf())) && !/with no next step/.test(text(stackOf())), text(stackOf()));
     const Ts = win({ size: 's' });
     await flush();
     ok('S: the one number, from the same count (3 to close)', /3\s*to close/.test(text(widgetOf(Ts))), text(widgetOf(Ts)));
