@@ -323,7 +323,7 @@ async function decide(db, auth, data) {
     const est = await decide(db, OWNER, { item: 'draft:estimate', decision: 'accept', value: 'tapped Start estimate' });
     ok('draft:estimate is logged', !!est.r && est.r.ok === true);
     const ds = (db.store.get(BRIEF_PATH) || {}).decisions || [];
-    ok('decisions append on the walkthrough brief', ds.length === 4 && ds.every((d) => d.decidedBy === 'jo'), ds.map((d) => d.item));
+    ok('decisions append on the walkthrough brief (refused ones are not logged)', ds.length === 3 && ds.every((d) => d.decidedBy === 'jo'), ds.map((d) => d.item));
     const unfiled = makeDb(seed());
     await brief(unfiled, OWNER);
     unfiled.store.set(VPATH, Object.assign({}, unfiled.store.get(VPATH), { attachedLeadId: null, leadId: null }));
