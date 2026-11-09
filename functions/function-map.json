@@ -39,6 +39,7 @@
   "callPipelineHealth": "./pipeline-health",
   "callPromisesList": "./call-center",
   "callTaggedMatch": "./call-center",
+  "callTranscribeNow": "./call-transcribe-now",
   "callWatch": "./call-watch",
   "carePlanAdmin": "./care-plan",
   "carePlanPublic": "./care-plan",
