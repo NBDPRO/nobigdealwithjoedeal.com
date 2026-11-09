@@ -705,17 +705,21 @@
     if (p.density && typeof p.density === 'object') {
       Object.keys(p.density).forEach(function (k) { if (p.density[k] == null) delete next.density[k]; else next.density[k] = p.density[k]; });
     }
-    if (p.layoutState && typeof p.layoutState === 'object') {
-      Object.keys(p.layoutState).forEach(function (k) { next.layoutState[k] = p.layoutState[k]; });
-    }
+    // Only the keys this call patched are written (the cache merges them in): a
+    // whole-map write from a stale tab put back keys another tab had changed.
+    // A key over the per-key budget is dropped here, so neither copy changes.
+    var patched = p.layoutState && typeof p.layoutState === 'object' ? R.normalizeUser({ layoutState: p.layoutState }).layoutState : {};
+    Object.keys(patched).forEach(function (k) { next.layoutState[k] = patched[k]; });
     user = R.normalizeUser(next);
     writePrefsCache();
     var wrote = Promise.resolve(false);
     try {
       if (uid && window.db && window.doc && window.setDoc) {
         // null (not absent) so a cleared override is cleared in the merged doc.
-        var out = { id: user.id, byDevice: {}, glove: user.glove, layoutState: user.layoutState, density: user.density };
+        var out = { id: user.id, byDevice: {}, glove: user.glove, density: user.density };
         R.SURFACES.forEach(function (s) { out.byDevice[s] = user.byDevice[s] || null; });
+        // never an empty map: under merge it would replace the stored layoutState
+        Object.keys(patched).forEach(function (k) { (out.layoutState = out.layoutState || {})[k] = user.layoutState[k]; });
         wrote = Promise.resolve(window.setDoc(window.doc(window.db, 'userSettings', uid), { layout: out }, { merge: true }))
           .then(function () { return true; }, function (err) {
             console.warn('[layout] Firestore sync failed:', err && err.message);
