@@ -1,0 +1,291 @@
+/**
+ * tests/call-to-close-viewers-2026-11-09.test.js — Call to Close Q11, the
+ * rest (Jo, 2026-11-09: "close all four"). A viewer sees no call or text
+ * content anywhere:
+ *
+ *   1. thursday_calls: every client reader skips it for a viewer (the
+ *      customer card, its timeline, the Thursday widget, Thursday-handled).
+ *   2. phone_texts / phone_text_days: skipped for a viewer (Call Center,
+ *      Inbox, Home strip, customer card), with the quiet "hidden for your
+ *      role" note instead of "Could not load".
+ *   3. Call / text summaries copied onto a customer: the customer page reads
+ *      activity through a query that leaves out the call sources for a viewer
+ *      (the rule refuses anything else; proven in
+ *      tests/firestore-rules.call-content-viewers.test.js), and the follow-up
+ *      task the Call Center files no longer copies the AI summary (a task is
+ *      readable by every role that reads the customer); a move scrubs an old
+ *      task's copy as it goes.
+ *   4. "Brief me": a viewer's brief carries no CALL / TEXTS / THURSDAY /
+ *      PROMISE line, and never reads or writes the shared cache (which was
+ *      built from them).
+ *
+ * Runs the real client functions against stubbed Firestore and the real
+ * server modules with stubs; zero network. Run:
+ *   node tests/call-to-close-viewers-2026-11-09.test.js
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const Module = require('module');
+
+let passed = 0, failed = 0;
+function ok(name, cond, detail) {
+  if (cond) { passed++; console.log('  ✓ ' + name); }
+  else { failed++; console.log('  ✗ ' + name + (detail !== undefined ? ' — ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); }
+}
+const ROOT = path.join(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+function slicer(SRC) {
+  const EOL = SRC.includes('\r\n') ? '\r\n' : '\n';
+  return function (start, end) {
+    const s = SRC.indexOf(start);
+    if (s < 0) return '';
+    const e = SRC.indexOf(end.replace(/\n/g, EOL), s);
+    return e < 0 ? '' : SRC.slice(s, e + end.length + (EOL.length - 1) * (end.split('\n').length - 1));
+  };
+}
+const HIDDEN = ['cube-acr', 'sms-backup', 'thursday', 'call-brief'];
+
+// A stub window with a Firestore that records every read.
+function stubWin(role, queries, opts) {
+  opts = opts || {};
+  const win = {
+    db: {}, auth: { currentUser: { uid: 'u1' } }, _user: { uid: 'u1' }, _leadDoc: { phone: '5550101000' },
+    _userClaims: opts.late ? undefined : { role, companyId: 'co' },
+    where: (f, op, v) => ({ f, op, v }), orderBy: () => ({}), limit: () => ({}),
+    collection: (db, ...p) => ({ col: p.join('/') }),
+    query: (c, ...fs) => ({ col: c.col, filters: fs.filter((x) => x && x.f) }),
+    getDocs: async (q) => {
+      queries.push(q);
+      if (opts.late) win._userClaims = { role, companyId: 'co' };
+      if (role === 'viewer' && /^(thursday_calls|phone_texts|phone_text_days|phone_calls)$/.test(q.col)) { const e = new Error('denied'); e.code = 'permission-denied'; throw e; }
+      return { docs: [] };
+    },
+  };
+  return win;
+}
+const cols = (qs) => qs.map((q) => q.col);
+
+(async () => {
+  // ── 2. Call Center (call-center-view.js): texts ────────────────────────
+  console.log('CALL CENTER (call-center-view.js)');
+  const CCV = read('docs/pro/js/call-center-view.js');
+  const FETCH_FROM = slicer(CCV)('  async function fetchFrom(name, channel) {', '\n  }\n');
+  async function runCcv(role, late) {
+    const queries = [];
+    const win = stubWin(role, queries, { late });
+    const sb = { window: win, console: { log() {}, warn() {}, error() {} }, Object, Date, Infinity,
+      state: { readFailed: [], error: '', cappedBefore: 0 }, LIMIT: 300, PROMISE_WINDOW_MS: 1,
+      claims: () => win._userClaims || {}, isViewer: () => (win._userClaims || {}).role === 'viewer' };
+    vm.createContext(sb);
+    vm.runInContext(FETCH_FROM + '\nglobalThis.__f = fetchFrom;', sb);
+    const texts = await sb.__f('phone_text_days', 'text');
+    return { texts, queries, state: sb.state };
+  }
+  ok('fetchFrom is found (positive control)', /async function fetchFrom/.test(FETCH_FROM));
+  {
+    const v = await runCcv('viewer');
+    ok('a viewer issues NO phone_text_days read', !cols(v.queries).includes('phone_text_days'), cols(v.queries).join(','));
+    ok('…and sees no "Could not load your texts" banner', v.state.readFailed.length === 0 && !v.state.error, JSON.stringify(v.state));
+    const m = await runCcv('manager');
+    ok('a manager still reads phone_text_days by userId and companyId', m.queries.filter((q) => q.col === 'phone_text_days').length === 2);
+    const s = await runCcv('');
+    ok('a solo owner (no role) still reads own phone_text_days', s.queries.some((q) => q.col === 'phone_text_days'));
+    const lv = await runCcv('viewer', true);
+    ok('late claims: a texts read sent before the claims is denied without a "Could not load" banner', lv.queries.length > 0 && lv.state.readFailed.length === 0 && !lv.state.error, JSON.stringify(lv.state));
+  }
+  ok('the Call Center says "Calls and texts are hidden for your role." to a viewer', /isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CCV));
+  ok('…and no longer says "Texts still show"', !/Texts still show/.test(CCV));
+
+  // ── 1 + 2. Customer card (customer-calls.js) ───────────────────────────
+  console.log('CUSTOMER CARD (customer-calls.js)');
+  const CC = read('docs/pro/js/customer-calls.js');
+  const ccs = slicer(CC);
+  const SRC_CC = ccs('  function leadDigits() {', '\n  }') + '\n' + ccs('  async function fetchCalls(leadId) {', '\n  }') + '\n' +
+    ccs('  function callTime(c) {', '\n  }') + '\n' + ccs('  async function fetchTexts(leadId) {', '\n  }');
+  async function runCc(role) {
+    const queries = [];
+    const win = stubWin(role, queries);
+    const sb = { window: win, console: { log() {}, warn() {}, error() {} }, Object, String, Number, Date,
+      claims: () => win._userClaims || {}, isViewer: () => (win._userClaims || {}).role === 'viewer', toDate: () => null };
+    vm.createContext(sb);
+    vm.runInContext(SRC_CC + '\nglobalThis.__c = fetchCalls; globalThis.__t = fetchTexts;', sb);
+    await sb.__c('L1');
+    await sb.__t('L1');
+    return { queries };
+  }
+  ok('fetchCalls and fetchTexts are found (positive control)', /async function fetchCalls/.test(SRC_CC) && /async function fetchTexts/.test(SRC_CC));
+  {
+    const v = await runCc('viewer');
+    ok('a viewer issues NO thursday_calls read', !cols(v.queries).includes('thursday_calls'), cols(v.queries).join(','));
+    ok('a viewer issues NO phone_texts read', !cols(v.queries).includes('phone_texts'), cols(v.queries).join(','));
+    ok('a viewer issues no read at all on the card\'s Calls section', v.queries.length === 0, cols(v.queries).join(','));
+    const m = await runCc('manager');
+    ok('a manager still reads thursday_calls (own + company scope)', m.queries.filter((q) => q.col === 'thursday_calls').length === 2);
+    ok('a manager still reads phone_texts', cols(m.queries).includes('phone_texts'));
+    const s = await runCc('');
+    ok('a solo owner still reads thursday_calls and phone_texts', cols(s.queries).includes('thursday_calls') && cols(s.queries).includes('phone_texts'));
+  }
+  ok('the card tells a viewer calls and texts are hidden', /if \(isViewer\(\)\) top \+= '<div class="pc-meta pc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CC));
+
+  // ── 1. Thursday widget (widgets.js) + Thursday-handled ─────────────────
+  console.log('THURSDAY WIDGET (widgets.js) / THURSDAY-HANDLED');
+  const WG = read('docs/pro/js/widgets.js');
+  const THU_FETCH = slicer(WG)('async function _thuFetch() {', '\n}\n');
+  async function runThu(role) {
+    const queries = [];
+    const win = stubWin(role, queries);
+    const sb = { window: win, console: { log() {}, warn() {}, error() {} }, Object,
+      _thuClaims: () => win._userClaims || {}, _thuIsViewer: () => (win._userClaims || {}).role === 'viewer', _toMs: () => 0 };
+    vm.createContext(sb);
+    vm.runInContext(THU_FETCH + '\nglobalThis.__f = _thuFetch;', sb);
+    await sb.__f();
+    return queries;
+  }
+  ok('_thuFetch is found (positive control)', /async function _thuFetch/.test(THU_FETCH));
+  ok('a viewer issues NO thursday_calls read from the widget', (await runThu('viewer')).length === 0);
+  ok('a manager still reads thursday_calls from the widget', (await runThu('manager')).filter((q) => q.col === 'thursday_calls').length === 2);
+  ok('the widget tells a viewer calls are hidden (not "No calls yet")', /if \(_thuIsViewer\(\)\) \{ el\.innerHTML = '<div class="w-empty" role="status">Calls are hidden for your role\.<\/div>'; return; \}/.test(WG));
+  const TH = read('docs/pro/js/thursday-handled.js');
+  ok('Thursday-handled never reads thursday_calls for a viewer', /function canRead\(\) \{ return !!\(uid\(\) && role\(\) !== 'sales_rep' && role\(\) !== 'viewer'\); \}/.test(TH));
+  const CS = read('docs/pro/js/contact-suggest.js');
+  const CL = read('docs/pro/js/contact-labels.js');
+  ok('contact-suggest (reads thursday_calls) is already off for a viewer: it needs canWrite, which excludes viewers',
+    /function canSuggest\(\) \{ return !!\(uid\(\) && w\.NBDContactLabels && w\.NBDContactLabels\.canWrite\(\)\); \}/.test(CS) && /function canWrite\(\) \{ return !!\(uid\(\) && role\(\) !== 'viewer'/.test(CL));
+
+  // ── 2. Home strip + Inbox ───────────────────────────────────────────────
+  console.log('HOME STRIP (home-attention.js) / INBOX (layouts/inbox.js)');
+  const HA = read('docs/pro/js/home-attention.js');
+  ok('the Home strip skips its phone_text_days read for a viewer', /if \(!callsHidden\) jobs\.push\(qWin\('phone_text_days', READ\.recentTexts\)/.test(HA));
+  const haText = (HA.match(/qWin\('phone_text_days'[\s\S]*?\.catch\(\(\) => \{[^\n]*\}\)\);/) || [''])[0];
+  ok('…and a texts denial once the role reads viewer is not a failed read', /\.catch\(\(\) => \{ if \(!viewerNow\(\)\) out\.callsFailed = true; \}\)\);$/.test(haText), haText.slice(-80));
+  const IB = read('docs/pro/js/layouts/inbox.js');
+  ok('the Inbox skips its phone_text_days read for a viewer', /var b = \(claims\(\)\.role \|\| ''\) === 'viewer' \? Promise\.resolve\(\) : W\.getDocs\(W\.query\(W\.collection\(W\.db, 'phone_text_days'\)/.test(IB));
+  ok('…a texts denial once the role reads viewer does not fail the feed', /'phone_text_days'[\s\S]{0,400}\.catch\(function \(e\) \{ if \(\(claims\(\)\.role \|\| ''\) === 'viewer'\) return; throw e; \}\);/.test(IB));
+  ok('…and the Inbox says calls and texts are hidden for a viewer', /Calls and texts are hidden for your role\./.test(IB) && /role="status"/.test(IB));
+
+  // ── 1 + 3. Customer timeline (customer-bootstrap + call-timeline) ───────
+  console.log('CUSTOMER TIMELINE (customer-bootstrap.module.js, call-timeline.js)');
+  const CB = read('docs/pro/js/customer-bootstrap.module.js');
+  const thuBlock = (CB.match(/\/\/ Thursday \(Bland AI receptionist\) calls attached to this lead[\s\S]*?No Thursday calls for timeline/) || [''])[0];
+  ok('the timeline\'s thursday_calls read is found (positive control)', /collection\(db, 'thursday_calls'\)/.test(thuBlock));
+  ok('…and skipped for a viewer', /if \(\(claims\.role \|\| ''\) !== 'viewer'\) for \(const scope of scopes\)/.test(thuBlock), thuBlock.slice(0, 0));
+  const actReads = CB.match(/getDocs\([^\n]*'activity'[^\n]*\)/g) || [];
+  ok('the customer page reads activity in two places (positive control)', (CB.match(/'activity'/g) || []).length >= 2);
+  ok('both activity reads go through NBDCallTimeline.activityQuery (the viewer-safe query)', (CB.match(/getDocs\(CT\.activityQuery\(window, (db|window\.db), leadId\)\)/g) || []).length === 2 && actReads.length === 0, actReads.join(' | '));
+  delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/call-timeline.js'))];
+  const CT = require(path.join(ROOT, 'docs/pro/js/call-timeline.js'));
+  ok('call-timeline exports activityQuery and the hidden sources', typeof CT.activityQuery === 'function' && Array.isArray(CT.VIEWER_HIDDEN_SOURCES));
+  if (typeof CT.activityQuery === 'function') {
+    const W = (role) => ({ _userClaims: role == null ? undefined : { role }, collection: (db, ...p) => ({ col: p.join('/') }),
+      query: (c, ...f) => ({ col: c.col, filters: f }), where: (f, op, v) => ({ f, op, v }) });
+    const v = CT.activityQuery(W('viewer'), {}, 'L1');
+    ok('a viewer\'s activity read excludes exactly the call sources', v.col === 'leads/L1/activity' && v.filters.length === 1 && v.filters[0].f === 'source' && v.filters[0].op === 'not-in' && JSON.stringify(v.filters[0].v) === JSON.stringify(HIDDEN), JSON.stringify(v));
+    const m = CT.activityQuery(W('manager'), {}, 'L1');
+    ok('a manager\'s activity read is the whole collection, as before', m.col === 'leads/L1/activity' && !m.filters);
+    const s = CT.activityQuery(W(null), {}, 'L1');
+    ok('a solo owner (no claims yet) reads the whole collection, as before', s.col === 'leads/L1/activity' && !s.filters);
+  }
+  const RULES = read('firestore.rules');
+  const actRule = (RULES.match(/match \/activity\/\{activityId\} \{[\s\S]*?allow create/) || [''])[0];
+  const ruleList = (actRule.match(/resource\.data\.source in (\[[^\]]*\])/) || [])[1];
+  ok('the activity rule hides the same sources from a viewer as the client excludes', ruleList && JSON.stringify(JSON.parse(ruleList.replace(/'/g, '"'))) === JSON.stringify(HIDDEN), ruleList);
+  ok('…with the bare field (resource.data.source), not .get(): the emulator lets an unconstrained list through a negated .get()', /notViewer\(\) \|\| !\(resource\.data\.source in \[/.test(actRule));
+  for (const col of ['thursday_calls', 'phone_texts', 'phone_text_days']) {
+    const b = (RULES.match(new RegExp('match \\/' + col + '\\/\\{docId\\} \\{[\\s\\S]*?\\n    \\}')) || [''])[0];
+    ok(col + ' read requires notViewer()', /allow read: if notViewer\(\)\s*&& \(isOwner\(resource\.data\.userId\)/.test(b) && /allow write: if false;/.test(b));
+  }
+
+  // ── 3 + 4. Server ───────────────────────────────────────────────────────
+  console.log('SERVER (call-center-logic.js, call-center.js, lead-brief)');
+  const silent = { info() {}, warn() {}, error() {}, debug() {} };
+  const STUBS = {
+    'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => '' }) },
+    'firebase-functions/v2': { logger: silent },
+    'firebase-functions/v2/https': { onCall: (o, h) => ({ __opts: o, __handler: h }), onRequest: (o, h) => ({ __opts: o, __handler: h }),
+      HttpsError: class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } } },
+    'firebase-admin/firestore': { getFirestore: () => ({}), FieldValue: { serverTimestamp: () => ({ __ts: true }), increment: (n) => n }, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) } },
+    './integrations/killswitch': { isAiDisabled: async () => false },
+  };
+  const realLoad = Module._load;
+  Module._load = function (request) { return Object.prototype.hasOwnProperty.call(STUBS, request) ? STUBS[request] : realLoad.apply(this, arguments); };
+  const L = require(path.join(ROOT, 'functions/call-center-logic.js'));
+  const NOW = Date.parse('2026-11-09T15:00:00Z');
+  const notes = { summary: 'SECRET SUMMARY: hail on the north slope, adjuster Friday', promises: [{ who: 'jo', text: 'Send the estimate', due: '2026-11-12' }], followUpDate: null, urgent: false };
+  const t = L.buildFollowUpTask({ call: { id: 'cube_X1', contactName: 'Kim', startedAtMs: NOW - 3600e3 }, notes, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-11-09', nowMs: NOW });
+  ok('a call still makes its follow-up task (positive control)', t && t.title === 'Send the estimate (Kim)' && t.source === 'cube-acr' && t.phoneCallId === 'cube_X1');
+  ok('the task no longer copies the AI summary (every role that reads the customer reads its tasks)', t && !/SECRET SUMMARY/.test(JSON.stringify(t)), t && t.notes);
+  ok('…it keeps what Jo said he would do', t && /You said you would:\n• Send the estimate \(by 2026-11-12\)/.test(t.notes));
+  ok('…and points to where the summary lives', t && /summary is on the customer's timeline/.test(t.notes), t && t.notes);
+  const td = L.buildTextDayTask({ day: { id: 'day1', contactName: 'Kim', startedAtMs: NOW - 3600e3 }, notes, leadId: 'L1', ownerUid: 'U', todayYmd: '2026-11-09', nowMs: NOW });
+  ok('a day of texts: the task has no summary either', td && td.source === 'sms-backup' && !/SECRET SUMMARY/.test(JSON.stringify(td)));
+  ok('the timeline entry still carries the summary (rules keep it from viewers)', L.buildCallActivity({ call: { id: 'c' }, notes, ownerUid: 'U' }).summary === notes.summary);
+  ok('scrubTaskSummary removes the old "Call: …" paragraph and keeps the rest',
+    typeof L.scrubTaskSummary === 'function' && L.scrubTaskSummary('Call: SECRET\n\nYou said you would:\n• X') === 'You said you would:\n• X'
+    && L.scrubTaskSummary('Call: SECRET') === '' && L.scrubTaskSummary('Typed by Jo') === 'Typed by Jo' && L.scrubTaskSummary(null) === null);
+  const CCJ = read('functions/call-center.js');
+  const move = (CCJ.match(/async function moveCallToLead\([\s\S]*?\n\}\n/) || [''])[0];
+  ok('a move copies the old task with its summary scrubbed', /notes: L\.scrubTaskSummary\(t\.data\(\)\.notes\)/.test(move), move.slice(0, 0));
+
+  const B = require(path.join(ROOT, 'functions/lead-brief-logic.js'));
+  const activity = [
+    { type: 'call', source: 'cube-acr', phoneCallId: 'c1', summary: 'CALLSECRET', promises: [{ who: 'jo', text: 'PROMISESECRET' }], startedAtMs: NOW - 1e6 },
+    { type: 'text', source: 'sms-backup', phoneTextDayId: 'd1', summary: 'TEXTSECRET', startedAtMs: NOW - 2e6 },
+    { type: 'call', source: 'thursday', thursdayCallId: 't1', summary: 'THURSDAYSECRET', startedAtMs: NOW - 3e6 },
+  ];
+  const lead = { userId: 'jo', companyId: 'jo', firstName: 'Pat', stage: 'Estimate sent' };
+  const full = B.buildPrompt(B.buildFacts({ lead, activity, tasks: [], nowMs: NOW }));
+  ok('owner brief still carries CALL, TEXTS, THURSDAY and PROMISE lines (positive control)', /CALL .*CALLSECRET/.test(full) && /TEXTS .*TEXTSECRET/.test(full) && /THURSDAY .*THURSDAYSECRET/.test(full) && /PROMISE .*PROMISESECRET/.test(full));
+  ok('mayReadCallContent: a viewer no; owner, manager, company_admin, admin yes',
+    typeof B.mayReadCallContent === 'function' && !B.mayReadCallContent({ uid: 'v', token: { role: 'viewer', companyId: 'jo' } })
+    && B.mayReadCallContent({ uid: 'jo', token: {} }) && B.mayReadCallContent({ uid: 'm', token: { role: 'manager', companyId: 'jo' } })
+    && B.mayReadCallContent({ uid: 'a', token: { role: 'company_admin', companyId: 'jo' } }) && B.mayReadCallContent({ uid: 'x', token: { role: 'admin' } }));
+  const vf = B.buildFacts({ lead, activity, tasks: [], nowMs: NOW, callContent: false });
+  const vp = B.buildPrompt(vf);
+  ok('a viewer\'s brief has no CALL / TEXTS / THURSDAY / PROMISE line', !/CALLSECRET|TEXTSECRET|THURSDAYSECRET|PROMISESECRET/.test(vp) && !/\n(CALL|TEXTS|THURSDAY|PROMISE)\b/.test(vp), vp);
+  const fb = B.fallbackBrief(vf);
+  ok('…nor does the no-AI fallback built from it', !/CALLSECRET|TEXTSECRET|THURSDAYSECRET|PROMISESECRET/.test(JSON.stringify(fb)));
+  ok('…while the CRM record (stage, name) still briefs', /Estimate sent/.test(vp) && /Pat/.test(vp));
+  ok('canReadLead is NOT widened (a viewer reads the lead, as the /leads rule says)', B.canReadLead({ uid: 'v', token: { role: 'viewer', companyId: 'jo' } }, lead) === true
+    && B.canReadLead({ uid: 'r', token: { role: 'sales_rep', companyId: 'jo' } }, lead) === false);
+
+  // The callable end to end with a fake Firestore: a viewer never sees the cached (call-built) brief, and never writes one.
+  const LB = require(path.join(ROOT, 'functions/lead-brief.js'));
+  function fakeDb(seed) {
+    const store = new Map(Object.entries(seed));
+    const reads = [], writes = [];
+    const split = (p) => { const i = p.lastIndexOf('/'); return [p.slice(0, i), p.slice(i + 1)]; };
+    const doc = (p) => ({ id: split(p)[1], path: p,
+      get: async () => { reads.push(p); return { exists: store.has(p), id: split(p)[1], data: () => store.get(p) }; },
+      set: async (d) => { writes.push(p); store.set(p, d); }, collection: (n) => coll(p + '/' + n) });
+    const coll = (name) => { const q = { where: () => q, orderBy: () => q, limit: () => q, doc: (id) => doc(name + '/' + id),
+      get: async () => { reads.push(name); const docs = [...store.keys()].filter((k) => split(k)[0] === name).map((k) => ({ id: split(k)[1], data: () => store.get(k) })); return { docs, forEach: (f) => docs.forEach(f), size: docs.length, empty: !docs.length }; } }; return q; };
+    return { reads, writes, store, collection: coll, doc, runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, d) => r.set(d) }) };
+  }
+  const seed = {
+    'leads/L1': lead,
+    'lead_briefs/L1': { leadId: 'L1', oneLine: 'CACHEDSECRET from the call', bullets: ['CALLSECRET'], source: 'ai', generatedAtMs: NOW - 60e3 },
+    'leads/L1/activity/cube-c1': activity[0], 'leads/L1/activity/sms-d1': activity[1],
+  };
+  const models = [];
+  const model = async (req) => { models.push(req); return { content: [{ type: 'text', text: '{"oneLine":"Fresh","bullets":["a","b","c"]}' }], usage: { input_tokens: 1, output_tokens: 1 }, model: req.model }; };
+  const callable = LB._test && LB._test.briefCallable;
+  ok('the callable is reachable for the test (positive control)', typeof callable === 'function');
+  if (typeof callable === 'function') {
+    const db1 = fakeDb(seed);
+    const own = await callable({ db: db1, auth: { uid: 'jo', token: { email_verified: true, role: 'admin' } }, data: { leadId: 'L1' }, nowMs: NOW, callModel: model, log: silent });
+    ok('the owner still gets the cached brief (positive control)', own && own.cached === true && /CACHEDSECRET/.test(own.oneLine));
+    const db2 = fakeDb(seed);
+    models.length = 0;
+    const vr = await callable({ db: db2, auth: { uid: 'v', token: { email_verified: true, role: 'viewer', companyId: 'jo' } }, data: { leadId: 'L1' }, nowMs: NOW, callModel: model, log: silent });
+    ok('a viewer never gets the cached brief (it was built from the calls)', vr && !/CACHEDSECRET|CALLSECRET/.test(JSON.stringify(vr)), vr);
+    ok('…does not even read the cache doc', !db2.reads.includes('lead_briefs/L1'), db2.reads);
+    ok('…never writes the shared cache', !db2.writes.includes('lead_briefs/L1'), db2.writes);
+    ok('…and anything sent to the model carries no call content', !/CALLSECRET|TEXTSECRET|PROMISESECRET/.test(JSON.stringify(models)));
+  }
+  Module._load = realLoad;
+
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  process.exit(failed ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
