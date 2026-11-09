@@ -869,6 +869,8 @@
     var vars = L().cssVars(paintCfg, urls, acc && acc.ok ? acc.fg : null);
     Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });
     classes.forEach(function (c) { root.classList.add(c); });
+    // a company-enforced picture: NBD OS's own wallpapers give way to it (css/layouts/os.css)
+    if (layerPic && layerPic.style && layerPic.style.locked) root.classList.add('my-skin-locked');
     if (amb && cfg.ambient.tint && tintAllowed(amb.accent)) {
       root.classList.add('my-skin', 'my-skin-tint');
       root.style.setProperty('--myskin-tint', amb.accent);
@@ -1704,6 +1706,54 @@
     var p = $('myskinPanel'); if (p) p.setAttribute('data-myskin-ready', '');
   }
 
+  // ── NBD OS wallpaper (2026-11-09, P1; js/os/wallpaper.js) ───────────────
+  // The member's own per-theme pictures, by id, so the OS can put one on its
+  // desk or phone home screen. Personal pictures only (a company picture is the
+  // company's to place). Read the way everything here is: IndexedDB, then
+  // getBlob under the rules, never a token URL. The caller makes, and revokes,
+  // any object URL from the Blob. dim: the readability guard's veil for it.
+  function ownImage(id) {
+    var hit = null;
+    if (!cfg || typeof id !== 'string') return null;
+    Object.keys(cfg.themes).forEach(function (t) {
+      cfg.themes[t].images.forEach(function (im) { if (!hit && im.id === id && L().trustedImagePath(uid, im)) hit = { img: im, theme: t }; });
+    });
+    return hit;
+  }
+  function ownImages() {
+    var seen = {}, out = [];
+    if (!cfg) return out;
+    Object.keys(cfg.themes).forEach(function (t) {
+      cfg.themes[t].images.forEach(function (im) {
+        if (seen[im.id] || !L().trustedImagePath(uid, im)) return;
+        seen[im.id] = 1;
+        out.push({ id: im.id, theme: t, w: im.w, h: im.h, thumb: im.thumb === true });
+      });
+    });
+    return out;
+  }
+  function ownImageBlob(id, opts) {
+    var hit = ownImage(id);
+    if (!hit) return Promise.resolve(null);
+    var im = hit.img, key = imgKey(im), path = L().trustedImagePath(uid, im);
+    var tp = opts && opts.thumb ? L().trustedThumbPath(uid, im) : null;
+    function full() {
+      return idbGet(key).then(function (rec) {
+        if (rec && rec.blob) return rec.blob;
+        return sdk().then(function (st) { return st.getBlob(st.ref(window.storage, path)); }).then(function (b) {
+          idbPut({ k: key, blob: b, type: b.type, w: im.w, h: im.h, bytes: b.size, at: Date.now() });
+          return b;
+        });
+      });
+    }
+    var get = tp ? sdk().then(function (st) { return st.getBlob(st.ref(window.storage, tp)); }).catch(full) : full();
+    return get.then(function (b) {
+      var slot = cfg.themes[hit.theme];
+      var dim = L().effectiveDim({ dim: slot && slot.dim != null ? slot.dim : cfg.dim }, im, guardCtx()).dim;
+      return { blob: b, dim: dim };
+    });
+  }
+
   window.NBDMySkin = {
     __v: 2,
     // Exposed for tests and the console: current state and a manual repaint.
@@ -1725,6 +1775,9 @@
     copyToCategory: function (themeId) { return copyToCategory(themeId); },
     clearTheme: function (themeId) { return clearTheme(themeId); },
     purgeLocal: purgeLocal,
+    images: ownImages,
+    imageBlob: ownImageBlob,
+    locked: function () { return !!(layerPic && layerPic.style && layerPic.style.locked); },
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

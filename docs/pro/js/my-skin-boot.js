@@ -14,7 +14,7 @@
   var w = window, SL = w.ScriptLoader;
   if (w.NBDMySkinBoot || !SL || typeof SL.loadBundle !== 'function') return;
   // Order is load-bearing: my-skin.js reads window.NBDMySkinLogic.
-  if (SL.bundles && !SL.bundles.myskin) SL.bundles.myskin = ['js/my-skin-logic.js?v=7', 'js/my-skin.js?v=12'];
+  if (SL.bundles && !SL.bundles.myskin) SL.bundles.myskin = ['js/my-skin-logic.js?v=7', 'js/my-skin.js?v=13'];
   if (SL.views && SL.views.settings && SL.views.settings.indexOf('myskin') === -1) SL.views.settings.push('myskin');
 
   var asked = false;
