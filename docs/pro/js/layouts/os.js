@@ -610,6 +610,10 @@
       if (!S || S.privacyOff || !ev.ctrlKey || !ev.altKey || ev.metaKey || ev.shiftKey || ev.code !== 'KeyL') return;
       var k = { ctrlKey: true, altKey: true, code: ev.code, key: ev.key, repeat: ev.repeat, getModifierState: function (m) { return safe(function () { return ev.getModifierState(m); }) === true; } };
       var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || !!(ev.target && ev.target.isContentEditable);
+      // the key is taken now, as the attached path does, unless it is AltGr or a letter going into a field
+      var ch = typeof ev.key === 'string' ? ev.key : '';
+      if (ev.repeat || k.getModifierState('AltGraph') || (typing && ch.length === 1 && ch.toLowerCase() !== 'l')) return;
+      if (typeof ev.preventDefault === 'function') ev.preventDefault();
       privacyLoad().then(function (P) { if (P && P._pure.isLockKey(k, typing)) P.lockNow('key'); });
     });
   }

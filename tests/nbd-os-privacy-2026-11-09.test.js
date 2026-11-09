@@ -118,7 +118,8 @@ function desk() {
     ok('a bare L loads nothing and never locks (WCAG 2.1.4)', !isLocked(T) && !W.NBDOSPrivacy);
     return flush();
   }).then(() => {
-    key(body, 'l', { ctrlKey: true, altKey: true, code: 'KeyL' });
+    const first = key(body, 'l', { ctrlKey: true, altKey: true, code: 'KeyL' });
+    ok('the first Ctrl+Alt+L is taken at once too (preventDefault), before the bundle is in', first.defaultPrevented === true);
     return flush();
   }).then(() => {
     ok('the first Ctrl+Alt+L loads the osprivacy bundle (runtime, from layouts/os.js) and locks', W.ScriptLoader.calls.indexOf('osprivacy') >= 0 && !!W.NBDOSPrivacy && isLocked(T));
@@ -132,7 +133,11 @@ function desk() {
     key(body, 'ł', { ctrlKey: true, altKey: true, code: 'KeyL', getModifierState: (m) => m === 'AltGraph' });
     ok('AltGr+L (a Polish ł) never locks', !isLocked(T));
     const T2 = boot('desktop');
-    H.fire(T2.dom, T2.document.body, 'keydown', { key: 'ł', ctrlKey: true, altKey: true, code: 'KeyL', getModifierState: (m) => m === 'AltGraph' });
+    const ag = H.fire(T2.dom, T2.document.body, 'keydown', { key: 'ł', ctrlKey: true, altKey: true, code: 'KeyL', getModifierState: (m) => m === 'AltGraph' });
+    ok('…and as the first key its ł is left to type (no preventDefault)', ag.defaultPrevented === false);
+    const field2 = T2.document.createElement('input'); T2.document.body.appendChild(field2);
+    const composed = H.fire(T2.dom, field2, 'keydown', { key: 'ł', ctrlKey: true, altKey: true, code: 'KeyL' });
+    ok('…nor a composed letter going into a field', composed.defaultPrevented === false);
     return flush().then(() => {
       ok('…nor as the first key, before the bundle is in', !isLocked(T2));
       T2.W._impl.unmount();
