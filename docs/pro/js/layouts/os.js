@@ -136,7 +136,9 @@
   /** P2 Activities: the mode on for this surface (home-logic activeAct), or null. */
   function curAct() {
     var HL = W.NBDOSHomeLogic;
-    if (!S || !S.home || !HL || typeof HL.activeAct !== 'function') return null;
+    // not S.home: the home's first paint runs inside its mount, before S.home is set, and must
+    // already go through the mode (its widgets, its lens; "In a home" never paints unfiltered)
+    if (!S || !HL || typeof HL.activeAct !== 'function') return null;
     return safe(function () { return HL.activeAct(ownHome(), homeSurface(), S.desk); }) || null;
   }
   /** A surface's widgets: the mode's own while one is on (a company lock still wins), else the home. */

@@ -123,7 +123,8 @@
     // one query of at most 50 docs, at most every refreshMin minutes, only while painted. owner: the solo owner, the
     // company-keyed owner or a company_admin; nobody else ever gets it painted or offered.
     // id teamboard, not team: .os-hw-team is the layout's Publish / Lock group (layouts/os.js, home.css)
-    teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
+    // names: it lists teammates by name, so "In a home" never paints it (actHides)
+    teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', names: true, about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };

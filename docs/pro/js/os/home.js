@@ -129,6 +129,10 @@
   // (os/acts.js): the plan and leads come through it (a phase's work only; "In a home"
   // names only the current appointment's customer). null when no mode is on.
   var LENS = null;
+  // and PRIVATE is true while that mode is a privacy one ("In a home"): no AI line, no Peek at a
+  // hidden customer. modeOf is the mounted home's mode() (the Welcome Recap waits while it is private).
+  var PRIVATE = false, modeOf = null;
+  function privateNow() { var a = null; try { a = modeOf ? modeOf() : null; } catch (e) { a = null; } return !!(a && a.focus && a.focus.privacy === true); }
   function todayPlan() {
     var p = rawPlan();
     return p && LENS ? LENS.plan(p) : p;
@@ -228,14 +232,14 @@
     // a widget of its own keeps two rows on the phone's 4x2 cells, one on the desk board's 160px row;
     // an M card inside an L Smart Stack (rec.box 'l', two board rows or 4x4 cells) keeps all three
     var board = !!(rec && rec.el && typeof rec.el.closest === 'function' && rec.el.closest('.os-hw-board'));
-    var tight = size === 'm' && (!rec || !rec.box || rec.box === 'm') && !!HL.peekAppt(plan, Date.now());
+    var tight = size === 'm' && (!rec || !rec.box || rec.box === 'm') && !!peekFor(plan);
     var rows = HL.upNext(plan, { n: size === 's' ? 1 : (tight ? (board ? 1 : 2) : 3), viewer: isViewer() }) || [];
     var h = '<h3 class="os-hw-title">Up Next <span class="os-hw-count">' + esc(HL.headline(plan.total)) + '</span></h3>' + focusHtml(f);
     // focused on an appointment: its row leads, marked
     if (f && f.kind === 'appt') rows.forEach(function (r, i) { if (r.key === f.key && i) { rows.splice(i, 1); rows.unshift(r); } });
     if (!rows.length) {
       var c = counts();
-      if (HL.peekAppt(plan, Date.now())) return h + peekBtn(plan);   // never "Nothing due" beside an appointment
+      if (peekFor(plan)) return h + peekBtn(plan);   // never "Nothing due" beside an appointment
       var unsure = apptsFailed() || !!(c && c.callsFailed);
       return h + '<p class="os-hw-empty">' + esc(unsure ? 'Can\'t confirm your day yet' : 'Nothing due today') + '</p>';
     }
@@ -291,7 +295,7 @@
   var aiAsked = false, aiTries = 0;
   function coachAi(list) {
     var p = W._companyProfile;
-    if (!list.length || !p || p.coachAiEnabled !== true) return '';
+    if (!list.length || !p || p.coachAiEnabled !== true || PRIVATE) return '';
     var A = W.NBDOSCoachAI, SL = W.ScriptLoader;
     if (A) return A.html(list);
     if (!aiAsked && aiTries < 3 && SL && typeof SL.loadBundle === 'function') {
@@ -500,8 +504,13 @@
     return pkLoad;
   }
   /** Up Next's Peek button: only while the next appointment starts within 30 min (home-logic peekAppt). */
-  function peekBtn(plan) {
+  /** home-logic peekAppt, unless a privacy mode hides that customer (the sheet names them, their street and notes). */
+  function peekFor(plan) {
     var p = HL.peekAppt(plan, Date.now());
+    return p && (!LENS || LENS.nameOk(p.leadId)) ? p : null;
+  }
+  function peekBtn(plan) {
+    var p = peekFor(plan);
     if (!p) return '';
     return '<button type="button" class="btn btn-ghost os-hw-btn os-hw-peek" data-oshw-peek="' + esc(p.key) + '" aria-label="' +
       esc('Peek at ' + p.name + (p.time ? ', ' + p.time : '')) + '">Peek</button>';
@@ -523,7 +532,7 @@
   function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function maybeRecap() {
     var now = Date.now(), today = HL.dayKey(now);
-    if (recapDay === today || doc.hidden) return;
+    if (recapDay === today || doc.hidden || privateNow()) return;   // "In a home": it names carried leads; the tick asks again
     var uid = String((W._user && W._user.uid) || '');
     if (!HL.recapDue(lsGet('nbd_os_carry'), lsGet('nbd_os_recap'), uid, now)) return;
     var O = W.NBDOS;
@@ -643,6 +652,7 @@
     var navHidden = typeof o.navHidden === 'function' ? o.navHidden : function () { return false; };
     /** P2: the mode on for this surface (home-logic activeAct), or null. */
     function mode() { try { return typeof o.mode === 'function' ? o.mode() : null; } catch (e) { return null; } }
+    modeOf = mode;
     function focus() { var a = mode(); return a ? a.focus : null; }
     /** The lens a paint goes through: null (no mode), 'wait' / 'fail' (the bundle), or os/acts.js's lens. */
     function lensFor() {
@@ -700,12 +710,14 @@
         html = '<h3 class="os-hw-title">' + esc(HL.CATALOG[rec.it.id].title) + '</h3>' + (ln === 'wait' ? '<p class="os-hw-empty">Loading…</p>' : failHtml('acts'));
       } else {
         LENS = ln;
+        PRIVATE = !!(ln && ln !== 'wait' && ln !== 'fail' && focus() && focus().privacy === true);
         try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec, kit); }
         catch (e) {
           html = failHtml(rec.key);
           try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
         }
         LENS = null;
+        PRIVATE = false;
       }
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
       if (showsSd(rec)) rec.sdIn = sdWindow();   // the tick repaints it when this changes
