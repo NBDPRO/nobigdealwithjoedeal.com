@@ -589,10 +589,10 @@
       '<div class="cb-meta">Heard on the call: who has a say, in the words that were said. The recording has no speaker labels, so check it. Kept in this brief only: it is never written to the customer and nothing is sent.</div>' +
       list.map(function (d, i) {
         return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(d.label) + '</span><span class="cb-badge">Heard on the call</span></div>' + quoteHtml(d.quote, d.unsure) +
-          '<div class="cb-acts">' + btn('Copy', 'dm-copy', ' data-i="' + i + '"') + '</div>' +
+          '<div class="cb-acts">' + btn('Copy', 'dm-copy', ' data-i="' + i + '" aria-label="' + esc('Copy: ' + d.label) + '"') + '</div>' +
           (copied[i] ? '<div class="cb-done" role="status">' + esc(copied[i]) + '</div>' : '') + '</div>';
       }).join('') +
-      '<div class="cb-acts">' + btn('Copy list', 'dm-copy-all') + '</div>' + (copied.all ? '<div class="cb-done" role="status">' + esc(copied.all) + '</div>' : '') + '</div>';
+      '<div class="cb-acts">' + btn('Copy list', 'dm-copy-all', ' aria-label="Copy the Who decides list"') + '</div>' + (copied.all ? '<div class="cb-done" role="status">' + esc(copied.all) + '</div>' : '') + '</div>';
   }
 
   function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName(), isVisit() ? 'visit' : ''); }

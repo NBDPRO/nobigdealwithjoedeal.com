@@ -192,6 +192,8 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     ok('…lists "my husband" and "the HOA" with their quotes', /my husband/.test(sec) && /the HOA/.test(sec) && /before we sign anything/.test(sec) && /approve the color first/.test(sec));
     ok('…not the neighbour (she does not decide)', !/neighbor Carol/.test(sec));
     ok('…a Copy per person and a Copy list', (sec.match(/data-cb-act="dm-copy"/g) || []).length === 2 && /data-cb-act="dm-copy-all"/.test(sec), sec);
+    ok('…each Copy names whom it copies for a screen reader (aria-label "Copy: my husband")', /aria-label="Copy: my husband"[^>]*data-cb-act="dm-copy"|data-cb-act="dm-copy"[^>]*aria-label="Copy: my husband"/.test(sec) && /aria-label="Copy: the HOA"/.test(sec), sec);
+    ok('…and Copy list says what it copies', /aria-label="Copy the Who decides list"/.test(sec), sec);
     ok('…no Accept / Save / fill on it (nothing writes)', !/data-cb-act="(accept|edit-save|skip)"/.test(sec));
     const order = ['cbObjH', 'cbWhoH', 'cbMsgH'].map((id) => html.indexOf('id="' + id + '"'));
     ok('…it sits after the objections and before the follow-up message', order[0] > 0 && order[0] < order[1] && order[1] < order[2], order);
@@ -208,6 +210,7 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     open(CB, { brief: hostile });
     const sec = section(CB._render(), 'cbWhoH');
     ok('labels and quotes are escaped', !/<img|<script/.test(sec) && /&lt;img/.test(sec) && /&lt;script&gt;/.test(sec), sec);
+    ok('…the Copy aria-label is escaped too', /aria-label="Copy: &lt;img/.test(sec), sec);
   }
   {
     const { CB } = load();
