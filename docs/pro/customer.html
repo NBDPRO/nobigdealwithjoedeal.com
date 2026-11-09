@@ -1892,6 +1892,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       <button class="btn" data-action="_sendReferralCodeAndSms" title="Generate and send referral code">
         🎁 Referral Code
       </button>
+      <!-- Project-page consent (2026-11-09, content plan §2): the owner's tick that the
+           homeowner agreed to a public project page. js/project-consent.js loads on the
+           first tap (no boot cost); rules let only the owner side write it. -->
+      <button class="btn" id="projectConsentBtn" data-action="ScriptLoader.load" data-arg="js/project-consent.js?v=1"
+        title="Homeowner consent to show this job as a project page on the website">
+        🏠 Project Page
+      </button>
+      <div id="projectConsentPanel" class="pc-panel" role="region" aria-label="Project page consent" hidden></div>
     </div>
   </div>
 
