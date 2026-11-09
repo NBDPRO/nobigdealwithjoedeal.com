@@ -119,6 +119,9 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
       counts.toChange++;
       counts.byPrefix[prefix]++;
       if (!args.apply) continue;
+      // No updateTime, no write: the Admin SDK reads { lastUpdateTime: undefined }
+      // as no precondition at all, an upsert that could re-create a deleted task.
+      if (!d.updateTime) { counts.failures++; continue; }
       try {
         await db.doc(p).update('notes', patch.notes, 'updatedAt', serverTimestamp(), { lastUpdateTime: d.updateTime });
         counts.written++;

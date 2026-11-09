@@ -205,6 +205,21 @@ function fakeDb(docs) {
   r = await S.run({ db: f.db, args: S.parseArgs(['--apply']), log, serverTimestamp: () => SERVER_TS });
   ok(r.counts.toChange === 0, 'edited mid-run: the rep\'s new notes have no Call: paragraph, so a rerun leaves them');
 
+  // ── no updateTime on a result: never written. The Admin SDK reads
+  // { lastUpdateTime: undefined } as no precondition at all (an upsert that
+  // would re-create a deleted task), so the script must not send one. ──
+  f = fakeDb(seed());
+  const realCg = f.db.collectionGroup;
+  f.db.collectionGroup = (g) => {
+    const wrap = (q) => ({ orderBy: (x) => wrap(q.orderBy(x)), limit: (n) => wrap(q.limit(n)), startAfter: (d) => wrap(q.startAfter(d)), get: async () => { const sn = await q.get(); sn.docs.forEach((d) => { delete d.updateTime; }); return sn; } });
+    return wrap(realCg(g));
+  };
+  const blind = [];
+  const realDoc3 = f.db.doc;
+  f.db.doc = (p) => { const x = realDoc3(p); const u = x.update; x.update = async (...a) => { if (a.length % 2 && !(a[a.length - 1] || {}).lastUpdateTime) { blind.push(p); a.pop(); } return u(...a); }; return x; };
+  r = await S.run({ db: f.db, args: S.parseArgs(['--apply']), log: () => {}, serverTimestamp: () => SERVER_TS });
+  ok(blind.length === 0 && f.writes.length === 0 && r.counts.failures === 5, 'no updateTime: nothing written, each counted a failure -> ' + JSON.stringify({ blind: blind.length, counts: r.counts }));
+
   // ── REST adapter: collection-group query (token mode) ──
   const calls = [];
   const ROOT = 'projects/nobigdeal-pro/databases/(default)/documents';
