@@ -217,7 +217,7 @@
   // SAVE_MS for the next keystroke, like the window state, and is flushed on
   // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
-    if (homeLocked()) return;
+    if (homeLocked()) { toast(LOCKED_MSG); return; }
     // own key, this surface replaced: a surface still on the company home stays on it;
     // while a mode is on (P2) the edit is that mode's own widgets
     var a = curAct();

@@ -82,7 +82,7 @@ let pendingPin = null; // { lat, lng, status, color } — waiting for confirm
 (function () {
   const sl = typeof window !== 'undefined' ? window.ScriptLoader : null;
   if (!sl || !sl.bundles) return;
-  if (!sl.bundles.mapcustomers) sl.bundles.mapcustomers = ['js/maps-customers.js?v=13'];
+  if (!sl.bundles.mapcustomers) sl.bundles.mapcustomers = ['js/maps-customers.js?v=14'];
   if (sl.views && Array.isArray(sl.views.map) && sl.views.map.indexOf('mapcustomers') === -1) sl.views.map.push('mapcustomers');
 })();
 // Run cb with maps-customers.js present: at once when it already is, else when

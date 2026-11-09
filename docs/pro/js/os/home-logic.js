@@ -13,7 +13,7 @@
  *
  *   id    a widget in CATALOG (unknown ids are dropped)
  *   s     'S' | 'M' | 'L' as 's' | 'm' | 'l', one the widget offers (else its default)
- *   cfg   enum values the widget declares, at most 64 chars of JSON
+ *   cfg   enum values the widget declares (P3: or an 8-hex id, cfgId), at most 64 chars of JSON
  *   items a Smart Stack's cards (P1): 1-4 other widget ids, each counted against the cap
  *   x y   the desk board cell (P1): 4 columns, rows of 160px, x 0-3, y 0-47
  *   w h   the cells its size takes on the desk: S 1x1, M 2x1, L 2x2 (DESK_CELLS);
@@ -131,10 +131,16 @@
     // tapReads: a start costs one knocks count plus Daily Success's goals refresh (1 getDoc + 1 count, its
     // 5-minute cache); each knock saved during the block one more count, and its end one final count.
     focus: { title: 'Knock block', sizes: ['s', 'm'], def: 'm', reads: 0, tapReads: 3, bundle: 'osfocus', cat: 'tools', nav: 'd2d', about: 'A 30, 60 or 90 minute canvassing block: Do Not Disturb on, doors counted' },
+    // P3 (os/kpi.js, the lazy oskpi bundle): the count of loaded leads matching one of the team's saved
+    // map views (companyProfile.mapViews, maps-customers.js). cfgId: settings that hold an id (CFG_ID_RE),
+    // here the view's (os/kpi-logic.js viewId), never its name or its filters. nostack: a stack card has no
+    // settings, so it never goes in a Smart Stack. Several may sit on one home.
+    kpi: { title: 'Saved view', sizes: ['s', 'm'], def: 's', reads: 0, cfgId: ['view'], nostack: true, bundle: 'oskpi', cat: 'tools', nav: 'crm', about: 'How many leads match one of your team\'s saved map views' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus', 'kpi'];
+  var CFG_ID_RE = /^[0-9a-f]{8}$/;
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.
@@ -151,10 +157,13 @@
 
   function cleanCfg(id, cfg) {
     var c = known(id) ? CATALOG[id] : null;
-    if (!c || !c.config || !isObj(cfg)) return null;
+    if (!c || !(c.config || c.cfgId) || !isObj(cfg)) return null;
     var out = {}, n = 0;
-    Object.keys(c.config).forEach(function (k) {
+    Object.keys(c.config || {}).forEach(function (k) {
       if (c.config[k].indexOf(cfg[k]) !== -1) { out[k] = cfg[k]; n++; }
+    });
+    (c.cfgId || []).forEach(function (k) {
+      if (typeof cfg[k] === 'string' && CFG_ID_RE.test(cfg[k])) { out[k] = cfg[k]; n++; }
     });
     return n && JSON.stringify(out).length <= MAX_CFG ? out : null;
   }
@@ -171,7 +180,7 @@
   function stackItems(list) {
     var out = [];
     (Array.isArray(list) ? list : []).forEach(function (id) {
-      if (known(id) && !CATALOG[id].stack && out.indexOf(id) === -1 && out.length < STACK_MAX) out.push(id);
+      if (known(id) && !CATALOG[id].stack && !CATALOG[id].nostack && out.indexOf(id) === -1 && out.length < STACK_MAX) out.push(id);
     });
     return out.length ? out : STACK_DEFAULT.slice();
   }
@@ -666,7 +675,7 @@
   /** Turn one card of the stack at i on or off (1..STACK_MAX cards, within the cap); null when it can't. */
   function toggleCard(list, i, id) {
     var it = list[i];
-    if (!it || !known(it.id) || !CATALOG[it.id].stack || !known(id) || CATALOG[id].stack) return null;
+    if (!it || !known(it.id) || !CATALOG[it.id].stack || !known(id) || CATALOG[id].stack || CATALOG[id].nostack) return null;
     var cards = stackItems(it.items), at = cards.indexOf(id);
     if (at !== -1) { if (cards.length < 2) return null; cards.splice(at, 1); }
     else { if (cards.length >= STACK_MAX || weight(list) + 1 > MAX_ITEMS) return null; cards.push(id); }
@@ -1069,6 +1078,7 @@
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
     ACT_MAX: ACT_MAX, ACT_ITEMS: ACT_ITEMS, ACT_NAME_MAX: ACT_NAME_MAX, ACT_PRESETS: ACT_PRESETS, PHASES: PHASES, PHASE_NAME: PHASE_NAME,
+    CFG_ID_RE: CFG_ID_RE,
     actsOf: actsOf, activeAct: activeAct, setActOn: setActOn, renameAct: renameAct, setActList: setActList, setActWp: setActWp, actHides: actHides,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

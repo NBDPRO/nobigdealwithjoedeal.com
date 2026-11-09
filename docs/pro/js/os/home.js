@@ -113,7 +113,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus', 'nbd:os-kpi', 'nbd:company-profile-loaded'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -592,7 +592,34 @@
   }
   function focusKey() { var FB = W.NBDOSFocus; try { return FB && typeof FB.key === 'function' ? FB.key() : ''; } catch (e) { return ''; } }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock };
+  // ── Saved view (P3): os/kpi.js paints it, the runtime ScriptLoader bundle oskpi, loaded on first paint ──
+  var KPI_BUNDLE = ['css/os/kpi.css?v=1', 'js/os/kpi-logic.js?v=1', 'js/os/kpi.js?v=1'];
+  var kpiState = '', kpiP = null;   // '' | 'asked' | 'failed'
+  function loadKpi() {
+    if (W.NBDOSKpi) return Promise.resolve(W.NBDOSKpi);
+    if (kpiP) return kpiP;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') { kpiState = 'failed'; return Promise.reject(new Error('no ScriptLoader')); }
+    if (SL.bundles && !SL.bundles.oskpi) SL.bundles.oskpi = KPI_BUNDLE.slice();
+    kpiState = 'asked';
+    function settle() { kpiP = null; kpiState = W.NBDOSKpi ? '' : 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-kpi')); } catch (e) {} }
+    kpiP = Promise.resolve().then(function () { return SL.loadBundle('oskpi'); }).then(function () {
+      settle();
+      if (!W.NBDOSKpi) throw new Error('oskpi did not load');
+      return W.NBDOSKpi;
+    }, function (e) { settle(); throw e; });
+    return kpiP;
+  }
+  function kpi(size, cfg) {
+    var K = W.NBDOSKpi;
+    if (K && typeof K.widget === 'function') return K.widget(size, cfg);
+    var h = '<h3 class="os-hw-title">' + esc(HL.CATALOG.kpi.title) + '</h3>';
+    if (kpiState === 'failed') return h + failHtml('kpi');
+    if (kpiState !== 'asked') loadKpi().catch(function () {});
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock, kpi: kpi };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -823,6 +850,7 @@
       var nx = HL.resize(cur, i, 0);
       var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
       return (c.stack ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="cards" aria-haspopup="dialog" aria-label="' + esc('Cards in ' + c.title) + '">Cards</button>' : '') +
+        (c.cfgId ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="kpiview" aria-haspopup="dialog" aria-label="' + esc(['Which view ', c.title, ' counts'].join('')) + '">View</button>' : '') +
         '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
         '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>' +
         // the laptop corner grip: a pointer-only convenience (Shift+arrows and the chip are the other paths)
@@ -892,7 +920,7 @@
       if (!next) return false;
       if (surface === 'phone') next = HL.pack(next);
       if (next.map(function (x) { return x._k; }).join() === order.join() && next.length === order.length &&
-        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y && JSON.stringify(x.items || null) === JSON.stringify(cur[i].items || null); })) return false;
+        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y && JSON.stringify([x.items || null, x.cfg || null]) === JSON.stringify([cur[i].items || null, cur[i].cfg || null]); })) return false;
       var at = -1;
       next.forEach(function (it, j) { if (focusTag && it._k === focusTag) at = j; });
       var clean = next.map(function (it) {
@@ -949,6 +977,26 @@
       if (what === 'size') commit(opResize(i, 0), key, '', '[data-oshw-ed="size"]');
       else if (what === 'remove') removeAt(i);
       else if (what === 'cards') openCards(key);
+      else if (what === 'kpiview') kpiPick(key, b);
+    }
+    /** P3: the Saved view tile's view, picked in os/kpi.js's sheet, saved as its cfg (an id only). */
+    function kpiPick(key, from) {
+      var r0 = recs[key];
+      if (!r0) return;
+      loadKpi().then(function (K) {
+        var rec = recs[key];
+        if (!rec || !live) return;
+        K.pick({
+          current: rec.it.cfg && rec.it.cfg.view, returnFocus: from,
+          onPick: function (id, name) {
+            var i = order.indexOf(key);
+            if (i < 0) return;
+            var next = tagged();
+            next[i].cfg = { view: id };
+            if (!commit(next, key, 'Counting ' + String(name || 'that view') + '. ')) announce('Already counting ' + String(name || 'that view') + '.');
+          },
+        });
+      }, function () { announce('Couldn\'t open the saved views. Try again.'); });
     }
     // capture: while editing, a tap arranges and never reaches the widget's own links and buttons;
     // the click that ends a long-press is swallowed too
@@ -1186,7 +1234,7 @@
       function body() {
         var at = order.indexOf(key), it = cur[at];
         var cards = it && it.items ? it.items : [];
-        var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !hiddenId(id) && !!WIDGETS[id]; });
+        var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !HL.CATALOG[id].nostack && !hiddenId(id) && !!WIDGETS[id]; });
         return '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwCardsTitle">Cards in this stack</h2>' +
           '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
           '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against ' + (mode() ? 'this mode\'s ' : 'your home\'s ') + String(cap()) + '.') + '</p>' +
@@ -1234,6 +1282,7 @@
         if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
         if (rk === 'focus') { if (focusState === 'failed') focusState = ''; order.forEach(function (k) { if (recs[k].it.id === 'focus') paintOne(recs[k], true); }); return; }
         if (rk === 'acts') { if (actsState === 'failed') actsState = ''; order.forEach(function (k) { paintOne(recs[k], true); }); return; }
+        if (rk === 'kpi') { if (kpiState === 'failed') kpiState = ''; order.forEach(function (k) { if (recs[k].it.id === 'kpi') paintOne(recs[k], true); }); return; }
         if (rk === 'team') {
           if (teamState === 'failed') teamState = '';
           if (W.NBDOSTeam && typeof W.NBDOSTeam.retry === 'function') W.NBDOSTeam.retry();
@@ -1253,6 +1302,14 @@
         var again = srec.el.querySelector('[data-oshw-stack="' + (sw === 'prev' || sw === 'next' || sw === 'why' ? sw : 'next') + '"]');
         if (again) { try { again.focus({ preventScroll: true }); } catch (e) {} }
         if (sw !== 'why') announce(text(srec.el.querySelector('.os-hw-stack-pos')) + ', ' + text(srec.el.querySelector('.os-hw-stack-card .os-hw-title')));
+        return;
+      }
+      var kb = t.closest('[data-oshw-kpi]');
+      var krec = kb && recs[(kb.closest('[data-oshw]') || kb).getAttribute('data-oshw')];
+      if (krec) {
+        if (kb.getAttribute('data-oshw-kpi') === 'pick') { kpiPick(krec.key, kb); return; }
+        var K = W.NBDOSKpi;
+        if (K && krec.it.cfg && !K.open(krec.it.cfg.view)) { paintOne(krec, true); announce('That saved view is gone.'); }
         return;
       }
       var sd = t.closest('[data-oshw-sd]');
