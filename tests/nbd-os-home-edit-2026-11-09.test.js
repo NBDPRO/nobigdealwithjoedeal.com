@@ -228,7 +228,8 @@ G(() => {
   const dlg = T.document.querySelector('dialog.os-hw-add');
   ok('Add widget opens a native <dialog> with showModal()', dlg && dlg.modal === true && dlg.open === true);
   const groups = dlg.querySelectorAll('.os-hw-add-group').map((g) => text(g.querySelector('h3')));
-  ok('grouped by category', J(groups) === J(['Today', 'You', 'Tools']), J(groups));
+  // P1 (2026-11-09) added the Money group (Closes this week, Money)
+  ok('grouped by category', J(groups) === J(['Today', 'Money', 'You', 'Tools']), J(groups));
   ok('each widget offers its own sizes as chips (Coach: M, L)', J(dlg.querySelectorAll('[data-oshw-add="coach"]').map((b) => b.getAttribute('data-size'))) === J(['m', 'l']));
   ok('chips are named for assistive tech', /Add Coach, medium/.test(dlg.querySelector('[data-oshw-add="coach"][data-size="m"]').getAttribute('aria-label')));
   click(T.dom, dlg.querySelector('[data-oshw-add="daily"][data-size="s"]'));

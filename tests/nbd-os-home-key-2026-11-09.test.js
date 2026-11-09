@@ -40,7 +40,7 @@ console.log('\n1. the key and its catalog');
 {
   ok('the key is os-home, a valid layoutState key', H.KEY === 'os-home' && R.isId(H.KEY));
   ok('caps: 24 items per surface (P1), cfg 64 chars, sizes s/m/l', H.MAX_ITEMS === 24 && H.MAX_CFG === 64 && J(H.SIZES) === J(['s', 'm', 'l']));
-  ok('the P0 catalog: At a Glance, Up Next, Shortcuts (P0b), then Coach and Daily Success (P0c)', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily']));
+  ok('the catalog: At a Glance, Up Next, Shortcuts (P0b), Coach and Daily Success (P0c), then the P1 widgets', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack']));
   ok('every widget declares a read cost of 0', H.ids().every((id) => H.CATALOG[id].reads === 0));
   ok('every widget has a title, sizes from s/m/l and a default among them', H.ids().every((id) => {
     const c = H.CATALOG[id];
