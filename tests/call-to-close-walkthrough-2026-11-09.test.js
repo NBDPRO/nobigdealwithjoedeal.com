@@ -347,6 +347,27 @@ async function decide(db, auth, data) {
     ok('…and never a phone call\'s brief', vdb.docs.has('leads/L1/call_briefs/cube_ABCDE12345'));
   }
 
+  console.log('\n6. A brief at visit_<visitId> made from another person\'s walkthrough is never served, replaced or decided (review 2026-11-09)');
+  {
+    // visit ids are client-chosen; visit-capture.js refuses a second recorder's
+    // visit_id_conflict on the same customer, and the brief layer refuses too.
+    const foreign = () => ({ callId: 'visit_' + VISIT_ID, leadId: 'L1', companyId: 'co1', source: 'visit', visitId: VISIT_ID, visitUid: 'someoneElse',
+      v: L.BRIEF_VERSION, transcriptHash: L.transcriptHash(TRANSCRIPT), generatedAtMs: NOW - 3600e3, brief: { summary: { text: 'FOREIGN' } }, decisions: [] });
+    modelCalls = [];
+    const db = makeDb(seed({ [BRIEF_PATH]: foreign() }));
+    const r = await brief(db, OWNER);
+    ok('callBrief: a stored brief from another recorder → refused (permission-denied), never served', r.e && r.e.code === 'permission-denied' && !(r.r && r.r.brief), r.e ? r.e.code + ' ' + r.e.message : r.r);
+    const stale = makeDb(seed({ [BRIEF_PATH]: Object.assign(foreign(), { transcriptHash: 'old' }) }));
+    const r2 = await brief(stale, OWNER, { refresh: true });
+    ok('…and never overwritten by a regenerate (no model call, the stored doc unchanged)', r2.e && r2.e.code === 'permission-denied' && modelCalls.length === 0 && stale.store.get(BRIEF_PATH).visitUid === 'someoneElse');
+    const d = await decide(db, OWNER, { item: 'field:damageType', decision: 'accept' });
+    ok('callBriefDecide: a stored brief from another recorder → refused, nothing written', d.e && d.e.code === 'permission-denied' && db.store.get('leads/L1').damageType === '' && (db.store.get(BRIEF_PATH).decisions || []).length === 0, d.e ? d.e.code : d.r);
+    const own = makeDb(seed());
+    await brief(own, OWNER);
+    const d2 = await decide(own, OWNER, { item: 'field:damageType', decision: 'accept' });
+    ok('…the recorder\'s own brief still decides', d2.r && d2.r.written === true, d2.e && d2.e.message);
+  }
+
   console.log('\n5. Wiring');
   {
     const fi = read('functions/FUNCTIONS_INDEX.md');

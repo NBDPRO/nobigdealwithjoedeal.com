@@ -160,6 +160,12 @@ async function loadGatedVisit(db, auth, data) {
   };
 }
 const gateFor = (data) => (data && data.visitId != null ? loadGatedVisit : loadGated);
+// visit_<visitId> leaves out the recorder, and visit ids are client-chosen:
+// a stored walkthrough brief is only ever this recorder's (visit-capture.js
+// visit_id_conflict refuses the second recorder first; this is the second wall).
+function assertOwnVisitBrief(g, stored) {
+  if (g.kind === 'visit' && stored && stored.visitUid !== g.visitUid) throw new HttpsError('permission-denied', 'That brief is from another walkthrough.');
+}
 
 /** One transaction: false + which cap when over, else both counters +1. */
 async function takeQuota(db, uid, companyId, nowMs) {
@@ -200,6 +206,7 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   const force = !!(data && data.refresh);
   const cs = await g.briefRef.get().catch(() => null);
   const cached = cs && cs.exists ? cs.data() : null;
+  assertOwnVisitBrief(g, cached);
   const state = L.cacheState(cached, hash, nowMs, force);
   if (state === 'use') return answer(cached);
   if (state === 'refresh-too-soon') return answer(cached, { refreshRefused: true });
@@ -285,6 +292,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   const bs = await g.briefRef.get();
   if (!bs.exists) throw new HttpsError('failed-precondition', 'Draft the brief from this call first.');
   const stored = bs.data() || {};
+  assertOwnVisitBrief(g, stored);
   const aiValue = aiValueOf(stored.brief, item);
   if ((fieldKey || item.startsWith('promise:') || item === 'stage' || item === 'followUp') && aiValue === null) {
     throw new HttpsError('failed-precondition', 'The brief did not suggest that.');
