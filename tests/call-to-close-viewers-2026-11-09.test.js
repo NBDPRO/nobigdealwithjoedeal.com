@@ -296,6 +296,7 @@ const cols = (qs) => qs.map((q) => q.col);
     'leads/L1': lead,
     'lead_briefs/L1': { leadId: 'L1', oneLine: 'CACHEDSECRET from the call', bullets: ['CALLSECRET'], source: 'ai', generatedAtMs: NOW - 60e3 },
     'leads/L1/activity/cube-c1': activity[0], 'leads/L1/activity/sms-d1': activity[1],
+    'subscriptions/jo': { plan: 'pro', status: 'active' },   // a paid tenant: the viewer's brief really goes to the model
   };
   const models = [];
   const model = async (req) => { models.push(req); return { content: [{ type: 'text', text: '{"oneLine":"Fresh","bullets":["a","b","c"]}' }], usage: { input_tokens: 1, output_tokens: 1 }, model: req.model }; };
@@ -311,7 +312,8 @@ const cols = (qs) => qs.map((q) => q.col);
     ok('a viewer never gets the cached brief (it was built from the calls)', vr && !/CACHEDSECRET|CALLSECRET/.test(JSON.stringify(vr)), vr);
     ok('…does not even read the cache doc', !db2.reads.includes('lead_briefs/L1'), db2.reads);
     ok('…never writes the shared cache', !db2.writes.includes('lead_briefs/L1'), db2.writes);
-    ok('…and anything sent to the model carries no call content', !/CALLSECRET|TEXTSECRET|PROMISESECRET/.test(JSON.stringify(models)));
+    ok('…the viewer\'s brief did go to the model (positive control)', models.length === 1, models.length);
+    ok('…and what was sent carries no call content', !/CALLSECRET|TEXTSECRET|PROMISESECRET/.test(JSON.stringify(models)));
   }
   Module._load = realLoad;
 
