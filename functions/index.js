@@ -918,6 +918,11 @@ exports.leadBrief = require('./lead-brief').leadBrief;
 // (functions/call-brief.js, call-brief-logic.js).
 exports.callBrief = require('./call-brief').callBrief;
 exports.callBriefDecide = require('./call-brief').callBriefDecide;
+// NBD OS Coach's AI focus line (2026-11-09, P2): one sentence a day from the
+// rules Coach's counted evidence; opt-in per company (companyProfile
+// coachAiEnabled), digit / number-word post-check, 3 a day per user
+// (functions/coach-line.js).
+exports.coachLine = require('./coach-line').coachLine;
 
 // Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
 // quoted later evidence; every change logged (functions/promise-cleanup.js).
@@ -961,6 +966,9 @@ exports.subPaperworkWatch = require('./sub-paperwork-watch').subPaperworkWatch;
 // Monday 07:30 ET: one Agent-inbox report to the owner (collected last week, estimates awaiting signature,
 // calls to return, jobs this week). Never a customer or rep. DRY-RUN unless OWNER_WEEKLY_DIGEST_ENABLED=true.
 exports.ownerWeeklyDigest = require('./owner-weekly-digest').ownerWeeklyDigest;
+// Every 30 min (NBD OS P2 Team, 2026-11-09): leaderboard/{uid} rows per active member, today's and this week's
+// counted doors / appointments / estimates sent / deals in the company time zone. DRY-RUN unless LEADERBOARD_AGGREGATE_ENABLED=true.
+exports.leaderboardAggregate = require('./leaderboard-aggregate').leaderboardAggregate;
 // Read-only Messaging Control Center (2026-10-19, flag messagingControlCenter, dark): masked overview
 // for the owner/admin + an hourly alert watch (Agent inbox + bell + push to the owner, never a customer).
 exports.messagingCenter = require('./messaging-center').messagingCenter;

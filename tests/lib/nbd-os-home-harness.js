@@ -291,6 +291,7 @@ function makeWin(opts) {
         this.calls.push(name);
         (this.bundles[name] || []).forEach((src) => {
           const f = 'docs/pro/' + String(src).replace(/\?.*$/, '');
+          if (/\.css$/.test(f)) return;   // a bundle's stylesheet: nothing to run
           const code = read(f);
           if (code) vm.runInContext(code, ctx, { filename: f });
         });

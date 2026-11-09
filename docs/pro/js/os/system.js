@@ -255,6 +255,41 @@
     if (Array.isArray(n)) return n.length;
     return 0;
   }
+  // P2 (design §6 #8) "Safe to drive off?": counts read from the real queues, async; null = unknown.
+  // writes: Firestore's on-device mutation queue (NBDOfflineSync.countPending, null under a memory
+  // cache) or the writes settle() saw queued (pending(), a positive count only); photos: this
+  // member's rows in the durable photo upload queue (NBDPhotoQueueStore.pendingForUid).
+  state.bg = { writes: null, photos: null, at: 0, busy: false };
+  function bgNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : null; }
+  function refreshBg(force) {
+    var bg = state.bg;
+    if (state.off || bg.busy || (!force && Date.now() - bg.at < 10000)) return;
+    bg.busy = true;
+    var S = w.NBDOfflineSync, P = w.NBDPhotoQueueStore, uid = w._user && w._user.uid;
+    var a = S && typeof S.countPending === 'function' ? Promise.resolve().then(function () { return S.countPending(); }).catch(function () { return null; }) : Promise.resolve(null);
+    var b = P && typeof P.pendingForUid === 'function' && uid ? Promise.resolve().then(function () { return P.pendingForUid(uid); }).catch(function () { return null; }) : Promise.resolve(null);
+    Promise.all([a, b]).then(function (r) {
+      var hint = S && typeof S.pending === 'function' ? bgNum(call(function () { return S.pending(); })) : null;
+      var c = bgNum(r[0]);
+      var writes = c === null ? (hint ? hint : null) : Math.max(c, hint || 0);
+      var photos = bgNum(r[1]);
+      bg.busy = false;
+      bg.at = Date.now();
+      if (writes === bg.writes && photos === bg.photos) return;
+      bg.writes = writes;
+      bg.photos = photos;
+      paintTray();
+      if (state.open === 'control') paintSheet();
+    });
+  }
+  function driveHtml() {
+    var d = L.driveOff({ online: w.navigator ? w.navigator.onLine !== false : true, writes: state.bg.writes, photos: state.bg.photos });
+    if (!d) return '';   // unknown: say nothing rather than guess
+    return '<div class="os-cc-block os-cc-drive" role="status"><div class="ui-eyebrow">Safe to drive off?</div>' +
+      // a <p> is the generic role, which cannot carry a name: the full sentence is visually-hidden text
+      '<p class="os-cc-drive-line os-tone-' + esc(d.tone) + '"><span class="os-tray-dot" aria-hidden="true"></span>' +
+      '<span class="os-cc-drive-text" aria-hidden="true">' + esc(d.text) + '</span><span class="os-cc-drive-sr">' + esc(d.label) + '</span></p></div>';
+  }
   function unreadCount() {
     var B = w.NotifBell;
     var n = B && typeof B.getCount === 'function' ? call(function () { return B.getCount(); }) : 0;
@@ -276,7 +311,7 @@
   }
 
   // ── tray ──────────────────────────────────────────────────
-  var TRAY_PANEL = { sync: 'control', notifs: 'notifs', storm: 'control', away: 'control', dnd: 'control' };
+  var TRAY_PANEL = { sync: 'control', photos: 'control', notifs: 'notifs', storm: 'control', away: 'control', dnd: 'control' };
   function trayHtml() {
     var items = L.trayItems({
       online: w.navigator ? w.navigator.onLine !== false : true,
@@ -285,6 +320,7 @@
       storm: stormInput(),
       away: { on: awayOn() },
       dnd: state.dnd,
+      photos: state.bg.photos,
     });
     var clock = L.clockText(new Date());
     // Phones show the clock alone, so it carries a dot for anything that
@@ -378,6 +414,7 @@
 
   function controlHtml() {
     var h = '<div class="os-cc">';
+    h += driveHtml();
     h += '<div class="os-cc-row">' + toggle('dnd', 'Do Not Disturb', state.dnd, 'Routine toasts wait in the Notification Center') + '</div>';
     h += '<div class="os-cc-block"><div class="ui-eyebrow">Display</div>' + seg('Display mode', modePref(), [
       { key: 'mode', value: 'light', label: 'Light' }, { key: 'mode', value: 'dark', label: 'Dark' }, { key: 'mode', value: 'auto', label: 'Auto' },
@@ -426,11 +463,20 @@
     var items = B && typeof B.items === 'function' ? (call(function () { return B.items(); }) || []) : [];
     var groups = L.groupNotifications(items);
     var now = Date.now();
+    // a privacy mode ("In a home", os/acts.js): only time-sensitive groups, no message history
+    var A = w.NBDOSActs;
+    var priv = !!(A && typeof A.privacy === 'function' && call(function () { return A.privacy(); }) === true);
+    var pg = priv ? L.privateGroups(groups) : null;
+    if (pg) groups = pg.shown;
     var h = '<div class="os-nc">';
-    h += '<div class="os-nc-tools">' +
-      '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
-      '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
-    if (!groups.length) {
+    // not in a privacy mode: both act on every group, the hidden ones too (a tap would clear what the rep never saw)
+    if (!pg) {
+      h += '<div class="os-nc-tools">' +
+        '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
+        '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
+    }
+    if (pg) h += '<p class="ui-caption os-nc-private">' + esc('Privacy mode: only what is due today shows.' + (groups.length ? '' : ' Nothing is due right now.') + (pg.held ? ' ' + pg.held + (pg.held === 1 ? ' more waits' : ' more wait') + ' until you leave it.' : '')) + '</p>';
+    if (!groups.length && !pg) {
       h += '<div class="ui-empty os-nc-empty"><div class="ui-heading">You\'re all caught up</div>' +
         '<p class="ui-caption">New tasks, estimate views and customer replies show up here.</p></div>';
     }
@@ -438,14 +484,16 @@
       h += '<section class="os-nc-group" aria-label="' + esc(g.label) + '"><h3 class="ui-eyebrow os-nc-h">' + esc(g.label) +
         (g.unread ? ' <span class="ui-badge is-accent">' + g.unread + '</span>' : '') + '</h3><ul class="os-nc-list">';
       g.items.forEach(function (n) {
+        // in a privacy mode a row is its kind and its time only: the bell's text and sub
+        // carry the customer's name and the task's words (notif-bell.js), never shown here
         h += '<li><button type="button" class="os-nc-item' + (n.read ? '' : ' is-unread') + '" data-os="notif" data-id="' + esc(n.id) + '">' +
           '<span class="os-nc-title">' + esc(n.title) + '</span>' +
-          (n.text ? '<span class="os-nc-text">' + esc(n.text) + '</span>' : '') +
-          '<span class="os-nc-meta ui-caption">' + esc([n.sub, relTime(n.ts, now)].filter(Boolean).join(' · ')) + '</span></button></li>';
+          (n.text && !pg ? '<span class="os-nc-text">' + esc(n.text) + '</span>' : '') +
+          '<span class="os-nc-meta ui-caption">' + esc([pg ? '' : n.sub, relTime(n.ts, now)].filter(Boolean).join(' · ')) + '</span></button></li>';
       });
       h += '</ul></section>';
     });
-    if (state.history.length) {
+    if (state.history.length && !pg) {
       h += '<section class="os-nc-group" aria-label="Earlier messages"><h3 class="ui-eyebrow os-nc-h">Earlier messages</h3><ul class="os-nc-list">';
       state.history.forEach(function (e) {
         h += '<li class="os-nc-hist os-tone-' + esc(e.type) + '"><span class="os-nc-text">' + esc(e.message) + '</span>' +
@@ -469,6 +517,7 @@
     if (!TITLES[panel]) return;
     if (!state.open) state.returnFocus = doc.activeElement;
     state.open = panel;
+    if (panel === 'control') refreshBg(true);
     var el = sheetRoot();
     el.hidden = false;
     paintSheet();
@@ -627,7 +676,7 @@
   function refresh() {
     if (state.off) return;
     clearTimeout(refreshT);
-    refreshT = setTimeout(function () { paintTray(); paintSheet(); }, 50);
+    refreshT = setTimeout(function () { paintTray(); paintSheet(); refreshBg(false); }, 50);
   }
 
   function registerControl(def) {
@@ -661,6 +710,8 @@
     doc.addEventListener('click', onClick);
     doc.addEventListener('keydown', onKey);
     ['nbd:notifs-updated', 'nbd:data-refreshed', 'online', 'offline', 'nbd:flags-loaded'].forEach(function (ev) { w.addEventListener(ev, refresh); });
+    ['online', 'offline'].forEach(function (ev) { w.addEventListener(ev, function () { refreshBg(true); }); });
+    refreshBg(true);
     doc.addEventListener('layoutchange', function () { refresh(); registerSpotlight(); });
     doc.addEventListener('themechange', refresh);
     // the clock, and the counts that have no event of their own
@@ -698,6 +749,11 @@
     lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
   };
 
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  // window.NBDOS is up: what waits for the layer (os/acts.js's Do Not Disturb) listens for this, never polls
+  function ready() {
+    init();
+    try { w.dispatchEvent(new w.CustomEvent('nbd:os-system-ready')); } catch (e) {}
+  }
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', ready, { once: true });
+  else ready();
 })();

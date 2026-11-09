@@ -61,6 +61,8 @@
  *   stormNow(cache, now)       Storm Center's cache as none / stale / clear / alert
  *   moneyMonth(invs, uid, now, collect) the member's own collected this month, in cents
  *   stackItems / weight / toggleCard   a Smart Stack's cards and the cap
+ *   P2: peekAppt(plan, now)    the appointment starting within 30 min: Up Next's Peek button
+ *   parseCarry(raw) / recapDue(raw, seen, uid, now)  Shutdown's carry-over and the Welcome Recap's due check
  *
  * The company home (P1): an owner or company_admin publishes one surface's
  * arrangement to companies/{cid}/settings/layout.defaultWidgets['os-phone' |
@@ -108,21 +110,31 @@
     // money: the member's role must see the Money view (and not be a viewer) or it never shows.
     needsyou: { title: 'Needs you', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, cat: 'today', nav: 'crm', p1: true, about: 'What is waiting on you, by kind, one tap to each' },
     storm: { title: 'Storm', sizes: ['s', 'm'], def: 's', reads: 0, cat: 'today', nav: 'storm', p1: true, about: 'The weather alert Storm Center has cached, when there is one' },
-    closes: { title: 'Closes this week', sizes: ['m', 'l'], def: 'm', reads: 0, cat: 'money', nav: 'crm', p1: true, about: 'Open deals most likely to close, and why' },
+    // names: it lists customers by name (P2: "In a home" never paints it, home-logic actHides)
+    closes: { title: 'Closes this week', sizes: ['m', 'l'], def: 'm', reads: 0, cat: 'money', nav: 'crm', p1: true, names: true, about: 'Open deals most likely to close, and why' },
     money: { title: 'Money', sizes: ['s', 'm'], def: 's', reads: 0, cat: 'money', nav: 'money', money: true, p1: true, about: 'What you collected this month' },
     // a stack holds up to STACK_MAX other widgets (items), each counted against the cap
     stack: { title: 'Smart Stack', sizes: ['m', 'l'], def: 'm', reads: 0, cat: 'today', stack: true, p1: true, about: 'One card that follows your day, with Why this?' },
     // P1: the evening loop (os/shutdown.js, the lazy osshutdown bundle). The widget paints from memory;
     // the sheet it opens reads today's visits once, only on a tap: one visit_captures
     // query (NBDVisitRecorder.listAll, limit 40), so tapReads is up to 40 billed doc reads.
-    shutdown: { title: 'Shutdown', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, tapReads: 40, bundle: 'osshutdown', cat: 'today', nav: 'crm', about: 'From 4 PM: give every lead you touched today a next step' },
+    shutdown: { title: 'Shutdown', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, tapReads: 40, bundle: 'osshutdown', cat: 'today', nav: 'crm', names: true, about: 'From 4 PM: give every lead you touched today a next step' },
+    // P2 (os/team.js, the lazy osteam bundle): the company's leaderboard/{uid} rows (functions/leaderboard-aggregate.js),
+    // one query of at most 50 docs, at most every refreshMin minutes, only while painted. owner: the solo owner, the
+    // company-keyed owner or a company_admin; nobody else ever gets it painted or offered.
+    // id teamboard, not team: .os-hw-team is the layout's Publish / Lock group (layouts/os.js, home.css)
+    // names: it lists teammates by name, so "In a home" never paints it (actHides)
+    teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', names: true, about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard'];
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
-  var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'coach'];
+  // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.
+  // The P1 default already held four, so this replaces Coach rather than adding Shutdown. It reaches
+  // a new stack, and a saved stack with no valid card left (stackItems below); saved cards are kept.)
+  var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'shutdown'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -178,7 +190,7 @@
     var wp = isObj(r.wp) ? r.wp : {};
     var w = { phone: cleanWp(wp.phone), desk: cleanWp(wp.desk) };
     if (w.phone || w.desk) out.wp = w;
-    return out;
+    return carryActs(r, out);
   }
 
   // ── the desk board (P1, design §3.2 / §3.5): layouts/board-logic.js does the math ──
@@ -362,7 +374,7 @@
     });
     var wp = isObj(r.wp) ? { phone: cleanWp(r.wp.phone), desk: cleanWp(r.wp.desk) } : null;
     if (wp && (wp.phone || wp.desk)) out.wp = wp;
-    return out;
+    return carryActs(r, out);
   }
 
   // ── wallpaper (P1, design §3.6) ──────────────────────────────
@@ -385,7 +397,7 @@
     var w = { phone: cleanWp(old.phone), desk: cleanWp(old.desk) };
     if (SURFACES.indexOf(surface) !== -1) w[surface] = cleanWp(v);
     if (w.phone || w.desk) out.wp = w;
-    return out;
+    return carryActs(r, out);
   }
   /** Fixed local hours: dawn 5-8, day 8-17, dusk 17-20, night 20-5. */
   function todPeriod(ms) {
@@ -406,6 +418,147 @@
     if (!v) return { wp: 'auto', tod: tod, img: null };
     if (v === 'tod' || v === 'none') return { wp: v, tod: tod, img: null };
     return { wp: 'img', tod: tod, img: v };
+  }
+
+  // ── Activities and Focus modes (P2, design §6.3, uncommon #3) ──
+  // At most 4 named modes, each with a phone face (its name, focus, own widgets and wallpaper)
+  // and a laptop face (desk N of 4 is the Nth mode's job-phase workspace: Leads, Inspect/Claim,
+  // Build, Collect). acts is absent until the member renames a mode or gives one its own
+  // widgets; then all four are written. on = which mode is on, per surface (on.desk non-null:
+  // the desks are workspaces, the one showing is the one on). Switching is manual only: nothing
+  // here or anywhere in the OS sets `on` except a tap, a key or a Spotlight action.
+  var ACT_MAX = 4;
+  var ACT_ITEMS = 8;        // a mode's own widgets per surface, a stack counting its cards (the max fill)
+  var ACT_NAME_MAX = 24;
+  var PHASES = ['leads', 'inspect', 'build', 'collect'];
+  var PHASE_NAME = { leads: 'Leads', inspect: 'Inspect/Claim', build: 'Build', collect: 'Collect' };
+  // focus: phase (Up Next and Needs you show that phase's leads only), privacy ("In a home":
+  // no money, no other customer's name, only time-sensitive toasts). A preset's phone list is
+  // its own widgets; with none the mode shows the member's home.
+  var ACT_PRESETS = [
+    { id: 'canvass', name: 'Canvassing', focus: { phase: 'leads' }, phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }] },
+    { id: 'inhome', name: 'In a home', focus: { privacy: true }, phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }] },
+    { id: 'storm', name: 'Storm day', focus: {}, phone: [{ id: 'storm', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'needsyou', s: 'm' }] },
+    { id: 'office', name: 'Office', focus: {} },
+  ];
+  function actIdx(id) { for (var i = 0; i < ACT_PRESETS.length; i++) if (ACT_PRESETS[i].id === id) return i; return -1; }
+  function cleanName(v, fallback) {
+    var n = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, ACT_NAME_MAX).trim() : '';
+    return n || fallback;
+  }
+  function cleanFocus(f) {
+    var o = {};
+    if (isObj(f) && PHASES.indexOf(f.phase) !== -1) o.phase = f.phase;
+    if (isObj(f) && f.privacy === true) o.privacy = true;
+    return o;
+  }
+  /** A mode's own widget list (cleaned like a home, ACT_ITEMS at most); not a list = none (null). */
+  function cleanActList(list, desk) {
+    if (!Array.isArray(list)) return null;
+    var out = [], used = 0;
+    for (var i = 0; i < list.length && used < ACT_ITEMS; i++) {
+      var it = desk ? cleanDeskItem(list[i]) : cleanItem(list[i]);
+      if (it && used + weightOf(it) <= ACT_ITEMS) { out.push(it); used += weightOf(it); }
+    }
+    return desk ? deskBoard(out) : out;
+  }
+  function wpPair(v) {
+    var w = isObj(v) ? { phone: cleanWp(v.phone), desk: cleanWp(v.desk) } : null;
+    return w && (w.phone || w.desk) ? w : null;
+  }
+  /** One act from its stored copy (or the preset when there is none), fields in a fixed order. */
+  function cleanAct(p, r) {
+    var a = { id: p.id, name: cleanName(r ? r.name : null, p.name), focus: cleanFocus(r && isObj(r.focus) ? r.focus : p.focus) };
+    SURFACES.forEach(function (s) {
+      var l = r ? cleanActList(r[s], s === 'desk') : (p[s] ? cleanActList(p[s], s === 'desk') : null);
+      if (l) a[s] = l;
+    });
+    var w = r ? wpPair(r.wp) : null;
+    if (w) a.wp = w;
+    return a;
+  }
+  /** Stored acts -> all four, in preset order (unknown ids and repeats dropped); not a list -> null. */
+  function cleanActs(raw) {
+    if (!Array.isArray(raw)) return null;
+    var by = {};
+    raw.forEach(function (r) { if (isObj(r) && actIdx(r.id) !== -1 && !by[r.id]) by[r.id] = r; });
+    return ACT_PRESETS.map(function (p) { return cleanAct(p, by[p.id] || null); });
+  }
+  function cleanOn(raw) {
+    if (!isObj(raw)) return null;
+    var o = { phone: actIdx(raw.phone) !== -1 ? raw.phone : null, desk: actIdx(raw.desk) !== -1 ? raw.desk : null };
+    return o.phone || o.desk ? o : null;
+  }
+  /** Copy a key's acts and on (cleaned) onto `out`: every key op keeps them. */
+  function carryActs(r, out) {
+    var a = cleanActs(r && r.acts);
+    if (a) out.acts = a;
+    var on = cleanOn(r && r.on);
+    if (on) out.on = on;
+    return out;
+  }
+  /** The four modes of a key: its own, else the presets (a fresh copy). */
+  function actsOf(key) { return cleanActs(isObj(key) && Array.isArray(key.acts) ? key.acts : []); }
+  /** The member's own lists, wallpaper, acts and on, cleaned; nothing filled in (a company home stays one). */
+  function keepKey(key) {
+    var r = isObj(key) ? key : {};
+    var out = { v: 1 };
+    SURFACES.forEach(function (s) { if (Array.isArray(r[s])) out[s] = cleanList(r[s], s === 'desk'); });
+    var w = wpPair(r.wp);
+    if (w) out.wp = w;
+    return carryActs(r, out);
+  }
+  function deskSlot(n) { var d = Math.floor(Number(n)); return isFinite(d) && d >= 0 && d < ACT_MAX ? d : 0; }
+  /**
+   * The mode on for a surface, or null: { id, slot, surface, name, focus, items, wp }.
+   * phone: the mode `on.phone` names. desk: with on.desk set, the mode of the desk showing
+   * (deskIdx), named for its phase, its focus that phase only. items null = the member's home.
+   */
+  function activeAct(key, surface, deskIdx) {
+    var k = isObj(key) ? key : {};
+    var on = cleanOn(k.on);
+    if (!on || SURFACES.indexOf(surface) === -1 || !on[surface]) return null;
+    var slot = surface === 'desk' ? deskSlot(deskIdx) : actIdx(on.phone);
+    var a = actsOf(k)[slot];
+    return {
+      id: a.id, slot: slot, surface: surface,
+      name: surface === 'desk' ? PHASE_NAME[PHASES[slot]] : a.name,
+      focus: surface === 'desk' ? { phase: PHASES[slot] } : cleanFocus(a.focus),
+      items: a[surface] || null, wp: a.wp ? a.wp[surface] : null,
+    };
+  }
+  /** Turn a surface's mode on (a mode id) or off (null, or an id that is not a mode). */
+  function setActOn(key, surface, id) {
+    var out = keepKey(key);
+    if (SURFACES.indexOf(surface) === -1) return out;
+    var on = out.on || { phone: null, desk: null };
+    on[surface] = actIdx(id) !== -1 ? id : null;
+    if (on.phone || on.desk) out.on = on; else delete out.on;
+    return out;
+  }
+  function withAct(key, id, fn) {
+    var i = actIdx(id);
+    if (i === -1) return null;
+    var out = keepKey(key);
+    var acts = actsOf(out);
+    fn(acts[i]);
+    out.acts = cleanActs(acts);
+    return out;
+  }
+  function renameAct(key, id, name) { return withAct(key, id, function (a) { a.name = name; }); }
+  /** A mode's own widgets on a surface (the edit-mode list while that mode is on). */
+  function setActList(key, id, surface, list) {
+    if (SURFACES.indexOf(surface) === -1) return null;
+    return withAct(key, id, function (a) { a[surface] = Array.isArray(list) ? list : []; });
+  }
+  function setActWp(key, id, surface, v) {
+    if (SURFACES.indexOf(surface) === -1) return null;
+    return withAct(key, id, function (a) { var w = a.wp || { phone: null, desk: null }; w[surface] = v; a.wp = w; });
+  }
+  /** What a focus never paints: in privacy ("In a home"), a widget that shows money or names customers. */
+  function actHides(focus, id) {
+    var c = known(id) ? CATALOG[id] : null;
+    return !!(c && isObj(focus) && focus.privacy === true && (c.money || c.names));
   }
 
   // ── what the widgets show ─────────────────────────────────────
@@ -730,7 +883,12 @@
    * leadId only when one lead / call. Nothing when the data isn't there (no leads, no plan).
    * uid (the signed-in member): a lead owned by someone else (userId, else assignedTo, the Shutdown
    * owner rule) is not counted: a manager's or owner's _leads holds the team's leads. An unowned lead
-   * still counts (nobody else is on it).
+   * still counts (nobody else is on it). A missed call (P2) is the member's when its phone_calls doc's
+   * userId is (callOwners: { callId: userId }, NBDHomeAttention.lastRows, by the row's callIds), else
+   * when the lead it is filed on is (the lead rule above); with neither on file it counts.
+   * That call check is defensive today: the plan's calls are NBDHomeAttention.lastRows, which
+   * home-attention.js reads with where('userId', '==', uid), so every row is already the member's
+   * and the lead fallback never runs in production. It guards a future team-wide calls read.
    */
   function urgency(x) {
     var o = isObj(x) ? x : {};
@@ -752,9 +910,24 @@
       return { kind: 'lead', n: wait.length, oldestMin: Math.max(0, Math.floor((now - toMs(first.createdAt)) / 60000)), leadId: wait.length === 1 ? String(first.id) : '' };
     }
     if (!isObj(o.plan)) return null;
+    var me = typeof o.uid === 'string' ? o.uid : '';
+    var owners = isObj(o.callOwners) ? o.callOwners : {};
+    var leadBy = {};
+    (Array.isArray(o.leads) ? o.leads : []).forEach(function (l) { if (isObj(l) && l.id != null) leadBy[String(l.id)] = l; });
+    function mine(r) {
+      if (!me) return true;
+      var by = (Array.isArray(r.callIds) ? r.callIds : []).map(function (id) {
+        var u = Object.prototype.hasOwnProperty.call(owners, String(id)) ? owners[String(id)] : '';
+        return typeof u === 'string' ? u : '';
+      }).filter(Boolean);
+      if (by.length) return by.indexOf(me) !== -1;   // the call doc's own userId decides
+      var l = r.leadId != null && Object.prototype.hasOwnProperty.call(leadBy, String(r.leadId)) ? leadBy[String(r.leadId)] : null;
+      var owner = l ? (l.userId || l.assignedTo) : '';
+      return !owner || String(owner) === me;
+    }
     var calls = (Array.isArray(o.plan.calls) ? o.plan.calls : []).filter(function (r) {
       var t = isObj(r) && r.missed === true ? toMs(r.latestMs) : 0;
-      return t > 0 && t <= now + 60000 && now - t <= CALL_MIN * 60000;
+      return t > 0 && t <= now + 60000 && now - t <= CALL_MIN * 60000 && mine(r);
     });
     if (!calls.length) return null;
     var old = calls.reduce(function (a, b) { return toMs(b.latestMs) < toMs(a.latestMs) ? b : a; });
@@ -824,6 +997,47 @@
     return { cents: Math.round(r.total * 100), count: int(r.count) };
   }
 
+  // ── P2 (design §6 #6, #7): the pre-flight peek and the Welcome Recap's due check ──
+  var PEEK_AHEAD = 30, PEEK_GRACE = 15, RECAP_DAYS = 3;
+  /**
+   * The appointment the Peek button is for: the next timed one (nextAppointment's 15 minutes' grace)
+   * when it starts within 30 minutes. { key, leadId, name, time, min } (min < 0: under way), else null.
+   */
+  function peekAppt(plan, now) {
+    var list = plan && Array.isArray(plan.appointments) ? plan.appointments : [];
+    var t = Number(now), best = null;
+    if (!isFinite(t)) return null;
+    list.forEach(function (a) {
+      var s = a && !a.allDay ? Number(a.sortMs) : NaN;
+      if (isFinite(s) && s >= t - PEEK_GRACE * 60000 && (!best || s < Number(best.sortMs))) best = a;
+    });
+    if (!best || Number(best.sortMs) - t > PEEK_AHEAD * 60000) return null;
+    return { key: str(best.key, 120), leadId: best.leadId ? str(best.leadId, 120) : '', name: str(best.name) || 'Appointment',
+      time: str(best.timeLabel, 40), min: Math.round((Number(best.sortMs) - t) / 60000) };
+  }
+  /** Shutdown's device-only carry-over (localStorage nbd_os_carry) parsed and checked, or null. */
+  function parseCarry(raw) {
+    var c = null;
+    try { c = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return null; }
+    if (!isObj(c) || c.v !== 1 || typeof c.uid !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.dk))) return null;
+    function idList(v) { return (Array.isArray(v) ? v : []).filter(function (x) { return typeof x === 'string' && x; }).map(function (x) { return x.slice(0, 120); }).slice(0, 30); }
+    return { uid: c.uid, dk: c.dk, leads: idList(c.leads), visits: idList(c.visits), promises: idList(c.promises) };
+  }
+  /**
+   * Show the Welcome Recap? Only a carry-over this uid left on an earlier day (at most 3 days back,
+   * so Saturday's reaches Monday), with something still on it, and not dismissed today (seen = the
+   * day key the member dismissed it on).
+   */
+  function recapDue(raw, seen, uid, now) {
+    var c = parseCarry(raw);
+    if (!c || typeof uid !== 'string' || !uid || c.uid !== uid) return false;
+    var today = dayKey(now);
+    if (seen === today || c.dk >= today) return false;
+    var d = new Date(Number(now)); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - RECAP_DAYS);
+    if (c.dk < dayKey(d.getTime())) return false;
+    return c.leads.length + c.visits.length + c.promises.length > 0;
+  }
+
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
@@ -833,10 +1047,13 @@
     STACK_MAX: STACK_MAX, STACK_DEFAULT: STACK_DEFAULT, stackItems: stackItems, weight: weight, toggleCard: toggleCard,
     needsYou: needsYou, urgency: urgency, urgencyText: urgencyText, parseUsage: parseUsage, frecency: frecency,
     stormNow: stormNow, monthStart: monthStart, moneyMonth: moneyMonth, toMs: toMs,
+    PEEK_AHEAD: PEEK_AHEAD, peekAppt: peekAppt, parseCarry: parseCarry, recapDue: recapDue,
     WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
+    ACT_MAX: ACT_MAX, ACT_ITEMS: ACT_ITEMS, ACT_NAME_MAX: ACT_NAME_MAX, ACT_PRESETS: ACT_PRESETS, PHASES: PHASES, PHASE_NAME: PHASE_NAME,
+    actsOf: actsOf, activeAct: activeAct, setActOn: setActOn, renameAct: renameAct, setActList: setActList, setActWp: setActWp, actHides: actHides,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

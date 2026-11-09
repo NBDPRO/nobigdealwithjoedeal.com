@@ -79,14 +79,37 @@ const CANNED = {
   // path for an owner-only panel that is not this account's (a permission-denied
   // answer hides the strip and the Match / Said-you'd-do buttons, no banner):
   // the sample takes it, instead of canning a "healthy" it does not have.
+  // NBD OS P2 pre-flight peek (os/peek.js) and the customer page's Brief me: the real
+  // callable is a paid AI summary (functions/lead-brief.js). The sample answers from the
+  // sample lead's own fields only, says it is a sample, and adds no number of its own: any
+  // figure in it (the notes' "26 squares, 7/12 pitch") is the sample record's own field, echoed.
+  leadBrief: (p) => sampleLeadBrief(p || {}),
   callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
   callPromisesList: () => { throw noPhoneInSample('callPromisesList'); },
   // Call to Close P0 (2026-11-09): the Call Brief reads a recorded call's
   // transcript, and the sample has none, so no "Draft from this call" button
   // renders. Canned anyway, the same quiet answer, so nothing ever leaves.
   callBrief: () => { throw noPhoneInSample('callBrief'); },
-  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); }
+  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); },
+  // NBD OS Coach's AI focus line (2026-11-09, P2). The real callable asks Claude
+  // Haiku for one sentence from the rules Coach's counts (functions/coach-line.js);
+  // the sample answers from the top rule's id with a fixed sentence that states no
+  // number, so nothing leaves the tab and nothing is made up.
+  coachLine: (p) => sampleCoachLine(p || {})
 };
+
+const SAMPLE_COACH_LINES = {
+  'missed-calls': 'Call back the missed calls before anything else, while they still remember you.',
+  overdue: 'Keep the promises you already made before you start anything new today.',
+  estimates: 'Chase the estimates waiting on an answer; a quick check-in often closes them.',
+  'ds-warned': 'Hit your daily floors early today so yesterday stays a blip.',
+  'stuck-new': 'Give the leads sitting in your first stage a real touch today.',
+};
+function sampleCoachLine(p) {
+  const top = Array.isArray(p.rules) && p.rules[0] ? String(p.rules[0].id || '') : '';
+  const line = Object.prototype.hasOwnProperty.call(SAMPLE_COACH_LINES, top) ? SAMPLE_COACH_LINES[top] : null;
+  return line ? { line, cached: false, sample: true } : { line: null, cached: false, reason: 'no-facts', sample: true };
+}
 
 function haversineMi(la1, lo1, la2, lo2) {
   const R = 3958.8, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
@@ -101,6 +124,26 @@ function hailHistory(p) {
   // The swath travels on the first hit, the way a provider swath does.
   if (hits.length && swath) hits[0] = Object.assign({}, hits[0], { polygon: { type: 'Polygon', coordinates: [swath] } });
   return { hits, sample: true, source: 'Sample storm reports (not real NWS data)' };
+}
+
+function sampleLeadBrief(p) {
+  const id = typeof p.leadId === 'string' ? p.leadId : '';
+  const l = id ? rawGet('leads/' + id) : null;
+  if (!l || l.deleted === true) {
+    const e = new Error('That customer is not in the sample account.');
+    e.code = 'functions/not-found';
+    throw e;
+  }
+  const name = nameOf(l) || 'This customer';
+  const stage = String(l.stage || '').replace(/_/g, ' ');
+  const bullets = [];
+  if (l.notes) bullets.push('Notes on file: ' + String(l.notes).slice(0, 240));
+  if (l.damageType) bullets.push('Damage: ' + String(l.damageType));
+  if (l.insuranceCarrier || l.insCarrier) bullets.push('Carrier: ' + String(l.insuranceCarrier || l.insCarrier));
+  return {
+    oneLine: 'Sample brief for ' + name + (stage ? ' (' + stage + ')' : '') + '. In your real account this sums up the calls, promises, estimates and money on file.',
+    bullets, source: 'sample', generatedAtMs: Date.now(), cached: false, sample: true,
+  };
 }
 
 function nameOf(l) { return l ? (l.name || ((l.firstName || '') + ' ' + (l.lastName || '')).trim()) : ''; }

@@ -33,7 +33,8 @@
  *   fresh(cache, uid, now)        the cache answers for this account, today, under 5 min
  *   startOfDay(ms)                local midnight
  * Browser: current({ uid, companyId, doors, now }) -> { goals, doors } | null,
- * refreshing as above. No style, no DOM.
+ * refreshing as above; saved(uid, goals, now) puts goals the sheet just wrote
+ * into the day's answer; reset() drops it. No style, no DOM.
  */
 (function (root) {
   'use strict';
@@ -134,10 +135,22 @@
     return mine ? { goals: mine.goals, doors: mine.doors } : null;
   }
   function reset() { cache = null; inflight = 0; gen++; }
+  /**
+   * The goals sheet (os/ds-goals.js) wrote these goals: the day's answer for this account takes
+   * them at once (doors and the 5-minute clock kept), so the widget repaints with them instead of
+   * blanking until a re-read lands. A refresh still out read the doc before the write: ignored.
+   * No answer for this account today -> reset() (the next paint reads).
+   */
+  function saved(uid, goals, now) {
+    var mine = cache && typeof uid === 'string' && uid && cache.uid === uid && dayKey(cache.at) === dayKey(Number(now)) ? cache : null;
+    if (!mine) { reset(); return; }
+    cache = { uid: mine.uid, at: mine.at, goals: cleanGoals(goals), doors: mine.doors };
+    inflight = 0; gen++;
+  }
 
   var api = { fsImport: function () { return import(FS); },   // replaced in the Node tests
     GOALS: GOALS, MAX_GOAL: MAX_GOAL, TTL_MS: TTL_MS, isCount: isCount, cleanGoals: cleanGoals, bizRows: bizRows, fresh: fresh,
-    startOfDay: startOfDay, dayKey: dayKey, current: current, reset: reset };
+    startOfDay: startOfDay, dayKey: dayKey, current: current, reset: reset, saved: saved };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSDsBiz = api;
 })(typeof window !== 'undefined' ? window : null);

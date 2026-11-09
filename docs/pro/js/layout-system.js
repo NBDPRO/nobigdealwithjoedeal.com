@@ -285,7 +285,7 @@
     blurb: 'Home as a board of tiles you arrange: revenue collected, pipeline, today, hail, tasks, map.',
     surfaces: SURFACES, tier: 'free',
     script: 'js/layouts/bento.js', css: 'css/layouts/bento.css',
-    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    needs: { script: ['js/layouts/kit.js', 'js/layouts/board-logic.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 

@@ -38,6 +38,9 @@
  *                              convertUnmatchedSms). Gated inside
  *                              generateAIDraft itself so all three (and any
  *                              future caller) share one switch.
+ *   coachLineDisabled: true  → stop the NBD OS Coach's AI focus line
+ *                              (coach-line.js coachLine; 2026-11-09). aiDisabled
+ *                              stops it too; this one stops only it.
  *
  * To pull the switch in an emergency (see SPEND_KILLSWITCH.md runbook):
  *   firebase firestore:... or in console: set feature_flags/global.aiDisabled = true
@@ -107,6 +110,14 @@ async function isCallBriefDisabled() {
   return f.callBriefDisabled === true;
 }
 
+// The NBD OS Coach's AI focus line (coach-line.js coachLine). Own flag, same
+// reasoning: an operator can stop that one sentence a day without darkening
+// anything else. aiDisabled also stops it (coach-line.js checks both).
+async function isCoachLineDisabled() {
+  const f = await getFlags();
+  return f.coachLineDisabled === true;
+}
+
 // Test hook — clears the cache so unit tests can assert fresh reads.
 function _resetCache() { _cache = { at: 0, flags: {} }; }
 
@@ -117,5 +128,6 @@ module.exports = {
   isVoiceIntelDisabled,
   isAiDraftDisabled,
   isCallBriefDisabled,
+  isCoachLineDisabled,
   _resetCache
 };

@@ -91,7 +91,7 @@ G(() => {
   ok('the ring is a box-shadow and a word: no filled orange, words at 11px+', /\.os-urgent-pill \{[^}]*font-size: 11px/.test(HOME_CSS) && !/background:\s*var\(--orange\)/.test(HOME_CSS));
   ok('read cost 0', T.reads.length === 0 && T2.reads.length === 0 && T4.reads.length === 0);
   ok('os.js repaints the ring only when it changed (ringKey) and on the home\'s own events (one listener set)',
-    /ringKey\(u\) === ringKey\(S\.urg\)/.test(OS_JS) && /onEvent: function \(\) \{ safe\(checkRing\); \}/.test(OS_JS) && (T.winListeners['nbd:data-refreshed'] || []).length === 1);
+    /ringKey\(u\) === ringKey\(S\.urg\)/.test(OS_JS) && /onEvent: function \(\) \{ safe\(checkRing\);/.test(OS_JS) && (T.winListeners['nbd:data-refreshed'] || []).length === 1);
 });
 
 console.log('\n3. frecency(): most used lately first, the rest in their own order');

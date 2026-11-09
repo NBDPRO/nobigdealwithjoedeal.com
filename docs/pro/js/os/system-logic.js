@@ -11,10 +11,13 @@
  *   clockAlerts(items)      the tray items the phone's clock carries as dots
  *   pushHistory(list, e)    the session toast history, newest first, capped
  *   groupNotifications(xs)  Notification Center sections, in a fixed order
+ *   privateGroups(groups)   (P2) a privacy mode's sections: the time-sensitive ones, and a held count
  *   readNav(doc)            the sidebar goTo entries (browser; takes the document)
  *   appsFromNav(entries)    the apps a member can open (role-hidden ones gone)
  *   systemActions(apps)     the Spotlight (Cmd+K) entries the layer registers
  *   clockText(now)          "2:05 PM" / "Thu, Nov 6"
+ *   driveOff(input)         P2 (design §6 #8) "Safe to drive off?": All synced, or what is
+ *                           still on this device, from the real queues; null when unknown
  *
  * Counts only, never a customer's name: the tray and the lock screen (phase 4)
  * are glanceable from across a room.
@@ -29,7 +32,9 @@
 
   /**
    * input: { online, pending, unread, storm:{active,warnings}, away:{on},
-   *          layoutName, dnd }
+   *          layoutName, dnd, photos }
+   * photos (P2): this member's photos still in the on-device upload queue
+   * (NBDPhotoQueueStore.pendingForUid); an item only while there are some.
    * Each item: { id, text, tone: 'ok'|'warn'|'alert'|'quiet', label (aria) }.
    * Sync and notifications are always there; the rest only when they matter,
    * so a calm day is a calm tray.
@@ -45,6 +50,11 @@
       out.push({ id: 'sync', tone: 'quiet', text: pending + ' syncing', label: plural(pending, 'item') + ' still uploading' });
     } else {
       out.push({ id: 'sync', tone: 'ok', text: 'Synced', label: 'Online and synced' });
+    }
+    var photos = int(i.photos);
+    if (photos) {
+      out.push({ id: 'photos', tone: 'warn', text: plural(photos, 'photo'),
+        label: plural(photos, 'photo') + (i.online === false ? ' waiting for signal' : ' still uploading') });
     }
     var unread = int(i.unread);
     out.push({ id: 'notifs', tone: unread ? 'alert' : 'quiet', text: unread > 99 ? '99+' : String(unread),
@@ -108,8 +118,10 @@
 
   // Notification Center sections, always in this order. A type that isn't
   // listed lands in "Other", so a new bell row never disappears.
+  // timely: time-sensitive (due today or overdue), the one group a privacy mode
+  // ("In a home", os/acts.js) still shows.
   var GROUPS = [
-    { id: 'tasks', label: 'Tasks', types: ['overdue-task', 'task-today'] },
+    { id: 'tasks', label: 'Tasks', types: ['overdue-task', 'task-today'], timely: true },
     { id: 'estimates', label: 'Estimates', types: ['stale-estimate', 'fresh-view'] },
     { id: 'leads', label: 'Leads', types: ['stale-lead', 'snooze-expired', 'dol-missing'] },
     { id: 'activity', label: 'Customer activity', server: true },
@@ -131,8 +143,14 @@
     });
     return GROUPS.filter(function (g) { return by[g.id]; }).map(function (g) {
       var list = by[g.id].slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
-      return { id: g.id, label: g.label, items: list, unread: list.filter(function (n) { return !n.read; }).length };
+      return { id: g.id, label: g.label, items: list, unread: list.filter(function (n) { return !n.read; }).length, timely: g.timely === true };
     });
+  }
+  /** A privacy mode's Notification Center: the time-sensitive groups, and how many items wait behind it. */
+  function privateGroups(groups) {
+    var list = Array.isArray(groups) ? groups : [], held = 0;
+    list.forEach(function (g) { if (g && g.timely !== true) held += Array.isArray(g.items) ? g.items.length : 0; });
+    return { shown: list.filter(function (g) { return g && g.timely === true; }), held: held };
   }
 
   var VIEW_RE = /^[a-z][a-z0-9-]{0,31}$/;
@@ -221,6 +239,29 @@
 
   // ── phase 4: session, lock screen, settings entries ──────────
 
+  /**
+   * "Safe to drive off?" (P2, design §6 #8): input { online, writes, photos }, each count a
+   * number from a real queue or null when it can't be known (writes: Firestore's on-device
+   * mutation queue; photos: the photo upload queue). Never claims "All synced" unless both
+   * are known and zero; a known count above zero is said even when the other is unknown.
+   * -> null | { safe, tone, text, label }
+   */
+  function driveOff(input) {
+    var i = input || {};
+    function known(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : null; }
+    var w = known(i.writes), p = known(i.photos);
+    var parts = [];
+    if (p) parts.push(plural(p, 'photo') + ' still uploading');
+    if (w) parts.push(plural(w, 'change') + ' still syncing');
+    if (parts.length) {
+      var t = parts.join(' · ');
+      return { safe: false, tone: 'warn', text: i.online === false ? t + ' · offline' : t,
+        label: 'Not yet: ' + t + (i.online === false ? '. They send when you have signal.' : '.') };
+    }
+    if (w === 0 && p === 0) return { safe: true, tone: 'ok', text: 'All synced', label: 'Safe to drive off: everything is synced.' };
+    return null;
+  }
+
   /** Auto-lock choices in minutes; 0 = off (the default). Anything else reads as off. */
   var LOCK_CHOICES = [0, 5, 15, 30];
   function lockMinutes(v) {
@@ -300,8 +341,8 @@
     LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
     companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
-    groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
-    systemActions: systemActions, clockText: clockText,
+    groupNotifications: groupNotifications, privateGroups: privateGroups, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
+    systemActions: systemActions, clockText: clockText, driveOff: driveOff,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSLogic = api;

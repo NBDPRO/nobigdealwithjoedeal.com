@@ -133,7 +133,19 @@
     var co = prefs().company || {};
     return W.NBDOSHomeLogic.resolveHome({ own: ownHome(), company: co.defaultWidgets, locked: co.homeLocked === true, admin: canAdmin() });
   }
-  function homeItems(surface) { return homeKey()[surface]; }
+  /** P2 Activities: the mode on for this surface (home-logic activeAct), or null. */
+  function curAct() {
+    var HL = W.NBDOSHomeLogic;
+    // not S.home: the home's first paint runs inside its mount, before S.home is set, and must
+    // already go through the mode (its widgets, its lens; "In a home" never paints unfiltered)
+    if (!S || !HL || typeof HL.activeAct !== 'function') return null;
+    return safe(function () { return HL.activeAct(ownHome(), homeSurface(), S.desk); }) || null;
+  }
+  /** A surface's widgets: the mode's own while one is on (a company lock still wins), else the home. */
+  function homeItems(surface) {
+    var k = homeKey(), a = curAct();
+    return a && a.items && k.src[surface] !== 'company-lock' ? a.items : k[surface];
+  }
   // ── P1: frecency (#13) and the urgency ring (#5), both pure in os/home-logic.js ──
   // Most used lately first (command palette go-<id> counts, this device; the recent list):
   // the phone's icons only while the member has never arranged them (S.icons empty), so a
@@ -194,8 +206,8 @@
         onExit: function () { setHomeEditing(false); },
         onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
         onEmpty: function () { focusHomeTool(surface); },
-        navHidden: navHidden,
-        onEvent: function () { safe(checkRing); },
+        navHidden: navHidden, mode: curAct, canAdmin: canAdmin,
+        onEvent: function () { safe(checkRing); safe(startActs); },
         onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
   }
@@ -206,8 +218,10 @@
   // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
     if (homeLocked()) return;
-    // own key, this surface replaced: a surface still on the company home stays on it
-    S.homeNext = W.NBDOSHomeLogic.setSurface(ownHome(), surface, list);
+    // own key, this surface replaced: a surface still on the company home stays on it;
+    // while a mode is on (P2) the edit is that mode's own widgets
+    var a = curAct();
+    S.homeNext = a ? W.NBDOSHomeLogic.setActList(ownHome(), a.id, surface, list) : W.NBDOSHomeLogic.setSurface(ownHome(), surface, list);
     clearTimeout(S.homeSaveT);
     S.homeSaveT = setTimeout(flushHome, SAVE_MS);
     refreshHome();
@@ -272,8 +286,12 @@
     var on = (prefs().company || {}).homeLocked === true;
     return '<button type="button" class="btn btn-ghost ' + esc(cls) + '" ' + esc(attr) + '="homepublish">Publish to team</button>' +
       '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (on ? ' is-on' : '') + '" ' + esc(attr) + '="homelock" role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' +
-      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>';
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>' +
+      // P2: the company's opt-in to the Coach's AI focus line (companyProfile.coachAiEnabled, off by default)
+      '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (coachAiOn() ? ' is-on' : '') + '" ' + esc(attr) + '="homecoachai" role="switch" aria-checked="' + (coachAiOn() ? 'true' : 'false') + '">' +
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Coach AI focus line</button>';
   }
+  function coachAiOn() { var p = W._companyProfile; return !!(p && p.coachAiEnabled === true); }
   function teamAction(what) {
     if (!S || !S.home || !canAdmin()) return;
     var surface = homeSurface();
@@ -341,7 +359,7 @@
     var el = wpEl(), HL = W.NBDOSHomeLogic;
     if (!el || !HL || typeof HL.wpPaint !== 'function') return;
     var surface = wpSurface();
-    var stored = S.wpPreview !== undefined ? S.wpPreview : HL.wpOf(homeKey(), surface);
+    var stored = S.wpPreview !== undefined ? S.wpPreview : wpStored(surface);
     var p = HL.wpPaint(stored, { now: Date.now(), sun: doc.documentElement.classList.contains('sun-all') });
     if (el.getAttribute('data-os-tod') !== p.tod) el.setAttribute('data-os-tod', p.tod);
     // a picture shows once it is decoded; until then (or if it can't be read) time of day
@@ -361,12 +379,19 @@
       if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
     }
   }
+  /** The surface's wallpaper: the mode's own while one is on and has one (P2), else the home's. */
+  function wpStored(surface) {
+    var a = curAct();
+    return (a && a.wp) || W.NBDOSHomeLogic.wpOf(homeKey(), surface);
+  }
   /** A deliberate pick: written at once (one tap, one save), the other surface kept. */
   function saveWp(surface, v) {
     if (!S) return;
     S.wpPreview = undefined;
-    // the member's own key (never the resolved home): a surface on the company home stays on it
-    S.homeNext = W.NBDOSHomeLogic.setWp(ownHome(), surface, v);
+    // the member's own key (never the resolved home): a surface on the company home stays on it;
+    // while a mode is on (P2) the pick is that mode's
+    var a = curAct();
+    S.homeNext = a ? W.NBDOSHomeLogic.setActWp(ownHome(), a.id, surface, v) : W.NBDOSHomeLogic.setWp(ownHome(), surface, v);
     flushHome();
     paintWp();
   }
@@ -380,7 +405,7 @@
       if (!S) return;
       WP.open({
         surface: surface,
-        current: W.NBDOSHomeLogic.wpOf(homeKey(), surface),
+        current: wpStored(surface),
         preview: function (v) { if (S) { S.wpPreview = v; paintWp(); } },
         done: function (v) { saveWp(surface, v); },
         cancel: function () { if (S) { S.wpPreview = undefined; paintWp(); } },
@@ -402,25 +427,170 @@
       if (p && typeof p.scrollIntoView === 'function') safe(function () { p.scrollIntoView({ block: 'start' }); });
     }, 250);
   }
+  // ── Activities and Focus modes (P2, design §6.3) ─────────────
+  // Phone modes and laptop job-phase workspaces, stored in os-home (acts, on). This file
+  // writes them (a tap on the chip, the taskbar button or a menu row, the Control Center
+  // tile, Spotlight's "Switch to <mode>") and repaints. The focus lens, the menu, "In a
+  // home"'s Do Not Disturb and the storm offer are js/os/acts.js, the osacts bundle
+  // (os/home.js loadActs), loaded only once a mode is on, a fresh storm alert has not been
+  // offered yet, or the menu opens. Nothing here switches a mode by itself.
+  function actsHost() {
+    return {
+      surface: homeSurface(), act: curAct,
+      acts: function () { return W.NBDOSHomeLogic.actsOf(ownHome()); },
+      switchTo: switchAct, rename: renameAct, focus: focusAct,
+    };
+  }
+  /** After a pick repainted the home: the mode's chip (phone) or the taskbar button (laptop); no chip, the home region. */
+  function focusAct() {
+    if (!S) return;
+    var el = S.surface === 'phone' ? S.phoneEl && (S.phoneEl.querySelector('.os-act-chip') || S.phoneEl.querySelector('.os-p-pages')) : S.actBtn;
+    if (el && typeof el.focus === 'function') safe(function () { el.focus(); });
+  }
+  function loadActs() {
+    var H = W.NBDOSHome;
+    return H && typeof H.loadActs === 'function' ? H.loadActs() : Promise.reject(new Error('no home'));
+  }
+  var STORM_CACHE = 'nbd_storm_alerts_cache', STORM_OFFERED = 'nbd_os_acts_storm';
+  /** The bundle is wanted now: a mode is on, or (phone) a fresh storm alert not yet offered. */
+  function actsWanted() {
+    if (curAct()) return true;
+    if (homeSurface() !== 'phone') return false;
+    var c = null, seen = null;
+    try { c = JSON.parse(W.localStorage.getItem(STORM_CACHE) || 'null'); seen = W.localStorage.getItem(STORM_OFFERED); } catch (e) { c = null; }
+    return W.NBDOSHomeLogic.stormNow(c, Date.now()).state === 'alert' && !!c && seen !== String(c.ts);
+  }
+  /** Load and attach the bundle once it is wanted (at mount, after a switch, on the home's events). */
+  function startActs() {
+    if (!S || !S.home || S.actsOn || (!W.NBDOSActs && !actsWanted())) return;
+    var mine = S;
+    S.actsOn = true;
+    loadActs().then(function (A) { if (S === mine) A.attach(actsHost()); }, function () { if (S === mine) S.actsOn = false; });
+  }
+  function openActs(from) {
+    if (!S || !S.home) return;
+    var mine = S;
+    loadActs().then(function (A) {
+      if (S !== mine) return;
+      if (!S.actsOn) { S.actsOn = true; A.attach(actsHost()); }
+      A.openMenu(from);
+    }, function () { toast('Couldn\'t open modes just now. Try again.', 'error'); });
+  }
+  function switchAct(id) {
+    if (!S || !S.home) return;
+    var HL = W.NBDOSHomeLogic, surface = homeSurface();
+    if (surface === 'phone' ? S.editing : S.homeEditing) setHomeEditing(false);
+    S.homeNext = HL.setActOn(ownHome(), surface, id);
+    flushHome();
+    var slot = HL.actsOf(ownHome()).map(function (a) { return a.id; }).indexOf(id);
+    // a workspace is its desk: going to it shows that desk's own windows
+    if (surface === 'desk' && slot >= 0 && slot !== S.desk) switchDesk(slot);
+    else afterAct();
+  }
+  function renameAct(id, name) {
+    if (!S || !S.home) return;
+    var next = W.NBDOSHomeLogic.renameAct(ownHome(), id, name);
+    if (!next) return;
+    S.homeNext = next;
+    flushHome();
+    registerActSpotlight();
+    afterAct();
+  }
+  /** Repaint what a mode changes (the widgets, the wallpaper, the chip or the taskbar button), then tell acts.js. */
+  function afterAct() {
+    if (!S) return;
+    refreshHome();
+    paintWp();
+    if (S.surface !== 'phone') paintActBtn();
+    if (W.NBDOSActs && S.actsOn) safe(function () { W.NBDOSActs.changed(); });
+    else startActs();
+  }
+  // Spotlight: "Switch to <mode>" for each mode, and off. Each runs only when chosen.
+  function registerActSpotlight() {
+    var C = W.NBDCommand, HL = W.NBDOSHomeLogic;
+    unregisterActSpotlight();
+    if (!S || !S.home || !C || typeof C.registerAction !== 'function') return;
+    var phone = homeSurface() === 'phone';
+    var list = HL.actsOf(ownHome()).map(function (a, i) { return { id: a.id, name: phone ? a.name : HL.PHASE_NAME[HL.PHASES[i]] + ' workspace' }; });
+    list.push({ id: null, name: '', label: phone ? 'Turn mode off' : 'Turn workspaces off' });
+    list.forEach(function (m) {
+      var cid = 'os:act:' + (m.id || 'off');
+      S.actCmd.push(cid);
+      safe(function () {
+        C.registerAction({ id: cid, label: m.label || 'Switch to ' + m.name, keywords: (phone ? 'mode focus activity ' : 'workspace desk phase activity ') + m.name.toLowerCase(),
+          group: 'System', icon: '◐', run: function () { switchAct(m.id); } });
+      });
+    });
+  }
+  function unregisterActSpotlight() {
+    var C = W.NBDCommand;
+    if (S && C && typeof C.unregisterAction === 'function') S.actCmd.forEach(function (id) { safe(function () { C.unregisterAction(id); }); });
+    if (S) S.actCmd = [];
+  }
+  function actChipHtml() {
+    var a = curAct();
+    return a ? '<div class="os-act-row"><button type="button" class="os-act-chip" data-osp="acts" aria-haspopup="dialog" aria-label="' +
+      esc(['Mode: ', a.name, '. Change mode'].join('')) + '"><span class="os-act-dot" aria-hidden="true"></span>' + esc(a.name) + '</button></div>' : '';
+  }
+  function paintActBtn() {
+    var b = S && S.actBtn;
+    if (!b) return;
+    var a = curAct();
+    b.classList.toggle('is-on', !!a);
+    b.textContent = a ? a.name : 'Workspaces';
+    b.setAttribute('aria-label', a ? ['Workspace: ', a.name, ', desk ', String(a.slot + 1), '. Change workspace'].join('') : 'Workspaces: off. Turn them on');
+  }
+
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
-  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper'];
+  // (+ on the laptop desk, the action runner's "Type to search" switch, WCAG 2.1.4)
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type'];
   function registerControls() {
     var tries = 0, done = false;
+    var desk = S && S.surface !== 'phone';
     function reg() {
-      if (done || !S || !S.home) return;
+      if (done || !S || !(S.home || desk)) return;
       var O = W.NBDOS;
       if (O && typeof O.registerControl === 'function') {
         done = true;
-        safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
-        safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
+        if (S.home) safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
+        if (S.home) safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
+        // P2: Mode (phone) / Workspace (laptop); its hint is the mode on
+        if (S.home) safe(function () {
+          O.registerControl({ id: 'os-acts', label: homeSurface() === 'phone' ? 'Mode' : 'Workspace', run: function () { openActs(null); },
+            hint: function () { var a = curAct(); return a ? a.name : 'Off'; } });
+        });
+        if (desk) safe(function () { O.registerControl({ id: 'os-runner-type', label: 'Type to search', hint: runnerTypeHint, run: toggleRunnerType }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
     }
     // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
     // (capture, so the tiles are in before the sheet paints; a no-op once registered)
-    if (S && S.home) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
     reg();
+  }
+  // ── the action runner (command-runner.js, the lazy `cmdrunner` bundle): type-anywhere + hot corner on the desk ──
+  var RUNNER_SRC = ['js/command-runner.js?v=1'];
+  function attachRunner() {
+    var desk = S && S.deskEl;
+    if (!desk) return;
+    function go() { if (S && S.deskEl === desk && !S.runnerOff && W.NBDRunner) S.runnerOff = W.NBDRunner.attachDesk(desk); }
+    if (W.NBDRunner) return go();
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return;
+    if (SL.bundles && !SL.bundles.cmdrunner) SL.bundles.cmdrunner = RUNNER_SRC.slice();
+    Promise.resolve().then(function () { return SL.loadBundle('cmdrunner'); }).then(go, function () {});
+  }
+  function runnerTypeHint() {
+    var R = W.NBDRunner;
+    return R ? (R.typeOpen.on() ? 'On: type on the desktop' : 'Off') : '';
+  }
+  function toggleRunnerType() {
+    var R = W.NBDRunner;
+    if (!R) return toast('Search is still loading. Try again in a moment.');
+    var on = !R.typeOpen.on();
+    R.typeOpen.set(on);
+    toast(on ? 'Type to search is on: type on the desktop to search.' : 'Type to search is off. Ctrl+K still opens search.');
   }
   function unregisterControls() {
     var O = W.NBDOS;
@@ -594,6 +764,7 @@
     S.focus = WM.nextFocus(here(), null);
     if (S.focus) focusWin(S.focus); else { paintAllWins(); save(); }
     paintDeskBtns();
+    if (curAct()) afterAct();   // P2: with workspaces on, the desk showing is the workspace (its focus, widgets, wallpaper)
   }
   function moveToDesk(id, n) {
     var rec = winRec(id);
@@ -826,6 +997,7 @@
         '<div class="os-visit-slot"></div>' +
         '<div class="os-task-list" role="group" aria-label="Pinned and open apps"></div>' +
         '<div class="os-desks" role="group" aria-label="Desks"></div>' +
+        (home ? '<button type="button" class="os-task os-act-task" data-osdo="acts" aria-haspopup="dialog"></button>' : '') +
         '<button type="button" class="os-task os-show-desk" data-osdo="desktop" aria-label="Show desktop">▭</button>' +
       '</nav>';
     content.appendChild(desk);
@@ -849,6 +1021,7 @@
     S.startEl = desk.querySelector('.os-start');
     S.startBtn = desk.querySelector('.os-start-btn');
     S.desksEl = desk.querySelector('.os-desks');
+    S.actBtn = desk.querySelector('.os-act-task');
     S.overviewBtn = desk.querySelector('.os-overview-btn');
     S.visitTaskEl = desk.querySelector('.os-visit-slot');
     S.visitTaskEl.innerHTML = visitTaskHtml();
@@ -908,9 +1081,11 @@
     var active = doc.querySelector('.content .view.active');
     var focusId = st.focus || (active ? active.id.slice(5) : null);
     paintDeskBtns();
+    paintActBtn();
     if (focusId && viewEl(focusId)) openWin(focusId);
     else paintAllWins();
     registerDeskSpotlight();
+    attachRunner();
   }
 
   // Window buttons: 'chrome' (ChromeOS / Windows, default), 'mac' (traffic
@@ -955,7 +1130,9 @@
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
+    if (what === 'homecoachai') return teamAction('coachai');
     if (what === 'wallpaper') return openWallpaper();
+    if (what === 'acts') return openActs(S.actBtn);
   }
   function onDeskClick(ev) {
     var t = ev.target;
@@ -1144,6 +1321,7 @@
         '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
       if (S.home && canAdmin()) h += '<div class="os-hw-team" role="group" aria-label="Team home">' + teamHtml('data-osp', 'btn-sm') + '</div>';
     }
+    if (!S.editing) h += actChipHtml();
     if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
       return '<div class="os-p-page' + (S.home && !i ? ' os-p-home' : '') + '" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
@@ -1308,8 +1486,10 @@
     if (what === 'homeadd' && S.home && !homeLocked()) return safe(function () { S.home.openAdd(); });
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
+    if (what === 'homecoachai') return teamAction('coachai');
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
+    if (what === 'acts') return openActs(t);
     if (what === 'swclose') return closeSwitcher();
     if (what === 'swopen') return phoneOpen(id);
     if (what === 'swremove') return removeRecent(id);
@@ -1497,7 +1677,7 @@
     S = {
       surface: (ctx && ctx.surface) || 'desktop', apps: [], wins: [], focus: null, order: [], icons: [], dock: [], recent: [],
       origins: {}, viewOrder: [], unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
-      desk: 0, pins: [], overview: false, deskMenu: null,
+      desk: 0, pins: [], overview: false, deskMenu: null, actCmd: [], actsOn: false,
     };
     S.apps = readApps();
     doc.documentElement.setAttribute('data-os-surface', S.surface === 'phone' ? 'phone' : 'desk');
@@ -1505,6 +1685,8 @@
     watchViews();
     watchVisits();
     registerControls();
+    registerActSpotlight();
+    startActs();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
     // settings read after mount (a company home published or locked): show what they say now.
     // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
@@ -1547,6 +1729,9 @@
     flushHome();
     clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.claimsT); clearTimeout(st.ctrlT);
     unregisterControls();
+    unregisterActSpotlight();
+    if (W.NBDOSActs) safe(function () { W.NBDOSActs.detach(); });
+    if (st.runnerOff) safe(st.runnerOff);
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
     if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(); });   // its blob: URLs, its open picker

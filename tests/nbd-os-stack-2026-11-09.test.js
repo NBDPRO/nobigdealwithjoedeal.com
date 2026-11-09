@@ -116,7 +116,8 @@ console.log('\n3. the catalog entry and the cap');
 G(() => {
   const c = HL.CATALOG.stack;
   ok('Smart Stack: M and L, read cost 0, a stack', c && J(c.sizes) === J(['m', 'l']) && c.reads === 0 && c.stack === true, J(c));
-  ok('a stack holds up to 4 cards; none saved -> the default four', HL.STACK_MAX === 4 && J(HL.normalize({ phone: [{ id: 'stack', s: 'm' }] }).phone[0].items) === J(['upnext', 'storm', 'daily', 'coach']));
+  // P2 (2026-11-09): the default four carry Shutdown, not Coach (tests/nbd-os-p1-followups-2026-11-09.test.js)
+  ok('a stack holds up to 4 cards; none saved -> the default four', HL.STACK_MAX === 4 && J(HL.normalize({ phone: [{ id: 'stack', s: 'm' }] }).phone[0].items) === J(['upnext', 'storm', 'daily', 'shutdown']));
   ok('cards are known, not a stack, no repeats, at most 4',
     J(HL.normalize({ phone: [{ id: 'stack', s: 'm', items: ['coach', 'stack', 'coach', 'nope', 'glance', 'upnext', 'daily', 'storm'] }] }).phone[0].items) === J(['coach', 'glance', 'upnext', 'daily']));
   const many = []; for (let i = 0; i < 8; i++) many.push({ id: 'stack', s: 'm', items: ['upnext', 'storm', 'daily', 'coach'] });

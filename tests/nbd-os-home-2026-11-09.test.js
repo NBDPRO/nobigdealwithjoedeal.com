@@ -284,7 +284,8 @@ G(() => {
   ok('Up Next listens for the existing nbd:today-rendered event', /'nbd:today-rendered'/.test(code));
   ok('counts come from NBDHomeAttention.lastCounts (never re-queried)', /NBDHomeAttention/.test(code) && /lastCounts/.test(code));
   // P1 (2026-11-09): Daily Success declares 2 (goals + doors, its lazy bundle); every other widget reads nothing
-  ok('every catalog widget declares reads: 0 (Daily Success: 2)', HL.ids().every((id) => HL.CATALOG[id].reads === (id === 'daily' ? 2 : 0)));
+  // P2 (2026-11-09): the owner's Team widget declares 50 (the company's leaderboard rows, its lazy bundle, at most every 5 min)
+  ok('every catalog widget declares reads: 0 (Daily Success: 2, Team: 50)', HL.ids().every((id) => HL.CATALOG[id].reads === (id === 'daily' ? 2 : id === 'teamboard' ? 50 : 0)));
 });
 
 console.log('\n3. pure helpers');
@@ -480,11 +481,18 @@ G(() => {
   // P1 (2026-11-09): the ScriptLoader uses are its own three lazy bundles of same-origin files under js/os/ and css/os/
   const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
   const bundle = /var SD_BUNDLE = \[([^\]]*)\]/.exec(code);
-  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js) and osshutdown (css/os + js/os files)',
-    (code.match(/loadBundle\(/g) || []).length === 3 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+  // P2 (2026-11-09): and osacts (Activities and Focus modes), osp2peek (Peek, Recap) and oscoachai
+  // (css/os/coach-ai.css, js/os/coach-ai.js, the opted-in Coach's AI focus line), css/os + js/os files too
+  const acts = /var ACTS_FILES = \[([^\]]*)\]/.exec(code);
+  ok('…its ScriptLoader loads are oshomep1 (js/os/stack-logic.js, js/os/widgets-p1.js), osdsbiz (js/os/ds-business.js), osshutdown, osacts, osp2peek (css/os + js/os files), oscoachai, osteam and osdsgoals (js/os/ds-goals.js)',
+    (code.match(/loadBundle\(/g) || []).length === 8 && !!acts && acts[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /SL\.loadBundle\(ACTS_BUNDLE\)/.test(code)
+      && /SL\.bundles\.oscoachai = \['css\/os\/coach-ai\.css\?v=1', 'js\/os\/coach-ai\.js\?v=1'\];/.test(code) && /loadBundle\('oscoachai'\)/.test(code) && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+      && /loadBundle\('osteam'\)/.test(code)
+      && /SL\.bundles\.osdsgoals = \['js\/os\/ds-goals\.js\?v=1'\];/.test(code) && /loadBundle\('osdsgoals'\)/.test(code)
       && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"])
       && /var BIZ = 'osdsbiz'/.test(code) && /SL\.bundles\[BIZ\] = \['js\/os\/ds-business\.js\?v=1'\];/.test(code)
-      && !!bundle && bundle[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /loadBundle\('osshutdown'\)/.test(code), files);
+      && !!bundle && bundle[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)) && /loadBundle\('osshutdown'\)/.test(code)
+      && /loadBundle\('osp2peek'\)/.test(code) && /var PK_BUNDLE = \[([^\]]*)\]/.exec(code)[1].split(',').every((x) => /^\s*'(js|css)\/os\/[a-z-]+\.(js|css)\?v=\d+'\s*$/.test(x)), files);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

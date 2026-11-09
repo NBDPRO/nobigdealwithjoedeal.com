@@ -1,0 +1,55 @@
+/* command-runner.css — the action runner's verb buttons and the Quick Keys
+   editor (NBD OS P2, design §6.4, 2026-11-09). Theme tokens only
+   (--s3/--br/--t/--m/--orange/--og), so every theme reskins it. Injected by
+   js/command-runner.js the first time it is used. No motion. */
+
+.cmdr-row .cmdx-main { flex: 1 1 0; }
+.cmdr-verbs { display: inline-flex; gap: 6px; flex: 0 0 auto; justify-content: flex-end; }
+.cmdr-verb, .cmdr-btn {
+  min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--t);
+  background: var(--s3); border: 1px solid var(--br);
+}
+.cmdr-verb:hover, .cmdr-btn:hover { border-color: var(--orange); }
+.cmdr-verb.is-on { border-color: var(--orange); background: var(--og); box-shadow: inset 0 0 0 1px var(--orange); }
+.cmdr-verb:focus-visible, .cmdr-btn:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.cmdr-primary { border-color: var(--orange); background: var(--og); }
+.cmdr-hidden { display: none !important; }
+.cmdr-qk {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 700;
+  padding: 2px 8px; border-radius: 6px; border: 1px solid var(--br); background: var(--s3); color: var(--t);
+}
+
+.cmdr-ed { padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.cmdr-ed-head { display: flex; flex-direction: column; gap: 2px; }
+.cmdr-ed-head b { font-size: 15px; }
+.cmdr-note { color: var(--m); font-size: 12px; }
+.cmdr-ed-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cmdr-ed-row { display: flex; align-items: center; gap: 10px; }
+.cmdr-ed-what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdr-ed-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.cmdr-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--m); }
+.cmdr-field input, .cmdr-field select {
+  min-height: 44px; padding: 0 10px; border-radius: 8px; font: inherit; font-size: 14px;
+  color: var(--t); background: var(--s3); border: 1px solid var(--br);
+}
+.cmdr-ed-key { width: 7em; }
+.cmdr-ed-target { max-width: 260px; }
+.cmdr-ed-msg { margin: 0; min-height: 1.2em; color: var(--m); font-size: 12px; }
+.cmdr-ed-opts { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--br); padding-top: 8px; }
+.cmdr-check { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.cmdr-check input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--orange); }
+.cmdr-ed-foot { display: flex; justify-content: space-between; gap: 8px; }
+
+/* the lit verb, read out by screen readers only (command-runner.js announce) */
+.cmdr-live {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* a phone: the verbs go on their own line under the name */
+@media (max-width: 640px) {
+  .cmdr-row { flex-wrap: wrap; }
+  .cmdr-verbs { flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; padding-left: 32px; }
+  .cmdr-ed-target { max-width: 100%; }
+}

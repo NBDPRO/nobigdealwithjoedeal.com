@@ -201,8 +201,9 @@
     var under = HL.SIZES.slice(0, HL.SIZES.indexOf(size)).reverse();
     var childSize = under.filter(function (z) { return child.sizes.indexOf(z) !== -1; })[0] || child.sizes[0];
     var picked = !st.manual && id === st.pickId;
-    // the child paints with the stack's record (its open state, its focus) but its own size
-    var inner = k.render(id, childSize, null, act, { it: { id: id, s: childSize }, el: rec.el, open: !!rec.open, focus: picked ? st.focus : null });
+    // the child paints with the stack's record (its open state, its focus) but its own size; box is
+    // the stack's size, the room the card really has (Up Next's Peek row cut reads it)
+    var inner = k.render(id, childSize, null, act, { it: { id: id, s: childSize }, el: rec.el, open: !!rec.open, focus: picked ? st.focus : null, box: size });
     var why = picked ? st.reason : 'You picked this card. The stack picks again when something changes.';
     var whyId = 'oshwWhy-' + String(rec.key || 'stack');   // the paragraph is always there (hidden when shut) so aria-controls resolves
     var n = cards.length;

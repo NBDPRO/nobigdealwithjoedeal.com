@@ -74,6 +74,10 @@
 .os-hw-coach-text { flex: 1 1 auto; min-width: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; overflow-wrap: anywhere; }
 .os-hw-coach-go { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
 .os-hw-coach-act { text-decoration: none; }
+/* a Coach can hold more than its rows at 320px (the P2 AI line, up to 180 characters, over a long rule):
+   its body scrolls inside the card, so an action or the last rule is never cut off out of reach.
+   No overscroll containment: at its end a swipe carries on to the phone page's own scroll */
+.os-hw-coach > .os-hw-body { overflow-y: auto; scrollbar-width: thin; }
 
 /* Daily Success: floors / streak state / week %, and what is left today */
 .os-hw-ds-link {
@@ -90,6 +94,7 @@
 .os-hw-ds-row.is-label:not(:first-child) { margin-top: var(--ui-space-1, 4px); }
 .os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
 .os-hw-ds-open { align-self: flex-start; text-decoration: none; }
+.os-hw-ds-goals { align-self: flex-start; padding-inline: var(--ui-space-2, 8px); }
 /* personal numbers never show on the lock screen */
 html.os-locked .os-hw-daily { visibility: hidden; }
 
@@ -188,6 +193,24 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw-pub-row { display: flex; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-4, 16px); }
 .os-hw-pub-btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
 
+/* ── daily goals (P2): the goals sheet, os/ds-goals.js ── */
+.os-hw-goals-f { display: flex; flex-direction: column; margin-top: var(--ui-space-3, 12px); }
+.os-hw-goals-row, .os-hw-goals-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-3, 12px);
+  min-height: 44px; padding: var(--ui-space-1, 4px) 0; border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-goals-l { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-hw-goals-in {
+  flex: none; width: 6.5em; min-height: 44px; padding: 0 var(--ui-space-2, 8px); font: inherit; font-size: 16px;
+  color: var(--t); background: var(--bg); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+}
+.os-hw-goals-in:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-goals-in[aria-invalid="true"] { border-color: var(--ui-danger-text, var(--red)); }
+/* while the goals on file are being read, or could not be: nothing to edit, nothing to save */
+.os-hw-goals-in:disabled, .os-hw-goals .os-hw-pub-btn:disabled { opacity: .5; cursor: default; }
+.os-hw-goals-list { list-style: none; margin: var(--ui-space-3, 12px) 0 0; padding: 0; }
+.os-hw-goals-n { font-size: var(--ui-fs-body, 14px); font-weight: 700; }
+
 /* ── by the width a widget got ── */
 @container oshw (max-width: 159px) {
   .os-hw-sc { flex-direction: column; }
@@ -248,6 +271,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
   .os-widgets.os-hw-desk { width: 240px; }
   .os-hw-board .os-hw.os-hw { grid-column: auto; grid-row: auto; min-height: 96px; }
   .os-hw-board .os-hw.os-hw.is-l { min-height: 280px; }
+  /* P2: Up Next M carrying the Peek button keeps a full 160px row, so the button is never cut off */
+  .os-hw-board .os-hw.os-hw.is-m:has(.os-hw-peek) { min-height: 160px; }
   .os-hw-grip { display: none; }
 }
 
@@ -327,3 +352,19 @@ html.os-locked .os-hw-closes { visibility: hidden; }
 .os-wp-more, .os-wp-done { min-height: 44px; }
 .os-wp-done { min-width: 88px; justify-content: center; }
 .os-wp-done:disabled { opacity: .5; cursor: default; }
+
+/* ── Activities and Focus modes (P2, design §6.3; layouts/os.js, js/os/acts.js) ──
+   The phone's mode chip (only while a mode is on) and the taskbar's Workspaces
+   button. The menu itself is css/os/acts.css (the osacts bundle). No motion. */
+.os-act-row { display: flex; padding: 0 var(--ui-space-3, 12px) var(--ui-space-2, 8px); }
+.os-act-chip {
+  display: inline-flex; align-items: center; gap: var(--ui-space-2, 8px); min-height: 44px; max-width: 100%;
+  padding: 0 var(--ui-space-3, 12px); border-radius: var(--ui-radius-pill, 100px); cursor: pointer;
+  font: inherit; font-size: var(--ui-fs-body-sm, 13px); font-weight: 700; color: var(--t);
+  background: color-mix(in srgb, var(--s) 92%, transparent); border: 1px solid var(--ui-line-strong, var(--br));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.os-act-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--orange); }   /* a ring: New lead is the region's one filled orange */
+.os-act-chip:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-act-task { min-height: 44px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--m); }
+.os-act-task.is-on { color: var(--t); border-color: var(--ui-line-strong, var(--br)); }

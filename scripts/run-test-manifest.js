@@ -445,7 +445,11 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  969/74/1100 -> 976/74/1108, Call to Close P0 + P0b node suites (call-brief
 //               logic, eval, callable, promise slot, sheet, buttons, viewer-hidden) and the
 //               call-briefs emulator rules suite. MEASURED via --check.
-const FLOORS = { node: 976, smoke: 74, disk: 1108 };
+//   2026-11-09  976/74/1108 -> 991/74/1125, NBD OS P2 joins Call to Close P0 on this branch:
+//               the P2 node suites (Activities, runner, peek, Welcome Recap, drive-off, Coach
+//               AI line, team board/aggregate/time zone, goals editor, P1 follow-ups,
+//               integration) and the os-coach-ai and os-team emulator suites. MEASURED via --check.
+const FLOORS = { node: 991, smoke: 74, disk: 1125 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

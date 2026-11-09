@@ -13,6 +13,10 @@
  *     is highlighted (ThemeEngine.previewCSS) and Enter to apply; locked
  *     themes say what unlocks them and open the Trophy Case when it exists;
  *   - usage-count ranking (per device) so the actions you use float up;
+ *   - the action runner (command-runner.js, window.NBDRunner, NBD OS P2): verbs
+ *     on result rows, result providers and Quick Keys. This layer loads it as
+ *     the `cmdrunner` ScriptLoader bundle the first time the palette opens and
+ *     hands it the rows; without it the palette works as before;
  *   - `=` math: a SAFE expression parser — a hand-written tokenizer + recursive
  *     descent over numbers, units and + - * / ^ ( ) %. It never calls eval or
  *     Function. Roofing units: sq (100 sqft), sqft, lf, and $; "32.4 sq x
@@ -367,7 +371,8 @@
     previewKey: null,
     previewTimer: 0,
     leadActions: new Map(),
-    cssAdded: false
+    cssAdded: false,
+    runnerAsked: false
   };
 
   function esc(s) {
@@ -404,9 +409,34 @@
     X.cssAdded = true;
     var l = doc.createElement('link');
     l.rel = 'stylesheet';
-    l.href = '/pro/css/command-palette-scopes.css?v=1';
+    l.href = '/pro/css/command-palette-scopes.css?v=2';
     doc.head.appendChild(l);
   }
+
+  // ── the action runner (lazy: a runtime ScriptLoader bundle, a script tag where there is none) ──
+  var RUNNER_SRC = 'js/command-runner.js?v=1';
+  function runner() { return root.NBDRunner || null; }
+  function rerenderOpen() {
+    var inp = doc && doc.getElementById('nbd-cmd-input');
+    if (inp && typeof inp.dispatchEvent === 'function' && root.Event) inp.dispatchEvent(new root.Event('input'));
+  }
+  function ensureRunner() {
+    if (runner() || X.runnerAsked || !doc) return;
+    X.runnerAsked = true;
+    var SL = root.ScriptLoader;
+    if (SL && SL.bundles && typeof SL.loadBundle === 'function') {
+      if (!SL.bundles.cmdrunner) SL.bundles.cmdrunner = [RUNNER_SRC];
+      Promise.resolve().then(function () { return SL.loadBundle('cmdrunner'); }).then(rerenderOpen, function () { X.runnerAsked = false; });
+      return;
+    }
+    var s = doc.createElement('script');
+    s.src = '/pro/' + RUNNER_SRC;
+    s.async = true;
+    s.onload = rerenderOpen;
+    s.onerror = function () { X.runnerAsked = false; };
+    doc.head.appendChild(s);
+  }
+  function withVerbs(rows) { var R = runner(); return R ? R.decorateLeads(rows) : rows; }
 
   // ── lead actions (the registry) ──────────────────────────────────────
   function copy(text, label) {
@@ -539,6 +569,7 @@
    */
   function compute(raw, ctx) {
     ensureCss();
+    ensureRunner();
     var ps = parseScope(raw);
     var q = ps.q;
 
@@ -546,11 +577,11 @@
 
     if (ps.scope === 'themes') return themeResults(q, ctx.rerender);
 
-    if (ps.scope === 'people') return ctx.buildLeadResults(q);
+    if (ps.scope === 'people') return withVerbs(ctx.buildLeadResults(q));
 
     if (ps.scope === 'jobs') {
       var pool = (Array.isArray(root._leads) ? root._leads : []).filter(function (l) { return l && !l.deleted && isJobLead(l); });
-      return ctx.buildLeadResults(q, pool);
+      return withVerbs(ctx.buildLeadResults(q, pool));
     }
 
     if (ps.scope === 'actions') {
@@ -588,7 +619,8 @@
       }).filter(function (r) { return r.score >= 70; });
       rows.forEach(function (r) { out.push(themeItem(r)); });
     }
-    return out;
+    var R = runner();
+    return R ? R.decorate(out, raw, ctx) : out;
   }
 
   // ── row markup ───────────────────────────────────────────────────────
@@ -598,6 +630,7 @@
     return '<i class="cmdx-sw"' + (HEX.test(v) || /^rgba?\([\d\s.,%]+\)$/i.test(v) ? ' data-sw="' + esc(v) + '"' : '') + '></i>';
   }
   function rowHtml(item, idx) {
+    if (item.xrow === 'runner' && runner()) return runner().rowHtml(item, idx);
     if (item.xrow === 'theme') {
       var c = null;
       try { c = root.ThemeEngine && root.ThemeEngine.previewResolvedColors(item.themeKey); } catch (_) {}
@@ -621,6 +654,7 @@
   function afterRender(listEl) {
     if (!listEl) return;
     listEl.querySelectorAll('[data-sw]').forEach(function (n) { n.style.setProperty('--cmdx-sw', n.getAttribute('data-sw')); });
+    if (runner()) runner().afterRender(listEl);
   }
 
   // ── preview while a theme row is highlighted ─────────────────────────
@@ -646,6 +680,7 @@
     X.previewKey = key;
   }
   function onSelect(item) {
+    if (runner()) runner().onSelect(item);
     clearTimeout(X.previewTimer);
     var key = item && item.xrow === 'theme' && !item.locked && !item.current ? item.themeKey : null;
     X.previewTimer = setTimeout(function () { setPreview(key); }, key ? 120 : 0);
@@ -698,6 +733,7 @@
   /** Tab pins the highlighted lead; Backspace on an empty box un-pins. Returns true if handled. */
   function onKey(e, st) {
     if (!st) return false;
+    if (runner() && runner().onKey(e, st)) return true;   // Tab / arrows between a row's verbs first
     var wrap = doc && doc.getElementById('nbd-cmd-modal');
     if (e.key === 'Tab' && !e.shiftKey) {
       var item = st.results[st.index];

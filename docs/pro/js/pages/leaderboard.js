@@ -1,6 +1,6 @@
 import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
-import { getFirestore, collection, collectionGroup, getDocs, query, where, doc, getDoc } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, collectionGroup, getDocs, query, where, limit, doc, getDoc } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 
 const firebaseConfig = {
@@ -33,6 +33,15 @@ let currentPeriod = 'all';
 let currentUser = null;
 let myAvatar = null; // userSettings/{uid}.game.avatar: the Home game card's look, drawn as the chibi on this rep's row (wave 10)
 let rawData = { leads: [], knocks: [], invoices: [], jobsByLead: {} };
+// The team aggregate (NBD OS P2, 2026-11-09): the company's leaderboard/{uid}
+// rows (functions/leaderboard-aggregate.js; team-board-logic.js reads them).
+// Today / This week on Doors or Deals rank the whole team from them; anything
+// else, or no current row for this member, reads the rep's own records as
+// before (loadData, only once it is needed).
+let teamRows = null;
+let teamDone = false;   // the rows answered (or failed): nothing renders, and nothing fans out, before
+let rawLoaded = false;
+let rawLoading = null;
 
 // ── Helpers ──
 function toDate(v) {
@@ -84,7 +93,32 @@ function relativeTime(d) {
 }
 
 // ── Data loading ──
-async function loadData() {
+// The company's rows: one query on the companyId claim (N docs), or a solo
+// owner's own row. A refused or failed read is "no aggregate" (the fallback).
+async function loadTeam(user) {
+  let cid = null;
+  try { const t = await user.getIdTokenResult(); cid = (t && t.claims && t.claims.companyId) || null; } catch (e) { cid = null; }
+  try {
+    if (cid) {
+      const snap = await getDocs(query(collection(db, 'leaderboard'), where('companyId', '==', cid), limit(50)));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    const s = await getDoc(doc(db, 'leaderboard', user.uid));
+    return s.exists() ? [{ id: s.id, ...s.data() }] : [];
+  } catch (e) {
+    return null;
+  }
+}
+function teamUsable() {
+  const TB = window.NBDTeamBoard;
+  return !!(TB && currentUser && TB.usable(teamRows, currentUser.uid, currentPeriod, currentTab, Date.now()));
+}
+
+function loadData() {
+  if (!rawLoading) rawLoading = loadRaw().finally(() => { rawLoaded = true; renderAll(); });
+  return rawLoading;
+}
+async function loadRaw() {
   const uid = currentUser?.uid;
   if (!uid) return;
 
@@ -117,8 +151,6 @@ async function loadData() {
   } catch (e) {
     rawData.jobsByLead = {};
   }
-
-  renderAll();
 }
 
 // Per-payment cash ledger (mirrors money-dashboard.js/analytics-kpi.js
@@ -269,6 +301,9 @@ function buildReps(metrics) {
 
 // ── Render everything ──
 function renderAll() {
+  if (!teamDone) return;
+  if (teamUsable()) { renderTeam(); return; }
+  if (!rawLoaded) { loadData(); return; }
   const metrics = computeMetrics();
   const reps = buildReps(metrics);
 
@@ -280,6 +315,24 @@ function renderAll() {
 
   renderBoard(reps);
   renderFeed(metrics);
+}
+
+// The team from the aggregate rows: counted doors, appointments, estimates
+// sent and deals. No revenue or close rate (the rows carry neither), so the
+// summary says — for those, and the feed (built from the rep's own records) hides.
+function renderTeam() {
+  const TB = window.NBDTeamBoard;
+  const list = TB.board(teamRows, currentPeriod, Date.now(), currentTab === 'deals' ? 'deals' : 'doors');
+  const t = TB.totals(list);
+  document.getElementById('sumKnocks').textContent = t.doors.toLocaleString();
+  document.getElementById('sumDeals').textContent = t.deals.toLocaleString();
+  document.getElementById('sumRevenue').textContent = '—';
+  document.getElementById('sumRate').textContent = '—';
+  renderBoard(list.map(r => ({
+    name: r.name || (currentUser && r.uid === currentUser.uid ? (currentUser.displayName || 'You') : 'Teammate'),
+    uid: r.uid, knocks: r.doors, deals: r.deals, appointments: r.appts, estimates: r.estimates, revenue: null, rate: null
+  })));
+  document.getElementById('feed').style.display = 'none';
 }
 
 function renderBoard(reps) {
@@ -317,7 +370,13 @@ function renderBoard(reps) {
     const rankClass = i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : '';
     const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
     const name = entry.name || 'NBD Member';
-    const sub = currentTab === 'doors'
+    const team = entry.rate == null;
+    const many = (n, one, more) => n + ' ' + (n === 1 ? one : more);
+    const sub = team
+      ? (currentTab === 'deals'
+        ? many(entry.estimates, 'estimate', 'estimates') + ' sent · ' + many(entry.knocks, 'door', 'doors')
+        : many(entry.appointments, 'appointment', 'appointments') + ' · ' + many(entry.estimates, 'estimate', 'estimates') + ' sent')
+      : currentTab === 'doors'
       ? entry.appointments + ' appointments · ' + entry.rate + '% close rate'
       : currentTab === 'deals'
         ? fmtCurrency(entry.revenue) + ' revenue · ' + entry.rate + '% close rate'
@@ -413,7 +472,18 @@ onAuthStateChanged(auth, user => {
     // Owner-only read; a miss or a rep without a game card keeps the initials.
     const uid = user.uid;
     getDoc(doc(db, 'userSettings', uid)).then((s) => { myAvatar = (s.exists() && s.data().game && s.data().game.avatar) || null; if (myAvatar) renderAll(); }).catch(() => { myAvatar = null; });
-    loadData();
+    // The team rows first: when this member's is current, open on This week
+    // from them and read nothing else; otherwise the rep's own records, as before.
+    loadTeam(user).then((rows) => {
+      teamRows = rows;
+      teamDone = true;
+      const TB = window.NBDTeamBoard;
+      if (TB && currentPeriod === 'all' && TB.usable(rows, uid, 'week', currentTab, Date.now())) {
+        currentPeriod = 'week';
+        document.querySelectorAll('.period-btn').forEach(b => b.classList[b.dataset.period === 'week' ? 'add' : 'remove']('active'));
+      }
+      renderAll();
+    });
   } else {
     document.getElementById('board').style.display = 'none';
     document.getElementById('auth-wall').style.display = 'block';

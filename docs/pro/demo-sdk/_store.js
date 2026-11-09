@@ -199,7 +199,8 @@ export function seedMeta() { return _seedMeta; }
 
 // Seed values may carry relative dates so the sample account always looks
 // current: {"__ts": {"days": -3, "hour": 10}} -> Timestamp, {"__date": {"days": 2}}
-// -> "YYYY-MM-DD", {"__ms": {"days": -1}} -> epoch millis, {"__iso": {...}} -> ISO.
+// -> "YYYY-MM-DD", {"__ms": {"days": -1}} -> epoch millis, {"__iso": {...}} -> ISO,
+// {"__tzLocal": true} -> the viewer's IANA time zone.
 function relDate(spec) {
   const d = new Date();
   d.setDate(d.getDate() + Number(spec.days || 0));
@@ -216,6 +217,10 @@ export function reviveSeed(v) {
   if (v.__date) return ymd(relDate(v.__date));
   if (v.__ms) return relDate(v.__ms).getTime();
   if (v.__iso) return relDate(v.__iso).toISOString();
+  // NBD OS P2 Team (2026-11-09): {"__tzLocal": true} -> the viewer's own IANA zone, so a
+  // value stamped with __date (the viewer's local date) is read in the zone it was made in
+  // (the sample leaderboard rows: else a viewer west of Eastern late in the evening saw them stale).
+  if (v.__tzLocal) { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'; } catch (_) { return 'America/New_York'; } }
   // Wave 3: {"__isoNow": {"minutes": -45}} -> ISO time relative to NOW (a
   // sample weather alert that is live right now, not at a set hour).
   if (v.__isoNow) return new Date(Date.now() + Number(v.__isoNow.minutes || 0) * 60000).toISOString();

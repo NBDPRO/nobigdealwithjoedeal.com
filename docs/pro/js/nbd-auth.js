@@ -845,6 +845,11 @@ export const NBDAuth = {
         // in the loop below: nbd_hk_disabled_*.
         'nbd_pro_mode_pref', 'nbd-theme-overlays', 'nbd_gx_settings', 'nbd_professional_mode',
         'nbd-sidebar-collapsed', 'nbd_sidebar_hidden', 'nbd-kanban-bold', 'nbd_crm_sec_header_enabled',
+        // The action runner's device settings (command-runner.js): "Type to search"
+        // on the NBD OS desk and the hot corner. Like the hotkey toggles: a rep who
+        // turned typing off (WCAG 2.1.4) must not get it back at the next sign-in.
+        // Its Quick Keys (nbd_cmd_quickkeys_v1) are still wiped.
+        'nbd_runner_type_v1', 'nbd_runner_corner_v1',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {

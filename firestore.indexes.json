@@ -185,11 +185,28 @@
       ]
     },
     {
+      "collectionGroup": "jobs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ai_drafts",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "userId",      "order": "ASCENDING"  },
         { "fieldPath": "generatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "2026-11-09: getAiTextingStats (handlers/ai-texting-stats.js): userId == + generatedAt >= with no orderBy sorts generatedAt ASCENDING; the DESC twin above does not serve it.",
+      "collectionGroup": "ai_drafts",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",      "order": "ASCENDING"  },
+        { "fieldPath": "generatedAt", "order": "ASCENDING"  }
       ]
     },
     {
@@ -239,6 +256,15 @@
       "fields": [
         { "fieldPath": "companyId",  "order": "ASCENDING"  },
         { "fieldPath": "recordedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "2026-11-09: getAdjusterTacticBoard (handlers/adjuster-board.js): companyId == + recordedAt >= with no orderBy sorts recordedAt ASCENDING; the DESC twin above does not serve it.",
+      "collectionGroup": "recordings",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId",  "order": "ASCENDING"  },
+        { "fieldPath": "recordedAt", "order": "ASCENDING"  }
       ]
     },
     {
@@ -991,6 +1017,21 @@
       ]
     },
     {
+      "_comment": "2026-11-09: exportMyData (integrations/compliance.js): uid == + timestamp > with no orderBy sorts timestamp ASCENDING; the DESC twin above does not serve it.",
+      "collectionGroup": "api_usage",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "api_usage",
       "queryScope": "COLLECTION",
       "fields": [
@@ -1001,6 +1042,21 @@
         {
           "fieldPath": "timestamp",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "_comment": "2026-11-09: admin usage (handlers/admin.js, Claude tokens 30d): companyId == + timestamp >= with no orderBy sorts timestamp ASCENDING; the DESC twin above does not serve it.",
+      "collectionGroup": "api_usage",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
         }
       ]
     },

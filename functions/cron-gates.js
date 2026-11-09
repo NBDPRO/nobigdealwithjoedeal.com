@@ -49,6 +49,8 @@ const CRON_GATES = [
   { name: 'SUB_PAPERWORK_WATCH_ENABLED', polarity: 'enabled', file: 'sub-paperwork-watch.js' },
   // Monday owner digest (2026-10-22): ONE Agent-inbox report to the owner (collected last week, estimates awaiting signature, calls to return, jobs this week). Never a customer or rep. Dark until Jo says go.
   { name: 'OWNER_WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'owner-weekly-digest.js' },
+  // Team leaderboard rows (2026-11-09, NBD OS P2): leaderboard/{uid} per member every 30 min. Counts only, never a message. Dry-run until Jo says go.
+  { name: 'LEADERBOARD_AGGREGATE_ENABLED', polarity: 'enabled', file: 'leaderboard-aggregate.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },

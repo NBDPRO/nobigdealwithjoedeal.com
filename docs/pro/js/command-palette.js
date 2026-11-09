@@ -191,7 +191,7 @@
   }
 
   // ─── Palette 2.0 layer (loaded on first open) ───────────────────
-  const SCOPES_SRC = '/pro/js/command-palette-scopes.js?v=1';
+  const SCOPES_SRC = '/pro/js/command-palette-scopes.js?v=2';
   let _scopesLoading = false;
   const _pendingLeadActions = [];
   function _X() { return window.NBDCommandX || null; }
@@ -439,7 +439,7 @@
     }
     const base = _computeBase(query);
     if (x) {
-      try { return x.augment(base, query, {}); }
+      try { return x.augment(base, query, { allActions: _allActions }); }
       catch (e) { console.warn('[NBDCommand] augment failed:', e); }
     }
     return base;
@@ -571,7 +571,7 @@
 
   function _onKeydown(e) {
     const x = _X();
-    if (x && (e.key === 'Tab' || e.key === 'Backspace')) {
+    if (x && /^(Tab|Backspace|ArrowLeft|ArrowRight)$/.test(e.key)) {
       const input = document.getElementById('nbd-cmd-input');
       if (input && x.onKey(e, {
         results: _currentResults,
@@ -714,11 +714,16 @@
   }
 
   // ─── Execute selected ───────────────────────────────────────────
+  /** A row was used: recents + the usage ranking (Enter here, a verb click in command-runner.js). */
+  function _noteUse(id) {
+    _bumpRecent(id);
+    const x = _X();
+    if (x && id && !/^(math|themes):/.test(String(id))) x.bump(id);
+  }
   function _execute(item) {
     if (!item) return;
-    _bumpRecent(item.id);
+    _noteUse(item.id);
     const x = _X();
-    if (x && item.id && !/^(math|themes):/.test(String(item.id))) x.bump(item.id);
     const pinned = x ? x.contextLead() : null;
     close();
     // Defer execution so the modal closes cleanly (focus returns
@@ -783,6 +788,12 @@
       const x = _X();
       if (x) x.registerLeadAction(a); else _pendingLeadActions.push(a);
     },
+    // Result providers with verbs (command-runner.js, loaded with the layer).
+    registerProvider: function (p) {
+      const r = window.NBDRunner;
+      if (r) r.registerProvider(p); else (window.__nbdCmdProviders = window.__nbdCmdProviders || []).push(p);
+    },
+    noteUse: _noteUse,
   };
 
   if (document.readyState === 'loading') {
