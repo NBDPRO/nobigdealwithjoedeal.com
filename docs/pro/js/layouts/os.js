@@ -202,7 +202,8 @@
     return safe(function () {
       return H.mount({ surface: surface, items: homeItems(surface), act: surface === 'phone' ? 'data-osp' : 'data-osdo',
         visible: function () { return !!S && !S.phoneOpen; },
-        onChange: function (list) { saveHome(surface, list); },
+        onChange: function (list) { return saveHome(surface, list); },
+        locked: homeLocked,
         onExit: function () { setHomeEditing(false); },
         onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
         onEmpty: function () { focusHomeTool(surface); },
@@ -217,7 +218,7 @@
   // SAVE_MS for the next keystroke, like the window state, and is flushed on
   // leaving edit mode, pagehide and unmount.
   function saveHome(surface, list) {
-    if (homeLocked()) { toast(LOCKED_MSG); return; }
+    if (homeLocked()) { toast(LOCKED_MSG); return false; }   // home.js says nothing changed
     // own key, this surface replaced: a surface still on the company home stays on it;
     // while a mode is on (P2) the edit is that mode's own widgets
     var a = curAct();
@@ -225,6 +226,7 @@
     clearTimeout(S.homeSaveT);
     S.homeSaveT = setTimeout(flushHome, SAVE_MS);
     refreshHome();
+    return true;
   }
   function flushHome() {
     if (!S) return;

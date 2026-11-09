@@ -15,7 +15,7 @@
  * number: no view picked, a view that is gone, leads or the company profile
  * not loaded yet each say so in words. The tile stores only the view's id (kpi-logic viewId).
  *
- *   NBDOSKpi.widget(size, cfg, kit)   the tile's markup (every value escaped)
+ *   NBDOSKpi.widget(size, cfg, { locked })  the tile's markup (every value escaped); locked: no Pick / Change view
  *   NBDOSKpi.pick({ current, onPick, returnFocus })  a native <dialog> of the views
  *   NBDOSKpi.open(id)                 the Map with that view; false when it is gone
  *
@@ -50,7 +50,10 @@
   var PICK = '<button type="button" class="btn btn-ghost os-hw-btn os-kpi-pick" data-oshw-kpi="pick">Pick a view</button>';
   function title(t) { return '<h3 class="os-hw-title">' + esc(t) + '</h3>'; }
 
-  function widget(size, cfg) {
+  function widget(size, cfg, opt) {
+    // a company-locked home: no Pick / Change view (os.js saveHome would refuse the pick)
+    var fixed = !!(opt && opt.locked);
+    var pickBtn = fixed ? '' : PICK;
     if (!profileReady()) return title('Saved view') + '<p class="os-hw-empty">' + esc(LOADING) + '</p>';
     var all = KL.listViews(profile());
     var picked = cfg && typeof cfg.view === 'string';
@@ -58,7 +61,8 @@
     if (!v) {
       var h = title('Saved view');
       if (!all.length) return h + '<p class="os-hw-empty">' + esc(size === 's' ? 'No saved views yet' : 'Your team has no saved map views yet. An owner saves them on the Map\'s Customers layer.') + '</p>';
-      if (picked) return h + '<p class="os-hw-empty">That saved view is gone.</p>' + PICK;
+      if (picked) return h + '<p class="os-hw-empty">That saved view is gone.</p>' + pickBtn;
+      if (fixed) return h + '<p class="os-hw-empty">' + esc(size === 's' ? 'No view picked' : 'Your company has not picked a view for this tile.') + '</p>';
       return h + '<p class="os-hw-empty">' + esc(size === 's' ? 'Count a saved view' : 'Count the leads in one of your team\'s saved map views.') + '</p>' + PICK;
     }
     var n = countOf(v);
@@ -66,7 +70,7 @@
     var out = title(v.name) +
       '<button type="button" class="os-hw-row os-kpi-big" data-oshw-kpi="open" aria-label="' + esc(plural(n, 'lead matches ', 'leads match ') + v.name + '. Open it on the map') + '">' +
       '<span class="os-kpi-n ui-num">' + esc(String(n)) + '</span><span class="os-kpi-l">' + esc(n === 1 ? 'lead matches' : 'leads match') + '</span></button>';
-    if (size === 's') return out;
+    if (size === 's' || fixed) return out;
     return out + '<button type="button" class="ui-btn-quiet os-hw-btn os-kpi-change" data-oshw-kpi="pick">Change view</button>';
   }
 

@@ -65,7 +65,7 @@
  * nbd_ds_snapshot, else LayoutEngine.ds(): the doc the engine already read).
  * No fetch, no Firestore.
  *
- * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange,
+ * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange, locked,
  * onExit, onLongPress, navHidden, onResize, onEmpty }) returns { el, update(items), paint(),
  * unmount(), setEditing(on, focusFirst), editing(), openAdd(), cellItems(items) }. `el` is one node the OS layout
  * places (the desk column; on the phone, page 1 of the pager). update() is a
@@ -610,9 +610,9 @@
     }, function (e) { settle(); throw e; });
     return kpiP;
   }
-  function kpi(size, cfg) {
+  function kpi(size, cfg, a, rec, kit) {
     var K = W.NBDOSKpi;
-    if (K && typeof K.widget === 'function') return K.widget(size, cfg);
+    if (K && typeof K.widget === 'function') return K.widget(size, cfg, { locked: !!(kit && kit.locked && kit.locked()) });
     var h = '<h3 class="os-hw-title">' + esc(HL.CATALOG.kpi.title) + '</h3>';
     if (kpiState === 'failed') return h + failHtml('kpi');
     if (kpiState !== 'asked') loadKpi().catch(function () {});
@@ -683,7 +683,8 @@
 
   /**
    * opts: surface, items, act, visible, and for edit mode (P0c):
-   *   onChange(list)   the layout normalises and saves it, then calls update()
+   *   onChange(list)   the layout normalises and saves it, then calls update(); false = refused
+   *   locked()         true when the company locked this home (nothing offers a change)
    *   onExit()         Escape / Done: the layout leaves edit mode
    *   onLongPress()    a 550 ms press on a widget: the layout enters edit mode
    *   navHidden(id)    true when the member's role hides that sidebar view
@@ -717,6 +718,8 @@
       loadActs().catch(function () {});
       return 'wait';
     }
+    /** The company locked this home (layouts/os.js homeLocked): a widget offers no change it would refuse. */
+    function locked() { try { return typeof o.locked === 'function' && o.locked() === true; } catch (e) { return false; } }
     function moneyOk() { var f = focus(); return !isViewer() && !navHidden('money') && !(f && f.privacy); }
     /** A widget this member's role can't see (its sidebar view is hidden, or it shows money), or the mode on never paints. */
     function hiddenId(id) {
@@ -730,6 +733,7 @@
       urgency: function () { var u = urgencyNow(); return LENS ? LENS.urgency(u) : u; },
       hiddenId: hiddenId, has: function (id) { return !!WIDGETS[id]; }, epoch: function () { return epoch; },
       render: function (id, size, cfg, a, rec) { return WIDGETS[id](size, cfg, a, rec, kit); },
+      locked: locked,
     };
     var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
     var drag = null;
@@ -934,7 +938,8 @@
       pick = null;
       // widgets the role hides were never on screen: they stay saved, after the rest
       var save = clean.concat(held.map(function (it) { return JSON.parse(JSON.stringify(it)); }));
-      if (typeof o.onChange === 'function') o.onChange(save); else update(save);
+      if (typeof o.onChange !== 'function') update(save);
+      else if (o.onChange(save) === false) return null;   // the layout refused it (a company-locked home): nothing to say
       var rec = newKey && recs[newKey];
       if (rec && editing) {
         var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
@@ -993,7 +998,7 @@
             if (i < 0) return;
             var next = tagged();
             next[i].cfg = { view: id };
-            if (!commit(next, key, 'Counting ' + String(name || 'that view') + '. ')) announce('Already counting ' + String(name || 'that view') + '.');
+            if (commit(next, key, 'Counting ' + String(name || 'that view') + '. ') === false) announce('Already counting ' + String(name || 'that view') + '.');
           },
         });
       }, function () { announce('Couldn\'t open the saved views. Try again.'); });

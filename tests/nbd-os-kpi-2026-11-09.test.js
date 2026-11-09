@@ -265,12 +265,26 @@ async function mount(items, opts) {
     const co = { defaultWidgets: { 'os-phone': [{ id: 'kpi', s: 'm', cfg: { view: ID0 } }], 'os-desk': [] }, homeLocked: true };
     const m = await mount([], { phone: true, company: co, claims: { role: 'sales_rep', companyId: 'c1' }, home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } });
     ok('the locked company home paints its tile with the published view', text(m.card('kpi-1').querySelector('.os-kpi-n')) === '2', text(m.card('kpi-1')));
+    const c = m.card('kpi-1');
+    ok('a locked tile offers no Pick a view / Change view (a pick could only be refused)', !c.querySelector('[data-oshw-kpi="pick"]') && !!c.querySelector('[data-oshw-kpi="open"]'), c.innerHTML);
+    const unpicked = await mount([], { phone: true, company: { defaultWidgets: { 'os-phone': [{ id: 'kpi', s: 'm' }], 'os-desk': [] }, homeLocked: true }, claims: { role: 'sales_rep', companyId: 'c1' }, home: { phone: [{ id: 'glance', s: 'm' }], desk: [] } });
+    const u = unpicked.card('kpi-1');
+    ok('…a locked tile with no view says the company has not picked one, no button, no number', !u.querySelector('[data-oshw-kpi="pick"]') && !u.querySelector('.os-kpi-n') && /company/i.test(text(u)), text(u));
+    // the refusal path itself (only reachable if edit mode were on): nothing saved, the lock toast, no "Counting" said
     const before = (m.T.W._saves || []).length;
-    click(m.T.dom, m.card('kpi-1').querySelector('[data-oshw-kpi="pick"]'));
-    await tick(); await tick();
-    click(m.T.dom, m.T.document.querySelector('dialog.os-kpi-dlg [data-oskpi-view="' + ID1 + '"]'));
-    await tick(); m.T.fire(700);
-    ok('nothing is saved and the member is told why', (m.T.W._saves || []).length === before && m.T.W.toasts.some((t) => /company set this home/.test(t.msg)), J(m.T.W.toasts));
+    const Hm = m.T.W.NBDOSLayout.state().home;
+    Hm.setEditing(true);
+    const chip = m.card('kpi-1').querySelector('[data-oshw-ed="kpiview"]');
+    if (chip) {
+      click(m.T.dom, chip);
+      await tick(); await tick();
+      const dv = m.T.document.querySelector('dialog.os-kpi-dlg [data-oskpi-view="' + ID1 + '"]');
+      if (dv) click(m.T.dom, dv);
+      await tick(); m.T.fire(700);
+    }
+    const live = m.T.document.querySelector('.os-hw-live[role="status"]');
+    ok('a refused pick: nothing is saved and the member is told why', (m.T.W._saves || []).length === before && m.T.W.toasts.some((t) => /company set this home/.test(t.msg)), J(m.T.W.toasts));
+    ok('…and the live region never says "Counting"', live && !/Counting/.test(text(live)), live && text(live));
   }
 
   console.log('\n8. hygiene');
