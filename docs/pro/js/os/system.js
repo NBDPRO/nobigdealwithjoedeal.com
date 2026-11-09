@@ -435,7 +435,7 @@
     h += '<div class="os-nc-tools">' +
       '<button type="button" class="ui-btn-quiet" data-os="do" data-key="readall">Mark all read</button>' +
       '<button type="button" class="ui-btn-quiet" data-os="do" data-key="clearall">Clear all</button></div>';
-    if (pg) h += '<p class="ui-caption os-nc-private">' + esc('Privacy mode: only what is due today shows.' + (pg.held ? ' ' + pg.held + (pg.held === 1 ? ' more waits' : ' more wait') + ' until you leave it.' : '')) + '</p>';
+    if (pg) h += '<p class="ui-caption os-nc-private">' + esc('Privacy mode: only what is due today shows.' + (groups.length ? '' : ' Nothing is due right now.') + (pg.held ? ' ' + pg.held + (pg.held === 1 ? ' more waits' : ' more wait') + ' until you leave it.' : '')) + '</p>';
     if (!groups.length && !pg) {
       h += '<div class="ui-empty os-nc-empty"><div class="ui-heading">You\'re all caught up</div>' +
         '<p class="ui-caption">New tasks, estimate views and customer replies show up here.</p></div>';

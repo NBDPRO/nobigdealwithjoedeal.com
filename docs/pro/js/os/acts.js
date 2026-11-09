@@ -230,6 +230,14 @@
       dlg.addEventListener('click', onMenuClick);
       dlg.addEventListener('submit', onMenuSubmit);
       dlg.addEventListener('close', function () { renaming = null; });
+      // Escape closes it ourselves (focus back on the opener), whatever else on the page listens for Escape
+      dlg.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') return;
+        ev.preventDefault();
+        if (ev.stopPropagation) ev.stopPropagation();
+        if (renaming) { var was = renaming; renaming = null; paintMenu(); focusIn('[data-osacts="rename"][data-id="' + esc(was) + '"]'); return; }
+        closeMenu();
+      });
       doc.body.appendChild(dlg);
     }
     renaming = null;
