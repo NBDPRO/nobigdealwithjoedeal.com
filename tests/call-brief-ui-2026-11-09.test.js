@@ -120,6 +120,8 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('date of loss and adjuster name carry no warning (they do not flip isInsurance)', rows.find((r) => r.key === 'dateOfLoss').warn === '' && rows.find((r) => r.key === 'adjusterName').warn === '');
     ok('the warning names Kentucky', /Kentucky notices and the cancellation form will apply/.test(CB.INSURANCE_WARN));
     ok('a cash job type has no warning', CB._warnFor('jobType', 'cash') === '');
+    ok('a field the customer already has with the same value is not a row', !CB._fieldRows(BRIEF, Object.assign({}, LEAD, { jobType: 'Insurance' })).some((r) => r.key === 'jobType'));
+    ok('a filled field shows no insurance warning (nothing will change)', CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insCarrier: 'Allstate' })).find((r) => r.key === 'insCarrier').warn === '');
     ok('quotes and said / implied are shown', /&ldquo;My insurance is State Farm&rdquo;/.test(html) && /cb-badge">implied/.test(html));
   }
 
@@ -138,7 +140,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     const { CB } = load();
     CB._showWith({ brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
     const html = CB._render();
-    ok('the stage card is read-only: "Suggests: Claim Filed, because …"', /Suggests: <strong>Claim Filed<\/strong>, because A claim is open/.test(html) && /Nothing moves from here/.test(html));
+    ok('the stage card is read-only: "Suggests: Claim Filed, because …"', /Suggests: <strong>Claim Filed<\/strong>, because a claim is open/.test(html) && /Nothing moves from here/.test(html));
     ok('the sheet never moves a stage itself', !/commitStageChange|updateDoc\([^)]*stage/i.test(SRC));
     ok('customer page: one filled button in the drafts region, "Draft proposal"', /data-cb-act="proposal"/.test(html) && (html.split('id="cbDraftH"')[1].split('cb-foot')[0].match(/btn-orange/g) || []).length === 1);
     CB._showWith({ brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });

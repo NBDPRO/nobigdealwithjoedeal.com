@@ -50,10 +50,10 @@
   box-sizing: border-box; min-height: 44px; width: 100%; padding: 8px 12px; border-radius: var(--ui-radius-sm, 6px); font: inherit;
   background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15));
 }
-.cb-text { min-height: 88px; resize: vertical; line-height: 1.45; }
+.cb-text { min-height: 120px; resize: vertical; line-height: 1.45; }
 .cb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-2, 8px); }
 .cb-field-lbl { display: flex; flex-direction: column; gap: 4px; font-size: var(--ui-fs-caption, 12px); color: var(--m, #9ca3af); min-width: 0; }
-.cb-toggle { display: inline-flex; border: 1px solid var(--br, rgba(255,255,255,.15)); border-radius: var(--ui-radius-pill, 999px); overflow: hidden; }
+.cb-toggle { display: inline-flex; align-self: flex-start; border: 1px solid var(--br, rgba(255,255,255,.15)); border-radius: var(--ui-radius-pill, 999px); overflow: hidden; }
 .cb-toggle button {
   min-height: 44px; min-width: 64px; padding: 0 14px; border: 0; background: transparent; color: var(--t, inherit); font: inherit; font-weight: 700; cursor: pointer;
 }

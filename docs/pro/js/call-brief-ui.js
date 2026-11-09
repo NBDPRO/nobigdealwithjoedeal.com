@@ -81,12 +81,14 @@
   function fieldRows(brief, lead) {
     var f = (brief && brief.fields) || {};
     var L = lead || {};
-    return FIELD_ORDER.filter(function (k) { return f[k] && !blank(f[k].value); }).map(function (k) {
+    // A field the customer already has with the same value says nothing new.
+    var same = function (a, b) { return String(a == null ? '' : a).trim().toLowerCase() === String(b == null ? '' : b).trim().toLowerCase(); };
+    return FIELD_ORDER.filter(function (k) { return f[k] && !blank(f[k].value) && !same(L[LEAD_FIELD[k]], f[k].value); }).map(function (k) {
       var current = L[LEAD_FIELD[k]];
       return {
         key: k, label: FIELD_LABEL[k], current: blank(current) ? '' : String(current), proposed: String(f[k].value),
         spoken: f[k].spoken || '', quote: f[k].quote || '', conf: f[k].conf === 'implied' ? 'implied' : 'said',
-        warn: warnFor(k, f[k].value), filled: !blank(current), isDate: k === 'dateOfLoss' || k === 'adjusterMeetingYmd',
+        warn: blank(current) ? warnFor(k, f[k].value) : '', filled: !blank(current), isDate: k === 'dateOfLoss' || k === 'adjusterMeetingYmd',
       };
     });
   }
@@ -188,20 +190,20 @@
     var item = 'summary';
     var settled = isSettled(item);
     var confirming = S.confirm === item;
-    return '<section class="cb-sec" aria-labelledby="cbSumH"><h3 class="cb-sec-title" id="cbSumH">Summary</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbSumH"><h3 class="cb-sec-title" id="cbSumH">Summary</h3>' +
       '<label class="cb-field-lbl" for="cbSummary">What the call was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
       '<textarea class="cb-text" id="cbSummary" data-cb-input="summary"' + (settled ? ' disabled' : '') + '>' + esc(S.summaryText != null ? S.summaryText : (sm.text || '')) + '</textarea>' +
       ((sm.quotes || []).length ? '<div class="cb-quotes">' + sm.quotes.map(quoteHtml).join('') + '</div>' : '') +
       (settled ? statusFor(item) : confirming
         ? '<div class="cb-warn">Timeline notes cannot be undone. Add this summary to the timeline?</div><div class="cb-acts">' + btn('Add note', 'summary-yes', '', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
         : '<div class="cb-acts">' + btn('Add to timeline', 'summary') + '</div>' + statusFor(item)) +
-      '</section>';
+      '</div>';
   }
 
   function renderFields() {
     var rows = fieldRows(S.brief, S.lead);
     if (!rows.length) return '';
-    return '<section class="cb-sec" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the call</h3>' +
       '<div class="cb-meta">Fills empty fields only, one at a time. Nothing is filled until you tap Accept.</div>' +
       rows.map(function (r) {
         var item = 'field:' + r.key;
@@ -224,13 +226,13 @@
         return '<div class="cb-card" data-cb-row="' + esc(item) + '"><div class="cb-row-head"><span class="cb-label">' + esc(r.label) + '</span><span class="cb-badge">' + esc(r.conf) + '</span></div>' +
           '<div class="cb-diff"><span class="cb-now">Now: ' + esc(r.current ? (r.isDate ? fmtYmd(r.current) : r.current) : 'empty') + '</span> → <strong>' + esc(shown) + '</strong></div>' +
           quoteHtml(r.quote) + (r.warn && !settled && S.confirm !== item ? '<div class="cb-warn">' + esc(r.warn) + '</div>' : '') + acts + '</div>';
-      }).join('') + '</section>';
+      }).join('') + '</div>';
   }
 
   function renderPromises() {
     var ps = (S.brief && S.brief.promises) || [];
     if (!ps.length) return '';
-    return '<section class="cb-sec" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises on the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises on the call</h3>' +
       '<div class="cb-meta">Check who promised it. Adding a promise makes a dated task and marks the call handled. Not handled puts the call back; the task stays until it is done.</div>' +
       ps.map(function (p, i) {
         var st = S.prom[i];
@@ -247,7 +249,7 @@
           ? '<div class="cb-warn">Add "' + esc(KIND_LABEL[st.kind] || st.kind) + '"' + (st.dueYmd ? ' for ' + esc(fmtYmd(st.dueYmd)) : '') + '? It marks the call handled.</div><div class="cb-acts">' + btn('Add promise', 'promise-yes', ' data-i="' + i + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
           : '<div class="cb-acts">' + btn('Add', 'promise', ' data-i="' + i + '"') + btn('Skip', 'promise-skip', ' data-i="' + i + '"') + '</div>';
         return '<div class="cb-card" data-cb-row="' + esc(item) + '">' + head + toggle + fields + acts + statusFor(item) + '</div>';
-      }).join('') + '</section>';
+      }).join('') + '</div>';
   }
 
   function renderFollowUp() {
@@ -258,7 +260,7 @@
     if (S.fuUndo) body = '<div class="cb-done">Follow-up set to ' + esc(fmtYmd(S.fuUndo.to)) + '</div><div class="cb-acts">' + btn('Undo', 'followup-undo') + '</div>';
     else body = '<div class="cb-diff"><span class="cb-now">Now: ' + esc(ch.from ? fmtYmd(ch.from) : 'none') + '</span> → <strong>' + esc(fmtYmd(ch.to)) + '</strong></div>' + quoteHtml(ch.quote) +
       (isSettled(item) ? statusFor(item) : '<div class="cb-acts">' + btn('Change follow-up', 'followup') + '</div>' + statusFor(item));
-    return '<section class="cb-sec" aria-labelledby="cbFuH"><h3 class="cb-sec-title" id="cbFuH">Follow-up</h3><div class="cb-card">' + body + '</div></section>';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbFuH"><h3 class="cb-sec-title" id="cbFuH">Follow-up</h3><div class="cb-card">' + body + '</div></div>';
   }
 
   function renderStage() {
@@ -267,20 +269,20 @@
     var act = S.page === 'customer'
       ? btn('Change the stage…', 'stage')
       : '<a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to change it</a>';
-    return '<section class="cb-sec" aria-labelledby="cbStageH"><h3 class="cb-sec-title" id="cbStageH">Stage</h3><div class="cb-card">' +
-      '<div class="cb-diff">Suggests: <strong>' + esc(st.label) + '</strong>' + (st.reason ? ', because ' + esc(st.reason.replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote) +
-      '<div class="cb-meta">Nothing moves from here. You change the stage yourself.</div><div class="cb-acts">' + act + '</div></div></section>';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbStageH"><h3 class="cb-sec-title" id="cbStageH">Stage</h3><div class="cb-card">' +
+      '<div class="cb-diff">Suggests: <strong>' + esc(st.label) + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote) +
+      '<div class="cb-meta">Nothing moves from here. You change the stage yourself.</div><div class="cb-acts">' + act + '</div></div></div>';
   }
 
   function renderDrafts() {
     var hints = scopeHints(S.brief);
     var seed = projectSeed(S.brief, S.lead);
     var body = S.page === 'customer'
-      ? '<div class="cb-meta">Opens the proposal with ' + (seed ? 'the project description filled in from this call' : 'its usual details') + '. You finish it, nothing is sent.</div>' +
+      ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this call' : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
         (hints.length ? '<div class="cb-meta">From the call (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
         '<div class="cb-acts">' + btn('Draft proposal', 'proposal', '', 'btn-orange') + '</div>'
       : '<div class="cb-acts"><a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to draft a proposal</a></div>';
-    return '<section class="cb-sec" aria-labelledby="cbDraftH"><h3 class="cb-sec-title" id="cbDraftH">Drafts</h3><div class="cb-card">' + body + '</div></section>';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbDraftH"><h3 class="cb-sec-title" id="cbDraftH">Drafts</h3><div class="cb-card">' + body + '</div></div>';
   }
 
   function renderHandled() {
@@ -289,7 +291,7 @@
     var body = c.handledAtMs || isSettled(item)
       ? '<div class="cb-done">This call is marked handled.</div>'
       : '<div class="cb-acts">' + btn('Mark handled', 'handled') + '</div><div class="cb-meta">Takes the call off "needs you". Not handled on the call card puts it back.</div>' + statusFor(item);
-    return '<section class="cb-sec" aria-labelledby="cbHandH"><h3 class="cb-sec-title" id="cbHandH">This call</h3><div class="cb-card">' + body + '</div></section>';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbHandH"><h3 class="cb-sec-title" id="cbHandH">This call</h3><div class="cb-card">' + body + '</div></div>';
   }
 
   function render() {
