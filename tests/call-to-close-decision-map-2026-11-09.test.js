@@ -189,6 +189,7 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     ok('a "Who decides" section renders', /Who decides/.test(sec), html.slice(0, 300));
     ok('…labelled heard on the call, never written to the customer', /Heard on the call/.test(sec) && /never written to the customer|not written to the customer|Nothing here is written to the customer/i.test(sec), sec.slice(0, 600));
     ok('…says the recording has no speaker labels (check it)', /speaker/i.test(sec));
+    ok('…"Heard on the call" once, in the lead-in line (no badge on each card repeats it)', (sec.match(/Heard on the call/g) || []).length === 1 && !/cb-badge">Heard/.test(sec), (sec.match(/Heard on the call/g) || []).length);
     ok('…lists "my husband" and "the HOA" with their quotes', /my husband/.test(sec) && /the HOA/.test(sec) && /before we sign anything/.test(sec) && /approve the color first/.test(sec));
     ok('…not the neighbour (she does not decide)', !/neighbor Carol/.test(sec));
     ok('…a Copy per person and a Copy list', (sec.match(/data-cb-act="dm-copy"/g) || []).length === 2 && /data-cb-act="dm-copy-all"/.test(sec), sec);

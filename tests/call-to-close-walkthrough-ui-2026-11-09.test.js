@@ -228,6 +228,9 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     ok('…and the sheet still has exactly one filled button', (html.match(/class="btn btn-orange"/g) || []).length === 1, (html.match(/class="btn btn-orange"/g) || []).length);
     const order = ['cbSumH', 'cbObjH', 'cbWhoH'].map((id) => html.indexOf('id="' + id + '"'));
     ok('…after the objections, in the one sheet order (summary, …, objections, who decides, drafts)', order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], order);
+    // Final review 2026-11-09: the lead-in line says it once; no per-card badge repeats it.
+    const wsec = html.slice(html.indexOf('id="cbWhoH"'), html.indexOf('id="cbMsgH"') > 0 ? html.indexOf('id="cbMsgH"') : undefined);
+    ok('…"Heard at the walkthrough" once, in the lead-in line (no badge on each card repeats it)', (wsec.match(/Heard at the walkthrough/g) || []).length === 1 && !/cb-badge">Heard/.test(wsec), (wsec.match(/Heard at the walkthrough/g) || []).length);
   }
   {
     // Final review 2026-11-09: Copy list's header and the drafts copy say walkthrough too.
