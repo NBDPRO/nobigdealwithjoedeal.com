@@ -163,11 +163,13 @@
   // starting arrangement per layout, { <layoutId>: [ ...opaque tiles ] } (the
   // Bento board's new-hire default lives at defaultWidgets.bento). Bounded the
   // way firestore.rules bounds it: <= 8 layouts, each a list of <= 24 tiles.
+  // The NBD OS company home (os-phone / os-desk) must be { id, s } items.
   function cleanDefaultWidgets(raw) {
     var out = {};
     if (!raw || typeof raw !== 'object') return out;
     Object.keys(raw).slice(0, 8).forEach(function (k) {
       if (!isId(k) || !Array.isArray(raw[k]) || raw[k].length > 24) return;
+      if (/^os-/.test(k) && !raw[k].every(function (t) { return t && isId(t.id) && /^[sml]$/.test(t.s); })) return;
       var json;
       try { json = JSON.stringify(raw[k]); } catch (e) { return; }
       if (json && json.length <= 4000) out[k] = raw[k];
@@ -182,6 +184,7 @@
       defaultByDevice: cleanByDevice(r.defaultByDevice),
       allowed: Array.isArray(r.allowed) ? r.allowed.filter(isId).slice(0, 40) : null,
       locked: r.locked === true,
+      homeLocked: r.homeLocked === true,
     };
   }
 
@@ -683,6 +686,8 @@
       hydrated = true;
       retryN = 0;
       writePrefsCache();
+      // the open layout re-reads what it shows from prefs (the NBD OS company home)
+      try { document.dispatchEvent(new CustomEvent('nbd:layout-prefs')); } catch (e) {}
       return refresh().then(function () { return true; });
     });
   }
@@ -745,7 +750,7 @@
   // real gate). Full replace of companies/{key}/settings/layout so a cleared
   // default or a lifted allow-list really goes away. Same normaliser the read
   // path uses, so what is written is exactly what resolve() will see.
-  // patch: { defaultLayout, defaultByDevice, allowed (null = all), locked }
+  // patch: { defaultLayout, defaultByDevice, allowed (null = all), locked, defaultWidgets, homeLocked }
   function saveCompany(patch) {
     var p = patch || {};
     var next = R.normalizeCompany({
@@ -754,6 +759,7 @@
       allowed: 'allowed' in p ? p.allowed : company.allowed,
       locked: 'locked' in p ? p.locked : company.locked,
       defaultWidgets: 'defaultWidgets' in p ? p.defaultWidgets : company.defaultWidgets,
+      homeLocked: 'homeLocked' in p ? p.homeLocked : company.homeLocked,
     });
     return companyKey().then(function (key) {
       if (!key || !uid || !window.db || !window.doc || !window.setDoc) return { saved: false };
@@ -761,6 +767,7 @@
       if (next.defaultLayout) data.defaultLayout = next.defaultLayout;
       if (next.allowed) data.allowed = next.allowed;
       if (Object.keys(next.defaultWidgets).length) data.defaultWidgets = next.defaultWidgets;
+      if (next.homeLocked) data.homeLocked = true;
       return Promise.resolve(window.setDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), data))
         .then(function () {
           company = next;
