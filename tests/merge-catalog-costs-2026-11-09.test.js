@@ -144,15 +144,16 @@ console.log('\nplanXactMerge');
 }
 
 // ── run() with a fake db ───────────────────────────────────────────────────
-function fakeDeps(files, events) {
+function fakeDeps(files, events, opts) {
   const doc = clone(LIVE);
+  const exists = !(opts && opts.missing);
   const updates = [];
   class FakeFieldPath { constructor(...s) { this.segments = s; } }
   const db = {
     doc(p) {
       events.push('doc:' + p);
       return {
-        async get() { events.push('read'); return { exists: true, data: () => clone(doc), updateTime: 'T-READ' }; },
+        async get() { events.push('read'); return exists ? { exists: true, data: () => clone(doc), updateTime: 'T-READ' } : { exists: false, data: () => undefined }; },
         async update(...args) { events.push('update'); updates.push(args); },
       };
     },
@@ -208,6 +209,21 @@ function fakeDeps(files, events) {
     const f = fakeDeps(files, events);
     const code = await M.run(['--company', 'co_test', '--in', 'p.json', '--only', 'all', '--yes'], f.deps);
     ok('--only all is fatal (exit 2) and reads nothing', code === 2 && events.length === 0);
+  }
+  {
+    // No catalogCosts/{companyId} doc at all: this tool only merges into an
+    // existing book. Even with --yes it backs nothing up, writes nothing, and
+    // points at the importer.
+    const events = [];
+    const errs = [];
+    const own = clone(files); delete own.__backup__;
+    const f = fakeDeps(own, events, { missing: true });
+    f.deps.err = (s) => errs.push(s);
+    const code = await M.run(base.concat(['--yes']), f.deps);
+    ok('missing book: exits 2', code === 2);
+    ok('missing book: never calls update', f.updates.length === 0 && !events.includes('update'));
+    ok('missing book: writes no backup', !events.some((e) => e.startsWith('backup:')) && !('__backup__' in own));
+    ok('missing book: message points at import-catalog-costs.js', errs.some((s) => /does not exist/.test(s) && /import-catalog-costs\.js/.test(s)));
   }
 
   console.log('\nCLI — offline --live dry run, no credentials');
