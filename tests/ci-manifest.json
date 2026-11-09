@@ -11,6 +11,7 @@
   ],
   "node": [
     "project-consent-ui-2026-11-09.test.js",
+    "draft-project-page-2026-11-09.test.js",
     "q11-task-summary-backfill-2026-11-09.test.js",
     "q11-call-text-backfill-2026-11-09.test.js",
     "install-completed-at-2026-11-09.test.js",

@@ -474,7 +474,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               (catalog-price-floor-2026-11-09; Jo OK'd the before/after list). MEASURED via --check.
 //   2026-11-09  1043/74/1184 -> 1044/74/1185, the Q11 call-text backfill suite
 //               (q11-call-text-backfill, node), same PR as the price floor. MEASURED via --check.
-const FLOORS = { node: 1044, smoke: 74, disk: 1185 };
+const FLOORS = { node: 1046, smoke: 74, disk: 1188 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
