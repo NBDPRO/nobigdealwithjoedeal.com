@@ -81,7 +81,8 @@ const CANNED = {
   // the sample takes it, instead of canning a "healthy" it does not have.
   // NBD OS P2 pre-flight peek (os/peek.js) and the customer page's Brief me: the real
   // callable is a paid AI summary (functions/lead-brief.js). The sample answers from the
-  // sample lead's own fields only, says it is a sample, and adds no number of its own.
+  // sample lead's own fields only, says it is a sample, and adds no number of its own: any
+  // figure in it (the notes' "26 squares, 7/12 pitch") is the sample record's own field, echoed.
   leadBrief: (p) => sampleLeadBrief(p || {}),
   callPipelineHealth: () => { throw noPhoneInSample('callPipelineHealth'); },
   callPromisesList: () => { throw noPhoneInSample('callPromisesList'); },
