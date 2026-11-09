@@ -130,7 +130,9 @@
   var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard'];
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
-  var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'coach'];
+  // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.
+  // A new stack only: saved stacks keep their own cards.)
+  var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'shutdown'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -879,7 +881,9 @@
    * leadId only when one lead / call. Nothing when the data isn't there (no leads, no plan).
    * uid (the signed-in member): a lead owned by someone else (userId, else assignedTo, the Shutdown
    * owner rule) is not counted: a manager's or owner's _leads holds the team's leads. An unowned lead
-   * still counts (nobody else is on it).
+   * still counts (nobody else is on it). A missed call (P2) is the member's when its phone_calls doc's
+   * userId is (callOwners: { callId: userId }, NBDHomeAttention.lastRows, by the row's callIds), else
+   * when the lead it is filed on is (the lead rule above); with neither on file it counts.
    */
   function urgency(x) {
     var o = isObj(x) ? x : {};
@@ -901,9 +905,24 @@
       return { kind: 'lead', n: wait.length, oldestMin: Math.max(0, Math.floor((now - toMs(first.createdAt)) / 60000)), leadId: wait.length === 1 ? String(first.id) : '' };
     }
     if (!isObj(o.plan)) return null;
+    var me = typeof o.uid === 'string' ? o.uid : '';
+    var owners = isObj(o.callOwners) ? o.callOwners : {};
+    var leadBy = {};
+    (Array.isArray(o.leads) ? o.leads : []).forEach(function (l) { if (isObj(l) && l.id != null) leadBy[String(l.id)] = l; });
+    function mine(r) {
+      if (!me) return true;
+      var by = (Array.isArray(r.callIds) ? r.callIds : []).map(function (id) {
+        var u = Object.prototype.hasOwnProperty.call(owners, String(id)) ? owners[String(id)] : '';
+        return typeof u === 'string' ? u : '';
+      }).filter(Boolean);
+      if (by.length) return by.indexOf(me) !== -1;   // the call doc's own userId decides
+      var l = r.leadId != null && Object.prototype.hasOwnProperty.call(leadBy, String(r.leadId)) ? leadBy[String(r.leadId)] : null;
+      var owner = l ? (l.userId || l.assignedTo) : '';
+      return !owner || String(owner) === me;
+    }
     var calls = (Array.isArray(o.plan.calls) ? o.plan.calls : []).filter(function (r) {
       var t = isObj(r) && r.missed === true ? toMs(r.latestMs) : 0;
-      return t > 0 && t <= now + 60000 && now - t <= CALL_MIN * 60000;
+      return t > 0 && t <= now + 60000 && now - t <= CALL_MIN * 60000 && mine(r);
     });
     if (!calls.length) return null;
     var old = calls.reduce(function (a, b) { return toMs(b.latestMs) < toMs(a.latestMs) ? b : a; });

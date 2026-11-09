@@ -163,8 +163,11 @@
   function urgencyNow() {
     var plan = null;
     try { plan = rawPlan(); } catch (e) { plan = null; }
+    // who each missed call belongs to: its phone_calls / phone_text_days doc's userId (Home's rows, memory)
+    var own = {}, A = W.NBDHomeAttention;
+    try { (A && Array.isArray(A.lastRows) ? A.lastRows : []).forEach(function (r) { if (r && r.id != null && typeof r.userId === 'string') own[String(r.id).replace(/^text:/, '')] = r.userId; }); } catch (e) { own = {}; }
     return HL.urgency({ leads: rawLeads(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
-      uid: String((W._user && W._user.uid) || '') });
+      uid: String((W._user && W._user.uid) || ''), callOwners: own });
   }
   // the Smart Stack re-picks when this moves: an event, a show, an unlock (never a timer)
   var epoch = 1;
