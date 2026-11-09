@@ -100,7 +100,7 @@ Object.entries(MEAS).forEach(([mk, m]) => {
   const f = lineOf(DESIGNER, 'RFG STPF-AL', MEAS.walls);
   ok('step flashing follows wallLf (34 LF of wall -> a non-zero line)', !!f && Number(f.quantity) > 0, f && f.quantity);
   const z = lineOf(DESIGNER, 'RFG STPF-AL', MEAS.noWalls);
-  ok('no walls -> step flashing resolves to 0', !z || Number(z.quantity) === 0, z && z.quantity);
+  ok('no walls -> the step-flashing line is still there and resolves to 0', !!z && Number(z.quantity) === 0, z ? z.quantity : 'missing line');
 }
 
 console.log('\n3. The template data publishes no figure');
