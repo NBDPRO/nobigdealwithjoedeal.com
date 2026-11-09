@@ -115,3 +115,4 @@ review round: [SCHEDULED-DEPLOY-AND-BLOG-CADENCE-2026-11-09](SCHEDULED-DEPLOY-AN
 Runbook: [BLOG-SCHEDULE](../runbooks/BLOG-SCHEDULE.md).
 
 **Built 2026-11-09 (§1 steps 1-2, the photo matcher):** `scripts/match-job-photos.js` on branch `photo-matcher`, dry run by default; `--apply` needs Jo's OK per run. See [SESSION-2026-11-09-photo-matcher](SESSION-2026-11-09-photo-matcher.md). Review round the same day: row written before the upload (thumbnails), `--uid` checked against the company, only the company's leads read, `--out` kept out of the repo.
+**Built (2026-11-09): §2 steps 3-4.** Social Studio prefers consented jobs for the Tuesday showcase and drafts a "New blog post" share from the deployed feed; the 12-week calendar is [BLOG-CALENDAR-2026-11-17](../runbooks/BLOG-CALENDAR-2026-11-17.md). Session note: [SESSION-2026-11-09-social-blog](SESSION-2026-11-09-social-blog.md).
