@@ -1,0 +1,43 @@
+# NEXT SESSION, 2026-11-09: the build day (NBD OS P1-P3, Call to Close P0-P2, pricing, Jo's follow-ups)
+
+**Start here.** Every phase planned for this run is built and in a PR. This note covers what merged, what is on in production, what is still dark, and what only Jo can decide.
+
+## 1. What merged (branch `claude/funny-hawking-t9zyzm`, one PR at a time through the merge queue)
+
+| PR | What | Note |
+|---|---|---|
+| #3017 | NBD OS P1 + the supplier pricing tools | [SESSION-2026-11-09-nbd-os-p1](SESSION-2026-11-09-nbd-os-p1.md) |
+| #3018 | Call to Close P0 + P0b (grounded Call Brief, promise slots, draft proposal; viewers stop reading call transcripts) | [SESSION-2026-11-09-call-to-close-p0](SESSION-2026-11-09-call-to-close-p0.md) |
+| #3019 | NBD OS P2 (Activities, action runner, Peek, Coach AI line, Team board, goals editor) and the leaderboard indexes | [SESSION-2026-11-09-nbd-os-p2](SESSION-2026-11-09-nbd-os-p2.md) |
+| #3020 | Call to Close P1 (transcribe now, estimate prefill, one-tap stages, follow-up draft, auto-brief, rescue queue) | [SESSION-2026-11-09-call-to-close-p1](SESSION-2026-11-09-call-to-close-p1.md) |
+| #3021 | Pricing: sells raised on 17 SKUs that sold below material cost; builder roll/bundle units fixed | [SUPPLIER-PRICING-SWEEP](SUPPLIER-PRICING-SWEEP-2026-11-09.md) |
+| #3022 | Call to Close P2 (walkthrough briefs, split-call merge, retention dry run, multi-tenant feed off, "Who decides") | [SESSION-2026-11-09-call-to-close-p2](SESSION-2026-11-09-call-to-close-p2.md) |
+| #3023 | Jo's follow-ups (viewers, Designer lines, eval kit, leaderboard on, prod switch + token tools, production record) | [SESSION-2026-11-09-jo-follow-ups](SESSION-2026-11-09-jo-follow-ups.md) |
+| the P3 PR | NBD OS P3 (Pocket, Knock block, privacy lock, wallpaper palette, Saved view + Copy my setup, Nearby), plus this note | [SESSION-2026-11-09-nbd-os-p3](SESSION-2026-11-09-nbd-os-p3.md) |
+
+Check the PR list for any of these not yet merged when you read this; each has auto-merge on.
+
+## 2. Production changes made by hand today (Jo approved each run in chat)
+
+All are recorded, with undo steps, in [PROD-CHANGES-2026-11-09](PROD-CHANGES-2026-11-09.md): NBD's Coach AI line and Call Brief auto-brief switched on; NBD's first cost book imported (the fallback book); the live costs merged for the 17 re-priced SKUs. No cost figures are in the repo.
+
+## 3. On, dark, or waiting
+
+- **On at deploy:** the leaderboard cron (`LEADERBOARD_AGGREGATE_ENABLED=true`, platform-wide, capped per run); the viewer rules (Q11).
+- **Dark until Jo turns them on:** NBD OS (`osLayout` / `osSystemLayer`, per company); the retention sweep (`CALL_RETENTION_ENABLED`, dry run logs only); the multi-tenant call feed (global gate + per-company flag; waits on a lawyer's review of recording and consent).
+- **Kill switch:** `feature_flags/global.callBriefDisabled` (absent = on).
+
+## 4. What only Jo can decide or run
+
+1. **Q11 (viewers) is not fully closed:** the old-task backfill (described, not written or run), Thursday task titles, promise tasks and "You said you would" lines, `lead.notes` on Thursday-created leads, voicemail rows saved as `rep`. Details in the follow-ups note.
+2. **Leaderboard indexes:** confirm they show Enabled in the Firebase console, then check that the first 30-minute run writes `leaderboard/{uid}` rows.
+3. **Retention:** read one dry-run log, set any legal holds, then decide on `CALL_RETENTION_ENABLED`.
+4. **Live Call Brief eval:** [CALL-BRIEF-LIVE-EVAL](../runbooks/CALL-BRIEF-LIVE-EVAL.md) on about 20 real calls, then set the bars and the model.
+5. **Pricing follow-ups (not built, offered):** 50 SKUs (92 tiers) sit under a 15% margin after labor; three stand-in costs may be high; ridge/hip coverage assumes about 25 LF a bundle. The numbers are in the session scratchpad only, never the repo.
+6. **NBD OS turn-on** and the real-iPhone pass (Pocket, the double tap, Nearby's location prompt).
+7. **The call-feed golden** was re-captured in #3023 for the one field the viewer change moved; overrule it there if that is not wanted.
+
+## 5. Known, not built here
+
+- `@shard2` / `@shard3` authed E2E legs are still not required and not in the merge queue (2026-10-23 decision). `phone-deal-packet` was made resend-safe in #3023.
+- Seen in screenshots, older than this run: the phone Pipeline app's sticky card name and FAB stay over the home after Home; at 320px the top bar's logo and filter icon overlap; at 1000px At a Glance M clips; the demo customer card's Calls section says "Loading calls…" for every role.

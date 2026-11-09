@@ -459,7 +459,10 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1010/74/1147 -> 1014/74/1152, Jo's follow-ups join Call to Close P2 on this branch:
 //               viewer close-out, Designer template lines, eval kit, leaderboard on, prod switches and
 //               token mode (node suites) and the call-content-viewers rules suite. MEASURED via --check.
-const FLOORS = { node: 1014, smoke: 74, disk: 1152 };
+//   2026-11-09  1014/74/1152 -> 1025/74/1163, NBD OS P3 joins Jo's follow-ups on this branch: Pocket,
+//               Knock block, privacy lock, tenant wallpaper palette, KPI tiles + Copy my setup, Nearby and
+//               the P3 integration suite. MEASURED via --check.
+const FLOORS = { node: 1025, smoke: 74, disk: 1163 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

@@ -35,6 +35,9 @@
  *  12. The Kentucky insurance job: $0 due at signing, e-mail e-sign off
  *      (the real KY gate), the deal page preview carries the KY notices.
  *
+ *  29. NBD OS Nearby (2026-11-09): Find nearby on the laptop home answers from
+ *      the demo's sample street, with no fetch / XHR / beacon and nothing stored.
+ *
  * Fails if ANY of these happened during the walk:
  *   - a request left 127.0.0.1, other than (a) the gstatic SDK URLs the
  *     demo worker answers itself (asserted fromServiceWorker, so never on
@@ -812,6 +815,45 @@ async function waitFor(page, fn, arg, ms) {
     ok('Lock team homes writes homeLocked: true there too, keeping the published home', lk.locked && lk.desk.join() === pub.desk.join(), JSON.stringify(lk));
     await page.locator('#osDesk [data-osdo="homelock"]').click();   // leave the sample company unlocked
     await page.waitForFunction(() => { const b = document.querySelector('#osDesk [data-osdo="homelock"]'); return b && b.getAttribute('aria-checked') === 'false'; }, null, { timeout: 15000 });
+
+    console.log('29. NBD OS Nearby: Find nearby answers from the sample street, no fetch, no XHR, nothing stored');
+    await page.locator('#osDesk [data-osdo="homedone"]').click();   // step 28 left the home in edit mode
+    await page.waitForSelector('#osDesk [data-osdo="homeedit"]', { timeout: 15000 });
+    await page.evaluate(async () => {
+      await window.LayoutEngine.saveUser({ layoutState: { 'os-home': { v: 1, phone: [], desk: [{ id: 'nearby', s: 'l' }] } } });
+      await window.LayoutEngine.apply('os', { source: 'user' });
+    });
+    await page.waitForSelector('.os-hw-nearby [data-oshw-nb="find"]', { timeout: 30000 });
+    const nbReqs = [];
+    const onNbReq = (req) => nbReqs.push(req.resourceType() + ' ' + req.method() + ' ' + req.url().slice(0, 160));
+    page.on('request', onNbReq);
+    const nbBefore = await page.evaluate(() => {
+      // count every page-side network call from here on, under the demo's own tripwire
+      const net = window.__nbNearbyNet = [];
+      const f0 = window.fetch;
+      window.fetch = function (u) { net.push('fetch ' + String(u && u.url || u)); return f0.apply(this, arguments); };
+      const o0 = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function (m, u) { net.push('xhr ' + m + ' ' + u); return o0.apply(this, arguments); };
+      if (navigator.sendBeacon) { const b0 = navigator.sendBeacon.bind(navigator); navigator.sendBeacon = function (u, d) { net.push('beacon ' + u); return b0(u, d); }; }
+      return { ls: JSON.stringify(Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)])), blocked: window.__NBD_DEMO__.blocked.length };
+    });
+    await page.evaluate(() => document.querySelector('.os-hw-nearby [data-oshw-nb="find"]').click());
+    await page.waitForSelector('.os-hw-nearby .os-nb-row', { state: 'attached', timeout: 15000 }).catch(() => {});   // the ok below says what it shows instead
+    await page.waitForTimeout(500);
+    page.off('request', onNbReq);
+    const nb = await page.evaluate(() => ({
+      rows: [...document.querySelectorAll('.os-hw-nearby .os-nb-row')].map((a) => a.textContent.replace(/\s+/g, ' ').trim()),
+      state: window.NBDOSNearby.state(),
+      net: window.__nbNearbyNet.slice(),
+      ls: JSON.stringify(Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)])),
+      blocked: window.__NBD_DEMO__.blocked.length,
+      text: (document.querySelector('.os-hw-nearby') || {}).textContent || '',
+    }));
+    ok('Nearby lists the sample leads nearest the demo\'s sample street (the demo answered, not the browser)', nb.rows.length >= 1 && nb.state.located && !nb.state.err && nb.rows.every((t) => /\d+(\.\d)? mi|Under 0\.1 mi/.test(t)), JSON.stringify(nb));
+    ok('…with no fetch, XHR or beacon from the page while it found them', nb.net.length === 0, JSON.stringify(nb.net));
+    const nbNet = nbReqs.filter((r) => /^(fetch|xhr|eventsource|websocket|ping|other) /.test(r) || !r.includes(' ' + ORIGIN + '/'));
+    ok('…and no fetch/XHR request, and nothing off-origin, seen by the browser', nbNet.length === 0, nbNet.join('\n'));
+    ok('…nothing written to localStorage and nothing for the tripwire to block', nb.ls === nbBefore.ls && nb.blocked === nbBefore.blocked, JSON.stringify({ blocked: nb.blocked }));
 
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');

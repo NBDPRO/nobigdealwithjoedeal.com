@@ -1,0 +1,41 @@
+/* css/os/nearby.css — the NBD OS Nearby widget (2026-11-09, P3; js/os/nearby.js).
+   Loaded with the `osnearby` runtime bundle, never at boot. Theme tokens and
+   --ui-* tokens only; no motion. Floors: no text under 11px, 44px targets
+   (every button and verb is .os-hw-btn; each row is .os-hw-row, 44px tall).
+   The card itself is .os-hw (home.css). */
+.os-nb-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); min-width: 0; }
+.os-nb-head .os-hw-title { flex: 1 1 auto; min-width: 0; }
+.os-nb-head .os-nb-find { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-nb-acts, .os-nb-scope { display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); min-width: 0; }
+.os-nb-acts .os-nb-find { flex: 1 1 auto; }
+.os-nb-chip { flex: 1 1 0; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-nb-chip[aria-pressed="true"] { font-weight: 700; box-shadow: inset 0 -2px 0 var(--orange); }
+.os-nb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.os-nb-item { display: flex; align-items: center; gap: var(--ui-space-1, 4px); min-width: 0; }
+.os-nb-item .os-nb-row { flex: 1 1 auto; margin: 0; }
+.os-nb-verb {
+  flex: none; display: inline-flex; align-items: center; min-width: 44px; padding-inline: var(--ui-space-2, 8px);
+  font-size: var(--ui-fs-body-sm, 13px); text-decoration: none;
+}
+.os-nb-verb:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-nb-dist { font-size: var(--ui-fs-caption, 12px); color: var(--m); white-space: nowrap; }
+.os-nb-err { color: var(--t); }
+/* the line focus lands on after a search (tabindex -1, read out, not a control): no ring */
+.os-hw [data-oshw-nb-status]:focus { outline: none; box-shadow: none; }
+.os-nb-at { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the name and the distance stack, so a narrow card keeps both readable */
+.os-nb-item .os-nb-row, .os-hw.is-m .os-nb-item .os-nb-row { flex-direction: column; align-items: stretch; gap: 0; }
+.os-nb-item .os-hw-row-name, .os-hw.is-m .os-nb-item .os-hw-row-name { flex: none; }
+.os-hw.is-m .os-nb-item .os-hw-row-sub { max-width: none; }
+/* a narrow card: the verbs show a glyph in place of the word (the accessible name stays "Call X" / "Navigate to X") */
+@container oshw (max-width: 300px) {
+  .os-nb-vt { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .os-nb-verb { justify-content: center; padding-inline: 0; font-size: var(--ui-fs-body, 14px); }
+  .os-nb-verb[data-nb-icon="call"]::before { content: '\260E'; }
+  .os-nb-verb[data-nb-icon="nav"]::before { content: '\27A4'; }
+}
+/* the one-column desk below 1100px sizes rows to a 96px floor: an M keeps a full 160px row and an L the two rows and gap it has on the board (home.css does the same for Up Next with Peek) */
+@media (max-width: 1100px) {
+  .os-hw-board .os-hw.os-hw.os-hw-nearby.is-m { min-height: 160px; }
+  .os-hw-board .os-hw.os-hw.os-hw-nearby.is-l { min-height: 332px; }
+}

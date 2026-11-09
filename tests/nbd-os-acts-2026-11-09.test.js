@@ -66,7 +66,7 @@ console.log('\n2. normalize keeps acts and on, and only clean ones');
   ok('a name is trimmed, control characters out, whitespace folded', k.acts[1].name === 'At the kitchen table', J(k.acts[1].name));
   ok('an empty name falls back to the preset name', k.acts[0].name === 'Canvassing');
   ok('a long name is cut to 24 characters', k.acts[2].name.length === H.ACT_NAME_MAX && H.ACT_NAME_MAX === 24);
-  ok('focus keeps only known values (an unknown phase is dropped)', J(k.acts[1].focus) === J({ privacy: true }) && J(k.acts[0].focus) === J({ phase: 'build' }), J(k.acts.map((a) => a.focus)));
+  ok('focus is the preset\'s whatever is stored (no member can edit it; a paste cannot drop "In a home"\'s privacy)', J(k.acts.map((a) => a.focus)) === J(H.ACT_PRESETS.map((p) => p.focus)), J(k.acts.map((a) => a.focus)));
   ok('a mode\'s phone list is cleaned like a home (unknown widgets dropped)', J(k.acts[1].phone) === J([{ id: 'glance', s: 'l' }]), J(k.acts[1].phone));
   ok('a list that is not a list is no list (the mode shows your home)', !('phone' in k.acts[2]), J(k.acts[2]));
   ok('a mode\'s desk list gets board cells', k.acts[3].desk.length === 2 && k.acts[3].desk.every((it) => typeof it.x === 'number' && typeof it.y === 'number'), J(k.acts[3].desk));
@@ -156,6 +156,25 @@ console.log('\n6. max fill: every field at once stays under the 12,000-char budg
   const actHead = J({ id: 'canvass', name: 'W'.repeat(H.ACT_NAME_MAX), focus: { phase: 'collect', privacy: true }, phone: [], desk: [], wp: WP }).length;
   const bound = 2 * H.MAX_ITEMS * unit + H.ACT_MAX * (2 * H.ACT_ITEMS * unit + actHead) + J({ wp: WP, on: { phone: 'canvass', desk: 'canvass' } }).length + 40;
   ok('the bound with every field at its catalog maximum (' + bound + ')', bound < 12000, bound);
+  // P3 integration: every P3 lane's fields at once: Saved view tiles (cfgId, an 8-hex view id) and the
+  // Knock block / Nearby ids, desk cells, Smart Stacks, 4 full modes, wp, and the pywal switch (tint:false)
+  const idCfg = H.ids().filter((id) => H.CATALOG[id].cfgId).map((id) => {
+    const cfg = {}; H.CATALOG[id].cfgId.forEach((k) => { cfg[k] = 'abcdef01'; });
+    return { id, s: 'm', cfg: H.cleanCfg(id, cfg) };
+  });
+  ok('…the Saved view tile keeps its 8-hex view id through cleanCfg', idCfg.length >= 1 && idCfg.every((it) => it.cfg && Object.values(it.cfg).every((v) => v === 'abcdef01')), J(idCfg));
+  const p3 = [worst].concat(idCfg, ['focus', 'nearby'].filter((id) => H.CATALOG[id]).map((id) => ({ id, s: 'm' })));
+  const worst3 = p3.reduce((a, b) => (J(b).length > J(a).length ? b : a));
+  const mix3 = (n) => { const a = []; for (let i = 0; i < n; i++) a.push(p3[i % p3.length]); return a; };
+  const acts3 = H.ACT_PRESETS.map((p) => ({ id: p.id, name: 'W'.repeat(40), focus: { phase: 'inspect', privacy: true }, phone: mix3(20), desk: mix3(20), wp: WP }));
+  const k3 = H.setTint(H.normalize({ v: 1, phone: mix3(30), desk: mix3(30), wp: WP, acts: acts3, on: { phone: 'storm', desk: 'office' } }), false);
+  const n3 = J(k3).length;
+  ok('the P3 max-fill home (Saved view ids, Knock block, Nearby, 4 full modes, tint off) serialises under 12,000 chars (' + n3 + ')',
+    n3 < 12000 && n3 <= R.MAX_STATE_JSON && k3.tint === false && k3.acts.length === 4 && H.weight(k3.phone) <= 24 && H.weight(k3.desk) <= 24
+      && !!R.normalizeUser({ layoutState: { 'os-home': k3 } }).layoutState['os-home'], n3);
+  const unit3 = Math.max(unit, J(Object.assign({}, worst3, { x: 3, y: H.DESK_MAX_Y, w: 2, h: 2 })).length);
+  const bound3 = 2 * H.MAX_ITEMS * unit3 + H.ACT_MAX * (2 * H.ACT_ITEMS * unit3 + actHead) + J({ wp: WP, on: { phone: 'canvass', desk: 'canvass' }, tint: false }).length + 40;
+  ok('the P3 bound with every field at its catalog maximum (' + bound3 + ')', bound3 < 12000, bound3);
 }
 
 console.log('\n7. the focus lens (os/acts-logic.js, the osacts bundle)');

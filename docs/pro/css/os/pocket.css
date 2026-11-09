@@ -1,0 +1,70 @@
+/* css/os/pocket.css — NBD OS P3: Pocket, the drop-down quick note (2026-11-09; js/os/pocket.js).
+   Loaded with the `ospocket` runtime bundle, never at boot. Theme tokens and --ui-* tokens
+   only. Floors: 44px targets, no text under 11px. It drops from the top edge, over every
+   window and the phone bar, under the lock screen (os/system.css, toast + 1) and toasts.
+   One entrance animation, off under both reduced-motion switches. */
+
+.os-pocket-wrap { position: fixed; inset: 0; z-index: calc(var(--z-overlay, 10000) + 1); display: flex; justify-content: center; align-items: flex-start; }
+html.os-locked .os-pocket-wrap { display: none; }
+.os-pocket-scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 45%, transparent); }
+.os-pocket {
+  position: relative; display: flex; flex-direction: column; gap: var(--ui-space-2, 8px);
+  width: min(560px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: calc(100vh - 2 * var(--ui-space-4, 16px)); overflow-y: auto;
+  margin-top: var(--ui-space-3, 12px); padding: var(--ui-space-3, 12px) var(--ui-space-4, 16px) var(--ui-space-4, 16px);
+  color: var(--t); background: var(--s); border: 1px solid var(--ui-line-divider, var(--br)); border-top: 3px solid var(--orange);
+  border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-3, var(--ui-elev-2, var(--ui-elev-1)));
+  animation: os-pocket-drop var(--ui-dur-sheet, 300ms) var(--ui-ease-enter, ease-out);
+}
+@keyframes os-pocket-drop { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .os-pocket { animation: none; } }
+:root[data-motion="reduce"] .os-pocket { animation: none; }
+
+/* the phone: full width from the top edge (under the status bar's safe area) */
+html[data-os-surface="phone"] .os-pocket {
+  width: 100%; margin-top: 0; max-height: 85vh; padding-top: calc(var(--ui-space-3, 12px) + env(safe-area-inset-top, 0px));
+  border-radius: 0 0 var(--ui-radius-lg, 12px) var(--ui-radius-lg, 12px); border-left: 0; border-right: 0;
+}
+
+.os-pocket-hd { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); }
+.os-pocket-title { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-pocket-x { min-height: 44px; min-width: 44px; justify-content: center; }
+.os-pocket-lede, .os-pocket-muted, .os-pocket-keys { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; color: var(--m); }
+.os-pocket-keys { font-size: var(--ui-fs-caption, 12px); }
+.os-pocket-lbl {
+  margin: var(--ui-space-1, 4px) 0 0; font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-pocket-ta {
+  width: 100%; min-height: 88px; box-sizing: border-box; padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); resize: vertical;
+  font: inherit; font-size: 16px; /* 16px: iOS zooms a smaller field */ line-height: 1.45; color: var(--t); background: var(--bg);
+  border: 1px solid var(--ui-line-strong, var(--br)); border-radius: var(--ui-radius-md, 8px);
+}
+.os-pocket-ta:focus { outline: none; border-color: var(--orange); box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-pocket-acts, .os-pocket-ra { display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); }
+.os-pocket-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 var(--ui-space-3, 12px); white-space: nowrap; }
+.os-pocket-btn:focus-visible, .os-pocket-x:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-pocket-status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2, 8px); min-height: 0; font-size: var(--ui-fs-body-sm, 13px); color: var(--t); }
+.os-pocket-status:empty { display: none; }
+.os-pocket-kept { border-top: 1px solid var(--ui-line-divider, var(--br)); padding-top: var(--ui-space-2, 8px); }
+.os-pocket-st {
+  margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-pocket-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.os-pocket-row {
+  display: flex; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; padding: var(--ui-space-2, 8px) 0;
+  border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-pocket-row:first-child { border-top: 0; }
+.os-pocket-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.os-pocket-note {
+  margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.os-pocket-at { margin: 0; font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-pocket-ra { flex: 0 0 auto; flex-wrap: nowrap; }
+
+@media (max-width: 359px) {
+  .os-pocket-row { flex-wrap: wrap; }
+  .os-pocket-ra { width: 100%; justify-content: flex-end; }
+}

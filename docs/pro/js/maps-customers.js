@@ -770,6 +770,34 @@ function hideCustomersLayer() {
   if (customersLayer && mainMap) mainMap.removeLayer(customersLayer); _hideCustPanel(); _clearRoute();
 }
 
+// The NBD OS "Saved view" tile's tap (docs/pro/js/os/kpi.js, after goTo('map')): the
+// Customers layer on, with the saved view of this name applied, as picking it in the
+// panel's View list does. goTo('map') builds the map a frame or more later: until then
+// the name waits for maps-core.js initMainMap's nbd:mainmap-ready (one listener, the
+// last tap wins; no timer). A name no saved view has does nothing.
+let _custPendingView = null;
+function _custOpenPending() {
+  const name = _custPendingView;
+  _custPendingView = null;
+  if (name !== null && mainMap) openCustomersView(name);
+}
+function openCustomersView(name) {
+  if (!mainMap) {
+    if (_custPendingView === null && typeof window.addEventListener === 'function') window.addEventListener('nbd:mainmap-ready', _custOpenPending, { once: true });
+    _custPendingView = String(name);
+    return;
+  }
+  const list = _loadCustViews();
+  let at = -1;
+  list.forEach(function (v, i) { if (at === -1 && v && typeof v === 'object' && _custViewName(v, i) === name) at = i; });
+  if (at === -1) return;
+  const tog = document.getElementById('tog-customers');
+  if (overlayState && !overlayState.customers && tog && typeof window.toggleOverlay === 'function') window.toggleOverlay('customers', tog);
+  _custApplyView(list[at]);
+  const sel = _custPanelEl && _custPanelEl.querySelector('[data-cust-view]');
+  if (sel) sel.value = String(at);
+}
+
 function refreshCustomersLayer() { if (overlayState && overlayState.customers) { buildCustomersLayer(true); } } // leads changed → re-geocode any new un-mapped ones
 
 if (typeof window !== 'undefined') {
@@ -780,6 +808,7 @@ if (typeof window !== 'undefined') {
   window.buildCustomerRoute    = buildCustomerRoute;
   window.toggleCustomerRoute   = toggleCustomerRoute;
   window.openRouteInGmaps      = openRouteInGmaps;
+  window.openCustomersView     = openCustomersView;
   // Shared rep palette (key/label/color per distinct lead owner) so other
   // surfaces — e.g. territory-zone shading — colour reps consistently.
   window.nbdRepList            = _custRepCats;

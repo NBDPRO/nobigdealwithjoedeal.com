@@ -140,8 +140,11 @@ function makeDom() {
   document.querySelector = (s) => document.documentElement.querySelector(s);
   document.querySelectorAll = (s) => document.documentElement.querySelectorAll(s);
   document.contains = (n) => document.documentElement.contains(n);
-  document.addEventListener = (t, f) => { (document.listeners[t] = document.listeners[t] || []).push(f); };
-  document.removeEventListener = (t, f) => { document.listeners[t] = (document.listeners[t] || []).filter((x) => x !== f); };
+  // capture-phase listeners on the document run first in fire(), as in a browser (the bubble ones last)
+  document.capture = {};
+  const docBag = (opt) => (opt === true || (opt && opt.capture) ? document.capture : document.listeners);
+  document.addEventListener = (t, f, opt) => { const bag = docBag(opt); (bag[t] = bag[t] || []).push(f); };
+  document.removeEventListener = (t, f, opt) => { const bag = docBag(opt); bag[t] = (bag[t] || []).filter((x) => x !== f); };
   return { document, El };
 }
 
@@ -153,6 +156,7 @@ function fire(dom, target, type, extra) {
   }, extra || {});
   const chain = [];
   for (let n = target; n && n.attrs; n = n.parentNode) chain.push(n);
+  (dom.document.capture[type] || []).slice().forEach((f) => { if (!ev.stopped) f(ev); });
   for (let i = chain.length - 1; i >= 0 && !ev.stopped; i--) (chain[i].capture[type] || []).slice().forEach((f) => { if (!ev.stopped) f(ev); });
   for (let i = 0; i < chain.length && !ev.stopped; i++) (chain[i].listeners[type] || []).slice().forEach((f) => { if (!ev.stopped) f(ev); });
   if (!ev.stopped) (dom.document.listeners[type] || []).slice().forEach((f) => f(ev));

@@ -337,6 +337,13 @@ html.os-locked .os-hw-closes { visibility: hidden; }
 .os-wp-opt:has(.os-wp-radio:focus-visible) { box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 .os-wp-set:disabled .os-wp-opt { cursor: default; opacity: .6; }
 .os-wp-radio { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
+/* P3 #12: the "Colour my widgets from my picture" switch (tenants only) */
+.os-wp-tint {
+  display: flex; align-items: center; gap: var(--ui-space-3, 12px); min-height: 56px; margin: var(--ui-space-2, 8px) 0 0; padding: var(--ui-space-2, 8px);
+  border-top: 1px solid var(--ui-line-divider, var(--br)); cursor: pointer;
+}
+.os-wp-tint-box { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
+.os-wp-tint:has(.os-wp-tint-box:focus-visible) { box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 .os-wp-sw, .os-wp-thumb {
   flex: none; width: 64px; height: 40px; border-radius: var(--ui-radius-sm, 6px);
   border: 1px solid var(--ui-line-divider, var(--br)); background: var(--bg); object-fit: cover; overflow: hidden;

@@ -13,7 +13,7 @@
  *
  *   id    a widget in CATALOG (unknown ids are dropped)
  *   s     'S' | 'M' | 'L' as 's' | 'm' | 'l', one the widget offers (else its default)
- *   cfg   enum values the widget declares, at most 64 chars of JSON
+ *   cfg   enum values the widget declares (P3: or an 8-hex id, cfgId), at most 64 chars of JSON
  *   items a Smart Stack's cards (P1): 1-4 other widget ids, each counted against the cap
  *   x y   the desk board cell (P1): 4 columns, rows of 160px, x 0-3, y 0-47
  *   w h   the cells its size takes on the desk: S 1x1, M 2x1, L 2x2 (DESK_CELLS);
@@ -61,6 +61,7 @@
  *   stormNow(cache, now)       Storm Center's cache as none / stale / clear / alert
  *   moneyMonth(invs, uid, now, collect) the member's own collected this month, in cents
  *   stackItems / weight / toggleCard   a Smart Stack's cards and the cap
+ *   P3: keep(key)              the member's own lists, wallpaper, acts and on, cleaned (Copy my setup)
  *   P2: peekAppt(plan, now)    the appointment starting within 30 min: Up Next's Peek button
  *   parseCarry(raw) / recapDue(raw, seen, uid, now)  Shutdown's carry-over and the Welcome Recap's due check
  *
@@ -80,6 +81,8 @@
  *   cleanWp / wpOf / setWp     (P1) the per-surface wallpaper id
  *   todPeriod(ms)              'dawn' | 'day' | 'dusk' | 'night' for a local time
  *   wpPaint(stored, ctx)       what a surface paints: { wp:'auto'|'tod'|'none'|'img', tod, img }
+ *   tintOf(key) / setTint(key, on)  (P3 #12) the member's "colour my widgets from my picture"
+ *                              switch: tint:false in the key when off, absent (on) by default
  *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
@@ -125,10 +128,24 @@
     // id teamboard, not team: .os-hw-team is the layout's Publish / Lock group (layouts/os.js, home.css)
     // names: it lists teammates by name, so "In a home" never paints it (actHides)
     teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', names: true, about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
+    // P3 (os/focus.js, the lazy osfocus bundle): a knock block the rep starts by hand. A paint reads nothing;
+    // tapReads: a start costs one knocks count plus Daily Success's goals refresh (1 getDoc + 1 count, its
+    // 5-minute cache); each knock saved during the block one more count, and its end one final count.
+    focus: { title: 'Knock block', sizes: ['s', 'm'], def: 'm', reads: 0, tapReads: 3, bundle: 'osfocus', cat: 'tools', nav: 'd2d', about: 'A 30, 60 or 90 minute canvassing block: Do Not Disturb on, doors counted' },
+    // P3 (os/kpi.js, the lazy oskpi bundle): the count of loaded leads matching one of the team's saved
+    // map views (companyProfile.mapViews, maps-customers.js). cfgId: settings that hold an id (CFG_ID_RE),
+    // here the view's (os/kpi-logic.js viewId), never its name or its filters. nostack: a stack card has no
+    // settings, so it never goes in a Smart Stack. Several may sit on one home.
+    kpi: { title: 'Saved view', sizes: ['s', 'm'], def: 's', reads: 0, cfgId: ['view'], nostack: true, bundle: 'oskpi', cat: 'tools', nav: 'crm', about: 'How many leads match one of your team\'s saved map views' },
+    // P3 (os/nearby.js, the lazy osnearby bundle): the member's leads nearest to them, by the lat / lng the leads
+    // already carry (in memory, no reads). The position is asked for only on a tap, never watched or kept.
+    // names: it lists customers by name, so "In a home" never paints it (actHides)
+    nearby: { title: 'Nearby', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, bundle: 'osnearby', cat: 'tools', nav: 'crm', names: true, about: 'Your leads closest to where you are, when you tap' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus', 'kpi', 'nearby'];
+  var CFG_ID_RE = /^[0-9a-f]{8}$/;
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.
@@ -145,10 +162,13 @@
 
   function cleanCfg(id, cfg) {
     var c = known(id) ? CATALOG[id] : null;
-    if (!c || !c.config || !isObj(cfg)) return null;
+    if (!c || !(c.config || c.cfgId) || !isObj(cfg)) return null;
     var out = {}, n = 0;
-    Object.keys(c.config).forEach(function (k) {
+    Object.keys(c.config || {}).forEach(function (k) {
       if (c.config[k].indexOf(cfg[k]) !== -1) { out[k] = cfg[k]; n++; }
+    });
+    (c.cfgId || []).forEach(function (k) {
+      if (typeof cfg[k] === 'string' && CFG_ID_RE.test(cfg[k])) { out[k] = cfg[k]; n++; }
     });
     return n && JSON.stringify(out).length <= MAX_CFG ? out : null;
   }
@@ -165,7 +185,7 @@
   function stackItems(list) {
     var out = [];
     (Array.isArray(list) ? list : []).forEach(function (id) {
-      if (known(id) && !CATALOG[id].stack && out.indexOf(id) === -1 && out.length < STACK_MAX) out.push(id);
+      if (known(id) && !CATALOG[id].stack && !CATALOG[id].nostack && out.indexOf(id) === -1 && out.length < STACK_MAX) out.push(id);
     });
     return out.length ? out : STACK_DEFAULT.slice();
   }
@@ -466,9 +486,13 @@
     var w = isObj(v) ? { phone: cleanWp(v.phone), desk: cleanWp(v.desk) } : null;
     return w && (w.phone || w.desk) ? w : null;
   }
-  /** One act from its stored copy (or the preset when there is none), fields in a fixed order. */
+  /**
+   * One act from its stored copy (or the preset when there is none), fields in a fixed order.
+   * Its focus is always the preset's: no member edits a mode's focus, and a stored or pasted
+   * one (Copy my setup) must never drop "In a home"'s privacy or give another mode one.
+   */
   function cleanAct(p, r) {
-    var a = { id: p.id, name: cleanName(r ? r.name : null, p.name), focus: cleanFocus(r && isObj(r.focus) ? r.focus : p.focus) };
+    var a = { id: p.id, name: cleanName(r ? r.name : null, p.name), focus: cleanFocus(p.focus) };
     SURFACES.forEach(function (s) {
       var l = r ? cleanActList(r[s], s === 'desk') : (p[s] ? cleanActList(p[s], s === 'desk') : null);
       if (l) a[s] = l;
@@ -489,12 +513,22 @@
     var o = { phone: actIdx(raw.phone) !== -1 ? raw.phone : null, desk: actIdx(raw.desk) !== -1 ? raw.desk : null };
     return o.phone || o.desk ? o : null;
   }
-  /** Copy a key's acts and on (cleaned) onto `out`: every key op keeps them. */
+  /** Copy a key's acts and on (cleaned) onto `out`: every key op keeps them. P3: and tint, the same way. */
   function carryActs(r, out) {
     var a = cleanActs(r && r.acts);
     if (a) out.acts = a;
     var on = cleanOn(r && r.on);
     if (on) out.on = on;
+    if (r && r.tint === false) out.tint = false;
+    return out;
+  }
+  // ── P3 #12: wallpaper to palette, the member's own switch ─────
+  // tint:false = "don't colour my widgets from my picture"; absent = on (the default
+  // for a tenant; the platform tenant never gets a wash whatever this says).
+  function tintOf(key) { return !(isObj(key) && key.tint === false); }
+  function setTint(key, on) {
+    var out = keepKey(key);
+    if (on === false) out.tint = false; else delete out.tint;
     return out;
   }
   /** The four modes of a key: its own, else the presets (a fresh copy). */
@@ -650,7 +684,7 @@
   /** Turn one card of the stack at i on or off (1..STACK_MAX cards, within the cap); null when it can't. */
   function toggleCard(list, i, id) {
     var it = list[i];
-    if (!it || !known(it.id) || !CATALOG[it.id].stack || !known(id) || CATALOG[id].stack) return null;
+    if (!it || !known(it.id) || !CATALOG[it.id].stack || !known(id) || CATALOG[id].stack || CATALOG[id].nostack) return null;
     var cards = stackItems(it.items), at = cards.indexOf(id);
     if (at !== -1) { if (cards.length < 2) return null; cards.splice(at, 1); }
     else { if (cards.length >= STACK_MAX || weight(list) + 1 > MAX_ITEMS) return null; cards.push(id); }
@@ -1048,11 +1082,12 @@
     needsYou: needsYou, urgency: urgency, urgencyText: urgencyText, parseUsage: parseUsage, frecency: frecency,
     stormNow: stormNow, monthStart: monthStart, moneyMonth: moneyMonth, toMs: toMs,
     PEEK_AHEAD: PEEK_AHEAD, peekAppt: peekAppt, parseCarry: parseCarry, recapDue: recapDue,
-    WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint,
+    WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint, tintOf: tintOf, setTint: setTint,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
     ACT_MAX: ACT_MAX, ACT_ITEMS: ACT_ITEMS, ACT_NAME_MAX: ACT_NAME_MAX, ACT_PRESETS: ACT_PRESETS, PHASES: PHASES, PHASE_NAME: PHASE_NAME,
+    CFG_ID_RE: CFG_ID_RE, keep: keepKey,
     actsOf: actsOf, activeAct: activeAct, setActOn: setActOn, renameAct: renameAct, setActList: setActList, setActWp: setActWp, actHides: actHides,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

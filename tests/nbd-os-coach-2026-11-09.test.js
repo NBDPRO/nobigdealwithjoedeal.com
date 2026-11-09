@@ -251,10 +251,11 @@ G(() => {
   // P1 (2026-11-09): home.js's ScriptLoader loads are its own bundles (oshomep1, osdsbiz, osshutdown; P2 osacts, osp2peek, osdsgoals), never home-strips
   // P2 (2026-11-09): plus oscoachai, the opted-in Coach's AI focus line (tests/nbd-os-coach-ai-2026-11-09.test.js)
   ok('home-strips is not loaded (no ScriptLoader call in the Coach)', !/homestrips|home-strips|NBDHomeStrips/.test(noComments(HOME_JS))
-    && (noComments(HOME_JS).match(/loadBundle\(/g) || []).length === 8 && /loadBundle\('oscoachai'\)/.test(noComments(HOME_JS)) && /loadBundle\(P1_BUNDLE\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(BIZ\)/.test(noComments(HOME_JS))
+    && (noComments(HOME_JS).match(/loadBundle\(/g) || []).length === 11 && /loadBundle\('osfocus'\)/.test(noComments(HOME_JS)) && /loadBundle\('oscoachai'\)/.test(noComments(HOME_JS)) && /loadBundle\(P1_BUNDLE\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(BIZ\)/.test(noComments(HOME_JS))
     && /loadBundle\('osshutdown'\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(ACTS_BUNDLE\)/.test(noComments(HOME_JS)) && /loadBundle\('osp2peek'\)/.test(noComments(HOME_JS))
     && /loadBundle\('osteam'\)/.test(noComments(HOME_JS))
-    && /loadBundle\('osdsgoals'\)/.test(noComments(HOME_JS)));   // P2: + the Team widget's osteam
+    && /loadBundle\('osdsgoals'\)/.test(noComments(HOME_JS))
+    && /SL\.loadBundle\('oskpi'\)/.test(noComments(HOME_JS)) && /loadBundle\('osnearby'\)/.test(noComments(HOME_JS)));   // P2: + the Team widget's osteam; P3: + the Knock block's osfocus, the Saved view tile's oskpi and Nearby's osnearby
 
   const T2 = makeWin({ surface: 'desktop', leads, store, home: { desk: [{ id: 'coach', s: 'l' }], phone: [] } });
   T2.W._impl.mount({ surface: 'desktop' });

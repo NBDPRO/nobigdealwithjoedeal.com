@@ -34,7 +34,8 @@
  *   startOfDay(ms)                local midnight
  * Browser: current({ uid, companyId, doors, now }) -> { goals, doors } | null,
  * refreshing as above; saved(uid, goals, now) puts goals the sheet just wrote
- * into the day's answer; reset() drops it. No style, no DOM.
+ * into the day's answer; reset() drops it; countKnocks(uid, fromMs, toMs) counts the
+ * member's own knocks in a window (P3, the knock-block focus session). No style, no DOM.
  */
 (function (root) {
   'use strict';
@@ -95,16 +96,25 @@
       return ex && typeof snap.data === 'function' ? cleanGoals(snap.data()) : null;
     }, function () { return undefined; });
   }
-  function countDoors(uid, now) {
+  /**
+   * The member's own knocks created from `fromMs` (and before `toMs`, when given): one
+   * getCountFromServer on the [userId, createdAt] index. -> a whole count, or undefined (not counted).
+   * P3: the knock-block focus session (os/focus.js) counts its block's window through this too.
+   */
+  function countKnocks(uid, fromMs, toMs) {
+    if (typeof uid !== 'string' || !uid || !isFinite(Number(fromMs))) return Promise.resolve(undefined);
     if (typeof W.query !== 'function' || typeof W.collection !== 'function' || typeof W.where !== 'function' || !W.db) return Promise.resolve(undefined);
     return Promise.resolve().then(function () { return api.fsImport(); }).then(function (m) {
-      var since = m.Timestamp && typeof m.Timestamp.fromDate === 'function' ? m.Timestamp.fromDate(new Date(startOfDay(now))) : new Date(startOfDay(now));
-      return m.getCountFromServer(W.query(W.collection(W.db, 'knocks'), W.where('userId', '==', uid), W.where('createdAt', '>=', since)));
+      function ts(ms) { return m.Timestamp && typeof m.Timestamp.fromDate === 'function' ? m.Timestamp.fromDate(new Date(ms)) : new Date(ms); }
+      var q = [W.collection(W.db, 'knocks'), W.where('userId', '==', uid), W.where('createdAt', '>=', ts(Number(fromMs)))];
+      if (toMs != null && isFinite(Number(toMs))) q.push(W.where('createdAt', '<', ts(Number(toMs))));
+      return m.getCountFromServer(W.query.apply(null, q));
     }).then(function (snap) {
       var n = snap && typeof snap.data === 'function' ? snap.data().count : null;
       return isCount(n) ? n : undefined;
     }, function () { return undefined; });
   }
+  function countDoors(uid, now) { return countKnocks(uid, startOfDay(now)); }
   /**
    * env: { uid, companyId, doors (true when the member's role shows D2D), now }.
    * -> the day's last answer for this account, { goals, doors } (either null), or null.
@@ -150,7 +160,7 @@
 
   var api = { fsImport: function () { return import(FS); },   // replaced in the Node tests
     GOALS: GOALS, MAX_GOAL: MAX_GOAL, TTL_MS: TTL_MS, isCount: isCount, cleanGoals: cleanGoals, bizRows: bizRows, fresh: fresh,
-    startOfDay: startOfDay, dayKey: dayKey, current: current, reset: reset, saved: saved };
+    startOfDay: startOfDay, dayKey: dayKey, current: current, reset: reset, saved: saved, countKnocks: countKnocks };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSDsBiz = api;
 })(typeof window !== 'undefined' ? window : null);

@@ -1,0 +1,19 @@
+/* css/os/setup.css — NBD OS "Copy my setup" (2026-11-09, P3; js/os/setup.js).
+   Loaded with the `ossetup` runtime bundle, never at boot. The sheet is the Add
+   widget <dialog> (home.css .os-hw-add); theme tokens and --ui-* tokens only; no
+   motion. Floors: no text under 11px, 44px targets (.os-hw-btn). */
+.os-su .os-su-part { padding: 0; display: flex; flex-direction: column; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px); }
+.os-su .os-su-p { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; color: var(--m); }
+.os-su .os-su-label { font-size: var(--ui-fs-caption, 12px); font-weight: 600; color: var(--t); }
+.os-su .os-su-text {
+  width: 100%; box-sizing: border-box; min-height: 72px; resize: vertical;
+  font: var(--ui-fs-caption, 12px)/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--t); background: var(--s2); border: 1px solid var(--br); border-radius: var(--ui-radius-sm, 6px);
+  padding: var(--ui-space-2, 8px); overflow-wrap: anywhere;
+}
+.os-su .os-su-text:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-su-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); }
+.os-su .os-su-status { margin: 0; font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-su .os-su-err { margin: 0; font-size: var(--ui-fs-body-sm, 13px); color: var(--red, var(--t)); }
+.os-su .os-su-list { margin: 0; padding-left: 1.2em; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.45; color: var(--t); overflow-wrap: anywhere; }
+.os-su-preview:empty { display: none; }

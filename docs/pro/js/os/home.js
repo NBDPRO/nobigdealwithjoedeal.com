@@ -49,9 +49,16 @@
  *                Recap loads the same bundle only when home-logic recapDue says
  *                yesterday's Shutdown left something open: on the day's first home
  *                (mount) or the lock screen's unlock, once per page a day.
+ *   Knock block  (P3) painted by os/focus.js, the runtime ScriptLoader bundle osfocus
+ *                registered and loaded here on first paint, or on mount when a block is
+ *                waiting (localStorage nbd_os_focus); the 30 s tick repaints its minute
  *   Team         (P2, owner only: catalog owner) painted by os/team.js, the runtime
  *                ScriptLoader bundle osteam registered and loaded here on first paint;
  *                reads the company's leaderboard rows (at most 50 docs, every 5 min at most)
+ *   Nearby       (P3) painted by os/nearby.js, the runtime ScriptLoader bundle osnearby
+ *                registered and loaded here on first paint: the member's leads nearest to
+ *                them from the lat / lng they carry; the position is read only on its Find
+ *                nearby tap (taps on [data-oshw-nb] go to NBDOSNearby.tap), never kept
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -62,7 +69,7 @@
  * nbd_ds_snapshot, else LayoutEngine.ds(): the doc the engine already read).
  * No fetch, no Firestore.
  *
- * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange,
+ * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange, locked,
  * onExit, onLongPress, navHidden, onResize, onEmpty }) returns { el, update(items), paint(),
  * unmount(), setEditing(on, focusFirst), editing(), openAdd(), cellItems(items) }. `el` is one node the OS layout
  * places (the desk column; on the phone, page 1 of the pager). update() is a
@@ -110,7 +117,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus', 'nbd:os-kpi', 'nbd:company-profile-loaded', 'nbd:os-nearby'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -368,7 +375,7 @@
       if (!bizAsked && SL && typeof SL.loadBundle === 'function') {
         bizAsked = true;
         try {
-          if (SL.bundles && !SL.bundles[BIZ]) SL.bundles[BIZ] = ['js/os/ds-business.js?v=1'];
+          if (SL.bundles && !SL.bundles[BIZ]) SL.bundles[BIZ] = ['js/os/ds-business.js?v=2'];
           Promise.resolve(SL.loadBundle(BIZ)).then(function () { try { W.dispatchEvent(new W.CustomEvent('nbd:os-dsbiz')); } catch (e) {} });
         } catch (e) {}
       }
@@ -565,7 +572,77 @@
     return h + '<p class="os-hw-empty">Loading…</p>';
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team };
+  // ── Knock block (P3): os/focus.js paints it, loaded as the runtime ScriptLoader bundle osfocus
+  // the first time the widget paints, or when a home mounts with a block waiting (nbd_os_focus)
+  var FOCUS_BUNDLE = ['css/os/focus.css?v=1', 'js/os/ds-business.js?v=2', 'js/os/focus-logic.js?v=1', 'js/os/focus.js?v=1'];
+  var focusState = '';   // '' | 'asked' | 'failed'
+  function loadFocus() {
+    var SL = W.ScriptLoader;
+    if (W.NBDOSFocus || focusState === 'asked' || !SL || typeof SL.loadBundle !== 'function') return;
+    focusState = 'asked';
+    if (SL.bundles && !SL.bundles.osfocus) SL.bundles.osfocus = FOCUS_BUNDLE.slice();
+    Promise.resolve().then(function () { return SL.loadBundle('osfocus'); }).then(function () {
+      focusState = W.NBDOSFocus ? '' : 'failed';
+      try { W.dispatchEvent(new W.CustomEvent('nbd:os-focus')); } catch (e) {}
+    }, function () { focusState = 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-focus')); } catch (e) {} });
+  }
+  function knockBlock(size, cfg, act, rec, kit) {
+    var FB = W.NBDOSFocus;
+    if (FB && typeof FB.widget === 'function') return FB.widget(size, cfg, kit);
+    var h = '<h3 class="os-hw-title">Knock block</h3>';
+    if (focusState === 'failed') return h + failHtml('focus');
+    loadFocus();
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+  function focusKey() { var FB = W.NBDOSFocus; try { return FB && typeof FB.key === 'function' ? FB.key() : ''; } catch (e) { return ''; } }
+
+  // ── Saved view (P3): os/kpi.js paints it, the runtime ScriptLoader bundle oskpi, loaded on first paint ──
+  var KPI_BUNDLE = ['css/os/kpi.css?v=1', 'js/os/kpi-logic.js?v=1', 'js/os/kpi.js?v=1'];
+  var kpiState = '', kpiP = null;   // '' | 'asked' | 'failed'
+  function loadKpi() {
+    if (W.NBDOSKpi) return Promise.resolve(W.NBDOSKpi);
+    if (kpiP) return kpiP;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') { kpiState = 'failed'; return Promise.reject(new Error('no ScriptLoader')); }
+    if (SL.bundles && !SL.bundles.oskpi) SL.bundles.oskpi = KPI_BUNDLE.slice();
+    kpiState = 'asked';
+    function settle() { kpiP = null; kpiState = W.NBDOSKpi ? '' : 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-kpi')); } catch (e) {} }
+    kpiP = Promise.resolve().then(function () { return SL.loadBundle('oskpi'); }).then(function () {
+      settle();
+      if (!W.NBDOSKpi) throw new Error('oskpi did not load');
+      return W.NBDOSKpi;
+    }, function (e) { settle(); throw e; });
+    return kpiP;
+  }
+  function kpi(size, cfg, a, rec, kit) {
+    var K = W.NBDOSKpi;
+    if (K && typeof K.widget === 'function') return K.widget(size, cfg, { locked: !!(kit && kit.locked && kit.locked()) });
+    var h = '<h3 class="os-hw-title">' + esc(HL.CATALOG.kpi.title) + '</h3>';
+    if (kpiState === 'failed') return h + failHtml('kpi');
+    if (kpiState !== 'asked') loadKpi().catch(function () {});
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+
+  // ── Nearby (P3): os/nearby.js paints it, loaded as the runtime ScriptLoader bundle osnearby
+  // the first time the widget paints; it asks for the position only on its own Find nearby tap
+  var NB_BUNDLE = ['css/os/nearby.css?v=1', 'js/os/nearby-logic.js?v=1', 'js/os/nearby.js?v=1'];
+  var nbState = '';   // '' | 'asked' | 'failed'
+  function nearby(size, cfg, act, rec, kit) {
+    var NB = W.NBDOSNearby;
+    if (NB && typeof NB.widget === 'function') return NB.widget(size, cfg, kit);
+    var h = '<h3 class="os-hw-title">Nearby</h3>';
+    if (nbState === 'failed') return h + failHtml('nearby');
+    var SL = W.ScriptLoader;
+    if (nbState !== 'asked' && SL && typeof SL.loadBundle === 'function') {
+      nbState = 'asked';
+      if (SL.bundles && !SL.bundles.osnearby) SL.bundles.osnearby = NB_BUNDLE.slice();
+      var done = function () { nbState = W.NBDOSNearby ? '' : 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-nearby')); } catch (e) {} };
+      Promise.resolve().then(function () { return SL.loadBundle('osnearby'); }).then(done, done);
+    }
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock, kpi: kpi, nearby: nearby };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -629,7 +706,8 @@
 
   /**
    * opts: surface, items, act, visible, and for edit mode (P0c):
-   *   onChange(list)   the layout normalises and saves it, then calls update()
+   *   onChange(list)   the layout normalises and saves it, then calls update(); false = refused
+   *   locked()         true when the company locked this home (nothing offers a change)
    *   onExit()         Escape / Done: the layout leaves edit mode
    *   onLongPress()    a 550 ms press on a widget: the layout enters edit mode
    *   navHidden(id)    true when the member's role hides that sidebar view
@@ -663,6 +741,8 @@
       loadActs().catch(function () {});
       return 'wait';
     }
+    /** The company locked this home (layouts/os.js homeLocked): a widget offers no change it would refuse. */
+    function locked() { try { return typeof o.locked === 'function' && o.locked() === true; } catch (e) { return false; } }
     function moneyOk() { var f = focus(); return !isViewer() && !navHidden('money') && !(f && f.privacy); }
     /** A widget this member's role can't see (its sidebar view is hidden, or it shows money), or the mode on never paints. */
     function hiddenId(id) {
@@ -676,6 +756,8 @@
       urgency: function () { var u = urgencyNow(); return LENS ? LENS.urgency(u) : u; },
       hiddenId: hiddenId, has: function (id) { return !!WIDGETS[id]; }, epoch: function () { return epoch; },
       render: function (id, size, cfg, a, rec) { return WIDGETS[id](size, cfg, a, rec, kit); },
+      locked: locked,
+      announce: function (msg) { announce(msg); },   // the polite live line (Nearby says a late answer through it)
     };
     var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
     var drag = null;
@@ -721,7 +803,9 @@
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
       if (showsSd(rec)) rec.sdIn = sdWindow();   // the tick repaints it when this changes
       if (showsUp(rec)) rec.pk = peekKey();      // and Up Next when the Peek window opens or shuts
+      if (showsFocus(rec)) rec.fk = focusKey();  // and a knock block when its minute changes
     }
+    function showsFocus(rec) { return rec.it.id === 'focus' || (!!rec.stack && rec.stack.cardAt === 'focus'); }
     /** A Shutdown widget, or a Smart Stack whose card on screen is Shutdown (repainting it never re-picks). */
     function showsSd(rec) { return rec.it.id === 'shutdown' || (!!rec.stack && rec.stack.cardAt === 'shutdown'); }
     function showsUp(rec) { return rec.it.id === 'upnext' || (!!rec.stack && rec.stack.cardAt === 'upnext'); }
@@ -794,6 +878,7 @@
       var nx = HL.resize(cur, i, 0);
       var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
       return (c.stack ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="cards" aria-haspopup="dialog" aria-label="' + esc('Cards in ' + c.title) + '">Cards</button>' : '') +
+        (c.cfgId ? '<button type="button" class="os-hw-ed os-kpi-ed" data-oshw-ed="kpiview" aria-haspopup="dialog" aria-label="' + esc(['Which view ', c.title, ' counts'].join('')) + '">View</button>' : '') +
         '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
         '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>' +
         // the laptop corner grip: a pointer-only convenience (Shift+arrows and the chip are the other paths)
@@ -863,7 +948,7 @@
       if (!next) return false;
       if (surface === 'phone') next = HL.pack(next);
       if (next.map(function (x) { return x._k; }).join() === order.join() && next.length === order.length &&
-        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y && JSON.stringify(x.items || null) === JSON.stringify(cur[i].items || null); })) return false;
+        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y && JSON.stringify([x.items || null, x.cfg || null]) === JSON.stringify([cur[i].items || null, cur[i].cfg || null]); })) return false;
       var at = -1;
       next.forEach(function (it, j) { if (focusTag && it._k === focusTag) at = j; });
       var clean = next.map(function (it) {
@@ -877,7 +962,8 @@
       pick = null;
       // widgets the role hides were never on screen: they stay saved, after the rest
       var save = clean.concat(held.map(function (it) { return JSON.parse(JSON.stringify(it)); }));
-      if (typeof o.onChange === 'function') o.onChange(save); else update(save);
+      if (typeof o.onChange !== 'function') update(save);
+      else if (o.onChange(save) === false) return null;   // the layout refused it (a company-locked home): nothing to say
       var rec = newKey && recs[newKey];
       if (rec && editing) {
         var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
@@ -920,6 +1006,26 @@
       if (what === 'size') commit(opResize(i, 0), key, '', '[data-oshw-ed="size"]');
       else if (what === 'remove') removeAt(i);
       else if (what === 'cards') openCards(key);
+      else if (what === 'kpiview') kpiPick(key, b);
+    }
+    /** P3: the Saved view tile's view, picked in os/kpi.js's sheet, saved as its cfg (an id only). */
+    function kpiPick(key, from) {
+      var r0 = recs[key];
+      if (!r0) return;
+      loadKpi().then(function (K) {
+        var rec = recs[key];
+        if (!rec || !live) return;
+        K.pick({
+          current: rec.it.cfg && rec.it.cfg.view, returnFocus: from,
+          onPick: function (id, name) {
+            var i = order.indexOf(key);
+            if (i < 0) return;
+            var next = tagged();
+            next[i].cfg = { view: id };
+            if (commit(next, key, 'Counting ' + String(name || 'that view') + '. ') === false) announce('Already counting ' + String(name || 'that view') + '.');
+          },
+        });
+      }, function () { announce('Couldn\'t open the saved views. Try again.'); });
     }
     // capture: while editing, a tap arranges and never reaches the widget's own links and buttons;
     // the click that ends a long-press is swallowed too
@@ -1157,7 +1263,7 @@
       function body() {
         var at = order.indexOf(key), it = cur[at];
         var cards = it && it.items ? it.items : [];
-        var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !hiddenId(id) && !!WIDGETS[id]; });
+        var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !HL.CATALOG[id].nostack && !hiddenId(id) && !!WIDGETS[id]; });
         return '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwCardsTitle">Cards in this stack</h2>' +
           '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
           '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against ' + (mode() ? 'this mode\'s ' : 'your home\'s ') + String(cap()) + '.') + '</p>' +
@@ -1203,11 +1309,18 @@
       if (r) {
         var rk = r.getAttribute('data-oshw-retry');
         if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
+        if (rk === 'focus') { if (focusState === 'failed') focusState = ''; order.forEach(function (k) { if (recs[k].it.id === 'focus') paintOne(recs[k], true); }); return; }
         if (rk === 'acts') { if (actsState === 'failed') actsState = ''; order.forEach(function (k) { paintOne(recs[k], true); }); return; }
+        if (rk === 'kpi') { if (kpiState === 'failed') kpiState = ''; order.forEach(function (k) { if (recs[k].it.id === 'kpi') paintOne(recs[k], true); }); return; }
         if (rk === 'team') {
           if (teamState === 'failed') teamState = '';
           if (W.NBDOSTeam && typeof W.NBDOSTeam.retry === 'function') W.NBDOSTeam.retry();
           order.forEach(function (k) { if (recs[k].it.id === 'teamboard') paintOne(recs[k], true); });
+          return;
+        }
+        if (rk === 'nearby') {
+          if (nbState === 'failed') nbState = '';
+          order.forEach(function (k) { if (recs[k].it.id === 'nearby') paintOne(recs[k], true); });
           return;
         }
         if (p1State === 'failed') p1State = '';
@@ -1225,8 +1338,24 @@
         if (sw !== 'why') announce(text(srec.el.querySelector('.os-hw-stack-pos')) + ', ' + text(srec.el.querySelector('.os-hw-stack-card .os-hw-title')));
         return;
       }
+      var kb = t.closest('[data-oshw-kpi]');
+      var krec = kb && recs[(kb.closest('[data-oshw]') || kb).getAttribute('data-oshw')];
+      if (krec) {
+        if (kb.getAttribute('data-oshw-kpi') === 'pick') { kpiPick(krec.key, kb); return; }
+        var K = W.NBDOSKpi;
+        if (K && kb.getAttribute('data-oshw-kpi') === 'reload') {
+          K.reload().then(function (ok) { paintOne(krec, true); if (!ok) announce('Your team\'s views did not load.'); });
+          return;
+        }
+        if (K && krec.it.cfg && !K.open(krec.it.cfg.view)) { paintOne(krec, true); announce('That saved view is gone.'); }
+        return;
+      }
+      var nb = t.closest('[data-oshw-nb]');
+      if (nb) { if (W.NBDOSNearby && typeof W.NBDOSNearby.tap === 'function') W.NBDOSNearby.tap(nb, kit); return; }
       var sd = t.closest('[data-oshw-sd]');
       if (sd) { openShutdown(sd); return; }
+      var fb = t.closest('[data-oshw-focus]');
+      if (fb) { if (W.NBDOSFocus) W.NBDOSFocus.tap(fb.getAttribute('data-oshw-focus'), fb); return; }
       var pk = t.closest('[data-oshw-peek]');
       if (pk) {
         var pkKey = pk.getAttribute('data-oshw-peek');
@@ -1298,6 +1427,8 @@
       if (w !== null) order.forEach(function (k) { var r = recs[k]; if (showsSd(r) && r.sdIn !== w) paintOne(r); });
       var pk = peekKey();
       order.forEach(function (k) { var r = recs[k]; if (r && showsUp(r) && r.pk !== pk) paintOne(r); });
+      var fk = focusKey();
+      if (fk) order.forEach(function (k) { var r = recs[k]; if (r && showsFocus(r) && r.fk !== fk) paintOne(r); });
       maybeRecap();   // past midnight on an open page: the new day's recap
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
@@ -1342,6 +1473,7 @@
       cur = [];
     }
     update(o.items);
+    if (lsGet('nbd_os_focus')) loadFocus();   // a knock block left running (a reload): it ends and restores DND even off-screen
     W.addEventListener('nbd:os-unlock', maybeRecap);
     maybeRecap();
     return {

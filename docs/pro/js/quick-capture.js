@@ -31,6 +31,9 @@
  * Public API:
  *   window.NBDQuickCapture.open()
  *   window.NBDQuickCapture.attachFloatingButton()
+ *   window.NBDQuickCapture.review(text, onSaved) - a typed note (NBD OS Pocket) on
+ *     this same result screen and writer; onSaved(captureId) after Save writes it.
+ *     false (nothing opened) while a voice capture is recording, processing or unsaved
  *
  * Reuses the W129 `dictate` Cloud Function with mode='summarize'.
  */
@@ -54,6 +57,7 @@
   let _isRecording = false;
   let _isProcessing = false;
   let _currentResult = null; // { transcript, summary }
+  let _onSaved; // review()'s caller, told the capture id once Save writes it
 
   function isSupported() {
     return typeof window.MediaRecorder === 'function'
@@ -119,7 +123,22 @@
     document.removeEventListener('keydown', _escHandler);
     window.removeEventListener('pagehide', close);
     _currentResult = null;
+    _onSaved = null;
     _isProcessing = false;
+  }
+
+  // A typed note (NBD OS Pocket, 2026-11-09) gets this same result screen and writer.
+  function review(text, onSaved) {
+    const t = String(text == null ? '' : text).trim().slice(0, 4000);
+    // never over a voice capture still in hand: close() would stop and drop the recording,
+    // the clip being transcribed, or a summary not yet saved. The caller keeps the note.
+    if (!t || _isRecording || _isProcessing || _currentResult?.summary) return false;
+    close();
+    open();
+    document.getElementById('nbd-qc-title').textContent = 'File this note';   // typed, not talked (open() just built it)
+    _renderResult(_currentResult = { transcript: t, summary: null });
+    _onSaved = onSaved;
+    return true;
   }
 
   // W134 HIGH fix: previously gated on `!_isRecording` — meaning if
@@ -150,7 +169,7 @@
         '<div class="qcx-dflex-aicenter-jcspacebet">' +
           '<div>' +
             '<div class="qcx-fs11px-c94a3b8-ls008em">QUICK CAPTURE</div>' +
-            '<div class="qcx-fs20px-w700">Talk it out</div>' +
+            '<div id="nbd-qc-title" class="qcx-fs20px-w700">Talk it out</div>' +
           '</div>' +
           '<button type="button" id="nbd-qc-close" class="qcx-bgtranspar-bdnone-c94a3b8">×</button>' +
         '</div>' +
@@ -402,6 +421,7 @@
     const amounts = Array.isArray(summary.amounts) ? summary.amounts : [];
     const dates = Array.isArray(summary.dates) ? summary.dates : [];
     const category = summary.category || 'other';
+    const typed = !result.summary; // a Pocket note: no AI summary, so no category or transcript
     const here = currentCustomer();
 
     function listChip(label, items) {
@@ -416,8 +436,8 @@
     resultEl.innerHTML =
       '<div class="qcx-bg0a1424-r10px-p16px">' +
         '<div class="qcx-dflex-jcspacebet-aicenter">' +
-          '<div class="qcx-fs11px-c94a3b8-ls006em">SUMMARY</div>' +
-          '<div class="qcx-dinlinebl-p3px9px-bgrgba1617">' + escHtml(category) + '</div>' +
+          '<div class="qcx-fs11px-c94a3b8-ls006em">' + (typed ? 'NOTE' : 'SUMMARY') + '</div>' +
+          (typed ? '' : '<div class="qcx-dinlinebl-p3px9px-bgrgba1617">' + escHtml(category) + '</div>') +
         '</div>' +
         '<div class="qcx-fs14px-lh15-mb14px">' + escHtml(overview) + '</div>' +
 
@@ -452,10 +472,10 @@
       '<button type="button" id="nbd-qc-act-discard" class="qcx-wd100-p9px-bgtranspar">Discard</button>' +
 
       // Transcript reveal
-      '<details class="qcx-mt14px">' +
+      (typed ? '' : '<details class="qcx-mt14px">' +
         '<summary class="qcx-fs11px-c94a3b8-curpointer">Show full transcript</summary>' +
         '<div class="qcx-mt8px-p12px-bg0a1424">' + escHtml(result.transcript || '') + '</div>' +
-      '</details>';
+      '</details>');
 
     resultEl.style.display = 'block';
 
@@ -615,14 +635,15 @@
       // customer-page timeline.
       if (linkedLeadId) {
         try {
+          const s = _currentResult.summary;   // null: a typed Pocket note, a Note kept whole
           await fb.addDoc(
             fb.collection(fb.db, 'leads', linkedLeadId, 'activity'),
             {
               userId: uid,
               type: 'note',
               source: 'rep',
-              label: 'Voice capture',
-              text: _currentResult.summary?.overview || _currentResult.transcript?.slice(0, 200) || '',
+              label: s ? 'Voice capture' : 'Note',
+              text: s?.overview || _currentResult.transcript?.slice(0, s ? 200 : 4e3) || '',
               captureId: captureRef.id,
               createdAt: fb.serverTimestamp(),
             }
@@ -633,6 +654,7 @@
       }
 
       toast(linkedLeadId ? 'Saved & linked ✓' : 'Capture saved ✓', 'success');
+      try { _onSaved?.(captureRef.id); } catch (_) {}
       close();
     } catch (e) {
       console.warn('[NBDQuickCapture] save failed:', e);
@@ -733,6 +755,7 @@
     isSupported,
     open,
     close,
+    review,
     attachFloatingButton,
     // Pure, for tests (2026-10-13): who "this customer" is, and picker order.
     currentCustomer,
