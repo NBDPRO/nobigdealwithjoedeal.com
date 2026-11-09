@@ -1227,6 +1227,25 @@
   ],
   "fieldOverrides": [
     {
+      "_comment": "Call retention (2026-11-09, Call to Close Q7): callRetention sweeps collectionGroup('call_briefs').where('generatedAtMs','<',cutoff).orderBy('generatedAtMs').orderBy(documentId) daily to delete briefs older than 24 months. Single-field COLLECTION_GROUP index on generatedAtMs; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "call_briefs",
+      "fieldPath": "generatedAtMs",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
       "_comment": "Reel Studio cleanup (2026-10-04): reelCleanup sweeps collectionGroup('reel_media').where('createdAtMs','<',…) daily to expire intermediates and abandoned upload slots. Single-field COLLECTION_GROUP index on createdAtMs (the emulator never enforces it; prod would throw FAILED_PRECONDITION without it). COLLECTION asc/desc kept so default single-parent indexing is preserved.",
       "collectionGroup": "reel_media",
       "fieldPath": "createdAtMs",
@@ -1286,6 +1305,27 @@
     {
       "_comment": "Secure Document Link (2026-11-04): leads/{id}/docViews rows (device class, time with the page open, no IP / raw UA) carry expireAt = fetch time + 180 days; TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
       "collectionGroup": "docViews",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "_comment": "Call to Close P2 (2026-11-09): call_brief_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (call-brief.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "call_brief_quota",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "_comment": "Call to Close P2 (2026-11-09): call_transcribe_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (call-transcribe-now.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "call_transcribe_quota",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "_comment": "Call to Close P2 (2026-11-09): coach_line_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (coach-line.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "coach_line_quota",
       "fieldPath": "expireAt",
       "ttl": true,
       "indexes": []

@@ -68,6 +68,8 @@ const BRIEF = {
     stories: { value: 2, quote: 'it is a two story house' },
     layers: { value: 2, quote: 'two layers on there' },
     mentions: { gutters: true, chimney: true, skylight: false, decking: false },
+    // P2 (lane dmmap): a flashing chip needs the words that mention it.
+    mentionQuotes: { chimney: 'the flashing around the chimney', skylight: '' },
     saidQuantities: [{ text: 'about 28 squares', quote: 'about twenty-eight squares' }, { text: '3 pipes', quote: 'three pipes' }],
   },
   promises: [], followUp: null, objections: [], competitor: null, people: [], stage: null,
@@ -293,12 +295,28 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('the panel shows the square-count words beside the area, labelled not typed in', /twenty-eight squares/.test(CP().sqftHintHtml()) && /not typed in/i.test(CP().sqftHintHtml()));
     ok('the panel says prices come from the price book and nothing saves until Save', /price book/i.test(html) && /Save/.test(html));
     ok('gutters (mentioned) shows as a note, not a setting', /Gutters mentioned/.test(html));
-    // Design §5.1 wants a quote on each choice; a mention (chimney, skylight)
-    // is a yes/no in the brief, with no words kept, so its chip says so.
+    // Design §5.1 wants a quote on each choice. P2 (lane dmmap): the chimney
+    // and skylight chips now carry the words too (scope.mentionQuotes); a
+    // mention with no words is a hint line and never switched on.
     const chimChip = (html.split('data-arg="hasChimneyFlash"')[0].split('<span class="v2-call-chip"').pop() || '');
-    ok('a chip with the caller\'s words shows them; a mention chip says no exact words were kept', /title="“the best one you have”"/.test(html) && /title="Mentioned on the call; no exact words kept"/.test(chimChip), chimChip.slice(0, 160));
+    ok('a chip with the caller\'s words shows them, the chimney chip too', /title="“the best one you have”"/.test(html) && /title="“the flashing around the chimney”"/.test(chimChip), chimChip.slice(0, 160));
     ok('measurements and money untouched', moneySnapshot() === base3, [base3, moneySnapshot()]);
     ok('still no draft write after the full prefill', draftWrites().length === 0 && env.store[DRAFT_KEY] === undefined);
+
+    // P2 integration: a walkthrough brief (callId visit_<visitId>) opens the
+    // same strip, worded for the walkthrough (the sheet already is).
+    W.openEstimateV2Builder({ leadId: 'L3' });
+    await tick(450);
+    W.openEstimateV2Builder({ leadId: 'L3', callPrefill: { callId: 'visit_vWalk0000001', brief: clone(BRIEF) } });
+    await tick(600);
+    const vh = CP().panelHtml();
+    ok('P2 integration: a walkthrough\'s strip says "From the walkthrough" and "mentioned at the walkthrough", never "on the call"', /From the walkthrough/.test(vh) && /Gutters mentioned at the walkthrough/.test(vh) && !/on the call|From the call/.test(vh), vh.slice(0, 400));
+    ok('…and its footer says "each marked from the walkthrough", never "from call" (final review 2026-11-09)', /each marked from the walkthrough:/.test(vh) && !/from call/.test(vh), (vh.match(/v2-call-meta">[^<]*/) || [''])[0]);
+    ok('…and its square-count words say "Said at the walkthrough"', /^Said at the walkthrough/.test(CP().sqftHintHtml()), CP().sqftHintHtml());
+    const PFM = W.NBDEstimateCallPrefill;
+    const noWords = { scope: { mentions: { chimney: true }, mentionQuotes: { chimney: '' } } };
+    ok('…a walkthrough mention with no words says "mentioned at the walkthrough"', PFM && PFM.fromBrief(noWords, { visit: true }).hints.unsure.some((x) => /Chimney was mentioned at the walkthrough/.test(x)));
+    ok('…a call\'s line is unchanged', PFM && PFM.fromBrief(noWords).hints.unsure.some((x) => /Chimney was mentioned on the call/.test(x)));
     const tpls = CP().templates();
     ok('repair call: the panel offers repair templates (JobTemplates.search, jobType repair)', tpls.length > 0 && tpls.every((t) => { const x = W.JobTemplates.get(t.id); return x && x.jobType === 'repair'; }), tpls);
     ok('…shown as buttons that insert on a tap', (CP().panelHtml().match(/data-action="call-template"/g) || []).length === tpls.length);

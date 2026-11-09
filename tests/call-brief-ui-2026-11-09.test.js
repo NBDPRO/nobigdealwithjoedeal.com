@@ -208,7 +208,8 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
       ok(page + ' has no <script> tag for the sheet (it loads on tap)', !/call-brief-ui\.js/.test(read(page)) && !/call-brief\.css/.test(read(page)));
     }
-    ok('the stylesheet loads with the sheet through ScriptLoader', /CSS_HREF = '\/pro\/css\/call-brief\.css\?v=2'/.test(SRC) && /ScriptLoader\.load\(CSS_HREF\)/.test(SRC));
+    // 2026-11-09 P2 follow-up: v=3 (the footer Close's 44px rule).
+    ok('the stylesheet loads with the sheet through ScriptLoader', /CSS_HREF = '\/pro\/css\/call-brief\.css\?v=3'/.test(SRC) && /ScriptLoader\.load\(CSS_HREF\)/.test(SRC));
     const css = read('docs/pro/css/call-brief.css');
     ok('the sheet CSS: 44px targets, no transition:all, no hex outside var() fallbacks', /min-height: 44px/.test(css) && !/transition:\s*all/.test(css) && !(css.replace(/var\([^()]*(\([^()]*\))?[^()]*\)/g, '').match(/#[0-9a-f]{3,8}\b/gi)));
     ok('a bottom sheet on phones', /@media \(max-width: 600px\)[\s\S]*\.cb-sheet \{[^}]*margin: auto 0 0/.test(css));
@@ -330,6 +331,48 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     CB._showWith({ brief: clone(BRIEF), generatedAtMs: 100, decisions: old, call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
     const same = CB._render();
     ok('the same brief still shows its own decisions', !/data-cb-act="promise" data-i="0"/.test(same) && /cb-skipped/.test(same.split('data-cb-row="field:insCarrier"')[1].split('data-cb-row=')[0]));
+  }
+
+  console.log('\n12. The footer Close is a 44px target at every width (P2 follow-up, 2026-11-09)');
+  {
+    const { CB } = load();
+    CB._showWith({ brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+    const foot = (CB._render().split('<div class="cb-foot">')[1] || '');
+    ok('the footer carries the Close button', /class="btn btn-ghost" data-cb-act="close">Close<\/button>/.test(foot), foot.slice(0, 200));
+    // Outside every @media block, so desktop gets it too (the phone rule alone left it short).
+    const css = read('docs/pro/css/call-brief.css');
+    let flat = '', depth = 0, inMedia = false;
+    for (let i = 0; i < css.length; i++) {
+      if (!inMedia && css.startsWith('@media', i)) { inMedia = true; depth = 0; }
+      const ch = css[i];
+      if (inMedia) { if (ch === '{') depth++; else if (ch === '}' && --depth === 0) inMedia = false; continue; }
+      flat += ch;
+    }
+    ok('.cb-foot .btn has min-height: 44px outside any @media', /\.cb-foot \.btn \{[^}]*min-height: 44px/.test(flat));
+    ok('the stylesheet was cache-busted past v=2 for it', /CSS_HREF = '\/pro\/css\/call-brief\.css\?v=([3-9]|\d\d)'/.test(SRC));
+    const vOf = (f, re) => Number((re.exec(read(f)) || [])[1] || 0);
+    ok('every loader of call-brief-ui.js names v=4+', ['docs/pro/js/customer-calls.js', 'docs/pro/js/call-center-view.js', 'docs/pro/js/call-timeline.js'].every((f) => vOf(f, /call-brief-ui\.js\?v=(\d+)/) >= 4));
+  }
+
+  console.log('\n13. A merged call\'s brief says it read two recordings (P2 follow-up, 2026-11-09)');
+  {
+    const NOTE = /<div class="cb-note" role="note">This brief read 2 recordings \(the call and its redial\)\.<\/div>/;
+    const { CB, win } = load();
+    CB._showWith({ brief: clone(BRIEF), mergedFrom: 'cube_REDIAL0001', call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    const html = CB._render();
+    ok('a merged brief shows the one quiet note', NOTE.test(html) && (html.match(/cb-note/g) || []).length === 1, (html.match(/<div class="cb-note[^<]*/) || [])[0]);
+    const scroll = html.split('<div class="cb-scroll">')[1] || '';
+    ok('...at the top of the sheet, before the summary', scroll.search(NOTE) >= 0 && scroll.search(NOTE) < scroll.indexOf('Hail leak'));
+    CB._showWith({ brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('a single call\'s brief has no note', !/cb-note/.test(CB._render()));
+    CB._showWith({ brief: clone(BRIEF), call: Object.assign({}, CALL, { mergedFrom: 'cube_REDIAL0001' }), lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('the note follows the brief\'s answer, not the call doc (a cached brief made before the merge read one)', !/cb-note/.test(CB._render()));
+    // Through open(): the callable's answer carries mergedFrom.
+    win._httpsCallable = () => async () => ({ data: { brief: clone(BRIEF), generatedAtMs: 1, decisions: [], mergedFrom: 'cube_REDIAL0001' } });
+    await CB.open({ callId: 'cube_ABCDE12345', call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('open(): the callable\'s mergedFrom reaches the sheet', NOTE.test(CB._render()));
+    const css = read('docs/pro/css/call-brief.css');
+    ok('the note has a quiet style in the sheet CSS', /\.cb-note \{/.test(css));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

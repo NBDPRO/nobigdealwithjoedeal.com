@@ -198,6 +198,9 @@
     if (c.callType === 'spam' || c.taskDone === true) return false;
     // Parked with a date: not open until that day arrives (mirror of the server).
     if (parkedUntil(c, t)) return false;
+    // A merged redial (Call to Close P2) is carried by its first call, except a
+    // promise Jo made on it: a promise always surfaces (as on the Said-you'd-do deck).
+    if (c.mergedInto) return (toMs(c.startedAtMs) || 0) >= t - PROMISE_WINDOW && openJoPromise(c, t);
     // Jo, 2026-10-12: a promise he made stays on the list past the 14-day
     // window, up to 45 days, then rolls into ONE "old promises" review row
     // (oldPromiseCount) instead of silently dropping off.

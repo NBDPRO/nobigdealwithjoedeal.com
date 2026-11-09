@@ -18,7 +18,8 @@
  * A transcript already on the call is returned as it is (no Groq, no quota,
  * no switch needed to read it). Then the AI kill switch, the
  * CALL_CENTER_TRANSCRIBE_ENABLED gate and integrations/callCenter.paused; the
- * call must be one the schedule would pick (the owner's, stored, a
+ * call must be one the schedule would pick (its feed's: NBD's owner or an
+ * enabled tenant's, Call to Close P2; stored, a
  * recording, fewer than three failed tries, under the size limit, inside
  * today's audio allowance); not already being transcribed (the lease); and
  * the daily caps: USER_DAY_CAP per user and COMPANY_DAY_CAP per company per
@@ -44,6 +45,10 @@ const B = require('./call-brief-logic');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const CALLS = 'phone_calls';
 const QUOTA = 'call_transcribe_quota';
+// Quota day counters expire a week after the write (Firestore TTL on
+// expireAt, firestore.indexes.json; Call to Close P2): only today's count is
+// ever read, the week is for a support question.
+const QUOTA_TTL_MS = 7 * 86400000;
 const USER_DAY_CAP = 10;
 const COMPANY_DAY_CAP = 30;
 const MAX_TRIES = 3;  // = call-center-logic pickToTranscribe
@@ -52,14 +57,15 @@ const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Amer
 const enabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
 const refuse = (msg) => { throw new HttpsError('failed-precondition', msg); };
 
-/** Why the schedule would not pick this call, or ''. */
-function notTranscribable(call, cfg, nowMs) {
+/** Why the schedule would not pick this call, or ''. feed: the call's feed (NBD's when absent). */
+function notTranscribable(call, cfg, nowMs, feed) {
   const c = call || {};
   if (c.status === 'short') return 'Short calls (under 15 seconds) are not transcribed.';
   if (c.status === 'personal') return 'This call is marked personal, so it is not transcribed.';
   if (c.status === 'too_large' || (!(c.transcriptSaved === true && String(c.transcript || '').trim()) && (Number(c.sizeBytes) || 0) > L.GROQ_MAX_BYTES)) return 'This recording is too long to transcribe automatically.';
   if (c.status !== 'stored' || !c.storagePath) return 'This call has no recording to transcribe.';
-  if (c.userId !== CC._test.OWNER) return 'This call is not in the transcription queue.';
+  const fd = feed || CC._test.NBD_FEED;
+  if (c.userId !== fd.owner || (!fd.nbd && c.companyId !== fd.companyId)) return 'This call is not in the transcription queue.';
   if ((Number(c.transcribeAttempts) || 0) >= MAX_TRIES && !L.isProviderOutage(c.transcribeError)) return 'Transcription failed three times on this call. Listen to the recording instead.';
   const today = etYmd(nowMs);
   const used = (cfg.audioSecDay === today && Number(cfg.audioSecUsed)) || 0;
@@ -80,8 +86,9 @@ async function takeQuota(db, uid, companyId, nowMs, delta) {
     const cn = (c.exists && Number(c.data().n)) || 0;
     if (d > 0 && un >= USER_DAY_CAP) return 'user';
     if (d > 0 && cn >= COMPANY_DAY_CAP) return 'company';
-    tx.set(uRef, { n: Math.max(0, un + d), uid, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(cRef, { n: Math.max(0, cn + d), companyId, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const expireAt = new Date(Number(nowMs) + QUOTA_TTL_MS);
+    tx.set(uRef, { n: Math.max(0, un + d), uid, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
+    tx.set(cRef, { n: Math.max(0, cn + d), companyId, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
     return '';
   });
 }
@@ -119,7 +126,13 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
   const cs = await db.doc(CC._test.CONFIG).get();
   const cfg = cs.exists ? (cs.data() || {}) : {};
   if (cfg.paused === true) refuse('Call transcription is paused.');
-  const why = notTranscribable(call, cfg, nowMs);
+  // Call to Close P2 (multi-tenant feed): NBD's calls as before; another
+  // tenant's only while its feed may run (CALL_CENTER_MULTI_TENANT_ENABLED
+  // AND its config enabled, not paused). The day audio allowance stays the
+  // shared one on integrations/callCenter.
+  const feed = await CC.feedForCall(db, call);
+  if (!feed) refuse('Call transcription is not switched on for your company.');
+  const why = notTranscribable(call, cfg, nowMs, feed);
   if (why) refuse(why);
   if (leased(call, nowMs)) return { state: 'busy', message: MESSAGES.busy };
 
@@ -130,7 +143,7 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
 
   let out = null;
   try {
-    out = await CC.runTranscribe({ db, bucket, live: true, nowMs, only: { id: callId, by: 'now:' + auth.uid } });
+    out = await CC.runTranscribe({ db, bucket, live: true, nowMs, only: { id: callId, by: 'now:' + auth.uid }, feed: feed.nbd ? undefined : feed });
   } catch (e) {
     log.warn('call_transcribe_now_failed', { callId, err: e && e.message });
   }

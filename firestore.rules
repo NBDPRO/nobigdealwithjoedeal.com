@@ -1008,14 +1008,34 @@ service cloud.firestore {
       // quotes), never a sales rep who does not own the call. And only while
       // the call is still filed on this lead (a move deletes the old brief).
       // tests/firestore-rules.call-briefs.test.js.
+      // P2 walkthrough (2026-11-09): visit_<visitId> is the brief of an
+      // in-person walkthrough. Its audience comes from the brief's own
+      // server-written visitUid / companyId (the recorder, a platform admin,
+      // or a company_admin / manager of the customer's company; never a
+      // viewer or another rep), and only while the visit
+      // (users/{visitUid}/visit_captures/{visitId}) is still filed on this
+      // lead. The id must be visit_ + its stored visitId.
+      // tests/firestore-rules.call-briefs-visit.test.js.
       match /call_briefs/{callId} {
-        allow read: if isAuth() && notViewer()
-          && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('leadId', '') == leadId
-          && (isOwner(get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('userId', ''))
-              || isAdmin()
-              || (isCompanyStaff()
-                  && request.auth.token.get('companyId', null) != null
-                  && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('companyId', null) == request.auth.token.companyId));
+        allow read: if isAuth() && notViewer() && (
+          (!callId.matches('^visit_.*')
+            && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('leadId', '') == leadId
+            && (isOwner(get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('userId', ''))
+                || isAdmin()
+                || (isCompanyStaff()
+                    && request.auth.token.get('companyId', null) != null
+                    && get(/databases/$(database)/documents/phone_calls/$(callId)).data.get('companyId', null) == request.auth.token.companyId)))
+          || (callId.matches('^visit_[A-Za-z0-9_-]{8,64}$')
+            && resource.data.get('source', '') == 'visit'
+            && callId == 'visit_' + resource.data.get('visitId', '')
+            && resource.data.get('visitUid', '') is string
+            && resource.data.visitUid.matches('^[A-Za-z0-9_-]{1,128}$')
+            && (isOwner(resource.data.visitUid)
+                || isAdmin()
+                || (isCompanyStaff()
+                    && request.auth.token.get('companyId', null) != null
+                    && resource.data.get('companyId', null) == request.auth.token.companyId))
+            && get(/databases/$(database)/documents/users/$(resource.data.visitUid)/visit_captures/$(resource.data.visitId)).data.get('attachedLeadId', '') == leadId));
         allow write: if false;
       }
       match /notes/{noteId} {
@@ -4534,6 +4554,20 @@ service cloud.firestore {
         || (isCompanyReader()
             && request.auth.token.get('companyId', '') != ''
             && resource.data.get('companyId', '') == request.auth.token.get('companyId', '')));
+    }
+
+    // ── CALL CENTER FEED CONFIG (server-only) ──
+    // integrations/callCenter is NBD's call feed (Drive folder, cursor, day
+    // audio allowance); integrations/callCenter_{companyId} (Call to Close P2,
+    // 2026-11-09) is another tenant's: owner uid, Drive folder id, enabled.
+    // Every integrations/* doc is Cloud Functions only (admin SDK): no client,
+    // not the tenant's own owner, not the platform admin's browser, may read
+    // or write one. Enabling a tenant is a hand edit by Jo, after his lawyer
+    // reviews recording and consent (Q6). The default deny below already
+    // covered this; the block names it.
+    // tests/firestore-rules.call-feed.test.js.
+    match /integrations/{docId} {
+      allow read, write: if false;
     }
 
     // ── DEFAULT DENY ─────────────────────────────────

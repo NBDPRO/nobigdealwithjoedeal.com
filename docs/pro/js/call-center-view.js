@@ -23,6 +23,13 @@
  * a customer whose last call, 2-30 days ago, got no promise, follow-up or
  * stage move: Brief / Follow-up / Dismiss (callCenterAction rescueDismiss).
  *
+ * "Looks like one call" (Call to Close P2, 2026-11-09; call-merge-logic.js):
+ * two calls from one number, the second within 10 minutes of the first's
+ * end, get a Merge button (callCenterAction merge; Undo = unmerge). The
+ * redial (mergedInto) leaves every list (except Needs attention / Old
+ * promises while a promise of Jo's on it is open: never forget); the first
+ * call's card says so, still plays it, and its Call Brief reads both.
+ *
  * Reads mirror firestore.rules on phone_calls: own userId always, plus
  * companyId for company_admin / manager / viewer. Viewers get no buttons.
  * Lazy bundle 'callcenter' (script-loader.js); goTo('calls') calls init().
@@ -38,7 +45,7 @@
   var PROMISE_WINDOW_MS = 45 * 86400000;   // = NBDHomeAttention.PROMISE_WINDOW
   // readFailed: which reads came back as errors on the last load (QA 2026-10-13).
   // A list built from a failed read is NOT "nothing needs you"; render says so.
-  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {} };
+  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {}, mergedAway: {} };
 
   // Date / direction / sort filters (call-center-filters-logic.js, Jo 2026-10-21). They narrow the same list the tabs and the
   // search narrow; the choice is saved between visits. customOpen keeps the two date boxes showing while Jo picks.
@@ -84,10 +91,16 @@
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
   }
   // P1: "Transcribe now" on a stored call with no transcript, same roles
-  // (functions/call-transcribe-now.js re-checks).
+  // (functions/call-transcribe-now.js re-checks). P2: not while the call's
+  // tenant feed is off (txOff, kept by call-center.js syncTenantTxFlags).
   function txGate(c) {
     var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
-    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript && !c.txOff;
+  }
+  // P2: Merge / Undo merge, same roles (functions/call-center.js mergeAction re-checks both calls).
+  function canActOn(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')));
   }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
@@ -435,6 +448,61 @@
       '</div>';
   }
 
+  // ── Split calls (Call to Close P2) ─────────────────────────────────
+  // Pairs the open list suggests (call-merge-logic.js), indexed both ways.
+  var mergeCache = { rows: null, idx: {} };
+  function mergeIdx() {
+    var MG = window.NBDCallMerge;
+    if (!MG || isViewer()) return {};
+    if (mergeCache.rows !== state.calls) {
+      var idx = {};
+      try {
+        MG.candidates(state.calls).forEach(function (p) {
+          idx[p.primaryId] = { other: p.secondaryId, first: true, gapMs: p.gapMs };
+          idx[p.secondaryId] = { other: p.primaryId, first: false, gapMs: p.gapMs };
+        });
+      } catch (_) { idx = {}; }
+      mergeCache = { rows: state.calls, idx: idx };
+    }
+    return mergeCache.idx;
+  }
+  function clock(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+  function gapText(ms) { var m = Math.round(Math.max(0, Number(ms) || 0) / 60000); return m < 1 ? 'under a minute' : m + ' min'; }
+  // The calls plus the merged redials (the needs-you rule keeps a redial only while a promise of Jo's on it is open).
+  function withAway(rows, narrowed) {
+    var away = Object.keys(state.mergedAway).map(function (k) { return state.mergedAway[k]; });
+    if (narrowed) away = away.filter(fltPass);
+    return away.length ? rows.concat(away) : rows;
+  }
+  function mergeRow(c) {
+    if (!c || c.channel === 'text' || !canActOn(c)) return '';
+    if (c.mergedInto) {
+      var first = byId(c.mergedInto);
+      return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Merged into the ' + (first ? esc(clock(first.startedAtMs)) + ' ' : 'earlier ') +
+        'call. It shows here while your promise on it is open.</span></div>';
+    }
+    if (c.mergedFrom) {
+      // The redial may be older than the calls loaded: the card still says so and can split them.
+      var away = state.mergedAway[c.id] && state.mergedAway[c.id].id === c.mergedFrom ? state.mergedAway[c.id] : null;
+      // The brief reads both only on the rule call-brief.js briefInput keeps: the redial found, not on another customer, not personal.
+      var both = !!(away && (!away.leadId || away.leadId === c.leadId) && away.status !== 'personal' && away.callType !== 'personal' && away.callType !== 'spam');
+      return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Merged with the redial' + (away ? ' at ' + esc(clock(away.startedAtMs)) +
+        (away.durationSec ? ' (' + esc(fmtDur(away.durationSec)) + ')' : '') : '') + (both ? '. One call now: the brief reads both.' : ', but ' + (!away ? 'the redial is not in this list' : away.leadId && away.leadId !== c.leadId
+        ? 'it is filed on another customer' : 'it is marked personal or spam') + ', so the brief reads this call alone.') + '</span>' +
+        '<span class="pc-actions">' + (away && away.storagePath ? '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(away.id) + '">▶ Play the redial</button>' : '') +
+        '<button type="button" class="btn btn-ghost pc-play cc-suggest-btn" data-cc="unmerge" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Undo merge</button></span>' +
+        (away ? '<div class="pc-audio" data-cc-audio="' + esc(away.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(away.id) + '"></div>' : '') + '</div>';
+    }
+    var m = mergeIdx()[c.id];
+    var o = m ? byId(m.other) : null;
+    if (!o || !canActOn(o)) return '';
+    var note = m.first ? 'The line may have dropped: the same number called again at ' + clock(o.startedAtMs) + ', ' + gapText(m.gapMs) + ' after this call ended.'
+      : 'This may be a redial of the ' + clock(o.startedAtMs) + ' call from the same number, ' + gapText(m.gapMs) + ' after it ended.';
+    return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Looks like one call. Merge?</span><span class="cc-suggest-note">' + esc(note) +
+      ' Both recordings and notes stay; the redial leaves the list and the brief reads both.</span>' +
+      '<button type="button" class="btn btn-ghost pc-play cc-suggest-btn" data-cc="merge" data-id="' + esc(c.id) + '" data-arg="' + esc(o.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Merge into one call</button></div>';
+  }
+
   function renderCall(c, L) {
     if (c.channel === 'text') return renderTextDay(c, L);
     var lead = c.leadId ? L[c.leadId] : null;
@@ -487,7 +555,7 @@
       (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
       (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
       (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') +
-      fileRow(c) + suggestRow(c) +
+      fileRow(c) + suggestRow(c) + mergeRow(c) +
       '<div class="pc-actions">' + actions + '</div>' +
       '<div class="cc-attach" data-cc-attach="' + esc(c.id) + '" hidden></div>' +
       '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div>' +
@@ -519,7 +587,7 @@
       return '<li class="cc-group-call" data-call-id="' + esc(c.id) + '">' +
         '<div class="pc-meta">' + esc(when) + ' · ' + esc(kind) + (c.durationSec ? ' · ' + esc(fmtDur(c.durationSec)) : '') + (c.urgent ? ' · <b>urgent</b>' : '') + '</div>' +
         (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
-        (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
+        (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') + mergeRow(c) +
         (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button></div>' +
           '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' : '') +
         '</li>';
@@ -617,22 +685,24 @@
     var counts = {};
     // base = the list after the date / direction filters; the tab counts, the list and the people-grouping all read it.
     var base = FX && FX.isActive(flt) ? state.calls.filter(fltPass) : state.calls;
-    filtersNow().forEach(function (f) { counts[f[0]] = base.filter(f[2]).length; });
+    // A merged redial is off every list but the promise ones (Needs attention, Old promises) while it carries an open promise of Jo's.
+    var promiseBase = withAway(base, FX && FX.isActive(flt));
+    filtersNow().forEach(function (f) { counts[f[0]] = (f[0] === 'oldpromises' ? promiseBase : base).filter(f[2]).length; });
     // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
-    counts.attention = groupNeeds(base).length;
+    counts.attention = groupNeeds(promiseBase).length;
     // The sidebar badge and the "One at a time" deck are never narrowed by the filters: they are the real open list.
-    var navCount = base === state.calls ? counts.attention : groupNeeds(state.calls).length;
+    var navCount = base === state.calls ? counts.attention : groupNeeds(withAway(state.calls)).length;
     var badge = document.getElementById('callsNavBadge');
     if (badge) { badge.textContent = navCount ? String(navCount) : ''; badge.classList.toggle('dn', !navCount); }
     var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
-    var rows = base.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
+    var rows = (state.filter === 'attention' || state.filter === 'oldpromises' ? promiseBase : base).filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     if (FX && state.filter !== 'attention') rows = FX.sortCalls(rows, flt.sort);
     // what the filter line reports: the people shown on Needs attention, the rows everywhere else
     var shownN = rows.length;
     if (state.filter === 'attention') {
       var seen = {};
       rows.forEach(function (c) { seen[c.id] = true; });
-      shownN = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
+      shownN = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
     }
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title"><span aria-hidden="true">📞</span> Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
@@ -659,7 +729,7 @@
       // A person shows when any of their open calls matches the search.
       var hit = {};
       rows.forEach(function (c) { hit[c.id] = true; });
-      body = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
+      body = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
         .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
     }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
@@ -751,7 +821,12 @@
     return res && res.data;
   }
 
-  function byId(id) { return state.calls.filter(function (c) { return c.id === id; })[0]; }
+  function byId(id) {
+    var c = state.calls.filter(function (x) { return x.id === id; })[0];
+    if (c) return c;
+    // A merged redial is off every list but still plays from its first call's card.
+    return Object.keys(state.mergedAway).map(function (k) { return state.mergedAway[k]; }).filter(function (x) { return x.id === id; })[0];
+  }
 
   async function play(id) {
     var c = byId(id);
@@ -806,6 +881,12 @@
       if (action === 'rescueDismiss') undoToast('Dismissed from Needs a next step', function () { return act(id, 'rescueUndismiss'); });
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
+      if (action === 'merge' || action === 'unmerge') {
+        await load();
+        var keep = r && r.primaryId ? r.primaryId : id;
+        if (action === 'merge' && r && r.merged) undoToast('Merged into one call', function () { return act(keep, 'unmerge'); });
+        status(keep, action === 'merge' ? 'Merged. Draft from this call to read both.' : 'Split back into two calls.');
+      }
       return r;
     } catch (e) {
       delete state.busy[id];
@@ -878,7 +959,7 @@
   }
   function openDeck() {
     if (!window.NBDTriageDeck) return;
-    var groups = groupNeeds(state.calls).map(function (g) { return Object.assign({ id: g.key }, g); });
+    var groups = groupNeeds(withAway(state.calls)).map(function (g) { return Object.assign({ id: g.key }, g); });
     window.NBDTriageDeck.open({
       id: 'calls-attention',
       title: 'Needs attention',
@@ -1280,7 +1361,7 @@
     var tries = 0, refetch = 0;
     (function wait() {
       if (!state.loaded) { if (++tries <= 80) setTimeout(wait, 250); return; }
-      var t = focusTarget(state.calls, id, needsAttention);
+      var t = focusTarget(withAway(state.calls), id, needsAttention);
       // A cold-boot read can come back from the empty local cache (Firestore
       // still connecting): read again a few times before giving up.
       if (!t) {
@@ -1455,7 +1536,10 @@
     render();
     // Labels load beside the calls; either failing leaves the old rule.
     var got = await Promise.all([fetchCalls(), ensureLabels()]);
-    state.calls = got[0];
+    // A merged redial (mergedInto) is hidden from every list and count; its first call's card carries it.
+    var away = {};
+    state.calls = got[0].filter(function (c) { if (c.mergedInto && c.channel !== 'text') { away[c.mergedInto] = c; return false; } return true; });
+    state.mergedAway = away;
     state.loading = false; state.loaded = true;
     render();
     if (state.again) { state.again = false; load(); }
@@ -1487,12 +1571,19 @@
     Promise.resolve(window.ScriptLoader.load('/pro/js/call-rescue-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* the tab stays hidden */ });
   }
 
+  // "Looks like one call" reads call-merge-logic.js, fetched once when the
+  // Call Center opens (never at boot; no suggestion until it has arrived).
+  function loadMerge() {
+    if (window.NBDCallMerge || isViewer() || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
+    Promise.resolve(window.ScriptLoader.load('/pro/js/call-merge-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* no suggestions */ });
+  }
+
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
   async function openBrief(id, tx) {
     var c = byId(id);
     if (!c) return;
     try {
-      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=2');
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=4');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     var lead = c.leadId ? leadsById()[c.leadId] : null;
@@ -1517,6 +1608,8 @@
     else if (a === 'brief') openBrief(id);
     else if (a === 'tx') openBrief(id, 1);
     else if (a === 'rescuedismiss') act(id, 'rescueDismiss');
+    else if (a === 'merge') act(id, 'merge', { withId: b.getAttribute('data-arg') });
+    else if (a === 'unmerge') act(id, 'unmerge');
     else if (a === 'autobrief') toggleAutoBrief();
     else if (a === 'label') {
       var lc = byId(id);
@@ -1575,7 +1668,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadAutoBrief(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadMerge(); loadAutoBrief(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,

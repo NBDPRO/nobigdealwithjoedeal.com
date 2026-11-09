@@ -76,6 +76,9 @@ async function aiAllowed(db, auth) {
   return !!(s && s.plan && s.plan !== 'free' && (s.status === 'active' || s.status === 'trialing'));
 }
 
+// Quota day counters expire a week after the write (Firestore TTL on
+// expireAt, firestore.indexes.json; Call to Close P2, 2026-11-09).
+const QUOTA_TTL_MS = 7 * 86400000;
 /** Per-user and per-company daily caps on fresh lines, in one transaction (false = over a cap). */
 async function takeQuota(db, uid, companyId, nowMs) {
   const ymd = AiSpend.etYmd(nowMs);
@@ -86,8 +89,9 @@ async function takeQuota(db, uid, companyId, nowMs) {
     const nu = (u.exists && Number(u.data().n)) || 0;
     const nc = (c.exists && Number(c.data().n)) || 0;
     if (nu >= USER_DAILY_CAP || nc >= COMPANY_DAILY_CAP) return false;
-    tx.set(uRef, { n: nu + 1, uid, day: ymd, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(cRef, { n: nc + 1, companyId, day: ymd, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const expireAt = new Date(Number(nowMs) + QUOTA_TTL_MS);
+    tx.set(uRef, { n: nu + 1, uid, day: ymd, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
+    tx.set(cRef, { n: nc + 1, companyId, day: ymd, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
     return true;
   });
 }

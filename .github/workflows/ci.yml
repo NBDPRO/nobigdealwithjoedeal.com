@@ -698,11 +698,21 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-callbrief-test 'node firestore-rules.call-briefs.test.js'
+      # Call to Close P2 (2026-11-09): leads/{id}/call_briefs/visit_<visitId> — a walkthrough's brief, read by its recorder / same-company company_admin / manager / admin while the visit is filed on the lead. Own file (positive controls inside).
+      - name: Run walkthrough call-briefs rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-cbvisit-test 'node firestore-rules.call-briefs-visit.test.js'
       # Call to Close P1 (2026-11-09): companies/{id}/settings/callBrief — the opt-in auto-brief switch, owner / company_admin writes only. Own file (positive controls inside).
       - name: Run call-brief settings rules tests under emulator
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-cbsettings-test 'node firestore-rules.call-brief-settings.test.js'
+      # Call to Close P2 (2026-11-09): integrations/callCenter_{companyId} — another tenant's call feed config (owner uid, Drive folder, enabled); server-only. Own file (positive controls inside).
+      - name: Run call-feed config rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-callfeed-test 'node firestore-rules.call-feed.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.

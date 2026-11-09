@@ -54,6 +54,12 @@
  *      tag per objection / named competitor with the words said and a
  *      playbook reply from fixed phrases (PLAYBOOK; a tenant may override a
  *      reply through companyProfile.callPlaybook), copy-only.
+ *  11. Who decides (P2, §6 #5; Q4: kept in the brief, never lead fields):
+ *      the people the call says must agree, approve or sign, labelled with
+ *      the words used for them ("my husband", "the HOA") and the quote.
+ *      Heard on the call (no speaker labels), copy-only, nothing written.
+ *  One filled button (P2): the act being confirmed, else the follow-up
+ *  message's send, else a one-tap stage move, else the drafts button.
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
  * signed, and no stage moves without a tap. Everything shown is escaped.
  *
@@ -64,6 +70,14 @@
  * transcribe() is the cards' "Transcribe now" (callTranscribeNow), in this
  * same lazy file so the cards stay small.
  *
+ * P2 (2026-11-09, design §6 #11): openVisit() is the same sheet for an
+ * in-person walkthrough (a visit recording filed on the customer), from the
+ * timeline's "Brief this walkthrough" (call-timeline.js). Every callable gets
+ * { visitId, visitUid } instead of a callId; there is no "This call" /
+ * handled and no promise Add (a walkthrough's promises were filed as tasks
+ * when it was attached); the proposal's list says "From the walkthrough" and
+ * holds the scope facts whose words were said (scope.visitFacts).
+ *
  * No inline handlers (CSP script-src-attr 'none'): one delegated listener.
  */
 (function () {
@@ -71,7 +85,7 @@
   if (window.NBDCallBrief) return;
 
   var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
-  var CSS_HREF = '/pro/css/call-brief.css?v=2';
+  var CSS_HREF = '/pro/css/call-brief.css?v=3';
   var FOLLOWUP_JS = '/pro/js/followup-deck.js?v=2';
   var CTC_JS = '/pro/js/call-to-close-logic.js?v=1';
   var INSURANCE_WARN = 'This makes the job an insurance job. Kentucky notices and the cancellation form will apply.';
@@ -169,16 +183,21 @@
     if (brief.followUp.retype === true) ch.retype = true;
     return ch;
   }
-  /** "From the call" scope lines (shown, never seeded into a list field). */
-  function scopeHints(brief) {
+  /** "From the call" scope lines (shown, never seeded into a list field). on: 'on the call' | 'at the walkthrough'. */
+  function scopeHints(brief, on) {
     var s = (brief && brief.scope) || {};
+    var where = on || 'on the call';
     var out = [];
     if (s.service && s.service.value) out.push(s.service.value);
     var m = s.mentions || {};
-    ['gutters', 'chimney', 'skylight', 'decking'].forEach(function (k) { if (m[k] === true) out.push(k.charAt(0).toUpperCase() + k.slice(1) + ' mentioned on the call'); });
-    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said on the call' + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
+    ['gutters', 'chimney', 'skylight', 'decking'].forEach(function (k) { if (m[k] === true) out.push(k.charAt(0).toUpperCase() + k.slice(1) + ' mentioned ' + where); });
+    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said ' + where + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
     if (s.tierInterest && s.tierInterest.value) out.push('Asked about the ' + s.tierInterest.value + ' package');
-    (s.saidQuantities || []).forEach(function (q) { out.push('Said: "' + q.quote + '"'); });
+    var said = {};
+    if (s.stories && s.stories.quote) said[s.stories.quote] = true;   // already the "N-story house" line
+    (s.saidQuantities || []).forEach(function (q) { said[q.quote] = true; out.push('Said: "' + q.quote + '"'); });
+    // P2: a walkthrough's scope facts whose words were said (server-grounded), each once.
+    (s.visitFacts || []).forEach(function (f) { if (f && f.quote && !said[f.quote]) { said[f.quote] = true; out.push('Said: "' + f.quote + '"'); } });
     return out;
   }
   // The damage words the seed may say; anything else the model wrote is left out.
@@ -255,17 +274,18 @@
    * body } or null when nothing was accepted. Fixed phrases; the first name
    * and the company come from the CRM, the dates from what was accepted.
    */
-  function followUpDraft(items, lead, company) {
+  function followUpDraft(items, lead, company, what) {
     var lines = [];
     (items || []).forEach(function (it) { var l = msgLine(it); if (l && lines.indexOf(l) === -1) lines.push(l); });
     if (!lines.length) return null;
     var first = String((lead && lead.firstName) || '').trim().split(/\s+/)[0].slice(0, 30);
     var co = String(company || '').trim().slice(0, 80);
     var hi = first ? 'Hi ' + first + ',' : 'Hi,';
+    var thanks = what === 'visit' ? 'thanks for having us out' : 'thanks for the call';
     return {
-      text: hi + ' thanks for the call. ' + lines.join(' ') + (co ? ' \u2014 ' + co + (/[.!?]$/.test(co) ? '' : '.') : '') + ' Reply STOP to opt out.',
+      text: hi + ' ' + thanks + '. ' + lines.join(' ') + (co ? ' \u2014 ' + co + (/[.!?]$/.test(co) ? '' : '.') : '') + ' Reply STOP to opt out.',
       subject: MSG_SUBJECT,
-      body: hi + '\n\nThanks for the call. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
+      body: hi + '\n\n' + thanks.charAt(0).toUpperCase() + thanks.slice(1) + '. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
         '\n\nIf anything changes, reply here or give me a call.' + (co ? '\n\n' + co : ''),
     };
   }
@@ -283,12 +303,33 @@
     }
     return out;
   }
+  // Who decides (P2): a role's plain words when the call gave no name or label.
+  var ROLE_WORDS = { owner: 'The homeowner', spouse: 'Spouse or partner', tenant: 'The tenant', adjuster: 'The adjuster', other: 'Someone else' };
+  /** The deciders the brief heard (pure): [{ label, quote, unsure }], said > name > role. */
+  function whoDecides(brief) {
+    var out = [], seen = {};
+    ((brief && Array.isArray(brief.people)) ? brief.people : []).forEach(function (p) {
+      if (!p || p.decides !== true || !String(p.quote || '').trim()) return;
+      var label = String(p.said || '').trim() || String(p.name || '').trim() || ROLE_WORDS[p.role] || ROLE_WORDS.other;
+      var key = label.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push({ label: label, quote: String(p.quote), unsure: p.unsure === true });
+    });
+    return out.slice(0, 6);
+  }
+  function whoLine(d) { return d.label + ': \u201c' + d.quote + '\u201d'; }
   function profile() { return window._companyProfile || {}; }
   function tenantName() { var p = profile(), b = p.brand || {}; return String(b.name || p.companyName || p.name || '').trim(); }
 
   // ── state ──────────────────────────────────────────────────────────────
-  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange }
+  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange, visit? }
   var dlg = null;
+  // P2 walkthrough: S.visit = { visitId, visitUid } (S.callId is visit_<visitId>, the brief's id).
+  function isVisit() { return !!(S && S.visit); }
+  function src() { return isVisit() ? 'walkthrough' : 'call'; }
+  /** What names this brief on every callable: the call, or the walkthrough. */
+  function ids() { return isVisit() ? { visitId: S.visit.visitId, visitUid: S.visit.visitUid } : { callId: S.callId }; }
 
   // Decisions are keyed by index ('promise:1', 'field:k'), so only the ones
   // made on the brief shown count (gen = its generatedAtMs); a regenerated
@@ -345,7 +386,30 @@
 
   // ── render ─────────────────────────────────────────────────────────────
   function btn(label, act, extra, cls) {
+    // One filled button per sheet (P2): a btn-orange ask is filled only for the act render() picked.
+    if (cls === 'btn-orange' && S && S.primary !== act) cls = 'btn-ghost';
     return '<button type="button" class="btn ' + (cls || 'btn-ghost') + '" data-cb-act="' + esc(act) + '"' + (extra || '') + '>' + esc(label) + '</button>';
+  }
+  /**
+   * The sheet's one filled button: the Yes of the confirm being asked, else
+   * the follow-up message's send (when it renders), else a one-tap stage
+   * move, else the drafts card's button (Draft proposal on the customer page,
+   * Start estimate on the Call Center).
+   */
+  function primaryAct() {
+    var c = S.confirm || '';
+    if (c === 'summary') return 'summary-yes';
+    if (c === 'stage') return 'stage-yes';
+    if (/^field:/.test(c)) return 'accept-yes';
+    if (/^promise:/.test(c)) return 'promise-yes';
+    var draft = msgDraftNow();
+    if (draft) {
+      var ch = msgChannel(draft);
+      if (ch === 'text' ? textConsent(S.lead).ok : emailOk(S.lead).ok) return ch === 'text' ? 'msg-text' : 'msg-email';
+    }
+    var plan = S.brief && S.brief.stage ? stagePlanNow() : null;
+    if (plan && plan.kind === 'one-tap' && stageWriter()) return 'stage-move';
+    return S.page === 'customer' ? 'proposal' : 'estimate';
   }
   function quoteHtml(q, unsure) {
     if (!q) return '';
@@ -366,7 +430,7 @@
     var filer = c.attachedBy || c.movedBy;
     var filed = filer ? (filer === uid() ? 'Filed by you' : 'Filed by a teammate') : '';
     var meta = [filed, when, c.durationSec ? fmtDur(c.durationSec) : ''].filter(Boolean).join(' · ');
-    var who = S.mode === 'tx' ? 'Transcribe now: ' + (S.leadId ? leadName(S.lead) : (c.contactName || 'this call')) : 'From this call: ' + leadName(S.lead);
+    var who = S.mode === 'tx' ? 'Transcribe now: ' + (S.leadId ? leadName(S.lead) : (c.contactName || 'this call')) : 'From this ' + src() + ': ' + leadName(S.lead);
     return '<div class="cb-head"><div><h2 class="cb-title" id="cbTitle">' + esc(who) + '</h2>' +
       '<div class="cb-meta">' + esc(meta) + (c.urgent ? ' <span class="cb-badge is-urgent">Urgent</span>' : '') + '</div></div>' +
       '<button type="button" class="btn btn-ghost cb-close" data-cb-act="close" aria-label="Close">✕</button></div>';
@@ -376,6 +440,8 @@
     var b = S.brief || {};
     var t = b.transcriptOk || {};
     var out = '';
+    // P2 merge: the brief's answer names the redial it read too (never the call doc: a brief cached before the merge read one).
+    if (S.mergedFrom && !isVisit()) out += '<div class="cb-note" role="note">This brief read 2 recordings (the call and its redial).</div>';
     if (t.reliable === false) out += '<div class="cb-banner is-danger" role="status">Transcript unreliable, listen to the recording. Only the summary is shown' + (t.why ? ': ' + esc(t.why) : '.') + '</div>';
     if (t.cutOff) out += '<div class="cb-banner" role="status">The transcript ends mid-call.</div>';
     if (b.flags && b.flags.injection) out += '<div class="cb-banner" role="status">Part of this call reads like instructions to a computer. Nothing was taken from those words.</div>';
@@ -389,7 +455,7 @@
     var settled = isSettled(item);
     var confirming = S.confirm === item;
     return '<div class="cb-sec" role="group" aria-labelledby="cbSumH"><h3 class="cb-sec-title" id="cbSumH">Summary</h3>' +
-      '<label class="cb-field-lbl" for="cbSummary">What the call was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
+      '<label class="cb-field-lbl" for="cbSummary">What the ' + src() + ' was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
       '<textarea class="cb-text" id="cbSummary" data-cb-input="summary"' + (settled ? ' disabled' : '') + '>' + esc(S.summaryText != null ? S.summaryText : (sm.text || '')) + '</textarea>' +
       ((sm.quotes || []).length ? '<div class="cb-quotes">' + sm.quotes.map(function (q, i) { return quoteHtml(q, (sm.unsure || []).indexOf(i) !== -1); }).join('') + '</div>' : '') +
       (settled ? statusFor(item) : confirming
@@ -401,7 +467,7 @@
   function renderFields() {
     var rows = fieldRows(S.brief, S.lead);
     if (!rows.length) return '';
-    return '<div class="cb-sec" role="group" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the ' + src() + '</h3>' +
       '<div class="cb-meta">Fills empty fields only, one at a time. Nothing is filled until you tap Accept.</div>' +
       rows.map(function (r) {
         var item = 'field:' + r.key;
@@ -435,6 +501,12 @@
   function renderPromises() {
     var ps = (S.brief && S.brief.promises) || [];
     if (!ps.length) return '';
+    // A walkthrough's promises were filed as tasks when it was attached (visit-capture.js): shown, never added twice.
+    if (isVisit()) {
+      return '<div class="cb-sec" role="group" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises at the walkthrough</h3>' +
+        '<div class="cb-meta">These are already tasks on this customer, made when the walkthrough was filed. Check them in Tasks.</div>' +
+        ps.map(function (p) { return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(p.text) + '</span>' + (p.dueSpoken ? '<span class="cb-meta">' + esc(p.dueSpoken) + '</span>' : '') + '</div>' + quoteHtml(p.quote, p.unsure === true) + '</div>'; }).join('') + '</div>';
+    }
     return '<div class="cb-sec" role="group" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises on the call</h3>' +
       '<div class="cb-meta">Check who promised it. Adding a promise makes a dated task and marks the call handled. Not handled puts the call back; the task stays until it is done.</div>' +
       ps.map(function (p, i) {
@@ -502,7 +574,7 @@
   function renderObjections() {
     var tags = objectionTags(S.brief, profile().callPlaybook);
     if (!tags.length) return '';
-    return '<div class="cb-sec" role="group" aria-labelledby="cbObjH"><h3 class="cb-sec-title" id="cbObjH">Objections on the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbObjH"><h3 class="cb-sec-title" id="cbObjH">Objections ' + (isVisit() ? 'at the walkthrough' : 'on the call') + '</h3>' +
       '<div class="cb-meta">What they pushed back on, in their words, with a reply you can copy. Kept in this brief only: nothing goes on the customer and nothing is sent.</div>' +
       tags.map(function (t, i) {
         return '<div class="cb-card"><div class="cb-row-head"><span class="cb-tag">' + esc(t.label) + '</span></div>' + quoteHtml(t.quote) +
@@ -511,13 +583,28 @@
       }).join('') + '</div>';
   }
 
-  function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName()); }
+  function renderWhoDecides() {
+    var list = whoDecides(S.brief);
+    if (!list.length) return '';
+    var copied = S.dmCopied || {};
+    var heard = isVisit() ? 'Heard at the walkthrough' : 'Heard on the call';
+    return '<div class="cb-sec" role="group" aria-labelledby="cbWhoH"><h3 class="cb-sec-title" id="cbWhoH">Who decides</h3>' +
+      '<div class="cb-meta">' + heard + ': who has a say, in the words that were said. The recording has no speaker labels, so check it. Kept in this brief only: it is never written to the customer and nothing is sent.</div>' +
+      list.map(function (d, i) {
+        return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(d.label) + '</span></div>' + quoteHtml(d.quote, d.unsure) +
+          '<div class="cb-acts">' + btn('Copy', 'dm-copy', ' data-i="' + i + '" aria-label="' + esc('Copy: ' + d.label) + '"') + '</div>' +
+          (copied[i] ? '<div class="cb-done" role="status">' + esc(copied[i]) + '</div>' : '') + '</div>';
+      }).join('') +
+      '<div class="cb-acts">' + btn('Copy list', 'dm-copy-all', ' aria-label="Copy the Who decides list"') + '</div>' + (copied.all ? '<div class="cb-done" role="status">' + esc(copied.all) + '</div>' : '') + '</div>';
+  }
+
+  function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName(), isVisit() ? 'visit' : ''); }
   function msgChannel(draft) { return S.msg.ch || (textConsent(S.lead).ok || !emailOk(S.lead).ok ? 'text' : 'email'); }
   function renderMessage() {
     var draft = msgDraftNow();
     var body;
     if (!draft) {
-      body = '<div class="cb-meta">Accept a promise, the follow-up date or the adjuster meeting above, then a message built from them shows here in fixed wording you can edit.</div>';
+      body = '<div class="cb-meta">Accept ' + (isVisit() ? '' : 'a promise, ') + 'the follow-up date or the adjuster meeting above, then a message built from them shows here in fixed wording you can edit.</div>';
     } else {
       var ch = msgChannel(draft);
       var toggle = '<div class="cb-toggle" role="radiogroup" aria-label="Send it as">' +
@@ -579,7 +666,7 @@
     if (b.transcriptOk && b.transcriptOk.reliable === false) return '';
     var wk = b.fields && b.fields.workKind && b.fields.workKind.value;
     var label = wk === 'repair' ? 'Start repair quote' : 'Start estimate';
-    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons the caller named, each marked from call. ' +
+    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons ' + (isVisit() ? 'named at the walkthrough, each marked from the walkthrough. ' : 'the caller named, each marked from call. ') +
       (wk === 'repair' ? 'Repair templates are offered for a quick quote. ' : '') +
       'Measurements and prices come from you and your price book; nothing is saved until you press Save.</div>' +
       (S.err && S.err['draft:estimate'] ? '<div class="cb-err" role="alert">' + esc(S.err['draft:estimate']) + '</div>' : '') +
@@ -587,17 +674,18 @@
   }
 
   function renderDrafts() {
-    var hints = scopeHints(S.brief);
+    var hints = scopeHints(S.brief, isVisit() ? 'at the walkthrough' : '');
     var seed = projectSeed(S.brief, S.lead);
     var body = estimateDraftHtml() + (S.page === 'customer'
-      ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this call' : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
-        (hints.length ? '<div class="cb-meta">From the call (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
+      ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this ' + src() : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
+        (hints.length ? '<div class="cb-meta">From the ' + src() + ' (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
         '<div class="cb-acts">' + btn('Draft proposal', 'proposal', '', 'btn-orange') + '</div>'
       : '<div class="cb-acts"><a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to draft a proposal</a></div>');
     return '<div class="cb-sec" role="group" aria-labelledby="cbDraftH"><h3 class="cb-sec-title" id="cbDraftH">Drafts</h3><div class="cb-card">' + body + '</div></div>';
   }
 
   function renderHandled() {
+    if (isVisit()) return '';
     var c = S.call || {};
     var item = 'handled';
     var body = c.handledAtMs || isSettled(item)
@@ -612,13 +700,16 @@
     if (S.mode === 'tx') body = S.loading ? '<div class="cb-loading" role="status">Transcribing this call now. A long call can take a minute or two.</div>'
       : S.error ? '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>'
       : '<div class="cb-banner" role="status">' + esc(S.txMsg) + '</div>';
-    else if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
+    else if (S.loading) body = '<div class="cb-loading" role="status">' + (isVisit() ? 'Reading the walkthrough…' : 'Reading the call… Notes arrive 30-60 minutes after the call.') + '</div>';
     else if (S.error) body = '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>';
     // One sheet, in the order a person works a call (P1 integration): what was
     // said, the fields, promises and follow-up date, this call, the stage,
     // the objections, then what to send or start (follow-up message, estimate,
     // proposal). Drafts stays last: its card ends at the sheet's foot.
-    else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderObjections() + renderMessage() + renderDrafts();
+    else {
+      S.primary = primaryAct();
+      body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderObjections() + renderWhoDecides() + renderMessage() + renderDrafts();
+    }
     dlg.innerHTML = renderHeader() + '<div class="cb-scroll">' + body + '</div>' +
       '<div class="cb-foot"><span class="cb-meta">Nothing here is sent, priced or signed.</span>' + btn('Close', 'close') + '</div>';
   }
@@ -635,7 +726,7 @@
   }
   function errText(e) { return (e && e.message ? String(e.message).replace(/^FirebaseError:\s*/, '') : '') || 'That did not work. Try again.'; }
   async function decide(item, decision, extra) {
-    return callable('callBriefDecide', Object.assign({ callId: S.callId, item: item, decision: decision }, extra || {}));
+    return callable('callBriefDecide', Object.assign(ids(), { item: item, decision: decision }, extra || {}));
   }
   function mark(item, decision, label) { S.done[item] = { decision: decision, label: label }; if (S.err) delete S.err[item]; }
   function fail(item, e) { delete S.done[item]; S.err = S.err || {}; S.err[item] = errText(e); }
@@ -704,6 +795,7 @@
       try { await decide(it, 'skip'); mark(it, 'skip'); } catch (e) { fail(it, e); }
       render(); return;
     }
+    if (isVisit() && /^(who|promise|promise-yes|promise-skip|handled)$/.test(a)) return;
     if (a === 'who') { setWho(i, b.getAttribute('data-who')); return; }
     if (a === 'promise') { S.confirm = 'promise:' + i; render(); return; }
     if (a === 'promise-skip') {
@@ -718,6 +810,10 @@
       try {
         var data = { id: S.callId, action: 'promise', kind: ps.kind, why: p.text };
         if (ps.dueYmd) data.dueYmd = ps.dueYmd;
+        // P2: the server refuses a retype promise's heard-as date unless it
+        // was typed. A retype date box starts empty, so a date in it was typed.
+        data.briefPromise = i;
+        if (p.retype === true && ps.dueYmd) data.retyped = true;
         if (ps.kind === 'waiting') data.waitingOn = 'customer';
         var res = await addPromise(data);
         ps.done = true;
@@ -770,6 +866,15 @@
       S.objCopied[i] = (await copyText(tag.reply)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
       render(); return;
     }
+    if (a === 'dm-copy' || a === 'dm-copy-all') {
+      var who = whoDecides(S.brief);
+      var one = a === 'dm-copy' ? who[i] : null;
+      if (a === 'dm-copy' && !one) return;
+      var txt = one ? whoLine(one) : 'Who decides (' + (isVisit() ? 'heard at the walkthrough' : 'heard on the call') + '):\n' + who.map(function (d) { return '- ' + whoLine(d); }).join('\n');
+      S.dmCopied = S.dmCopied || {};
+      S.dmCopied[one ? i : 'all'] = (await copyText(txt)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
+      render(); return;
+    }
     if (a === 'estimate') { startEstimate(); }
   }
 
@@ -788,12 +893,12 @@
     if (!mode || !how) return;
     var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : '').trim().slice(0, 300) : '';
     if (plan.needsReason && !reason) { S.err = S.err || {}; S.err['stage-move'] = 'Give a reason first.'; render(); return; }
-    var callId = S.callId, leadId = S.leadId, onChange = S.onChange, from = currentStage();
+    var who = ids(), leadId = S.leadId, onChange = S.onChange, from = currentStage();
     var opts = { asked: mode === 'confirmed' };
     if (reason) opts.lostReason = reason;
     // The page's Undo toast: log it, so decisions[] never keeps a bare accept.
     opts.onUndone = function () {
-      callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'skip', undone: true }).catch(function () { /* the move back is saved */ });
+      callable('callBriefDecide', Object.assign({}, who, { item: 'stage', decision: 'skip', undone: true })).catch(function () { /* the move back is saved */ });
     };
     close();
     var moved = false;
@@ -807,7 +912,7 @@
       if (typeof window.showToast === 'function') window.showToast('The stage did not move: ' + errText(e), 'error');
     }
     if (!moved) return;
-    callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'accept', value: plan.key, mode: mode, fromStage: from }).catch(function () { /* the move itself is saved */ });
+    callable('callBriefDecide', Object.assign({}, who, { item: 'stage', decision: 'accept', value: plan.key, mode: mode, fromStage: from })).catch(function () { /* the move itself is saved */ });
     if (typeof onChange === 'function') { try { onChange(); } catch (_) { /* the card reloads itself */ } }
   }
 
@@ -928,7 +1033,8 @@
   async function draftProposal() {
     var brief = S.brief, lead = S.lead, leadId = S.leadId;
     var seed = projectSeed(brief, lead);
-    var hints = scopeHints(brief);
+    var fromWhat = 'From the ' + src();
+    var hints = scopeHints(brief, isVisit() ? 'at the walkthrough' : '');
     decide('draft:proposal', 'accept', { value: seed }).catch(function () {});
     close();
     try {
@@ -954,7 +1060,7 @@
       if (wrap && hints.length && !wrap.querySelector('.cb-from-call')) {
         var box = document.createElement('div');
         box.className = 'cb-from-call';
-        box.innerHTML = '<strong>From the call</strong> (copy what fits):<ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>';
+        box.innerHTML = '<strong>' + esc(fromWhat) + '</strong> (copy what fits):<ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>';
         wrap.appendChild(box);
       }
     })();
@@ -1052,14 +1158,32 @@
     if (!x.callId) return;
     S = { callId: x.callId, call: Object.assign({}, x.call || {}), lead: Object.assign({}, x.lead || {}), leadId: x.leadId || (x.call && x.call.leadId) || '',
       page: x.page === 'customer' ? 'customer' : 'calls', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], msg: {}, objCopied: {}, onChange: x.onChange };
+    return fetchBrief();
+  }
+
+  /**
+   * P2: open the sheet for one walkthrough. o: { visitId, visitUid, visit?
+   * (startedAtMs, durationSec), lead?, leadId?, page?, onChange? }; lead,
+   * leadId and page default to the customer page's (the timeline's button
+   * passes only the ids, to keep the boot-loaded code small).
+   */
+  async function openVisit(o) {
+    var x = o || {};
+    if (!x.visitId || !x.visitUid) return;
+    S = { callId: 'visit_' + x.visitId, visit: { visitId: String(x.visitId), visitUid: String(x.visitUid) }, call: Object.assign({}, x.visit || {}), lead: Object.assign({}, x.lead || window._leadDoc || {}), leadId: x.leadId || window._customerId || '',
+      page: x.page === 'calls' ? 'calls' : 'customer', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], msg: {}, objCopied: {}, onChange: x.onChange };
+    return fetchBrief();
+  }
+
+  async function fetchBrief() {
     var mine = S;
     show();
     var logic = loadLogic();
     try {
-      var r = await callable('callBrief', { callId: x.callId });
+      var r = await callable('callBrief', ids());
       await logic;
       if (S !== mine) return;
-      S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
+      S.brief = r && r.brief; S.mergedFrom = r && r.mergedFrom ? String(r.mergedFrom) : ''; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
       if (!S.brief) S.error = 'The brief did not come back. Try again in a minute.';
       else initPromises();
     } catch (e) {
@@ -1097,8 +1221,8 @@
   /** Show a brief already in hand (no server call): the screenshot walk and the tests. */
   function showWith(o) {
     var x = o || {};
-    S = { callId: x.callId || 'cube_PREVIEW', call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
-      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
+    S = { callId: x.visit ? 'visit_' + x.visit.visitId : (x.callId || 'cube_PREVIEW'), visit: x.visit || null, call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
+      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, mergedFrom: x.mergedFrom ? String(x.mergedFrom) : '', onChange: null };
     initPromises();
     show();
     var mine = S;
@@ -1107,9 +1231,9 @@
   }
 
   window.NBDCallBrief = {
-    open: open, transcribe: transcribe, close: close, _showWith: showWith,
+    open: open, openVisit: openVisit, transcribe: transcribe, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
-    _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, PLAYBOOK: PLAYBOOK,
+    _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, _whoDecides: whoDecides, PLAYBOOK: PLAYBOOK,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
     INSURANCE_WARN: INSURANCE_WARN, CALENDAR_WARN: CALENDAR_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
   };

@@ -51,6 +51,8 @@ const CRON_GATES = [
   { name: 'OWNER_WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'owner-weekly-digest.js' },
   // Team leaderboard rows (2026-11-09, NBD OS P2): leaderboard/{uid} per member every 30 min. Counts only, never a message. Dry-run until Jo says go.
   { name: 'LEADERBOARD_AGGREGATE_ENABLED', polarity: 'enabled', file: 'leaderboard-aggregate.js' },
+  // Call retention (2026-11-09, Call to Close Q7): daily 03:20 ET, transcripts + briefs 24 months, CRM audio copies 12 months, Drive untouched. Dry-run (counts only) until Jo says go.
+  { name: 'CALL_RETENTION_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },

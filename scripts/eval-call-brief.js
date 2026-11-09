@@ -35,10 +35,19 @@
  *   reliable    the brief's reliable flag equals the label
  *   gate        the human-filed gate refused exactly the cases labelled refused
  *   dropped     what the server dropped (ungrounded, digits, dates, injection)
+ *   scope kept  walkthrough cases only (P2, review 2026-11-09): of the notes
+ *               pass's scopeFacts, the share that ground in the transcript
+ *               (functions/call-brief-logic.js groundScopeFacts). The facts
+ *               are paraphrases and only verbatim ones ground, so a low rate
+ *               on real walkthroughs means the walkthrough adds little scope.
  *
  * Case shape: { id, kind, callYmd, direction, call:{status,leadId,attachedBy?,
  * movedBy?,alternateLeadIds}, transcript, expect:{ reliable, refused, cutOff?,
  * fields:{key:value}, promises:[{who,kind}] }, canned:<model JSON>|null }
+ * A walkthrough case adds source:'visit' and scopeFacts:[string] and has no
+ * call: it skips the phone human-filed gate (a visit's own gate is
+ * visitBriefProblem, on the visit doc this harness never sees) and is asked
+ * with the callable's visit prompt.
  */
 'use strict';
 
@@ -70,7 +79,7 @@ function scoreCase(c, brief, refusedWhy) {
   const exp = c.expect || {};
   const refused = !!refusedWhy;
   const s = { id: c.id, kind: c.kind, gate: refused === !!exp.refused, refused };
-  if (refused) return Object.assign(s, { precision: null, recall: null, claim: null, promise: null, reliable: null, dropped: null });
+  if (refused) return Object.assign(s, { precision: null, recall: null, claim: null, promise: null, reliable: null, dropped: null, scopeKeep: null });
   const expFields = exp.fields || {};
   const kept = Object.keys(brief.fields).filter((k) => brief.fields[k] && brief.fields[k].value);
   const right = kept.filter((k) => norm(expFields[k]) === norm(brief.fields[k].value));
@@ -90,6 +99,12 @@ function scoreCase(c, brief, refusedWhy) {
   s.reliable = brief.transcriptOk.reliable === (exp.reliable !== false);
   if (exp.cutOff != null) s.cutOff = brief.transcriptOk.cutOff === exp.cutOff;
   s.dropped = brief.dropped;
+  s.scopeKeep = null;
+  if (Array.isArray(c.scopeFacts) && c.scopeFacts.length) {
+    const g = B.groundScopeFacts(c.scopeFacts, c.transcript);
+    s.scopeKeep = g.facts.length / c.scopeFacts.length;
+    s.scopeDropped = g.dropped;
+  }
   return s;
 }
 
@@ -109,10 +124,11 @@ async function runEval({ cases, callModel, model } = {}) {
   const rows = [];
   let modelCalls = 0;
   for (const c of list) {
+    const visit = c.source === 'visit';
     const call = Object.assign({ transcript: c.transcript }, c.call || {});
-    const why = B.humanFiledProblem(call);
+    const why = visit ? '' : B.humanFiledProblem(call);
     if (why) { rows.push(scoreCase(c, null, why)); continue; }
-    const req = B.buildRequest({ tenant: TENANT, stages, transcript: c.transcript, callYmd: c.callYmd, direction: c.direction, model });
+    const req = B.buildRequest({ tenant: TENANT, stages, transcript: c.transcript, callYmd: c.callYmd, direction: c.direction, model, source: visit ? 'visit' : undefined });
     modelCalls++;
     const resp = await ask(req, c);
     const raw = B.parseResponse(resp);
@@ -123,6 +139,7 @@ async function runEval({ cases, callModel, model } = {}) {
     cases: rows.length, modelCalls,
     precision: mean(rows, 'precision'), recall: mean(rows, 'recall'), claim: mean(rows, 'claim'),
     promise: mean(rows, 'promise'), reliable: mean(rows, 'reliable'), gate: mean(rows, 'gate'),
+    scopeKeep: mean(rows, 'scopeKeep'),
   };
   return { rows, overall };
 }
@@ -168,9 +185,11 @@ async function main(argv, env) {
   console.log('case                         kind           prec  recall claim promise reliable gate');
   for (const r of rows) {
     console.log(String(r.id).padEnd(28) + ' ' + String(r.kind || '').padEnd(14) + pct(r.precision) + '  ' + pct(r.recall) + '  ' + (r.claim == null ? ' n/a' : r.claim ? '  ok' : 'MISS') + '  ' + pct(r.promise) + '   ' + (r.reliable == null ? ' n/a' : r.reliable ? '  ok' : 'MISS') + '    ' + (r.gate ? 'ok' : 'MISS')
-      + (r.dropped ? '   dropped ' + JSON.stringify(r.dropped) : ''));
+      + (r.dropped ? '   dropped ' + JSON.stringify(r.dropped) : '')
+      + (r.scopeKeep != null ? '   scope kept ' + pct(r.scopeKeep).trim() + ' ' + JSON.stringify(r.scopeDropped) : ''));
   }
-  console.log('OVERALL precision ' + pct(overall.precision) + ' · recall ' + pct(overall.recall) + ' · claim ' + pct(overall.claim) + ' · promise ' + pct(overall.promise) + ' · reliable ' + pct(overall.reliable) + ' · gate ' + pct(overall.gate));
+  console.log('OVERALL precision ' + pct(overall.precision) + ' · recall ' + pct(overall.recall) + ' · claim ' + pct(overall.claim) + ' · promise ' + pct(overall.promise) + ' · reliable ' + pct(overall.reliable) + ' · gate ' + pct(overall.gate)
+    + (overall.scopeKeep != null ? ' · scope kept ' + pct(overall.scopeKeep).trim() + ' (walkthroughs)' : ''));
   let miss = 0;
   for (const [k, bar] of Object.entries(args.bars)) {
     if (overall[k] == null || overall[k] < bar) { console.log('BELOW BAR: ' + k + ' ' + pct(overall[k]) + ' < ' + pct(bar)); miss++; }

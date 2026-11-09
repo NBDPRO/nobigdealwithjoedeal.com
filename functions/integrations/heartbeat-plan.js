@@ -94,6 +94,7 @@ const PLAN = {
   pdfRenderRetention:        { slug: 'daily-retention' },
   promiseCleanup:            { slug: 'daily-retention' }, // #2148: 02:30 ET
   reelCleanup:               { slug: 'daily-retention' }, // #2162: 04:15 ET
+  callRetention:             { slug: 'daily-retention' }, // 2026-11-09: 03:20 ET, call transcripts/briefs 24 mo, CRM audio 12 mo
 
   dailyLeadDigest:           { slug: 'daily-customer-touches' },
   morningBrief:              { slug: 'daily-customer-touches' },

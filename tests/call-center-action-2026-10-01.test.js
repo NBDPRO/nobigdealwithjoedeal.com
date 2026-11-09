@@ -288,8 +288,9 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
     ok('a swept call a person then attaches themselves loses refiledFrom (only the sweep sets it)', swept === 'cube_AAAAA1' && db2.docs.get(COLLECTION + '/cube_SIB001').refiledFrom == null, JSON.stringify(db2.docs.get(COLLECTION + '/cube_SIB001')));
   }
   ok('an earlier noted call from the number is re-filed on the lead', sib('cube_SIB001').leadId === 'L1' && sib('cube_SIB001').bucket === 'customer' && sib('cube_SIB001').refiledFrom === 'cube_AAAAA1', JSON.stringify(sib('cube_SIB001')));
+  // Call to Close P2: a tenant call's entry carries its own company (co1), as the notes pass's does for a tenant feed.
   ok('…with the same timeline entry the notes pass writes', JSON.stringify(Object.assign({}, db.docs.get('leads/L1/activity/cube-cube_SIB001'), { createdAt: 0 }))
-    === JSON.stringify(Object.assign(L.buildCallActivity({ call: Object.assign({}, sib('cube_SIB001'), { id: 'cube_SIB001' }), notes: { summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false }, ownerUid: OWN }), { createdAt: 0 })));
+    === JSON.stringify(Object.assign(L.buildCallActivity({ call: Object.assign({}, sib('cube_SIB001'), { id: 'cube_SIB001' }), notes: { summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false }, ownerUid: OWN, companyId: 'co1' }), { createdAt: 0 })));
   ok('…and the same follow-up task', db.docs.get('leads/L1/tasks/cube-cube_SIB001') && /Call the adjuster back/.test(db.docs.get('leads/L1/tasks/cube-cube_SIB001').title) && db.docs.get('leads/L1/tasks/cube-cube_SIB001').leadId === 'L1');
   ok('a not-yet-noted call is filed (the notes pass adds its entry later)', sib('cube_SIB002').leadId === 'L1' && !db.docs.has('leads/L1/activity/cube-cube_SIB002'));
   ok('a call already on another customer stays there', sib('cube_SIB003').leadId === 'L2' && !db.docs.has('leads/L1/activity/cube-cube_SIB003'));

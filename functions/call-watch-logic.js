@@ -124,6 +124,9 @@ function callNeedsYou(c, now, ctx) {
   if (c.callType === 'spam' || c.taskDone === true) return false;
   // Parked with a date (snooze / moved task): not open until that day arrives.
   if (parkedUntil(c, t)) return false;
+  // A merged redial (Call to Close P2) is carried by its first call, except a
+  // promise Jo made on it: a promise always surfaces (as on the Said-you'd-do deck).
+  if (c.mergedInto) return (toMs(c.startedAtMs) || 0) >= t - PROMISE_WINDOW && openJoPromise(c, t);
   // Mirror of home-attention.js: a promise Jo made outlives the 14-day window
   // up to 45 days (then Home's single "old promises" row takes it).
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {

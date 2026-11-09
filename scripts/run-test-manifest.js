@@ -453,7 +453,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               transcribe now, segment confidence, estimate prefill + repair quick quote,
 //               said vs proposal, one-tap stage moves, follow-up draft, auto-brief, rescue
 //               queue, objections, and the call-brief-settings emulator suite. MEASURED via --check.
-const FLOORS = { node: 1001, smoke: 74, disk: 1136 };
+//   2026-11-09  1002/74/1137 -> 1010/74/1147, Call to Close P2 joins the sell-price change on this branch:
+//               walkthrough briefs, split-call merge, retention sweep, multi-tenant feed, decision-maker
+//               map + P1 leftovers (node suites) and their emulator rules suites. MEASURED via --check.
+const FLOORS = { node: 1010, smoke: 74, disk: 1147 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

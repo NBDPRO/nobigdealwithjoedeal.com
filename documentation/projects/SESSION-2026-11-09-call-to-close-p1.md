@@ -55,10 +55,10 @@ Checked and left as they are:
 ## Gaps
 
 - Transcribe now shows on any stored call the user can act on, but the server only takes the owner tenant's calls (single-tenant pipeline until P2).
-- `call_transcribe_quota` docs never expire (P2 retention should list them).
-- `callBriefAuto` starts on every `phone_calls` update (512 MiB, `maxInstances: 5`); the transition check returns before any read.
-- Chimney / skylight chips carry no quote (the brief keeps those mentions as yes / no).
-- The sheet has two filled buttons when a follow-up message and a proposal draft both show (Check and open in Messages, Draft proposal). Each is the main act of its own card.
+- `call_transcribe_quota` docs never expire (P2 retention should list them). **Update 2026-11-09 (P2 lane dmmap):** fixed, see "Quota TTL" below.
+- `callBriefAuto` starts on every `phone_calls` update (512 MiB, `maxInstances: 5`); the transition check returns before any read. **Update 2026-11-09 (P2 lane dmmap):** a field compare (`filingChanged`) now runs first, and the trigger is 256 MiB; see below.
+- Chimney / skylight chips carry no quote (the brief keeps those mentions as yes / no). **Update 2026-11-09 (P2 lane dmmap):** fixed, a chip needs its quote; see below.
+- The sheet has two filled buttons when a follow-up message and a proposal draft both show (Check and open in Messages, Draft proposal). Each is the main act of its own card. **Update 2026-11-09 (P2 lane dmmap):** fixed, one filled button per sheet; see below.
 - The stage lane wrote no session note of its own; this note is its record.
 
 ## How it was checked
@@ -75,3 +75,48 @@ All on the integrated branch:
 After the final review round (same branch, five fix commits): `check-js-syntax` clean (2347 files); `run-test-manifest --check` 1117 suites, floors current (no suite added); `check-site-integrity`, `check-inline-html-scripts`, `apply-partials --check`, `gen-function-map --check`, `check-vault-index` clean; `dashboard-boot-budget-2026-10-03` 36/36; full node bucket 984/984; `tests/smoke.test.js` 4434 passed, 0 failed; emulator rules one at a time `call-brief-settings` 23/23, `call-briefs` 20/20, `cross-tenant` 482/482, `company-docs` 47/47; browser `pro-demo-zero-network-2026-10-06` 122/122, `crm-layouts-render-2026-10-15` 49/49. The integrated screenshots were taken again: the builder strip sits in the step column at 1280x800, and the auto-brief button measures 44 px tall at both widths.
 
 Screenshots of the integrated sheet, the Call Center and the builder at 375x812 and 1280x800 (demo account, no network): the section order above, no sideways scroll, no one-tap follow-up for a hard-to-hear date, an empty date on the hard-to-hear promise, the builder listing the hard-to-hear story count as a line and not filling it, 2 rescue rows with one Brief button, Transcribe now on the stored call, nothing blocked by the demo tripwire, no page errors.
+
+## Update 2026-11-09 (P2 lane "dmmap"): who decides, and the P1 leftovers
+
+Branch `ctc-p2-dmmap` from `d1f7bfe0c`. Tests: `tests/call-to-close-decision-map-2026-11-09.test.js` and `tests/call-to-close-p1-leftovers-2026-11-09.test.js`, both written red first against `d1f7bfe0c`. (Correction from the review round: the callBriefAuto "unrelated updates do no reads" handler checks would also pass on `d1f7bfe0c`, whose transition was already pure; only its 256 MiB, `filingChanged` export and source-order checks were red first.)
+
+- **Who decides (design §6 #5, Q4).** The brief schema gains `people[].said` (the words used for the person, verbatim: "my husband", "the HOA") and `people[].decides` (true only when the call says they must agree, approve or sign). `sanitizeBrief` keeps a name or `said` only when it sits inside the person's own grounded quote, drops instruction-shaped words, and marks a hard-to-hear quote. The sheet shows a "Who decides" section after the objections: each decider labelled as said (else name, else role), a "Heard on the call" badge, the quote, a Copy per person and a Copy list. Nothing is written to the customer, logged or sent. `BRIEF_VERSION` stays 1: a brief drafted before this has no deciders and shows no section until it is refreshed.
+- **Flashing chips need words.** The schema gains `scope.mentionQuotes { chimney, skylight }`; a quote must ground and name the thing. `estimate-call-prefill.js` makes a chimney / skylight flashing chip only with its quote; a mention with no words is a "not filled in" line in the builder ("…no exact words were kept, so its flashing is not switched on. Check it and set it yourself."). An older brief (no `mentionQuotes`) no longer switches flashing on.
+- **One filled button.** The sheet picks one primary act: the Yes of the confirm being asked, else the follow-up message's send (when it renders), else a one-tap stage move, else Draft proposal (customer page) / Start estimate (Call Center). Every other button that used to be orange renders quiet.
+- **callBriefAuto.** `filingChanged(before, after)` compares only the fields the transition reads (status, callType, leadId, attachedBy / movedBy and their times, refiledFrom, the transcript, the alternates count) and returns before the transition, before the Firestore client is asked for, and before any read. Memory 512 MiB → 256 MiB (one fetch and the grounding pass); `maxInstances: 5` unchanged. Every start is still billed; only a filing does any work.
+- **Promise retype on the server.** `callCenterAction` (`promise`, slot 1-5, the sheet's Add) refuses a `dueYmd` equal to the heard-as date of a brief promise marked `retype` unless `retyped: true` is passed (`promiseRetypeProblem` in `call-brief-logic.js`; with `briefPromise: i` only that promise is compared, without it every retype promise of the stored brief). One read of `leads/{id}/call_briefs/{callId}`, only for a dated brief Add. Honour-based, exactly like `callBriefDecide`'s retype fields: it stops an old client or a script taking the model's date, not a deliberate bypass. The sheet sends `briefPromise` and, for a retype promise with a date in its (initially empty) box, `retyped: true`. Slot 0 (the card's Promise button) is unchanged.
+
+### Quota TTL
+
+The three AI day counters now expire. `call_transcribe_quota` (callTranscribeNow), `call_brief_quota` (callBrief and callBriefAuto) and `coach_line_quota` (coachLine) write `expireAt` = write time + 7 days on every counter (only today's count is ever read; the week is for a support question). `firestore.indexes.json` declares a TTL policy on `expireAt` for each of the three, with no index on the field. Tested in `tests/call-to-close-p1-leftovers-2026-11-09.test.js` section 1.
+
+**Jo, console step (once):** `firebase deploy --only firestore:indexes` turns the three TTL policies on. If that deploy is not run, set them by hand:
+
+```bash
+gcloud firestore fields ttls update expireAt --collection-group=call_transcribe_quota --enable-ttl --project=<project>
+gcloud firestore fields ttls update expireAt --collection-group=call_brief_quota --enable-ttl --project=<project>
+gcloud firestore fields ttls update expireAt --collection-group=coach_line_quota --enable-ttl --project=<project>
+```
+
+Counters written before this change have no `expireAt` and are never deleted by TTL; there are at most a few hundred (two per active user / company per day since the features shipped). Delete them once by hand in the console if wanted; nothing reads them.
+
+### Review round (2026-11-09)
+
+Fixed, each test first:
+
+- A chimney / skylight quote heard in a hard-to-hear segment is now marked: `scope.mentionUnsure { chimney, skylight }` (counted in `flags.lowConfidence`), and the builder shows it as a "hard to hear, so its flashing is not switched on" line with the words, never a priced chip.
+- `call-brief-ui.js` is `?v=3` in both loaders (P1 shipped `v=2`; a cached P1 sheet never sends `retyped: true`, so a typed heard-as date would be refused with a misleading "type the date yourself"). The chain that names it moved too: `call-center-view.js` v=29, `customer-calls.js` v=11, `script-loader.js` v=212 on both pages; every bump is the same length, so boot bytes are unchanged.
+- Each Who decides Copy button has an accessible name (`Copy: my husband`); Copy list says "Copy the Who decides list".
+- Comments and `FUNCTIONS_INDEX.md`: the promise retype check does not cover slot 0 / no slot or an Add with no `dueYmd` (the sheet always sends slot 1-5 and `dueYmd`), its brief read fails open on purpose, and an old client with no `briefPromise` has every retype promise compared (a non-retype promise that shares a heard-as date is refused too: the conservative side). The `callBrief`, `coachLine` and `callTranscribeNow` rows now name the 7-day `expireAt` TTL.
+
+Checked, no change:
+
+- The builder's flashing chip carries its quote as the chip's `title` (pinned in `call-to-close-estimate-prefill-2026-11-09.test.js`); it shows on hover (desktop) and to assistive tech, not inline, so a phone does not show it; an inline quote is a later design call.
+- The sample account's `callBrief` throws the quiet "no phone in the sample" answer (`docs/pro/demo-sdk/firebase-functions.js`); there is no canned brief to update. The screenshots use the test fixture.
+- `mentionQuotes` needs the literal word: a transcript that says "sky light" falls to the "not switched on" line (the safe side); the live eval may show a lower chip rate.
+
+For Jo / the PR body:
+
+- `callBriefAuto` went 512 MiB → 256 MiB with no load evidence (the work is one fetch plus grounding over at most 60,000 characters). Check the first prod runs for out-of-memory restarts.
+- `estimate-v2-ui.js` `_callPanelHtml` keeps the fallback chip title "Mentioned on the call; no exact words kept"; no chip reaches it any more (every chip needs a quote). Left in place per the dead-code rule; mention it in the PR.
+- Quota counters written before this lane have no `expireAt`; TTL never deletes them. One-off console cleanup if wanted (see Quota TTL above).

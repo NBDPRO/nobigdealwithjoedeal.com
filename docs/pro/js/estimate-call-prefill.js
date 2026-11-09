@@ -10,7 +10,10 @@
  * What a call may set (each shown with a "from call" chip the rep can clear):
  *   jobMode (insurance | cash), workKind (repair | replacement), tier (one the
  *   company offers), stories (1-3), tear-off layers (1-3), chimney / skylight
- *   flashing (the per-SQ add-on switches, only ever turned ON).
+ *   flashing (the per-SQ add-on switches, only ever turned ON, and only with
+ *   the words that mention it: P2 scope.mentionQuotes; without them, or when
+ *   they were hard to hear (scope.mentionUnsure), it is a hint line, never
+ *   switched on).
  * What it never sets: rawSqft or any measurement, a price, rate, total,
  * deductible, ACV, warranty years, a signed tier, the scope or the floor. A
  * spoken square count is returned as the WORDS that were said, for a hint
@@ -65,8 +68,10 @@
    * sanitizeBrief). Reads named paths only; anything else on the object is
    * ignored. → { items:[{key,value,quote,name,label}], hints:{sqft[],said[],
    * mentions[]}, workKind, words }
+   * opts.visit (P2): a walkthrough's brief, so its lines say "at the walkthrough".
    */
-  function fromBrief(brief) {
+  function fromBrief(brief, opts) {
+    var where = opts && opts.visit ? 'at the walkthrough' : 'on the call';
     var out = { items: [], hints: { sqft: [], said: [], mentions: [], unsure: [] }, workKind: null, words: '' };
     var b = brief && typeof brief === 'object' ? brief : null;
     if (!b) return out;
@@ -93,8 +98,18 @@
       else out.items.push(item(x[0], n, factQuote(x[1])));
     });
     var men = sc.mentions && typeof sc.mentions === 'object' ? sc.mentions : {};
-    if (men.chimney === true) out.items.push(item('hasChimneyFlash', true, ''));
-    if (men.skylight === true) out.items.push(item('hasSkylightFlash', true, ''));
+    // A flashing switch adds a price line, so the chip needs the words said (P2).
+    var mq = sc.mentionQuotes && typeof sc.mentionQuotes === 'object' ? sc.mentionQuotes : {};
+    var mu = sc.mentionUnsure && typeof sc.mentionUnsure === 'object' ? sc.mentionUnsure : {};
+    [['chimney', 'hasChimneyFlash', 'Chimney'], ['skylight', 'hasSkylightFlash', 'Skylight']].forEach(function (x) {
+      if (men[x[0]] !== true) return;
+      var q = str(mq[x[0]], 300);
+      // Words from a hard-to-hear segment (scope.mentionUnsure): a line, never switched on.
+      if (q && mu[x[0]] === true) out.hints.unsure.push(x[2] + ' was hard to hear on the recording (\u201c' + q + '\u201d), so its flashing is not switched on. Check it and set it yourself.');
+      else if (q) out.items.push(item(x[1], true, q));
+      // A full line beside the "not filled in" ones (the builder lists hints.unsure as written).
+      else out.hints.unsure.push(x[2] + ' was mentioned ' + where + ', but no exact words were kept, so its flashing is not switched on. Check it and set it yourself.');
+    });
     if (men.gutters === true) out.hints.mentions.push('Gutters');
     if (men.decking === true) out.hints.mentions.push('Decking');
 

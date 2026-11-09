@@ -5615,7 +5615,7 @@
   // engine prices them. Autosave (estimate_drafts/{uid} + the local draft)
   // holds back until the rep acts; closing untouched undoes every choice.
   // ═════════════════════════════════════════════════════════
-  const CALL_PREFILL_JS = '/pro/js/estimate-call-prefill.js?v=1';
+  const CALL_PREFILL_JS = '/pro/js/estimate-call-prefill.js?v=2';
   const CALL_LINK_KEY = 'nbd.callBriefLink';
   const CALL_LINK_TTL_MS = 5 * 60 * 1000;
   const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -5683,7 +5683,7 @@
       if (typeof window.showToast === 'function') window.showToast('Could not read that call’s brief. The estimate opened without it.', 'warning');
       return;
     }
-    const pre = P.fromBrief(brief);
+    const pre = P.fromBrief(brief, { visit: /^visit_/.test(String(src.callId || '')) });
     const lead = (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === leadId))
       || (window._leadDoc && window._leadDoc.id === leadId ? window._leadDoc : null);
     const plan = P.plan(pre, { state, leadJobType: lead && lead.jobType, tiers: _v2Tiers() });
@@ -5825,11 +5825,13 @@
     const c = _callPrefill;
     if (!c) return '';
     const h = c.hints || {};
-    const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'Mentioned on the call; no exact words kept') + '">' +
+    // P2: a walkthrough's brief (visit_<visitId>) is worded for the walkthrough.
+    const where = _callWhere();
+    const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'Mentioned ' + where + '; no exact words kept') + '">' +
       '<span class="v2-call-k">' + _callEsc(a.name) + '</span> ' + _callEsc(a.label) +
-      '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + ' from the call') + '">×</button></span>').join('');
-    const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said on the call, not filled in (' + a.why + ')')
-      .concat((h.mentions || []).map((m) => m + ' mentioned on the call')).concat((h.said || []).map((q) => 'Said: “' + q + '”')).concat(h.unsure || []);
+      '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + (where === 'on the call' ? ' from the call' : ' from the walkthrough')) + '">×</button></span>').join('');
+    const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said ' + where + ', not filled in (' + a.why + ')')
+      .concat((h.mentions || []).map((m) => m + ' mentioned ' + where)).concat((h.said || []).map((q) => 'Said: “' + q + '”')).concat(h.unsure || []);
     const repair = c.applied.some((a) => a.key === 'workKind' && a.to === 'repair') || (state.workKind === 'repair');
     const tpls = c.templates.length
       ? '<div class="v2-call-sub">' + (repair ? 'Repair quick quote: tap a repair template, priced from your price book' : 'Templates for this job, priced from your price book') + '</div>' +
@@ -5837,12 +5839,13 @@
       : '';
     const n = c.applied.length;
     if (!n && !notes.length && !tpls && !(h.sqft || []).length) return '';
-    return '<details class="v2-call"' + (open === false ? '' : ' open') + '><summary>From the call <span class="v2-call-n">' + n + ' choice' + (n === 1 ? '' : 's') + ' filled in</span></summary>' +
+    return '<details class="v2-call"' + (open === false ? '' : ' open') + '><summary>' + (where === 'on the call' ? 'From the call' : 'From the walkthrough') + ' <span class="v2-call-n">' + n + ' choice' + (n === 1 ? '' : 's') + ' filled in</span></summary>' +
       (chips ? '<div class="v2-call-chips">' + chips + '</div>' : '') +
       (notes.length ? '<ul class="v2-call-notes">' + notes.map((x) => '<li>' + _callEsc(x) + '</li>').join('') + '</ul>' : '') +
       tpls +
-      '<div class="v2-call-meta">Choices only, each marked from call: × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
+      '<div class="v2-call-meta">Choices only, each marked ' + (where === 'on the call' ? 'from call' : 'from the walkthrough') + ': × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
   }
+  function _callWhere() { return _callPrefill && /^visit_/.test(String(_callPrefill.callId || '')) ? 'at the walkthrough' : 'on the call'; }
   const CALL_STRIP_SEEN_KEY = 'nbd.callStripSeen';
   function _callStripStartsOpen() {
     let phone = false;
@@ -5854,7 +5857,7 @@
   }
   function _callSqftHintHtml() {
     const q = (_callPrefill && _callPrefill.hints && _callPrefill.hints.sqft) || [];
-    return q.length ? 'Said on the call: ' + q.map((x) => '“' + _callEsc(x) + '”').join(', ') + '. Measure the roof; this is not typed in.' : '';
+    return q.length ? 'Said ' + _callWhere() + ': ' + q.map((x) => '“' + _callEsc(x) + '”').join(', ') + '. Measure the roof; this is not typed in.' : '';
   }
   function _callPaint() {
     if (typeof document === 'undefined' || !document.getElementById) return;

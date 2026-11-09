@@ -52,6 +52,19 @@ const quiet = async (fn) => { const log = console.log, err = console.error; cons
   ok('spanish: unreliable though the canned model said reliable', r.rows.find((x) => x.kind === 'spanish').reliable === true);
   ok('cut-off: carried', r.rows.find((x) => x.kind === 'cut-off').cutOff === true);
 
+  // P2 walkthrough (review 2026-11-09): scope_facts are the notes pass's
+  // paraphrases and only verbatim ones ground, so the kit measures the keep rate.
+  const walk = r.rows.find((x) => x.kind === 'walkthrough');
+  ok('a walkthrough case is in the fixtures and is scored (no phone gate: it has no call)', !!walk && walk.refused === false && walk.gate === true, walk);
+  const wc = cases.find((c) => c.kind === 'walkthrough') || {};
+  const kept = wc.scopeFacts ? require(path.join(ROOT, 'functions', 'call-brief-logic.js')).groundScopeFacts(wc.scopeFacts, wc.transcript).facts.length : -1;
+  ok('…its scope-fact keep rate is kept / given, with what was dropped and why', !!walk && walk.scopeKeep === kept / wc.scopeFacts.length && walk.scopeKeep > 0 && walk.scopeKeep < 1 && walk.scopeDropped && walk.scopeDropped.ungrounded >= 1 && walk.scopeDropped.money >= 1, walk && { scopeKeep: walk.scopeKeep, kept, dropped: walk.scopeDropped });
+  ok('…a paraphrase ("6/12 pitch" said as "six twelve") is counted as dropped, not kept', wc.scopeFacts && wc.scopeFacts.includes('6/12 pitch') && /six twelve/.test(wc.transcript));
+  ok('…the overall carries the keep rate over walkthrough cases only (phone cases have none)', r.overall.scopeKeep === walk.scopeKeep && r.rows.filter((x) => x.kind !== 'walkthrough').every((x) => x.scopeKeep == null), r.overall);
+  let walkReq = null;
+  await E.runEval({ cases: [wc], callModel: async (req, c) => { walkReq = req; return { content: [{ type: 'text', text: JSON.stringify(c.canned) }] }; } });
+  ok('…and it is asked as an in-person walkthrough (the callable\'s visit prompt)', walkReq && /in-person/i.test(walkReq.system) && /^Visit date:/.test(walkReq.messages[0].content));
+
   console.log('\nA wrong model moves the metrics');
   const wrong = await E.runEval({
     cases,
@@ -74,6 +87,7 @@ const quiet = async (fn) => { const log = console.log, err = console.error; cons
   const fx = path.join(ROOT, 'tests', 'fixtures', 'call-brief-eval.json');
   const plain = await quiet(() => E.main([], {}));
   ok('offline CLI exits 0 and prints the table', plain.code === 0 && /OFFLINE/.test(plain.out) && /OVERALL/.test(plain.out), plain.out.slice(0, 200));
+  ok('…with the walkthrough scope-fact keep rate', /scope kept/.test(plain.out), plain.out.slice(-300));
   const bar = await quiet(() => E.main(['--bar-precision', '1.01'], {}));
   ok('a missed bar exits 1 and says which', bar.code === 1 && /BELOW BAR: precision/.test(bar.out));
   const live = await quiet(() => E.main(['--live', '--cases', fx], {}));

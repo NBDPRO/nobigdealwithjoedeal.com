@@ -89,8 +89,10 @@ const CANNED = {
   // Call to Close P0 (2026-11-09): the Call Brief reads a recorded call's
   // transcript, and the sample has none, so no "Draft from this call" button
   // renders. Canned anyway, the same quiet answer, so nothing ever leaves.
-  callBrief: () => { throw noPhoneInSample('callBrief'); },
-  callBriefDecide: () => { throw noPhoneInSample('callBriefDecide'); },
+  // P2: a walkthrough brief ({ visitId }) reads a visit recording, and the
+  // sample has none either, so no "Brief this walkthrough" button renders.
+  callBrief: (p) => { throw (p && p.visitId ? noVisitInSample : noPhoneInSample)('callBrief'); },
+  callBriefDecide: (p) => { throw (p && p.visitId ? noVisitInSample : noPhoneInSample)('callBriefDecide'); },
   // NBD OS Coach's AI focus line (2026-11-09, P2). The real callable asks Claude
   // Haiku for one sentence from the rules Coach's counts (functions/coach-line.js);
   // the sample answers from the top rule's id with a fixed sentence that states no
@@ -333,16 +335,27 @@ function sampleGameCard() {
   };
 }
 
-export function sampleCallableMessage(name) {
-  const doing = WOULD[name];
+// One callable, several actions: the action's own words (Call to Close P2,
+// 2026-11-09: a Merge tap said it would file the call on a customer).
+const WOULD_ACTION = {
+  callCenterAction: {
+    merge: 'merge these two calls into one (both recordings and notes stay)',
+    unmerge: 'split this call back into two',
+  },
+};
+
+export function sampleCallableMessage(name, payload) {
+  const act = payload && typeof payload === 'object' ? String(payload.action || '') : '';
+  const byAct = WOULD_ACTION[name];
+  const doing = (byAct && Object.prototype.hasOwnProperty.call(byAct, act) && byAct[act]) || WOULD[name];
   return doing
     ? 'In your real account this would ' + doing + '. The sample account never contacts anyone.'
     // Plain words, no function name (UI sweep 2026-10-24: visitors saw '"getAdjusterTacticBoard" runs on…').
     : 'That runs on NBD Pro servers, so it is not in the sample account.';
 }
 
-function callableError(name) {
-  const e = new Error(sampleCallableMessage(name));
+function callableError(name, payload) {
+  const e = new Error(sampleCallableMessage(name, payload));
   e.code = 'functions/failed-precondition';
   e.name = 'FirebaseError';
   e.details = { sampleAccount: true, callable: name };
@@ -359,6 +372,13 @@ function noPhoneInSample(name) {
   return e;
 }
 
+// The same quiet answer for a walkthrough brief: the sample has no visit recordings.
+function noVisitInSample(name) {
+  const e = noPhoneInSample(name);
+  e.message = 'The sample account has no visit recordings, so there is no walkthrough to brief here.';
+  return e;
+}
+
 export function getFunctions(app, region) { if (app) FUNCTIONS.app = app; if (region) FUNCTIONS.region = region; return FUNCTIONS; }
 export function connectFunctionsEmulator() {}
 
@@ -369,7 +389,7 @@ export function httpsCallable(_functions, name) {
     // Wave 2: a send-to-sign callable shows exactly what it would have sent
     // (read-only) before it says no. send-preview.js.
     const shown = await previewFor(name, payload);
-    const e = callableError(name);
+    const e = callableError(name, payload);
     // The preview already says it; a second toast on top of it is noise.
     if (!shown && !QUIET.has(name)) demoNotice(e.message, { kind: 'callable', callable: name });
     throw e;

@@ -65,10 +65,11 @@
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
   }
   // P1: "Transcribe now" on a stored call with no transcript, same roles
-  // (functions/call-transcribe-now.js re-checks).
+  // (functions/call-transcribe-now.js re-checks). P2: not while the call's
+  // tenant feed is off (txOff, kept by call-center.js syncTenantTxFlags).
   function txGate(c) {
     var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
-    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript && !c.txOff;
   }
 
   async function callable(name, data) {
@@ -143,7 +144,8 @@
         }
       }
     }
-    return Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) {
+    // A merged redial (Call to Close P2) shows through its first call.
+    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto; }).sort(function (a, b) {
       return callTime(b) - callTime(a);
     });
   }
@@ -179,6 +181,7 @@
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
     var summary = c.summary || (c.transcript ? '' : c.status === 'short' ? 'Short call (under 15 seconds).' : 'Recorded on your phone. Notes appear here once it is transcribed.');
     if (c.urgent) chips += chip('Urgent', '#7f1d1d', '#fecaca');
+    if (c.mergedFrom) chips += chip('Merged with the redial', 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
     // AI notes (functions/call-center.js stage 2): who promised what.
     var promises = Array.isArray(c.promises) ? c.promises : [];
     var promisesHtml = promises.length ? '<ul class="pc-promises">' + promises.map(function (p) {
@@ -477,7 +480,7 @@
     var pc = phoneCall(id);
     if (!pc) return;
     try {
-      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=2');
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=4');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     window.NBDCallBrief[tx ? 'transcribe' : 'open']({ callId: pc._id, call: pc, lead: window._leadDoc || {}, leadId: window._customerId, page: 'customer', onChange: load });

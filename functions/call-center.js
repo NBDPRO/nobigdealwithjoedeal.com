@@ -29,6 +29,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const MessagingControls = require('./messaging-controls');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
+const MG = require('./call-merge-logic');
 const PR = require('./promise-logic');
 const CL = require('./contact-labels');
 const PV = require('./ping-volume-logic'); // digest dedupe + the repeat-number summary line (audit F6/F7)
@@ -62,6 +63,16 @@ const MAX_BYTES = 80 * 1024 * 1024;
 const RECENT_DAYS = 3;
 function etYmd(ms) { return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
 const enabled = () => process.env.CALL_CENTER_INGEST_ENABLED === 'true';
+
+// The feed a run serves (Call to Close P2, multi-tenant call feed, design
+// §3.3). NBD's own feed — OWNER, integrations/callCenter, the "Cube ACR"
+// folder found by name, NBD's prompts — is the default and runs exactly as
+// before (tests/call-to-close-tenantfeed-golden-2026-11-09.test.js pins it).
+// A tenant feed comes only from loadTenantFeeds: its own owner uid, company,
+// config doc, Drive folder id and prompt name / region.
+const NBD_FEED = Object.freeze({ nbd: true, owner: OWNER, companyId: OWNER, configPath: CONFIG, folderId: null, tenant: null });
+// A tenant feed's row: its owner's AND its company's (never a namesake uid in another company).
+const inFeed = (f, row) => !!row && row.userId === f.owner && (f.nbd || row.companyId === f.companyId);
 
 let _client = null;
 let _testClient = null;
@@ -102,24 +113,35 @@ async function download(fileId) {
   return Buffer.from(r.data);
 }
 
-async function ownerLeads(db) {
+async function ownerLeads(db, feed) {
+  const f = feed || NBD_FEED;
   const [a, b] = await Promise.all([
-    db.collection('leads').where('companyId', '==', OWNER).get(),
-    db.collection('leads').where('userId', '==', OWNER).get(),
+    db.collection('leads').where('companyId', '==', f.companyId).get(),
+    db.collection('leads').where('userId', '==', f.owner).get(),
   ]);
   const byId = new Map();
-  for (const s of [a, b]) s.forEach((d) => { if (!byId.has(d.id)) byId.set(d.id, Object.assign({ id: d.id }, d.data())); });
+  for (const s of [a, b]) s.forEach((d) => {
+    if (byId.has(d.id)) return;
+    const row = Object.assign({ id: d.id }, d.data());
+    // A tenant feed: a lead its owner holds in ANOTHER company is not this tenant's.
+    if (!f.nbd && row.companyId && row.companyId !== f.companyId) return;
+    byId.set(d.id, row);
+  });
   return [...byId.values()];
 }
 
 /** One ingest pass. Exported for the integration test (stubbed Drive). */
-async function runIngest({ db, bucket, live, nowMs }) {
-  const ref = db.doc(CONFIG);
+// `feed` (Call to Close P2): a tenant feed from loadTenantFeeds; NBD's when absent.
+async function runIngest({ db, bucket, live, nowMs, feed }) {
+  const fd = feed || NBD_FEED;
+  const ref = db.doc(fd.configPath);
   const snap = await ref.get();
   const cfg = snap.exists ? snap.data() : {};
   if (cfg.paused === true) return { state: 'paused' };
 
-  const root = await findRootFolder(cfg);
+  // A tenant reads only the folder id its config names: never a name search,
+  // which could find NBD's (or another tenant's) "Cube ACR".
+  const root = fd.nbd ? await findRootFolder(cfg) : fd.folderId;
   if (!root) return { state: 'not_shared' };
   if (typeof root === 'object') return { state: 'ambiguous_folder', count: root.ambiguous };
 
@@ -130,10 +152,10 @@ async function runIngest({ db, bucket, live, nowMs }) {
   const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name');
   const scan = L.foldersToScan(days, startCursor, floor);
 
-  const index = L.buildPhoneIndex(await ownerLeads(db));
+  const index = L.buildPhoneIndex(await ownerLeads(db, fd));
   // Numbers Jo labeled personal AND confirmed "stop copying and transcribing"
   // (contact-labels.js captureOff): listed so the cursor advances, never copied.
-  const labels = await CL.loadLabels(db, OWNER);
+  const labels = await CL.loadLabels(db, fd.companyId);
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
@@ -175,7 +197,7 @@ async function runIngest({ db, bucket, live, nowMs }) {
         counts.labelSkipped = (counts.labelSkipped || 0) + 1;
         if (live) {
           await docRef.set(Object.assign(
-            L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: null, nowMs, durationSec: null }),
+            L.buildCallDoc({ ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId, file: f, parsed, match, bucket: bucketName, storedPath: null, nowMs, durationSec: null }),
             { status: 'personal', audioRemoved: 'label', capturedByLabel: false, createdAt: FieldValue.serverTimestamp() }));
         }
         continue;
@@ -184,7 +206,7 @@ async function runIngest({ db, bucket, live, nowMs }) {
       if (budget <= 0) { finishedDay = false; break; }
       budget--;
       try {
-        const path = L.storagePath(OWNER, parsed.ymd, f.id, parsed.ext);
+        const path = L.storagePath(fd.owner, parsed.ymd, f.id, parsed.ext);
         const bytes = await download(f.id);
         let durationSec = null;
         const side = sidecars.get(L.sidecarNameFor(f.name));
@@ -193,7 +215,7 @@ async function runIngest({ db, bucket, live, nowMs }) {
         }
         if (durationSec != null && durationSec < L.SHORT_CALL_SEC) counts.short = (counts.short || 0) + 1;
         await bucket.file(path).save(bytes, { contentType: parsed.ext === 'm4a' ? 'audio/mp4' : (f.mimeType || 'application/octet-stream'), resumable: false, metadata: { cacheControl: 'private, max-age=0' } });
-        const callDoc = L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec });
+        const callDoc = L.buildCallDoc({ ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec });
         await docRef.set(Object.assign({}, callDoc, { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
         // Speed-to-lead auto-text (2026-10-15): dark unless
@@ -201,6 +223,8 @@ async function runIngest({ db, bucket, live, nowMs }) {
         // 2026-10-19: ALSO needs messaging_controls/automations
         // missedCallAutotext === true and the global SMS switch (fail closed),
         // and at most maxPerRun per ingest run.
+        // NBD's feed only: a tenant's call carries no replyDraft (NBD's
+        // number and words; L.buildCallDoc), so it is never auto-texted.
         if (callDoc.replyDraft && process.env.MISSED_CALL_AUTOTEXT_ENABLED === 'true') {
           const auto = await MessagingControls.automationStatus(db, 'missedCallAutotext', 'sms', true);
           if (auto.enabled && (counts.autoTexted || 0) < auto.maxPerRun) {
@@ -244,6 +268,161 @@ async function runIngest({ db, bucket, live, nowMs }) {
   return Object.assign({ state: live ? 'ingested' : 'dry_run' }, counts);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Multi-tenant call feed (Call to Close P2, 2026-11-09; design §3.3, Q6)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Another tenant's feed is integrations/callCenter_{companyId}
+// (server-only: firestore.rules; written by hand by the platform admin):
+//   { kind: 'callCenterTenant', companyId, enabled, ownerUid, folderId,
+//     paused?, backfillFrom?, transcribeOnly? }   plus what the runs write
+//   (cursorYmd, floorApplied, lastRun, lastTranscribe, providerOutage,
+//   factsDay / factsUsed, txSynced, txSyncCursorMs / txSyncWant).
+// It runs only when BOTH CALL_CENTER_MULTI_TENANT_ENABLED === 'true' AND
+// enabled === true (L.tenantFeedGate), its owner owns the company
+// (companies/{cid}.ownerId, or a solo owner whose company id is their uid),
+// and its Drive folder id is nobody else's (not NBD's pinned folder, not
+// another tenant config's, enabled or not). NBD's feed always runs first and
+// is never a tenant. Before any other tenant is enabled, Jo's lawyer reviews
+// recording and consent (Q6): this code changes nothing about who is
+// recorded or where audio goes.
+
+/** { feeds: [feed], refused: [{ companyId, reason }] } — the tenant feeds that may run now. */
+async function loadTenantFeeds(db, { env } = {}) {
+  const e = env || process.env;
+  const out = { feeds: [], refused: [] };
+  if (!L.multiTenantOn(e)) return out;
+  const rows = [];
+  (await db.collection('integrations').where('kind', '==', L.TENANT_FEED_KIND).get()).forEach((d) => rows.push({ id: d.id, cfg: d.data() || {} }));
+  if (!rows.length) return out;
+  const nbd = await db.doc(CONFIG).get();
+  const nbdFolder = nbd.exists ? String((nbd.data() || {}).folderId || '') : '';
+  const folders = new Map();
+  for (const r of rows) { const f = r.cfg.folderId; if (typeof f === 'string' && f) folders.set(f, (folders.get(f) || 0) + 1); }
+  for (const r of rows) {
+    const g = L.tenantFeedGate({ env: e, docId: r.id, cfg: r.cfg, nbdOwner: OWNER });
+    const refuse = (reason) => out.refused.push({ companyId: g.companyId || r.id, reason });
+    if (!g.ok) { refuse(g.reason); continue; }
+    const cid = r.cfg.companyId, owner = r.cfg.ownerUid, folder = r.cfg.folderId;
+    // NBD's folder must be pinned first, or a tenant could name it unseen.
+    if (!nbdFolder || folder === nbdFolder || folders.get(folder) > 1) { refuse('folder_conflict'); continue; }
+    const co = await db.doc('companies/' + cid).get();
+    const ownerId = co.exists ? (co.data() || {}).ownerId : null;
+    if (co.exists ? ownerId !== owner : owner !== cid) { refuse('owner_mismatch'); continue; }
+    const ps = await db.doc('companyProfile/' + cid).get();
+    out.feeds.push({ nbd: false, owner, companyId: cid, configPath: 'integrations/' + r.id, folderId: folder, tenant: L.tenantPromptOf(ps.exists ? ps.data() : {}) });
+  }
+  return out;
+}
+
+// The global pause (integrations/callCenter.paused) stops every feed.
+async function globallyPaused(db) {
+  const s = await db.doc(CONFIG).get();
+  return !!(s.exists && (s.data() || {}).paused === true);
+}
+
+/** Every enabled tenant's ingest pass, one after another; one tenant's failure never stops the next. */
+async function runTenantIngest({ db, bucket, live, nowMs, env, log = logger }) {
+  const { feeds, refused } = await loadTenantFeeds(db, { env });
+  const out = { ran: 0, results: [], refused };
+  if (!feeds.length || await globallyPaused(db)) return out;
+  for (const feed of feeds) {
+    try {
+      const r = await runIngest({ db, bucket, live, nowMs, feed });
+      out.ran++;
+      out.results.push(Object.assign({ companyId: feed.companyId }, r));
+    } catch (e) {
+      out.results.push({ companyId: feed.companyId, state: 'failed' });
+      log.warn('[callCenterIngest] tenant failed', { companyId: feed.companyId, err: e && e.message, code: e && (e.code || (e.response && e.response.status)) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Every enabled tenant's transcription pass, after NBD's; a provider outage
+ * stops the rest. nbdOutage: NBD's own pass just hit one (the provider
+ * accounts are shared), so no tenant spends a request on them this run.
+ */
+async function runTenantTranscribe({ db, bucket, live, nowMs, env, nbdOutage, log = logger }) {
+  if (nbdOutage) return { ran: 0, results: [], refused: [], skipped: 'provider_outage' };
+  const { feeds, refused } = await loadTenantFeeds(db, { env });
+  const out = { ran: 0, results: [], refused };
+  if (!feeds.length || await globallyPaused(db)) return out;
+  for (const feed of feeds) {
+    try {
+      const r = await runTranscribe({ db, bucket, live, nowMs, feed });
+      out.ran++;
+      out.results.push(Object.assign({ companyId: feed.companyId }, r));
+      if (r && r.providerOutage) break;
+    } catch (e) {
+      out.results.push({ companyId: feed.companyId, state: 'failed' });
+      log.warn('[callCenterTranscribe] tenant failed', { companyId: feed.companyId, err: e && e.message });
+    }
+  }
+  return out;
+}
+
+/**
+ * The feed a stored call belongs to, for "Transcribe now": NBD's for NBD's
+ * calls (as before), a loaded tenant feed for an enabled tenant's, else null.
+ */
+async function feedForCall(db, call, env) {
+  const c = call || {};
+  if (c.userId === OWNER || c.companyId === OWNER) return NBD_FEED;
+  if (!c.companyId) return null;
+  const { feeds } = await loadTenantFeeds(db, { env: env || process.env });
+  return feeds.find((f) => f.companyId === c.companyId) || null;
+}
+
+/**
+ * Keeps the "Transcribe now" button in step with each tenant's switch: a
+ * tenant whose feed may not run has txOff: true on its stored calls (the
+ * button hides; callTranscribeNow refuses anyway), false again once it may.
+ * Every tenant config is checked whatever the env gate says; NBD's calls are
+ * never touched. txSynced on the config marks a tenant done.
+ */
+const TX_SYNC_MAX = 400;
+async function syncTenantTxFlags({ db, env }) {
+  const rows = [];
+  (await db.collection('integrations').where('kind', '==', L.TENANT_FEED_KIND).get()).forEach((d) => rows.push({ id: d.id, cfg: d.data() || {} }));
+  if (!rows.length) return { synced: 0, flagged: 0 };
+  const live = new Set((await loadTenantFeeds(db, { env })).feeds.map((f) => f.companyId));
+  const out = { synced: 0, flagged: 0 };
+  for (const r of rows) {
+    const cid = r.cfg.companyId, owner = r.cfg.ownerUid;
+    if (typeof cid !== 'string' || !cid || cid === OWNER || r.id !== L.TENANT_FEED_PREFIX + cid || typeof owner !== 'string' || !owner || owner === OWNER) continue;
+    const want = live.has(cid);
+    if (r.cfg.txSynced === want) continue;
+    // Newest first, one page a run; a full page leaves a cursor (the last
+    // call's startedAtMs, for this direction of the switch) so the next run
+    // moves on past it instead of re-reading the same page. startAt is
+    // inclusive: a call sharing the boundary millisecond is read twice, never
+    // skipped (one already in step costs a read, not a write).
+    const cursor = r.cfg.txSyncWant === want && Number.isFinite(r.cfg.txSyncCursorMs) ? r.cfg.txSyncCursorMs : null;
+    let qq = db.collection(COLLECTION).where('userId', '==', owner).where('status', '==', 'stored').orderBy('startedAtMs', 'desc');
+    if (cursor !== null) qq = qq.startAt(cursor);
+    const q = await qq.limit(TX_SYNC_MAX).get();
+    const docs = [];
+    q.forEach((d) => docs.push(d));
+    for (const d of docs) {
+      const c = d.data() || {};
+      if (c.companyId !== cid || String(c.transcript || '').trim()) continue;
+      if ((c.txOff === true) === !want) continue;
+      await db.collection(COLLECTION).doc(d.id).set({ txOff: !want }, { merge: true });
+      out.flagged++;
+    }
+    const lastMs = docs.length ? Number((docs[docs.length - 1].data() || {}).startedAtMs) : NaN;
+    if (docs.length >= TX_SYNC_MAX && Number.isFinite(lastMs) && lastMs !== cursor) {
+      await db.doc('integrations/' + r.id).set({ txSyncCursorMs: lastMs, txSyncWant: want }, { merge: true });
+    } else {
+      await db.doc('integrations/' + r.id).set({ txSynced: want, txSyncCursorMs: null, txSyncWant: null }, { merge: true });
+      out.synced++;
+    }
+  }
+  return out;
+}
+
 exports.callCenterIngest = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER] },
   async () => {
@@ -256,6 +435,15 @@ exports.callCenterIngest = onSchedule(
       // 403/404 before the folder is shared is the expected idle state.
       logger.warn('[callCenterIngest] failed', { err: e && e.message, code: e && (e.code || (e.response && e.response.status)) });
     }
+    // Call to Close P2: other tenants, after NBD's own pass (dark unless
+    // CALL_CENTER_MULTI_TENANT_ENABLED === 'true' AND a config is enabled).
+    try {
+      const t = await runTenantIngest({ db, bucket: getStorage().bucket(), live, nowMs: Date.now(), env: process.env });
+      if (t.ran || t.refused.length) logger.info('[callCenterIngest] tenants', t);
+    } catch (e) {
+      logger.warn('[callCenterIngest] tenants failed', { err: e && e.message });
+    }
+    try { await syncTenantTxFlags({ db, env: process.env }); } catch (e) { logger.warn('[callCenterIngest] tx flag sync failed', { err: e && e.message }); }
   }
 );
 
@@ -356,11 +544,11 @@ async function applyLeadContact({ db, leadId, lead, call, notes, todayYmd, nowMs
  * next callWatch run tells Jo instead. INTERNAL: never a customer.
  */
 /** One number's label (companies/{OWNER}/contact_labels/{digits}) as { digits: label }; {} when none / unreadable (the safe direction: it surfaces). */
-async function labelFor(db, phoneDigits) {
+async function labelFor(db, phoneDigits, feed) {
   const dg = String(phoneDigits || '').replace(/\D/g, '').slice(-10);
   if (dg.length !== 10) return {};
   try {
-    const s = await db.collection('companies').doc(OWNER).collection('contact_labels').doc(dg).get();
+    const s = await db.collection('companies').doc(feed ? feed.companyId : OWNER).collection('contact_labels').doc(dg).get();
     const x = s && s.exists ? (s.data() || {}) : null;
     return x && x.kind ? { [dg]: { kind: x.kind, policy: x.policy || '' } } : {};
   } catch (e) {
@@ -369,7 +557,10 @@ async function labelFor(db, phoneDigits) {
   }
 }
 
-async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
+// A tenant feed's urgent call goes to that tenant's own owner (feed.owner).
+// (Self-contained, no NBD_FEED: tests run this function's source alone.)
+async function pushUrgent({ db, d, call, notes, leadName, nowMs, feed }) {
+  const fd = feed || { nbd: true, owner: OWNER, companyId: OWNER };
   if (process.env.CALL_WATCH_ENABLED !== 'true' || typeof d.push !== 'function') return false;
   const W = require('./call-watch-logic');
   if (!W.inWatchHours(nowMs)) return false;
@@ -377,7 +568,7 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   // reasonFor, mirror of contact-labels-logic): a hidden PERSONAL number's urgent
   // call breaks through (tagged), a spam number's "urgent" does not, a quiet
   // number needs a promise / due callback. Not 'urgent' here -> callWatch decides.
-  const labels = await labelFor(db, call.phoneDigits);
+  const labels = await labelFor(db, call.phoneDigits, fd);
   const row = Object.assign({}, call, { urgent: true, promises: notes && notes.promises, followUpDate: notes && notes.followUpDate, callType: (notes && notes.callType) || call.callType });
   const ctx = { labels };
   if (!W.callNeedsYou(row, nowMs, ctx) || W.reasonFor(row, nowMs, ctx) !== 'urgent') return false;
@@ -391,12 +582,12 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   let sib = null;
   if (call.leadId || String(call.phoneDigits || '').trim()) {
     try {
-      const base = db.collection(COLLECTION).where('userId', '==', OWNER);
+      const base = db.collection(COLLECTION).where('userId', '==', fd.owner);
       const snap = await (call.leadId ? base.where('leadId', '==', call.leadId) : base.where('phoneDigits', '==', call.phoneDigits)).limit(60).get();
       const today = W.etYmd(nowMs), key = W.callerKey(call);
       (snap.docs || []).forEach((doc) => {
         const c = Object.assign({}, doc.data(), { id: doc.id });
-        if (c.id === call.id || W.callerKey(c) !== key) return;
+        if (c.id === call.id || W.callerKey(c) !== key || (!fd.nbd && c.companyId !== fd.companyId)) return;
         const at = W.toMs(c.urgentPushedAtMs);
         if (!at || c.urgentFoldedAtMs || W.etYmd(at) !== today) return;
         if (!W.callNeedsYou(c, nowMs, { labels })) return;          // handled / done / parked: a new need
@@ -426,7 +617,7 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   }
   const clickUrl = W.callCardUrl(call.id);
   try {
-    const pr = await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    const pr = await d.push(fd.owner, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
     // sendPushNotification RESOLVES {sent:0} for "no device on file" and for
     // "every token failed" (audit R2, 2026-10-12). That is not "told": leave
     // urgentPushedAtMs unset so the next callWatch run tells Jo again.
@@ -436,7 +627,7 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
     }
     await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: nowMs }, { merge: true });
     await db.collection('notifications').add({
-      userId: OWNER, type: 'call_watch', title: '📞 ' + msg.title, message: msg.body, priority: 'high',
+      userId: fd.owner, type: 'call_watch', title: '📞 ' + msg.title, message: msg.body, priority: 'high',
       clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
     });
     return true;
@@ -455,18 +646,19 @@ function suggestionPatch(call, leads, nowMs) {
 const SUGGEST_BACKFILL_PER_RUN = 100;
 // The noted calls on no customer — read once a run, shared by the facts
 // re-extraction and the suggestion backfill.
-async function unfiledNoted(db) {
-  const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
+async function unfiledNoted(db, feed) {
+  const fd = feed || NBD_FEED;
+  const q = await db.collection(COLLECTION).where('userId', '==', fd.owner).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
   const rows = [];
-  q.forEach((d) => rows.push(Object.assign({}, d.data() || {}, { id: d.id })));
+  q.forEach((d) => { const r = Object.assign({}, d.data() || {}, { id: d.id }); if (fd.nbd || inFeed(fd, r)) rows.push(r); });
   return rows;
 }
-async function backfillSuggestions({ db, nowMs, leads, rows }) {
-  const all = rows || await unfiledNoted(db);
+async function backfillSuggestions({ db, nowMs, leads, rows, feed }) {
+  const all = rows || await unfiledNoted(db, feed);
   // Unchecked, or checked under older rules (2026-10-03: Thumbtack rules, then caller facts).
   const todo = all.filter((v) => v.suggestRulesV !== L.SUGGEST_RULES_VERSION);
   if (!todo.length) return 0;
-  const leadRows = leads || await ownerLeads(db);
+  const leadRows = leads || await ownerLeads(db, feed);
   const batch = todo.slice(0, SUGGEST_BACKFILL_PER_RUN);
   for (const c of batch) await db.collection(COLLECTION).doc(c.id).set(suggestionPatch(c, leadRows, nowMs), { merge: true });
   return batch.length;
@@ -481,7 +673,7 @@ async function backfillSuggestions({ db, nowMs, leads, rows }) {
 const FACTS_PER_RUN = 20;
 const FACTS_DAY_CAP = 150;
 const FACTS_MAX_ATTEMPTS = 2;
-async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
+async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads, feed }) {
   const usedToday = (cfg && cfg.factsDay === today && Number(cfg.factsUsed)) || 0;
   const out = { reextracted: 0, failed: 0, aiCalls: 0, usedToday };
   const room = Math.min(FACTS_PER_RUN, FACTS_DAY_CAP - usedToday);
@@ -501,7 +693,7 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
     }
     out.aiCalls++;
     try {
-      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.FACTS_SYSTEM, prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts' }));
+      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.factsSystemFor((feed || NBD_FEED).tenant), prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts' }));
       Object.assign(c, { callerFacts: facts, factsV: L.FACTS_VERSION });
       const sp = suggestionPatch(c, await getLeads(), nowMs);
       await ref.set(Object.assign({ callerFacts: facts, factsV: L.FACTS_VERSION, factsAtMs: nowMs }, sp), { merge: true });
@@ -631,38 +823,49 @@ async function claimTranscribe(db, ref, nowMs, by) {
 // `only: { id, by }` (callTranscribeNow) runs this one call through the same
 // steps, inside the same day allowance and capture-off rule, and skips the
 // backfills and the run record (lastTranscribe stays the schedule's).
-async function runTranscribe({ db, bucket, live, nowMs, only }) {
-  const ref = db.doc(CONFIG);
+// `feed` (Call to Close P2): a tenant feed from loadTenantFeeds; NBD's when
+// absent. A tenant keeps its own queue, run record and outage state on its
+// config doc; the day audio allowance (one Groq account) and the global
+// pause stay on integrations/callCenter for every feed.
+async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
+  const fd = feed || NBD_FEED;
+  const ref = db.doc(fd.configPath);
   const snap = await ref.get();
   const cfg = snap.exists ? snap.data() : {};
   if (cfg.paused === true) return { state: 'paused' };
+  let gcfg = cfg;
+  if (!fd.nbd) {
+    const gs = await db.doc(CONFIG).get();
+    gcfg = gs.exists ? (gs.data() || {}) : {};
+    if (gcfg.paused === true) return { state: 'paused' };
+  }
   const allowIds = only ? [] : (Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : []);
   if (!live && !allowIds.length) return { state: 'off' };
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const usedSec = (cfg.audioSecDay === today && Number(cfg.audioSecUsed)) || 0;
-  const secLeft = L.dayAudioCapSec(cfg.dayAudioCapHours) - usedSec;
+  const usedSec = (gcfg.audioSecDay === today && Number(gcfg.audioSecUsed)) || 0;
+  const secLeft = L.dayAudioCapSec(gcfg.dayAudioCapHours) - usedSec;
 
   let candidates = [];
   if (only) {
     // The schedule only ever picks the owner's calls; so does this.
     const s = await db.collection(COLLECTION).doc(String(only.id)).get();
-    if (s.exists && (s.data() || {}).userId === OWNER) candidates = [Object.assign({}, s.data(), { id: s.id })];
+    if (s.exists && inFeed(fd, s.data() || {})) candidates = [Object.assign({}, s.data(), { id: s.id })];
   } else if (allowIds.length) {
     const snaps = await db.getAll(...allowIds.map((id) => db.collection(COLLECTION).doc(id)));
-    candidates = snaps.filter((s) => s.exists).map((s) => Object.assign({}, s.data(), { id: s.id }));
+    candidates = snaps.filter((s) => s.exists && (fd.nbd || inFeed(fd, s.data() || {}))).map((s) => Object.assign({}, s.data(), { id: s.id }));
   } else {
-    const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'stored')
+    const q = await db.collection(COLLECTION).where('userId', '==', fd.owner).where('status', '==', 'stored')
       .orderBy('startedAtMs', 'desc').limit(TRANSCRIBE_PER_RUN * 3).get();
-    q.forEach((d) => candidates.push(Object.assign({}, d.data(), { id: d.id })));
+    q.forEach((d) => { const r = Object.assign({}, d.data(), { id: d.id }); if (fd.nbd || inFeed(fd, r)) candidates.push(r); });
   }
   // A number labeled personal + "stop copying and transcribing" after its call
   // was copied: never transcribe it. The stored audio is left exactly as it is
   // (only the status moves, so the queue stops seeing it).
-  const labels = await CL.loadLabels(db, OWNER);
+  const labels = await CL.loadLabels(db, fd.companyId);
   // A number that became a customer after its label is never skipped (C-4).
   const anyCaptureOff = Object.keys(labels).some((k) => labels[k] && labels[k].capture === 'off');
-  const leadIndex = anyCaptureOff ? L.buildPhoneIndex(await ownerLeads(db)) : new Map();
+  const leadIndex = anyCaptureOff ? L.buildPhoneIndex(await ownerLeads(db, fd)) : new Map();
   const kept = [];
   let captureOff = 0;
   for (const c of candidates) {
@@ -708,7 +911,7 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
         const ls = await db.doc('leads/' + call.leadId).get();
         if (ls.exists) { leadDoc = ls.data(); leadName = ((leadDoc.firstName || '') + ' ' + (leadDoc.lastName || '')).trim(); }
       }
-      const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }), feature: 'call-center-notes' }));
+      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes' }));
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
@@ -747,22 +950,25 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
 
       // An urgent call tells Jo now, not at the next 2-hourly callWatch.
       if (notes.urgent === true && !call.urgentPushedAtMs) {
-        if (await pushUrgent({ db, d, call, notes, leadName, nowMs })) out.urgentPushed = (out.urgentPushed || 0) + 1;
+        if (await pushUrgent({ db, d, call, notes, leadName, nowMs, feed: fd })) out.urgentPushed = (out.urgentPushed || 0) + 1;
       }
 
       // "Looks like X" (2026-10-03): a call on no customer gets its one
       // likely customer stored with it, so every call screen can offer
       // "File on X" in one tap. A suggestion only — never filed by itself.
       if (!call.leadId) {
-        if (!leadsForSuggest) leadsForSuggest = await ownerLeads(db);
+        if (!leadsForSuggest) leadsForSuggest = await ownerLeads(db, fd);
         await callRef.set(suggestionPatch(Object.assign({}, call, { summary: notes.summary, transcript: t.text, callerFacts: notes.callerFacts }), leadsForSuggest, nowMs), { merge: true });
       }
 
       if (call.leadId) {
         const full = Object.assign({}, call, { durationSec: Number(t.durationSec) || 0 });
         await db.doc('leads/' + call.leadId + '/activity/cube-' + call.id)
-          .set(Object.assign(L.buildCallActivity({ call: full, notes, ownerUid: OWNER }), { createdAt: FieldValue.serverTimestamp() }));
-        const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
+          .set(Object.assign(L.buildCallActivity({ call: full, notes, ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId }), { createdAt: FieldValue.serverTimestamp() }));
+        const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: fd.owner, todayYmd: today, nowMs });
+        // A tenant's task carries its company, so its teammates' task list
+        // (scoped by companyId) sees it; NBD's stays as it was.
+        if (task && !fd.nbd) task.companyId = fd.companyId;
         // create(): a re-run must never un-tick a task Jo already completed.
         if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         // The lead itself knows Jo talked to them (lastContactedAt, followUp).
@@ -813,17 +1019,17 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
   let factsUsed = null;
   if (live && !only && !allowIds.length && !out.providerOutage) {
     try {
-      const rows = await unfiledNoted(db);
-      const getLeads = async () => (leadsForSuggest = leadsForSuggest || await ownerLeads(db));
+      const rows = await unfiledNoted(db, fd);
+      const getLeads = async () => (leadsForSuggest = leadsForSuggest || await ownerLeads(db, fd));
       try {
-        const f = await reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads });
+        const f = await reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads, feed: fd });
         out.factsReextracted = f.reextracted;
         if (f.failed) out.factsFailed = f.failed;
         factsUsed = f.usedToday + f.aiCalls;
         if (f.outage) out.providerOutage = f.outage;
         else if (f.reextracted > 0) out.aiWorked = true;
       } catch (e) { logger.warn('call_center_facts_backfill_failed', { err: e && e.message }); }
-      out.suggested = await backfillSuggestions({ db, nowMs, leads: leadsForSuggest, rows });
+      out.suggested = await backfillSuggestions({ db, nowMs, leads: leadsForSuggest, rows, feed: fd });
     } catch (e) { logger.warn('call_center_suggest_backfill_failed', { err: e && e.message }); }
   }
 
@@ -835,7 +1041,8 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
   const outagePatch = {};
   if (outage) {
     const same = prevOutage && prevOutage.kind === outage.kind && prevOutage.provider === outage.provider;
-    const al = outage.needsAction ? await alertProviderOutage({ db, d, outage, prev: prevOutage, today, nowMs }) : {};
+    // The provider accounts are NBD's: only NBD's feed tells Jo (a tenant's run records it).
+    const al = outage.needsAction && fd.nbd ? await alertProviderOutage({ db, d, outage, prev: prevOutage, today, nowMs }) : {};
     outagePatch.providerOutage = {
       provider: outage.provider, kind: outage.kind, reason: outage.reason, needsAction: outage.needsAction,
       sinceMs: (same && prevOutage.sinceMs) || nowMs, lastAtMs: nowMs,
@@ -849,11 +1056,12 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
   // The day's audio seconds are added in a transaction on what is stored NOW,
   // not on the usedSec read at the start: a Transcribe-now tap and the
   // schedule can overlap, and each must keep the other's seconds.
+  const audioRef = fd.nbd ? ref : db.doc(CONFIG);
   await db.runTransaction(async (tx) => {
-    const cur = await tx.get(ref);
+    const cur = await tx.get(audioRef);
     const c = cur.exists ? (cur.data() || {}) : {};
     const base = (c.audioSecDay === today && Number(c.audioSecUsed)) || 0;
-    tx.set(ref, { audioSecDay: today, audioSecUsed: base + out.audioSec }, { merge: true });
+    tx.set(audioRef, { audioSecDay: today, audioSecUsed: base + out.audioSec }, { merge: true });
   });
   const patch = Object.assign({}, only ? {} : { lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
   if (factsUsed !== null) Object.assign(patch, { factsDay: today, factsUsed });
@@ -866,12 +1074,22 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
 exports.callCenterTranscribe = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY] },
   async () => {
+    let nbdOutage = null;
     try {
       if (await require('./integrations/killswitch').isAiDisabled()) { logger.info('[callCenterTranscribe] AI kill switch on'); return; }
       const r = await runTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now() });
+      nbdOutage = (r && r.providerOutage) || null;
       logger.info('[callCenterTranscribe]', r);
     } catch (e) {
       logger.warn('[callCenterTranscribe] failed', { err: e && e.message });
+    }
+    // Call to Close P2: other tenants, after NBD's own pass, inside the same
+    // day audio allowance (dark unless the env gate AND a config say so).
+    try {
+      const t = await runTenantTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now(), env: process.env, nbdOutage });
+      if (t.ran || t.refused.length || t.skipped) logger.info('[callCenterTranscribe] tenants', t);
+    } catch (e) {
+      logger.warn('[callCenterTranscribe] tenants failed', { err: e && e.message });
     }
   }
 );
@@ -1032,6 +1250,8 @@ exports.callCenterSweep = onSchedule(
 //                          leadId + bucket 'customer', the caller's number
 //                          onto the lead (blanks only), and — if the call is
 //                          already noted — the timeline entry + follow-up task
+//   merge {withId} / unmerge — Call to Close P2: mark two split calls as one
+//                          (mergeAction below), and Undo
 // ═══════════════════════════════════════════════════════════════════════
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const COMPANY_STAFF = ['company_admin', 'manager'];
@@ -1043,6 +1263,10 @@ const TEXT_DAYS = 'phone_text_days';
 const TEXTS = 'phone_texts';
 const etToday = (nowMs) => new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 const noteOf = (c) => ({ summary: c.summary || '', promises: Array.isArray(c.promises) ? c.promises : [], followUpDate: c.followUpDate || null, urgent: !!c.urgent });
+
+// A tenant call's own company (Call to Close P2): NBD's calls keep the
+// shape they always had (companyId = the owner uid, no companyId on a task).
+const tenantCompanyOf = (call) => (call.userId && call.userId !== OWNER && call.companyId ? call.companyId : undefined);
 
 function leadInCallTenant(lead, call) {
   return !!((lead.companyId && lead.companyId === call.companyId) || (lead.userId && lead.userId === call.userId));
@@ -1061,9 +1285,11 @@ async function fileCallOnLead({ db, call, leadId, uid, nowMs, extra }) {
   if (call.status !== 'noted') return;
   const owner = call.userId || OWNER;
   const notes = noteOf(call);
+  const companyId = tenantCompanyOf(call);
   await db.doc('leads/' + leadId + '/activity/cube-' + call.id)
-    .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner }), { createdAt: FieldValue.serverTimestamp() }));
+    .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner, companyId }), { createdAt: FieldValue.serverTimestamp() }));
   const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: etToday(nowMs), nowMs });
+  if (task && companyId) task.companyId = companyId;
   if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
 }
 
@@ -1159,7 +1385,7 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
     activityMoved = true;
   } else if (call.status === 'noted') {
     await db.doc('leads/' + toId + '/activity/cube-' + id)
-      .set(Object.assign(L.buildCallActivity({ call, notes: noteOf(call), ownerUid: call.userId || OWNER }), { createdAt: FieldValue.serverTimestamp() }));
+      .set(Object.assign(L.buildCallActivity({ call, notes: noteOf(call), ownerUid: call.userId || OWNER, companyId: tenantCompanyOf(call) }), { createdAt: FieldValue.serverTimestamp() }));
   }
   if (t.exists) {
     await createIfAbsent(db.doc('leads/' + toId + '/tasks/cube-' + id), Object.assign({}, t.data(), { leadId: toId, movedFromLeadId: fromId, updatedAt: FieldValue.serverTimestamp() }));
@@ -1196,6 +1422,77 @@ async function moveBriefOff({ db, id, fromId, toId }) {
     await oldTask.delete();
   }
   await db.doc('leads/' + fromId + '/call_briefs/' + id).delete();
+}
+
+// The role test at the top of callAction, for the OTHER call of a merge.
+function mayActOn(auth, c) {
+  const token = auth.token || {};
+  const role = String(token.role || '');
+  if (role === 'viewer') return false;
+  const sameCompany = !!(token.companyId && c.companyId && token.companyId === c.companyId);
+  return role === 'admin' || auth.uid === c.userId || (sameCompany && COMPANY_STAFF.includes(role));
+}
+
+// Call to Close P2 (2026-11-09): merging split calls (call-merge-logic.js).
+// merge {withId}: two calls that look like one dropped-and-redialed call
+// (MG.pairProblem, re-checked here on the stored docs) are marked: the
+// earlier one is primary (mergedFrom = the other), the later one secondary
+// (mergedInto = the primary). Nothing else on either doc changes: neither is
+// deleted, no audio moves, notes / tasks / timeline rows stay. The primary's
+// Call Brief then reads both transcripts (call-brief.js briefInput), so its
+// transcript hash changes and the stored brief is redrafted on the next tap.
+// A repeat is a no-op. unmerge: clears the marks on both (either id); a
+// mark whose partner is gone or disagrees is cleared on the tapped call only.
+// A filed redial's own brief (leads/{lead}/call_briefs/{redialId}) is
+// deleted in the same transaction: it held half the call.
+// Both run in one transaction that reads both docs, so two taps at once on a
+// three-way split (merge A+B, merge B+C) cannot both commit: the second is
+// re-run on fresh reads and refused as already merged.
+async function mergeAction({ db, auth, call, action, data, nowMs }) {
+  const ref = (id) => db.collection(COLLECTION).doc(id);
+  const load = async (tx, id) => { const s = await tx.get(ref(id)); return s.exists ? Object.assign({}, s.data(), { id }) : null; };
+  if (action === 'unmerge') {
+    return db.runTransaction(async (tx) => {
+      const me = await load(tx, call.id);
+      if (!me) throw new HttpsError('not-found', 'Call not found.');
+      const otherId = me.mergedInto || me.mergedFrom;
+      if (!otherId) return { ok: true, unmerged: false };
+      const other = MG.isCallId(otherId) ? await load(tx, String(otherId)) : null;
+      const p = me.mergedFrom ? me : other;
+      const s = me.mergedFrom ? other : me;
+      if (!other || !MG.mergedTogether(p, s)) {
+        // A mark with no partner that agrees (the other call was deleted, or
+        // points elsewhere): clear this call's own mark, never the other's.
+        tx.set(ref(me.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+        return { ok: true, unmerged: true, lone: true, primaryId: me.mergedFrom ? me.id : null, secondaryId: me.mergedFrom ? null : me.id };
+      }
+      if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+      tx.set(ref(p.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+      tx.set(ref(s.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+      return { ok: true, unmerged: true, primaryId: p.id, secondaryId: s.id };
+    });
+  }
+  const withId = String((data && data.withId) || '');
+  if (!MG.isCallId(withId)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  if (withId === call.id) throw new HttpsError('invalid-argument', 'A call cannot merge with itself.');
+  return db.runTransaction(async (tx) => {
+    const [me, other] = await Promise.all([load(tx, call.id), load(tx, withId)]);
+    if (!me || !other) throw new HttpsError('not-found', 'Call not found.');
+    if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
+    const { primary, secondary } = MG.orderPair(me, other);
+    if (MG.mergedTogether(primary, secondary)) return { ok: true, merged: false, already: true, primaryId: primary.id, secondaryId: secondary.id };
+    const why = MG.pairProblem(primary, secondary);
+    if (why) throw new HttpsError('failed-precondition', 'These do not look like one call: ' + why);
+    const patch = MG.mergePatch(primary.id, secondary.id, auth.uid, nowMs);
+    tx.set(ref(primary.id), patch.primary, { merge: true });
+    tx.set(ref(secondary.id), patch.secondary, { merge: true });
+    // A filed redial may already have its own brief (half the call). callBrief
+    // refuses to redraft a merged redial, so delete it here rather than leave
+    // a stale half brief an older client could still read (review 2026-11-09).
+    const sLead = String(secondary.leadId || '');
+    if (sLead && !sLead.includes('/')) tx.delete(db.doc('leads/' + sLead + '/call_briefs/' + secondary.id));
+    return { ok: true, merged: true, primaryId: primary.id, secondaryId: secondary.id };
+  });
 }
 
 // Keep the away-mode hand-back timeline row true once Jo clears the person
@@ -1318,6 +1615,23 @@ async function callAction({ db, auth, data, nowMs }) {
       const lead = ls.exists ? ls.data() : null;
       if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
       if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+      // Call to Close P2 (2026-11-09): a brief promise whose date was hard
+      // to hear (retype) starts empty in the sheet. A slot 1-5 Add (the
+      // sheet's) with a date EQUAL to that heard-as date is refused unless
+      // the client says the person typed it (retyped: true). Honour-based,
+      // as callBriefDecide's retype rule: it stops a mistake, not a bypass.
+      // One read, only for a dated brief Add. Not covered, on purpose (the
+      // sheet never does either): slot 0 / no slot (the card's Promise
+      // button, not a brief promise) and an Add with no dueYmd (a date from
+      // waitingDays alone). The sheet always sends slot 1-5 and dueYmd.
+      if (slot && built.dueDate && data && data.dueYmd) {
+        // Fail-open on purpose: a brief read error lets the date through
+        // (an honour rule must never block a promise on a Firestore blip).
+        const bs = await db.doc('leads/' + leadId + '/call_briefs/' + id).get().catch(() => null);
+        const stored = bs && bs.exists ? (bs.data() || {}).brief : null;
+        const bad = stored ? require('./call-brief-logic').promiseRetypeProblem(stored, data.briefPromise, String(data.dueYmd), data.retyped === true) : '';
+        if (bad) throw new HttpsError('failed-precondition', bad);
+      }
       const taskId = 'promise-' + id + (slot ? '-' + slot : '');
       const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
       const prev = await taskRef.get();
@@ -1409,6 +1723,10 @@ async function callAction({ db, auth, data, nowMs }) {
     if (!leadInCallTenant(to, call) || (from && !leadInCallTenant(from, call))) throw new HttpsError('permission-denied', 'That customer is not in your company.');
     const r = await moveCallToLead({ db, call, fromId, toId, to, uid: auth.uid, nowMs });
     return Object.assign({ ok: true, leadId: toId, moved: true }, r);
+  }
+  // (A day of texts never gets here: 'Only Handled applies to texts' above.)
+  if (action === 'merge' || action === 'unmerge') {
+    return mergeAction({ db, auth, call, action, data, nowMs });
   }
   if (action === 'notpersonal') {
     // The model called it personal: its CRM audio copy was deleted and no
@@ -1552,6 +1870,7 @@ exports.callTaggedMatch = onCall(
 exports.claudeNotes = claudeNotes;
 // callTranscribeNow (call-transcribe-now.js) runs one call through this pass.
 exports.runTranscribe = runTranscribe;
+exports.feedForCall = feedForCall;
 exports.TRANSCRIBE_LEASE_MS = TRANSCRIBE_LEASE_MS;
 // The morning brief's "You said you'd…" section reads the same list.
 exports.gatherSweep = gatherSweep;
@@ -1579,4 +1898,5 @@ exports._test = {
   setClient(c) { _testClient = c; },
   setDeps(x) { _deps = x; },
   OWNER, COLLECTION, CONFIG,
+  NBD_FEED, loadTenantFeeds, runTenantIngest, runTenantTranscribe, feedForCall, syncTenantTxFlags, TX_SYNC_MAX,
 };

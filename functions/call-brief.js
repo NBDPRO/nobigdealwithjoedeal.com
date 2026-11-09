@@ -36,6 +36,13 @@
  * A stage accept (P1) is logged with how it was moved ('one-tap' or
  * 'confirmed'); the move itself went through the CRM's stage writer.
  *
+ * P2 walkthrough (design §6 #11): both callables also take { visitId,
+ * visitUid } instead of callId: a visit recording (visit-capture.js) filed on
+ * a customer gets the same brief, the same gates (kill switches, the role
+ * test with the recorder as the owner, cache, plan, the same quota), stored
+ * at leads/{leadId}/call_briefs/visit_<visitId>. Promises and "handled" are
+ * refused there (a walkthrough's promises are already tasks).
+ *
  * callBriefAuto (P1, Firestore trigger on phone_calls/{callId}): the opt-in
  * auto-brief. Off unless companies/{companyId}/settings/callBrief.autoBrief
  * is true; then a person filing a call drafts the brief they would get on
@@ -48,12 +55,17 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { secretValue } = require('./integrations/_shared');
 const L = require('./call-brief-logic');
+const MG = require('./call-merge-logic');
 const AiSpend = require('./ai-spend');
 const { ANTHROPIC_API_KEY, aiAllowed } = require('./lead-brief');
 
 const CALLS = 'phone_calls';
 const QUOTA = 'call_brief_quota';
 const MAX_DECISIONS = 300;
+// Quota day counters expire a week after the write (Firestore TTL on
+// expireAt, firestore.indexes.json; Call to Close P2): only today's count is
+// ever read, the week is for a support question.
+const QUOTA_TTL_MS = 7 * 86400000;
 // adjusterMeetingDate feeds the calendar feed and Google Calendar (google-calendar-logic WATCHED).
 const CALENDAR_ACK = 'This puts the adjuster meeting on the calendar and on Google Calendar when it is connected. Confirm it first.';
 const INSURANCE_ACK = 'This makes the job an insurance job: Kentucky notices and the cancellation form will apply. Confirm it first.';
@@ -96,6 +108,8 @@ async function loadGated(db, auth, data) {
   const call = Object.assign({}, snap.data(), { id: callId });
   if (String((auth.token || {}).role || '') === 'viewer') throw new HttpsError('permission-denied', 'Your role is view-only.');
   if (!L.canActOnCall(auth, call)) throw new HttpsError('permission-denied', 'Not your call.');
+  // P2: a call merged into another is read through that one's brief.
+  if (call.mergedInto) throw new HttpsError('failed-precondition', 'This call was merged with the call before it. Draft from that one.');
   const problem = L.humanFiledProblem(call);
   if (problem) throw new HttpsError('failed-precondition', problem);
   const leadId = String(call.leadId);
@@ -111,6 +125,60 @@ async function loadGated(db, auth, data) {
   return { callId, call, leadId, lead, companyId, briefRef: db.doc('leads/' + leadId + '/call_briefs/' + callId) };
 }
 
+/**
+ * P2 walkthrough (design §6 #11): the visit, the lead and the tenant, after
+ * the visit's own gates. data: { visitId, visitUid } (the activity row on the
+ * customer names both). Role = canActOnVisit (callCenterAction's test with
+ * the visit's recorder as the owner); the lead must be in the recorder's
+ * tenant (visit-capture.js mayRecordOn). Returns loadGated's shape, with a
+ * call-shaped `call` so generate() reads both the same way.
+ */
+async function loadGatedVisit(db, auth, data) {
+  if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const visitId = String((data && data.visitId) || '');
+  const visitUid = String((data && data.visitUid) || '');
+  if (!L.VISIT_ID_RE.test(visitId)) throw new HttpsError('invalid-argument', 'Bad visit id.');
+  if (!L.UID_RE.test(visitUid)) throw new HttpsError('invalid-argument', 'Bad visit owner.');
+  if (String((auth.token || {}).role || '') === 'viewer') throw new HttpsError('permission-denied', 'Your role is view-only.');
+  const us = await db.doc('users/' + visitUid).get();
+  const ownerCompany = String((us.exists && (us.data() || {}).companyId) || visitUid);
+  const snap = await db.doc('users/' + visitUid + '/visit_captures/' + visitId).get();
+  // No existence oracle: a caller who may not act on this recorder's visits
+  // hears the same refusal whether or not the visit is there.
+  if (!snap.exists) {
+    if (!L.canActOnVisit(auth, { ownerUid: visitUid, companyId: ownerCompany })) throw new HttpsError('permission-denied', 'Not your walkthrough.');
+    throw new HttpsError('not-found', 'Walkthrough not found.');
+  }
+  const visit = snap.data() || {};
+  const leadId = String(visit.attachedLeadId || '');
+  let lead = null;
+  if (L.UID_RE.test(leadId)) {
+    const ls = await db.doc('leads/' + leadId).get();
+    lead = ls.exists ? ls.data() : null;
+  }
+  const companyId = String((lead && (lead.companyId || lead.userId)) || ownerCompany);
+  if (!L.canActOnVisit(auth, { ownerUid: visitUid, companyId })) throw new HttpsError('permission-denied', 'Not your walkthrough.');
+  const problem = L.visitBriefProblem(visit, leadId);
+  if (problem) throw new HttpsError('failed-precondition', problem);
+  if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
+  if (!(lead.userId === visitUid || (lead.companyId && lead.companyId === ownerCompany))) {
+    throw new HttpsError('permission-denied', 'That customer is not in your company.');
+  }
+  const callId = L.visitBriefId(visitId);
+  return {
+    kind: 'visit', callId, visitId, visitUid, visit, leadId, lead, companyId,
+    call: { userId: visitUid, companyId, startedAtMs: Number(visit.startedAtMs) || null, transcript: String(visit.transcript || ''), segIndex: visit.segIndex || null },
+    briefRef: db.doc('leads/' + leadId + '/call_briefs/' + callId),
+  };
+}
+const gateFor = (data) => (data && data.visitId != null ? loadGatedVisit : loadGated);
+// visit_<visitId> leaves out the recorder, and visit ids are client-chosen:
+// a stored walkthrough brief is only ever this recorder's (visit-capture.js
+// visit_id_conflict refuses the second recorder first; this is the second wall).
+function assertOwnVisitBrief(g, stored) {
+  if (g.kind === 'visit' && stored && stored.visitUid !== g.visitUid) throw new HttpsError('permission-denied', 'That brief is from another walkthrough.');
+}
+
 /** One transaction: false + which cap when over, else both counters +1. */
 async function takeQuota(db, uid, companyId, nowMs) {
   const day = etYmd(nowMs);
@@ -122,8 +190,9 @@ async function takeQuota(db, uid, companyId, nowMs) {
     const cn = (c.exists && Number(c.data().n)) || 0;
     if (un >= L.USER_DAY_CAP) return 'user';
     if (cn >= L.COMPANY_DAY_CAP) return 'company';
-    tx.set(uRef, { n: un + 1, uid, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(cRef, { n: cn + 1, companyId, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const expireAt = new Date(Number(nowMs) + QUOTA_TTL_MS);
+    tx.set(uRef, { n: un + 1, uid, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
+    tx.set(cRef, { n: cn + 1, companyId, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
     return '';
   });
 }
@@ -137,19 +206,46 @@ function tenantOf(profile) {
   };
 }
 
+/**
+ * P2 (2026-11-09): what the brief reads. A call alone: its own transcript and
+ * segIndex. A merged primary (callCenterAction merge): its transcript, the
+ * separator, then the redial's (call-merge-logic joinTranscripts), so the hash
+ * changes and the stored brief is redrafted. The other call counts only while
+ * both marks agree, it is in the same tenant and not filed on another
+ * customer; otherwise the brief reads this call alone.
+ */
+async function briefInput(db, g) {
+  const own = { transcript: String(g.call.transcript || ''), segIndex: g.call.segIndex || null, mergedFrom: null };
+  const sid = g.call.mergedFrom;
+  if (!sid || !MG.isCallId(sid)) return own;
+  const ss = await db.collection(CALLS).doc(String(sid)).get().catch(() => null);
+  const sec = ss && ss.exists ? Object.assign({}, ss.data(), { id: String(sid) }) : null;
+  if (!sec || !MG.mergedTogether(g.call, sec)) return own;
+  if (sec.userId !== g.call.userId || (sec.companyId || null) !== (g.call.companyId || null)) return own;
+  if (sec.leadId && sec.leadId !== g.leadId) return own;
+  if (sec.status === 'personal' || sec.callType === 'personal' || sec.callType === 'spam') return own;
+  // Trimmed to the model's cap here, so a long first call never cuts the redial off silently.
+  const fit = MG.fitJoin(own.transcript, String(sec.transcript || ''), L.TRANSCRIPT_MAX);
+  return { transcript: MG.joinTranscripts(fit.a, fit.b), segIndex: MG.joinSegIndex(own.segIndex, sec.segIndex || null, fit.a, fit.b), mergedFrom: sec.id };
+}
+
 const answer = (doc, extra) => Object.assign({
   brief: doc.brief, generatedAtMs: doc.generatedAtMs, cached: true, decisions: Array.isArray(doc.decisions) ? doc.decisions : [],
+  // The redial this brief read too (P2 merge), so the sheet can say so; null for a call alone.
+  mergedFrom: doc.mergedFrom || null,
 }, extra || {});
 
 async function briefCallable({ db, auth, data, nowMs, callModel, log = logger }) {
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (await switchedOff(true)) throw new HttpsError('failed-precondition', 'Call briefs are switched off right now.');
-  const g = await loadGated(db, auth, data);
-  const transcript = String(g.call.transcript || '');
+  const g = await gateFor(data)(db, auth, data);
+  const input = await briefInput(db, g);
+  const transcript = input.transcript;
   const hash = L.transcriptHash(transcript);
   const force = !!(data && data.refresh);
   const cs = await g.briefRef.get().catch(() => null);
   const cached = cs && cs.exists ? cs.data() : null;
+  assertOwnVisitBrief(g, cached);
   const state = L.cacheState(cached, hash, nowMs, force);
   if (state === 'use') return answer(cached);
   if (state === 'refresh-too-soon') return answer(cached, { refreshRefused: true });
@@ -161,7 +257,7 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   if (over === 'user') throw new HttpsError('resource-exhausted', 'You have drafted ' + L.USER_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
   if (over === 'company') throw new HttpsError('resource-exhausted', 'Your company has drafted ' + L.COMPANY_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
 
-  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached });
+  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, input });
   return answer(doc, { cached: false });
 }
 
@@ -170,12 +266,12 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
  * leads/{leadId}/call_briefs/{callId}). The caller has already run every gate
  * and taken the quota. opts.auto marks a brief the P1 auto-brief drafted.
  */
-async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto }) {
+async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto, input }) {
   const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
   const profile = ps && ps.exists ? ps.data() : {};
   const stages = L.tenantStages(profile.pipelines);
   const callYmd = g.call.startedAtMs ? etYmd(Number(g.call.startedAtMs)) : etYmd(nowMs);
-  const req = L.buildRequest({ tenant: tenantOf(profile), stages, transcript, callYmd, direction: g.call.direction });
+  const req = L.buildRequest({ tenant: tenantOf(profile), stages, transcript, callYmd, direction: g.call.direction, source: g.kind === 'visit' ? 'visit' : undefined });
   let resp;
   try {
     resp = await (callModel || anthropicCall)(req);
@@ -187,7 +283,11 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
   const raw = L.parseResponse(resp);
   if (!raw) throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
   // segIndex (P1): Whisper's per-segment confidence; hard-to-hear quotes are marked unsure.
-  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex: g.call.segIndex || null });
+  const segIndex = input ? input.segIndex : (g.call.segIndex || null);
+  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex });
+  // P2 walkthrough: the notes' scope_facts never reach the model; the ones
+  // whose words ground in the transcript feed the scope (prefill, proposal list).
+  if (g.kind === 'visit') L.mergeVisitScope(brief, L.groundScopeFacts(((g.visit || {}).notes || {}).scopeFacts, transcript).facts, { transcript, segIndex });
   const doc = {
     callId: g.callId, leadId: g.leadId, companyId: g.companyId, userId: g.call.userId || null,
     v: L.BRIEF_VERSION, transcriptHash: hash, model: req.model, generatedAtMs: nowMs, generatedBy: auth.uid,
@@ -195,6 +295,9 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
     updatedAt: FieldValue.serverTimestamp(),
   };
   if (auto) doc.auto = true;
+  // The rules read a walkthrough brief through these (firestore.rules call_briefs).
+  if (g.kind === 'visit') Object.assign(doc, { source: 'visit', visitId: g.visitId, visitUid: g.visitUid });
+  if (input && input.mergedFrom) doc.mergedFrom = input.mergedFrom;
   await g.briefRef.set(doc);
   return doc;
 }
@@ -221,10 +324,16 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   if (!decision) throw new HttpsError('invalid-argument', 'Accept or Skip.');
   const fieldKey = item.startsWith('field:') ? item.slice(6) : '';
   if (fieldKey && !Object.prototype.hasOwnProperty.call(L.LEAD_FIELD, fieldKey)) throw new HttpsError('invalid-argument', 'That field cannot be filled from a call.');
-  const g = await loadGated(db, auth, data);
+  const g = await gateFor(data)(db, auth, data);
+  // A walkthrough's promises were already filed as tasks when it was attached
+  // (visit-capture.js buildAttachment), and there is no call to mark handled.
+  if (g.kind === 'visit' && (item === 'handled' || item.startsWith('promise:'))) {
+    throw new HttpsError('failed-precondition', 'Promises from a walkthrough are already tasks on this customer.');
+  }
   const bs = await g.briefRef.get();
   if (!bs.exists) throw new HttpsError('failed-precondition', 'Draft the brief from this call first.');
   const stored = bs.data() || {};
+  assertOwnVisitBrief(g, stored);
   const aiValue = aiValueOf(stored.brief, item);
   if ((fieldKey || item.startsWith('promise:') || item === 'stage' || item === 'followUp') && aiValue === null) {
     throw new HttpsError('failed-precondition', 'The brief did not suggest that.');
@@ -284,7 +393,8 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     const actRef = db.doc('leads/' + g.leadId + '/activity/callbrief-' + g.callId);
     try {
       await actRef.create({
-        type: 'note', source: 'call-brief', text: finalValue, summary: finalValue, phoneCallId: g.callId,
+        type: 'note', source: 'call-brief', text: finalValue, summary: finalValue,
+        ...(g.kind === 'visit' ? { visitId: g.visitId } : { phoneCallId: g.callId }),
         userId: g.lead.userId || g.call.userId || null, companyId: g.lead.companyId || g.call.companyId || null,
         createdBy: auth.uid, createdAt: FieldValue.serverTimestamp(),
       });
@@ -346,7 +456,8 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   if (await require('./tenant-guard').isGhost(filer, auth.token, db)) return { state: 'gated', why: require('./tenant-guard').GHOST_MESSAGE };
   let g;
   try { g = await loadGated(db, auth, { callId }); } catch (e) { return { state: 'gated', why: (e && e.message) || 'gated' }; }
-  const transcript = String(g.call.transcript || '');
+  const input = await briefInput(db, g);
+  const transcript = input.transcript;
   const hash = L.transcriptHash(transcript);
   const cs = await g.briefRef.get().catch(() => null);
   const cached = cs && cs.exists ? cs.data() : null;
@@ -356,7 +467,7 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
   if (over) return { state: 'quota', why: over };
   try {
-    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true });
+    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true, input });
   } catch (e) {
     log.warn('call_brief_auto_failed', { callId, err: e && e.message });
     return { state: 'failed' };
@@ -382,14 +493,18 @@ exports.callBriefDecide = onCall(
 );
 
 // P1 auto-brief: a phone_calls update that is a person filing the call.
-// The pure transition check runs first, so the many other call writes cost
-// one function start and nothing else.
+// P2 (2026-11-09): a field compare first (filingChanged: did a filing field
+// change at all?), then the pure transition check, so the many other call
+// writes cost one function start and nothing else: no read, no Firestore
+// client. 256MiB: the work is one model call (a fetch) and the grounding
+// pass over a transcript of at most 60,000 characters.
 exports.callBriefAuto = onDocumentUpdated(
-  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 120, maxInstances: 5 },
+  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '256MiB', timeoutSeconds: 120, maxInstances: 5 },
   async (event) => {
     try {
       const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
       const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+      if (!L.filingChanged(before, after)) return;
       if (!L.autoBriefTransition(before, after)) return;
       await autoBriefHandler({ db: getFirestore(), callId: event.params.callId, before, after, nowMs: Date.now() });
     } catch (e) {
@@ -398,4 +513,4 @@ exports.callBriefAuto = onDocumentUpdated(
   }
 );
 
-exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, tenantOf, INSURANCE_ACK };
+exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, loadGatedVisit, briefInput, tenantOf, INSURANCE_ACK };

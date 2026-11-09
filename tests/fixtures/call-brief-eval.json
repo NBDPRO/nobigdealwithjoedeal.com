@@ -214,6 +214,17 @@
       "transcript": "Hi, this is the property manager for the duplex on Example Avenue, calling about the unit on the left, the tenant says the ceiling is stained. I will send you the owner's contact info later today.",
       "expect": { "reliable": true, "refused": true, "fields": {}, "promises": [] },
       "canned": null
+    },
+    {
+      "id": "walkthrough-paraphrase",
+      "kind": "walkthrough",
+      "_note": "P2 walkthrough (review 2026-11-09): a visit recording, no call and no phone gate. scopeFacts are the notes pass's paraphrases; only those said verbatim ground, so the run reports the keep rate. '6/12 pitch' was said as 'six twelve' and is dropped; the money fact is dropped either way.",
+      "source": "visit",
+      "callYmd": "2026-11-05",
+      "transcript": "Okay we are up on the roof now at Example Street. This house is two stories and there are two layers of shingles on it. The pitch is about a six twelve. The chimney flashing is pulling away and there is hail damage on the north slope. Alright, I will send you the estimate by Friday.",
+      "scopeFacts": ["two stories", "two layers of shingles", "The chimney flashing is pulling away", "6/12 pitch", "about $9,000 for the whole roof", "hail damage on the north slope"],
+      "expect": { "reliable": true, "refused": false, "fields": { "damageType": "hail" }, "promises": [{ "who": "jo", "kind": "estimate" }] },
+      "canned": {"brief_v": 1, "transcript_ok": {"reliable": true, "cutOff": false, "why": ""}, "summary": {"text": "Walked the roof: two layers, hail on the north slope, chimney flashing pulling away.", "quote": ["The chimney flashing is pulling away"]}, "fields": {"insCarrier": {"value": "", "quote": "", "conf": "implied"}, "claimNumber": {"value": "", "quote": "", "conf": "implied"}, "dateOfLoss": {"spoken": "", "ymd": "", "quote": "", "conf": "implied"}, "adjusterName": {"value": "", "quote": "", "conf": "implied"}, "adjusterMeetingYmd": {"spoken": "", "ymd": "", "quote": "", "conf": "implied"}, "damageType": {"value": "hail", "quote": "there is hail damage on the north slope", "conf": "said"}, "jobType": {"value": "", "quote": "", "conf": "implied"}, "workKind": {"value": "", "quote": "", "conf": "implied"}}, "scope": {"service": {"value": "", "quote": "", "conf": "implied"}, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": {"gutters": false, "chimney": true, "skylight": false, "decking": false}, "saidQuantities": []}, "promises": [{"who": "jo", "text": "Send the estimate", "dueSpoken": "by Friday", "dueYmd": "2026-11-06", "kind": "estimate", "quote": "I will send you the estimate by Friday"}], "followUp": {"spoken": "", "ymd": "", "quote": "", "conf": "implied"}, "objections": [], "competitor": {"named": false, "quote": ""}, "people": [], "stage": {"targetKey": "inspected", "reason": "The roof was walked.", "quote": "we are up on the roof now"}, "drafts": {"estimate": true, "proposal": false, "followUp": "none"}}
     }
   ]
 }
