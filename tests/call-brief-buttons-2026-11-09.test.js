@@ -106,8 +106,8 @@ console.log('\n2. The buttons');
 console.log('\n3. The demo');
 {
   const demo = read('docs/pro/demo-sdk/firebase-functions.js');
-  ok('callBrief is CANNED with the no-phone answer', /callBrief: \(\) => \{ throw noPhoneInSample\('callBrief'\); \}/.test(demo));
-  ok('callBriefDecide is CANNED with the no-phone answer', /callBriefDecide: \(\) => \{ throw noPhoneInSample\('callBriefDecide'\); \}/.test(demo));
+  ok('callBrief is CANNED with the no-phone answer (a walkthrough: the no-visit one, P2)', /callBrief: \(p\) => \{ throw \(p && p\.visitId \? noVisitInSample : noPhoneInSample\)\('callBrief'\); \}/.test(demo));
+  ok('callBriefDecide is CANNED with the no-phone answer (a walkthrough: the no-visit one, P2)', /callBriefDecide: \(p\) => \{ throw \(p && p\.visitId \? noVisitInSample : noPhoneInSample\)\('callBriefDecide'\); \}/.test(demo));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
