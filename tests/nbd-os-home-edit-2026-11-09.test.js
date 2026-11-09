@@ -147,7 +147,7 @@ G(() => {
   ok('resize: Shift+arrow bigger / smaller stops at the ends', HL.resize(L, 0, 1)[0].s === 'l' && HL.resize(L, 2, -1) === null && HL.resize([{ id: 'coach', s: 'm' }], 0, -1) === null);
   ok('remove', J(HL.remove(L, 1).map((x) => x.id)) === J(['glance', 'shortcuts']));
   ok('add drops it at the end at the size asked (or its default)', J(HL.add(L, 'daily', 's').pop()) === J({ id: 'daily', s: 's' }) && HL.add(L, 'coach', 's').pop().s === 'm');
-  ok('add is null when the surface is full (12) or the id is unknown', HL.add(Array(12).fill({ id: 'glance', s: 's' }), 'coach') === null && HL.add(L, 'evil') === null);
+  ok('add is null when the surface is full (24 from P1) or the id is unknown', HL.add(Array(24).fill({ id: 'glance', s: 's' }), 'coach') === null && HL.add(L, 'evil') === null);
   ok('ops never touch their input', J(L) === J([{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }]));
   ok('describe: "Coach, medium, position 2 of 3"', HL.describe(L, 1) === 'Coach, medium, position 2 of 3');
 });
@@ -201,9 +201,11 @@ G(() => {
   ok('…focus goes to the first widget', T.document.activeElement === byKey(col, 'glance-1'));
   ok('…with the keys described for assistive tech', /arrow/i.test(text(T.document.getElementById(c.getAttribute('aria-describedby') || 'none'))));
   key(T.dom, c, 'ArrowUp');
+  // the desk is a board from P1 (tests/nbd-os-desk-board-2026-11-09.test.js): Coach sat at row 1
+  // column 3 with nothing under it, so ArrowUp swaps it with the widget before it in reading order
   ok('ArrowUp moves it earlier', J(ids(col)) === J(['coach-1', 'glance-1', 'shortcuts-1']), J(ids(col)));
   ok('…focus stays on it', T.document.activeElement === byKey(col, 'coach-1'));
-  ok('…announced politely', col.querySelector('.os-hw-live').getAttribute('aria-live') === 'polite' && /Coach, medium, position 1 of 3/.test(live(col)), live(col));
+  ok('…announced politely, as its board cell', col.querySelector('.os-hw-live').getAttribute('aria-live') === 'polite' && /Coach, medium, row 1 column 1/.test(live(col)), live(col));
   key(T.dom, byKey(col, 'coach-1'), 'ArrowRight', { shiftKey: true });
   ok('Shift+ArrowRight makes it bigger', byKey(col, 'coach-1').classList.contains('is-l') && /Coach, large/.test(live(col)));
   key(T.dom, byKey(col, 'coach-1'), 'ArrowLeft', { shiftKey: true });
@@ -230,7 +232,8 @@ G(() => {
   ok('each widget offers its own sizes as chips (Coach: M, L)', J(dlg.querySelectorAll('[data-oshw-add="coach"]').map((b) => b.getAttribute('data-size'))) === J(['m', 'l']));
   ok('chips are named for assistive tech', /Add Coach, medium/.test(dlg.querySelector('[data-oshw-add="coach"][data-size="m"]').getAttribute('aria-label')));
   click(T.dom, dlg.querySelector('[data-oshw-add="daily"][data-size="s"]'));
-  ok('a chip adds it at the end and saves', J(ids(col)) === J(['glance-1', 'daily-1']) && J(lastSave(T).layoutState['os-home'].desk) === J([{ id: 'glance', s: 'm' }, { id: 'daily', s: 's' }]));
+  ok('a chip adds it in the first gap that fits and saves', J(ids(col)) === J(['glance-1', 'daily-1'])
+    && J(lastSave(T).layoutState['os-home'].desk) === J([{ id: 'glance', s: 'm', x: 0, y: 0, w: 2, h: 1 }, { id: 'daily', s: 's', x: 2, y: 0, w: 1, h: 1 }]), J(homeSaves(T)));
   ok('…closes the sheet and says what was added', dlg.open === false && /Added Daily Success, small/.test(live(col)), live(col));
   ok('the closed sheet leaves the page', !T.document.querySelector('dialog.os-hw-add'));
   // role: a member whose sidebar hides the CRM never gets the Coach
@@ -242,12 +245,12 @@ G(() => {
   click(T2.dom, deskCol(T2).querySelector('[data-osdo="homeadd"]'));
   const d2 = T2.document.querySelector('dialog.os-hw-add');
   ok('a widget about a view the role hides is not offered', d2 && !d2.querySelector('[data-oshw-add="coach"]') && !!d2.querySelector('[data-oshw-add="glance"]'));
-  const full = []; for (let i = 0; i < 12; i++) full.push({ id: 'shortcuts', s: 's' });
+  const full = []; for (let i = 0; i < 24; i++) full.push({ id: 'shortcuts', s: 's' });
   const T3 = mountDesk({ phone: [], desk: full });
   click(T3.dom, deskCol(T3).querySelector('[data-osdo="homeedit"]'));
   click(T3.dom, deskCol(T3).querySelector('[data-osdo="homeadd"]'));
   const d3 = T3.document.querySelector('dialog.os-hw-add');
-  ok('full (12): the chips are disabled and the sheet says why', d3.querySelectorAll('[data-oshw-add]').every((b) => b.hasAttribute('disabled')) && /full/i.test(text(d3)));
+  ok('full (24): the chips are disabled and the sheet says why', d3.querySelectorAll('[data-oshw-add]').every((b) => b.hasAttribute('disabled')) && /full/i.test(text(d3)));
   const T4 = mountPhone({ phone: [{ id: 'glance', s: 'm' }], desk: [] });
   longPress(T4, byKey(phoneOf(T4), 'glance-1'));
   click(T4.dom, phoneOf(T4).querySelector('[data-osp="homeadd"]'));
@@ -336,10 +339,11 @@ G(() => {
   key(T.dom, byKey(col, 'shortcuts-1'), 'ArrowUp');
   key(T.dom, byKey(col, 'shortcuts-1'), 'ArrowUp');
   key(T.dom, byKey(col, 'coach-1'), 'ArrowRight', { shiftKey: true });
-  ok('three quick keystrokes: the home changes at once', J(ids(col)) === J(['shortcuts-1', 'glance-1', 'coach-1']) && byKey(col, 'coach-1').classList.contains('is-l'), J(ids(col)));
+  // on the board: Shortcuts up to row 1 (the second ArrowUp is at the edge), Coach to L in place
+  ok('three quick keystrokes: the home changes at once', J(ids(col)) === J(['shortcuts-1', 'coach-1', 'glance-1']) && byKey(col, 'coach-1').classList.contains('is-l'), J(ids(col)));
   ok('…but nothing is written yet (no setDoc per keystroke)', homeSaves(T).length === 0, homeSaves(T).length);
   T.fire(SAVE_MS);
-  ok('…then one write, with the final state', homeSaves(T).length === 1 && J(homeSaves(T)[0].layoutState['os-home'].desk) === J([{ id: 'shortcuts', s: 's' }, { id: 'glance', s: 'm' }, { id: 'coach', s: 'l' }]), J(homeSaves(T)));
+  ok('…then one write, with the final state', homeSaves(T).length === 1 && J(homeSaves(T)[0].layoutState['os-home'].desk) === J([{ id: 'shortcuts', s: 's', x: 0, y: 0, w: 1, h: 1 }, { id: 'coach', s: 'l', x: 2, y: 0, w: 2, h: 2 }, { id: 'glance', s: 'm', x: 0, y: 1, w: 2, h: 1 }]), J(homeSaves(T)));
   key(T.dom, byKey(col, 'glance-1'), 'Delete');
   ok('a pending change is still shown to the next edit (the list re-reads it)', J(ids(col)) === J(['shortcuts-1', 'coach-1']));
   key(T.dom, byKey(col, 'coach-1'), 'Escape');

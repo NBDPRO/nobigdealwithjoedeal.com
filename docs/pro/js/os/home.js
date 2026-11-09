@@ -50,6 +50,19 @@
  * layout normalises and saves it); home.js itself writes nothing but the
  * Coach's localStorage memo. No animation at all, so no jiggle.
  *
+ * The desk is a board (P1, design §3.3 / §3.5): 4 columns of 160px rows,
+ * each widget at the cell its saved x / y names (S 1x1, M 2x1, L 2x2), the
+ * math in layouts/board-logic.js through home-logic's desk ops. Positions ride
+ * classes (os-hw-x1..4, os-hw-y1..48), never a style. Below 1100px the board
+ * is one column in reading order (the DOM order). In edit mode a pointer
+ * drags a widget to a cell, the corner grip snaps it to S / M / L, arrows move
+ * it a cell (one column: a place), Shift+arrows resize it; the live region
+ * says "Coach, medium, row 2 column 1". On the phone (and the one-column
+ * desk) a press-and-drag in edit mode drops a widget on another's place, with
+ * page 1 scrolling near its edges; tap-pick-place still works. Pointer drags
+ * use pointer capture; edit-mode widgets carry touch-action:none (CSS) before
+ * any pointerdown. A drag saves once, on release, through onChange.
+ *
  * Every value goes into the DOM escaped. No inline handlers, no style
  * attributes; sizes ride on classes (is-s / is-m / is-l) and css/os/home.css
  * lays each out with container queries. Loaded lazily with the OS layout
@@ -275,6 +288,10 @@
 
   var LONG_PRESS_MS = 550;   // the OS layout's long-press (layouts/os.js onPhoneDown)
   var HELP = 'Tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
+  var HELP_DRAG = 'Drag it, or tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
+  // the desk board's geometry: css/os/home.css .os-hw-board (grid-auto-rows 160px, gap 12px)
+  var ROW_PX = 160, GAP_PX = 12, DRAG_PX = 8, EDGE_PX = 48;
+  function posClasses(n) { return String(n.className).split(/\s+/).filter(function (c) { return /^os-hw-[xy]\d+$/.test(c); }); }
 
   /**
    * opts: surface, items, act, visible, and for edit mode (P0c):
@@ -286,14 +303,17 @@
   function mount(opts) {
     var o = opts || {};
     var surface = o.surface === 'desk' ? 'desk' : 'phone';
+    var desk = surface === 'desk';
     // the OS layout's own click attribute (data-osp on the phone, data-osdo on the desk)
     var act = /^data-os[a-z]{1,8}$/.test(o.act || '') ? o.act : 'data-oshw-do';
     var visible = typeof o.visible === 'function' ? o.visible : function () { return true; };
     var el = doc.createElement('div');
     el.className = 'os-hw-list';
     el.setAttribute('data-os-home', surface);
+    if (desk) el.classList.add('os-hw-board');
     var recs = {}, order = [], cur = [], dirty = false, live = true;
     var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
+    var drag = null;
     // one polite line says each change; the help text is what each widget is described by while editing
     var helpId = 'oshwHelp-' + surface;
     var liveEl = doc.createElement('p');
@@ -304,7 +324,7 @@
     help.className = 'os-hw-live';
     help.setAttribute('id', helpId);
     help.hidden = true;
-    help.textContent = HELP;
+    help.textContent = HELP_DRAG;
     el.appendChild(liveEl);
     el.appendChild(help);
 
@@ -344,7 +364,9 @@
         var rec = recs[key];
         if (!rec) rec = build(key, it);
         else if (rec.it.s !== it.s || JSON.stringify(rec.it.cfg || null) !== JSON.stringify(it.cfg || null)) { rec.it = it; rec.html = null; }
+        else if (desk) rec.it = it;
         ['s', 'm', 'l'].forEach(function (s) { rec.el.classList.toggle('is-' + s, s === rec.it.s); });
+        if (desk) place(rec.el, it);
         next[key] = rec;
         keys.push(key);
         kept.push(it);
@@ -358,6 +380,19 @@
       applyEdit();
       paint();
     }
+
+    // ── the desk board (P1): a cell rides two classes; one column below 1100px ──
+    function place(n, it) {
+      var want = typeof it.x === 'number' && typeof it.y === 'number' ? ['os-hw-x' + (it.x + 1), 'os-hw-y' + (it.y + 1)] : [];
+      posClasses(n).forEach(function (c) { if (want.indexOf(c) === -1) n.classList.remove(c); });
+      want.forEach(function (c) { n.classList.add(c); });
+    }
+    function oneCol() {
+      if (!desk) return true;
+      try { return !!(W.matchMedia && W.matchMedia('(max-width: 1100px)').matches); } catch (e) { return false; }
+    }
+    function boardOps() { return desk && cur.length && typeof cur[0].x === 'number'; }
+    function describeAt(list, i) { return desk ? HL.describeDesk(list, i, oneCol()) : HL.describe(list, i); }
 
     // ── edit mode (P0c) ─────────────────────────────────────────
     /** The phone page's cell count for these items: an open M Coach takes the cells of an L (pageRoom). */
@@ -377,19 +412,22 @@
       var nx = HL.resize(cur, i, 0);
       var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
       return '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
-        '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>';
+        '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>' +
+        // the laptop corner grip: a pointer-only convenience (Shift+arrows and the chip are the other paths)
+        (desk && c.sizes.length > 1 ? '<span class="os-hw-grip" data-oshw-grip="" aria-hidden="true"></span>' : '');
     }
     function applyEdit() {
       order.forEach(function (k, i) {
         var rec = recs[k], n = rec.el;
         n.classList.toggle('is-editing', editing);
         n.classList.toggle('is-picked', editing && pick === k);
+        if (!editing) { n.classList.remove('is-dragging'); n.classList.remove('is-drop'); }
         if (editing) {
           if (!rec.ed) { rec.ed = doc.createElement('div'); rec.ed.className = 'os-hw-edit'; n.insertBefore(rec.ed, rec.body); }
           var h = chromeHtml(i);
           if (h !== rec.edHtml) { rec.ed.innerHTML = h; rec.edHtml = h; }
           n.setAttribute('tabindex', '0');
-          n.setAttribute('aria-label', HL.describe(cur, i) + (pick === k ? ', picked up' : ''));
+          n.setAttribute('aria-label', describeAt(cur, i) + (pick === k ? ', picked up' : ''));
           n.setAttribute('aria-describedby', helpId);
           rec.body.setAttribute('inert', '');
         } else {
@@ -406,23 +444,36 @@
       if (on !== editing) {
         editing = on;
         pick = null;
+        endDrag(false);
         applyEdit();
         announce(on ? 'Editing your home. ' + HELP : 'Done editing your home.');
       }
       if (on && focusFirst && order.length) { try { recs[order[0]].el.focus(); } catch (e) {} }
     }
     // the working list, each item tagged with its key so the moved widget can be found after pack()
-    function tagged() { return cur.map(function (it, i) { var c = { id: it.id, s: it.s, _k: order[i] }; if (it.cfg) c.cfg = it.cfg; return c; }); }
+    function tagged() {
+      return cur.map(function (it, i) {
+        var c = { id: it.id, s: it.s, _k: order[i] };
+        if (typeof it.x === 'number' && typeof it.y === 'number') { c.x = it.x; c.y = it.y; c.w = it.w; c.h = it.h; }
+        if (it.cfg) c.cfg = it.cfg;
+        return c;
+      });
+    }
     function keyAt(list, idx) { var n = 0; for (var j = 0; j <= idx; j++) if (list[j].id === list[idx].id) n++; return list[idx].id + '-' + n; }
     /** Save a changed list (through the layout), then keep focus on the widget and say what changed. */
     function commit(next, focusTag, prefix, focusSel) {
       if (!next) return false;
       if (surface === 'phone') next = HL.pack(next);
       if (next.map(function (x) { return x._k; }).join() === order.join() && next.length === order.length &&
-        next.every(function (x, i) { return x.s === cur[i].s; })) return false;
+        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y; })) return false;
       var at = -1;
       next.forEach(function (it, j) { if (focusTag && it._k === focusTag) at = j; });
-      var clean = next.map(function (it) { var c = { id: it.id, s: it.s }; if (it.cfg) c.cfg = it.cfg; return c; });
+      var clean = next.map(function (it) {
+        var c = { id: it.id, s: it.s };
+        if (desk && typeof it.x === 'number' && typeof it.y === 'number') { c.x = it.x; c.y = it.y; c.w = it.w; c.h = it.h; }
+        if (it.cfg) c.cfg = it.cfg;
+        return c;
+      });
       var newKey = at >= 0 ? keyAt(clean, at) : null;
       pick = null;
       if (typeof o.onChange === 'function') o.onChange(clean); else update(clean);
@@ -431,26 +482,41 @@
         var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
         try { f.focus({ preventScroll: true }); } catch (e) {}
       } else if (editing && !order.length && typeof o.onEmpty === 'function') o.onEmpty();   // the last one went: the layout's Add widget
-      announce((prefix || '') + (at >= 0 && !/^Removed/.test(prefix || '') ? HL.describe(clean, at) : ''));
+      announce((prefix || '') + (at >= 0 && !/^Removed/.test(prefix || '') ? describeAt(clean, at) : ''));
       return true;
     }
     function neighbour(i) { return order[i + 1] || order[i - 1] || null; }
     function removeAt(i) {
       var t = title(order[i]);
-      return commit(HL.remove(tagged(), i), neighbour(i), 'Removed ' + String(t) + '.');
+      return commit(boardOps() ? HL.deskRemove(tagged(), i) : HL.remove(tagged(), i), neighbour(i), 'Removed ' + String(t) + '.');
+    }
+    // the desk board's ops, with the plain list ops when the board logic is missing
+    function opMove(i, back, dx, dy) {
+      if (!boardOps()) return HL.moveBy(tagged(), i, back ? -1 : 1, surface === 'phone');
+      return oneCol() ? HL.deskSwap(tagged(), i, back ? -1 : 1) : HL.deskMoveBy(tagged(), i, dx, dy);
+    }
+    function opResize(i, dir) { return boardOps() ? HL.deskResize(tagged(), i, dir) : HL.resize(tagged(), i, dir); }
+    /** One widget onto another's place: the phone's list order, the desk's cell. */
+    function opPlace(from, to) {
+      if (!boardOps()) return HL.moveTo(tagged(), from, to);
+      var t = cur[to];
+      return HL.deskMoveTo(tagged(), from, t.x, t.y);
+    }
+    function placeOn(moved, key) {
+      var done = commit(opPlace(order.indexOf(moved), order.indexOf(key)), moved, '');
+      if (!done) { pick = null; applyEdit(); announce(desk ? title(moved) + ' stays where it is.' : 'Small widgets sit in pairs, so ' + title(moved) + ' stays where it is.'); }
+      return done;
     }
     function tapCard(key) {
       if (!pick) { pick = key; applyEdit(); announce(title(key) + ' picked up. Now tap where it goes, or tap it again to put it down.'); return; }
       if (pick === key) { var t0 = title(key); pick = null; applyEdit(); announce(t0 + ' put down.'); return; }
-      var moved = pick;
-      var done = commit(HL.moveTo(tagged(), order.indexOf(moved), order.indexOf(key)), moved, '');
-      if (!done) { pick = null; applyEdit(); announce('Small widgets sit in pairs, so ' + title(moved) + ' stays where it is.'); }
+      placeOn(pick, key);
     }
     function edButton(b, key) {
       var i = order.indexOf(key);
       if (i < 0 || b.hasAttribute('disabled')) return;
       var what = b.getAttribute('data-oshw-ed');
-      if (what === 'size') commit(HL.resize(tagged(), i, 0), key, '', '[data-oshw-ed="size"]');
+      if (what === 'size') commit(opResize(i, 0), key, '', '[data-oshw-ed="size"]');
       else if (what === 'remove') removeAt(i);
     }
     // capture: while editing, a tap arranges and never reaches the widget's own links and buttons;
@@ -477,18 +543,117 @@
       if (t !== sec) return;   // the chip and Remove keep their own keys
       var key = sec.getAttribute('data-oshw'), i = order.indexOf(key);
       var back = k === 'ArrowUp' || k === 'ArrowLeft', fwd = k === 'ArrowDown' || k === 'ArrowRight';
+      var dx = k === 'ArrowLeft' ? -1 : (k === 'ArrowRight' ? 1 : 0), dy = k === 'ArrowUp' ? -1 : (k === 'ArrowDown' ? 1 : 0);
       if (k === 'Delete' || k === 'Backspace') removeAt(i);
       else if (k === 'Enter' || k === ' ') tapCard(key);
       else if ((back || fwd) && ev.shiftKey) {
-        if (!commit(HL.resize(tagged(), i, k === 'ArrowRight' || k === 'ArrowDown' ? 1 : -1), key, '')) announce(title(key) + ' is already ' + (fwd ? 'as big' : 'as small') + ' as it goes.');
+        if (!commit(opResize(i, fwd ? 1 : -1), key, '')) announce(title(key) + ' is already ' + (fwd ? 'as big' : 'as small') + ' as it goes.');
       } else if (back || fwd) {
-        if (!commit(HL.moveBy(tagged(), i, back ? -1 : 1, surface === 'phone'), key, '')) announce(title(key) + ' is already ' + (back ? 'first' : 'last') + '.');
+        if (!commit(opMove(i, back, dx, dy), key, '')) announce(title(key) + ' is already ' + (boardOps() && !oneCol() ? 'at the edge' : (back ? 'first' : 'last')) + '.');
       } else return;
       ev.preventDefault();
       ev.stopPropagation();
     }
+    // ── drag (P1): pointer capture; one save on release ──
+    // desk board: the widget follows the pointer cell by cell (move) or snaps S/M/L (the grip);
+    // phone and the one-column desk: it drops onto another widget's place
+    function rect(n) { try { return n.getBoundingClientRect(); } catch (e) { return null; } }
+    function scroller(n) { return n.closest ? (n.closest('.os-p-home') || n.closest('.os-widgets')) : null; }
+    function startDrag(ev, sec) {
+      var key = sec.getAttribute('data-oshw');
+      var grip = ev.target.closest('[data-oshw-grip]');
+      var board = boardOps() && !oneCol();
+      if (grip && !board) return;
+      var r = rect(sec);
+      drag = { pid: ev.pointerId, key: key, sec: sec, x0: ev.clientX, y0: ev.clientY, on: false,
+        mode: grip ? 'size' : (board ? 'cell' : 'drop'), r0: r, base: tagged(), next: null, drop: null, edge: 0, edgeT: null };
+    }
+    function liftDrag() {
+      drag.on = true;
+      try { drag.sec.setPointerCapture(drag.pid); } catch (e) {}
+      drag.sec.classList.add('is-dragging');
+      if (drag.mode === 'drop') {
+        var sc = scroller(drag.sec);
+        drag.edgeT = W.setInterval(function () { if (drag && drag.edge && sc) sc.scrollTop += drag.edge * 16; }, 50);
+      }
+    }
+    /** Lay the board out as `list` without saving (the preview while dragging). */
+    function preview(list) {
+      list.forEach(function (it) {
+        var rec = recs[it._k];
+        if (!rec) return;
+        place(rec.el, it);
+        ['s', 'm', 'l'].forEach(function (s) { rec.el.classList.toggle('is-' + s, s === it.s); });
+      });
+    }
+    function geo() {
+      var r = rect(el);
+      return r ? { left: r.left, top: r.top, width: r.width, rowH: ROW_PX, gap: GAP_PX } : null;
+    }
+    function dragTo(ev) {
+      var i = order.indexOf(drag.key);
+      if (i < 0) return;
+      if (drag.mode === 'drop') {
+        var hitEl = doc.elementFromPoint ? doc.elementFromPoint(ev.clientX, ev.clientY) : null;
+        var over = hitEl && hitEl.closest ? hitEl.closest('[data-oshw]') : null;
+        var k = over && el.contains(over) && over !== drag.sec ? over.getAttribute('data-oshw') : null;
+        if (drag.drop !== k) {
+          if (drag.drop && recs[drag.drop]) recs[drag.drop].el.classList.remove('is-drop');
+          drag.drop = k;
+          if (k && recs[k]) recs[k].el.classList.add('is-drop');
+        }
+        var sc = scroller(drag.sec), sr = sc && rect(sc);
+        drag.edge = sr ? (ev.clientY < sr.top + EDGE_PX ? -1 : (ev.clientY > sr.top + sr.height - EDGE_PX ? 1 : 0)) : 0;
+        return;
+      }
+      var g = geo(), r0 = drag.r0;
+      if (!g || !r0) return;
+      var cw = (g.width - g.gap * (HL.DESK_COLS - 1)) / HL.DESK_COLS;
+      var next;
+      if (drag.mode === 'cell') {
+        // the widget's top-left follows the pointer; the nearest cell wins
+        var left = r0.left + (ev.clientX - drag.x0) + cw / 2, top = r0.top + (ev.clientY - drag.y0) + ROW_PX / 2;
+        var c = { x: Math.floor((left - g.left) / (cw + g.gap)), y: Math.floor((top - g.top) / (ROW_PX + g.gap)) };
+        c.x = Math.max(0, Math.min(HL.DESK_COLS - 1, c.x));
+        c.y = Math.max(0, Math.min(HL.DESK_MAX_Y, c.y));
+        next = HL.deskMoveTo(drag.base, i, c.x, c.y);
+      } else {
+        // the grip: the cells the pointer reaches, snapped to a size the widget offers
+        var w = Math.round((ev.clientX - r0.left) / (cw + g.gap)), h = Math.round((ev.clientY - r0.top) / (ROW_PX + g.gap));
+        var s = h >= 2 ? 'l' : (w >= 2 ? 'm' : 's');
+        var sizes = HL.CATALOG[drag.base[i].id].sizes;
+        if (sizes.indexOf(s) === -1) s = sizes.reduce(function (a, b) { return Math.abs(HL.SIZES.indexOf(b) - HL.SIZES.indexOf(s)) < Math.abs(HL.SIZES.indexOf(a) - HL.SIZES.indexOf(s)) ? b : a; });
+        next = HL.deskSizeTo(drag.base, i, s);
+      }
+      drag.next = next;
+      preview(next || drag.base);
+    }
+    function endDrag(apply) {
+      if (!drag) return;
+      var d = drag;
+      drag = null;
+      if (d.edgeT) W.clearInterval(d.edgeT);
+      if (!d.on) return;
+      try { if (d.sec.releasePointerCapture) d.sec.releasePointerCapture(d.pid); } catch (e) {}
+      d.sec.classList.remove('is-dragging');
+      if (d.drop && recs[d.drop]) recs[d.drop].el.classList.remove('is-drop');
+      // the click that ends a drag never picks the widget up
+      swallow = true;
+      W.clearTimeout(swallowT);
+      swallowT = W.setTimeout(function () { swallow = false; }, 700);
+      var done = false;
+      if (apply && d.mode === 'drop' && d.drop) { pick = null; done = placeOn(d.key, d.drop); }
+      else if (apply && d.next) done = commit(d.next, d.key, d.mode === 'size' ? 'Resized. ' : '');
+      if (!done) { preview(d.base); announce(apply ? title(d.key) + ' stays where it is.' : ''); }
+    }
+
     // long-press a widget to edit (the 550 ms pattern); a move of 10px or a lift cancels it
     function onDown(ev) {
+      if (editing && live && (ev.button == null || ev.button === 0)) {
+        var s0 = ev.target && ev.target.closest ? ev.target.closest('[data-oshw]') : null;
+        if (s0 && el.contains(s0) && !ev.target.closest('[data-oshw-ed]')) startDrag(ev, s0);
+        return;
+      }
       if (editing || (ev.button != null && ev.button !== 0) || typeof o.onLongPress !== 'function') return;
       var sec = ev.target && ev.target.closest ? ev.target.closest('[data-oshw]') : null;
       if (!sec) return;
@@ -506,9 +671,17 @@
       }, LONG_PRESS_MS);
     }
     function onMove(ev) {
+      if (drag && ev.pointerId === drag.pid) {
+        if (!drag.on && Math.abs(ev.clientX - drag.x0) + Math.abs(ev.clientY - drag.y0) > DRAG_PX) liftDrag();
+        if (drag.on) { if (ev.cancelable !== false && ev.preventDefault) ev.preventDefault(); dragTo(ev); }
+        return;
+      }
       if (press && ev.pointerId === press.pid && Math.abs(ev.clientX - press.x) + Math.abs(ev.clientY - press.y) > 10) { W.clearTimeout(pressT); press = null; }
     }
-    function onUp(ev) { if (press && ev.pointerId === press.pid) { W.clearTimeout(pressT); press = null; } }
+    function onUp(ev) {
+      if (drag && ev.pointerId === drag.pid) { endDrag(ev.type === 'pointerup'); return; }
+      if (press && ev.pointerId === press.pid) { W.clearTimeout(pressT); press = null; }
+    }
 
     // ── Add widget: a native <dialog>, the catalog grouped, minus what the role hides ──
     // a click whose target is the <dialog> itself may be its own padding or a gap between
@@ -550,6 +723,7 @@
         var next = HL.add(tagged(), b.getAttribute('data-oshw-add'), b.getAttribute('data-size'));
         if (!next) return;
         next[next.length - 1]._k = 'new';
+        if (boardOps()) next = HL.deskBoard(next) || next;   // the first gap that fits it
         d.close();
         commit(next, 'new', 'Added ');
       });
@@ -614,8 +788,13 @@
     doc.addEventListener('pointermove', onMove);
     doc.addEventListener('pointerup', onUp);
     doc.addEventListener('pointercancel', onUp);
+    // crossing 1100px: the edit labels say a cell or a place
+    var mq = null;
+    function onMq() { endDrag(false); if (editing) applyEdit(); }
+    if (desk) { try { mq = W.matchMedia ? W.matchMedia('(max-width: 1100px)') : null; if (mq && mq.addEventListener) mq.addEventListener('change', onMq); else mq = null; } catch (e) { mq = null; } }
 
     function unmount() {
+      endDrag(false);
       live = false;
       W.clearInterval(tick);
       W.clearTimeout(pressT);
@@ -629,6 +808,7 @@
       doc.removeEventListener('pointermove', onMove);
       doc.removeEventListener('pointerup', onUp);
       doc.removeEventListener('pointercancel', onUp);
+      if (mq) { try { mq.removeEventListener('change', onMq); } catch (e) {} }
       if (addEl && addEl.parentNode) addEl.parentNode.removeChild(addEl);
       addEl = null;
       if (el.parentNode) el.parentNode.removeChild(el);

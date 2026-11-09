@@ -179,7 +179,7 @@ function plan() {
 
 const FILES = [
   'docs/pro/js/os/system-logic.js', 'docs/pro/js/layouts/os-wm-logic.js', 'docs/pro/js/os/home-logic.js',
-  'docs/pro/js/os/coach-logic.js', 'docs/pro/js/os/home.js', 'docs/pro/js/layouts/os.js',
+  'docs/pro/js/os/coach-logic.js', 'docs/pro/js/os/home.js', 'docs/pro/js/layouts/board-logic.js', 'docs/pro/js/layouts/os.js',
 ];
 /**
  * opts: surface, plan (null = none yet), counts, role, home (the saved os-home key), leads, leadsLoaded,

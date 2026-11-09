@@ -9,12 +9,20 @@
  * 12,000-char budget (a separate key, so a full home can never push the OS
  * windows over the budget and drop them):
  *
- *   layoutState['os-home'] = { v:1, phone:[{ id, s, cfg? }], desk:[{ id, s, cfg? }] }
+ *   layoutState['os-home'] = { v:1, phone:[{ id, s, cfg? }], desk:[{ id, s, x, y, w, h, cfg? }] }
  *
  *   id    a widget in CATALOG (unknown ids are dropped)
  *   s     'S' | 'M' | 'L' as 's' | 'm' | 'l', one the widget offers (else its default)
  *   cfg   enum values the widget declares, at most 64 chars of JSON
- * At most 12 items per surface. Phone and desk are separate arrangements.
+ *   x y   the desk board cell (P1): 4 columns, rows of 160px, x 0-3, y 0-47
+ *   w h   the cells its size takes on the desk: S 1x1, M 2x1, L 2x2 (DESK_CELLS);
+ *         a saved w x h that is one of the widget's sizes wins over s
+ * At most 24 items per surface (P1; 12 in P0). Phone and desk are separate
+ * arrangements. A desk item saved without x / y (a P0 ordered list) is placed
+ * by layouts/board-logic.js into the first gap, in list order, so an old home
+ * keeps its order with no migration; the board is gravity-packed (Bento's
+ * rule) and kept in reading order, which is also the one-column order below
+ * 1100px.
  *
  *   normalize(raw)    a saved key made safe; garbage in, a clean default out
  *   defaults()        a new member's home
@@ -27,6 +35,9 @@
  *   pack(items)                the phone order with no grid holes (a lone S pairs up or goes last)
  *   moveBy / moveTo / resize / remove / add / describe
  *                              edit mode (P0c): pure list ops and the live-region line
+ *   deskBoard(list)            the desk list placed on the board (needs NBDBoardLogic, else as a list)
+ *   deskMoveBy / deskMoveTo / deskSwap / deskResize / deskSizeTo / deskRemove / deskAdd / describeDesk
+ *                              edit mode on the desk board (P1): each returns the new placed list or null
  *   upNext(plan, opts)         the top rows of the Today plan (NBDToday.last()), each
  *                              with the tap-through the Today list itself uses
  *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
@@ -46,7 +57,7 @@
   'use strict';
 
   var KEY = 'os-home';
-  var MAX_ITEMS = 12;
+  var MAX_ITEMS = 24;
   var MAX_CFG = 64;
   var SIZES = ['s', 'm', 'l'];
   var SURFACES = ['phone', 'desk'];
@@ -73,7 +84,7 @@
   function known(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(CATALOG, id); }
   function ids() { return ORDER.slice(); }
   function copyList(list) { return list.map(function (it) { var o = { id: it.id, s: it.s }; if (it.cfg) o.cfg = JSON.parse(JSON.stringify(it.cfg)); return o; }); }
-  function defaults() { return { v: 1, phone: copyList(DEFAULT), desk: copyList(DEFAULT) }; }
+  function defaults() { return { v: 1, phone: copyList(DEFAULT), desk: deskBoard(copyList(DEFAULT)) }; }
 
   function cleanCfg(id, cfg) {
     var c = known(id) ? CATALOG[id] : null;
@@ -92,21 +103,152 @@
     if (cfg) o.cfg = cfg;
     return o;
   }
-  function cleanList(list) {
-    if (!Array.isArray(list)) return copyList(DEFAULT);
+  function cleanList(list, desk) {
+    if (!Array.isArray(list)) return desk ? deskBoard(copyList(DEFAULT)) : copyList(DEFAULT);
     var out = [];
     for (var i = 0; i < list.length && out.length < MAX_ITEMS; i++) {
-      var it = cleanItem(list[i]);
+      var it = desk ? cleanDeskItem(list[i]) : cleanItem(list[i]);
       if (it) out.push(it);
     }
     // a list that had items and lost every one was garbage; an empty list is a choice
-    return list.length && !out.length ? copyList(DEFAULT) : out;
+    if (list.length && !out.length) out = copyList(DEFAULT);
+    return desk ? deskBoard(out) : out;
   }
   function normalize(raw) {
     var r = isObj(raw) ? raw : {};
     var out = { v: 1 };
-    SURFACES.forEach(function (s) { out[s] = cleanList(r[s]); });
+    SURFACES.forEach(function (s) { out[s] = cleanList(r[s], s === 'desk'); });
     return out;
+  }
+
+  // ── the desk board (P1, design §3.2 / §3.5): layouts/board-logic.js does the math ──
+  var DESK_COLS = 4;
+  var DESK_MAX_Y = 47;
+  var DESK_CELLS = { s: [1, 1], m: [2, 1], l: [2, 2] };
+  function cellsSize(w, h) {
+    for (var k in DESK_CELLS) if (DESK_CELLS[k][0] === w && DESK_CELLS[k][1] === h) return k;
+    return null;
+  }
+  function cellInt(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 0 ? v : null; }
+  /** One saved desk item: the phone item's rules, then the size its w x h names (if the widget offers it) and its cell. */
+  function cleanDeskItem(raw) {
+    var o = cleanItem(raw);
+    if (!o) return null;
+    var ws = cellsSize(cellInt(raw.w), cellInt(raw.h));
+    if (ws && CATALOG[o.id].sizes.indexOf(ws) !== -1) o.s = ws;
+    var x = cellInt(raw.x), y = cellInt(raw.y);
+    if (x !== null && y !== null) { o.x = Math.min(x, DESK_COLS - DESK_CELLS[o.s][0]); o.y = Math.min(y, DESK_MAX_Y); }
+    return o;
+  }
+  var board = null;
+  function BL() {
+    if (board) return board;
+    var M = root && root.NBDBoardLogic;
+    if (!M && typeof require === 'function') { try { M = require('../layouts/board-logic.js'); } catch (e) { M = null; } }
+    if (!M || typeof M.make !== 'function') return null;
+    board = M.make({
+      cols: DESK_COLS, maxTiles: MAX_ITEMS, maxY: DESK_MAX_Y, key: '_b', kind: 'id', carry: ['s', 'cfg', '_k'],
+      catalog: ORDER.map(function (id) { return { id: id, title: CATALOG[id].title, def: DESK_CELLS[CATALOG[id].def], min: [1, 1], max: [2, 2] }; }),
+    });
+    return board;
+  }
+  function toBoard(list) {
+    return list.map(function (it, i) {
+      var o = { _b: 'b' + i, id: it.id, x: it.x, y: it.y, w: DESK_CELLS[it.s][0], h: DESK_CELLS[it.s][1], s: it.s };
+      if (it.cfg) o.cfg = JSON.parse(JSON.stringify(it.cfg));
+      if (it._k) o._k = it._k;
+      return o;
+    });
+  }
+  function fromBoard(b) {
+    return b.slice().sort(function (a, c) { return a.y - c.y || a.x - c.x; }).map(function (t) {
+      var o = { id: t.id, s: t.s, x: t.x, y: t.y, w: t.w, h: t.h };
+      if (t.cfg) o.cfg = t.cfg;
+      if (t._k) o._k = t._k;
+      return o;
+    });
+  }
+  /**
+   * The desk list placed on the board: items with a cell keep it (gravity-packed), items
+   * without one go into the first gap in list order. Without the board logic (it failed to
+   * load) the list comes back as it is, and the desk shows it as one column.
+   */
+  function deskBoard(list) {
+    var Q = BL();
+    var items = (Array.isArray(list) ? list : []).filter(function (it) { return it && known(it.id) && DESK_CELLS[it.s]; });
+    if (!Q) return items.map(copyItem);
+    var all = toBoard(items);
+    var placed = Q.compact(all.filter(function (t) { return cellInt(t.x) !== null && cellInt(t.y) !== null; }));
+    all.forEach(function (t) {
+      if (cellInt(t.x) !== null && cellInt(t.y) !== null) return;
+      var at = Q.firstFit(placed, t.w, t.h);
+      t.x = at.x; t.y = at.y;
+      placed = Q.compact(placed.concat([t]));
+    });
+    return fromBoard(placed);
+  }
+  function samePlace(a, b) {
+    return a.length === b.length && a.every(function (t, i) { return t._k === b[i]._k && t.id === b[i].id && t.s === b[i].s && t.x === b[i].x && t.y === b[i].y && t.w === b[i].w && t.h === b[i].h; });
+  }
+  function placedAll(list) { return list.every(function (it) { return it && known(it.id) && DESK_CELLS[it.s] && cellInt(it.x) !== null && cellInt(it.y) !== null; }); }
+  // the op runs on the list as given (item i is tile 'b' + i); null when the board logic is
+  // missing, the list is not placed, or nothing moved
+  function deskOp(list, i, fn) {
+    var Q = BL();
+    if (!Q || !Array.isArray(list) || i < 0 || i >= list.length || !placedAll(list)) return null;
+    var b = toBoard(list), was = fromBoard(b);
+    var out = fn(Q, b, 'b' + i);
+    if (!out) return null;
+    out = fromBoard(out);
+    return samePlace(out, was) ? null : out;
+  }
+  /**
+   * Arrow keys on the board: one cell left/right/up/down (the others work around it). Gravity
+   * floats a widget straight back up when nothing sits under it, so an up/down step that changes
+   * nothing swaps it with its reading-order neighbour instead (a key always does something until an end).
+   */
+  function deskMoveBy(list, i, dx, dy) {
+    var out = deskOp(list, i, function (Q, b, id) { return Q.moveBy(b, id, dx, dy); });
+    return out || (dy && !dx ? deskSwap(list, i, dy) : null);
+  }
+  /** A pointer drop: the cell under the pointer. */
+  function deskMoveTo(list, i, x, y) { return deskOp(list, i, function (Q, b, id) { return Q.moveTo(b, id, x, y); }); }
+  /** One column (below 1100px): swap with the widget before (-1) or after (+1) in reading order. */
+  function deskSwap(list, i, dir) { return deskOp(list, i, function (Q, b, id) { return Q.swapOrder(b, id, dir); }); }
+  /** S/M/L snap: dir +1 bigger, -1 smaller, 0 cycles (the chip); the others work around it. */
+  function deskSizeTo(list, i, s) {
+    var it = list[i], c = it && known(it.id) ? CATALOG[it.id] : null;
+    if (!c || c.sizes.indexOf(s) === -1 || s === it.s) return null;
+    return deskOp(list, i, function (Q, b, id) {
+      var t = Q.find(b, id);
+      t.s = s;
+      return Q.resizeTo(b, id, DESK_CELLS[s][0], DESK_CELLS[s][1]);
+    });
+  }
+  function deskResize(list, i, dir) {
+    var next = resize(list, i, dir);
+    return next ? deskSizeTo(list, i, next[i].s) : null;
+  }
+  function deskRemove(list, i) {
+    var Q = BL();
+    var next = remove(list, i);
+    if (!next) return null;
+    return Q && placedAll(next) ? fromBoard(Q.compact(toBoard(next))) : next;
+  }
+  /** Add widget on the desk: the first gap that fits its size. */
+  function deskAdd(list, id, s) {
+    var next = add(list, id, s);
+    if (!next) return null;
+    var it = next[next.length - 1];
+    delete it.x; delete it.y;
+    return deskBoard(next);
+  }
+  /** "Coach, medium, row 2 column 1" (one column: "position 2 of 4"). */
+  function describeDesk(list, i, oneCol) {
+    var it = list[i];
+    if (!it || !known(it.id)) return '';
+    if (oneCol || cellInt(it.x) === null || cellInt(it.y) === null) return describe(list, i);
+    return CATALOG[it.id].title + ', ' + SIZE_NAME[it.s] + ', row ' + (it.y + 1) + ' column ' + (it.x + 1);
   }
 
   // ── what the widgets show ─────────────────────────────────────
@@ -144,7 +286,13 @@
 
   // ── edit mode (P0c): each op returns a NEW list, or null when nothing changes ──
   // a caller's own tag (_k: home.js tracks which widget moved) rides along; normalize() drops it
-  function copyItem(it) { var o = { id: it.id, s: it.s }; if (it.cfg) o.cfg = JSON.parse(JSON.stringify(it.cfg)); if (it._k) o._k = it._k; return o; }
+  function copyItem(it) {
+    var o = { id: it.id, s: it.s };
+    if (cellInt(it.x) !== null && cellInt(it.y) !== null) { o.x = it.x; o.y = it.y; o.w = DESK_CELLS[it.s][0]; o.h = DESK_CELLS[it.s][1]; }
+    if (it.cfg) o.cfg = JSON.parse(JSON.stringify(it.cfg));
+    if (it._k) o._k = it._k;
+    return o;
+  }
   function sameList(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
   function moveTo(list, from, to) {
     var out = list.map(copyItem);
@@ -363,6 +511,8 @@
     CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, jobsLeft: jobsLeft, glanceCounts: glanceCounts, headline: headline, noMoreLine: noMoreLine,
     dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
+    DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
+    deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

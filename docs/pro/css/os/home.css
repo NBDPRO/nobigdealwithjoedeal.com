@@ -186,14 +186,41 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-p-home { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
 .os-p-home::-webkit-scrollbar { display: none; }
 
-/* ── desk: an ordered list in the column, two across on a wide screen ── */
-.os-widgets.os-hw-desk { width: 300px; bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
-.os-hw-desk .os-hw-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-3, 12px); align-content: start; }
-.os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: 1 / -1; }
-.os-hw-desk .os-hw.is-l { min-height: 280px; }
-/* below 1100px: one column, never hidden */
-@media (max-width: 1100px) {
-  .os-hw-desk .os-hw-list { grid-template-columns: 1fr; }
-  .os-widgets.os-hw-desk { width: 220px; }
-  .os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: auto; }
+/* ── desk (P1): a board of 4 columns and 160px rows; each widget at its saved cell ──
+   (S 1x1, M 2x1, L 2x2; js/os/home.js sets os-hw-x<col> / os-hw-y<row>, never a style).
+   ROW_PX / GAP_PX in home.js are these 160px rows and 12px gaps. */
+.os-widgets.os-hw-desk { width: min(640px, calc(100% - 140px)); bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
+.os-hw-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 160px; gap: 12px; align-content: start; }
+.os-hw-board .os-hw { position: relative; grid-column-end: span 1; grid-row-end: span 1; }
+.os-hw-board .os-hw.is-m { grid-column-end: span 2; }
+.os-hw-board .os-hw.is-l { grid-column-end: span 2; grid-row-end: span 2; }
+.os-hw-board .os-hw-x1 { grid-column-start: 1; } .os-hw-board .os-hw-x2 { grid-column-start: 2; } .os-hw-board .os-hw-x3 { grid-column-start: 3; } .os-hw-board .os-hw-x4 { grid-column-start: 4; }
+.os-hw-board .os-hw-y1 { grid-row-start: 1; } .os-hw-board .os-hw-y2 { grid-row-start: 2; } .os-hw-board .os-hw-y3 { grid-row-start: 3; } .os-hw-board .os-hw-y4 { grid-row-start: 4; } .os-hw-board .os-hw-y5 { grid-row-start: 5; } .os-hw-board .os-hw-y6 { grid-row-start: 6; }
+.os-hw-board .os-hw-y7 { grid-row-start: 7; } .os-hw-board .os-hw-y8 { grid-row-start: 8; } .os-hw-board .os-hw-y9 { grid-row-start: 9; } .os-hw-board .os-hw-y10 { grid-row-start: 10; } .os-hw-board .os-hw-y11 { grid-row-start: 11; } .os-hw-board .os-hw-y12 { grid-row-start: 12; }
+.os-hw-board .os-hw-y13 { grid-row-start: 13; } .os-hw-board .os-hw-y14 { grid-row-start: 14; } .os-hw-board .os-hw-y15 { grid-row-start: 15; } .os-hw-board .os-hw-y16 { grid-row-start: 16; } .os-hw-board .os-hw-y17 { grid-row-start: 17; } .os-hw-board .os-hw-y18 { grid-row-start: 18; }
+.os-hw-board .os-hw-y19 { grid-row-start: 19; } .os-hw-board .os-hw-y20 { grid-row-start: 20; } .os-hw-board .os-hw-y21 { grid-row-start: 21; } .os-hw-board .os-hw-y22 { grid-row-start: 22; } .os-hw-board .os-hw-y23 { grid-row-start: 23; } .os-hw-board .os-hw-y24 { grid-row-start: 24; }
+.os-hw-board .os-hw-y25 { grid-row-start: 25; } .os-hw-board .os-hw-y26 { grid-row-start: 26; } .os-hw-board .os-hw-y27 { grid-row-start: 27; } .os-hw-board .os-hw-y28 { grid-row-start: 28; } .os-hw-board .os-hw-y29 { grid-row-start: 29; } .os-hw-board .os-hw-y30 { grid-row-start: 30; }
+.os-hw-board .os-hw-y31 { grid-row-start: 31; } .os-hw-board .os-hw-y32 { grid-row-start: 32; } .os-hw-board .os-hw-y33 { grid-row-start: 33; } .os-hw-board .os-hw-y34 { grid-row-start: 34; } .os-hw-board .os-hw-y35 { grid-row-start: 35; } .os-hw-board .os-hw-y36 { grid-row-start: 36; }
+.os-hw-board .os-hw-y37 { grid-row-start: 37; } .os-hw-board .os-hw-y38 { grid-row-start: 38; } .os-hw-board .os-hw-y39 { grid-row-start: 39; } .os-hw-board .os-hw-y40 { grid-row-start: 40; } .os-hw-board .os-hw-y41 { grid-row-start: 41; } .os-hw-board .os-hw-y42 { grid-row-start: 42; }
+.os-hw-board .os-hw-y43 { grid-row-start: 43; } .os-hw-board .os-hw-y44 { grid-row-start: 44; } .os-hw-board .os-hw-y45 { grid-row-start: 45; } .os-hw-board .os-hw-y46 { grid-row-start: 46; } .os-hw-board .os-hw-y47 { grid-row-start: 47; } .os-hw-board .os-hw-y48 { grid-row-start: 48; }
+/* edit mode: drag a widget to a cell; the corner grip snaps it to S / M / L. Cells snap, nothing slides */
+.os-hw-board .os-hw.is-editing { cursor: grab; }
+.os-hw-grip { position: absolute; right: 0; bottom: 0; width: 44px; height: 44px; cursor: nwse-resize; touch-action: none; }
+.os-hw-grip::after {
+  content: ''; position: absolute; right: 8px; bottom: 8px; width: 12px; height: 12px;
+  border-right: 2px solid var(--m); border-bottom: 2px solid var(--m); border-bottom-right-radius: 3px;
 }
+/* below 1100px: one column in reading order (the DOM order), never hidden; no grip (arrows and the chip still resize) */
+@media (max-width: 1100px) {
+  .os-hw-desk .os-hw-board { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  .os-widgets.os-hw-desk { width: 240px; }
+  .os-hw-board .os-hw.os-hw { grid-column: auto; grid-row: auto; min-height: 96px; }
+  .os-hw-board .os-hw.os-hw.is-l { min-height: 280px; }
+  .os-hw-grip { display: none; }
+}
+
+/* ── drag (P1, phone and desk): touch-action is set on edit-mode widgets before any pointerdown,
+   so a press-and-drag moves the widget instead of scrolling; tap-pick-place keeps working ── */
+.os-hw.is-editing { touch-action: none; }
+.os-hw.is-dragging { z-index: 2; opacity: .7; cursor: grabbing; box-shadow: var(--ui-elev-2, var(--ui-elev-1)); }
+.os-hw.is-editing.is-drop { outline: 2px solid var(--orange); }
