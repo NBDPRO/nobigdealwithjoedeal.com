@@ -80,7 +80,10 @@
       if (done) return; settle();
       var c = p && p.coords ? NL.coordsOf({ lat: p.coords.latitude, lng: p.coords.longitude }) : null;
       S.asking = false;
-      if (c) { S.fix = { lat: c.lat, lng: c.lng, at: Date.now() }; S.err = null; }
+      // when the position was taken (maximumAge can hand back one up to a minute old); a missing
+      // or future stamp (a wrong device clock) falls back to now
+      var now = Date.now(), ts = p && typeof p.timestamp === 'number' && isFinite(p.timestamp) && p.timestamp <= now ? p.timestamp : now;
+      if (c) { S.fix = { lat: c.lat, lng: c.lng, at: ts }; S.err = null; }
       else { S.fix = null; S.err = NL.geoError({ code: 2 }); }
       repaint();
       refocus(card);

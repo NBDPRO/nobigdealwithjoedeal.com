@@ -57,7 +57,7 @@ function geoStub() {
     watchPosition() { g.watches++; return 1; },
     clearWatch() {},
   };
-  g.answer = (pos) => { const p = g.pending; g.pending = null; p.ok({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: 10 }, timestamp: H.NOW }); };
+  g.answer = (pos, ts) => { const p = g.pending; g.pending = null; p.ok({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: 10 }, timestamp: ts === undefined ? H.NOW : ts }); };
   g.refuse = (code) => { const p = g.pending; g.pending = null; p.fail({ code, message: 'nope' }); };
   return g;
 }
@@ -268,6 +268,21 @@ const find = (T, el) => click(T.dom, el.querySelector('[data-oshw-nb="find"]'));
     for (let i = 0; i < 3; i++) await tick();
     ok('S with no lead on the map: the title says so (one 92px cell), no <p> under it to clip', /No leads on the map/.test(text(el.querySelector('.os-hw-title'))) && !el.querySelector('p') && !/\d/.test(text(el)), el.innerHTML);
     ok('S: focus lands on that title line', T.document.activeElement === el.querySelector('[data-oshw-nb-status]'));
+  }
+  {
+    // maximumAge lets the browser hand back a fix up to a minute old: the L line says when it was taken
+    const tm = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const { T, g, card } = await mount([{ id: 'nearby', s: 'l' }]);
+    const el = card('nearby-1');
+    find(T, el); g.answer(HERE, H.NOW - 55000);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('L: "From where you were at" the position\'s own time, not when the read finished', text(el).indexOf('From where you were at ' + tm(H.NOW - 55000)) !== -1 && tm(H.NOW - 55000) !== tm(H.NOW), text(el));
+    find(T, el); g.answer(HERE, H.NOW + 3600000);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('a position stamped in the future (a wrong device clock): the time the read finished', text(el).indexOf('From where you were at ' + tm(H.NOW)) !== -1, text(el));
+    find(T, el); g.answer(HERE, 'x');
+    for (let i = 0; i < 3; i++) await tick();
+    ok('no usable timestamp: the time the read finished', text(el).indexOf('From where you were at ' + tm(H.NOW)) !== -1 && el.querySelectorAll('.os-nb-row').length === 4, text(el));
   }
   {
     const { card } = await mount([{ id: 'nearby', s: 'm' }], { leadsLoaded: false });
