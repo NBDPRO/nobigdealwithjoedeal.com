@@ -257,7 +257,7 @@
         var acts;
         if (settled) acts = statusFor(item);
         else if (S.confirm === item) {
-          acts = '<div class="cb-warn">' + esc(r.warn) + ' Fill it in?</div><div class="cb-acts">' + btn('Yes, fill it in', 'accept-yes', ' data-k="' + esc(r.key) + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>';
+          acts = '<div class="cb-warn">' + esc(r.warn) + ' Fill it in' + (r.retype && S.edit[item] ? ' as ' + esc(S.edit[item]) : '') + '?</div><div class="cb-acts">' + btn('Yes, fill it in', 'accept-yes', ' data-k="' + esc(r.key) + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>';
         } else if (r.filled) {
           acts = '<div class="cb-meta">Already filled in on the customer. Change it on the customer card if it is wrong.</div><div class="cb-acts">' + btn('Skip', 'skip', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
         } else if (r.retype) {
