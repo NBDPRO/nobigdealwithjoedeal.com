@@ -131,6 +131,10 @@ const LEAD_OTHER = { id: 'leadOther', companyId: 'co2', firstName: 'Other', addr
     ok('…a before stage gives no end', !we.end && S.phaseFor(L(2026, 6, 6), we) === null);
     const wf = S.leadWindows({ stage: 'final_payment', updatedAt: iso(L(2026, 6, 7)) });
     ok('updatedAt is the last fallback (social-studio.js order)', wf.end === L(2026, 6, 7));
+    // stage-write.js's quiet "already completed" backfill: the history event is
+    // stamped at click time (backfill: true) and the real day is in completedAt.
+    const wq = S.leadWindows({ completedAt: iso(L(2026, 6, 2, 12)), stageHistory: [{ to: 'install_complete', timestamp: iso(L(2026, 11, 1, 9)), backfill: true, completedOn: '2026-06-02' }] });
+    ok('a backfilled completion uses completedAt, not the click time', wq.end === L(2026, 6, 2, 12) && wq.last === L(2026, 6, 2, 12), JSON.stringify(wq));
     const lostAfter = S.leadWindows({ stageHistory: [{ to: 'lost', timestamp: iso(L(2026, 6, 1)) }] });
     ok('a move to lost is not an install end', !lostAfter.end);
 

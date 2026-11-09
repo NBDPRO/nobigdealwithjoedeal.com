@@ -136,7 +136,10 @@ function streetParts(key) {
  */
 function leadWindows(lead) {
   const l = lead || {};
+  // A quiet "already completed" backfill event (stage-write.js) is stamped at
+  // click time; its real day is in completedAt, so the event itself is skipped.
   const hist = (Array.isArray(l.stageHistory) ? l.stageHistory : [])
+    .filter((h) => !(h && h.backfill === true))
     .map((h) => ({ to: stageKey(h && h.to), at: ms(h && (h.timestamp || h.at)) }))
     .filter((h) => h.at)
     .sort((a, b) => a.at - b.at);
