@@ -711,8 +711,11 @@
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + healthPanel() + tagPanel() + autoBriefPanel() +
-      '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
+      '</div>' + healthPanel() + tagPanel() + autoBriefPanel();
+    // A viewer reads no calls or texts (Call to Close Q11): with nothing to search or
+    // filter, the "hidden for your role" note shows without the toolbar's tabs and chips.
+    var viewerNote = state.loaded && !state.error && !state.calls.length && isViewer();
+    if (!viewerNote) head += '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
@@ -743,7 +746,7 @@
     // A redraw drops keyboard focus: remember which control had it (or which one an arrow key is moving to) and put it back.
     var fk = state.refocus || focusKeyOf(document.activeElement);
     state.refocus = '';
-    el.innerHTML = '<div class="cc-wrap">' + head + '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">' + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
+    el.innerHTML = '<div class="cc-wrap">' + head + '<div id="ccPanel"' + (viewerNote ? '' : ' role="tabpanel" aria-labelledby="ccTab-' + active[0] + '"') + ' tabindex="-1">' + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
     focusedCard();
     a11yPass(el, shownN, active);
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }

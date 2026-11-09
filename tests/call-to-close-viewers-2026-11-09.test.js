@@ -97,6 +97,35 @@ const cols = (qs) => qs.map((q) => q.col);
   }
   ok('the Call Center says "Calls and texts are hidden for your role." to a viewer', /isViewer\(\)\) body = '<div class="cc-empty cc-hidden-note" role="status">Calls and texts are hidden for your role\.<\/div>'/.test(CCV));
   ok('…and no longer says "Texts still show"', !/Texts still show/.test(CCV));
+  // Final round (2026-11-09): at 375px the viewer's note sat below the search box,
+  // 13 category tabs and the filter chips, all at 0. With nothing to search or
+  // filter, a viewer gets the note without the toolbar.
+  {
+    const RENDER = slicer(CCV)('  function renderList() {', '\n  }\n');
+    ok('renderList is found (positive control)', /function renderList\(\)/.test(RENDER));
+    function runRender(role, calls) {
+      const el = { innerHTML: '' };
+      const win = { _userClaims: { role } };
+      const sb = { window: win, document: { getElementById: () => null, activeElement: null }, Object, String, Number,
+        root: () => el, leadsById: () => ({}), FX: null, flt: {}, FILTERS: [['all', 'All', () => true]],
+        filtersNow: () => [['all', 'All', () => true], ['attention', 'Needs attention', () => true]],
+        groupNeeds: () => [], matchesSearch: () => true, healthPanel: () => '', tagPanel: () => '', autoBriefPanel: () => '',
+        esc: (s) => String(s), promises: { items: [], loaded: false }, readProblems: () => [], capBanner: () => '', readBanner: () => '',
+        focusKeyOf: () => '', focusedCard() {}, a11yPass() {}, restoreFocus() {}, renderCall: () => '<div class="cc-card"></div>',
+        groupPromises: () => [], isViewer: () => role === 'viewer', filterBar: () => '<div class="cc-fbar"></div>',
+        state: { loaded: true, error: '', calls, filter: 'all', q: '', busy: {}, cappedBefore: 0, refocus: '' } };
+      vm.createContext(sb);
+      vm.runInContext(RENDER + '\nglobalThis.__r = renderList;', sb);
+      sb.__r();
+      return el.innerHTML;
+    }
+    const v = runRender('viewer', []);
+    ok('Call Center, viewer: the hidden-for-your-role note shows', /cc-hidden-note/.test(v), v);
+    ok('…with no search box, category tabs or filter chips above it', !/cc-toolbar|ccSearch|role="tab"|cc-fbar/.test(v), v);
+    ok('…and the panel names no tab it is labelled by', !/aria-labelledby="ccTab-/.test(v), v);
+    const m = runRender('manager', []);
+    ok('Call Center, manager with no calls: the toolbar still shows (positive control)', /cc-toolbar/.test(m) && /role="tab"/.test(m) && /aria-labelledby="ccTab-all"/.test(m), m);
+  }
 
   // ── 1 + 2. Customer card (customer-calls.js) ───────────────────────────
   console.log('CUSTOMER CARD (customer-calls.js)');
