@@ -322,6 +322,31 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   r = await runArgs(f, ['--apply']);
   ok(d2[T1].title === 'Rep typed mid-run' && !d2[T1].callText && r.counts.failures === 1, 'edited mid-run: the update is refused, counted a failure');
 
+  // edited after the page read, before the sidecar (review 2026-11-09): no
+  // sidecar is left behind with the old text, the task keeps the edit
+  d2 = seed();
+  f = fakeDb(d2);
+  const realDoc3 = f.db.doc;
+  f.db.doc = (p) => {
+    const x = realDoc3(p);
+    if (p === TCT.sidePath(T1)) { const g = x.get; x.get = async () => { if (!d2[T1].title.startsWith('Rep')) f.edit(T1, { title: 'Rep typed before the sidecar' }); return g(); }; }
+    return x;
+  };
+  r = await runArgs(f, ['--apply']);
+  ok(d2[T1].title === 'Rep typed before the sidecar' && !d2[T1].callText && !(TCT.sidePath(T1) in d2) && r.counts.failures === 1, 'edited before the sidecar: no sidecar written, the task keeps the edit -> ' + JSON.stringify({ side: TCT.sidePath(T1) in d2, failures: r.counts.failures }));
+  // edited while the sidecar is written: the task update is held to the
+  // PAGE's updateTime, not a fresh one, so the edit stands
+  d2 = seed();
+  f = fakeDb(d2);
+  const realDoc4 = f.db.doc;
+  f.db.doc = (p) => {
+    const x = realDoc4(p);
+    if (p === TCT.sidePath(T1)) { const c0 = x.create; x.create = async (data) => { await c0(data); f.edit(T1, { title: 'Rep typed during the sidecar' }); }; }
+    return x;
+  };
+  r = await runArgs(f, ['--apply']);
+  ok(d2[T1].title === 'Rep typed during the sidecar' && !d2[T1].callText && r.counts.failures === 1, 'edited while the sidecar is written: the task update is refused');
+
   // ── no updateTime on a read: never written ──
   d2 = seed();
   f = fakeDb(d2);

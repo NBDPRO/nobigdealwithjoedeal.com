@@ -91,6 +91,8 @@ const OLD_LEAD_NOTES = '📞 Thursday call ';
 const POINTER = L.buildFollowUpTask({ call: { id: 'x' }, notes: { promises: [], followUpDate: 'x', summary: 'x' }, leadId: 'x', ownerUid: 'x', todayYmd: 'x' }).notes;
 
 const has = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+// Two updateTimes: an Admin SDK Timestamp (isEqual), or the REST adapter's string.
+const sameTime = (a, b) => !!a && !!b && (typeof a.isEqual === 'function' ? a.isEqual(b) : JSON.stringify(a) === JSON.stringify(b));
 // One half ({ full } or { generic }) of a sidecar, field by field: Firestore
 // hands a map back with its keys sorted, not in the order split() wrote them.
 const same = (a, b) => !!a && !!b && typeof a === 'object' && typeof b === 'object'
@@ -268,6 +270,11 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
     if (!args.apply) return;
     if (!d.updateTime) { counts.failures++; return; }
     try {
+      // The task as the page read it, still: an owner's edit since then is
+      // not written over, and leaves no sidecar of the old text behind (the
+      // update's precondition below still guards the gap after this read).
+      const now = await read(p);
+      if (!now || !sameTime(now.updateTime, d.updateTime)) { counts.failures++; return; }
       // Sidecar first: a crash after it leaves the full task, never a bare generic one.
       if (await TCT.writeSideIfAbsent(db, p, split)) counts.sidecarsWritten++;
       else if (!isWanted(await read(TCT.sidePath(p)))) { counts.otherSidecar++; return; }
