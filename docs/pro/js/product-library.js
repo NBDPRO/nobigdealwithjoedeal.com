@@ -31,7 +31,13 @@
   // notes neutralized — the seed text named Hamilton County / Cincinnati on
   // every tenant's product library (NBD-leak audit remnant). migrateStore
   // lands the fix while preserving user-edited copies.
-  const DATA_VERSION = 5;
+  // DATA_VERSION 6 (2026-11-09): retail sells raised on 17 SKUs (under_001,
+  // under_002, under_007, flash_007, flash_008, flash_009, flash_010, ext_003,
+  // ext_004, ext_005, acc_002, acc_007, acc_019, acc_025, acc_026, sky_006,
+  // rdeck_004), plus flash_008's coverage text corrected to ~120 LF per
+  // bundle. migrateStore refreshes untouched catalog rows only; user-edited,
+  // user-added, archived and tombstoned rows are kept as they are.
+  const DATA_VERSION = 6;
 
   // Pull from product-data.js globals
   const CATEGORIES = window.NBD_CATEGORIES || {};
@@ -1299,19 +1305,38 @@ const DEFAULT_RATES = {
 // the DEFAULT_RATES convention above. Previously these used 1/100
 // to convert to per-SF, which produced rates the formula couldn't
 // use correctly.
+//
+// 2026-11-09 unit fix: felt mapped under_001 1:1, but under_001 is sold per
+// ROLL covering 10 SQ, so the per-SQ felt rate was 10x the real one; and the
+// starter bundle (flash_008) is 120 LF per the supplier, not the ~100 LF the
+// catalog text said. Roll items now divide by the product's own
+// coverage.sqPerRoll; bundle items carry an explicit lfPerBundle from the
+// catalog description. `rateUnit` is the unit the rate is in: a product a user
+// has re-priced in that unit (its `unit` field) is taken as-is. `unitConvert`
+// is the catalog default and the fallback when a product carries no coverage.
 const PRODUCT_MAP = {
-  shingle: { id: 'shingle_001', unitConvert: 1 },     // product per SQ → rate per SQ
-  felt:    { id: 'under_001',   unitConvert: 1 },     // product per SQ → rate per SQ
-  tear:    null,                                        // labor only — no product mapping
-  starter: { id: 'flash_008',   unitConvert: 1/100 }, // product per 100-LF bundle → rate per LF
-  drip:    { id: 'flash_003',   unitConvert: 1 },     // product per LF → rate per LF
-  ridge:   { id: 'flash_007',   unitConvert: 1/25 },  // product per 25-LF bundle → rate per LF
-  iws:     { id: 'under_006',   unitConvert: 1/2 },   // product per 2-SQ roll (200 SF) → rate per SQ
-  hip:     { id: 'flash_007',   unitConvert: 1/25 },  // same as ridge
-  pipe:    { id: 'flash_002',   unitConvert: 1 },     // product per EA → rate per EA
-  deck:    null,                                        // decking — use default rate
-  gutter:  null                                         // gutters — use default rate
+  shingle: { id: 'shingle_001', rateUnit: 'SQ', unitConvert: 1 },                    // product per SQ → rate per SQ
+  felt:    { id: 'under_001',   rateUnit: 'SQ', coverageKey: 'sqPerRoll', unitConvert: 1/10 }, // 10-SQ roll (1000 SF) → rate per SQ
+  tear:    null,                                                                       // labor only — no product mapping
+  starter: { id: 'flash_008',   rateUnit: 'LF', lfPerBundle: 120, unitConvert: 1/120 }, // 120-LF bundle → rate per LF
+  drip:    { id: 'flash_003',   rateUnit: 'LF', unitConvert: 1 },                    // product per LF → rate per LF
+  ridge:   { id: 'flash_007',   rateUnit: 'LF', lfPerBundle: 25, unitConvert: 1/25 },  // ~25-LF bundle → rate per LF
+  iws:     { id: 'under_006',   rateUnit: 'SQ', coverageKey: 'sqPerRoll', unitConvert: 1/2 },  // 2-SQ roll (200 SF) → rate per SQ
+  hip:     { id: 'flash_007',   rateUnit: 'LF', lfPerBundle: 25, unitConvert: 1/25 },  // same as ridge
+  pipe:    { id: 'flash_002',   rateUnit: 'EA', unitConvert: 1 },                    // product per EA → rate per EA
+  deck:    null,                                                                       // decking — use default rate
+  gutter:  null                                                                        // gutters — use default rate
 };
+
+// Sell-to-rate factor for one product: 1 when the product is already priced
+// in the rate's unit; else 1 / the product's own coverage (rolls); else the
+// map's catalog factor (bundles, or a roll that lost its coverage field).
+function _unitConvertFor(mapping, product) {
+  if (mapping.rateUnit && product.unit === mapping.rateUnit) return 1;
+  const cov = mapping.coverageKey && product.coverage ? Number(product.coverage[mapping.coverageKey]) : NaN;
+  if (cov > 0) return 1 / cov;
+  return mapping.unitConvert;
+}
 
 // Which product pricing column a tier reads. Products carry good/better/best
 // only; Economy reads Good and Beyond reads Best (estimate-config.js
@@ -1337,7 +1362,7 @@ function syncRatesFromProductLibrary(tier) {
       const product = products.find(p => p.id === mapping.id);
       if (product && product.pricing && product.pricing[col]) {
         // Convert product sell price to per-unit rate used by estimates
-        rates[key] = product.pricing[col].sell * mapping.unitConvert;
+        rates[key] = product.pricing[col].sell * _unitConvertFor(mapping, product);
       }
     }
   }
