@@ -222,6 +222,18 @@ if (!L || !C) done();
     ok('…and in AI spend as feature coach-line', db.store.get('ai_spend_daily/' + YMD) && db.store.get('ai_spend_daily/' + YMD).features['coach-line'].calls === 1);
     r = await run(db);
     ok('the second tap the same day → the cached line, no model call', calls.length === 1 && r.cached === true && r.line);
+    // review fix (2026-11-09): the kill switches pull back a line already cached today
+    flags.coachLineDisabled = true;
+    r = await run(db);
+    ok('coachLineDisabled flipped mid-day → today\'s cached line is no longer served (reason unavailable)', r.line === null && r.reason === 'unavailable' && calls.length === 1, r);
+    flags.coachLineDisabled = false; flags.aiDisabled = true;
+    r = await run(db);
+    ok('…nor under aiDisabled', r.line === null && r.reason === 'unavailable' && calls.length === 1, r);
+    flags.aiDisabled = false;
+    r = await run(db, { auth: { uid: 'rep1', token: { companyId: 'co1', role: 'sales_rep', email_verified: false } } });
+    ok('…nor to a caller who no longer passes the AI gate (unverified email)', r.line === null && r.reason === 'unavailable', r);
+    r = await run(db);
+    ok('switch back on → the cached line again, still no model call', r.cached === true && r.line && calls.length === 1, r);
 
     db = makeDb(base());
     const c0 = calls.length;

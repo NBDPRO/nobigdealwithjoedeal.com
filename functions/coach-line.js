@@ -14,9 +14,10 @@
  * Gates, in order: signed in (and not a ghost, App Check enforced), the company
  * opted in (companyProfile/{companyId}.coachAiEnabled === true, OFF by default;
  * an owner or company_admin turns it on from the OS home's team controls),
- * facts to talk about, today's cached line (coach_lines/{uid}_{ET day}, served
- * without a model call), AI allowed (verified email, paid plan, AI kill switch
- * feature_flags/global.aiDisabled and its own coachLineDisabled off), then the
+ * facts to talk about, AI allowed (verified email, paid plan, AI kill switch
+ * feature_flags/global.aiDisabled and its own coachLineDisabled off; checked
+ * BEFORE the cache, so a switch flipped mid-day pulls back today's line), today's
+ * cached line (coach_lines/{uid}_{ET day}, served without a model call), then the
  * caps: 3 fresh lines per user and 60 per company per ET day (coach_line_quota,
  * one transaction). Every no is { line: null, reason }, never an error page.
  * Only a checked AI line is cached; a failed or rejected one may be retried
@@ -97,12 +98,13 @@ async function coachLineCallable({ db, auth, data, nowMs, callModel, log = logge
   if (!(await optedIn(db, companyId))) return { line: null, cached: false, reason: 'off' };
   const facts = L.cleanFacts(data);
   if (!facts) return { line: null, cached: false, reason: 'no-facts' };
+  // the AI gate before the cache: a kill switch flipped mid-day pulls back a line already written today
+  if (!(await aiAllowed(db, auth))) return { line: null, cached: false, reason: 'unavailable' };
   const ymd = AiSpend.etYmd(nowMs);
   const cacheRef = db.collection('coach_lines').doc(auth.uid + '_' + ymd);
   const c = await cacheRef.get().catch(() => null);
   const hit = c && c.exists ? c.data() : null;
   if (hit && typeof hit.line === 'string' && hit.line) return { line: hit.line, cached: true, generatedAtMs: hit.generatedAtMs || null };
-  if (!(await aiAllowed(db, auth))) return { line: null, cached: false, reason: 'unavailable' };
   if (!(await takeQuota(db, auth.uid, companyId, nowMs).catch(() => false))) return { line: null, cached: false, reason: 'cap' };
   const req = L.buildRequest(facts);
   let resp;
