@@ -174,6 +174,49 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('M with one rule (no More): the button shows', !card(M1).querySelector('[data-oshw-coach="more"]') && !!card(M1).querySelector('[data-oshw-coach="ai"]'), text(card(M1)));
   }
 
+  console.log('\n3c. a screen reader hears the answer; focus follows it (review fix, 2026-11-09)');
+  {
+    const live = (T) => text(T.document.getElementById('osPhone').querySelector('.os-hw-live'));
+    const act = (T) => T.document.activeElement;
+    const A = setup();
+    await tick(); await tick();
+    let resolve;
+    A.W._httpsCallable = (fns, name) => (payload) => { A.calls.push({ name, payload }); return new Promise((r) => { resolve = r; }); };
+    click(A.dom, card(A).querySelector('[data-oshw-coach="ai"]'));
+    ok('the tap moves focus to the waiting status line (not the top rule\'s action)', act(A) && act(A).classList && act(A).classList.contains('os-hw-ai-busy') && act(A).getAttribute('tabindex') === '-1', act(A) && act(A).className);
+    await tick();
+    resolve({ data: { line: 'Call back the missed calls first.' } });
+    await tick(); await tick(); await tick();
+    ok('the line arrives: the polite live region says it', /AI focus: Call back the missed calls first\./.test(live(A)), live(A));
+    const line = card(A).querySelector('.os-hw-ai');
+    ok('…and focus moves to the line itself (tabindex -1)', act(A) === line && line.getAttribute('tabindex') === '-1', act(A) && act(A).className);
+    const B = setup();
+    await tick(); await tick();
+    B.answer = new Error('functions/unavailable');
+    click(B.dom, card(B).querySelector('[data-oshw-coach="ai"]'));
+    await tick(); await tick(); await tick();
+    ok('a failed call is said aloud', /Couldn't reach the coach/.test(live(B)), live(B));
+    ok('…and focus sits on Try again', act(B) === card(B).querySelector('[data-oshw-coach="ai"]'));
+    const C = setup();
+    await tick(); await tick();
+    C.answer = { line: null, reason: 'checked' };
+    click(C.dom, card(C).querySelector('[data-oshw-coach="ai"]'));
+    await tick(); await tick(); await tick();
+    ok('no line today is said aloud', /No AI focus line today/.test(live(C)), live(C));
+    ok('…and focus falls to the top rule\'s action', act(C) === card(C).querySelector('.os-hw-coach-act'), act(C) && act(C).className);
+    const D = setup();
+    await tick(); await tick();
+    let res2;
+    D.W._httpsCallable = () => () => new Promise((r) => { res2 = r; });
+    click(D.dom, card(D).querySelector('[data-oshw-coach="ai"]'));
+    const elsewhere = D.document.getElementById('osPhone');
+    elsewhere.focus();
+    await tick();
+    res2({ data: { line: 'Chase the estimates waiting on an answer.' } });
+    await tick(); await tick(); await tick();
+    ok('the rep moved on while it waited: the line is announced but focus is not pulled back', act(D) === elsewhere && /AI focus: Chase the estimates/.test(live(D)));
+  }
+
   console.log('\n4. no line, and failures');
   {
     const A = setup();

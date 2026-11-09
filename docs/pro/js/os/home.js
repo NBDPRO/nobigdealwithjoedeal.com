@@ -312,10 +312,7 @@
   }
   function coachTap(rec, what, id, onResize) {
     var CL = W.NBDOSCoachLogic;
-    if (what === 'ai') {
-      if (W.NBDOSCoachAI) W.NBDOSCoachAI.ask(coachRules(rec.it.cfg || null) || []);
-      return;
-    }
+    if (what === 'ai') return W.NBDOSCoachAI ? W.NBDOSCoachAI.ask(coachRules(rec.it.cfg || null) || []) : null;
     if (what === 'more') {
       rec.open = !rec.open;
       rec.el.classList.toggle('is-open', rec.open);
@@ -1150,11 +1147,12 @@
       if (crec) {
         var what = cb.getAttribute('data-oshw-coach');
         var wasOpen = !!crec.open;
-        coachTap(crec, what, cb.getAttribute('data-rule'), o.onResize);
+        var asked = coachTap(crec, what, cb.getAttribute('data-rule'), o.onResize);
         paintOne(crec, true);
         // a dismiss that emptied More closed the Coach: the phone page recounts its icons
         if (what !== 'more' && wasOpen && !crec.open && crec.it.s === 'm' && typeof o.onResize === 'function') o.onResize();
         coachFocus(crec, what);
+        if (asked && typeof asked.then === 'function') asked.then(function (r) { coachAiSaid(crec, r); }, function () {});
         return;
       }
       var g = t.closest('[data-oshw-go]');
@@ -1165,7 +1163,16 @@
     }
     // the repaint replaced the tapped button: focus its twin (the toggle, the next rule's Later or
     // Not today), else the rule's action, else the widget itself
-    var COACH_SEL = { more: '[data-oshw-coach="more"]', snooze: '[data-oshw-coach="snooze"]', dismiss: '[data-oshw-coach="dismiss"]' };
+    var COACH_SEL = { more: '[data-oshw-coach="more"]', snooze: '[data-oshw-coach="snooze"]', dismiss: '[data-oshw-coach="dismiss"]',
+      ai: '.os-hw-ai, [data-oshw-coach="ai"]' };   // the AI tap: the waiting line, then the answer (or Try again)
+    /** The AI answer landed (P2): say it in the live region; focus follows it unless the rep moved on meanwhile. */
+    function coachAiSaid(rec, r) {
+      if (!r || !live || recs[rec.key] !== rec) return;
+      announce(r.line ? 'AI focus: ' + r.line : r.none ? 'No AI focus line today.' : 'Couldn\'t reach the coach. Try again.');
+      var a = doc.activeElement;
+      // focus was on the tapped button or the waiting line (both replaced by the repaint), or still in the card
+      if (!a || a === doc.body || a.isConnected === false || rec.el.contains(a)) coachFocus(rec, 'ai');
+    }
     function coachFocus(rec, what) {
       var f = COACH_SEL.hasOwnProperty(what) ? rec.el.querySelector(COACH_SEL[what]) : null;
       if (!f) f = rec.el.querySelector('.os-hw-coach-act');

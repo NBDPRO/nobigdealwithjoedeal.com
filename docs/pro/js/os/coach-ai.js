@@ -19,7 +19,9 @@
  *
  *   NBDOSCoachAI.on()          the company opted in (the profile already in memory)
  *   NBDOSCoachAI.html(rules)   the markup above the top rule ('' = nothing)
- *   NBDOSCoachAI.ask(rules)    the tap: one callable, then 'nbd:os-coachai' repaints
+ *   NBDOSCoachAI.ask(rules)    the tap: one callable, then 'nbd:os-coachai' repaints;
+ *                              resolves { line } | { none } | { failed }, or null when
+ *                              nothing was asked (os/home.js says it aloud and moves focus)
  *   NBDOSCoachAI.evidence(rules) what ask() sends (tests)
  *
  * The runtime ScriptLoader bundle `oscoachai` (with css/os/coach-ai.css),
@@ -82,10 +84,11 @@
     if (!on() || !Array.isArray(rules) || !rules.length) return '';
     var t = today(rules);
     if (t && t.line) {
-      return '<p class="os-hw-ai"><span class="os-hw-ai-tag">AI focus</span> <span class="os-hw-ai-line">' + esc(t.line) + '</span></p>';
+      // tabindex -1: os/home.js moves focus here when the answer lands (and says it in its live region)
+      return '<p class="os-hw-ai" tabindex="-1"><span class="os-hw-ai-tag">AI focus</span> <span class="os-hw-ai-line">' + esc(t.line) + '</span></p>';
     }
     if (t && t.none) return '';
-    if (busy) return '<p class="os-hw-ai os-hw-ai-busy" role="status">Finding today\'s focus…</p>';
+    if (busy) return '<p class="os-hw-ai os-hw-ai-busy" role="status" tabindex="-1">Finding today\'s focus…</p>';
     return '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-ai-ask" data-oshw-coach="ai">' +
       (failed ? 'Couldn\'t reach the coach. Try again' : 'Today\'s focus (AI)') + '</button>';
   }
@@ -115,7 +118,7 @@
     }, function () { failed = true; }).then(function () {
       busy = false;
       repaint();
-      return today(rules);
+      return today(rules) || (failed ? { failed: true } : null);
     });
   }
 
