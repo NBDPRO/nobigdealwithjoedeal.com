@@ -185,6 +185,14 @@
       ]
     },
     {
+      "collectionGroup": "jobs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ai_drafts",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

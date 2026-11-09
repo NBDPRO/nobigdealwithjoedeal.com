@@ -14,12 +14,15 @@
  * Reads per company per run: the company doc, its profile, its members, the
  * owner's users doc when the owner has no member row, then per member the
  * knocks since Monday (userId, createdAt >= week start; index userId ASC,
- * createdAt ASC) and the leads updated since Monday (userId, updatedAt >= week
- * start, newest first; index userId ASC, updatedAt DESC) with each such lead's
- * jobs, and the company's existing rows. A sale or an estimate move this week
- * stamps updatedAt this week (stage-write.js), so the updated leads hold every
- * one of them. Writes only rows that changed, and deletes the row of anyone no
- * longer an active member.
+ * createdAt ASC), the leads updated since Monday (userId, updatedAt >= week
+ * start, newest first; index userId ASC, updatedAt DESC), and the jobs written
+ * since Monday in one collectionGroup query (userId, updatedAt >= week start;
+ * index jobs COLLECTION_GROUP userId ASC, updatedAt ASC) plus the lead of any
+ * such job whose lead was not updated, and the company's existing rows. A sale
+ * or an estimate move this week stamps updatedAt this week on what it moved
+ * (stage-write.js on the lead, NBDJobs.update on a second job), so these hold
+ * every one of them. Writes only rows that changed, and deletes the row of
+ * anyone no longer an active member.
  *
  * Gate: LEADERBOARD_AGGREGATE_ENABLED=true. Anything else computes and LOGS
  * counts only and writes nothing (the page and widget then show their own
@@ -29,11 +32,11 @@ const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
 const L = require('./leaderboard-aggregate-logic');
+const jobsLogic = require('./jobs-logic');
 
 const enabled = () => process.env.LEADERBOARD_AGGREGATE_ENABLED === 'true';
 const MAX_MEMBERS = 50;
 const CAP = 2000;          // knocks / leads per member per week: far above one rep's week
-const JOB_LEADS = 300;     // leads whose jobs are read per member
 
 const all = (snap) => { const out = []; snap.forEach((d) => out.push(Object.assign({ id: d.id }, d.data()))); return out; };
 const docData = async (ref) => { const s = await ref.get(); return s.exists ? (s.data() || {}) : null; };
@@ -62,11 +65,19 @@ async function countedFor(db, uid, b) {
     db.collection('knocks').where('userId', '==', uid).where('createdAt', '>=', since).limit(CAP).get().then(all),
     db.collection('leads').where('userId', '==', uid).where('updatedAt', '>=', since).orderBy('updatedAt', 'desc').limit(CAP).get().then(all),
   ]);
+  // Jobs: one collectionGroup query of the member's jobs written since Monday (index jobs
+  // COLLECTION_GROUP userId ASC, updatedAt ASC), not a get per lead. A job moved on its own
+  // (a customer's second job: crm-pipeline.js _moveJobCard -> NBDJobs.update) stamps only the
+  // job's updatedAt, so this also finds a sale on a customer whose lead was not touched; that
+  // customer's lead is then read by id (the active job is the lead: jobs-logic.js jobRecords).
   let jobsByLead = {};
   try {
-    const live = leads.filter((l) => l && !l.deleted).slice(0, JOB_LEADS);
-    const snaps = await Promise.all(live.map((l) => db.collection('leads').doc(l.id).collection('jobs').get()));
-    snaps.forEach((s, i) => { const js = all(s); if (js.length) jobsByLead[live[i].id] = js; });
+    const js = await db.collectionGroup('jobs').where('userId', '==', uid).where('updatedAt', '>=', since).limit(CAP).get();
+    jobsByLead = jobsLogic.jobsByLeadFromDocs(js.docs || []);
+    const have = new Set(leads.map((l) => l.id));
+    const missing = Object.keys(jobsByLead).filter((id) => !have.has(id));
+    const extra = await Promise.all(missing.map((id) => db.collection('leads').doc(id).get()));
+    extra.forEach((s) => { if (s && s.exists) leads.push(Object.assign({ id: s.id }, s.data())); });
   } catch (e) {
     jobsByLead = null;   // each customer then counts once, by its own fields
   }

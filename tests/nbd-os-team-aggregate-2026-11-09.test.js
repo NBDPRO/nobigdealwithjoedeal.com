@@ -159,6 +159,14 @@ const has = (fn) => L && typeof L[fn] === 'function';
       'knocks/k2': { userId: 'u2', companyId: 'c1', createdAt: T('2026-10-20T15:00:00Z'), disposition: 'not_home' },
       'leads/D1': { userId: 'u2', stage: 'closed', closedAt: T('2026-11-01T20:00:00Z'), updatedAt: T('2026-11-01T20:00:00Z') },
       'leads/D1/jobs/j1': { stage: 'closed' },
+      // a customer not touched this week whose SECOND job Riley sold today: the job move writes only the
+      // job doc (crm-pipeline.js _moveJobCard -> NBDJobs.update), never the lead's updatedAt
+      'leads/E1': { userId: 'u1', stage: 'closed', activeJobId: 'j1', closedAt: T('2026-09-01T15:00:00Z'), updatedAt: T('2026-09-01T15:00:00Z') },
+      'leads/E1/jobs/j1': { userId: 'u1', stage: 'closed', closedAt: T('2026-09-01T15:00:00Z'), updatedAt: T('2026-09-01T15:00:00Z') },
+      'leads/E1/jobs/j2': { userId: 'u1', stage: 'closed', closedAt: T('2026-11-01T18:00:00Z'), updatedAt: T('2026-11-01T18:00:00Z') },
+      // a customer updated this week with an old second job: its jobs are not read one by one
+      'leads/F1': { userId: 'u2', stage: 'new', updatedAt: T('2026-11-01T16:00:00Z') },
+      'leads/F1/jobs/j9': { userId: 'u2', stage: 'closed', closedAt: T('2026-08-01T15:00:00Z'), updatedAt: T('2026-08-01T15:00:00Z') },
     };
     const db = fakeDb(store);
     const r1 = await AGG.runAggregate({ db, nowMs: now, live: true });
@@ -166,6 +174,11 @@ const has = (fn) => L && typeof L[fn] === 'function';
     const u1 = store['leaderboard/u1'], u2 = store['leaderboard/u2'];
     ok('rows carry companyId and the Chicago zone (11:30 PM NY = 10:30 PM Central, still Sun Nov 1)', u1 && u1.companyId === 'c1' && u1.tz === 'America/Chicago' && u1.tzSet === true && u1.dayKey === '2026-11-01', J(u1));
     ok('Riley: 1 door, 1 appointment today; Jordan: 1 deal today, last week\'s knock out', u1 && u1.today.doors === 1 && u1.today.appts === 1 && u2 && u2.today.deals === 1 && u2.week.doors === 0, J([u1, u2]));
+    ok('a second job sold today on a customer not touched this week counts as Riley\'s deal (once)', u1 && u1.today.deals === 1 && u1.week.deals === 1, J(u1));
+    ok('read cost: no jobs subcollection is read lead by lead', !db.queries.some((q) => !q.group && /^leads\/[^/]+\/jobs$/.test(q.coll)), J(db.queries.filter((q) => /jobs/.test(q.coll))));
+    ok('read cost: one jobs collectionGroup query per member, by userId, updated since the week start',
+      db.queries.filter((q) => q.group && q.coll === 'jobs').length === 2
+      && db.queries.filter((q) => q.group && q.coll === 'jobs').every((q) => J(q.where) === J([['userId', '=='], ['updatedAt', '>=']])), J(db.queries.filter((q) => q.group)));
     ok('the deactivated member\'s row is gone; another company\'s row is untouched', !store['leaderboard/u3'] && !!store['leaderboard/other']);
     ok('no invited (uid-less) member gets a row', Object.keys(store).filter((k) => /^leaderboard\//.test(k)).length === 3);
     const writes = db.writes.length;
@@ -192,6 +205,8 @@ const has = (fn) => L && typeof L[fn] === 'function';
   ok('the knocks query has its index (userId ASC, createdAt ASC)', hasIdx('knocks', [['userId', 'ASCENDING'], ['createdAt', 'ASCENDING']]));
   ok('the leads query has its index (userId ASC, updatedAt DESC)', hasIdx('leads', [['userId', 'ASCENDING'], ['updatedAt', 'DESCENDING']]));
   ok('the leads query orders updatedAt desc (so that index serves it)', /orderBy\('updatedAt', 'desc'\)/.test(SRC));
+  ok('the jobs collectionGroup query has its index (userId ASC, updatedAt ASC, COLLECTION_GROUP)',
+    IDX.some((i) => i.collectionGroup === 'jobs' && i.queryScope === 'COLLECTION_GROUP' && J(i.fields.map((f) => [f.fieldPath, f.order])) === J([['userId', 'ASCENDING'], ['updatedAt', 'ASCENDING']])));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
@@ -214,18 +229,20 @@ function fakeDb(store) {
       collection: (c) => coll(p + '/' + c),
     };
   }
-  function coll(cp, q) {
+  function coll(cp, q, group) {
     q = q || { where: [], order: null, lim: 0, after: null };
     const api = {
       doc: (id) => docRef(cp + '/' + id),
-      where: (f, op, v) => coll(cp, Object.assign({}, q, { where: q.where.concat([[f, op, v]]) })),
-      orderBy: (f, dir) => coll(cp, Object.assign({}, q, { order: [f, dir || 'asc'] })),
-      limit: (n) => coll(cp, Object.assign({}, q, { lim: n })),
-      startAfter: (d) => coll(cp, Object.assign({}, q, { after: d && d.id })),
+      where: (f, op, v) => coll(cp, Object.assign({}, q, { where: q.where.concat([[f, op, v]]) }), group),
+      orderBy: (f, dir) => coll(cp, Object.assign({}, q, { order: [f, dir || 'asc'] }), group),
+      limit: (n) => coll(cp, Object.assign({}, q, { lim: n }), group),
+      startAfter: (d) => coll(cp, Object.assign({}, q, { after: d && d.id }), group),
       get: async () => {
-        queries.push({ coll: cp, where: q.where.map((w) => [w[0], w[1]]) });
+        queries.push({ coll: cp, group: !!group, where: q.where.map((w) => [w[0], w[1]]) });
         const depth = cp.split('/').length + 1;
-        let ids = Object.keys(store).filter((k) => k.indexOf(cp + '/') === 0 && k.split('/').length === depth).sort();
+        let ids = Object.keys(store).filter((k) => (group
+          ? k.split('/').length % 2 === 0 && k.split('/').slice(-2)[0] === cp
+          : k.indexOf(cp + '/') === 0 && k.split('/').length === depth)).sort();
         ids = ids.filter((k) => q.where.every(([f, op, v]) => {
           const x = f && f.constructor && f.constructor.name === 'FieldPath' ? k.split('/').pop() : store[k][f];
           if (op === '==') return x === v;
@@ -240,5 +257,5 @@ function fakeDb(store) {
     };
     return api;
   }
-  return { collection: (c) => coll(c), doc: (p) => docRef(p), writes, queries };
+  return { collection: (c) => coll(c), collectionGroup: (c) => coll(c, null, true), doc: (p) => docRef(p), writes, queries };
 }
