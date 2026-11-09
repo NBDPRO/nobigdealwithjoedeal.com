@@ -42,7 +42,7 @@
   var DND_KEY = 'nbd_os_acts_dnd', STORM_KEY = 'nbd_os_acts_storm';
   var STORM_CACHE = 'nbd_storm_alerts_cache';
   var EVENTS = ['storage', 'nbd:data-refreshed', 'nbd:os-unlock', 'online'];
-  var host = null, dlg = null, live = null, sysT = null, tries = 0, lastId = null;
+  var host = null, dlg = null, live = null, lastId = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -149,12 +149,9 @@
     checkStorm();
   }
 
-  // ── the system layer loads lazily, often after this: Do Not Disturb waits for it ──
-  function waitSystem() {
-    var O = W.NBDOS;
-    if (O && typeof O.setDnd === 'function') { syncDnd(); return; }
-    if (++tries <= 20) sysT = W.setTimeout(waitSystem, 1500);
-  }
+  // ── the system layer loads lazily, often after this: Do Not Disturb waits for its ready event ──
+  var SYS_READY = 'nbd:os-system-ready';
+  function onSystem() { syncDnd(); }
 
   // ── the menu: a native <dialog> ─────────────────────────────
   var renaming = null;
@@ -261,16 +258,16 @@
     if (host) detach();
     if (!h || (h.surface !== 'phone' && h.surface !== 'desk')) return;
     host = h;
-    tries = 0;
     var a = cur();
     lastId = a ? a.id + ':' + a.slot : null;
-    waitSystem();
+    syncDnd();
+    W.addEventListener(SYS_READY, onSystem);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
     checkStorm();
   }
   function detach() {
     if (!host) return;
-    W.clearTimeout(sysT);
+    W.removeEventListener(SYS_READY, onSystem);
     EVENTS.forEach(function (t) { W.removeEventListener(t, onEvent); });
     closeMenu();
     if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);

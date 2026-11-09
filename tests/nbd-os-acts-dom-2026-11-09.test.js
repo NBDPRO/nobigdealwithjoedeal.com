@@ -203,8 +203,8 @@ const PRIV_HOME = {
     const src = noComments(ACTS_JS);
     // acts.js: its definition, the host call inside it, the menu pick and the toast button: nothing else
     ok('acts.js calls switchTo only from the menu and the toast button', (src.match(/switchTo\(/g) || []).length === 4, (src.match(/[^\n]*switchTo\([^\n]*/g) || []).join('\n'));
-    ok('its one timer waits for the system layer (Do Not Disturb); no interval',
-      (src.match(/setTimeout\(/g) || []).length === 1 && /setTimeout\(waitSystem, 1500\)/.test(src) && !/setInterval\(/.test(src));
+    ok('no timer: it waits for the system layer (Do Not Disturb) on its ready event, never a poll',
+      !/setTimeout\(/.test(src) && !/setInterval\(/.test(src) && /'nbd:os-system-ready'/.test(src));
     // os.js: its definition, the host it hands acts.js, and Spotlight's run
     const os = noComments(OS_JS);
     ok('layouts/os.js switches only from the host it hands the menu and Spotlight\'s run', (os.match(/switchAct\b/g) || []).length === 3 && /run: function \(\) \{ switchAct\(m\.id\); \}/.test(os),
@@ -321,15 +321,18 @@ const PRIV_HOME = {
       { id: 'task:L4:t2', leadId: 'L4', type: 'task-today', title: 'Task due today', text: '"Collect $9200 from Dee"', sub: 'Dee Four', ts: NOW - 600000 },
       { id: 'stale:L2', leadId: 'L2', type: 'stale-lead', title: 'Ivy Inbound', sub: 'No contact in 9 days', ts: NOW - 7200000 },
     ];
-    const boot = (home) => {
+    const boot = async (home) => {
       const T = win({ home });
+      await flush();   // the bundle is attached before the system layer arrives
       T.W.NotifBell = { items: () => ITEMS.slice(), getCount: () => ITEMS.length };
       vm.runInContext(read('docs/pro/js/os/system.js'), T.W, { filename: 'docs/pro/js/os/system.js' });
       return T;
     };
-    const T = boot(PRIV_HOME);
+    const T = await boot(PRIV_HOME);
     await flush();
     ok('"In a home" is on (the bundle answers privacy)', !!T.W.NBDOSActs && T.W.NBDOSActs.privacy() === true);
+    // the system layer arrived after the bundle (it loads lazily): its ready event, not a poll, turns Do Not Disturb on
+    ok('the system layer arriving later: "In a home" turns its Do Not Disturb on with no timer fired', T.W.NBDOS.isDnd() === true);
     T.W.NBDOS.open('notifs');
     const body = T.document.getElementById('osSheetBody');
     const t = text(body);
@@ -341,7 +344,7 @@ const PRIV_HOME = {
     ok('no Mark all read or Clear all: they would act on the groups it hides',
       !body.querySelector('[data-key="readall"]') && !body.querySelector('[data-key="clearall"]'), t.slice(0, 120));
     // the control: with the mode off the same rows name the customer and the task
-    const C = boot(Object.assign({}, PRIV_HOME, { on: undefined }));
+    const C = await boot(Object.assign({}, PRIV_HOME, { on: undefined }));
     await flush();
     C.W.NBDOS.open('notifs');
     const tc = text(C.document.getElementById('osSheetBody'));

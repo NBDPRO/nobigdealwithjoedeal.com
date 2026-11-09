@@ -709,6 +709,11 @@
     lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
   };
 
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  // window.NBDOS is up: what waits for the layer (os/acts.js's Do Not Disturb) listens for this, never polls
+  function ready() {
+    init();
+    try { w.dispatchEvent(new w.CustomEvent('nbd:os-system-ready')); } catch (e) {}
+  }
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', ready, { once: true });
+  else ready();
 })();
