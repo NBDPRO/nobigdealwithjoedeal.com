@@ -447,3 +447,16 @@ html.my-skin-wallpaper .os-desk[data-os-wp="auto"], html.my-skin-wallpaper .os-p
 html.my-skin-locked .os-desk[data-os-wp], html.my-skin-locked .os-phone[data-os-wp] { background: none; }
 /* Sunlight: day, and nothing behind sunlit text (field-sunlight.css) */
 html.sun-all .os-desk[data-os-wp], html.sun-all .os-phone[data-os-wp] { background: var(--bg); }
+/* wallpaper to palette (P3 #12, pywal-style, inside the brand lock): for a tenant's
+   own picture, os/wallpaper.js sets --os-pal-s / --os-pal-s2 (checked >= 4.5:1 for
+   every text pair, else not set) and data-os-pal on the surface. They become --s and
+   --s2, and only those, on the HOME surfaces: the phone home screen and the desk's
+   widget column, taskbar and Start. Never .os-wins (the CRM's own views, documents
+   and previews), never <html> or <body>, never a dialog. Sunlight, a company-enforced
+   My Skin background, high contrast and forced colours keep the theme's own. */
+@media (prefers-contrast: no-preference) and (forced-colors: none) {
+  html:not(.sun-all):not(.my-skin-locked):not([data-theme="high-contrast"]) .os-phone[data-os-pal][data-os-wp="img"],
+  html:not(.sun-all):not(.my-skin-locked):not([data-theme="high-contrast"]) .os-desk[data-os-pal][data-os-wp="img"] :is(.os-widgets, .os-taskbar, .os-start) {
+    --s: var(--os-pal-s); --s2: var(--os-pal-s2);
+  }
+}

@@ -341,7 +341,7 @@
   // layoutState['os-home'].wp (ids only). The picker and the My Skin picture
   // painter are js/os/wallpaper.js, a ScriptLoader bundle registered here and
   // loaded only when Wallpaper is tapped or a picture is chosen.
-  var WP_BUNDLE = 'oswp', WP_FILES = ['js/os/wallpaper.js?v=1'];
+  var WP_BUNDLE = 'oswp', WP_FILES = ['js/os/wallpaper-logic.js?v=1', 'js/os/wallpaper.js?v=2'];
   function wpSurface() { return S && S.surface === 'phone' ? 'phone' : 'desk'; }
   function wpEl() { return S ? (S.surface === 'phone' ? S.phoneEl : S.deskEl) : null; }
   /** The bundle as a promise, or null when there is no ScriptLoader to load it with. */
@@ -372,8 +372,10 @@
       S.wpWant = id; S.wpImg = null;
       var lp = loadWp();
       if (lp) lp.then(function (WP) {
-        WP.paint(el, id, function (ok) { if (S && S.wpWant === id) { S.wpImg = ok ? id : null; paintWp(); } });
+        WP.paint(el, id, function (ok) { if (S && S.wpWant === id) { S.wpImg = ok ? id : null; paintWp(); } }, { tint: tintOn() });
       }).catch(function () {});
+    } else if (want && S.wpImg === p.img && W.NBDOSWallpaper && W.NBDOSWallpaper.retint) {
+      safe(function () { W.NBDOSWallpaper.retint(el, tintOn()); });   // P3 #12: the clock tick re-decides the wash (late claims, a toggle)
     } else if (!want && S.wpWant) {
       S.wpWant = null; S.wpImg = null;
       if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
@@ -383,6 +385,15 @@
   function wpStored(surface) {
     var a = curAct();
     return (a && a.wp) || W.NBDOSHomeLogic.wpOf(homeKey(), surface);
+  }
+  /** P3 #12: the member's "colour my widgets from my picture" switch (on unless they turned it off). */
+  function tintOn() { var HL = W.NBDOSHomeLogic; return !(HL && typeof HL.tintOf === 'function') || HL.tintOf(ownHome()); }
+  function saveTint(on) {
+    if (!S || typeof W.NBDOSHomeLogic.setTint !== 'function') return;
+    S.homeNext = W.NBDOSHomeLogic.setTint(ownHome(), on);
+    flushHome();
+    var el = wpEl();
+    if (el && W.NBDOSWallpaper && W.NBDOSWallpaper.retint) safe(function () { W.NBDOSWallpaper.retint(el, on); });
   }
   /** A deliberate pick: written at once (one tap, one save), the other surface kept. */
   function saveWp(surface, v) {
@@ -410,6 +421,7 @@
         done: function (v) { saveWp(surface, v); },
         cancel: function () { if (S) { S.wpPreview = undefined; paintWp(); } },
         more: openSkinSettings,
+        tint: { on: tintOn(), set: saveTint },
       });
     }).catch(function () { if (S) openSkinSettings(); });
   }
