@@ -470,6 +470,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               integration): the credentials-surfaces suite (AI assistant list, llms.txt region, footer
 //               disclaimer vs credentials.json). MEASURED via --check.
 const FLOORS = { node: 1037, smoke: 74, disk: 1176 };
+//   2026-11-09  1036/74/1175 -> 1038/74/1179, photo-dates rebased onto the integration branch: the
+//               install-completed-at and photo-exif-capture node suites and the install-completed-at and
+//               photo-exif-fields emulator rules suites. MEASURED via --check.
+const FLOORS = { node: 1038, smoke: 74, disk: 1179 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
