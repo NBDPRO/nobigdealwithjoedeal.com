@@ -61,6 +61,7 @@
  *   stormNow(cache, now)       Storm Center's cache as none / stale / clear / alert
  *   moneyMonth(invs, uid, now, collect) the member's own collected this month, in cents
  *   stackItems / weight / toggleCard   a Smart Stack's cards and the cap
+ *   P3: keep(key)              the member's own lists, wallpaper, acts and on, cleaned (Copy my setup)
  *   P2: peekAppt(plan, now)    the appointment starting within 30 min: Up Next's Peek button
  *   parseCarry(raw) / recapDue(raw, seen, uid, now)  Shutdown's carry-over and the Welcome Recap's due check
  *
@@ -1078,7 +1079,7 @@
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,
     ACT_MAX: ACT_MAX, ACT_ITEMS: ACT_ITEMS, ACT_NAME_MAX: ACT_NAME_MAX, ACT_PRESETS: ACT_PRESETS, PHASES: PHASES, PHASE_NAME: PHASE_NAME,
-    CFG_ID_RE: CFG_ID_RE,
+    CFG_ID_RE: CFG_ID_RE, keep: keepKey,
     actsOf: actsOf, activeAct: activeAct, setActOn: setActOn, renameAct: renameAct, setActList: setActList, setActWp: setActWp, actHides: actHides,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

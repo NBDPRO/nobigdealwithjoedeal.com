@@ -273,6 +273,7 @@
     team.innerHTML = S.homeEditing ? teamHtml('data-osdo', 'os-hw-tool') : '';
     t.innerHTML = S.homeEditing
       ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
+        '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homesetup" aria-haspopup="dialog">Copy my setup</button>' +
         '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
       : (homeLocked() ? '<p class="os-hw-locked">Your company set this home.</p>'
         : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>') +
@@ -333,6 +334,36 @@
     var root = S.surface === 'phone' ? S.phoneEl : S.deskEl;
     var b = root && root.querySelector('[data-osp="' + esc(refocus) + '"], [data-osdo="' + esc(refocus) + '"]');
     if (b) safe(function () { b.focus(); });
+  }
+  // ── Copy my setup (P3): js/os/setup.js, the lazy `ossetup` bundle, loaded on the first tap ──
+  // The home as text to copy, and a pasted one back after a preview. A paste writes the member's
+  // own key at once (one tap, one save, like a wallpaper pick); a surface the company locked keeps
+  // its home (os/setup-logic.js merge, so the lock wins).
+  var SETUP_FILES = ['css/os/setup.css?v=1', 'js/os/setup-logic.js?v=1', 'js/os/setup.js?v=1'];
+  function openSetup(from) {
+    if (!S || !S.home) return;
+    function run() {
+      if (!S || !W.NBDOSSetup) return;
+      flushHome();
+      var k = homeKey();
+      safe(function () {
+        W.NBDOSSetup.open({ seen: k, own: ownHome(), locked: { phone: k.src.phone === 'company-lock', desk: k.src.desk === 'company-lock' },
+          apply: applySetup, returnFocus: from || null });
+      });
+    }
+    if (W.NBDOSSetup) return run();
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return toast('Couldn\'t open that just now. Try again.', 'error');
+    if (SL.bundles && !SL.bundles.ossetup) SL.bundles.ossetup = SETUP_FILES.slice();
+    Promise.resolve(SL.loadBundle('ossetup')).then(run, function () { toast('Couldn\'t open that just now. Try again.', 'error'); });
+  }
+  function applySetup(next) {
+    if (!S || !S.home || !next) return;
+    S.homeNext = next;
+    flushHome();
+    refreshHome();
+    paintWp();
+    toast('Setup applied.', 'ok');
   }
   // ── wallpaper (P1, design §3.6) ───────────────────────────────
   // Each surface carries data-os-wp (auto | tod | none | img) and data-os-tod
@@ -555,7 +586,7 @@
 
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
   // (+ on the laptop desk, the action runner's "Type to search" switch, WCAG 2.1.4)
-  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type', 'os-pocket', 'os-privacy'];
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper', 'os-acts', 'os-runner-type', 'os-pocket', 'os-privacy', 'os-setup'];
   function registerControls() {
     var tries = 0, done = false;
     var desk = S && S.surface !== 'phone';
@@ -566,6 +597,7 @@
         done = true;
         if (S.home) safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
         if (S.home) safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
+        if (S.home) safe(function () { O.registerControl({ id: 'os-setup', label: 'Copy my setup', run: function () { openSetup(null); } }); });
         // P2: Mode (phone) / Workspace (laptop); its hint is the mode on
         if (S.home) safe(function () {
           O.registerControl({ id: 'os-acts', label: homeSurface() === 'phone' ? 'Mode' : 'Workspace', run: function () { openActs(null); },
@@ -1227,6 +1259,7 @@
     if (what === 'homeedit') return setHomeEditing(true, true);
     if (what === 'homedone') return setHomeEditing(false);
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'homesetup') return openSetup(S.deskEl && S.deskEl.querySelector('[data-osdo="homesetup"]'));
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
     if (what === 'homecoachai') return teamAction('coachai');
@@ -1417,6 +1450,7 @@
         esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (locked ? 'Tap an app, then tap where it goes. Your company set the widgets.'
           : (S.home ? 'Drag a widget, or tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.'))) + '</span>' +
         (S.home && !locked ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
+        (S.home ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homesetup" aria-haspopup="dialog">Copy setup</button>' : '') +
         '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
       if (S.home && canAdmin()) h += '<div class="os-hw-team" role="group" aria-label="Team home">' + teamHtml('data-osp', 'btn-sm') + '</div>';
     }
@@ -1583,6 +1617,7 @@
     if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
     if (what === 'done') { S.editing = false; S.editPick = null; flushHome(); return phonePaint(); }
     if (what === 'homeadd' && S.home && !homeLocked()) return safe(function () { S.home.openAdd(); });
+    if (what === 'homesetup') return openSetup(t);
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
     if (what === 'homecoachai') return teamAction('coachai');
