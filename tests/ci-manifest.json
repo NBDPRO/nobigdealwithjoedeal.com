@@ -528,6 +528,7 @@
     "production-flow-2026-10-04.test.js",
     "roof-3d-2026-10-02.test.js",
     "perf-watch-2026-10-02.test.js",
+    "settings-deeplink-tab-hooks-2026-11-07.test.js",
     "suggest-job-type-2026-10-01.test.js",
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",

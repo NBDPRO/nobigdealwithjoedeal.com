@@ -406,6 +406,14 @@
           window._nbdConnectPendingRefresh = false;
           loadConnectStatus(force);
         };
+        // Deep link (#/settings/billing, ?settings=billing) opened Billing
+        // before this script loaded: load now (same race as dashboard-team-tab.js).
+        var _on = document.getElementById('stab-billing');
+        if (_on && _on.classList.contains('stab-active')) {
+          var _f = !!window._nbdConnectPendingRefresh;
+          window._nbdConnectPendingRefresh = false;
+          loadConnectStatus(_f);
+        }
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _nbdInstallConnectHook);
