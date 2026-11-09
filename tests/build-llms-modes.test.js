@@ -4,7 +4,7 @@
  * docs/llms-full.txt mirrors the text of ~37 pages. Gating it in CI would turn
  * every copy edit on any of them red unless the author remembered --write, with
  * several lanes editing those pages at once — so the CI gate checks ONLY the
- * three marker regions in docs/llms.txt (they move only when a page or project
+ * four marker regions in docs/llms.txt (they move only when a page or project
  * is added, removed or retitled), and firebase-deploy.yml regenerates
  * llms-full.txt BEFORE the Hosting deploy so the served copy is always built
  * from the tree being deployed.
@@ -77,6 +77,20 @@ try {
   const gone = run(tmp, '--check-regions');
   ok('a removed area page turns --check-regions RED', gone.status === 1 && /newport-ky/.test(gone.stderr), gone.stderr.slice(0, 300));
   ok('--write-regions fixes it', run(tmp, '--write-regions').status === 0 && run(tmp, '--check-regions').status === 0);
+
+  // 2026-11-09: the CREDENTIALS region is generated from credentials.json, so
+  // a data edit (a new date, a row held back) is drift the gate must catch.
+  const credFile = path.join(tmp, 'docs', 'assets', 'data', 'credentials.json');
+  const cred = JSON.parse(fs.readFileSync(credFile, 'utf8'));
+  cred.credentials.find((c) => c.id === 'american-operator').status = 'pending';
+  fs.writeFileSync(credFile, JSON.stringify(cred, null, 2));
+  const held = run(tmp, '--check-regions');
+  ok('holding a credential back turns --check-regions RED', held.status === 1 && /American Operator/.test(held.stderr), held.stderr.slice(0, 300));
+  ok('--write-regions drops it from the CREDENTIALS region', run(tmp, '--write-regions').status === 0 && run(tmp, '--check-regions').status === 0
+    && !fs.readFileSync(path.join(tmp, 'docs', 'llms.txt'), 'utf8').includes('American Operator: Locally Owned'));
+  cred.credentials.find((c) => c.id === 'gaf-certified').name = 'GAF Master Elite contractor';
+  fs.writeFileSync(credFile, JSON.stringify(cred, null, 2));
+  ok('a forbidden claim word in an active row is fatal (exit 2)', run(tmp, '--check-regions').status === 2);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

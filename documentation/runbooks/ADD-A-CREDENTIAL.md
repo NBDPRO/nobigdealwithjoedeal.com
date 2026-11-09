@@ -23,8 +23,15 @@ credential that is not a row there. Guard test:
    plus `badgeAlt`), `warrantyVerified`.
 4. `node scripts/build-credentials.mjs`. Commit the data file and every
    restamped page (no sitemap change: the URL already exists).
-5. `node tests/credentials-2026-10-13.test.js` and
-   `node scripts/build-credentials.mjs --check`.
+   Then `node scripts/build-llms.mjs --write-regions` (2026-11-09: the
+   `LLMS:CREDENTIALS` region of `docs/llms.txt` is generated from this file,
+   and CI's `--check-regions` goes red until it is restamped).
+5. `node tests/credentials-2026-10-13.test.js`,
+   `node tests/credentials-surfaces-2026-11-09.test.js` and
+   `node scripts/build-credentials.mjs --check`. The surfaces suite also holds
+   the AI assistant's list (`functions/agent-mcp-logic.js` `credentials`) and
+   the footer disclaimer to the active rows: update those by hand when a
+   manufacturer or membership row turns active or is held back.
 
 ## Rules the generator enforces
 
