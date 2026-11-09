@@ -46,6 +46,9 @@ function seed() {
 // with a { lastUpdateTime } precondition fails when the doc moved on since.
 function fakeDb(docs) {
   const writes = [], forbidden = [], ver = {};
+  // A run that stops advancing its cursor would page forever: fail fast instead
+  // (review B: without this a dropped startAfter hung the suite until CI timed out).
+  let lastAfter = null, gets = 0;
   const edit = (p, fields) => { docs[p] = Object.assign({}, docs[p], fields); ver[p] = (ver[p] || 0) + 1; };
   const isTaskPath = (p) => { const s = p.split('/'); return s.length % 2 === 0 && s[s.length - 2] === 'tasks'; };
   function ref(p) {
@@ -71,6 +74,8 @@ function fakeDb(docs) {
       limit(n) { return query(group, after, n); },
       startAfter(snap) { return query(group, snap.ref.path, lim); },
       async get() {
+        if (++gets > 100 || (after !== undefined && after === lastAfter)) throw new Error('pagination did not advance');
+        lastAfter = after;
         const paths = Object.keys(docs).filter(isTaskPath).sort().filter((p) => after === undefined || p > after);
         const page = lim ? paths.slice(0, lim) : paths;
         const out = page.map((p) => ({ id: p.split('/').pop(), ref: ref(p), updateTime: { v: ver[p] || 0 }, data: () => docs[p] }));
@@ -244,13 +249,14 @@ function fakeDb(docs) {
   // ── the whole run over the REST adapter, against a tiny fake Firestore server ──
   const store = seed();
   const restWrites = [];
-  const uts = {}; let clock = 0;
+  const uts = {}; let clock = 0, restQueries = 0;
   const utOf = (p) => uts[p] || (uts[p] = '2026-11-01T00:00:00.' + String(++clock).padStart(6, '0') + 'Z');
   const unq = (n) => n.slice(ROOT.length + 1);
   const serverFetch = async (url, init) => {
     const body = init.body ? JSON.parse(init.body) : null;
     const u = url.replace('https://firestore.googleapis.com/v1/', '');
     if (/:runQuery$/.test(u)) {
+      if (++restQueries > 100) throw new Error('pagination did not advance');
       const q = body.structuredQuery;
       const after = q.startAt ? unq(q.startAt.values[0].referenceValue) : null;
       const paths = Object.keys(store).filter((p) => { const s = p.split('/'); return s.length % 2 === 0 && s[s.length - 2] === q.from[0].collectionId; }).sort().filter((p) => after === null || p > after).slice(0, q.limit || 1e9);
