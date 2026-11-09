@@ -1,0 +1,219 @@
+{
+  "_note": "SYNTHETIC Call Brief eval cases (Call to Close P0 step 0, 2026-11-09). Invented people, 555 numbers, fake claim ids. 'canned' is the model answer the offline run scores (no network); a live run (scripts/eval-call-brief.js --live) ignores it and asks the real model. Jo's real labelled calls stay OUTSIDE the repo (PII) and are passed with --cases <dir>.",
+  "cases": [
+    {
+      "id": "claim-state-farm",
+      "kind": "claim",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L1", "attachedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "Hi, this is Pat over on Example Street. We had that hail storm last Tuesday and the roof is leaking in the kitchen. My insurance is State Farm and the claim number is H as in Henry 4 4 7 2 9. The adjuster, Dana Smith, is coming out next Monday. Okay, I will send you the estimate by Friday. And I will send you the adjuster report when I get it. Sounds good, talk soon.",
+      "expect": {
+        "reliable": true, "refused": false,
+        "fields": { "insCarrier": "State Farm", "claimNumber": "H44729", "dateOfLoss": "2026-11-03", "adjusterName": "Dana Smith", "adjusterMeetingYmd": "2026-11-09", "damageType": "hail", "jobType": "insurance" },
+        "promises": [{ "who": "jo", "kind": "estimate" }, { "who": "them", "kind": "waiting" }]
+      },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": false, "why": "" },
+        "summary": { "text": "Hail leak in the kitchen; State Farm claim filed; adjuster visit Monday.", "quote": ["the roof is leaking in the kitchen"] },
+        "fields": {
+          "insCarrier": { "value": "State Farm", "quote": "My insurance is State Farm", "conf": "said" },
+          "claimNumber": { "value": "H44729", "quote": "the claim number is H as in Henry 4 4 7 2 9", "conf": "said" },
+          "dateOfLoss": { "spoken": "last Tuesday", "ymd": "2026-11-04", "quote": "hail storm last Tuesday", "conf": "said" },
+          "adjusterName": { "value": "Dana Smith", "quote": "The adjuster, Dana Smith", "conf": "said" },
+          "adjusterMeetingYmd": { "spoken": "next Monday", "ymd": "2026-11-09", "quote": "is coming out next Monday", "conf": "said" },
+          "damageType": { "value": "hail", "quote": "hail storm", "conf": "said" },
+          "jobType": { "value": "insurance", "quote": "My insurance is State Farm", "conf": "implied" },
+          "workKind": { "value": "", "quote": "", "conf": "implied" }
+        },
+        "scope": { "service": { "value": "", "quote": "", "conf": "implied" }, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": { "gutters": false, "chimney": false, "skylight": false, "decking": false }, "saidQuantities": [] },
+        "promises": [
+          { "who": "jo", "text": "Send the estimate", "dueSpoken": "by Friday", "dueYmd": "2026-11-06", "kind": "estimate", "quote": "I will send you the estimate by Friday" },
+          { "who": "them", "text": "Send the adjuster report", "dueSpoken": "", "dueYmd": "", "kind": "waiting", "quote": "I will send you the adjuster report when I get it" }
+        ],
+        "followUp": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+        "objections": [], "competitor": { "named": false, "quote": "" }, "people": [],
+        "stage": { "targetKey": "claim_filed", "reason": "A claim is open with State Farm.", "quote": "the claim number is H as in Henry 4 4 7 2 9" },
+        "drafts": { "estimate": true, "proposal": false, "followUp": "none" }
+      }
+    },
+    {
+      "id": "repair-flashing",
+      "kind": "repair",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L2", "attachedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "Yeah hi, I have a drip coming in around the chimney when it rains hard. It is just a small spot, I do not need a whole new roof, I just want it fixed. The flashing looks loose to me. No insurance, I will just pay for it. Can you come look at it tomorrow? Sure, I will call you back tonight with a time. Great, thanks.",
+      "expect": {
+        "reliable": true, "refused": false,
+        "fields": { "damageType": "leak", "jobType": "cash", "workKind": "repair" },
+        "promises": [{ "who": "jo", "kind": "callback" }]
+      },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": false, "why": "" },
+        "summary": { "text": "Small leak around the chimney flashing; cash repair; wants a visit tomorrow.", "quote": ["I have a drip coming in around the chimney"] },
+        "fields": {
+          "insCarrier": { "value": "", "quote": "", "conf": "implied" },
+          "claimNumber": { "value": "", "quote": "", "conf": "implied" },
+          "dateOfLoss": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "adjusterName": { "value": "", "quote": "", "conf": "implied" },
+          "adjusterMeetingYmd": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "damageType": { "value": "leak", "quote": "I have a drip coming in around the chimney", "conf": "implied" },
+          "jobType": { "value": "cash", "quote": "No insurance, I will just pay for it", "conf": "said" },
+          "workKind": { "value": "repair", "quote": "I just want it fixed", "conf": "said" }
+        },
+        "scope": { "service": { "value": "Chimney flashing repair", "quote": "The flashing looks loose to me", "conf": "implied" }, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": { "gutters": false, "chimney": true, "skylight": false, "decking": false }, "saidQuantities": [] },
+        "promises": [
+          { "who": "jo", "text": "Call back with a time", "dueSpoken": "tonight", "dueYmd": "2026-11-05", "kind": "callback", "quote": "I will call you back tonight with a time" }
+        ],
+        "followUp": { "spoken": "tomorrow", "ymd": "2026-11-06", "quote": "Can you come look at it tomorrow", "conf": "said" },
+        "objections": [], "competitor": { "named": false, "quote": "" }, "people": [],
+        "stage": { "targetKey": "contacted", "reason": "First call; visit being set.", "quote": "Can you come look at it tomorrow" },
+        "drafts": { "estimate": true, "proposal": false, "followUp": "none" }
+      }
+    },
+    {
+      "id": "replace-two-story",
+      "kind": "replace",
+      "callYmd": "2026-11-05",
+      "direction": "outbound",
+      "call": { "status": "noted", "leadId": "L3", "movedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "Hey it is Joe from the roofing company, returning your call about the replacement. Right, the roof is twenty two years old and we want a full replacement before winter. It is a two story house, and we want new gutters too. My neighbor said it is about thirty squares. We were looking at the best package. Okay I will email you a proposal by Monday. Perfect.",
+      "expect": {
+        "reliable": true, "refused": false,
+        "fields": { "workKind": "replace", "damageType": "age" },
+        "promises": [{ "who": "jo", "kind": "estimate" }]
+      },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": false, "why": "" },
+        "summary": { "text": "Wants a full replacement before winter on a two-story house, plus gutters; asked for the best package.", "quote": ["we want a full replacement before winter"] },
+        "fields": {
+          "insCarrier": { "value": "", "quote": "", "conf": "implied" },
+          "claimNumber": { "value": "", "quote": "", "conf": "implied" },
+          "dateOfLoss": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "adjusterName": { "value": "", "quote": "", "conf": "implied" },
+          "adjusterMeetingYmd": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "damageType": { "value": "age", "quote": "the roof is twenty two years old", "conf": "implied" },
+          "jobType": { "value": "", "quote": "", "conf": "implied" },
+          "workKind": { "value": "replace", "quote": "we want a full replacement before winter", "conf": "said" }
+        },
+        "scope": { "service": { "value": "Roof replacement", "quote": "we want a full replacement", "conf": "said" }, "tierInterest": "best", "tierQuote": "We were looking at the best package", "stories": "2", "storiesQuote": "It is a two story house", "layers": "", "layersQuote": "", "mentions": { "gutters": true, "chimney": false, "skylight": false, "decking": false }, "saidQuantities": [{ "text": "30 squares", "quote": "about thirty squares" }] },
+        "promises": [
+          { "who": "jo", "text": "Email the proposal", "dueSpoken": "by Monday", "dueYmd": "2026-11-09", "kind": "estimate", "quote": "I will email you a proposal by Monday" }
+        ],
+        "followUp": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+        "objections": [], "competitor": { "named": false, "quote": "" }, "people": [{ "role": "other", "name": "", "quote": "My neighbor said" }],
+        "stage": { "targetKey": "inspected", "reason": "Ready for a proposal.", "quote": "I will email you a proposal by Monday" },
+        "drafts": { "estimate": true, "proposal": true, "followUp": "email" }
+      }
+    },
+    {
+      "id": "angry-no-show",
+      "kind": "angry",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L4", "attachedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "I am really upset. Nobody showed up Monday and nobody called. I took the morning off work for this. Another company already gave me a price and they can start next week. If I do not hear back today I am going with them. I hear you, I am sorry, I will call you back within the hour with a firm date.",
+      "expect": {
+        "reliable": true, "refused": false,
+        "fields": {},
+        "promises": [{ "who": "jo", "kind": "callback" }]
+      },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": false, "why": "" },
+        "summary": { "text": "Upset about a missed Monday visit; another contractor can start next week; wants a call back today.", "quote": ["Nobody showed up Monday and nobody called"] },
+        "fields": {
+          "insCarrier": { "value": "", "quote": "", "conf": "implied" },
+          "claimNumber": { "value": "", "quote": "", "conf": "implied" },
+          "dateOfLoss": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "adjusterName": { "value": "", "quote": "", "conf": "implied" },
+          "adjusterMeetingYmd": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "damageType": { "value": "", "quote": "", "conf": "implied" },
+          "jobType": { "value": "", "quote": "", "conf": "implied" },
+          "workKind": { "value": "", "quote": "", "conf": "implied" }
+        },
+        "scope": { "service": { "value": "", "quote": "", "conf": "implied" }, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": { "gutters": false, "chimney": false, "skylight": false, "decking": false }, "saidQuantities": [{ "text": "$9,500", "quote": "Another company already gave me a price" }] },
+        "promises": [
+          { "who": "jo", "text": "Call back with a firm date", "dueSpoken": "today", "dueYmd": "2026-11-05", "kind": "callback", "quote": "I will call you back within the hour with a firm date" },
+          { "who": "jo", "text": "Match the other price", "dueSpoken": "", "dueYmd": "", "kind": "estimate", "quote": "I will match their price" }
+        ],
+        "followUp": { "spoken": "today", "ymd": "2026-11-05", "quote": "If I do not hear back today", "conf": "said" },
+        "objections": [{ "kind": "timing", "quote": "Nobody showed up Monday" }], "competitor": { "named": true, "quote": "Another company already gave me a price" }, "people": [],
+        "stage": { "targetKey": "", "reason": "", "quote": "" },
+        "drafts": { "estimate": false, "proposal": false, "followUp": "none" }
+      }
+    },
+    {
+      "id": "spanish-forced-english",
+      "kind": "spanish",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L5", "attachedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "Hola, buenos días. Sí, el techo tiene una gotera en la cocina desde el martes. La aseguranza es State Farm pero no tengo el número. Gracias, señor, para el lunes está bien.",
+      "expect": { "reliable": false, "refused": false, "fields": {}, "promises": [] },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": false, "why": "" },
+        "summary": { "text": "Leak in the kitchen since Tuesday; State Farm.", "quote": ["el techo tiene una gotera en la cocina"] },
+        "fields": {
+          "insCarrier": { "value": "State Farm", "quote": "La aseguranza es State Farm", "conf": "said" },
+          "claimNumber": { "value": "", "quote": "", "conf": "implied" },
+          "dateOfLoss": { "spoken": "el martes", "ymd": "2026-11-03", "quote": "desde el martes", "conf": "said" },
+          "adjusterName": { "value": "", "quote": "", "conf": "implied" },
+          "adjusterMeetingYmd": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "damageType": { "value": "leak", "quote": "una gotera", "conf": "said" },
+          "jobType": { "value": "insurance", "quote": "La aseguranza es State Farm", "conf": "implied" },
+          "workKind": { "value": "", "quote": "", "conf": "implied" }
+        },
+        "scope": { "service": { "value": "", "quote": "", "conf": "implied" }, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": { "gutters": false, "chimney": false, "skylight": false, "decking": false }, "saidQuantities": [] },
+        "promises": [{ "who": "jo", "text": "Visit Monday", "dueSpoken": "el lunes", "dueYmd": "2026-11-09", "kind": "callback", "quote": "para el lunes está bien" }],
+        "followUp": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+        "objections": [], "competitor": { "named": false, "quote": "" }, "people": [],
+        "stage": { "targetKey": "contacted", "reason": "First contact.", "quote": "Hola, buenos días" },
+        "drafts": { "estimate": false, "proposal": false, "followUp": "none" }
+      }
+    },
+    {
+      "id": "cut-off-mid-call",
+      "kind": "cut-off",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L6", "attachedBy": "jo", "alternateLeadIds": [] },
+      "transcript": "Hi, I am calling about the gutters on the back of the house, they are pulling away from the fascia after the wind on Sunday and water is pouring down the siding. My insurance company is Erie and they told me to",
+      "expect": {
+        "reliable": true, "refused": false, "cutOff": true,
+        "fields": { "insCarrier": "Erie", "dateOfLoss": "2026-11-01", "damageType": "wind" },
+        "promises": []
+      },
+      "canned": {
+        "brief_v": 1, "transcript_ok": { "reliable": true, "cutOff": true, "why": "The transcript stops mid-sentence." },
+        "summary": { "text": "Gutters pulling away after Sunday's wind; Erie insurance; the call is cut off.", "quote": ["they are pulling away from the fascia after the wind on Sunday"] },
+        "fields": {
+          "insCarrier": { "value": "Erie", "quote": "My insurance company is Erie", "conf": "said" },
+          "claimNumber": { "value": "", "quote": "", "conf": "implied" },
+          "dateOfLoss": { "spoken": "Sunday", "ymd": "2026-11-01", "quote": "after the wind on Sunday", "conf": "said" },
+          "adjusterName": { "value": "", "quote": "", "conf": "implied" },
+          "adjusterMeetingYmd": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+          "damageType": { "value": "wind", "quote": "after the wind on Sunday", "conf": "said" },
+          "jobType": { "value": "", "quote": "", "conf": "implied" },
+          "workKind": { "value": "", "quote": "", "conf": "implied" }
+        },
+        "scope": { "service": { "value": "Gutter repair", "quote": "calling about the gutters on the back of the house", "conf": "implied" }, "tierInterest": "", "tierQuote": "", "stories": "", "storiesQuote": "", "layers": "", "layersQuote": "", "mentions": { "gutters": true, "chimney": false, "skylight": false, "decking": false }, "saidQuantities": [] },
+        "promises": [],
+        "followUp": { "spoken": "", "ymd": "", "quote": "", "conf": "implied" },
+        "objections": [], "competitor": { "named": false, "quote": "" }, "people": [],
+        "stage": { "targetKey": "", "reason": "", "quote": "" },
+        "drafts": { "estimate": false, "proposal": false, "followUp": "none" }
+      }
+    },
+    {
+      "id": "shared-number",
+      "kind": "shared-number",
+      "callYmd": "2026-11-05",
+      "direction": "inbound",
+      "call": { "status": "noted", "leadId": "L7", "alternateLeadIds": ["L8"] },
+      "transcript": "Hi, this is the property manager for the duplex on Example Avenue, calling about the unit on the left, the tenant says the ceiling is stained. I will send you the owner's contact info later today.",
+      "expect": { "reliable": true, "refused": true, "fields": {}, "promises": [] },
+      "canned": null
+    }
+  ]
+}

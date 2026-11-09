@@ -701,6 +701,7 @@
     "storm-geo.test.js",
     "wind-gust-2026-10-06.test.js",
     "customer-calls-by-number-2026-11-06.test.js",
+    "phone-calls-viewer-hidden-2026-11-09.test.js",
     "customer-calls-review-2026-11-06.test.js",
     "lead-drive-link-2026-11-06.test.js",
     "storm-briefing-tenant-scope-2026-10-05.test.js",
@@ -978,7 +979,13 @@
     "scroll-padding-2026-10-26.test.js",
     "blog-callout-links-2026-10-26.test.js",
     "script-loader-parallel-download-2026-11-04.test.js",
-    "ci-docs-only-skip-2026-11-04.test.js"
+    "ci-docs-only-skip-2026-11-04.test.js",
+    "call-brief-logic-2026-11-09.test.js",
+    "call-brief-eval-2026-11-09.test.js",
+    "call-brief-callable-2026-11-09.test.js",
+    "call-center-promise-slot-2026-11-09.test.js",
+    "call-brief-ui-2026-11-09.test.js",
+    "call-brief-buttons-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1569,6 +1576,7 @@
     "firestore-rules.month-close.test.js",
     "firestore-rules.reputation.test.js",
     "firestore-rules.receipt-inbox.test.js",
+    "firestore-rules.call-briefs.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

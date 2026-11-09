@@ -683,6 +683,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-ddrafts-test 'node firestore-rules.doc-drafts.test.js'
+      # Call to Close P0 (2026-11-09): leads/{id}/call_briefs/{callId} — callCenterAction's audience read off the call, server-only writes. Own file (positive controls inside).
+      - name: Run call-briefs rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-callbrief-test 'node firestore-rules.call-briefs.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.

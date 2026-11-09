@@ -399,8 +399,11 @@
     var u = uid();
     if (!u || !fbReady()) { feeds.calls.state = 'error'; feeds.calls.err = 'Not signed in yet.'; return Promise.resolve(); }
     var rows = [];
-    var a = W.getDocs(W.query(W.collection(W.db, 'phone_calls'), W.where('userId', '==', u), W.orderBy('startedAtMs', 'desc'), W.limit(CALL_LIMIT)))
-      .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'call' }, d.data())); }); });
+    // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11, 2026-11-09): texts only, no failed read.
+    var a = (claims().role || '') === 'viewer' ? Promise.resolve() : W.getDocs(W.query(W.collection(W.db, 'phone_calls'), W.where('userId', '==', u), W.orderBy('startedAtMs', 'desc'), W.limit(CALL_LIMIT)))
+      .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'call' }, d.data())); }); })
+      // sent before the claims hydrated and denied for a viewer: texts still load
+      .catch(function (e) { if ((claims().role || '') === 'viewer') return; throw e; });
     var b = W.getDocs(W.query(W.collection(W.db, 'phone_text_days'), W.where('userId', '==', u), W.orderBy('startedAtMs', 'desc'), W.limit(TEXT_LIMIT)))
       .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, channel: 'text' }, d.data())); }); });
     return Promise.all([a, b]).then(function () {

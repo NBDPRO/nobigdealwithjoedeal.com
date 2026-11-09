@@ -442,7 +442,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               phone drag, widgets, Smart Stack, urgency, frecency, company home, Daily
 //               Success app/goals/doors, Shutdown, wallpapers) and 2 P1 emulator rules
 //               suites (os-company-home, os-daily-goals). MEASURED via --check.
-const FLOORS = { node: 969, smoke: 74, disk: 1100 };
+//   2026-11-09  969/74/1100 -> 976/74/1108, Call to Close P0 + P0b node suites (call-brief
+//               logic, eval, callable, promise slot, sheet, buttons, viewer-hidden) and the
+//               call-briefs emulator rules suite. MEASURED via --check.
+const FLOORS = { node: 976, smoke: 74, disk: 1108 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

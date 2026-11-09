@@ -27,7 +27,7 @@ console.log('NO MOVE ON A BY-NUMBER ROW');
   const s = SRC.indexOf('  function renderPhoneCall(c) {');
   const fn = s >= 0 ? SRC.slice(s, SRC.indexOf('\n  }\n', s) + 4) : '';
   ok('renderPhoneCall found (positive control)', fn.length > 500);
-  const sb = { chip: (t) => '<span>' + t + '</span>', esc: (x) => String(x == null ? '' : x), fmtPhone: (d) => d || '', isViewer: () => false, Array, Date, String };
+  const sb = { chip: (t) => '<span>' + t + '</span>', esc: (x) => String(x == null ? '' : x), fmtPhone: (d) => d || '', isViewer: () => false, briefGate: () => '', Array, Date, String };
   vm.createContext(sb);
   vm.runInContext(fn + '\nglobalThis.__r = renderPhoneCall;', sb);
   const filed = sb.__r({ _id: 'c1', leadId: 'L1', startedAtMs: 1, direction: 'inbound' });

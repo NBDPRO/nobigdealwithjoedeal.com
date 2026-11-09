@@ -71,6 +71,14 @@
   }
   function claims() { return window._userClaims || {}; }
   function isViewer() { return claims().role === 'viewer'; }
+  // Call to Close P0 (2026-11-09): 'draft' | 'confirm' | '' for "Draft from
+  // this call" (functions/call-brief-logic.js canActOnCall + humanFiledProblem; the server re-checks).
+  function briefGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    if (isViewer() || !(cl.role === 'admin' || me === c.userId || (cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')))) return '';
+    if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
+    return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
+  }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
     var s = String(d || '');
@@ -278,6 +286,9 @@
       if (channel === 'call') state.error = 'Could not load calls (not signed in yet).';
       return [];
     }
+    // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
+    // 2026-11-09): no read, so no "Could not load" banner; render says why.
+    if (name === 'phone_calls' && isViewer()) return [];
     var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
@@ -299,6 +310,8 @@
         if (snap.docs.length >= LIMIT && oldest > Date.now() - PROMISE_WINDOW_MS) state.cappedBefore = Math.max(state.cappedBefore, oldest);
       } catch (e) {
         console.warn('[call-center] read failed', name, e && e.code);
+        // Sent before the claims hydrated, denied for a viewer: hidden, not failed.
+        if (name === 'phone_calls' && isViewer()) continue;
         if (i === 0 && channel === 'call') state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
         var what = channel === 'text' ? 'texts' : 'calls';
         state.readFailed.push(i === 0 ? 'your ' + what : "your team's " + what);
@@ -403,6 +416,9 @@
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
       // Promise capture (2026-10-12): what did you promise? A dated task, never forgotten.
       if (!c.handledAtMs && c.status !== 'personal') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>';
+      var bg = c.leadId ? briefGate(c) : '';
+      if (bg === 'draft') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Draft from this call</button>';
+      else if (bg === 'confirm') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Confirm the customer first</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -582,6 +598,7 @@
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
+    else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role.</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
     else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
@@ -596,6 +613,7 @@
       (rows.length > 150 ? '<div class="cc-empty">Showing the ' + (FX && flt.sort === 'old' ? 'oldest' : 'newest') + ' 150. Search or filter to narrow it down.</div>' : '');
     if (state.loaded && state.cappedBefore) body = capBanner() + body;
     if (state.loaded && readProblems().length) body = readBanner() + body;
+    if (state.loaded && state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role. Texts still show.</div>' + body;
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
     var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
@@ -1352,6 +1370,18 @@
     });
   }
 
+  // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
+  async function openBrief(id) {
+    var c = byId(id);
+    if (!c) return;
+    try {
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
+    } catch (_) { /* reported below */ }
+    if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
+    var lead = c.leadId ? leadsById()[c.leadId] : null;
+    window.NBDCallBrief.open({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
@@ -1367,6 +1397,7 @@
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
+    else if (a === 'brief') openBrief(id);
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {
