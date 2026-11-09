@@ -333,7 +333,9 @@
     var meet = accepted('field:adjusterMeetingYmd');
     if (meet) { var my = ymdOf(meet.session ? (S.lead || {})[LEAD_FIELD.adjusterMeetingYmd] : meet.value); if (my) out.push({ kind: 'meeting', ymd: my }); }
     var fu = S.fuUndo ? { value: S.fuUndo.to } : accepted('followUp');
-    if (fu && !fu.session) { var fy = ymdOf(fu.value); if (fy) out.push({ kind: 'followUp', ymd: fy }); }
+    // The follow-up's Undo is not logged, so a logged accept counts only while
+    // the customer still carries that date (an undone one is not promised).
+    if (fu && !fu.session) { var fy = ymdOf(fu.value); if (fy && fy === ymdOf((S.lead || {}).followUp)) out.push({ kind: 'followUp', ymd: fy }); }
     return mine.concat(out, theirs);
   }
 

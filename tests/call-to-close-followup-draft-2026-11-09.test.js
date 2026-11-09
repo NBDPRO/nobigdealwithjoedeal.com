@@ -106,6 +106,8 @@ const CONSENT = { tcpaConsent: true, tcpaConsentAt: { seconds: 1762000000 } };
 const LEAD = Object.assign({ firstName: 'Pat', lastName: 'Example', phone: '(513) 555-0100', email: 'pat@example.com', followUp: '2026-11-08' }, CONSENT);
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const GEN = 1762380000000;
+// A follow-up accepted in the sheet is on the customer (NBDFollowUpDeck wrote it).
+const FU_LEAD = () => Object.assign(clone(LEAD), { followUp: '2026-11-10' });
 const open = (CB, over) => CB._showWith(Object.assign({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer', generatedAtMs: GEN }, over || {}));
 const section = (html, id) => { const i = html.indexOf('id="' + id + '"'); return i < 0 ? '' : html.slice(i, html.indexOf('cb-sec-title', i + 20) > 0 ? html.indexOf('cb-sec-title', i + 20) : undefined); };
 // The draft as a person reads it (apostrophes are escaped in the HTML).
@@ -138,7 +140,9 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB } = load();
-    open(CB, { decisions: [
+    // The accepted follow-up was written to the customer (NBDFollowUpDeck), so
+    // the lead carries it: the draft reads it only while it is still there.
+    open(CB, { lead: Object.assign(clone(LEAD), { followUp: '2026-11-10' }), decisions: [
       { item: 'promise:1', decision: 'accept', finalValue: 'them waiting 2026-11-12', gen: GEN, slot: 1 },
       { item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN },
       { item: 'field:adjusterMeetingYmd', decision: 'accept', finalValue: '2026-11-12', gen: GEN },
@@ -158,6 +162,18 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     ok('…a company name ending in a period is not doubled ("Co..")', !/\.\./.test(CB._followUpDraft(items, { firstName: 'Pat' }, 'Sample Roofing Co.').text));
   }
 
+  {
+    // The follow-up's Undo puts the customer's old date back but is not
+    // logged, so the brief still holds the accept. Reopened, the draft must
+    // not promise a check-in date the customer no longer has.
+    const { CB } = load();
+    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    ok('a follow-up accepted then undone (the customer is back on 2026-11-08) never joins the draft', !CB._followUpItems().some((x) => x.kind === 'followUp'), CB._followUpItems());
+    const { CB: CB2 } = load();
+    open(CB2, { lead: Object.assign(clone(LEAD), { followUp: '2026-11-10T00:00:00' }), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    ok('…while one still on the customer does (any stored date shape)', CB2._followUpItems().some((x) => x.kind === 'followUp' && x.ymd === '2026-11-10'), CB2._followUpItems());
+  }
+
   console.log('\n2. Texting consent');
   {
     const { CB } = load();
@@ -171,7 +187,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB, click, dlg, shares } = load();
-    open(CB, { lead: { firstName: 'Pat', phone: '5135550100', email: '' }, decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: { firstName: 'Pat', phone: '5135550100', email: '', followUp: '2026-11-10' }, decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-channel', 'data-ch': 'text' });
     const sec = section(dlg.innerHTML, 'cbMsgH');
@@ -179,7 +195,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     await click({ 'data-cb-act': 'msg-text' });
     ok('…and nothing can be handed to Messages', shares.length === 0);
     const { CB: CBe, dlg: dlgE } = load();
-    open(CBe, { lead: { firstName: 'Pat', phone: '5135550100', email: 'pat@example.com' }, decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CBe, { lead: { firstName: 'Pat', phone: '5135550100', email: 'pat@example.com', followUp: '2026-11-10' }, decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CBe._render();
     const esec = section(dlgE.innerHTML, 'cbMsgH');
     ok('no texting consent but an email on file → opens on the email draft and still says why there is no text', /data-cb-act="msg-email"/.test(esec) && /No written texting consent/.test(esec));
@@ -189,7 +205,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   console.log('\n3. Nothing sends by itself');
   {
     const { CB, click, dlg, shares, calls } = load();
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     ok('rendering the draft hands nothing anywhere', shares.length === 0 && !calls.some((c) => /draft:followup/.test((c.data || {}).item || '')));
     ok('the text channel is the default when consent is on file', /data-cb-act="msg-text"/.test(section(dlg.innerHTML, 'cbMsgH')));
@@ -203,7 +219,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB, click, dlg, shares, calls } = load({ shareResult: { shared: false, via: null, blocked: true, reason: 'Texting hours: 8am-9pm their time.' } });
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-text' });
     ok('…shown as a refusal (cb-err), not as done', /cb-err[^>]*>Texting hours/.test(dlg.innerHTML));
@@ -211,14 +227,14 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB, click, dlg, calls } = load({ shareResult: { shared: false, via: null, cancelled: true } });
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-text' });
     ok('the person says it did not go out → a plain note (not an error, not done), nothing logged', /cb-meta[^>]*>Not sent\. The message is still here\./.test(dlg.innerHTML) && !/cb-(err|done)[^>]*>Not sent/.test(dlg.innerHTML) && !calls.some((c) => c.data && c.data.item === 'draft:followupText'));
   }
   {
     const { CB, click, dlg, shares, calls } = load();
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-channel', 'data-ch': 'email' });
     const sec = section(dlg.innerHTML, 'cbMsgH');
@@ -232,7 +248,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB, click, shares, listeners } = load();
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     const ta = { getAttribute: (k) => ({ 'data-cb-input': 'msg-text' })[k] || null, value: 'Hi Pat, my own words. Reply STOP to opt out.' };
     for (const fn of listeners.input || []) fn({ type: 'input', target: ta });
@@ -241,7 +257,7 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   }
   {
     const { CB, click, copied, shares } = load();
-    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    open(CB, { lead: FU_LEAD(), decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-copy' });
     ok('Copy → the clipboard holds the draft, nothing handed to Messages', copied.length === 1 && /check in with you/.test(copied[0]) && shares.length === 0);
