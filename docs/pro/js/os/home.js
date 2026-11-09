@@ -233,6 +233,9 @@
     var h = '<h3 class="os-hw-title">Daily Success</h3>';
     var d = show !== 'business' ? dsNow() : null;
     var b = show !== 'personal' ? HL.todaySummary(lsGet('nbd_today_summary'), String((W._user && W._user.uid) || ''), Date.now()) : null;
+    // jobs LEFT: the summary counts every appointment; the Today plan in memory says which are past
+    var left = b ? HL.jobsLeft(todayPlan(), Date.now()) : null;
+    if (left != null) b.jobs = left;
     var open = '<a class="os-hw-ds-link" href="' + esc(DS_HREF) + '">';
     var items = b ? [plural(b.calls, 'call', 'calls'), plural(b.followUps, 'follow-up', 'follow-ups'), plural(b.jobs, 'job', 'jobs')] : [];
     var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF) + '">Open Daily Success</a>';

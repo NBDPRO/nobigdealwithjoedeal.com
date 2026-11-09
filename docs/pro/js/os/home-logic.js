@@ -30,6 +30,7 @@
  *   upNext(plan, opts)         the top rows of the Today plan (NBDToday.last()), each
  *                              with the tap-through the Today list itself uses
  *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
+ *   jobsLeft(plan, now)        appointments not yet past (all-day, or started under 15 min ago)
  *   glanceCounts(counts)       NBDHomeAttention.lastCounts as plain lines + a state
  *   headline(total)            "3 things today" / "Nothing due today"
  *   noMoreLine(plan)           "No more appointments · 2 jobs today" (P0c), else the plain line
@@ -273,6 +274,20 @@
     });
     return best ? { time: str(best.timeLabel, 40), place: street(best.address) } : null;
   }
+  /**
+   * Jobs still left today from the Today plan in memory: all-day ones, and timed ones that start
+   * no more than 15 minutes ago (nextAppointment's grace; the plan carries no done marker).
+   * null with no plan, so the caller keeps the summary's own count.
+   */
+  function jobsLeft(plan, now) {
+    if (!plan || !Array.isArray(plan.appointments)) return null;
+    var t0 = Number(now) - 15 * 60000;
+    return plan.appointments.filter(function (a) {
+      if (!a) return false;
+      var t = a.allDay ? NaN : Number(a.sortMs);
+      return a.allDay === true || a.sortMs == null || (isFinite(t) && t >= t0);
+    }).length;
+  }
   /** Needs-you counts as lines. state: unknown | pending | failed | clear | ok (a failed read is never "clear"). */
   function glanceCounts(c) {
     if (!c || typeof c !== 'object') return { state: 'unknown', lines: [] };
@@ -345,7 +360,7 @@
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
-    CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline, noMoreLine: noMoreLine,
+    CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, jobsLeft: jobsLeft, glanceCounts: glanceCounts, headline: headline, noMoreLine: noMoreLine,
     dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
   };

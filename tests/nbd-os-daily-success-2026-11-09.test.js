@@ -79,7 +79,8 @@ G(() => {
   ok('week %', /86%/.test(t), t);
   ok('a streak state line (all open, not warned): "Floors still open today"', /still open/i.test(t), t);
   ok('never weight, goal, money, the scorecard, the streak count or a floor label', !/288|289|215|74\.9|7654|SCORECARD|lb\b|Sleep|Workout|14/.test(t), t);
-  ok('every number on screen is a floors / week / summary count', numbersIn(t).every((n) => [3, 4, 86, 5, 2].indexOf(n) !== -1), J(numbersIn(t)));
+  // 1: the jobs left in the harness plan (one appointment still to come), which replaces the summary's 2
+  ok('every number on screen is a floors / week / summary count (or the plan\'s jobs left)', numbersIn(t).every((n) => [3, 4, 86, 5, 2, 1].indexOf(n) !== -1), J(numbersIn(t)));
   ok('read cost 0', T.reads.length === 0, J(T.reads));
   const warned = mount({ store: { nbd_ds_snapshot: JSON.stringify(snap({ streak: { count: 2, warned: true, broken: false } })) } }).card;
   ok('warned: "don\'t miss twice"', /miss twice/i.test(text(warned)), text(warned));
@@ -111,7 +112,7 @@ G(() => {
 
 console.log('\n5. business half: calls, follow-ups and jobs LEFT, from nbd_today_summary');
 G(() => {
-  const { card } = mount({ store: { nbd_today_summary: summary() } }, [{ id: 'daily', s: 'm', cfg: { show: 'business' } }]);
+  const { card } = mount({ plan: null, store: { nbd_today_summary: summary() } }, [{ id: 'daily', s: 'm', cfg: { show: 'business' } }]);
   const t = text(card);
   ok('the three counts, framed as what is left', /left/i.test(t) && /3 calls/.test(t) && /5 follow-ups/.test(t) && /2 jobs/.test(t), t);
   ok('never "done"', !/done/i.test(t), t);
@@ -121,6 +122,13 @@ G(() => {
   const one = mount({ store: { nbd_today_summary: summary({ calls: 1, followUps: 0, jobs: 1 }) } }, [{ id: 'daily', s: 'l', cfg: { show: 'business' } }]).card;
   const rows = one.querySelectorAll('.os-hw-ds-row').map(text).join(' | ');
   ok('singular words for one', /\b1 call\b/.test(rows) && /\b1 job\b/.test(rows) && /\b0 follow-ups/.test(rows), rows);
+  // review nit: a job whose time has passed is not "left"; the Today plan in memory says which
+  const appt = (min, over) => Object.assign({ key: 'a' + min, timeLabel: 'x', sortMs: NOW + min * 60000, allDay: false }, over || {});
+  const appts = [appt(-180), appt(-10), appt(90), appt(0, { sortMs: null, allDay: true })];
+  ok('jobsLeft: timed jobs still to come (15 min grace, as At a Glance\'s next) plus all-day ones', HL.jobsLeft && HL.jobsLeft({ appointments: appts }, NOW) === 3, HL.jobsLeft && HL.jobsLeft({ appointments: appts }, NOW));
+  ok('jobsLeft: no plan, no count (null, never a guess)', HL.jobsLeft && HL.jobsLeft(null, NOW) === null && HL.jobsLeft({}, NOW) === null);
+  const past = mount({ plan: { total: 3, appointments: [appt(-300), appt(-180), appt(60)], calls: [], promised: [], promises: [], estimates: [], stalled: [] }, store: { nbd_today_summary: summary({ jobs: 3 }) } }, [{ id: 'daily', s: 'm', cfg: { show: 'business' } }]).card;
+  ok('the widget: 3 jobs today, 2 already past -> "1 job" left', /\b1 job\b/.test(text(past)) && !/3 jobs/.test(text(past)), text(past));
   const perso = mount({ store: { nbd_ds_snapshot: JSON.stringify(snap()), nbd_today_summary: summary() } }, [{ id: 'daily', s: 'm', cfg: { show: 'personal' } }]).card;
   ok('personal only: no business line', !/left|calls|jobs/i.test(text(perso)) && /3\/4/.test(text(perso)), text(perso));
 });
