@@ -471,7 +471,9 @@ const RUNNABLE = ['node', 'smoke'];
 const FLOORS = { node: 1027, smoke: 74, disk: 1165 };
 //   2026-11-09  1025/74/1163 -> 1026/74/1165, Q11 item 4 (voicemail rows off the viewer allowlist):
 //               voicemail-viewer-hidden (node) and the voicemail-viewers rules suite. MEASURED via --check.
-const FLOORS = { node: 1026, smoke: 74, disk: 1165 };
+//   2026-11-09  1026/74/1165 -> 1027/74/1166, the Q11 item 4 backfill (scripts/retag-voicemail-activity.js):
+//               voicemail-retag-backfill (node). MEASURED via --check.
+const FLOORS = { node: 1027, smoke: 74, disk: 1166 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
