@@ -12,7 +12,9 @@
  *             uses, not a copy.
  *   visits    today's visit recordings still on no customer (the recorder's own
  *             isUnfiled; a capped recording's part 2 is the same visit)
- *   promises  the Today plan's promise rows with a promise past due
+ *   promises  the Today plan's promise rows with a promise past due, on the rep's
+ *             own leads only (the plan is company-wide for a manager, an admin or a
+ *             viewer); a lead not in _leads is nobody's here
  *
  * "Own": lead.userId, else lead.assignedTo (the command palette's and the
  * pipeline cards' owner rule), equal to the signed-in uid. A manager's or an
@@ -205,7 +207,11 @@
     // a promise row's lead is on the list once
     var onList = {};
     L.rows.forEach(function (r) { onList[r.leadId] = true; });
-    P = P.filter(function (r) { return !onList[r.leadId]; });
+    // only the rep's own leads: a manager's, admin's or viewer's Today plan reads tasks company-wide,
+    // so it holds teammates' promises. A lead not in _leads has no known owner: dropped.
+    var mine = {};
+    arr(i.leads).forEach(function (l) { if (isObj(l) && l.id && isMine(l, uid)) mine[str(l.id, 120)] = true; });
+    P = P.filter(function (r) { return mine[r.leadId] && !onList[r.leadId]; });
     var vrows = V.rows || [];
     return {
       leads: L.rows, visits: V.rows, promises: P,

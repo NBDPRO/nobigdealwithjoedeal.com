@@ -139,12 +139,28 @@ G(() => {
     { leadId: 'P2', name: 'Pam Two', missTotal: 0, promiseTasks: [{ overdue: false }] },
     { leadId: 'a', name: 'Lee a', promiseTasks: [{ overdue: true }] },
   ] };
-  const r = S.build({ leads: [lead('a', { lastContactedAt: TODAY_10 })], uid: UID, now: NOW, plan, visits: [], nns: NNS });
+  const r = S.build({ leads: [lead('a', { lastContactedAt: TODAY_10 }), lead('P1'), lead('P2')], uid: UID, now: NOW, plan, visits: [], nns: NNS });
   ok('a promise past due is a row; one not due yet is not', r.promises.map((p) => p.leadId).indexOf('P1') !== -1 && r.promises.map((p) => p.leadId).indexOf('P2') === -1);
   ok('its miss count comes from the plan', r.promises.filter((p) => p.leadId === 'P1')[0].misses === 2);
   ok('a lead already on the list is not listed twice', r.promises.every((p) => p.leadId !== 'a'));
   ok('open = leads + visits + promises', r.open === r.leads.length + r.visits.length + r.promises.length && r.open === 2);
   ok('no plan -> no promise rows', S.build({ leads: [], uid: UID, now: NOW, plan: null, nns: NNS }).promises.length === 0);
+  // a manager's / admin's / viewer's Today plan reads tasks company-wide: it holds teammates' promises
+  const pplan = (id) => ({ promises: [{ leadId: id, name: 'Lead ' + id, promiseTasks: [{ overdue: true }] }] });
+  [
+    // [name, leads, promise lead id, listed?]
+    ['own lead\'s promise past due -> listed', [lead('O1')], 'O1', true],
+    ['own via assignedTo -> listed', [lead('O2', { userId: undefined, assignedTo: UID })], 'O2', true],
+    ['a teammate\'s lead\'s promise (company-wide plan) -> NOT listed', [lead('T1', { userId: 'rep2' })], 'T1', false],
+    ['a lead not in _leads (unknown owner) -> NOT listed', [], 'X1', false],
+  ].forEach(([name, ls, id, listed]) => {
+    const r = S.build({ leads: ls, uid: UID, now: NOW, plan: pplan(id), visits: [], nns: NNS });
+    ok(name, (r.promises.length === 1 && r.promises[0].leadId === id) === listed && r.open === (listed ? 1 : 0), J(r));
+  });
+  ok('the review repro: a manager with a teammate\'s promise -> nothing open, widget line says none', (() => {
+    const r = S.build({ uid: 'mgr', leads: [{ id: 'T', userId: 'rep2', stage: 'contacted' }], plan: { promises: [{ leadId: 'T', name: 'Team Lead', promiseTasks: [{ overdue: true }] }] }, visits: [], nns: NNS });
+    return r.promises.length === 0 && r.open === 0 && !/promise/.test(S.widgetLine(r));
+  })());
 });
 
 console.log('\n5. words from counts only');
@@ -173,7 +189,7 @@ G(() => {
 
 console.log('\n7. carry-over for the Welcome Recap (device-only)');
 G(() => {
-  const r = S.build({ leads: [lead('a', { lastContactedAt: TODAY_10 })], uid: UID, now: NOW, visits: [{ id: 'v1', startedAtMs: TODAY_10, status: 'uploaded' }], plan: { promises: [{ leadId: 'P1', name: 'Pat', promiseTasks: [{ overdue: true }] }] }, nns: NNS });
+  const r = S.build({ leads: [lead('a', { lastContactedAt: TODAY_10 }), lead('P1')], uid: UID, now: NOW, visits: [{ id: 'v1', startedAtMs: TODAY_10, status: 'uploaded' }], plan: { promises: [{ leadId: 'P1', name: 'Pat', promiseTasks: [{ overdue: true }] }] }, nns: NNS });
   const c = S.carry(r, UID, NOW);
   ok('ids only: leads, visits, promises; this uid and today', J(c) === J({ v: 1, uid: UID, dk: '2026-11-09', at: NOW, leads: ['a'], visits: ['v1'], promises: ['P1'] }), J(c));
   ok('no names or addresses in it', !/Lee|Oak|Pat/.test(J(c)));

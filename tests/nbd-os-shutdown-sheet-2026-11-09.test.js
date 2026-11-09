@@ -50,6 +50,7 @@ function leads() {
     { id: 'C', firstName: 'Cy', lastName: 'Team', stage: 'contacted', userId: 'rep2', lastContactedAt: TEN },          // a teammate's
     { id: 'D', firstName: 'Di', lastName: 'Done', stage: 'contacted', userId: UID, lastContactedAt: TEN, followUp: '2026-11-12' },   // closed
     { id: 'E', firstName: 'Ed', lastName: 'Stamp', stage: 'contacted', userId: UID, updatedAt: TEN },                // a server stamp only
+    { id: 'P', firstName: 'Pat', lastName: 'Promise', stage: 'contacted', userId: UID },                              // the promise's lead (own, not touched today)
   ];
 }
 const PLAN = { total: 1, appointments: [], calls: [], promised: [], estimates: [], money: [], stalled: [],
