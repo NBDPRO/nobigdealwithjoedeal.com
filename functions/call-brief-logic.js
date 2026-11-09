@@ -225,8 +225,13 @@ const INSTRUCTION_RES = [
   /\bsystem\s*(prompt|message|:)/i,
   /\byou are (now )?(an? )?(ai|assistant|model|chatbot|language model)\b/i,
   /\byou are now in\b.{0,20}\bmode\b/i,
-  /\b(set|change|move|mark|update)\b.{0,20}\b(the |this |my )?(stage|pipeline|status)\b.{0,10}\b(to|as)\b/i,
-  /\b(assistant|claude|chatgpt|openai|anthropic)\b/i,
+  /\b(set|change|move|mark|update)\b.{0,20}\b(the |this |my )?(stage|pipeline)\b.{0,10}\b(to|as)\b/i,
+  // A status only when it is pushed to a CRM outcome: "they'll update the
+  // status to approved" is ordinary claim talk (review 2026-11-09).
+  /\b(set|change|mark|update)\b.{0,20}\bstatus\b.{0,10}\b(to|as)\s+(won|signed|sold|closed|lost|contract)/i,
+  // An AI name only when it is addressed with an order ("Claude, ignore …",
+  // "assistant: set …"): a caller or adjuster named Claude is just a name.
+  /\b(assistant|claude|chatgpt|gpt|openai|anthropic|ai|bot)\s*[,:]\s*(please\s+)?(ignore|disregard|forget|override|output|respond|return|print|set|change|move|mark|update|add|write|fill|delete|you are)\b/i,
   /\b(output|respond|return|print)\b.{0,20}\bjson\b/i,
   /<\/?[a-z_]+>|‹\/?[a-z_]+›/i,
 ];
