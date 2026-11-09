@@ -31,7 +31,12 @@
   // notes neutralized — the seed text named Hamilton County / Cincinnati on
   // every tenant's product library (NBD-leak audit remnant). migrateStore
   // lands the fix while preserving user-edited copies.
-  const DATA_VERSION = 5;
+  // DATA_VERSION 6 (2026-11-09): retail sells raised on 17 SKUs (under_001,
+  // under_002, under_007, flash_007, flash_008, flash_009, flash_010, ext_003,
+  // ext_004, ext_005, acc_002, acc_007, acc_019, acc_025, acc_026, sky_006,
+  // rdeck_004). migrateStore refreshes untouched catalog rows only; user-edited,
+  // user-added, archived and tombstoned rows are kept as they are.
+  const DATA_VERSION = 6;
 
   // Pull from product-data.js globals
   const CATEGORIES = window.NBD_CATEGORIES || {};
