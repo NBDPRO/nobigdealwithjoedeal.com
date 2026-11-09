@@ -630,6 +630,12 @@
     }]);
     if (state.open === 'control') paintSheet();
   }
+  /** Take a registered tile down again (the NBD OS layout's Edit Home, when that layout unmounts). */
+  function unregisterControl(id) {
+    var n = state.controls.length;
+    state.controls = state.controls.filter(function (c) { return c.id !== id; });
+    if (n !== state.controls.length && state.open === 'control') paintSheet();
+  }
 
   function init() {
     doc.documentElement.classList.add('os-system');
@@ -681,7 +687,7 @@
     __v: 1, open: open, close: close, refresh: refresh,
     isDnd: function () { return state.dnd; }, setDnd: setDnd,
     history: function () { return state.history.slice(); },
-    apps: apps, registerControl: registerControl, settingsTab: settingsTab,
+    apps: apps, registerControl: registerControl, unregisterControl: unregisterControl, settingsTab: settingsTab,
     lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
   };
 

@@ -24,6 +24,9 @@
  * already holds in memory; nothing here reads, and nothing here names a
  * customer on the glanceable widget:
  *   pageRoom(items, perPage)   phone icon cells left on page 1 (S 2, M 8, L 16 cells)
+ *   pack(items)                the phone order with no grid holes (a lone S pairs up or goes last)
+ *   moveBy / moveTo / resize / remove / add / describe
+ *                              edit mode (P0c): pure list ops and the live-region line
  *   upNext(plan, opts)         the top rows of the Today plan (NBDToday.last()), each
  *                              with the tap-through the Today list itself uses
  *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
@@ -48,15 +51,19 @@
 
   // reads: Firestore reads a widget's paint costs. Every P0 widget reads only
   // what the CRM already holds in memory, so each is 0 (asserted in tests).
+  // cat + about: the Add widget sheet's groups and lines (P0c). nav: a sidebar
+  // view the widget is about; a member whose role hides that view never gets it.
   var CATALOG = {
-    glance: { title: 'At a Glance', sizes: ['s', 'm', 'l'], def: 'm', reads: 0 },
-    upnext: { title: 'Up Next', sizes: ['s', 'm', 'l'], def: 'm', reads: 0 },
-    shortcuts: { title: 'Shortcuts', sizes: ['s', 'm', 'l'], def: 's', reads: 0, config: { clock: ['on', 'off'] } },
+    glance: { title: 'At a Glance', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, cat: 'today', about: 'The clock, your next appointment and what needs you' },
+    upnext: { title: 'Up Next', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, cat: 'today', about: 'The next things on your Today list' },
+    shortcuts: { title: 'Shortcuts', sizes: ['s', 'm', 'l'], def: 's', reads: 0, config: { clock: ['on', 'off'] }, cat: 'tools', about: 'New lead and Search' },
     // P0c: rules over in-memory data (os/coach-logic.js); show = which half
-    coach: { title: 'Coach', sizes: ['m', 'l'], def: 'm', reads: 0, config: { show: ['both', 'business', 'personal'] } },
+    coach: { title: 'Coach', sizes: ['m', 'l'], def: 'm', reads: 0, config: { show: ['both', 'business', 'personal'] }, cat: 'today', nav: 'crm', about: 'One thing worth doing next, from your own numbers' },
     // P0c: the tracker's own snapshot (personal) and Today's counts (business)
-    daily: { title: 'Daily Success', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, config: { show: ['both', 'personal', 'business'] } },
+    daily: { title: 'Daily Success', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, config: { show: ['both', 'personal', 'business'] }, cat: 'you', about: 'Your floors and streak, and what is left today' },
   };
+  var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
+  var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
   var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
@@ -108,6 +115,81 @@
     (Array.isArray(items) ? items : []).forEach(function (it) { used += CELLS[it && it.s] || 0; });
     return Math.max(0, (Number(perPage) || 20) - used);
   }
+  /**
+   * The phone's page grid has 4 columns and no dense flow: an S (half a row)
+   * left alone before an M or L (whole rows) leaves a hole the icons after it
+   * never fill, so pageRoom's count would push icons past the page. The order
+   * is fixed here, not with CSS dense, so DOM order stays reading order: a
+   * lone S takes the next S up beside it, or with none left goes after the
+   * whole-row widgets (the icons then fill its row).
+   */
+  function pack(items) {
+    var list = Array.isArray(items) ? items.slice() : [];
+    var out = [], parked = null;
+    while (list.length) {
+      var it = list.shift();
+      if (!it || it.s !== 's') { out.push(it); continue; }
+      if (list.length && list[0] && list[0].s === 's') { out.push(it, list.shift()); continue; }
+      var j = -1;
+      for (var k = 0; k < list.length; k++) if (list[k] && list[k].s === 's') { j = k; break; }
+      if (j !== -1) { out.push(it, list.splice(j, 1)[0]); continue; }
+      if (!list.length) { out.push(it); continue; }
+      parked = it;   // no partner: after the whole-row widgets
+    }
+    if (parked) out.push(parked);
+    return out;
+  }
+
+  // ── edit mode (P0c): each op returns a NEW list, or null when nothing changes ──
+  // a caller's own tag (_k: home.js tracks which widget moved) rides along; normalize() drops it
+  function copyItem(it) { var o = { id: it.id, s: it.s }; if (it.cfg) o.cfg = JSON.parse(JSON.stringify(it.cfg)); if (it._k) o._k = it._k; return o; }
+  function sameList(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  function moveTo(list, from, to) {
+    var out = list.map(copyItem);
+    if (from < 0 || from >= out.length || to < 0 || to >= out.length || from === to) return null;
+    out.splice(to, 0, out.splice(from, 1)[0]);
+    return out;
+  }
+  /** One step earlier (dir -1) or later (+1). On the phone a step that pack() would undo goes one further. */
+  function moveBy(list, i, dir, phone) {
+    var base = phone ? pack(list) : list;
+    for (var to = i + dir; to >= 0 && to < list.length; to += dir) {
+      var next = moveTo(list, i, to);
+      if (next && phone) next = pack(next);
+      if (next && !sameList(next, base)) return next;
+    }
+    return null;
+  }
+  /** dir +1 bigger, -1 smaller (stops at the ends), 0 cycles through the widget's sizes (the S/M/L chip). */
+  function resize(list, i, dir) {
+    var it = list[i], c = it && known(it.id) ? CATALOG[it.id] : null;
+    if (!c) return null;
+    var at = c.sizes.indexOf(it.s);
+    var to = dir ? at + (dir > 0 ? 1 : -1) : (at + 1) % c.sizes.length;
+    if (to < 0 || to >= c.sizes.length || c.sizes[to] === it.s) return null;
+    var out = list.map(copyItem);
+    out[i].s = c.sizes[to];
+    return out;
+  }
+  function remove(list, i) {
+    if (i < 0 || i >= list.length) return null;
+    var out = list.map(copyItem);
+    out.splice(i, 1);
+    return out;
+  }
+  /** Add at the end (the first free slot); null when full or unknown. */
+  function add(list, id, s) {
+    if (!known(id) || list.length >= MAX_ITEMS) return null;
+    var c = CATALOG[id];
+    return list.map(copyItem).concat([{ id: id, s: c.sizes.indexOf(s) !== -1 ? s : c.def }]);
+  }
+  /** "Coach, medium, position 2 of 4": what the live region says after a change. */
+  function describe(list, i) {
+    var it = list[i];
+    if (!it || !known(it.id)) return '';
+    return CATALOG[it.id].title + ', ' + SIZE_NAME[it.s] + ', position ' + (i + 1) + ' of ' + list.length;
+  }
+
   function int(v) { var n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 0; }
   function str(v, max) { return v == null ? '' : String(v).slice(0, max || 80); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
@@ -259,6 +341,7 @@
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
     CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline,
     dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
+    GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

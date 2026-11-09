@@ -28,8 +28,9 @@
  * nbd_ds_snapshot, else LayoutEngine.ds(): the doc the engine already read).
  * No fetch, no Firestore.
  *
- * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible }) returns
- * { el, update(items), paint(), unmount() }. `el` is one node the OS layout
+ * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange,
+ * onExit, onLongPress, navHidden }) returns { el, update(items), paint(),
+ * unmount(), setEditing(on, focusFirst), editing(), openAdd() }. `el` is one node the OS layout
  * places (the desk column; on the phone, page 1 of the pager). update() is a
  * keyed reconcile: a widget's node is made once and kept, moved only when the
  * order changes, and its body is rewritten only when what it shows changed,
@@ -37,6 +38,17 @@
  * inside its own try: one that throws shows "Couldn't load · Retry" and the
  * rest still render. Nothing paints while the tab is hidden or `visible()`
  * says no (a phone app is open); it catches up when it shows again.
+ *
+ * Edit mode (P0c, design §3.4): the layout turns it on (a 550 ms long-press
+ * on a widget, Edit Home, the Control Center tile). Each widget then gets an
+ * S/M/L chip (cycles its own sizes) and Remove, its content goes inert, and a
+ * tap picks it up and the next tap places it (one pointer, WCAG 2.5.7).
+ * Keyboard (Bento's model): arrows move, Shift+arrows resize, Delete removes,
+ * Escape is done; a polite live region says each change and focus stays on
+ * the widget. "Add widget" is a native <dialog> (showModal) of the catalog,
+ * grouped, minus what the role hides. Every change goes to onChange (the
+ * layout normalises and saves it); home.js itself writes nothing but the
+ * Coach's localStorage memo. No animation at all, so no jiggle.
  *
  * Every value goes into the DOM escaped. No inline handlers, no style
  * attributes; sizes ride on classes (is-s / is-m / is-l) and css/os/home.css
@@ -249,6 +261,16 @@
     return '<p class="os-hw-fail">Couldn\'t load · <button type="button" class="ui-btn-quiet os-hw-btn os-hw-retry" data-oshw-retry="' + esc(key) + '">Retry</button></p>';
   }
 
+  var LONG_PRESS_MS = 550;   // the OS layout's long-press (layouts/os.js onPhoneDown)
+  var HELP = 'Tap it or press Enter to pick it up, then tap where it goes. Arrow keys move it, Shift with an arrow resizes it, Delete removes it, Escape is done.';
+
+  /**
+   * opts: surface, items, act, visible, and for edit mode (P0c):
+   *   onChange(list)   the layout normalises and saves it, then calls update()
+   *   onExit()         Escape / Done: the layout leaves edit mode
+   *   onLongPress()    a 550 ms press on a widget: the layout enters edit mode
+   *   navHidden(id)    true when the member's role hides that sidebar view
+   */
   function mount(opts) {
     var o = opts || {};
     var surface = o.surface === 'desk' ? 'desk' : 'phone';
@@ -258,7 +280,21 @@
     var el = doc.createElement('div');
     el.className = 'os-hw-list';
     el.setAttribute('data-os-home', surface);
-    var recs = {}, order = [], dirty = false, live = true;
+    var recs = {}, order = [], cur = [], dirty = false, live = true;
+    var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
+    // one polite line says each change; the help text is what each widget is described by while editing
+    var helpId = 'oshwHelp-' + surface;
+    var liveEl = doc.createElement('p');
+    liveEl.className = 'os-hw-live';
+    liveEl.setAttribute('role', 'status');
+    liveEl.setAttribute('aria-live', 'polite');
+    var help = doc.createElement('p');
+    help.className = 'os-hw-live';
+    help.setAttribute('id', helpId);
+    help.hidden = true;
+    help.textContent = HELP;
+    el.appendChild(liveEl);
+    el.appendChild(help);
 
     function build(key, it) {
       var n = doc.createElement('section');
@@ -268,7 +304,7 @@
       var b = doc.createElement('div');
       b.className = 'os-hw-body';
       n.appendChild(b);
-      return { key: key, it: it, el: n, body: b, html: null };
+      return { key: key, it: it, el: n, body: b, html: null, ed: null, edHtml: null };
     }
     function paintOne(rec, force) {
       var html;
@@ -288,7 +324,7 @@
     function update(items) {
       if (!live) return;
       var list = Array.isArray(items) ? items : [];
-      var next = {}, keys = [], seen = {};
+      var next = {}, keys = [], seen = {}, kept = [];
       list.forEach(function (it) {
         if (!it || !WIDGETS[it.id]) return;
         seen[it.id] = (seen[it.id] || 0) + 1;
@@ -299,13 +335,201 @@
         ['s', 'm', 'l'].forEach(function (s) { rec.el.classList.toggle('is-' + s, s === rec.it.s); });
         next[key] = rec;
         keys.push(key);
+        kept.push(it);
       });
       Object.keys(recs).forEach(function (k) { if (!next[k] && recs[k].el.parentNode) recs[k].el.parentNode.removeChild(recs[k].el); });
       if (keys.join() !== order.join()) keys.forEach(function (k) { el.appendChild(next[k].el); });
       recs = next;
       order = keys;
+      cur = kept;
+      if (pick && !recs[pick]) pick = null;
+      applyEdit();
       paint();
     }
+
+    // ── edit mode (P0c) ─────────────────────────────────────────
+    function title(key) { var r = recs[key]; return r ? HL.CATALOG[r.it.id].title : ''; }
+    function announce(msg) { liveEl.textContent = ''; if (msg) liveEl.textContent = msg; }
+    function chromeHtml(i) {
+      var it = cur[i], c = HL.CATALOG[it.id];
+      var nx = HL.resize(cur, i, 0);
+      var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
+      return '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
+        '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>';
+    }
+    function applyEdit() {
+      order.forEach(function (k, i) {
+        var rec = recs[k], n = rec.el;
+        n.classList.toggle('is-editing', editing);
+        n.classList.toggle('is-picked', editing && pick === k);
+        if (editing) {
+          if (!rec.ed) { rec.ed = doc.createElement('div'); rec.ed.className = 'os-hw-edit'; n.insertBefore(rec.ed, rec.body); }
+          var h = chromeHtml(i);
+          if (h !== rec.edHtml) { rec.ed.innerHTML = h; rec.edHtml = h; }
+          n.setAttribute('tabindex', '0');
+          n.setAttribute('aria-label', HL.describe(cur, i) + (pick === k ? ', picked up' : ''));
+          n.setAttribute('aria-describedby', helpId);
+          rec.body.setAttribute('inert', '');
+        } else {
+          if (rec.ed) { if (rec.ed.parentNode) rec.ed.parentNode.removeChild(rec.ed); rec.ed = null; rec.edHtml = null; }
+          n.removeAttribute('tabindex');
+          n.removeAttribute('aria-describedby');
+          n.setAttribute('aria-label', HL.CATALOG[rec.it.id].title);
+          rec.body.removeAttribute('inert');
+        }
+      });
+    }
+    function setEditing(on, focusFirst) {
+      on = !!on;
+      if (on !== editing) {
+        editing = on;
+        pick = null;
+        applyEdit();
+        announce(on ? 'Editing your home. ' + HELP : 'Done editing your home.');
+      }
+      if (on && focusFirst && order.length) { try { recs[order[0]].el.focus(); } catch (e) {} }
+    }
+    // the working list, each item tagged with its key so the moved widget can be found after pack()
+    function tagged() { return cur.map(function (it, i) { var c = { id: it.id, s: it.s, _k: order[i] }; if (it.cfg) c.cfg = it.cfg; return c; }); }
+    function keyAt(list, idx) { var n = 0; for (var j = 0; j <= idx; j++) if (list[j].id === list[idx].id) n++; return list[idx].id + '-' + n; }
+    /** Save a changed list (through the layout), then keep focus on the widget and say what changed. */
+    function commit(next, focusTag, prefix, focusSel) {
+      if (!next) return false;
+      if (surface === 'phone') next = HL.pack(next);
+      if (next.map(function (x) { return x._k; }).join() === order.join() && next.length === order.length &&
+        next.every(function (x, i) { return x.s === cur[i].s; })) return false;
+      var at = -1;
+      next.forEach(function (it, j) { if (focusTag && it._k === focusTag) at = j; });
+      var clean = next.map(function (it) { var c = { id: it.id, s: it.s }; if (it.cfg) c.cfg = it.cfg; return c; });
+      var newKey = at >= 0 ? keyAt(clean, at) : null;
+      pick = null;
+      if (typeof o.onChange === 'function') o.onChange(clean); else update(clean);
+      var rec = newKey && recs[newKey];
+      if (rec && editing) {
+        var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
+        try { f.focus({ preventScroll: true }); } catch (e) {}
+      }
+      announce((prefix || '') + (at >= 0 && !/^Removed/.test(prefix || '') ? HL.describe(clean, at) : ''));
+      return true;
+    }
+    function neighbour(i) { return order[i + 1] || order[i - 1] || null; }
+    function removeAt(i) {
+      var t = title(order[i]);
+      return commit(HL.remove(tagged(), i), neighbour(i), 'Removed ' + String(t) + '.');
+    }
+    function tapCard(key) {
+      if (!pick) { pick = key; applyEdit(); announce(title(key) + ' picked up. Now tap where it goes, or tap it again to put it down.'); return; }
+      if (pick === key) { var t0 = title(key); pick = null; applyEdit(); announce(t0 + ' put down.'); return; }
+      var moved = pick;
+      var done = commit(HL.moveTo(tagged(), order.indexOf(moved), order.indexOf(key)), moved, '');
+      if (!done) { pick = null; applyEdit(); announce('Small widgets sit in pairs, so ' + title(moved) + ' stays where it is.'); }
+    }
+    function edButton(b, key) {
+      var i = order.indexOf(key);
+      if (i < 0 || b.hasAttribute('disabled')) return;
+      var what = b.getAttribute('data-oshw-ed');
+      if (what === 'size') commit(HL.resize(tagged(), i, 0), key, '', '[data-oshw-ed="size"]');
+      else if (what === 'remove') removeAt(i);
+    }
+    // capture: while editing, a tap arranges and never reaches the widget's own links and buttons;
+    // the click that ends a long-press is swallowed too
+    function onCapture(ev) {
+      if (swallow) { swallow = false; W.clearTimeout(swallowT); ev.preventDefault(); ev.stopPropagation(); return; }
+      if (!editing) return;
+      var t = ev.target;
+      var sec = t && t.closest ? t.closest('[data-oshw]') : null;
+      if (!sec) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var b = t.closest('[data-oshw-ed]');
+      if (b) edButton(b, sec.getAttribute('data-oshw'));
+      else tapCard(sec.getAttribute('data-oshw'));
+    }
+    function onKey(ev) {
+      if (!editing) return;
+      var t = ev.target;
+      var sec = t && t.closest ? t.closest('[data-oshw]') : null;
+      if (!sec) return;
+      var k = ev.key;
+      if (k === 'Escape') { ev.preventDefault(); ev.stopPropagation(); if (typeof o.onExit === 'function') o.onExit(); else setEditing(false); return; }
+      if (t !== sec) return;   // the chip and Remove keep their own keys
+      var key = sec.getAttribute('data-oshw'), i = order.indexOf(key);
+      var back = k === 'ArrowUp' || k === 'ArrowLeft', fwd = k === 'ArrowDown' || k === 'ArrowRight';
+      if (k === 'Delete' || k === 'Backspace') removeAt(i);
+      else if (k === 'Enter' || k === ' ') tapCard(key);
+      else if ((back || fwd) && ev.shiftKey) {
+        if (!commit(HL.resize(tagged(), i, k === 'ArrowRight' || k === 'ArrowDown' ? 1 : -1), key, '')) announce(title(key) + ' is already ' + (fwd ? 'as big' : 'as small') + ' as it goes.');
+      } else if (back || fwd) {
+        if (!commit(HL.moveBy(tagged(), i, back ? -1 : 1, surface === 'phone'), key, '')) announce(title(key) + ' is already ' + (back ? 'first' : 'last') + '.');
+      } else return;
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    // long-press a widget to edit (the 550 ms pattern); a move of 10px or a lift cancels it
+    function onDown(ev) {
+      if (editing || (ev.button != null && ev.button !== 0) || typeof o.onLongPress !== 'function') return;
+      var sec = ev.target && ev.target.closest ? ev.target.closest('[data-oshw]') : null;
+      if (!sec) return;
+      press = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId };
+      W.clearTimeout(pressT);
+      pressT = W.setTimeout(function () {
+        if (!press || !live) return;
+        press = null;
+        swallow = true;
+        W.clearTimeout(swallowT);
+        swallowT = W.setTimeout(function () { swallow = false; }, 700);   // a press often ends with no click
+        o.onLongPress();
+      }, LONG_PRESS_MS);
+    }
+    function onMove(ev) {
+      if (press && ev.pointerId === press.pid && Math.abs(ev.clientX - press.x) + Math.abs(ev.clientY - press.y) > 10) { W.clearTimeout(pressT); press = null; }
+    }
+    function onUp(ev) { if (press && ev.pointerId === press.pid) { W.clearTimeout(pressT); press = null; } }
+
+    // ── Add widget: a native <dialog>, the catalog grouped, minus what the role hides ──
+    function openAdd() {
+      if (addEl && addEl.parentNode) addEl.parentNode.removeChild(addEl);
+      var d = doc.createElement('dialog');
+      d.className = 'os-hw-add';
+      d.setAttribute('aria-labelledby', 'oshwAddTitle');
+      var full = cur.length >= HL.MAX_ITEMS;
+      var hidden = typeof o.navHidden === 'function' ? o.navHidden : function () { return false; };
+      var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwAddTitle">Add a widget</h2>' +
+        '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Close</button></div>';
+      if (full) h += '<p class="os-hw-add-full">Your home is full. Remove a widget to add another.</p>';
+      HL.GROUPS.forEach(function (g) {
+        var list = HL.ids().filter(function (id) { var c = HL.CATALOG[id]; return c.cat === g.id && !(c.nav && hidden(c.nav)); });
+        if (!list.length) return;
+        h += '<section class="os-hw-add-group"><h3 class="os-hw-add-gt">' + esc(g.title) + '</h3><ul class="os-hw-add-list">' + list.map(function (id) {
+          var c = HL.CATALOG[id];
+          return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(c.title) + '</span><span class="os-hw-add-about">' + esc(c.about || '') + '</span></div>' +
+            '<div class="os-hw-add-sizes" role="group" aria-label="' + esc('Add ' + c.title) + '">' + c.sizes.map(function (sz) {
+              return '<button type="button" class="btn btn-ghost os-hw-add-chip" data-oshw-add="' + esc(id) + '" data-size="' + esc(sz) + '" aria-label="' +
+                esc(['Add ', c.title, ', ', HL.SIZE_NAME[sz]].join('')) + '"' + (full ? ' disabled' : '') + '>' + esc(sz.toUpperCase()) + '</button>';
+            }).join('') + '</div></li>';
+        }).join('') + '</ul></section>';
+      });
+      d.innerHTML = h;
+      d.addEventListener('click', function (ev) {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+        if (t === d || t.closest('[data-oshw-addclose]')) { d.close(); return; }
+        var b = t.closest('[data-oshw-add]');
+        if (!b || b.hasAttribute('disabled')) return;
+        var next = HL.add(tagged(), b.getAttribute('data-oshw-add'), b.getAttribute('data-size'));
+        if (!next) return;
+        next[next.length - 1]._k = 'new';
+        d.close();
+        commit(next, 'new', 'Added ');
+      });
+      d.addEventListener('close', function () { if (d.parentNode) d.parentNode.removeChild(d); if (addEl === d) addEl = null; });
+      doc.body.appendChild(d);
+      addEl = d;
+      if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+      var first = d.querySelector('.os-hw-add-chip:not([disabled])') || d.querySelector('.os-hw-add-close');
+      if (first) { try { first.focus(); } catch (e) {} }
+    }
+
     function onClick(ev) {
       var t = ev.target;
       if (!t || !t.closest) return;
@@ -331,20 +555,40 @@
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
     doc.addEventListener('visibilitychange', onVis);
+    el.addEventListener('click', onCapture, true);
     el.addEventListener('click', onClick);
+    el.addEventListener('keydown', onKey);
+    el.addEventListener('pointerdown', onDown);
+    doc.addEventListener('pointermove', onMove);
+    doc.addEventListener('pointerup', onUp);
+    doc.addEventListener('pointercancel', onUp);
 
     function unmount() {
       live = false;
       W.clearInterval(tick);
+      W.clearTimeout(pressT);
+      W.clearTimeout(swallowT);
       EVENTS.forEach(function (t) { W.removeEventListener(t, onEvent); });
       doc.removeEventListener('visibilitychange', onVis);
+      el.removeEventListener('click', onCapture, true);
       el.removeEventListener('click', onClick);
+      el.removeEventListener('keydown', onKey);
+      el.removeEventListener('pointerdown', onDown);
+      doc.removeEventListener('pointermove', onMove);
+      doc.removeEventListener('pointerup', onUp);
+      doc.removeEventListener('pointercancel', onUp);
+      if (addEl && addEl.parentNode) addEl.parentNode.removeChild(addEl);
+      addEl = null;
       if (el.parentNode) el.parentNode.removeChild(el);
       recs = {};
       order = [];
+      cur = [];
     }
     update(o.items);
-    return { el: el, update: update, paint: paint, unmount: unmount };
+    return {
+      el: el, update: update, paint: paint, unmount: unmount,
+      setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd,
+    };
   }
 
   W.NBDOSHome = { mount: mount };

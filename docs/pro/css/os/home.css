@@ -12,9 +12,11 @@
   padding: var(--ui-space-3, 12px); color: var(--t);
   background: color-mix(in srgb, var(--s) 88%, transparent);
   border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-1);
-  -webkit-touch-callout: none;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
-.os-hw-body { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; min-height: 0; }
+.os-hw-body { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; min-height: 0; overflow: hidden; }
+/* lines never squash into each other; a card too short for them clips cleanly at its foot */
+.os-hw-body > * { flex-shrink: 0; }
 .os-hw-title {
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--ui-space-2, 8px); margin: 0;
   font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; color: var(--m);
@@ -62,6 +64,7 @@
 .os-hw-coach-calm { margin: 0; font-size: var(--ui-fs-body, 14px); line-height: 1.35; color: var(--m); }
 .os-hw-coach-acts { display: flex; flex-wrap: wrap; gap: var(--ui-space-1, 4px); min-width: 0; }
 .os-hw-coach-acts .os-hw-btn { flex: 0 1 auto; min-width: 44px; padding-inline: var(--ui-space-3, 12px); }
+.os-hw-coach-acts .ui-btn-quiet { padding-inline: var(--ui-space-2, 8px); }
 .os-hw-coach-toggle { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
 .os-hw-coach-more { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; }
 .os-hw-coach-more li {
@@ -99,6 +102,59 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw.is-l { gap: var(--ui-space-2, 8px); }
 .os-hw.is-l .os-hw-time { font-size: 40px; }
 .os-hw.is-l .os-hw-row { padding-block: 6px; }
+
+/* ── edit mode (P0c): tap-pick then tap-place, the S/M/L chip, Remove. No jiggle:
+   nothing here animates, so neither reduced-motion switch has anything to stop ── */
+.os-hw.is-editing { cursor: pointer; outline: 2px dashed var(--ui-line-strong, var(--m)); outline-offset: -2px; }
+.os-hw.is-editing.is-picked { outline: 2px solid var(--orange); }
+.os-hw.is-editing:focus-visible { outline: 2px solid var(--orange); box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-edit { display: flex; justify-content: flex-end; gap: var(--ui-space-1, 4px); flex: none; margin: calc(-1 * var(--ui-space-1, 4px)) calc(-1 * var(--ui-space-1, 4px)) 0 0; }
+.os-hw-ed {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--ui-space-2, 8px);
+  background: var(--s2); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+  font: inherit; font-size: var(--ui-fs-body-sm, 13px); font-weight: 700; cursor: pointer;
+}
+.os-hw-ed:disabled { opacity: .5; cursor: default; }
+.os-hw-ed:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw.is-editing .os-hw-body { opacity: .72; }
+/* the live region and the edit help: read out, never seen, never a grid cell */
+.os-hw-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* the phone's edit bar with Add widget: the hint on its own row at 320px */
+.os-p-edit.has-home { flex-wrap: wrap; }
+.os-p-edit.has-home > span { flex: 1 1 100%; }
+.os-p-edit.has-home .btn { flex: 1 1 0; justify-content: center; }
+/* the desk column's own buttons */
+.os-hw-tools { display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px); }
+.os-hw-tool { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+
+/* Add widget: a native <dialog> */
+.os-hw-add {
+  margin: auto; width: min(480px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: min(640px, calc(100vh - 2 * var(--ui-space-4, 16px)));
+  padding: var(--ui-space-4, 16px); overflow-y: auto; color: var(--t); background: var(--s);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2, var(--ui-elev-1));
+}
+.os-hw-add::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.os-hw-add-hd { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); margin-bottom: var(--ui-space-2, 8px); }
+.os-hw-add-title { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-hw-add-close { min-height: 44px; min-width: 44px; justify-content: center; }
+.os-hw-add-full { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); font-weight: 600; }
+.os-hw-add .os-hw-add-group { margin: 0; padding: 0; }   /* a page-wide section rule pads sections */
+.os-hw-add-group + .os-hw-add-group { margin-top: var(--ui-space-3, 12px); }
+.os-hw-add-gt {
+  margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-hw-add-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.os-hw-add-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; padding: var(--ui-space-2, 8px) 0;
+  border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-add-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 180px; min-width: 0; }
+.os-hw-add-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-hw-add-about { font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-hw-add-sizes { display: flex; gap: var(--ui-space-1, 4px); flex: none; }
+.os-hw-add-chip { min-width: 44px; min-height: 44px; justify-content: center; padding: 0 var(--ui-space-2, 8px); }
+.os-hw-add-chip:disabled { opacity: .5; cursor: default; }
 
 /* ── by the width a widget got ── */
 @container oshw (max-width: 159px) {
