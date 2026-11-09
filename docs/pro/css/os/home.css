@@ -72,6 +72,23 @@
 .os-hw-coach-go { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
 .os-hw-coach-act { text-decoration: none; }
 
+/* Daily Success: floors / streak state / week %, and what is left today */
+.os-hw-ds-link {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; min-height: 44px;
+  margin: 0 calc(-1 * var(--ui-space-1, 4px)); padding: 2px var(--ui-space-1, 4px);
+  color: var(--t); text-decoration: none; border-radius: var(--ui-radius-md, 8px);
+}
+.os-hw-ds-link:hover { background: color-mix(in srgb, var(--s2) 70%, transparent); }
+.os-hw-ds-link:focus-visible, .os-hw-ds-open:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-ds-row { font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; color: var(--m); min-width: 0; overflow-wrap: anywhere; }
+.os-hw-ds-row.is-strong { font-size: var(--ui-fs-body, 14px); font-weight: 600; color: var(--t); }
+.os-hw-ds-row.is-warn { font-weight: 600; color: var(--t); }
+.os-hw-ds-row.is-label { font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; }
+.os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
+.os-hw-ds-open { align-self: flex-start; text-decoration: none; }
+/* personal numbers never show on the lock screen */
+html.os-locked .os-hw-daily { visibility: hidden; }
+
 /* ── sizes: S one number, M up to three rows, L a list with an action ── */
 .os-hw.is-s { padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); }
 .os-hw.is-s .os-hw-time { font-size: var(--ui-fs-title, 20px); }

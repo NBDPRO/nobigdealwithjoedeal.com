@@ -32,6 +32,7 @@
  *   dayKey(ms)                 local 'YYYY-MM-DD', the Daily Success writer's key
  *   dsLite(snapshot)           the tracker's snapshot cut to floors / streak state / week %
  *   dsPersonal(lite, dk, now)  that cut, only when it is today's, under 12 h and whole
+ *   todaySummary(raw, uid, now) Today's counts-only summary (calls, follow-ups, jobs), same rules
  *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
@@ -53,8 +54,10 @@
     shortcuts: { title: 'Shortcuts', sizes: ['s', 'm', 'l'], def: 's', reads: 0, config: { clock: ['on', 'off'] } },
     // P0c: rules over in-memory data (os/coach-logic.js); show = which half
     coach: { title: 'Coach', sizes: ['m', 'l'], def: 'm', reads: 0, config: { show: ['both', 'business', 'personal'] } },
+    // P0c: the tracker's own snapshot (personal) and Today's counts (business)
+    daily: { title: 'Daily Success', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, config: { show: ['both', 'personal', 'business'] } },
   };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -234,12 +237,28 @@
     if (typeof x.warned !== 'boolean' || typeof x.broken !== 'boolean') return null;
     return { dk: x.dk, asOf: x.asOf, met: x.met, of: x.of, warned: x.warned, broken: x.broken, pct: x.pct == null ? null : x.pct };
   }
+  /**
+   * The business half: the counts-only localStorage nbd_today_summary that
+   * today-home.js publishes (today-plan.js summaryForTracker), used only when it
+   * is this user's, today's, under 12 h old and whole (the Daily Success tile's
+   * own rule, daily-success/js/business-tile-logic.js read). -> { calls, followUps, jobs } | null
+   */
+  function todaySummary(raw, uid, now) {
+    if (typeof uid !== 'string' || !uid || typeof raw !== 'string' || !raw) return null;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return null; }
+    var t = Number(now);
+    if (!isObj(s) || s.v !== 1 || s.uid !== uid) return null;
+    if (!isCount(s.calls, 9999) || !isCount(s.followUps, 9999) || !isCount(s.jobs, 9999)) return null;
+    if (typeof s.asOf !== 'number' || !(s.asOf > 0) || s.asOf > t + 5 * 60000 || t - s.asOf >= DS_MAX_AGE || dayKey(s.asOf) !== dayKey(t)) return null;
+    return { calls: s.calls, followUps: s.followUps, jobs: s.jobs };
+  }
 
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
     CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline,
-    dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal,
+    dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

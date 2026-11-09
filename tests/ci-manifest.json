@@ -410,6 +410,7 @@
     "nbd-os-home-key-2026-11-09.test.js",
     "nbd-os-home-2026-11-09.test.js",
     "nbd-os-coach-2026-11-09.test.js",
+    "nbd-os-daily-success-2026-11-09.test.js",
     "estimate-follow-callable-2026-10-19.test.js",
     "follow-up-board-2026-11-03.test.js",
     "follow-up-board-sync-2026-11-04.test.js",

@@ -13,6 +13,11 @@
  *   Coach        (P0c) the top rule of os/coach-logic.js, 2 more on expand (M)
  *                or always (L); each with its CRM action, Later (snooze) and
  *                Not today (dismiss), kept in localStorage nbd_os_coach only
+ *   Daily Success (P0c) personal half: floors X/N, streak state, week % from
+ *                the tracker's snapshot, only when today's, fresh and whole,
+ *                else one "Open Daily Success" link; business half: calls,
+ *                follow-ups and jobs left (nbd_today_summary). Opens Daily
+ *                Success in the same tab. Each half hideable (cfg show).
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -46,7 +51,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'online', 'offline'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'storage', 'online', 'offline'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -194,7 +199,51 @@
     lsSet(COACH_KEY, JSON.stringify(what === 'dismiss' ? CL.dismiss(memo, id, dk) : CL.snooze(memo, id, dk, now)));
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach };
+  // ── Daily Success (P0c): the tracker's snapshot (personal) + Today's counts (business) ──
+  var DS_HREF = '/pro/daily-success/';   // same tab, as openDailyTracker does (widgets.js); the demo remaps it
+  function plural(n, one, many) { return String(n) + ' ' + (n === 1 ? one : many); }
+  function streakLine(d) {
+    if (d.broken) return 'Two misses ended the streak. Today is day one.';
+    if (d.warned) return 'Missed yesterday. Don\'t miss twice.';
+    return d.met === d.of ? 'All floors met today.' : 'Floors still open today.';
+  }
+  function dsRow(t, cls) { return '<span class="os-hw-ds-row' + (cls ? ' ' + esc(cls) : '') + '">' + esc(t) + '</span>'; }
+  function daily(size, cfg) {
+    var show = cfg && cfg.show ? cfg.show : 'both';
+    var h = '<h3 class="os-hw-title">Daily Success</h3>';
+    var d = show !== 'business' ? dsNow() : null;
+    var b = show !== 'personal' ? HL.todaySummary(lsGet('nbd_today_summary'), String((W._user && W._user.uid) || ''), Date.now()) : null;
+    var open = '<a class="os-hw-ds-link" href="' + esc(DS_HREF) + '">';
+    var items = b ? [plural(b.calls, 'call', 'calls'), plural(b.followUps, 'follow-up', 'follow-ups'), plural(b.jobs, 'job', 'jobs')] : [];
+    var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF) + '">Open Daily Success</a>';
+    var noBiz = '<p class="os-hw-empty">Today\'s numbers load with your Today list.</p>';
+    if (size === 's') {
+      // one thing: the floors, else what is left, else the way in
+      if (d) return h + open + '<span class="os-hw-ds-big ui-num">' + esc(String(d.met) + '/' + String(d.of)) + '</span>' + dsRow('Floors') + '</a>';
+      if (b) return h + open + dsRow('Left today', 'is-label') + dsRow(items.slice(0, 2).join(' · ')) + '</a>';
+      return h + (show === 'business' ? noBiz : noDs);
+    }
+    var parts = [];
+    if (show !== 'business') {
+      if (!d) parts.push(noDs);
+      else {
+        var floors = 'Floors ' + String(d.met) + '/' + String(d.of);
+        var week = d.pct == null ? '' : 'Week ' + String(d.pct) + '%';
+        parts.push(open + (size === 'l'
+          ? dsRow(floors, 'is-strong') + dsRow(streakLine(d), d.warned ? 'is-warn' : '') + (week ? dsRow(week) : '')
+          : dsRow([floors, week].filter(Boolean).join(' · '), 'is-strong') + dsRow(streakLine(d), d.warned ? 'is-warn' : '')) + '</a>');
+      }
+    }
+    if (show !== 'personal') {
+      if (!b) parts.push(noBiz);
+      else parts.push(open + (size === 'l'
+        ? dsRow('Left today', 'is-label') + items.map(function (t) { return dsRow(t); }).join('')
+        : dsRow('Left today: ' + items.join(' · '))) + '</a>');
+    }
+    return h + parts.join('');
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily };
 
   function failHtml(key) {
     return '<p class="os-hw-fail">Couldn\'t load · <button type="button" class="ui-btn-quiet os-hw-btn os-hw-retry" data-oshw-retry="' + esc(key) + '">Retry</button></p>';
