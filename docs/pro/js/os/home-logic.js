@@ -125,10 +125,14 @@
     // id teamboard, not team: .os-hw-team is the layout's Publish / Lock group (layouts/os.js, home.css)
     // names: it lists teammates by name, so "In a home" never paints it (actHides)
     teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', names: true, about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
+    // P3 (os/focus.js, the lazy osfocus bundle): a knock block the rep starts by hand. A paint reads nothing;
+    // tapReads: a start costs one knocks count plus Daily Success's goals refresh (1 getDoc + 1 count, its
+    // 5-minute cache); each knock saved during the block one more count, and its end one final count.
+    focus: { title: 'Knock block', sizes: ['s', 'm'], def: 'm', reads: 0, tapReads: 3, bundle: 'osfocus', cat: 'tools', nav: 'd2d', about: 'A 30, 60 or 90 minute canvassing block: Do Not Disturb on, doors counted' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus'];
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.

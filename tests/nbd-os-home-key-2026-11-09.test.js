@@ -40,7 +40,7 @@ console.log('\n1. the key and its catalog');
 {
   ok('the key is os-home, a valid layoutState key', H.KEY === 'os-home' && R.isId(H.KEY));
   ok('caps: 24 items per surface (P1), cfg 64 chars, sizes s/m/l', H.MAX_ITEMS === 24 && H.MAX_CFG === 64 && J(H.SIZES) === J(['s', 'm', 'l']));
-  ok('the catalog: At a Glance, Up Next, Shortcuts (P0b), Coach and Daily Success (P0c), then the P1 widgets and Shutdown, then (P2) Team', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard']));
+  ok('the catalog: At a Glance, Up Next, Shortcuts (P0b), Coach and Daily Success (P0c), then the P1 widgets and Shutdown, then (P2) Team, then (P3) Knock block', J(H.ids()) === J(['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard', 'focus']));
   // P1 (2026-11-09): Daily Success declares 2 (goals + doors, its lazy bundle); Shutdown 0 (its sheet reads on a tap)
   // P2: the owner's Team widget declares 50 (the company's leaderboard rows, at most every 5 min)
   ok('every widget declares a read cost of 0 (Daily Success: 2, Team: 50)', H.ids().every((id) => H.CATALOG[id].reads === (id === 'daily' ? 2 : id === 'teamboard' ? 50 : 0)));

@@ -49,6 +49,9 @@
  *                Recap loads the same bundle only when home-logic recapDue says
  *                yesterday's Shutdown left something open: on the day's first home
  *                (mount) or the lock screen's unlock, once per page a day.
+ *   Knock block  (P3) painted by os/focus.js, the runtime ScriptLoader bundle osfocus
+ *                registered and loaded here on first paint, or on mount when a block is
+ *                waiting (localStorage nbd_os_focus); the 30 s tick repaints its minute
  *   Team         (P2, owner only: catalog owner) painted by os/team.js, the runtime
  *                ScriptLoader bundle osteam registered and loaded here on first paint;
  *                reads the company's leaderboard rows (at most 50 docs, every 5 min at most)
@@ -110,7 +113,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team', 'nbd:os-focus'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -565,7 +568,31 @@
     return h + '<p class="os-hw-empty">Loading…</p>';
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team };
+  // ── Knock block (P3): os/focus.js paints it, loaded as the runtime ScriptLoader bundle osfocus
+  // the first time the widget paints, or when a home mounts with a block waiting (nbd_os_focus)
+  var FOCUS_BUNDLE = ['css/os/focus.css?v=1', 'js/os/ds-business.js?v=2', 'js/os/focus-logic.js?v=1', 'js/os/focus.js?v=1'];
+  var focusState = '';   // '' | 'asked' | 'failed'
+  function loadFocus() {
+    var SL = W.ScriptLoader;
+    if (W.NBDOSFocus || focusState === 'asked' || !SL || typeof SL.loadBundle !== 'function') return;
+    focusState = 'asked';
+    if (SL.bundles && !SL.bundles.osfocus) SL.bundles.osfocus = FOCUS_BUNDLE.slice();
+    Promise.resolve().then(function () { return SL.loadBundle('osfocus'); }).then(function () {
+      focusState = W.NBDOSFocus ? '' : 'failed';
+      try { W.dispatchEvent(new W.CustomEvent('nbd:os-focus')); } catch (e) {}
+    }, function () { focusState = 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-focus')); } catch (e) {} });
+  }
+  function knockBlock(size, cfg, act, rec, kit) {
+    var FB = W.NBDOSFocus;
+    if (FB && typeof FB.widget === 'function') return FB.widget(size, cfg, kit);
+    var h = '<h3 class="os-hw-title">Knock block</h3>';
+    if (focusState === 'failed') return h + failHtml('focus');
+    loadFocus();
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+  function focusKey() { var FB = W.NBDOSFocus; try { return FB && typeof FB.key === 'function' ? FB.key() : ''; } catch (e) { return ''; } }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team, focus: knockBlock };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -721,7 +748,9 @@
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
       if (showsSd(rec)) rec.sdIn = sdWindow();   // the tick repaints it when this changes
       if (showsUp(rec)) rec.pk = peekKey();      // and Up Next when the Peek window opens or shuts
+      if (showsFocus(rec)) rec.fk = focusKey();  // and a knock block when its minute changes
     }
+    function showsFocus(rec) { return rec.it.id === 'focus' || (!!rec.stack && rec.stack.cardAt === 'focus'); }
     /** A Shutdown widget, or a Smart Stack whose card on screen is Shutdown (repainting it never re-picks). */
     function showsSd(rec) { return rec.it.id === 'shutdown' || (!!rec.stack && rec.stack.cardAt === 'shutdown'); }
     function showsUp(rec) { return rec.it.id === 'upnext' || (!!rec.stack && rec.stack.cardAt === 'upnext'); }
@@ -1203,6 +1232,7 @@
       if (r) {
         var rk = r.getAttribute('data-oshw-retry');
         if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
+        if (rk === 'focus') { if (focusState === 'failed') focusState = ''; order.forEach(function (k) { if (recs[k].it.id === 'focus') paintOne(recs[k], true); }); return; }
         if (rk === 'acts') { if (actsState === 'failed') actsState = ''; order.forEach(function (k) { paintOne(recs[k], true); }); return; }
         if (rk === 'team') {
           if (teamState === 'failed') teamState = '';
@@ -1227,6 +1257,8 @@
       }
       var sd = t.closest('[data-oshw-sd]');
       if (sd) { openShutdown(sd); return; }
+      var fb = t.closest('[data-oshw-focus]');
+      if (fb) { if (W.NBDOSFocus) W.NBDOSFocus.tap(fb.getAttribute('data-oshw-focus'), fb); return; }
       var pk = t.closest('[data-oshw-peek]');
       if (pk) {
         var pkKey = pk.getAttribute('data-oshw-peek');
@@ -1298,6 +1330,8 @@
       if (w !== null) order.forEach(function (k) { var r = recs[k]; if (showsSd(r) && r.sdIn !== w) paintOne(r); });
       var pk = peekKey();
       order.forEach(function (k) { var r = recs[k]; if (r && showsUp(r) && r.pk !== pk) paintOne(r); });
+      var fk = focusKey();
+      if (fk) order.forEach(function (k) { var r = recs[k]; if (r && showsFocus(r) && r.fk !== fk) paintOne(r); });
       maybeRecap();   // past midnight on an open page: the new day's recap
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
@@ -1342,6 +1376,7 @@
       cur = [];
     }
     update(o.items);
+    if (lsGet('nbd_os_focus')) loadFocus();   // a knock block left running (a reload): it ends and restores DND even off-screen
     W.addEventListener('nbd:os-unlock', maybeRecap);
     maybeRecap();
     return {
