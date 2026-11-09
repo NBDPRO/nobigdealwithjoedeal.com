@@ -240,10 +240,11 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
     const p = d.ref.path;
     const m = LEAD_TASK.exec(p);
     const kind = kindOf(p);
+    // --company: every count after "read" is that company's own.
+    if (args.company && (!m || !(await companyOwns(m[1])))) { counts.outOfScope++; return; }
     if (!m || !kind) { counts.notCandidate++; return; }
     const data = d.data() || {};
     if (data.callText === true) { counts.alreadyDone++; return; }
-    if (args.company && !(await companyOwns(m[1]))) { counts.outOfScope++; return; }
     let plan;
     if (kind === 'promise') plan = planPromise(data);
     else {
@@ -285,8 +286,8 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
     if (!LEAD_DOC.test(p)) return;
     counts.leadsScanned++;
     const lead = d.data() || {};
-    if (lead.publicLeadCollection !== 'thursday_calls' || typeof lead.notes !== 'string' || !lead.notes.startsWith(OLD_LEAD_NOTES)) { counts.leadsNotOld++; return; }
     if (args.company && !leadInCompany(lead, args.company)) { counts.leadsOutOfScope++; return; }
+    if (lead.publicLeadCollection !== 'thursday_calls' || typeof lead.notes !== 'string' || !lead.notes.startsWith(OLD_LEAD_NOTES)) { counts.leadsNotOld++; return; }
     const callPath = ID.test(String(lead.publicLeadId || '')) ? 'thursday_calls/' + lead.publicLeadId : null;
     const call = callPath ? await read(callPath) : null;
     const plan = planLead(lead, call && call.data);
@@ -310,10 +311,10 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
   });
 
   const c = counts;
-  log('  tasks scanned                        : ' + c.tasksScanned);
+  log('  tasks read' + (args.company ? ' (every company)    ' : '                   ') + ': ' + c.tasksScanned);
+  if (args.company) log('  other company, or under no lead (skip): ' + c.outOfScope);
   log('  not a lead cube-/sms-/thursday-/promise- task (skip): ' + c.notCandidate);
   log('  already callText (skip)              : ' + c.alreadyDone);
-  if (args.company) log('  other company (skip)                 : ' + c.outOfScope);
   log('  already generic (skip)               : ' + c.alreadyGeneric);
   log('  edited by an owner (skip)            : ' + c.edited);
   log('  who unknown, call gone (skip)        : ' + c.whoUnknown);
@@ -322,9 +323,9 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
   log('  summary scrub first (skip)           : ' + c.needsSummaryScrub);
   log('  other sidecar already there (skip)   : ' + c.otherSidecar);
   log('  tasks to make generic                : ' + c.toChange + ' (cube ' + c.byKind.cube + ', sms ' + c.byKind.sms + ', thursday ' + c.byKind.thursday + ', promise ' + c.byKind.promise + ')');
-  log('  leads scanned                        : ' + c.leadsScanned);
-  log('  not an old Thursday lead (skip)      : ' + c.leadsNotOld);
+  log('  leads read' + (args.company ? ' (every company)    ' : '                   ') + ': ' + c.leadsScanned);
   if (args.company) log('  other company (skip)                 : ' + c.leadsOutOfScope);
+  log('  not an old Thursday lead (skip)      : ' + c.leadsNotOld);
   log('  lead notes edited (skip)             : ' + c.leadsEdited);
   log('  Thursday call gone (skip)            : ' + c.leadsCallMissing);
   log('  call notes differ (skip)             : ' + c.leadsCallNotesDiffer);

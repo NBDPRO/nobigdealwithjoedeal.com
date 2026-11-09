@@ -346,8 +346,11 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   f = fakeDb(seed());
   r = await runArgs(f, ['--company', 'co1']);
   ok(f.ops.length === 0, 'scoped dry run writes nothing');
-  ok(r.counts.toChange === 5 && r.counts.byKind.cube === 2 && r.counts.byKind.thursday === 1 && r.counts.outOfScope === 3, 'co1: only LEADIDX1 tasks counted -> ' + JSON.stringify(r.counts));
-  ok(r.counts.leadsToChange === 1 && r.counts.leadsOutOfScope === 1, 'co1: one lead, the co2 lead out of scope');
+  ok(r.counts.toChange === 5 && r.counts.byKind.cube === 2 && r.counts.byKind.thursday === 1, 'co1: only LEADIDX1 tasks counted -> ' + JSON.stringify(r.counts));
+  // every count but "read" is that company's (review 2026-11-09): the other
+  // companies' tasks and leads, and a task under no lead, are "other company"
+  ok(r.counts.outOfScope === 4 && r.counts.notCandidate === 1 && r.counts.alreadyDone === 1, 'co1: not-a-candidate and already-done count co1 tasks only -> ' + JSON.stringify(r.counts));
+  ok(r.counts.leadsToChange === 1 && r.counts.leadsOutOfScope === 3 && r.counts.leadsNotOld === 2, 'co1: lead counts are co1 leads only -> ' + JSON.stringify(r.counts));
   f = fakeDb(seed());
   r = await runArgs(f, ['--apply', '--company', 'solo1']);
   ok(f.ops.filter((o) => o.op === 'update').map((o) => o.p).sort().join() === 'leads/LEADIDX2/tasks/cube-CUBEIDX3,leads/LEADIDX2/tasks/promise-CUBEIDX3-2', 'solo owner: its two tasks only');
