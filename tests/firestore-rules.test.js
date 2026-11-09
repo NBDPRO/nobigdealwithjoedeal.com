@@ -342,8 +342,14 @@ async function run() {
   // ✅ first-party rep activity types added 2026-06-23 — voicemail /
   //    supplement-created / quick-add lead-created timeline entries. These
   //    were silently permission-denied before the allowlist was widened.
+  //    2026-11-09 (Q11 item 4): a voicemail row is source 'voicemail' (off
+  //    the viewer read allowlist); as source 'rep' it is refused.
   await assertSucceeds(setDoc(
     doc(alice, 'leads/leadA/activity/ok-voicemail'),
+    { userId: 'alice', source: 'voicemail', type: 'voicemail',
+      label: 'Voicemail recording', mediaSource: 'recorded', createdAt: nowTs }));
+  await assertFails(setDoc(
+    doc(alice, 'leads/leadA/activity/rep-voicemail'),
     { userId: 'alice', source: 'rep', type: 'voicemail',
       label: 'Voicemail recording', mediaSource: 'recorded', createdAt: nowTs }));
   await assertSucceeds(setDoc(

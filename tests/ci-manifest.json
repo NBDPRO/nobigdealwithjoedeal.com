@@ -1037,7 +1037,8 @@
     "call-to-close-decision-map-2026-11-09.test.js",
     "call-to-close-viewers-2026-11-09.test.js",
     "q11-task-call-text-2026-11-09.test.js",
-    "q11-thursday-lead-notes-2026-11-09.test.js"
+    "q11-thursday-lead-notes-2026-11-09.test.js",
+    "voicemail-viewer-hidden-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1635,6 +1636,7 @@
     "firestore-rules.call-briefs-visit.test.js",
     "firestore-rules.call-feed.test.js",
     "firestore-rules.call-content-viewers.test.js",
+    "firestore-rules.voicemail-viewers.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

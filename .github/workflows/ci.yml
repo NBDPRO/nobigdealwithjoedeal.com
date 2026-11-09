@@ -718,6 +718,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-callviewers-test 'node firestore-rules.call-content-viewers.test.js'
+      # Call to Close Q11 item 4 (2026-11-09): voicemail rows are source 'voicemail', off the viewer read allowlist; type 'voicemail' is tied to it on create. Own file (positive controls inside).
+      - name: Run voicemail viewer rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-vmviewers-test 'node firestore-rules.voicemail-viewers.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.
