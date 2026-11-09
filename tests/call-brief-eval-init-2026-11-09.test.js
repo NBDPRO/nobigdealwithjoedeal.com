@@ -70,6 +70,8 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
       ok('the kit folder is private to Jo (0700)', (fs.statSync(dir).mode & 0o777) === 0o700, (fs.statSync(dir).mode & 0o777).toString(8));
       ok('every kit file is private to Jo (0600)', files.every((f) => (fs.statSync(path.join(dir, f)).mode & 0o777) === 0o600), files.map((f) => f + ':' + (fs.statSync(path.join(dir, f)).mode & 0o777).toString(8)));
     }
+    const keySafe = (t) => !/ANTHROPIC_API_KEY=\S/.test(t) && /read -rs ANTHROPIC_API_KEY/.test(t) && /export ANTHROPIC_API_KEY/.test(t) && /unset ANTHROPIC_API_KEY/.test(t);
+    ok('README: the key is read silently, never typed into a command (no shell history), and unset after', keySafe(readme), readme.split('\n').filter((l) => /ANTHROPIC_API_KEY/.test(l)));
     ok('README holds no key', !/sk-ant-/.test(readme) && !/ANTHROPIC_API_KEY=\S*[a-z0-9]{8}/i.test(readme));
 
     const r3dir = path.join(base, 'three');
@@ -170,6 +172,7 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
       const sc = await E.runEval({ cases: [ex] });
       ok('the worked example runs through the offline harness', sc.rows.length === 1 && sc.rows[0].gate === true, sc.rows[0]);
     }
+    ok('runbook: the key is read silently, never typed into a command (no shell history), and unset after', keySafe(rb), rb.split('\n').filter((l) => /ANTHROPIC_API_KEY/.test(l)));
     ok('no key in the runbook', !/sk-ant-[A-Za-z0-9]/.test(rb));
     ok('still no network', fetchCalls === 0);
   } finally {

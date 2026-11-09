@@ -182,8 +182,10 @@ function kitReadme(n) {
     '## Run (from the repo folder; the --live runs spend real API money)',
     '',
     '    node scripts/eval-call-brief.js --cases <this folder>      # free label check, canned answers, no model',
-    '    ANTHROPIC_API_KEY=<key> node scripts/eval-call-brief.js --live --cases <this folder>',
-    '    ANTHROPIC_API_KEY=<key> node scripts/eval-call-brief.js --live --cases <this folder> --model claude-sonnet-5-5',
+    '    read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY      # paste the key; never type it into a command (shell history)',
+    '    node scripts/eval-call-brief.js --live --cases <this folder>',
+    '    node scripts/eval-call-brief.js --live --cases <this folder> --model claude-sonnet-5-5',
+    '    unset ANTHROPIC_API_KEY                                     # when done',
     '',
   ].join('\n');
 }

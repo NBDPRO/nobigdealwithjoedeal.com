@@ -127,7 +127,19 @@ Why each label: the carrier and claim # were said; "last Friday" on a Tuesday is
 
 ## 5. Run it
 
-All commands run from the repo folder. Put the key in the command, not in a file in the repo.
+All commands run from the repo folder.
+
+**The key never goes in a command line** (Git Bash saves every command you type to `~/.bash_history`) and never in a file in the repo. Before the live runs, read it into the shell without echoing it, in the same Git Bash window you run them from:
+
+```bash
+read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY   # paste the key, press Enter; nothing shows
+```
+
+When the live runs are done (or you close the window), clear it:
+
+```bash
+unset ANTHROPIC_API_KEY
+```
 
 **First, a free label check** (no model, no key, no money). Blank files are skipped; label problems are listed:
 
@@ -140,13 +152,13 @@ With `canned: null` every filled case scores an empty answer here, so the number
 **Run 1, Haiku 4.5 (today's default):**
 
 ```bash
-ANTHROPIC_API_KEY=<your key> node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval | tee ~/nbd-call-eval/haiku.txt
+node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval | tee ~/nbd-call-eval/haiku.txt
 ```
 
 **Run 2, Sonnet 5.5:**
 
 ```bash
-ANTHROPIC_API_KEY=<your key> node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval --model claude-sonnet-5-5 | tee ~/nbd-call-eval/sonnet.txt
+node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval --model claude-sonnet-5-5 | tee ~/nbd-call-eval/sonnet.txt
 ```
 
 `--model` takes only the two allowed models (`ALLOWED_MODELS` in `functions/call-brief-logic.js`). The `tee` files stay in the eval folder, outside the repo.
@@ -188,11 +200,11 @@ The bars are yours; none apply unless you pass them. Each is a share from 0 to 1
 | `--bar-reliable` | unreliable transcripts caught | `1` |
 
 ```bash
-ANTHROPIC_API_KEY=<your key> node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval \
+node scripts/eval-call-brief.js --live --cases ~/nbd-call-eval \
   --bar-precision 0.95 --bar-claim 1 --bar-promise 0.8 --bar-reliable 1
 ```
 
-The run exits 1 and prints `BELOW BAR: <metric>` for each bar missed. Pick the cheapest model that clears every bar; if neither does, the brief stays on tap only (as it is) and the misses say what to fix.
+(The key is still the one `read -rs` exported in section 5; `unset ANTHROPIC_API_KEY` when you are done.) The run exits 1 and prints `BELOW BAR: <metric>` for each bar missed. Pick the cheapest model that clears every bar; if neither does, the brief stays on tap only (as it is) and the misses say what to fix.
 
 ## 8. Switch the default model (only if Sonnet wins)
 
