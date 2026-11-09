@@ -114,6 +114,12 @@ test('an untouched flash_008 (also raised) refreshes alongside under_001', () =>
   eq(p.pricing.better.sell, fresh('flash_008').pricing.better.sell, 'flash_008 better sell');
 });
 
+test('SKUs given real sells on 2026-11-09 no longer carry placeholder-pricing notes', () => {
+  const stale = /PLACEHOLDER PRICING|PRICING TODO|SELL prices (still )?TODO/;
+  const bad = ['under_007', 'flash_009', 'flash_010'].filter(id => stale.test(fresh(id).notes || ''));
+  if (bad.length) throw new Error('placeholder notes on ' + bad.join(', '));
+});
+
 // A DATA_VERSION bump only reaches a device if product-library.js and
 // product-data.js arrive as a matching pair. docs/pro/sw.js serves a cached
 // asset when the network is slower than ASSET_NETWORK_TIMEOUT_MS, so a fresh
