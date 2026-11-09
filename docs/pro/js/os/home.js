@@ -275,7 +275,8 @@
     if (d.broken) return 'Two misses ended the streak. Today is day one.';
     // floors count Mon-Sat (review-logic.js floorStreak): on a Monday the missed workday is Saturday
     if (d.warned) return (new Date(d.dk + 'T12:00:00').getDay() === 1 ? 'Missed Saturday.' : 'Missed yesterday.') + ' Don\'t miss twice.';
-    return d.met === d.of ? 'All floors met today.' : 'Floors still open today.';
+    if (d.met === d.of) return 'All floors met today.';
+    return new Date(d.dk + 'T12:00:00').getDay() === 0 ? 'Sunday is optional: it never breaks the streak.' : 'Floors still open today.';
   }
   // P1: goals and today's doors come from the lazy `osdsbiz` bundle (os/ds-business.js, 1 getDoc +
   // 1 count per refresh, at most every 5 min, only on paint), registered and loaded here on first use
@@ -332,7 +333,8 @@
       else parts.push(open + (size === 'l'
         ? dsRow('Left today', 'is-label') + items.map(function (t) { return dsRow(t); }).join('')
         : dsRow('Left today: ' + items.join(' · '))) + '</a>');
-      if (doors) parts.push(open + dsRow(doors) + '</a>');
+      // doors are work DONE (counted), so they sit under their own label, never among what is left
+      if (doors) parts.push(open + (size === 'l' ? dsRow('Done today', 'is-label') + dsRow(doors) : dsRow(doors)) + '</a>');
     }
     return h + parts.join('');
   }

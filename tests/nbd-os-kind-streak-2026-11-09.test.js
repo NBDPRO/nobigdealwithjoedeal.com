@@ -97,6 +97,8 @@ ok('the day page says Saturday on a Monday warning', /Missed Saturday\. Don't mi
 ok('the review card says Saturday on a Monday warning', /Missed ' \+ \(new Date\(today\(\) \+ 'T12:00:00'\)\.getDay\(\) === 1 \? 'Saturday' : 'yesterday'\)/.test(ui));
 ok('the review-logic header states the workday rule', /Mon[-–]Sat/.test(read('docs/pro/daily-success/js/review-logic.js')));
 ok('the OS widget says Saturday on a Monday warning', /Missed Saturday/.test(home));
+ok('on a Sunday with floors open, the review card and the OS widget both say Sunday is optional (same words)',
+  /getDay\(\) === 0 \? 'Sunday is optional: it never breaks the streak\.'/.test(ui) && /getDay\(\) === 0 \? 'Sunday is optional: it never breaks the streak\.'/.test(home));
 const mon = coach.evaluate({ ds: { dk: '2026-11-09', warned: true, broken: false, met: 0, of: 2 } }).filter((r) => r.id === 'ds-warned')[0];
 const tue = coach.evaluate({ ds: { dk: '2026-11-10', warned: true, broken: false, met: 0, of: 2 } }).filter((r) => r.id === 'ds-warned')[0];
 ok('the Coach line says Saturday on a Monday, yesterday otherwise', !!mon && /Saturday/.test(mon.text) && !!tue && /yesterday/.test(tue.text), J([mon && mon.text, tue && tue.text]));
