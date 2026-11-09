@@ -140,15 +140,18 @@
     var Q = qc();
     if (!note || !Q || typeof Q.review !== 'function') return;
     var key = notesKey();
-    close();
-    // quick-capture's own screen and writer; the note leaves this device once that writer saved it
+    // quick-capture's own screen and writer; the note leaves this device once that writer saved it.
+    // false: a voice capture is still in hand there (recording, processing, unsaved), so Pocket stays.
+    var shown = false;
     try {
-      Q.review(note.text, function () {
+      shown = Q.review(note.text, function () {
         if (!key) return;
         var r = PL.remove(PL.normalize(lsGet(key)), note.id);
         if (r.removed) lsSet(key, JSON.stringify(r.list));
-      });
-    } catch (e) {}
+      }) !== false;
+    } catch (e) { shown = false; }
+    if (!shown) { status('Quick Capture is busy with a voice note. Finish or close it, then file this one.'); return; }
+    close();
   }
   function voice() {
     var Q = qc();

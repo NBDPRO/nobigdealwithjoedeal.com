@@ -374,7 +374,7 @@ function typeKeep(T, s) {
     ok('a closed review\'s onSaved never fires for a later save', J(saved) === J(['cap1']) && writes.length === 2, J(saved));
   });
 
-  console.log('\n9. quick-capture.js review(): a lead link is labelled a note and keeps the whole text');
+  console.log('\n9. quick-capture.js review(): a lead link is labelled a note and keeps the whole text; a recording is never dropped');
   await G(async () => {
     const dom = makeDom();
     const writes = [];
@@ -415,6 +415,31 @@ function typeKeep(T, s) {
     ok('...the activity is labelled a note, not "Voice capture"', act && act.data.label === 'Note', act && act.data.label);
     ok('...and carries the whole typed text, not its first 200 characters', act && act.data.text === long, act && act.data.text.length);
 
+    // a voice recording in progress: review() refuses, the recording keeps going
+    QC.open();
+    dom.document.getElementById('nbd-qc-canvas').getContext = () => null;
+    click(dom, dom.document.getElementById('nbd-qc-record-btn'));
+    await flush();
+    const rec = recs[recs.length - 1];
+    ok('(a recording is running)', rec && rec.state === 'recording');
+    const saved = [];
+    ok('review() while recording refuses (returns false)', QC.review('typed over a recording', (id) => saved.push(id)) === false);
+    ok('...and the recording was not stopped or dropped', rec.state === 'recording' && !rec.stopped && !!dom.document.getElementById('nbd-qc-modal') && !dom.document.getElementById('nbd-qc-act-save'));
+    QC.close();
+  });
+
+  console.log('\n10. Pocket: a note quick-capture refuses stays in Pocket, with a reason');
+  await G(async () => {
+    const T = win();
+    T.W.NBDQuickCapture.review = (t) => { T.W.qc.reviews.push(t); return false; };
+    await flush();
+    key(T.dom, T.document.body, '`', ALT);
+    await flush();
+    typeKeep(T, 'Gate code 4471');
+    const id = stored(T)[0].id;
+    click(T.dom, pk(T, 'file', id));
+    ok('quick-capture said no: Pocket stays open, the note stays on the device', !!pocketEl(T) && stored(T).length === 1 && T.W.qc.reviews.length === 1);
+    ok('...and says why', /Quick Capture is busy/i.test(text(pocketEl(T).querySelector('.os-pocket-status'))), text(pocketEl(T).querySelector('.os-pocket-status')));
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

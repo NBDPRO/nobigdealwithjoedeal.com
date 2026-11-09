@@ -32,7 +32,8 @@
  *   window.NBDQuickCapture.open()
  *   window.NBDQuickCapture.attachFloatingButton()
  *   window.NBDQuickCapture.review(text, onSaved) - a typed note (NBD OS Pocket) on
- *     this same result screen and writer; onSaved(captureId) after Save writes it
+ *     this same result screen and writer; onSaved(captureId) after Save writes it.
+ *     false (nothing opened) while a voice capture is recording, processing or unsaved
  *
  * Reuses the W129 `dictate` Cloud Function with mode='summarize'.
  */
@@ -130,6 +131,9 @@
   function review(text, onSaved) {
     const t = String(text == null ? '' : text).trim().slice(0, 4000);
     if (!t) return false;
+    // never over a voice capture still in hand: close() would stop and drop the recording,
+    // the clip being transcribed, or a summary not yet saved. The caller keeps the note.
+    if (_isRecording || _isProcessing || (_currentResult && _currentResult.summary)) return false;
     close();
     open();
     const title = document.getElementById('nbd-qc-title');
