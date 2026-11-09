@@ -275,6 +275,16 @@ function fakeWin(o) {
   ok('layout-system.js does not list ds-business.js (needs stays as it was)', !/ds-business/.test(ls));
   ok('dashboard.html has no ds-business.js script tag', !/ds-business/.test(read('docs/pro/dashboard.html')));
 
+  console.log('\n7. the doors count has its own composite index (the emulator never enforces one)');
+  {
+    // userId == + createdAt >= with no orderBy sorts createdAt ASCENDING; loadKnocks's
+    // (userId ASC, createdAt DESC) index is the other direction, so the count needs its own.
+    const idx = JSON.parse(read('firestore.indexes.json'));
+    const asc = (idx.indexes || []).filter((ix) => ix.collectionGroup === 'knocks' && (ix.queryScope || 'COLLECTION') === 'COLLECTION'
+      && J(ix.fields.map((f) => [f.fieldPath, f.order])) === J([['userId', 'ASCENDING'], ['createdAt', 'ASCENDING']]));
+    ok('firestore.indexes.json has knocks (userId ASC, createdAt ASC), exactly once', asc.length === 1, asc.length);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ threw: ' + (e && e.stack)); process.exit(1); });
