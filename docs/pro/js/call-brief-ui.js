@@ -164,7 +164,10 @@
     var to = ymdOf(brief && brief.followUp && brief.followUp.value);
     if (!to) return null;
     var from = ymdOf(lead && lead.followUp);
-    return to === from ? null : { to: to, from: from, quote: brief.followUp.quote || '' };
+    if (to === from) return null;
+    var ch = { to: to, from: from, quote: brief.followUp.quote || '' };
+    if (brief.followUp.retype === true) ch.retype = true;
+    return ch;
   }
   /** "From the call" scope lines (shown, never seeded into a list field). */
   function scopeHints(brief) {
@@ -298,7 +301,8 @@
   function initPromises() {
     S.prom = ((S.brief && S.brief.promises) || []).map(function (p, i) {
       var d = decided('promise:' + i);
-      return { who: p.who === 'them' ? 'them' : 'jo', kind: p.kind, modelKind: p.kind, dueYmd: p.dueYmd || '', done: !!(d && d.decision === 'accept'), skipped: !!(d && d.decision === 'skip') };
+      // A date heard in a hard-to-hear stretch (retype) starts empty: the person types it.
+      return { who: p.who === 'them' ? 'them' : 'jo', kind: p.kind, modelKind: p.kind, dueYmd: p.retype === true ? '' : (p.dueYmd || ''), done: !!(d && d.decision === 'accept'), skipped: !!(d && d.decision === 'skip') };
     });
   }
 
@@ -443,7 +447,8 @@
           '<button type="button" role="radio" aria-checked="' + (st.who === 'them') + '" tabindex="' + (st.who === 'them' ? 0 : -1) + '" data-cb-act="who" data-i="' + i + '" data-who="them">Them</button></div>';
         var kinds = KINDS.map(function (k) { return '<option value="' + k + '"' + (k === st.kind ? ' selected' : '') + '>' + esc(KIND_LABEL[k]) + '</option>'; }).join('');
         var fields = '<div class="cb-grid"><label class="cb-field-lbl" for="cbKind-' + i + '">What<select class="cb-select" id="cbKind-' + i + '" data-cb-input="kind" data-i="' + i + '">' + kinds + '</select></label>' +
-          '<label class="cb-field-lbl" for="cbDue-' + i + '">' + (st.kind === 'waiting' ? 'Chase on' : 'Due') + '<input class="cb-input" type="date" id="cbDue-' + i + '" data-cb-input="due" data-i="' + i + '" value="' + esc(st.dueYmd) + '"></label></div>';
+          '<label class="cb-field-lbl" for="cbDue-' + i + '">' + (st.kind === 'waiting' ? 'Chase on' : 'Due') + '<input class="cb-input" type="date" id="cbDue-' + i + '" data-cb-input="due" data-i="' + i + '" value="' + esc(st.dueYmd) + '"></label></div>' +
+          (p.retype === true ? '<div class="cb-meta">The date was hard to hear on the recording. Listen and type it.</div>' : '');
         var acts = S.confirm === item
           ? '<div class="cb-warn">Add "' + esc(KIND_LABEL[st.kind] || st.kind) + '"' + (st.dueYmd ? ' for ' + esc(fmtYmd(st.dueYmd)) : '') + '? It adds a new task (it never changes a promise already on the customer) and marks the call handled.</div><div class="cb-acts">' + btn('Add promise', 'promise-yes', ' data-i="' + i + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
           : '<div class="cb-acts">' + btn('Add', 'promise', ' data-i="' + i + '"') + btn('Skip', 'promise-skip', ' data-i="' + i + '"') + '</div>';
@@ -457,6 +462,9 @@
     var item = 'followUp';
     var body;
     if (S.fuUndo) body = '<div class="cb-done">Follow-up set to ' + esc(fmtYmd(S.fuUndo.to)) + '</div><div class="cb-acts">' + btn('Undo', 'followup-undo') + '</div>';
+    // A date heard in a hard-to-hear stretch is never one tap: listen and set it yourself.
+    else if (ch.retype) body = '<div class="cb-diff"><span class="cb-now">Now: ' + esc(ch.from ? fmtYmd(ch.from) : 'none') + '</span> → heard as <strong>' + esc(fmtYmd(ch.to)) + '</strong></div>' + quoteHtml(ch.quote, true) +
+      '<div class="cb-meta">The date was hard to hear on the recording. Listen and set the follow-up yourself.</div>' + statusFor(item);
     else body = '<div class="cb-diff"><span class="cb-now">Now: ' + esc(ch.from ? fmtYmd(ch.from) : 'none') + '</span> → <strong>' + esc(fmtYmd(ch.to)) + '</strong></div>' + quoteHtml(ch.quote) +
       (isSettled(item) ? statusFor(item) : '<div class="cb-acts">' + btn('Change follow-up', 'followup') + '</div>' + statusFor(item));
     return '<div class="cb-sec" role="group" aria-labelledby="cbFuH"><h3 class="cb-sec-title" id="cbFuH">Follow-up</h3><div class="cb-card">' + body + '</div></div>';
@@ -902,7 +910,7 @@
         S.fuUndo = null; delete S.done[item]; render(); changed(); return;
       }
       var ch = followUpChange(S.brief, S.lead);
-      if (!ch) return;
+      if (!ch || ch.retype) return;
       S.done[item] = 'busy'; render();
       if (!window.NBDFollowUpDeck && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') await window.ScriptLoader.load(FOLLOWUP_JS);
       if (!window.NBDFollowUpDeck) throw new Error('Could not load the follow-up tools. Try again in a moment.');

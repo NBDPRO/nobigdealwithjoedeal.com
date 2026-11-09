@@ -636,6 +636,11 @@ function sanitizeBrief(raw, ctx) {
     saidQuantities: (Array.isArray(sc.saidQuantities) ? sc.saidQuantities : []).map((q) => q && factOf({ value: q.text, quote: q.quote }, 80))
       .filter(Boolean).slice(0, 6).map((f) => ({ text: f.value, quote: f.quote })),
   };
+  // P1 integration: stories / layers fill the estimate builder, so a digit
+  // heard in a hard-to-hear segment is retype there too (never filled in).
+  mark(scope.stories, scope.stories && scope.stories.quote, true);
+  mark(scope.layers, scope.layers && scope.layers.quote, true);
+  mark(scope.tierInterest, scope.tierInterest && scope.tierInterest.quote, false);
 
   const promises = [];
   for (const p of Array.isArray(r.promises) ? r.promises : []) {
@@ -651,7 +656,10 @@ function sanitizeBrief(raw, ctx) {
     if (!dueYmd && !dueSpoken && str(p.dueSpoken, 80) === '' && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (!dueYmd && dueSpoken && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (dueYmd && !dateInWindow(dueYmd, callYmd, 'future')) { dropped.dates++; dueYmd = ''; }
-    promises.push(mark({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) }, p.quote, false));
+    const pr = mark({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) }, p.quote, false);
+    // A due date from a hard-to-hear quote is typed by the person, never one tap.
+    if (pr.unsure && pr.dueYmd) pr.retype = true;
+    promises.push(pr);
   }
 
   let stage = null;
@@ -671,7 +679,7 @@ function sanitizeBrief(raw, ctx) {
     .slice(0, 6).map((p) => ({ role: p.role, name: str(p.name, 60) || null, quote: str(p.quote, 300) }));
   const dr = r.drafts && typeof r.drafts === 'object' ? r.drafts : {};
   const drafts = { estimate: dr.estimate === true, proposal: dr.proposal === true, followUp: dr.followUp === 'text' || dr.followUp === 'email' ? dr.followUp : null };
-  const followUp = dateOf(r.followUp, 'future');
+  const followUp = mark(dateOf(r.followUp, 'future'), r.followUp && r.followUp.quote, true);
 
   const out = {
     v: BRIEF_VERSION, transcriptOk, summary, fields, scope, promises, followUp: followUp && followUp.value ? followUp : null,

@@ -220,6 +220,61 @@ const CTX = { transcript: TRANSCRIPT, callYmd: '2026-11-05' };
     ok('Cancel on that confirm keeps the typed value in the retype box', /data-cb-input="edit" data-k="claimNumber"[^>]*value="44792"/.test(after), after.slice(0, 600));
   }
 
+  // P1 integration (2026-11-09): the cross-lane rule. A digit heard in a
+  // low-confidence segment is never filled in by one tap ANYWHERE: not the
+  // estimate prefill (stories / layers), not the follow-up date, not a
+  // promise's due date (which the follow-up message then names).
+  console.log('\n5. Integration: no one-tap fill from a hard-to-hear digit');
+  {
+    // Its own call: sentence 2 (the 2 stories / 2 layers / the 9th) is low.
+    const T2 = 'Hi, this is Pat. It is a 2 story house with 2 layers, call me back on the 9th. I will send you the estimate by Friday. Thanks.';
+    const S2 = T2.match(/[^.]+\.\s*/g).map((t) => ' ' + t.trim());
+    let at2 = 0;
+    const SEG2 = CL.buildSegIndex(S2.map((t, i) => { const g = { start: at2, end: at2 + 3, text: t, avgLogprob: i === 1 ? -1.6 : -0.2 }; at2 += 3; return g; }), T2);
+    const LOWQ = 'It is a 2 story house with 2 layers, call me back on the 9th';
+    const CTX2 = { transcript: T2, callYmd: '2026-11-05' };
+    const RAW2 = JSON.parse(JSON.stringify(RAW));
+    RAW2.summary = { text: 'Two story house.', quote: ['a 2 story house'] };
+    RAW2.fields = Object.assign({}, RAW2.fields, { insCarrier: { value: '', quote: '', conf: 'implied' }, claimNumber: { value: '', quote: '', conf: 'implied' }, dateOfLoss: { spoken: '', ymd: '', quote: '', conf: 'implied' }, damageType: { value: '', quote: '', conf: 'implied' }, jobType: { value: '', quote: '', conf: 'implied' } });
+    RAW2.stage = null;
+    RAW2.scope.stories = '2'; RAW2.scope.storiesQuote = LOWQ;
+    RAW2.scope.layers = '2'; RAW2.scope.layersQuote = LOWQ;
+    RAW2.followUp = { spoken: '', ymd: '2026-11-09', quote: LOWQ, conf: 'said' };
+    RAW2.promises = [
+      { who: 'jo', text: 'Call back', dueSpoken: '', dueYmd: '2026-11-09', kind: 'callback', quote: LOWQ },
+      { who: 'jo', text: 'Send the estimate', dueSpoken: 'by Friday', dueYmd: '2026-11-06', kind: 'estimate', quote: 'I will send you the estimate by Friday' },
+    ];
+    const b2 = L.sanitizeBrief(RAW2, Object.assign({ segIndex: SEG2 }, CTX2));
+    ok('stories from a hard-to-hear segment: unsure + retype', b2.scope.stories && b2.scope.stories.unsure === true && b2.scope.stories.retype === true, b2.scope.stories);
+    ok('layers from a hard-to-hear segment: unsure + retype', b2.scope.layers && b2.scope.layers.unsure === true && b2.scope.layers.retype === true, b2.scope.layers);
+    ok('the follow-up date from a hard-to-hear segment: unsure + retype', b2.followUp && b2.followUp.unsure === true && b2.followUp.retype === true, b2.followUp);
+    ok('a promise due date from a hard-to-hear segment: retype', b2.promises[0] && b2.promises[0].unsure === true && b2.promises[0].retype === true, b2.promises[0]);
+    ok('…a clear promise is not marked', b2.promises[1] && !b2.promises[1].unsure && !b2.promises[1].retype, b2.promises[1]);
+    const plain2 = L.sanitizeBrief(RAW2, CTX2);
+    ok('without an index the scope and follow-up are unmarked (P0 shape)', !plain2.scope.stories.retype && !plain2.followUp.retype && !plain2.promises[0].retype);
+
+    const EP = require(path.join(ROOT, 'docs/pro/js/estimate-call-prefill.js'));
+    const pre = EP.fromBrief(b2);
+    ok('the estimate prefill never fills stories or layers heard as hard to hear', !pre.items.some((x) => x.key === 'stories' || x.key === 'tearOffLayers'), pre.items.map((x) => x.key));
+    ok('…it shows them as said-on-the-call words, marked hard to hear', pre.hints.said.some((w) => /hard to hear/i.test(w) && /stor/i.test(w)) && pre.hints.said.some((w) => /hard to hear/i.test(w) && /layer/i.test(w)), pre.hints.said);
+    const preClear = EP.fromBrief(plain2);
+    ok('…a clear stories / layers is still filled in', preClear.items.some((x) => x.key === 'stories') && preClear.items.some((x) => x.key === 'tearOffLayers'));
+
+    const src3 = read('docs/pro/js/call-brief-ui.js');
+    const ctx3 = vm.createContext({ window: { auth: { currentUser: { uid: 'jo' } } }, document: doc, console, setTimeout, Date, Object, Number, String, Array, JSON, Math, RegExp, Promise, Event: function () {} });
+    vm.runInContext(src3, ctx3);
+    const UI3 = ctx3.window.NBDCallBrief;
+    UI3._showWith({ brief: b2, lead: {}, leadId: 'L1', page: 'customer', callId: CALL_ID });
+    const h3 = UI3._render();
+    const fu = (h3.split('id="cbFuH"')[1] || '').split('cb-sec"')[0];
+    ok('the follow-up card has no one-tap "Change follow-up" for a hard-to-hear date', fu && !/data-cb-act="followup"/.test(fu) && /hard to hear/i.test(fu), fu.slice(0, 500));
+    const p0 = (h3.split('data-cb-row="promise:0"')[1] || '').split('data-cb-row=')[0];
+    ok('the hard-to-hear promise starts with an empty due date to type', /id="cbDue-0"[^>]*value=""/.test(p0) && /hard to hear/i.test(p0), p0.slice(0, 700));
+    const p1 = (h3.split('data-cb-row="promise:1"')[1] || '').split('data-cb-row=')[0];
+    ok('…a clear promise keeps its date', /id="cbDue-1"[^>]*value="2026-11-06"/.test(p1));
+    ok('nothing accepted yet: the follow-up message names no date', UI3._followUpItems().length === 0);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('Failed:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

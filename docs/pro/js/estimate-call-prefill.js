@@ -84,10 +84,14 @@
     }
     var tv = factValue(sc.tierInterest);
     if (TIERS.indexOf(tv) !== -1) out.items.push(item('tier', tv, factQuote(sc.tierInterest)));
-    var so = smallInt(factValue(sc.stories));
-    if (so) out.items.push(item('stories', so, factQuote(sc.stories)));
-    var ly = smallInt(factValue(sc.layers));
-    if (ly) out.items.push(item('tearOffLayers', ly, factQuote(sc.layers)));
+    // A count heard in a hard-to-hear stretch (retype) is never filled in:
+    // it shows as the words said, for the rep to check (P1 integration).
+    [['stories', sc.stories, 'Stories'], ['tearOffLayers', sc.layers, 'Layers']].forEach(function (x) {
+      var n = smallInt(factValue(x[1]));
+      if (!n) return;
+      if (x[1].retype === true) out.hints.said.push(x[2] + ': "' + (factQuote(x[1]) || label(x[0], n)) + '" (hard to hear on the recording; not filled in)');
+      else out.items.push(item(x[0], n, factQuote(x[1])));
+    });
     var men = sc.mentions && typeof sc.mentions === 'object' ? sc.mentions : {};
     if (men.chimney === true) out.items.push(item('hasChimneyFlash', true, ''));
     if (men.skylight === true) out.items.push(item('hasSkylightFlash', true, ''));
