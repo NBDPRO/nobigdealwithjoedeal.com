@@ -271,6 +271,7 @@ console.log('\nRUNNER — keys between a row\'s verbs');
   ok('ArrowRight with the caret at the end moves on (Text)', R.onKey(ev('ArrowRight'), st(0)) === true);
   input.selectionStart = 1;
   ok('ArrowRight in the middle of the text is left to the caret', R.onKey(ev('ArrowRight'), st(0)) === false);
+  ok('ArrowLeft in the middle of the text is left to the caret too, even with a later verb lit', R.onKey(ev('ArrowLeft'), st(0)) === false);
   input.selectionStart = 3;
   ok('ArrowLeft moves back', R.onKey(ev('ArrowLeft'), st(0)) === true);
   ok('Shift+Tab moves back', R.onKey(ev('Tab', { shiftKey: true }), st(0)) === true);

@@ -18,7 +18,7 @@
  *   - lead verbs: Open, Call (tel:), Text (the device's Messages app, held by
  *     phone-share.js's "ok to text?" check, never sent from here) and Navigate
  *     (the Google Maps search link the CRM already uses).
- *   - keys: Tab / Shift+Tab and Right / Left (Right only with the caret at the
+ *   - keys: Tab / Shift+Tab and Right / Left (arrows only with the caret at the
  *     end of the box) move between a row's verbs, Enter runs the lit one. Tab
  *     past the last verb of a lead row pins the lead, as before (palette 2.0).
  *   - Quick Keys: device-only aliases (nbd_ localStorage, so sign-out wipes
@@ -472,7 +472,7 @@
     var id = item && item.verbs ? item.id : null;
     if (R.sel.id !== id) { R.sel = { id: id, v: 0 }; paintVerbs(); }
   }
-  /** Tab/Shift+Tab, Right (caret at the end)/Left move between the selected row's verbs. True = handled. */
+  /** Tab/Shift+Tab, Right/Left (caret at the end) move between the selected row's verbs. True = handled. */
   function onKey(e, st) {
     if (!e || !st) return false;
     var item = st.results && st.results[st.index];
@@ -483,7 +483,7 @@
     if (e.key === 'Tab' && !e.shiftKey && v < n - 1) next = v + 1;
     else if (e.key === 'Tab' && e.shiftKey && v > 0) next = v - 1;
     else if (e.key === 'ArrowRight' && !e.shiftKey && atEnd && v < n - 1) next = v + 1;
-    else if (e.key === 'ArrowLeft' && !e.shiftKey && v > 0) next = v - 1;
+    else if (e.key === 'ArrowLeft' && !e.shiftKey && atEnd && v > 0) next = v - 1;
     if (next === v) return false;
     if (typeof e.preventDefault === 'function') e.preventDefault();
     R.sel = { id: item.id, v: next };
