@@ -267,6 +267,22 @@ const PRIV_HOME = {
     ok('unmount takes the tile and the Spotlight actions down', !T.W.controls.some((c) => c.id === 'os-acts') && !T.W.cmd.some((a) => /^os:act:/.test(a.id)));
   });
 
+  console.log('\n6b. a mode with no widgets of its own: editing it says what is saved, and where');
+  await G(async () => {
+    // Office has no own list: it shows the home. The home here is heavier than a mode keeps (ACT_ITEMS).
+    const BIG = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'shutdown'].map((id) => ({ id, s: 's' }));
+    const T = win({ home: { v: 1, phone: BIG, on: { phone: 'office' } }, system: true });
+    await flush();
+    ok('the home is heavier than a mode keeps', HL.weight(HL.normalize(T.saved()).phone) > HL.ACT_ITEMS, HL.weight(HL.normalize(T.saved()).phone));
+    T.W.controls.filter((c) => c.id === 'os-home-edit')[0].run();
+    const live = T.document.querySelector('.os-hw-live');
+    ok('entering edit says the edits are the mode\'s own and the home stays as it is', /Editing Office/.test(text(live)) && /home stays as it is/.test(text(live)), text(live));
+    ok('...and, the home being heavier, that the mode keeps only the first ' + HL.ACT_ITEMS, new RegExp('first ' + HL.ACT_ITEMS).test(text(live)), text(live));
+    click(T.dom, phoneEl(T).querySelector('[data-osp="homeadd"]'));
+    const add = T.document.querySelector('dialog.os-hw-add');
+    ok('Add: the full line names the mode, not "Your home"', !!add && /Office is full/.test(text(add)) && !/Your home is full/.test(text(add)), add && text(add).slice(0, 200));
+  });
+
   console.log('\n7. laptop: desks are job-phase workspaces');
   await G(async () => {
     const T = win({ surface: 'desk', home: { v: 1, desk: [{ id: 'upnext', s: 'l', x: 0, y: 0, w: 2, h: 2 }], on: { desk: 'canvass' } } });

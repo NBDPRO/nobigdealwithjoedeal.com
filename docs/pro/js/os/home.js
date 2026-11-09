@@ -654,7 +654,9 @@
         pick = null;
         endDrag(false);
         applyEdit();
-        announce(on ? 'Editing your home. ' + HELP : 'Done editing your home.');
+        var a = mode();
+        // live-region text (textContent), not markup
+        announce(on ? (a ? ['Editing ', a.name, '. ', modeNote(a), ' '].join('') : 'Editing your home. ') + HELP : ['Done editing ', a ? a.name : 'your home', '.'].join(''));
       }
       if (on && focusFirst && order.length) { try { recs[order[0]].el.focus(); } catch (e) {} }
     }
@@ -672,6 +674,13 @@
     // make normalize() cut them off the end of the saved list
     // a mode's own widgets (P2) hold ACT_ITEMS, a home MAX_ITEMS
     function cap() { return mode() ? HL.ACT_ITEMS : HL.MAX_ITEMS; }
+    /** P2: a mode's edits are its own widgets (os.js saveHome, setActList), never the home; a mode still showing
+     *  the home keeps only its first ACT_ITEMS on the first change (home-logic cleanActList). Say both. */
+    function modeNote(a) {
+      var over = !a.items && HL.weight(cur) + HL.weight(held) > HL.ACT_ITEMS;
+      return 'Changes here are this mode\'s own widgets; your home stays as it is.' +
+        (over ? ' A mode keeps ' + String(HL.ACT_ITEMS) + ' widgets, so your first change keeps the first ' + String(HL.ACT_ITEMS) + '.' : '');
+    }
     function fits(list) { return list && HL.weight(list) + HL.weight(held) <= cap() ? list : null; }
     function keyAt(list, idx) { var n = 0; for (var j = 0; j <= idx; j++) if (list[j].id === list[idx].id) n++; return list[idx].id + '-' + n; }
     /** Save a changed list (through the layout), then keep focus on the widget and say what changed. */
@@ -920,7 +929,11 @@
       var full = HL.weight(cur) + HL.weight(held) >= cap();
       var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwAddTitle">Add a widget</h2>' +
         '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Close</button></div>';
-      if (full) h += '<p class="os-hw-add-full">Your home is full. Remove a widget to add another.</p>';
+      var am = mode();
+      if (full) {
+        h += '<p class="os-hw-add-full">' + esc(am ? am.name + ' is full: a mode keeps ' + String(HL.ACT_ITEMS) + ' widgets. Remove one to add another. ' + modeNote(am)
+          : 'Your home is full. Remove a widget to add another.') + '</p>';
+      }
       HL.GROUPS.forEach(function (g) {
         var list = HL.ids().filter(function (id) { var c = HL.CATALOG[id]; return c.cat === g.id && !hiddenId(id) && !!WIDGETS[id]; });
         if (!list.length) return;
@@ -972,7 +985,7 @@
         var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !hiddenId(id) && !!WIDGETS[id]; });
         return '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwCardsTitle">Cards in this stack</h2>' +
           '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
-          '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against your home\'s ' + String(cap()) + '.') + '</p>' +
+          '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against ' + (mode() ? 'this mode\'s ' : 'your home\'s ') + String(cap()) + '.') + '</p>' +
           '<ul class="os-hw-add-list">' + ids.map(function (id) {
             var on = cards.indexOf(id) !== -1, can = !!fits(HL.toggleCard(tagged(), at, id));
             return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(HL.CATALOG[id].title) + '</span><span class="os-hw-add-about">' + esc(HL.CATALOG[id].about || '') + '</span></div>' +
