@@ -424,7 +424,11 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       const sstore = {};
       const win = {
         ScriptLoader: { load: async () => {}, loadBundle: async () => {} },
-        _functions: {}, _httpsCallable: (_f, name) => async (data) => { calls.push({ name, data }); return { data: { ok: true } }; },
+        _functions: {}, _httpsCallable: (_f, name) => async (data) => {
+          calls.push({ name, data });
+          if (o && o.decideFails && name === 'callBriefDecide') { const e = new Error(o.decideFails.message); e.code = o.decideFails.code; throw e; }
+          return { data: { ok: true } };
+        },
         auth: { currentUser: { uid: 'jo' } },
         location: { href: '/pro/customer.html?id=L1', pathname: (o && o.path) || '/pro/customer.html' },
         sessionStorage: { getItem: (k) => sstore[k] || null, setItem: (k, v) => { sstore[k] = String(v); }, removeItem: (k) => { delete sstore[k]; } },
@@ -452,6 +456,8 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       await t.click({ 'data-cb-act': 'estimate' });
       ok('on the dashboard it opens the builder with the brief as the prefill', t.opened.length === 1 && t.opened[0].leadId === 'L1' && t.opened[0].callPrefill && t.opened[0].callPrefill.callId === 'cube_ABCDE12345' && t.opened[0].callPrefill.brief && t.opened[0].callPrefill.brief.fields.workKind.value === 'repair', t.opened);
       ok('…and logs the tap (callBriefDecide draft:estimate)', t.calls.some((c) => c.name === 'callBriefDecide' && c.data.item === 'draft:estimate' && c.data.decision === 'accept'));
+      const logged = t.calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'draft:estimate');
+      ok('…logged as the tap it is, not as "opened the estimate builder" (the open happens after)', logged && /tapped/i.test(logged.data.value) && !/opened/i.test(logged.data.value), logged && logged.data.value);
       ok('…and the sheet closes', t.dlg.open === false);
     }
     {
@@ -467,6 +473,22 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       const hand = JSON.parse(t.sstore['nbd.callBriefLink'] || 'null');
       ok('…and hands the same pair over in sessionStorage (the dashboard cleans its URL first)', hand && hand.leadId === 'L1' && hand.callId === 'cube_ABCDE12345' && Math.abs(Date.now() - hand.at) < 5000, hand);
       ok('…with the brief the callable returned (the builder never reads the stored brief itself)', hand && hand.brief && hand.brief.fields && hand.brief.fields.workKind.value === 'replace', hand && Object.keys(hand));
+    }
+    {
+      // Call briefs switched off after the sheet showed the brief: the log
+      // callable refuses (it checks callBriefDisabled), so nothing opens.
+      const t = load({ builder: true, path: '/pro/dashboard.html', decideFails: { code: 'functions/failed-precondition', message: 'Call briefs are switched off right now.' } });
+      t.CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: LEAD, leadId: 'L1', page: 'calls' });
+      await t.click({ 'data-cb-act': 'estimate' });
+      ok('switched off: Start estimate opens nothing and the sheet stays open with the reason', t.opened.length === 0 && t.dlg.open === true && /switched off/.test(t.CB._render()), t.opened);
+      const c = load({ builder: false, path: '/pro/customer.html', decideFails: { code: 'functions/failed-precondition', message: 'Call briefs are switched off right now.' } });
+      c.CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: LEAD, leadId: 'L1', page: 'customer' });
+      await c.click({ 'data-cb-act': 'estimate' });
+      ok('switched off on the customer page: no deep link and no hand-off', c.win.location.href === '/pro/customer.html?id=L1' && !c.sstore['nbd.callBriefLink']);
+      const n = load({ builder: true, path: '/pro/dashboard.html', decideFails: { code: 'functions/unavailable', message: 'network' } });
+      n.CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: LEAD, leadId: 'L1', page: 'calls' });
+      await n.click({ 'data-cb-act': 'estimate' });
+      ok('a log that fails for another reason (network) still opens the builder (the log is best effort)', n.opened.length === 1);
     }
     {
       const t = load({ builder: true });

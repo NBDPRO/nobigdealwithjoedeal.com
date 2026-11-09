@@ -336,6 +336,7 @@
     return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons the caller named, each marked from call. ' +
       (wk === 'repair' ? 'Repair templates are offered for a quick quote. ' : '') +
       'Measurements and prices come from you and your price book; nothing is saved until you press Save.</div>' +
+      (S.err && S.err['draft:estimate'] ? '<div class="cb-err" role="alert">' + esc(S.err['draft:estimate']) + '</div>' : '') +
       '<div class="cb-acts">' + btn(label, 'estimate', '', S.page === 'customer' ? 'btn-ghost' : 'btn-orange') + '</div>';
   }
 
@@ -616,10 +617,23 @@
    * sessionStorage (estimate-v2-ui.js reads it once). The builder never reads
    * the stored brief itself, so the callable's kill switch covers both paths.
    */
-  function startEstimate() {
-    var leadId = S.leadId, callId = S.callId, brief = S.brief, onDashboard = S.page !== 'customer';
-    if (!leadId) return;
-    decide('draft:estimate', 'accept', { value: 'opened the estimate builder' }).catch(function () {});
+  async function startEstimate() {
+    var mine = S, leadId = S.leadId, callId = S.callId, brief = S.brief, onDashboard = S.page !== 'customer';
+    if (!leadId || mine.estBusy) return;
+    // The log first: callBriefDecide checks the call-brief kill switch, so a
+    // brief shown before the switch went off opens nothing. Any other failure
+    // (a network blip) does not block the rep; the log is best effort.
+    mine.estBusy = true;
+    try {
+      await decide('draft:estimate', 'accept', { value: 'tapped Start estimate' });
+    } catch (e) {
+      if (/failed-precondition/.test(String((e && e.code) || ''))) {
+        mine.estBusy = false;
+        if (S === mine) { S.err = S.err || {}; S.err['draft:estimate'] = errText(e); render(); }
+        return;
+      }
+    }
+    if (S !== mine) return;   // the sheet was closed meanwhile
     close();
     if (onDashboard && typeof window.openEstimateV2Builder === 'function') {
       window.openEstimateV2Builder({ leadId: leadId, callPrefill: { callId: callId, brief: brief } });
