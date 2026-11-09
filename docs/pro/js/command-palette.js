@@ -524,7 +524,7 @@
     if (wrap) wrap.remove();
     // focus goes back where it was (never a node that left the page), so a row run after
     // close (NBD OS Pocket) knows where to return focus too
-    if (_back?.isConnected) _back.focus();
+    if (_back?.isConnected) _back.focus({ preventScroll: true });   // never jump a scrolled view back to it
     _back = null;
     if (_X()) _X().onClose();   // drops any theme preview
     _currentResults = [];

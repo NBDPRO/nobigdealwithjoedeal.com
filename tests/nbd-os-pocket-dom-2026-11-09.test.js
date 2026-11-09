@@ -497,6 +497,17 @@ function typeKeep(T, s) {
     ok('(the palette is open and its box has focus)', !!dom.document.getElementById('nbd-cmd-modal') && dom.document.activeElement === dom.document.getElementById('nbd-cmd-input'));
     C.close();
     ok('closing it puts focus back where it was', !dom.document.getElementById('nbd-cmd-modal') && dom.document.activeElement === btn, dom.document.activeElement && dom.document.activeElement.tagName);
+    // a global change to every palette close: on a scrolled CRM view the return must not jump the page
+    const args = [];
+    const realFocus = btn.focus;
+    btn.focus = function (o) { args.push(o); return realFocus.call(this, o); };
+    btn.focus();
+    args.length = 0;
+    C.open();
+    run();
+    C.close();
+    btn.focus = realFocus;
+    ok('...without scrolling the page to it (preventScroll)', args.length === 1 && !!args[0] && args[0].preventScroll === true, J(args));
     let seen = null;
     C.registerAction({ id: 'os:pocket', label: 'Pocket: a quick note', keywords: 'pocket', run: () => { seen = dom.document.activeElement; } });
     btn.focus();
