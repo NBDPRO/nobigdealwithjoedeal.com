@@ -3,7 +3,7 @@
  * documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md §5.1).
  *
  *   companies/{companyId}/settings/goals
- *     { callsPerDay?, followUpsPerDay?, doorsPerDay?, updatedAt?, updatedBy? }
+ *     { callsPerDay?, followUpsPerDay?, doorsPerDay?, updatedAt? (a timestamp), updatedBy? }
  *     each goal a whole number 0-500, or left out (no goal)
  *
  * Read by the whole tenant (the solo owner, any member whose companyId claim
@@ -59,9 +59,9 @@ async function run() {
   const otherRep = ctx('ray', { role: 'sales_rep', companyId: 'co-b' });
   const platform = ctx('pat', { role: 'admin' });
   const anon = env.unauthenticatedContext().firestore();
-  const { setDoc, updateDoc, getDoc, deleteDoc, doc } = require('firebase/firestore');
+  const { setDoc, updateDoc, getDoc, deleteDoc, doc, serverTimestamp } = require('firebase/firestore');
   const ref = (db, co, id) => doc(db, 'companies/' + (co || 'co-a') + '/settings/' + (id || 'goals'));
-  const G = (uid, extra) => Object.assign({ callsPerDay: 10, followUpsPerDay: 5, doorsPerDay: 40, updatedAt: '2026-11-09T12:00:00.000Z', updatedBy: uid }, extra || {});
+  const G = (uid, extra) => Object.assign({ callsPerDay: 10, followUpsPerDay: 5, doorsPerDay: 40, updatedAt: serverTimestamp(), updatedBy: uid }, extra || {});
 
   await env.withSecurityRulesDisabled(async (c) => {
     await setDoc(doc(c.firestore(), 'companies/co-a/settings/goals'), { callsPerDay: 8, doorsPerDay: 30 });
@@ -103,6 +103,9 @@ async function run() {
   await check('an extra key', 'deny', setDoc(ref(admin), G('carol', { revenuePerDay: 100000 })));
   await check('updatedBy someone else', 'deny', setDoc(ref(admin), G('alice')));
   await check('positive control: the same doc with updatedBy = the writer', 'allow', setDoc(ref(admin), G('carol')));
+  await check('updatedAt as a string', 'deny', setDoc(ref(admin), G('carol', { updatedAt: '2026-11-09T12:00:00.000Z' })));
+  await check('updatedAt as a number', 'deny', setDoc(ref(admin), G('carol', { updatedAt: 1762689600000 })));
+  await check('positive control: updatedAt as a timestamp (serverTimestamp)', 'allow', setDoc(ref(admin), G('carol')));
   await check('update cannot add an extra key', 'deny', updateDoc(ref(admin), { byUid: { alice: 3 } }));
 
   // -- only the goals doc id is opened by this block
