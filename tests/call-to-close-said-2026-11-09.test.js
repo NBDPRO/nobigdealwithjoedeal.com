@@ -91,7 +91,7 @@ const brief = (over) => Object.assign({
     const after = C.copyIntoScope(before, 'Gutters');
     ok('adds the phrase at the end, as a new list', after.join('|') === 'Tear off|Gutters' && before.length === 1);
     ok('never twice', C.copyIntoScope(['Tear off', 'gutters'], 'Gutters').length === 2);
-    ok('drops blank rows, accepts a single string', C.copyIntoScope(['', 'A', '  '], 'B').join('|') === 'A|B' && C.copyIntoScope('A', 'B').join('|') === 'A|B');
+    ok('keeps a blank row the person added (it is theirs to fill), accepts a single string', C.copyIntoScope(['', 'A', '  '], 'B').join('|') === '|A|  |B' && C.copyIntoScope('A', 'B').join('|') === 'A|B');
   }
 
   console.log('\n3. Reading the lead\'s briefs');

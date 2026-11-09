@@ -226,10 +226,9 @@
     return out;
   }
 
-  /** The scope list with the phrase added once (a new array; '' rows dropped). */
+  /** The scope list with the phrase added once (a new array; a blank row the person added stays). */
   function copyIntoScope(scopeItems, phrase) {
-    var list = (Array.isArray(scopeItems) ? scopeItems : (scopeItems ? [scopeItems] : [])).map(function (s) { return String(s == null ? '' : s); })
-      .filter(function (s) { return s.trim() !== ''; });
+    var list = (Array.isArray(scopeItems) ? scopeItems : (scopeItems ? [scopeItems] : [])).map(function (s) { return String(s == null ? '' : s); });
     var p = String(phrase == null ? '' : phrase).trim();
     if (!p) return list;
     var lp = low(p);
