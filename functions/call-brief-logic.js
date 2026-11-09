@@ -785,6 +785,27 @@ function stageMovedFrom(lead, key) {
   return '';
 }
 
+/**
+ * P1 auto-brief (design §3.1): true when this write is the moment a PERSON
+ * filed the call. The call is briefable now (humanFiledProblem is '') and it
+ * was not briefable on this same customer before: auto-matched → attached,
+ * a filed call whose notes just arrived, or a move to another customer. Any
+ * other write on an already-briefable call (handled, a re-note) is false, so
+ * a call is never auto-briefed twice for one filing.
+ */
+function autoBriefTransition(before, after) {
+  if (!after || humanFiledProblem(after) !== '') return false;
+  if (!before) return true;
+  return humanFiledProblem(before) !== '' || String(before.leadId || '') !== String(after.leadId || '');
+}
+
+/** The person who filed the call last: movedBy when the move is the later act, else attachedBy. */
+function filerOf(call) {
+  const c = call || {};
+  if (c.movedBy && (!c.attachedBy || (Number(c.movedAtMs) || 0) >= (Number(c.attachedAtMs) || 0))) return String(c.movedBy);
+  return c.attachedBy ? String(c.attachedBy) : '';
+}
+
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
 function cacheState(doc, hash, nowMs, force) {
   if (!doc || doc.v !== BRIEF_VERSION || doc.transcriptHash !== hash || !doc.brief) return 'regenerate';
@@ -800,4 +821,5 @@ module.exports = {
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
   STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom, tenantStageOrders,
+  autoBriefTransition, filerOf,
 };

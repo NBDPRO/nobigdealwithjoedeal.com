@@ -31,6 +31,7 @@
   "backupFreshnessCron": "./backup-freshness",
   "calcomWebhook": "./integrations/calcom",
   "callBrief": "./call-brief",
+  "callBriefAuto": "./call-brief",
   "callBriefDecide": "./call-brief",
   "callCenterAction": "./call-center",
   "callCenterIngest": "./call-center",

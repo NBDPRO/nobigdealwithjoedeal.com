@@ -35,9 +35,15 @@
  * logs them. Nothing here moves a stage, prices, sends or signs anything.
  * A stage accept (P1) is logged with how it was moved ('one-tap' or
  * 'confirmed'); the move itself went through the CRM's stage writer.
+ *
+ * callBriefAuto (P1, Firestore trigger on phone_calls/{callId}): the opt-in
+ * auto-brief. Off unless companies/{companyId}/settings/callBrief.autoBrief
+ * is true; then a person filing a call drafts the brief they would get on
+ * tap, as that person, through the same gates and caps (autoBriefHandler).
  */
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { secretValue } = require('./integrations/_shared');
@@ -155,6 +161,16 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   if (over === 'user') throw new HttpsError('resource-exhausted', 'You have drafted ' + L.USER_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
   if (over === 'company') throw new HttpsError('resource-exhausted', 'Your company has drafted ' + L.COMPANY_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
 
+  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached });
+  return answer(doc, { cached: false });
+}
+
+/**
+ * Ask the model, ground the answer and store the brief (the one writer of
+ * leads/{leadId}/call_briefs/{callId}). The caller has already run every gate
+ * and taken the quota. opts.auto marks a brief the P1 auto-brief drafted.
+ */
+async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto }) {
   const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
   const profile = ps && ps.exists ? ps.data() : {};
   const stages = L.tenantStages(profile.pipelines);
@@ -178,8 +194,9 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
     brief, decisions: cached && Array.isArray(cached.decisions) ? cached.decisions : [],
     updatedAt: FieldValue.serverTimestamp(),
   };
+  if (auto) doc.auto = true;
   await g.briefRef.set(doc);
-  return answer(doc, { cached: false });
+  return doc;
 }
 
 const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
@@ -197,7 +214,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (await switchedOff(false)) throw new HttpsError('failed-precondition', 'Call briefs are switched off right now.');
   const item = data && data.item;
-  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:proposal|draft:estimate|field:[A-Za-z]{2,40}|promise:[0-4])$/.test(item)) {
+  if (typeof item !== 'string' || !/^(summary|stage|followUp|handled|draft:(proposal|estimate|followupText|followupEmail)|field:[A-Za-z]{2,40}|promise:[0-4])$/.test(item)) {
     throw new HttpsError('invalid-argument', 'Decide one item at a time.');
   }
   const decision = data.decision === 'accept' ? 'accept' : data.decision === 'skip' ? 'skip' : '';
@@ -300,6 +317,52 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   return { ok: true, written, item, decision };
 }
 
+/**
+ * P1 auto-brief (design §3.1; Jo's Q2: briefs on tap, an auto-brief flag is
+ * opt-in, default OFF). When a PERSON files a call (L.autoBriefTransition)
+ * and the company has turned on companies/{companyId}/settings/callBrief
+ * .autoBrief, the server drafts the brief the filer would get on tap. It runs
+ * as the filer and through exactly callBrief's gates: both kill switches, the
+ * filer's role (callCenterAction's test: never a viewer, never a sales rep who
+ * does not own the call), the human-filed and tenant gates, the cache, a
+ * verified email + paid plan, and the same per-user / per-company day caps.
+ * It only stores the brief: nothing is accepted, written to the lead, sent or
+ * moved. Returns { state, why? }; never throws (a trigger must not retry-loop).
+ */
+async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, getUser, log = logger }) {
+  if (!L.autoBriefTransition(before, after)) return { state: 'not-filed-now' };
+  if (await switchedOff(true)) return { state: 'switched-off' };
+  const companyId = String(after.companyId || after.userId || '');
+  if (!companyId || companyId.includes('/')) return { state: 'flag-off' };
+  const fs = await db.doc('companies/' + companyId + '/settings/callBrief').get().catch(() => null);
+  if (!(fs && fs.exists && (fs.data() || {}).autoBrief === true)) return { state: 'flag-off' };
+  const filer = L.filerOf(after);
+  if (!filer) return { state: 'gated', why: 'no filer' };
+  let user;
+  try { user = await (getUser || ((uid) => require('firebase-admin/auth').getAuth().getUser(uid)))(filer); } catch (e) { return { state: 'gated', why: 'filer not found' }; }
+  if (!user || user.disabled === true) return { state: 'gated', why: 'filer disabled' };
+  const auth = { uid: filer, token: Object.assign({}, user.customClaims || {}, { email_verified: user.emailVerified === true }) };
+  let g;
+  try { g = await loadGated(db, auth, { callId }); } catch (e) { return { state: 'gated', why: (e && e.message) || 'gated' }; }
+  const transcript = String(g.call.transcript || '');
+  const hash = L.transcriptHash(transcript);
+  const cs = await g.briefRef.get().catch(() => null);
+  const cached = cs && cs.exists ? cs.data() : null;
+  if (L.cacheState(cached, hash, nowMs, false) === 'use') return { state: 'cached' };
+  const t = auth.token;
+  if (!(t.role === 'admin' || t.email_verified === true) || !(await aiAllowed(db, auth))) return { state: 'plan' };
+  const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
+  if (over) return { state: 'quota', why: over };
+  try {
+    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true });
+  } catch (e) {
+    log.warn('call_brief_auto_failed', { callId, err: e && e.message });
+    return { state: 'failed' };
+  }
+  log.info('call_brief_auto', { callId, leadId: g.leadId, by: filer });
+  return { state: 'briefed' };
+}
+
 exports.callBrief = onCall(
   { region: 'us-central1', enforceAppCheck: true, secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 60, maxInstances: 10 },
   async (request) => {
@@ -316,4 +379,21 @@ exports.callBriefDecide = onCall(
   }
 );
 
-exports._test = { briefCallable, decideCallable, takeQuota, loadGated, tenantOf, INSURANCE_ACK };
+// P1 auto-brief: a phone_calls update that is a person filing the call.
+// The pure transition check runs first, so the many other call writes cost
+// one function start and nothing else.
+exports.callBriefAuto = onDocumentUpdated(
+  { document: 'phone_calls/{callId}', region: 'us-central1', secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 120, maxInstances: 5 },
+  async (event) => {
+    try {
+      const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+      const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+      if (!L.autoBriefTransition(before, after)) return;
+      await autoBriefHandler({ db: getFirestore(), callId: event.params.callId, before, after, nowMs: Date.now() });
+    } catch (e) {
+      logger.warn('call_brief_auto_error', { callId: event.params && event.params.callId, err: e && e.message });
+    }
+  }
+);
+
+exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, tenantOf, INSURANCE_ACK };
