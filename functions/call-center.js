@@ -1472,8 +1472,8 @@ async function callAction({ db, auth, data, nowMs }) {
     const r = await moveCallToLead({ db, call, fromId, toId, to, uid: auth.uid, nowMs });
     return Object.assign({ ok: true, leadId: toId, moved: true }, r);
   }
+  // (A day of texts never gets here: 'Only Handled applies to texts' above.)
   if (action === 'merge' || action === 'unmerge') {
-    if (isText) throw new HttpsError('invalid-argument', 'Only phone calls are merged.');
     return mergeAction({ db, auth, call, action, data, nowMs });
   }
   if (action === 'notpersonal') {
