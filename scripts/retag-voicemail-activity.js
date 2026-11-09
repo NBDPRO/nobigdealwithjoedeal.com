@@ -20,7 +20,8 @@
  * source 'rep'. Idempotent: a second run finds nothing to change.
  *
  * Output is counts only. It never prints a transcript, a summary, a lead or
- * document id, or a write's error text: those can quote the row.
+ * document id, or any Firestore error's text (a failed write is counted; a
+ * fatal read error prints its status code only): those can quote the row.
  *
  * DRY RUN by default. --apply writes (needs Jo's OK for a production run).
  * --company <companyId> limits it to leads of one company: lead.companyId, or
@@ -74,7 +75,7 @@ function leadInCompany(lead, company) {
 
 async function run({ db, args, log = console.log, pageSize = 500 }) {
   if (!db || typeof db.collectionGroup !== 'function') {
-    throw new Error('this Firestore client has no collection-group query. Token mode needs scripts/_firestore-rest.js from branch q11-backfill; use Application Default Credentials (unset NBD_ACCESS_TOKEN). Nothing read or written.');
+    throw Object.assign(new Error('this Firestore client has no collection-group query. Token mode needs scripts/_firestore-rest.js from branch q11-backfill; use Application Default Credentials (unset NBD_ACCESS_TOKEN). Nothing read or written.'), { ownMessage: true });
   }
   const counts = { scanned: 0, notLeadActivity: 0, notVoicemail: 0, alreadyTagged: 0, outOfScope: 0, toChange: 0, written: 0, failures: 0 };
   const leadCache = new Map();
@@ -130,7 +131,22 @@ async function run({ db, args, log = console.log, pageSize = 500 }) {
   return { counts };
 }
 
-module.exports = { parseArgs, needsRetag, leadInCompany, run, NEW_SOURCE };
+/**
+ * What a fatal error prints. A Firestore error's text can name a document
+ * path (a lead id) or quote a row, so only this script's own messages print
+ * verbatim; anything else prints its status code and nothing of its text.
+ */
+function describeFatal(e) {
+  if (e && e.ownMessage) return e.message;
+  const code = e && e.code;
+  const status = e && typeof e.message === 'string' && (/\b(?:NOT_FOUND|PERMISSION_DENIED|UNAUTHENTICATED|FAILED_PRECONDITION|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|ABORTED|INTERNAL|INVALID_ARGUMENT)\b/.exec(e.message) || [])[0];
+  const parts = [];
+  if (typeof code === 'number' || (typeof code === 'string' && /^[A-Za-z0-9_/-]{1,64}$/.test(code))) parts.push('code ' + code);
+  if (status) parts.push(status);
+  return 'failed' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + '; error text not printed (it can name a document).';
+}
+
+module.exports = { parseArgs, needsRetag, leadInCompany, run, describeFatal, NEW_SOURCE };
 
 if (require.main === module) {
   (async () => {
@@ -148,5 +164,5 @@ if (require.main === module) {
       r = await run({ db: getFirestore(), args });
     }
     process.exit(r.counts.failures ? 1 : 0);
-  })().catch((e) => { console.error(e.message || e); process.exit(1); });
+  })().catch((e) => { console.error(describeFatal(e)); process.exit(1); });
 }

@@ -10,7 +10,7 @@
  * nothing; --apply writes source only, only on rep voicemail rows under
  * leads/{id}/activity, with the read's updateTime as precondition; pages;
  * --company scope; idempotent; output never carries transcript or summary
- * text or ids; token mode without a collection-group query refuses before
+ * text or ids, not even from a fatal error (describeFatal); token mode without a collection-group query refuses before
  * any read. Zero network. Run:
  *   node tests/voicemail-retag-backfill-2026-11-09.test.js
  */
@@ -141,6 +141,25 @@ const leaks = (lines) => lines.join('\n').match(new RegExp([SECRET, SUMMARY, 'vm
     const g = fakeDb(seed(), { noUpdateTime: true });
     const r2 = await S.run({ db: g.db, args: S.parseArgs(['--apply']), log: () => {} });
     ok('no updateTime, no write (never an unconditional upsert)', g.writes.length === 0 && r2.counts.failures === 2, r2.counts);
+  }
+
+  // the last-resort error print (review 2026-11-09 finding 3): a lead
+  // lookup or page query failure can name a document path; only the
+  // script's own messages print verbatim
+  {
+    const f = fakeDb(seed());
+    const realDoc = f.db.doc;
+    f.db.doc = (p) => { const r = realDoc(p); if (p === 'leads/L1') r.get = async () => { throw new Error('PERMISSION_DENIED reading projects/x/databases/(default)/documents/leads/L1 ' + SECRET); }; return r; };
+    let err = null;
+    try { await S.run({ db: f.db, args: S.parseArgs(['--company', 'co-a']), log: () => {} }); } catch (e) { err = e; }
+    ok('a failed lead lookup stops the run', !!err);
+    const shown = S.describeFatal(err);
+    ok('…and the fatal message carries no id, path or transcript', typeof shown === 'string' && !leaks([shown]) && !/documents\//.test(shown), shown);
+    ok('…but keeps a status code to act on', /PERMISSION_DENIED|code 7/.test(shown), shown);
+    const coded = Object.assign(new Error('9 FAILED_PRECONDITION: The query requires an index on leads/L2'), { code: 9 });
+    ok('a gRPC error prints its numeric code, not its text', S.describeFatal(coded) && /code 9/.test(S.describeFatal(coded)) && !leaks([S.describeFatal(coded)]), S.describeFatal(coded));
+    let own = null; try { await S.run({ db: { doc: () => ({}) }, args: S.parseArgs([]), log: () => {} }); } catch (e) { own = e; }
+    ok('the script\'s own refusal still prints in full', /no collection-group query/.test(S.describeFatal(own) || ''), S.describeFatal(own));
   }
 
   // token mode on an adapter without a collection-group query
