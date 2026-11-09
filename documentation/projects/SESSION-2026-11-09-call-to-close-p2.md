@@ -43,9 +43,13 @@ The five lanes were cherry-picked in this order, every commit kept: walkthrough 
 
 - Visit recordings made before this deploy have no `segIndex`, so their walkthrough briefs mark nothing unsure (the digit rule still applies).
 - Visit transcripts themselves (`users/{uid}/visit_captures`) and `thursday_calls` are not swept by retention; only the briefs made from walkthroughs are (retention note, question 4).
-- The "no exact words were kept" and "hard to hear" lines in the estimate builder say "on the call" / "on the recording" for a walkthrough too (`estimate-call-prefill.js` does not know the source).
+- The sheet's footer Close button is under 44 px tall at desktop width (44 px on a phone); not changed here.
 - The sheet does not say on a merged call's brief that it read two recordings (the Call Center card does).
+
+## Screenshots (375x812 and 1280x800, the sample account)
+
+The integrated sheet for a merged call and for a walkthrough (every section), the Call Center merge suggestion, "Brief this walkthrough" on the timeline, and the estimate builder opened from a walkthrough. No page errors, no network calls blocked, no sideways scroll; every new button 44 px. One problem found and fixed: the builder's strip said "From the call" and "Gutters mentioned on the call" for a walkthrough; it now says "From the walkthrough" and "at the walkthrough" (estimate-prefill suite, 3 red then green).
 
 ## How it was checked
 
-Gate results are in the integration return for this branch; each cross-lane rule was seen failing before its fix (retention §7b: 4 red; walkthrough §6: 11 red; walkthrough-ui wording: 1 red).
+Each cross-lane rule was seen failing before its fix (retention §7b: 4 red; walkthrough §6: 11 red; walkthrough-ui wording: 1 red; estimate-prefill wording: 3 red). Gates on the final head: syntax, site integrity, inline scripts, partials, vault index, manifest check (1008 / 74 / 1145), boot budget 36/36, the full node bucket, smoke 4434/4434, the rules emulator suites one at a time (call-briefs-visit 25, call-feed 21, call-briefs 20, cross-tenant 482, company-docs 47), and the two browser suites (pro-demo-zero-network 122, crm-layouts-render 49).
