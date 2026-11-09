@@ -694,7 +694,8 @@ async function run() {
   await check('phone_calls: no-claim user reads A call',       'deny',  getDoc(doc(noClaim, 'phone_calls/cube_A1')));
 
   // TEXT INBOX (2026-10-01) — phone_texts: Jo's texts from the phone's SMS
-  // backup (numbers, names, bodies). Same readers as phone_calls; no client writes.
+  // backup (numbers, names, bodies). Same readers as thursday_calls (viewers
+  // included, unlike phone_calls since 2026-11-09); no client writes.
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'phone_texts/sms_A1'), { userId: 'alice', companyId: 'co-a', phoneDigits: '5135550100', body: 'see you Tuesday', sentAtMs: 1 });
   });
