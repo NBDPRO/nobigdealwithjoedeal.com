@@ -678,6 +678,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-installdone-test 'node firestore-rules.install-completed-at.test.js'
+      # Photo EXIF fields (2026-11-09): every upload path writes capturedAt / geoLocation from EXIF; /photos create still holds. Own file.
+      - name: Run photo-exif-fields rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-photoexif-test 'node firestore-rules.photo-exif-fields.test.js'
       # Month close (2026-10-19): monthCloses/{companyId_YYYY-MM}, owner-only writes. Own file.
       - name: Run month-close rules tests under emulator
         run: |

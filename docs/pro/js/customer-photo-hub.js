@@ -79,9 +79,11 @@
   // with the "Latest" stat reading "—" if they were the customer's first. It
   // looked like a half-failed upload and reps re-shot the roof. capturedAt is
   // the one real epoch on that object, so it fills the gap until the doc is
-  // re-read, and never overrides a resolved createdAt.
+  // re-read, and never overrides a resolved createdAt. Since 2026-11-09
+  // capturedAt can be the photo's EXIF date (days old); deviceCapturedAt,
+  // written beside it then, is the upload moment and fills the gap first.
   function photoTime(p) {
-    return ms(p && p.takenAt) || ms(p && p.createdAt) || ms(p && p.uploadedAt) || ms(p && p.capturedAt) || 0;
+    return ms(p && p.takenAt) || ms(p && p.createdAt) || ms(p && p.uploadedAt) || ms(p && p.deviceCapturedAt) || ms(p && p.capturedAt) || 0;
   }
   function dayLabel(t) {
     if (!t) return 'Older';

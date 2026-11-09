@@ -3340,6 +3340,10 @@ async function uploadSinglePhoto(item, index) {
         .catch(e => { console.warn('[smart-ingest] analyze failed:', e.message); return null; })
     : Promise.resolve(null);
 
+  // The photo's own EXIF date + GPS -> capturedAt / geoLocation (photo-exif.js, loaded now).
+  const exifPromise = import('./photo-exif.js?v=1').then((m) => m.photoExifFields(file, timestamp))
+    .catch(() => ({ capturedAt: timestamp, capturedAtSource: 'device' }));
+
   const uploadTask = window.uploadBytesResumable(storageRef, file);
 
   // The progress callback below dereferences window._uploadQueue[index]
@@ -3430,7 +3434,8 @@ async function uploadSinglePhoto(item, index) {
             // and roof polygon are available.
             damageType: '',
             severity: '',
-            location: ''
+            location: '',
+            ...(await exifPromise)
           };
 
           if (ingest && ingest.exif) {

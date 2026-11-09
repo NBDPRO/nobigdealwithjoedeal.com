@@ -339,7 +339,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=9',
+      'js/photo-engine.js?v=10',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
