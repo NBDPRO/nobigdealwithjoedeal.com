@@ -497,6 +497,39 @@ function typeKeep(T, s) {
     ok('...never on a node that left the page', dom.document.activeElement !== gone);
   });
 
+  // P3 integration: "In a home" (NBDOSActs.privacy(), a mode that hides other customers' names)
+  // must not show kept notes or the earlier draft: a note can name another customer.
+  console.log('\n13. "In a home": kept notes and the earlier draft stay hidden; a note can still be kept');
+  await G(async () => {
+    const T = win();
+    await flush();
+    T.store['nbd_os_pocket:u1'] = J([{ id: 'n1', text: 'Call Mrs Other at 555-0101', at: Date.now() - 60000 }]);
+    T.store['nbd_os_pocket_draft:u1'] = 'Gate code for the Other house 4412';
+    let priv = true;
+    T.W.NBDOSActs = Object.assign({}, T.W.NBDOSActs || {}, { privacy: () => priv });
+    key(T.dom, T.document.body, '`', ALT);
+    await flush();
+    const body = text(pocketEl(T));
+    ok('no kept note text shows', !/Mrs Other/.test(body), body);
+    ok('the earlier draft is not put in the box', !area(T).value, area(T).value);
+    ok('it says the notes are hidden while In a home is on', /hidden/i.test(body) && /In a home/.test(body), body);
+    ok('no File or Delete for a hidden note', !pk(T, 'file', 'n1') && !pk(T, 'del', 'n1'));
+    area(T).value = 'x';
+    fire(T.dom, area(T), 'input');
+    ok('typing does not overwrite the earlier draft', T.store['nbd_os_pocket_draft:u1'] === 'Gate code for the Other house 4412', T.store['nbd_os_pocket_draft:u1']);
+    typeKeep(T, 'Back gutter loose');
+    const s = stored(T);
+    ok('Keep still keeps a new note on the device', s && s.length === 2 && s.some((n) => n.text === 'Back gutter loose'), J(s));
+    ok('...and the list still shows no note text', !/Back gutter|Mrs Other/.test(text(pocketEl(T))), text(pocketEl(T)));
+    ok('...and the earlier draft survives', T.store['nbd_os_pocket_draft:u1'] === 'Gate code for the Other house 4412');
+    key(T.dom, area(T), '`', ALT);
+    await flush();
+    priv = false;
+    key(T.dom, T.document.body, '`', ALT);
+    await flush();
+    ok('after the mode ends, the notes and the draft come back', /Mrs Other/.test(text(pocketEl(T))) && /Back gutter/.test(text(pocketEl(T))) && area(T).value === 'Gate code for the Other house 4412', text(pocketEl(T)));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) process.exit(1);
 })();

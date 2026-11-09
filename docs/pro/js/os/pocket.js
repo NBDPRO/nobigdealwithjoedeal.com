@@ -20,6 +20,11 @@
  * it saved. "Voice note" opens quick-capture's recorder. Pocket has no writer of its own:
  * no Firestore, no callable, no network.
  *
+ * "In a home" (os/acts.js NBDOSActs.privacy(), a mode that hides other customers' names): a
+ * kept note or an earlier draft can name another customer, so while it is on Pocket shows
+ * only how many notes are kept, never their text, and leaves the earlier draft unread and
+ * unwritten (what is typed then stays in page memory). Keep still works.
+ *
  * Every value goes in escaped (the draft as a value); no inline handlers, no style
  * attributes; css/os/pocket.css. Loaded with os/pocket-logic.js and css/os/pocket.css as
  * the runtime ScriptLoader bundle `ospocket` (registered by layouts/os.js) on the first
@@ -57,7 +62,12 @@
   }
   function clip(s, n) { s = String(s).replace(/\s+/g, ' '); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var cur = null;   // { el, back, desk, undo: {note} | null }
+  var cur = null;   // { el, back, desk, undo: {note} | null, priv }
+  var privDraft = '';   // what was typed, not kept, while "In a home" was on (never stored)
+  function privacy() {
+    var A = W.NBDOSActs;
+    try { return !!(A && typeof A.privacy === 'function' && A.privacy() === true); } catch (e) { return false; }
+  }
 
   function shellHtml(desk) {
     return '<div class="os-pocket-scrim" data-pocket-scrim=""></div>' +
@@ -79,6 +89,10 @@
   function keptHtml(list, now) {
     var file = canFile();
     if (!list.length) return '<p class="os-pocket-muted">Nothing kept on this device.</p>';
+    if (cur && cur.priv) {
+      return '<p class="os-pocket-muted">' + list.length + (list.length === 1 ? ' kept note is' : ' kept notes are') +
+        ' hidden while In a home is on. They come back when it ends.</p>';
+    }
     return '<h3 class="os-pocket-st">On this device</h3>' +
       (file ? '' : '<p class="os-pocket-muted">Quick Capture is not on this page, so notes can\'t be filed from here. They stay on this device.</p>') +
       '<ul class="os-pocket-list">' + list.map(function (n) {
@@ -111,7 +125,7 @@
     if (r.error === 'full') { status('Pocket holds ' + PL.MAX_NOTES + ' notes. File or delete one first.'); return focusArea(); }
     if (!writeNotes(r.list)) { status('This device would not store the note. Copy it before you close Pocket.'); return focusArea(); }
     a.value = '';
-    lsDel(PL.draftKey(uid()));
+    if (cur.priv) privDraft = ''; else lsDel(PL.draftKey(uid()));
     cur.undo = null;
     status('Kept on this device.');
     paintKept();
@@ -192,6 +206,7 @@
   }
   function onInput(ev) {
     if (ev.target !== area()) return;
+    if (cur && cur.priv) { privDraft = String(ev.target.value || '').slice(0, PL.MAX_LEN); return; }
     var k = PL.draftKey(uid());
     if (ev.target.value) lsSet(k, String(ev.target.value).slice(0, PL.MAX_LEN));
     else lsDel(k);
@@ -210,9 +225,9 @@
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKey);
     el.addEventListener('input', onInput);
-    cur = { el: el, back: back && back !== doc.body ? back : null, desk: desk, undo: null };
+    cur = { el: el, back: back && back !== doc.body ? back : null, desk: desk, undo: null, priv: privacy() };
     doc.body.appendChild(el);
-    var draft = lsGet(PL.draftKey(uid()));
+    var draft = cur.priv ? privDraft : lsGet(PL.draftKey(uid()));
     if (draft) area().value = String(draft).slice(0, PL.MAX_LEN);
     paintKept();
     focusArea();
