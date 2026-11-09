@@ -560,7 +560,7 @@
     if (!mode || !how) return;
     var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : ((S.brief.stage || {}).quote || '')).trim().slice(0, 300) : '';
     if (plan.needsReason && !reason) { S.err = S.err || {}; S.err['stage-move'] = 'Give a reason first.'; render(); return; }
-    var callId = S.callId, leadId = S.leadId, onChange = S.onChange;
+    var callId = S.callId, leadId = S.leadId, onChange = S.onChange, from = currentStage();
     var opts = { asked: mode === 'confirmed' };
     if (reason) opts.lostReason = reason;
     close();
@@ -576,7 +576,7 @@
       if (typeof window.showToast === 'function') window.showToast('The stage did not move: ' + errText(e), 'error');
     }
     if (!moved) return;
-    callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'accept', value: plan.key, mode: mode }).catch(function () { /* the move itself is saved */ });
+    callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'accept', value: plan.key, mode: mode, fromStage: from }).catch(function () { /* the move itself is saved */ });
     if (typeof onChange === 'function') { try { onChange(); } catch (_) { /* the card reloads itself */ } }
   }
 

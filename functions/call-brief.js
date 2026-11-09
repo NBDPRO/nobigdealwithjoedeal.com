@@ -223,7 +223,8 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     mode = data.mode === 'one-tap' || data.mode === 'confirmed' ? data.mode : '';
     if (!mode) throw new HttpsError('invalid-argument', 'Say how the stage was moved.');
     if (!L.stageOfferable(st.targetKey, st.role)) throw new HttpsError('failed-precondition', 'A call never moves a customer to a signed contract, a job or a won stage.');
-    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role)) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
+    // fromStage: where the lead was before the writer moved it (the lead reads the target by now).
+    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, L.str(data.fromStage, 40))) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
   }
 
   let finalValue = decision === 'skip' ? '' : (data.value == null ? String(aiValue || '') : L.str(data.value, item === 'summary' ? 600 : 200));
@@ -275,7 +276,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   // never offers that slot again (slot 0 is the card's own Promise button).
   const slot = Number(data.slot);
   if (item.startsWith('promise:') && decision === 'accept' && Number.isInteger(slot) && slot >= 1 && slot <= 5) entry.slot = slot;
-  if (mode) entry.mode = mode;
+  if (mode) { entry.mode = mode; if (data.fromStage) entry.fromStage = L.str(data.fromStage, 40); }
   await db.runTransaction(async (tx) => {
     const s = await tx.get(g.briefRef);
     const prev = s.exists && Array.isArray((s.data() || {}).decisions) ? s.data().decisions : [];

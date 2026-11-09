@@ -10,7 +10,8 @@
  *               that Undo cannot refund, measure-auto-order.js), Install
  *               Done (the after-install automations), and Lost / Archived /
  *               Cancelled (stage-write.js stageMoveNeedsConfirm; Lost needs
- *               a reason). The sheet asks first, naming why.
+ *               a reason), and any move BACK to an earlier stage. The sheet
+ *               asks first, naming why.
  *    'flow'     never moves from the sheet: a stage that sets an appointment
  *               (a scheduled meeting or visit). It opens the normal place to
  *               change the stage, where the date is set too.
@@ -50,6 +51,18 @@
   // A stage whose key says something gets scheduled: never moved from the sheet.
   var APPOINTMENT_RE = /(^|_)(appointment|appt|appts|meeting|scheduled?|booked|booking|visit)(_|$)/;
   var CLOSE_OUT_RE = /(^|[_\s-])(lost|archived?|cancell?ed)($|[_\s-])/;
+  // The default pipeline order (= functions/call-brief-logic.js DEFAULT_STAGES,
+  // which mirrors crm-stages.js STAGE_META). A suggestion that sits EARLIER
+  // than where the customer is would move them back: never one tap.
+  var STAGE_ORDER = ['new', 'contacted', 'inspected', 'claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done',
+    'scope_received', 'estimate_submitted', 'supplement_requested', 'supplement_approved', 'estimate_sent_cash', 'negotiating',
+    'prequal_sent', 'loan_approved', 'contract_signed', 'job_created', 'permit_pulled', 'materials_ordered', 'materials_delivered',
+    'crew_scheduled', 'install_in_progress', 'install_complete', 'final_photos', 'deductible_collected', 'final_payment',
+    'collections', 'closed', 'warranty_claim', 'warranty_scheduled', 'warranty_repaired', 'service_quoted', 'service_approved', 'lost'];
+  function movesBack(key, currentKey) {
+    var a = STAGE_ORDER.indexOf(key), b = STAGE_ORDER.indexOf(normKey(currentKey));
+    return a !== -1 && b !== -1 && a < b;
+  }
 
   function normKey(k) { return String(k == null ? '' : k).trim().toLowerCase().replace(/[\s-]+/g, '_'); }
 
@@ -58,6 +71,7 @@
     install_complete: 'Moving to this stage starts the after-install steps (the Before & After report, the close-out tasks).',
     lost: 'This closes the customer out. It needs a reason.',
     closeOut: 'This closes the customer out.',
+    back: 'This moves the customer back to an earlier stage.',
     flow: 'This stage sets an appointment, so it is never moved from here. Change it where you set the date.',
     refuse: 'A call never moves a customer to a signed contract, a job or a won stage.',
   };
@@ -78,10 +92,14 @@
     if (CONFIRM_KEYS.indexOf(key) !== -1) return { kind: 'confirm', key: key, why: WHY[key], needsReason: false };
     if (role === 'lost' || key === 'lost') return { kind: 'confirm', key: key, why: WHY.lost, needsReason: true };
     if (CLOSE_OUT_RE.test(key)) return { kind: 'confirm', key: key, why: WHY.closeOut, needsReason: false };
+    if (movesBack(key, currentKey)) return { kind: 'confirm', key: key, why: WHY.back, needsReason: false };
     return { kind: 'one-tap', key: key, why: '', needsReason: false };
   }
-  /** The server's question: may this stage go in one tap? */
-  function oneTapAllowed(key, role) { return stagePlan({ targetKey: key, role: role }, '').kind === 'one-tap'; }
+  /** The server's question: may a move to this stage from fromKey (when known) go in one tap? */
+  function oneTapAllowed(key, role, fromKey) {
+    var from = normKey(fromKey) === normKey(key) ? '' : fromKey;
+    return stagePlan({ targetKey: key, role: role }, from || '').kind === 'one-tap';
+  }
 
   // ── 2. said vs. proposal ─────────────────────────────────────────────
   // Order matters: the specific item before the general one (gutter guards
@@ -235,7 +253,7 @@
   }
 
   return {
-    stagePlan: stagePlan, oneTapAllowed: oneTapAllowed, CONFIRM_KEYS: CONFIRM_KEYS, APPOINTMENT_RE: APPOINTMENT_RE, WHY: WHY,
+    stagePlan: stagePlan, oneTapAllowed: oneTapAllowed, CONFIRM_KEYS: CONFIRM_KEYS, STAGE_ORDER: STAGE_ORDER, APPOINTMENT_RE: APPOINTMENT_RE, WHY: WHY,
     saidVsProposal: saidVsProposal, copyIntoScope: copyIntoScope, loadLeadBriefs: loadLeadBriefs, VOCAB: VOCAB, _proposalText: proposalText,
   };
 });

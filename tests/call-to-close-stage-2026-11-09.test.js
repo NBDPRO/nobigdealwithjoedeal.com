@@ -65,6 +65,10 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
     ok('an unknown role is refused (fail closed)', plan('contacted', '').kind === 'refuse' && plan('contacted', 'weird').kind === 'refuse');
     ok('a plain forward move is one tap', plan('contacted', 'active').kind === 'one-tap' && plan('estimate_submitted', 'active').kind === 'one-tap' && plan('claim_filed', 'active').kind === 'one-tap');
     ok('already at that stage → nothing to do', plan('contacted', 'active', 'contacted').kind === 'none');
+    ok('a move BACK to an earlier stage is never one tap: it asks, saying so', plan('contacted', 'active', 'estimate_submitted').kind === 'confirm' && /back/i.test(plan('contacted', 'active', 'estimate_submitted').why));
+    ok('…back to New too', plan('new', 'new', 'contacted').kind === 'confirm');
+    ok('a forward move from where the customer is stays one tap', plan('estimate_submitted', 'active', 'contacted').kind === 'one-tap');
+    ok('a custom stage the order does not know is not called a move back', plan('my_custom_stage', 'active', 'estimate_submitted').kind === 'one-tap');
     ok('no suggestion → nothing to do', C.stagePlan(null, 'new').kind === 'none');
   }
 
@@ -80,6 +84,10 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       const diff = [];
       for (const k of keys) for (const r of roles) if (C.oneTapAllowed(k, r) !== L.stageOneTapAllowed(k, r)) diff.push(k + '/' + r);
       ok('client and server answer the same for ' + keys.length * roles.length + ' key / role pairs', diff.length === 0, diff);
+      const bdiff = [];
+      for (const k of keys) for (const cur of keys) if (C.oneTapAllowed(k, 'active', cur) !== L.stageOneTapAllowed(k, 'active', cur)) bdiff.push(k + '<-' + cur);
+      ok('…and for every target / current-stage pair (moves back)', bdiff.length === 0, bdiff.slice(0, 10));
+      ok('the stage order both use is the default pipeline order', JSON.stringify(C.STAGE_ORDER) === JSON.stringify(L.DEFAULT_STAGES.map((s) => s.key)));
     }
   }
 
@@ -158,6 +166,16 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       const rep = await decide(makeDb(seed(contacted)), { uid: 'rep', token: { role: 'sales_rep', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
       ok('a sales rep who does not own the call is refused', rep.e && rep.e.code === 'permission-denied');
       const ca = await decide(makeDb(seed(contacted)), { uid: 'ca', token: { role: 'company_admin', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      // The log comes AFTER the writer moved the lead, so the stage it moved
+      // from travels with it (fromStage); the lead itself already reads the target.
+      const back = makeDb(seed(contacted));
+      back.store.set('leads/L1', { userId: 'jo', companyId: 'co1', stage: 'contacted' });
+      const rb = await decide(back, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'estimate_submitted' });
+      ok('a one-tap log of a move BACK (from a later stage) is refused', rb.e && rb.e.code === 'failed-precondition', rb.e ? rb.e.message : rb.r);
+      const moved = await decide(back, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'new' });
+      ok('a one-tap log after the move landed (the lead already reads the target) is accepted', moved.r && moved.r.ok === true, moved.e && moved.e.message);
+      const rb2 = await decide(back, OWNER, { decision: 'accept', value: 'contacted', mode: 'confirmed', fromStage: 'estimate_submitted' });
+      ok('…confirmed, it is logged', rb2.r && rb2.r.ok === true);
       ok('a same-company company_admin may (the callCenterAction set)', ca.r && ca.r.ok === true, ca.e && ca.e.message);
     }
   }
@@ -228,7 +246,7 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       await h.click({ 'data-cb-act': 'stage-move' });
       ok('one tap → the page\'s own writer window.progressStage(target)', h.moves.length === 1 && h.moves[0].via === 'progressStage' && h.moves[0].target === 'contacted', h.moves);
       const d = h.calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'stage');
-      ok('…then the decision is logged: accept, the key, mode one-tap', d && d.data.decision === 'accept' && d.data.value === 'contacted' && d.data.mode === 'one-tap' && d.data.callId === 'cube_ABCDE12345', d);
+      ok('…then the decision is logged: accept, the key, mode one-tap, the stage it moved from', d && d.data.decision === 'accept' && d.data.value === 'contacted' && d.data.mode === 'one-tap' && d.data.callId === 'cube_ABCDE12345' && d.data.fromStage === 'new', d);
     }
     {
       const h = load({ page: 'customer', refuse: true });

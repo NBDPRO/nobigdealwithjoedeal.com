@@ -741,10 +741,14 @@ function stageOfferable(key, role) {
   const k = normStageKey(key);
   return !!k && !NEVER_OFFER.has(k) && OFFER_ROLES.includes(normStageKey(role));
 }
-function stageOneTapAllowed(key, role) {
+const STAGE_ORDER = DEFAULT_STAGES.map((s) => s.key);
+/** fromKey: the stage the lead moved from, when known. A move back to an earlier default stage is never one tap. */
+function stageOneTapAllowed(key, role, fromKey) {
   const k = normStageKey(key);
   if (!stageOfferable(k, role) || STAGE_APPOINTMENT_RE.test(k) || STAGE_CONFIRM_KEYS.includes(k)) return false;
-  return normStageKey(role) !== 'lost' && !STAGE_CLOSE_OUT_RE.test(k);
+  if (normStageKey(role) === 'lost' || STAGE_CLOSE_OUT_RE.test(k)) return false;
+  const a = STAGE_ORDER.indexOf(k), b = STAGE_ORDER.indexOf(normStageKey(fromKey));
+  return !(a !== -1 && b !== -1 && a < b);
 }
 
 /** 'use' a stored brief, 'refresh-too-soon' (forced inside 10 min: serve the stored one), or 'regenerate'. */
