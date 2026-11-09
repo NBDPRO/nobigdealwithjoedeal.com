@@ -41,7 +41,7 @@
   // Record the view the page opened on, without adding an entry.
   function base() {
     const s = stateOf();
-    if (s && s[MARK]) return;
+    if (s && s[MARK] === 'view') return;     // an overlay entry left by a reload is replaced: no overlay is open now, so it would be a dead step
     try { hist().replaceState({ [MARK]: 'view', key: keyOf() }, '', '#' + keyOf()); } catch (_) { /* as above */ }
   }
 
@@ -91,13 +91,16 @@
   window.addEventListener('popstate', () => {
     if (busy) { flush(); return; }
     if (stack.length) {
+      const here = stateOf();
+      if (here && here[MARK] === 'ov' && here.name === stack[stack.length - 1]) return;   // landed on the open overlay's own entry: keep it open
       pop = true;
       try { popTop(); } finally { pop = false; }
       return;
     }
     const s = stateOf();
     if (!s || !s[MARK]) return;
-    if (s[MARK] === 'ov') { try { hist().replaceState({ [MARK]: 'view', key: keyOf() }, '', '#' + keyOf()); } catch (_) { /* as above */ } return; }
+    // An overlay entry with no overlay behind it (the view changed under the overlay, so its entry could not be taken back): step over it.
+    if (s[MARK] === 'ov') { try { hist().back(); } catch (_) { /* as above */ } return; }
     if (s.key === keyOf()) return;
     let i = idxOf(s.key);
     if (i < 0 && s.key !== 'dash') i = -1;     // that day is gone: the Dashboard

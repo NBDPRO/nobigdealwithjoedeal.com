@@ -49,11 +49,12 @@ function boot(o) {
     now = end; await flush();
   };
   const badge = { style: {}, _text: '', set textContent(v) { this._text = v; badges.push(v); }, get textContent() { return this._text; }, appendChild() {}, setAttribute() {} };
-  const document = { getElementById: () => null, createElement: () => badge, body: { appendChild() {} } };
+  const document = { getElementById: () => null, createElement: () => badge, body: { appendChild() {} }, activeElement: null };
   const chipEvents = [];
+  let loads = 0, refreshes = 0;
   const window = {
     NBDDsSync: L, NBDSyncChip: require(path.join(ROOT, 'docs', 'pro', 'daily-success', 'js', 'sync-chip-logic.js')),
-    dispatchEvent: (e) => { if (e.type === 'nbd-ds-sync') chipEvents.push(e.detail); return true; }, loadPages() {}, dsRefreshView() {},
+    dispatchEvent: (e) => { if (e.type === 'nbd-ds-sync') chipEvents.push(e.detail); return true; }, loadPages() { loads++; }, dsRefreshView() { refreshes++; },
     savePages() {},
     NBDCoach: { mergeSessions: (a, b) => { const m = new Map(); for (const x of a.concat(b)) { const c = m.get(String(x.id)); if (!c || (x.mt || 0) > (c.mt || 0)) m.set(String(x.id), x); } return [...m.values()]; } },
   };
@@ -68,8 +69,8 @@ function boot(o) {
     onAuthStateChanged: (a, cb) => { authCb = cb; },
     getFirestore: () => ({}), doc: (...a) => ({ path: a.slice(1).join('/') }), collection: (...a) => ({ path: a.slice(1).join('/') }),
     getDoc: async (ref) => { reads.push(ref.path); return snap([]); },
-    getDocs: async (ref) => { reads.push(ref.path); return snap(/ds_workouts/.test(ref.path) ? (o.cloudWorkouts || []) : []); },
-    setDoc: async () => {},
+    getDocs: async (ref) => { reads.push(ref.path); if (o.failWorkoutRead && /ds_workouts/.test(ref.path)) throw new Error('workouts read denied'); return snap(/ds_workouts/.test(ref.path) ? (o.cloudWorkouts || []) : (o.cloudPages || [])); },
+    setDoc: async (ref) => { if (o.failSettings && /userSettings/.test(ref.path)) throw new Error('settings denied'); if (o.failWorkoutSet && /ds_workouts/.test(ref.path)) throw new Error('workout set denied'); },
     writeBatch: () => {
       const paths = [];
       return {
@@ -86,7 +87,7 @@ function boot(o) {
   const ctx = vm.createContext(Object.assign({ window, document, localStorage, CustomEvent: class { constructor(n, i) { this.type = n; this.detail = i && i.detail; } }, console: { log() {}, warn() {}, error() {} }, setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, JSON, Date, Math, Promise, Map, Set, Object, Array, String, Number, Error }, stubs));
   vm.runInContext('(async () => {\n' + body + '\n})();', ctx, { filename: 'ds-firebase-sync.js' });
   return {
-    store, writes, reads, badges, badge, window, advance, opts: o, chipEvents,
+    store, writes, reads, badges, badge, window, document, advance, opts: o, chipEvents, counts: () => ({ loads, refreshes }),
     signIn: async (uid) => { while (!authCb) await new Promise((r) => setImmediate(r)); await authCb({ uid }); await flush(); },
   };
 }
@@ -176,6 +177,64 @@ const visible = (p) => p.badge.style.opacity === '1';
     const p = boot();
     await p.signIn('U1');
     ok('signing in tells the chip: syncing, then synced', p.chipEvents.some((e) => e.cloud === 'syncing' && e.signedIn === true) && p.chipEvents.slice(-1)[0].cloud === 'synced', JSON.stringify(p.chipEvents));
+  }
+
+  console.log('\n5. the chip never says SYNCED over a failed write, and a retry never races or eats typing (review fixes)');
+  const last = (p) => p.chipEvents.slice(-1)[0].cloud;
+  {
+    const p = boot({ failSettings: true, storage: { nbd_ds_food: { favs: [] }, nbd_ds_food_at: '5' } });
+    await p.signIn('U1');
+    ok('a denied settings write on the first sync leaves the chip failed, not synced', last(p) === 'failed', JSON.stringify(p.chipEvents.map((e) => e.cloud)));
+  }
+  {
+    const p = boot({ storage: { nbd_ds_food: { favs: [] }, nbd_ds_food_at: '5' } });
+    await p.signIn('U1');
+    p.opts.failSettings = true;
+    const r = await p.window.NBDDsCloud.pushSettings();
+    ok('pushSettings reports false when the write fails', r === false, String(r));
+    ok('...and tells the chip: failed (a retry is scheduled)', last(p) === 'failed', JSON.stringify(p.chipEvents.map((e) => e.cloud)));
+    await p.window.NBDDsCloud.retry();
+    ok('a retry whose settings write still fails stays failed (the old code said synced here)', last(p) === 'failed', JSON.stringify(p.chipEvents.map((e) => e.cloud)));
+    p.opts.failSettings = false;
+    await p.window.NBDDsCloud.retry();
+    ok('...and goes synced once the write goes through', last(p) === 'synced');
+  }
+  {
+    const p = boot({ failWorkoutRead: true });
+    await p.signIn('U1');
+    ok('a workout read that fails on sign-in leaves the chip failed, not synced', last(p) === 'failed', JSON.stringify(p.chipEvents.map((e) => e.cloud)));
+  }
+  {
+    const p = boot();
+    await p.signIn('U1');
+    p.opts.failWorkoutSet = true;
+    const ok1 = await p.window.NBDDsCloud.pushWorkout({ id: 'w-new', mt: 5 });
+    ok('a finished workout that fails to reach the cloud returns false and turns the chip failed', ok1 === false && last(p) === 'failed', last(p));
+    p.opts.failWorkoutSet = false;
+    p.store.set('nbd_ds_workouts', JSON.stringify([{ id: 'w-new', date: '2026-10-02', mt: 5, exercises: [] }]));
+    await p.advance(2500);
+    ok('...and the retry sends the workout (nothing waits for the next sign-in)', p.writes.some((w) => /ds_workouts\/w-new/.test(w)) && last(p) === 'synced', JSON.stringify(p.writes));
+  }
+  {
+    const p = boot({ failPagesCommit: true });
+    await p.signIn('U1');
+    p.reads.length = 0;
+    const a = p.window.NBDDsCloud.retry(), b = p.window.NBDDsCloud.retry(), c = p.window.NBDDsCloud.retry();
+    await Promise.all([a, b, c]);
+    ok('three overlapping retries run one merge (one pages read), not three', p.reads.filter((r) => /ds_pages/.test(r)).length === 1, JSON.stringify(p.reads));
+  }
+  {
+    const cloudPage = { id: 7, dk: '2026-10-01', mt: 900, data: { x: 1 } };
+    const p = boot({ cloudPages: [cloudPage], failWorkoutRead: true });
+    p.document.activeElement = { tagName: 'INPUT' };
+    await p.signIn('U1');
+    ok('while an input has focus a merge does not overwrite the phone copy or redraw', p.counts().loads === 0 && p.counts().refreshes === 0 && !/"id":7/.test(p.store.get('nbd_dsp_v1') || ''), JSON.stringify(p.counts()));
+    ok('...and the chip is not left claiming synced', last(p) !== 'synced', last(p));
+    p.opts.failWorkoutRead = false;
+    p.document.activeElement = null;
+    await p.advance(5000);
+    ok('once the field loses focus the next retry applies the cloud copy and redraws once', /"id":7/.test(p.store.get('nbd_dsp_v1') || '') && p.counts().refreshes === 1, JSON.stringify(p.counts()));
+    ok('...and the chip reaches synced', last(p) === 'synced', last(p));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

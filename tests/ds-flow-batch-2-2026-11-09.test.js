@@ -206,6 +206,35 @@ const back = async (page) => { await page.evaluate(() => history.back()); await 
     await ctx.close();
   }
   {
+    // review fixes: a view change under an open overlay, a popstate that lands on the overlay's own entry, a reload with an overlay open
+    const { ctx, page, errs } = await open(browser, srv);
+    const inApp = () => page.evaluate(() => ({ money: !!document.querySelector('#mnOverlay.open'), coach: !!document.querySelector('#wcOverlay.open'), cur, st: history.state && history.state.nbdDs }));
+    await page.evaluate(() => switchTo(0));
+    await page.waitForTimeout(200);
+    await page.evaluate(() => NBDMoneyUI.open());
+    await page.evaluate(() => switchTo(1));
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await page.waitForTimeout(300);
+    let s = await inApp();
+    ok('control: the day changed under the open sheet and the sheet closed', !s.money && s.cur === 1, JSON.stringify(s));
+    await back(page);
+    await page.waitForTimeout(250);
+    s = await inApp();
+    ok('the first back press skips the stale overlay entry and returns to the earlier day (no dead press)', s.cur === 0 && !s.money, JSON.stringify(s));
+    await page.evaluate(() => NBDCoachUI.open());
+    await page.evaluate(() => window.dispatchEvent(new PopStateEvent('popstate', { state: history.state })));
+    await page.waitForTimeout(150);
+    s = await inApp();
+    ok('a popstate that lands on the open overlay\'s own entry does not close it', s.coach, JSON.stringify(s));
+    await page.evaluate(() => NBDMoneyUI.open());
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(500);
+    s = await inApp();
+    ok('after a reload with a sheet open the current entry is a plain view (back is not a dead press)', s.st === 'view' && !s.money, JSON.stringify(s));
+    ok('control: no page errors', errs.length === 0, errs.join(' | '));
+    await ctx.close();
+  }
+  {
     // a deep link into an overlay-less load: the first back from the first view is the browser's to handle
     const { ctx, page, errs } = await open(browser, srv);
     const st = await page.evaluate(() => history.state);
@@ -252,6 +281,14 @@ const back = async (page) => { await page.evaluate(() => history.back()); await 
     await page.waitForTimeout(600);
     const b = await barOf(page);
     ok('a rest that ended long ago is dropped at load (no bar, no stored key)', (!b || !b.visible) && (await page.evaluate(() => localStorage.getItem('nbd_ds_coach_rest'))) === null, JSON.stringify(b));
+    ok('control: no page errors', errs.length === 0, errs.join(' | '));
+    await ctx.close();
+  }
+  {
+    const { ctx, page, errs } = await open(browser, srv, { extra: { nbd_ds_coach_rest: JSON.stringify({ until: Date.now() - 20000, label: 'just ended' }) } });
+    await page.waitForTimeout(600);
+    const b = await barOf(page);
+    ok('a rest that already ended before the reload is dropped too (no permanent "Go" bar to dismiss)', (!b || !b.visible) && (await page.evaluate(() => localStorage.getItem('nbd_ds_coach_rest'))) === null, JSON.stringify(b));
     ok('control: no page errors', errs.length === 0, errs.join(' | '));
     await ctx.close();
   }

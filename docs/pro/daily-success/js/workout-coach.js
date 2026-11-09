@@ -662,12 +662,12 @@
     runRest();
   }
   function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); }
-  // A rest that was running when the page was closed or reloaded. One that ended more than a minute ago is dropped; one that
-  // ended since is shown as "Go" without buzzing (the alert for it is long past).
+  // A rest that was still running when the page was closed or reloaded. One that has already ended is dropped: its alert is long past,
+  // and a "Go" bar that comes back from nowhere would sit on the screen until someone found its OK.
   function restoreRest() {
     const r = readJson(REST, null);
-    if (!r || !(Number(r.until) > Date.now() - 60000)) { if (r) persistRest(); return; }
-    rest = { until: Number(r.until), label: String(r.label || ''), buzzed: Number(r.until) <= Date.now(), said: '' };
+    if (!r || !(Number(r.until) > Date.now())) { if (r) persistRest(); return; }
+    rest = { until: Number(r.until), label: String(r.label || ''), buzzed: false, said: '' };
     runRest();
   }
   // The slim "Rest m:ss - Skip" bar: whenever a rest is running and the coach is closed (the coach shows its own line while open),

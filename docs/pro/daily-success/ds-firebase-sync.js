@@ -106,17 +106,36 @@ function chipFailed() {
   _retryT = setTimeout(retrySync, C && C.backoffMs ? C.backoffMs(++_attempt) : 5000);
 }
 // Not through showError/showBadge: a retry that fails again must not flash the pill every few seconds.
+let _retrying = false;   // one retry at a time: a tap, the backoff timer and the online event can all land together
 async function retrySync() {
+  if (_retrying) return;
   clearTimeout(_retryT);
   if (!_uid) return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) { emit('failed'); return; }
-  if (!_synced) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
-  emit('syncing');
-  try { await pushToFirestore(readJson(STORE, [])); await pushSettings(); chipOk(); }
-  catch (e) { console.warn('[ds-sync] retry failed', e && e.code); chipFailed(); }
+  _retrying = true;
+  try {
+    if (!_synced) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
+    emit('syncing');
+    try {
+      const sent = await pushToFirestore(readJson(STORE, []));
+      if (sent === false) { chipFailed(); return; }
+      await pushSettingsOrThrow();
+      await syncWorkouts();   // also sends a finished workout whose first push failed
+      chipOk();
+    } catch (e) { console.warn('[ds-sync] retry failed', e && e.code); chipFailed(); }
+  } finally { _retrying = false; }
 }
 if (typeof window.addEventListener === 'function') {
   window.addEventListener('online', () => { if (_uid && _cloud === 'failed') retrySync(); });
+}
+
+// A field has focus, or app.js holds edits it has not collected yet (its 800 ms window). `dirty` is app.js's global.
+function editingNow() {
+  try {
+    if (typeof dirty !== 'undefined' && dirty) return true;   // eslint-disable-line no-undef
+    const a = typeof document !== 'undefined' ? document.activeElement : null;
+    return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable));
+  } catch (_) { return false; }
 }
 
 const readJson = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
@@ -146,7 +165,7 @@ function computeStreaks(pages) {
 // Push the pages the cloud hasn't seen at their current `mt`, the pending
 // tombstones, and the streaks doc — chunked, so no batch passes 400 writes.
 async function pushToFirestore(pages) {
-  if (!_uid || !L()) return;
+  if (!_uid || !L()) return false;   // nothing was sent: the caller must not report synced
   if (_pushing) { try { await _pushing; } catch (_) {} }
   _pushing = (async () => {
     const changed = L().changedSince(pages, _ledger);
@@ -187,7 +206,7 @@ async function pushToFirestore(pages) {
       for (const id of tomb) _ledger.delete(id);
     }
   })();
-  try { await _pushing; showBadge('Synced', '#2ECC8A'); }
+  try { await _pushing; showBadge('Synced', '#2ECC8A'); return true; }
   finally { _pushing = null; }
 }
 
@@ -206,7 +225,8 @@ function localSetting(s) {
   return { value: L().parseJson(localStorage.getItem(s.key)), at: Number(localStorage.getItem(s.key + '_at')) || 0 };
 }
 
-async function pushSettings() {
+// Throws when the write fails (the sync paths report it); pushSettings below is the fire-and-forget form app.js calls.
+async function pushSettingsOrThrow() {
   if (!_uid || !L()) return;
   const patch = {};
   for (const s of SETTINGS) {
@@ -216,8 +236,12 @@ async function pushSettings() {
     patch[s.field + 'At'] = loc.at || Date.now();
   }
   if (!Object.keys(patch).length) return;
-  try { await setDoc(doc(db, 'userSettings', _uid), patch, { merge: true }); }
-  catch (e) { console.warn('[ds-sync] settings push failed', e && e.code); }
+  await setDoc(doc(db, 'userSettings', _uid), patch, { merge: true });
+}
+// Resolves true when the settings reached the cloud (or there was nothing to send), false when the write failed; a failure also tells the chip.
+async function pushSettings() {
+  try { await pushSettingsOrThrow(); return true; }
+  catch (e) { console.warn('[ds-sync] settings push failed', e && e.code); if (_uid) chipFailed(); return false; }
 }
 
 // Returns true when a cloud copy was restored into localStorage.
@@ -242,7 +266,7 @@ async function syncSettings() {
       needPush = true;
     }
   }
-  if (needPush) await pushSettings();
+  if (needPush) await pushSettingsOrThrow();
   return restored;
 }
 
@@ -252,10 +276,9 @@ async function syncSettings() {
 async function syncWorkouts() {
   if (!_uid || !window.NBDCoach || !L()) return;
   const cloud = [];
-  try {
-    const snap = await getDocs(collection(db, 'users', _uid, 'ds_workouts'));
-    snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
-  } catch (e) { return; }
+  // A failed read propagates (no silent skip): the chip must not say synced over a workout sync that did not happen.
+  const snap = await getDocs(collection(db, 'users', _uid, 'ds_workouts'));
+  snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
   const merged = window.NBDCoach.mergeSessions(readJson(WKEY, []), cloud);
   // A full / private-mode localStorage must not abort the cloud pushes below; the failure is rethrown at the end so the caller shows it.
   let cacheErr = null;
@@ -276,7 +299,7 @@ async function pushWorkout(session) {
   try {
     await setDoc(doc(db, 'users', _uid, 'ds_workouts', String(session.id)), { ...session, _uid, _updatedAt: serverTimestamp() }, { merge: true });
     return true;
-  } catch (e) { console.warn('[ds-sync] workout push failed', e && e.code); return false; }
+  } catch (e) { console.warn('[ds-sync] workout push failed', e && e.code); chipFailed(); return false; }
 }
 
 window.NBDDsCloud = { pushSettings, pushWorkout, retry: retrySync };
@@ -296,7 +319,7 @@ function installInterceptor() {
     showBadge('Saving...');
     emit('syncing');
     _syncTimer = setTimeout(() => {
-      pushToFirestore(readJson(STORE, [])).then(chipOk).catch(() => showError('Sync failed'));
+      pushToFirestore(readJson(STORE, [])).then((sent) => { if (sent === false) chipFailed(); else chipOk(); }).catch(() => showError('Sync failed'));
     }, DEBOUNCE);
     return wrote;
   };
@@ -331,7 +354,8 @@ async function onAuth(user) {
     }
     try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
     announceAccount();
-    const restored = await syncSettings();
+    let settingsFailed = false, restored = false;
+    try { restored = await syncSettings(); } catch (e) { settingsFailed = true; console.warn('[ds-sync] settings push failed', e && e.code); }
     const cloud = await pullFromFirestore();
     if (cloud === null) { showError('Sync error'); return; }
     _ledger.clear();
@@ -340,6 +364,14 @@ async function onAuth(user) {
     const merged = L().mergePages(local, cloud, readJson(TOMB, []));
     const changedLocal = merged.removed.length || merged.pages.length !== local.length
       || merged.pages.some((p, i) => p !== local[i] && JSON.stringify(p) !== JSON.stringify(local[i]));
+    // Typing in a field (or an edit not yet collected) must not be redrawn away by a merge, least of all by a background retry:
+    // leave the phone copy alone and try again in a few seconds.
+    if (changedLocal && editingNow()) {
+      emit('syncing');
+      clearTimeout(_retryT);
+      _retryT = setTimeout(retrySync, 3000);
+      return;
+    }
     if (changedLocal) {
       localStorage.setItem(STORE, JSON.stringify(merged.pages));
       if (typeof window.loadPages === 'function') window.loadPages();
@@ -354,6 +386,7 @@ async function onAuth(user) {
     let failed = false;
     try { await pushToFirestore(merged.pages); } catch (e) { failed = true; console.warn('[ds-sync] pages push failed', e && e.code); }
     try { await syncWorkouts(); } catch (e) { failed = true; console.warn('[ds-sync] workout sync failed', e && e.code); }
+    if (settingsFailed) failed = true;
     if (failed) showError('Sync error');
     else { _synced = true; showBadge(merged.pages.length + ' days loaded', '#2ECC8A'); chipOk(); }
   } catch(e) { showError('Sync error'); }
