@@ -435,6 +435,9 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; follow-up dates are local days). MEASURED via --check.
 //   2026-10-06  420/72/516 -> 421/72/517, tests/pro-demo-wave2-2026-10-06.test.js
 //               (node; Pro demo wave 2 seed, previews, docgen fixes). MEASURED via --check.
+//   2026-11-09  952/74/1081 -> 954/74/1083, tests/merge-catalog-costs-2026-11-09.test.js
+//               and tests/supplier-sweep-data-fixes-2026-11-09.test.js (node; per-SKU
+//               cost-book merge tool, Berkshire bundles/sq). MEASURED via --check.
 const FLOORS = { node: 954, smoke: 74, disk: 1083 };
 
 // ── Argument parsing ───────────────────────────────────────────────
