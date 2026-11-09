@@ -9,7 +9,7 @@
  * 12,000-char budget (a separate key, so a full home can never push the OS
  * windows over the budget and drop them):
  *
- *   layoutState['os-home'] = { v:1, phone:[{ id, s, cfg?, items? }], desk:[{ id, s, x, y, w, h, cfg?, items? }] }
+ *   layoutState['os-home'] = { v:1, phone:[{ id, s, cfg?, items? }], desk:[{ id, s, x, y, w, h, cfg?, items? }], wp?:{ phone, desk } }
  *
  *   id    a widget in CATALOG (unknown ids are dropped)
  *   s     'S' | 'M' | 'L' as 's' | 'm' | 'l', one the widget offers (else its default)
@@ -24,6 +24,10 @@
  * keeps its order with no migration; the board is gravity-packed (Bento's
  * rule) and kept in reading order, which is also the one-column order below
  * 1100px.
+ *   wp    (P1) each surface's wallpaper: 'tod' (time of day), 'none', or a My
+ *         Skin image id; ids only, never a URL. null / absent = the default
+ *         (time of day, unless My Skin is painting a picture). Kept only when
+ *         a surface has one, so a home saved before P1 normalises unchanged.
  *
  *   normalize(raw)    a saved key made safe; garbage in, a clean default out
  *   defaults()        a new member's home
@@ -71,6 +75,9 @@
  *                              only the business half of Coach and Daily Success (their own counts).
  *   setSurface(own, surface, list)  the member's own key with one surface replaced (the other
  *                              surface stays theirs only if it already was)
+ *   cleanWp / wpOf / setWp     (P1) the per-surface wallpaper id
+ *   todPeriod(ms)              'dawn' | 'day' | 'dusk' | 'night' for a local time
+ *   wpPaint(stored, ctx)       what a surface paints: { wp:'auto'|'tod'|'none'|'img', tod, img }
  *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
@@ -167,6 +174,9 @@
     var r = isObj(raw) ? raw : {};
     var out = { v: 1 };
     SURFACES.forEach(function (s) { out[s] = cleanList(r[s], s === 'desk'); });
+    var wp = isObj(r.wp) ? r.wp : {};
+    var w = { phone: cleanWp(wp.phone), desk: cleanWp(wp.desk) };
+    if (w.phone || w.desk) out.wp = w;
     return out;
   }
 
@@ -339,6 +349,7 @@
       else if (co) { out[s] = inp.admin === true ? co : businessOnly(co); out.src[s] = 'company-default'; }
       else { out[s] = s === 'desk' ? deskBoard(copyList(DEFAULT)) : copyList(DEFAULT); out.src[s] = 'default'; }
     });
+    if (mine && mine.wp) out.wp = mine.wp;   // the wallpaper is always the member's own
     return out;
   }
   function setSurface(own, surface, list) {
@@ -348,7 +359,47 @@
       if (s === surface) out[s] = cleanList(Array.isArray(list) ? list : [], s === 'desk');
       else if (Array.isArray(r[s])) out[s] = cleanList(r[s], s === 'desk');
     });
+    var wp = isObj(r.wp) ? { phone: cleanWp(r.wp.phone), desk: cleanWp(r.wp.desk) } : null;
+    if (wp && (wp.phone || wp.desk)) out.wp = wp;
     return out;
+  }
+
+  // ── wallpaper (P1, design §3.6) ──────────────────────────────
+  // Built-ins, or a My Skin per-theme image id (my-skin-logic.js IMAGE_ID_RE).
+  // Never a URL or a path: the picture is read by My Skin under its own rules.
+  var WP_BUILTIN = ['tod', 'none'];
+  var WP_IMAGE_RE = /^[a-z0-9]{8,16}$/;
+  function cleanWp(v) { return typeof v === 'string' && (WP_BUILTIN.indexOf(v) !== -1 || WP_IMAGE_RE.test(v)) ? v : null; }
+  function wpOf(key, surface) { var k = normalize(key); return k.wp && SURFACES.indexOf(surface) !== -1 ? k.wp[surface] : null; }
+  /** A new key with one surface's wallpaper set (null = back to the default); the other surface kept. */
+  function setWp(key, surface, v) {
+    var k = normalize(key);
+    if (SURFACES.indexOf(surface) === -1) return k;
+    var w = { phone: k.wp ? k.wp.phone : null, desk: k.wp ? k.wp.desk : null };
+    w[surface] = cleanWp(v);
+    delete k.wp;
+    k.wp = w;
+    return normalize(k);
+  }
+  /** Fixed local hours: dawn 5-8, day 8-17, dusk 17-20, night 20-5. */
+  function todPeriod(ms) {
+    var d = new Date(Number(ms));
+    var m = d.getHours() * 60 + d.getMinutes();
+    if (!isFinite(m)) return 'day';
+    return m >= 300 && m < 480 ? 'dawn' : m >= 480 && m < 1020 ? 'day' : m >= 1020 && m < 1200 ? 'dusk' : 'night';
+  }
+  /**
+   * What a surface paints. stored: wpOf(); ctx: { now, sun } (sun: Sunlight is on,
+   * which forces day). auto = the default: time of day, but a picture My Skin
+   * paints shows through (css/layouts/os.css decides that from My Skin's own class).
+   */
+  function wpPaint(stored, ctx) {
+    var c = ctx || {};
+    var v = cleanWp(stored);
+    var tod = c.sun ? 'day' : todPeriod(c.now);
+    if (!v) return { wp: 'auto', tod: tod, img: null };
+    if (v === 'tod' || v === 'none') return { wp: v, tod: tod, img: null };
+    return { wp: 'img', tod: tod, img: v };
   }
 
   // ── what the widgets show ─────────────────────────────────────
@@ -770,6 +821,7 @@
     STACK_MAX: STACK_MAX, STACK_DEFAULT: STACK_DEFAULT, stackItems: stackItems, weight: weight, toggleCard: toggleCard,
     needsYou: needsYou, urgency: urgency, urgencyText: urgencyText, parseUsage: parseUsage, frecency: frecency,
     stormNow: stormNow, monthStart: monthStart, moneyMonth: moneyMonth, toMs: toMs,
+    WP_BUILTIN: WP_BUILTIN, cleanWp: cleanWp, wpOf: wpOf, setWp: setWp, todPeriod: todPeriod, wpPaint: wpPaint,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
     DESK_COLS: DESK_COLS, DESK_MAX_Y: DESK_MAX_Y, DESK_CELLS: DESK_CELLS, deskBoard: deskBoard, deskMoveBy: deskMoveBy, deskMoveTo: deskMoveTo, deskSwap: deskSwap,
     deskResize: deskResize, deskSizeTo: deskSizeTo, deskRemove: deskRemove, deskAdd: deskAdd, describeDesk: describeDesk,

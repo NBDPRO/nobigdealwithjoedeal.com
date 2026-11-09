@@ -316,6 +316,49 @@
     var b = root && root.querySelector('[data-osp="' + esc(refocus) + '"], [data-osdo="' + esc(refocus) + '"]');
     if (b) safe(function () { b.focus(); });
   }
+  // ── wallpaper (P1, design §3.6) ───────────────────────────────
+  // Each surface carries data-os-wp (auto | tod | none | img) and data-os-tod
+  // (the period, re-read on the clock tick the surface already runs: no timer
+  // of its own); css/layouts/os.css paints from them. The choice is
+  // layoutState['os-home'].wp (ids only). The picker and the My Skin picture
+  // painter are js/os/wallpaper.js, a ScriptLoader bundle registered here and
+  // loaded only when Wallpaper is tapped or a picture is chosen.
+  var WP_BUNDLE = 'oswp', WP_FILES = ['js/os/wallpaper.js?v=1'];
+  function wpSurface() { return S && S.surface === 'phone' ? 'phone' : 'desk'; }
+  function wpEl() { return S ? (S.surface === 'phone' ? S.phoneEl : S.deskEl) : null; }
+  /** The bundle as a promise, or null when there is no ScriptLoader to load it with. */
+  function loadWp() {
+    if (W.NBDOSWallpaper) return Promise.resolve(W.NBDOSWallpaper);
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return null;
+    if (SL.bundles && !SL.bundles[WP_BUNDLE]) SL.bundles[WP_BUNDLE] = WP_FILES;
+    return Promise.resolve(SL.loadBundle(WP_BUNDLE)).then(function () {
+      if (!W.NBDOSWallpaper) throw new Error('wallpaper bundle missing');
+      return W.NBDOSWallpaper;
+    });
+  }
+  function paintWp() {
+    var el = wpEl(), HL = W.NBDOSHomeLogic;
+    if (!el || !HL || typeof HL.wpPaint !== 'function') return;
+    var surface = wpSurface();
+    var stored = S.wpPreview !== undefined ? S.wpPreview : HL.wpOf(homeKey(), surface);
+    var p = HL.wpPaint(stored, { now: Date.now(), sun: doc.documentElement.classList.contains('sun-all') });
+    if (el.getAttribute('data-os-tod') !== p.tod) el.setAttribute('data-os-tod', p.tod);
+    // a picture shows once it is decoded; until then (or if it can't be read) time of day
+    var shown = p.wp === 'img' ? (S.wpImg === p.img ? 'img' : 'tod') : p.wp;
+    if (el.getAttribute('data-os-wp') !== shown) el.setAttribute('data-os-wp', shown);
+    if (p.wp === 'img' && S.wpWant !== p.img) {
+      var id = p.img;
+      S.wpWant = id; S.wpImg = null;
+      var lp = loadWp();
+      if (lp) lp.then(function (WP) {
+        WP.paint(el, id, function (ok) { if (S && S.wpWant === id) { S.wpImg = ok ? id : null; paintWp(); } });
+      }).catch(function () {});
+    } else if (p.wp !== 'img' && S.wpWant) {
+      S.wpWant = null; S.wpImg = null;
+      if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
+    }
+  }
   // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
   // Load My Skin (a same-origin bundle), then open Settings at its panel.
   function openWallpaper() {
@@ -783,7 +826,8 @@
     applyButtonStyle();
     paintIcons();
     paintClock();
-    S.clockT = setInterval(paintClock, 30000);
+    paintWp();
+    S.clockT = setInterval(function () { paintClock(); paintWp(); }, 30000);
 
     on(desk, 'click', onDeskClick);
     on(desk, 'dblclick', function (ev) {
@@ -1301,9 +1345,11 @@
     S.page = 0;
     S.home = makeHome('phone');
     phonePaint();
+    paintWp();
     S.clockT = setInterval(function () {
       var t = S && S.phoneEl && S.phoneEl.querySelector('.os-p-time');
       if (t) t.textContent = L.clockText(new Date()).time;
+      paintWp();
     }, 30000);
     [home, bar].forEach(function (el) {
       on(el, 'click', onPhoneClick);
@@ -1443,6 +1489,7 @@
       if (W._userClaims && typeof W._userClaims === 'object') return onLayoutPrefs();
       if (++claimTries <= 120) S.claimsT = setTimeout(claims, 500);   // a minute, like layout-system's poll
     })();
+    on(doc, 'nbd:sunlight', paintWp);   // Sunlight on or off: day at once, not at the next tick
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1473,6 +1520,7 @@
     unregisterControls();
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
+    if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(); });   // its blob: URLs, its open picker
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });
     if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);
