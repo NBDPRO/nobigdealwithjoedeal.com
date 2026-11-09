@@ -110,7 +110,7 @@ console.log('E. the Routes section');
 console.log('F. wiring');
 {
   const sl = read('docs/pro/js/script-loader.js');
-  ok('in the lazy d2d bundle, before the tracker, cache-busted', /'js\/d2d-door-import\.js\?v=1',\n\s*'js\/d2d-tracker-core-2026b\.js\?v=17',\n\s*'js\/d2d-tracker-ui-2026b\.js\?v=12',\n\s*'js\/d2d-tracker-2026b\.js\?v=6'/.test(sl));
+  ok('in the lazy d2d bundle, before the tracker, cache-busted', /'js\/d2d-door-import\.js\?v=1',\n\s*'js\/d2d-tracker-core-2026b\.js\?v=18',\n\s*'js\/d2d-tracker-ui-2026b\.js\?v=12',\n\s*'js\/d2d-tracker-2026b\.js\?v=6'/.test(sl));
   const shim = read('docs/pro/js/d2d-tracker-2026b.js');
   ok('the shim exposes importDoors / showDoorList / hideDoorList / deleteDoorList', ['importDoors', 'showDoorList', 'hideDoorList', 'deleteDoorList'].every((a) => new RegExp('\\b' + a + ': ').test(shim)));
   ok('the Routes tab paints the door lists', /if \(window\.NBDDoorImport && typeof window\.NBDDoorImport\.html === 'function'\) html \+= window\.NBDDoorImport\.html\(\);/.test(read('docs/pro/js/d2d-tracker-ui-2026b.js')));
