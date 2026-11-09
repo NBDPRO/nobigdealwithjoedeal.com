@@ -1443,6 +1443,8 @@ function mayActOn(auth, c) {
 // transcript hash changes and the stored brief is redrafted on the next tap.
 // A repeat is a no-op. unmerge: clears the marks on both (either id); a
 // mark whose partner is gone or disagrees is cleared on the tapped call only.
+// A filed redial's own brief (leads/{lead}/call_briefs/{redialId}) is
+// deleted in the same transaction: it held half the call.
 // Both run in one transaction that reads both docs, so two taps at once on a
 // three-way split (merge A+B, merge B+C) cannot both commit: the second is
 // re-run on fresh reads and refused as already merged.
@@ -1484,6 +1486,11 @@ async function mergeAction({ db, auth, call, action, data, nowMs }) {
     const patch = MG.mergePatch(primary.id, secondary.id, auth.uid, nowMs);
     tx.set(ref(primary.id), patch.primary, { merge: true });
     tx.set(ref(secondary.id), patch.secondary, { merge: true });
+    // A filed redial may already have its own brief (half the call). callBrief
+    // refuses to redraft a merged redial, so delete it here rather than leave
+    // a stale half brief an older client could still read (review 2026-11-09).
+    const sLead = String(secondary.leadId || '');
+    if (sLead && !sLead.includes('/')) tx.delete(db.doc('leads/' + sLead + '/call_briefs/' + secondary.id));
     return { ok: true, merged: true, primaryId: primary.id, secondaryId: secondary.id };
   });
 }

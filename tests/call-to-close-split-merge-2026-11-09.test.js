@@ -171,10 +171,11 @@ function fakeDb(seed) {
         const tx = {
           get: async (ref) => { if (ops.length) throw new Error('reads after writes in a transaction'); await tick(); seen.set(ref.path, ver.get(ref.path) || 0); return { exists: docs.has(ref.path), data: () => docs.get(ref.path) }; },
           set: (ref, v, o) => { ops.push([ref.path, v, o]); return tx; },
+          delete: (ref) => { ops.push([ref.path, null, 'delete']); return tx; },
         };
         const out = await fn(tx);
         if ([...seen].some(([p, n]) => (ver.get(p) || 0) !== n)) { stats.retries++; continue; }
-        ops.forEach(([p, v, o]) => put(p, v, o));
+        ops.forEach(([p, v, o]) => { if (o === 'delete') { log.push(['delete', p]); ver.set(p, (ver.get(p) || 0) + 1); docs.delete(p); } else put(p, v, o); });
         return out;
       }
       throw new Error('transaction contention');
@@ -229,6 +230,19 @@ function fakeDb(seed) {
       const db = fakeDb(seed());
       const r = await run(db, JO, { id: P.id, action: 'merge', withId: S.id });
       ok('tapped on the first call: the same result', r.r && r.r.primaryId === P.id && get(db, S.id).mergedInto === P.id);
+    }
+    {
+      // Review 2026-11-09: a redial filed on a customer may already have its
+      // own brief (half the call). The merge deletes it in the same
+      // transaction, so an older client never serves that half brief from
+      // the cache (callBrief refuses to redraft a merged redial).
+      const BR = 'leads/L1/call_briefs/' + S.id;
+      const db = fakeDb(seed({ ['phone_calls/' + S.id]: strip(STORE(Object.assign({}, S, { leadId: 'L1' }))), [BR]: { callId: S.id, cards: [] }, ['leads/L1/call_briefs/' + P.id]: { callId: P.id } }));
+      const r = await run(db, JO, { id: P.id, action: 'merge', withId: S.id });
+      ok('a filed redial: merged', r.r && r.r.merged === true, r.e ? r.e.message : r.r);
+      ok('...its own half-call brief is deleted', !db.docs.has(BR) && db.log.some((l) => l[0] === 'delete' && l[1] === BR));
+      ok('...the first call\'s brief stays (it is redrafted on the next tap)', db.docs.has('leads/L1/call_briefs/' + P.id));
+      ok('...and nothing else is deleted', db.log.filter((l) => l[0] === 'delete').length === 1);
     }
     const refused = async (name, auth, data, code, over) => {
       const db = fakeDb(seed(over));
