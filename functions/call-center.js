@@ -277,7 +277,7 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
 //   { kind: 'callCenterTenant', companyId, enabled, ownerUid, folderId,
 //     paused?, backfillFrom?, transcribeOnly? }   plus what the runs write
 //   (cursorYmd, floorApplied, lastRun, lastTranscribe, providerOutage,
-//   factsDay / factsUsed, txSynced).
+//   factsDay / factsUsed, txSynced, txSyncCursorMs / txSyncWant).
 // It runs only when BOTH CALL_CENTER_MULTI_TENANT_ENABLED === 'true' AND
 // enabled === true (L.tenantFeedGate), its owner owns the company
 // (companies/{cid}.ownerId, or a solo owner whose company id is their uid),
@@ -389,7 +389,15 @@ async function syncTenantTxFlags({ db, env }) {
     if (typeof cid !== 'string' || !cid || cid === OWNER || r.id !== L.TENANT_FEED_PREFIX + cid || typeof owner !== 'string' || !owner || owner === OWNER) continue;
     const want = live.has(cid);
     if (r.cfg.txSynced === want) continue;
-    const q = await db.collection(COLLECTION).where('userId', '==', owner).where('status', '==', 'stored').limit(TX_SYNC_MAX).get();
+    // Newest first, one page a run; a full page leaves a cursor (the last
+    // call's startedAtMs, for this direction of the switch) so the next run
+    // moves on past it instead of re-reading the same page. startAt is
+    // inclusive: a call sharing the boundary millisecond is read twice, never
+    // skipped (one already in step costs a read, not a write).
+    const cursor = r.cfg.txSyncWant === want && Number.isFinite(r.cfg.txSyncCursorMs) ? r.cfg.txSyncCursorMs : null;
+    let qq = db.collection(COLLECTION).where('userId', '==', owner).where('status', '==', 'stored').orderBy('startedAtMs', 'desc');
+    if (cursor !== null) qq = qq.startAt(cursor);
+    const q = await qq.limit(TX_SYNC_MAX).get();
     const docs = [];
     q.forEach((d) => docs.push(d));
     for (const d of docs) {
@@ -399,8 +407,13 @@ async function syncTenantTxFlags({ db, env }) {
       await db.collection(COLLECTION).doc(d.id).set({ txOff: !want }, { merge: true });
       out.flagged++;
     }
-    // A full page may hide more: the next run carries on.
-    if (docs.length < TX_SYNC_MAX) { await db.doc('integrations/' + r.id).set({ txSynced: want }, { merge: true }); out.synced++; }
+    const lastMs = docs.length ? Number((docs[docs.length - 1].data() || {}).startedAtMs) : NaN;
+    if (docs.length >= TX_SYNC_MAX && Number.isFinite(lastMs) && lastMs !== cursor) {
+      await db.doc('integrations/' + r.id).set({ txSyncCursorMs: lastMs, txSyncWant: want }, { merge: true });
+    } else {
+      await db.doc('integrations/' + r.id).set({ txSynced: want, txSyncCursorMs: null, txSyncWant: null }, { merge: true });
+      out.synced++;
+    }
   }
   return out;
 }

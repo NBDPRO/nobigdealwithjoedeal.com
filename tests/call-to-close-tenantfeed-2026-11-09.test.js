@@ -371,6 +371,29 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     await T.syncTenantTxFlags({ db, env: OFF });
     ok('env gate off → every tenant\'s stored calls hidden again', db.docs.get('phone_calls/cube_a1').txOff === true && db.docs.get('phone_calls/cube_b1').txOff === true && db.docs.get('phone_calls/cube_n1').txOff === undefined);
 
+    // More than one page (review fix): the newest TX_SYNC_MAX calls already
+    // carry the flag; the older ones must still be reached on the next run,
+    // not the same first page again forever.
+    const MAX = T.TX_SYNC_MAX;
+    const big = world({ ['integrations/callCenter_' + A.cid]: cfgOf(A, { enabled: false }) });
+    for (let i = 0; i < MAX + 30; i++) big['phone_calls/cube_p' + i] = stored(A, 'cube_p' + i, Object.assign({ startedAtMs: NOW - i * 60e3 }, i < MAX ? { txOff: true } : {}));
+    const dbp = fakeDb(big);
+    await T.syncTenantTxFlags({ db: dbp, env: ON });
+    ok('a full page of already-flagged calls: not marked done yet', dbp.docs.get('integrations/callCenter_' + A.cid).txSynced === undefined);
+    await T.syncTenantTxFlags({ db: dbp, env: ON });
+    const older = Array.from({ length: 30 }, (_, j) => dbp.docs.get('phone_calls/cube_p' + (MAX + j)).txOff);
+    ok('the next run moves on to the older calls and flags them', older.every((v) => v === true), older.filter((v) => v !== true).length + ' unflagged');
+    ok('…then marks the tenant done (txSynced = the switch it is in step with)', dbp.docs.get('integrations/callCenter_' + A.cid).txSynced === false, dbp.docs.get('integrations/callCenter_' + A.cid));
+    const np = dbp.log.length;
+    await T.syncTenantTxFlags({ db: dbp, env: ON });
+    ok('…and a third run writes nothing', dbp.log.length === np, dbp.log.slice(np).map((w) => w.path));
+    // Switched back on mid-sweep: the sweep starts again from the newest call.
+    const dbq = fakeDb(Object.assign({}, big, { ['integrations/callCenter_' + A.cid]: cfgOf(A, { enabled: false }) }));
+    await T.syncTenantTxFlags({ db: dbq, env: ON });
+    dbq.docs.set('integrations/callCenter_' + A.cid, Object.assign({}, dbq.docs.get('integrations/callCenter_' + A.cid), { enabled: true }));
+    await T.syncTenantTxFlags({ db: dbq, env: ON });
+    ok('switched on mid-sweep → the newest call is cleared first', dbq.docs.get('phone_calls/cube_p0').txOff === false);
+
     for (const f of ['docs/pro/js/call-center-view.js', 'docs/pro/js/customer-calls.js']) {
       const src = read(f);
       const m = /function txGate\(c\) \{[\s\S]*?\n  \}/.exec(src);

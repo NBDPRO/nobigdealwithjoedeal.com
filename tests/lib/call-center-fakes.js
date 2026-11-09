@@ -5,7 +5,8 @@
  *
  * The Firestore fake records every write in order (`log`), so a test can pin
  * exactly what a run filed. Queries support == filters (any number), orderBy
- * (startedAtMs desc, the only order call-center.js asks for) and limit.
+ * (startedAtMs desc, the only order call-center.js asks for), startAt /
+ * startAfter on that order (a startedAtMs value) and limit.
  * Names and numbers are invented (555 exchange).
  */
 'use strict';
@@ -34,15 +35,18 @@ function fakeDb(seed) {
       collection: (name) => coll(p + '/' + name),
     };
   }
-  function query(name, filters, lim) {
+  function query(name, filters, lim, from) {
     return {
-      where: (f, _op, v) => query(name, filters.concat([[f, v]]), lim),
-      orderBy: () => query(name, filters, lim),
-      limit: (n) => query(name, filters, n),
+      where: (f, _op, v) => query(name, filters.concat([[f, v]]), lim, from),
+      orderBy: () => query(name, filters, lim, from),
+      limit: (n) => query(name, filters, n, from),
+      startAt: (ms) => query(name, filters, lim, { ms, incl: true }),
+      startAfter: (ms) => query(name, filters, lim, { ms, incl: false }),
       get: async () => {
         const depth = name.split('/').length + 1;
+        const sAt = (v) => { const t = (v && v.startedAtMs) || 0; return !from || (from.incl ? t <= from.ms : t < from.ms); };
         const rows = [...docs.entries()]
-          .filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === depth && filters.every(([f, val]) => v && v[f] === val))
+          .filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === depth && filters.every(([f, val]) => v && v[f] === val) && sAt(v))
           .sort((a, b) => ((b[1] && b[1].startedAtMs) || 0) - ((a[1] && a[1].startedAtMs) || 0))
           .slice(0, lim || 1e9);
         const ds = rows.map(([k]) => snapOf(k));
@@ -51,7 +55,7 @@ function fakeDb(seed) {
     };
   }
   function coll(name) {
-    return Object.assign(query(name, [], null), {
+    return Object.assign(query(name, [], null, null), {
       doc: (id) => mk(name + '/' + id),
       add: async (v) => { const id = 'auto' + docs.size; log.push({ op: 'add', path: name, data: clone(v) }); docs.set(name + '/' + id, v); return { id }; },
     });
