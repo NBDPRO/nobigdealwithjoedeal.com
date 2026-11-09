@@ -383,7 +383,8 @@
     if (!C || typeof C.registerAction !== 'function') return;
     function reg(id, def) { if (R.targets[id]) return; R.targets[id] = true; C.registerAction(Object.assign({ id: id }, def)); }
     reg('runner:quickkeys', { label: 'Edit Quick Keys', icon: '⌨', group: 'Runner', keywords: 'alias shortcut quick keys runner type search hot corner',
-      run: function () { var c = cmd(); if (c) c.open(); openEditor(); } });
+      // after the palette's own focus timer (open() focuses the search box on a 0 ms timer)
+      run: function () { var c = cmd(); if (c) c.open(); (root.setTimeout || setTimeout)(openEditor, 0); } });
     var VL = root.NBDVisitRecorderLauncher;
     if (VL && typeof VL.begin === 'function') {
       reg('runner:record-visit', { label: 'Record visit', icon: '⏺', group: 'Actions', keywords: 'visit record audio meeting',
@@ -591,11 +592,32 @@
       if (ed) addFromEditor(ed);
     }
   }
+  /**
+   * The search box while the editor hides the results: Enter / Up / Down would run or move
+   * through rows nobody can see, so they do nothing; Tab, Left / Right and Backspace keep
+   * their plain meaning (focus, caret) without the palette's row handling. Capture on the
+   * modal, so this runs before the box's own handler.
+   */
+  var ED_DEAD = { Enter: 1, ArrowUp: 1, ArrowDown: 1 };
+  var ED_PLAIN = { Tab: 1, ArrowLeft: 1, ArrowRight: 1, Backspace: 1 };
+  function onEditorBoxKey(ev) {
+    if (!R.edOpen || !ev.target || ev.target.id !== 'nbd-cmd-input') return;
+    if (ED_DEAD[ev.key]) { ev.preventDefault(); ev.stopPropagation(); }
+    else if (ED_PLAIN[ev.key]) ev.stopPropagation();
+  }
+  /** Typing a search closes the editor: the results come back. */
+  function onEditorBoxInput() { if (R.edOpen) closeEditor(); }
   function openEditor() {
     var wrap = doc && doc.getElementById('nbd-cmd-modal');
     var l = list();
     if (!wrap || !l || !l.parentNode) return false;
     ensureCss();
+    if (!wrap.__cmdrEd) {
+      wrap.__cmdrEd = true;
+      wrap.addEventListener('keydown', onEditorBoxKey, true);
+      var box = doc.getElementById('nbd-cmd-input');
+      if (box) box.addEventListener('input', onEditorBoxInput);
+    }
     var ed = wrap.querySelector('.cmdr-ed');
     if (!ed) {
       ed = doc.createElement('div');

@@ -386,6 +386,34 @@ console.log('\nRUNNER — the real palette, layer and runner in a fake DOM');
   ok('unticking it turns type-anywhere off (device-only)', store.nbd_runner_type_v1 === '0' && ctx.NBDRunner.typeOpen.on() === false);
   H.fire(dom, ed.querySelector('[data-cmdr-done]'), 'click');
   ok('Done closes the editor and shows the results again', !document.querySelector('.cmdr-ed') && !document.getElementById('nbd-cmd-results').classList.contains('cmdr-hidden'));
+  // "Edit Quick Keys" through the palette's own run path (Enter -> _execute -> setTimeout -> open + editor)
+  const flush0 = () => { let n; do { n = 0; timers.forEach((t) => { if (t.fn && t.ms === 0) { const f = t.fn; t.fn = null; f(); n++; } }); } while (n); };
+  flush0();
+  C.close();
+  C.open();
+  const in4 = document.getElementById('nbd-cmd-input');
+  in4.value = 'Edit Quick Keys';
+  (in4.listeners.input || []).forEach((f) => f({ target: in4 }));
+  const qrow = document.getElementById('nbd-cmd-results').querySelectorAll('.nbd-cmd-row').filter((r) => /Edit Quick Keys/.test(r.textContent))[0];
+  ok('control: the palette lists Edit Quick Keys', !!qrow);
+  for (let i = 0; i < Number(qrow.getAttribute('data-idx')); i++) H.fire(dom, in4, 'keydown', { key: 'ArrowDown' });
+  H.fire(dom, in4, 'keydown', { key: 'Enter' });
+  flush0();
+  const ed2 = document.querySelector('.cmdr-ed');
+  const sIn = document.getElementById('nbd-cmd-input');
+  ok('run from the palette, the editor opens with the Key field focused (not the hidden search box)',
+    !!ed2 && document.activeElement === ed2.querySelector('.cmdr-ed-key'), document.activeElement && (document.activeElement.className || document.activeElement.id));
+  const href0 = W.location.href, opened0 = W.opened.length, goTos0 = W.goTos.length;
+  sIn.focus();
+  H.fire(dom, sIn, 'keydown', { key: 'ArrowDown' });
+  const en = H.fire(dom, sIn, 'keydown', { key: 'Enter' });
+  flush0();
+  ok('Enter / arrows in the search box while the editor is open run nothing it cannot see',
+    !!document.getElementById('nbd-cmd-modal') && !!document.querySelector('.cmdr-ed') && W.location.href === href0 && W.opened.length === opened0 && W.goTos.length === goTos0 && en.defaultPrevented);
+  sIn.value = 'crm';
+  (sIn.listeners.input || []).forEach((f) => f({ target: sIn }));
+  const res4 = document.getElementById('nbd-cmd-results');
+  ok('typing in the search box closes the editor and shows the results', !document.querySelector('.cmdr-ed') && !!res4 && !res4.classList.contains('cmdr-hidden'));
 }
 
 console.log('\nRUNNER — on the real NBD OS laptop desk');
