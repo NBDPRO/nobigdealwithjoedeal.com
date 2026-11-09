@@ -453,7 +453,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               transcribe now, segment confidence, estimate prefill + repair quick quote,
 //               said vs proposal, one-tap stage moves, follow-up draft, auto-brief, rescue
 //               queue, objections, and the call-brief-settings emulator suite. MEASURED via --check.
-const FLOORS = { node: 1000, smoke: 74, disk: 1135 };
+const FLOORS = { node: 1001, smoke: 74, disk: 1136 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
