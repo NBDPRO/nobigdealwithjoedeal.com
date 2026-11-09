@@ -427,6 +427,7 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
     ok('progressStage(target, opts): a string target replaces the next-stage pick', /^\s*\(target, opts\)/.test(fn) && /typeof target === 'string'/.test(fn) && /_nextStageFor\(/.test(fn));
     ok('a Lost move threads the reason to commitStageChange (isLostMove + lostReason)', /isLostMove/.test(fn) && /lostReason/.test(fn));
     ok('a sheet that already asked skips the page\'s second confirm, unless the cancellation-window warning applies', /\.asked\b/.test(fn) && /cxlWarn/.test(fn));
+    ok('ask() is defined after cxlWarn, which it reads (no closure over a let before its declaration)', fn.indexOf('let cxlWarn') !== -1 && fn.indexOf('const ask') > fn.indexOf('let cxlWarn'));
     ok('it resolves true once the stage moved', /return true;/.test(fn));
     ok('its toast\'s Undo calls the caller\'s onUndone once the move back committed', /_undoStageMove\([^)]*o\.onUndone\)/.test(fn) &&
       /onUndone\(\)/.test((src.split('async function _undoStageMove')[1] || '').split('\n}\n')[0].split('catch (e)')[0]));

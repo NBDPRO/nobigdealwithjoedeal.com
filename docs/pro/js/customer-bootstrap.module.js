@@ -2499,13 +2499,6 @@ window.progressStage = async function(target, opts) {
   if (!next) return;
   const { nextStage, label } = next;
 
-  // Use nbdConfirm when available — native confirm() is patched by
-  // standalone-compat.js to silently return true in PWA mode, which
-  // means the user never actually sees the prompt. nbdConfirm renders
-  // a real themed modal in both modes.
-  // The call brief's sheet already asked (o.asked): no second ask, unless a
-  // cancellation-window warning applies.
-  const ask = (m) => (o.asked && !cxlWarn ? Promise.resolve(true) : (window.nbdConfirm || ((x) => Promise.resolve(window.confirm(x))))(m));
   // 3-day cancellation window (2026-10-04): a move that starts the work
   // (materials ordered, crew scheduled, …) before lead.cancelBy says so in
   // the confirm. Warn, never block — "Move" still moves.
@@ -2524,6 +2517,13 @@ window.progressStage = async function(target, opts) {
         J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile));
     }
   } catch (_) { cxlWarn = ''; }
+  // Use nbdConfirm when available — native confirm() is patched by
+  // standalone-compat.js to silently return true in PWA mode, which
+  // means the user never actually sees the prompt. nbdConfirm renders
+  // a real themed modal in both modes.
+  // The call brief's sheet already asked (o.asked): no second ask, unless a
+  // cancellation-window warning applies.
+  const ask = (m) => (o.asked && !cxlWarn ? Promise.resolve(true) : (window.nbdConfirm || ((x) => Promise.resolve(window.confirm(x))))(m));
   const _destRole = (typeof window.stageRole === 'function') ? window.stageRole(nextStage) : null;
   const mustAsk = _stageMoveNeedsConfirm(nextStage, { warning: cxlWarn, role: _destRole });
   if (mustAsk) {
