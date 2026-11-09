@@ -185,6 +185,7 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
       let filled = null; try { filled = JSON.parse(fs.readFileSync(path.join(kit, 'case-01.json'), 'utf8')); } catch (_) { filled = null; }
       ok('the helper puts a transcript with quotes, a backslash and line breaks into case-01.json as valid JSON (the rest of the file untouched; callYmd is still Jo\'s to fill)', run.status === 0 && !!filled && filled.transcript === said.trim() && filled.id === 'case-01' && E.validateCase(filled).every((m) => /^callYmd/.test(m)), [run.status, run.stderr, filled && filled.transcript]);
     }
+    ok('runbook: a home folder that is itself a git repo (dotfiles) is refused, so pick a folder outside it', /dotfiles/i.test(rb) && /home folder is itself a git/i.test(rb));
     ok('no key in the runbook', !/sk-ant-[A-Za-z0-9]/.test(rb));
     ok('still no network', fetchCalls === 0);
   } finally {

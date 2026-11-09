@@ -22,6 +22,8 @@ That writes `case-01.json` … `case-20.json` (empty label skeletons) and a `REA
 - a folder inside this repo, or inside any git work tree (a folder with a `.git` above it), including through a symlink;
 - a folder that already has files in it (it never overwrites your labels).
 
+If your home folder is itself a git repo (a dotfiles setup), `~/nbd-call-eval` is inside that work tree and is refused too; the message names the work tree. Pick a folder outside it instead, e.g. `/c/nbd-call-eval` in Git Bash, and use that path wherever this runbook says `~/nbd-call-eval`.
+
 When the eval is done and the numbers are written down, delete the folder.
 
 ## 2. Pick the calls
