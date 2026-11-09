@@ -21,6 +21,11 @@
  *      a rerun overwrites nothing; every refusal (sha, HEIC, lead, tenant).
  *   7. The REST Storage client: ifGenerationMatch=0, 412 -> already-exists.
  *   8. The phase stage lists match photo-engine.js.
+ *   9. Review fixes (2026-11-09): a backfilled job ends at completedAt; a
+ *      directional prefix is not the street word; --out stays out of the repo;
+ *      --uid must belong to --company; the /photos row is written before the
+ *      upload (so image-pipeline.js finds it); no EXIF date is not "today";
+ *      token mode reads only the company's leads (no collection-group scan).
  *
  * Synthetic data only. No network.
  * Run: node tests/match-job-photos-2026-11-09.test.js
@@ -253,11 +258,12 @@ const LEAD_OTHER = { id: 'leadOther', companyId: 'co2', firstName: 'Other', addr
       async getToken(p) { calls.push(['getToken', p]); return objects.has(p) ? objects.get(p).token : null; },
     };
   }
-  function fakeDb(leads) {
-    const docs = new Map();
+  function fakeDb(leads, seed) {
+    const docs = new Map(Object.entries(seed === undefined ? { 'users/u1': { companyId: 'co1' } } : seed));
     const calls = [];
     return {
       docs, calls,
+      photos() { return Array.from(docs.entries()).filter(([k]) => k.startsWith('photos/')); },
       doc(p) {
         return {
           path: p,
@@ -267,10 +273,22 @@ const LEAD_OTHER = { id: 'leadOther', companyId: 'co2', firstName: 'Other', addr
           async update() { calls.push(['update', p]); throw new Error('update must never be used'); },
         };
       },
-      collectionGroup(id) {
-        const all = leads.map((l) => ({ id: l.id, ref: { path: id + '/' + l.id }, data: () => l }));
-        const q = { orderBy() { return q; }, limit() { return q; }, startAfter() { return { get: async () => ({ empty: true, size: 0, docs: [] }) }; }, async get() { return { empty: !all.length, size: all.length, docs: all }; } };
-        return q;
+      collectionGroup(id) { calls.push(['collectionGroup', id]); throw new Error('a collection-group scan reads every tenant'); },
+      collection(id) {
+        const make = (filters) => {
+          const q = {
+            where(f, op, v) { if (op !== '==') throw new Error('== only'); return make(filters.concat([[f, v]])); },
+            orderBy() { return q; }, limit() { return q; },
+            startAfter() { return { get: async () => ({ empty: true, size: 0, docs: [] }) }; },
+            async get() {
+              calls.push(['query', id, JSON.stringify(filters)]);
+              const all = leads.filter((l) => filters.every(([f, v]) => l[f] === v)).map((l) => ({ id: l.id, ref: { path: id + '/' + l.id }, data: () => l }));
+              return { empty: !all.length, size: all.length, docs: all };
+            },
+          };
+          return q;
+        };
+        return make([]);
       },
     };
   }
@@ -310,11 +328,12 @@ const LEAD_OTHER = { id: 'leadOther', companyId: 'co2', firstName: 'Other', addr
     logs2.length = 0;
     const r2 = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'u1', '--yes'], deps);
     ok('with --yes: exit 0', r2.code === 0, JSON.stringify(r2.summary));
-    ok('two objects uploaded, two /photos rows created', storage.objects.size === 2 && db.docs.size === 2, JSON.stringify(r2.summary));
+    ok('two objects uploaded, two /photos rows created', storage.objects.size === 2 && db.photos().length === 2, JSON.stringify(r2.summary));
     ok('never set() or update()', !db.calls.some((c) => c[0] === 'set' || c[0] === 'update'));
     const sk = r2.summary.skipped || {};
-    ok('refusals counted: file changed, HEIC, unknown lead, other tenant', sk['file changed since review'] === 1 && sk['heic: export as JPEG first'] === 1 && sk['lead not found'] === 1 && sk['lead in another company'] === 1, JSON.stringify(sk));
-    const docs = Array.from(db.docs.entries());
+    ok('refusals counted: file changed, HEIC, unknown lead, other tenant (never even read)', sk['file changed since review'] === 1 && sk['heic: export as JPEG first'] === 1 && sk['lead not found'] === 2, JSON.stringify(sk));
+    ok('token mode reads only the company\'s leads: no collection-group scan', !db.calls.some((c) => c[0] === 'collectionGroup') && db.calls.some((c) => c[0] === 'query' && c[2].includes('companyId') && c[2].includes('co1')), JSON.stringify(db.calls.filter((c) => c[0] !== 'get')));
+    const docs = db.photos();
     const [p0, d0] = docs.find(([, d]) => d.phase === 'During') || [];
     ok('the row is under photos/{id}, id = its own field', p0 && p0 === 'photos/' + d0.id);
     ok('photo-engine.js shape: leadId, userId, companyId, url, storagePath, thumbUrl, tags, phase, createdAt, uploadedAt, reportSections, geoLocation, onSite',
@@ -330,22 +349,146 @@ const LEAD_OTHER = { id: 'leadOther', companyId: 'co2', firstName: 'Other', addr
     ok('the GPS photo carries geoLocation and is on site', d1 && d1.geoLocation && d1.geoLocation.source === 'exif' && d1.onSite === true);
     ok('stdout names no customer, address or file', !/NAMESECRET|Larkspur|IMG_000/.test(logs2.join('\n')), logs2.join('\n'));
 
-    const before = JSON.stringify(Array.from(db.docs.entries()));
+    const before = JSON.stringify(db.photos());
     const r3 = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'u1', '--yes'], deps);
-    ok('a rerun files nothing twice and overwrites nothing', r3.code === 0 && db.docs.size === 2 && storage.objects.size === 2 && JSON.stringify(Array.from(db.docs.entries())) === before && (r3.summary.skipped || {})['already filed'] === 2, JSON.stringify(r3.summary));
+    ok('a rerun files nothing twice and overwrites nothing', r3.code === 0 && db.photos().length === 2 && storage.objects.size === 2 && JSON.stringify(db.photos()) === before && (r3.summary.skipped || {})['already filed'] === 2, JSON.stringify(r3.summary));
 
-    // An object uploaded by a run that died before the row: the row is made with the existing object's token.
+    // Order: the row exists when the object lands, so functions/image-pipeline.js
+    // (finalize → where storagePath ==) stamps urls.{thumb,med,full}.
     const storage2 = fakeStorage();
     const db2 = fakeDb([LEAD_A, LEAD_B]);
+    const seq = [];
+    const st2 = Object.assign({}, storage2, { async create(o) { seq.push(['upload', o.path, db2.docs.has('photos/' + o.path.split('/').pop().replace(/_original\.\w+$/, ''))]); return storage2.create(o); } });
     const one = path.join(OUT, 'one.csv');
     fs.writeFileSync(one, S.toCsv([rows[0]]));
-    await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: storage2, db: db2 }));
-    const [[pp, dd]] = Array.from(db2.docs.entries());
-    db2.docs.delete(pp);
-    const tokenBefore = storage2.objects.get(dd.storagePath).token;
+    await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: st2, db: db2 }));
+    ok('the /photos row exists before its object is uploaded', seq.length === 1 && seq[0][2] === true, JSON.stringify(seq));
+    ok('…the row\'s token is the object\'s token', (() => { const [[, dd]] = db2.photos(); return dd.url.endsWith('token=' + storage2.objects.get(dd.storagePath).token); })());
+
+    // A run that died after the row but before the upload: the rerun uploads
+    // with the row's own token and writes no second row.
+    const [[pp, dd]] = db2.photos();
+    const tokenRow = dd.url.split('token=')[1];
+    storage2.objects.delete(dd.storagePath);
     const r4 = await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: storage2, db: db2 }));
-    ok('a half-done row is finished with the existing object, not a second upload', r4.code === 0 && db2.docs.size === 1 && storage2.objects.size === 1 && storage2.objects.get(dd.storagePath).token === tokenBefore && db2.docs.get(pp).url.endsWith('token=' + tokenBefore));
+    ok('a row without its object is finished by uploading with the row\'s token', r4.code === 0 && db2.photos().length === 1 && storage2.objects.size === 1 && storage2.objects.get(dd.storagePath).token === tokenRow && db2.docs.get(pp) === dd && r4.summary.resumed === 1, JSON.stringify(r4.summary));
+
+    // An object with no row (not made by this script's order): the pipeline has
+    // already run and found nothing, so a row now would never get thumbnails.
+    const storage3 = fakeStorage();
+    const db3 = fakeDb([LEAD_A, LEAD_B]);
+    storage3.objects.set(dd.storagePath, { bytes: Buffer.from([1]), contentType: 'image/jpeg', token: 'old' });
+    const r5 = await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: storage3, db: db3 }));
+    ok('an orphan object is reported, not adopted', r5.code === 0 && db3.photos().length === 0 && (r5.summary.skipped || {})['storage object exists without a row'] === 1 && storage3.objects.get(dd.storagePath).token === 'old', JSON.stringify(r5.summary));
+
+    // The row a failed upload leaves is reported, and a rerun finishes it.
+    const storage4 = fakeStorage();
+    const db4 = fakeDb([LEAD_A, LEAD_B]);
+    const st4 = Object.assign({}, storage4, { async create() { throw new Error('HTTP 503'); } });
+    const r6 = await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: st4, db: db4 }));
+    ok('a failed upload is counted (rerun to finish)', r6.code === 0 && (r6.summary.skipped || {})['upload failed: rerun to finish'] === 1, JSON.stringify(r6.summary));
+    const r7 = await S.run(['--apply', one, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, deps, { storage: storage4, db: db4 }));
+    ok('…and the rerun uploads it', r7.summary.resumed === 1 && storage4.objects.size === 1 && db4.photos().length === 1, JSON.stringify(r7.summary));
+
+    // The other-tenant guard in applyRows itself (a lead handed in from anywhere).
+    const direct = await S.applyRows([Object.assign({}, rows[0], { leadId: 'leadOther' })], { leads: [LEAD_OTHER], company: 'co1', uid: 'u1', bucket: 'b', write: false }, { readFile: () => null, exifFields: async () => ({}) });
+    ok('applyRows refuses another company\'s lead', direct.skipped['lead in another company'] === 1);
   });
+
+  await guard('9. --uid must belong to --company', async () => {
+    const reviewed = path.join(OUT, 'reviewed.csv');
+    const base = { log() {}, err() {}, env: { NBD_ACCESS_TOKEN: 'fake-token' }, now: () => L(2026, 11, 9, 12) };
+    for (const [label, seed] of [
+      ['a uid of another company', { 'users/u1': { companyId: 'co2' } }],
+      ['a uid with no user doc', {}],
+      ['a user doc with no company (and uid != company)', { 'users/u1': { name: 'x' } }],
+    ]) {
+      const st = fakeStorage(), db = fakeDb([LEAD_A, LEAD_B], seed);
+      const r = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'u1', '--yes'], Object.assign({}, base, { storage: st, db }));
+      ok(label + ': refused, nothing written', r.code === 2 && st.objects.size === 0 && !db.calls.some((c) => c[0] === 'create'), JSON.stringify(r));
+      const rPlan = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'u1'], Object.assign({}, base, { db: fakeDb([LEAD_A, LEAD_B], seed) }));
+      ok(label + ': refused in the plan too', rPlan.code === 2);
+    }
+    const solo = fakeDb([Object.assign({}, LEAD_A, { companyId: undefined, userId: 'co1' })], { 'users/co1': { name: 'owner' } });
+    const rs = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'co1'], Object.assign({}, base, { db: solo }));
+    ok('a solo owner (uid = company) with no companyId field is accepted', rs.code === 0, JSON.stringify(rs));
+    const rep = fakeDb([LEAD_A, LEAD_B], { 'reps/u1': { companyId: 'co1' } });
+    const rr = await S.run(['--apply', reviewed, '--company', 'co1', '--uid', 'u1'], Object.assign({}, base, { db: rep }));
+    ok('a rep doc of the company is accepted (functions/handlers/photo.js order)', rr.code === 0, JSON.stringify(rr));
+  });
+
+  await guard('10. no EXIF date: capturedAt is not the apply day', async () => {
+    const bare = path.join(PHOTOS, 'Camera Roll', 'IMG_NODATE.jpg');
+    fs.writeFileSync(bare, Buffer.from([0xFF, 0xD8, 0xFF, 0xD9]));
+    const row = { approve: 'y', phase: 'After', leadId: 'leadA', file: bare, sha256: crypto.createHash('sha256').update(fs.readFileSync(bare)).digest('hex') };
+    const csv = path.join(OUT, 'nodate.csv');
+    fs.writeFileSync(csv, S.toCsv([row]));
+    const st = fakeStorage(), db = fakeDb([LEAD_A]);
+    const r = await S.run(['--apply', csv, '--company', 'co1', '--uid', 'u1', '--yes'], { log() {}, err() {}, env: { NBD_ACCESS_TOKEN: 'x' }, storage: st, db, now: () => L(2026, 11, 9, 12) });
+    const d = Array.from(db.docs.values()).find((x) => x.leadId === 'leadA');
+    ok('filed', r.code === 0 && d, JSON.stringify(r.summary));
+    ok('capturedAt null, capturedAtSource unknown (readers fall back to createdAt)', d && d.capturedAt === null && d.capturedAtSource === 'unknown' && !('deviceCapturedAt' in d), JSON.stringify(d));
+    fs.rmSync(bare);
+  });
+
+  await guard('11. a backfilled job ends at completedAt, not a later click', async () => {
+    // Installed 05-09, marked done quietly on 07-01 (completedAt 05-10), moved to final_payment 07-02.
+    const lead = { id: 'bf', companyId: 'co1', address: '12 Birch Ln', completedBackfill: true, completedAt: iso(L(2026, 5, 10, 17)), createdAt: iso(L(2026, 4, 1)),
+      stage: 'final_payment',
+      stageHistory: [
+        { to: 'install_in_progress', timestamp: iso(L(2026, 5, 9, 8)) },
+        { to: 'install_complete', timestamp: iso(L(2026, 7, 1, 9)), backfill: true, completedOn: '2026-05-10' },
+        { to: 'final_payment', timestamp: iso(L(2026, 7, 2, 9)) },
+      ] };
+    const w = S.leadWindows(lead);
+    ok('end = completedAt', w.end === L(2026, 5, 10, 17), JSON.stringify(w));
+    ok('a June photo is After', S.phaseFor(L(2026, 6, 1, 12), w) === 'After');
+    const s = S.scorePhotoLead({ relPath: 'x/IMG.jpg', takenMs: L(2026, 6, 1, 12), gps: null }, lead, w);
+    ok('…and not "date in install window"', !s.reasons.includes('date in install window'), JSON.stringify(s.reasons));
+    const flagOnly = Object.assign({}, lead, { stageHistory: [lead.stageHistory[0], lead.stageHistory[2]] });
+    ok('the lead flag alone (history trimmed) also prefers completedAt', S.leadWindows(flagOnly).end === L(2026, 5, 10, 17));
+    const eventOnly = Object.assign({}, lead, { completedBackfill: undefined });
+    ok('a backfill event alone also prefers completedAt', S.leadWindows(eventOnly).end === L(2026, 5, 10, 17));
+    const normal = Object.assign({}, lead, { completedBackfill: undefined, stageHistory: [lead.stageHistory[0], { to: 'install_complete', timestamp: iso(L(2026, 5, 10, 16)) }], completedAt: iso(L(2026, 8, 1)) });
+    ok('a normal job still ends at its first after-stage move', S.leadWindows(normal).end === L(2026, 5, 10, 16));
+  });
+
+  await guard('12. a directional prefix is not the street word', async () => {
+    const lead = { id: 'dir', companyId: 'co1', address: '1004 N Main St, Lebanon, OH', createdAt: iso(L(2026, 5, 1)), installCompletedAt: iso(L(2026, 5, 13, 16)) };
+    const w = S.leadWindows(lead);
+    const hit = (rel) => S.scorePhotoLead({ relPath: rel, takenMs: null, gps: null }, lead, w).kinds.includes('street');
+    ok('"1004 N Elm" is not 1004 N Main', !hit('1004 N Elm/IMG.jpg'));
+    ok('"1004 North Main" is 1004 N Main', hit('1004 North Main/IMG.jpg'));
+    ok('"1004 N Main" is 1004 N Main', hit('1004 N Main/IMG.jpg'));
+    ok('"1004 Main St" (no direction) is 1004 N Main', hit('1004 Main St/IMG.jpg'));
+    ok('"1004 S Main" is not 1004 N Main', !hit('1004 S Main/IMG.jpg'));
+    const north = { id: 'ns', companyId: 'co1', address: '100 North St', createdAt: iso(L(2026, 5, 1)) };
+    const hitN = (rel) => S.scorePhotoLead({ relPath: rel, takenMs: null, gps: null }, north, S.leadWindows(north)).kinds.includes('street');
+    ok('a street named North still matches itself', hitN('100 North St/IMG.jpg'));
+    ok('…and not 100 N Elm', !hitN('100 N Elm/IMG.jpg'));
+  });
+
+  await guard('13. the output folder is never inside the repo', async () => {
+    const inRepo = path.join(ROOT, 'tmp-photo-match-test-out');
+    const r = await S.run(['--photos', PHOTOS, '--leads', LEADS_FILE, '--company', 'co1', '--out', inRepo], { log() {}, err() {}, env: {} });
+    ok('refused with a non-zero exit', r.code === 2);
+    ok('nothing written there', !fs.existsSync(inRepo));
+  });
+
+  await guard('14. the REST client: a filtered collection query', async () => {
+    const R2 = require(path.join(ROOT, 'scripts', '_firestore-rest.js'));
+    const seen = [];
+    const fetchQ = async (url, init) => { seen.push({ url, body: JSON.parse(init.body) }); return { status: 200, text: async () => JSON.stringify([{ document: { name: 'projects/p/databases/(default)/documents/leads/a1', fields: { companyId: { stringValue: 'co1' } } } }]) }; };
+    const db = R2.restFirestore({ projectId: 'p', token: 't', fetchImpl: fetchQ });
+    const snap = await db.collection('leads').where('companyId', '==', 'co1').orderBy('__name__').limit(300).get();
+    const sq = seen[0].body.structuredQuery;
+    ok('top-level collection only (allDescendants false)', sq.from[0].collectionId === 'leads' && sq.from[0].allDescendants === false);
+    ok('an equality filter on the field', sq.where.fieldFilter.field.fieldPath === 'companyId' && sq.where.fieldFilter.op === 'EQUAL' && sq.where.fieldFilter.value.stringValue === 'co1');
+    ok('docs decoded', snap.size === 1 && snap.docs[0].id === 'a1' && snap.docs[0].data().companyId === 'co1');
+    await db.collection('leads').where('userId', '==', 'u1').orderBy('__name__').limit(2).startAfter(snap.docs[0]).get();
+    ok('paging by name continues after the last doc', seen[1].body.structuredQuery.startAt.values[0].referenceValue.endsWith('/leads/a1'));
+  });
+
 
   await guard('7. the REST Storage client is create-only', async () => {
     const seen = [];

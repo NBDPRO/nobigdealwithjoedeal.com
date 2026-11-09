@@ -19,7 +19,9 @@
  *   (default 2026):
  *     street  the lead's street key (addrKey from
  *             scripts/audit-imported-docs-placement.js) in the photo's folder
- *             or file name: same house number AND same first street word;
+ *             or file name: same house number AND same street word, where a
+ *             leading direction (N / North / SW ...) is not the street word and
+ *             must agree when both sides carry one;
  *     date    the EXIF date inside the install window (+/- a day) or the
  *             wider job window (lead created - 14 d .. last stage move + 30 d);
  *     gps     the EXIF GPS within 75 m (on site, photo-engine.js's radius) or
@@ -34,9 +36,14 @@
  *   → During; after it → After. Start: the first move onto an install-in-progress
  *   stage. End: installCompletedAt, else the first move onto an after stage,
  *   else completedAt, else (lead standing on an after stage) stageStartedAt,
- *   else updatedAt — the order functions/social-studio.js uses.
+ *   else updatedAt. A job marked done after the fact (stage-write.js quiet
+ *   backfill: lead.completedBackfill or a backfill history event) has every
+ *   history move stamped at click time, so its completedAt comes before the
+ *   history. (functions/social-studio.js ranks by installCompletedAt ||
+ *   completedAt || stageStartedAt || updatedAt; the history step is ours.)
  *
- *   Output, in --out (default ~/nbd-photo-match/<date>; never under docs/):
+ *   Output, in --out (default ~/nbd-photo-match/<date>; never inside this repo,
+ *   where a `git add -A` would commit it):
  *     photo-match-review.csv  one row per matched photo, `approve` blank
  *     contact-sheet.html      thumbnails by local file path, grouped by lead;
  *                             no script, nothing loaded over the network
@@ -47,21 +54,32 @@
  *   node scripts/match-job-photos.js --apply <reviewed.csv> --company <id> --uid <uid>          # plan only
  *   node scripts/match-job-photos.js --apply <reviewed.csv> --company <id> --uid <uid> --yes    # writes
  *   Rows with approve = y/yes/x/1/true are filed. Jo may edit `phase` (Before /
- *   During / After) and `leadId` before approving. Each row is checked again:
+ *   During / After) and `leadId` before approving. First, --uid must belong to
+ *   --company (users/{uid}.companyId, else reps/{uid}.companyId, else a solo
+ *   owner whose uid IS the company id): the uid owns the Storage folder and the
+ *   rows, so a wrong one would hand the photos to that user. Each row is checked again:
  *   the lead exists in --company (read live; a local --leads file is refused),
  *   the file is still there with the reviewed sha256, and it is a JPEG or PNG
  *   (HEIC does not display in most browsers: export those as JPEG and run the
- *   dry run again). Then, create-only:
- *     Storage  photos/{uid}/{leadId}/{photoId}_original.{jpg|png}, with
- *              ifGenerationMatch=0 and a download token in its metadata;
- *              functions/image-pipeline.js makes the variants as for any upload.
+ *   dry run again). Then, create-only, row FIRST:
  *     /photos/{photoId}  the docs/pro/js/photo-engine.js row shape with
- *              source 'photo-match', capturedAt from EXIF, phase from the
- *              review, through Firestore create() (precondition exists:false).
+ *              source 'photo-match', capturedAt from EXIF (null, source
+ *              'unknown', when the file has no date: never the apply day),
+ *              phase from the review, through Firestore create()
+ *              (precondition exists:false);
+ *     Storage  photos/{uid}/{leadId}/{photoId}_original.{jpg|png}, with
+ *              ifGenerationMatch=0 and the row's download token in its
+ *              metadata. functions/image-pipeline.js runs once, when the
+ *              object lands, and finds the row by storagePath to stamp
+ *              urls.{thumb,med,full}: so the row must already exist.
  *   photoId is derived from company + lead + file hash, so a rerun finds its own
- *   rows ("already filed") and overwrites nothing; an object left by a run that
- *   stopped before its row is reused with its existing token.
+ *   rows and overwrites nothing: a row whose object is there is "already
+ *   filed"; a row whose upload failed is finished by uploading with the row's
+ *   token. An object with no row is reported and left alone (the pipeline
+ *   already ran for it and found nothing; a row now would have no thumbnails).
  *
+ * Token mode reads only --company's top-level leads (companyId ==, plus
+ * userId == company / uid for leads without companyId), never other tenants'.
  * Token mode only (NBD_ACCESS_TOKEN): the token is sent in a header, never logged.
  * NBD_PROJECT (default nobigdeal-pro) and NBD_BUCKET pick the project.
  */
@@ -122,11 +140,25 @@ function latLng(lat, lng) {
   return { lat: a, lng: b };
 }
 
-/** "1004 larkspur dr" → { num: '1004', word: 'larkspur' } */
+const DIRECTION = { n: 'n', north: 'n', s: 's', south: 's', e: 'e', east: 'e', w: 'w', west: 'w',
+  ne: 'ne', northeast: 'ne', nw: 'nw', northwest: 'nw', se: 'se', southeast: 'se', sw: 'sw', southwest: 'sw' };
+const SUFFIX = new Set(['st', 'street', 'rd', 'road', 'ave', 'av', 'avenue', 'dr', 'drive', 'ln', 'lane', 'ct', 'court',
+  'blvd', 'way', 'pl', 'place', 'cir', 'circle', 'pkwy', 'parkway', 'ter', 'terrace', 'trl', 'trail', 'hwy', 'pike']);
+/**
+ * "1004 larkspur dr" → { num: '1004', dir: '', word: 'larkspur' };
+ * "1004 n main" / "1004 north main" → { num: '1004', dir: 'n', word: 'main' };
+ * "100 north st" → { num: '100', dir: '', word: 'north' } (a street named North).
+ * A direction with no street word after it ("1004 n") gives null.
+ */
 function streetParts(key) {
-  const m = String(key || '').match(/^(\d+)\s+([a-z]+)/);
-  return m ? { num: m[1], word: m[2] } : null;
+  const m = String(key || '').match(/^(\d+)\s+([a-z]+)(?:\s+([a-z]+))?/);
+  if (!m) return null;
+  const dir = DIRECTION[m[2]];
+  if (dir && m[3] && !SUFFIX.has(m[3])) return { num: m[1], dir, word: m[3] };
+  if (dir && !m[3]) return null;
+  return { num: m[1], dir: '', word: m[2] };
 }
+const sameStreet = (a, b) => !!(a && b && a.num === b.num && a.word === b.word && (!a.dir || !b.dir || a.dir === b.dir));
 
 // ── lead windows and phase ─────────────────────────────────────────────────
 
@@ -146,7 +178,12 @@ function leadWindows(lead) {
   const firstTo = (list) => { const h = hist.find((x) => list.includes(x.to)); return h ? h.at : 0; };
   let start = firstTo(PHASE_DURING);
   const standsAfter = PHASE_AFTER.includes(stageKey(l.stage));
-  const end = ms(l.installCompletedAt) || firstTo(PHASE_AFTER) || ms(l.completedAt)
+  // After a backfill every later move (final payment, closed...) is a click
+  // too, made weeks after the job: completedAt holds the real day.
+  const backfilled = l.completedBackfill === true
+    || (Array.isArray(l.stageHistory) && l.stageHistory.some((h) => h && h.backfill === true));
+  const end = ms(l.installCompletedAt)
+    || (backfilled ? (ms(l.completedAt) || firstTo(PHASE_AFTER)) : (firstTo(PHASE_AFTER) || ms(l.completedAt)))
     || (standsAfter ? (ms(l.stageStartedAt) || ms(l.updatedAt)) : 0);
   if (start && end && start > end) start = 0;      // a reopened job: the install day is the end day
   const firsts = [ms(l.createdAt), hist.length ? hist[0].at : 0, start, end].filter(Boolean);
@@ -197,7 +234,7 @@ function scorePhotoLead(photo, lead, win) {
 
   const lk = streetParts(addrKey(lead && lead.address));
   if (lk) {
-    const hit = addrKeysInFilename(photo.relPath || '').map(streetParts).some((k) => k && k.num === lk.num && k.word === lk.word);
+    const hit = addrKeysInFilename(photo.relPath || '').map(streetParts).some((k) => sameStreet(k, lk));
     if (hit) { kinds.push('street'); reasons.push('street in folder/file name'); score += 2; }
   }
 
@@ -387,20 +424,34 @@ async function loadLeads(opts, deps) {
     return list.filter((l) => l && l.id);
   }
   const db = await dbFor(opts, deps);
-  // A collection-group page by name (the shape _firestore-rest.js supports),
-  // top-level leads/{id} only; filtered to --company below.
-  const out = [];
-  let q = db.collectionGroup('leads').orderBy('__name__').limit(300);
-  for (let guardN = 0; guardN < 1000; guardN++) {
-    const snap = await q.get();
-    for (const d of snap.docs) {
-      if (String(d.ref.path).split('/').length !== 2) continue;
-      out.push(Object.assign({}, d.data(), { id: d.id }));
+  // Only this company's top-level leads: companyId == company, and (leads
+  // written before companyId) userId == company / uid. leadInCompany decides.
+  const byId = new Map();
+  const filters = [['companyId', opts.company], ['userId', opts.company]];
+  if (opts.uid && opts.uid !== opts.company) filters.push(['userId', opts.uid]);
+  for (const [field, value] of filters) {
+    const base = () => db.collection('leads').where(field, '==', value).orderBy('__name__').limit(300);
+    let q = base();
+    for (let guardN = 0; guardN < 1000; guardN++) {
+      const snap = await q.get();
+      for (const d of snap.docs) if (!byId.has(d.id)) byId.set(d.id, Object.assign({}, d.data(), { id: d.id }));
+      if (snap.size < 300) break;
+      q = base().startAfter(snap.docs[snap.docs.length - 1]);
     }
-    if (snap.size < 300) break;
-    q = db.collectionGroup('leads').orderBy('__name__').limit(300).startAfter(snap.docs[snap.docs.length - 1]);
   }
-  return out;
+  return Array.from(byId.values());
+}
+
+/**
+ * Does `uid` belong to `company`? users/{uid}.companyId, else reps/{uid}.companyId
+ * (functions/handlers/photo.js order), else a solo owner: uid === company.
+ */
+async function uidInCompany(db, uid, company) {
+  const u = await db.doc('users/' + uid).get();
+  const r = await db.doc('reps/' + uid).get();
+  const owner = (u && u.exists && u.data() && u.data().companyId) || (r && r.exists && r.data() && r.data().companyId) || '';
+  if (owner) return String(owner) === String(company);
+  return !!(u && u.exists) && String(uid) === String(company);
 }
 
 async function dbFor(opts, deps) {
@@ -483,6 +534,7 @@ async function runMatch(opts, deps) {
   const now = deps.now ? deps.now() : Date.now();
   const out = path.resolve(opts.out || path.join(os.homedir(), 'nbd-photo-match', new Date(now).toISOString().slice(0, 10)));
   if (isUnder(out, DOCS_DIR)) throw usage('--out must not be under docs/ (that folder is the public website).');
+  if (isUnder(out, ROOT)) throw usage('--out must be outside this repository (the review files name customers; git must never see them).');
 
   const all = await loadLeads(opts, deps);
   const leads = all.filter((l) => !isDeleted(l) && leadInCompany(l, opts.company, opts.uid || opts.company) && inYear(l, opts.year));
@@ -555,7 +607,7 @@ async function applyRows(rows, ctx, deps) {
   const leadsById = new Map(ctx.leads.map((l) => [l.id, l]));
   const skipped = {};
   const skip = (why) => { skipped[why] = (skipped[why] || 0) + 1; };
-  let approved = 0, planned = 0, uploaded = 0, reused = 0, created = 0;
+  let approved = 0, planned = 0, uploaded = 0, resumed = 0, created = 0;
   const now = deps.now ? deps.now() : Date.now();
 
   for (const row of rows) {
@@ -574,7 +626,12 @@ async function applyRows(rows, ctx, deps) {
     const sha = crypto.createHash('sha256').update(bytes).digest('hex');
     if (sha !== String(row.sha256 || '').trim().toLowerCase()) { skip('file changed since review'); continue; }
 
-    const ex = await deps.exifFields(abs, now);
+    const exRaw = await deps.exifFields(abs, now);
+    // No EXIF date: say so. photo-exif.js falls back to the device clock, right
+    // for a live capture but wrong for an archive (readers fall back to createdAt).
+    const ex = exRaw && exRaw.capturedAtSource === 'exif' ? exRaw
+      : Object.assign({}, exRaw, { capturedAt: null, capturedAtSource: 'unknown' });
+    delete ex.deviceCapturedAt;
     const win = leadWindows(lead);
     const reviewed = ['Before', 'During', 'After'].find((p) => p.toLowerCase() === String(row.phase || '').trim().toLowerCase());
     const phase = reviewed || phaseFor(ex.capturedAtSource === 'exif' ? ex.capturedAt : null, win) || null;
@@ -584,20 +641,26 @@ async function applyRows(rows, ctx, deps) {
     if (!ctx.write) continue;
 
     const docRef = deps.db.doc('photos/' + photoId);
+    const upload = async (dlToken) => {
+      try { await deps.storage.create({ path: storagePath, bytes, contentType, token: dlToken }); return 'ok'; }
+      catch (e) { return e && e.code === 'already-exists' ? 'exists' : 'failed'; }
+    };
     const existing = await docRef.get();
-    if (existing && existing.exists) { skip('already filed'); continue; }
-
-    let dlToken = crypto.randomUUID();
-    try {
-      await deps.storage.create({ path: storagePath, bytes, contentType, token: dlToken });
-      uploaded++;
-    } catch (e) {
-      if (e && e.code === 'already-exists') {
-        dlToken = await deps.storage.getToken(storagePath);
-        if (!dlToken) { skip('storage object exists without a token'); continue; }
-        reused++;
-      } else { skip('upload failed'); continue; }
+    if (existing && existing.exists) {
+      // Our own row (same id = same company, lead and bytes). Its object is
+      // there: done. Missing (the upload failed): upload with the row's token.
+      const d = existing.data() || {};
+      const rowToken = d.source === 'photo-match' && d.storagePath === storagePath ? (String(d.url || '').split('token=')[1] || '') : '';
+      if (!rowToken || (await deps.storage.getToken(storagePath)) !== null) { skip('already filed'); continue; }
+      const u = await upload(rowToken);
+      if (u === 'ok') { uploaded++; resumed++; } else skip(u === 'exists' ? 'already filed' : 'upload failed: rerun to finish');
+      continue;
     }
+    // An object with no row: image-pipeline.js already ran for it, found no row
+    // and will not run again, so a row made now would never get thumbnails.
+    if ((await deps.storage.getToken(storagePath)) !== null) { skip('storage object exists without a row'); continue; }
+
+    const dlToken = crypto.randomUUID();
     const url = 'https://firebasestorage.googleapis.com/v0/b/' + ctx.bucket + '/o/' + encodeURIComponent(storagePath) + '?alt=media&token=' + dlToken;
     const lg = latLng(lead.lat, lead.lng);
     const g = ex.geoLocation || null;
@@ -634,9 +697,14 @@ async function applyRows(rows, ctx, deps) {
     } catch (e) {
       if (e && e.code === 'already-exists') skip('already filed');
       else skip('row write failed');
+      continue;
     }
+    // The row exists before the object lands, so the pipeline finds it.
+    const u = await upload(dlToken);
+    if (u === 'ok') uploaded++;
+    else skip(u === 'exists' ? 'storage object exists without a row' : 'upload failed: rerun to finish');
   }
-  return { approved, planned, uploaded, reused, created, skipped };
+  return { approved, planned, uploaded, resumed, created, skipped };
 }
 
 async function runApply(opts, deps) {
@@ -650,6 +718,7 @@ async function runApply(opts, deps) {
   if (rows.length && !('approve' in rows[0] && 'sha256' in rows[0] && 'file' in rows[0] && 'leadId' in rows[0])) throw usage('That CSV is not a photo-match review sheet.');
 
   const db = await dbFor(opts, deps);
+  if (!(await uidInCompany(db, opts.uid, opts.company))) throw usage('--uid does not belong to --company (users/{uid} or reps/{uid} names another company, or neither exists): nothing was filed.');
   const leads = await loadLeads(opts, Object.assign({}, deps, { db }));
   const storage = !opts.yes ? null : (deps.storage || makeRestStorage({ bucket: opts.bucket, token: (deps.env || {}).NBD_ACCESS_TOKEN, fetchImpl: deps.fetchImpl }));
   const res = await applyRows(rows, { leads, company: opts.company, uid: opts.uid, bucket: opts.bucket, write: !!opts.yes }, {
@@ -665,7 +734,7 @@ async function runApply(opts, deps) {
     log('');
     log('  PLAN ONLY — nothing was written. Add --yes to file ' + res.planned + ' photo(s), with Jo\'s OK for this run.');
   } else {
-    log('  uploaded      : ' + res.uploaded + (res.reused ? '   (reused ' + res.reused + ' existing objects)' : ''));
+    log('  uploaded      : ' + res.uploaded + (res.resumed ? '   (' + res.resumed + ' finishing an earlier run\'s row)' : ''));
     log('  /photos rows  : ' + res.created + ' created');
   }
   return { code: 0, summary: res };
