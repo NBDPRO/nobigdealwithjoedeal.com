@@ -64,7 +64,7 @@ console.log('KANBAN moveCard — check before write');
 
 console.log('CUSTOMER PAGE progressStage — check before write');
 {
-  const start = CUST.indexOf('window.progressStage = async function()');
+  const start = CUST.indexOf('window.progressStage = async function(target, opts)');
   const ps = start >= 0 ? CUST.slice(start, start + 12000) : '';
   const gate = ps.indexOf('_missingRequiredFields({ ...(window._currentLead || {}), stage: nextStage })');
   const intake = ps.indexOf('window.WarrantyClaim.promptIntake(lead)');
