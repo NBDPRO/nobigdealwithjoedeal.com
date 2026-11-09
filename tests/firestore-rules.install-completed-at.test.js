@@ -99,6 +99,27 @@ async function run() {
     }
   });
 
+  // Per job (review round 2026-11-09): installCompletedAt is a JOB_FIELDS field,
+  // so a non-active job's card moved onto Install Done (crm-pipeline.js
+  // _moveJobCard) writes it, on the client clock, to leads/{id}/jobs/{jobId}.
+  const jobMove = (uid, withDate) => Object.assign({
+    stage: 'install_complete', stageRole: 'won', stageStartedAt: new Date('2026-11-09T12:00:00Z'),
+    stageHistory: arrayUnion({ from: 'install_in_progress', to: 'install_complete', at: '2026-11-09T12:00:00.000Z', by: uid, drag: false }),
+  }, withDate ? { installCompletedAt: new Date('2026-11-09T12:00:00Z') } : {});
+  const job = (db, leadId, id) => doc(db, 'leads/' + leadId + '/jobs/' + id);
+  await env.withSecurityRulesDisabled(async (c) => {
+    const f = c.firestore();
+    await setDoc(doc(f, 'leads/J0'), base);
+    for (const id of ['j1', 'j2', 'j3', 'j4']) {
+      await setDoc(doc(f, 'leads/J0/jobs/' + id), { companyId: 'co-a', userId: 'co-a', stage: 'install_in_progress', stageRole: 'job', title: 'Job' });
+    }
+  });
+  await check("control: the owner can move a job doc to Install Done", 'allow', updateDoc(job(solo, 'J0', 'j1'), jobMove('co-a', false)));
+  await check("the owner CAN write a job's installCompletedAt with that move", 'allow', updateDoc(job(solo, 'J0', 'j2'), jobMove('co-a', true)));
+  await check("company_admin CAN write a job's installCompletedAt", 'allow', updateDoc(job(carol, 'J0', 'j3'), jobMove('carol', true)));
+  await check("viewer CANNOT write a job's installCompletedAt", 'deny', updateDoc(job(vera, 'J0', 'j4'), jobMove('vera', true)));
+  await check("another tenant's company_admin CANNOT write a job's installCompletedAt", 'deny', updateDoc(job(eve, 'J0', 'j4'), jobMove('eve', true)));
+
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);
   results.forEach((r) => console.log((r.ok ? '  ✓ ' : '  ✗ ') + r.label + (r.ok ? '' : '  >>> ' + r.note)));

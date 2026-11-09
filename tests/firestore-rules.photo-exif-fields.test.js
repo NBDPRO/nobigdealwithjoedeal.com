@@ -77,7 +77,7 @@ async function run() {
   }, exif);
   // dashboard-bootstrap.module.js _uploadPhoto's addDoc.
   const dashDoc = (uid, leadId) => Object.assign({
-    leadId, url: 'https://dl.example/x', name: 'IMG.JPG', userId: uid, createdAt: serverTimestamp(),
+    leadId, url: 'https://dl.example/x', name: 'IMG.JPG', userId: uid, createdAt: serverTimestamp(), uploadedAt: serverTimestamp(),
     storagePath: 'photos/' + uid + '/' + leadId + '/1_IMG.JPG', companyId: 'co-a',
   }, exif);
 
