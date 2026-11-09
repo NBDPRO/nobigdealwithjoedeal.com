@@ -148,6 +148,9 @@
     if (!keys[0] || keys.some(function (k) { return k !== keys[0]; })) return '';
     var name;
     try { name = String(labelOf(keys[0]) || '').trim(); } catch (e) { return ''; }
+    // stageLabel falls back to the raw key when a stage has no label: a slug is not a name
+    if (name.toLowerCase() === keys[0].toLowerCase() && /[-_]|^[a-z]/.test(name)) return '';
+    if (/_/.test(name)) return '';
     return name && name.length <= 40 && !/\d/.test(name) ? name : '';
   }
   function stuckNew(leads, roleOf, now, labelOf) {

@@ -158,6 +158,11 @@ G(() => {
   ok('a label with digits is not used (every number on screen is counted)', digits && /your first stage/.test(digits.text), digits && digits.text);
   const thrower = C.evaluate({ nowMs: NOW, leads: [leads[0]], roleOf, labelOf: () => { throw new Error('x'); } })[0];
   ok('a label helper that throws: neutral wording, never a crash', thrower && /your first stage/.test(thrower.text));
+  // review round 2: stageLabel returns the raw key when a stage has no label; a slug never reaches the card
+  const slug = C.evaluate({ nowMs: NOW, leads: [leads[0]], roleOf, labelOf: (k) => k })[0];
+  ok('a label that is just the stage key (no real label) is not used', slug && /your first stage/.test(slug.text) && !/fresh-inquiry/.test(slug.text), slug && slug.text);
+  const snake = C.evaluate({ nowMs: NOW, leads: [{ id: 's', _stageRole: 'new', _stageKey: 'fresh_inquiry', createdAt: NOW - 45 * DAY }], labelOf: () => 'fresh_inquiry' })[0];
+  ok('a snake_case slug is not used either', snake && /your first stage/.test(snake.text), snake && snake.text);
   ok('the widget passes the CRM\'s window.stageLabel', /stageLabel/.test(noComments(HOME_JS)));
   ok('a roleOf that throws counts nothing (never a crash)', J(C.evaluate({ nowMs: NOW, leads, roleOf: () => { throw new Error('x'); } })) === '[]');
 });
