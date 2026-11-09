@@ -1310,6 +1310,27 @@
       "indexes": []
     },
     {
+      "_comment": "Call to Close P2 (2026-11-09): call_brief_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (call-brief.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "call_brief_quota",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "_comment": "Call to Close P2 (2026-11-09): call_transcribe_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (call-transcribe-now.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "call_transcribe_quota",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "_comment": "Call to Close P2 (2026-11-09): coach_line_quota/{day}__u__{uid} and {day}__c__{companyId} day counters (coach-line.js takeQuota) carry expireAt = write time + 7 days; only today's count is read. TTL deletes them. indexes: [] = nothing queries the TTL timestamp.",
+      "collectionGroup": "coach_line_quota",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "_comment": "GDPR erasure/export (2026-07-17): confirmAccountErasure + exportMyData sweep collectionGroup('recordings').where('userId','==') (equality-only, no orderBy → ordered by __name__). The composite [userId, recordedAt] does NOT serve this; a single-field COLLECTION_GROUP index on userId does. Without it the sweep throws FAILED_PRECONDITION, compliance.js swallows it, and a user's Voice-Intelligence recordings survive right-to-be-forgotten. COLLECTION asc/desc kept so the default single-parent indexing is preserved.",
       "collectionGroup": "recordings",
       "fieldPath": "userId",

@@ -45,6 +45,10 @@ const B = require('./call-brief-logic');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const CALLS = 'phone_calls';
 const QUOTA = 'call_transcribe_quota';
+// Quota day counters expire a week after the write (Firestore TTL on
+// expireAt, firestore.indexes.json; Call to Close P2): only today's count is
+// ever read, the week is for a support question.
+const QUOTA_TTL_MS = 7 * 86400000;
 const USER_DAY_CAP = 10;
 const COMPANY_DAY_CAP = 30;
 const MAX_TRIES = 3;  // = call-center-logic pickToTranscribe
@@ -82,8 +86,9 @@ async function takeQuota(db, uid, companyId, nowMs, delta) {
     const cn = (c.exists && Number(c.data().n)) || 0;
     if (d > 0 && un >= USER_DAY_CAP) return 'user';
     if (d > 0 && cn >= COMPANY_DAY_CAP) return 'company';
-    tx.set(uRef, { n: Math.max(0, un + d), uid, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(cRef, { n: Math.max(0, cn + d), companyId, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const expireAt = new Date(Number(nowMs) + QUOTA_TTL_MS);
+    tx.set(uRef, { n: Math.max(0, un + d), uid, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
+    tx.set(cRef, { n: Math.max(0, cn + d), companyId, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
     return '';
   });
 }

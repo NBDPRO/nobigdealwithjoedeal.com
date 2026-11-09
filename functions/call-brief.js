@@ -62,6 +62,10 @@ const { ANTHROPIC_API_KEY, aiAllowed } = require('./lead-brief');
 const CALLS = 'phone_calls';
 const QUOTA = 'call_brief_quota';
 const MAX_DECISIONS = 300;
+// Quota day counters expire a week after the write (Firestore TTL on
+// expireAt, firestore.indexes.json; Call to Close P2): only today's count is
+// ever read, the week is for a support question.
+const QUOTA_TTL_MS = 7 * 86400000;
 // adjusterMeetingDate feeds the calendar feed and Google Calendar (google-calendar-logic WATCHED).
 const CALENDAR_ACK = 'This puts the adjuster meeting on the calendar and on Google Calendar when it is connected. Confirm it first.';
 const INSURANCE_ACK = 'This makes the job an insurance job: Kentucky notices and the cancellation form will apply. Confirm it first.';
@@ -186,8 +190,9 @@ async function takeQuota(db, uid, companyId, nowMs) {
     const cn = (c.exists && Number(c.data().n)) || 0;
     if (un >= L.USER_DAY_CAP) return 'user';
     if (cn >= L.COMPANY_DAY_CAP) return 'company';
-    tx.set(uRef, { n: un + 1, uid, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(cRef, { n: cn + 1, companyId, day, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const expireAt = new Date(Number(nowMs) + QUOTA_TTL_MS);
+    tx.set(uRef, { n: un + 1, uid, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
+    tx.set(cRef, { n: cn + 1, companyId, day, updatedAt: FieldValue.serverTimestamp(), expireAt }, { merge: true });
     return '';
   });
 }

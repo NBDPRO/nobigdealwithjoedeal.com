@@ -55,7 +55,7 @@ Checked and left as they are:
 ## Gaps
 
 - Transcribe now shows on any stored call the user can act on, but the server only takes the owner tenant's calls (single-tenant pipeline until P2).
-- `call_transcribe_quota` docs never expire (P2 retention should list them).
+- `call_transcribe_quota` docs never expire (P2 retention should list them). **Update 2026-11-09 (P2 lane dmmap):** fixed, see "Quota TTL" below.
 - `callBriefAuto` starts on every `phone_calls` update (512 MiB, `maxInstances: 5`); the transition check returns before any read.
 - Chimney / skylight chips carry no quote (the brief keeps those mentions as yes / no).
 - The sheet has two filled buttons when a follow-up message and a proposal draft both show (Check and open in Messages, Draft proposal). Each is the main act of its own card.
@@ -75,3 +75,17 @@ All on the integrated branch:
 After the final review round (same branch, five fix commits): `check-js-syntax` clean (2347 files); `run-test-manifest --check` 1117 suites, floors current (no suite added); `check-site-integrity`, `check-inline-html-scripts`, `apply-partials --check`, `gen-function-map --check`, `check-vault-index` clean; `dashboard-boot-budget-2026-10-03` 36/36; full node bucket 984/984; `tests/smoke.test.js` 4434 passed, 0 failed; emulator rules one at a time `call-brief-settings` 23/23, `call-briefs` 20/20, `cross-tenant` 482/482, `company-docs` 47/47; browser `pro-demo-zero-network-2026-10-06` 122/122, `crm-layouts-render-2026-10-15` 49/49. The integrated screenshots were taken again: the builder strip sits in the step column at 1280x800, and the auto-brief button measures 44 px tall at both widths.
 
 Screenshots of the integrated sheet, the Call Center and the builder at 375x812 and 1280x800 (demo account, no network): the section order above, no sideways scroll, no one-tap follow-up for a hard-to-hear date, an empty date on the hard-to-hear promise, the builder listing the hard-to-hear story count as a line and not filling it, 2 rescue rows with one Brief button, Transcribe now on the stored call, nothing blocked by the demo tripwire, no page errors.
+
+## Update 2026-11-09 (P2 lane "dmmap"): quota TTL
+
+The three AI day counters now expire. `call_transcribe_quota` (callTranscribeNow), `call_brief_quota` (callBrief and callBriefAuto) and `coach_line_quota` (coachLine) write `expireAt` = write time + 7 days on every counter (only today's count is ever read; the week is for a support question). `firestore.indexes.json` declares a TTL policy on `expireAt` for each of the three, with no index on the field. Tested in `tests/call-to-close-p1-leftovers-2026-11-09.test.js` section 1.
+
+**Jo, console step (once):** `firebase deploy --only firestore:indexes` turns the three TTL policies on. If that deploy is not run, set them by hand:
+
+```bash
+gcloud firestore fields ttls update expireAt --collection-group=call_transcribe_quota --enable-ttl --project=<project>
+gcloud firestore fields ttls update expireAt --collection-group=call_brief_quota --enable-ttl --project=<project>
+gcloud firestore fields ttls update expireAt --collection-group=coach_line_quota --enable-ttl --project=<project>
+```
+
+Counters written before this change have no `expireAt` and are never deleted by TTL; there are at most a few hundred (two per active user / company per day since the features shipped). Delete them once by hand in the console if wanted; nothing reads them.
