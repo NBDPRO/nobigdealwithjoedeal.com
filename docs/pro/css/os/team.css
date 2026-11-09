@@ -2,7 +2,7 @@
    Loaded with the `osteam` runtime bundle, never at boot. Theme tokens and
    --ui-* tokens only; no motion. Floors: no text under 11px, 44px targets
    (the Open leaderboard button is .os-hw-btn). The card itself is .os-hw (home.css). */
-.os-tm-big { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
+.os-hw .os-tm-big { margin: 0; font-size: var(--ui-fs-display, 28px); font-weight: 700; line-height: 1.1; }
 .os-tm-label {
   margin: var(--ui-space-1, 4px) 0 0; font-size: var(--ui-fs-label, 11px); font-weight: 700;
   letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; color: var(--m);

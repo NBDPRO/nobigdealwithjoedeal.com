@@ -103,18 +103,18 @@
     var t = TB.totals(list);
     var when = useToday ? 'today' : 'this week';
     if (size === 's') {
-      return h + '<p class="os-tm-big ui-num">' + esc(String(t.doors)) + '</p><p class="os-hw-sub">' + esc((t.doors === 1 ? 'door ' : 'doors ') + when) + '</p>';
+      return h + '<div class="os-tm-big ui-num">' + esc(String(t.doors)) + '</div><p class="os-hw-sub">' + esc((t.doors === 1 ? 'door ' : 'doors ') + when) + '</p>';
     }
     if (size === 'm') {
-      return h + '<p class="os-tm-label">' + esc(useToday ? 'Today' : 'This week') + '</p>' +
-        '<p class="os-tm-line">' + esc(line(t)) + '</p>' + people(list, 'doors', 3);
+      return h + '<div class="os-tm-label">' + esc(useToday ? 'Today' : 'This week') + '</div>' +
+        '<div class="os-tm-line">' + esc(line(t)) + '</div>' + people(list, 'doors', 3);
     }
     var tz = (S.rows[0] && S.rows[0].tz) || undefined;
     var asOf = TB.asOf(S.rows);
     var out = h;
-    if (today.length) out += '<p class="os-tm-label">Today</p><p class="os-tm-line">' + esc(line(TB.totals(today))) + '</p>';
-    else out += '<p class="os-tm-label">Today</p><p class="os-hw-sub">Not counted yet today.</p>';
-    if (week.length) out += '<p class="os-tm-label">This week</p><p class="os-tm-line">' + esc(line(TB.totals(week))) + '</p>' + people(week, 'doors', 6);
+    if (today.length) out += '<div class="os-tm-label">Today</div><div class="os-tm-line">' + esc(line(TB.totals(today))) + '</div>';
+    else out += '<div class="os-tm-label">Today</div><p class="os-hw-sub">Not counted yet today.</p>';
+    if (week.length) out += '<div class="os-tm-label">This week</div><div class="os-tm-line">' + esc(line(TB.totals(week))) + '</div>' + people(week, 'doors', 6);
     var at = asOf ? timeOf(asOf, tz) : '';
     if (at) out += '<p class="os-hw-sub">' + esc('Updated ' + at) + '</p>';
     out += '<a class="btn btn-ghost os-hw-btn os-tm-open" href="' + esc(LEADERBOARD) + '">Open leaderboard</a>';

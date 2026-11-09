@@ -98,11 +98,15 @@
       '<optgroup label="All time zones">' + all.filter(function (z) { return first.indexOf(z) === -1; }).map(opt).join('') + '</optgroup>';
   }
 
-  var panel = null;
+  var panel = null, cssAsked = false;
   function render() {
     var anchor = doc.getElementById('cp_businessLicense');
     var host = anchor && anchor.closest ? anchor.closest('.panel') : null;
     if (!host || !host.parentNode) return;
+    if (!cssAsked && W.ScriptLoader && typeof W.ScriptLoader.load === 'function') {
+      cssAsked = true;
+      try { W.ScriptLoader.load('css/company-timezone-settings.css?v=1'); } catch (e) { /* unstyled still works */ }
+    }
     if (!panel || !panel.parentNode) {
       panel = doc.createElement('div');
       panel.className = 'panel mb-md';
@@ -116,10 +120,10 @@
       '<div class="panel-hdr"><div><div class="panel-label">The day and week your team\'s numbers count in: Today and This week on the leaderboard and the Team widget.</div>' +
         '<div class="panel-title">Time zone</div></div></div>' +
       '<div class="panel-body"><div class="sf"><label for="cp_timeZone">Company time zone</label>' +
-        '<select id="cp_timeZone"' + (edit ? '' : ' disabled') + '>' + options(cur) + '</select></div>' +
-        (cur ? '' : '<p class="meta-10">Not set yet. Until it is, the team numbers count in Eastern time.</p>') +
-        (edit ? '<button type="button" class="btn btn-ghost" data-cotz="save">Save time zone</button>'
-          : '<p class="meta-10">Only the owner or an admin can change this.</p>') +
+        '<select id="cp_timeZone" class="cotz-select"' + (edit ? '' : ' disabled') + '>' + options(cur) + '</select></div>' +
+        (cur ? '' : '<p class="cotz-note">Not set yet. Until it is, the team numbers count in Eastern time.</p>') +
+        (edit ? '<div class="cotz-row"><button type="button" class="btn btn-ghost cotz-save" data-cotz="save">Save time zone</button></div>'
+          : '<p class="cotz-note">Only the owner or an admin can change this.</p>') +
       '</div>';
   }
   function onClick(e) {

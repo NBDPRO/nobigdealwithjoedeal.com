@@ -72,6 +72,10 @@ function mount(claims, profile, opts) {
   ok('no <script> tag for it in dashboard.html', !/company-timezone-settings/.test(read('docs/pro/dashboard.html')));
   const code = H.noComments(SRC);
   ok('no style attribute, no inline handler, no el.style', !/style="|style=\\"|\son[a-z]+=|\.style\b/.test(code));
+  const CSS = read('docs/pro/css/company-timezone-settings.css');
+  ok('its stylesheet loads lazily from the file (ScriptLoader.load), 44px field and button, no text under 11px, no motion',
+    /ScriptLoader\.load\('css\/company-timezone-settings\.css\?v=\d+'\)/.test(SRC) && /\.cotz-select[^}]*min-height: 44px/.test(CSS) && /\.cotz-save \{ min-height: 44px; \}/.test(CSS)
+    && !/font-size:\s*(?:[0-9]|10)(?:\.\d+)?px/.test(CSS) && !/transition|animation/.test(CSS));
   ok('every interpolated value is escaped (esc)', /function esc\(/.test(SRC) && !/\+\s*z\s*\+/.test(code));
 
   console.log('\n2. the zone list and the check');
