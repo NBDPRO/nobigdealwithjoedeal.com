@@ -9,10 +9,9 @@
  * The catalog said 4.
  *
  * The sweep's other public fix, coil-nail and step-flashing lines on the
- * Designer / Luxury Shingle template, is NOT here: it moved the pinned totals
- * in tests/system-plus-standard-and-up-2026-10-05.test.js, so it landed with
- * Jo's OK (2026-11-09) and is pinned by
- * tests/designer-nail-step-flashing-2026-11-09.test.js.
+ * Designer / Luxury Shingle template, lives in
+ * tests/designer-nail-step-flashing-2026-11-09.test.js (it moved the pinned
+ * totals in tests/system-plus-standard-and-up-2026-10-05.test.js).
  *
  * Pure Node. Run: node tests/supplier-sweep-data-fixes-2026-11-09.test.js
  */
