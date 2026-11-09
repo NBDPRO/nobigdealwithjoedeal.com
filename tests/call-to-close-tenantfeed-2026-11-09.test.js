@@ -290,6 +290,18 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     ok('a provider outage in a tenant run: no push, no bell (NBD\'s run tells Jo)', pushes.length === 0 && ![...db2.docs.keys()].some((k) => k.startsWith('notifications/')));
     ok('…and it is recorded on the tenant config', (db2.docs.get('integrations/callCenter_' + A.cid).providerOutage || {}).kind === 'auth');
 
+    // NBD's own pass just hit a provider outage (review fix): the accounts are
+    // shared, so no tenant spends a request on them this run.
+    const db4 = fakeDb(world({ 'phone_calls/cube_a1': stored('cube_a1', A, { leadId: 'aLead' }), 'phone_calls/cube_b1': stored('cube_b1', B, { leadId: 'bLead' }) }));
+    let txCalls = 0;
+    T.setDeps({ transcribe: async () => { txCalls++; return { text: 'x', durationSec: 1, segments: [] }; }, notes: async () => { txCalls++; return {}; }, push: async () => ({ sent: 0 }) });
+    const r4 = await T.runTenantTranscribe({ db: db4, bucket: fakeBucket(), live: true, nowMs: NOW, env: ON, nbdOutage: { kind: 'auth', provider: 'groq' } });
+    ok('NBD\'s run hit a provider outage → no tenant request at all', r4.ran === 0 && txCalls === 0 && r4.skipped === 'provider_outage', r4);
+    ok('…and nothing written', !db4.log.length, db4.log.map((w) => w.path));
+    const sched = read('functions/call-center.js');
+    const trs = sched.slice(sched.indexOf('exports.callCenterTranscribe'), sched.indexOf('// Stage 3'));
+    ok('the transcribe schedule hands NBD\'s outage to the tenant loop', /nbdOutage = \(r && r.providerOutage\)/.test(trs) && /runTenantTranscribe\(\{[^}]*\bnbdOutage\b/.test(trs), trs.slice(0, 900));
+
     // env off → no tenant transcription.
     const db3 = fakeDb(world({ 'phone_calls/cube_a1': stored('cube_a1', A) }));
     stubDeps();

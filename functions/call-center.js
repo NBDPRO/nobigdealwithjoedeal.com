@@ -339,8 +339,13 @@ async function runTenantIngest({ db, bucket, live, nowMs, env, log = logger }) {
   return out;
 }
 
-/** Every enabled tenant's transcription pass, after NBD's; a provider outage stops the rest. */
-async function runTenantTranscribe({ db, bucket, live, nowMs, env, log = logger }) {
+/**
+ * Every enabled tenant's transcription pass, after NBD's; a provider outage
+ * stops the rest. nbdOutage: NBD's own pass just hit one (the provider
+ * accounts are shared), so no tenant spends a request on them this run.
+ */
+async function runTenantTranscribe({ db, bucket, live, nowMs, env, nbdOutage, log = logger }) {
+  if (nbdOutage) return { ran: 0, results: [], refused: [], skipped: 'provider_outage' };
   const { feeds, refused } = await loadTenantFeeds(db, { env });
   const out = { ran: 0, results: [], refused };
   if (!feeds.length || await globallyPaused(db)) return out;
@@ -1066,9 +1071,11 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
 exports.callCenterTranscribe = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY] },
   async () => {
+    let nbdOutage = null;
     try {
       if (await require('./integrations/killswitch').isAiDisabled()) { logger.info('[callCenterTranscribe] AI kill switch on'); return; }
       const r = await runTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now() });
+      nbdOutage = (r && r.providerOutage) || null;
       logger.info('[callCenterTranscribe]', r);
     } catch (e) {
       logger.warn('[callCenterTranscribe] failed', { err: e && e.message });
@@ -1076,8 +1083,8 @@ exports.callCenterTranscribe = onSchedule(
     // Call to Close P2: other tenants, after NBD's own pass, inside the same
     // day audio allowance (dark unless the env gate AND a config say so).
     try {
-      const t = await runTenantTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now(), env: process.env });
-      if (t.ran || t.refused.length) logger.info('[callCenterTranscribe] tenants', t);
+      const t = await runTenantTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now(), env: process.env, nbdOutage });
+      if (t.ran || t.refused.length || t.skipped) logger.info('[callCenterTranscribe] tenants', t);
     } catch (e) {
       logger.warn('[callCenterTranscribe] tenants failed', { err: e && e.message });
     }
