@@ -78,3 +78,34 @@ Both run the real functions in a vm, and the photo suite runs the real exifr ove
   returns NaN, so that layout already scores such photos 0. This was not changed.
 - The customer page and the dashboard modal still write no `onSite` for EXIF GPS. Only PhotoEngine
   computes it.
+
+## Review round (2026-11-09)
+
+An independent review of this branch asked for changes. The branch is now rebased onto the
+integration branch `claude/funny-hawking-t9zyzm`, so the plan is reachable from here:
+[CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md).
+
+- **Fixed, defect 1 (medium): the date was stored per lead, not per job.** `installCompletedAt` is
+  now in all three pinned-equal `JOB_FIELDS` lists (`functions/jobs-logic.js`,
+  `docs/pro/js/jobs-store.js`, `docs/pro/js/today-plan.js`). The effects:
+  - Another job's card carries that job's own date.
+  - Promotion nulls the old date, or carries the promoted job's date.
+  - The jobs mirror copies the lead's stamp onto the active job.
+
+  Before the fix, a second job read the first job's date, the review hand-off treated it as done, and
+  its own first move onto Install Done was skipped. Test section 2c covers two jobs.
+- **Fixed, defect 2: integration.** The rebase had conflicts in `dashboard.html`,
+  `run-test-manifest.js` and `ci-manifest.json`, and I kept both sides' suites. Each cache key moved
+  one past the base's value: script-loader 217, dashboard-bootstrap 45, customer-bootstrap 34. The
+  floors were re-measured with `--check` and are now 1038/74/1179.
+- **By design, defect 3: a drag back off Install Done keeps the stamp.** `completedAt` is cleared in
+  that case; `installCompletedAt` is not. The rule was "recorded once, never overwritten". As a
+  result, `isJobDone` (review hand-off) and `ai-texting` `isCustomer` still treat a lead dragged back
+  to open work as done. The PR body should say so. This is pinned in the test as "a move back to open
+  work does not clear it".
+- **Fixed, defect 4: the photo CSV `uploadedAt` column.** The dashboard modal now stamps
+  `uploadedAt` with server time, the same as the other two paths, so the column no longer falls back
+  to the EXIF `capturedAt`. In the held file this added one token on line 4893.
+- **Fixed, defect 5: a stalled module fetch.** The 4 s ceiling now covers the `import()` of
+  `photo-exif.js` and the read together, on all three paths. In the held file this rewrote line 4890,
+  the import line this branch added.
