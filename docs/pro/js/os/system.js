@@ -221,6 +221,8 @@
     doc.documentElement.classList.remove('os-locked');
     state.lastActive = Date.now();
     sound('unlock');
+    // the home's Smart Stack picks its card again on unlock (os/home.js listens)
+    try { w.dispatchEvent(new w.CustomEvent('nbd:os-unlock')); } catch (e) {}
     var back = state.lockReturn;
     state.lockReturn = null;
     if (back && typeof back.focus === 'function' && doc.contains(back)) back.focus();

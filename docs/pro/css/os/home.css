@@ -228,3 +228,44 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw.is-editing { touch-action: none; }
 .os-hw.is-dragging { z-index: 2; opacity: .7; cursor: grabbing; box-shadow: var(--ui-elev-2, var(--ui-elev-1)); }
 .os-hw.is-editing.is-drop { outline: 2px solid var(--orange); }
+
+/* ── P1 widgets (js/os/widgets-p1.js): Needs you, Storm, Closes this week, Money ── */
+.os-hw-ny-big, .os-hw-money-big { align-items: flex-start; }
+.os-hw-ny-n, .os-hw-money-n { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.15; }
+.os-hw-money-big, .os-hw.is-m .os-hw-money-big { flex-direction: column; align-items: flex-start; }
+.os-hw-ny-row.is-urgent .os-hw-row-name { font-weight: 700; }
+.os-hw-ny-row.is-urgent .os-hw-row-name::before { content: '● '; color: var(--orange); }
+.os-hw-storm-line { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+/* S: two lines at most, then an ellipsis (the M size and Storm Center have the rest) */
+.os-hw.is-s .os-hw-storm-line, .os-hw.is-s .os-hw-empty { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--ui-fs-body-sm, 13px); }
+.os-hw-note { margin: 0; font-size: var(--ui-fs-caption, 12px); line-height: 1.35; color: var(--m); }
+.os-hw-row.is-focus { box-shadow: inset 3px 0 0 var(--orange); }
+.os-hw-focus .os-hw-row-name { font-weight: 700; }
+/* the member's own money never shows on the lock screen */
+html.os-locked .os-hw-money { visibility: hidden; }
+
+/* ── Smart Stack: one card, prev / next and "Why this?" (never rotates by itself) ── */
+.os-hw-stack > .os-hw-body { height: 100%; }
+.os-hw-stack-card { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.os-hw-stack-card > * { flex-shrink: 0; }
+.os-hw-stack-bar {
+  display: flex; align-items: center; gap: var(--ui-space-1, 4px); flex: none; min-width: 0;
+  padding-top: var(--ui-space-1, 4px); border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-stack-nav { min-width: 44px; padding-inline: var(--ui-space-2, 8px); font-size: var(--ui-fs-title, 20px); line-height: 1; }
+.os-hw-stack-pos { font-size: var(--ui-fs-caption, 12px); color: var(--m); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.os-hw-stack-why { margin-left: auto; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-why { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; color: var(--t); overflow-wrap: anywhere; flex: none; }
+.os-hw-ed-cards { padding-inline: var(--ui-space-3, 12px); }
+.os-hw-add-chip[aria-pressed="true"] { border-color: var(--orange); font-weight: 700; }
+
+/* ── the urgency ring (#5) on an OS icon: a ring plus a word, never colour alone ── */
+.os-p-icon.is-urgent .os-p-glyph, .os-icon.is-urgent .os-icon-glyph { position: relative; box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 82%, black); }
+.os-bar-btn.is-urgent .os-bar-glyph { position: relative; display: inline-flex; border-radius: var(--ui-radius-md, 8px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 82%, black); }
+.os-urgent-pill {
+  position: absolute; top: -8px; right: -10px; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+  background: color-mix(in srgb, var(--red) 82%, black); color: white; box-shadow: 0 0 0 2px var(--s);
+  font-size: 11px; font-weight: 700; line-height: 20px; letter-spacing: 0; text-align: center; white-space: nowrap;
+}
+/* the phone bar's glyph is small: the word sits up and to its right, not over it */
+.os-bar-btn .os-urgent-pill { top: -10px; right: auto; left: 70%; padding: 0 5px; }

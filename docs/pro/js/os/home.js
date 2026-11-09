@@ -18,6 +18,14 @@
  *                else one "Open Daily Success" link; business half: calls,
  *                follow-ups and jobs left (nbd_today_summary). Opens Daily
  *                Success in the same tab. Each half hideable (cfg show).
+ *   P1           Needs you, Storm, Closes this week, Money and the Smart Stack
+ *                paint from os/widgets-p1.js and os/stack-logic.js, the runtime
+ *                ScriptLoader bundle 'oshomep1' registered and loaded here the
+ *                first time a home holds one (layout-system.js needs.script is
+ *                full). Until it lands they say "Loading…". A widget whose
+ *                sidebar view the role hides (catalog nav), or Money for a role
+ *                that can't see money, is not painted at all; it stays saved.
+ *                The stack re-picks its card on show, unlock and events only.
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -76,7 +84,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'storage', 'online', 'offline'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -110,6 +118,15 @@
     return L && typeof L.clockText === 'function' ? L.clockText(new Date()) : { time: '', date: '' };
   }
   function isViewer() { return ((W._userClaims || {}).role || '') === 'viewer'; }
+  function flagOn(n) { var F = W.NBDFlags; try { return !!(F && typeof F.enabled === 'function' && F.enabled(n)); } catch (e) { return false; } }
+  /** The urgency ring's data (home-logic urgency): reply stamps only count while speedToLead is on. */
+  function urgencyNow() {
+    var plan = null;
+    try { plan = todayPlan(); } catch (e) { plan = null; }
+    return HL.urgency({ leads: leadsNow(), plan: plan, now: Date.now(), stamped: flagOn('speedToLead'), roleOf: typeof W.stageRole === 'function' ? W.stageRole : null });
+  }
+  // the Smart Stack re-picks when this moves: an event, a show, an unlock (never a timer)
+  var epoch = 1;
 
   // ── the widgets: (size, cfg, act) -> body markup ─────────────
   function clockHtml(withDate) {
@@ -137,22 +154,38 @@
     if (size === 'l' && plan) h += '<p class="os-hw-sub">' + esc(HL.headline(plan.total)) + '</p>';
     return h;
   }
-  function rowHtml(r) {
+  function rowHtml(r, focused) {
     var innerHtml = '<span class="os-hw-row-name">' + esc(r.name) + '</span><span class="os-hw-row-sub">' + esc(r.sub) + '</span>';
-    if (r.href) return '<a class="os-hw-row" href="' + esc(r.href) + '"' + (r.ext ? ' target="_blank" rel="noopener"' : '') + '>' + innerHtml + '</a>';
-    return '<button type="button" class="os-hw-row" data-oshw-go="' + esc(r.go) + '">' + innerHtml + '</button>';
+    var cls = focused ? 'os-hw-row is-focus' : 'os-hw-row';
+    if (r.href) return '<a class="' + esc(cls) + '" href="' + esc(r.href) + '"' + (r.ext ? ' target="_blank" rel="noopener"' : '') + '>' + innerHtml + '</a>';
+    return '<button type="button" class="' + esc(cls) + '" data-oshw-go="' + esc(r.go) + '">' + innerHtml + '</button>';
   }
-  function upnext(size) {
+  /** Up Next in a Smart Stack, focused (P1): the waiting lead or call the stack picked it for. */
+  function focusHtml(f) {
+    if (!f || (f.kind !== 'lead' && f.kind !== 'call')) return '';
+    var lead = null;
+    (leadsNow() || []).forEach(function (l) { if (l && f.id && String(l.id) === f.id) lead = l; });
+    var name = lead ? (((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || String(lead.name || '') || 'New lead') : (f.kind === 'lead' ? 'New leads' : 'Missed calls');
+    // a wait under 90 min in minutes, else in whole hours
+    var n = String(f.n), m = f.min < 90 ? String(f.min) + ' min' : String(Math.floor(f.min / 60)) + ' h';
+    var sub = f.kind === 'lead' ? (f.n > 1 ? [n, ' waiting, oldest ', m] : ['Waiting ', m, ' for a reply']) : (f.n > 1 ? [n, ' missed, oldest ', m] : ['Missed ', m, ' ago']);
+    var r = { name: 'Call back · ' + name, sub: sub.join(''), href: lead ? '/pro/customer.html?id=' + encodeURIComponent(String(lead.id)) : '', ext: false, go: f.kind === 'lead' ? 'crm' : 'calls' };
+    return '<div class="os-hw-rows os-hw-focus">' + rowHtml(r) + '</div>';
+  }
+  function upnext(size, cfg, act, rec) {
     var plan = todayPlan();
     if (!plan) return '<h3 class="os-hw-title">Up Next</h3><p class="os-hw-empty">Loading your day…</p>';
+    var f = rec && rec.focus;
     var rows = HL.upNext(plan, { n: size === 's' ? 1 : 3, viewer: isViewer() }) || [];
-    var h = '<h3 class="os-hw-title">Up Next <span class="os-hw-count">' + esc(HL.headline(plan.total)) + '</span></h3>';
+    var h = '<h3 class="os-hw-title">Up Next <span class="os-hw-count">' + esc(HL.headline(plan.total)) + '</span></h3>' + focusHtml(f);
+    // focused on an appointment: its row leads, marked
+    if (f && f.kind === 'appt') rows.forEach(function (r, i) { if (r.key === f.key && i) { rows.splice(i, 1); rows.unshift(r); } });
     if (!rows.length) {
       var c = counts();
       var unsure = apptsFailed() || !!(c && c.callsFailed);
       return h + '<p class="os-hw-empty">' + esc(unsure ? 'Can\'t confirm your day yet' : 'Nothing due today') + '</p>';
     }
-    h += '<div class="os-hw-rows">' + rows.map(rowHtml).join('') + '</div>';
+    h += '<div class="os-hw-rows">' + rows.map(function (r, i) { return rowHtml(r, !i && !!f && f.kind === 'appt' && r.key === f.key); }).join('') + '</div>';
     if (size === 'l') h += '<button type="button" class="btn btn-ghost os-hw-btn" data-oshw-go="home">See your whole day</button>';
     return h;
   }
@@ -282,6 +315,33 @@
 
   var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily };
 
+  // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
+  var P1_BUNDLE = 'oshomep1';
+  var P1_FILES = ['js/os/stack-logic.js?v=1', 'js/os/widgets-p1.js?v=1'];
+  var p1State = '';   // '' not asked | 'asked' | 'failed'
+  var mounted = [];   // live mounts, repainted when the bundle lands
+  function ensureP1() {
+    if (W.NBDOSHomeP1 || p1State === 'asked') return;
+    var SL = W.ScriptLoader;
+    if (!SL || typeof SL.loadBundle !== 'function') return;
+    p1State = 'asked';
+    if (SL.bundles && !SL.bundles[P1_BUNDLE]) SL.bundles[P1_BUNDLE] = P1_FILES.slice();
+    Promise.resolve().then(function () { return SL.loadBundle(P1_BUNDLE); }).then(function () {
+      p1State = W.NBDOSHomeP1 ? '' : 'failed';
+      mounted.forEach(function (m) { m.repaint(); });
+    }, function () { p1State = 'failed'; mounted.forEach(function (m) { m.repaint(); }); });
+  }
+  function p1(id) {
+    return function (size, cfg, act, rec, kit) {
+      var P = W.NBDOSHomeP1;
+      if (P && typeof P[id] === 'function') return P[id](size, cfg, act, rec, kit);
+      if (p1State === 'failed') throw new Error('P1 widgets did not load');
+      ensureP1();
+      return '<h3 class="os-hw-title">' + esc(HL.CATALOG[id].title) + '</h3><p class="os-hw-empty">Loading…</p>';
+    };
+  }
+  HL.ids().forEach(function (id) { if (HL.CATALOG[id].p1 && !WIDGETS[id]) WIDGETS[id] = p1(id); });
+
   function failHtml(key) {
     return '<p class="os-hw-fail">Couldn\'t load · <button type="button" class="ui-btn-quiet os-hw-btn os-hw-retry" data-oshw-retry="' + esc(key) + '">Retry</button></p>';
   }
@@ -310,7 +370,21 @@
     el.className = 'os-hw-list';
     el.setAttribute('data-os-home', surface);
     if (desk) el.classList.add('os-hw-board');
-    var recs = {}, order = [], cur = [], dirty = false, live = true;
+    var recs = {}, order = [], cur = [], dirty = false, live = true, held = [];
+    var navHidden = typeof o.navHidden === 'function' ? o.navHidden : function () { return false; };
+    function moneyOk() { return !isViewer() && !navHidden('money'); }
+    /** A widget this member's role can't see: its sidebar view is hidden, or it shows money. */
+    function hiddenId(id) {
+      var c = HL.CATALOG[id];
+      return !c || !!(c.nav && navHidden(c.nav)) || !!(c.money && !moneyOk());
+    }
+    // what the P1 renderers (os/widgets-p1.js) may read; all memory, no Firestore
+    var kit = {
+      esc: esc, plan: todayPlan, counts: counts, leads: leadsNow, apptsFailed: apptsFailed, isViewer: isViewer, dsNow: dsNow,
+      uid: function () { return String((W._user && W._user.uid) || ''); }, urgency: urgencyNow, moneyOk: moneyOk, navHidden: navHidden,
+      hiddenId: hiddenId, has: function (id) { return !!WIDGETS[id]; }, epoch: function () { return epoch; },
+      render: function (id, size, cfg, a, rec) { return WIDGETS[id](size, cfg, a, rec, kit); },
+    };
     var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
     var drag = null;
     // one polite line says each change; the help text is what each widget is described by while editing
@@ -339,7 +413,7 @@
     }
     function paintOne(rec, force) {
       var html;
-      try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec); }
+      try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec, kit); }
       catch (e) {
         html = failHtml(rec.key);
         try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
@@ -356,13 +430,15 @@
       if (!live) return;
       var list = Array.isArray(items) ? items : [];
       var next = {}, keys = [], seen = {}, kept = [];
+      held = [];
       list.forEach(function (it) {
         if (!it || !WIDGETS[it.id]) return;
+        if (hiddenId(it.id)) { held.push(it); return; }   // not painted, still saved (commit puts it back)
         seen[it.id] = (seen[it.id] || 0) + 1;
         var key = it.id + '-' + seen[it.id];
         var rec = recs[key];
         if (!rec) rec = build(key, it);
-        else if (rec.it.s !== it.s || JSON.stringify(rec.it.cfg || null) !== JSON.stringify(it.cfg || null)) { rec.it = it; rec.html = null; }
+        else if (rec.it.s !== it.s || JSON.stringify([rec.it.cfg || null, rec.it.items || null]) !== JSON.stringify([it.cfg || null, it.items || null])) { rec.it = it; rec.html = null; }
         else if (desk) rec.it = it;
         ['s', 'm', 'l'].forEach(function (s) { rec.el.classList.toggle('is-' + s, s === rec.it.s); });
         if (desk) place(rec.el, it);
@@ -399,7 +475,7 @@
     /** The phone page's cell count for these items: an open M Coach takes the cells of an L (pageRoom). */
     function cellItems(items) {
       var seen = {};
-      return (Array.isArray(items) ? items : []).map(function (it) {
+      return (Array.isArray(items) ? items : []).filter(function (it) { return !it || !WIDGETS[it.id] || !hiddenId(it.id); }).map(function (it) {
         if (!it || !WIDGETS[it.id]) return it;
         seen[it.id] = (seen[it.id] || 0) + 1;
         var r = recs[it.id + '-' + seen[it.id]];
@@ -412,7 +488,8 @@
       var it = cur[i], c = HL.CATALOG[it.id];
       var nx = HL.resize(cur, i, 0);
       var label = 'Size: ' + HL.SIZE_NAME[it.s] + (nx ? '. Change to ' + HL.SIZE_NAME[nx[i].s] : '');
-      return '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
+      return (c.stack ? '<button type="button" class="os-hw-ed os-hw-ed-cards" data-oshw-ed="cards" aria-haspopup="dialog" aria-label="' + esc('Cards in ' + c.title) + '">Cards</button>' : '') +
+        '<button type="button" class="os-hw-ed os-hw-ed-size" data-oshw-ed="size" aria-label="' + esc(label) + '"' + (nx ? '' : ' disabled') + '>' + esc(it.s.toUpperCase()) + '</button>' +
         '<button type="button" class="os-hw-ed os-hw-ed-remove" data-oshw-ed="remove" aria-label="' + esc('Remove ' + c.title) + '">✕</button>' +
         // the laptop corner grip: a pointer-only convenience (Shift+arrows and the chip are the other paths)
         (desk && c.sizes.length > 1 ? '<span class="os-hw-grip" data-oshw-grip="" aria-hidden="true"></span>' : '');
@@ -457,6 +534,7 @@
         var c = { id: it.id, s: it.s, _k: order[i] };
         if (typeof it.x === 'number' && typeof it.y === 'number') { c.x = it.x; c.y = it.y; c.w = it.w; c.h = it.h; }
         if (it.cfg) c.cfg = it.cfg;
+        if (it.items) c.items = it.items.slice();
         return c;
       });
     }
@@ -466,18 +544,21 @@
       if (!next) return false;
       if (surface === 'phone') next = HL.pack(next);
       if (next.map(function (x) { return x._k; }).join() === order.join() && next.length === order.length &&
-        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y; })) return false;
+        next.every(function (x, i) { return x.s === cur[i].s && x.x === cur[i].x && x.y === cur[i].y && JSON.stringify(x.items || null) === JSON.stringify(cur[i].items || null); })) return false;
       var at = -1;
       next.forEach(function (it, j) { if (focusTag && it._k === focusTag) at = j; });
       var clean = next.map(function (it) {
         var c = { id: it.id, s: it.s };
         if (desk && typeof it.x === 'number' && typeof it.y === 'number') { c.x = it.x; c.y = it.y; c.w = it.w; c.h = it.h; }
         if (it.cfg) c.cfg = it.cfg;
+        if (it.items) c.items = it.items.slice();
         return c;
       });
       var newKey = at >= 0 ? keyAt(clean, at) : null;
       pick = null;
-      if (typeof o.onChange === 'function') o.onChange(clean); else update(clean);
+      // widgets the role hides were never on screen: they stay saved, after the rest
+      var save = clean.concat(held.map(function (it) { return JSON.parse(JSON.stringify(it)); }));
+      if (typeof o.onChange === 'function') o.onChange(save); else update(save);
       var rec = newKey && recs[newKey];
       if (rec && editing) {
         var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
@@ -519,6 +600,7 @@
       var what = b.getAttribute('data-oshw-ed');
       if (what === 'size') commit(opResize(i, 0), key, '', '[data-oshw-ed="size"]');
       else if (what === 'remove') removeAt(i);
+      else if (what === 'cards') openCards(key);
     }
     // capture: while editing, a tap arranges and never reaches the widget's own links and buttons;
     // the click that ends a long-press is swallowed too
@@ -700,20 +782,19 @@
       var d = doc.createElement('dialog');
       d.className = 'os-hw-add';
       d.setAttribute('aria-labelledby', 'oshwAddTitle');
-      var full = cur.length >= HL.MAX_ITEMS;
-      var hidden = typeof o.navHidden === 'function' ? o.navHidden : function () { return false; };
+      var full = HL.weight(cur) >= HL.MAX_ITEMS;
       var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwAddTitle">Add a widget</h2>' +
         '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Close</button></div>';
       if (full) h += '<p class="os-hw-add-full">Your home is full. Remove a widget to add another.</p>';
       HL.GROUPS.forEach(function (g) {
-        var list = HL.ids().filter(function (id) { var c = HL.CATALOG[id]; return c.cat === g.id && !(c.nav && hidden(c.nav)); });
+        var list = HL.ids().filter(function (id) { var c = HL.CATALOG[id]; return c.cat === g.id && !hiddenId(id) && !!WIDGETS[id]; });
         if (!list.length) return;
         h += '<section class="os-hw-add-group"><h3 class="os-hw-add-gt">' + esc(g.title) + '</h3><ul class="os-hw-add-list">' + list.map(function (id) {
           var c = HL.CATALOG[id];
           return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(c.title) + '</span><span class="os-hw-add-about">' + esc(c.about || '') + '</span></div>' +
             '<div class="os-hw-add-sizes" role="group" aria-label="' + esc('Add ' + c.title) + '">' + c.sizes.map(function (sz) {
               return '<button type="button" class="btn btn-ghost os-hw-add-chip" data-oshw-add="' + esc(id) + '" data-size="' + esc(sz) + '" aria-label="' +
-                esc(['Add ', c.title, ', ', HL.SIZE_NAME[sz]].join('')) + '"' + (full ? ' disabled' : '') + '>' + esc(sz.toUpperCase()) + '</button>';
+                esc(['Add ', c.title, ', ', HL.SIZE_NAME[sz]].join('')) + '"' + (full || !HL.add(cur, id, sz) ? ' disabled' : '') + '>' + esc(sz.toUpperCase()) + '</button>';
             }).join('') + '</div></li>';
         }).join('') + '</ul></section>';
       });
@@ -742,11 +823,73 @@
       if (first) { try { first.focus(); } catch (e) {} }
     }
 
+    // ── a Smart Stack's cards (P1): a native <dialog> of on / off toggles, 1 to 4, within the cap ──
+    function openCards(key) {
+      var i = order.indexOf(key), rec = recs[key];
+      if (i < 0 || !rec) return;
+      if (addEl && addEl.parentNode) addEl.parentNode.removeChild(addEl);
+      var d = doc.createElement('dialog');
+      d.className = 'os-hw-add os-hw-cards';
+      d.setAttribute('aria-labelledby', 'oshwCardsTitle');
+      function body() {
+        var at = order.indexOf(key), it = cur[at];
+        var cards = it && it.items ? it.items : [];
+        var ids = HL.ids().filter(function (id) { return !HL.CATALOG[id].stack && !hiddenId(id) && !!WIDGETS[id]; });
+        return '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="oshwCardsTitle">Cards in this stack</h2>' +
+          '<button type="button" class="btn btn-ghost os-hw-add-close" data-oshw-addclose="">Done</button></div>' +
+          '<p class="os-hw-add-full">' + esc('Up to ' + String(HL.STACK_MAX) + ' cards, each counted against your home\'s ' + String(HL.MAX_ITEMS) + '.') + '</p>' +
+          '<ul class="os-hw-add-list">' + ids.map(function (id) {
+            var on = cards.indexOf(id) !== -1, can = !!HL.toggleCard(tagged(), at, id);
+            return '<li class="os-hw-add-row"><div class="os-hw-add-txt"><span class="os-hw-add-name">' + esc(HL.CATALOG[id].title) + '</span><span class="os-hw-add-about">' + esc(HL.CATALOG[id].about || '') + '</span></div>' +
+              '<button type="button" class="btn btn-ghost os-hw-add-chip" data-oshw-card="' + esc(id) + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (can ? '' : ' disabled') +
+              ' aria-label="' + esc(HL.CATALOG[id].title + ' in this stack') + '">' + (on ? 'On' : 'Off') + '</button></li>';
+          }).join('') + '</ul>';
+      }
+      d.innerHTML = body();
+      d.addEventListener('click', function (ev) {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+        if (t.closest('[data-oshw-addclose]') || (t === d && outside(d, ev))) { d.close(); return; }
+        var b = t.closest('[data-oshw-card]');
+        if (!b || b.hasAttribute('disabled')) return;
+        var id = b.getAttribute('data-oshw-card');
+        if (!commit(HL.toggleCard(tagged(), order.indexOf(key), id), key, '')) return;
+        d.innerHTML = body();
+        var nb = d.querySelector('[data-oshw-card="' + esc(id) + '"]');
+        announce(HL.CATALOG[id].title + (nb && nb.getAttribute('aria-pressed') === 'true' ? ' added to' : ' taken out of') + ' the stack.');
+        if (nb) { try { nb.focus(); } catch (e) {} }
+      });
+      d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); d.close(); } });
+      d.addEventListener('close', function () {
+        if (d.parentNode) d.parentNode.removeChild(d);
+        if (addEl === d) addEl = null;
+        var back = recs[key] && recs[key].el.querySelector('[data-oshw-ed="cards"]');
+        if (back) { try { back.focus(); } catch (e) {} }
+      });
+      doc.body.appendChild(d);
+      addEl = d;
+      if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+      var first = d.querySelector('.os-hw-add-chip:not([disabled])') || d.querySelector('.os-hw-add-close');
+      if (first) { try { first.focus(); } catch (e) {} }
+    }
+
     function onClick(ev) {
       var t = ev.target;
       if (!t || !t.closest) return;
       var r = t.closest('[data-oshw-retry]');
-      if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (rec) paintOne(rec, true); return; }
+      if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (p1State === 'failed') p1State = ''; if (rec) paintOne(rec, true); return; }
+      var sb = t.closest('[data-oshw-stack]');
+      var srec = sb && recs[(sb.closest('[data-oshw]') || sb).getAttribute('data-oshw')];
+      if (srec && W.NBDOSHomeP1 && typeof W.NBDOSHomeP1.stackTap === 'function') {
+        var sw = sb.getAttribute('data-oshw-stack');
+        var n = (srec.it.items || []).filter(function (id) { return HL.CATALOG[id] && !hiddenId(id) && !!WIDGETS[id]; }).length;
+        W.NBDOSHomeP1.stackTap(srec, sw, n);
+        paintOne(srec, true);
+        var again = srec.el.querySelector('[data-oshw-stack="' + (sw === 'prev' || sw === 'next' || sw === 'why' ? sw : 'next') + '"]');
+        if (again) { try { again.focus({ preventScroll: true }); } catch (e) {} }
+        if (sw !== 'why') announce(text(srec.el.querySelector('.os-hw-stack-pos')) + ', ' + text(srec.el.querySelector('.os-hw-stack-card .os-hw-title')));
+        return;
+      }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
       if (crec) {
@@ -774,8 +917,15 @@
       if (!f) { if (!rec.el.hasAttribute('tabindex')) rec.el.setAttribute('tabindex', '-1'); f = rec.el; }
       try { f.focus({ preventScroll: true }); } catch (e) {}
     }
-    function onEvent() { paint(); }
-    function onVis() { if (!doc.hidden && dirty) paint(); }
+    function onEvent() {
+      epoch++;
+      paint();
+      // the layout's own read of the same data (the urgency ring on its icons)
+      if (typeof o.onEvent === 'function') { try { o.onEvent(); } catch (e) {} }
+    }
+    function onVis() { if (!doc.hidden) { epoch++; if (dirty || order.length) paint(); } }
+    /** The home is on screen again (the layout's Home button, an unlock): the stack may pick anew. */
+    function show() { epoch++; paint(); }
     // one visibility-aware ticker: only the clock text changes, so focus inside a widget stays put
     var tick = W.setInterval(function () {
       if (doc.hidden || !visible()) return;
@@ -797,9 +947,12 @@
     function onMq() { endDrag(false); if (editing) applyEdit(); }
     if (desk) { try { mq = W.matchMedia ? W.matchMedia('(max-width: 1100px)') : null; if (mq && mq.addEventListener) mq.addEventListener('change', onMq); else mq = null; } catch (e) { mq = null; } }
 
+    var handle = { repaint: function () { order.forEach(function (k) { if (recs[k]) recs[k].html = null; }); paint(); } };
+    mounted.push(handle);
     function unmount() {
       endDrag(false);
       live = false;
+      mounted = mounted.filter(function (m) { return m !== handle; });
       W.clearInterval(tick);
       W.clearTimeout(pressT);
       W.clearTimeout(swallowT);
@@ -823,9 +976,10 @@
     update(o.items);
     return {
       el: el, update: update, paint: paint, unmount: unmount,
-      setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd, cellItems: cellItems,
+      setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd, cellItems: cellItems, show: show,
     };
   }
+  function text(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
 
-  W.NBDOSHome = { mount: mount };
+  W.NBDOSHome = { mount: mount, urgency: urgencyNow };
 })();

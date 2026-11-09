@@ -185,6 +185,8 @@ const FILES = [
  * opts: surface, plan (null = none yet), counts, role, home (the saved os-home key), leads, leadsLoaded,
  * store (localStorage seed), stageRole, ds (LayoutEngine.ds() answer), system (true = an NBDOS stub with
  * registerControl), uid, lastThrows, countsThrow, skip (files not to load).
+ * P1 (2026-11-09): nav (more sidebar views, e.g. ['storm']), loader (true = a ScriptLoader stub whose
+ * loadBundle runs a bundle's docs/pro files in this window, synchronously, and records the call).
  */
 function makeWin(opts) {
   const o = opts || {};
@@ -256,7 +258,7 @@ function makeWin(opts) {
   };
   const content = document.createElement('div'); content.className = 'content';
   const sidebar = document.createElement('nav'); sidebar.className = 'sidebar';
-  ['home', 'crm', 'schedule', 'calls', 'money', 'photos', 'settings'].forEach((id) => {
+  ['home', 'crm', 'schedule', 'calls', 'money', 'photos', 'settings'].concat(o.nav || []).forEach((id) => {
     const b = document.createElement('button');
     b.setAttribute('data-action', 'goTo'); b.setAttribute('data-target', id); b.setAttribute('aria-label', id.toUpperCase());
     sidebar.appendChild(b);
@@ -270,6 +272,20 @@ function makeWin(opts) {
   const ctx = vm.createContext(W);
   ctx.window = ctx;
   const skip = o.skip || [];
+  if (o.loader) {
+    ctx.ScriptLoader = {
+      bundles: {}, calls: [],
+      loadBundle(name) {
+        this.calls.push(name);
+        (this.bundles[name] || []).forEach((src) => {
+          const f = 'docs/pro/' + String(src).replace(/\?.*$/, '');
+          const code = read(f);
+          if (code) vm.runInContext(code, ctx, { filename: f });
+        });
+        return Promise.resolve();
+      },
+    };
+  }
   FILES.forEach((f) => { const src = read(f); if (src && skip.indexOf(f) === -1) vm.runInContext(src, ctx, { filename: f }); });
   const fireT = (ms) => timers.forEach((t) => { if (t.fn && t.ms === ms) { const f = t.fn; if (t.kind === 't') t.fn = null; f(); } });
   return { W: ctx, dom, document, timers, fire: fireT, reads, today, winListeners, store, saved: () => saved };

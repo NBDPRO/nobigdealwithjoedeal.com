@@ -475,7 +475,12 @@ console.log('\n11. demo mode stays zero-network');
 G(() => {
   const code = noComments(HOME_JS);
   ok('home.js adds no request of its own (no fetch, import(), script or link injection)',
-    !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code) && !/ScriptLoader/.test(code));
+    !/\bfetch\s*\(|\bimport\s*\(|createElement\(\s*'(script|link|img|iframe)'/.test(code));
+  // P1 (2026-11-09): the one ScriptLoader use is its own lazy bundle of two same-origin files under js/os/
+  const files = (code.match(/var P1_FILES = \[([^\]]*)\]/) || [])[1] || '';
+  ok('…its only ScriptLoader load is the oshomep1 bundle: js/os/stack-logic.js and js/os/widgets-p1.js',
+    (code.match(/loadBundle\(/g) || []).length === 1 && /loadBundle\(P1_BUNDLE\)/.test(code) && /var P1_BUNDLE = 'oshomep1';/.test(code)
+      && JSON.stringify(files.split(',').map((x) => x.trim())) === JSON.stringify(["'js/os/stack-logic.js?v=1'", "'js/os/widgets-p1.js?v=1'"]), files);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
