@@ -372,6 +372,8 @@ function buildSchema(stageKeys) {
       layers: S_ENUM(['1', '2', '3', ''], 'Shingle layers if said; "".'),
       layersQuote: S_STR('Verbatim quote; "".'),
       mentions: obj({ gutters: { type: 'boolean' }, chimney: { type: 'boolean' }, skylight: { type: 'boolean' }, decking: { type: 'boolean' } }),
+      // P2: the chimney / skylight flashing chips in the estimate builder need the words.
+      mentionQuotes: obj({ chimney: S_STR('Verbatim quote mentioning the chimney; "".'), skylight: S_STR('Verbatim quote mentioning the skylight; "".') }),
       saidQuantities: { type: 'array', items: obj({ text: S_STR('A quantity someone said, as words'), quote: S_STR('Verbatim quote') }) },
     }),
     promises: { type: 'array', items: obj({
@@ -385,7 +387,12 @@ function buildSchema(stageKeys) {
     followUp: DATE_FACT('When to follow up with this customer'),
     objections: { type: 'array', items: obj({ kind: S_ENUM(OBJECTION_KINDS, 'kind'), quote: S_STR('Verbatim quote') }) },
     competitor: obj({ named: { type: 'boolean' }, quote: S_STR('Verbatim quote naming another contractor; "".') }),
-    people: { type: 'array', items: obj({ role: S_ENUM(PEOPLE_ROLES, 'role'), name: S_STR('Name if said; "".'), quote: S_STR('Verbatim quote') }) },
+    people: { type: 'array', items: obj({
+      role: S_ENUM(PEOPLE_ROLES, 'role'), name: S_STR('Name if said; "".'),
+      said: S_STR('The words used for them on the call, copied verbatim (e.g. "my husband", "the HOA"); "".'),
+      decides: { type: 'boolean', description: 'true only when the call says this person or group must agree to, approve or sign for the work.' },
+      quote: S_STR('Verbatim quote'),
+    }) },
     stage: obj({
       targetKey: S_ENUM(keys, 'The stage this customer should be in after the call, from the list given; "" if the call does not say.'),
       reason: S_STR('One short sentence.'),
@@ -415,6 +422,7 @@ function buildSystem(tenant, source) {
     'Never output a price, total, rate, square count or pitch unless it is a verbatim quote. Never estimate a cost. Never invent names, claim numbers or dates.',
     '"jo" in promises means the contractor\'s side of the call; "them" means the caller. Guess from context; a person will check every guess.',
     'Pick a stage only from the stage list given, and only when the call clearly says it; otherwise "".',
+    'A person decides only when the call says they must agree, approve or sign (e.g. "I need to ask my husband", "the HOA has to approve it"); never guess who decides.',
     'Set transcript_ok.reliable to false when the transcript is not English, is garbled, or is mostly silence.',
   ].join('\n');
 }
@@ -643,6 +651,11 @@ function sanitizeBrief(raw, ctx) {
     saidQuantities: (Array.isArray(sc.saidQuantities) ? sc.saidQuantities : []).map((q) => q && factOf({ value: q.text, quote: q.quote }, 80))
       .filter(Boolean).slice(0, 6).map((f) => ({ text: f.value, quote: f.quote })),
   };
+  // P2: a chimney / skylight mention keeps the words that say it, when they
+  // ground and name the thing; the estimate builder's flashing chip needs them.
+  const mq = sc.mentionQuotes && typeof sc.mentionQuotes === 'object' ? sc.mentionQuotes : {};
+  const mentionQuote = (k) => (scope.mentions[k] && /\S/.test(String(mq[k] || '')) && new RegExp(k, 'i').test(String(mq[k])) && grounded(mq[k]) ? str(mq[k], 300) : '');
+  scope.mentionQuotes = { chimney: mentionQuote('chimney'), skylight: mentionQuote('skylight') };
   // P1 integration: stories / layers fill the estimate builder, so a digit
   // heard in a hard-to-hear segment is retype there too (never filled in).
   mark(scope.stories, scope.stories && scope.stories.quote, true);
@@ -682,8 +695,22 @@ function sanitizeBrief(raw, ctx) {
   const objections = (Array.isArray(r.objections) ? r.objections : []).filter((o) => o && OBJECTION_KINDS.includes(o.kind) && grounded(o.quote))
     .slice(0, 6).map((o) => ({ kind: o.kind, quote: str(o.quote, 300) }));
   const competitor = r.competitor && r.competitor.named === true && grounded(r.competitor.quote) ? { named: true, quote: str(r.competitor.quote, 300) } : null;
+  // P2 decision-maker map (Q4: kept in the brief, never a lead field). A name
+  // or the words used for them ("my husband", "the HOA") are kept only when
+  // they sit inside the person's own grounded quote.
   const people = (Array.isArray(r.people) ? r.people : []).filter((p) => p && PEOPLE_ROLES.includes(p.role) && grounded(p.quote))
-    .slice(0, 6).map((p) => ({ role: p.role, name: str(p.name, 60) || null, quote: str(p.quote, 300) }));
+    .slice(0, 6).map((p) => {
+      const quote = str(p.quote, 300);
+      const qn = ' ' + normalizeSpeech(quote) + ' ';
+      const inQuote = (v) => {
+        const s = str(v, 60);
+        if (!s) return '';
+        if (looksLikeInstruction(s)) { dropped.injection++; injection = true; return ''; }
+        const n = normalizeSpeech(s);
+        return n && qn.includes(' ' + n + ' ') ? s : '';
+      };
+      return mark({ role: p.role, name: inQuote(p.name) || null, said: inQuote(p.said), decides: p.decides === true, quote }, quote, false);
+    });
   const dr = r.drafts && typeof r.drafts === 'object' ? r.drafts : {};
   const drafts = { estimate: dr.estimate === true, proposal: dr.proposal === true, followUp: dr.followUp === 'text' || dr.followUp === 'email' ? dr.followUp : null };
   const followUp = mark(dateOf(r.followUp, 'future'), r.followUp && r.followUp.quote, true);
@@ -697,7 +724,7 @@ function sanitizeBrief(raw, ctx) {
   if (!reliable) {
     // Unreliable text grounds garbage: only the summary survives.
     for (const k of Object.keys(out.fields)) out.fields[k] = null;
-    out.scope = { service: null, tierInterest: null, stories: null, layers: null, mentions: { gutters: false, chimney: false, skylight: false, decking: false }, saidQuantities: [] };
+    out.scope = { service: null, tierInterest: null, stories: null, layers: null, mentions: { gutters: false, chimney: false, skylight: false, decking: false }, mentionQuotes: { chimney: '', skylight: '' }, saidQuantities: [] };
     out.promises = []; out.followUp = null; out.objections = []; out.competitor = null; out.people = []; out.stage = null;
     out.drafts = { estimate: false, proposal: false, followUp: null };
   }

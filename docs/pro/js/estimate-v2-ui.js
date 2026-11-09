@@ -5615,7 +5615,7 @@
   // engine prices them. Autosave (estimate_drafts/{uid} + the local draft)
   // holds back until the rep acts; closing untouched undoes every choice.
   // ═════════════════════════════════════════════════════════
-  const CALL_PREFILL_JS = '/pro/js/estimate-call-prefill.js?v=1';
+  const CALL_PREFILL_JS = '/pro/js/estimate-call-prefill.js?v=2';
   const CALL_LINK_KEY = 'nbd.callBriefLink';
   const CALL_LINK_TTL_MS = 5 * 60 * 1000;
   const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;

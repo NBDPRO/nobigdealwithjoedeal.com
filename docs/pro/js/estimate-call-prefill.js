@@ -10,7 +10,9 @@
  * What a call may set (each shown with a "from call" chip the rep can clear):
  *   jobMode (insurance | cash), workKind (repair | replacement), tier (one the
  *   company offers), stories (1-3), tear-off layers (1-3), chimney / skylight
- *   flashing (the per-SQ add-on switches, only ever turned ON).
+ *   flashing (the per-SQ add-on switches, only ever turned ON, and only with
+ *   the words that mention it: P2 scope.mentionQuotes; without them it is a
+ *   hint line, never switched on).
  * What it never sets: rawSqft or any measurement, a price, rate, total,
  * deductible, ACV, warranty years, a signed tier, the scope or the floor. A
  * spoken square count is returned as the WORDS that were said, for a hint
@@ -93,8 +95,14 @@
       else out.items.push(item(x[0], n, factQuote(x[1])));
     });
     var men = sc.mentions && typeof sc.mentions === 'object' ? sc.mentions : {};
-    if (men.chimney === true) out.items.push(item('hasChimneyFlash', true, ''));
-    if (men.skylight === true) out.items.push(item('hasSkylightFlash', true, ''));
+    // A flashing switch adds a price line, so the chip needs the words said (P2).
+    var mq = sc.mentionQuotes && typeof sc.mentionQuotes === 'object' ? sc.mentionQuotes : {};
+    [['chimney', 'hasChimneyFlash', 'Chimney'], ['skylight', 'hasSkylightFlash', 'Skylight']].forEach(function (x) {
+      if (men[x[0]] !== true) return;
+      var q = str(mq[x[0]], 300);
+      if (q) out.items.push(item(x[1], true, q));
+      else out.hints.mentions.push(x[2] + ' mentioned on the call, no exact words kept, so its flashing is not switched on');
+    });
     if (men.gutters === true) out.hints.mentions.push('Gutters');
     if (men.decking === true) out.hints.mentions.push('Decking');
 
