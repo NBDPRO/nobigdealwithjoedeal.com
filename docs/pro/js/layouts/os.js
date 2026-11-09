@@ -114,7 +114,8 @@
         onChange: function (list) { saveHome(surface, list); },
         onExit: function () { setHomeEditing(false); },
         onLongPress: function () { setHomeEditing(true); },
-        navHidden: navHidden });
+        navHidden: navHidden,
+        onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
   }
   // Edit mode (P0c): one surface's list changed. The whole key is normalised
@@ -884,7 +885,8 @@
     // the home widgets fill page 1 first; the icons take the cells left, then pages of 20
     // packed (home-logic pack): any size mix fills whole rows, so pageRoom's icons stay on the page
     var items = S.home ? W.NBDOSHomeLogic.pack(homeItems('phone')) : null;
-    var room = items ? W.NBDOSHomeLogic.pageRoom(items, PER_PAGE) : PER_PAGE;
+    // an expanded M Coach is 4 rows tall: it counts as an L here (home.js cellItems)
+    var room = items ? W.NBDOSHomeLogic.pageRoom(typeof S.home.cellItems === 'function' ? S.home.cellItems(items) : items, PER_PAGE) : PER_PAGE;
     var rest = ordered.slice(room);
     var pages = [ordered.slice(0, room)].concat(rest.length ? WM.pages(rest, PER_PAGE) : []);
     var c = L.clockText(new Date());

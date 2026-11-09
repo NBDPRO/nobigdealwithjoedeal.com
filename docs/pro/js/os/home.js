@@ -29,8 +29,8 @@
  * No fetch, no Firestore.
  *
  * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange,
- * onExit, onLongPress, navHidden }) returns { el, update(items), paint(),
- * unmount(), setEditing(on, focusFirst), editing(), openAdd() }. `el` is one node the OS layout
+ * onExit, onLongPress, navHidden, onResize }) returns { el, update(items), paint(),
+ * unmount(), setEditing(on, focusFirst), editing(), openAdd(), cellItems(items) }. `el` is one node the OS layout
  * places (the desk column; on the phone, page 1 of the pager). update() is a
  * keyed reconcile: a widget's node is made once and kept, moved only when the
  * order changes, and its body is rewritten only when what it shows changed,
@@ -205,9 +205,15 @@
     }).join('') + '</ul>';
     return h;
   }
-  function coachTap(rec, what, id) {
+  function coachTap(rec, what, id, onResize) {
     var CL = W.NBDOSCoachLogic;
-    if (what === 'more') { rec.open = !rec.open; rec.el.classList.toggle('is-open', rec.open); return; }
+    if (what === 'more') {
+      rec.open = !rec.open;
+      rec.el.classList.toggle('is-open', rec.open);
+      // an open M Coach is 4 rows on the phone page: the layout recounts the icons that fit
+      if (rec.it.s === 'm' && typeof onResize === 'function') onResize();
+      return;
+    }
     if (!CL || !/^[a-z-]{1,24}$/.test(id || '')) return;
     var now = Date.now(), dk = HL.dayKey(now), memo = parse(lsGet(COACH_KEY));
     lsSet(COACH_KEY, JSON.stringify(what === 'dismiss' ? CL.dismiss(memo, id, dk) : CL.snooze(memo, id, dk, now)));
@@ -350,6 +356,16 @@
     }
 
     // ── edit mode (P0c) ─────────────────────────────────────────
+    /** The phone page's cell count for these items: an open M Coach takes the cells of an L (pageRoom). */
+    function cellItems(items) {
+      var seen = {};
+      return (Array.isArray(items) ? items : []).map(function (it) {
+        if (!it || !WIDGETS[it.id]) return it;
+        seen[it.id] = (seen[it.id] || 0) + 1;
+        var r = recs[it.id + '-' + seen[it.id]];
+        return r && r.open && it.s === 'm' ? { id: it.id, s: 'l' } : it;
+      });
+    }
     function title(key) { var r = recs[key]; return r ? HL.CATALOG[r.it.id].title : ''; }
     function announce(msg) { liveEl.textContent = ''; if (msg) liveEl.textContent = msg; }
     function chromeHtml(i) {
@@ -549,7 +565,7 @@
       if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (rec) paintOne(rec, true); return; }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
-      if (crec) { coachTap(crec, cb.getAttribute('data-oshw-coach'), cb.getAttribute('data-rule')); paintOne(crec, true); return; }
+      if (crec) { coachTap(crec, cb.getAttribute('data-oshw-coach'), cb.getAttribute('data-rule'), o.onResize); paintOne(crec, true); return; }
       var g = t.closest('[data-oshw-go]');
       var id = g ? g.getAttribute('data-oshw-go') : '';
       if (g && /^[a-z][a-z0-9-]{0,31}$/.test(id) && typeof W.goTo === 'function') {
@@ -599,7 +615,7 @@
     update(o.items);
     return {
       el: el, update: update, paint: paint, unmount: unmount,
-      setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd,
+      setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd, cellItems: cellItems,
     };
   }
 

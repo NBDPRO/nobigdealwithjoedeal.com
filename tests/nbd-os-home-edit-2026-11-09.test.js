@@ -93,6 +93,27 @@ G(() => {
   ok('no grid-auto-flow: dense anywhere', !/dense/.test(HOME_CSS) && !/dense/.test(read('docs/pro/css/layouts/os.css')));
 });
 
+// review nit: an expanded M Coach on the phone is 4 rows tall; page 1 must make room for it
+G(() => {
+  const DAY = 86400000;
+  const leads = [{ id: 'old1', _stageRole: 'new', createdAt: H.NOW - 50 * DAY }];
+  const T = mountPhone({ phone: [{ id: 'coach', s: 'm' }], desk: [] }, { leads });
+  const page1 = () => phoneOf(T).querySelectorAll('.os-p-page')[0];
+  const icons1 = () => page1().querySelectorAll('.os-p-icon').length;
+  const fits = () => {
+    const c = byKey(phoneOf(T), 'coach-1');
+    const tall = c.classList.contains('is-l') || c.classList.contains('is-open') ? [4, 4] : [4, 2];
+    const placed = place([tall].concat(Array(icons1()).fill([1, 1])));
+    return placed[placed.length - 1].maxRow <= 5;
+  };
+  ok('collapsed M Coach: page 1\'s icons fit (5 rows)', icons1() === 7 && fits(), icons1());
+  click(T.dom, byKey(phoneOf(T), 'coach-1').querySelector('[data-oshw-coach="more"]'));
+  ok('expanded (More): page 1 makes room for 4 rows, every icon left on page 1 still fits', byKey(phoneOf(T), 'coach-1').classList.contains('is-open') && fits(), icons1());
+  ok('…the icons that no longer fit move to page 2, none dropped', phoneOf(T).querySelectorAll('.os-p-page .os-p-icon').length === 7 && phoneOf(T).querySelectorAll('.os-p-page').length === 2);
+  click(T.dom, byKey(phoneOf(T), 'coach-1').querySelector('[data-oshw-coach="more"]'));
+  ok('Show less gives page 1 its icons back', icons1() === 7 && phoneOf(T).querySelectorAll('.os-p-page').length === 1);
+});
+
 console.log('\n2. the pure edit ops');
 G(() => {
   const L = [{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }];
