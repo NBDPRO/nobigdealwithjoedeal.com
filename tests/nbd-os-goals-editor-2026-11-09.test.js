@@ -212,6 +212,8 @@ async function run() {
   ok('not in dashboard.html, not in a layout needs list (a tap-time bundle)', !/ds-goals/.test(read('docs/pro/dashboard.html')) && !/ds-goals/.test(read('docs/pro/js/layout-system.js')));
   ok('the dialog CSS: 44px rows and fields, 16px field text (no iOS zoom), tokens only', /\.os-hw-goals-in \{[^}]*min-height: 44px[^}]*font-size: 16px/.test(read('docs/pro/css/os/home.css'))
     && /\.os-hw-goals-row, \.os-hw-goals-list li \{[^}]*min-height: 44px/.test(read('docs/pro/css/os/home.css')));
+  // screenshots 2026-11-09: a disabled Save (goals read failed) still looked like the live orange button
+  ok('a disabled field or Save looks disabled', /\.os-hw-goals-in:disabled, \.os-hw-goals \.os-hw-pub-btn:disabled \{[^}]*opacity: \.5/.test(read('docs/pro/css/os/home.css')));
 }
 
 run().then(() => {

@@ -206,6 +206,8 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 }
 .os-hw-goals-in:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 .os-hw-goals-in[aria-invalid="true"] { border-color: var(--ui-danger-text, var(--red)); }
+/* while the goals on file are being read, or could not be: nothing to edit, nothing to save */
+.os-hw-goals-in:disabled, .os-hw-goals .os-hw-pub-btn:disabled { opacity: .5; cursor: default; }
 .os-hw-goals-list { list-style: none; margin: var(--ui-space-3, 12px) 0 0; padding: 0; }
 .os-hw-goals-n { font-size: var(--ui-fs-body, 14px); font-weight: 700; }
 
