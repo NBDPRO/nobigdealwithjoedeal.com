@@ -39,3 +39,8 @@ listed in the brief (Q14 to Q20). Not touched: the NBD OS widget links (`os/home
 
 - `money-*` and `review-*` suites that need `functions/` dependencies fail in this sandbox before and after; they are unrelated.
 - The cover/quote (Q8), the open-to view (Q1) and the wrap-up move (Q11) are the next three wins once Jo answers questions 1 and 2 of the audit.
+
+## Review fix round
+
+- Cockpit "Training streak" tile label was clipped on phones (nowrap + ellipsis in the 4-column grid). The `.ck-l` label now wraps (`overflow-wrap: anywhere`) instead of clipping; `layouts.css` cache version bumped to 13. Pinned in `tests/ds-quick-wins-2026-11-09.test.js` at 360 and 390 px (red at 390 before the fix).
+- Left as is: the sync pill sitting over the tab row (cosmetic, about 2 s, taps pass through, no worse than the old header overlap), and the 16 px field rule applying up to 768 px (iOS zooms focused sub-16 px fields on iPad too).

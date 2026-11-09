@@ -257,6 +257,20 @@ const stored = (page, id) => page.evaluate((id) => { const l = JSON.parse(localS
     ok('control: no page errors', errs.length === 0, errs.join(' | '));
     await ctx.close();
   }
+  {
+    // review fix: the long label must not be cut off by the 4-column grid on a phone
+    for (const w of [360, 390]) {
+      const { ctx, page, errs } = await open(browser, srv, { w, ui: 'cockpit' });
+      await page.evaluate(() => switchTo(0));
+      await page.waitForTimeout(400);
+      const r = await page.evaluate(() => Array.from(document.querySelectorAll('[data-ui="cockpit"] .ck-l')).map((e) => ({ t: e.textContent, clipped: e.scrollWidth > e.clientWidth + 1 })));
+      const tr = r.find((x) => /training streak/i.test(x.t));
+      ok('Cockpit at ' + w + ' px shows the "Training streak" tile', !!tr, JSON.stringify(r));
+      ok('...and its label is not clipped (' + w + ' px)', !!tr && !r.some((x) => x.clipped), JSON.stringify(r));
+      ok('control: no page errors', errs.length === 0, errs.join(' | '));
+      await ctx.close();
+    }
+  }
   ok('Quest says "training streak"', /-day training streak/.test(read('js', 'quest-ui.js')));
   ok('Cockpit labels its tile "Training streak" (no shortened "Streak")', !/'Streak'/.test(read('js', 'cockpit-ui.js')));
   ok('the Sunday review card says "floor streak" (the Sunday line stays word-for-word the same as the NBD OS widget)', /Floor streak/.test(read('js', 'review-ui.js')) && !/ended the streak|start a streak|keeps the streak/.test(read('js', 'review-ui.js')) && !/<b>' \+ x\.streak\.count \+ '<\/b> streak/.test(read('js', 'review-ui.js')));

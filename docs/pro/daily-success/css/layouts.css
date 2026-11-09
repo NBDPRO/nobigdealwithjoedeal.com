@@ -120,7 +120,7 @@
 [data-ui="cockpit"] button.ck-t { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px; }
 [data-ui="cockpit"] .ck-l, [data-ui="cockpit"] .ck-v, [data-ui="cockpit"] .ck-s { display: block; flex: none; width: auto; height: auto; }
 [data-ui="cockpit"] .ck-t.ok { border-color: var(--grn, #34d399); }
-[data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); overflow-wrap: anywhere; line-height: 1.2; }
 [data-ui="cockpit"] .ck-v { font-size: 17px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 [data-ui="cockpit"] .ck-t.ok .ck-v { color: var(--grn, #34d399); }
 [data-ui="cockpit"] .ck-s { font-size: 11px; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
