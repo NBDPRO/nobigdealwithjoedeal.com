@@ -210,6 +210,7 @@
   }
 
   function clear(el) {
+    asks = el ? asks.filter(function (a) { return a.el !== el; }) : [];   // a paint still in flight is dropped when it answers
     if (el) { drop(el); return; }
     drop(null);
     var d = dlg;

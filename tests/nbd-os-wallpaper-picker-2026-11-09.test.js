@@ -302,6 +302,23 @@ async function openPicker(T) {
     ok('Done: B is saved and B is still on screen', T.W._saves[T.W._saves.length - 1].layoutState['os-home'].wp.phone === PICS[1].id && props['--os-wp-img'] === 'url("' + bUrl + '")', J(props));
   }
 
+  console.log('\n8. a paint still in flight at unmount leaves no object URL behind');
+  {
+    const T = setup({ surface: 'phone', home: { phone: [], desk: [], wp: { phone: PICS[0].id, desk: null } } });
+    let answer = null;
+    T.W.NBDMySkin.imageBlob = (id) => { T.W.blobAsks.push(id); return new Promise((res) => { answer = () => res({ blob: { size: 9 }, dim: 0.62 }); }); };
+    T.W._impl.mount({ surface: 'phone' });
+    const el = T.document.getElementById('osPhone');
+    const props = css(el);
+    await flush();
+    ok('(the saved picture was asked for on mount)', typeof answer === 'function' && T.W.blobAsks.indexOf(PICS[0].id) !== -1);
+    T.W._impl.unmount();
+    answer();
+    await flush();
+    ok('it answers after unmount: no URL is left unrevoked', T.W.urls.made.every((u) => T.W.urls.revoked.indexOf(u) !== -1), J(T.W.urls));
+    ok('…and nothing is written onto the detached surface', !props['--os-wp-img'], J(props));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ the suite threw: ' + (e && e.stack)); process.exit(1); });
