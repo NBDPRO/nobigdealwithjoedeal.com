@@ -77,7 +77,11 @@ function loadCases(p) {
     : [target];
   const out = [];
   for (const f of files) {
-    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    let j;
+    try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) {
+      if (!(e instanceof SyntaxError)) throw e;
+      throw new Error(f + ' is not valid JSON (' + e.message + '). A " or line break inside the transcript must be written \\" or \\n; see section 3 of documentation/runbooks/CALL-BRIEF-LIVE-EVAL.md.');
+    }
     for (const c of Array.isArray(j.cases) ? j.cases : [j]) if (c && c.transcript != null) out.push(c);
   }
   return out;

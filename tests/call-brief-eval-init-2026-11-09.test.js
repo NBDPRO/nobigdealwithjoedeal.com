@@ -126,6 +126,14 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
     const typo = await quiet(() => E.main(['--live', '--cases', dir], { ANTHROPIC_API_KEY: FAKE_KEY }));
     ok('a typo\'d field key stops a --live run before any call (exit 2, names it)', typo.code === 2 && /insCarier/.test(typo.out) && fetchCalls === 0, typo.out);
 
+    console.log('\nA hand-broken file is named');
+    const broken = tmp(); made.push(broken);
+    fs.writeFileSync(path.join(broken, 'case-01.json'), '{ "id": "case-01", "transcript": "he said "hi" then" }');
+    let thrown = null; try { E.loadCases(broken); } catch (err) { thrown = err; }
+    ok('loadCases names the bad file and says it is not valid JSON', !!thrown && /case-01\.json/.test(thrown.message) && /JSON/.test(thrown.message), thrown && thrown.message);
+    const bm = await quiet(() => E.main(['--cases', broken], {}).catch((err) => { console.error(err.message); return 1; }));
+    ok('a run over it fails naming the file, no model call', bm.code !== 0 && /case-01\.json/.test(bm.out) && fetchCalls === 0, bm.out);
+
     console.log('\nThe label checker');
     ok('every synthetic fixture passes', fx.cases.every((x) => E.validateCase(x).length === 0), fx.cases.map((x) => [x.id, E.validateCase(x)]));
     const base1 = JSON.parse(JSON.stringify(claim));
