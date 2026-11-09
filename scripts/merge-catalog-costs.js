@@ -47,6 +47,8 @@
  * Every new tier is validated with functions/catalog-cost-logic.js against the
  * working-tree PUBLIC catalog (cost > 0, sell >= cost). A tier that fails is
  * REFUSED and reported, and never written; the other approved tiers still are.
+ * The sell side is the public catalog only (docs/pro/js/product-data.js and
+ * roofivent-catalog.js); a tenant's own sell price is not consulted.
  * Xactimate codes are validated with functions/cost-basis-registry.js (the
  * code is a live catalog line, materialCost is a finite number >= 0). A SKU or
  * code with no entry in the live book is skipped: a lone materialCost without
