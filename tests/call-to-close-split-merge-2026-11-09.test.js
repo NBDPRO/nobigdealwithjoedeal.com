@@ -288,7 +288,18 @@ function fakeDb(seed) {
     {
       const db = fakeDb(seed({ ['phone_calls/' + P.id]: Object.assign(strip(STORE(P)), { mergedFrom: S.id }), ['phone_calls/' + S.id]: Object.assign(strip(STORE(S)), { mergedInto: 'cube_SPLIT0003' }) }));
       const u = await run(db, JO, { id: P.id, action: 'unmerge' });
-      ok('marks that disagree are refused, nothing written', u.e && u.e.code === 'failed-precondition' && !db.log.length, u.e ? u.e.message : u.r);
+      ok('marks that disagree: Undo clears the tapped call\'s own mark only', u.r && u.r.unmerged === true && !get(db, P.id).mergedFrom && db.log.length === 1 && db.log[0][1] === 'phone_calls/' + P.id, u.e ? u.e.message : db.log.map((l) => l[1]));
+      ok('...the other call keeps its own (it points elsewhere)', get(db, S.id).mergedInto === 'cube_SPLIT0003');
+    }
+    {
+      // The redial was deleted (retention sweep, a manual delete): the first call's mark would dangle forever.
+      const sd = seed({ ['phone_calls/' + P.id]: Object.assign(strip(STORE(P)), { mergedFrom: S.id }) });
+      delete sd['phone_calls/' + S.id];
+      const db = fakeDb(sd);
+      const u = await run(db, JO, { id: P.id, action: 'unmerge' });
+      ok('the redial is gone: Undo clears the first call\'s mark', u.r && u.r.unmerged === true && !get(db, P.id).mergedFrom && get(db, P.id).unmergedBy === 'jo', u.e ? u.e.message : u.r);
+      ok('...writing only that call, never re-creating the gone one', db.log.length === 1 && !db.docs.has('phone_calls/' + S.id));
+      ok('...and it is a merge candidate again', MG && MG.callProblem(Object.assign({}, get(db, P.id), { id: P.id })) === '');
     }
     {
       const db = fakeDb(seed());
@@ -416,6 +427,20 @@ function fakeDb(seed) {
     await ca.CC.reload();
     ca.click({ 'data-cc': 'filter', 'data-arg': 'all' });
     ok('a company_admin of the company sees the suggestion', /data-cc="merge"/.test(ca.view.innerHTML));
+
+    // A mark the brief does not honour (review 2026-11-09): the card says so and Undo still clears it.
+    const lone = boot({ companyId: 'co1' }, 'jo', [Object.assign({}, STORE(P), { id: P.id, mergedFrom: S.id })]);
+    await lone.CC.reload();
+    lone.click({ 'data-cc': 'filter', 'data-arg': 'all' });
+    const lc = card(lone.view.innerHTML, P.id);
+    ok('redial not found: the card does not claim the brief reads both', /Merged with the redial/.test(lc) && !/reads both/.test(lc) && /reads this call alone/.test(lc), lc.slice(0, 400));
+    ok('...and still offers Undo merge', /data-cc="unmerge" data-id="cube_SPLIT0001"/.test(lc));
+    const moved = boot({ companyId: 'co1' }, 'jo', [Object.assign({}, STORE(P), { id: P.id, leadId: 'L2', mergedFrom: S.id }), Object.assign({}, STORE(S), { id: S.id, leadId: 'L1', mergedInto: P.id })]);
+    await moved.CC.reload();
+    moved.click({ 'data-cc': 'filter', 'data-arg': 'all' });
+    const mc = card(moved.view.innerHTML, P.id);
+    ok('first call moved to another customer: the card says the brief reads it alone', /Merged with the redial/.test(mc) && !/reads both/.test(mc) && /reads this call alone/.test(mc), mc.slice(0, 400));
+    ok('control: a merge the brief honours says it reads both', /reads both/.test(card(h, P.id)));
 
     const view = read('docs/pro/js/call-center-view.js');
     ok('the logic loads lazily from the view (ScriptLoader.load on open)', /ScriptLoader\.load\('\/pro\/js\/call-merge-logic\.js\?v=1'\)/.test(view) && /loadMerge\(\)/.test(view));

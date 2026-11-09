@@ -471,8 +471,11 @@
     if (c.mergedFrom) {
       // The redial may be older than the calls loaded: the card still says so and can split them.
       var away = state.mergedAway[c.id] && state.mergedAway[c.id].id === c.mergedFrom ? state.mergedAway[c.id] : null;
+      // The brief reads both only on the rule call-brief.js briefInput keeps: the redial found, not on another customer, not personal.
+      var both = !!(away && (!away.leadId || away.leadId === c.leadId) && away.status !== 'personal' && away.callType !== 'personal' && away.callType !== 'spam');
       return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Merged with the redial' + (away ? ' at ' + esc(clock(away.startedAtMs)) +
-        (away.durationSec ? ' (' + esc(fmtDur(away.durationSec)) + ')' : '') : '') + '. One call now: the brief reads both.</span>' +
+        (away.durationSec ? ' (' + esc(fmtDur(away.durationSec)) + ')' : '') : '') + (both ? '. One call now: the brief reads both.' : ', but ' + (!away ? 'the redial is not in this list' : away.leadId && away.leadId !== c.leadId
+        ? 'it is filed on another customer' : 'it is marked personal or spam') + ', so the brief reads this call alone.') + '</span>' +
         '<span class="pc-actions">' + (away && away.storagePath ? '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(away.id) + '">▶ Play the redial</button>' : '') +
         '<button type="button" class="btn btn-ghost pc-play cc-suggest-btn" data-cc="unmerge" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Undo merge</button></span>' +
         (away ? '<div class="pc-audio" data-cc-audio="' + esc(away.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(away.id) + '"></div>' : '') + '</div>';

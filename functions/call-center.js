@@ -1218,7 +1218,8 @@ function mayActOn(auth, c) {
 // deleted, no audio moves, notes / tasks / timeline rows stay. The primary's
 // Call Brief then reads both transcripts (call-brief.js briefInput), so its
 // transcript hash changes and the stored brief is redrafted on the next tap.
-// A repeat is a no-op. unmerge: clears the marks on both (either id).
+// A repeat is a no-op. unmerge: clears the marks on both (either id); a
+// mark whose partner is gone or disagrees is cleared on the tapped call only.
 // Both run in one transaction that reads both docs, so two taps at once on a
 // three-way split (merge A+B, merge B+C) cannot both commit: the second is
 // re-run on fresh reads and refused as already merged.
@@ -1231,11 +1232,15 @@ async function mergeAction({ db, auth, call, action, data, nowMs }) {
       if (!me) throw new HttpsError('not-found', 'Call not found.');
       const otherId = me.mergedInto || me.mergedFrom;
       if (!otherId) return { ok: true, unmerged: false };
-      if (!MG.isCallId(otherId)) throw new HttpsError('failed-precondition', 'This call is not merged.');
-      const other = await load(tx, String(otherId));
+      const other = MG.isCallId(otherId) ? await load(tx, String(otherId)) : null;
       const p = me.mergedFrom ? me : other;
       const s = me.mergedFrom ? other : me;
-      if (!other || !MG.mergedTogether(p, s)) throw new HttpsError('failed-precondition', 'These calls are not merged with each other.');
+      if (!other || !MG.mergedTogether(p, s)) {
+        // A mark with no partner that agrees (the other call was deleted, or
+        // points elsewhere): clear this call's own mark, never the other's.
+        tx.set(ref(me.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
+        return { ok: true, unmerged: true, lone: true, primaryId: me.mergedFrom ? me.id : null, secondaryId: me.mergedFrom ? null : me.id };
+      }
       if (!mayActOn(auth, other)) throw new HttpsError('permission-denied', 'Not your call.');
       tx.set(ref(p.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
       tx.set(ref(s.id), MG.unmergePatch(auth.uid, nowMs), { merge: true });
