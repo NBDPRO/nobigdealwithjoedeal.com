@@ -58,13 +58,17 @@ async function check(label, expect, promise, opts = {}) {
   }
 }
 
+// emulators:exec exports FIRESTORE_EMULATOR_HOST; a hard-coded 8080 talked to
+// whatever ran there when the emulator was on another port. Default as before.
+const [EMU_HOST, EMU_PORT] = String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
+
 async function run() {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
       rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      host: EMU_HOST,
+      port: Number(EMU_PORT),
     },
   });
 
@@ -784,8 +788,8 @@ async function run() {
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
 
     // onLeadDeleted's sweep, run the way the trigger runs it. The rules env
-    // above talks to 127.0.0.1:8080; the admin SDK needs the env var.
-    process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+    // above talks to EMU_HOST:EMU_PORT; the admin SDK needs the env var.
+    process.env.FIRESTORE_EMULATOR_HOST = EMU_HOST + ':' + EMU_PORT;
     const { initializeApp: initAdminApp } = require('firebase-admin/app');
     const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
     const { sweepLeadSubtree, sweepLeadKeyedDocs, makeLeadWatch } = require(path.resolve(__dirname, '../functions/lead-subtree-sweep.js'));
