@@ -471,6 +471,9 @@ const RUNNABLE = ['node', 'smoke'];
 //               install-completed-at / photo-exif-fields rules suites, and the scheduled deploy, date-gated
 //               checks and LLMS:BLOG region suites. MEASURED via --check.
 const FLOORS = { node: 1042, smoke: 74, disk: 1183 };
+//   2026-11-09  1025/74/1163 -> 1026/74/1164, the catalog 20% price floor suite
+//               (catalog-price-floor-2026-11-09). MEASURED via --check.
+const FLOORS = { node: 1026, smoke: 74, disk: 1164 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
