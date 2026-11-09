@@ -474,6 +474,10 @@ const FLOORS = { node: 1027, smoke: 74, disk: 1165 };
 //   2026-11-09  1026/74/1165 -> 1027/74/1166, the Q11 item 4 backfill (scripts/retag-voicemail-activity.js):
 //               voicemail-retag-backfill (node). MEASURED via --check.
 const FLOORS = { node: 1027, smoke: 74, disk: 1166 };
+//   2026-11-09  1025/74/1163 -> 1029/74/1167, three parked drafts carried with Jo's OK: #3008 (settings
+//               deep-link tab hooks), #2994 (shortcuts help close, sign-out estimates unsub) and #2981
+//               (tenant stage emails). MEASURED via --check.
+const FLOORS = { node: 1029, smoke: 74, disk: 1167 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
