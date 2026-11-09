@@ -292,6 +292,21 @@ async function decide(db, auth, data) {
     db.store.set('leads/L1', Object.assign({}, db.store.get('leads/L1'), { damageType: 'wind' }));
     const a3 = await decide(db, OWNER, { item: 'field:damageType', decision: 'accept' });
     ok('a field the lead already has → refused, the old value kept', a3.e && db.store.get('leads/L1').damageType === 'wind');
+    // Review #2: fill-empty checks every name the CRM reads the field under.
+    for (const alias of ['insuranceCarrier', 'insuranceCompany', 'carrier']) {
+      const adb = makeDb(seed());
+      await brief(adb, OWNER);
+      adb.store.set('leads/L1', Object.assign({}, adb.store.get('leads/L1'), { insCarrier: '', [alias]: 'Allstate' }));
+      const al = await decide(adb, OWNER, { item: 'field:insCarrier', decision: 'accept', confirmedInsurance: true });
+      ok('carrier held under ' + alias + ' (insCarrier empty) → refused, nothing written', al.e && al.e.code === 'failed-precondition' && adb.store.get('leads/L1').insCarrier === '', al.e && al.e.message);
+    }
+    {
+      const adb = makeDb(seed());
+      await brief(adb, OWNER);
+      adb.store.set('leads/L1', Object.assign({}, adb.store.get('leads/L1'), { damageType: '', damage: 'wind' }));
+      const al = await decide(adb, OWNER, { item: 'field:damageType', decision: 'accept' });
+      ok('damage held under damage (damageType empty) → refused', al.e && al.e.code === 'failed-precondition' && adb.store.get('leads/L1').damageType === '');
+    }
     const ed = await decide(db, OWNER, { item: 'field:claimNumber', decision: 'accept', value: 'H44729-A', confirmedInsurance: true });
     ok('Edit: the person\'s own value is written (final differs from the AI value)', ed.r && db.store.get('leads/L1').claimNumber === 'H44729-A');
     const dl = await decide(db, OWNER, { item: 'field:dateOfLoss', decision: 'accept', value: 'last week' });

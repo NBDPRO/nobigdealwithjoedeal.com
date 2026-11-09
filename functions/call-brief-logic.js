@@ -59,6 +59,31 @@ const LEAD_FIELD = Object.freeze({
   insCarrier: 'insCarrier', claimNumber: 'claimNumber', dateOfLoss: 'dateOfLoss', adjusterName: 'adjusterName',
   adjusterMeetingYmd: 'adjusterMeetingDate', damageType: 'damageType', jobType: 'jobType',
 });
+// Every name the CRM reads a field under (review 2026-11-09). Fill-empty
+// treats a field as filled when ANY of these holds a value: the carrier is
+// read as insCarrier || insuranceCarrier (customer-bootstrap, lien clock),
+// || carrier (estimate hub, dashboard), and isInsurance counts
+// insuranceCompany (ky-insurance-law _hasClaimIdentity). A fill under
+// insCarrier would otherwise outrank the carrier the customer already has.
+// The first name is the one written. (= docs/pro/js/call-brief-ui.js)
+const LEAD_FIELD_ALIASES = Object.freeze({
+  insCarrier: ['insCarrier', 'insuranceCarrier', 'insuranceCompany', 'carrier'],
+  claimNumber: ['claimNumber'],
+  dateOfLoss: ['dateOfLoss'],
+  adjusterName: ['adjusterName'],
+  adjusterMeetingYmd: ['adjusterMeetingDate'],
+  damageType: ['damageType', 'damage'],
+  jobType: ['jobType'],
+});
+/** The value the lead already holds for a brief field, under any alias; '' when none. */
+function leadFieldValue(lead, fieldKey) {
+  const l = lead || {};
+  for (const k of LEAD_FIELD_ALIASES[fieldKey] || []) {
+    const v = l[k];
+    if (v != null && !(typeof v === 'string' && v.trim() === '')) return v;
+  }
+  return '';
+}
 const DATE_FIELDS = ['dateOfLoss', 'adjusterMeetingYmd'];
 
 // The default stages, key and label, mirrored from docs/pro/js/crm-stages.js
@@ -622,7 +647,7 @@ function cacheState(doc, hash, nowMs, force) {
 
 module.exports = {
   BRIEF_VERSION, BRIEF_MODEL, ALLOWED_MODELS, MAX_TOKENS, TRANSCRIPT_MAX, REFRESH_MIN_MS, USER_DAY_CAP, COMPANY_DAY_CAP,
-  MAX_PROMISES, PROMISE_KINDS, TIERS, FIELD_KEYS, LEAD_FIELD, DATE_FIELDS, DEFAULT_STAGES, OFFER_ROLES,
+  MAX_PROMISES, PROMISE_KINDS, TIERS, FIELD_KEYS, LEAD_FIELD, LEAD_FIELD_ALIASES, leadFieldValue, DATE_FIELDS, DEFAULT_STAGES, OFFER_ROLES,
   normalizeSpeech, groundQuote, digitsInQuote, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,

@@ -219,8 +219,8 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     const leadRef = db.doc('leads/' + g.leadId);
     written = await db.runTransaction(async (tx) => {
       const s = await tx.get(leadRef);
-      const cur = s.exists ? (s.data() || {})[leadField] : undefined;
-      if (!isBlank(cur)) return false;
+      // Filled under any name the CRM reads it by (insuranceCarrier, carrier, …) counts as filled.
+      if (s.exists && !isBlank(L.leadFieldValue(s.data(), fieldKey))) return false;
       tx.set(leadRef, { [leadField]: finalValue, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       return true;
     });

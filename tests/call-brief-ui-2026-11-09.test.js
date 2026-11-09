@@ -123,6 +123,11 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('a cash job type has no warning', CB._warnFor('jobType', 'cash') === '');
     ok('a field the customer already has with the same value is not a row', !CB._fieldRows(BRIEF, Object.assign({}, LEAD, { jobType: 'Insurance' })).some((r) => r.key === 'jobType'));
     ok('a filled field shows no insurance warning (nothing will change)', CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insCarrier: 'Allstate' })).find((r) => r.key === 'insCarrier').warn === '');
+    const viaAlias = CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insCarrier: '', insuranceCarrier: 'Allstate' })).find((r) => r.key === 'insCarrier');
+    ok('a carrier held under insuranceCarrier shows as filled ("Now: Allstate"), not empty', viaAlias && viaAlias.filled === true && viaAlias.current === 'Allstate' && viaAlias.warn === '', viaAlias);
+    ok('…insuranceCompany and carrier count too', ['insuranceCompany', 'carrier'].every((k) => CB._fieldRows(BRIEF, Object.assign({}, LEAD, { [k]: 'Allstate' })).find((r) => r.key === 'insCarrier').filled === true));
+    ok('the sheet\'s aliases match the server\'s (call-brief-logic LEAD_FIELD_ALIASES)', JSON.stringify(CB.LEAD_FIELD_ALIASES) === JSON.stringify(require(path.join(ROOT, 'functions', 'call-brief-logic.js')).LEAD_FIELD_ALIASES));
+    ok('a same-value carrier under an alias is not a row', !CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insuranceCarrier: 'state farm' })).some((r) => r.key === 'insCarrier'));
     ok('quotes and said / implied are shown', /&ldquo;My insurance is State Farm&rdquo;/.test(html) && /cb-badge">implied/.test(html));
   }
 

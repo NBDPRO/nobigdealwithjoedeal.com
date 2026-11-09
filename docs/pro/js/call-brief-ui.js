@@ -52,6 +52,12 @@
     insCarrier: 'insCarrier', claimNumber: 'claimNumber', dateOfLoss: 'dateOfLoss', adjusterName: 'adjusterName',
     adjusterMeetingYmd: 'adjusterMeetingDate', damageType: 'damageType', jobType: 'jobType',
   };
+  // Every name the CRM reads a field under; filled under any of them counts
+  // as filled (= functions/call-brief-logic.js LEAD_FIELD_ALIASES).
+  var LEAD_FIELD_ALIASES = {
+    insCarrier: ['insCarrier', 'insuranceCarrier', 'insuranceCompany', 'carrier'], claimNumber: ['claimNumber'], dateOfLoss: ['dateOfLoss'],
+    adjusterName: ['adjusterName'], adjusterMeetingYmd: ['adjusterMeetingDate'], damageType: ['damageType', 'damage'], jobType: ['jobType'],
+  };
   var KIND_LABEL = { callback: 'Call back', estimate: 'Send estimate', text: 'Text', order: 'Order materials', permit: 'Check on permit', waiting: 'Waiting on them' };
   var KINDS = ['callback', 'estimate', 'text', 'order', 'permit', 'waiting'];
   var MAX_SLOT = 5;  // callCenterAction promise slots 1-5 (slot 0 is the card's Promise button)
@@ -61,6 +67,11 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function blank(v) { return v == null || (typeof v === 'string' && v.trim() === ''); }
+  function leadValue(lead, key) {
+    var names = LEAD_FIELD_ALIASES[key] || [LEAD_FIELD[key]];
+    for (var n = 0; n < names.length; n++) if (!blank((lead || {})[names[n]])) return lead[names[n]];
+    return '';
+  }
   function ymdOf(v) { var m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v || '')); return m ? m[1] : ''; }
   function fmtYmd(v) {
     var y = ymdOf(v);
@@ -84,8 +95,8 @@
     var L = lead || {};
     // A field the customer already has with the same value says nothing new.
     var same = function (a, b) { return String(a == null ? '' : a).trim().toLowerCase() === String(b == null ? '' : b).trim().toLowerCase(); };
-    return FIELD_ORDER.filter(function (k) { return f[k] && !blank(f[k].value) && !same(L[LEAD_FIELD[k]], f[k].value); }).map(function (k) {
-      var current = L[LEAD_FIELD[k]];
+    return FIELD_ORDER.filter(function (k) { return f[k] && !blank(f[k].value) && !same(leadValue(L, k), f[k].value); }).map(function (k) {
+      var current = leadValue(L, k);
       return {
         key: k, label: FIELD_LABEL[k], current: blank(current) ? '' : String(current), proposed: String(f[k].value),
         spoken: f[k].spoken || '', quote: f[k].quote || '', conf: f[k].conf === 'implied' ? 'implied' : 'said',
@@ -596,6 +607,6 @@
     open: open, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
-    INSURANCE_WARN: INSURANCE_WARN,
+    INSURANCE_WARN: INSURANCE_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
   };
 })();
