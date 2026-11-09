@@ -433,6 +433,7 @@
     "nbd-os-team-aggregate-2026-11-09.test.js",
     "nbd-os-team-leaderboard-page-2026-11-09.test.js",
     "nbd-os-team-timezone-2026-11-09.test.js",
+    "nbd-os-team-widget-2026-11-09.test.js",
     "nbd-os-wallpaper-2026-11-09.test.js",
     "nbd-os-wallpaper-picker-2026-11-09.test.js",
     "nbd-os-runner-2026-11-09.test.js",

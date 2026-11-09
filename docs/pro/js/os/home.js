@@ -46,6 +46,9 @@
  *                Recap loads the same bundle only when home-logic recapDue says
  *                yesterday's Shutdown left something open: on the day's first home
  *                (mount) or the lock screen's unlock, once per page a day.
+ *   Team         (P2, owner only: catalog owner) painted by os/team.js, the runtime
+ *                ScriptLoader bundle osteam registered and loaded here on first paint;
+ *                reads the company's leaderboard rows (at most 50 docs, every 5 min at most)
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
@@ -104,7 +107,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai', 'nbd:os-team'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -148,6 +151,13 @@
     return L && typeof L.clockText === 'function' ? L.clockText(new Date()) : { time: '', date: '' };
   }
   function isViewer() { return ((W._userClaims || {}).role || '') === 'viewer'; }
+  /** P2: the company's owner (solo, or the company keyed by their uid) or a company_admin; the Team widget is theirs only. */
+  function isOwner() {
+    var c = W._userClaims || {}, r = String(c.role || ''), uid = String((W._user && W._user.uid) || '');
+    if (r === 'company_admin' || r === 'owner') return true;
+    if (r) return false;
+    return !!uid && (!c.companyId || String(c.companyId) === uid);
+  }
   function flagOn(n) { var F = W.NBDFlags; try { return !!(F && typeof F.enabled === 'function' && F.enabled(n)); } catch (e) { return false; } }
   /** The urgency ring's data (home-logic urgency): reply stamps only count while speedToLead is on. */
   function urgencyNow() {
@@ -487,7 +497,29 @@
     loadPeek().then(function (ok) { if ((!ok || !W.NBDOSPeek.recap()) && recapDay === today) recapDay = ''; });
   }
 
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown };
+
+  // ── Team (P2): os/team.js paints it, loaded as the runtime ScriptLoader bundle osteam
+  // the first time the widget paints (registered here: the layout's needs are full)
+  var TEAM_BUNDLE = ['css/os/team.css?v=1', 'js/team-board-logic.js?v=1', 'js/os/team.js?v=1'];
+  var teamState = '';   // '' | 'asked' | 'failed'
+  function team(size, cfg, act, rec, kit) {
+    var TM = W.NBDOSTeam;
+    if (TM && typeof TM.widget === 'function') return TM.widget(size, cfg, kit);
+    var h = '<h3 class="os-hw-title">Team</h3>';
+    if (teamState === 'failed') return h + failHtml('team');
+    var SL = W.ScriptLoader;
+    if (teamState !== 'asked' && SL && typeof SL.loadBundle === 'function') {
+      teamState = 'asked';
+      if (SL.bundles && !SL.bundles.osteam) SL.bundles.osteam = TEAM_BUNDLE.slice();
+      Promise.resolve().then(function () { return SL.loadBundle('osteam'); }).then(function () {
+        teamState = W.NBDOSTeam ? '' : 'failed';
+        try { W.dispatchEvent(new W.CustomEvent('nbd:os-team')); } catch (e) {}
+      }, function () { teamState = 'failed'; try { W.dispatchEvent(new W.CustomEvent('nbd:os-team')); } catch (e) {} });
+    }
+    return h + '<p class="os-hw-empty">Loading…</p>';
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach, daily: daily, shutdown: shutdown, teamboard: team };
 
   // ── P1: the renderers in os/widgets-p1.js, a runtime ScriptLoader bundle ──
   var P1_BUNDLE = 'oshomep1';
@@ -587,7 +619,7 @@
     /** A widget this member's role can't see (its sidebar view is hidden, or it shows money), or the mode on never paints. */
     function hiddenId(id) {
       var c = HL.CATALOG[id];
-      return !c || !!(c.nav && navHidden(c.nav)) || !!(c.money && !moneyOk()) || HL.actHides(focus(), id);
+      return !c || !!(c.nav && navHidden(c.nav)) || !!(c.money && !moneyOk()) || !!(c.owner && !isOwner()) || HL.actHides(focus(), id);
     }
     // what the P1 renderers (os/widgets-p1.js) may read; all memory, no Firestore
     var kit = {
@@ -1122,6 +1154,12 @@
         var rk = r.getAttribute('data-oshw-retry');
         if (rk === 'sd') { sdFailed = false; order.forEach(function (k) { if (recs[k].it.id === 'shutdown') paintOne(recs[k], true); }); return; }
         if (rk === 'acts') { if (actsState === 'failed') actsState = ''; order.forEach(function (k) { paintOne(recs[k], true); }); return; }
+        if (rk === 'team') {
+          if (teamState === 'failed') teamState = '';
+          if (W.NBDOSTeam && typeof W.NBDOSTeam.retry === 'function') W.NBDOSTeam.retry();
+          order.forEach(function (k) { if (recs[k].it.id === 'teamboard') paintOne(recs[k], true); });
+          return;
+        }
         if (p1State === 'failed') p1State = '';
         var rec = recs[rk]; if (rec) paintOne(rec, true); return;
       }

@@ -1,0 +1,18 @@
+/* css/os/team.css — the NBD OS Team widget (2026-11-09, P2; js/os/team.js).
+   Loaded with the `osteam` runtime bundle, never at boot. Theme tokens and
+   --ui-* tokens only; no motion. Floors: no text under 11px, 44px targets
+   (the Open leaderboard button is .os-hw-btn). The card itself is .os-hw (home.css). */
+.os-tm-big { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
+.os-tm-label {
+  margin: var(--ui-space-1, 4px) 0 0; font-size: var(--ui-fs-label, 11px); font-weight: 700;
+  letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; color: var(--m);
+}
+.os-tm-line { margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; color: var(--t); overflow-wrap: anywhere; }
+.os-tm-people { list-style: none; margin: var(--ui-space-1, 4px) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.os-tm-person {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--ui-space-2, 8px);
+  font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; min-width: 0;
+}
+.os-tm-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--t); }
+.os-tm-num { flex: none; color: var(--m); font-variant-numeric: tabular-nums; }
+.os-tm-open { align-self: flex-start; margin-top: var(--ui-space-1, 4px); }

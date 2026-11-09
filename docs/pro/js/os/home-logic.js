@@ -119,10 +119,15 @@
     // the sheet it opens reads today's visits once, only on a tap: one visit_captures
     // query (NBDVisitRecorder.listAll, limit 40), so tapReads is up to 40 billed doc reads.
     shutdown: { title: 'Shutdown', sizes: ['s', 'm', 'l'], def: 'm', reads: 0, tapReads: 40, bundle: 'osshutdown', cat: 'today', nav: 'crm', names: true, about: 'From 4 PM: give every lead you touched today a next step' },
+    // P2 (os/team.js, the lazy osteam bundle): the company's leaderboard/{uid} rows (functions/leaderboard-aggregate.js),
+    // one query of at most 50 docs, at most every refreshMin minutes, only while painted. owner: the solo owner, the
+    // company-keyed owner or a company_admin; nobody else ever gets it painted or offered.
+    // id teamboard, not team: .os-hw-team is the layout's Publish / Lock group (layouts/os.js, home.css)
+    teamboard: { title: 'Team', sizes: ['s', 'm', 'l'], def: 'm', reads: 50, refreshMin: 5, owner: true, bundle: 'osteam', cat: 'today', about: 'Your team\'s doors, appointments, estimates and deals, today and this week' },
   };
   var GROUPS = [{ id: 'today', title: 'Today' }, { id: 'money', title: 'Money' }, { id: 'you', title: 'You' }, { id: 'tools', title: 'Tools' }];
   var SIZE_NAME = { s: 'small', m: 'medium', l: 'large' };
-  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach', 'daily', 'needsyou', 'storm', 'closes', 'money', 'stack', 'shutdown', 'teamboard'];
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'coach'];
