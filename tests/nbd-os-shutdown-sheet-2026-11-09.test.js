@@ -107,6 +107,11 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     const c = HL.CATALOG.shutdown;
     ok('Shutdown is in the catalog: S, M and L, default M, read cost 0 on paint, nav crm',
       !!c && J(c.sizes) === J(['s', 'm', 'l']) && c.def === 'm' && c.reads === 0 && c.nav === 'crm' && c.bundle === 'osshutdown', J(c));
+    // a tap runs NBDVisitRecorder.listAll: one visit_captures query, limit 40, so up to 40 billed doc reads
+    const vr = read('docs/pro/js/visit-recorder.js');
+    const lim = /collection\(window\.db, 'users', u, 'visit_captures'\)[^;]*window\.limit\((\d+)\)/.exec(vr);
+    ok('...and its tap cost is the billed worst case, listAll\'s visit_captures limit (one query, up to N doc reads)',
+      !!lim && c.tapReads === Number(lim[1]), J([c.tapReads, lim && lim[1]]));
     ok('it survives normalize (a saved home keeps it)', J(HL.normalize({ phone: [{ id: 'shutdown', s: 'l' }] }).phone) === J([{ id: 'shutdown', s: 'l' }]));
     const R = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
     ok('no needs.script path for it (the last free slot is board-logic\'s)', R.get('os').needs.script.every((p) => !/shutdown/.test(p)));
