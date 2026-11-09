@@ -742,12 +742,31 @@ function stageOfferable(key, role) {
   return !!k && !NEVER_OFFER.has(k) && OFFER_ROLES.includes(normStageKey(role));
 }
 const STAGE_ORDER = DEFAULT_STAGES.map((s) => s.key);
-/** fromKey: the stage the lead moved from, when known. A move back to an earlier default stage is never one tap. */
-function stageOneTapAllowed(key, role, fromKey) {
+/** A tenant's pipeline orders: each companyProfile.pipelines view's stage list, keys normalised. */
+function tenantStageOrders(pipelines) {
+  const views = pipelines && typeof pipelines === 'object' && pipelines.views && typeof pipelines.views === 'object' ? pipelines.views : {};
+  const out = [];
+  for (const vk of Object.keys(views)) {
+    const v = views[vk];
+    if (!v || typeof v !== 'object' || !Array.isArray(v.stages)) continue;
+    const list = v.stages.filter((k) => typeof k === 'string' && k.trim()).map(normStageKey);
+    if (list.length > 1) out.push(list);
+  }
+  return out;
+}
+/**
+ * fromKey: the stage the lead moved from, when known; orders: the tenant's
+ * pipeline orders (tenantStageOrders). A move back is never one tap: by the
+ * tenant's order when a view lists both stages, else by the default order.
+ */
+function stageOneTapAllowed(key, role, fromKey, orders) {
   const k = normStageKey(key);
   if (!stageOfferable(k, role) || STAGE_APPOINTMENT_RE.test(k) || STAGE_CONFIRM_KEYS.includes(k)) return false;
   if (normStageKey(role) === 'lost' || STAGE_CLOSE_OUT_RE.test(k)) return false;
-  const a = STAGE_ORDER.indexOf(k), b = STAGE_ORDER.indexOf(normStageKey(fromKey));
+  const f = normStageKey(fromKey);
+  const own = (Array.isArray(orders) ? orders : []).filter((o) => Array.isArray(o) && o.includes(k) && o.includes(f));
+  if (own.length) return !own.some((o) => o.indexOf(k) < o.indexOf(f));
+  const a = STAGE_ORDER.indexOf(k), b = STAGE_ORDER.indexOf(f);
   return !(a !== -1 && b !== -1 && a < b);
 }
 
@@ -780,5 +799,5 @@ module.exports = {
   normalizeSpeech, groundQuote, digitsInQuote, LOW_LOGPROB, unsureQuotes, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
-  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom,
+  STAGE_CONFIRM_KEYS, STAGE_APPOINTMENT_RE, stageOfferable, stageOneTapAllowed, stageMovedFrom, tenantStageOrders,
 };

@@ -70,6 +70,18 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
     ok('a forward move from where the customer is stays one tap', plan('estimate_submitted', 'active', 'contacted').kind === 'one-tap');
     ok('a custom stage the order does not know is not called a move back', plan('my_custom_stage', 'active', 'estimate_submitted').kind === 'one-tap');
     ok('no suggestion → nothing to do', C.stagePlan(null, 'new').kind === 'none');
+    // A tenant's own pipeline order (companyProfile.pipelines.views[*].stages)
+    // decides what "back" means when it lists both stages (review 2026-11-09).
+    ok('tenantStageOrders reads each view\'s ordered stage list', typeof C.tenantStageOrders === 'function' &&
+      JSON.stringify(C.tenantStageOrders({ views: { a: { stages: ['new', 'My Custom Stage', 7] }, b: null } })) === JSON.stringify([['new', 'my_custom_stage']]));
+    if (typeof C.tenantStageOrders === 'function') {
+      const ORD = C.tenantStageOrders({ views: { main: { stages: ['new', 'my_custom_stage', 'estimate_submitted', 'contacted'] } } });
+      const tplan = (key, cur) => C.stagePlan({ targetKey: key, role: 'active', label: key }, cur, ORD);
+      ok('a tenant that put Contacted after Estimate Submitted: that move is forward, one tap', tplan('contacted', 'estimate_submitted').kind === 'one-tap');
+      ok('…and the other way is a move back, it asks', tplan('estimate_submitted', 'contacted').kind === 'confirm');
+      ok('a tenant\'s custom stage earlier in its pipeline is a move back, it asks', tplan('my_custom_stage', 'estimate_submitted').kind === 'confirm');
+      ok('a stage no tenant view lists falls back to the default order', tplan('new', 'claim_filed').kind === 'confirm' && tplan('claim_filed', 'new').kind === 'one-tap');
+    }
   }
 
   console.log('\n2. The server mirror agrees');
@@ -88,6 +100,14 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       for (const k of keys) for (const cur of keys) if (C.oneTapAllowed(k, 'active', cur) !== L.stageOneTapAllowed(k, 'active', cur)) bdiff.push(k + '<-' + cur);
       ok('…and for every target / current-stage pair (moves back)', bdiff.length === 0, bdiff.slice(0, 10));
       ok('the stage order both use is the default pipeline order', JSON.stringify(C.STAGE_ORDER) === JSON.stringify(L.DEFAULT_STAGES.map((s) => s.key)));
+      const PIPE = { views: { main: { stages: ['new', 'my_custom_stage', 'estimate_submitted', 'contacted'] }, other: { stages: ['new', 'inspected', 'claim_filed'] } } };
+      ok('the server reads the same tenant orders', typeof L.tenantStageOrders === 'function' && JSON.stringify(L.tenantStageOrders(PIPE)) === JSON.stringify(C.tenantStageOrders(PIPE)));
+      if (typeof L.tenantStageOrders === 'function') {
+        const tdiff = [];
+        const ords = C.tenantStageOrders(PIPE);
+        for (const k of keys) for (const cur of keys) if (C.oneTapAllowed(k, 'active', cur, ords) !== L.stageOneTapAllowed(k, 'active', cur, L.tenantStageOrders(PIPE))) tdiff.push(k + '<-' + cur);
+        ok('…and answers the same with a tenant order', tdiff.length === 0, tdiff.slice(0, 10));
+      }
     }
   }
 
@@ -194,6 +214,17 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       const real = await decide(histOk, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'estimate_submitted' });
       const rd = (histOk.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0] || {};
       ok('…a real forward move is logged with the stage history\'s from, whatever the client said', real.r && real.r.ok === true && rd.fromStage === 'New', real.e ? real.e.message : rd);
+      // The tenant's pipeline order (companyProfile) decides a move back on the server too.
+      const tdb = makeDb(seed(contacted));
+      tdb.store.set('leads/L1', { userId: 'jo', companyId: 'co1', stage: 'contacted', stageHistory: [{ from: 'estimate_submitted', to: 'contacted' }] });
+      tdb.store.set('companyProfile/co1', { pipelines: { views: { main: { stages: ['new', 'estimate_submitted', 'contacted'] } } } });
+      const tr = await decide(tdb, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap', fromStage: 'estimate_submitted' });
+      ok('a tenant pipeline that puts Contacted later makes that one tap a forward move (logged)', tr.r && tr.r.ok === true, tr.e && tr.e.message);
+      const cdb = makeDb(seed({ targetKey: 'my_custom_stage', label: 'Mine', role: 'active' }));
+      cdb.store.set('leads/L1', { userId: 'jo', companyId: 'co1', stage: 'my_custom_stage', stageHistory: [{ from: 'estimate_submitted', to: 'my_custom_stage' }] });
+      cdb.store.set('companyProfile/co1', { pipelines: { views: { main: { stages: ['new', 'my_custom_stage', 'estimate_submitted'] } } } });
+      const cr = await decide(cdb, OWNER, { decision: 'accept', value: 'my_custom_stage', mode: 'one-tap', fromStage: 'estimate_submitted' });
+      ok('a one-tap log back to a tenant\'s earlier custom stage is refused', cr.e && cr.e.code === 'failed-precondition', cr.e ? cr.e.message : cr.r);
       ok('a same-company company_admin may (the callCenterAction set)', ca.r && ca.r.ok === true, ca.e && ca.e.message);
     }
   }
@@ -287,6 +318,14 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       show(h, CONTACTED, 'calls');
       await new Promise((r) => setTimeout(r, 10));
       ok('on #/calls the board\'s own copy of the lead says where it is (a move back asks)', !/data-cb-act="stage-move"/.test(h.CB._render()) && /data-cb-act="stage-ask"/.test(h.CB._render()));
+    }
+    {
+      const h = load({ page: 'calls' });
+      h.win._leads[0].stage = 'estimate_submitted';
+      h.win._companyProfile = { pipelines: { views: { main: { stages: ['new', 'my_custom_stage', 'estimate_submitted'] } } } };
+      show(h, { targetKey: 'my_custom_stage', label: 'Mine', role: 'active', reason: 'x', quote: 'y' }, 'calls');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('the sheet reads the tenant\'s pipeline order: back to its earlier custom stage asks', !/data-cb-act="stage-move"/.test(h.CB._render()) && /data-cb-act="stage-ask"/.test(h.CB._render()));
     }
     {
       const h = load({ page: 'customer' });

@@ -59,9 +59,28 @@
     'prequal_sent', 'loan_approved', 'contract_signed', 'job_created', 'permit_pulled', 'materials_ordered', 'materials_delivered',
     'crew_scheduled', 'install_in_progress', 'install_complete', 'final_photos', 'deductible_collected', 'final_payment',
     'collections', 'closed', 'warranty_claim', 'warranty_scheduled', 'warranty_repaired', 'service_quoted', 'service_approved', 'lost'];
-  function movesBack(key, currentKey) {
-    var a = STAGE_ORDER.indexOf(key), b = STAGE_ORDER.indexOf(normKey(currentKey));
+  // A tenant's own order (companyProfile.pipelines.views[*].stages, the
+  // board's columns) decides when a view lists both stages: any such view
+  // that puts the suggestion earlier makes it a move back. Otherwise the
+  // default order decides (review 2026-11-09).
+  function movesBack(key, currentKey, orders) {
+    var cur = normKey(currentKey);
+    var own = (Array.isArray(orders) ? orders : []).filter(function (o) { return Array.isArray(o) && o.indexOf(key) !== -1 && o.indexOf(cur) !== -1; });
+    if (own.length) return own.some(function (o) { return o.indexOf(key) < o.indexOf(cur); });
+    var a = STAGE_ORDER.indexOf(key), b = STAGE_ORDER.indexOf(cur);
     return a !== -1 && b !== -1 && a < b;
+  }
+  /** A tenant's pipeline orders: each view's stage list, keys normalised. */
+  function tenantStageOrders(pipelines) {
+    var views = pipelines && typeof pipelines === 'object' && pipelines.views && typeof pipelines.views === 'object' ? pipelines.views : {};
+    var out = [];
+    Object.keys(views).forEach(function (vk) {
+      var v = views[vk];
+      if (!v || typeof v !== 'object' || !Array.isArray(v.stages)) return;
+      var list = v.stages.filter(function (k) { return typeof k === 'string' && k.trim(); }).map(normKey);
+      if (list.length > 1) out.push(list);
+    });
+    return out;
   }
 
   function normKey(k) { return String(k == null ? '' : k).trim().toLowerCase().replace(/[\s-]+/g, '_'); }
@@ -78,10 +97,11 @@
 
   /**
    * stage: the brief's { targetKey, role, label } (role from the tenant's
-   * stage list); currentKey: the customer's stage now.
+   * stage list); currentKey: the customer's stage now; orders: the tenant's
+   * pipeline orders (tenantStageOrders), optional.
    * → { kind: 'one-tap'|'confirm'|'flow'|'refuse'|'none', key, why, needsReason }
    */
-  function stagePlan(stage, currentKey) {
+  function stagePlan(stage, currentKey, orders) {
     var s = stage && typeof stage === 'object' ? stage : null;
     var key = normKey(s && s.targetKey);
     if (!key) return { kind: 'none', key: '', why: '', needsReason: false };
@@ -92,13 +112,13 @@
     if (CONFIRM_KEYS.indexOf(key) !== -1) return { kind: 'confirm', key: key, why: WHY[key], needsReason: false };
     if (role === 'lost' || key === 'lost') return { kind: 'confirm', key: key, why: WHY.lost, needsReason: true };
     if (CLOSE_OUT_RE.test(key)) return { kind: 'confirm', key: key, why: WHY.closeOut, needsReason: false };
-    if (movesBack(key, currentKey)) return { kind: 'confirm', key: key, why: WHY.back, needsReason: false };
+    if (movesBack(key, currentKey, orders)) return { kind: 'confirm', key: key, why: WHY.back, needsReason: false };
     return { kind: 'one-tap', key: key, why: '', needsReason: false };
   }
   /** The server's question: may a move to this stage from fromKey (when known) go in one tap? */
-  function oneTapAllowed(key, role, fromKey) {
+  function oneTapAllowed(key, role, fromKey, orders) {
     var from = normKey(fromKey) === normKey(key) ? '' : fromKey;
-    return stagePlan({ targetKey: key, role: role }, from || '').kind === 'one-tap';
+    return stagePlan({ targetKey: key, role: role }, from || '', orders).kind === 'one-tap';
   }
 
   // ── 2. said vs. proposal ─────────────────────────────────────────────
@@ -253,7 +273,7 @@
   }
 
   return {
-    stagePlan: stagePlan, oneTapAllowed: oneTapAllowed, CONFIRM_KEYS: CONFIRM_KEYS, STAGE_ORDER: STAGE_ORDER, APPOINTMENT_RE: APPOINTMENT_RE, WHY: WHY,
+    stagePlan: stagePlan, oneTapAllowed: oneTapAllowed, tenantStageOrders: tenantStageOrders, CONFIRM_KEYS: CONFIRM_KEYS, STAGE_ORDER: STAGE_ORDER, APPOINTMENT_RE: APPOINTMENT_RE, WHY: WHY,
     saidVsProposal: saidVsProposal, copyIntoScope: copyIntoScope, loadLeadBriefs: loadLeadBriefs, VOCAB: VOCAB, _proposalText: proposalText,
   };
 });

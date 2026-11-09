@@ -339,7 +339,11 @@
   function stagePlanNow() {
     var st = S.brief && S.brief.stage;
     var C = window.NBDCallToClose;
-    return st && C && typeof C.stagePlan === 'function' ? C.stagePlan(st, currentStage()) : null;
+    if (!(st && C && typeof C.stagePlan === 'function')) return null;
+    // The tenant's own pipeline order decides what a move back is.
+    var cp = window._companyProfile;
+    var orders = typeof C.tenantStageOrders === 'function' ? C.tenantStageOrders(cp && cp.pipelines) : [];
+    return C.stagePlan(st, currentStage(), orders);
   }
   function renderStage() {
     var st = S.brief && S.brief.stage;

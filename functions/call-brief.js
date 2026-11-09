@@ -230,7 +230,12 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     // one-tap log that knows neither is refused, since a move back cannot be
     // ruled out (review 2026-11-09).
     fromStage = L.stageMovedFrom(g.lead, st.targetKey) || L.str(data.fromStage, 40);
-    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, fromStage)) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
+    let orders = [];
+    if (mode === 'one-tap') {
+      const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
+      orders = L.tenantStageOrders(ps && ps.exists ? (ps.data() || {}).pipelines : null);
+    }
+    if (mode === 'one-tap' && !L.stageOneTapAllowed(st.targetKey, st.role, fromStage, orders)) throw new HttpsError('failed-precondition', 'That stage is never moved in one tap. Confirm it first.');
     if (mode === 'one-tap' && !fromStage) throw new HttpsError('failed-precondition', 'Say which stage it moved from.');
   }
 
