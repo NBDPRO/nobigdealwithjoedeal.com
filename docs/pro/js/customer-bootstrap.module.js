@@ -2485,7 +2485,8 @@ window.NBDCancelWindow = { render: (lead) => _renderCancelWindowChip(lead) };
 //     state + the visible button/label in place, the way every other save
 //     on this page already works.
 // Call to Close P1 (2026-11-09): the call brief's stage card passes its own
-// target (opts: lostReason; asked = it already confirmed). The button passes none.
+// target (opts: lostReason; asked = it already confirmed; onUndone = its
+// toast's Undo committed). The button passes none.
 window.progressStage = async function(target, opts) {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
@@ -2636,7 +2637,7 @@ window.progressStage = async function(target, opts) {
         // moved it meanwhile — then refresh rather than clobber).
         window.showToast({
           message: '✓ Stage moved to ' + label, type: 'success', duration: 6000, undoText: 'Undo',
-          undoAction: () => _undoStageMove(lead, oldStage, nextStage),
+          undoAction: () => _undoStageMove(lead, oldStage, nextStage, o.onUndone),
         });
       } else {
         window.showToast('✓ Stage moved to ' + label, 'success');
@@ -2704,7 +2705,9 @@ function _applyStageOnPage(lead, stage, label) {
 // Undo a one-tap stage move (2026-10-08): the same transaction-guarded write
 // back to the stage it came from. Not a delete — the history keeps both
 // entries, the honest record of what happened.
-async function _undoStageMove(lead, fromStage, movedTo) {
+// onUndone: the caller's hook once the move back committed (the call brief
+// logs its stage accept as undone).
+async function _undoStageMove(lead, fromStage, movedTo, onUndone) {
   if (!window._customerId || !fromStage) return;
   if ((window._currentStage || lead.stage) !== movedTo) return;   // moved again since
   try {
@@ -2715,6 +2718,7 @@ async function _undoStageMove(lead, fromStage, movedTo) {
     const back = (typeof window.stageLabel === 'function' && window.stageLabel(fromStage)) || fromStage;
     _applyStageOnPage(lead, fromStage, back);
     if (window.showToast) window.showToast('Moved back to ' + back, 'info');
+    if (typeof onUndone === 'function') { try { onUndone(); } catch (_) { /* the move back is saved */ } }
   } catch (e) {
     if (e && (e.message === 'STAGE_RACE_NOOP' || e.message === 'STAGE_RACE_LOST')) {
       if (window.showToast) window.showToast('Another tab moved this lead — refreshing.', 'info');

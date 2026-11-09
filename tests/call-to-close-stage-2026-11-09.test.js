@@ -175,6 +175,9 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       await decide(db2, OWNER, { decision: 'skip', value: 'opened the stage picker' });
       const ds2 = db2.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || [];
       ok('append-only: the earlier decision stays, a skip is added', ds2.length === 2 && JSON.stringify(ds2[0]) === JSON.stringify(ds[0]) && ds2[1].decision === 'skip');
+      await decide(db2, OWNER, { decision: 'skip', undone: true });
+      const ds3 = db2.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || [];
+      ok('an Undo after the move is logged as a skip marked undone', ds3.length === 3 && ds3[2].decision === 'skip' && ds3[2].undone === true, ds3[2]);
       for (const s of [{ targetKey: 'crew_scheduled', label: 'Crew Scheduled', role: 'active' }, { targetKey: 'adjuster_meeting_scheduled', label: 'Adjuster Mtg', role: 'active' }]) {
         const r = await decide(makeDb(seed(s)), OWNER, { decision: 'accept', value: s.targetKey, mode: 'one-tap' });
         ok('a one-tap accept of ' + s.targetKey + ' (sets an appointment) is refused', r.e && r.e.code === 'failed-precondition');
@@ -302,6 +305,14 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       await h.click({ 'data-cb-act': 'stage-move' });
       ok('one tap → the page\'s own writer window.progressStage(target)', h.moves.length === 1 && h.moves[0].via === 'progressStage' && h.moves[0].target === 'contacted', h.moves);
       const d = h.calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'stage');
+      const popts = h.moves[0] && h.moves[0].opts;
+      ok('the move hands the writer an onUndone hook (its toast\'s Undo)', popts && typeof popts.onUndone === 'function');
+      if (popts && typeof popts.onUndone === 'function') {
+        popts.onUndone();
+        await new Promise((r) => setTimeout(r, 10));
+        const u = h.calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'stage' && c.data.decision === 'skip');
+        ok('…Undo logs a skip marked undone, so decisions[] does not keep a bare accept', u && u.data.undone === true && u.data.callId === 'cube_ABCDE12345', u);
+      }
       ok('…then the decision is logged: accept, the key, mode one-tap, the stage it moved from', d && d.data.decision === 'accept' && d.data.value === 'contacted' && d.data.mode === 'one-tap' && d.data.callId === 'cube_ABCDE12345' && d.data.fromStage === 'new', d);
     }
     {
@@ -417,6 +428,8 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
     ok('a Lost move threads the reason to commitStageChange (isLostMove + lostReason)', /isLostMove/.test(fn) && /lostReason/.test(fn));
     ok('a sheet that already asked skips the page\'s second confirm, unless the cancellation-window warning applies', /\.asked\b/.test(fn) && /cxlWarn/.test(fn));
     ok('it resolves true once the stage moved', /return true;/.test(fn));
+    ok('its toast\'s Undo calls the caller\'s onUndone once the move back committed', /_undoStageMove\([^)]*o\.onUndone\)/.test(fn) &&
+      /onUndone\(\)/.test((src.split('async function _undoStageMove')[1] || '').split('\n}\n')[0].split('catch (e)')[0]));
     ok('the stage button still calls it with no arguments', /data-action="progressStage"(?![^>]*data-arg)/.test(read('docs/pro/customer.html')));
   }
 

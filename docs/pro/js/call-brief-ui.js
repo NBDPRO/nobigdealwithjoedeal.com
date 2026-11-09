@@ -572,6 +572,10 @@
     var callId = S.callId, leadId = S.leadId, onChange = S.onChange, from = currentStage();
     var opts = { asked: mode === 'confirmed' };
     if (reason) opts.lostReason = reason;
+    // The page's Undo toast: log it, so decisions[] never keeps a bare accept.
+    opts.onUndone = function () {
+      callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'skip', undone: true }).catch(function () { /* the move back is saved */ });
+    };
     close();
     var moved = false;
     try {

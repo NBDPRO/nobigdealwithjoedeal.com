@@ -289,6 +289,8 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
   const slot = Number(data.slot);
   if (item.startsWith('promise:') && decision === 'accept' && Number.isInteger(slot) && slot >= 1 && slot <= 5) entry.slot = slot;
   if (mode) { entry.mode = mode; if (fromStage) entry.fromStage = fromStage; }
+  // The writer's Undo after a stage move: a skip that says so (the accept before it stays, append-only).
+  if (item === 'stage' && decision === 'skip' && data.undone === true) entry.undone = true;
   await db.runTransaction(async (tx) => {
     const s = await tx.get(g.briefRef);
     const prev = s.exists && Array.isArray((s.data() || {}).decisions) ? s.data().decisions : [];
