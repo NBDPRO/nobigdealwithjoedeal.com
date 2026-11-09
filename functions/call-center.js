@@ -1243,20 +1243,17 @@ async function callAction({ db, auth, data, nowMs }) {
         doc.createdAt = FieldValue.serverTimestamp();
       }
       await taskRef.set(doc, { merge: true });
-      if (slot) {
-        // A further promise: the call is handled, and it keeps pointing at its
-        // first promise (slot 0) when it has one.
-        const keep = call.promiseTaskId && call.promiseTaskId !== taskId;
-        await ref.set(Object.assign({ handledAtMs: nowMs, handledBy: auth.uid }, keep ? {} : { promiseTaskId: taskId, promiseKind: kind }), { merge: true });
-        await settleAway(db, call, auth, nowMs);
-        return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
+      if (!slot) {
+        const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
+        const g = await genericRef.get();
+        if (g.exists && (g.data() || {}).done !== true) {
+          await genericRef.set({ done: true, completedAt: FieldValue.serverTimestamp(), supersededBy: taskId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        }
       }
-      const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
-      const g = await genericRef.get();
-      if (g.exists && (g.data() || {}).done !== true) {
-        await genericRef.set({ done: true, completedAt: FieldValue.serverTimestamp(), supersededBy: taskId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      }
-      await ref.set({ handledAtMs: nowMs, handledBy: auth.uid, promiseTaskId: taskId, promiseKind: kind }, { merge: true });
+      // A further promise (slot > 0) still marks the call handled, and the call
+      // keeps pointing at its first promise when it has one.
+      const keepFirst = !!(slot && call.promiseTaskId && call.promiseTaskId !== taskId);
+      await ref.set(Object.assign({ handledAtMs: nowMs, handledBy: auth.uid }, keepFirst ? {} : { promiseTaskId: taskId, promiseKind: kind }), { merge: true });
       await settleAway(db, call, auth, nowMs);
       return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
     }
