@@ -307,6 +307,9 @@ const has = (fn) => L && typeof L[fn] === 'function';
     /every (tenant|company)/i.test(ENV_BLOCK) && /not (just|only) NBD/i.test(ENV_BLOCK) && /maxCompanies: live \? Infinity/.test(SRC));
   ok('the env comment does not claim the indexes are live in prod (repo-verified only): it says to confirm them in the Firebase console',
     ENV_BLOCK && !/deployed with that PR/.test(ENV_BLOCK) && /Firebase console/.test(ENV_BLOCK));
+  const TEAM_LINE = (read('documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md').match(/^- \*\*Team\*\* counts[^\n]*/m) || [''])[0];
+  ok('the design doc Team line says the gate is on since 2026-11-09 and that off is the dry run (the date is not on the dry-run clause)',
+    /on since 2026-11-09 \(Jo\); off = a dry run that counts one company per run/.test(TEAM_LINE) && !/dry run counts one company per run \(turned on/.test(TEAM_LINE));
   ok('one run at a time, every 30 minutes, 300 s timeout and a 240 s budget (the cursor carries the rest)',
     /maxInstances: 1/.test(SRC) && /timeoutSeconds: 300/.test(SRC) && /const BUDGET_MS = 240000;/.test(SRC) && /deadlineMs: start \+ BUDGET_MS/.test(SRC));
   ok('a company counts at most 50 members, and each member query reads at most 2000 docs',
