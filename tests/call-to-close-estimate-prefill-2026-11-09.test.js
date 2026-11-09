@@ -517,6 +517,42 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       ok('closing takes it out of aria-describedby again', attrs['aria-describedby'] === 'v2areaHelp', attrs);
       input.parentNode = null;
     }
+
+    section('C7. the strip on a phone (review 2026-11-09)');
+    {
+      // A fake modal that holds the strip, so _callPaint's real DOM path runs.
+      const modal = W.document.getElementById('estV2Modal');
+      let panel = null, collapsedByRep = null;
+      const prevQS = modal.querySelector;
+      modal.querySelector = (sel) => {
+        if (sel === '.v2-hdr') return { after: (x) => { panel = x; x.querySelector = (q) => (q === 'details' && collapsedByRep !== null ? { open: !collapsedByRep } : null); } };
+        if (sel === '#v2callPanel') return panel;
+        return null;
+      };
+      const isOpen = () => !!panel && /<details class="v2-call" open>/.test(panel.innerHTML);
+      const prevMM = W.matchMedia;
+      W.matchMedia = () => ({ matches: true });   // a phone
+      try { delete env.store['nbd.callStripSeen']; } catch (_) {}
+      leads([{ id: 'L17', firstName: 'Mo', lastName: 'Ni', address: '17 Elm St', jobType: '' }]);
+      W.openEstimateV2Builder({ leadId: 'L17', callPrefill: { callId: 'cube_PH1', brief: clone(BRIEF) } });
+      await tick(600);
+      ok('phone, first time: the strip opens expanded', isOpen(), panel && panel.innerHTML.slice(0, 80));
+      W.closeEstimateV2Builder(); panel = null; collapsedByRep = null;
+      W.openEstimateV2Builder({ leadId: 'L17', callPrefill: { callId: 'cube_PH2', brief: clone(BRIEF) } });
+      await tick(600);
+      ok('phone, after the first view: the strip starts collapsed (the summary still shows the count)', !!panel && !isOpen() && /choices filled in/.test(panel.innerHTML), panel && panel.innerHTML.slice(0, 80));
+      W.closeEstimateV2Builder(); panel = null; collapsedByRep = null;
+      W.matchMedia = () => ({ matches: false });   // a desktop
+      W.openEstimateV2Builder({ leadId: 'L17', callPrefill: { callId: 'cube_PH3', brief: clone(BRIEF) } });
+      await tick(600);
+      ok('desktop: the strip opens expanded', isOpen());
+      collapsedByRep = true;   // the rep folds it, then taps × on a chip
+      CP().clear('stories');
+      ok('a repaint keeps the strip the way the rep left it (folded)', !!panel && !isOpen());
+      W.closeEstimateV2Builder(); panel = null; collapsedByRep = null;
+      W.matchMedia = prevMM;
+      modal.querySelector = prevQS;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════

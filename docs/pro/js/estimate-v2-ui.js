@@ -5816,7 +5816,7 @@
     return r;
   }
 
-  function _callPanelHtml() {
+  function _callPanelHtml(open) {
     const c = _callPrefill;
     if (!c) return '';
     const h = c.hints || {};
@@ -5832,11 +5832,20 @@
       : '';
     const n = c.applied.length;
     if (!n && !notes.length && !tpls && !(h.sqft || []).length) return '';
-    return '<details class="v2-call" open><summary>From the call <span class="v2-call-n">' + n + ' choice' + (n === 1 ? '' : 's') + ' filled in</span></summary>' +
+    return '<details class="v2-call"' + (open === false ? '' : ' open') + '><summary>From the call <span class="v2-call-n">' + n + ' choice' + (n === 1 ? '' : 's') + ' filled in</span></summary>' +
       (chips ? '<div class="v2-call-chips">' + chips + '</div>' : '') +
       (notes.length ? '<ul class="v2-call-notes">' + notes.map((x) => '<li>' + _callEsc(x) + '</li>').join('') + '</ul>' : '') +
       tpls +
       '<div class="v2-call-meta">Choices only, each marked from call: × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
+  }
+  const CALL_STRIP_SEEN_KEY = 'nbd.callStripSeen';
+  function _callStripStartsOpen() {
+    let phone = false;
+    try { phone = typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 600px)').matches; } catch (_) { phone = false; }
+    if (!phone || !_callPrefill) return true;
+    let seen = false;
+    try { seen = window.localStorage.getItem(CALL_STRIP_SEEN_KEY) === '1'; window.localStorage.setItem(CALL_STRIP_SEEN_KEY, '1'); } catch (_) { seen = false; }
+    return !seen;
   }
   function _callSqftHintHtml() {
     const q = (_callPrefill && _callPrefill.hints && _callPrefill.hints.sqft) || [];
@@ -5846,8 +5855,11 @@
     if (typeof document === 'undefined' || !document.getElementById) return;
     const modal = document.getElementById('estV2Modal');
     if (!modal || typeof modal.querySelector !== 'function') return;
-    const html = _callPanelHtml();
     let panel = modal.querySelector('#v2callPanel');
+    // A repaint keeps the strip as the rep left it; a new strip opens, except
+    // on a phone once the rep has seen one (it takes up to a third of the screen).
+    const shown = panel && typeof panel.querySelector === 'function' ? panel.querySelector('details') : null;
+    const html = _callPanelHtml(shown ? !!shown.open : _callStripStartsOpen());
     if (!html) {
       if (panel) panel.remove();
     } else {
