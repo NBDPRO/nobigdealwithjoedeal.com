@@ -961,6 +961,22 @@ service cloud.firestore {
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)));
       }
+      // ── CALL TEXT OF A TASK (Call to Close Q11, Jo 2026-11-09) ──────────
+      // A task the server files from a call (Thursday thursday-*, Call Center
+      // cube-* / sms-*, a call's promise-<callId>[-n]) keeps a generic title
+      // ("Call back Pat") on the task, which every reader of the customer
+      // reads, viewers included. What came from the call (the issue, the
+      // promise the AI pulled, "You said you would") lives here, under the
+      // task's id, written by Cloud Functions only (functions/task-call-text.js).
+      // Read: the tasks audience above minus a viewer, the same split as the
+      // call entries on activity. The owners' screens lay it over the task
+      // (docs/pro/js/task-call-text.js). tests/firestore-rules.call-content-viewers.test.js.
+      match /task_call_text/{taskId} {
+        allow read: if isAuth() && notViewer() && (isAdmin()
+          || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          || parentLeadInMyCompany(leadId));
+        allow write: if false;
+      }
       // ── DOC DRAFTS (stage-triggered "Docs to review", 2026-10-13) ──────
       // The server (functions/doc-drafts.js, admin SDK) drafts the customer
       // email that belongs to a stage event. The browser only reviews it:
