@@ -74,6 +74,7 @@ async function mount(items, o) {
   const SL = W.ScriptLoader;
   const load = SL.loadBundle.bind(SL);
   SL.loadBundle = (name) => { const p = load(name); if (W.NBDOSDsBiz && !W.NBDOSDsBiz.__stub) { W.NBDOSDsBiz.__stub = 1; stubCount(); } return p; };
+  if (opts.before) opts.before(W);
   W._impl.mount({ surface: 'phone' });
   await settle();
   const ph = T.document.getElementById('osPhone');
@@ -196,6 +197,29 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     click(m.T.dom, m.card().querySelector('[data-oshw-focus="end"]'));
     await settle();
     ok('the rep turned DND off meanwhile: the end changes nothing', J(m.log.dnd) === J([true, false]), J(m.log.dnd));
+  }
+
+  {
+    // the field sequence: a block turns DND on, the rep is invited in ("In a home"), the block runs out
+    // during the inspection, then the rep leaves the home: DND goes back off (the real layout and os/acts.js)
+    const INHOME = { id: 'inhome', name: 'In a home', focus: { privacy: true }, phone: [{ id: 'focus', s: 'm' }] };
+    const m = await mount([{ id: 'focus', s: 'm' }], { home: { v: 1, phone: [{ id: 'focus', s: 'm' }], desk: [], acts: [INHOME] }, before: (W) => {
+      W.cmd = [];
+      W.NBDCommand = { open() {}, registerAction(a) { W.cmd = W.cmd.filter((x) => x.id !== a.id).concat([a]); }, unregisterAction(id) { W.cmd = W.cmd.filter((x) => x.id !== id); } };
+    } });
+    const run = async (id) => { const a = m.W.cmd.filter((x) => x.id === id)[0]; if (a) a.run(); await settle(); return !!a; };
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="start:60"]'));
+    await settle();
+    const went = await run('os:act:inhome');
+    ok('block on, then "In a home": DND on once (the mode found it on already)', went && !!m.W.NBDOSActs && m.W.NBDOSActs.privacy() === true
+      && m.dnd() === true && J(m.log.dnd) === J([true]), J([went, m.log.dnd]));
+    m.at(NOW + 60 * MIN + 300);
+    const endT = m.T.timers.find((t) => t.fn && t.kind === 't' && t.ms === 60 * MIN + 250);
+    endT.fn(); endT.fn = null;
+    await settle();
+    ok('the block ends inside the home: DND stays on for the mode', m.dnd() === true && rec(m.T).dnd === 'done', J([m.log.dnd, rec(m.T)]));
+    await run('os:act:off');
+    ok('the rep leaves the home: DND goes back off (it was off before the block)', m.dnd() === false && J(m.log.dnd) === J([true, false]), J(m.log.dnd));
   }
 
   console.log('\n6. a reload');

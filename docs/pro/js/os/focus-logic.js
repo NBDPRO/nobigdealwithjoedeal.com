@@ -31,8 +31,9 @@
  *   minsLeft(rec, now)      whole minutes left, rounded up (never 0 while running)
  *   span(rec)               the count window { from, to }: start .. the block's end (planned, or End early)
  *   withCount(rec, n)       the record with a whole count, or unchanged (a failed count shows nothing)
- *   restore(rec, dndOn, held)  'off' | 'keep': off only when this block turned DND on, it is
- *                           still on, and nothing else holds it ("In a home")
+ *   restore(rec, dndOn, held)  'off' | 'hand' | 'keep': off when this block turned DND on, it is
+ *                           still on, and nothing else holds it; 'hand' when a privacy mode
+ *                           ("In a home") holds it now (the mode takes it over, see below)
  *   floorOn(goals, ms)      the doors floor for that day: goals.doorsPerDay, Mon-Sat only
  *   view(rec, now)          what the widget says, every number from the record (see below)
  */
@@ -119,11 +120,15 @@
     return o;
   }
   /**
-   * What to do with Do Not Disturb when a block ends. 'off' only when this block
-   * turned it on, it is still on, and nothing else holds it (a privacy mode).
+   * What to do with Do Not Disturb when a block ends. 'off' when this block turned it
+   * on, it is still on, and nothing else holds it. 'hand' when this block turned it on
+   * and a privacy mode ("In a home") holds it now: os/acts.js found DND on when the mode
+   * started, so it never took it as its own; the caller hands it over (the mode's memo)
+   * so leaving the mode turns it off, as it was before the block. Otherwise 'keep'.
    */
   function restore(r, dndOn, held) {
-    return isObj(r) && r.dnd === 'mine' && dndOn === true && held !== true ? 'off' : 'keep';
+    if (!isObj(r) || r.dnd !== 'mine' || dndOn !== true) return 'keep';
+    return held === true ? 'hand' : 'off';
   }
   /** The doors floor for the day of `ms`: the company goal doorsPerDay, Mon-Sat only (Sunday never counts). */
   function floorOn(goals, ms) {

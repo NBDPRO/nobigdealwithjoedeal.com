@@ -7,7 +7,9 @@
  *   - Do Not Disturb is on (system.js setDnd): routine toasts wait in the
  *     Notification Center. Turned on only if it was off; at the end it is turned
  *     back off only if this block turned it on, it is still on, and no privacy
- *     mode ("In a home", os/acts.js) holds it (os/focus-logic.js restore).
+ *     mode ("In a home", os/acts.js) holds it (os/focus-logic.js restore). If a
+ *     mode holds it, the block hands it to the mode (acts.js's memo
+ *     nbd_os_acts_dnd), so leaving the mode turns it off.
  *   - a calm countdown in whole minutes (no seconds; the home's 30 s tick repaints
  *     it when the minute changes) and a native <progress> of the time used.
  *   - the doors knocked in this block: os/ds-business.js countKnocks, the same
@@ -46,7 +48,7 @@
   if (!FL) return;
 
   var EVENT = 'nbd:os-focus';   // os/home.js repaints its widgets on it
-  var ACTS_DND = 'nbd_os_acts_dnd';   // os/acts.js: a privacy mode turned DND on
+  var ACTS_DND = 'nbd_os_acts_dnd';   // os/acts.js: a privacy mode owns DND (turned it on, or a block handed it over)
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -89,7 +91,9 @@
     if (!r || r.dnd === 'done') return r;
     var O = sys();
     if (!O) return r.dnd === 'mine' ? r : Object.assign({}, r, { dnd: 'done' });
-    if (FL.restore(r, safe(O.isDnd) === true, held()) === 'off') safe(function () { O.setDnd(false); });
+    var how = FL.restore(r, safe(O.isDnd) === true, held());
+    if (how === 'off') safe(function () { O.setDnd(false); });
+    else if (how === 'hand') lsSet(ACTS_DND, '1');   // the mode turns it off when it ends
     return Object.assign({}, r, { dnd: 'done' });
   }
 

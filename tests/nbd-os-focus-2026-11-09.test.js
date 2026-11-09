@@ -72,7 +72,9 @@ ok('...start .. the early end once ended', J(F.span(early)) === J({ from: NOW, t
 console.log('\n4. Do Not Disturb is put back the way it was');
 ok('the block turned it on, it is still on: off', F.restore(r60, true, false) === 'off');
 ok('the rep turned it off meanwhile: nothing to do', F.restore(r60, false, false) === 'keep');
-ok('"In a home" holds it now: keep', F.restore(r60, true, true) === 'keep');
+ok('"In a home" holds it now: hand it to the mode (its memo turns it off when the mode ends)', F.restore(r60, true, true) === 'hand');
+ok('a held DND the block never turned on: keep, nothing handed', F.restore(Object.assign({}, r60, { dnd: 'kept' }), true, true) === 'keep'
+  && F.restore(r60, false, true) === 'keep');
 ok('it was on before the block: keep', F.restore(F.begin({ uid: 'u1', now: NOW, mins: 30, dndOn: true, dndAvail: true }), true, false) === 'keep');
 ok('no switch, or restored already: keep', F.restore(Object.assign({}, r60, { dnd: 'none' }), true, false) === 'keep'
   && F.restore(Object.assign({}, r60, { dnd: 'done' }), true, false) === 'keep');
