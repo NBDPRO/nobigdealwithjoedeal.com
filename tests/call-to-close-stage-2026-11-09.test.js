@@ -1,0 +1,336 @@
+/**
+ * tests/call-to-close-stage-2026-11-09.test.js — Call to Close P1: the brief's
+ * stage suggestion becomes a one-tap move through the CRM's own stage writer.
+ * Design: documentation/projects/CALL-TO-CLOSE-DESIGN-2026-11-09.md §4 (5), §7, §9 P1.
+ *
+ *   1. the plan (docs/pro/js/call-to-close-logic.js stagePlan): Inspected,
+ *      install_complete and any appointment-setting stage NEVER apply in one
+ *      tap; Lost / Archived / Cancelled confirm (Lost needs a reason); a
+ *      signed contract, a job or a won stage is refused; a plain forward move
+ *      is one tap
+ *   2. the server mirror (functions/call-brief-logic.js stageOneTapAllowed)
+ *      agrees with the client for every key
+ *   3. callBriefDecide 'stage': a one-tap accept of a never-one-tap stage is
+ *      refused; only the stage the call suggested; the mode is logged in
+ *      decisions[] (append-only); a viewer and a rep who is not the call
+ *      owner are refused
+ *   4. the sheet: the existing stage writer is reused (spies on
+ *      window.progressStage / window.moveCard), never stage-write.js itself;
+ *      the never-one-tap list asks first or opens the normal flow; the
+ *      decision is logged only after the writer moved the customer
+ *   5. customer-bootstrap.module.js progressStage takes an explicit target
+ *      (the button still passes none), threads a Lost reason and returns true
+ *   6. boot + CSP: the logic file loads lazily, no new <script> tag
+ *
+ * Every model call and Firestore is a fake. Run: node tests/call-to-close-stage-2026-11-09.test.js
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const Module = require('module');
+
+const ROOT = path.join(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const exists = (p) => fs.existsSync(path.join(ROOT, p));
+
+let passed = 0, failed = 0; const fails = [];
+function ok(name, cond, detail) {
+  if (cond) { passed++; console.log('  ✓ ' + name); }
+  else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail !== undefined ? ' — ' + (typeof detail === 'string' ? detail.slice(0, 300) : JSON.stringify(detail)) : '')); }
+}
+function guard(name, fn) {
+  try { return fn(); } catch (e) { ok(name, false, e && e.message); return null; }
+}
+
+const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
+
+(async () => {
+  console.log('\n1. The plan: what a stage suggestion may do');
+  const C = guard('call-to-close-logic.js loads in node', () => require(path.join(ROOT, LOGIC_PATH)));
+  if (C) {
+    const plan = (key, role, cur) => C.stagePlan({ targetKey: key, role, label: key }, cur || 'new');
+    ok('Inspected is never one tap (it orders a $3 measurement): confirm, naming the charge', plan('inspected', 'active').kind === 'confirm' && /\$3/.test(plan('inspected', 'active').why));
+    ok('install_complete is never one tap, even when a tenant gives it an active role', plan('install_complete', 'active').kind === 'confirm' && plan('install_complete', 'won').kind === 'refuse');
+    for (const k of ['adjuster_meeting_scheduled', 'crew_scheduled', 'warranty_scheduled', 'appointment_set', 'appt_booked', 'inspection_booked', 'site_visit']) {
+      ok('an appointment-setting stage (' + k + ') opens the normal flow, never moves from the sheet', plan(k, 'active').kind === 'flow');
+    }
+    ok('Lost confirms and needs a reason', plan('lost', 'lost').kind === 'confirm' && plan('lost', 'lost').needsReason === true);
+    ok('a custom lost-role stage confirms with a reason too', plan('not_interested', 'lost').kind === 'confirm' && plan('not_interested', 'lost').needsReason === true);
+    ok('archived / cancelled confirm', plan('archived', 'active').kind === 'confirm' && plan('job_cancelled', 'active').kind === 'confirm');
+    ok('contract_signed is refused (a call never signs)', plan('contract_signed', 'active').kind === 'refuse');
+    ok('a job stage is refused', plan('job_created', 'job').kind === 'refuse' && plan('materials_ordered', 'job').kind === 'refuse');
+    ok('a won stage is refused', plan('closed', 'won').kind === 'refuse' && plan('final_payment', 'won').kind === 'refuse');
+    ok('an unknown role is refused (fail closed)', plan('contacted', '').kind === 'refuse' && plan('contacted', 'weird').kind === 'refuse');
+    ok('a plain forward move is one tap', plan('contacted', 'active').kind === 'one-tap' && plan('estimate_submitted', 'active').kind === 'one-tap' && plan('claim_filed', 'active').kind === 'one-tap');
+    ok('already at that stage → nothing to do', plan('contacted', 'active', 'contacted').kind === 'none');
+    ok('no suggestion → nothing to do', C.stagePlan(null, 'new').kind === 'none');
+  }
+
+  console.log('\n2. The server mirror agrees');
+  const L = guard('functions/call-brief-logic.js loads', () => require(path.join(ROOT, 'functions/call-brief-logic.js')));
+  if (C && L) {
+    ok('call-brief-logic exports stageOneTapAllowed', typeof L.stageOneTapAllowed === 'function');
+    if (typeof L.stageOneTapAllowed === 'function') {
+      const keys = ['new', 'contacted', 'inspected', 'claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done', 'scope_received', 'estimate_submitted', 'supplement_requested',
+        'estimate_sent_cash', 'negotiating', 'prequal_sent', 'loan_approved', 'contract_signed', 'job_created', 'crew_scheduled', 'install_complete', 'closed', 'warranty_scheduled',
+        'service_quoted', 'lost', 'archived', 'appointment_set', 'site_visit', 'my_custom_stage'];
+      const roles = ['new', 'active', 'lost', 'job', 'won', ''];
+      const diff = [];
+      for (const k of keys) for (const r of roles) if (C.oneTapAllowed(k, r) !== L.stageOneTapAllowed(k, r)) diff.push(k + '/' + r);
+      ok('client and server answer the same for ' + keys.length * roles.length + ' key / role pairs', diff.length === 0, diff);
+    }
+  }
+
+  console.log('\n3. callBriefDecide records the stage move');
+  {
+    const INC = Symbol('inc');
+    function makeDb(seed) {
+      const store = new Map(Object.entries(seed || {}));
+      const clone = (v) => JSON.parse(JSON.stringify(v));
+      function merge(base, patch) { const out = Object.assign({}, base || {}); for (const [k, v] of Object.entries(patch || {})) out[k] = v && v[INC] !== undefined ? (Number(out[k]) || 0) + v[INC] : v; return out; }
+      function doc(p) {
+        return {
+          id: p.split('/').pop(), path: p,
+          get: async () => ({ id: p.split('/').pop(), exists: store.has(p), data: () => (store.has(p) ? clone(store.get(p)) : undefined) }),
+          set: async (data, opts) => { store.set(p, opts && opts.merge ? merge(store.get(p), data) : merge({}, data)); },
+          create: async (data) => { if (store.has(p)) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } store.set(p, merge({}, data)); },
+        };
+      }
+      return { store, doc, collection: (n) => ({ doc: (id) => doc(n + '/' + id) }), runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o) }) };
+    }
+    class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
+    const silent = { info() {}, warn() {}, error() {}, debug() {} };
+    const STUBS = {
+      'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => '' }) },
+      'firebase-functions/v2': { logger: silent },
+      'firebase-functions/v2/https': { onCall: (o, h) => ({ __opts: o, __handler: h }), onRequest: (o, h) => ({ __opts: o, __handler: h }), HttpsError },
+      'firebase-admin/firestore': { getFirestore: () => null, FieldValue: { serverTimestamp: () => ({ __ts: true }), increment: (n) => ({ [INC]: n }) }, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) } },
+      './integrations/killswitch': { isAiDisabled: async () => false, isCallBriefDisabled: async () => false, getFlags: async () => ({}) },
+    };
+    const realLoad = Module._load;
+    Module._load = function (request) { return Object.prototype.hasOwnProperty.call(STUBS, request) ? STUBS[request] : realLoad.apply(this, arguments); };
+    const CB = guard('functions/call-brief.js loads', () => require(path.join(ROOT, 'functions/call-brief.js')));
+    Module._load = realLoad;
+    const CALL_ID = 'cube_ABCDE12345';
+    const GEN = Date.parse('2026-11-05T18:00:00Z');
+    const seed = (stage) => ({
+      ['phone_calls/' + CALL_ID]: { userId: 'jo', companyId: 'co1', status: 'noted', callType: 'customer', leadId: 'L1', attachedBy: 'jo', alternateLeadIds: [], transcript: 'x' },
+      'leads/L1': { userId: 'jo', companyId: 'co1', stage: 'new' },
+      ['leads/L1/call_briefs/' + CALL_ID]: { callId: CALL_ID, leadId: 'L1', generatedAtMs: GEN, decisions: [], brief: { stage } },
+    });
+    const OWNER = { uid: 'jo', token: { email_verified: true, companyId: 'co1' } };
+    const decide = async (db, auth, data) => {
+      try { return { r: await CB._test.decideCallable({ db, auth, data: Object.assign({ callId: CALL_ID, item: 'stage' }, data), nowMs: GEN + 1000, log: silent }) }; }
+      catch (e) { return { e }; }
+    };
+    if (CB) {
+      const insp = { targetKey: 'inspected', label: 'Inspected', role: 'active', reason: 'They want a look.', quote: 'come look at it' };
+      const db1 = makeDb(seed(insp));
+      const r1 = await decide(db1, OWNER, { decision: 'accept', value: 'inspected', mode: 'one-tap' });
+      ok('a one-tap accept of Inspected is refused (it is never one tap)', r1.e && r1.e.code === 'failed-precondition' && /one tap/i.test(r1.e.message), r1.e ? r1.e.message : r1.r);
+      ok('…and nothing is logged', (db1.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).length === 0);
+      const r2 = await decide(db1, OWNER, { decision: 'accept', value: 'inspected', mode: 'confirmed' });
+      const d2 = (db1.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || []).slice(-1)[0] || {};
+      ok('a confirmed accept of Inspected is logged with its mode', r2.r && d2.item === 'stage' && d2.decision === 'accept' && d2.finalValue === 'inspected' && d2.mode === 'confirmed' && d2.decidedBy === 'jo', d2);
+      ok('…the decide call writes no stage itself (the CRM writer moved it)', db1.store.get('leads/L1').stage === 'new' && r2.r.written === false);
+      const r3 = await decide(db1, OWNER, { decision: 'accept', value: 'contacted', mode: 'confirmed' });
+      ok('only the stage the call suggested can be logged as accepted', r3.e && r3.e.code === 'invalid-argument', r3.e ? r3.e.code : r3.r);
+      const r4 = await decide(db1, OWNER, { decision: 'accept', value: 'inspected', mode: 'whenever' });
+      ok('an unknown mode is refused', r4.e && r4.e.code === 'invalid-argument');
+      const contacted = { targetKey: 'contacted', label: 'Contacted', role: 'active', reason: 'Spoke with them.', quote: 'thanks for calling back' };
+      const db2 = makeDb(seed(contacted));
+      const r5 = await decide(db2, OWNER, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      const ds = db2.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || [];
+      ok('a one-tap accept of a plain forward move is logged (mode one-tap, AI value, final value, brief gen)', r5.r && ds.length === 1 && ds[0].mode === 'one-tap' && ds[0].aiValue === 'contacted' && ds[0].finalValue === 'contacted' && ds[0].gen === GEN, ds);
+      await decide(db2, OWNER, { decision: 'skip', value: 'opened the stage picker' });
+      const ds2 = db2.store.get('leads/L1/call_briefs/' + CALL_ID).decisions || [];
+      ok('append-only: the earlier decision stays, a skip is added', ds2.length === 2 && JSON.stringify(ds2[0]) === JSON.stringify(ds[0]) && ds2[1].decision === 'skip');
+      for (const s of [{ targetKey: 'crew_scheduled', label: 'Crew Scheduled', role: 'active' }, { targetKey: 'adjuster_meeting_scheduled', label: 'Adjuster Mtg', role: 'active' }]) {
+        const r = await decide(makeDb(seed(s)), OWNER, { decision: 'accept', value: s.targetKey, mode: 'one-tap' });
+        ok('a one-tap accept of ' + s.targetKey + ' (sets an appointment) is refused', r.e && r.e.code === 'failed-precondition');
+      }
+      const won = await decide(makeDb(seed({ targetKey: 'closed', label: 'Closed', role: 'won' })), OWNER, { decision: 'accept', value: 'closed', mode: 'confirmed' });
+      ok('a won stage is refused even confirmed (a call never closes a job)', won.e && won.e.code === 'failed-precondition');
+      const v = await decide(makeDb(seed(contacted)), { uid: 'v', token: { role: 'viewer', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      ok('a viewer is refused', v.e && v.e.code === 'permission-denied');
+      const rep = await decide(makeDb(seed(contacted)), { uid: 'rep', token: { role: 'sales_rep', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      ok('a sales rep who does not own the call is refused', rep.e && rep.e.code === 'permission-denied');
+      const ca = await decide(makeDb(seed(contacted)), { uid: 'ca', token: { role: 'company_admin', companyId: 'co1' } }, { decision: 'accept', value: 'contacted', mode: 'one-tap' });
+      ok('a same-company company_admin may (the callCenterAction set)', ca.r && ca.r.ok === true, ca.e && ca.e.message);
+    }
+  }
+
+  console.log('\n4. The sheet reuses the CRM stage writer');
+  const UI = read('docs/pro/js/call-brief-ui.js');
+  ok('the sheet never imports stage-write.js or writes a stage itself', !/stage-write|commitStageChange|updateDoc\([^)]*stage/i.test(UI));
+  ok('the sheet moves through window.progressStage (customer page) or window.moveCard (dashboard)', /window\.progressStage\(/.test(UI) && /window\.moveCard\(/.test(UI));
+  function load(o) {
+    const opts = o || {};
+    const listeners = {};
+    const dlgEl = {
+      className: '', innerHTML: '', open: false, attrs: {},
+      setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; if (k === 'open') this.open = false; },
+      addEventListener(t, fn) { (listeners[t] = listeners[t] || []).push(fn); },
+      showModal() { this.open = true; }, close() { this.open = false; (listeners.close || []).forEach((f) => f()); },
+      contains() { return true; }, querySelector() { return null; },
+    };
+    const body = { kids: [], appendChild(x) { this.kids.push(x); }, contains(x) { return this.kids.includes(x); } };
+    const calls = [];
+    const moves = [];
+    let ctx;
+    const win = {
+      ScriptLoader: { load: async (src) => { if (/call-to-close-logic\.js/.test(src)) vm.runInContext(read(LOGIC_PATH), ctx); }, loadBundle: async () => {} },
+      _functions: {}, _httpsCallable: (_f, name) => async (data) => { calls.push({ name, data }); return { data: { ok: true } }; },
+      auth: { currentUser: { uid: 'jo' } },
+      showToast: () => {},
+    };
+    if (opts.page === 'customer') {
+      win._currentStage = 'new';
+      win.progressStage = async (target, popts) => { moves.push({ via: 'progressStage', target, opts: popts }); if (opts.refuse) return undefined; win._currentStage = target; return true; };
+    } else {
+      win._leads = [{ id: 'L1', stage: 'new' }];
+      win.moveCard = async (id, stage, mopts) => { moves.push({ via: 'moveCard', id, target: stage, opts: mopts }); if (!opts.refuse) win._leads[0].stage = stage; };
+    }
+    ctx = vm.createContext({ window: win, document: { createElement: () => dlgEl, body, querySelector: () => null }, console, setTimeout, Date, Event: function () {} });
+    vm.runInContext(read('docs/pro/js/call-brief-ui.js'), ctx);
+    vm.runInContext(read(LOGIC_PATH), ctx);
+    const click = async (attrs) => {
+      const b = { disabled: false, getAttribute: (k) => (k in attrs ? attrs[k] : null), closest: () => b };
+      for (const fn of listeners.click || []) fn({ target: b });
+      await new Promise((r) => setTimeout(r, 10));
+    };
+    const input = (attrs, value) => {
+      const t = { value, getAttribute: (k) => (k in attrs ? attrs[k] : null) };
+      for (const fn of listeners.input || []) fn({ target: t, type: 'input' });
+    };
+    return { CB: win.NBDCallBrief, dlg: dlgEl, calls, moves, click, input, win };
+  }
+  const BRIEF = (stage) => ({
+    v: 1, transcriptOk: { reliable: true, cutOff: false, why: '' }, summary: { text: 'Call.', quotes: [], inferred: true },
+    fields: {}, scope: { mentions: {} }, promises: [], followUp: null, stage, drafts: {}, flags: {}, people: [], objections: [], competitor: null,
+  });
+  const CONTACTED = { targetKey: 'contacted', label: 'Contacted', role: 'active', reason: 'They called back.', quote: 'thanks for calling me back' };
+  const INSPECTED = { targetKey: 'inspected', label: 'Inspected', role: 'active', reason: 'They want it looked at.', quote: 'can you come look at it' };
+  const MEETING = { targetKey: 'adjuster_meeting_scheduled', label: 'Adjuster Mtg', role: 'active', reason: 'The adjuster is coming.', quote: 'the adjuster comes Thursday' };
+  const LOST = { targetKey: 'lost', label: 'Lost', role: 'lost', reason: 'They went with someone else.', quote: 'we went with another company' };
+  const show = (h, stage, page) => h.CB._showWith({ callId: 'cube_ABCDE12345', brief: BRIEF(stage), call: { attachedBy: 'jo', leadId: 'L1' }, lead: { firstName: 'Pat', stage: 'new' }, leadId: 'L1', page });
+
+  if (UI.indexOf('NBDCallToClose') !== -1) {
+    {
+      const h = load({ page: 'customer' });
+      show(h, CONTACTED, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      const html = h.CB._render();
+      ok('a plain forward move shows one "Move to Contacted" button', /data-cb-act="stage-move"[^>]*>Move to Contacted</.test(html), html.split('cbStageH')[1]);
+      ok('nothing moves on render', h.moves.length === 0 && !h.calls.some((c) => c.name === 'callBriefDecide'));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      ok('one tap → the page\'s own writer window.progressStage(target)', h.moves.length === 1 && h.moves[0].via === 'progressStage' && h.moves[0].target === 'contacted', h.moves);
+      const d = h.calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'stage');
+      ok('…then the decision is logged: accept, the key, mode one-tap', d && d.data.decision === 'accept' && d.data.value === 'contacted' && d.data.mode === 'one-tap' && d.data.callId === 'cube_ABCDE12345', d);
+    }
+    {
+      const h = load({ page: 'customer', refuse: true });
+      show(h, CONTACTED, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      ok('when the writer did not move it (a gate, a cancel), nothing is logged as accepted', h.moves.length === 1 && !h.calls.some((c) => c.name === 'callBriefDecide' && c.data.decision === 'accept'));
+    }
+    {
+      const h = load({ page: 'calls' });
+      show(h, CONTACTED, 'calls');
+      await new Promise((r) => setTimeout(r, 10));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      ok('on #/calls the one tap goes through window.moveCard(leadId, target)', h.moves.length === 1 && h.moves[0].via === 'moveCard' && h.moves[0].id === 'L1' && h.moves[0].target === 'contacted', h.moves);
+      ok('…and is logged once it landed', h.calls.some((c) => c.name === 'callBriefDecide' && c.data.item === 'stage' && c.data.mode === 'one-tap'));
+    }
+    {
+      const h = load({ page: 'customer' });
+      show(h, INSPECTED, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      let html = h.CB._render();
+      ok('Inspected offers no one-tap move', !/data-cb-act="stage-move"/.test(html) && /data-cb-act="stage-ask"/.test(html));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      ok('a forged one-tap on Inspected moves nothing', h.moves.length === 0);
+      await h.click({ 'data-cb-act': 'stage-ask' });
+      html = h.dlg.innerHTML;
+      ok('the first tap asks, naming the $3 measurement; nothing moved yet', /\$3/.test(html) && /data-cb-act="stage-yes"/.test(html) && h.moves.length === 0);
+      await h.click({ 'data-cb-act': 'stage-yes' });
+      ok('…the second tap moves it through progressStage, told the person already confirmed', h.moves.length === 1 && h.moves[0].target === 'inspected' && h.moves[0].opts && h.moves[0].opts.asked === true, h.moves);
+      ok('…logged as confirmed', h.calls.some((c) => c.name === 'callBriefDecide' && c.data.item === 'stage' && c.data.mode === 'confirmed'));
+    }
+    {
+      const h = load({ page: 'customer' });
+      show(h, { targetKey: 'install_complete', label: 'Install Done', role: 'active', reason: 'Done.', quote: 'all done' }, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('install_complete offers no one-tap move', !/data-cb-act="stage-move"/.test(h.CB._render()));
+    }
+    {
+      const h = load({ page: 'customer' });
+      show(h, MEETING, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      const html = h.CB._render();
+      ok('an appointment-setting stage offers no move and no confirm: only the normal place to change it', !/data-cb-act="stage-(move|ask|yes)"/.test(html) && /data-cb-act="stage"/.test(html));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      await h.click({ 'data-cb-act': 'stage-yes' });
+      ok('…and forged taps move nothing', h.moves.length === 0);
+    }
+    {
+      const h = load({ page: 'customer' });
+      show(h, LOST, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      await h.click({ 'data-cb-act': 'stage-ask' });
+      const html = h.dlg.innerHTML;
+      ok('Lost asks first, with a reason box prefilled from what was said', /data-cb-input="lostReason"/.test(html) && /we went with another company/.test(html) && h.moves.length === 0);
+      h.input({ 'data-cb-input': 'lostReason' }, '   ');
+      await h.click({ 'data-cb-act': 'stage-yes' });
+      ok('an empty reason moves nothing', h.moves.length === 0);
+      h.input({ 'data-cb-input': 'lostReason' }, 'Went with another roofer');
+      await h.click({ 'data-cb-act': 'stage-yes' });
+      ok('with a reason → progressStage(lost, { lostReason })', h.moves.length === 1 && h.moves[0].target === 'lost' && h.moves[0].opts.lostReason === 'Went with another roofer', h.moves);
+    }
+    {
+      const h = load({ page: 'customer' });
+      show(h, { targetKey: 'job_created', label: 'Job Created', role: 'job', reason: 'x', quote: 'y' }, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      await h.click({ 'data-cb-act': 'stage-yes' });
+      ok('a job stage (a stored brief from before the lock) never moves', h.moves.length === 0 && !/data-cb-act="stage-(move|ask)"/.test(h.CB._render()));
+    }
+    {
+      const h = load({ page: 'customer' });
+      h.win._currentStage = 'contacted';
+      show(h, CONTACTED, 'customer');
+      await new Promise((r) => setTimeout(r, 10));
+      ok('already there → no move button', !/data-cb-act="stage-move"/.test(h.CB._render()));
+    }
+  } else {
+    ok('call-brief-ui.js uses NBDCallToClose for the stage card', false);
+  }
+
+  console.log('\n5. progressStage takes an explicit target');
+  {
+    const src = read('docs/pro/js/customer-bootstrap.module.js');
+    const fn = (src.split('window.progressStage = async function')[1] || '').split('\n};')[0];
+    ok('progressStage(target, opts): a string target replaces the next-stage pick', /^\s*\(target, opts\)/.test(fn) && /typeof target === 'string'/.test(fn) && /_nextStageFor\(/.test(fn));
+    ok('a Lost move threads the reason to commitStageChange (isLostMove + lostReason)', /isLostMove/.test(fn) && /lostReason/.test(fn));
+    ok('a sheet that already asked skips the page\'s second confirm, unless the cancellation-window warning applies', /\.asked\b/.test(fn) && /cxlWarn/.test(fn));
+    ok('it resolves true once the stage moved', /return true;/.test(fn));
+    ok('the stage button still calls it with no arguments', /data-action="progressStage"(?![^>]*data-arg)/.test(read('docs/pro/customer.html')));
+  }
+
+  console.log('\n6. Boot + CSP');
+  {
+    ok(LOGIC_PATH + ' exists', exists(LOGIC_PATH));
+    for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
+      ok(page + ' has no <script> tag for call-to-close-logic.js (it loads on tap)', !/call-to-close-logic\.js/.test(read(page)));
+    }
+    ok('the sheet loads it through ScriptLoader', /ScriptLoader\.load\([^)]*\)|CTC_JS/.test(UI) && /call-to-close-logic\.js/.test(UI));
+    const all = exists(LOGIC_PATH) ? read(LOGIC_PATH) : '';
+    ok('no inline handler or style in the new code', !/\son[a-z]+=|style=/.test(all) && !/\son[a-z]+="/.test(UI.split('renderStage')[1] || ''));
+  }
+
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
+})().catch((e) => { console.error(e); process.exit(1); });
