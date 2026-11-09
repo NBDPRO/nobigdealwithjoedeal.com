@@ -53,7 +53,11 @@ async function membersOf(db, companyId, company) {
   const owner = String((company && company.ownerId) || companyId);
   if (!byUid[owner]) {
     const u = await docData(db.doc('users/' + owner)).catch(() => null);
-    byUid[owner] = { uid: owner, name: String((u && (u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' '))) || '').trim() };
+    // An owner with no member row who now belongs to ANOTHER company (users/{uid}.companyId is
+    // set when an invite is accepted: handlers/invites.js) is counted there, not here: else the
+    // old solo company and the new one would both write, and flip, the same leaderboard/{uid}.
+    const elsewhere = u && typeof u.companyId === 'string' && u.companyId && u.companyId !== companyId;
+    if (!elsewhere) byUid[owner] = { uid: owner, name: String((u && (u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' '))) || '').trim() };
   }
   const list = Object.values(byUid);
   list.sort((a, b) => (a.uid === owner ? -1 : b.uid === owner ? 1 : 0));

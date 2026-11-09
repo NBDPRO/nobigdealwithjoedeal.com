@@ -190,6 +190,29 @@ const has = (fn) => L && typeof L[fn] === 'function';
     const db3 = fakeDb(Object.assign({}, store, { 'leaderboard/u1': undefined }));
     const r3 = await AGG.runAggregate({ db: db3, nowMs: now, live: false });
     ok('the dry run (gate off) computes but writes nothing', db3.writes.length === 0 && r3.written === 0 && r3.wouldWrite >= 1, J(r3));
+    {
+      // review 2026-11-09: a uid that owns a solo company (companies/{uid}, no member rows) and is now an
+      // active member of another company: one row, the company they belong to (users/{uid}.companyId,
+      // set when they accepted the invite), never flipping between the two runs or deleted by either.
+      const st = {
+        'companies/c1': { ownerId: 'u1' },
+        'companies/c1/members/riley@example.com': { uid: 'u1', displayName: 'Riley', status: 'active' },
+        'companies/c1/members/sam@example.com': { uid: 'u9', displayName: 'Sam', status: 'active' },
+        'companies/u9': { ownerId: 'u9' },
+        'users/u9': { companyId: 'c1', displayName: 'Sam' },
+        'companyProfile/c1': { timeZone: 'America/Chicago' },
+      };
+      const dbx = fakeDb(st);
+      await AGG.runAggregate({ db: dbx, nowMs: now, live: true });
+      const a = st['leaderboard/u9'] && st['leaderboard/u9'].companyId;
+      await AGG.runAggregate({ db: dbx, nowMs: now + 60000, live: true });
+      const b = st['leaderboard/u9'] && st['leaderboard/u9'].companyId;
+      ok('a member who also owns an old solo company: one row, in the company they belong to, on every run', a === 'c1' && b === 'c1', J([a, b]));
+      ok('and the old solo company writes no row for them', dbx.writes.filter((w) => w[1] === 'leaderboard/u9').length === 2, J(dbx.writes));
+      const solo = { 'companies/u5': { ownerId: 'u5' }, 'users/u5': { displayName: 'Solo' } };
+      await AGG.runAggregate({ db: fakeDb(solo), nowMs: now, live: true });
+      ok('a plain solo owner (no other company) still gets their row', !!solo['leaderboard/u5'] && solo['leaderboard/u5'].companyId === 'u5', J(solo['leaderboard/u5']));
+    }
     ok('the reads are bounded: knocks and leads by userId from the week start, never a whole collection',
       db.queries.every((q) => q.coll !== 'knocks' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'createdAt' && w[1] === '>=')))
       && db.queries.every((q) => q.coll !== 'leads' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'updatedAt' && w[1] === '>='))), J(db.queries.slice(0, 6)));
