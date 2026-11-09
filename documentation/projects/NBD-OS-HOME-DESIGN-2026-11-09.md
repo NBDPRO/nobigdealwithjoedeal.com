@@ -2,6 +2,19 @@
 
 Design note for Jo. Read-only recon at HEAD c178a7818. It merges the design brief, the adversarial critique of that brief (every correction applied), and the ranked macOS / Linux / web-desktop research. Parent plan: [NBD-OS-PLAN-2026-11-06](NBD-OS-PLAN-2026-11-06.md). Related: [CRM-STYLE-D5-BENTO-BOARD-2026-10-12](CRM-STYLE-D5-BENTO-BOARD-2026-10-12.md), [DAILY-SUCCESS-BUSINESS-TILE-2026-10-23](DAILY-SUCCESS-BUSINESS-TILE-2026-10-23.md), [DAILY-SUCCESS-EOD-REVIEW-2026-10-22](DAILY-SUCCESS-EOD-REVIEW-2026-10-22.md), [VISUAL-AUDIT-LAYOUTS-2026-10-19](../audit/VISUAL-AUDIT-LAYOUTS-2026-10-19.md), [CHARACTER-STYLE-BAR-2026-10-25](CHARACTER-STYLE-BAR-2026-10-25.md), [DESIGN.md](../../DESIGN.md).
 
+## Update 2026-11-09 (later): what shipped in P1
+
+P1 is built on branch `os-p1`, dark behind `osLayout`; the session note is [SESSION-2026-11-09-nbd-os-p1](SESSION-2026-11-09-nbd-os-p1.md). Where it differs from §5 and §8 below:
+
+- **Daily Success goals are done-vs-left honest.** Only doors are shown against a goal ("Doors 4 of 40"), because nothing counts calls or follow-ups *done*; `nbd_today_summary` holds what is *left*. `callsPerDay` / `followUpsPerDay` are stored and rules-validated but unread, and no screen writes `settings/goals` yet (console only). The doors count needs, and now has, a knocks `(userId ASC, createdAt ASC)` index.
+- **Closes this week** uses the CRM's `closes-week-logic.js` rank (the `closesweek` bundle), not a new one.
+- **Shutdown's touch signal** is a human touch on the rep's own lead from stamps only a person writes (contact, "I replied", a stage entry by this uid, a task done today, a knock lead today); `updatedAt` and server stamps are not touches.
+- **The urgency ring** counts only the member's own (or unowned) new leads.
+- **`board-logic.js` is a lifted copy beside `bento.js`, not the re-export §4 and §8 asked for.** A parity test pins them; making `bento.js` call it is follow-up debt.
+- **Company home rules** bound the lists by type and size (24) only; item shape is checked on the client.
+- **The laptop Edit Home bar** is its own row under the board, not sticky over it.
+- **Still open:** the real-iPhone pass for phone drag and for page 1's vertical scroll inside the pager (§3.3), and a second bounded timer (the OS mount's claims poll) beside the one ticker of §7.
+
 Jo's ask (2026-11-09): "I want to do things that are uncommon, unthought of, extremely unique, but also extremely productive, powerful, time saving, and more", drawing on Linux desktops and macOS.
 
 ## 1. TL;DR
