@@ -144,6 +144,27 @@ function fakeWin(o) {
     W.NBDOSDsBiz.current({ uid: 'u1', companyId: 'c1', doors: true, now: NOW }); await settle();
     ok('no goals doc: goals null, the doors count still shows', J(W.NBDOSDsBiz.current({ uid: 'u1', companyId: 'c1', doors: true, now: NOW + 1 })) === J({ goals: null, doors: 4 }));
   }
+  {
+    // a read that never settles (a hung offline count) must not block refreshes for the page's life
+    const { W, log } = fakeWin({ goals: { doorsPerDay: 40 } });
+    const env = (t) => ({ uid: 'u1', companyId: 'c1', doors: true, now: t });
+    let release = null, calls = 0;
+    W.NBDOSDsBiz.fsImport = () => Promise.resolve({ Timestamp: TS, getCountFromServer: (q) => {
+      log.count.push(q); calls++;
+      if (calls === 1) return new Promise((r) => { release = r; });   // hangs
+      return Promise.resolve({ data: () => ({ count: 4 }) });
+    } });
+    W.NBDOSDsBiz.current(env(NOW)); await settle();
+    W.NBDOSDsBiz.current(env(NOW + 30000)); await settle();
+    ok('a hung read: a paint 30 s later still waits on it (no pile-up)', log.count.length === 1, log.count.length);
+    W.NBDOSDsBiz.current(env(NOW + 61000)); await settle();
+    ok('...a paint over a minute later gives up on it and asks again', log.count.length === 2, log.count.length);
+    ok('...and that answer shows', J(W.NBDOSDsBiz.current(env(NOW + 62000))) === J({ goals: { doorsPerDay: 40 }, doors: 4 }));
+    const ev = log.events;
+    if (release) release({ data: () => ({ count: 99 }) });
+    await settle();
+    ok('the abandoned read landing late changes nothing and fires nothing', J(W.NBDOSDsBiz.current(env(NOW + 63000))) === J({ goals: { doorsPerDay: 40 }, doors: 4 }) && log.events === ev);
+  }
   ok('the source sets no timer and writes nothing', !/setTimeout|setInterval|setDoc|updateDoc|addDoc|deleteDoc/.test(noComments(SRC)));
   ok('the doors count reuses the D2D tracker\'s own import path', /'\/assets\/vendor\/firebase\/10\.12\.2\/firebase-firestore\.js'/.test(SRC)
     && /import\('\/assets\/vendor\/firebase\/10\.12\.2\/firebase-firestore\.js'\)/.test(read('docs/pro/js/d2d-tracker-core-2026b.js')));

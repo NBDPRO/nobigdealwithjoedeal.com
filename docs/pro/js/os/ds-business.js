@@ -21,7 +21,9 @@
  * only when the widget paints (show, an event it already listens to) and the
  * last answer is over 5 minutes old or from another day or account; never on
  * a timer, never twice at once. A failed read keeps the day's last good value
- * and waits the same 5 minutes. When an answer lands it fires
+ * and waits the same 5 minutes. A refresh still out after a minute (a read
+ * that never settles) is given up on at the next paint, and ignored if it
+ * lands later. When an answer lands it fires
  * `nbd:os-dsbiz`, which the home repaints on.
  *
  * Pure parts (tested in Node, tests/nbd-os-ds-business-2026-11-09.test.js):
@@ -39,6 +41,7 @@
   var GOALS = ['callsPerDay', 'followUpsPerDay', 'doorsPerDay'];
   var MAX_GOAL = 500;
   var TTL_MS = 5 * 60000;
+  var HANG_MS = 60000;   // a refresh still out after this is given up on (a read that never settles)
   var FS = '/assets/vendor/firebase/10.12.2/firebase-firestore.js';   // the D2D tracker's own import
 
   function isCount(n) { return typeof n === 'number' && Math.floor(n) === n && n >= 0 && n <= 99999; }
@@ -80,7 +83,7 @@
   }
 
   // ── browser: one cached answer, refreshed on show ─────────────
-  var cache = null, inflight = false;
+  var cache = null, inflight = 0, gen = 0;   // inflight: when the refresh still out began (0 = none)
   function fire() {
     try { W.dispatchEvent(new W.CustomEvent('nbd:os-dsbiz')); } catch (e) {}
   }
@@ -112,22 +115,25 @@
     var now = Number(e.now);
     if (!uid || !isFinite(now)) return null;
     var mine = cache && cache.uid === uid && dayKey(cache.at) === dayKey(now) ? cache : null;
-    if (!fresh(mine, uid, now) && !inflight) {
-      inflight = true;
+    var stuck = inflight && (now - inflight >= HANG_MS || now < inflight);
+    if (!fresh(mine, uid, now) && (!inflight || stuck)) {
+      inflight = now;
+      var my = ++gen;   // a given-up refresh that lands late is ignored
       var wantDoors = e.doors === true;
       Promise.all([readGoals(typeof e.companyId === 'string' ? e.companyId : ''), wantDoors ? countDoors(uid, now) : Promise.resolve(null)])
         .then(function (r) {
+          if (my !== gen) return;
           var prev = cache && cache.uid === uid && dayKey(cache.at) === dayKey(now) ? cache : null;
           // undefined = that read failed: keep the day's last good value
           cache = { uid: uid, at: now,
             goals: r[0] === undefined ? (prev ? prev.goals : null) : r[0],
             doors: r[1] === undefined ? (prev && wantDoors ? prev.doors : null) : r[1] };
-        }, function () { cache = { uid: uid, at: now, goals: mine ? mine.goals : null, doors: mine ? mine.doors : null }; })
-        .then(function () { inflight = false; fire(); });
+        }, function () { if (my === gen) cache = { uid: uid, at: now, goals: mine ? mine.goals : null, doors: mine ? mine.doors : null }; })
+        .then(function () { if (my !== gen) return; inflight = 0; fire(); });
     }
     return mine ? { goals: mine.goals, doors: mine.doors } : null;
   }
-  function reset() { cache = null; inflight = false; }
+  function reset() { cache = null; inflight = 0; gen++; }
 
   var api = { fsImport: function () { return import(FS); },   // replaced in the Node tests
     GOALS: GOALS, MAX_GOAL: MAX_GOAL, TTL_MS: TTL_MS, isCount: isCount, cleanGoals: cleanGoals, bizRows: bizRows, fresh: fresh,
