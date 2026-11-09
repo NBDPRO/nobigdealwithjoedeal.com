@@ -347,14 +347,16 @@
     // a picture shows once it is decoded; until then (or if it can't be read) time of day
     var shown = p.wp === 'img' ? (S.wpImg === p.img ? 'img' : 'tod') : p.wp;
     if (el.getAttribute('data-os-wp') !== shown) el.setAttribute('data-os-wp', shown);
-    if (p.wp === 'img' && S.wpWant !== p.img) {
+    // a company-enforced My Skin background hides it (css): don't load or read it (the clock tick paints it once lifted)
+    var want = p.wp === 'img' && !doc.documentElement.classList.contains('my-skin-locked');
+    if (want && S.wpWant !== p.img) {
       var id = p.img;
       S.wpWant = id; S.wpImg = null;
       var lp = loadWp();
       if (lp) lp.then(function (WP) {
         WP.paint(el, id, function (ok) { if (S && S.wpWant === id) { S.wpImg = ok ? id : null; paintWp(); } });
       }).catch(function () {});
-    } else if (p.wp !== 'img' && S.wpWant) {
+    } else if (!want && S.wpWant) {
       S.wpWant = null; S.wpImg = null;
       if (W.NBDOSWallpaper) safe(function () { W.NBDOSWallpaper.clear(el); });
     }

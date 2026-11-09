@@ -351,6 +351,25 @@ async function openPicker(T) {
     ok('the surface still shows its picture (its URL not revoked, its properties kept)', props['--os-wp-img'] === 'url("' + live + '")' && T.W.urls.revoked.indexOf(live) === -1, J({ props, revoked: T.W.urls.revoked }));
   }
 
+  console.log('\n11. a company-enforced My Skin background: a saved OS picture is not even read');
+  {
+    const T = setup({ surface: 'phone', locked: true, home: { phone: [], desk: [], wp: { phone: PICS[0].id, desk: null } } });
+    T.W._impl.mount({ surface: 'phone' });
+    const el = T.document.getElementById('osPhone');
+    const props = css(el);
+    await flush();
+    ok('locked: no bundle load, no picture read (the CSS would hide it anyway)', T.W.loads.length === 0 && T.W.blobAsks.length === 0, J({ loads: T.W.loads, asks: T.W.blobAsks }));
+    T.W.document.documentElement.classList.remove('my-skin-locked');
+    T.fire(30000);
+    await flush();
+    ok('the lock lifted: the next clock tick paints the saved picture', T.W.blobAsks.indexOf(PICS[0].id) !== -1 && el.getAttribute('data-os-wp') === 'img' && /^url\("blob:/.test(props['--os-wp-img'] || ''), J({ asks: T.W.blobAsks, props }));
+    const live = (props['--os-wp-img'] || '').replace(/^url\("|"\)$/g, '');
+    T.W.document.documentElement.classList.add('my-skin-locked');
+    T.fire(30000);
+    await flush();
+    ok('locked again: the next tick drops the picture and revokes its URL', !props['--os-wp-img'] && T.W.urls.revoked.indexOf(live) !== -1, J({ props, urls: T.W.urls }));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ the suite threw: ' + (e && e.stack)); process.exit(1); });
