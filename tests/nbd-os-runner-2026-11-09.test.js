@@ -534,6 +534,14 @@ console.log('\nRUNNER — on the real NBD OS laptop desk');
     W.NBDRunner.corner.set(false);
     ok('turning it off takes the listener away again', moves() === pm0);
     W.NBDRunner.corner.set(true);
+    // a maximized window's controls sit in that corner (the 'mac' traffic lights): resting there to close it is not a search
+    const s2 = W.searches;
+    const btn = T.document.createElement('button'); inner.appendChild(btn);
+    H.fire(T.dom, btn, 'pointermove', { clientX: 1, clientY: 1, pointerType: 'mouse', buttons: 0 });
+    T.fire(250);
+    H.fire(T.dom, inner, 'pointermove', { clientX: 0, clientY: 0, pointerType: 'mouse', buttons: 0 });
+    T.fire(250);
+    ok('the pointer over a window (or its buttons) in the corner never opens it', W.searches === s2);
     // phone: nothing attached, no switch
     W._impl.unmount();
     ok('unmount takes the Control Center switch down', !W.controls.some((c) => c.id === 'os-runner-type'));

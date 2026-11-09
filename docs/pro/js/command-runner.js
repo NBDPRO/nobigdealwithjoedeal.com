@@ -28,8 +28,9 @@
  *     typed, ONLY when focus is on the desk itself (never an input or a
  *     window) and only while the "Type to search" setting is on (default on
  *     for laptops; off in the Control Center or the Quick Keys editor; kept at
- *     sign-out, nbd-auth.js KEEP), so it meets WCAG 2.1.4; an opt-in hot corner (top-left, 250 ms dwell, off by
- *     default) opens it too.
+ *     sign-out, nbd-auth.js KEEP), so it meets WCAG 2.1.4; an opt-in hot
+ *     corner (top-left, 250 ms dwell, off by default, never over a window or
+ *     a control) opens it too.
  *
  * Reads nothing new: no Firestore, no network. Every field is escaped.
  * Strict CSP: no inline handlers, no style attributes (css/command-runner.css).
@@ -675,6 +676,7 @@
   // the widget column's empty space is desk; its widgets, tools and the Add sheet are not
   var BLOCK = '.os-win, .os-taskbar, .os-start, .os-hw, .os-hw-tools, .os-hw-add, .os-widget, .os-deskmenu, .os-snap, ' +
     'button, a, input, textarea, select, label, [contenteditable], [role="dialog"]';
+  var CORNER_BLOCK = '.os-win, button, a, input, textarea, select, [contenteditable]';
   /** A press on the desk's own background (not a window, the taskbar, a widget or any control). */
   function isBareDesk(t, desk) {
     if (!t || !desk || !desk.contains || !desk.contains(t)) return false;
@@ -725,6 +727,9 @@
     function clearCorner() { if (st.cornerT) { clr(st.cornerT); st.cornerT = 0; } }
     function onMove(ev) {
       if (!corner.on() || (ev.pointerType && ev.pointerType !== 'mouse') || ev.buttons || !inCorner(ev.clientX, ev.clientY)) return clearCorner();
+      // over a window or a control there (a maximized window's 'mac' traffic lights): that is not a search
+      var t = ev.target;
+      if (t && t.closest && t.closest(CORNER_BLOCK)) return clearCorner();
       if (st.cornerT) return;
       st.cornerT = set(function () {
         st.cornerT = 0;
