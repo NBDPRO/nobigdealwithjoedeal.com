@@ -67,6 +67,7 @@ function makeDb(seed) {
       orderBy(f) { q.orders.push(f); return api; },
       startAfter(...vals) { q.after = vals; return api; },
       limit(n) { q.lim = n; return api; },
+      count() { return { get: async () => { const lim = q.lim, after = q.after; q.lim = Infinity; q.after = null; const r = await api.get(); q.lim = lim; q.after = after; return { data: () => ({ count: r.size }) }; } }; },
       async get() {
         const rows = [];
         for (const [p, data] of store) {
@@ -278,6 +279,14 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     ok('briefs: gone9 would go (old1\'s goes with its transcript)', P.brief && P.brief.eligible >= 1, P.brief);
     ok('holds are counted by reason', P.audio && P.audio.held && P.audio.held.open_claim === 2 && P.audio.held.call_legal_hold === 1 && P.audio.held.lead_legal_hold === 1, P.audio && P.audio.held);
     ok('the bad path is counted, not deleted', P.audio && P.audio.badPath === 1);
+    ok('a dry run reports the whole backlog past each cutoff, not just the first page (audio 8, transcript 7, brief 4)',
+      P.audio && P.audio.pastCutoff === 8 && P.transcript.pastCutoff === 7 && P.brief.pastCutoff === 4, P.audio && [P.audio.pastCutoff, P.transcript.pastCutoff, P.brief.pastCutoff]);
+    {
+      const dbc = makeDb(seed()); const coll = dbc.collection;
+      dbc.collection = (n) => { const q = coll(n); q.count = () => ({ get: async () => { throw new Error('count unsupported'); } }); return q; };
+      let rc; try { rc = await run(base(dbc, makeBucket(), { live: false })); } catch (e) { rc = { err: e.message }; }
+      ok('a failed count leaves pastCutoff null and the dry run still counts eligible', rc.phases && rc.phases.audio.pastCutoff === null && rc.phases.audio.eligible === 2, rc.err || (rc.phases && rc.phases.audio));
+    }
   }
 
   console.log('\n5. Live run');
@@ -286,6 +295,7 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     let r; try { r = await run(base(db, bucket, { live: true })); } catch (e) { r = { err: e.message }; }
     const S = db.store;
     ok('mode live', r && r.mode === 'live', r);
+    ok('a live run does not spend a count query', r.phases && r.phases.audio.pastCutoff === undefined);
     const delPaths = bucket.deleted.map((d) => d.p).sort();
     ok('audio deleted for old1 and mid1 only (12 months)', JSON.stringify(delPaths) === JSON.stringify(['calls/jo/cube-acr/2024-06-01/old1.m4a', 'calls/jo/cube-acr/2025-06-01/mid1.m4a']), delPaths);
     ok('every Storage delete uses ignoreNotFound', bucket.deleted.every((d) => d.o && d.o.ignoreNotFound === true));

@@ -73,10 +73,13 @@ const PHASES = [
 
 const safeId = (v) => typeof v === 'string' && !!v && !v.includes('/');
 
-function pageQuery(db, ph, cutoff, cursor, n, docIdField) {
-  let q = ph.source === 'calls'
+function baseQuery(db, ph, cutoff, docIdField) {
+  return ph.source === 'calls'
     ? db.collection('phone_calls').where('createdAtMs', '<', cutoff).orderBy('createdAtMs').orderBy(docIdField)
     : db.collectionGroup('call_briefs').where('generatedAtMs', '<', cutoff).orderBy('generatedAtMs').orderBy(docIdField);
+}
+function pageQuery(db, ph, cutoff, cursor, n, docIdField) {
+  let q = baseQuery(db, ph, cutoff, docIdField);
   if (cursor) q = q.startAfter(cursor.ms, cursor.key);
   return q.limit(n);
 }
@@ -126,6 +129,15 @@ async function runRetention({
     const st = { scanned: 0, eligible: 0, done: 0, held: {}, skipped: 0, badPath: 0, failed: 0, retried: 0, stoppedBy: null };
     out.phases[ph.key] = st;
     let cursor = cursors[ph.key] || null;
+    if (!live) {
+      // A dry run never saves its cursor, so its eligible counts cover only the
+      // first maxPerPhase records. One aggregate count gives Jo the whole
+      // backlog past this cutoff (already-done records included; null on error).
+      try {
+        const c = await baseQuery(db, ph, cutoff, idField).count().get();
+        st.pastCutoff = Number((c.data() || {}).count);
+      } catch (e) { st.pastCutoff = null; }
+    }
     const failedKeys = [];
     const keyOf = (d) => (ph.source === 'calls' ? d.id : d.ref.path);
 
