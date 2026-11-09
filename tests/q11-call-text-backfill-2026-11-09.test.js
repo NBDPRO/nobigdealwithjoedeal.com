@@ -269,6 +269,14 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   f = fakeDb(d2);
   r = await runArgs(f, ['--apply']);
   ok(d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'].full.title === 'OTHER' && d2[T1].title === seed()[T1].title && r.counts.otherSidecar === 1, 'a different sidecar: kept, the task left full -> ' + JSON.stringify(r.counts));
+  // the dry run counts it too (review 2026-11-09: the numbers Jo signs off on)
+  d2 = seed();
+  d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'] = { full: { title: 'OTHER' }, generic: { title: 'x' } };
+  f = fakeDb(d2);
+  lines = [];
+  r = await runArgs(f, [], { log: (s) => lines.push(String(s)) });
+  ok(f.ops.length === 0 && r.counts.otherSidecar === 1 && r.counts.toChange === 7 && r.counts.byKind.cube === 2, 'dry run: a task with a different sidecar is counted there, not as to change -> ' + JSON.stringify(r.counts));
+  ok(lines.some((l) => /other sidecar already there \(skip\)\s*: 1$/.test(l)), 'dry run prints the other-sidecar count');
   // crash resume: the identical sidecar (written before a crash) lets the task go on
   d2 = seed();
   const sp = TCT.split(Object.assign({}, d2[T1]), { title: 'Follow up with NAMESECRET Pat', text: 'Follow up with NAMESECRET Pat', notes: '' });

@@ -252,21 +252,24 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
       plan = kind === 'thursday' ? planThursday(data, src && src.data) : planFollowUp(kind, m[2], data, src && src.data);
     }
     if (plan.skip) { counts[plan.skip]++; return; }
+    // The task as the writers store it: split() puts { full, generic } on it.
+    const split = TCT.split(Object.assign({}, data, plan.full), plan.generic);
+    if (!split.callTextFull) { counts.alreadyGeneric++; return; }
+    const want = TCT.sideDoc(p, split);
+    const isWanted = (have) => !!have && same(have.data.full, want.full) && same(have.data.generic, want.generic);
+    // A sidecar already there (read in a dry run too, so its counts are the
+    // ones --apply will find): the identical one (a run stopped before its
+    // task update, or the live writer's) lets the task go on; any other skips it.
+    const there = await read(TCT.sidePath(p));
+    if (there && !isWanted(there)) { counts.otherSidecar++; return; }
     counts.toChange++;
     counts.byKind[kind]++;
     if (!args.apply) return;
     if (!d.updateTime) { counts.failures++; return; }
-    // The task as the writers store it: split() puts { full, generic } on it.
-    const split = TCT.split(Object.assign({}, data, plan.full), plan.generic);
-    if (!split.callTextFull) { counts.alreadyGeneric++; return; }
     try {
       // Sidecar first: a crash after it leaves the full task, never a bare generic one.
       if (await TCT.writeSideIfAbsent(db, p, split)) counts.sidecarsWritten++;
-      else {
-        const have = await read(TCT.sidePath(p));
-        const want = TCT.sideDoc(p, split);
-        if (!have || !same(have.data.full, want.full) || !same(have.data.generic, want.generic)) { counts.otherSidecar++; return; }
-      }
+      else if (!isWanted(await read(TCT.sidePath(p)))) { counts.otherSidecar++; return; }
       const pairs = [];
       for (const k of Object.keys(split.callTextFull.generic)) pairs.push(k, split.callTextFull.generic[k]);
       pairs.push('callText', true, 'updatedAt', serverTimestamp(), { lastUpdateTime: d.updateTime });
@@ -317,7 +320,7 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
   log('  Thursday call gone (skip)            : ' + c.sourceMissing);
   log('  Thursday issue mismatch (skip)       : ' + c.issueMismatch);
   log('  summary scrub first (skip)           : ' + c.needsSummaryScrub);
-  if (args.apply) log('  other sidecar already there (skip)   : ' + c.otherSidecar);
+  log('  other sidecar already there (skip)   : ' + c.otherSidecar);
   log('  tasks to make generic                : ' + c.toChange + ' (cube ' + c.byKind.cube + ', sms ' + c.byKind.sms + ', thursday ' + c.byKind.thursday + ', promise ' + c.byKind.promise + ')');
   log('  leads scanned                        : ' + c.leadsScanned);
   log('  not an old Thursday lead (skip)      : ' + c.leadsNotOld);
