@@ -305,6 +305,9 @@ async function auto(db, before, after, extra) {
     ok('says it is off by default and only drafts (nothing is sent or filled in)', /Off by default/.test(block) && /Nothing is filled in, sent or moved/.test(block));
     ok('no inline style or handler', !/style=|\son[a-z]+=/.test(block));
     ok('shown only when this account has phone calls loaded (the call pipeline exists)', /channel !== 'text'/.test(block));
+    // Review 2026-11-09: .btn renders 36 px tall at desktop width; the switch
+    // gets the 44 px target the other new Call to Close controls have.
+    ok('the Turn on / Turn off button is at least 44 px tall at every width', /\.cc-autobrief \[data-cc="autobrief"\] \{[^}]*min-height: 44px/.test(read('docs/pro/css/phone-calls.css')));
 
     // Behaviour, not just the source: run canSetAutoBrief with real claim
     // shapes. The owner accounts carry mintOwnerClaims' { owner: true,
