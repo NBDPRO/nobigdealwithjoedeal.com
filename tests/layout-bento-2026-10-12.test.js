@@ -57,7 +57,7 @@ const def = R.get('bento');
 ok('bento is registered', !!def);
 ok('...for every surface (phone gets two columns)', def && ['phone', 'tablet', 'desktop'].every((s) => def.surfaces.indexOf(s) !== -1));
 ok('...lazy: own script + stylesheet, the kit as a need', def && def.script === 'js/layouts/bento.js' && def.css === 'css/layouts/bento.css'
-  && def.needs.script.join() === 'js/layouts/kit.js' && def.needs.css.join() === 'css/layouts/kit.css');
+  && def.needs.script.join() === 'js/layouts/kit.js,js/layouts/board-logic.js' && def.needs.css.join() === 'css/layouts/kit.css');   // board-logic: NBD OS P2, one copy of the board math
 ok('...wallpaper + glass supported', def && def.supports.wallpaper === true && def.supports.glass === true);
 ok('Classic is still the fallback and unchanged', R.get('classic') && !R.get('classic').script && R.FALLBACK === 'classic');
 ok('precedence still resolves a bento choice', R.resolve({ surface: 'desktop', user: { id: 'bento' } }).id === 'bento');

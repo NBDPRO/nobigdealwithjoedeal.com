@@ -4,15 +4,18 @@
  *
  * Bento's pure board math (placement, gravity packing, move, resize, reading
  * order, pointer -> cell) is lifted into docs/pro/js/layouts/board-logic.js as
- * a factory, and layouts/bento.js is left exactly as it shipped. This proves:
+ * a factory. Since NBD OS P2 (2026-11-09) layouts/bento.js builds its math
+ * from it (one copy); Bento's math as it shipped is frozen in
+ * tests/lib/bento-logic-reference-2026-10-12.js, and parity runs against both. This proves:
  *   1. board-logic is a UMD file (window.NBDBoardLogic, require()-able), pure:
  *      no DOM, clock, storage or network, and no style attribute
- *   2. make() configured with Bento's catalogue gives NBDBentoLogic's outputs,
- *      byte for byte (JSON), on a table of inputs and a 400-step random walk,
- *      and require('bento.js').NBDBentoLogic's surface is unchanged
+ *   2. make() configured with Bento's catalogue gives NBDBentoLogic's outputs
+ *      and the frozen reference's, byte for byte (JSON), on a table of inputs
+ *      and a 400-step random walk, and require('bento.js')'s surface is unchanged
  *   3. firstFit (the one addition) finds the first gap in reading order
  *   4. carried fields (the OS desk's s / cfg) survive every op as copies
- *   5. it is the OS layout's 6th and last needs.script path (the cap is 6)
+ *   5. it is the OS layout's 6th and last needs.script path (the cap is 6), and
+ *      Bento's own needs path (bento.js loads lazily, so no boot tag)
  *
  * Run: node tests/nbd-os-board-2026-11-09.test.js
  */
@@ -35,7 +38,8 @@ try { BL = require(FILE); } catch (e) { BL = null; }
 ok('docs/pro/js/layouts/board-logic.js exists and require()s in Node', !!BL && typeof BL.make === 'function', fs.existsSync(FILE) ? 'loaded but no make()' : 'missing');
 if (!BL) { console.log('\n' + passed + ' passed, ' + (failed + 1) + ' failed'); process.exit(1); }
 const SRC = read('docs/pro/js/layouts/board-logic.js');
-const B = require(path.join(ROOT, 'docs/pro/js/layouts/bento.js'));
+const BENTO = require(path.join(ROOT, 'docs/pro/js/layouts/bento.js'));
+const REF = require('./lib/bento-logic-reference-2026-10-12.js')({ COLS: 4, MAX_TILES: 24, MAX_Y: 40, CATALOG: BENTO.CATALOG, DEFAULT_RAW: BENTO.defaultBoard() });
 
 console.log('\n1. a pure UMD file');
 {
@@ -45,8 +49,9 @@ console.log('\n1. a pure UMD file');
   ok('no style attribute and no inline style', !/style\s*=|\.style\.|setProperty/.test(code));
 }
 
-console.log('\n2. Bento parity: make(Bento\'s catalogue) === NBDBentoLogic');
-const P = BL.make({ cols: B.COLS, maxTiles: B.MAX_TILES, maxY: B.MAX_Y, key: 'widgetId', catalog: B.CATALOG, defaults: B.defaultBoard() });
+const P = BL.make({ cols: BENTO.COLS, maxTiles: BENTO.MAX_TILES, maxY: BENTO.MAX_Y, key: 'widgetId', catalog: BENTO.CATALOG, defaults: BENTO.defaultBoard() });
+[['NBDBentoLogic (bento.js)', BENTO], ['Bento as it shipped (the frozen reference)', REF]].forEach(([who, B]) => {
+console.log('\n2. Bento parity: make(Bento\'s catalogue) === ' + who);
 {
   ok('bento.js still exports the same surface', J(Object.keys(B).sort()) === J(['BY_ID', 'CATALOG', 'COLS', 'MAX_TILES', 'MAX_Y', 'add', 'available', 'bottom', 'cellFromPoint', 'compact', 'defaultBoard',
     'describe', 'find', 'has', 'moveBy', 'moveTo', 'pack', 'remove', 'resizeBy', 'resizeTo', 'sanitize', 'swapOrder'].sort()), J(Object.keys(B).sort()));
@@ -92,6 +97,7 @@ const P = BL.make({ cols: B.COLS, maxTiles: B.MAX_TILES, maxY: B.MAX_Y, key: 'wi
   }
   ok('a 400-step random walk stays identical at every step', same, 'diverged at step ' + at);
 }
+});
 
 console.log('\n3. firstFit: the first gap, reading order');
 {
@@ -125,7 +131,11 @@ console.log('\n5. the OS layout loads it: the 6th and last needs.script path');
   const sc = def ? def.needs.script : [];
   ok('needs.script ends with js/layouts/board-logic.js, 6 paths (the cap)', sc.length === 6 && sc[5] === 'js/layouts/board-logic.js', J(sc));
   ok('no new <script> tag in dashboard.html', !/board-logic/.test(read('docs/pro/dashboard.html')));
-  ok('bento.js is untouched by the lift (it keeps its own copy; this suite pins parity)', !/NBDBoardLogic|board-logic/.test(read('docs/pro/js/layouts/bento.js')));
+  // NBD OS P2: one copy. bento.js builds its math from board-logic; the reference above pins parity.
+  const BS = read('docs/pro/js/layouts/bento.js');
+  ok('bento.js builds its board math from NBDBoardLogic.make (no second copy of pack)', /NBDBoardLogic/.test(BS) && /\.make\(/.test(BS) && !/function pack\(/.test(BS));
+  const bento = R.get('bento');
+  ok('Bento\'s needs.script loads board-logic before bento.js (its own lazy path)', !!bento && J(bento.needs.script) === J(['js/layouts/kit.js', 'js/layouts/board-logic.js']), J(bento && bento.needs.script));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
