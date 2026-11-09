@@ -2288,11 +2288,14 @@
 
   // capturedAt / capturedAtSource / deviceCapturedAt / geoLocation from the
   // file's EXIF (photo-exif.js, an ES module loaded on first upload). Never
-  // rejects: anything going wrong is the device clock it was handed.
+  // rejects: anything going wrong is the device clock it was handed. The 4 s
+  // ceiling covers the module fetch too, not only the read inside it.
   function _photoExif(blob, deviceMs) {
-    return import('/pro/js/photo-exif.js?v=1')
-      .then((m) => m.photoExifFields(blob, deviceMs))
-      .catch(() => ({ capturedAt: deviceMs, capturedAtSource: 'device' }));
+    const device = { capturedAt: deviceMs, capturedAtSource: 'device' };
+    return Promise.race([
+      import('/pro/js/photo-exif.js?v=1').then((m) => m.photoExifFields(blob, deviceMs)),
+      new Promise((resolve) => setTimeout(resolve, 4000, device)),
+    ]).catch(() => device);
   }
 
   async function uploadPhotoToFirebase(blob, leadId, tags, description, location, opts) {

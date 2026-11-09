@@ -65,6 +65,14 @@ function exifJpeg(o) {
 const plainJpeg = () => Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xFF, 0xDA, 0, 2, 0xFF, 0xD9]);
 const asFile = (buf, name, type) => { const b = new Blob([buf], { type: type || 'image/jpeg' }); b.name = name || 'IMG_0001.JPG'; return b; };
 
+// Review 2026-11-09 defect 5: the photo-exif.js import itself can stall (a
+// hung module fetch). `stall` makes the shimmed import never settle and the
+// upload-path ceiling timer (4 s) fire at once, so a hang shows as a failure
+// here, not as a stuck test.
+const STALL_EXIF = () => new Promise(() => {});
+const fastCeiling = (fn, ms, ...a) => setTimeout(fn, ms >= 4000 ? 5 : ms, ...a);
+const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(r, ms, 'HUNG'))]);
+
 const TAKEN = new Date(2026, 4, 13, 9, 24, 30).getTime();   // EXIF has no zone: the device's local time
 const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
 
@@ -125,7 +133,7 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
   });
 
   console.log('\n2. PhotoEngine.uploadPhotoToFirebase (photo-engine.js in a vm)');
-  function loadEngine(lead) {
+  function loadEngine(lead, stall) {
     let src = read('docs/pro/js/photo-engine.js');
     const b0 = src.length;
     src = src.replace(/await import\(\s*'\/assets\/vendor\/firebase\/[^']+\/firebase-(\w+)\.js'\s*\)/g, "await __fb('$1')");
@@ -143,8 +151,8 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
       functions: { getFunctions: () => ({}), httpsCallable: () => async () => ({ data: {} }) },
     };
     const win = {
-      __fb: async (n) => fb[n], __exif: async () => injected,
-      console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Promise, Blob, URL, JSON, Math, Date, Error, Object, Array, Set, Map, DataView, Uint8Array,
+      __fb: async (n) => fb[n], __exif: stall ? STALL_EXIF : async () => injected,
+      console: { log() {}, warn() {}, error() {} }, setTimeout: stall ? fastCeiling : setTimeout, clearTimeout, Promise, Blob, URL, JSON, Math, Date, Error, Object, Array, Set, Map, DataView, Uint8Array,
       localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
       navigator: { onLine: true },
       document: {
@@ -198,7 +206,7 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
     if (!m) throw new Error('end not found for ' + startStr);
     return src.slice(i, m.index + m[0].length);
   }
-  async function runCustomerUpload(file) {
+  async function runCustomerUpload(file, stall) {
     let fn = sliceFn('docs/pro/js/customer-bootstrap.module.js', 'async function uploadSinglePhoto(item, index) {', /\n\}\n/g);
     fn = fn.replace(/import\(\s*'\.\/photo-exif\.js(\?v=\d+)?'\s*\)/g, '__exif()');
     const added = [];
@@ -212,7 +220,7 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
       collection: (_db, c) => ({ path: c }),
       addDoc: async (c, d) => { added.push(d); return { id: 'P1' }; },
     };
-    const sb = { window: win, __exif: async () => injected, console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, setTimeout, updateUploadPreviewItem() {}, updateGlobalUploadStatus() {} };
+    const sb = { window: win, __exif: stall ? STALL_EXIF : async () => injected, console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, setTimeout: stall ? fastCeiling : setTimeout, updateUploadPreviewItem() {}, updateGlobalUploadStatus() {} };
     vm.createContext(sb);
     const uploadSinglePhoto = vm.runInContext('(' + fn.replace(/^async function uploadSinglePhoto/, 'async function') + ')', sb);
     await uploadSinglePhoto({ file }, 0);
@@ -229,13 +237,13 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
   });
 
   console.log('\n4. dashboard-bootstrap.module.js _uploadPhoto (real function text in a vm)');
-  async function runDashUpload(file) {
+  async function runDashUpload(file, stall) {
     let fn = sliceFn('docs/pro/js/dashboard-bootstrap.module.js', 'async function _uploadPhoto(leadId, file) {', /\n {2}\}\n/g);
     fn = fn.replace(/import\(\s*'\.\/photo-exif\.js(\?v=\d+)?'\s*\)/g, '__exif()');
     const added = [];
     const sb = {
-      window: { _user: { uid: 'u1' }, _userClaims: { companyId: 'c1' } }, __exif: async () => injected,
-      console: { log() {}, warn() {}, error() {} }, Date, Promise, Object,
+      window: { _user: { uid: 'u1' }, _userClaims: { companyId: 'c1' } }, __exif: stall ? STALL_EXIF : async () => injected,
+      console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, setTimeout: stall ? fastCeiling : setTimeout,
       ref: (_s, p) => ({ path: p }), storage: {}, db: {}, uploadBytes: async () => {}, getDownloadURL: async () => 'https://dl.example/x',
       addDoc: async (c, d) => { added.push(d); return { id: 'P1' }; }, collection: (_db, c) => ({ path: c }), serverTimestamp: () => ({ __ts: true }),
     };
@@ -258,6 +266,20 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
     ok('the dashboard modal stamps uploadedAt with server time (the CSV column reads it, not the EXIF date)', d.uploadedAt && d.uploadedAt.__ts === true, JSON.stringify(d.uploadedAt));
     ok('control: the photo CSV export takes uploadedAt before its capturedAt fallback',
       /uploadedAt:\s*p\.uploadedAt\?\.toDate\?\.\(\)\?\.toISOString\(\)\s*\|\|\s*\(p\.capturedAt/.test(read('docs/pro/js/dashboard-bootstrap.module.js')));
+  });
+
+  console.log('\n4b. a stalled photo-exif.js fetch never holds the photo doc (review 2026-11-09, defect 5)');
+  await guard(async () => {
+    const E = loadEngine(null, true);
+    const t0 = Date.now();
+    const r1 = await within(E.PE.uploadFromFile('L1', asFile(exifJpeg()), []), 1500);
+    const w = E.writes.find((x) => x[0] === 'setDoc');
+    ok('PhotoEngine: the photo doc is written on the device clock when the module never arrives',
+      r1 !== 'HUNG' && w && w[2].capturedAtSource === 'device' && w[2].capturedAt >= t0, r1 === 'HUNG' ? 'upload hung' : JSON.stringify(w && w[2].capturedAtSource));
+    const r2 = await within(runCustomerUpload(asFile(exifJpeg()), true), 1500);
+    ok('customer page: the doc is written on the device clock', r2 !== 'HUNG' && r2.capturedAtSource === 'device' && typeof r2.capturedAt === 'number', r2 === 'HUNG' ? 'upload hung' : JSON.stringify(r2.capturedAtSource));
+    const r3 = await within(runDashUpload(asFile(exifJpeg()), true), 1500);
+    ok('dashboard modal: the doc is written (no EXIF fields)', r3 !== 'HUNG' && r3.url === 'https://dl.example/x' && r3.d.leadId === 'L1' && !('geoLocation' in r3.d), r3 === 'HUNG' ? 'upload hung' : JSON.stringify(r3.d));
   });
 
   console.log('\n5. capturedAt readers');

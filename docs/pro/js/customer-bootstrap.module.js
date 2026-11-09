@@ -3341,8 +3341,12 @@ async function uploadSinglePhoto(item, index) {
     : Promise.resolve(null);
 
   // The photo's own EXIF date + GPS -> capturedAt / geoLocation (photo-exif.js, loaded now).
-  const exifPromise = import('./photo-exif.js?v=1').then((m) => m.photoExifFields(file, timestamp))
-    .catch(() => ({ capturedAt: timestamp, capturedAtSource: 'device' }));
+  // The 4 s ceiling covers the module fetch too: a stalled fetch is the device clock.
+  const deviceExif = { capturedAt: timestamp, capturedAtSource: 'device' };
+  const exifPromise = Promise.race([
+    import('./photo-exif.js?v=1').then((m) => m.photoExifFields(file, timestamp)),
+    new Promise((resolve) => setTimeout(resolve, 4000, deviceExif)),
+  ]).catch(() => deviceExif);
 
   const uploadTask = window.uploadBytesResumable(storageRef, file);
 
