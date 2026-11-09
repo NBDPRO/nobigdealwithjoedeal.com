@@ -11,8 +11,8 @@
  * owner's Team widget on the NBD OS home (os/team.js). firestore.rules lets the
  * member and their company read a row and no client write one.
  *
- * Reads per company per run: the company doc, its profile, its members, the
- * owner's users doc when the owner has no member row, then per member the
+ * Reads per company per run: the company doc, its profile, its members, each
+ * member's users doc (users/{uid}.companyId: see membersOf), then per member the
  * knocks since Monday (userId, createdAt >= week start; index userId ASC,
  * createdAt ASC), the leads updated since Monday (userId, updatedAt >= week
  * start, newest first; index userId ASC, updatedAt DESC), and the jobs written
@@ -49,7 +49,13 @@ const CAP = 2000;          // knocks / leads per member per week: far above one 
 const all = (snap) => { const out = []; snap.forEach((d) => out.push(Object.assign({ id: d.id }, d.data()))); return out; };
 const docData = async (ref) => { const s = await ref.get(); return s.exists ? (s.data() || {}) : null; };
 
-/** Active members with a uid, the owner first (named from their member row, else users/{uid}). */
+/**
+ * Active members with a uid, the owner first (named from their member row, else users/{uid}).
+ * Anyone whose users/{uid}.companyId names ANOTHER company (set when an invite is accepted:
+ * handlers/invites.js) is counted there, not here: an owner with no member row whose solo company
+ * was superseded, or a member whose row in a company they left was never deactivated. Else both
+ * companies would write, and flip, the same leaderboard/{uid} every run.
+ */
 async function membersOf(db, companyId, company) {
   const rows = all(await db.collection('companies/' + companyId + '/members').get());
   const byUid = {};
@@ -58,15 +64,20 @@ async function membersOf(db, companyId, company) {
     byUid[m.uid] = { uid: String(m.uid), name: String(m.displayName || m.name || '').trim() };
   });
   const owner = String((company && company.ownerId) || companyId);
-  if (!byUid[owner]) {
-    const u = await docData(db.doc('users/' + owner)).catch(() => null);
-    // An owner with no member row who now belongs to ANOTHER company (users/{uid}.companyId is
-    // set when an invite is accepted: handlers/invites.js) is counted there, not here: else the
-    // old solo company and the new one would both write, and flip, the same leaderboard/{uid}.
+  if (!byUid[owner]) byUid[owner] = { uid: owner, name: '', noRow: true };
+  // one users/{uid} read per member (at most MAX_MEMBERS + 1), against the knocks / leads / jobs
+  // queries each member already costs
+  const uids = Object.keys(byUid).slice(0, MAX_MEMBERS + 1);
+  const users = await Promise.all(uids.map((uid) => docData(db.doc('users/' + uid)).catch(() => null)));
+  const list = [];
+  uids.forEach((uid, i) => {
+    const u = users[i];
     const elsewhere = u && typeof u.companyId === 'string' && u.companyId && u.companyId !== companyId;
-    if (!elsewhere) byUid[owner] = { uid: owner, name: String((u && (u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' '))) || '').trim() };
-  }
-  const list = Object.values(byUid);
+    if (elsewhere) return;
+    const m = byUid[uid];
+    if (m.noRow) m.name = String((u && (u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' '))) || '').trim();
+    list.push({ uid: m.uid, name: m.name });
+  });
   list.sort((a, b) => (a.uid === owner ? -1 : b.uid === owner ? 1 : 0));
   return list.slice(0, MAX_MEMBERS);
 }

@@ -236,6 +236,32 @@ const has = (fn) => L && typeof L[fn] === 'function';
       ok('the scheduled run keeps its cursor in system/leaderboardAggregate (server only) and budgets under its timeout',
         /system\/leaderboardAggregate/.test(SRCX) && /deadlineMs:/.test(SRCX) && /timeoutSeconds: 300/.test(SRCX));
     }
+    {
+      // review 2026-11-09 (final): a non-owner whose member row is still active in a company they left
+      // (users/{uid}.companyId now names another company) is counted only where they belong, so the two
+      // runs do not rewrite, and flip, the same leaderboard/{uid}.
+      const st = {
+        'companies/c1': { ownerId: 'o1' },
+        'companies/c1/members/o1@example.com': { uid: 'o1', displayName: 'Owner 1', status: 'active' },
+        'companies/c1/members/pat@example.com': { uid: 'u7', displayName: 'Pat', status: 'active' },   // left, row never deactivated
+        'companies/c2': { ownerId: 'o2' },
+        'companies/c2/members/o2@example.com': { uid: 'o2', displayName: 'Owner 2', status: 'active' },
+        'companies/c2/members/pat@example.com': { uid: 'u7', displayName: 'Pat', status: 'active' },
+        'users/u7': { companyId: 'c2', displayName: 'Pat' },
+        'users/o1': { companyId: 'c1' },
+        'leaderboard/u7': { companyId: 'c1', uid: 'u7', name: 'Pat' },   // a row the old company wrote
+      };
+      const dbm = fakeDb(st);
+      await AGG.runAggregate({ db: dbm, nowMs: now, live: true, concurrency: 1 });
+      const a = st['leaderboard/u7'] && st['leaderboard/u7'].companyId;
+      const w1 = dbm.writes.length;
+      await AGG.runAggregate({ db: dbm, nowMs: now + 60000, live: true, concurrency: 1 });
+      const b2 = st['leaderboard/u7'] && st['leaderboard/u7'].companyId;
+      ok('a member row left active in a company they left: one row, in the company users/{uid} names, on every run', a === 'c2' && b2 === 'c2', J([a, b2]));
+      ok('the company they left never writes their row (it only clears the stale row it wrote before)',
+        dbm.writes.filter((w) => w[1] === 'leaderboard/u7').length === 3 && J(dbm.writes.slice(w1).filter((w) => w[1] === 'leaderboard/u7')) === J([['set', 'leaderboard/u7']]), J(dbm.writes));
+      ok('a member whose users doc names their own company (or no company) is still counted', !!st['leaderboard/o1'] && st['leaderboard/o1'].companyId === 'c1' && !!st['leaderboard/o2']);
+    }
     ok('the reads are bounded: knocks and leads by userId from the week start, never a whole collection',
       db.queries.every((q) => q.coll !== 'knocks' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'createdAt' && w[1] === '>=')))
       && db.queries.every((q) => q.coll !== 'leads' || (q.where.some((w) => w[0] === 'userId') && q.where.some((w) => w[0] === 'updatedAt' && w[1] === '>='))), J(db.queries.slice(0, 6)));
