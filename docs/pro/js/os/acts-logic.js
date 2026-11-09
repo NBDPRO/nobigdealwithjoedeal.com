@@ -76,18 +76,14 @@
     return a ? { key: str(a.key, 120), leadId: a.leadId ? String(a.leadId) : '' } : null;
   }
 
-  /** The leads as an id map, built once per leads array. */
-  var mapOf = null, mapFor = null, mapLen = -1;
+  /** The leads as an id map, built once per lens call (never kept: _leads changes in place). */
   function byId(leads) {
-    if (!Array.isArray(leads)) return {};
-    if (mapFor === leads && mapLen === leads.length) return mapOf;
     var m = {};
-    leads.forEach(function (l) { if (isObj(l) && l.id != null) m[String(l.id)] = l; });
-    mapOf = m; mapFor = leads; mapLen = leads.length;
+    if (Array.isArray(leads)) leads.forEach(function (l) { if (isObj(l) && l.id != null) m[String(l.id)] = l; });
     return m;
   }
-  function rowPhase(sec, r, c) {
-    var lead = r && r.leadId != null ? byId(c.leads)[String(r.leadId)] : null;
+  function rowPhase(sec, r, c, map) {
+    var lead = r && r.leadId != null ? map[String(r.leadId)] : null;
     return lead ? leadPhase(lead, c.roleOf) : (SECTION_PHASE[sec] || '');
   }
   function isCurrent(r, cur) {
@@ -112,11 +108,11 @@
     var f = focusOf(c);
     if (!isObj(plan) || (!f.phase && f.privacy !== true)) return plan;
     var cur = f.privacy === true ? currentAppt(plan, c.now) : null;
-    var out = {}, total = 0;
+    var out = {}, total = 0, map = f.phase ? byId(c.leads) : null;
     SECTIONS.forEach(function (sec) {
       var list = Array.isArray(plan[sec]) ? plan[sec] : [];
       if (f.privacy === true && sec === 'money') list = [];
-      if (f.phase) list = list.filter(function (r) { return isObj(r) && rowPhase(sec, r, c) === f.phase; });
+      if (f.phase) list = list.filter(function (r) { return isObj(r) && rowPhase(sec, r, c, map) === f.phase; });
       if (f.privacy === true) list = list.map(function (r) { return isCurrent(r, cur) ? r : blank(sec, r); });
       out[sec] = list;
       total += list.length;

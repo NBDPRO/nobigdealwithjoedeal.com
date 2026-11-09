@@ -222,6 +222,12 @@ const ctx = (focus, extra) => Object.assign({ focus, leads: LEADS, roleOf, now: 
   ok('Collect: the won-role leads, money included', J(lc.money.map((r) => r.key)) === J(['inv:L4']) && J(lc.promised.map((r) => r.key)) === J(['prom:L4']), J(lc));
   ok('a lost lead is in no phase', ['leads', 'inspect', 'build', 'collect'].every((ph) => AL.lensPlan(plan(), ctx({ phase: ph })).stalled.length === 0));
   ok('the raw plan is not changed', J(raw) === J(plan()));
+  // a lead swapped in place (same array, same length) is read fresh, never from a map built on an earlier call
+  const ls = LEADS.slice();
+  ok('a lead in place: Collect shows its money', AL.lensPlan(plan(), ctx({ phase: 'collect' }, { leads: ls })).money.length === 1);
+  ls[3] = { id: 'L4', firstName: 'Cass', lastName: 'Collect', stage: 'new' };
+  const lsw = AL.lensPlan(plan(), ctx({ phase: 'collect' }, { leads: ls }));
+  ok('...swapped in place for one back in Leads: Collect no longer shows it', lsw.money.length === 0 && lsw.promised.length === 0, J(lsw));
 
   const pv = AL.lensPlan(plan(), ctx({ privacy: true }));
   const s = J(pv);
