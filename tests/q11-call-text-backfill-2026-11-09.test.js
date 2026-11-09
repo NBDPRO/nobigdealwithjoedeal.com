@@ -117,7 +117,8 @@ function fakeDb(docs) {
       update: async (...args) => {
         if (!exists(p)) throw new Error('NOT_FOUND ' + p);
         const pre = args.length % 2 ? args.pop() : null;
-        if (pre && !(pre.lastUpdateTime && pre.lastUpdateTime.v === (ver[p] || 0))) throw new Error('FAILED_PRECONDITION ' + p);
+        // As the Admin SDK: { lastUpdateTime: undefined } is no precondition at all.
+        if (pre && pre.lastUpdateTime !== undefined && !(pre.lastUpdateTime && pre.lastUpdateTime.v === (ver[p] || 0))) throw new Error('FAILED_PRECONDITION ' + p);
         const patch = {};
         for (let i = 0; i < args.length; i += 2) patch[String(args[i])] = args[i + 1];
         ops.push({ op: 'update', p, patch, pre });
@@ -193,6 +194,12 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   ok(pl.generic && pl.generic.title === 'Waiting on the adjuster', 'promise waiting: keeps waitingOn');
   ok(S.planPromise(seed()['leads/LEADIDX1/tasks/promise-CUBEIDX4']).skip === 'edited', 'promise edited: edited');
   ok(S.planPromise(seed()['leads/LEADIDX1/tasks/promise-CUBEIDX5']).skip === 'alreadyGeneric', 'promise no why: already generic');
+  // each part of "what the server wrote" is checked (review 2026-11-09)
+  const P1 = seed()['leads/LEADIDX1/tasks/promise-CUBEIDX1'];
+  ok(S.planPromise(Object.assign({}, P1, { title: 'Jo EDITSECRET' })).skip === 'edited', 'promise: title edited, text not -> edited');
+  ok(S.planPromise(Object.assign({}, P1, { why: 'WHYSECRET  roof' })).skip === 'edited', 'promise: a why the writer would have cleaned (typed since) -> edited');
+  ok(S.planPromise(Object.assign({}, P1, { kind: 'task' })).skip === 'edited', 'promise: kind not promise -> edited');
+  ok(S.planPromise(Object.assign({}, P1, { promiseKind: 'nonsense' })).skip === 'edited', 'promise: unknown promiseKind -> edited');
   ok(T.callNotes(EX, TCALL) === OLD_LEAD_NOTES, 'fixture: the hand-written old lead notes are callNotes()');
   let lp = S.planLead(seed()['leads/bland_calls__CALLIDX9'], seed()['thursday_calls/bland_calls__CALLIDX9']);
   ok(lp.copyCallNotes === true && lp.notes === '📞 From a Thursday call on 2026-11-01. The details are on the call.', 'lead: copy to callNotes, notes become the pointer');
@@ -273,6 +280,13 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   f = fakeDb(d2);
   r = await runArgs(f, ['--apply']);
   ok(d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'].full.title === 'OTHER' && d2[T1].title === seed()[T1].title && r.counts.otherSidecar === 1, 'a different sidecar: kept, the task left full -> ' + JSON.stringify(r.counts));
+  // a sidecar whose generic half matches but whose full half does not
+  d2 = seed();
+  const sp0 = TCT.split(Object.assign({}, d2[T1]), { title: 'Follow up with NAMESECRET Pat', text: 'Follow up with NAMESECRET Pat', notes: '' });
+  d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'] = Object.assign(TCT.sideDoc(T1, sp0), { full: Object.assign({}, sp0.callTextFull.full, { notes: 'OTHER' }) });
+  f = fakeDb(d2);
+  r = await runArgs(f, ['--apply']);
+  ok(d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'].full.notes === 'OTHER' && !d2[T1].callText && r.counts.otherSidecar === 1, 'a sidecar with another full half: kept, the task left full');
   // the dry run counts it too (review 2026-11-09: the numbers Jo signs off on)
   d2 = seed();
   d2['leads/LEADIDX1/task_call_text/cube-CUBEIDX1'] = { full: { title: 'OTHER' }, generic: { title: 'x' } };
@@ -361,6 +375,14 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   };
   r = await runArgs(f, ['--apply']);
   ok(f.ops.length === 0 && r.counts.failures === 10, 'no updateTime: nothing written (not even a sidecar), each counted -> ' + JSON.stringify({ ops: f.ops.length, failures: r.counts.failures }));
+
+  // a call doc read without updateTime: neither its callNotes nor the lead is written
+  d2 = seed();
+  f = fakeDb(d2);
+  const realDoc5 = f.db.doc;
+  f.db.doc = (p) => { const x = realDoc5(p); if (p === 'thursday_calls/bland_calls__CALLIDX9') { const g = x.get; x.get = async () => Object.assign(await g(), { updateTime: undefined }); } return x; };
+  r = await runArgs(f, ['--apply']);
+  ok(!f.ops.some((o) => o.p === 'thursday_calls/bland_calls__CALLIDX9' || o.p === 'leads/bland_calls__CALLIDX9') && d2['leads/bland_calls__CALLIDX9'].notes === OLD_LEAD_NOTES && r.counts.failures === 1 && r.counts.leadsWritten === 1, 'call doc with no updateTime: no call-notes write, the lead keeps its notes, counted');
 
   // ── a failed write prints nothing of its text ──
   d2 = seed();
