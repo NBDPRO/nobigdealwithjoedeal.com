@@ -469,6 +469,7 @@ const NOW = Z('2026-11-09T08:20:00Z'); // 03:20 ET (EST), the scheduled time
     let gates = null; try { gates = require(path.join(FN, 'cron-gates.js')); } catch (_) {}
     ok('cron-gates.js registers the gate', !!(gates && gates.CRON_GATES.some((g) => g.name === 'CALL_RETENTION_ENABLED' && g.polarity === 'enabled' && g.file === 'call-retention.js')));
     ok('flags-registry.js registers it, dark', /CALL_RETENTION_ENABLED:\s*\{[^}]*dark: true/.test(read('functions/flags-registry.js')));
+    ok('flags-registry.js files it under "Calls & texts" (a call sweep, not an alert)', /CALL_RETENTION_ENABLED:\s*\{\s*group: 'Calls & texts'/.test(read('functions/flags-registry.js')));
     ok('scheduled daily 03:20 America/New_York (off-peak)', /schedule:\s*'20 3 \* \* \*'/.test(src) && /timeZone:\s*'America\/New_York'/.test(src) && /maxInstances:\s*1/.test(src));
     ok('heartbeat-wrapped, on the daily-retention check', /require\('\.\/integrations\/heartbeat'\)/.test(src) && /callRetention:\s*\{\s*slug:\s*'daily-retention'/.test(read('functions/integrations/heartbeat-plan.js')));
     ok('index.js exports callRetention', /exports\.callRetention = require\('\.\/call-retention'\)\.callRetention/.test(read('functions/index.js')));
