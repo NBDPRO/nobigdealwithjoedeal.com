@@ -132,7 +132,8 @@
   var STACK_MAX = 4;
   // the stack's own cards when none are saved: one per Smart Stack rule (os/stack-logic.js)
   // (P2: Shutdown in Coach's place, so the evening rule has its card; Coach was only its fallback.
-  // A new stack only: saved stacks keep their own cards.)
+  // The P1 default already held four, so this replaces Coach rather than adding Shutdown. It reaches
+  // a new stack, and a saved stack with no valid card left (stackItems below); saved cards are kept.)
   var STACK_DEFAULT = ['upnext', 'storm', 'daily', 'shutdown'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
