@@ -139,7 +139,8 @@ async function runCompany(db, companyId, company, nowMs, live, out) {
  * time left) and wrapping round to the start, so a large tenant set is counted across runs
  * instead of the companies past a timeout never being counted. Companies run `concurrency`
  * at a time; before each group the clock is checked against `deadlineMs`, and an
- * out-of-time run stops with partial:true and next = the last company it finished.
+ * out-of-time run stops with partial:true and next = the last company it finished (or, when
+ * it finished none, the cursor it was given, so the resume point is never lost).
  */
 async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = Infinity, clock = Date.now, concurrency = 4 }) {
   const out = { companies: 0, written: 0, unchanged: 0, removed: 0, wouldWrite: 0, wouldRemove: 0, failed: 0, partial: false, next: null };
@@ -153,7 +154,7 @@ async function runAggregate({ db, nowMs, live, startAfter = null, deadlineMs = I
     }
   };
   const width = Math.max(1, concurrency | 0);
-  let last = null;
+  let last = startAfter ? String(startAfter) : null;   // out of time before the first group: resume where this run was asked to
   // pass 1: after the cursor to the end; pass 2 (a resumed run): the start up to the cursor
   const passes = startAfter ? [{ after: String(startAfter), until: null }, { after: null, until: String(startAfter) }] : [{ after: null, until: null }];
   for (const pass of passes) {

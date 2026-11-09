@@ -228,6 +228,10 @@ const has = (fn) => L && typeof L[fn] === 'function';
         p2.companies === 5 && p2.partial === false && p2.next === null && ['o1', 'o2', 'o3', 'o4', 'o5'].every((u) => !!st['leaderboard/' + u]), J(p2));
       const order = dbr.queries.filter((q) => /^companies\/c\d\/members$/.test(q.coll)).slice(2).map((q) => q.coll.split('/')[1]);
       ok('in that order: c3, c4, c5, then c1, c2', J(order) === J(['c3', 'c4', 'c5', 'c1', 'c2']), J(order));
+      // review 2026-11-09 (final): a run whose deadline hits before its first group keeps the cursor it was
+      // given (next = startAfter), so the scheduler never writes cursor: null and loses its resume point.
+      const p3 = await AGG.runAggregate({ db: dbr, nowMs: now, live: true, startAfter: 'c3', clock: () => 1000, deadlineMs: 500 });
+      ok('out of time before the first company: partial, and next is still the cursor it started from', p3.partial === true && p3.companies === 0 && p3.next === 'c3', J(p3));
       const SRCX = read('functions/leaderboard-aggregate.js');
       ok('the scheduled run keeps its cursor in system/leaderboardAggregate (server only) and budgets under its timeout',
         /system\/leaderboardAggregate/.test(SRCX) && /deadlineMs:/.test(SRCX) && /timeoutSeconds: 300/.test(SRCX));
