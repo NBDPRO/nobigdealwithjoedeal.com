@@ -307,6 +307,18 @@ async function decide(db, auth, data) {
       const al = await decide(adb, OWNER, { item: 'field:damageType', decision: 'accept' });
       ok('damage held under damage (damageType empty) → refused', al.e && al.e.code === 'failed-precondition' && adb.store.get('leads/L1').damageType === '');
     }
+    // Review #3/#15: the adjuster meeting reaches the calendar feed and Google
+    // Calendar (google-calendar-logic WATCHED), so it is always confirmed.
+    {
+      const mdb = makeDb(seed());
+      await brief(mdb, OWNER);
+      const bdoc = mdb.store.get('leads/L1/call_briefs/' + CALL_ID);
+      bdoc.brief.fields.adjusterMeetingYmd = { value: '2026-11-12', spoken: 'next Thursday', quote: 'the adjuster comes next Thursday', conf: 'said' };
+      const m0 = await decide(mdb, OWNER, { item: 'field:adjusterMeetingYmd', decision: 'accept' });
+      ok('adjuster meeting without the calendar confirm → refused, lead untouched', m0.e && m0.e.code === 'failed-precondition' && /calendar/i.test(m0.e.message) && mdb.store.get('leads/L1').adjusterMeetingDate === undefined, m0.e && m0.e.message);
+      const m1 = await decide(mdb, OWNER, { item: 'field:adjusterMeetingYmd', decision: 'accept', confirmedCalendar: true });
+      ok('…with it → written to adjusterMeetingDate', m1.r && mdb.store.get('leads/L1').adjusterMeetingDate === '2026-11-12');
+    }
     const ed = await decide(db, OWNER, { item: 'field:claimNumber', decision: 'accept', value: 'H44729-A', confirmedInsurance: true });
     ok('Edit: the person\'s own value is written (final differs from the AI value)', ed.r && db.store.get('leads/L1').claimNumber === 'H44729-A');
     const dl = await decide(db, OWNER, { item: 'field:dateOfLoss', decision: 'accept', value: 'last week' });

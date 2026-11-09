@@ -28,7 +28,8 @@
  * accepted lead FIELD is written here, with the Admin SDK, FILL-EMPTY ONLY,
  * one field per call: never an overwrite, never a bulk apply. Carrier,
  * claim # and an insurance job type need the person's acknowledgement that
- * this makes the job an insurance job (Kentucky notices apply). An accepted
+ * this makes the job an insurance job (Kentucky notices apply); the adjuster
+ * meeting needs a confirm that it goes on the calendar. An accepted
  * summary becomes one activity note. Promises, follow-ups and handled go
  * through their own writers (callCenterAction, NBDFollowUpDeck); this only
  * logs them. Nothing here moves a stage, prices, sends or signs anything.
@@ -45,6 +46,8 @@ const { ANTHROPIC_API_KEY, aiAllowed } = require('./lead-brief');
 const CALLS = 'phone_calls';
 const QUOTA = 'call_brief_quota';
 const MAX_DECISIONS = 300;
+// adjusterMeetingDate feeds the calendar feed and Google Calendar (google-calendar-logic WATCHED).
+const CALENDAR_ACK = 'This puts the adjuster meeting on the calendar and on Google Calendar when it is connected. Confirm it first.';
 const INSURANCE_ACK = 'This makes the job an insurance job: Kentucky notices and the cancellation form will apply. Confirm it first.';
 
 /** Default model call: raw /v1/messages (the repo's server pattern). */
@@ -216,6 +219,7 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     if (fieldKey === 'jobType' && !['insurance', 'cash'].includes(finalValue)) throw new HttpsError('invalid-argument', 'Job type is insurance or cash.');
     const insurance = fieldKey === 'insCarrier' || fieldKey === 'claimNumber' || (fieldKey === 'jobType' && finalValue === 'insurance');
     if (insurance && data.confirmedInsurance !== true) throw new HttpsError('failed-precondition', INSURANCE_ACK);
+    if (fieldKey === 'adjusterMeetingYmd' && data.confirmedCalendar !== true) throw new HttpsError('failed-precondition', CALENDAR_ACK);
     const leadRef = db.doc('leads/' + g.leadId);
     written = await db.runTransaction(async (tx) => {
       const s = await tx.get(leadRef);

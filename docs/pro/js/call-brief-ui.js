@@ -14,7 +14,8 @@
  *   2. Field diff: current → from the call, quote, said / implied, Accept /
  *      Edit / Skip. Fill-empty only (a filled field says so and offers Skip).
  *      Carrier, claim # and an insurance job type carry the Kentucky
- *      insurance-job warning and confirm first. One field per tap.
+ *      insurance-job warning and confirm first; the adjuster meeting says it
+ *      goes on the calendar and confirms first. One field per tap.
  *   3. Promises: a You / Them toggle on each (the model's guess, which Jo
  *      fixes), the kind and the date, and an explicit Add + a one-line
  *      confirm, because a promise marks the call handled (callCenterAction
@@ -42,6 +43,10 @@
   var CSS_HREF = '/pro/css/call-brief.css?v=1';
   var FOLLOWUP_JS = '/pro/js/followup-deck.js?v=2';
   var INSURANCE_WARN = 'This makes the job an insurance job. Kentucky notices and the cancellation form will apply.';
+  // The meeting date feeds the calendar feed and the Google Calendar sync
+  // (google-calendar-logic WATCHED), so it is labelled and always confirmed.
+  // (No homeowner portal reads it today; the design's label assumed one.)
+  var CALENDAR_WARN = 'This puts the adjuster meeting on your calendar, and on Google Calendar when it is connected.';
   var FIELD_ORDER = ['insCarrier', 'claimNumber', 'dateOfLoss', 'adjusterName', 'adjusterMeetingYmd', 'damageType', 'jobType'];
   var FIELD_LABEL = {
     insCarrier: 'Insurance carrier', claimNumber: 'Claim #', dateOfLoss: 'Date of loss', adjusterName: 'Adjuster',
@@ -87,6 +92,7 @@
   function warnFor(key, value) {
     if (key === 'insCarrier' || key === 'claimNumber') return INSURANCE_WARN;
     if (key === 'jobType' && value === 'insurance') return INSURANCE_WARN;
+    if (key === 'adjusterMeetingYmd') return CALENDAR_WARN;
     return '';
   }
   /** One row per field the brief proposes: current → proposed, never pre-ticked. */
@@ -341,7 +347,9 @@
     var item = 'field:' + key;
     S.done[item] = 'busy'; S.confirm = ''; render();
     try {
-      var extra = { confirmedInsurance: confirmed === true };
+      var w = warnFor(key, value != null ? value : ((fieldRows(S.brief, S.lead).filter(function (r) { return r.key === key; })[0] || {}).proposed));
+      var extra = { confirmedInsurance: confirmed === true && w === INSURANCE_WARN };
+      if (confirmed === true && w === CALENDAR_WARN) extra.confirmedCalendar = true;
       if (value != null) extra.value = value;
       await decide(item, 'accept', extra);
       var row = fieldRows(S.brief, S.lead).filter(function (r) { return r.key === key; })[0];
@@ -607,6 +615,6 @@
     open: open, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
-    INSURANCE_WARN: INSURANCE_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
+    INSURANCE_WARN: INSURANCE_WARN, CALENDAR_WARN: CALENDAR_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,
   };
 })();

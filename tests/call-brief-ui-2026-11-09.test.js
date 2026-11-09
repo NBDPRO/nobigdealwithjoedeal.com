@@ -121,6 +121,10 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('date of loss and adjuster name carry no warning (they do not flip isInsurance)', rows.find((r) => r.key === 'dateOfLoss').warn === '' && rows.find((r) => r.key === 'adjusterName').warn === '');
     ok('the warning names Kentucky', /Kentucky notices and the cancellation form will apply/.test(CB.INSURANCE_WARN));
     ok('a cash job type has no warning', CB._warnFor('jobType', 'cash') === '');
+    const meetBrief = clone(BRIEF);
+    meetBrief.fields.adjusterMeetingYmd = { value: '2026-11-12', spoken: 'next Thursday', quote: 'the adjuster comes next Thursday', conf: 'said' };
+    const meet = CB._fieldRows(meetBrief, LEAD).find((r) => r.key === 'adjusterMeetingYmd');
+    ok('the adjuster meeting is labelled: it goes on the calendar (and Google Calendar)', meet && meet.warn === CB.CALENDAR_WARN && /calendar/.test(CB.CALENDAR_WARN) && /Google Calendar/.test(CB.CALENDAR_WARN), meet);
     ok('a field the customer already has with the same value is not a row', !CB._fieldRows(BRIEF, Object.assign({}, LEAD, { jobType: 'Insurance' })).some((r) => r.key === 'jobType'));
     ok('a filled field shows no insurance warning (nothing will change)', CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insCarrier: 'Allstate' })).find((r) => r.key === 'insCarrier').warn === '');
     const viaAlias = CB._fieldRows(BRIEF, Object.assign({}, LEAD, { insCarrier: '', insuranceCarrier: 'Allstate' })).find((r) => r.key === 'insCarrier');
@@ -229,6 +233,22 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     await click({ 'data-cb-act': 'accept', 'data-k': 'adjusterName' });
     const d2 = calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'field:adjusterName');
     ok('a field with no warning accepts on one tap, without the acknowledgement', d2 && d2.data.confirmedInsurance === false);
+  }
+  {
+    const { CB, dlg, calls, listeners } = load();
+    const b = clone(BRIEF);
+    b.fields.adjusterMeetingYmd = { value: '2026-11-12', spoken: 'next Thursday', quote: 'the adjuster comes next Thursday', conf: 'said' };
+    CB._showWith({ callId: 'cube_ABCDE12345', brief: b, call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+    const click = async (attrs) => {
+      const btn = { disabled: false, getAttribute: (k) => (k in attrs ? attrs[k] : null), closest: () => btn };
+      for (const fn of listeners.click) fn({ target: btn });
+      await new Promise((r) => setTimeout(r, 5));
+    };
+    await click({ 'data-cb-act': 'accept', 'data-k': 'adjusterMeetingYmd' });
+    ok('Accept on the adjuster meeting asks first (calendar label), nothing sent', /Google Calendar[\s\S]*Fill it in\?/.test(dlg.innerHTML) && !calls.some((c) => c.name === 'callBriefDecide'));
+    await click({ 'data-cb-act': 'accept-yes', 'data-k': 'adjusterMeetingYmd' });
+    const d = calls.find((c) => c.name === 'callBriefDecide' && c.data.item === 'field:adjusterMeetingYmd');
+    ok('…then sends it with the calendar confirm', d && d.data.confirmedCalendar === true, d);
   }
 
   console.log('\n9. Brief promises never touch slot 0 (review 2026-11-09 #1/#10)');
