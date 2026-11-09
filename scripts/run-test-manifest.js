@@ -462,22 +462,11 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1014/74/1152 -> 1025/74/1163, NBD OS P3 joins Jo's follow-ups on this branch: Pocket,
 //               Knock block, privacy lock, tenant wallpaper palette, KPI tiles + Copy my setup, Nearby and
 //               the P3 integration suite. MEASURED via --check.
-//   2026-11-09  1025/74/1163 -> 1026/74/1164, the Q11 task-summary backfill suite (script dry run /
-//               --apply / scope, and the REST adapter's collection-group query). MEASURED via --check.
-//   2026-11-09  1025/74/1163 -> 1026/74/1164, Q11 (Jo's decision on review item 2): the task call text
-//               suite (generic task titles for viewers, the call text beside the task). MEASURED via --check.
-//   2026-11-09  1026/74/1164 -> 1027/74/1165, Q11 review item 3: the Thursday lead-notes suite (lead.notes
-//               points at the call; the call keeps the issue, carrier and claim #). MEASURED via --check.
-const FLOORS = { node: 1027, smoke: 74, disk: 1165 };
-//   2026-11-09  1025/74/1163 -> 1026/74/1165, Q11 item 4 (voicemail rows off the viewer allowlist):
-//               voicemail-viewer-hidden (node) and the voicemail-viewers rules suite. MEASURED via --check.
-//   2026-11-09  1026/74/1165 -> 1027/74/1166, the Q11 item 4 backfill (scripts/retag-voicemail-activity.js):
-//               voicemail-retag-backfill (node). MEASURED via --check.
-const FLOORS = { node: 1027, smoke: 74, disk: 1166 };
-//   2026-11-09  1025/74/1163 -> 1029/74/1167, three parked drafts carried with Jo's OK: #3008 (settings
-//               deep-link tab hooks), #2994 (shortcuts help close, sign-out estimates unsub) and #2981
-//               (tenant stage emails). MEASURED via --check.
-const FLOORS = { node: 1029, smoke: 74, disk: 1167 };
+//   2026-11-09  1025/74/1163 -> 1036/74/1175, one integration PR: the Q11 task-summary backfill, task call
+//               text, Thursday lead notes, voicemail source + retag backfill and voicemail-viewers rules suite;
+//               the carried drafts #3008, #2994, #2981, #2941 and #2942. MEASURED
+//               via --check.
+const FLOORS = { node: 1036, smoke: 74, disk: 1175 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

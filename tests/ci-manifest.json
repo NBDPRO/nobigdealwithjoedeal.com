@@ -1045,7 +1045,6 @@
     "q11-task-call-text-2026-11-09.test.js",
     "q11-thursday-lead-notes-2026-11-09.test.js",
     "voicemail-viewer-hidden-2026-11-09.test.js",
-    "voicemail-viewer-hidden-2026-11-09.test.js",
     "voicemail-retag-backfill-2026-11-09.test.js"
   ],
   "smoke": {
