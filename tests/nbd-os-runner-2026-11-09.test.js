@@ -348,6 +348,9 @@ console.log('\nRUNNER — the real palette, layer and runner in a fake DOM');
   const kd = (k, extra) => (input.listeners.keydown || []).forEach((f) => f(Object.assign({ key: k, target: input, preventDefault() {} }, extra || {})));
   kd('Tab');
   ok('Tab in the box lights the next verb (Call)', row.querySelectorAll('.cmdr-verb')[1].classList.contains('is-on') && !row.querySelectorAll('.cmdr-verb')[0].classList.contains('is-on'));
+  const live = document.querySelector('#nbd-cmd-modal .cmdr-live');
+  ok('a screen reader hears the lit verb (a polite live region in the palette)',
+    !!live && live.getAttribute('aria-live') === 'polite' && live.getAttribute('role') === 'status' && live.textContent === 'Call, 2 of 4', live && live.textContent);
   kd('Enter');
   timers.forEach((t) => { if (t.fn && t.ms === 0) { const f = t.fn; t.fn = null; f(); } });
   ok('Enter runs Call through the palette', W.location.href === 'tel:+15135550101' && !document.getElementById('nbd-cmd-modal'));

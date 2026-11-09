@@ -472,6 +472,24 @@
     var id = item && item.verbs ? item.id : null;
     if (R.sel.id !== id) { R.sel = { id: id, v: 0 }; paintVerbs(); }
   }
+  /**
+   * The lit verb for a screen reader: a polite live region inside the palette (it goes when the
+   * palette closes). Made empty on the first render, so it is in place before anything is said.
+   */
+  function liveRegion() {
+    var wrap = doc && doc.getElementById('nbd-cmd-modal');
+    if (!wrap) return null;
+    var live = wrap.querySelector('.cmdr-live');
+    if (!live) {
+      live = doc.createElement('span');
+      live.className = 'cmdr-live';
+      live.setAttribute('role', 'status');
+      live.setAttribute('aria-live', 'polite');
+      wrap.appendChild(live);
+    }
+    return live;
+  }
+  function announce(text) { var live = liveRegion(); if (live) live.textContent = text; }
   /** Tab/Shift+Tab, Right/Left (caret at the end) move between the selected row's verbs. True = handled. */
   function onKey(e, st) {
     if (!e || !st) return false;
@@ -488,6 +506,7 @@
     if (typeof e.preventDefault === 'function') e.preventDefault();
     R.sel = { id: item.id, v: next };
     paintVerbs();
+    announce(item.verbs[next].label + ', ' + (next + 1) + ' of ' + n);
     return true;
   }
   /** A verb button: run it (capture, so the row's own click never fires). */
@@ -506,7 +525,9 @@
     runVerb(verb);
   }
   function afterRender(listEl) {
-    if (!listEl || listEl.__cmdr) return;
+    if (!listEl) return;
+    liveRegion();
+    if (listEl.__cmdr) return;
     listEl.__cmdr = true;
     listEl.addEventListener('click', onListClick, true);
   }

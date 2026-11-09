@@ -41,6 +41,12 @@
 .cmdr-check input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--orange); }
 .cmdr-ed-foot { display: flex; justify-content: space-between; gap: 8px; }
 
+/* the lit verb, read out by screen readers only (command-runner.js announce) */
+.cmdr-live {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
 /* a phone: the verbs go on their own line under the name */
 @media (max-width: 640px) {
   .cmdr-row { flex-wrap: wrap; }
