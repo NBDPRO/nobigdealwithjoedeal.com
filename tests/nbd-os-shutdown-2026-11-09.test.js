@@ -185,5 +185,29 @@ G(() => {
   })());
 });
 
+console.log('\n8. the demo: rows from the sample account\'s own data');
+G(() => {
+  const seed = JSON.parse(read('docs/pro/demo-sdk/sample-company.json'));
+  // the demo store resolves relative stamps against the visitor's clock (docs/pro/demo-sdk/_store.js)
+  const at = (v) => {
+    if (!v || typeof v !== 'object') return v;
+    if (v.__ts) { const d = new Date(NOW); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + v.__ts.days); d.setHours(v.__ts.hour == null ? 10 : v.__ts.hour); return d.getTime(); }
+    if (v.__date) return S.followUpYmd(v.__date.days, NOW);
+    return v;
+  };
+  const docs = seed.docs || seed;
+  const leads = Object.keys(docs).filter((k) => /^leads\/[^/]+$/.test(k)).map((k) => {
+    const l = { id: k.split('/')[1] };
+    Object.keys(docs[k]).forEach((f) => { l[f] = at(docs[k][f]); });
+    return l;
+  });
+  const tasks = {};
+  Object.keys(docs).filter((k) => /^leads\/[^/]+\/tasks\//.test(k)).forEach((k) => { const id = k.split('/')[1]; (tasks[id] = tasks[id] || []).push(docs[k]); });
+  const r = S.build({ leads, uid: seed.user.uid, now: NOW, taskCache: tasks, visits: [], nns: NNS });
+  ok('the seed lists Devon Price (called this morning, no follow-up) and closes Maya Brooks (has one)',
+    J(r.leads.map((x) => x.name)) === J(['Devon Price']) && r.closed.leads === 1, J({ rows: r.leads, closed: r.closed }));
+  ok('the seed\'s touch is a call stamp, not a server stamp', r.leads[0] && r.leads[0].touch === 'contact' && r.leads[0].words === 'Called today');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
