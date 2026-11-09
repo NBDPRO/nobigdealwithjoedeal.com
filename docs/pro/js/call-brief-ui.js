@@ -129,17 +129,27 @@
     (s.saidQuantities || []).forEach(function (q) { out.push('Said: "' + q.quote + '"'); });
     return out;
   }
+  // The damage words the seed may say; anything else the model wrote is left out.
+  var SEED_DAMAGE = ['hail', 'wind', 'storm', 'water', 'leak', 'tree', 'fire', 'ice'];
+  function kindFromWords(v) {
+    var t = String(v || '').toLowerCase();
+    if (/replac|re-?roof|new roof|tear ?off/.test(t)) return 'replace';
+    if (/repair|patch|\bfix/.test(t)) return 'repair';
+    return '';
+  }
   /**
-   * The Project Description seed: fixed phrases from the brief's choices only
-   * (no model prose, no numbers), and '' when the customer already has one.
+   * The Project Description seed: fixed phrases only, picked by the brief's
+   * choices (workKind, or a repair / replace word in the grounded service),
+   * a damage word from SEED_DAMAGE and the mention flags. The model's own
+   * wording never reaches the seed (review 2026-11-09), so no prose and no
+   * numbers; '' when the customer already has one, or the kind is unknown.
    */
   function projectSeed(brief, lead) {
     if (!brief || (lead && !blank(lead.scopeOfWork))) return '';
     var f = brief.fields || {};
     var s = brief.scope || {};
-    var kind = f.workKind && f.workKind.value;
+    var kind = (f.workKind && f.workKind.value) || kindFromWords(s.service && s.service.value);
     var what = kind === 'repair' ? 'Roof repair' : kind === 'replace' ? 'Complete roof replacement' : '';
-    if (!what && s.service && s.service.value) what = String(s.service.value).replace(/[\d$]/g, '').trim();
     if (!what) return '';
     var adds = [];
     var m = s.mentions || {};
@@ -147,9 +157,9 @@
     if (m.chimney) adds.push('chimney flashing');
     if (m.skylight) adds.push('skylights');
     if (m.decking) adds.push('decking as needed');
-    var dmg = f.damageType && f.damageType.value ? String(f.damageType.value).replace(/[\d$]/g, '').trim() : '';
-    var text = what + (dmg ? ' for ' + dmg + ' damage' : '') + (adds.length ? ', including ' + adds.join(', ') : '') + '.';
-    return text.charAt(0).toUpperCase() + text.slice(1);
+    var dt = String((f.damageType && f.damageType.value) || '').toLowerCase();
+    var dmg = SEED_DAMAGE.filter(function (w) { return new RegExp('\\b' + w).test(dt); })[0] || '';
+    return what + (dmg ? ' for ' + dmg + ' damage' : '') + (adds.length ? ', including ' + adds.join(', ') : '') + '.';
   }
 
   // ── state ──────────────────────────────────────────────────────────────

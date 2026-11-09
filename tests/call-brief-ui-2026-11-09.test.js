@@ -161,6 +161,13 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('the seed carries no number or dollar sign', !/[\d$]/.test(seed));
     ok('no seed when the customer already has a scope of work', CB._projectSeed(BRIEF, Object.assign({}, LEAD, { scopeOfWork: 'Already written' })) === '');
     ok('a repair call seeds "Roof repair"', /^Roof repair/.test(CB._projectSeed(Object.assign(clone(BRIEF), { fields: Object.assign(clone(BRIEF.fields), { workKind: { value: 'repair' } }) }), LEAD)));
+    // Review #12: the seed is built from fixed phrases only, never the model's words.
+    const noKind = (service, damage) => { const b = clone(BRIEF); b.fields.workKind = null; b.scope.service = service ? { value: service, quote: 'x' } : null; b.fields.damageType = damage ? { value: damage, quote: 'x' } : null; return CB._projectSeed(b, LEAD); };
+    ok('no workKind: a service that says replace → the fixed replacement phrase', noKind('Full reroof with ridge vent, replace it all', 'hail') === 'Complete roof replacement for hail damage, including gutters.', noKind('Full reroof with ridge vent, replace it all', 'hail'));
+    ok('no workKind: a service that says repair → "Roof repair"', /^Roof repair\b/.test(noKind('Repair the flashing by the chimney', '')), noKind('Repair the flashing by the chimney', ''));
+    ok('no workKind and a service in other words → no seed (the model\'s wording is never pasted)', noKind('Siding and new windows on the back', 'hail') === '');
+    ok('a damage type in the model\'s words → only a fixed damage word, or none', noKind('replacement', 'big nasty hail from the 2025 storm') === 'Complete roof replacement for hail damage, including gutters.'
+      && noKind('replacement', 'weird stuff on the shingles') === 'Complete roof replacement, including gutters.', [noKind('replacement', 'big nasty hail from the 2025 storm'), noKind('replacement', 'weird stuff on the shingles')]);
     ok('scope items are never seeded (only the description field is touched)', /data-field="projectDescription"/.test(SRC) && !/data-field="scopeItems"/.test(SRC) && /DocPreflight\.open\('proposal', leadId\)/.test(SRC));
     ok('the "From the call" list shows the said quantity as a quote', CB._scopeHints(BRIEF).some((h) => h === 'Said: "about twenty-eight squares"'));
     ok('the seed is only set when the field is empty', /if \(seed && !String\(ta\.value \|\| ''\)\.trim\(\)\)/.test(SRC));
