@@ -1570,7 +1570,7 @@ async function loadTimeline(leadId, lead) {
             <div class="timeline-desc">${esc(item.desc)}</div>
             <div class="timeline-time">${esc(item.time.toLocaleString())}</div>
             ${item.receipt ? `<button type="button" class="doc-btn tl-send-receipt" data-send-receipt data-action="NBDCustomerInvoices.sendReceipt" data-arg="${esc(item.receipt.invoiceId)}" data-arg2="${esc(item.receipt.key)}">✉️ Send receipt</button>` : ''}
-            ${item.vb ? `<button type="button" class="doc-btn tl-send-receipt" data-action="nbdVisitBrief" data-arg="${esc(item.vb[0])}" data-arg2="${esc(item.vb[1])}">Brief this walkthrough</button>` : ''}
+            ${item.vb ? `<button type="button" class="doc-btn tl-send-receipt" data-action="nbdVisitBrief" data-arg="${esc(item.vb[0])}" data-arg2="${esc(item.vb[1])}" aria-label="Brief this walkthrough from ${esc(item.time.toLocaleString())}">Brief this walkthrough</button>` : ''}
           </div>
         </div>
       `;

@@ -123,6 +123,8 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
   {
     ok('the timeline renders "Brief this walkthrough" only for a row with vb', /item\.vb \?/.test(BOOT) && /Brief this walkthrough/.test(BOOT));
     ok('…through the page\'s data-action delegate with escaped ids (no inline handler)', /data-action="nbdVisitBrief" data-arg="\$\{esc\(item\.vb\[0\]\)\}" data-arg2="\$\{esc\(item\.vb\[1\]\)\}"/.test(BOOT) && !/onclick/i.test(BOOT.split('Brief this walkthrough')[0].slice(-400)));
+    const vbBtn = (BOOT.split('\n').find((l) => /data-action="nbdVisitBrief"/.test(l)) || '');
+    ok('each walkthrough button has its own accessible name (the visit\'s time, escaped), so a list of visits never reads as duplicates; the visible words lead it (label in name)', /aria-label="Brief this walkthrough from \$\{esc\(item\.time\.toLocaleString\(\)\)\}"/.test(vbBtn), vbBtn.trim());
     const loads = []; const opened = [];
     const win = { ScriptLoader: { load: async (u) => { loads.push(u); win.NBDCallBrief = { openVisit: (o) => opened.push(o) }; } }, _leadDoc: { firstName: 'Pat' }, _customerId: 'L1' };
     timeline(win);
