@@ -271,8 +271,8 @@
         var head = '<div class="cb-row-head"><span class="cb-label">' + esc(p.text) + '</span>' + (p.dueSpoken ? '<span class="cb-meta">' + esc(p.dueSpoken) + '</span>' : '') + '</div>' + quoteHtml(p.quote);
         if (st.done || st.skipped || isSettled(item)) return '<div class="cb-card">' + head + (statusFor(item) || '<div class="cb-done">Added</div>') + '</div>';
         var toggle = '<div class="cb-toggle" role="radiogroup" aria-label="Who promised it">' +
-          '<button type="button" role="radio" aria-checked="' + (st.who === 'jo') + '" data-cb-act="who" data-i="' + i + '" data-who="jo">You</button>' +
-          '<button type="button" role="radio" aria-checked="' + (st.who === 'them') + '" data-cb-act="who" data-i="' + i + '" data-who="them">Them</button></div>';
+          '<button type="button" role="radio" aria-checked="' + (st.who === 'jo') + '" tabindex="' + (st.who === 'jo' ? 0 : -1) + '" data-cb-act="who" data-i="' + i + '" data-who="jo">You</button>' +
+          '<button type="button" role="radio" aria-checked="' + (st.who === 'them') + '" tabindex="' + (st.who === 'them' ? 0 : -1) + '" data-cb-act="who" data-i="' + i + '" data-who="them">Them</button></div>';
         var kinds = KINDS.map(function (k) { return '<option value="' + k + '"' + (k === st.kind ? ' selected' : '') + '>' + esc(KIND_LABEL[k]) + '</option>'; }).join('');
         var fields = '<div class="cb-grid"><label class="cb-field-lbl" for="cbKind-' + i + '">What<select class="cb-select" id="cbKind-' + i + '" data-cb-input="kind" data-i="' + i + '">' + kinds + '</select></label>' +
           '<label class="cb-field-lbl" for="cbDue-' + i + '">' + (st.kind === 'waiting' ? 'Chase on' : 'Due') + '<input class="cb-input" type="date" id="cbDue-' + i + '" data-cb-input="due" data-i="' + i + '" value="' + esc(st.dueYmd) + '"></label></div>';
@@ -411,12 +411,7 @@
       try { await decide(it, 'skip'); mark(it, 'skip'); } catch (e) { fail(it, e); }
       render(); return;
     }
-    if (a === 'who') {
-      var st = S.prom[i]; if (!st) return;
-      st.who = b.getAttribute('data-who') === 'them' ? 'them' : 'jo';
-      st.kind = st.who === 'them' ? 'waiting' : (st.modelKind && st.modelKind !== 'waiting' ? st.modelKind : 'callback');
-      render(); return;
-    }
+    if (a === 'who') { setWho(i, b.getAttribute('data-who')); return; }
     if (a === 'promise') { S.confirm = 'promise:' + i; render(); return; }
     if (a === 'promise-skip') {
       S.done['promise:' + i] = 'busy'; render();
@@ -492,6 +487,24 @@
     throw new Error('This call already has ' + MAX_SLOT + ' promises from briefs. Add another on the customer card.');
   }
 
+  function setWho(i, who) {
+    var st = S && S.prom[i]; if (!st) return;
+    st.who = who === 'them' ? 'them' : 'jo';
+    st.kind = st.who === 'them' ? 'waiting' : (st.modelKind && st.modelKind !== 'waiting' ? st.modelKind : 'callback');
+    render();
+  }
+  // The radiogroup keyboard pattern: arrow keys move the choice (two radios,
+  // so any arrow flips it) and focus follows; Tab reaches only the checked one.
+  function onKey(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-cb-act="who"]') : null;
+    if (!t || !S || ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+    e.preventDefault();
+    var i = Number(t.getAttribute('data-i'));
+    setWho(i, t.getAttribute('data-who') === 'them' ? 'jo' : 'them');
+    var next = dlg.querySelector('[data-cb-act="who"][data-i="' + i + '"][aria-checked="true"]');
+    if (next && typeof next.focus === 'function') next.focus();
+  }
+
   async function followUp(undo) {
     var item = 'followUp';
     try {
@@ -562,6 +575,7 @@
       if (b && dlg.contains(b) && !b.disabled) { onAct(b); return; }
       if (e.target === dlg) close();   // a tap on the backdrop
     });
+    dlg.addEventListener('keydown', onKey);
     dlg.addEventListener('input', onInput);
     dlg.addEventListener('change', onInput);
     dlg.addEventListener('close', function () { S = null; });

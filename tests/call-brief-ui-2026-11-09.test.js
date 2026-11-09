@@ -99,7 +99,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     const accepts = (html.match(/data-cb-act="accept"/g) || []).length;
     ok('every empty proposed field starts on Accept (5: carrier, claim #, date, adjuster, job type)', accepts === 5, accepts);
     ok('the only selected options are the promise kind pickers (preset to the model kind)', (html.match(/ selected/g) || []).length === 2);
-    ok('the who toggle shows the model\'s guess as a radio, not an action', /role="radio" aria-checked="true" data-cb-act="who" data-i="0" data-who="jo"/.test(html) && /aria-checked="true" data-cb-act="who" data-i="1" data-who="them"/.test(html));
+    ok('the who toggle shows the model\'s guess as a radio, not an action', /role="radio" aria-checked="true" tabindex="0" data-cb-act="who" data-i="0" data-who="jo"/.test(html) && /aria-checked="true" tabindex="0" data-cb-act="who" data-i="1" data-who="them"/.test(html));
     ok('promises need Add (no promise is sent on render)', (html.match(/data-cb-act="promise"/g) || []).length === 2);
     const rows = CB._fieldRows(BRIEF, LEAD);
     ok('_fieldRows never carries a selected / accepted flag', rows.every((r) => !('selected' in r) && !('accepted' in r) && !('checked' in r)));
@@ -300,7 +300,26 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('the sheet never sends slot: i (the brief index)', !/slot: i\b/.test(SRC));
   }
 
-  console.log('\n10. A regenerated brief does not inherit index-keyed decisions (review #14)');
+  console.log('\n10. The You / Them radiogroup works from the keyboard (review #17)');
+  {
+    const { CB, dlg, listeners } = load();
+    CB._showWith({ callId: 'cube_ABCDE12345', brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'customer' });
+    const html = CB._render();
+    ok('roving tabindex: the checked radio is in the tab order, the other is not', /role="radio" aria-checked="true" tabindex="0" data-cb-act="who" data-i="0" data-who="jo"/.test(html) && /role="radio" aria-checked="false" tabindex="-1" data-cb-act="who" data-i="0" data-who="them"/.test(html), html.match(/role="radio"[^>]*/g));
+    let prevented = false;
+    const target = { getAttribute: (k) => ({ 'data-cb-act': 'who', 'data-i': '0', 'data-who': 'jo' })[k] || null, closest: () => target };
+    (listeners.keydown || []).forEach((fn) => fn({ key: 'ArrowRight', target, preventDefault: () => { prevented = true; } }));
+    ok('ArrowRight moves the choice to Them (and flips the kind to waiting)', prevented && /aria-checked="true" tabindex="0" data-cb-act="who" data-i="0" data-who="them"/.test(dlg.innerHTML) && /cbKind-0[^>]*>[\s\S]*?value="waiting" selected/.test(dlg.innerHTML));
+    let p2 = false;
+    const t2 = { getAttribute: (k) => ({ 'data-cb-act': 'who', 'data-i': '0', 'data-who': 'them' })[k] || null, closest: () => t2 };
+    (listeners.keydown || []).forEach((fn) => fn({ key: 'ArrowUp', target: t2, preventDefault: () => { p2 = true; } }));
+    ok('ArrowUp moves it back to You', p2 && /aria-checked="true" tabindex="0" data-cb-act="who" data-i="0" data-who="jo"/.test(dlg.innerHTML));
+    let p3 = false;
+    (listeners.keydown || []).forEach((fn) => fn({ key: 'a', target: t2, preventDefault: () => { p3 = true; } }));
+    ok('other keys are left alone', !p3);
+  }
+
+  console.log('\n11. A regenerated brief does not inherit index-keyed decisions (review #14)');
   {
     const { CB } = load();
     const old = [{ item: 'promise:0', decision: 'accept', slot: 1, gen: 100 }, { item: 'field:insCarrier', decision: 'skip', gen: 100 }];
