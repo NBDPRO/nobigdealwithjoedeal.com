@@ -94,6 +94,7 @@
 .os-hw-ds-row.is-label:not(:first-child) { margin-top: var(--ui-space-1, 4px); }
 .os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
 .os-hw-ds-open { align-self: flex-start; text-decoration: none; }
+.os-hw-ds-goals { align-self: flex-start; padding-inline: var(--ui-space-2, 8px); }
 /* personal numbers never show on the lock screen */
 html.os-locked .os-hw-daily { visibility: hidden; }
 
@@ -191,6 +192,22 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw-pub-status:empty { display: none; }
 .os-hw-pub-row { display: flex; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-4, 16px); }
 .os-hw-pub-btn { flex: 1 1 0; min-height: 44px; justify-content: center; }
+
+/* ── daily goals (P2): the goals sheet, os/ds-goals.js ── */
+.os-hw-goals-f { display: flex; flex-direction: column; margin-top: var(--ui-space-3, 12px); }
+.os-hw-goals-row, .os-hw-goals-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-3, 12px);
+  min-height: 44px; padding: var(--ui-space-1, 4px) 0; border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-goals-l { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-hw-goals-in {
+  flex: none; width: 6.5em; min-height: 44px; padding: 0 var(--ui-space-2, 8px); font: inherit; font-size: 16px;
+  color: var(--t); background: var(--bg); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+}
+.os-hw-goals-in:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-goals-in[aria-invalid="true"] { border-color: var(--ui-danger-text, var(--red)); }
+.os-hw-goals-list { list-style: none; margin: var(--ui-space-3, 12px) 0 0; padding: 0; }
+.os-hw-goals-n { font-size: var(--ui-fs-body, 14px); font-weight: 700; }
 
 /* ── by the width a widget got ── */
 @container oshw (max-width: 159px) {

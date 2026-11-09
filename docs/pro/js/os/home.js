@@ -21,6 +21,9 @@
  *                else one "Open Daily Success" link; business half: calls,
  *                follow-ups and jobs left (nbd_today_summary). Opens Daily
  *                Success in the same tab. Each half hideable (cfg show).
+ *                P2: Set goals (owner / company_admin) or Team goals (anyone,
+ *                once goals exist) opens os/ds-goals.js, the runtime bundle
+ *                osdsgoals this file registers and loads on the first tap.
  *   P1           Needs you, Storm, Closes this week, Money and the Smart Stack
  *                paint from os/widgets-p1.js and os/stack-logic.js, the runtime
  *                ScriptLoader bundle 'oshomep1' registered and loaded here the
@@ -353,7 +356,8 @@
   }
   // P1: goals and today's doors come from the lazy `osdsbiz` bundle (os/ds-business.js, 1 getDoc +
   // 1 count per refresh, at most every 5 min, only on paint), registered and loaded here on first use
-  var BIZ = 'osdsbiz', bizAsked = false, navHid = null;
+  var BIZ = 'osdsbiz', bizAsked = false, navHid = null, adminOf = null;
+  /** The business half's last answer, { goals, doors } (either null), or null before the first one lands. */
   function bizNow() {
     var B = W.NBDOSDsBiz, SL = W.ScriptLoader;
     if (!B) {
@@ -367,8 +371,36 @@
       return null;
     }
     var uid = String((W._user && W._user.uid) || ''), c = W._userClaims || {};
-    var x = B.current({ uid: uid, companyId: String(c.companyId || uid), doors: !!navHid && navHid('d2d') === false, now: Date.now() });
-    return x ? B.bizRows(null, x.doors, x.goals).doors : '';
+    return B.current({ uid: uid, companyId: String(c.companyId || uid), doors: !!navHid && navHid('d2d') === false, now: Date.now() });
+  }
+  // P2: the goals sheet (os/ds-goals.js, the lazy `osdsgoals` bundle, loaded on the first tap). An owner or
+  // company_admin (the layout's canAdmin) gets "Set goals"; anyone else gets "Team goals" once there are some.
+  function goalsBtn(x) {
+    if (!x) return '';
+    var admin = false;
+    try { admin = !!(adminOf && adminOf()); } catch (e) { admin = false; }
+    var any = !!(x.goals && Object.keys(x.goals).length);
+    if (!admin && !any) return '';
+    return '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-ds-goals" data-oshw-goals="' + (admin ? 'set' : 'view') + '">' + (admin ? 'Set goals' : 'Team goals') + '</button>';
+  }
+  var goalsLoad = null;
+  function openGoals(from) {
+    var SL = W.ScriptLoader, B = W.NBDOSDsBiz;
+    if (!goalsLoad) {
+      goalsLoad = W.NBDOSDsGoals ? Promise.resolve() : (SL && typeof SL.loadBundle === 'function'
+        ? Promise.resolve().then(function () { if (SL.bundles && !SL.bundles.osdsgoals) SL.bundles.osdsgoals = ['js/os/ds-goals.js?v=1']; return SL.loadBundle('osdsgoals'); })
+        : Promise.reject(new Error('no loader')));
+      goalsLoad = goalsLoad.then(null, function () { goalsLoad = null; });
+    }
+    goalsLoad.then(function () {
+      var G = W.NBDOSDsGoals;
+      if (!G || typeof G.open !== 'function') { goalsLoad = null; return; }
+      var uid = String((W._user && W._user.uid) || ''), c = W._userClaims || {};
+      var x = B && typeof B.current === 'function' ? B.current({ uid: uid, companyId: String(c.companyId || uid), doors: !!navHid && navHid('d2d') === false, now: Date.now() }) : null;
+      var admin = false;
+      try { admin = !!(adminOf && adminOf()); } catch (e) { admin = false; }
+      G.open({ admin: admin, goals: x ? x.goals : null, companyId: String(c.companyId || uid), uid: uid, returnFocus: from });
+    });
   }
   function dsRow(t, cls) { return '<span class="os-hw-ds-row' + (cls ? ' ' + esc(cls) : '') + '">' + esc(t) + '</span>'; }
   function daily(size, cfg) {
@@ -383,7 +415,8 @@
     var items = b ? [plural(b.calls, 'call', 'calls'), plural(b.followUps, 'follow-up', 'follow-ups'), plural(b.jobs, 'job', 'jobs')] : [];
     var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF) + '">Open Daily Success</a>';
     var noBiz = '<p class="os-hw-empty">Today\'s numbers load with your Today list.</p>';
-    var doors = show !== 'personal' ? bizNow() : '';
+    var biz = show !== 'personal' ? bizNow() : null;
+    var doors = biz ? W.NBDOSDsBiz.bizRows(null, biz.doors, biz.goals).doors : '';
     if (size === 's') {
       // one thing: the floors, else what is left, else the way in
       if (d) return h + open + '<span class="os-hw-ds-big ui-num">' + esc(String(d.met) + '/' + String(d.of)) + '</span>' + dsRow('Floors') + '</a>';
@@ -413,6 +446,7 @@
       if (doors) rows += size === 'l' ? dsRow('Done today', 'is-label') + dsRow(doors) : dsRow(doors);
     }
     flush();
+    if (show !== 'personal') parts.push(goalsBtn(biz));
     return h + parts.join('');
   }
 
@@ -599,6 +633,7 @@
     var act = /^data-os[a-z]{1,8}$/.test(o.act || '') ? o.act : 'data-oshw-do';
     var visible = typeof o.visible === 'function' ? o.visible : function () { return true; };
     if (typeof o.navHidden === 'function') navHid = o.navHidden;   // Daily Success counts doors only for a member who has D2D
+    if (typeof o.canAdmin === 'function') adminOf = o.canAdmin;   // who may set the team's daily goals (the goals sheet)
     var el = doc.createElement('div');
     el.className = 'os-hw-list';
     el.setAttribute('data-os-home', surface);
@@ -1186,6 +1221,8 @@
         loadPeek().then(function (ok) { if (ok) W.NBDOSPeek.open({ key: pkKey, returnFocus: pk }); });
         return;
       }
+      var gb = t.closest('[data-oshw-goals]');
+      if (gb) { openGoals(gb); return; }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
       if (crec) {

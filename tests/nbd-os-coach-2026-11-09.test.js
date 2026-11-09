@@ -248,12 +248,13 @@ G(() => {
   click(T.dom, card().querySelector('[data-oshw-coach="snooze"]'));
   ok('"Later" snoozes the next one', memo && JSON.parse(T.store.nbd_os_coach).off[Object.keys(JSON.parse(T.store.nbd_os_coach).off)[1]] > NOW);
   ok('read cost 0 and never compute()', T.reads.length === 0 && T.today.computeCalls === 0, J(T.reads));
-  // P1 (2026-11-09): home.js's ScriptLoader loads are its own bundles (oshomep1, osdsbiz, osshutdown; P2 osacts, osp2peek), never home-strips
+  // P1 (2026-11-09): home.js's ScriptLoader loads are its own bundles (oshomep1, osdsbiz, osshutdown; P2 osacts, osp2peek, osdsgoals), never home-strips
   // P2 (2026-11-09): plus oscoachai, the opted-in Coach's AI focus line (tests/nbd-os-coach-ai-2026-11-09.test.js)
   ok('home-strips is not loaded (no ScriptLoader call in the Coach)', !/homestrips|home-strips|NBDHomeStrips/.test(noComments(HOME_JS))
-    && (noComments(HOME_JS).match(/loadBundle\(/g) || []).length === 7 && /loadBundle\('oscoachai'\)/.test(noComments(HOME_JS)) && /loadBundle\(P1_BUNDLE\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(BIZ\)/.test(noComments(HOME_JS))
+    && (noComments(HOME_JS).match(/loadBundle\(/g) || []).length === 8 && /loadBundle\('oscoachai'\)/.test(noComments(HOME_JS)) && /loadBundle\(P1_BUNDLE\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(BIZ\)/.test(noComments(HOME_JS))
     && /loadBundle\('osshutdown'\)/.test(noComments(HOME_JS)) && /SL\.loadBundle\(ACTS_BUNDLE\)/.test(noComments(HOME_JS)) && /loadBundle\('osp2peek'\)/.test(noComments(HOME_JS))
-    && /loadBundle\('osteam'\)/.test(noComments(HOME_JS)));   // P2: + the Team widget's osteam
+    && /loadBundle\('osteam'\)/.test(noComments(HOME_JS))
+    && /loadBundle\('osdsgoals'\)/.test(noComments(HOME_JS)));   // P2: + the Team widget's osteam
 
   const T2 = makeWin({ surface: 'desktop', leads, store, home: { desk: [{ id: 'coach', s: 'l' }], phone: [] } });
   T2.W._impl.mount({ surface: 'desktop' });

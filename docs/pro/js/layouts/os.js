@@ -204,7 +204,7 @@
         onExit: function () { setHomeEditing(false); },
         onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
         onEmpty: function () { focusHomeTool(surface); },
-        navHidden: navHidden, mode: curAct,
+        navHidden: navHidden, mode: curAct, canAdmin: canAdmin,
         onEvent: function () { safe(checkRing); safe(startActs); },
         onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
