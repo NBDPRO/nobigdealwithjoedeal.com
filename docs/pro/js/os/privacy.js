@@ -16,6 +16,9 @@
  *            desk's Ctrl+Alt family (Ctrl+Alt+O, 1-4, arrows). Not while AltGr
  *            makes a letter (Ctrl+Alt is AltGr on Windows: Polish AltGr+L
  *            types "ł"), never a bare letter (WCAG 2.1.4).
+ *            Some Linux desktops (older GNOME / Ubuntu, Xfce) bind Ctrl+Alt+L to
+ *            their own session lock: the system takes the key first and locks
+ *            the whole screen, which hides the CRM all the same.
  *   Phone    double-tap an empty spot of the home screen (its pages, the Visits
  *            row beside its icons): not a widget, an icon or any control, not in edit mode, not during a drag, a
  *            swipe or a long-press. OFF by default (a pocket or a glove taps
