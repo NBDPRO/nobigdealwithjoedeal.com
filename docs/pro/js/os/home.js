@@ -486,6 +486,7 @@
         try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
       }
       if (force || html !== rec.html) { rec.body.innerHTML = html; rec.html = html; }
+      if (rec.it.id === 'shutdown') rec.sdIn = sdWindow();   // the tick repaints it when this changes
     }
     function paint() {
       if (!live) return;
@@ -1003,12 +1004,19 @@
     function onVis() { if (!doc.hidden) { epoch++; if (dirty || order.length) paint(); } }
     /** The home is on screen again (the layout's Home button, an unlock): the stack may pick anew. */
     function show() { epoch++; paint(); }
-    // one visibility-aware ticker: only the clock text changes, so focus inside a widget stays put
+    // one visibility-aware ticker: only the clock text changes, so focus inside a widget stays put;
+    // the one exception is the Shutdown widget, repainted when the clock crosses 4 PM or 8 PM
+    function sdWindow() {
+      var SDL = W.NBDOSShutdownLogic;
+      return SDL && typeof SDL.inWindow === 'function' ? SDL.inWindow(Date.now()) : null;
+    }
     var tick = W.setInterval(function () {
       if (doc.hidden || !visible()) return;
       var c = clock();
       var ns = el.querySelectorAll('[data-oshw-clock]');
       for (var i = 0; i < ns.length; i++) ns[i].textContent = ns[i].getAttribute('data-oshw-clock') === 'date' ? c.date : c.time;
+      var w = sdWindow();
+      if (w !== null) order.forEach(function (k) { var r = recs[k]; if (r.it.id === 'shutdown' && r.sdIn !== w) paintOne(r); });
     }, TICK_MS);
     EVENTS.forEach(function (t) { W.addEventListener(t, onEvent); });
     doc.addEventListener('visibilitychange', onVis);

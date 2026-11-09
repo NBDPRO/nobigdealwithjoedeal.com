@@ -147,6 +147,17 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     ok('at 5:30 PM (M): 2 own leads with no next step and 1 promise past due (teammate and server-stamped leads not counted)',
       /2 leads with no next step · 1 promise past due/.test(w), w);
     ok('M has one button to the sheet', widgetOf(T).querySelectorAll('[data-oshw-sd]').length === 1);
+    // the widget follows the clock across 4 PM and 8 PM on home.js's 30 s tick, with no data event
+    const setNow = (TT, ms) => { const B = TT.W.Date; TT.W.Date = class extends B { constructor(...a) { if (a.length) super(...a); else super(ms); } static now() { return ms; } }; };
+    const Tc = win({ win: { now: new Date(2026, 10, 9, 15, 59, 50).getTime() } });
+    await flush();
+    ok('CONTROL 3:59 PM: quiet', /Close out now/.test(text(widgetOf(Tc))) && !/with no next step/.test(text(widgetOf(Tc))));
+    setNow(Tc, new Date(2026, 10, 9, 16, 0, 20).getTime());
+    Tc.fire(30000);
+    ok('the tick after 4 PM repaints it: the count shows', /2 leads with no next step/.test(text(widgetOf(Tc))), text(widgetOf(Tc)));
+    setNow(Tc, new Date(2026, 10, 9, 20, 0, 10).getTime());
+    Tc.fire(30000);
+    ok('the tick after 8 PM repaints it: quiet again, no count', /Close out now/.test(text(widgetOf(Tc))) && !/with no next step/.test(text(widgetOf(Tc))), text(widgetOf(Tc)));
     const Ts = win({ size: 's' });
     await flush();
     ok('S: the one number, from the same count (3 to close)', /3\s*to close/.test(text(widgetOf(Ts))), text(widgetOf(Ts)));
