@@ -613,6 +613,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-oshome-test 'node firestore-rules.os-company-home.test.js'
+      # NBD OS daily goals (2026-11-09, P1): companies/{cid}/settings/goals, owner/admin write, tenant read. Own file (positive controls inside).
+      - name: Run NBD OS daily-goals rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-osgoals-test 'node firestore-rules.os-daily-goals.test.js'
       # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
       - name: Run job-conflict notice rules tests under emulator
         run: |

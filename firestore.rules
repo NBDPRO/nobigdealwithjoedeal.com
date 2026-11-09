@@ -3355,6 +3355,34 @@ service cloud.firestore {
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
 
+      // ── DAILY GOALS (2026-11-09, NBD OS P1 "Daily Success") ──
+      // companies/{companyId}/settings/goals — { callsPerDay, followUpsPerDay,
+      // doorsPerDay }: the team's daily targets, each a whole number 0-500 or
+      // left out (no goal = progress with no target). Read by the whole tenant
+      // (the NBD OS Daily Success widget shows "Doors 3 of 10" only when both
+      // numbers exist); written by the solo owner or a company_admin of that
+      // company — not a manager, rep or viewer, not another tenant. Only the
+      // doc id `goals` matches here.
+      function goalOk(d, k) { return !(k in d) || (d[k] is int && d[k] >= 0 && d[k] <= 500); }
+      function goalsDocOk() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['callsPerDay', 'followUpsPerDay', 'doorsPerDay', 'updatedAt', 'updatedBy'])
+          && goalOk(d, 'callsPerDay') && goalOk(d, 'followUpsPerDay') && goalOk(d, 'doorsPerDay')
+          && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
+      }
+      function goalsWriter() {
+        return isAuth() && notViewer()
+          && (ownsTenantByUid(companyId)
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+      match /settings/goals {
+        allow read: if isAdmin()
+          || ownsTenantByUid(companyId)
+          || (isAuth() && request.auth.token.get('companyId', '') == companyId);
+        allow create, update: if goalsWriter() && goalsDocOk();
+        allow delete: if goalsWriter();
+      }
+
       // ── LAYOUT USAGE (2026-10-16, layouts idea #13) ──
       // companies/{companyId}/layoutUsage/{YYYY-MM-DD} = { <layoutId>: n }: how many
       // devices had each layout on screen that day. ANONYMOUS: only known layout
