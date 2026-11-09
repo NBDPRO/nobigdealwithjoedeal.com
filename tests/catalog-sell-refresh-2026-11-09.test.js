@@ -114,5 +114,28 @@ test('an untouched flash_008 (also raised) refreshes alongside under_001', () =>
   eq(p.pricing.better.sell, fresh('flash_008').pricing.better.sell, 'flash_008 better sell');
 });
 
+// A DATA_VERSION bump only reaches a device if product-library.js and
+// product-data.js arrive as a matching pair. docs/pro/sw.js serves a cached
+// asset when the network is slower than ASSET_NETWORK_TIMEOUT_MS, so a fresh
+// library + cached old data would migrate the OLD catalog and stamp the store
+// with the new _v. Bumping both ?v keys in script-loader.js gives both URLs no
+// cache entry. Each DATA_VERSION lists the minimum ?v keys that shipped with it;
+// a future bump must add its row (and bump the keys) or this fails.
+const LOADER_SRC = fs.readFileSync(path.join(PRO_JS, 'script-loader.js'), 'utf8');
+const PAIRED_CACHE_KEYS = { 6: { data: 4, lib: 15 } };
+function loaderKey(file) {
+  const m = LOADER_SRC.match(new RegExp("'js/" + file.replace('.', '\\.') + "\\?v=(\\d+)'"));
+  return m ? Number(m[1]) : NaN;
+}
+
+test('script-loader cache keys for product-data.js and product-library.js were bumped with DATA_VERSION', () => {
+  const want = PAIRED_CACHE_KEYS[version];
+  if (!want) throw new Error('no PAIRED_CACHE_KEYS row for DATA_VERSION ' + version + ' — bump both ?v keys in script-loader.js and add the row');
+  const data = loaderKey('product-data.js');
+  const lib = loaderKey('product-library.js');
+  if (!(data >= want.data)) throw new Error('product-data.js ?v=' + data + ' (expected >= ' + want.data + ')');
+  if (!(lib >= want.lib)) throw new Error('product-library.js ?v=' + lib + ' (expected >= ' + want.lib + ')');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
