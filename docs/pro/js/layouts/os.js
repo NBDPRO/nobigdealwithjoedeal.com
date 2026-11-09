@@ -984,6 +984,7 @@
     var st = savedState();
     S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
     S.wins = st.wins;   // kept as-is so a laptop session survives a phone visit
+    S.desk = st.desk; S.pins = st.pins;   // the laptop's desk and taskbar pins too; the next save writes them back
     S.focus = st.focus;
     S.page = 0;
     phonePaint();
