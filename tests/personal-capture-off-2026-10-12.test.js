@@ -74,6 +74,8 @@ function fakeDb({ labels = [], labelsThrow = false, docs: seed, leads = [] } = {
       where: () => ({ get: async () => leadsSnap, where: () => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: () => {} }) }) }) }) }),
     }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
+    // Call to Close P1 (2026-11-09): runTranscribe claims each call in a transaction (the transcribe lease).
+    runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v, o) => r.set(v, o) }),
   };
 }
 function fakeBucket() {

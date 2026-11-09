@@ -295,7 +295,9 @@ function deps() {
     transcribe: async (buffer, ext) => {
       // Groq refuses .amr/.3gp/.aac (Cube ACR): re-encoded to FLAC first.
       const p = await require('./call-audio-transcode').prepareForGroq(buffer, ext);
-      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe' });
+      // confidence: Whisper's per-segment avg_logprob, kept as the call's
+      // segIndex (Call to Close P1: unsure quotes in the brief).
+      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe', confidence: true });
     },
     notes: claudeNotes,
     // callWatch's push sender (Jo's own devices; never a customer).
@@ -596,13 +598,43 @@ async function alertProviderOutage({ db, d, outage, prev, today, nowMs }) {
   return out;
 }
 
+// The segment index for a fresh transcript (call-center-logic buildSegIndex);
+// nothing for a reused one (its index was saved with it).
+function segPatch(t, stored) {
+  if (!t || !Array.isArray(t.segments)) return {};
+  return { segIndex: L.buildSegIndex(t.segments, stored) };
+}
+
+// The transcribe lease (Call to Close P1, 2026-11-09). "Transcribe now"
+// (call-transcribe-now.js) and this schedule can reach the same stored call
+// at once. Each claims it first in one transaction: still 'stored', and no
+// live lease held by someone else, then `transcribeLease: { by, untilMs }`.
+// Every write that ends the call's turn sets it back to null; a run that
+// dies leaves it to expire. 15 min outlives both the scheduled run (540 s)
+// and the callable (300 s), so a live lease always means a live run.
+const TRANSCRIBE_LEASE_MS = 15 * 60 * 1000;
+async function claimTranscribe(db, ref, nowMs, by) {
+  return db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const c = s.exists ? (s.data() || {}) : null;
+    if (!c || c.status !== 'stored') return null;
+    const l = c.transcribeLease;
+    if (l && Number(l.untilMs) > nowMs && l.by !== by) return null;
+    tx.set(ref, { transcribeLease: { by, untilMs: nowMs + TRANSCRIBE_LEASE_MS } }, { merge: true });
+    return c;
+  });
+}
+
 /** One transcription pass. Exported for the integration test (stubbed deps). */
-async function runTranscribe({ db, bucket, live, nowMs }) {
+// `only: { id, by }` (callTranscribeNow) runs this one call through the same
+// steps, inside the same day allowance and capture-off rule, and skips the
+// backfills and the run record (lastTranscribe stays the schedule's).
+async function runTranscribe({ db, bucket, live, nowMs, only }) {
   const ref = db.doc(CONFIG);
   const snap = await ref.get();
   const cfg = snap.exists ? snap.data() : {};
   if (cfg.paused === true) return { state: 'paused' };
-  const allowIds = Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : [];
+  const allowIds = only ? [] : (Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : []);
   if (!live && !allowIds.length) return { state: 'off' };
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -610,7 +642,11 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   const secLeft = L.dayAudioCapSec(cfg.dayAudioCapHours) - usedSec;
 
   let candidates = [];
-  if (allowIds.length) {
+  if (only) {
+    // The schedule only ever picks the owner's calls; so does this.
+    const s = await db.collection(COLLECTION).doc(String(only.id)).get();
+    if (s.exists && (s.data() || {}).userId === OWNER) candidates = [Object.assign({}, s.data(), { id: s.id })];
+  } else if (allowIds.length) {
     const snaps = await db.getAll(...allowIds.map((id) => db.collection(COLLECTION).doc(id)));
     candidates = snaps.filter((s) => s.exists).map((s) => Object.assign({}, s.data(), { id: s.id }));
   } else {
@@ -631,18 +667,22 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
     if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off', transcript: null, transcriptSaved: false }, { merge: true });
   }
   candidates = kept;
-  const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
-  const out = { state: allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
+  const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: only ? 1 : TRANSCRIBE_PER_RUN, secLeft });
+  const out = { state: only ? 'now' : allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
   const d = deps();
   let leadsForSuggest = null;
 
-  for (const call of pick) {
-    const callRef = db.collection(COLLECTION).doc(call.id);
+  for (const picked of pick) {
+    const callRef = db.collection(COLLECTION).doc(picked.id);
+    // Claimed by the other path, or already done since the list was read.
+    const fresh = await claimTranscribe(db, callRef, nowMs, only ? String(only.by) : 'schedule');
+    if (!fresh) { out.leased = (out.leased || 0) + 1; continue; }
+    const call = Object.assign({}, picked, fresh, { id: picked.id });
     let t = null;
     try {
       const reuse = call.transcriptSaved === true && String(call.transcript || '').trim();
       if (!reuse && (Number(call.sizeBytes) || 0) > L.GROQ_MAX_BYTES) {
-        await callRef.set({ status: 'too_large' }, { merge: true });
+        await callRef.set({ status: 'too_large', transcribeLease: null }, { merge: true });
         continue;
       }
       if (reuse) {
@@ -668,9 +708,10 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
       const personal = notes.callType === 'personal';
-      await callRef.set({
+      const stored = personal ? null : String(t.text || '').slice(0, 100000);
+      await callRef.set(Object.assign({
         status: personal ? 'personal' : 'noted',
-        transcript: personal ? null : String(t.text || '').slice(0, 100000),
+        transcript: stored,
         durationSec: Number(t.durationSec) || Number(call.durationSec) || null,
         summary: notes.summary,
         callType: notes.callType,
@@ -682,7 +723,8 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         notedAtMs: nowMs,
         transcriptSaved: false,
         transcribeError: null,
-      }, { merge: true });
+        transcribeLease: null,
+      }, personal ? { segIndex: null } : segPatch(t, stored)), { merge: true });
       if (personal) {
         // Jo, 2026-10-01: a personal call keeps no CRM copy of its audio
         // either. The original recording stays in Jo's own Drive, so a
@@ -731,8 +773,9 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       // 'stored', so the call stays listed and eligible; a retry re-runs ONLY
       // the notes).
       const keepTranscript = t && t.text && call.transcriptSaved !== true
-        ? { transcriptSaved: true, transcript: String(t.text).slice(0, 100000), transcriptSavedAtMs: nowMs, durationSec: Number(t.durationSec) || Number(call.durationSec) || null }
+        ? Object.assign({ transcriptSaved: true, transcript: String(t.text).slice(0, 100000), transcriptSavedAtMs: nowMs, durationSec: Number(t.durationSec) || Number(call.durationSec) || null }, segPatch(t, String(t.text).slice(0, 100000)))
         : {};
+      keepTranscript.transcribeLease = null;
       // A provider outage (Groq or Anthropic: out of credit, bad key, rate
       // limit, overloaded) is about the ACCOUNT, not this call: no strike, and
       // stop the run (every later call would be refused too). The next
@@ -763,7 +806,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   // Older calls get caller facts re-read (bounded, see reextractFacts) and
   // are re-scored.
   let factsUsed = null;
-  if (live && !allowIds.length && !out.providerOutage) {
+  if (live && !only && !allowIds.length && !out.providerOutage) {
     try {
       const rows = await unfiledNoted(db);
       const getLeads = async () => (leadsForSuggest = leadsForSuggest || await ownerLeads(db));
@@ -798,7 +841,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
     outagePatch.providerOutage = null;
     out.outageCleared = true;
   }
-  const patch = Object.assign({ audioSecDay: today, audioSecUsed: usedSec + out.audioSec, lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
+  const patch = Object.assign({ audioSecDay: today, audioSecUsed: usedSec + out.audioSec }, only ? {} : { lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
   if (factsUsed !== null) Object.assign(patch, { factsDay: today, factsUsed });
   // The one-call test runs once: clear the ids it handled.
   if (allowIds.length) patch.transcribeOnly = allowIds.filter((id) => !pick.some((c) => c.id === id));
@@ -1480,6 +1523,9 @@ exports.callTaggedMatch = onCall(
 );
 
 exports.claudeNotes = claudeNotes;
+// callTranscribeNow (call-transcribe-now.js) runs one call through this pass.
+exports.runTranscribe = runTranscribe;
+exports.TRANSCRIBE_LEASE_MS = TRANSCRIBE_LEASE_MS;
 // The morning brief's "You said you'd…" section reads the same list.
 exports.gatherSweep = gatherSweep;
 exports.gatherSweepWithPromises = gatherSweepWithPromises;

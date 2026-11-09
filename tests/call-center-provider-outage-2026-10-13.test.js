@@ -60,6 +60,8 @@ function fakeDb(seed) {
     docs, doc: mk,
     collection: (name) => Object.assign(query(name, [], null), { doc: (id) => mk(name + '/' + id), add: async (v) => { const id = 'auto' + docs.size; docs.set(name + '/' + id, v); return { id }; } }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
+    // Call to Close P1 (2026-11-09): runTranscribe claims each call in a transaction (the transcribe lease).
+    runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v, o) => r.set(v, o) }),
     batch: () => { const ops = []; return { update: (ref, v) => ops.push([ref, v]), commit: async () => { for (const [r, v] of ops) await r.update(v); } }; },
   };
 }

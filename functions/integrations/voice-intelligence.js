@@ -273,7 +273,12 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // `words: true` (Reel Studio burned captions, 2026-10-04) ALSO asks Groq for
 // word timestamps and returns them as `words: [{ word, start, end }]`.
 // Default off, so every existing caller's request and result are unchanged.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature, prompt }) {
+//
+// `confidence: true` (Call to Close P1, 2026-11-09) keeps each segment's
+// avg_logprob and no_speech_prob (verbose_json already returns them) as
+// `avgLogprob` / `noSpeechProb`. Same request; default off, so every other
+// caller's segments keep exactly { start, end, text }.
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature, prompt, confidence }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -318,11 +323,14 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, wor
   await require('../ai-spend').recordAiSpend({ feature: feature || 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec: Number(data.duration) || 0 });
   return {
     text: data.text,
-    segments: Array.isArray(data.segments) ? data.segments.map(s => ({
+    segments: Array.isArray(data.segments) ? data.segments.map(s => Object.assign({
       start: Number(s.start) || 0,
       end: Number(s.end) || 0,
       text: String(s.text || '')
-    })) : [],
+    }, confidence ? {
+      avgLogprob: Number.isFinite(Number(s.avg_logprob)) && s.avg_logprob != null ? Number(s.avg_logprob) : null,
+      noSpeechProb: Number.isFinite(Number(s.no_speech_prob)) && s.no_speech_prob != null ? Number(s.no_speech_prob) : null
+    } : {})) : [],
     durationSec: Number(data.duration) || 0,
     providerJobId: null,  // Groq is synchronous; no job id to track
     ...(words ? {
