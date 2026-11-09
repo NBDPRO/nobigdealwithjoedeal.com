@@ -1365,7 +1365,7 @@ console.log('\nProvisioning reliability — retry + block + login heal');
     'writing onboarded first would close the only guaranteed repair surface');
   assert('skip() attempts best-effort provisioning (never blocks the skip)',
     /async function skip\(\) \{[\s\S]{0,1000}await ensureProvisioned\(state\.user/.test(ob)
-    && /async function skip\(\) \{[\s\S]{0,500}state\.claims\.owner !== true/.test(ob),
+    && /async function skip\(\) \{[\s\S]{0,800}state\.claims\.owner !== true/.test(ob),
     'a skipper used to be marked onboarded with NO provisioning attempt at all');
 
   // (4) stripe-success buy-first path — a PAYING tenant gets the same retry

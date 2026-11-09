@@ -74,6 +74,17 @@ CEILING.localScripts += 1;
 // draws through (game-sprite.js reads window.NBDChibi synchronously when it draws; a lazy load would
 // paint the pixel fallback first and the vector second). Defer, no boot-time reads. Own line.
 CEILING.localScripts += 1;
+// -8 local tags, deliberate (2026-11-08, boot-weight lane): the six flag-gated toolbar features (stale-leads clean-up,
+// lead-source fixer, speed to lead, reputation, the estimate follow-up board, the Follow-ups board + Thumbtack cards:
+// nine tags) became ScriptLoader bundles that js/dark-features.js (one new tag) loads only when NBDFlags says the
+// flag is on. Measured 215 -> 207; the ceiling follows so the gate still bites.
+CEILING.localScripts -= 8;
+// -7 local tags, deliberate (2026-11-08 evening, boot-weight lane batch 3): boot files that paint nothing at boot
+// became ScriptLoader bundles loaded on first use: my-skin-logic.js + my-skin.js (a small deferred my-skin-boot.js
+// in their place), maps-customers.js, schedule-planner.js, ask-joe-actions.js, onboarding-tour.js,
+// kanban-context-menu.js and sort-customers.js (triggers in the CRM power-session audit note). Measured
+// 207 -> 200; the ceiling follows.
+CEILING.localScripts -= 7;
 // +8 KB, deliberate (2026-10-25, characters wave 2): chibi.js 28 -> 36 KB (jointed limbs, pose cross-fades,
 // secondary motion, emotes, three poses). Deferred; blockingBytes does not move. Own line.
 CEILING.localBytes += 8 * 1024;
@@ -244,7 +255,7 @@ CEILING.localBytes += 3 * 1024;
 // with a warning on a laptop, where the readable gates are enforced instead.
 const SHIPPED_CEILING = {
   blockingBytes: 85 * 1024,   // deliberate raise 2026-11-05 (84 -> 85 KB): script-loader.js gains the joined-bundle path (Phase 2b, #2850: joinedSteps + the pending gates + the per-file fallback) and the deploy's js/_bundle-map tag; that ~1 KB is what lets a lazy bundle arrive as one joined file instead of many. ALSO deliberate raise 2026-10-24 (82 -> 84 KB): demo-mode.js is the dashboard's first, synchronous script and now routes the sample account's tool pages (window.open + tracker remap, SANDBOX_TOOLS, insurance-topic hiding); measured 84093 B shipped
-  localBytes: 2864 * 1024, // deliberate raise 2026-11-07 (2856 -> 2864 KB): NBD OS (#2989) adds the dark-layout flag gate, the lazy system-layer loader and the 'os' registry entry to boot-loaded layout-system.js (+5 KB readable) and NotifBell.items() to notif-bell.js (+1.7 KB); the system layer and the OS layout themselves load lazily behind osSystemLayer / osLayout (measured 2858 KB). Earlier: 2026-11-04 (2840 -> 2856 KB): Thumbtack Opportunities approval cards, opp-approval-logic.js + opp-approval.js, deferred, flag thumbtackOpportunities (measured 2848 KB). Earlier: 2026-11-03 (2820 -> 2840 KB) (2820 -> 2840 KB): Follow-up board, follow-up-board-logic.js + follow-up-board.js, deferred, flag followUpBoard (measured 2818 -> 2835 KB). Earlier: 2026-10-26 (2816 -> 2820 KB): overlay-a11y.js (the crm-5 dialog contract, deferred) plus the Home boot hold (#2760) measured 2817 KB when the two overnight PRs met; the earlier raises: 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard; (2804 -> 2816 KB, same day): character waves 12-17 (builds, gaze, pop-in, cold breath, eye colour, two poses) grew chibi.js from 47 to 56 KB and game-sprite.js by 0.4 KB, all deferred; measured 2804 of 2804 before the raise leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
+  localBytes: 2570 * 1024, // deliberate LOWERING 2026-11-08 evening (2748 -> 2570 KB): boot-weight batch 3 moved seven more boot files to first-use ScriptLoader bundles (measured 2741 -> 2563 KB shipped). The same ~7 KB of headroom as the first lowering, which still covers the two held drafts (#2994 ~0.5 KB, #3008 ~0.7 KB). Earlier: deliberate LOWERING 2026-11-08 (2864 -> 2748 KB): the six flag-gated toolbar features left the boot path (js/dark-features.js loads them lazily; measured 2858 -> 2741 KB). About 7 KB of headroom on purpose: enough for the two held drafts that were waiting on the budget (#2994 ~0.5 KB, #3008 ~0.7 KB) plus ordinary work, not enough to drift. Earlier: deliberate raise 2026-11-07 (2856 -> 2864 KB): NBD OS (#2989) adds the dark-layout flag gate, the lazy system-layer loader and the 'os' registry entry to boot-loaded layout-system.js (+5 KB readable) and NotifBell.items() to notif-bell.js (+1.7 KB); the system layer and the OS layout themselves load lazily behind osSystemLayer / osLayout (measured 2858 KB). Earlier: 2026-11-04 (2840 -> 2856 KB): Thumbtack Opportunities approval cards, opp-approval-logic.js + opp-approval.js, deferred, flag thumbtackOpportunities (measured 2848 KB). Earlier: 2026-11-03 (2820 -> 2840 KB) (2820 -> 2840 KB): Follow-up board, follow-up-board-logic.js + follow-up-board.js, deferred, flag followUpBoard (measured 2818 -> 2835 KB). Earlier: 2026-10-26 (2816 -> 2820 KB): overlay-a11y.js (the crm-5 dialog contract, deferred) plus the Home boot hold (#2760) measured 2817 KB when the two overnight PRs met; the earlier raises: 2026-10-25 (2790 -> 2798 KB): chibi.js wave 2 (jointed limbs, pose cross-fades, emotes), deferred; (2798 -> 2804 KB, later the same day): characters wave 11, the Roof Rep looks on the dashboard; (2804 -> 2816 KB, same day): character waves 12-17 (builds, gaze, pop-in, cold breath, eye colour, two poses) grew chibi.js from 47 to 56 KB and game-sprite.js by 0.4 KB, all deferred; measured 2804 of 2804 before the raise leaderboards (team-names.js avatars, the Leaderboard view and the widget), ~3 KB minified, all deferred
   templateBytes: 73 * 1024,
 };
 
@@ -406,6 +417,29 @@ if (!SHIPPED_GATES) {
   // The same probe without keepNames really loses names, so the check above can fail.
   const bare = ESBUILD.transformSync(probe, Object.assign({}, MINIFY.OPTIONS, { loader: 'js', keepNames: false })).code;
   ok('control: without keepNames esbuild drops names (the reason keepNames is on)', run(bare) !== WANT, run(bare));
+}
+
+// The customer page (2026-11-08): the same measure over docs/pro/customer.html, which had no gate at all while
+// the dashboard's was tightened (measured 132 local tags, 1 blocking, 1503 KB shipped, 189 KB of HTML). Ceilings
+// sit just above that so growth trips them; lower them in the PR that moves something off this page's boot.
+// LOWERED the same day (boot-weight batch 4): the Job done hand-off, the supplement engine and the photo report
+// builder load on first use; measured 129 local tags, 1362 KB shipped (2479 KB readable), 190 KB of HTML.
+// LOWERED again (batch 4b): customer-jobs.js split (the Add job sheet loads on first use) and numbers-logic.js
+// loads only for a card the Numbers panel shows; measured 128 local tags, 1340 KB shipped (2444 KB readable).
+const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
+  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1346 * 1024, shippedBlockingBytes: 16 * 1024 };
+console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
+const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
+ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));
+ok('customer: <template> tags balance to depth 0 at EOF', cm.tplDepthAtEof === 0 && cm.strayTemplateClose === 0);
+ok('customer: blocking scripts: ' + cm.blockingScripts + ' ≤ ' + CUSTOMER_CEILING.blockingScripts, cm.blockingScripts <= CUSTOMER_CEILING.blockingScripts);
+ok('customer: local script tags: ' + cm.localScripts + ' ≤ ' + CUSTOMER_CEILING.localScripts, cm.localScripts <= CUSTOMER_CEILING.localScripts);
+ok('customer: customer.html: ' + kb(cm.htmlBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.htmlBytes), cm.htmlBytes <= CUSTOMER_CEILING.htmlBytes);
+srcBytes('customer blocking bytes', cm.blockingBytes, CUSTOMER_CEILING.blockingBytes);
+srcBytes('customer local script bytes', cm.localBytes, CUSTOMER_CEILING.localBytes);
+if (SHIPPED_GATES) {
+  ok('customer: shipped blocking bytes: ' + kb(cm.shippedBlockingBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.shippedBlockingBytes), cm.shippedBlockingBytes <= CUSTOMER_CEILING.shippedBlockingBytes);
+  ok('customer: shipped local script bytes: ' + kb(cm.shippedLocalBytes) + ' ≤ ' + kb(CUSTOMER_CEILING.shippedLocalBytes), cm.shippedLocalBytes <= CUSTOMER_CEILING.shippedLocalBytes);
 }
 
 // Positive controls: the counter must see what it claims to count.

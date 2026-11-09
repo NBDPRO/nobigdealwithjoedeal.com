@@ -842,8 +842,23 @@ function renderLeads(leads, filtered){
     try { window.NBDPipelineRich.afterRender(list); } catch (e) { console.warn('[pipeline-rich] after-render failed', e); }
   }
   // "N customers have no job type — Sort them" (sort-customers.js).
+  // Not a boot tag since 2026-11-08 (boot-weight lane): its mount,
+  // #sortCustomersWrap, lives in the Pipeline <template>, so the first render
+  // that finds it loads the file. The bundle is registered here, at runtime,
+  // so the blocking script-loader.js does not grow. The file paints the banner
+  // when it runs, and the refresh below repaints it once the load resolves. A
+  // failed fetch leaves the board as it is, without the banner.
   if (window.NBDSortCustomers && typeof window.NBDSortCustomers.refresh === 'function') {
     try { window.NBDSortCustomers.refresh(); } catch (e) { console.warn('[sort-customers] banner failed', e); }
+  } else if (document.getElementById('sortCustomersWrap') && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+    try {
+      const SL = window.ScriptLoader;
+      if (SL.bundles && !SL.bundles.sortcustomers) SL.bundles.sortcustomers = ['js/sort-customers.js?v=3'];
+      Promise.resolve(SL.loadBundle('sortcustomers')).then(() => {
+        const sc = window.NBDSortCustomers;
+        if (sc && typeof sc.refresh === 'function') sc.refresh();
+      }).catch((e) => console.warn('[sort-customers] banner failed', e));
+    } catch (e) { console.warn('[sort-customers] banner failed', e); }
   }
 }
 

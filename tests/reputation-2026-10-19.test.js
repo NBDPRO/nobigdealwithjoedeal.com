@@ -332,7 +332,9 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
   ok('no boot-time reads: loading happens inside open()', !/loadInvoices/.test(CODE.replace(/async function loadData[\s\S]*?\n  \}\n/, '')));
   const html = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
   ok('dashboard: button ships hidden', /id="reputationBtn"[^>]*\shidden/.test(html));
-  ok('dashboard: external deferred script + stylesheet, no inline script', /<script defer src="js\/reputation\.js\?v=\d+"><\/script>/.test(html) && /css\/reputation\.css/.test(html));
+  // 2026-11-08: the file is the lazy 'reputation' ScriptLoader bundle, registered and loaded by js/dark-features.js when the flag is on; no eager tag.
+  const DF = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dark-features.js'), 'utf8');
+  ok('dashboard: lazy bundle (no eager tag) + stylesheet, no inline script', !/<script[^>]*src="js\/reputation\.js/.test(html) && /reputation:\s*\['js\/reputation\.js\?v=\d+'\]/.test(DF) && /reputationLoop:\s*'reputation'/.test(DF) && /<script defer src="js\/dark-features\.js\?v=\d+"><\/script>/.test(html) && /css\/reputation\.css/.test(html));
   const css = fs.readFileSync(path.join(ROOT, 'docs/pro/css/reputation.css'), 'utf8');
   ok('phone fit: 44px taps and a single column under 480px', /\.rep-pill[^}]*min-height: 44px/.test(css) && /\.rep-btn[^}]*min-height: 44px/.test(css) && /@media \(max-width: 480px\)/.test(css) && /\.rep-foot \{ flex-direction: column-reverse/.test(css));
   ok('rules: review_log is owner-only, 8 keys, no delete, and the lead update rule is untouched', (() => {

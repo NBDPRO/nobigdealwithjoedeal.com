@@ -131,7 +131,7 @@ ok('system.js writes no inline style attributes', !/style=/.test(DOM) && !/\.sty
 const raw = DOM.match(/' \+ (?!esc\(|\(|g\.unread|h \+|'|\w+\(\) \+|\w+Html \+)[a-zA-Z_.]+ \+ '/g) || [];
 ok('no unescaped value is spliced into markup', raw.length === 0, raw.join(' | '));
 ok('toast text is never innerHTML (escaped into the history only)', /esc\(e\.message\)/.test(DOM));
-ok('DND hold goes through the pure rule', /L\.holdToast\(type, state\.dnd\)/.test(DOM));
+ok('DND hold goes through the pure rule (2026-11-08: both showToast signatures, undo never held)', /L\.holdToast\(t\.type, state\.dnd, t\.undo\)/.test(DOM) && /L\.toastEntry\(a, b\)/.test(DOM));
 ok('the bell exposes read-only items with no callbacks', /items: \(\) => buildNotifications\(\)/.test(BELL) && !/onClick: n\.onClick/.test(BELL));
 ok('sheets are dialogs with a label and Esc closes them', /role="dialog" aria-modal="true" aria-labelledby="osSheetTitle"/.test(DOM) && /e\.key === 'Escape'/.test(DOM));
 ok('the stylesheet uses no hex colours', !/#[0-9a-fA-F]{3,8}\b/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')));

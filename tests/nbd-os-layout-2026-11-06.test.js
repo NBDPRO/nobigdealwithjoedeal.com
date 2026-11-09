@@ -126,7 +126,7 @@ const OS = read('docs/pro/js/layouts/os.js');
 const CSS = read('docs/pro/css/layouts/os.css');
 const def = R.get('os');
 ok('registered as "os", every surface, dark behind osLayout', !!def && def.flag === 'osLayout' && def.surfaces.join() === 'phone,tablet,desktop');
-ok('needs load the shared logic (js/os is an allowed needs path)', def && def.needs.script.join() === 'js/os/system-logic.js,js/layouts/os-wm-logic.js');
+ok('needs load the shared logic (js/os is an allowed needs path), then the home widgets (P0b) and the Coach rules (P0c)', def && def.needs.script.join() === 'js/os/system-logic.js,js/layouts/os-wm-logic.js,js/os/home-logic.js,js/os/coach-logic.js,js/os/home.js');
 ok('hidden from the picker while the flag is off', R.forSurface('desktop').every((d) => d.id !== 'os'));
 ok('implements through the engine', /W\.LayoutEngine\.implement\('os', \{ mount: mount, unmount: unmount \}\)/.test(OS));
 // esc(...) calls, and *Html strings built from esc() pieces, are the only things spliced in
@@ -136,7 +136,7 @@ ok('no inline handlers', !/\son[a-z]+=/i.test(OS.replace(/\/\*[\s\S]*?\*\//g, ''
 ok('positions only through custom properties (no left/top/width writes)', !/\.style\.(left|top|width|height|zIndex)\s*=/.test(OS) && /style\.setProperty\('--wx'/.test(OS));
 ok('follows the CRM router: a view made active opens its window', /S\.mo\.observe\(/.test(OS) && /function onViewChange\(\)/.test(OS) && /openWin\(id, \{ route: false \}\)/.test(OS));
 ok('opening an app goes through goTo (the one router)', /W\.goTo\(id\)/.test(OS));
-ok('unmount releases every view back to where it was', /Object\.keys\(st\.origins\)\.forEach\(function \(id\) \{ release\(id\); \}\)/.test(OS) && /o\.parent\.insertBefore\(v, o\.next\)/.test(OS));
+ok('unmount releases every view back to where it was', /Object\.keys\(st\.origins\)\.forEach\(function \(id\) \{ release\(id\); \}\)/.test(OS) && /o\.parent\.insertBefore\(v, kids\[WM\.restoreIndex\(S\.viewOrder, v, kids\)\] \|\| null\)/.test(OS));
 ok('no snapping while typing in a field', /\/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(tag\)/.test(OS));
 ok('saves through LayoutEngine.saveUser, normalised, and unmount flushes a pending save', /saveUser\(\{ layoutState: \{ os: st \} \}\)/.test(OS) && /WM\.normalizeState\(\{ wins: src\.wins/.test(OS) &&
   /if \(saveT\) \{ clearTimeout\(saveT\); saveT = null; writeState\(st\); \}/.test(OS));

@@ -110,7 +110,8 @@ console.log('\n3. my-skin.js privacy contract');
   ok('fetches only trustedPath() results', /L\(\)\.trustedPath\(cfg, uid, slot\)/.test(J) && !/getBlob\([^)]*cfg\.slots/.test(J));
   ok('re-encodes through a canvas before upload (drops EXIF, caps size)', /createElement\('canvas'\)/.test(J) && /toBlob\(/.test(J) && /uploadBytes\(st\.ref\(window\.storage, path\), blob/.test(J));
   ok('uploads only to storagePath(uid, slot)', /var path = L\(\)\.storagePath\(uid, slot\)/.test(J));
-  ok('settings live on userSettings/{uid}.mySkin, not localStorage', /'userSettings', uid\), \{ mySkin:/.test(J) && !/localStorage/.test(J));
+  // 2026-11-08: the one localStorage use allowed is the nbd_myskin_boot load hint for my-skin-boot.js (never settings; an nbd_ key, wiped at sign-out).
+  ok('settings live on userSettings/{uid}.mySkin, not localStorage', /'userSettings', uid\), \{ mySkin:/.test(J) && (J.match(/localStorage/g) || []).length === (J.match(/localStorage\.(?:setItem\('nbd_myskin_boot', '1'\)|removeItem\('nbd_myskin_boot'\))/g) || []).length);
   ok('no inline handlers or innerHTML', !/innerHTML\s*=|\.on(click|change|input)\s*=/.test(J.replace(/im\.onload|im\.onerror/g, '')));
   ok('the mascot is decorative (alt="", aria-hidden)', /mascot\.alt = ''/.test(J) && /aria-hidden', 'true'/.test(J));
   ok('object URLs are revoked when replaced', /URL\.revokeObjectURL\(urls\[slot\]\)/.test(J));
@@ -157,11 +158,13 @@ console.log('\n4. CSS gating, panel, page wiring');
   ok('file pickers accept images only', (D.match(/data-myskin-file="[a-z]+"/g) || []).length === 3 && !/accept="(?!image\/\*)[^"]*"[^>]*data-myskin-file/.test(D));
   const P = D.slice(D.indexOf('id="myskinPanel"'), D.indexOf('<!-- SIDEBAR CUSTOMIZER -->'));
   ok('the panel adds no inline style or handler', !/\sstyle=|\son[a-z]+=/.test(P));
+  // 2026-11-08 (boot-weight lane): the two scripts are the lazy `myskin` bundle, loaded by js/my-skin-boot.js (tests/lazy-my-skin-2026-11-08.test.js).
   for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
     const h = read(page);
-    ok(`${page.split('/').pop()} loads my-skin.css and both scripts (logic first, deferred)`,
-      /css\/my-skin\.css\?v=\d+/.test(h) && /<script defer src="js\/my-skin-logic\.js\?v=\d+"><\/script>\s*<script defer src="js\/my-skin\.js\?v=\d+"><\/script>/.test(h));
+    ok(`${page.split('/').pop()} loads my-skin.css and the deferred my-skin-boot.js, no eager my-skin script tag`,
+      /css\/my-skin\.css\?v=\d+/.test(h) && /<script defer src="js\/my-skin-boot\.js\?v=\d+"><\/script>/.test(h) && !/<script[^>]*src="js\/my-skin(-logic)?\.js/.test(h));
   }
+  ok('my-skin-boot.js registers the bundle with the logic first', /bundles\.myskin = \['js\/my-skin-logic\.js\?v=\d+', 'js\/my-skin\.js\?v=\d+'\]/.test(read('docs/pro/js/my-skin-boot.js')));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

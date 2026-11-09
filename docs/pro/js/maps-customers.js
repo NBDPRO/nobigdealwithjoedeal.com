@@ -4,9 +4,11 @@
  * FILTER on multiple dimensions, and zoom-gated deal-value labels.
  *
  * Sibling module of maps-core.js / maps-overlays.js / maps-routing.js
- * (Step 4d split). Load order in dashboard.html:
- *
- *   core → overlays → customers → routing → maps (shim)
+ * (Step 4d split). Not a dashboard.html tag since 2026-11-08: maps-core.js
+ * registers it as the ScriptLoader bundle `mapcustomers` (bump its ?v= THERE)
+ * and the 'map' view fetches it, so it always runs after core → overlays →
+ * maps, and on a first map open BEFORE Leaflet (ScriptLoader runs its tags in
+ * insertion order): nothing here may touch L / mainMap at load.
  *
  * Why a dedicated layer (vs the Jobs overlay / D2D pins):
  *   - Jobs overlay only shows job-stage leads, geocoded live and capped.

@@ -112,7 +112,8 @@ console.log('wiring');
   ok('...and the apps start on a fresh row under an Apps heading', /if \(visits && list\.length\) visits \+= '<li class="os-start-group ui-eyebrow" aria-hidden="true">Apps<\/li>';/.test(OS));
   const desk = OS.slice(OS.indexOf('function onDeskClick'), OS.indexOf('function onDeskClick') + 400);
   ok('desk clicks route a visit tap before windows, overview or pins', desk.indexOf('if (vz) { onVisitTap(vz); return; }') !== -1 && desk.indexOf('if (vz) { onVisitTap(vz); return; }') < desk.indexOf('S.overview'));
-  const ph = OS.slice(OS.indexOf('function onPhoneClick'), OS.indexOf('function onPhoneClick') + 300);
+  // 450, not 300 (2026-11-08): the gesture-swallow guard now opens the function, before the visit branch.
+  const ph = OS.slice(OS.indexOf('function onPhoneClick'), OS.indexOf('function onPhoneClick') + 450);
   ok('phone clicks route a visit tap before the app handlers', ph.indexOf('if (vz) { onVisitTap(vz); return; }') !== -1 && ph.indexOf('if (vz) { onVisitTap(vz); return; }') < ph.indexOf("closest('[data-osp]')"));
   ok('the phone bar has Record right after Home, not while rearranging the dock', /<span class="os-bar-label">Home<\/span><\/button>' \+\n\s*\(S\.editing \? '' : visitBarHtml\(\)\) \+/.test(OS));
   ok('the home screen has the Visits row above the pages, not while rearranging', /if \(!S\.editing\) h \+= visitPhoneRowHtml\(\);\n\s*h \+= '<div class="os-p-pages"/.test(OS));

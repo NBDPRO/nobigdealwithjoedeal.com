@@ -25,6 +25,7 @@
 .os-clock-dot { display: none; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .os-clock-dot.os-tone-warn { background: var(--gold); }
 .os-clock-dot.os-tone-alert { background: var(--orange); }
+.os-clock-dot.os-tone-quiet { background: var(--m); }
 /* The header bar is near-black in EVERY theme and mode (dashboard-app.css
    `header`), but --t / --m are dark inks in light mode. Pin the tray's inks
    to the same values dashboard-app.css pins .hdr-tool to there. */

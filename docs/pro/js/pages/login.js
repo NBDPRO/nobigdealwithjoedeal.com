@@ -109,13 +109,24 @@ function switchTab(tab) {
   ['member', 'code', 'demo'].forEach(t => {
     document.getElementById('view-' + t).classList.toggle('active', t === tab);
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('tab-' + t).setAttribute('aria-selected', String(t === tab));
   });
   if (tab === 'code') setTimeout(() => document.getElementById('codeInput').focus(), 50);
 }
-document.querySelectorAll('.tab-btn').forEach(btn => {
+const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+tabBtns.forEach((btn, i) => {
   btn.addEventListener('click', () => {
     const id = btn.id; // tab-member | tab-code | tab-demo
     if (id && id.startsWith('tab-')) switchTab(id.slice(4));
+  });
+  // A tablist moves focus with the arrow keys (ST-F72); Enter or Space still
+  // opens the focused tab.
+  btn.addEventListener('keydown', (e) => {
+    const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1
+      : e.key === 'Home' ? 0 : e.key === 'End' ? tabBtns.length - 1 : null;
+    if (n === null) return;
+    e.preventDefault();
+    tabBtns[(n + tabBtns.length) % tabBtns.length].focus();
   });
 });
 

@@ -481,8 +481,21 @@
             stats.dragonBallZUsed = data.appliedThemes?.includes('dragon-ball-z') || false;
           }
 
-          // Count knocks from D2D collection
-          if (window.collection && window.query && window.where && window.getDocs) {
+          // Count knocks from D2D collection: a server count() when
+          // server-aggregates.js is loaded, so no knock doc is downloaded
+          // (ST-F32); the getDocs below stays as the fallback.
+          const _agg = window.NBDServerAggregates;
+          let knockN = null;
+          if (_agg && typeof _agg.knockCount === 'function') {
+            try {
+              knockN = await (window.nbdRetryOffline || (f => f()))(() => _agg.knockCount(uid));
+            } catch (e) {
+              console.warn('Knock count failed, falling back to getDocs:', e && e.message);
+            }
+          }
+          if (typeof knockN === 'number') {
+            stats.totalKnocks = knockN;
+          } else if (window.collection && window.query && window.where && window.getDocs) {
             const knocksQ = window.query(window.collection(window.db, 'knocks'), window.where('userId', '==', uid));
             const knocksSnap = await (window.nbdRetryOffline || (f => f()))(() => window.getDocs(knocksQ));
             stats.totalKnocks = knocksSnap.size;

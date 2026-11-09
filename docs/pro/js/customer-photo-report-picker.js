@@ -22,38 +22,10 @@
 
   var BUILDER_ID = 'prpBuilder';
 
-  // photo-report.js is LAZY on this page (ScriptLoader 'photos' bundle) as of
-  // 2026-09-06. Both customer-page entry points resolve the global by NAME at
-  // click time — pickPhotoReport() below, and the "📋 Generate Report" button
-  // (customer-bootstrap.module.js:1354, data-action="generatePhotoReport") —
-  // so a load-then-run stub is what keeps the button from being a SILENT
-  // no-op: without it the action dispatcher just logs an unknown action and
-  // nothing visible happens. tests/smoke/photo.test.js:1224 pins this, and
-  // caught its removal during the D-6 rewrite of this file.
-  //
-  // `arguments` is forwarded whole, so the third builder argument reaches the
-  // real implementation the same as leadId and mode.
-  //
-  // Guarded on typeof so this never clobbers a real implementation (the
-  // dashboard installs its own stub in dashboard-actions.js and is unaffected).
-  if (typeof window.generatePhotoReport !== 'function') {
-    window.generatePhotoReport = function () {
-      var args = arguments;
-      if (!(window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function')) {
-        if (typeof showToast === 'function') showToast('Report module unavailable — refresh and try again', 'error');
-        return;
-      }
-      if (typeof showToast === 'function') showToast('Preparing photo report…', 'info');
-      return window.ScriptLoader.loadBundle('photos').then(function () {
-        var fn = window.generatePhotoReport;
-        // photo-report.js overwrites the global on arrival; if it is still the
-        // stub, the fetch failed (load() never rejects) — say so rather than recursing.
-        if (typeof fn === 'function' && !fn.__nbdLazyPhotoReportStub) return fn.apply(null, args);
-        if (typeof showToast === 'function') showToast('Report module failed to load — try again', 'error');
-      });
-    };
-    window.generatePhotoReport.__nbdLazyPhotoReportStub = true;
-  }
+  // This file is LAZY on customer.html (ScriptLoader 'photoreportpicker', since
+  // 2026-11-08). customer-photo-report-lazy.js, on the boot path, registers the
+  // bundle, keeps the generatePhotoReport stub that used to live here, and
+  // stubs openPhotoReportPicker until the definition below replaces it.
 
   // The control spec. `key` matches a field of REPORT_DEFAULTS; the builder
   // reads current values from photo-report.js's _photoReportOptions(mode) (via

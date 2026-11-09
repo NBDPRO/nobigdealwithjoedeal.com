@@ -790,7 +790,7 @@
       const stamp = new Date().toISOString();
       if (lead) lead.permitFiledAt = stamp;
       const chk = document.getElementById('lPermitFiled');
-      if (chk && (document.getElementById('lEditId')?.value || '') === leadId) chk.checked = true;
+      if (chk && (document.getElementById('lEditId')?.value || '') === leadId) { chk.checked = true; chk.dataset.filedAt = stamp; }
       if (typeof showToast === 'function') showToast('✓ Permit marked as filed', 'success');
     }).catch(err => {
       console.warn('mark_permit_filed write failed:', err && err.message);
@@ -3714,12 +3714,14 @@
     // here: without this the spread drops the field and the card silently
     // re-buckets into New until loadLeads round-trips.
     const _stage = data.stage != null ? data.stage : window._leads[idx]?.stage;
+    const _prev = idx >= 0 ? window._leads[idx] : null;
     const merged = {
+      ..._prev, // PL-F09: an edit keeps the stored keys the form never sends
       id: leadId,
       ...data,
       stage: _stage,
-      userId: window._user?.uid,
-      createdAt: window._leads[idx]?.createdAt || new Date(),
+      userId: data.userId || _prev?.userId || window._user?.uid,
+      createdAt: _prev?.createdAt || new Date(),
       _stageKey: typeof normalizeStage === 'function'
         ? normalizeStage(_stage)
         : (_stage || 'new')

@@ -196,9 +196,10 @@ console.log('\n5. contract');
   ok('the soft quota blocks the start button and each file', /!t\.files \|\| !q\.ok/.test(M) && /Background storage is full \(300 MB\)/.test(M));
   ok('the worker never touches the DOM or window', !/\bwindow\b|\bdocument\b/.test(W) && /new OffscreenCanvas/.test(W) && /importScripts\('my-skin-logic\.js\?v=\d+'\)/.test(W));
   const v = (src, re) => (src.match(re) || [])[1];
+  // 2026-11-08: the pages no longer tag my-skin-logic.js; my-skin-boot.js's `myskin` bundle names it for both.
   ok('the worker imports the same logic cache-buster the pages load',
-    v(read('docs/pro/js/my-skin-encode-worker.js'), /my-skin-logic\.js\?v=(\d+)/) === v(D, /js\/my-skin-logic\.js\?v=(\d+)/)
-    && v(D, /js\/my-skin-logic\.js\?v=(\d+)/) === v(read('docs/pro/customer.html'), /js\/my-skin-logic\.js\?v=(\d+)/));
+    !!v(read('docs/pro/js/my-skin-boot.js'), /js\/my-skin-logic\.js\?v=(\d+)/)
+    && v(read('docs/pro/js/my-skin-encode-worker.js'), /my-skin-logic\.js\?v=(\d+)/) === v(read('docs/pro/js/my-skin-boot.js'), /js\/my-skin-logic\.js\?v=(\d+)/));
   const fb = JSON.parse(read('firebase.json'));
   const csps = [];
   (function walk(o) { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') { if (o.key === 'Content-Security-Policy' && typeof o.value === 'string') csps.push(o.value); Object.keys(o).forEach((k) => walk(o[k])); } })(fb);

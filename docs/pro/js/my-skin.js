@@ -9,7 +9,8 @@
  *           slots: { <slot>: { path, v } }, schema: 2, perTheme, show,
  *           themes: { <themeId>: { images: [...], dim, blur, ... } },
  *           allThemes }. Not browser storage: nbd_ keys are wiped at every
- *           sign-out, and the skin should follow the user.
+ *           sign-out, and the skin should follow the user. (localStorage
+ *           nbd_myskin_boot is only a load hint for my-skin-boot.js: bootHint.)
  *
  * Privacy rules this file keeps:
  *   - images are read with getBlob() under the storage rules and shown via
@@ -825,13 +826,23 @@
     } catch (e) { return false; }
   }
 
+  // Device hint for my-skin-boot.js (2026-11-08): this device painted a skin,
+  // so the next boot loads this file at once instead of after a settings read.
+  // A load hint only, not the settings; an nbd_ key, wiped at every sign-out.
+  var hinted = null;
+  function bootHint(on) {
+    if (hinted === on) return;
+    hinted = on;
+    try { if (on) window.localStorage.setItem('nbd_myskin_boot', '1'); else window.localStorage.removeItem('nbd_myskin_boot'); } catch (e) {}
+  }
+
   function paint() {
     var root = html();
     Array.prototype.slice.call(root.classList).forEach(function (c) { if (CLASS_RE.test(c)) root.classList.remove(c); });
     ['--myskin-dim', '--myskin-texture-strength', '--myskin-wallpaper', '--myskin-texture', '--myskin-accent', '--myskin-accent-fg', '--myskin-tint']
       .forEach(function (k) { root.style.removeProperty(k); });
     var mascot = document.getElementById('nbdMySkinMascot');
-    if (!cfg) { if (mascot) mascot.remove(); return; }
+    if (!cfg) { if (mascot) mascot.remove(); bootHint(false); return; }
 
     var coPic = !!(layerPic && layerPic.style && layerPic.style.company);
     var layers = !!cfg.perTheme || coPic;
@@ -852,7 +863,8 @@
     var classes = L().htmlClasses(paintCfg, have, acc && acc.ok, {
       layers: layers, hideOverlay: !!(layerPic && layerPic.style && layerPic.style.hideOverlay),
     });
-    if (!classes.length) { if (mascot) mascot.remove(); return; }
+    if (!classes.length) { if (mascot) mascot.remove(); bootHint(false); return; }
+    bootHint(true);
 
     var vars = L().cssVars(paintCfg, urls, acc && acc.ok ? acc.fg : null);
     Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });

@@ -28,7 +28,12 @@
  *
  * Mounted by layout-system.js via LayoutEngine.implement('os', ...).
  * Needs js/os/system-logic.js (readNav / appsFromNav / clockText) and
- * js/layouts/os-wm-logic.js (geometry) — registry `needs`.
+ * js/layouts/os-wm-logic.js (geometry) — registry `needs`; the home widgets
+ * (js/os/home-logic.js + js/os/coach-logic.js + js/os/home.js, P0b / P0c)
+ * ride the same `needs`, and edit mode saves layoutState['os-home'] through
+ * the same saveUser (saveHome). Without
+ * them the desk column and the phone's widget row fall back to the clock and
+ * the New lead / Search buttons.
  */
 (function () {
   'use strict';
@@ -89,13 +94,141 @@
     clearTimeout(saveT);
     saveT = setTimeout(function () { saveT = null; if (S) writeState(S); }, SAVE_MS);
   }
+  // ── home widgets (os/home.js), from layoutState['os-home'] ──
+  function homeKey() {
+    var HL = W.NBDOSHomeLogic;
+    if (S && S.homeNext) return HL.normalize(S.homeNext);   // an edit not written yet
+    var p = safe(function () { return W.LayoutEngine.prefs(); });
+    return HL.normalize(p && p.user && p.user.layoutState ? p.user.layoutState[HL.KEY] : null);
+  }
+  function homeItems(surface) { return homeKey()[surface]; }
+  function navHidden(id) {
+    var e = L.readNav(doc).filter(function (x) { return x.id === id; })[0];
+    return !e || !!e.hidden;
+  }
+  function makeHome(surface) {
+    var H = W.NBDOSHome;
+    if (!H || !W.NBDOSHomeLogic || typeof H.mount !== 'function') return null;
+    return safe(function () {
+      return H.mount({ surface: surface, items: homeItems(surface), act: surface === 'phone' ? 'data-osp' : 'data-osdo',
+        visible: function () { return !!S && !S.phoneOpen; },
+        onChange: function (list) { saveHome(surface, list); },
+        onExit: function () { setHomeEditing(false); },
+        onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
+        onEmpty: function () { focusHomeTool(surface); },
+        navHidden: navHidden,
+        onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
+    }) || null;
+  }
+  // Edit mode (P0c): one surface's list changed. The whole key is normalised
+  // (the other surface kept as saved) and the home re-reads it at once; the
+  // write through saveUser (its own layoutState key, a Firestore setDoc) waits
+  // SAVE_MS for the next keystroke, like the window state, and is flushed on
+  // leaving edit mode, pagehide and unmount.
+  function saveHome(surface, list) {
+    var HL = W.NBDOSHomeLogic;
+    var key = homeKey();
+    key[surface] = list;
+    S.homeNext = HL.normalize(key);
+    clearTimeout(S.homeSaveT);
+    S.homeSaveT = setTimeout(flushHome, SAVE_MS);
+    refreshHome();
+  }
+  function flushHome() {
+    if (!S) return;
+    clearTimeout(S.homeSaveT);
+    S.homeSaveT = null;
+    var next = S.homeNext;
+    S.homeNext = null;
+    if (next) safe(function () { W.LayoutEngine.saveUser({ layoutState: { 'os-home': next } }); });
+  }
+  function refreshHome() {
+    if (!S || !S.home) return;
+    if (S.surface === 'phone') phonePaint();
+    else safe(function () { S.home.update(homeItems('desk')); });
+  }
+  /** Edit mode on or off: the phone's (shared with the icons) or the desk column's. */
+  function setHomeEditing(on, focusFirst) {
+    if (!S || !S.home) return;
+    if (!on) flushHome();
+    if (S.surface === 'phone') {
+      if (on && S.phoneOpen) phoneHome();
+      S.editing = !!on;
+      S.editPick = null;
+      phonePaint();
+      if (on && focusFirst) safe(function () { S.home.setEditing(true, true); });
+      return;
+    }
+    S.homeEditing = !!on;
+    safe(function () { S.home.setEditing(!!on, !!on && focusFirst !== false); });
+    paintDeskTools();
+    if (!on) { var b = S.deskEl && S.deskEl.querySelector('[data-osdo="homeedit"]'); if (b) b.focus(); }
+  }
+  // the last widget was removed: focus Add widget (else Done), never the page
+  function focusHomeTool(surface) {
+    var host = S && (surface === 'phone' ? S.phoneEl : S.deskEl);
+    var b = host && host.querySelector(surface === 'phone' ? '[data-osp="homeadd"], [data-osp="done"]' : '[data-osdo="homeadd"], [data-osdo="homedone"]');
+    if (b) safe(function () { b.focus(); });
+  }
+  // the desk column's own buttons, under the widgets
+  function paintDeskTools() {
+    var t = S && S.deskEl && S.deskEl.querySelector('.os-hw-tools');
+    if (!t) return;
+    t.innerHTML = S.homeEditing
+      ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
+        '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
+      : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>' +
+        '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="wallpaper">Wallpaper</button>';
+  }
+  // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
+  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  function openWallpaper() {
+    var B = W.NBDMySkinBoot;
+    if (B && typeof B.load === 'function') safe(function () { B.load(); });
+    var O = W.NBDOS;
+    if (O && typeof O.settingsTab === 'function') { safe(function () { O.settingsTab('appearance', 'myskinPanel'); }); return; }
+    if (typeof W.goTo === 'function') safe(function () { W.goTo('settings', { id: 'appearance' }); });
+    setTimeout(function () {
+      if (typeof W.switchSettingsTab === 'function') safe(function () { W.switchSettingsTab('appearance'); });
+      var p = byId('myskinPanel');
+      if (p && typeof p.scrollIntoView === 'function') safe(function () { p.scrollIntoView({ block: 'start' }); });
+    }, 250);
+  }
+  // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper'];
+  function registerControls() {
+    var tries = 0, done = false;
+    function reg() {
+      if (done || !S || !S.home) return;
+      var O = W.NBDOS;
+      if (O && typeof O.registerControl === 'function') {
+        done = true;
+        safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
+        safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
+        return;
+      }
+      if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
+    }
+    // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
+    // (capture, so the tiles are in before the sheet paints; a no-op once registered)
+    if (S && S.home) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    reg();
+  }
+  function unregisterControls() {
+    var O = W.NBDOS;
+    if (O && typeof O.unregisterControl === 'function') CONTROL_IDS.forEach(function (id) { safe(function () { O.unregisterControl(id); }); });
+  }
 
   // ── views in and out of windows ─────────────────────────────
   function viewEl(id) { return byId('view-' + id); }
   function adopt(id, host) {
     var v = viewEl(id);
     if (!v || v.parentNode === host) return v;
-    if (!S.origins[id]) S.origins[id] = { parent: v.parentNode, next: v.nextSibling };
+    if (!S.origins[id]) {
+      S.origins[id] = { parent: v.parentNode };
+      // Classic's order of the siblings: a view's next sibling may itself be in a window when this one goes back
+      S.viewOrder = WM.mergeOrder(S.viewOrder, Array.prototype.slice.call(v.parentNode.children));
+    }
     v.classList.add('os-in-win');
     host.appendChild(v);
     return v;
@@ -107,8 +240,8 @@
     if (!v) return;
     v.classList.remove('os-in-win');
     if (o && o.parent && o.parent.isConnected) {
-      if (o.next && o.next.parentNode === o.parent) o.parent.insertBefore(v, o.next);
-      else o.parent.appendChild(v);
+      var kids = Array.prototype.slice.call(o.parent.children);
+      o.parent.insertBefore(v, kids[WM.restoreIndex(S.viewOrder, v, kids)] || null);
     }
   }
   // opt-in system sounds live in the system layer (off unless the member turned them on)
@@ -453,15 +586,16 @@
     var desk = doc.createElement('div');
     desk.id = 'osDesk';
     desk.className = 'os-desk';
+    var home = makeHome('desk');
     desk.innerHTML =
       '<div class="os-desk-area">' +
         '<div class="os-icons" role="group" aria-label="Apps"></div>' +
-        '<aside class="os-widgets" aria-label="Desktop widgets">' +
-          '<div class="os-widget os-clock" aria-live="off"></div>' +
+        '<aside class="os-widgets' + (home ? ' os-hw-desk' : '') + '" aria-label="Desktop widgets">' +
+          (home ? '' : '<div class="os-widget os-clock" aria-live="off"></div>' +
           '<div class="os-widget os-quick">' +
             '<button type="button" class="btn btn-orange os-quick-btn" data-osdo="newlead">New lead</button>' +
             '<button type="button" class="btn btn-ghost os-quick-btn" data-osdo="search">Search everything</button>' +
-          '</div>' +
+          '</div>') +
         '</aside>' +
         '<div class="os-wins"></div>' +
         '<div class="os-snap" hidden></div>' +
@@ -486,6 +620,17 @@
       '</nav>';
     content.appendChild(desk);
     S.deskEl = desk;
+    S.home = home;
+    if (home) {
+      var col = desk.querySelector('.os-widgets');
+      col.appendChild(home.el);
+      var tools = doc.createElement('div');
+      tools.className = 'os-hw-tools';
+      tools.setAttribute('role', 'group');
+      tools.setAttribute('aria-label', 'Home');
+      col.appendChild(tools);
+      paintDeskTools();
+    }
     S.iconsEl = desk.querySelector('.os-icons');
     S.clockEl = desk.querySelector('.os-clock');
     S.winsEl = desk.querySelector('.os-wins');
@@ -594,6 +739,10 @@
     if (what === 'search') { if (S.startOpen) setStart(false); return openSearch(); }
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'settings') { if (S.startOpen) setStart(false); return openWin('settings'); }
+    if (what === 'homeedit') return setHomeEditing(true, true);
+    if (what === 'homedone') return setHomeEditing(false);
+    if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'wallpaper') return openWallpaper();
   }
   function onDeskClick(ev) {
     var t = ev.target;
@@ -680,6 +829,7 @@
   }
   function onDeskKey(ev) {
     if (ev.key === 'Escape' && S.startOpen) { ev.preventDefault(); setStart(false); S.startBtn.focus(); return; }
+    if (ev.key === 'Escape' && S.homeEditing) { ev.preventDefault(); setHomeEditing(false); return; }
     if (ev.key === 'Escape' && S.deskMenu) { ev.preventDefault(); closeDeskMenu(); return; }
     if (ev.key === 'Escape' && S.overview) { ev.preventDefault(); setOverview(false); return; }
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || (ev.target && ev.target.isContentEditable);
@@ -757,22 +907,30 @@
   function phonePaint() {
     if (!S || !S.phoneEl) return;
     var ordered = WM.orderApps(S.apps, S.icons);
-    var pages = WM.pages(ordered, PER_PAGE);
+    // the home widgets fill page 1 first; the icons take the cells left, then pages of 20
+    // packed (home-logic pack): any size mix fills whole rows, so pageRoom's icons stay on the page
+    var items = S.home ? W.NBDOSHomeLogic.pack(homeItems('phone')) : null;
+    // an expanded M Coach is 4 rows tall: it counts as an L here (home.js cellItems)
+    var room = items ? W.NBDOSHomeLogic.pageRoom(typeof S.home.cellItems === 'function' ? S.home.cellItems(items) : items, PER_PAGE) : PER_PAGE;
+    var rest = ordered.slice(room);
+    var pages = [ordered.slice(0, room)].concat(rest.length ? WM.pages(rest, PER_PAGE) : []);
     var c = L.clockText(new Date());
-    var h = '<div class="os-p-widgets">' +
+    var h = S.home ? '' : '<div class="os-p-widgets">' +
       '<div class="os-p-clock"><div class="os-p-time ui-num">' + esc(c.time) + '</div><div class="os-p-date">' + esc(c.date) + '</div></div>' +
       '<div class="os-p-quick">' +
         '<button type="button" class="btn btn-orange os-p-qbtn" data-osp="newlead">New lead</button>' +
         '<button type="button" class="btn btn-ghost os-p-qbtn" data-osp="search">Search</button>' +
       '</div></div>';
     if (S.editing) {
-      h += '<div class="os-p-edit" role="status"><span>' + esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : 'Tap an app, then tap where it goes.') +
-        '</span><button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
+      h += '<div class="os-p-edit' + (S.home ? ' has-home' : '') + '" role="status"><span>' +
+        esc(S.editPick ? 'Now tap where it goes (an app or a dock slot).' : (S.home ? 'Tap an app or a widget, then tap where it goes.' : 'Tap an app, then tap where it goes.')) + '</span>' +
+        (S.home ? '<button type="button" class="btn btn-ghost btn-sm" data-osp="homeadd">Add widget</button>' : '') +
+        '<button type="button" class="btn btn-ghost btn-sm" data-osp="done">Done</button></div>';
     }
     if (!S.editing) h += visitPhoneRowHtml();
     h += '<div class="os-p-pages" role="region" aria-label="Home screen" tabindex="-1">' + pages.map(function (pg, i) {
-      return '<div class="os-p-page" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
-        pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
+      return '<div class="os-p-page' + (S.home && !i ? ' os-p-home' : '') + '" role="group" aria-label="Page ' + (i + 1) + ' of ' + String(pages.length) + '">' +
+        (S.home && !i ? '<div class="os-hw-slot"></div>' : '') + pg.map(function (a) { return phoneIconHtml(a); }).join('') + '</div>';
     }).join('') + '</div>';
     if (pages.length > 1) {
       h += '<div class="os-p-dots" aria-hidden="true">' + pages.map(function (pg, i) {
@@ -780,6 +938,14 @@
       }).join('') + '</div>';
     }
     S.phoneEl.innerHTML = h;
+    // keyed reconcile: the widget nodes move into the new page 1, never rebuilt
+    var slot = S.home && S.phoneEl.querySelector('.os-hw-slot');
+    if (slot) {
+      slot.parentNode.insertBefore(S.home.el, slot);
+      slot.parentNode.removeChild(slot);
+      S.home.setEditing(!!S.editing);
+      S.home.update(items);
+    }
     var pagesEl = S.phoneEl.querySelector('.os-p-pages');
     if (pagesEl && S.page) pagesEl.scrollLeft = S.page * pagesEl.clientWidth;
     paintBar();
@@ -818,7 +984,7 @@
     closeSwitcher();
     S.phoneOpen = null;
     doc.documentElement.removeAttribute('data-os-app');
-    if (S.editing) { S.editing = false; S.editPick = null; }
+    if (S.editing) { S.editing = false; S.editPick = null; flushHome(); }
     phonePaint();
     var p = S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
     if (p) p.focus({ preventScroll: true });
@@ -892,12 +1058,22 @@
     save();
   }
 
+  // A swipe up or a long-press on the bar already did its work (home / the
+  // switcher); the click that ends the gesture must not also tap what was under
+  // the finger. First thing, before the Record button (whose click would also
+  // bubble to the recorder's document delegate), and it stops propagating.
+  // The flag clears itself: a swipe often ends with no click at all.
+  function armSwallow() {
+    S.barSwiped = true;
+    clearTimeout(S.swallowT);
+    S.swallowT = setTimeout(function () { if (S) S.barSwiped = false; }, 700);
+  }
   function onPhoneClick(ev) {
+    if (S.barSwiped) { S.barSwiped = false; clearTimeout(S.swallowT); ev.preventDefault(); ev.stopPropagation(); return; }
     var vz = ev.target.closest && ev.target.closest('[data-osvisit]');
     if (vz) { onVisitTap(vz); return; }
     var t = ev.target.closest && ev.target.closest('[data-osp]');
     if (!t) return;
-    if (S.barSwiped) { S.barSwiped = false; ev.preventDefault(); return; }
     var what = t.getAttribute('data-osp');
     var id = t.getAttribute('data-id');
     if (what === 'app') {
@@ -908,7 +1084,8 @@
     if (what === 'dockslot') return editTap(id, Number(t.getAttribute('data-slot')));
     if (what === 'home') return phoneHome();
     if (what === 'recents') return S.switcherEl ? closeSwitcher() : openSwitcher();
-    if (what === 'done') { S.editing = false; S.editPick = null; return phonePaint(); }
+    if (what === 'done') { S.editing = false; S.editPick = null; flushHome(); return phonePaint(); }
+    if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
     if (what === 'swclose') return closeSwitcher();
@@ -926,7 +1103,7 @@
     S.pressT = setTimeout(function () {
       if (!S || !S.press) return;
       S.press.fired = true;
-      if (S.press.bar) { S.barSwiped = true; openSwitcher(); }
+      if (S.press.bar) { armSwallow(); openSwitcher(); }
       else if (!S.editing) { S.editing = true; S.editPick = null; S.longPressed = true; phonePaint(); }
     }, 550);
   }
@@ -940,7 +1117,7 @@
     if (!p || ev.pointerId !== p.pid) return;
     clearTimeout(S.pressT);
     S.press = null;
-    if (p.bar && !p.fired && p.y - ev.clientY > 36 && S.phoneOpen) { S.barSwiped = true; phoneHome(); }
+    if (p.bar && !p.fired && p.y - ev.clientY > 36 && S.phoneOpen) { armSwallow(); phoneHome(); }
   }
   function onPagesScroll() {
     var p = S && S.phoneEl && S.phoneEl.querySelector('.os-p-pages');
@@ -970,8 +1147,10 @@
     var st = savedState();
     S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
     S.wins = st.wins;   // kept as-is so a laptop session survives a phone visit
+    S.desk = st.desk; S.pins = st.pins;   // the laptop's desk and taskbar pins too; the next save writes them back
     S.focus = st.focus;
     S.page = 0;
+    S.home = makeHome('phone');
     phonePaint();
     S.clockT = setInterval(function () {
       var t = S && S.phoneEl && S.phoneEl.querySelector('.os-p-time');
@@ -989,7 +1168,7 @@
     on(doc, 'keydown', function (ev) {
       if (ev.key !== 'Escape') return;
       if (S.switcherEl) { ev.preventDefault(); closeSwitcher(); }
-      else if (S.editing) { S.editing = false; S.editPick = null; phonePaint(); }
+      else if (S.editing) { S.editing = false; S.editPick = null; flushHome(); phonePaint(); }
     });
     // the phone opens on the home screen
     doc.documentElement.removeAttribute('data-os-app');
@@ -1093,7 +1272,7 @@
     if (S) return;
     S = {
       surface: (ctx && ctx.surface) || 'desktop', apps: [], wins: [], focus: null, order: [], icons: [], dock: [], recent: [],
-      origins: {}, unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
+      origins: {}, viewOrder: [], unbind: [], drag: null, iconDrag: null, startOpen: false, routing: false, phoneOpen: null,
       desk: 0, pins: [], overview: false, deskMenu: null,
     };
     S.apps = readApps();
@@ -1101,6 +1280,8 @@
     if (S.surface === 'phone') mountPhone(); else mountDesk();
     watchViews();
     watchVisits();
+    registerControls();
+    on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1118,7 +1299,7 @@
     S.appsT = setTimeout(function () {
       if (!S) return;
       S.apps = readApps();
-      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); }
+      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); refreshHome(); }
     }, 3000);
   }
   function unmount() {
@@ -1126,12 +1307,16 @@
     var st = S;
     // a change still waiting to be saved is written now, not dropped
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
-    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT);
+    flushHome();
+    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.ctrlT);
+    unregisterControls();
     if (st.mo) st.mo.disconnect();
+    if (st.home) safe(function () { st.home.unmount(); });
     st.unbind.forEach(function (f) { safe(f); });
     Object.keys(st.origins).forEach(function (id) { release(id); });
     if (st.switcherEl && st.switcherEl.parentNode) st.switcherEl.parentNode.removeChild(st.switcherEl);
     clearTimeout(st.pressT);
+    clearTimeout(st.swallowT);
     doc.documentElement.removeAttribute('data-os-app');
     ['osDesk', 'osPhone', 'osBar'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
     doc.documentElement.removeAttribute('data-os-surface');

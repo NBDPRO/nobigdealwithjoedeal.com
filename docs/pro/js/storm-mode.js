@@ -708,6 +708,25 @@
     var tabBtn = ev.target && ev.target.closest && ev.target.closest('[data-action="settingsTab"][data-target="appearance"]');
     if (tabBtn) setTimeout(renderPanel, 50);
   });
+  // CRM audit 2026-11-06 (ST-F28): Appearance also opens without a click on its
+  // tab (#/settings/appearance, goTo('settings', { id: 'appearance' }), Apply
+  // Theme's re-open in ui.js), which left this panel on "Loading". Paint on
+  // switchSettingsTab too (the company-docs-ui.js wrap). A paint that throws
+  // must not stop the other tab hooks chained on top.
+  function installTabHook() {
+    var prev = window.switchSettingsTab;
+    if (typeof prev !== 'function') return false;
+    if (prev.__smWrapped) return true;
+    var wrapped = function (tab) {
+      var out = prev.apply(this, arguments);
+      if (tab === 'appearance') { try { renderPanel(); } catch (e) { /* the panel keeps its Loading line */ } }
+      return out;
+    };
+    Object.keys(prev).forEach(function (k) { try { wrapped[k] = prev[k]; } catch (_) { /* read-only flag */ } });
+    wrapped.__smWrapped = true;
+    window.switchSettingsTab = wrapped;
+    return true;
+  }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && loadCfg().enabled && clock() - lastPollAt > POLL_MS) poll();
   });
@@ -715,6 +734,11 @@
   function boot() {
     loadCfg();
     renderPanel();
+    // This lazy bundle can run before the deferred ui.js defines switchSettingsTab.
+    if (!installTabHook()) {
+      var tries = 0;
+      var iv = setInterval(function () { if (installTabHook() || ++tries > 120) clearInterval(iv); }, 500);
+    }
     if (cfg.enabled) start();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

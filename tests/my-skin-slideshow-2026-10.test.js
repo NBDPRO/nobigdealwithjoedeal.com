@@ -111,7 +111,8 @@ console.log('\n5. page contract');
   ok('removing a picture deletes the object only when nothing else uses it', /removeThemeImage[\s\S]*?deleteUnreferenced\(gone\)/.test(J));
   ok('reorder: pointer drag by the handle and ArrowUp/ArrowDown on the item', /data-myskin-handle/.test(J) && /e\.key !== 'ArrowUp' && e\.key !== 'ArrowDown'/.test(J) && /touch-action: none/.test(read('docs/pro/css/my-skin.css')));
   ok('"use for all" and share-with-category are two-tap', /twoTap\('all'/.test(J) && /twoTap\('copy'/.test(J));
-  ok('still no token URL, still no browser storage for settings', !/getDownloadURL/.test(J) && !/localStorage/.test(J));
+  // 2026-11-08: the one localStorage use allowed is the nbd_myskin_boot load hint for my-skin-boot.js (never settings; an nbd_ key, wiped at sign-out).
+  ok('still no token URL, still no browser storage for settings', !/getDownloadURL/.test(J) && (J.match(/localStorage/g) || []).length === (J.match(/localStorage\.(?:setItem\('nbd_myskin_boot', '1'\)|removeItem\('nbd_myskin_boot'\))/g) || []).length);
   const D = read('docs/pro/dashboard.html');
   const ids = ['myskinStrip', 'myskinThemeShowDefault', 'myskinThemeInterval', 'myskinThemeOrder', 'myskinThemeFade', 'myskinShowNote',
     'myskinShowInterval', 'myskinShowOrder', 'myskinShowFade', 'myskinShowReset'];

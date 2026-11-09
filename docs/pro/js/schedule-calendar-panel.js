@@ -131,6 +131,11 @@
         snap.forEach(function (d) { out.push(Object.assign({ id: d.id }, d.data())); });
         return { ok: true, list: out };
       }, function (e) {
+        // firestore.rules: appointments are readable by isOwner(resource.data.userId)
+        // or a platform admin, so the repUid query is permission-denied for everyone
+        // else BY DESIGN (today-home.js skips it the same way). Not worth a warning;
+        // the userId lane carries the owner's rows, and failed still needs BOTH.
+        if (field === 'repUid' && e && e.code === 'permission-denied') return { ok: false, list: [] };
         if (W.console) W.console.warn('[schedule-cal] ' + field + ' bookings read failed:', (e && (e.code || e.message)) || e);
         return { ok: false, list: [] };
       });

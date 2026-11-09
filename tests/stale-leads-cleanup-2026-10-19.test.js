@@ -315,7 +315,9 @@ const staleLeads = () => [mk('ZZ_QA_1'), mk('ZZ_QA_2'), mk('ZZ_QA_3'), mk('ZZ_QA
   ok('no inline handlers or styles in the generated markup', !/\son[a-z]+=/.test(CODE) && !/style="/.test(CODE));
   const html = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
   ok('dashboard: button ships hidden', /id="staleLeadsBtn"[^>]*\shidden/.test(html));
-  ok('dashboard: external deferred script + stylesheet', /<script defer src="js\/stale-leads-cleanup\.js\?v=\d+"><\/script>/.test(html) && /css\/stale-leads-cleanup\.css/.test(html));
+  // 2026-11-08: the file is the lazy 'staleleads' ScriptLoader bundle, registered and loaded by js/dark-features.js when the flag is on; no eager tag.
+  const DF = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dark-features.js'), 'utf8');
+  ok('dashboard: lazy bundle (no eager tag) + stylesheet', !/<script[^>]*src="js\/stale-leads-cleanup\.js/.test(html) && /staleleads:\s*\['js\/stale-leads-cleanup\.js\?v=\d+'\]/.test(DF) && /bulkCloseStaleLeads:\s*'staleleads'/.test(DF) && /<script defer src="js\/dark-features\.js\?v=\d+"><\/script>/.test(html) && /css\/stale-leads-cleanup\.css/.test(html));
   const css = fs.readFileSync(path.join(ROOT, 'docs/pro/css/stale-leads-cleanup.css'), 'utf8');
   ok('phone fit: card layout under 480px, rows stop being table cells', /@media \(max-width: 480px\)[\s\S]*\.slc-table tr[\s\S]*display: block/.test(css));
   ok('phone fit: 44px tap targets', /\.slc-btn[^}]*min-height: 44px/.test(css) && /\.slc-sel[^}]*min-height: 44px/.test(css));

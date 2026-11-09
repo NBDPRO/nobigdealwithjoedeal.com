@@ -6,7 +6,9 @@
  * here runs in plain Node (tests/nbd-os-system-2026-11-06.test.js):
  *
  *   trayItems(input)        what the status tray shows, in order
- *   holdToast(type, dnd)    Do Not Disturb: which toasts wait in the centre
+ *   toastEntry(a, b)        both showToast signatures -> { message, type, undo }
+ *   holdToast(type, dnd, hasUndo)  Do Not Disturb: which toasts wait in the centre
+ *   clockAlerts(items)      the tray items the phone's clock carries as dots
  *   pushHistory(list, e)    the session toast history, newest first, capped
  *   groupNotifications(xs)  Notification Center sections, in a fixed order
  *   readNav(doc)            the sidebar goTo entries (browser; takes the document)
@@ -58,11 +60,36 @@
     return out;
   }
 
-  /** DND holds the routine toasts; warnings and errors always show. */
-  function holdToast(type, dnd) {
-    if (!dnd) return false;
+  /**
+   * ui.js showToast takes two shapes: showToast('msg', 'type') and
+   * showToast({ message, type, undoAction, ... }). One entry for both
+   * (2026-11-08: the DND wrapper read only the first, so an object toast lost
+   * its type and undo and the history showed "[object Object]").
+   */
+  function toastEntry(a, b) {
+    if (a && typeof a === 'object') {
+      return { message: a.message == null ? '' : String(a.message), type: a.type || 'info', undo: typeof a.undoAction === 'function' };
+    }
+    return { message: a == null ? '' : String(a), type: b || 'info', undo: false };
+  }
+
+  /** DND holds the routine toasts; warnings, errors and anything with an undo always show. */
+  function holdToast(type, dnd, hasUndo) {
+    if (!dnd || hasUndo) return false;
     var t = String(type || 'info');
     return t === 'info' || t === 'success';
+  }
+
+  /**
+   * Phones show the clock alone, so it carries a dot for anything that needs
+   * attention: offline, storm, away, and DND (quiet; it persists across
+   * sessions, so a phone must show that toasts are being held). Unread stays
+   * on the bell beside it.
+   */
+  function clockAlerts(items) {
+    return (Array.isArray(items) ? items : []).filter(function (it) {
+      return it && (it.tone === 'warn' || (it.tone === 'alert' && it.id !== 'notifs') || it.id === 'dnd');
+    });
   }
 
   var HISTORY_MAX = 50;
@@ -223,6 +250,18 @@
     var first = words[0].charAt(0), second = words.length > 1 ? words[1].charAt(0) : (words[0].charAt(1) || '');
     return (first + second).toUpperCase();
   }
+  /**
+   * The boot / lock mark from a company's OWN brand, when its letterhead has
+   * no business name: the seal it reserved, else initials of its display
+   * name, else of its legal name; '' when it set none (no mark, never another
+   * company's letters). Pass the RAW override (window._brandOverride()), not
+   * the merged profile, whose blanks are filled with the platform's defaults.
+   */
+  function brandMark(brand) {
+    var b = brand && typeof brand === 'object' ? brand : {};
+    var seal = typeof b.seal === 'string' ? b.seal.trim().slice(0, 4) : '';
+    return seal || companyMark(b.displayName) || companyMark(b.legalName);
+  }
   /** The boot screen's steps, each { label, done } in order. */
   function bootSteps(s) {
     var x = s || {};
@@ -253,8 +292,8 @@
 
   var api = {
     LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
-    companyMark: companyMark, bootSteps: bootSteps, settingsActions: settingsActions,
-    trayItems: trayItems, holdToast: holdToast, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
+    companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
+    trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
     groupNotifications: groupNotifications, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav,
     systemActions: systemActions, clockText: clockText,
   };

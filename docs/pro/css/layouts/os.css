@@ -159,8 +159,9 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
   .os-win-grip { width: 28px; height: 28px; }
   .os-start-btn, .os-task, .os-start-app { min-height: 44px; }
 }
-/* small laptop: the widgets would sit under windows; the clock lives in the tray anyway */
-@media (max-width: 1100px) { .os-widgets { display: none; } }
+/* small laptop: the fallback widgets would sit under windows; the clock lives in the tray anyway.
+   The home widget list (.os-hw-desk, css/os/home.css) collapses to one column instead. */
+@media (max-width: 1100px) { .os-widgets:not(.os-hw-desk) { display: none; } }
 
 /* ═══ PHONE: home screen, bar, app switcher ═════════════════ */
 html[data-layout="os"][data-os-surface="phone"] .sidebar,

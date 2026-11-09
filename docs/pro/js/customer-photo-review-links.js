@@ -10,7 +10,7 @@
           // photo-review page.
           //
           // Robust fix: intercept the click and read window._customerId
-          // AT CLICK TIME. The href stays a no-op placeholder; the click
+          // AT CLICK TIME. The href starts as a placeholder; the click
           // handler navigates manually. No timing windows.
           (function () {
             var btn = document.getElementById('prReviewBtn');
@@ -22,12 +22,27 @@
                 if (typeof window.showToast === 'function') {
                   window.showToast('Still loading the customer — try again in a moment.', 'error');
                 } else {
-                  alert('Customer still loading — try again in a moment.');
+                  console.warn('Customer still loading — try again in a moment.');
                 }
                 return;
               }
               window.location.href = (window.NBDUrl && window.NBDUrl.photoReview(id))
                 || ('/pro/photo-review?id=' + encodeURIComponent(id));
+            });
+            // CU-F20 (CRM audit 2026-11-06): middle-click, long-press and
+            // "open in new tab" use the href and never fire the click above,
+            // so they opened the empty placeholder. Point the href at this
+            // customer as the rep reaches for the link: each of these events
+            // fires before the browser opens its menu or the new tab, and the
+            // id is still read at that moment, so there is no timing window.
+            function sync() {
+              var id = window._customerId;
+              if (!id) return;
+              btn.href = (window.NBDUrl && window.NBDUrl.photoReview(id))
+                || ('/pro/photo-review?id=' + encodeURIComponent(id));
+            }
+            ['pointerdown', 'focus', 'contextmenu', 'touchstart'].forEach(function (t) {
+              btn.addEventListener(t, sync, { passive: true });
             });
           })();
         

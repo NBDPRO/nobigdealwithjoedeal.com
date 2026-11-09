@@ -26,7 +26,7 @@ test.describe.serial('Sort my customers @shard3', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window.addDoc === 'function' && !!window.db && !!window._user
-      && typeof window._loadLeads === 'function' && !!window.NBDSortCustomers && typeof window.suggestJobType === 'function', null, { timeout: 40_000 });
+      && typeof window._loadLeads === 'function' && typeof window.suggestJobType === 'function', null, { timeout: 40_000 });
 
     const tok = 'Zs' + Date.now();
     const ids = await safeEvaluate(page, async (tok) => {
@@ -45,6 +45,8 @@ test.describe.serial('Sort my customers @shard3', () => {
     }, tok);
 
     await safeEvaluate(page, () => { try { localStorage.setItem('nbd_crm_show_prospects', '0'); } catch (_) {} window.goTo('crm'); });
+    // 2026-11-08 (boot-weight lane): sort-customers.js is no longer a boot tag; the first Pipeline render loads it.
+    await safeWaitForFunction(page, () => !!window.NBDSortCustomers, null, { timeout: 20_000 });
     const skipTour = page.getByText('Skip tour', { exact: true });
     if (await skipTour.isVisible().catch(() => false)) await skipTour.click().catch(() => {});
 

@@ -2637,7 +2637,7 @@
 
   async function loadTerritories() {
     try {
-      const q = window.query(window.collection(window._db, 'territories'), window.where('companyId', '==', state.currentRep?.companyId || 'default'));
+      const q = window.query(window.collection(window._db, 'territories'), window.where('companyId', '==', state.currentRep?.companyId || window._userClaims?.companyId || window._user?.uid));
       const snap = await window.getDocs(q);
       state.territories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (e) { console.error('loadTerritories failed:', e); }
@@ -5078,6 +5078,9 @@
   // INITIALIZATION
   // ============================================================================
   async function initD2D() {
+    // goTo() closes the live team listener when the rep leaves D2D
+    // (window.D2D.leaveView); re-open it on entry while team mode is on.
+    if (state.teamMode && typeof _teamUnsub !== 'function') subscribeTeamActivity();
     if (state.d2dInited) {
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
       if (state.d2dMap) setTimeout(() => state.d2dMap.invalidateSize(), 100);

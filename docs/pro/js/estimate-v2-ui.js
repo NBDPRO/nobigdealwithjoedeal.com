@@ -341,6 +341,21 @@
     if (html) sel.insertAdjacentHTML('beforeend', html);
   }
 
+  // The Add-Ons labels quote the price the engine charges (CRM audit
+  // 2026-11-06, ED-F08): the company's companyProfile.pricing.addonPrices, not
+  // the template's literals. Refreshed on every open for the same reason as
+  // the county tail. No engine, or no number for a key: the label keeps its text.
+  function _refreshAddonPriceLabels() {
+    const B = window.EstimateBuilderV2;
+    if (!B || typeof B.effectiveAddonPrices !== 'function') return;
+    let p;
+    try { p = B.effectiveAddonPrices() || {}; } catch (_) { return; }
+    document.querySelectorAll('#estV2Modal [data-addon-price]').forEach(el => {
+      const v = p[el.getAttribute('data-addon-price')];
+      if (v != null && v !== '' && Number.isFinite(Number(v))) el.textContent = _fmtTotal(v);
+    });
+  }
+
   function ensureModal() {
     if (document.getElementById('estV2Modal')) return;
 
@@ -1137,19 +1152,19 @@
                handles both paths from the same state shape. -->
           <div class="v2-section">Add-Ons</div>
           <label class="v2-field inline v2-check" for="v2chimneyFlash">
-            <span>Chimney Flashing (+$425)</span>
+            <span>Chimney Flashing (+<span data-addon-price="chimneyFlash">$425</span>)</span>
             <input type="checkbox" id="v2chimneyFlash" data-field="hasChimneyFlash">
           </label>
           <label class="v2-field inline v2-check" for="v2skylightFlash">
-            <span>Skylight Flashing (+$350)</span>
+            <span>Skylight Flashing (+<span data-addon-price="skylightFlash">$350</span>)</span>
             <input type="checkbox" id="v2skylightFlash" data-field="hasSkylightFlash">
           </label>
           <div class="v2-field">
-            <label>Valley Metal LF (@ $8.50)</label>
+            <label>Valley Metal LF (@ <span data-addon-price="valleyMetalLf">$8.50</span>)</label>
             <input type="number" id="v2valleyMetalLf" placeholder="0" min="0" data-field="valleyMetalLf">
           </div>
           <div class="v2-field">
-            <label>Gutters LF (@ $8.50)</label>
+            <label>Gutters LF (@ <span data-addon-price="guttersLf">$8.50</span>)</label>
             <input type="number" id="v2guttersLf" placeholder="0" min="0" data-field="guttersLf">
           </div>
 
@@ -5418,6 +5433,7 @@
     opts = opts || {};
     ensureModal();
     _refreshTenantCountyOptions();
+    _refreshAddonPriceLabels();
     document.getElementById('estV2Modal').classList.add('open');
     // Phase 1b: pick the mobile starting step — a REOPENED estimate lands
     // on Review (scope + total + save/export, the "look at it" step); a

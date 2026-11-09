@@ -396,6 +396,14 @@ function openQuickAddLead() {
   // the first option, which is what the markup ships as the default.
   const qaDamage = document.getElementById('qaDamage'); if (qaDamage) qaDamage.selectedIndex = 0;
   const qaSource = document.getElementById('qaSource'); if (qaSource) qaSource.selectedIndex = 0;
+  // Job type: blank, or the board's own type on insurance/cash/finance — the
+  // same whitelist openLeadModal uses (crm-leads.js). Untyped leads land in
+  // "Sort my customers" and off the typed boards (PL-F15, 2026-11-08).
+  const qaJobType = document.getElementById('qaJobType');
+  if (qaJobType) {
+    const view = window._currentViewKey || '';
+    qaJobType.value = ['insurance','cash','finance'].includes(view) ? view : '';
+  }
   // Start from no coordinates: an abandoned "Use my location" from an earlier
   // Quick-Add would otherwise still be armed and stamp this lead with the old
   // house's location if the address doesn't geocode.
@@ -549,7 +557,8 @@ async function saveQuickLead() {
       notes: '',
       followUp: '',
       insCarrier: '',
-      jobValue: '',
+      jobType: document.getElementById('qaJobType')?.value || '',
+      jobValue: 0,
       claimStatus: 'No Claim',
       // Tag the source path so usage analytics can see Quick-Add uptake
       // separately from the full-form / D2D-convert flows.

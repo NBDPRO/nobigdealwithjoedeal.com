@@ -283,11 +283,15 @@ console.log('\nDOM/action wiring (source-text)');
 {
   const leadsSrc = fs.readFileSync(path.join(PRO_JS, 'crm-leads.js'), 'utf8');
   for (const f of ['contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt']) {
-    ok(`saveLead() payload includes ${f} (checked -> ISO string, else '')`,
-      new RegExp(f + ":\\s*document\\.getElementById\\('l\\w+'\\)\\?\\.checked \\? new Date\\(\\)\\.toISOString\\(\\) : ''").test(leadsSrc));
+    // 2026-11-08 (CRM audit PL-F10): the five lines go through filedStamp(id), which keeps the stamp
+    // editLead stored on the box (data-filed-at), stamps now for a box ticked in this edit, '' when unticked.
+    ok(`saveLead() payload includes ${f} (checked -> kept stamp or now as ISO, else '')`,
+      new RegExp(f + ":\\s*filedStamp\\('l\\w+'\\)").test(leadsSrc)
+      && /const filedStamp = \(id\) => \{ const e=document\.getElementById\(id\); if\(!e\|\|!e\.checked\) return ''; return \(e\.dataset && e\.dataset\.filedAt\) \|\| new Date\(\)\.toISOString\(\); \};/.test(leadsSrc));
   }
-  ok('modal reset clears the 5 filed checkboxes via .checked=false (NOT .value=\'\' — a no-op on a checkbox)',
-    /\['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'\]\.forEach\(id=>\{ const e=document\.getElementById\(id\); if\(e\) e\.checked=false; \}\)/.test(leadsSrc));
+  // 2026-11-08 (PL-F10): the reset also clears the stored stamp the box carries (data-filed-at).
+  ok('modal reset clears the 5 filed checkboxes via .checked=false (NOT .value=\'\' — a no-op on a checkbox) and their stored stamps',
+    /\['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'\]\.forEach\(id=>\{ const e=document\.getElementById\(id\); if\(e\)\{ e\.checked=false; if\(e\.dataset\) e\.dataset\.filedAt=''; \} \}\)/.test(leadsSrc));
 }
 {
   const bridgeSrc = fs.readFileSync(path.join(PRO_JS, 'crm-portal-bridge.js'), 'utf8');

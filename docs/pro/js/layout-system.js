@@ -332,7 +332,7 @@
     blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
     surfaces: SURFACES, tier: 'free', flag: 'osLayout',
     script: 'js/layouts/os.js', css: 'css/layouts/os.css',
-    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js'] },
+    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js'], css: ['css/os/home.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
@@ -637,6 +637,16 @@
     hydrating = hydrateOnce().then(function (ok) { hydrating = null; return ok; }, function (e) { hydrating = null; throw e; });
     return hydrating;
   }
+  // The NBD OS home's Daily Success line reads the tracker's snapshot from the
+  // doc this read already has: floors met / of, streak state and week % only,
+  // never weight, money or the scorecard, and never in the prefs cache.
+  var dsLite = null;
+  function liteDs(s) {
+    if (!s || !s.today) return null;
+    var f = Array.isArray(s.today.floors) ? s.today.floors : [], st = s.streak || {};
+    return { dk: s.today.dk, asOf: s.asOf, met: f.filter(function (x) { return x && x.met === true; }).length, of: f.length,
+      warned: st.warned === true, broken: st.broken === true, pct: s.week ? s.week.pct : null };
+  }
   function hydrateOnce() {
     uid = window._user.uid;
     var cached = parse(lsGet(PREFS_KEY));
@@ -647,8 +657,9 @@
       // another account's cache: forget it before it can influence anything
       user = R.normalizeUser(null); company = R.normalizeCompany(null);
     }
+    dsLite = null;
     var userRead = readDoc(window.doc(window.db, 'userSettings', uid), 'layout', 0)
-      .then(function (d) { return d.layout || null; }, function () { return undefined; });
+      .then(function (d) { dsLite = liteDs(d.dsSnapshot); return d.layout || null; }, function () { return undefined; });
     var companyRead = companyKey().then(function (key) {
       if (!key) return undefined;
       return readDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), 'defaultLayout', 0)
@@ -705,17 +716,21 @@
     if (p.density && typeof p.density === 'object') {
       Object.keys(p.density).forEach(function (k) { if (p.density[k] == null) delete next.density[k]; else next.density[k] = p.density[k]; });
     }
-    if (p.layoutState && typeof p.layoutState === 'object') {
-      Object.keys(p.layoutState).forEach(function (k) { next.layoutState[k] = p.layoutState[k]; });
-    }
+    // Only the keys this call patched are written (the cache merges them in): a
+    // whole-map write from a stale tab put back keys another tab had changed.
+    // A key over the per-key budget is dropped here, so neither copy changes.
+    var patched = p.layoutState && typeof p.layoutState === 'object' ? R.normalizeUser({ layoutState: p.layoutState }).layoutState : {};
+    Object.keys(patched).forEach(function (k) { next.layoutState[k] = patched[k]; });
     user = R.normalizeUser(next);
     writePrefsCache();
     var wrote = Promise.resolve(false);
     try {
       if (uid && window.db && window.doc && window.setDoc) {
         // null (not absent) so a cleared override is cleared in the merged doc.
-        var out = { id: user.id, byDevice: {}, glove: user.glove, layoutState: user.layoutState, density: user.density };
+        var out = { id: user.id, byDevice: {}, glove: user.glove, density: user.density };
         R.SURFACES.forEach(function (s) { out.byDevice[s] = user.byDevice[s] || null; });
+        // never an empty map: under merge it would replace the stored layoutState
+        Object.keys(patched).forEach(function (k) { (out.layoutState = out.layoutState || {})[k] = user.layoutState[k]; });
         wrote = Promise.resolve(window.setDoc(window.doc(window.db, 'userSettings', uid), { layout: out }, { merge: true }))
           .then(function () { return true; }, function (err) {
             console.warn('[layout] Firestore sync failed:', err && err.message);
@@ -831,14 +846,17 @@
     // A layout switched on or off changes what resolves; re-apply the answer.
     refresh();
     if (flags[SYSTEM_FLAG]) loadSystemLayer();
+    // A cache-less first load painted the layer before the flags arrived (boot
+    // below); an exact false takes it down (OS-KILLSWITCH-FIRST-LOAD).
+    else if (systemLoading) systemLoading.then(function () { var S = window.NBDOS; if (S && typeof S.off === 'function') S.off(); });
   }
   R.setFlagCheck(isFlagOn);
 
   // NBD OS System layer (phase 1): the tray, Control Center, Notification
   // Center and Spotlight entries, over EVERY layout. Lazy (no <script> tag, so
   // the boot budget is untouched) and only while `osSystemLayer` is on. Once
-  // loaded it stays for the page's life; turning the flag off takes effect on
-  // the next load.
+  // loaded it stays for the page's life, unless the flag read after a
+  // cache-less first load says false: onFlagsLoaded then takes it down.
   var SYSTEM_FLAG = 'osSystemLayer';
   var systemLoading = null;
   function loadSystemLayer() {
@@ -886,6 +904,7 @@
     surface: surface, resolve: resolveNow, hydrate: hydrate,
     current: function () { return { id: current.id, source: current.source, surface: current.surface }; },
     prefs: function () { return { user: user, company: company, hydrated: hydrated, uid: uid }; },
+    ds: function () { return dsLite; },
     // picker hook (D2): admin default read by the company settings UI
     _setCompany: function (c) { company = R.normalizeCompany(c); writePrefsCache(); return refresh(); },
   };

@@ -57,11 +57,11 @@ window.subscribe = async function(plan, evt) {
     // wall they'd have no account for. Returning users use register's prominent
     // "Sign in here" link; the intent register.js stashed survives the
     // register→login→pricing bounce in sessionStorage, so their checkout still
-    // resumes. Only pass a validated plan into the URL.
+    // resumes. Only pass a validated plan into the URL. Straight there: a
+    // native confirm() asked a stranger to agree to the page they were already
+    // asking for (CRM audit ST-F63, 2026-11-08; the dialog rule).
     const safePlan = (plan === 'starter' || plan === 'team' || plan === 'growth') ? plan : '';
-    if (confirm('Create your account to continue to checkout?')) {
-      window.location.href = '/pro/register.html' + (safePlan ? '?plan=' + safePlan : '');
-    }
+    window.location.href = '/pro/register.html' + (safePlan ? '?plan=' + safePlan : '');
     return;
   }
 

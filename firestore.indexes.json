@@ -482,6 +482,25 @@
       ]
     },
     {
+      "_comment": "Team Manager activity pane (docs/pro/js/admin-manager.js showActivity, TM-ACTIVITY-PAGED): a teammate row reads where('companyId','==',claim).where('userId','==',uid).orderBy('createdAt','desc').limit(15). Until this builds the pane falls back to the unbounded read.",
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "_comment": "Audit #4 / 5.2: anniversaryAutoTouch query where('userId','==').where('stage','in',COMPLETE_STAGES) — read only completed leads instead of scanning the whole pipeline per user.",
       "collectionGroup": "leads",
       "queryScope": "COLLECTION",

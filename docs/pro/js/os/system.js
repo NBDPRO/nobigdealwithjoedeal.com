@@ -25,7 +25,8 @@
  * textContent. No inline handlers or styles: one delegated listener.
  *
  * window.NBDOS: { open(panel), close(), refresh(), isDnd(), setDnd(on), history(),
- *                 registerControl(def) }  (registerControl: phase 4 adds Lock).
+ *                 registerControl(def), off() }  (registerControl: phase 4 adds Lock;
+ *                 off: layout-system.js tears the layer down when the live flag says false).
  */
 (function () {
   'use strict';
@@ -72,8 +73,15 @@
   function markText() {
     var m = L.companyMark(companyName());
     if (m) return m;
-    var lm = doc.querySelector('header .logo-mark');
-    return lm ? String(lm.textContent || '').trim().slice(0, 4) : '';
+    // The header's .logo-mark is the PLATFORM's letters (dashboard.html), so
+    // only the platform tenant, by identity, falls back to it. Another company
+    // gets the mark of its own brand, read from the RAW override (the merged
+    // profile fills its blanks with the platform's defaults), or none at all.
+    if (typeof w._isNbdPlatformTenant === 'function' && call(function () { return w._isNbdPlatformTenant(); }) === true) {
+      var lm = doc.querySelector('header .logo-mark');
+      return lm ? String(lm.textContent || '').trim().slice(0, 4) : '';
+    }
+    return L.brandMark(typeof w._brandOverride === 'function' ? call(function () { return w._brandOverride(); }) : null);
   }
   function motionReducedNow() {
     if (doc.documentElement.getAttribute('data-motion') === 'reduce') return true;
@@ -107,8 +115,9 @@
   // moment the data is there (never longer than the real load), after 6 s at
   // most, or on any tap. Skipped with reduced motion or when already loaded.
   function dataReady() { return Array.isArray(w._leads); }
+  function bootStepsNow() { return L.bootSteps({ signedIn: !!(w._user && w._user.uid), dataReady: dataReady() }); }
   function bootHtml() {
-    var steps = L.bootSteps({ signedIn: !!(w._user && w._user.uid), dataReady: dataReady() });
+    var steps = bootStepsNow();
     var name = companyName();
     return '<div class="os-boot-card">' +
       '<div class="os-boot-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
@@ -116,6 +125,20 @@
       '<ol class="os-boot-steps">' + steps.map(function (s) {
         return '<li class="' + (s.done ? 'is-done' : '') + '"><span class="os-boot-tick" aria-hidden="true">' + (s.done ? '✓' : '') + '</span>' + esc(s.label) + '</li>';
       }).join('') + '</ol></div>';
+  }
+  // Each tick marks the steps that finished IN PLACE (class + tick glyph): the
+  // aria-live region is built once, so a screen reader hears the status once,
+  // not a fresh copy of it every 250 ms.
+  function paintBoot(el) {
+    var steps = bootStepsNow();
+    var items = el.querySelectorAll('.os-boot-steps li');
+    for (var i = 0; i < steps.length && i < items.length; i++) {
+      var done = !!steps[i].done;
+      if (items[i].classList.contains('is-done') === done) continue;
+      items[i].classList.toggle('is-done', done);
+      var tick = items[i].querySelector('.os-boot-tick');
+      if (tick) tick.textContent = done ? '✓' : '';
+    }
   }
   function boot() {
     var seen = false;
@@ -131,7 +154,7 @@
     var started = Date.now();
     var t = setInterval(function () {
       if (!doc.contains(el)) { clearInterval(t); return; }
-      el.innerHTML = bootHtml();
+      paintBoot(el);
       if (dataReady() || Date.now() - started > 6000) { clearInterval(t); finish(); }
     }, 250);
     function finish() {
@@ -174,12 +197,19 @@
     if (!el) return;
     var c = L.clockText(new Date());
     var lines = L.lockLines({ unread: unreadCount(), pending: pendingCount(), online: w.navigator ? w.navigator.onLine !== false : true });
-    el.innerHTML = '<div class="os-lock-inner">' +
-      '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
-      '<div class="os-lock-time ui-num">' + esc(c.time) + '</div>' +
-      '<div class="os-lock-date">' + esc(c.date) + '</div>' +
-      '<ul class="os-lock-lines">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
-      '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+    // Built once. Every 15 s tick after that repaints only the text that
+    // changes (time, counts): the Unlock button node stays, so focus survives.
+    if (!el.firstChild) {
+      el.innerHTML = '<div class="os-lock-inner">' +
+        '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+        '<div class="os-lock-time ui-num"></div>' +
+        '<div class="os-lock-date"></div>' +
+        '<ul class="os-lock-lines"></ul>' +
+        '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+    }
+    el.querySelector('.os-lock-time').textContent = c.time;
+    el.querySelector('.os-lock-date').textContent = c.date;
+    el.querySelector('.os-lock-lines').innerHTML = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
   }
   function unlock() {
     if (!state.locked) return;
@@ -256,8 +286,8 @@
     });
     var clock = L.clockText(new Date());
     // Phones show the clock alone, so it carries a dot for anything that
-    // needs attention (offline, storm, away) and says so in its label.
-    var alerts = items.filter(function (it) { return it.tone === 'warn' || (it.tone === 'alert' && it.id !== 'notifs'); });
+    // needs attention (offline, storm, away, Do Not Disturb) and says so in its label.
+    var alerts = L.clockAlerts(items);
     var dotsHtml = alerts.map(function (it) {
       return '<span class="os-clock-dot os-tone-' + esc(it.tone) + '" aria-hidden="true"></span>';
     }).join('');
@@ -272,7 +302,7 @@
   }
   function paintTray() {
     var host = doc.querySelector('header .hright');
-    if (!host) return;
+    if (!host || state.off) return;
     var tray = byId('osTray');
     if (!tray) {
       tray = doc.createElement('div');
@@ -505,9 +535,10 @@
   function wrapToast() {
     var orig = w.showToast;
     if (typeof orig !== 'function' || orig.__nbdOs) return;
-    var wrapped = function (message, type) {
-      var held = L.holdToast(type, state.dnd);
-      state.history = L.pushHistory(state.history, { message: message, type: type, ts: Date.now(), held: held });
+    var wrapped = function (a, b) {
+      var t = L.toastEntry(a, b);   // both signatures: ('msg', 'type') and ({ message, type, undoAction })
+      var held = L.holdToast(t.type, state.dnd, t.undo);
+      state.history = L.pushHistory(state.history, { message: t.message, type: t.type, ts: Date.now(), held: held });
       if (state.open === 'notifs') paintSheet();
       if (held) { paintTray(); return undefined; }
       return orig.apply(this, arguments);
@@ -527,7 +558,7 @@
   var registered = [];
   function registerSpotlight() {
     var C = w.NBDCommand;
-    if (!C || typeof C.registerAction !== 'function') return;
+    if (!C || typeof C.registerAction !== 'function' || state.off) return;
     registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
     registered = [];
     L.settingsActions(settingsTabs()).forEach(function (a) {
@@ -587,6 +618,7 @@
 
   var refreshT = null;
   function refresh() {
+    if (state.off) return;
     clearTimeout(refreshT);
     refreshT = setTimeout(function () { paintTray(); paintSheet(); }, 50);
   }
@@ -598,12 +630,18 @@
     }]);
     if (state.open === 'control') paintSheet();
   }
+  /** Take a registered tile down again (the NBD OS layout's Edit Home, when that layout unmounts). */
+  function unregisterControl(id) {
+    var n = state.controls.length;
+    state.controls = state.controls.filter(function (c) { return c.id !== id; });
+    if (n !== state.controls.length && state.open === 'control') paintSheet();
+  }
 
   function init() {
     doc.documentElement.classList.add('os-system');
     boot();
     ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { doc.addEventListener(ev, noteActivity, { passive: true, capture: true }); });
-    setInterval(checkIdle, 15000);
+    timers.push(setInterval(checkIdle, 15000));
     // Settings tabs join Spotlight once the Settings view has hydrated (role gating applied)
     var sv = byId('view-settings');
     if (sv && typeof MutationObserver === 'function') {
@@ -619,17 +657,38 @@
     doc.addEventListener('layoutchange', function () { refresh(); registerSpotlight(); });
     doc.addEventListener('themechange', refresh);
     // the clock, and the counts that have no event of their own
-    setInterval(refresh, 30000);
+    timers.push(setInterval(refresh, 30000));
     // the sidebar is filled per role after auth: register apps again once it settles
     setTimeout(registerSpotlight, 4000);
+  }
+
+  // Teardown for layout-system.js: a first load from an empty flag cache paints
+  // the layer before feature_flags arrive; an exact osSystemLayer:false then
+  // takes it down (OS-KILLSWITCH-FIRST-LOAD). Idempotent; painting stays off
+  // for the page's life, so the flag coming back on takes the next load.
+  var timers = [];
+  function off() {
+    if (state.off) return;
+    state.off = true;
+    close();
+    unlock();
+    clearTimeout(refreshT);
+    timers.forEach(function (t) { clearInterval(t); });
+    doc.removeEventListener('click', onClick);
+    doc.removeEventListener('keydown', onKey);
+    var C = w.NBDCommand;
+    if (C && typeof C.unregisterAction === 'function') registered.forEach(function (id) { call(function () { C.unregisterAction(id); }); });
+    registered = [];
+    ['osTray', 'osSheet', 'osBoot'].forEach(function (id) { var el = byId(id); if (el && el.parentNode) el.parentNode.removeChild(el); });
+    doc.documentElement.classList.remove('os-system');
   }
 
   w.NBDOS = {
     __v: 1, open: open, close: close, refresh: refresh,
     isDnd: function () { return state.dnd; }, setDnd: setDnd,
     history: function () { return state.history.slice(); },
-    apps: apps, registerControl: registerControl, settingsTab: settingsTab,
-    lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound,
+    apps: apps, registerControl: registerControl, unregisterControl: unregisterControl, settingsTab: settingsTab,
+    lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
   };
 
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init, { once: true });

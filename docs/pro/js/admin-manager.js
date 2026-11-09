@@ -125,7 +125,7 @@
       console.error('listTeamMembers failed:', e);
       if (container) {
         container.innerHTML = '<div class="empty amx-p30px"><div class="empty-icon">⚠️</div>'
-          + 'Failed to load team: ' + (e.message || 'unknown error') + '</div>';
+          + 'Failed to load team: ' + escapeHTML(e.message || 'unknown error') + '</div>';
       }
       toast('Could not load team roster', 'error');
     } finally {
@@ -257,11 +257,29 @@
         feed.innerHTML = '<div class="amx-cm-fs12px">Firestore SDK not ready.</div>';
         return;
       }
-      const q = window.query(
-        window.collection(window.db, 'leads'),
-        window.where('userId', '==', uid)
-      );
-      const snap = await window.getDocs(q);
+      // CRM audit 2026-11-06 (ST-F39): a teammate's row must carry
+      // companyId == claim, the only shape the leads rule proves for a
+      // company reader (userId alone was PERMISSION_DENIED). Your own row
+      // stays userId-only so legacy no-companyId leads remain visible.
+      const claims = window._userClaims || {};
+      const self = !!(window._user && window._user.uid === uid);
+      const filters = [window.where('userId', '==', uid)];
+      if (!self && claims.companyId) filters.unshift(window.where('companyId', '==', claims.companyId));
+      const col = window.collection(window.db, 'leads');
+      // TM-ACTIVITY-PAGED: read only the newest 15, not every lead the member
+      // owns. Own row: (userId, createdAt desc) index; teammate row:
+      // (companyId, userId, createdAt desc). Hosting deploys before indexes,
+      // so while that index is missing or building (failed-precondition) fall
+      // back once to the unbounded read; the sort + slice below finish it.
+      let snap;
+      if (typeof window.orderBy === 'function' && typeof window.limit === 'function') {
+        try {
+          snap = await window.getDocs(window.query(col, ...filters, window.orderBy('createdAt', 'desc'), window.limit(15)));
+        } catch (e) {
+          if (!e || e.code !== 'failed-precondition') throw e;
+        }
+      }
+      if (!snap) snap = await window.getDocs(window.query(col, ...filters));
       const leads = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => {
           const ta = a.createdAt?.toMillis?.() || 0;
@@ -664,7 +682,7 @@
       ].join('');
     } catch (e) {
       grid.innerHTML = '<div class="amx-cm">Analytics unavailable: ' +
-        (e.message || 'error') + '</div>';
+        escapeHTML(e.message || 'error') + '</div>';
     }
   }
 

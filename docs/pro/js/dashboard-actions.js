@@ -81,13 +81,46 @@ function mQuickAddRoute() {
   if (typeof closeQuickAddLead === 'function') closeQuickAddLead();
   if (typeof openLeadModal === 'function') openLeadModal();
 };
+// First-run tour (boot-weight lane, 2026-11-08): js/onboarding-tour.js is the
+// lazy 'tour' ScriptLoader bundle, registered HERE, not in script-loader.js (a
+// blocking script at its byte ceiling); this deferred file runs at boot, before
+// any tap. Start Tour loads it, then starts it, like openDecisionPicker below.
+function tourLoader() {
+  const sl = window.ScriptLoader;
+  if (!sl || typeof sl.loadBundle !== 'function') return null;
+  if (sl.bundles && !sl.bundles.tour) sl.bundles.tour = ['js/onboarding-tour.js?v=4'];
+  return sl;
+}
 function restartOnboardingTour() {
+  const _start = function () {
+    if (window.OnboardingTour && typeof window.OnboardingTour.forceRestart === 'function') {
+      window.OnboardingTour.forceRestart();
+    } else if (typeof showToast === 'function') {
+      showToast('Could not load the tour — check your connection and try again', 'error');
+    }
+  };
+  const sl = tourLoader();
   if (window.OnboardingTour && typeof window.OnboardingTour.forceRestart === 'function') {
-    window.OnboardingTour.forceRestart();
-  } else if (typeof showToast === 'function') {
-    showToast('Tour module loading...', 'error');
+    _start();
+  } else if (sl) {
+    sl.loadBundle('tour').then(_start);
+  } else {
+    _start();
   }
 };
+// At boot the tour is fetched only when it can fire: no completion flag yet (a
+// first-run rep) or how-to.html's one-shot "Restart Tour" force flag, the same
+// states in which its maybeAutoStart goes on to wait for leads. It still
+// decides, and it consumes the force flag (never clear it here). A returning
+// rep fetches nothing; a throwing localStorage reads as "no tour", as there.
+function tourWantedAtBoot() {
+  try {
+    return localStorage.getItem('nbd-tour-force') === '1' || localStorage.getItem('nbd-onboarding-complete') !== '1';
+  } catch (e) { return false; }
+}
+if (tourLoader() && tourWantedAtBoot()) {
+  try { window.ScriptLoader.loadBundle('tour'); } catch (e) {}
+}
 function openDecisionPicker() {
   // NEW-D15: the decision-engine bundle is lazy and wired (in script-loader's
   // VIEW_BUNDLES) only to aitree/understand — never to #/joe, where the
@@ -417,6 +450,12 @@ function goTo(name, params = {}) {
       _crmSearchEl.value = '';
       if (typeof window.kanbanFilter === 'function') { try { window.kanbanFilter(); } catch (_) {} }
     }
+  }
+  // Leaving Door-to-Door closes its live team listener, which otherwise kept
+  // streaming company knocks into the hidden view (CRM audit 2026-11-06,
+  // DT-F12 / VW-F05). D2D.init re-opens it on the way back if team mode is on.
+  if (name !== 'd2d' && window.D2D && typeof window.D2D.leaveView === 'function') {
+    try { window.D2D.leaveView(); } catch (_) {}
   }
 
   // Update URL hash (without triggering hashchange event)
@@ -1269,6 +1308,40 @@ if (typeof window.PhotoEngine === 'undefined' || typeof window.InspectionReportE
     };
     window.generatePhotoReport.__nbdLazyPhotosStub = true;
   }
+}
+
+// 2026-11-08: the kanban card menu (kanban-context-menu.js) is lazy, the
+// ScriptLoader 'kanbanctx' bundle, registered here so the blocking
+// script-loader.js does not grow. Its right-click / long-press listeners only
+// act on a .k-card, and only the Pipeline board has those, so it loads when
+// goTo('crm') reports the board painted (nbd:view-entered). The card's ⋮ and
+// the stage / classification chips (card-detail modal, mobile job detail, both
+// reachable from Home) call window.KanbanContextMenu: this load-then-run stub
+// until the real file lands and replaces it. A failed fetch leaves the stub
+// and says so; ScriptLoader drops the dead tag, so the next tap fetches again.
+if (typeof window.KanbanContextMenu === 'undefined') {
+  const _kcmSl = window.ScriptLoader;
+  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=4'];
+  const _kcmStub = { __nbdLazyKanbanCtxStub: true, close: function () {} };
+  const _kcmLoad = function () {
+    const sl = window.ScriptLoader;
+    if (window.KanbanContextMenu !== _kcmStub || !sl || typeof sl.loadBundle !== 'function') return Promise.resolve();
+    return sl.loadBundle('kanbanctx');
+  };
+  ['open', 'openStagePicker', 'openTypePicker'].forEach(function (m) {
+    _kcmStub[m] = function () {
+      const a = arguments;
+      _kcmLoad().then(function () {
+        const k = window.KanbanContextMenu;
+        if (k && k !== _kcmStub && typeof k[m] === 'function') k[m].apply(k, a);
+        else if (k === _kcmStub && typeof showToast === 'function') showToast('Could not load the card menu — check your connection and tap again', 'error');
+      });
+    };
+  });
+  window.KanbanContextMenu = _kcmStub;
+  window.addEventListener('nbd:view-entered', function (e) {
+    if (e && e.detail && e.detail.name === 'crm') _kcmLoad();
+  });
 }
 // ══════════════════════════════════════════════════════════════════
 // FORWARD-REFERENCE BLOCK — DELETED (Globals Tranche 3, slice T3-A part 1,

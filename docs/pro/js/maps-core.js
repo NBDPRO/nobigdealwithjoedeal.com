@@ -73,6 +73,29 @@ let overlayState = { heat:false, pins:true, jobs:false, storm:false, customers:f
 let heatLayer = null, jobMarkers = [], stormTileLayer = null;
 let pendingPin = null; // { lat, lng, status, color } — waiting for confirm
 
+// ── CUSTOMERS LAYER: LAZY (2026-11-08, boot-weight) ──
+// maps-customers.js (the Customers layer, its panel, window.nbdRepList) is not
+// a boot <script> any more: it is the ScriptLoader bundle `mapcustomers`,
+// registered here at runtime (script-loader.js is blocking and at its byte
+// ceiling) and attached to the 'map' view after 'mapvendor', so goTo('map')'s
+// preloadForView fetches it alongside Leaflet. Its ?v= lives in this entry.
+(function () {
+  const sl = typeof window !== 'undefined' ? window.ScriptLoader : null;
+  if (!sl || !sl.bundles) return;
+  if (!sl.bundles.mapcustomers) sl.bundles.mapcustomers = ['js/maps-customers.js?v=13'];
+  if (sl.views && Array.isArray(sl.views.map) && sl.views.map.indexOf('mapcustomers') === -1) sl.views.map.push('mapcustomers');
+})();
+// Run cb with maps-customers.js present: at once when it already is, else when
+// the bundle lands. A failed fetch (loadBundle never rejects) runs nothing.
+function _withMapCustomers(cb) {
+  if (typeof showCustomersLayer === 'function') { cb(); return; }
+  const sl = typeof window !== 'undefined' ? window.ScriptLoader : null;
+  if (!sl || typeof sl.loadBundle !== 'function') return;
+  let p;
+  try { p = sl.loadBundle('mapcustomers'); } catch (e) { return; }
+  Promise.resolve(p).then(() => { if (typeof showCustomersLayer === 'function') cb(); }, () => {});
+}
+
 function initMainMap() {
   // Re-entry guard: calling L.map() on an already-initialized container
   // throws "Map container is already initialized", which left the Maps view
@@ -118,6 +141,9 @@ function initMainMap() {
     openPinConfirm(e.latlng.lat, e.latlng.lng);
   });
   if(window._pins) window._pins.forEach(p => addPinMarker(p));
+  // Saved-zone rep labels read window.nbdRepList (maps-customers.js, fetched
+  // with this view): if it is not here yet, draw the zones again when it lands.
+  if (typeof window.nbdRepList !== 'function') _withMapCustomers(() => { if (typeof window.renderSavedZones === 'function') window.renderSavedZones(); });
   // Build heat + jobs layers from existing data
   setTimeout(()=>{ buildHeatLayer(); buildJobsLayer(); updatePinStats(); if(overlayState.pins && typeof renderPinDispPanel==='function') renderPinDispPanel(); if(typeof window.renderSavedZones==='function') window.renderSavedZones(); }, 400);
 }
@@ -129,7 +155,7 @@ function toggleOverlay(type, el) {
   if(type==='heat')    { overlayState.heat    ? showHeatLayer()    : hideHeatLayer();    }
   if(type==='pins')    { if(overlayState.pins){ showAllPins(); if(typeof renderPinDispPanel==='function') renderPinDispPanel(); } else { hideAllPins(); if(typeof hidePinDispPanel==='function') hidePinDispPanel(); } }
   if(type==='jobs')    { overlayState.jobs    ? showJobsLayer()    : hideJobsLayer();    }
-  if(type==='customers'){overlayState.customers? showCustomersLayer(): hideCustomersLayer();}
+  if(type==='customers'){_withMapCustomers(()=>{overlayState.customers? showCustomersLayer(): hideCustomersLayer();});}
   if(type==='storm')   { overlayState.storm   ? showStormLayer()   : hideStormLayer();   }
 }
 

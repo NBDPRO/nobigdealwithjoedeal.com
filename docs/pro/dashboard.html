@@ -2156,7 +2156,9 @@
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="selectAllVisibleLeads">☑ Select all visible</button>
         <select class="ui-field-sm" id="bulkStageSelect">
           <option value="">Move to stage...</option>
-          <!-- Populated dynamically, fallback options below -->
+          <!-- Rebuilt from the tenant's pipeline on entering bulk mode
+               (crm-portal-bridge.js fillBulkStageSelect); these are the
+               fallback when the stage engine is not loaded. -->
           <option value="new">New Lead</option>
           <option value="contacted">Contacted</option>
           <option value="inspected">Inspected</option>
@@ -2222,12 +2224,15 @@
         <input id="bulkSourceCustom" type="text" placeholder="…or type custom" maxlength="60" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);width:130px;" />
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignSource">▶ Apply</button>
         <!-- Wave 32: jobType bulk-edit. Routes leads into the
-             insurance / cash / finance pipeline view filters. -->
+             insurance / cash / finance / warranty / service pipeline view
+             filters (JOB_TYPES in crm-stages.js). -->
         <select class="ui-field-sm" id="bulkJobTypeSelect">
           <option value="">Set job type...</option>
           <option value="insurance">Insurance</option>
           <option value="cash">Cash</option>
           <option value="finance">Finance</option>
+          <option value="warranty">Warranty</option>
+          <option value="service">Service</option>
         </select>
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignJobType">▶ Apply</button>
         <!-- Wave 37: bulk snooze. Opens LeadSnooze.bulkPrompt which
@@ -3010,8 +3015,8 @@
           data-joe-input></textarea>
         <button class="joe-send" id="joeSendBtn" data-action="call" data-fn="sendJoeMessage">SEND</button>
       </div>
-      <div style="text-align:center;margin-top:6px;font-size:9px;color:var(--m);font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;">
-        Joe AI · Live pipeline data · Claude Haiku · <span style="color:var(--orange);cursor:pointer;" data-action="call" data-fn="clearJoeKey">Change Key</span>
+      <div data-joe-foot style="text-align:center;margin-top:6px;font-size:9px;color:var(--m);font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;">
+        Joe AI · Live pipeline data · Claude Haiku
       </div>
     </div>
   </template>
@@ -4645,6 +4650,7 @@
                     <option value="sales_rep">Sales Rep</option>
                     <option value="manager">Manager</option>
                     <option value="viewer">Viewer</option>
+                    <option value="company_admin">Company Admin</option>
                   </select>
                 </div>
                 <button class="btn btn-orange" style="padding:10px 16px;white-space:nowrap;" data-action="call" data-fn="inviteTeamMember">Send Invite</button>
@@ -4734,7 +4740,7 @@
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">Login Security</div><div class="panel-title">Access Methods</div></div></div>
           <div class="panel-body">
-            <p class="meta-12-mb14">NBD Pro supports three login methods. You can enable or disable each one.</p>
+            <p class="meta-12-mb14">NBD Pro supports three login methods, each offered on the login page.</p>
 
             <div class="ui-panel" style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:10px;">
               <div>
@@ -4747,7 +4753,7 @@
             <div class="ui-panel" style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:10px;">
               <div>
                 <div class="heading-13">Access Code</div>
-                <div class="meta-11">Hidden. Admins can reveal the active code from the Team Manager.</div>
+                <div class="meta-11">Entered on the login page. Codes are issued by the platform admin.</div>
               </div>
               <span style="font-size:10px;font-weight:700;padding:4px 10px;background:rgba(46,204,138,.15);color:var(--green);border-radius:3px;letter-spacing:.08em;" id="accessCodeStatus">✓ ENABLED</span>
             </div>
@@ -4902,7 +4908,11 @@
         <div class="panel">
           <div class="panel-hdr"><div><div class="panel-label">Plans</div><div class="panel-title">Compare Features</div></div></div>
           <div class="panel-body">
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;" id="billingPlanCards">
+            <!-- Five plan cards (dashboard-billing-tab.js): one row when all five
+                 fit at 124px (5 x 124 + 4 gaps = 652px; the Enterprise card needs
+                 ~121px), otherwise three columns (3 + 2), two on a phone. Never
+                 4 + 1 (CRM audit 2026-11-06, ST-F48). -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(max(124px,min((100% - 16px) / 3 - 1px,(652px - 100%) * 10000)),1fr));gap:8px;margin-bottom:14px;" id="billingPlanCards">
               <!-- Rendered by JS below -->
             </div>
             <div style="text-align:center;">
@@ -5626,6 +5636,17 @@
           <option value="Siding - Hail">Siding — Hail</option>
           <option value="Full Exterior">Full Exterior</option>
           <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="mfield">
+        <label class="eyebrow">Job Type</label>
+        <select class="ui-input" id="qaJobType">
+          <option value="">Pick a type…</option>
+          <option value="insurance">Insurance</option>
+          <option value="cash">Cash</option>
+          <option value="finance">Finance</option>
+          <option value="warranty">Warranty</option>
+          <option value="service">Service</option>
         </select>
       </div>
       <div>
@@ -6367,7 +6388,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=12"></script>
 <script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=19"></script>
+<script defer src="js/dashboard-actions.js?v=20"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -7327,7 +7348,8 @@
 <script defer src="js/crm-portal-bridge.js?v=9"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
-<script defer src="js/sort-customers.js?v=3"></script>
+<!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
+     on the first Pipeline render, when the banner's mount (inside tpl-view-crm) exists. -->
 <script defer src="js/crm.js?v=36"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=9"></script>
@@ -7358,21 +7380,20 @@
 <!-- "No next step" (2026-10-03): open leads with no follow-up and no open
      task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
 <script defer src="js/no-next-step.js?v=3"></script>
-<!-- "Clean up stale leads" (2026-10-19): flag bulkCloseStaleLeads, absent = off. -->
-<script defer src="js/stale-leads-cleanup.js?v=1"></script>
-<!-- "Where customers came from" (2026-10-19): flag leadSourceFixer, absent = off. -->
-<script defer src="js/lead-source-fixer.js?v=1"></script>
-<!-- "Reputation" (2026-10-19): flag reputationLoop, absent = off. -->
-<script defer src="js/reputation.js?v=1"></script>
-<!-- "Speed to lead" (2026-10-19): flag speedToLead, absent = off. -->
-<script defer src="js/speed-to-lead.js?v=1"></script>
+<!-- Flag-gated toolbar features (stale leads clean-up, lead-source fixer, reputation, speed to lead, the two
+     follow-up boards) are ScriptLoader bundles since 2026-11-08: dark-features.js fetches one when NBDFlags says its
+     flag is on, so a boot with the flags off ships none of them. -->
+<script defer src="js/dark-features.js?v=1"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
-<!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
-     so the menu picks up Copy/Text Portal Link items on first render. -->
+<!-- Wave 42: portal-link helpers feed the kanban card menu's Copy/Text Portal
+     Link items. LAZY (2026-11-08): the menu, kanban-context-menu.js, is the
+     ScriptLoader `kanbanctx` bundle (dashboard-actions.js), loaded when the
+     Pipeline is entered or a card / chip menu is first opened, so this tag has
+     always run first. Keep this one eager: the deploy joins eager tags, so a
+     bundle entry for it would run it twice. -->
 <script defer src="js/portal-link-helpers.js?v=3"></script>
-<script defer src="js/kanban-context-menu.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
@@ -7388,13 +7409,6 @@
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
 <script defer src="js/phone-share.js?v=3"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
-<!-- "Estimate follow-ups" board (2026-10-19): flag estimateFollowBoard, absent = off. Reads window.NBDEstimateFollowups, so it loads after estimate-followups.js. -->
-<script defer src="js/estimate-follow-board.js?v=1"></script>
-<!-- "Follow-ups" board (2026-11-03): flag followUpBoard, absent = off. Extends the board above, so it loads after it. -->
-<script defer src="js/follow-up-board-logic.js?v=1"></script>
-<script defer src="js/follow-up-board.js?v=2"></script>
-<script defer src="js/opp-approval-logic.js?v=1"></script>
-<script defer src="js/opp-approval.js?v=1"></script>
 <script defer src="js/chibi.js?v=12"></script>
 <script defer src="js/game-sprite.js?v=6"></script>
 <script defer src="js/game-card.js?v=6"></script>
@@ -7417,8 +7431,8 @@
 <script defer src="js/today-home.js?v=25"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
-<script defer src="js/my-skin-logic.js?v=7"></script>
-<script defer src="js/my-skin.js?v=11"></script>
+<!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
+<script defer src="js/my-skin-boot.js?v=1"></script>
 <script defer src="js/layout-system.js?v=7"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=10"></script>
@@ -7442,7 +7456,7 @@
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
-     joined the eager chain later; see its own header). See maps.js
+     joined the eager chain later and left it on 2026-11-08, below). See maps.js
      header for the full split rationale. Each module is a classic
      <script> (non-ESM) and shares sibling-scope globals.
      LAZY (2026-09-14, boot-weight containment): maps-routing.js — the
@@ -7451,10 +7465,12 @@
      Proven safe to decouple from this eager chain: vm-sandboxed with
      no Leaflet global defined, it executes cleanly (no top-level code
      calls into L.*), and neither maps-core.js nor maps-overlays.js
-     references anything drawing-tool-specific. -->
-<script defer src="js/maps-core.js?v=9"></script>
+     references anything drawing-tool-specific.
+     LAZY (2026-11-08, boot-weight): maps-customers.js (the Customers
+     layer) is the ScriptLoader bundle `mapcustomers`, registered by
+     maps-core.js and fetched with the 'map' view; its ?v= lives there. -->
+<script defer src="js/maps-core.js?v=10"></script>
 <script defer src="js/maps-overlays.js?v=9"></script>
-<script defer src="js/maps-customers.js?v=12"></script>
 <script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
      /appointments (Cal.com webhook output) for the current rep, cross-
@@ -7467,8 +7483,9 @@
 <script defer src="js/d2d-storm-layer.js?v=3"></script>
 <script defer src="js/schedule-planner-logic.js?v=3"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=2"></script>
-<script defer src="js/schedule-planner.js?v=6"></script>
+<script defer src="js/production.js?v=3"></script>
+<!-- Plan Jobs (js/schedule-planner.js) loads on the first Schedule visit since 2026-11-08: production.js registers
+     the ScriptLoader bundle and view "schedule", so goTo('schedule') fetches it. -->
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.
@@ -7493,8 +7510,9 @@
      at load by the builder). -->
 
 <script defer src="js/ask-joe-rules.js?v=2"></script>
-<script defer src="js/ask-joe-actions.js?v=2"></script>
-<script defer src="js/ai.js?v=11"></script>
+<!-- LAZY: ask-joe-actions.js (Ask Joe's tools + confirm cards) is ScriptLoader's `askjoe` bundle since
+     2026-11-08: ai.js registers it and the Ask Joe view fetches it. Its stylesheet stays a late link above. -->
+<script defer src="js/ai.js?v=12"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/review-deck.js?v=3"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
@@ -7564,7 +7582,8 @@
 <script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=3"></script>
-<script defer src="js/onboarding-tour.js?v=4"></script>
+<!-- LAZY (2026-11-08): onboarding-tour.js is the `tour` bundle, registered by dashboard-actions.js and fetched at
+     boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>

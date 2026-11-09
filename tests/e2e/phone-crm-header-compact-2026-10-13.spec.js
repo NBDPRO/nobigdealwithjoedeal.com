@@ -212,6 +212,8 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
     // Jo's screenshot is the Board; the phone may default to List.
     await safeEvaluate(page, () => { if (typeof window.crmViewBoard === 'function') window.crmViewBoard(); });
     await page.waitForFunction(() => !!document.querySelector('#kanbanBoard .k-card') && !!document.getElementById('krStrip'), null, { timeout: 30_000 });
+    // 2026-11-08 (boot-weight lane): the banner's sort-customers.js loads on the first Pipeline render, not at boot.
+    await safeWaitForFunction(page, () => !!window.NBDSortCustomers, null, { timeout: 15_000 });
     await page.waitForTimeout(1200);
     // Worst case, as on Jo's real book: three-digit counts on every tab.
     await safeEvaluate(page, () => {

@@ -1030,7 +1030,15 @@ test.describe('phone views: Settings upgrade prices @audit', () => {
           };
           const snap = () => ({ state: host.getAttribute('data-state'), text: host.textContent.trim(), rows: host.querySelectorAll('[data-upg-id]').length });
           let release = null;
-          window.ScriptLoader.loadBundle = (name) => new Promise((res) => { release = () => res(name); });
+          // Hold only the estimates bundle; anything else goes to the real loader
+          // (2026-11-08). Home's attention strip re-renders on its own and asks
+          // for 'contactlabels'; when that landed inside this step's 100 ms wait
+          // it took over `release`, the estimates promise never resolved, and the
+          // panel read "loading" (CI run 9520, 3 of 3; reproduced locally about
+          // 1 run in 10, and every time with a forced second request).
+          window.ScriptLoader.loadBundle = (name) => (name === 'estimates'
+            ? new Promise((res) => { release = () => res(name); })
+            : realLoad.call(window.ScriptLoader, name));
           try {
             firstState();
             delete window.NBDUpgradePriceSettings;

@@ -100,6 +100,7 @@ function toggleBulkMode() {
   const kanbanBoard = document.querySelector('.kanban-board');
 
   if (window._bulkMode) {
+    fillBulkStageSelect();
     if (btn) { btn.textContent = 'Cancel'; btn.classList.add('btn-orange'); btn.classList.remove('btn-ghost'); }
     if (kanbanBoard) kanbanBoard.classList.add('bulk-mode-active');
   } else {
@@ -107,6 +108,31 @@ function toggleBulkMode() {
     if (kanbanBoard) kanbanBoard.classList.remove('bulk-mode-active');
     clearBulkSelection();
   }
+}
+
+// The "Move to stage" list follows the tenant's pipeline: window.STAGE_META
+// (re-pointed by applyPipelineConfig) gives each stage its own label, adds
+// custom stages and leaves hidden ones out. It offers the current board's
+// columns (window._stageKeys), the stages the selected cards sit on; every
+// visible stage only when no board has rendered. Without STAGE_META the
+// markup's static options stay. A stage already picked stays picked (CRM
+// audit 2026-11-06, PL-F21).
+function fillBulkStageSelect() {
+  const sel = document.getElementById('bulkStageSelect');
+  const meta = window.STAGE_META;
+  if (!sel || !meta || typeof meta !== 'object') return;
+  const board = Array.isArray(window._stageKeys) && window._stageKeys.length ? window._stageKeys : Object.keys(meta);
+  const keys = board.filter((k, i) => meta[k] && !meta[k].hidden && board.indexOf(k) === i);
+  if (!keys.length) return;
+  const keep = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  keys.forEach((k) => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = meta[k].label || k;
+    sel.appendChild(opt);
+  });
+  sel.value = keys.includes(keep) ? keep : '';
 }
 
 // Force-exit bulk mode regardless of current state. Called on view changes
@@ -211,13 +237,13 @@ async function bulkMoveStage() {
     return;
   }
 
+  const _label = (typeof window.stageLabel === 'function' && window.stageLabel(newStage)) || newStage;
   const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-  if (!(await _ask(`Move ${sel.size} lead(s) to "${newStage}"?`))) {
+  if (!(await _ask(`Move ${sel.size} lead(s) to "${_label}"?`))) {
     return;
   }
 
   const selectedIds = Array.from(sel);
-  const _label = (typeof window.stageLabel === 'function' && window.stageLabel(newStage)) || newStage;
   const _nameOf = (l) => ((l && ((l.firstName || '') + ' ' + (l.lastName || '')).trim()) || (l && l.address) || 'a lead');
 
   try {
@@ -585,7 +611,15 @@ function editLead(id){
   // already-filed timestamp on the next unrelated save (a phone-number fix,
   // say) — populate from the lead's real state so a re-save only refreshes
   // an already-true stamp, never blanks one.
-  const setChecked = (eid, val) => { const e = document.getElementById(eid); if (e) e.checked = !!val; };
+  // The stored stamp rides on the checkbox (data-filed-at) so a re-save keeps
+  // the day the paper was actually filed instead of re-stamping it with today
+  // (CRM audit PL-F10, 2026-11-08). A Firestore Timestamp becomes ISO; any other
+  // non-string value leaves it blank, and saveLead stamps now, as before.
+  const setChecked = (eid, val) => {
+    const e = document.getElementById(eid); if (!e) return;
+    e.checked = !!val;
+    if (e.dataset) e.dataset.filedAt = typeof val === 'string' ? val : (val && typeof val.toDate === 'function' ? val.toDate().toISOString() : '');
+  };
   setChecked('lContractFiled', l.contractFiledAt);
   setChecked('lPermitFiled', l.permitFiledAt);
   setChecked('lAobFiled', l.aobFiledAt);

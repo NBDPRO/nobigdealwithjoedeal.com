@@ -2650,12 +2650,7 @@ window.progressStage = async function() {
     console.error('Error updating stage:', e);
     if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = btnText; }
     const msg = (e && e.message) ? e.message : 'unknown error';
-    if (window.showToast) {
-      window.showToast('Failed to move stage: ' + msg, 'error');
-    } else {
-      // Last-resort fallback if showToast somehow isn't available.
-      window.alert('Failed to update stage: ' + msg);
-    }
+    _cbNotify('Failed to move stage: ' + msg, 'error');
   }
 };
 
@@ -2914,8 +2909,7 @@ function addFilesToQueue(files) {
     const dropped = files.length - PHOTO_MAX_BATCH;
     files = files.slice(0, PHOTO_MAX_BATCH);
     const msg = `Only the first ${PHOTO_MAX_BATCH} photos will upload. ${dropped} skipped — you can add them in the next batch.`;
-    if (typeof showToast === 'function') showToast(msg, 'warning');
-    else alert(msg);
+    _cbNotify(msg, 'warning');
   }
 
   files.forEach(file => {
@@ -3183,8 +3177,7 @@ window.uploadPhotos = async function() {
   }
   if (window._uploadQueue.length === 0) return;
   if (!window._customerId) {
-    if (window.showToast) window.showToast('Customer ID not found', 'error');
-    else alert('Customer ID not found');
+    _cbNotify('Customer ID not found', 'error');
     return;
   }
 
@@ -4040,8 +4033,7 @@ window.generateCertFromEstimate = async function(estimateId) {
 
 window.exportCustomerPDF = async function() {
   if (!window._customerId) {
-    if (typeof showToast === 'function') showToast('Customer data not loaded', 'error');
-    else alert('Customer data not loaded');
+    _cbNotify('Customer data not loaded', 'error');
     return;
   }
   // The docgen cluster is lazy (ScriptLoader 'docgen'). Load-then-run: this
@@ -4053,8 +4045,7 @@ window.exportCustomerPDF = async function() {
     }
   }
   if (!window.NBDDocGen || typeof window.NBDDocGen.generate !== 'function') {
-    if (typeof showToast === 'function') showToast('Document generator not loaded — refresh and try again', 'error');
-    else alert('Document generator not loaded — refresh and try again');
+    _cbNotify('Document generator not loaded — refresh and try again', 'error');
     return;
   }
 
@@ -4121,8 +4112,7 @@ window.exportCustomerPDF = async function() {
 
   } catch (error) {
     console.error('Customer PDF export error:', error);
-    if (typeof showToast === 'function') showToast('Failed to generate report — see console', 'error');
-    else alert('Failed to generate PDF. Please try again.');
+    _cbNotify('Failed to generate report — see console', 'error');
   }
 };
 
@@ -4292,57 +4282,11 @@ async function _gatherNotesForReport(leadId) {
 // ============================================
 
 
-// ============================================
-// DOCUMENT UPLOAD SYSTEM
-// ============================================
-
-window._docUploadQueue = [];
-
-window.openDocUploadModal = function() {
-  window._docUploadQueue = [];
-  updateDocUploadPreview();
-  // nbdModal owns visibility + Esc/backdrop close; onClose resets the queue
-  // so every dismiss path (button, Esc, backdrop) clears in-progress picks.
-  window.nbdModal.open('docUploadModal', { onClose: function() {
-    window._docUploadQueue = [];
-    updateDocUploadPreview();
-  } });
-};
-
-window.closeDocUploadModal = function() {
-  window.nbdModal.close('docUploadModal');
-};
-
-// Document drop zone
-document.addEventListener('DOMContentLoaded', () => {
-  const dropZone = document.getElementById('docDropZone');
-  const fileInput = document.getElementById('docFileInput');
-  
-  if (dropZone && fileInput) {
-    dropZone.addEventListener('click', () => fileInput.click());
-    
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-    
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-    
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const files = Array.from(e.dataTransfer.files);
-      addDocumentsToQueue(files);
-    });
-    
-    fileInput.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files);
-      addDocumentsToQueue(files);
-    });
-  }
-});
+// Document upload
+// The upload queue, openDocUploadModal / closeDocUploadModal and the
+// #docDropZone wiring live in customer-photo-report-generator.js. A second
+// copy here put a second click / drop / change listener on the drop zone, so
+// one drop queued the files twice; removed (CRM audit 2026-11-06, CU-F14).
 
 
 

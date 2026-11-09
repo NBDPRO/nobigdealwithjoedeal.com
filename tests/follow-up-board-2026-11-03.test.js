@@ -284,8 +284,11 @@ function seed(flags) {
   ok('every CRM string is escaped before it reaches innerHTML', /esc\(r\.name\)/.test(code) && /esc\(r\.lastAction\)/.test(code) && /esc\(r\.source\)/.test(code));
   ok('44px touch targets and an sr-only label in the css', /min-height: 44px/.test(css) && /\.fub-sr/.test(css));
   const dash = read('docs/pro/dashboard.html');
-  const iBoard = dash.indexOf('<script defer src="js/estimate-follow-board.js'), iLogic = dash.indexOf('<script defer src="js/follow-up-board-logic.js'), iDom = dash.indexOf('<script defer src="js/follow-up-board.js');
-  ok('dashboard loads estimate board, then the logic, then the screen, all deferred', iBoard > 0 && iLogic > iBoard && iDom > iLogic && /<script defer src="js\/follow-up-board\.js/.test(dash) && /<script defer src="js\/follow-up-board-logic\.js/.test(dash));
+  // 2026-11-08: the feature files are a ScriptLoader bundle (dark-features.js loads it when the flag is on), so the
+  // load order is pinned in dark-features.js, not in dashboard.html.
+  const fub = (read('docs/pro/js/dark-features.js').match(/followupboard:\s*\[([^\]]*)\]/) || [, ''])[1].split(',').map((s) => s.replace(/['"\s]/g, '').split('?')[0]).filter(Boolean);
+  const iBoard = fub.indexOf('js/estimate-follow-board.js'), iLogic = fub.indexOf('js/follow-up-board-logic.js'), iDom = fub.indexOf('js/follow-up-board.js');
+  ok('the followupboard bundle loads estimate board, then the logic, then the screen (lazy, flag followUpBoard)', iBoard >= 0 && iLogic > iBoard && iDom > iLogic && !/<script[^>]*src="js\/follow-up-board(-logic)?\.js/.test(dash));
   ok('dashboard has the hidden toolbar button and the stylesheet', /id="followUpBoardBtn"[^>]*\bhidden\b/.test(dash) && /css\/follow-up-board\.css/.test(dash));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

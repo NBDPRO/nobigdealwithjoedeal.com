@@ -1396,17 +1396,19 @@ section('Photo-report PDF filename never leaks NBD onto a tenant download (2026-
   // cards just do nothing — so gate both halves cheaply here rather than
   // relying only on the emulator e2e.
   const custRawPR = read(path.join(ROOT, 'docs/pro/customer.html'));
-  const picker = read(path.join(PRO_JS, 'customer-photo-report-picker.js'));
+  // The stub moved to customer-photo-report-lazy.js on 2026-11-08, when the
+  // picker itself went lazy: the stub has to be on the page at boot.
+  const stubSrc = read(path.join(PRO_JS, 'customer-photo-report-lazy.js'));
   assert('photo-report.js is NOT an eager <script> on customer.html',
     !/<script[^>]+src="[^"]*photo-report\.js/.test(custRawPR),
     'an eager tag makes ScriptLoader.loadBundle("photos") a no-op for it (cacheKey dedupe) — nothing would be deferred');
   assert('customer.html installs a load-then-run stub for generatePhotoReport',
-    /window\.generatePhotoReport\s*=\s*function/.test(picker)
-    && /loadBundle\(['"]photos['"]\)/.test(picker)
-    && /__nbdLazyPhotoReportStub/.test(picker),
+    /window\.generatePhotoReport\s*=\s*function/.test(stubSrc)
+    && /loadBundle\(['"]photos['"]\)/.test(stubSrc)
+    && /__nbdLazyPhotoReportStub/.test(stubSrc),
     'without the stub both entry points are a SILENT no-op: the action dispatcher logs an unknown action and nothing happens');
   assert('the stub defers to a real implementation rather than recursing',
-    /!fn\.__nbdLazyPhotoReportStub/.test(picker),
+    /!fn\.__nbdLazyPhotoReportStub/.test(stubSrc),
     'photo-report.js overwrites the global on arrival; if it is still the stub the fetch failed and we must say so, not loop');
 
   // ── The fallback shape, which the literal sweep above cannot see ──────

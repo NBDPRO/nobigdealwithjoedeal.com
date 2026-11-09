@@ -244,10 +244,24 @@
     badge.setAttribute('aria-hidden', 'true');
     // Record / Recent / Unfiled, the menu's three items, need the recorder anyway: one load, then the menu
     fabBtn.addEventListener('click', function () {
-      load().then(function () { window.NBDVisitRecorderMenu.toggle(bar, counters().unfiled); }).catch(loadFailed);
+      load().then(openMenu).catch(loadFailed);
     });
     document.body.appendChild(bar);
     paintBar();
+  }
+  function menuToggle() {
+    var M = window.NBDVisitRecorderMenu;
+    if (!M || typeof M.toggle !== 'function') return false;
+    M.toggle(bar, counters().unfiled);
+    return true;
+  }
+  // The menu file is the last of FILES. The recorder's own files can be in while it alone
+  // failed to fetch (load() then short-circuits for good): fetch it once more, and if it is
+  // still not there start Record visit itself, so a tap always does something.
+  function openMenu() {
+    if (menuToggle()) return null;
+    return loadOne(FILES[FILES.length - 1]).then(function () { if (!menuToggle()) throw new Error('menu-missing'); })
+      .catch(function () { return begin(fromElement(fabBtn)); });
   }
   function mk(tag, cls, parent) {
     var n = document.createElement(tag);

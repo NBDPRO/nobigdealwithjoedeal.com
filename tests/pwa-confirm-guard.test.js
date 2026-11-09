@@ -64,9 +64,9 @@ const ALLOWLIST = {
   // (maps-routing.js's one site — Generate Estimate's V2-or-Classic native
   // confirm — is gone: draw lane L2, 2026-09-25, replaced it with an in-page
   // chooser that names both builders. The list shrank, as intended.)
-  // Public pricing page. standalone-compat never runs there (it is not the
-  // installed app), so native confirm behaves natively.
-  'pricing-page.module.js': { count: 1, why: 'public pricing page — never standalone, patch never applies' },
+  // (pricing-page.module.js's one site — "Create your account to continue?"
+  // before the register redirect — is gone: CRM audit ST-F63, 2026-11-08, a
+  // signed-out visitor now goes straight to register. The list shrank.)
   // Both are the `else` branch of a nbdModal.confirm() call — the desktop
   // fallback, same role as the `||` in the canonical idiom.
   'storm-center.js': { count: 2, why: 'desktop fallback branches of nbdModal.confirm' },

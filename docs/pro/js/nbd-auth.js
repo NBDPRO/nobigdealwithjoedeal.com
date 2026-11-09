@@ -780,7 +780,7 @@ export const NBDAuth = {
    * Clear NBD app/account data from localStorage so a shared device doesn't
    * leave the previous rep's cached config, filters, company profile, or usage
    * tallies for the next user. Device-level UI prefs (theme/font/motion/
-   * onboarding/kanban) are deliberately preserved. Exposed as a method so the
+   * onboarding/kanban/sidebar/mode/hotkeys) are deliberately preserved. Exposed as a method so the
    * auth observer can also run it on an ACCOUNT SWITCH — historically every
    * sign-out control called the raw signOut() and never logout(), so this purge
    * never ran (prior rep's customer PII lingered for the next user).
@@ -836,11 +836,20 @@ export const NBDAuth = {
         // login.js / register.js: who signed in last on this device, so the
         // layout preboot never paints another account's cached layout.
         'nbd_signin_uid',
+        // Device UI preferences the header comment always promised to keep and
+        // the list did not (CRM audit ST-F24, 2026-11-08): light/dark mode
+        // choice, theme overlays, GX effects, Professional mode, the sidebar's
+        // collapsed/hidden state, bold kanban text, the CRM secondary header.
+        // Looks only, no account data. The per-hotkey "disabled" toggles
+        // (dashboard-hotkey-toggles.js, one key per hotkey) are kept by prefix
+        // in the loop below: nbd_hk_disabled_*.
+        'nbd_pro_mode_pref', 'nbd-theme-overlays', 'nbd_gx_settings', 'nbd_professional_mode',
+        'nbd-sidebar-collapsed', 'nbd_sidebar_hidden', 'nbd-kanban-bold', 'nbd_crm_sec_header_enabled',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && !KEEP.has(k) && /^(nbd[_-]|nav-)/.test(k)) drop.push(k);
+        if (k && !KEEP.has(k) && !/^nbd_hk_disabled_/.test(k) && /^(nbd[_-]|nav-)/.test(k)) drop.push(k);
       }
       drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
     } catch (_) { /* best-effort; never block on a storage error */ }

@@ -1,0 +1,199 @@
+/* css/os/home.css — the NBD OS home widgets (2026-11-09, P0b; js/os/home.js).
+   Loaded only with the OS layout (layout-system.js needs.css). Theme tokens and
+   --ui-* tokens only; no motion of its own. Sizes ride on .is-s / .is-m / .is-l,
+   and each widget is its own container, so its content lays out by the width
+   it actually got (container queries), on the phone page and the desk column.
+   Floors: 44px targets, no text under 11px. */
+
+/* ── the card ─────────────────────────────────────────────── */
+.os-hw {
+  container-type: inline-size; container-name: oshw;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  padding: var(--ui-space-3, 12px); color: var(--t);
+  background: color-mix(in srgb, var(--s) 88%, transparent);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-1);
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+}
+.os-hw-body { display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; min-height: 0; overflow: hidden; }
+/* lines never squash into each other; a card too short for them clips cleanly at its foot */
+.os-hw-body > * { flex-shrink: 0; }
+.os-hw-title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--ui-space-2, 8px); margin: 0;
+  font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; color: var(--m);
+}
+.os-hw-count { font-size: var(--ui-fs-caption, 12px); font-weight: 600; letter-spacing: 0; text-transform: none; }
+
+/* At a Glance */
+.os-hw-clock { display: flex; flex-direction: column; min-width: 0; }
+.os-hw-time { font-size: var(--ui-fs-display, 28px); font-weight: 700; line-height: 1.1; }
+.os-hw-date { font-size: var(--ui-fs-body-sm, 13px); color: var(--m); }
+.os-hw-next, .os-hw-sub, .os-hw-sync, .os-hw-warn, .os-hw-empty, .os-hw-fail {
+  margin: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; min-width: 0;
+}
+.os-hw-next { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-hw-sub, .os-hw-empty, .os-hw-sync, .os-hw-fail { color: var(--m); }
+.os-hw-warn { font-weight: 600; color: var(--t); }
+.os-hw-lines { margin: 0; padding-left: 1.1em; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.4; }
+.os-hw-sync { display: flex; align-items: center; gap: 6px; }
+.os-hw-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--m); }
+.os-hw-dot.os-tone-ok { background: var(--green); }
+.os-hw-dot.os-tone-warn { background: var(--gold); }
+
+/* Up Next */
+.os-hw-rows { display: flex; flex-direction: column; min-width: 0; }
+.os-hw-row {
+  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px;
+  margin: 0 calc(-1 * var(--ui-space-1, 4px)); padding: 2px var(--ui-space-1, 4px);
+  background: transparent; color: var(--t); border: 0; border-radius: var(--ui-radius-md, 8px);
+  font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.os-hw-row:hover { background: color-mix(in srgb, var(--s2) 70%, transparent); }
+.os-hw-row-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-hw-row-sub { font-size: var(--ui-fs-caption, 12px); color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Shortcuts and every widget button */
+.os-hw-sc { display: flex; gap: var(--ui-space-2, 8px); min-width: 0; }
+.os-hw-sc .os-hw-btn { flex: 1 1 0; min-width: 0; }
+.os-hw-btn { min-height: 44px; justify-content: center; }
+.os-hw-retry { min-width: 44px; }
+.os-hw-fail { display: flex; align-items: center; gap: 6px; }
+.os-hw-row:focus-visible, .os-hw-btn:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+
+/* Coach: one rule, its action, Later / Not today; 2 more on expand (M) or always (L) */
+.os-hw-coach-line { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.os-hw-coach-calm { margin: 0; font-size: var(--ui-fs-body, 14px); line-height: 1.35; color: var(--m); }
+.os-hw-coach-acts { display: flex; flex-wrap: wrap; gap: var(--ui-space-1, 4px); min-width: 0; }
+.os-hw-coach-acts .os-hw-btn { flex: 0 1 auto; min-width: 44px; padding-inline: var(--ui-space-3, 12px); }
+.os-hw-coach-acts .ui-btn-quiet { padding-inline: var(--ui-space-2, 8px); }
+.os-hw-coach-toggle { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-coach-more { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; }
+.os-hw-coach-more li {
+  display: flex; align-items: center; gap: var(--ui-space-2, 8px); min-width: 0;
+  padding-top: var(--ui-space-1, 4px); border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-coach-text { flex: 1 1 auto; min-width: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; overflow-wrap: anywhere; }
+.os-hw-coach-go { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-coach-act { text-decoration: none; }
+
+/* Daily Success: floors / streak state / week %, and what is left today */
+.os-hw-ds-link {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; min-height: 44px;
+  margin: 0 calc(-1 * var(--ui-space-1, 4px)); padding: 2px var(--ui-space-1, 4px);
+  color: var(--t); text-decoration: none; border-radius: var(--ui-radius-md, 8px);
+}
+.os-hw-ds-link:hover { background: color-mix(in srgb, var(--s2) 70%, transparent); }
+.os-hw-ds-link:focus-visible, .os-hw-ds-open:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-ds-row { font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; color: var(--m); min-width: 0; overflow-wrap: anywhere; }
+.os-hw-ds-row.is-strong { font-size: var(--ui-fs-body, 14px); font-weight: 600; color: var(--t); }
+.os-hw-ds-row.is-warn { font-weight: 600; color: var(--t); }
+.os-hw-ds-row.is-label { font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; }
+.os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
+.os-hw-ds-open { align-self: flex-start; text-decoration: none; }
+/* personal numbers never show on the lock screen */
+html.os-locked .os-hw-daily { visibility: hidden; }
+
+/* ── sizes: S one number, M up to three rows, L a list with an action ── */
+.os-hw.is-s { padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); }
+.os-hw.is-s .os-hw-time { font-size: var(--ui-fs-title, 20px); }
+.os-hw.is-s .os-hw-row-sub { display: none; }
+.os-hw.is-s .os-hw-next { white-space: normal; }
+.os-hw.is-m .os-hw-row { flex-direction: row; align-items: center; gap: var(--ui-space-2, 8px); }
+.os-hw.is-m .os-hw-row-name { flex: 1 1 auto; }
+.os-hw.is-m .os-hw-row-sub { flex: 0 1 auto; max-width: 50%; }
+.os-hw.is-l { gap: var(--ui-space-2, 8px); }
+.os-hw.is-l .os-hw-time { font-size: 40px; }
+.os-hw.is-l .os-hw-row { padding-block: 6px; }
+
+/* ── edit mode (P0c): tap-pick then tap-place, the S/M/L chip, Remove. No jiggle:
+   nothing here animates, so neither reduced-motion switch has anything to stop ── */
+.os-hw.is-editing { cursor: pointer; outline: 2px dashed var(--ui-line-strong, var(--m)); outline-offset: -2px; }
+.os-hw.is-editing.is-picked { outline: 2px solid var(--orange); }
+.os-hw.is-editing:focus-visible { outline: 2px solid var(--orange); box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw-edit { display: flex; justify-content: flex-end; gap: var(--ui-space-1, 4px); flex: none; margin: calc(-1 * var(--ui-space-1, 4px)) calc(-1 * var(--ui-space-1, 4px)) 0 0; }
+.os-hw-ed {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--ui-space-2, 8px);
+  background: var(--s2); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+  font: inherit; font-size: var(--ui-fs-body-sm, 13px); font-weight: 700; cursor: pointer;
+}
+.os-hw-ed:disabled { opacity: .5; cursor: default; }
+.os-hw-ed:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-hw.is-editing .os-hw-body { opacity: .72; }
+/* the live region and the edit help: read out, never seen, never a grid cell */
+.os-hw-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* the phone's edit bar with Add widget: the hint on its own row at 320px */
+.os-p-edit.has-home { flex-wrap: wrap; }
+.os-p-edit.has-home > span { flex: 1 1 100%; }
+.os-p-edit.has-home .btn { flex: 1 1 0; justify-content: center; }
+/* the desk column's own buttons */
+.os-hw-tools {
+  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px);
+  padding: var(--ui-space-1, 4px); background: color-mix(in srgb, var(--s) 88%, transparent);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px);
+}
+.os-hw-tool { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+
+/* Add widget: a native <dialog> */
+.os-hw-add {
+  margin: auto; width: min(480px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: min(640px, calc(100vh - 2 * var(--ui-space-4, 16px)));
+  padding: var(--ui-space-4, 16px); overflow-y: auto; color: var(--t); background: var(--s);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2, var(--ui-elev-1));
+}
+.os-hw-add::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.os-hw-add-hd { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); margin-bottom: var(--ui-space-2, 8px); }
+.os-hw-add-title { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; }
+.os-hw-add-close { min-height: 44px; min-width: 44px; justify-content: center; }
+.os-hw-add-full { margin: 0 0 var(--ui-space-2, 8px); font-size: var(--ui-fs-body-sm, 13px); font-weight: 600; }
+.os-hw-add .os-hw-add-group { margin: 0; padding: 0; }   /* a page-wide section rule pads sections */
+.os-hw-add-group + .os-hw-add-group { margin-top: var(--ui-space-3, 12px); }
+.os-hw-add-gt {
+  margin: 0 0 var(--ui-space-1, 4px); font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-hw-add-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.os-hw-add-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); margin: 0; padding: var(--ui-space-2, 8px) 0;
+  border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-add-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 180px; min-width: 0; }
+.os-hw-add-name { font-size: var(--ui-fs-body, 14px); font-weight: 600; }
+.os-hw-add-about { font-size: var(--ui-fs-caption, 12px); color: var(--m); overflow-wrap: anywhere; }
+.os-hw-add-sizes { display: flex; gap: var(--ui-space-1, 4px); flex: none; }
+.os-hw-add-chip { min-width: 44px; min-height: 44px; justify-content: center; padding: 0 var(--ui-space-2, 8px); }
+.os-hw-add-chip:disabled { opacity: .5; cursor: default; }
+
+/* ── by the width a widget got ── */
+@container oshw (max-width: 159px) {
+  .os-hw-sc { flex-direction: column; }
+  .os-hw-date { display: none; }
+  .os-hw-count { display: none; }
+}
+@container oshw (min-width: 320px) {
+  .os-hw-glance .os-hw-clock { flex-direction: row; align-items: baseline; gap: var(--ui-space-3, 12px); }
+  .os-hw.is-l .os-hw-row-sub { font-size: var(--ui-fs-body-sm, 13px); }
+}
+
+/* ── phone: cells of page 1 of the pager (4 columns x 92px rows) ── */
+.os-hw-list[data-os-home="phone"] { display: contents; }
+/* a home taller than the screen scrolls down inside its page (the pager scrolls sideways only) */
+.os-p-page { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
+.os-p-page .os-hw.is-s { grid-column: span 2; grid-row: span 1; }
+.os-p-page .os-hw.is-m { grid-column: span 4; grid-row: span 2; }
+.os-p-page .os-hw.is-l { grid-column: span 4; grid-row: span 4; }
+/* an M Coach opened to show 2 more takes the rows of an L while open */
+.os-p-page .os-hw.is-m.is-open { grid-row: span 4; }
+.os-p-page .os-hw.is-s .os-hw-sc { flex-direction: row; }
+/* a home taller than the page scrolls inside page 1 only */
+.os-p-home { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
+.os-p-home::-webkit-scrollbar { display: none; }
+
+/* ── desk: an ordered list in the column, two across on a wide screen ── */
+.os-widgets.os-hw-desk { width: 300px; bottom: var(--ui-space-4, 16px); overflow-y: auto; scrollbar-width: thin; }
+.os-hw-desk .os-hw-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-3, 12px); align-content: start; }
+.os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: 1 / -1; }
+.os-hw-desk .os-hw.is-l { min-height: 280px; }
+/* below 1100px: one column, never hidden */
+@media (max-width: 1100px) {
+  .os-hw-desk .os-hw-list { grid-template-columns: 1fr; }
+  .os-widgets.os-hw-desk { width: 220px; }
+  .os-hw-desk .os-hw.is-m, .os-hw-desk .os-hw.is-l { grid-column: auto; }
+}

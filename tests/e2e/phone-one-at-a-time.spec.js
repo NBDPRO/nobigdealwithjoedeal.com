@@ -73,7 +73,7 @@ test.describe('phone: one at a time @shard3', () => {
     test.setTimeout(150_000);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await loginAs(page, creds);
-    await safeWaitForFunction(page, () => !!(window._user && window.NBDSortCustomers && window.NBDTriageDeck), null, { timeout: 30_000 });
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDTriageDeck), null, { timeout: 30_000 });
     const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
     // Seed only after the dashboard's own first lead load has finished
     // (dashboard-bootstrap.module.js loadLeads() sets _leadsLoaded). A boot
@@ -91,7 +91,10 @@ test.describe('phone: one at a time @shard3', () => {
     await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); else if (typeof window.loadLeads === 'function') await window.loadLeads(); });
     await page.waitForFunction((want) => want.every((id) => (window._leads || []).some((l) => l.id === id)), ids, { timeout: 30_000 });
     expect(await forceStandalone(page)).toBeGreaterThan(200);
-    await page.evaluate(() => { window.goTo && window.goTo('crm'); window.NBDSortCustomers.refresh(); });
+    // 2026-11-08 (boot-weight lane): sort-customers.js is no longer a boot tag; the first Pipeline render loads it.
+    await page.evaluate(() => { window.goTo && window.goTo('crm'); });
+    await safeWaitForFunction(page, () => !!window.NBDSortCustomers, null, { timeout: 15_000 });
+    await page.evaluate(() => { window.NBDSortCustomers.refresh(); });
 
     // The banner re-renders as leads load; the locator re-resolves at tap time.
     const openBtn = page.locator('#sortCustomersWrap [data-sc="deck"]');

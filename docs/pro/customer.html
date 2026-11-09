@@ -2885,8 +2885,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Calls + texts from the Call Center on the timeline (NBDCallTimeline; loadTimeline reads it). -->
 <script defer src="js/call-timeline.js?v=4"></script>
 <script type="module" src="js/customer-bootstrap.module.js?v=29"></script>
-<script defer src="js/my-skin-logic.js?v=7"></script>
-<script defer src="js/my-skin.js?v=11"></script>
+<!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
+<script defer src="js/my-skin-boot.js?v=1"></script>
 <!-- Island Dock layout (2026-10-12): a no-op unless the rep resolved to it; then the hero image of the house. -->
 <script defer src="js/layouts/island-job.js?v=2"></script>
 
@@ -2896,10 +2896,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- "Homeowner picked X — use it?" above the Estimates list (2026-10-03). -->
 <script defer src="js/accepted-tier-chip.js?v=3"></script>
 <!-- Knowing your numbers (2026-10-04): the Numbers panel (sold package, real
-     close date, why it was lost, storm) — rules in numbers-logic.js. -->
-<script defer src="js/numbers-logic.js?v=3"></script>
+     close date, why it was lost, storm) — rules in numbers-logic.js, which
+     customer-numbers.js loads on demand since 2026-11-08 (only for a sale, a
+     loss or a storm lead; an open lead paints nothing from it). -->
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/customer-numbers.js?v=1"></script>
+<script defer src="js/customer-numbers.js?v=2"></script>
 <script defer src="js/customer-tasks-ui.js?v=42"></script>
 <!-- Promise capture (2026-10-12): the Promise button below opens the sheet. -->
 <script defer src="js/promise-logic.js?v=2"></script>
@@ -2933,7 +2934,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/yard-signs-logic.js?v=3"></script>
 <script defer src="js/customer-yard-sign-chip.js?v=2"></script>
 <script defer src="js/jobs-store.js?v=5"></script>
-<script defer src="js/customer-jobs.js?v=3"></script>
+<script defer src="js/customer-jobs.js?v=4"></script>
 <script defer src="js/stripe-ledger-customer.js?v=1"></script>
 <!-- PR 2b3: html2pdf is LAZY — NBDDocViewer.handlePdf loads the `pdfexport`
      ScriptLoader bundle on demand (~1.1 MB off the customer-page boot path). -->
@@ -2956,7 +2957,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      out-race a rival window.generatePhotoReport in
      customer-photo-report-generator.js (loaded above at :2156); that dead
      definition is now deleted, so the race is gone. A load-then-run stub in
-     customer-photo-report-picker.js covers both click entry points. The tag
+     customer-photo-report-lazy.js covers both click entry points. The tag
      must stay REMOVED, not merely reordered: ScriptLoader dedupes on the
      resolved path, so an eager tag for this file would make
      loadBundle('photos') a no-op and nothing would actually be deferred. -->
@@ -2967,9 +2968,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/collected-revenue.js?v=4"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/lead-brief.js?v=2"></script>
-<!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). -->
-<script defer src="js/qr-code.js?v=1"></script>
-<script defer src="js/review-handoff.js?v=1"></script>
+<!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). Since 2026-11-08
+     review-handoff-lazy.js loads qr-code.js + review-handoff.js only for a lead at Install Done or later. -->
+<script defer src="js/review-handoff-lazy.js?v=1"></script>
 <script defer src="js/profit-tracker.js?v=8"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
@@ -3112,7 +3113,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   #prpBuilder .prp-move[disabled] { opacity:.35; cursor:default; }
   #prpBuilder .prp-count { font-size:11px; color:var(--m); white-space:nowrap; }
 </style>
-<script defer src="js/customer-photo-report-picker.js?v=2"></script>
+<!-- 2026-11-08: the builder (customer-photo-report-picker.js) is LAZY, the
+     ScriptLoader 'photoreportpicker' bundle. This boot file registers it, and
+     keeps the 📸 / 📋 entry-point stubs and the #photo-report deep link. -->
+<script defer src="js/customer-photo-report-lazy.js?v=1"></script>
 
 <!-- Edit Customer Modal -->
 <div id="editCustomerModal" class="modal-bg" role="dialog" aria-modal="true" style="background:rgba(0,0,0,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
@@ -3234,7 +3238,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/po-name.js?v=1"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=2"></script>
+<script defer src="js/production.js?v=3"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)
@@ -3282,9 +3286,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="/pro/js/offline-banner.js?v=2"></script>
 <!-- W144: Supplement engine + UI entry point. Estimate-supplement.js
      was already shipped but had no UI surface — supplement-ui.js
-     wires the +Supplement button on customer-page estimate rows. -->
+     wires the +Supplement button on customer-page estimate rows.
+     2026-11-08: the engine itself loads on the first open (supplement-ui.js
+     openForEstimate), not at boot; the filter stays eager for the letter. -->
 <script defer src="/pro/js/claim-wording-filter.js?v=1"></script>
-<script defer src="/pro/js/estimate-supplement.js?v=5"></script>
 <script defer src="/pro/js/supplement-ui.js?v=4"></script>
 
 </body>

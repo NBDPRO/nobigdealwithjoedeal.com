@@ -313,9 +313,20 @@ section('Customers map layer — dashboard.html wiring');
   // boot-weight containment — see documentation/audit/BOOT-WEIGHT-2026-09-06.md).
   // The remaining three siblings stay in their locked static order; routing
   // is checked separately below, in script-loader.js's `drawtool` bundle.
-  assert('dashboard.html loads maps-customers.js between overlays and maps.js (locked static order)',
-    /maps-overlays\.js[\s\S]{0,300}maps-customers\.js[\s\S]{0,200}maps\.js/.test(dash),
-    'expected the customers module in the locked core→overlays→customers→maps order');
+  // 2026-11-08 (boot-weight): maps-customers.js left the chain too, for the
+  // `mapcustomers` bundle maps-core.js registers on the 'map' view
+  // (tests/lazy-maps-customers-2026-11-08.test.js runs it); core → overlays → maps stay.
+  assert('dashboard.html loads maps-overlays.js before maps.js (locked static order)',
+    /maps-overlays\.js[\s\S]{0,300}maps\.js/.test(dash),
+    'expected the locked core→overlays→maps order');
+  assert('maps-customers.js is NOT a static tag on dashboard.html (lazy since 2026-11-08)',
+    !/<script\s+defer\s+src="js\/maps-customers\.js/.test(dash),
+    'expected maps-customers.js to load only via the mapcustomers bundle');
+  const mapsCore = read(path.join(PRO_JS, 'maps-core.js'));
+  assert('maps-core.js registers the mapcustomers bundle and attaches it to the map view',
+    /bundles\.mapcustomers = \['js\/maps-customers\.js\?v=\d+'\]/.test(mapsCore)
+    && /views\.map\.push\('mapcustomers'\)/.test(mapsCore),
+    "expected bundles.mapcustomers = ['js/maps-customers.js?v=N'] and views.map.push('mapcustomers')");
   assert('maps-routing.js is NOT a static tag on dashboard.html (lazy since 2026-09-14)',
     !/<script\s+defer\s+src="js\/maps-routing\.js/.test(dash),
     'expected maps-routing.js to load only via ScriptLoader\'s drawtool bundle');
