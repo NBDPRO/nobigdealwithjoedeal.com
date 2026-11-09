@@ -28,7 +28,7 @@
  *      tap through the CRM's own stage writer (progressStage on the customer
  *      page, moveCard on #/calls), with every gate that writer has.
  *      Inspected, install_complete and Lost / Archived / Cancelled ask first,
- *      naming why (Lost takes a reason, offered from what was said); a stage
+ *      naming why (Lost takes a reason, typed with what was said beside it); a stage
  *      that sets an appointment never moves from here (it opens the normal
  *      place); a signed / job / won stage never moves. call-to-close-logic.js
  *      stagePlan decides; the move is logged in callBriefDecide decisions[]
@@ -362,7 +362,9 @@
       body = '<div class="cb-meta">One tap moves it through the usual stage change, with its checks.</div><div class="cb-acts">' + btn('Move to ' + st.label, 'stage-move', '', 'btn-orange') + picker + '</div>';
     } else if (S.confirm === 'stage') {
       body = '<div class="cb-warn">' + esc(plan.why) + ' Move to ' + to + '?</div>' +
-        (plan.needsReason ? '<label class="cb-field-lbl" for="cbLostReason">Reason</label><input class="cb-input" id="cbLostReason" type="text" maxlength="300" data-cb-input="lostReason" value="' + esc(S.lostReason != null ? S.lostReason : (st.quote || '')) + '">' : '') +
+        // The box starts empty: the customer's words (shown above) are a hint,
+        // never the CRM's loss reason by default.
+        (plan.needsReason ? '<label class="cb-field-lbl" for="cbLostReason">Reason</label><input class="cb-input" id="cbLostReason" type="text" maxlength="300" data-cb-input="lostReason" placeholder="Why it was lost, in your words" value="' + esc(S.lostReason != null ? S.lostReason : '') + '">' : '') +
         '<div class="cb-acts">' + btn('Yes, move to ' + st.label, 'stage-yes', '', 'btn-orange') + btn('Cancel', 'cancel') + '</div>';
     } else {
       body = '<div class="cb-meta">' + esc(plan.why) + '</div><div class="cb-acts">' + btn('Move to ' + st.label + '…', 'stage-ask') + picker + '</div>';
@@ -565,7 +567,7 @@
     var mode = plan && plan.kind === 'one-tap' && a === 'stage-move' ? 'one-tap'
       : plan && plan.kind === 'confirm' && a === 'stage-yes' && S.confirm === 'stage' ? 'confirmed' : '';
     if (!mode || !how) return;
-    var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : ((S.brief.stage || {}).quote || '')).trim().slice(0, 300) : '';
+    var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : '').trim().slice(0, 300) : '';
     if (plan.needsReason && !reason) { S.err = S.err || {}; S.err['stage-move'] = 'Give a reason first.'; render(); return; }
     var callId = S.callId, leadId = S.leadId, onChange = S.onChange, from = currentStage();
     var opts = { asked: mode === 'confirmed' };
