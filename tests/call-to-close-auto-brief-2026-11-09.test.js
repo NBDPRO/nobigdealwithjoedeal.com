@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const FN = path.join(ROOT, 'functions');
@@ -288,6 +289,27 @@ async function auto(db, before, after, extra) {
     ok('says it is off by default and only drafts (nothing is sent or filled in)', /Off by default/.test(block) && /Nothing is filled in, sent or moved/.test(block));
     ok('no inline style or handler', !/style=|\son[a-z]+=/.test(block));
     ok('shown only when this account has phone calls loaded (the call pipeline exists)', /channel !== 'text'/.test(block));
+
+    // Behaviour, not just the source: run canSetAutoBrief with real claim
+    // shapes. The owner accounts carry mintOwnerClaims' { owner: true,
+    // role: 'admin' } (functions/handlers/auth.js), so the owner must see it.
+    const fnSrc = (block.match(/function canSetAutoBrief\(\) \{[\s\S]*?\n  \}/) || [''])[0];
+    ok('canSetAutoBrief is extractable from the block', fnSrc.length > 0);
+    const can = (claims, uid) => {
+      const sandbox = { window: { _user: uid === null ? null : { uid: uid || 'jo' }, _userClaims: claims } };
+      return vm.runInNewContext('function claims() { return window._userClaims || {}; }\nfunction isViewer() { return claims().role === \'viewer\'; }\n' + fnSrc + '\ncanSetAutoBrief();', sandbox);
+    };
+    if (fnSrc) {
+      ok('the owner (mintOwnerClaims: owner true, role admin, companyId = uid) sees the switch', can({ owner: true, role: 'admin', companyId: 'jo' }) === true);
+      ok('the platform admin role sees it (the rules allow isAdmin())', can({ role: 'admin' }) === true);
+      ok('a solo owner with no role claim sees it', can({}) === true && can({ companyId: 'jo' }) === true);
+      ok('a company_admin of a company sees it', can({ role: 'company_admin', companyId: 'co1' }, 'ca') === true);
+      ok('a manager does not', can({ role: 'manager', companyId: 'co1' }, 'm') === false);
+      ok('a sales rep does not', can({ role: 'sales_rep', companyId: 'co1' }, 'rep') === false);
+      ok('a viewer does not', can({ role: 'viewer', companyId: 'co1' }, 'vic') === false);
+      ok('a member of someone else\'s company with no role does not (companyId is not their uid)', can({ companyId: 'co1' }, 'x') === false);
+      ok('signed out → no', can({ role: 'admin' }, null) === false);
+    }
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

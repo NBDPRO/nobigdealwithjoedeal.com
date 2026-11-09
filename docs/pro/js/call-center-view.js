@@ -967,6 +967,9 @@
   function canSetAutoBrief() {
     var c = claims(), r = String(c.role || ''), me = window._user && window._user.uid;
     if (!me || isViewer()) return false;
+    // The owner accounts carry mintOwnerClaims' { owner: true, role: 'admin' }
+    // (functions/handlers/auth.js); the rules let isAdmin() write it.
+    if (r === 'admin') return true;
     if (r === 'company_admin') return !!c.companyId;
     return (!r || r === 'owner') && (!c.companyId || c.companyId === me);
   }
