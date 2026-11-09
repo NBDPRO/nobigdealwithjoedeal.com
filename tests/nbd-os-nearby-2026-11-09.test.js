@@ -285,6 +285,33 @@ const find = (T, el) => click(T.dom, el.querySelector('[data-oshw-nb="find"]'));
     ok('no usable timestamp: the time the read finished', text(el).indexOf('From where you were at ' + tm(H.NOW)) !== -1 && el.querySelectorAll('.os-nb-row').length === 4, text(el));
   }
   {
+    // the member moved focus elsewhere while waiting: the answer is said through the home's polite live line
+    const { T, g, ph, card } = await mount([{ id: 'nearby', s: 'm' }]);
+    const el = card('nearby-1');
+    const live = () => text(T.document.querySelector('.os-hw-live[role="status"]'));
+    const away = T.document.querySelector('.sidebar button');
+    find(T, el); away.focus(); g.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('found while focus is elsewhere: focus stays put, the live line names the nearest', T.document.activeElement === away && /^Nearby: Nia <b>Near<\/b>, 0\.3 mi away\.$/.test(live()), live());
+    find(T, el); away.focus(); g.refuse(1);
+    ok('refused while focus is elsewhere: the live line says the plain message', T.document.activeElement === away && live() === 'Location is off for this site. Turn it on in your browser settings.', live());
+    find(T, el); away.focus(); T.fire(20000);
+    ok('no answer while focus is elsewhere: the live line says it took too long', /took too long/.test(live()), live());
+    const before = live();
+    el.querySelector('[data-oshw-nb="find"]').focus(); find(T, el); g.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('focus still in the card: it moves to the nearest row and the live line is not repeated over it', T.document.activeElement === el.querySelector('.os-nb-row') && live() === before, live());
+    ok('the live line is the home\'s own (one per surface), not a second one in the card', !el.querySelector('[aria-live]') && !!ph);
+  }
+  {
+    const { T, g, card } = await mount([{ id: 'nearby', s: 'm' }], { leads: [{ id: 'x', firstName: 'X', userId: 'u1', address: '1 A St' }] });
+    const el = card('nearby-1');
+    const away = T.document.querySelector('.sidebar button');
+    find(T, el); away.focus(); g.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('no lead on the map while focus is elsewhere: the live line says so', text(T.document.querySelector('.os-hw-live[role="status"]')) === 'None of your leads has a map location yet.');
+  }
+  {
     const { card } = await mount([{ id: 'nearby', s: 'm' }], { leadsLoaded: false });
     ok('leads not loaded yet: says so, no Find button', /Loading your leads/.test(text(card('nearby-1'))) && !card('nearby-1').querySelector('[data-oshw-nb="find"]'));
   }

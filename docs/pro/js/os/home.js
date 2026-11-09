@@ -757,6 +757,7 @@
       hiddenId: hiddenId, has: function (id) { return !!WIDGETS[id]; }, epoch: function () { return epoch; },
       render: function (id, size, cfg, a, rec) { return WIDGETS[id](size, cfg, a, rec, kit); },
       locked: locked,
+      announce: function (msg) { announce(msg); },   // the polite live line (Nearby says a late answer through it)
     };
     var editing = false, pick = null, press = null, pressT = null, swallow = false, swallowT = null, addEl = null;
     var drag = null;
@@ -1346,7 +1347,7 @@
         return;
       }
       var nb = t.closest('[data-oshw-nb]');
-      if (nb) { if (W.NBDOSNearby && typeof W.NBDOSNearby.tap === 'function') W.NBDOSNearby.tap(nb); return; }
+      if (nb) { if (W.NBDOSNearby && typeof W.NBDOSNearby.tap === 'function') W.NBDOSNearby.tap(nb, kit); return; }
       var sd = t.closest('[data-oshw-sd]');
       if (sd) { openShutdown(sd); return; }
       var fb = t.closest('[data-oshw-focus]');

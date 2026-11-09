@@ -54,20 +54,36 @@
     try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
   }
 
-  /** After an answer lands: focus the nearest row (else the line, else the button), unless the member moved on. */
+  /** After an answer lands: focus the nearest row (else the line, else the button), unless the member moved on. True when focus moved. */
   function refocus(card) {
-    if (!card || !card.querySelector) return;
+    if (!card || !card.querySelector) return false;
     var a = W.document && W.document.activeElement;
-    if (a && a !== W.document.body && a.isConnected !== false && !card.contains(a)) return;
+    if (a && a !== W.document.body && a.isConnected !== false && !card.contains(a)) return false;
     var f = card.querySelector('.os-nb-row') || card.querySelector('[data-oshw-nb-status]') || card.querySelector('[data-oshw-nb="find"]');
-    if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+    if (f) { try { f.focus({ preventScroll: true }); return true; } catch (e) {} }
+    return false;
+  }
+  /** The answer in one sentence, for the home's polite live line (home.js announce, through the kit). */
+  function answerText(kit) {
+    if (S.err || !S.fix) return S.err ? S.err.text : '';
+    var leads = kit && typeof kit.leads === 'function' ? kit.leads() : null;
+    if (!leads) return '';
+    var sc = NL.scope(leads, uid()), all = !!(S.all && sc && sc.others);
+    var r = NL.nearest(leads, S.fix, { uid: uid(), scope: all ? 'all' : 'mine', n: 1, verbs: runnerVerbs() }).rows[0];
+    return r ? 'Nearby: ' + r.name + ', ' + r.dist + ' away.' : (all ? 'No lead you can see has a map location yet.' : 'None of your leads has a map location yet.');
+  }
+  /** Focus goes to the answer when the member is still on the card; otherwise the live line says it, so it is never missed. */
+  function landed(card, kit) {
+    if (refocus(card)) return;
+    var msg = answerText(kit);
+    if (msg && kit && typeof kit.announce === 'function') { try { kit.announce(msg); } catch (e) {} }
   }
 
   /** Ask for the position once. Success and failure both repaint; nothing is kept beyond S.fix. */
-  function find(card) {
+  function find(card, kit) {
     if (S.asking) return;
     var g = W.navigator && W.navigator.geolocation;
-    if (!g || typeof g.getCurrentPosition !== 'function') { S.err = NL.geoError({ kind: 'none' }); S.fix = null; repaint(); refocus(card); return; }
+    if (!g || typeof g.getCurrentPosition !== 'function') { S.err = NL.geoError({ kind: 'none' }); S.fix = null; repaint(); landed(card, kit); return; }
     S.asking = true; S.err = null;
     repaint();
     refocus(card);
@@ -86,23 +102,23 @@
       if (c) { S.fix = { lat: c.lat, lng: c.lng, at: ts }; S.err = null; }
       else { S.fix = null; S.err = NL.geoError({ code: 2 }); }
       repaint();
-      refocus(card);
+      landed(card, kit);
     }
     function fail(e) {
       if (done) return; settle();
       S.asking = false; S.fix = null; S.err = NL.geoError(e);
       repaint();
-      refocus(card);
+      landed(card, kit);
     }
     try { g.getCurrentPosition(ok, fail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }); }
     catch (e) { fail(e); }
   }
 
-  /** A tap on [data-oshw-nb] (home.js routes it). */
-  function tap(btn) {
+  /** A tap on [data-oshw-nb] (home.js routes it, with its kit). */
+  function tap(btn, kit) {
     var what = btn && btn.getAttribute ? btn.getAttribute('data-oshw-nb') : '';
     var card = btn && btn.closest ? btn.closest('.os-hw') : null;
-    if (what === 'find') { find(card); return; }
+    if (what === 'find') { find(card, kit); return; }
     if (what !== 'mine' && what !== 'all') return;
     S.all = what === 'all';
     repaint();
