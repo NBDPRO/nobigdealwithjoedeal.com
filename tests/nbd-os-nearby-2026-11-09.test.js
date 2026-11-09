@@ -262,6 +262,14 @@ const find = (T, el) => click(T.dom, el.querySelector('[data-oshw-nb="find"]'));
     ok('no lead with a location: a plain line, no number', /None of your leads has a map location yet/.test(text(el)) && !/\d/.test(text(el).replace(/Update/, '')), text(el));
   }
   {
+    const { T, g, card } = await mount([{ id: 'nearby', s: 's' }], { leads: [{ id: 'x', firstName: 'X', userId: 'u1', address: '1 A St' }] });
+    const el = card('nearby-1');
+    find(T, el); g.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('S with no lead on the map: the title says so (one 92px cell), no <p> under it to clip', /No leads on the map/.test(text(el.querySelector('.os-hw-title'))) && !el.querySelector('p') && !/\d/.test(text(el)), el.innerHTML);
+    ok('S: focus lands on that title line', T.document.activeElement === el.querySelector('[data-oshw-nb-status]'));
+  }
+  {
     const { card } = await mount([{ id: 'nearby', s: 'm' }], { leadsLoaded: false });
     ok('leads not loaded yet: says so, no Find button', /Loading your leads/.test(text(card('nearby-1'))) && !card('nearby-1').querySelector('[data-oshw-nb="find"]'));
   }

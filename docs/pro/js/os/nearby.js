@@ -165,6 +165,8 @@
     }
     var res = NL.nearest(leads, S.fix, { uid: uid(), scope: all ? 'all' : 'mine', n: ROWS[sz], verbs: runnerVerbs() });
     if (!res.rows.length) {
+      // S: the message takes the title's place, as the error path does (no line under it to clip)
+      if (sz === 's') return '<h3 class="os-hw-title" data-oshw-nb-status tabindex="-1">No leads on the map</h3>';
       return head + status(all ? 'No lead you can see has a map location yet.' : 'None of your leads has a map location yet.') +
         (sz === 'l' ? scopeBtns(sc.others) : '');
     }
