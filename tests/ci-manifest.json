@@ -439,6 +439,7 @@
     "nbd-os-wallpaper-2026-11-09.test.js",
     "nbd-os-wallpaper-picker-2026-11-09.test.js",
     "nbd-os-runner-2026-11-09.test.js",
+    "nbd-os-lock-over-dialog-2026-11-09.test.js",
     "nbd-os-peek-2026-11-09.test.js",
     "nbd-os-welcome-recap-2026-11-09.test.js",
     "nbd-os-pocket-2026-11-09.test.js",

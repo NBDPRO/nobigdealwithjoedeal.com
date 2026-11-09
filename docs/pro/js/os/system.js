@@ -167,6 +167,14 @@
   // Lock screen: a privacy cover, not security (sign-out stays sign-out).
   // Counts only, never a customer's name. Auto-lock is off by default.
   var hiddenForLock = [];
+  // An open modal <dialog> (the OS sheets: Peek, Shutdown, Add widget...) is in the top
+  // layer and makes the rest inert: a cover in <body> would sit under it, its Unlock dead.
+  // The cover goes inside the last one opened instead; the dialog stays open as it was.
+  function topModal() {
+    var ds = doc.querySelectorAll('dialog[open]'), top = null;
+    for (var i = 0; i < ds.length; i++) if (call(function () { return ds[i].matches(':modal'); }) === true) top = ds[i];
+    return top;
+  }
   function lock() {
     if (state.locked) return;
     close();
@@ -178,14 +186,16 @@
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
     el.setAttribute('aria-label', 'Screen locked');
-    doc.body.appendChild(el);
-    // everything else leaves the accessibility tree while locked
+    (topModal() || doc.body).appendChild(el);
+    // everything else leaves the accessibility tree while locked (the siblings at each level up to <body>)
     hiddenForLock = [];
-    Array.prototype.forEach.call(doc.body.children, function (c) {
-      if (c === el || c.getAttribute('aria-hidden') === 'true') return;
-      c.setAttribute('aria-hidden', 'true');
-      hiddenForLock.push(c);
-    });
+    for (var n = el; n && n !== doc.body && n.parentNode; n = n.parentNode) {
+      Array.prototype.forEach.call(n.parentNode.children, function (c) {
+        if (c === n || !c.getAttribute || c.getAttribute('aria-hidden') === 'true') return;
+        c.setAttribute('aria-hidden', 'true');
+        hiddenForLock.push(c);
+      });
+    }
     paintLock();
     doc.documentElement.classList.add('os-locked');
     sound('lock');
