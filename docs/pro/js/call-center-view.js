@@ -278,6 +278,9 @@
       if (channel === 'call') state.error = 'Could not load calls (not signed in yet).';
       return [];
     }
+    // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
+    // 2026-11-09): no read, so no "Could not load" banner; render says why.
+    if (name === 'phone_calls' && isViewer()) return [];
     var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
@@ -582,6 +585,7 @@
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
+    else if (!state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role.</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
     else if (!rows.length && state.filter === 'attention' && flt.status === 'handled') body = '<div class="cc-empty">' + esc(HANDLED_OFF) + ' <button type="button" class="cc-clear" data-cc="filter" data-arg="all">Open All</button></div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
@@ -596,6 +600,7 @@
       (rows.length > 150 ? '<div class="cc-empty">Showing the ' + (FX && flt.sort === 'old' ? 'oldest' : 'newest') + ' 150. Search or filter to narrow it down.</div>' : '');
     if (state.loaded && state.cappedBefore) body = capBanner() + body;
     if (state.loaded && readProblems().length) body = readBanner() + body;
+    if (state.loaded && state.calls.length && isViewer()) body = '<div class="cc-empty cc-hidden-note" role="status">Calls are hidden for your role. Texts still show.</div>' + body;
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
     var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';

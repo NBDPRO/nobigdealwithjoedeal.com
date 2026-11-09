@@ -127,3 +127,6 @@
 .cc-tab:focus-visible, .cc-search:focus-visible, .cc-date:focus-visible, .cc-clear:focus-visible, .pc-play:focus-visible { outline: 2px solid var(--orange, #BD5728); outline-offset: 2px; }
 #ccPanel:focus { outline: none; }
 .cc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Call to Close Q11 (2026-11-09): a viewer cannot read phone_calls; a quiet note says so (call-center-view.js, customer-calls.js). */
+.cc-hidden-note { padding: 10px 12px; font-size: 13px; }
+.pc-hidden-note { padding: 10px 12px; text-align: center; }

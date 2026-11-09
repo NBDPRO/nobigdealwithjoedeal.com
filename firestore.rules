@@ -4369,16 +4369,25 @@ service cloud.firestore {
       allow write: if false;
     }
     // Call Center (call-center.js): Jo's phone-call recordings filed from
-    // Cube ACR. Server-written only; reads mirror thursday_calls. Audio lives
-    // in Storage calls/{uid}/cube-acr/ (owner-only read, server-only write).
+    // Cube ACR. Server-written only. Audio lives in Storage
+    // calls/{uid}/cube-acr/ (owner-only read, server-only write).
+    // 2026-11-09 (Call to Close Q11): NOT readable by a viewer, not even a
+    // call filed under the viewer's own uid: a doc carries the full
+    // transcript, the recording path and the AI notes. Readers = the
+    // callCenterAction role test (functions/call-center.js): the call's
+    // userId, the platform admin, or same-company company_admin / manager.
+    // .get() on role: a solo operator has NO role claim (NEW-5).
     match /phone_calls/{docId} {
-      allow read: if isOwner(resource.data.userId)
-        || isAdmin()
-        || (isCompanyReader() && sameCompanyAsResource());
+      allow read: if notViewer()
+        && (isOwner(resource.data.userId)
+            || isAdmin()
+            || (request.auth.token.get('role', '') in ['company_admin', 'manager']
+                && sameCompanyAsResource()));
       allow write: if false;
     }
     // Text Inbox (text-inbox.js): Jo's texts from the phone's SMS backup.
-    // Server-written only; same readers as phone_calls.
+    // Server-written only; reads mirror thursday_calls (viewers included,
+    // unlike phone_calls since 2026-11-09).
     match /phone_texts/{docId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()

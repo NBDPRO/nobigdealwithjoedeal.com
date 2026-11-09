@@ -86,6 +86,10 @@
     }
     var byId = {};
     var sources = [['thursday_calls', 'thursday'], ['phone_calls', 'phone']];
+    // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
+    // 2026-11-09): Thursday's calls only; render() says the rest are hidden.
+    var phoneHidden = (c.role || '') === 'viewer';
+    if (phoneHidden) sources = sources.slice(0, 1);
     for (var k = 0; k < sources.length; k++) {
       for (var i = 0; i < scopes.length; i++) {
         try {
@@ -102,7 +106,7 @@
     // leadId queries above missed them. Read-only, same two scopes the rules
     // allow, and only calls not already attached to a DIFFERENT customer —
     // a shared household number never claims someone else's call.
-    var pd = leadDigits();
+    var pd = phoneHidden ? '' : leadDigits();
     if (pd) {
       var pScopes = [[window.where('phoneDigits', '==', pd), window.where('userId', '==', uid)]];
       if (['company_admin', 'manager', 'viewer'].indexOf(c.role || '') !== -1 && c.companyId) {
@@ -282,6 +286,8 @@
     if (typeof window.nbdNavCount === 'function') window.nbdNavCount('navCountCalls', calls.length + (texts.length ? 1 : 0));
     var top = notice ? '<div class="panel pc-notice" data-calls-notice>' + esc(notice) +
       (noticeLead ? ' <a class="cc-link" href="/pro/customer.html?id=' + encodeURIComponent(noticeLead) + '">Open them →</a>' : '') + '</div>' : '';
+    if (isViewer()) top += '<div class="pc-meta pc-hidden-note" role="status">Calls from your phone are hidden for your role.</div>';
+    if (!calls.length && !texts.length && isViewer()) { el.innerHTML = top; return; }
     if (!calls.length && !texts.length) {
       el.innerHTML = top + '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
       return;

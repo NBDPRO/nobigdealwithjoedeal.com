@@ -474,7 +474,10 @@
       // server reads these exact shapes in prod.)
       const sinceWin = Date.now() - PROMISE_WINDOW;
       const qWin = (name, cap) => w.getDocs(w.query(w.collection(w.db, name), w.where('userId', '==', u), w.where('startedAtMs', '>=', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(cap)));
-      jobs.push(qWin('phone_calls', READ.recentCalls)
+      // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
+      // 2026-11-09): skip both call reads instead of showing a failed read.
+      const callsHidden = (c.role || '') === 'viewer';
+      if (!callsHidden) jobs.push(qWin('phone_calls', READ.recentCalls)
         .then((snap) => {
           if (unconfirmedEmpty(snap)) { if (unconfirmed('calls') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
           delete _unconf.calls;
@@ -490,7 +493,7 @@
         }).catch(() => { out.callsFailed = true; }));
       // Open promises older than the window roll into one review row: their own
       // bounded read. A failed one is a warning (oldFailed), not "no old promises".
-      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
+      if (!callsHidden) jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
         .then((snap) => {
           if (unconfirmedEmpty(snap)) { if (unconfirmed('old') === 'failed') out.oldFailed = true; else out.oldPending = true; return; }
           delete _unconf.old;

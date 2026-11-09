@@ -668,6 +668,30 @@ async function run() {
   await check('phone_calls: B manager queries co-a',           'deny',  tget(tq(tcol(bobMgr, 'phone_calls'), tw('companyId', '==', 'co-a'))));
   await check('phone_calls: owner cannot edit a call',         'deny',  updateDoc(doc(alice, 'phone_calls/cube_A1'), { leadId: 'x' }));
   await check('phone_calls: owner cannot create a call',       'deny',  setDoc(doc(alice,    'phone_calls/cube_fake'), { userId: 'alice', companyId: 'co-a' }));
+  // Call to Close Q11 (2026-11-09): a VIEWER no longer reads phone_calls
+  // (transcripts, recording paths, AI notes), not even a call filed under the
+  // viewer's own uid. Same audience as the callCenterAction role test
+  // (functions/call-center.js): not a viewer, and the call's userId, the
+  // platform admin or same-company company_admin / manager.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'phone_calls/cube_V1'), { userId: 'vica', companyId: 'co-a', phoneDigits: '5135550101', startedAtMs: 2, transcript: 't' });
+    await setDoc(doc(ctx.firestore(), 'phone_calls/cube_S1'), { userId: 'solo1', companyId: 'solo1', phoneDigits: '5135550102', startedAtMs: 3 });
+  });
+  const platAdmin = env.authenticatedContext('plat', { role: 'admin' }).firestore();
+  await check('phone_calls: same-tenant viewer denied',        'deny',  getDoc(doc(vicA,   'phone_calls/cube_A1')));
+  await check('phone_calls: viewer companyId query denied',    'deny',  tget(tq(tcol(vicA, 'phone_calls'), tw('companyId', '==', 'co-a'))));
+  await check('phone_calls: viewer denied own-uid call',       'deny',  getDoc(doc(vicA,   'phone_calls/cube_V1')));
+  await check('phone_calls: viewer own-uid query denied',      'deny',  tget(tq(tcol(vicA, 'phone_calls'), tw('userId', '==', 'vica'))));
+  await check('phone_calls: same-tenant company_admin reads',  'allow', getDoc(doc(aliceCA,'phone_calls/cube_A1')));
+  await check('phone_calls: company_admin companyId query',    'allow', tget(tq(tcol(aliceCA, 'phone_calls'), tw('companyId', '==', 'co-a'))));
+  await check('phone_calls: platform admin reads',             'allow', getDoc(doc(platAdmin, 'phone_calls/cube_A1')));
+  await check('phone_calls: owner userId query',               'allow', tget(tq(tcol(alice, 'phone_calls'), tw('userId', '==', 'alice'))));
+  await check('phone_calls: solo owner (no role) reads own',   'allow', getDoc(doc(solo,   'phone_calls/cube_S1')));
+  await check('phone_calls: solo owner userId query',          'allow', tget(tq(tcol(solo, 'phone_calls'), tw('userId', '==', 'solo1'))));
+  await check('phone_calls: same-tenant manager reads viewer-owned call', 'allow', getDoc(doc(eveMgr, 'phone_calls/cube_V1')));
+  await check('phone_calls: B company_admin reads A call',     'deny',  getDoc(doc(bobCA,  'phone_calls/cube_A1')));
+  await check('phone_calls: B company_admin queries co-a',     'deny',  tget(tq(tcol(bobCA, 'phone_calls'), tw('companyId', '==', 'co-a'))));
+  await check('phone_calls: no-claim user reads A call',       'deny',  getDoc(doc(noClaim, 'phone_calls/cube_A1')));
 
   // TEXT INBOX (2026-10-01) — phone_texts: Jo's texts from the phone's SMS
   // backup (numbers, names, bodies). Same readers as phone_calls; no client writes.
