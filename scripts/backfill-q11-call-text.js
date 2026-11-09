@@ -32,7 +32,11 @@
  *       promise-logic.js taskText(kind, '', waitingOn), why ''.
  * Each is changed only when the task still holds exactly what the server
  * wrote (rebuilt with the live writer); anything
- * else is an owner's edit and is skipped ("edited"). The full text goes in
+ * else is skipped ("edited"): an owner's edit, or a task no one touched whose
+ * source moved on since (a contactName changed, a day of texts re-noted with
+ * new promises, a task in an older writer's shape). Skipping is the safe side.
+ * A call with no contactName gives "Follow up with customer", the live
+ * writer's own default; only a call / text day that is gone is "who unknown". The full text goes in
  * leads/{leadId}/task_call_text/{taskId} as { full, generic } through
  * task-call-text.js split / sideDoc (the shape the writers write), with
  * create(): an existing sidecar is never overwritten. The sidecar is written
@@ -327,7 +331,7 @@ async function run({ db, args, log = console.log, serverTimestamp, pageSize = 50
   log('  not a lead cube-/sms-/thursday-/promise- task (skip): ' + c.notCandidate);
   log('  already callText (skip)              : ' + c.alreadyDone);
   log('  already generic (skip)               : ' + c.alreadyGeneric);
-  log('  edited by an owner (skip)            : ' + c.edited);
+  log('  edited, or no longer what the server would write (skip): ' + c.edited);
   log('  who unknown, call gone (skip)        : ' + c.whoUnknown);
   log('  Thursday call gone (skip)            : ' + c.sourceMissing);
   log('  Thursday issue mismatch (skip)       : ' + c.issueMismatch);

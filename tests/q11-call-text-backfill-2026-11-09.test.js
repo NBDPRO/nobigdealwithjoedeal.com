@@ -218,6 +218,9 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   ok(c.edited === 2 && c.whoUnknown === 1 && c.issueMismatch === 1 && c.needsSummaryScrub === 1 && c.alreadyGeneric === 2 && c.alreadyDone === 1, 'dry run: skip counts -> ' + JSON.stringify(c));
   ok(c.leadsToChange === 2 && c.leadsEdited === 1 && c.leadsNotOld === 4, 'dry run: 2 leads to point, 1 edited -> ' + JSON.stringify(c));
   ok(lines.some((l) => /DRY RUN/.test(l)) && lines.some((l) => /--apply/.test(l)), 'dry run says so and how to write');
+  // "edited" also holds tasks no owner touched (a contactName changed since,
+  // a day re-noted, an older writer's shape): the label says so (review 2026-11-09)
+  ok(lines.some((l) => /^  edited, or no longer what the server would write \(skip\)\s*: 2$/.test(l)) && !lines.some((l) => /edited by an owner/.test(l)), 'the edited line does not claim every one is an owner\'s edit');
   const leaks = (txt) => /SECRET|IDX|bland_calls|LEADPLAIN|Pat|Sam|halina/.test(txt);
   ok(!leaks(lines.join('\n')), 'dry run output: counts only, no text, names or ids');
 
