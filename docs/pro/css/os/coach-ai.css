@@ -1,0 +1,12 @@
+/* css/os/coach-ai.css — the NBD OS Coach's AI focus line (2026-11-09, P2;
+   js/os/coach-ai.js). Loaded with the `oscoachai` runtime bundle, never at
+   boot. Theme tokens and --ui-* tokens only; no motion. Floors: 44px targets,
+   no text under 11px. The card is .os-hw (home.css). */
+.os-hw-ai { margin: 0; min-width: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; overflow-wrap: anywhere; }
+.os-hw-ai-tag {
+  font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em);
+  text-transform: uppercase; color: var(--m);
+}
+.os-hw-ai-line { color: var(--t); }
+.os-hw-ai-busy { color: var(--m); }
+.os-hw-ai-ask { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }

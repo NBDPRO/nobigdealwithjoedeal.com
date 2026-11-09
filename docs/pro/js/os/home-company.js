@@ -13,6 +13,11 @@
  *               solo owner or that company's company_admin write it)
  *   lock(o)     "Lock team homes" on or off (homeLocked, OFF by default): members
  *               then see the published home and get no edit mode
+ *   coachai(o)  (P2) "Coach AI focus line" on or off: companyProfile.coachAiEnabled
+ *               (OFF by default) through window._saveCompanyProfile, the existing
+ *               company-profile writer (rules: the solo owner or company_admin).
+ *               On, each person may tap for one AI focus sentence a day in Coach
+ *               (functions/coach-line.js)
  * o: { surface: 'phone'|'desk', items: the home on screen, after(): repaint }.
  *
  * Members see only the business half of a company home's Coach and Daily
@@ -135,5 +140,19 @@
     });
   }
 
-  W.NBDOSHomeCompany = { publish: publish, lock: lock };
+  function coachai(o) {
+    var save = W._saveCompanyProfile;
+    if (typeof save !== 'function') { toast('Couldn\'t change that just now. Try again.', 'error'); return; }
+    var p = W._companyProfile || {};
+    var next = p.coachAiEnabled !== true;
+    Promise.resolve().then(function () { return save({ coachAiEnabled: next }); }).then(function () { return true; }, function () { return false; }).then(function (okd) {
+      if (!okd) toast('Couldn\'t change the Coach AI line. Only an owner or admin can, and you need a connection.', 'error');
+      else toast(next ? 'Coach AI focus line on. Each person can tap for one focus sentence a day, written from their own counts.'
+        : 'Coach AI focus line off. Coach shows its rules only.');
+      try { W.dispatchEvent(new W.CustomEvent('nbd:os-coachai')); } catch (e) {}
+      done(o);
+    });
+  }
+
+  W.NBDOSHomeCompany = { publish: publish, lock: lock, coachai: coachai };
 })();

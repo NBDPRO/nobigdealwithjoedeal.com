@@ -12,7 +12,10 @@
  *                clock when its cfg says so
  *   Coach        (P0c) the top rule of os/coach-logic.js, 2 more on expand (M)
  *                or always (L); each with its CRM action, Later (snooze) and
- *                Not today (dismiss), kept in localStorage nbd_os_coach only
+ *                Not today (dismiss), kept in localStorage nbd_os_coach only.
+ *                P2: when the company opted in (companyProfile.coachAiEnabled),
+ *                one AI focus sentence above the top rule, on tap, once a day
+ *                (os/coach-ai.js, the runtime bundle oscoachai registered here)
  *   Daily Success (P0c) personal half: floors X/N, streak state, week % from
  *                the tracker's snapshot, only when today's, fresh and whole,
  *                else one "Open Daily Success" link; business half: calls,
@@ -101,7 +104,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'nbd:invoices-loaded', 'nbd:os-unlock', 'nbd:flags-loaded', 'storage', 'online', 'offline', 'nbd:os-dsbiz', 'nbd:os-shutdown', 'nbd:os-coachai'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -267,6 +270,22 @@
     p.shown.fired = rules.length;   // rules that fired, shown or not (snoozed, Not today, resting)
     return p.shown;
   }
+  // P2: the AI focus line (os/coach-ai.js), a runtime bundle loaded the first time an opted-in Coach paints
+  var aiAsked = false;
+  function coachAi(list) {
+    var p = W._companyProfile;
+    if (!list.length || !p || p.coachAiEnabled !== true) return '';
+    var A = W.NBDOSCoachAI, SL = W.ScriptLoader;
+    if (A) return A.html(list);
+    if (!aiAsked && SL && typeof SL.loadBundle === 'function') {
+      aiAsked = true;
+      if (SL.bundles && !SL.bundles.oscoachai) SL.bundles.oscoachai = ['css/os/coach-ai.css?v=1', 'js/os/coach-ai.js?v=1'];
+      Promise.resolve().then(function () { return SL.loadBundle('oscoachai'); }).then(function () {
+        try { W.dispatchEvent(new W.CustomEvent('nbd:os-coachai')); } catch (e) {}
+      }, function () {});
+    }
+    return '';
+  }
   function coach(size, cfg, act, rec) {
     var h = '<h3 class="os-hw-title">Coach</h3>';
     var list = coachRules(cfg);
@@ -274,7 +293,7 @@
     // "Nice work" only when no rule fired at all; rules that are only hidden are not an all-clear
     if (!list.length) return h + '<p class="os-hw-coach-calm">' + (list.fired ? 'Nothing else for now.' : 'Nothing pressing right now. Nice work.') + '</p>';
     var top = list[0];
-    h += '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
+    h += coachAi(list) + '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
       '<div class="os-hw-coach-acts">' + actionHtml(top.action, 'btn btn-ghost os-hw-btn os-hw-coach-act') +
         '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="snooze" data-rule="' + esc(top.id) + '">Later</button>' +
         '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="dismiss" data-rule="' + esc(top.id) + '">Not today</button>' +
@@ -291,6 +310,10 @@
   }
   function coachTap(rec, what, id, onResize) {
     var CL = W.NBDOSCoachLogic;
+    if (what === 'ai') {
+      if (W.NBDOSCoachAI) W.NBDOSCoachAI.ask(coachRules(rec.it.cfg || null) || []);
+      return;
+    }
     if (what === 'more') {
       rec.open = !rec.open;
       rec.el.classList.toggle('is-open', rec.open);

@@ -284,8 +284,12 @@
     var on = (prefs().company || {}).homeLocked === true;
     return '<button type="button" class="btn btn-ghost ' + esc(cls) + '" ' + esc(attr) + '="homepublish">Publish to team</button>' +
       '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (on ? ' is-on' : '') + '" ' + esc(attr) + '="homelock" role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' +
-      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>';
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Lock team homes</button>' +
+      // P2: the company's opt-in to the Coach's AI focus line (companyProfile.coachAiEnabled, off by default)
+      '<button type="button" class="btn btn-ghost ' + esc(cls) + ' os-hw-lock' + (coachAiOn() ? ' is-on' : '') + '" ' + esc(attr) + '="homecoachai" role="switch" aria-checked="' + (coachAiOn() ? 'true' : 'false') + '">' +
+      '<span class="os-hw-lock-dot" aria-hidden="true"></span>Coach AI focus line</button>';
   }
+  function coachAiOn() { var p = W._companyProfile; return !!(p && p.coachAiEnabled === true); }
   function teamAction(what) {
     if (!S || !S.home || !canAdmin()) return;
     var surface = homeSurface();
@@ -1124,6 +1128,7 @@
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
+    if (what === 'homecoachai') return teamAction('coachai');
     if (what === 'wallpaper') return openWallpaper();
     if (what === 'acts') return openActs(S.actBtn);
   }
@@ -1479,6 +1484,7 @@
     if (what === 'homeadd' && S.home && !homeLocked()) return safe(function () { S.home.openAdd(); });
     if (what === 'homepublish') return teamAction('publish');
     if (what === 'homelock') return teamAction('lock');
+    if (what === 'homecoachai') return teamAction('coachai');
     if (what === 'newlead' && typeof W.openLeadModal === 'function') return safe(function () { W.openLeadModal(); });
     if (what === 'search') return openSearch();
     if (what === 'acts') return openActs(t);
