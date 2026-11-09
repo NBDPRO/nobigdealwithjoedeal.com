@@ -708,6 +708,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-cbsettings-test 'node firestore-rules.call-brief-settings.test.js'
+      # Call to Close P2 (2026-11-09): integrations/callCenter_{companyId} — another tenant's call feed config (owner uid, Drive folder, enabled); server-only. Own file (positive controls inside).
+      - name: Run call-feed config rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-callfeed-test 'node firestore-rules.call-feed.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.

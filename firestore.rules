@@ -4556,6 +4556,20 @@ service cloud.firestore {
             && resource.data.get('companyId', '') == request.auth.token.get('companyId', '')));
     }
 
+    // ── CALL CENTER FEED CONFIG (server-only) ──
+    // integrations/callCenter is NBD's call feed (Drive folder, cursor, day
+    // audio allowance); integrations/callCenter_{companyId} (Call to Close P2,
+    // 2026-11-09) is another tenant's: owner uid, Drive folder id, enabled.
+    // Every integrations/* doc is Cloud Functions only (admin SDK): no client,
+    // not the tenant's own owner, not the platform admin's browser, may read
+    // or write one. Enabling a tenant is a hand edit by Jo, after his lawyer
+    // reviews recording and consent (Q6). The default deny below already
+    // covered this; the block names it.
+    // tests/firestore-rules.call-feed.test.js.
+    match /integrations/{docId} {
+      allow read, write: if false;
+    }
+
     // ── DEFAULT DENY ─────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
