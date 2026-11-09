@@ -788,6 +788,9 @@ async function waitFor(page, fn, arg, ms) {
       await window.LayoutEngine.apply('os', { source: 'user' });
     });
     await page.waitForFunction(() => document.documentElement.getAttribute('data-layout') === 'os' && !!document.querySelector('#osDesk [data-osdo="homeedit"]'), null, { timeout: 30000 });
+    // the tool windows the walk opened float over the desk (since P1 the widget board is 640px wide
+    // at 1280, so they cover its tools): Show desktop first, the way a member would
+    await page.locator('#osDesk [data-osdo="desktop"]').click();
     await page.locator('#osDesk [data-osdo="homeedit"]').click();
     await page.locator('#osDesk [data-osdo="homepublish"]').click();
     await page.waitForSelector('dialog.os-hw-pub[open]', { timeout: 15000 });
