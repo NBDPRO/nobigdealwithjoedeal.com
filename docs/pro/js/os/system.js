@@ -255,6 +255,39 @@
     if (Array.isArray(n)) return n.length;
     return 0;
   }
+  // P2 (design §6 #8) "Safe to drive off?": counts read from the real queues, async; null = unknown.
+  // writes: Firestore's on-device mutation queue (NBDOfflineSync.countPending, null under a memory
+  // cache) or the writes settle() saw queued (pending(), a positive count only); photos: this
+  // member's rows in the durable photo upload queue (NBDPhotoQueueStore.pendingForUid).
+  state.bg = { writes: null, photos: null, at: 0, busy: false };
+  function bgNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : null; }
+  function refreshBg(force) {
+    var bg = state.bg;
+    if (state.off || bg.busy || (!force && Date.now() - bg.at < 10000)) return;
+    bg.busy = true;
+    var S = w.NBDOfflineSync, P = w.NBDPhotoQueueStore, uid = w._user && w._user.uid;
+    var a = S && typeof S.countPending === 'function' ? Promise.resolve().then(function () { return S.countPending(); }).catch(function () { return null; }) : Promise.resolve(null);
+    var b = P && typeof P.pendingForUid === 'function' && uid ? Promise.resolve().then(function () { return P.pendingForUid(uid); }).catch(function () { return null; }) : Promise.resolve(null);
+    Promise.all([a, b]).then(function (r) {
+      var hint = S && typeof S.pending === 'function' ? bgNum(call(function () { return S.pending(); })) : null;
+      var c = bgNum(r[0]);
+      var writes = c === null ? (hint ? hint : null) : Math.max(c, hint || 0);
+      var photos = bgNum(r[1]);
+      bg.busy = false;
+      bg.at = Date.now();
+      if (writes === bg.writes && photos === bg.photos) return;
+      bg.writes = writes;
+      bg.photos = photos;
+      paintTray();
+      if (state.open === 'control') paintSheet();
+    });
+  }
+  function driveHtml() {
+    var d = L.driveOff({ online: w.navigator ? w.navigator.onLine !== false : true, writes: state.bg.writes, photos: state.bg.photos });
+    if (!d) return '';   // unknown: say nothing rather than guess
+    return '<div class="os-cc-block os-cc-drive" role="status"><div class="ui-eyebrow">Safe to drive off?</div>' +
+      '<p class="os-cc-drive-line os-tone-' + esc(d.tone) + '" aria-label="' + esc(d.label) + '"><span class="os-tray-dot" aria-hidden="true"></span>' + esc(d.text) + '</p></div>';
+  }
   function unreadCount() {
     var B = w.NotifBell;
     var n = B && typeof B.getCount === 'function' ? call(function () { return B.getCount(); }) : 0;
@@ -276,7 +309,7 @@
   }
 
   // ── tray ──────────────────────────────────────────────────
-  var TRAY_PANEL = { sync: 'control', notifs: 'notifs', storm: 'control', away: 'control', dnd: 'control' };
+  var TRAY_PANEL = { sync: 'control', photos: 'control', notifs: 'notifs', storm: 'control', away: 'control', dnd: 'control' };
   function trayHtml() {
     var items = L.trayItems({
       online: w.navigator ? w.navigator.onLine !== false : true,
@@ -285,6 +318,7 @@
       storm: stormInput(),
       away: { on: awayOn() },
       dnd: state.dnd,
+      photos: state.bg.photos,
     });
     var clock = L.clockText(new Date());
     // Phones show the clock alone, so it carries a dot for anything that
@@ -378,6 +412,7 @@
 
   function controlHtml() {
     var h = '<div class="os-cc">';
+    h += driveHtml();
     h += '<div class="os-cc-row">' + toggle('dnd', 'Do Not Disturb', state.dnd, 'Routine toasts wait in the Notification Center') + '</div>';
     h += '<div class="os-cc-block"><div class="ui-eyebrow">Display</div>' + seg('Display mode', modePref(), [
       { key: 'mode', value: 'light', label: 'Light' }, { key: 'mode', value: 'dark', label: 'Dark' }, { key: 'mode', value: 'auto', label: 'Auto' },
@@ -480,6 +515,7 @@
     if (!TITLES[panel]) return;
     if (!state.open) state.returnFocus = doc.activeElement;
     state.open = panel;
+    if (panel === 'control') refreshBg(true);
     var el = sheetRoot();
     el.hidden = false;
     paintSheet();
@@ -638,7 +674,7 @@
   function refresh() {
     if (state.off) return;
     clearTimeout(refreshT);
-    refreshT = setTimeout(function () { paintTray(); paintSheet(); }, 50);
+    refreshT = setTimeout(function () { paintTray(); paintSheet(); refreshBg(false); }, 50);
   }
 
   function registerControl(def) {
@@ -672,6 +708,8 @@
     doc.addEventListener('click', onClick);
     doc.addEventListener('keydown', onKey);
     ['nbd:notifs-updated', 'nbd:data-refreshed', 'online', 'offline', 'nbd:flags-loaded'].forEach(function (ev) { w.addEventListener(ev, refresh); });
+    ['online', 'offline'].forEach(function (ev) { w.addEventListener(ev, function () { refreshBg(true); }); });
+    refreshBg(true);
     doc.addEventListener('layoutchange', function () { refresh(); registerSpotlight(); });
     doc.addEventListener('themechange', refresh);
     // the clock, and the counts that have no event of their own

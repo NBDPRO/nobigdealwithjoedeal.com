@@ -16,6 +16,8 @@
  *   appsFromNav(entries)    the apps a member can open (role-hidden ones gone)
  *   systemActions(apps)     the Spotlight (Cmd+K) entries the layer registers
  *   clockText(now)          "2:05 PM" / "Thu, Nov 6"
+ *   driveOff(input)         P2 (design §6 #8) "Safe to drive off?": All synced, or what is
+ *                           still on this device, from the real queues; null when unknown
  *
  * Counts only, never a customer's name: the tray and the lock screen (phase 4)
  * are glanceable from across a room.
@@ -30,7 +32,9 @@
 
   /**
    * input: { online, pending, unread, storm:{active,warnings}, away:{on},
-   *          layoutName, dnd }
+   *          layoutName, dnd, photos }
+   * photos (P2): this member's photos still in the on-device upload queue
+   * (NBDPhotoQueueStore.pendingForUid); an item only while there are some.
    * Each item: { id, text, tone: 'ok'|'warn'|'alert'|'quiet', label (aria) }.
    * Sync and notifications are always there; the rest only when they matter,
    * so a calm day is a calm tray.
@@ -46,6 +50,11 @@
       out.push({ id: 'sync', tone: 'quiet', text: pending + ' syncing', label: plural(pending, 'item') + ' still uploading' });
     } else {
       out.push({ id: 'sync', tone: 'ok', text: 'Synced', label: 'Online and synced' });
+    }
+    var photos = int(i.photos);
+    if (photos) {
+      out.push({ id: 'photos', tone: 'warn', text: plural(photos, 'photo'),
+        label: plural(photos, 'photo') + (i.online === false ? ' waiting for signal' : ' still uploading') });
     }
     var unread = int(i.unread);
     out.push({ id: 'notifs', tone: unread ? 'alert' : 'quiet', text: unread > 99 ? '99+' : String(unread),
@@ -231,6 +240,29 @@
   // ── phase 4: session, lock screen, settings entries ──────────
 
   /** Auto-lock choices in minutes; 0 = off (the default). Anything else reads as off. */
+  /**
+   * "Safe to drive off?" (P2, design §6 #8): input { online, writes, photos }, each count a
+   * number from a real queue or null when it can't be known (writes: Firestore's on-device
+   * mutation queue; photos: the photo upload queue). Never claims "All synced" unless both
+   * are known and zero; a known count above zero is said even when the other is unknown.
+   * -> null | { safe, tone, text, label }
+   */
+  function driveOff(input) {
+    var i = input || {};
+    function known(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : null; }
+    var w = known(i.writes), p = known(i.photos);
+    var parts = [];
+    if (p) parts.push(plural(p, 'photo') + ' still uploading');
+    if (w) parts.push(plural(w, 'change') + ' still syncing');
+    if (parts.length) {
+      var t = parts.join(' · ');
+      return { safe: false, tone: 'warn', text: i.online === false ? t + ' · offline' : t,
+        label: 'Not yet: ' + t + (i.online === false ? '. They send when you have signal.' : '.') };
+    }
+    if (w === 0 && p === 0) return { safe: true, tone: 'ok', text: 'All synced', label: 'Safe to drive off: everything is synced.' };
+    return null;
+  }
+
   var LOCK_CHOICES = [0, 5, 15, 30];
   function lockMinutes(v) {
     var n = Number(v);
@@ -310,7 +342,7 @@
     companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
     groupNotifications: groupNotifications, privateGroups: privateGroups, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
-    systemActions: systemActions, clockText: clockText,
+    systemActions: systemActions, clockText: clockText, driveOff: driveOff,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSLogic = api;
