@@ -377,6 +377,8 @@
       cur = kept;
       if (pick && !recs[pick]) pick = null;
       applyEdit();
+      // a repaint mid-drag (a Coach tick, a refresh) keeps the board as the drag shows it
+      if (drag && drag.on && recs[drag.key]) preview(drag.next || drag.base);
       paint();
     }
 

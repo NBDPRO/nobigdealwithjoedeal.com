@@ -231,6 +231,24 @@ G(() => {
   fire(T.dom, g, 'pointercancel', { clientX: 410, clientY: 395, pointerId: 22 });
 });
 
+console.log('\n4c. a repaint mid-drag keeps the preview');
+G(() => {
+  const T = mountDesk({ phone: [], desk: [{ id: 'glance', s: 'm' }, { id: 'coach', s: 'm' }, { id: 'shortcuts', s: 's' }] });
+  const col = deskCol(T);
+  col.querySelector('.os-hw-list').getBoundingClientRect = () => ({ left: 100, top: 50, width: 636, height: 800 });
+  click(T.dom, col.querySelector('[data-osdo="homeedit"]'));
+  const sc = byKey(col, 'shortcuts-1');
+  sc.getBoundingClientRect = () => ({ left: 100, top: 222, width: 150, height: 160 });
+  fire(T.dom, sc.querySelector('.os-hw-body'), 'pointerdown', { clientX: 160, clientY: 300, pointerId: 31 });
+  fire(T.dom, sc, 'pointermove', { clientX: 160 + 3 * 162, clientY: 300 - 172, pointerId: 31 });
+  const before = hw(col).map(pos).join(' | ');
+  ok('mid-drag: Shortcuts previewed at row 1 column 4', pos(sc) === 'os-hw-x4 os-hw-y1', before);
+  T.fire(3000);   // the layout's app-list refresh repaints the home (update) while the pointer is down
+  ok('…a repaint keeps the previewed cells and the lifted look', hw(col).map(pos).join(' | ') === before && sc.classList.contains('is-dragging'), hw(col).map(pos).join(' | '));
+  fire(T.dom, sc, 'pointerup', { clientX: 160 + 3 * 162, clientY: 300 - 172, pointerId: 31 });
+  ok('…and the release still lands there', pos(byKey(col, 'shortcuts-1')) === 'os-hw-x4 os-hw-y1', pos(byKey(col, 'shortcuts-1')));
+});
+
 console.log('\n5. the CSS and the files');
 G(() => {
   const css = read('docs/pro/css/os/home.css').replace(/\n/g, ' ');
