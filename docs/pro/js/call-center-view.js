@@ -302,6 +302,8 @@
         if (snap.docs.length >= LIMIT && oldest > Date.now() - PROMISE_WINDOW_MS) state.cappedBefore = Math.max(state.cappedBefore, oldest);
       } catch (e) {
         console.warn('[call-center] read failed', name, e && e.code);
+        // Sent before the claims hydrated, denied for a viewer: hidden, not failed.
+        if (name === 'phone_calls' && isViewer()) continue;
         if (i === 0 && channel === 'call') state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
         var what = channel === 'text' ? 'texts' : 'calls';
         state.readFailed.push(i === 0 ? 'your ' + what : "your team's " + what);

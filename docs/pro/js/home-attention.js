@@ -477,13 +477,16 @@
       // A viewer cannot read phone_calls (firestore.rules, Call to Close Q11,
       // 2026-11-09): skip both call reads instead of showing a failed read.
       const callsHidden = (c.role || '') === 'viewer';
+      // A read sent before the claims hydrated is denied for a viewer: once the
+      // role reads viewer, that denial is "hidden", not a failed read.
+      const viewerNow = () => (claims().role || '') === 'viewer';
       if (!callsHidden) jobs.push(qWin('phone_calls', READ.recentCalls)
         .then((snap) => {
           if (unconfirmedEmpty(snap)) { if (unconfirmed('calls') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
           delete _unconf.calls;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.recentCalls) { out.callsCapped = true; out.callsCap = READ.recentCalls; }
-        }).catch(() => { out.callsFailed = true; }));
+        }).catch(() => { if (!viewerNow()) out.callsFailed = true; }));
       jobs.push(qWin('phone_text_days', READ.recentTexts)
         .then((snap) => {
           if (unconfirmedEmpty(snap)) { if (unconfirmed('texts') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
@@ -499,7 +502,7 @@
           delete _unconf.old;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.oldCalls) { out.oldCapped = true; out.oldCap = READ.oldCalls; }
-        }).catch(() => { out.oldFailed = true; }));
+        }).catch(() => { if (!viewerNow()) out.oldFailed = true; }));
     } else if (u) {
       // The query helpers are missing: that is a read that could not happen,
       // not "nobody needs you".
