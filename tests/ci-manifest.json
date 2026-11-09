@@ -1011,7 +1011,8 @@
     "call-to-close-auto-brief-2026-11-09.test.js",
     "call-to-close-rescue-queue-2026-11-09.test.js",
     "call-to-close-followup-draft-2026-11-09.test.js",
-    "call-to-close-walkthrough-2026-11-09.test.js"
+    "call-to-close-walkthrough-2026-11-09.test.js",
+    "call-to-close-walkthrough-ui-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

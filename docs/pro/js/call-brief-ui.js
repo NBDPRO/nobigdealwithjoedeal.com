@@ -64,6 +64,14 @@
  * transcribe() is the cards' "Transcribe now" (callTranscribeNow), in this
  * same lazy file so the cards stay small.
  *
+ * P2 (2026-11-09, design §6 #11): openVisit() is the same sheet for an
+ * in-person walkthrough (a visit recording filed on the customer), from the
+ * timeline's "Brief this walkthrough" (call-timeline.js). Every callable gets
+ * { visitId, visitUid } instead of a callId; there is no "This call" /
+ * handled and no promise Add (a walkthrough's promises were filed as tasks
+ * when it was attached); the proposal's list says "From the walkthrough" and
+ * holds the scope facts whose words were said (scope.visitFacts).
+ *
  * No inline handlers (CSP script-src-attr 'none'): one delegated listener.
  */
 (function () {
@@ -169,16 +177,20 @@
     if (brief.followUp.retype === true) ch.retype = true;
     return ch;
   }
-  /** "From the call" scope lines (shown, never seeded into a list field). */
-  function scopeHints(brief) {
+  /** "From the call" scope lines (shown, never seeded into a list field). on: 'on the call' | 'at the walkthrough'. */
+  function scopeHints(brief, on) {
     var s = (brief && brief.scope) || {};
+    var where = on || 'on the call';
     var out = [];
     if (s.service && s.service.value) out.push(s.service.value);
     var m = s.mentions || {};
-    ['gutters', 'chimney', 'skylight', 'decking'].forEach(function (k) { if (m[k] === true) out.push(k.charAt(0).toUpperCase() + k.slice(1) + ' mentioned on the call'); });
-    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said on the call' + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
+    ['gutters', 'chimney', 'skylight', 'decking'].forEach(function (k) { if (m[k] === true) out.push(k.charAt(0).toUpperCase() + k.slice(1) + ' mentioned ' + where); });
+    if (s.stories && s.stories.value) out.push(s.stories.value + '-story house (said ' + where + (s.stories.retype === true ? ', but hard to hear: check it' : '') + ')');
     if (s.tierInterest && s.tierInterest.value) out.push('Asked about the ' + s.tierInterest.value + ' package');
-    (s.saidQuantities || []).forEach(function (q) { out.push('Said: "' + q.quote + '"'); });
+    var said = {};
+    (s.saidQuantities || []).forEach(function (q) { said[q.quote] = true; out.push('Said: "' + q.quote + '"'); });
+    // P2: a walkthrough's scope facts whose words were said (server-grounded), each once.
+    (s.visitFacts || []).forEach(function (f) { if (f && f.quote && !said[f.quote]) { said[f.quote] = true; out.push('Said: "' + f.quote + '"'); } });
     return out;
   }
   // The damage words the seed may say; anything else the model wrote is left out.
@@ -255,17 +267,18 @@
    * body } or null when nothing was accepted. Fixed phrases; the first name
    * and the company come from the CRM, the dates from what was accepted.
    */
-  function followUpDraft(items, lead, company) {
+  function followUpDraft(items, lead, company, what) {
     var lines = [];
     (items || []).forEach(function (it) { var l = msgLine(it); if (l && lines.indexOf(l) === -1) lines.push(l); });
     if (!lines.length) return null;
     var first = String((lead && lead.firstName) || '').trim().split(/\s+/)[0].slice(0, 30);
     var co = String(company || '').trim().slice(0, 80);
     var hi = first ? 'Hi ' + first + ',' : 'Hi,';
+    var thanks = what === 'visit' ? 'thanks for having us out' : 'thanks for the call';
     return {
-      text: hi + ' thanks for the call. ' + lines.join(' ') + (co ? ' \u2014 ' + co + (/[.!?]$/.test(co) ? '' : '.') : '') + ' Reply STOP to opt out.',
+      text: hi + ' ' + thanks + '. ' + lines.join(' ') + (co ? ' \u2014 ' + co + (/[.!?]$/.test(co) ? '' : '.') : '') + ' Reply STOP to opt out.',
       subject: MSG_SUBJECT,
-      body: hi + '\n\nThanks for the call. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
+      body: hi + '\n\n' + thanks.charAt(0).toUpperCase() + thanks.slice(1) + '. Here is what we agreed:\n\n' + lines.map(function (l) { return '- ' + l; }).join('\n') +
         '\n\nIf anything changes, reply here or give me a call.' + (co ? '\n\n' + co : ''),
     };
   }
@@ -287,8 +300,13 @@
   function tenantName() { var p = profile(), b = p.brand || {}; return String(b.name || p.companyName || p.name || '').trim(); }
 
   // ── state ──────────────────────────────────────────────────────────────
-  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange }
+  var S = null;  // { callId, call, lead, leadId, page, brief, decisions, gen, loading, error, done:{}, busy:{}, confirm:'', edit:{}, prom:[], fuUndo, onChange, visit? }
   var dlg = null;
+  // P2 walkthrough: S.visit = { visitId, visitUid } (S.callId is visit_<visitId>, the brief's id).
+  function isVisit() { return !!(S && S.visit); }
+  function src() { return isVisit() ? 'walkthrough' : 'call'; }
+  /** What names this brief on every callable: the call, or the walkthrough. */
+  function ids() { return isVisit() ? { visitId: S.visit.visitId, visitUid: S.visit.visitUid } : { callId: S.callId }; }
 
   // Decisions are keyed by index ('promise:1', 'field:k'), so only the ones
   // made on the brief shown count (gen = its generatedAtMs); a regenerated
@@ -366,7 +384,7 @@
     var filer = c.attachedBy || c.movedBy;
     var filed = filer ? (filer === uid() ? 'Filed by you' : 'Filed by a teammate') : '';
     var meta = [filed, when, c.durationSec ? fmtDur(c.durationSec) : ''].filter(Boolean).join(' · ');
-    var who = S.mode === 'tx' ? 'Transcribe now: ' + (S.leadId ? leadName(S.lead) : (c.contactName || 'this call')) : 'From this call: ' + leadName(S.lead);
+    var who = S.mode === 'tx' ? 'Transcribe now: ' + (S.leadId ? leadName(S.lead) : (c.contactName || 'this call')) : 'From this ' + src() + ': ' + leadName(S.lead);
     return '<div class="cb-head"><div><h2 class="cb-title" id="cbTitle">' + esc(who) + '</h2>' +
       '<div class="cb-meta">' + esc(meta) + (c.urgent ? ' <span class="cb-badge is-urgent">Urgent</span>' : '') + '</div></div>' +
       '<button type="button" class="btn btn-ghost cb-close" data-cb-act="close" aria-label="Close">✕</button></div>';
@@ -389,7 +407,7 @@
     var settled = isSettled(item);
     var confirming = S.confirm === item;
     return '<div class="cb-sec" role="group" aria-labelledby="cbSumH"><h3 class="cb-sec-title" id="cbSumH">Summary</h3>' +
-      '<label class="cb-field-lbl" for="cbSummary">What the call was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
+      '<label class="cb-field-lbl" for="cbSummary">What the ' + src() + ' was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
       '<textarea class="cb-text" id="cbSummary" data-cb-input="summary"' + (settled ? ' disabled' : '') + '>' + esc(S.summaryText != null ? S.summaryText : (sm.text || '')) + '</textarea>' +
       ((sm.quotes || []).length ? '<div class="cb-quotes">' + sm.quotes.map(function (q, i) { return quoteHtml(q, (sm.unsure || []).indexOf(i) !== -1); }).join('') + '</div>' : '') +
       (settled ? statusFor(item) : confirming
@@ -401,7 +419,7 @@
   function renderFields() {
     var rows = fieldRows(S.brief, S.lead);
     if (!rows.length) return '';
-    return '<div class="cb-sec" role="group" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the call</h3>' +
+    return '<div class="cb-sec" role="group" aria-labelledby="cbFieldH"><h3 class="cb-sec-title" id="cbFieldH">Customer details from the ' + src() + '</h3>' +
       '<div class="cb-meta">Fills empty fields only, one at a time. Nothing is filled until you tap Accept.</div>' +
       rows.map(function (r) {
         var item = 'field:' + r.key;
@@ -435,6 +453,12 @@
   function renderPromises() {
     var ps = (S.brief && S.brief.promises) || [];
     if (!ps.length) return '';
+    // A walkthrough's promises were filed as tasks when it was attached (visit-capture.js): shown, never added twice.
+    if (isVisit()) {
+      return '<div class="cb-sec" role="group" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises at the walkthrough</h3>' +
+        '<div class="cb-meta">These are already tasks on this customer, made when the walkthrough was filed. Check them in Tasks.</div>' +
+        ps.map(function (p) { return '<div class="cb-card"><div class="cb-row-head"><span class="cb-label">' + esc(p.text) + '</span>' + (p.dueSpoken ? '<span class="cb-meta">' + esc(p.dueSpoken) + '</span>' : '') + '</div>' + quoteHtml(p.quote, p.unsure === true) + '</div>'; }).join('') + '</div>';
+    }
     return '<div class="cb-sec" role="group" aria-labelledby="cbPromH"><h3 class="cb-sec-title" id="cbPromH">Promises on the call</h3>' +
       '<div class="cb-meta">Check who promised it. Adding a promise makes a dated task and marks the call handled. Not handled puts the call back; the task stays until it is done.</div>' +
       ps.map(function (p, i) {
@@ -511,7 +535,7 @@
       }).join('') + '</div>';
   }
 
-  function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName()); }
+  function msgDraftNow() { return followUpDraft(msgItems(), S.lead, tenantName(), isVisit() ? 'visit' : ''); }
   function msgChannel(draft) { return S.msg.ch || (textConsent(S.lead).ok || !emailOk(S.lead).ok ? 'text' : 'email'); }
   function renderMessage() {
     var draft = msgDraftNow();
@@ -587,17 +611,18 @@
   }
 
   function renderDrafts() {
-    var hints = scopeHints(S.brief);
+    var hints = scopeHints(S.brief, isVisit() ? 'at the walkthrough' : '');
     var seed = projectSeed(S.brief, S.lead);
     var body = estimateDraftHtml() + (S.page === 'customer'
-      ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this call' : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
-        (hints.length ? '<div class="cb-meta">From the call (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
+      ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this ' + src() : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
+        (hints.length ? '<div class="cb-meta">From the ' + src() + ' (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
         '<div class="cb-acts">' + btn('Draft proposal', 'proposal', '', 'btn-orange') + '</div>'
       : '<div class="cb-acts"><a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to draft a proposal</a></div>');
     return '<div class="cb-sec" role="group" aria-labelledby="cbDraftH"><h3 class="cb-sec-title" id="cbDraftH">Drafts</h3><div class="cb-card">' + body + '</div></div>';
   }
 
   function renderHandled() {
+    if (isVisit()) return '';
     var c = S.call || {};
     var item = 'handled';
     var body = c.handledAtMs || isSettled(item)
@@ -612,7 +637,7 @@
     if (S.mode === 'tx') body = S.loading ? '<div class="cb-loading" role="status">Transcribing this call now. A long call can take a minute or two.</div>'
       : S.error ? '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>'
       : '<div class="cb-banner" role="status">' + esc(S.txMsg) + '</div>';
-    else if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
+    else if (S.loading) body = '<div class="cb-loading" role="status">' + (isVisit() ? 'Reading the walkthrough…' : 'Reading the call… Notes arrive 30-60 minutes after the call.') + '</div>';
     else if (S.error) body = '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>';
     // One sheet, in the order a person works a call (P1 integration): what was
     // said, the fields, promises and follow-up date, this call, the stage,
@@ -635,7 +660,7 @@
   }
   function errText(e) { return (e && e.message ? String(e.message).replace(/^FirebaseError:\s*/, '') : '') || 'That did not work. Try again.'; }
   async function decide(item, decision, extra) {
-    return callable('callBriefDecide', Object.assign({ callId: S.callId, item: item, decision: decision }, extra || {}));
+    return callable('callBriefDecide', Object.assign(ids(), { item: item, decision: decision }, extra || {}));
   }
   function mark(item, decision, label) { S.done[item] = { decision: decision, label: label }; if (S.err) delete S.err[item]; }
   function fail(item, e) { delete S.done[item]; S.err = S.err || {}; S.err[item] = errText(e); }
@@ -704,6 +729,7 @@
       try { await decide(it, 'skip'); mark(it, 'skip'); } catch (e) { fail(it, e); }
       render(); return;
     }
+    if (isVisit() && /^(who|promise|promise-yes|promise-skip|handled)$/.test(a)) return;
     if (a === 'who') { setWho(i, b.getAttribute('data-who')); return; }
     if (a === 'promise') { S.confirm = 'promise:' + i; render(); return; }
     if (a === 'promise-skip') {
@@ -788,12 +814,12 @@
     if (!mode || !how) return;
     var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : '').trim().slice(0, 300) : '';
     if (plan.needsReason && !reason) { S.err = S.err || {}; S.err['stage-move'] = 'Give a reason first.'; render(); return; }
-    var callId = S.callId, leadId = S.leadId, onChange = S.onChange, from = currentStage();
+    var who = ids(), leadId = S.leadId, onChange = S.onChange, from = currentStage();
     var opts = { asked: mode === 'confirmed' };
     if (reason) opts.lostReason = reason;
     // The page's Undo toast: log it, so decisions[] never keeps a bare accept.
     opts.onUndone = function () {
-      callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'skip', undone: true }).catch(function () { /* the move back is saved */ });
+      callable('callBriefDecide', Object.assign({}, who, { item: 'stage', decision: 'skip', undone: true })).catch(function () { /* the move back is saved */ });
     };
     close();
     var moved = false;
@@ -807,7 +833,7 @@
       if (typeof window.showToast === 'function') window.showToast('The stage did not move: ' + errText(e), 'error');
     }
     if (!moved) return;
-    callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'accept', value: plan.key, mode: mode, fromStage: from }).catch(function () { /* the move itself is saved */ });
+    callable('callBriefDecide', Object.assign({}, who, { item: 'stage', decision: 'accept', value: plan.key, mode: mode, fromStage: from })).catch(function () { /* the move itself is saved */ });
     if (typeof onChange === 'function') { try { onChange(); } catch (_) { /* the card reloads itself */ } }
   }
 
@@ -928,7 +954,8 @@
   async function draftProposal() {
     var brief = S.brief, lead = S.lead, leadId = S.leadId;
     var seed = projectSeed(brief, lead);
-    var hints = scopeHints(brief);
+    var fromWhat = 'From the ' + src();
+    var hints = scopeHints(brief, isVisit() ? 'at the walkthrough' : '');
     decide('draft:proposal', 'accept', { value: seed }).catch(function () {});
     close();
     try {
@@ -954,7 +981,7 @@
       if (wrap && hints.length && !wrap.querySelector('.cb-from-call')) {
         var box = document.createElement('div');
         box.className = 'cb-from-call';
-        box.innerHTML = '<strong>From the call</strong> (copy what fits):<ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>';
+        box.innerHTML = '<strong>' + esc(fromWhat) + '</strong> (copy what fits):<ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>';
         wrap.appendChild(box);
       }
     })();
@@ -1052,11 +1079,29 @@
     if (!x.callId) return;
     S = { callId: x.callId, call: Object.assign({}, x.call || {}), lead: Object.assign({}, x.lead || {}), leadId: x.leadId || (x.call && x.call.leadId) || '',
       page: x.page === 'customer' ? 'customer' : 'calls', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], msg: {}, objCopied: {}, onChange: x.onChange };
+    return fetchBrief();
+  }
+
+  /**
+   * P2: open the sheet for one walkthrough. o: { visitId, visitUid, visit?
+   * (startedAtMs, durationSec), lead?, leadId?, page?, onChange? }; lead,
+   * leadId and page default to the customer page's (the timeline's button
+   * passes only the ids, to keep the boot-loaded code small).
+   */
+  async function openVisit(o) {
+    var x = o || {};
+    if (!x.visitId || !x.visitUid) return;
+    S = { callId: 'visit_' + x.visitId, visit: { visitId: String(x.visitId), visitUid: String(x.visitUid) }, call: Object.assign({}, x.visit || {}), lead: Object.assign({}, x.lead || window._leadDoc || {}), leadId: x.leadId || window._customerId || '',
+      page: x.page === 'calls' ? 'calls' : 'customer', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], msg: {}, objCopied: {}, onChange: x.onChange };
+    return fetchBrief();
+  }
+
+  async function fetchBrief() {
     var mine = S;
     show();
     var logic = loadLogic();
     try {
-      var r = await callable('callBrief', { callId: x.callId });
+      var r = await callable('callBrief', ids());
       await logic;
       if (S !== mine) return;
       S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
@@ -1097,7 +1142,7 @@
   /** Show a brief already in hand (no server call): the screenshot walk and the tests. */
   function showWith(o) {
     var x = o || {};
-    S = { callId: x.callId || 'cube_PREVIEW', call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
+    S = { callId: x.visit ? 'visit_' + x.visit.visitId : (x.callId || 'cube_PREVIEW'), visit: x.visit || null, call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
       loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
     initPromises();
     show();
@@ -1107,7 +1152,7 @@
   }
 
   window.NBDCallBrief = {
-    open: open, transcribe: transcribe, close: close, _showWith: showWith,
+    open: open, openVisit: openVisit, transcribe: transcribe, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
     _followUpItems: msgItems, _followUpDraft: followUpDraft, _textConsent: textConsent, _emailOk: emailOk, _objectionTags: objectionTags, PLAYBOOK: PLAYBOOK,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },

@@ -67,7 +67,10 @@
   // strings, like the rest (the summary is AI output from what people said).
   function fromVisit(a) {
     const dur = Math.round(Number(a.durationSec) || 0);
+    // vb: "Brief this walkthrough" (= canActOnVisit; callBrief re-checks; only noted rows have visitType)
+    const r = ((root && root._userClaims) || {}).role || '';
     return {
+      vb: a.visitType && a.visitType !== 'personal' && (/^(admin|company_admin|manager)$/.test(r) || r !== 'viewer' && ((root && root.auth && root.auth.currentUser) || {}).uid === a.visitUid) ? [a.visitId, a.visitUid] : null,
       time: toDate(a.startedAtMs) || toDate(a.createdAt) || new Date(0),
       kind: 'visit',
       icon: '\uD83C\uDFA4',
@@ -122,4 +125,5 @@
   const api = { fromActivity };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallTimeline = api;
+  if (root) root.nbdVisitBrief = (v, u) => root.ScriptLoader.load('js/call-brief-ui.js?v=3').then(() => root.NBDCallBrief.openVisit({ visitId: v, visitUid: u })).catch(() => {});
 })(typeof window !== 'undefined' ? window : null);

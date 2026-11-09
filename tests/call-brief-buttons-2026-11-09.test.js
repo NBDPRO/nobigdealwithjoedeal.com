@@ -89,10 +89,10 @@ console.log('\n2. The buttons');
   ok('customer page: "Draft from this call" button on a draft-gated card', /briefGate\(c\)/.test(cc) && /data-calls-act="pc-brief"/.test(cc) && /Draft from this call/.test(cc));
   ok('customer page: "Confirm the customer first" on an auto-matched card', /data-calls-act="pc-confirm"/.test(cc) && /Confirm the customer first/.test(cc));
   ok('customer page: Confirm files the call on this customer through callCenterAction attach', /action: 'attach', leadId: window\._customerId/.test(cc));
-  ok('customer page: the sheet lazy-loads on tap (ScriptLoader.load of call-brief-ui.js), page "customer"', /ScriptLoader\.load\('\/pro\/js\/call-brief-ui\.js\?v=2'\)/.test(cc) && /page: 'customer'/.test(cc));
+  ok('customer page: the sheet lazy-loads on tap (ScriptLoader.load of call-brief-ui.js), page "customer"', /ScriptLoader\.load\('\/pro\/js\/call-brief-ui\.js\?v=3'\)/.test(cc) && /page: 'customer'/.test(cc));
   // The P1 sheet (follow-up message, objections) is a new call-brief-ui.js:
   // its loaders moved to ?v=2, so the files that name it are re-fetched too.
-  ok('customer.html re-fetches customer-calls.js (v=10+), which names call-brief-ui.js?v=2', /js\/customer-calls\.js\?v=(\d+)/.test(read('docs/pro/customer.html')) && Number(read('docs/pro/customer.html').match(/js\/customer-calls\.js\?v=(\d+)/)[1]) >= 10);
+  ok('customer.html re-fetches customer-calls.js (v=10+), which names call-brief-ui.js?v=3', /js\/customer-calls\.js\?v=(\d+)/.test(read('docs/pro/customer.html')) && Number(read('docs/pro/customer.html').match(/js\/customer-calls\.js\?v=(\d+)/)[1]) >= 10);
   const cv = read('docs/pro/js/call-center-view.js');
   ok('Call Center: "Draft from this call" button', /briefGate\(c\)/.test(cv) && /data-cc="brief"/.test(cv) && /Draft from this call/.test(cv));
   ok('Call Center: Confirm opens the existing attach picker (the file action)', /Confirm the customer first/.test(cv) && /data-cc="attachopen" data-id="' \+ esc\(c\.id\) \+ '">Confirm the customer first/.test(cv));

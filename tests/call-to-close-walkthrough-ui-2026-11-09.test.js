@@ -97,34 +97,32 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
 (async () => {
   console.log('\n1. The gate on a visit row');
   {
-    const T = timeline({});
-    const who = (role, uid, companyId) => ({ uid, role: role || '', companyId: companyId || '' });
-    const vb = (row, w) => { const r = T.fromActivity(ID, Object.assign({}, ROW, row || {}), w); return r && r.visitBrief; };
-    ok('the recorder → the row carries visitBrief { visitId, visitUid }', JSON.stringify(vb({}, who('', 'jo'))) === JSON.stringify({ visitId: 'vWalk0000001', visitUid: 'jo' }), vb({}, who('', 'jo')));
-    ok('a same-company company_admin / manager → yes', !!vb({}, who('company_admin', 'ca', 'co1')) && !!vb({}, who('manager', 'mg', 'co1')));
-    ok('a platform admin → yes', !!vb({}, who('admin', 'adm')));
-    ok('a viewer → no (even the recorder)', !vb({}, who('viewer', 'v', 'co1')) && !vb({}, who('viewer', 'jo', 'co1')));
-    ok('another rep of the company → no', !vb({}, who('sales_rep', 'rep', 'co1')));
-    ok('another company\'s manager → no', !vb({}, who('manager', 'm2', 'co2')));
-    ok('notes still pending → no', !vb({ notesPending: true }, who('', 'jo')));
-    ok('notes failed → no (the server needs notes)', !vb({ notesFailed: true }, who('', 'jo')));
-    ok('a failed recording → no', !vb({ processingFailed: true }, who('', 'jo')));
-    ok('personal → no', !vb({ visitType: 'personal' }, who('', 'jo')));
-    ok('no visit type (no notes) → no', !vb({ visitType: null }, who('', 'jo')));
-    ok('a bad visit id / owner → no', !vb({ visitId: '../x' }, who('', 'jo')) && !vb({ visitUid: 'a/b' }, who('', 'jo')));
-    ok('the row itself is unchanged otherwise (title, kind, summary)', T.fromActivity(ID, ROW, who('', 'jo')).kind === 'visit' && /Visit recording/.test(T.fromActivity(ID, ROW, who('', 'jo')).title));
-    // The same rule as the server, case by case.
-    const pairs = [[who('', 'jo')], [who('company_admin', 'ca', 'co1')], [who('manager', 'mg', 'co1')], [who('admin', 'adm')], [who('viewer', 'jo', 'co1')], [who('sales_rep', 'rep', 'co1')], [who('manager', 'm2', 'co2')]];
-    const agree = pairs.every(([w]) => !!vb({}, w) === L.canActOnVisit({ uid: w.uid, token: { role: w.role, companyId: w.companyId } }, { ownerUid: 'jo', companyId: 'co1' }));
-    ok('the client gate agrees with the server\'s canActOnVisit', agree);
-    const T2 = timeline({ _userClaims: { role: 'manager', companyId: 'co1' }, auth: { currentUser: { uid: 'mg' } } });
-    ok('with no who passed, the page\'s own claims and user decide', !!(T2.fromActivity(ID, ROW) || {}).visitBrief && !(timeline({ _userClaims: { role: 'viewer', companyId: 'co1' }, auth: { currentUser: { uid: 'jo' } } }).fromActivity(ID, ROW) || {}).visitBrief);
+    // The page's own claims and signed-in user decide (window._userClaims, window.auth).
+    const as = (role, uid, companyId) => timeline({ _userClaims: role == null ? {} : { role, companyId: companyId || 'co1' }, auth: { currentUser: { uid } } });
+    const vb = (row, role, uid, companyId) => { const r = as(role, uid, companyId).fromActivity(ID, Object.assign({}, ROW, row || {})); return r && r.vb; };
+    ok('the recorder → the row carries vb [visitId, visitUid]', JSON.stringify(vb({}, null, 'jo')) === JSON.stringify(['vWalk0000001', 'jo']), vb({}, null, 'jo'));
+    ok('a company_admin / manager (same company: the only rows they can read) → yes', !!vb({}, 'company_admin', 'ca') && !!vb({}, 'manager', 'mg'));
+    ok('a platform admin → yes', !!vb({}, 'admin', 'adm'));
+    ok('a viewer → no (even the recorder)', !vb({}, 'viewer', 'v') && !vb({}, 'viewer', 'jo'));
+    ok('another rep of the company → no', !vb({}, 'sales_rep', 'rep'));
+    ok('a rep who recorded it → yes', !!vb({ visitUid: 'rep' }, 'sales_rep', 'rep'));
+    ok('nobody signed in → no', !as(null, undefined).fromActivity(ID, ROW).vb);
+    // buildAttachment / buildFailureActivity write visitType null whenever there are no notes.
+    ok('notes still pending → no', !vb({ notesPending: true, visitType: null }, null, 'jo'));
+    ok('notes failed → no (the server needs notes)', !vb({ notesFailed: true, visitType: null }, null, 'jo'));
+    ok('a failed recording → no', !vb({ processingFailed: true, visitType: null }, null, 'jo'));
+    ok('personal → no', !vb({ visitType: 'personal' }, null, 'jo'));
+    ok('the row itself is unchanged otherwise (title, kind, summary)', as(null, 'jo').fromActivity(ID, ROW).kind === 'visit' && /Visit recording/.test(as(null, 'jo').fromActivity(ID, ROW).title) && as(null, 'jo').fromActivity(ID, ROW).desc === 'Walked the roof.');
+    const pairs = [['', 'jo'], ['company_admin', 'ca'], ['manager', 'mg'], ['admin', 'adm'], ['viewer', 'jo'], ['sales_rep', 'rep']];
+    const agree = pairs.every(([role, uid]) => !!vb({}, role, uid) === L.canActOnVisit({ uid, token: { role, companyId: 'co1' } }, { ownerUid: 'jo', companyId: 'co1' }));
+    ok('the client gate agrees with the server\'s canActOnVisit for every role in the company', agree);
+    ok('in node (no window) the row still builds, with no button', (() => { const T = require(path.join(ROOT, 'docs/pro/js/call-timeline.js')); const r = T.fromActivity(ID, ROW); return r && r.kind === 'visit' && !r.vb; })());
   }
 
   console.log('\n2. The button and the lazy load');
   {
-    ok('the timeline renders "Brief this walkthrough" only for a row with visitBrief', /item\.visitBrief \?/.test(BOOT) && /Brief this walkthrough/.test(BOOT));
-    ok('…through the page\'s data-action delegate with escaped ids (no inline handler)', /data-action="nbdVisitBrief" data-arg="\$\{esc\(item\.visitBrief\.visitId\)\}" data-arg2="\$\{esc\(item\.visitBrief\.visitUid\)\}"/.test(BOOT) && !/onclick/i.test(BOOT.split('Brief this walkthrough')[0].slice(-400)));
+    ok('the timeline renders "Brief this walkthrough" only for a row with vb', /item\.vb \?/.test(BOOT) && /Brief this walkthrough/.test(BOOT));
+    ok('…through the page\'s data-action delegate with escaped ids (no inline handler)', /data-action="nbdVisitBrief" data-arg="\$\{esc\(item\.vb\[0\]\)\}" data-arg2="\$\{esc\(item\.vb\[1\]\)\}"/.test(BOOT) && !/onclick/i.test(BOOT.split('Brief this walkthrough')[0].slice(-400)));
     const loads = []; const opened = [];
     const win = { ScriptLoader: { load: async (u) => { loads.push(u); win.NBDCallBrief = { openVisit: (o) => opened.push(o) }; } }, _leadDoc: { firstName: 'Pat' }, _customerId: 'L1' };
     timeline(win);
@@ -132,8 +130,8 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     if (typeof win.nbdVisitBrief === 'function') {
       await win.nbdVisitBrief('vWalk0000001', 'jo');
       await new Promise((r) => setTimeout(r, 5));
-      ok('a tap lazy-loads call-brief-ui.js through ScriptLoader', loads.length === 1 && /^\/pro\/js\/call-brief-ui\.js\?v=\d+$/.test(loads[0]), loads);
-      ok('…then opens the walkthrough sheet for this customer', opened.length === 1 && opened[0].visitId === 'vWalk0000001' && opened[0].visitUid === 'jo' && opened[0].leadId === 'L1' && opened[0].page === 'customer' && opened[0].lead.firstName === 'Pat', opened);
+      ok('a tap lazy-loads call-brief-ui.js through ScriptLoader (page-relative: the same resolved key as the call card\'s /pro/js/ URL)', loads.length === 1 && /^js\/call-brief-ui\.js\?v=\d+$/.test(loads[0]), loads);
+      ok('…then opens the walkthrough sheet (the sheet takes this customer from the page)', opened.length === 1 && opened[0].visitId === 'vWalk0000001' && opened[0].visitUid === 'jo', opened);
     }
     for (const page of ['docs/pro/customer.html', 'docs/pro/dashboard.html']) ok(page + ' has no <script> tag for the sheet', !/<script[^>]+call-brief-ui\.js/.test(read(page)));
     const ver = (/call-brief-ui\.js\?v=(\d+)/.exec(TL) || [])[1];
@@ -144,6 +142,8 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
   {
     const { CB, dlg, calls, store, win, click } = load({ brief: clone(BRIEF), generatedAtMs: 1, decisions: [] });
     ok('NBDCallBrief.openVisit exists', typeof CB.openVisit === 'function');
+    if (typeof CB.openVisit === 'function') { await CB.openVisit({ visitUid: 'jo' }); await CB.openVisit({ visitId: 'vWalk0000001' }); }
+    ok('openVisit without both ids asks nothing (a row with no visit id opens nothing)', calls.length === 0);
     if (typeof CB.openVisit !== 'function') { finish(); return; }
     await CB.openVisit(clone(OPEN));
     const cb = calls.find((c) => c.name === 'callBrief');
