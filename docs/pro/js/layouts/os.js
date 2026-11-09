@@ -113,7 +113,8 @@
         visible: function () { return !!S && !S.phoneOpen; },
         onChange: function (list) { saveHome(surface, list); },
         onExit: function () { setHomeEditing(false); },
-        onLongPress: function () { setHomeEditing(true); },
+        onLongPress: function () { setHomeEditing(true, false); },   // home.js focuses the pressed widget
+        onEmpty: function () { focusHomeTool(surface); },
         navHidden: navHidden,
         onResize: function () { if (S && S.surface === 'phone') phonePaint(); } });
     }) || null;
@@ -149,6 +150,12 @@
     safe(function () { S.home.setEditing(!!on, !!on && focusFirst !== false); });
     paintDeskTools();
     if (!on) { var b = S.deskEl && S.deskEl.querySelector('[data-osdo="homeedit"]'); if (b) b.focus(); }
+  }
+  // the last widget was removed: focus Add widget (else Done), never the page
+  function focusHomeTool(surface) {
+    var host = S && (surface === 'phone' ? S.phoneEl : S.deskEl);
+    var b = host && host.querySelector(surface === 'phone' ? '[data-osp="homeadd"], [data-osp="done"]' : '[data-osdo="homeadd"], [data-osdo="homedone"]');
+    if (b) safe(function () { b.focus(); });
   }
   // the desk column's own buttons, under the widgets
   function paintDeskTools() {

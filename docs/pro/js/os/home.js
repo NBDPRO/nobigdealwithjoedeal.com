@@ -29,7 +29,7 @@
  * No fetch, no Firestore.
  *
  * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible, onChange,
- * onExit, onLongPress, navHidden, onResize }) returns { el, update(items), paint(),
+ * onExit, onLongPress, navHidden, onResize, onEmpty }) returns { el, update(items), paint(),
  * unmount(), setEditing(on, focusFirst), editing(), openAdd(), cellItems(items) }. `el` is one node the OS layout
  * places (the desk column; on the phone, page 1 of the pager). update() is a
  * keyed reconcile: a widget's node is made once and kept, moved only when the
@@ -426,7 +426,7 @@
       if (rec && editing) {
         var f = (focusSel && rec.el.querySelector(focusSel)) || rec.el;
         try { f.focus({ preventScroll: true }); } catch (e) {}
-      }
+      } else if (editing && !order.length && typeof o.onEmpty === 'function') o.onEmpty();   // the last one went: the layout's Add widget
       announce((prefix || '') + (at >= 0 && !/^Removed/.test(prefix || '') ? HL.describe(clean, at) : ''));
       return true;
     }
@@ -488,15 +488,17 @@
       if (editing || (ev.button != null && ev.button !== 0) || typeof o.onLongPress !== 'function') return;
       var sec = ev.target && ev.target.closest ? ev.target.closest('[data-oshw]') : null;
       if (!sec) return;
-      press = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId };
+      press = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId, key: sec.getAttribute('data-oshw') };
       W.clearTimeout(pressT);
       pressT = W.setTimeout(function () {
         if (!press || !live) return;
+        var k = press.key;
         press = null;
         swallow = true;
         W.clearTimeout(swallowT);
         swallowT = W.setTimeout(function () { swallow = false; }, 700);   // a press often ends with no click
         o.onLongPress();
+        if (editing && recs[k]) { try { recs[k].el.focus({ preventScroll: true }); } catch (e) {} }   // the pressed widget, not the first
       }, LONG_PRESS_MS);
     }
     function onMove(ev) {
@@ -565,12 +567,27 @@
       if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (rec) paintOne(rec, true); return; }
       var cb = t.closest('[data-oshw-coach]');
       var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
-      if (crec) { coachTap(crec, cb.getAttribute('data-oshw-coach'), cb.getAttribute('data-rule'), o.onResize); paintOne(crec, true); return; }
+      if (crec) {
+        var what = cb.getAttribute('data-oshw-coach');
+        coachTap(crec, what, cb.getAttribute('data-rule'), o.onResize);
+        paintOne(crec, true);
+        coachFocus(crec, what);
+        return;
+      }
       var g = t.closest('[data-oshw-go]');
       var id = g ? g.getAttribute('data-oshw-go') : '';
       if (g && /^[a-z][a-z0-9-]{0,31}$/.test(id) && typeof W.goTo === 'function') {
         try { W.goTo(id); } catch (e) { try { console.warn('[os-home] goTo failed:', e && e.message); } catch (_) {} }
       }
+    }
+    // the repaint replaced the tapped button: focus its twin (the toggle, the next rule's Later or
+    // Not today), else the rule's action, else the widget itself
+    var COACH_SEL = { more: '[data-oshw-coach="more"]', snooze: '[data-oshw-coach="snooze"]', dismiss: '[data-oshw-coach="dismiss"]' };
+    function coachFocus(rec, what) {
+      var f = COACH_SEL.hasOwnProperty(what) ? rec.el.querySelector(COACH_SEL[what]) : null;
+      if (!f) f = rec.el.querySelector('.os-hw-coach-act');
+      if (!f) { if (!rec.el.hasAttribute('tabindex')) rec.el.setAttribute('tabindex', '-1'); f = rec.el; }
+      try { f.focus({ preventScroll: true }); } catch (e) {}
     }
     function onEvent() { paint(); }
     function onVis() { if (!doc.hidden && dirty) paint(); }

@@ -256,6 +256,48 @@ G(() => {
   ok('no system layer: nothing breaks (it is optional)', !!phoneOf(T2) && !T2.W.controls);
 });
 
+console.log('\n6b. focus is never dropped (review nits)');
+G(() => {
+  const DAY = 86400000;
+  const leads = [{ id: 'old1', _stageRole: 'new', createdAt: H.NOW - 50 * DAY }];
+  const act = (T) => T.document.activeElement;
+  const live = (T, el) => !!el && el.isConnected;
+  [['phone', mountPhone, phoneOf], ['desk', mountDesk, (T) => deskCol(T)]].forEach(([name, mount, root]) => {
+    const home = name === 'phone' ? { phone: [{ id: 'coach', s: 'm' }], desk: [] } : { phone: [], desk: [{ id: 'coach', s: 'm' }] };
+    const T = mount(home, { leads });
+    const card = () => byKey(root(T), 'coach-1');
+    click(T.dom, card().querySelector('[data-oshw-coach="more"]'));
+    ok(name + ': More repaints the Coach and focus lands on its toggle (now "Show less")', live(T, act(T)) && act(T) === card().querySelector('[data-oshw-coach="more"]') && /Show less/.test(text(act(T))), act(T) && act(T).tagName);
+    click(T.dom, card().querySelector('[data-oshw-coach="more"]'));
+    ok(name + ': Show less keeps focus on the toggle', live(T, act(T)) && act(T) === card().querySelector('[data-oshw-coach="more"]') && /More/.test(text(act(T))));
+    click(T.dom, card().querySelector('[data-oshw-coach="snooze"]'));
+    ok(name + ': Later keeps focus inside the Coach (the next rule\'s Later)', live(T, act(T)) && card().contains(act(T)) && act(T).getAttribute('data-oshw-coach') === 'snooze', act(T) && act(T).getAttribute('data-oshw-coach'));
+    click(T.dom, card().querySelector('[data-oshw-coach="dismiss"]'));
+    ok(name + ': Not today keeps focus inside the Coach', live(T, act(T)) && card().contains(act(T)), act(T) && act(T).tagName);
+  });
+  // the last rule hidden: no control left, so the widget itself takes focus
+  const quiet = { total: 0, promises: [], promised: [], stalled: [], estimates: [], calls: [], appointments: [] };
+  const T2 = mountDesk({ phone: [], desk: [{ id: 'coach', s: 'm' }] }, { leads, plan: quiet });
+  click(T2.dom, byKey(deskCol(T2), 'coach-1').querySelector('[data-oshw-coach="dismiss"]'));
+  ok('Not today on the last rule: focus goes to the Coach widget', act(T2) === byKey(deskCol(T2), 'coach-1') && act(T2).getAttribute('tabindex') === '-1', act(T2) && act(T2).tagName);
+  // removing the last widget
+  const T3 = mountDesk({ phone: [], desk: [{ id: 'glance', s: 'm' }] });
+  click(T3.dom, deskCol(T3).querySelector('[data-osdo="homeedit"]'));
+  click(T3.dom, byKey(deskCol(T3), 'glance-1').querySelector('[data-oshw-ed="remove"]'));
+  ok('desk: removing the last widget moves focus to Add widget, not the page', act(T3) && act(T3).getAttribute('data-osdo') === 'homeadd' && live(T3, act(T3)), act(T3) && act(T3).tagName);
+  const T4 = mountPhone({ phone: [{ id: 'glance', s: 'm' }], desk: [] });
+  longPress(T4, byKey(phoneOf(T4), 'glance-1'));
+  key(T4.dom, byKey(phoneOf(T4), 'glance-1'), 'Delete');
+  ok('phone: removing the last widget moves focus to Add widget', act(T4) && act(T4).getAttribute('data-osp') === 'homeadd' && live(T4, act(T4)), act(T4) && act(T4).tagName);
+  // the desk long-press focuses the pressed widget
+  const T5 = mountDesk({ phone: [], desk: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }] });
+  longPress(T5, byKey(deskCol(T5), 'upnext-1'));
+  ok('desk long-press: edit mode, focus on the pressed widget (not the first)', byKey(deskCol(T5), 'upnext-1').classList.contains('is-editing') && act(T5) === byKey(deskCol(T5), 'upnext-1'), act(T5) && act(T5).getAttribute('data-oshw'));
+  const T6 = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }], desk: [] });
+  longPress(T6, byKey(phoneOf(T6), 'upnext-1'));
+  ok('phone long-press: focus on the pressed widget too', act(T6) === byKey(phoneOf(T6), 'upnext-1'));
+});
+
 console.log('\n7. CSS: 44px targets, no jiggle, CSP');
 G(() => {
   ok('the chip and Remove are 44px targets', /\.os-hw-ed \{[^}]*min-width: 44px;[^}]*min-height: 44px/.test(HOME_CSS));
