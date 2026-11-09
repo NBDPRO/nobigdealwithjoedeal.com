@@ -275,6 +275,18 @@
     if (SL.bundles && !SL.bundles.oshomeco) SL.bundles.oshomeco = ['js/os/home-company.js?v=1'];
     Promise.resolve(SL.loadBundle('oshomeco')).then(run, function () { toast('Couldn\'t open that just now. Try again.', 'error'); });
   }
+  /** What the home shows and who may change it, as one string: equal means nothing to repaint. */
+  function homeSig() {
+    return safe(function () { return JSON.stringify([homeKey(), (prefs().company || {}).homeLocked === true, canAdmin()]); }) || '';
+  }
+  function onLayoutPrefs() {
+    if (!S || !S.home) return;
+    var sig = homeSig();
+    if (sig === S.homeSig) return;
+    S.homeSig = sig;
+    if (homeLocked() && (S.homeEditing || S.editing)) { S.homeEditing = false; safe(function () { S.home.setEditing(false); }); }
+    afterTeam();
+  }
   // after a publish or a lock change: repaint the home and its controls from the saved settings.
   // The repaint replaces the control that was used; `refocus` ('homepublish' | 'homelock') puts
   // focus back on its new copy when focus would otherwise fall to <body>.
@@ -282,6 +294,7 @@
     if (!S) return;
     refreshHome();
     if (S.surface !== 'phone') paintDeskTools();
+    S.homeSig = homeSig();
     if (!refocus) return;
     var a = doc.activeElement;
     if (a && a !== doc.body && doc.body.contains(a)) return;   // focus moved on by itself: leave it
@@ -1402,12 +1415,10 @@
     watchVisits();
     registerControls();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
-    // settings read after mount (a company home published or locked): show what they say now
-    on(doc, 'nbd:layout-prefs', function () {
-      if (!S || !S.home) return;
-      if (homeLocked() && (S.homeEditing || S.editing)) { S.homeEditing = false; safe(function () { S.home.setEditing(false); }); }
-      afterTeam();
-    });
+    // settings read after mount (a company home published or locked): show what they say now.
+    // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
+    S.homeSig = homeSig();
+    on(doc, 'nbd:layout-prefs', onLayoutPrefs);
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;

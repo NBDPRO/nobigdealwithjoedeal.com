@@ -306,7 +306,7 @@ G(() => {
     ok('…and the company desk home shows', J(ids(col)) === J(['coach-1', 'glance-1']), J(ids(col)));
     ok('…with no Edit Home button', !col.querySelector('[data-osdo="homeedit"]'));
   });
-  console.log('\n8. before the claims load');
+  console.log('\n8. before the claims load, and a settings read that changes nothing');
   G(() => {
     const prefsEv = (T) => (T.document.listeners['nbd:layout-prefs'] || []).forEach((f) => f({ type: 'nbd:layout-prefs' }));
     // claims not loaded yet (window._userClaims unset): a member must not be treated as the owner
@@ -324,6 +324,19 @@ G(() => {
     prefsEv(T);
     ok('loaded claims with no companyId are still the solo owner', J(ids(col)) === J(['upnext-1']));
 
+    // a settings read that changes nothing (every hydrate fires the event, the first one included)
+    const P = mount('phone', { claims: REP, home: OWN, company: coDoc(false) });
+    const pages = phoneOf(P).querySelector('.os-p-pages');
+    prefsEv(P);
+    ok('phone: a settings read with nothing new does not repaint the home screen', phoneOf(P).querySelector('.os-p-pages') === pages);
+    const D = mount('desk', { claims: REP, home: OWN, company: coDoc(false) });
+    const tools = deskCol(D).querySelector('.os-hw-tools');
+    const n = tools.innerHTMLWrites;
+    prefsEv(D);
+    ok('desk: …nor the desk column', tools.innerHTMLWrites === n, n + ' -> ' + tools.innerHTMLWrites);
+    D.W.LayoutEngine.saveCompany({ homeLocked: true });
+    prefsEv(D);
+    ok('a read that does change something (a lock) still repaints', J(ids(deskCol(D))) === J(['coach-1', 'glance-1']), J(ids(deskCol(D))));
   });
   G(() => {
     ok('no new <script> tag for the owner code', !/home-company\.js/.test(DASH));
