@@ -846,7 +846,16 @@ async function runTranscribe({ db, bucket, live, nowMs, only }) {
     outagePatch.providerOutage = null;
     out.outageCleared = true;
   }
-  const patch = Object.assign({ audioSecDay: today, audioSecUsed: usedSec + out.audioSec }, only ? {} : { lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
+  // The day's audio seconds are added in a transaction on what is stored NOW,
+  // not on the usedSec read at the start: a Transcribe-now tap and the
+  // schedule can overlap, and each must keep the other's seconds.
+  await db.runTransaction(async (tx) => {
+    const cur = await tx.get(ref);
+    const c = cur.exists ? (cur.data() || {}) : {};
+    const base = (c.audioSecDay === today && Number(c.audioSecUsed)) || 0;
+    tx.set(ref, { audioSecDay: today, audioSecUsed: base + out.audioSec }, { merge: true });
+  });
+  const patch = Object.assign({}, only ? {} : { lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
   if (factsUsed !== null) Object.assign(patch, { factsDay: today, factsUsed });
   // The one-call test runs once: clear the ids it handled.
   if (allowIds.length) patch.transcribeOnly = allowIds.filter((id) => !pick.some((c) => c.id === id));

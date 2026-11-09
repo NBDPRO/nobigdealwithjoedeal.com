@@ -230,6 +230,32 @@ async function tap(db, auth, data, nowMs) {
     ok('only-mode counts its audio against the day allowance', cfg5.audioSecUsed === 14 && cfg5.audioSecDay === '2026-11-09', cfg5);
     ok('only-mode leaves the schedule\'s own run record alone', cfg5.lastTranscribe === undefined && cfg5.lastTranscribeAtMs === undefined, Object.keys(cfg5));
     ok('only-mode runs no backfill (one call, one Groq call)', tCalls === 1 && out5.noted === 1, out5);
+
+    // Overlap (review 2026-11-09): the schedule and a Transcribe-now tap each
+    // read audioSecUsed at the start. The other run's seconds, written while
+    // this one was transcribing, must survive this run's write.
+    for (const mode of ['only', 'schedule']) {
+      const db6 = makeDb(seed({}, { 'integrations/callCenter': { audioSecDay: '2026-11-09', audioSecUsed: 50 } }));
+      CC._test.setDeps({
+        transcribe: async () => {
+          const cfg = db6.store.get('integrations/callCenter');
+          db6.store.set('integrations/callCenter', Object.assign({}, cfg, { audioSecUsed: cfg.audioSecUsed + 100 }));
+          return { text: TEXT, durationSec: 14, segments: SEGS };
+        },
+        notes: async () => ({ call_type: 'customer', summary: 'Roof leak again.', promises: [], follow_up_date: null, urgent: false }),
+        push: async () => ({ sent: 0 }),
+      });
+      await CC._test.runTranscribe(Object.assign({ db: db6, bucket, live: true, nowMs: NOW }, mode === 'only' ? { only: { id: ID, by: 'now:x' } } : {}));
+      const cfg6 = db6.store.get('integrations/callCenter');
+      ok(mode + ': an overlapping run\'s audio seconds are not overwritten (50 + 100 + 14)', cfg6.audioSecUsed === 164 && cfg6.audioSecDay === '2026-11-09', cfg6.audioSecUsed);
+    }
+    {
+      const db7 = makeDb(seed({}, { 'integrations/callCenter': { audioSecDay: '2026-11-08', audioSecUsed: 9000 } }));
+      stubDeps();
+      await CC._test.runTranscribe({ db: db7, bucket, live: true, nowMs: NOW, only: { id: ID, by: 'now:x' } });
+      const cfg7 = db7.store.get('integrations/callCenter');
+      ok('a new ET day starts the count over (yesterday\'s seconds dropped)', cfg7.audioSecUsed === 14 && cfg7.audioSecDay === '2026-11-09', cfg7);
+    }
   }
 
   console.log('\n4. Who may tap it');
