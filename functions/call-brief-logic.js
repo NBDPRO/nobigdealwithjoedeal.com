@@ -430,13 +430,18 @@ function buildRequest(o) {
     fenceSafe(String(x.transcript || '').slice(0, TRANSCRIPT_MAX)),
     '</transcript>',
   ].join('\n');
-  return {
+  const req = {
     model,
     max_tokens: MAX_TOKENS,
     output_config: { format: { type: 'json_schema', schema: buildSchema(stages.map((s) => s.key)) } },
     system: buildSystem(x.tenant),
     messages: [{ role: 'user', content: user }],
   };
+  // Sonnet 5.5 runs adaptive thinking when this is omitted, which would spend
+  // the MAX_TOKENS budget; between_tools turns it off (no tools here), the
+  // same shape as a production Sonnet call (handlers/ai.js shapeForModel).
+  if (model === 'claude-sonnet-5-5') req.thinking = { type: 'between_tools' };
+  return req;
 }
 
 /** The JSON from Claude's answer; null when unusable. */

@@ -289,6 +289,13 @@ console.log('\n9. The prompt');
   ok('strict json_schema output', req.output_config && req.output_config.format && req.output_config.format.type === 'json_schema' && req.output_config.format.schema.additionalProperties === false);
   ok('max_tokens is the callable\'s own constant (2000)', req.max_tokens === B.MAX_TOKENS && B.MAX_TOKENS === 2000);
   ok('default model is Haiku 4.5; the eval may pick Sonnet 5.5', req.model === 'claude-haiku-4-5-20251001' && B.buildRequest({ tenant, stages: STAGES, transcript: 'x', callYmd: CALL_YMD, model: 'claude-sonnet-5-5' }).model === 'claude-sonnet-5-5');
+  // Review #16: Sonnet 5.5 runs adaptive thinking when thinking is omitted,
+  // which would eat the 2000-token budget; production (handlers/ai.js
+  // shapeForModel) sends between_tools for it, so the brief does too.
+  const sonnet = B.buildRequest({ tenant, stages: STAGES, transcript: 'x', callYmd: CALL_YMD, model: 'claude-sonnet-5-5' });
+  const shape = require(path.join(__dirname, '..', 'functions', 'handlers', 'ai.js'))._shapeForModel({ model: 'claude-sonnet-5-5', max_tokens: 10, messages: [] });
+  ok('Sonnet 5.5: the same thinking setting as a production Sonnet call (between_tools)', JSON.stringify(sonnet.thinking) === JSON.stringify(shape.thinking) && sonnet.thinking && sonnet.thinking.type === 'between_tools', sonnet.thinking);
+  ok('Haiku 4.5: no thinking setting (no extended thinking)', !('thinking' in req));
   ok('a model off the list falls back to the default', B.buildRequest({ tenant, stages: STAGES, transcript: 'x', callYmd: CALL_YMD, model: 'gpt-4' }).model === B.BRIEF_MODEL);
   ok('the transcript is sliced to 60k chars', B.buildRequest({ tenant, stages: STAGES, transcript: 'a'.repeat(90000), callYmd: CALL_YMD }).messages[0].content.length < 64000);
   ok('every schema object is strict (additionalProperties:false, all keys required)', (function walk(n) {
