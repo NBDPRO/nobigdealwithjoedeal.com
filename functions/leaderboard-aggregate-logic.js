@@ -41,7 +41,12 @@ function validTimeZone(z) {
   return v;
 }
 
-/** The company's zone: companyProfile.timeZone (or the older timezone / the brand's), else Eastern, set:false. */
+/**
+ * The company's zone, else Eastern, set:false. The house order, on purpose (one source of
+ * truth with ky-insurance-law.js, agent-mcp-logic.js companyTimeZone and the Settings panel's
+ * current() in company-timezone-settings.js): the older timezone (Bots & API), then timeZone
+ * (the Settings panel, which writes both when the older one exists), then the brand's.
+ */
 function companyZone(profile) {
   const p = profile || {};
   const b = p.brand || {};

@@ -54,11 +54,16 @@
       return list.indexOf(r) !== -1 && r.toLowerCase() !== z.toLowerCase();
     } catch (e) { return false; }
   }
-  /** The saved zone (timeZone, else the older timezone), or '' when none is saved. */
+  /**
+   * The saved zone, or '' when none is saved. One source of truth: the house order every
+   * server reader uses (leaderboard-aggregate-logic.js companyZone, ky-insurance-law.js,
+   * agent-mcp-logic.js companyTimeZone), the older timezone first, then timeZone, so the
+   * panel always shows the zone the counts are made in. saveFields keeps the two in step.
+   */
   function current(profile, intl) {
     var p = profile || {};
-    if (valid(p.timeZone, intl)) return p.timeZone;
     if (valid(p.timezone, intl)) return p.timezone;
+    if (valid(p.timeZone, intl)) return p.timeZone;
     return '';
   }
   function saveFields(profile, z) {

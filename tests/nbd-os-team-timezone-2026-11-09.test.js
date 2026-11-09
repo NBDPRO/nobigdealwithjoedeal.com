@@ -88,8 +88,20 @@ function mount(claims, profile, opts) {
     const old = { DateTimeFormat: Intl.DateTimeFormat };   // a browser without supportedValuesOf
     ok('without supportedValuesOf: the fixed list (the US zones and UTC)', TZ.zones(old).indexOf('America/New_York') !== -1 && TZ.zones(old).indexOf('Pacific/Honolulu') !== -1 && TZ.zones(old).indexOf('UTC') !== -1 && TZ.zones(old).length < 40, J(TZ.zones(old)));
     ok('and a zone off that list is refused there', TZ.valid('America/Chicago', old) && !TZ.valid('Asia/Kolkata', old));
-    ok('the current zone: timeZone, else the older timezone, else none (no default is claimed)', TZ.current({ timeZone: 'America/Chicago' }, intl) === 'America/Chicago'
+    ok('the current zone: the older timezone, else timeZone, else none (no default is claimed)', TZ.current({ timeZone: 'America/Chicago' }, intl) === 'America/Chicago'
       && TZ.current({ timezone: 'America/Denver' }, intl) === 'America/Denver' && TZ.current({}, intl) === '' && TZ.current({ timeZone: 'Nope/Zone' }, intl) === '');
+    // review 2026-11-09: one source of truth. When the two fields disagree (Bots & API wrote only the
+    // older lowercase timezone after the panel saved), the panel shows the zone every server reader
+    // counts in: the house order, timezone then timeZone (leaderboard-aggregate-logic.js companyZone,
+    // ky-insurance-law.js, agent-mcp-logic.js companyTimeZone).
+    {
+      const LA = require(path.join(ROOT, 'functions/leaderboard-aggregate-logic.js'));
+      const split = { timezone: 'America/Chicago', timeZone: 'America/Denver' };
+      ok('split fields: the panel shows the zone the leaderboard counts in (the older timezone first, the house order)',
+        TZ.current(split, intl) === LA.companyZone(split).tz && TZ.current(split, intl) === 'America/Chicago', TZ.current(split, intl) + ' vs ' + LA.companyZone(split).tz);
+      ok('an invalid older timezone falls through to timeZone in both', TZ.current({ timezone: 'Nope/Zone', timeZone: 'America/Denver' }, intl) === 'America/Denver'
+        && LA.companyZone({ timezone: 'Nope/Zone', timeZone: 'America/Denver' }).tz === 'America/Denver');
+    }
     ok('saving writes timeZone', J(TZ.saveFields({}, 'America/Chicago')) === J({ timeZone: 'America/Chicago' }));
     ok('and keeps an older lowercase timezone in step', J(TZ.saveFields({ timezone: 'America/Denver' }, 'America/Chicago')) === J({ timeZone: 'America/Chicago', timezone: 'America/Chicago' }));
   }
