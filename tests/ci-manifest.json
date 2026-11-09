@@ -11,6 +11,7 @@
   ],
   "node": [
     "merge-catalog-costs-2026-11-09.test.js",
+    "prod-switches-2026-11-09.test.js",
     "supplier-sweep-data-fixes-2026-11-09.test.js",
     "designer-nail-step-flashing-2026-11-09.test.js",
     "chibi-2026-10-25.test.js",
