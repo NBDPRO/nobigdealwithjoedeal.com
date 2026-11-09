@@ -438,7 +438,11 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  952/74/1081 -> 954/74/1083, tests/merge-catalog-costs-2026-11-09.test.js
 //               and tests/supplier-sweep-data-fixes-2026-11-09.test.js (node; per-SKU
 //               cost-book merge tool, Berkshire bundles/sq). MEASURED via --check.
-const FLOORS = { node: 954, smoke: 74, disk: 1083 };
+//   2026-11-09  954/74/1083 -> 969/74/1100, the 15 NBD OS P1 node suites (board, desk board,
+//               phone drag, widgets, Smart Stack, urgency, frecency, company home, Daily
+//               Success app/goals/doors, Shutdown, wallpapers) and 2 P1 emulator rules
+//               suites (os-company-home, os-daily-goals). MEASURED via --check.
+const FLOORS = { node: 969, smoke: 74, disk: 1100 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
