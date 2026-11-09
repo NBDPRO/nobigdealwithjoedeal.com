@@ -477,7 +477,10 @@
   }
   async function confirmCustomer(id) {
     var pc = phoneCall(id);
-    if (!pc || !window.confirm('File this call on ' + leadLabel(window._leadDoc || {}) + '? A shared number can belong to someone else, so check it is them.')) return;
+    if (!pc) return;
+    var msg = 'File this call on ' + leadLabel(window._leadDoc || {}) + '? A shared number can belong to someone else, so check it is them.';
+    var yes = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm(msg) : window.confirm(msg);
+    if (!yes) return;
     status(id, 'Filing…');
     try { await callable('callCenterAction', { id: pc._id, action: 'attach', leadId: window._customerId }); await load(); }
     catch (e) { status(id, (e && e.message) || 'That did not save.'); }
