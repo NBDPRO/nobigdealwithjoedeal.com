@@ -501,8 +501,10 @@
   }
 
   // ─── Modal lifecycle ────────────────────────────────────────────
+  let _returnFocus = null;   // what had focus before the palette opened; close() puts it back
   function open() {
     if (document.getElementById(MODAL_ID)) return;
+    _returnFocus = document.activeElement;
     _ensureScopes();
     const wrap = _buildModal();
     document.body.appendChild(wrap);
@@ -520,6 +522,13 @@
   function close() {
     const wrap = document.getElementById(MODAL_ID);
     if (wrap) wrap.remove();
+    // focus goes back where it was (never <body>, never a node that left the page), so a
+    // row run after close (NBD OS Pocket) knows where to return focus too
+    const back = _returnFocus;
+    _returnFocus = null;
+    if (wrap && back && back !== document.body && back.isConnected && typeof back.focus === 'function') {
+      try { back.focus(); } catch (_) {}
+    }
     if (_X()) _X().onClose();   // drops any theme preview
     _currentResults = [];
     _selectedIndex = 0;

@@ -442,6 +442,58 @@ function typeKeep(T, s) {
     ok('...and says why', /Quick Capture is busy/i.test(text(pocketEl(T).querySelector('.os-pocket-status'))), text(pocketEl(T).querySelector('.os-pocket-status')));
   });
 
+  console.log('\n11. Spotlight (command-palette.js) hands focus back on close, so Pocket opened from it returns there');
+  await G(async () => {
+    const dom = makeDom();
+    const timers = [];
+    const W = {
+      document: dom.document, navigator: {}, console: { log() {}, info() {}, warn() {}, error() {} },
+      location: { pathname: '/pro/dashboard.html', hash: '' },
+      setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout() {},
+      addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
+      localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+      CustomEvent: function (t, i) { this.type = t; this.detail = i && i.detail; },
+    };
+    const ctx = vm.createContext(W);
+    ctx.window = ctx;
+    vm.runInContext(read('docs/pro/js/command-palette.js'), ctx, { filename: 'command-palette.js' });
+    const run = () => { while (timers.length) { try { timers.shift()(); } catch (e) {} } };
+    run();
+    const C = ctx.NBDCommand;
+    const btn = dom.document.createElement('button');
+    const P = Object.getPrototypeOf(btn);
+    if (!('dataset' in P)) Object.defineProperty(P, 'dataset', { configurable: true, get() {   // the fake DOM has none: data-* attributes, camelCased
+      const o = {}; Object.keys(this.attrs).forEach((k) => { if (/^data-/.test(k)) o[k.slice(5).replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = this.attrs[k]; }); return o;
+    } });
+    dom.document.body.appendChild(btn);
+    btn.focus();
+    C.open();
+    run();
+    ok('(the palette is open and its box has focus)', !!dom.document.getElementById('nbd-cmd-modal') && dom.document.activeElement === dom.document.getElementById('nbd-cmd-input'));
+    C.close();
+    ok('closing it puts focus back where it was', !dom.document.getElementById('nbd-cmd-modal') && dom.document.activeElement === btn, dom.document.activeElement && dom.document.activeElement.tagName);
+    let seen = null;
+    C.registerAction({ id: 'os:pocket', label: 'Pocket: a quick note', keywords: 'pocket', run: () => { seen = dom.document.activeElement; } });
+    btn.focus();
+    C.open();
+    run();
+    const inp = dom.document.getElementById('nbd-cmd-input');
+    inp.value = 'Pocket: a quick';
+    fire(dom, inp, 'input');
+    run();
+    key(dom, inp, 'Enter');
+    run();
+    ok('a row run from it (Pocket) sees focus back on the element, not on <body>', seen === btn, seen && seen.tagName);
+    const gone = dom.document.createElement('button');
+    dom.document.body.appendChild(gone);
+    gone.focus();
+    C.open();
+    run();
+    gone.remove();
+    C.close();
+    ok('...never on a node that left the page', dom.document.activeElement !== gone);
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) process.exit(1);
 })();
