@@ -1492,7 +1492,7 @@
     var c = byId(id);
     if (!c) return;
     try {
-      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=2');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     var lead = c.leadId ? leadsById()[c.leadId] : null;

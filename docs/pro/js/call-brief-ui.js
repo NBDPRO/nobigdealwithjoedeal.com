@@ -71,7 +71,7 @@
   if (window.NBDCallBrief) return;
 
   var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
-  var CSS_HREF = '/pro/css/call-brief.css?v=1';
+  var CSS_HREF = '/pro/css/call-brief.css?v=2';
   var FOLLOWUP_JS = '/pro/js/followup-deck.js?v=2';
   var CTC_JS = '/pro/js/call-to-close-logic.js?v=1';
   var INSURANCE_WARN = 'This makes the job an insurance job. Kentucky notices and the cancellation form will apply.';
