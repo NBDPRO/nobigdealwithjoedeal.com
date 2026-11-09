@@ -470,6 +470,10 @@ function fakeDb(seed) {
     ok('the logic loads lazily from the view (ScriptLoader.load on open)', /ScriptLoader\.load\('\/pro\/js\/call-merge-logic\.js\?v=1'\)/.test(view) && /loadMerge\(\)/.test(view));
     const pages = fs.readdirSync(path.join(ROOT, 'docs/pro')).filter((f) => f.endsWith('.html')).map((f) => read('docs/pro/' + f)).join('\n');
     ok('no <script> tag names it on any page', !/call-merge-logic/.test(pages));
+    // Review 2026-11-09: cached clients kept listing redials until the next bump.
+    const bust = (src, re) => Number((re.exec(src) || [])[1] || 0);
+    ok('call-center-view.js cache-busted past v=28 (P2 changed it)', bust(read('docs/pro/js/script-loader.js'), /js\/call-center-view\.js\?v=(\d+)/) >= 29);
+    ok('home-attention.js cache-busted past v=25 (P2 changed it)', bust(read('docs/pro/dashboard.html'), /js\/home-attention\.js\?v=(\d+)/) >= 26);
     ok('no boot bundle names it', !/call-merge-logic/.test(read('docs/pro/js/script-loader.js')));
     const added = view.split('\n').filter((l) => /merge/i.test(l)).join('\n');
     ok('no inline style or handler in the new markup', !/style=|\son[a-z]+=/.test(added));
