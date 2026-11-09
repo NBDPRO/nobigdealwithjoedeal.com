@@ -71,6 +71,8 @@ The gate is `CALL_RETENTION_ENABLED` on the `callRetention` function. Unset (the
 
 ## Open questions for Jo
 
+> **Update 2026-11-09 (P2 integration, `ctc-p2`):** a merged pair (split-call merge) is held together (`merged_partner_hold`), and a walkthrough brief (`visit_<visitId>`) is swept at 24 months and also held by its visit's `legalHold` (`visit_legal_hold`). Question 4 still stands for the visit transcripts themselves. See [SESSION-2026-11-09-call-to-close-p2](SESSION-2026-11-09-call-to-close-p2.md).
+
 1. Should the call's timeline entry on the customer (summary and promises copied at filing time) also be stripped at 24 months? It is left alone now, as a business note.
 2. Is "Denied" an open claim for the hold? It is now.
 3. Should a hold have a button on the customer card? Today it is a console field.

@@ -29,6 +29,8 @@ On a customer's timeline, a visit recording that has notes shows **Brief this wa
 
 ## Not done
 
+> **Update 2026-11-09 (P2 integration, `ctc-p2`):** the retention item below is closed: `callRetention` sweeps `visit_*` briefs at 24 months (held by the customer's claim / legal hold and the visit's `legalHold`), and a walkthrough brief now marks hard-to-hear quotes (the visit pipeline stores `segIndex`). See [SESSION-2026-11-09-call-to-close-p2](SESSION-2026-11-09-call-to-close-p2.md).
+
 - "Said on a call, not in this proposal" (`call-to-close-logic.js` `loadLeadBriefs`) reads only phone-call briefs; walkthrough briefs are not in that check yet.
 - Accepting the summary does not repaint the timeline until the page reloads (the button passes no `onChange`, to keep the boot-loaded code small).
 - Retention: there is **no sweeper for `leads/*/call_briefs` in `functions/`** (Q7 default: briefs 24 months; design §9 lists retention as its own P2 item), and walkthrough briefs add more transcript-derived text to that collection. Account erasure covers them (they live under `leads/`), but nothing purges by age. **When the retention lane lands it must sweep `visit_*` briefs as well as phone-call briefs** (same collection, ids `visit_<visitId>`, `generatedAtMs` on every doc). Tracked here on purpose; not built in this lane.
