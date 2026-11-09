@@ -495,7 +495,68 @@ console.log('\nRUNNER — on the real NBD OS laptop desk');
     const P2 = H.makeWin({ surface: 'phone', loader: true, system: true });
     P2.W._impl.mount({ surface: 'phone' });
     ok('the phone attaches no type-anywhere and shows no switch', P2.W.ScriptLoader.calls.indexOf('cmdrunner') === -1 && !(P2.W.controls || []).some((c) => c.id === 'os-runner-type'));
-  }).then(finishWiring);
+  }).then(hotkeyClash).then(finishWiring);
+}
+
+/** The fake document has no capture phase: give one (document capture, element capture, element bubble, document bubble). */
+function withDocCapture(T) {
+  const D = T.document, cap = {};
+  const add = D.addEventListener, rem = D.removeEventListener;
+  const isCap = (o) => o === true || !!(o && o.capture);
+  D.addEventListener = (t, f, o) => { if (isCap(o)) (cap[t] = cap[t] || []).push(f); else add(t, f, o); };
+  D.removeEventListener = (t, f, o) => { if (isCap(o)) cap[t] = (cap[t] || []).filter((x) => x !== f); else rem(t, f, o); };
+  return function fireDoc(target, type, extra) {
+    const ev = Object.assign({
+      type, target, defaultPrevented: false, stopped: false, clientX: 10, clientY: 10,
+      preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, stopImmediatePropagation() { this.stopped = true; },
+    }, extra || {});
+    const chain = [];
+    for (let n = target; n && n.attrs; n = n.parentNode) chain.push(n);
+    const run = (fns) => (fns || []).slice().forEach((f) => { if (!ev.stopped) f(ev); });
+    run(cap[type]);
+    for (let i = chain.length - 1; i >= 0 && !ev.stopped; i--) run(chain[i].capture[type]);
+    for (let i = 0; i < chain.length && !ev.stopped; i++) run(chain[i].listeners[type]);
+    if (!ev.stopped) run(D.listeners[type]);
+    return ev;
+  };
+}
+
+function hotkeyClash() {
+  console.log('\nRUNNER — type-anywhere wins over the dashboard\'s own N / E hotkeys');
+  const T = H.makeWin({ surface: 'desktop', loader: true, system: true, leads: LEADS });
+  const W = T.W, D = T.document;
+  const fireDoc = withDocCapture(T);
+  W.NBDCommand = {
+    open() { W.searches++; if (!D.getElementById('nbd-cmd-input')) { const i = D.createElement('input'); i.setAttribute('id', 'nbd-cmd-input'); D.body.appendChild(i); } },
+    registerAction() {}, unregisterAction() {},
+  };
+  // dashboard-bootstrap.module.js's single-letter hotkeys: a bubble-phase document listener added at boot
+  const hot = { n: 0, e: 0 };
+  D.addEventListener('keydown', (e) => {
+    const t = e.target || {};
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'n' || e.key === 'e') hot[e.key]++;
+  });
+  W._impl.mount({ surface: 'desktop' });
+  return Promise.resolve().then(() => new Promise((r) => setImmediate(r))).then(() => {
+    const area = D.getElementById('osDesk').querySelector('.os-desk-area');
+    const s0 = W.searches;
+    fireDoc(area, 'pointerdown');
+    const ev = fireDoc(D.body, 'keydown', { key: 'n' });
+    ok('typing "n" on the bare desk opens the runner pre-filled, and the N hotkey (New Lead) never fires',
+      W.searches === s0 + 1 && D.getElementById('nbd-cmd-input').value === 'n' && hot.n === 0 && ev.defaultPrevented && ev.stopped, JSON.stringify(hot));
+    D.getElementById('nbd-cmd-input').remove();
+    fireDoc(area, 'pointerdown');
+    fireDoc(D.body, 'keydown', { key: 'e' });
+    ok('…nor "e" (New Estimate)', W.searches === s0 + 2 && hot.e === 0);
+    D.getElementById('nbd-cmd-input').remove();
+    W.NBDRunner.typeOpen.set(false);
+    fireDoc(area, 'pointerdown');
+    const ev2 = fireDoc(D.body, 'keydown', { key: 'n' });
+    ok('with type-anywhere off the key is left alone: the hotkey gets it', W.searches === s0 + 2 && hot.n === 1 && !ev2.defaultPrevented);
+    W.NBDRunner.typeOpen.set(true);
+    W._impl.unmount();
+  });
 }
 
 function finishWiring() {

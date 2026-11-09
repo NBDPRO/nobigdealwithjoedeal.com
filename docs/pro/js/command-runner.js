@@ -662,7 +662,10 @@
         paletteOpen: paletteOpen(), modalOpen: modalOpen(),
       });
       if (!ok) return;
+      // capture phase + stop: the dashboard's own single-letter hotkeys (N = New
+      // Lead, E = New Estimate, dashboard-bootstrap) listen on the document too
       ev.preventDefault();
+      if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
       openPrefilled(ev.key);
     }
     function clearCorner() { if (st.cornerT) { clr(st.cornerT); st.cornerT = 0; } }
@@ -676,13 +679,13 @@
     }
     doc.addEventListener('pointerdown', onDown, true);
     doc.addEventListener('focusin', onFocus, true);
-    doc.addEventListener('keydown', onKeyDown);
+    doc.addEventListener('keydown', onKeyDown, true);
     doc.addEventListener('pointermove', onMove, { passive: true });
     return function detach() {
       clearCorner();
       doc.removeEventListener('pointerdown', onDown, true);
       doc.removeEventListener('focusin', onFocus, true);
-      doc.removeEventListener('keydown', onKeyDown);
+      doc.removeEventListener('keydown', onKeyDown, true);
       doc.removeEventListener('pointermove', onMove, { passive: true });
     };
   }
