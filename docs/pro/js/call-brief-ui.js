@@ -33,6 +33,13 @@
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
  * signed, and no stage moves. Everything shown is escaped.
  *
+ * P1 (2026-11-09): a quote Whisper was unsure of (the call's segIndex,
+ * functions/call-brief-logic.js unsureQuotes) says "Unsure"; a field whose
+ * value has a digit and came from such a quote (retype) has no Accept: the
+ * person listens and types it, and the server refuses it otherwise.
+ * transcribe() is the cards' "Transcribe now" (callTranscribeNow), in this
+ * same lazy file so the cards stay small.
+ *
  * No inline handlers (CSP script-src-attr 'none'): one delegated listener.
  */
 (function () {
@@ -107,6 +114,7 @@
         key: k, label: FIELD_LABEL[k], current: blank(current) ? '' : String(current), proposed: String(f[k].value),
         spoken: f[k].spoken || '', quote: f[k].quote || '', conf: f[k].conf === 'implied' ? 'implied' : 'said',
         warn: blank(current) ? warnFor(k, f[k].value) : '', filled: !blank(current), isDate: k === 'dateOfLoss' || k === 'adjusterMeetingYmd',
+        unsure: f[k].unsure === true, retype: f[k].retype === true,
       };
     });
   }
@@ -185,7 +193,10 @@
   function btn(label, act, extra, cls) {
     return '<button type="button" class="btn ' + (cls || 'btn-ghost') + '" data-cb-act="' + esc(act) + '"' + (extra || '') + '>' + esc(label) + '</button>';
   }
-  function quoteHtml(q) { return q ? '<blockquote class="cb-quote">&ldquo;' + esc(q) + '&rdquo;</blockquote>' : ''; }
+  function quoteHtml(q, unsure) {
+    if (!q) return '';
+    return '<blockquote class="cb-quote' + (unsure ? ' is-unsure' : '') + '">' + (unsure ? '<span class="cb-unsure">Unsure: hard to hear on the recording.</span> ' : '') + '&ldquo;' + esc(q) + '&rdquo;</blockquote>';
+  }
   function statusFor(item) {
     if (S.err && S.err[item]) return '<div class="cb-err" role="alert">' + esc(S.err[item]) + '</div>';
     var d = S.done[item] || decided(item);
@@ -201,7 +212,8 @@
     var filer = c.attachedBy || c.movedBy;
     var filed = filer ? (filer === uid() ? 'Filed by you' : 'Filed by a teammate') : '';
     var meta = [filed, when, c.durationSec ? fmtDur(c.durationSec) : ''].filter(Boolean).join(' · ');
-    return '<div class="cb-head"><div><h2 class="cb-title" id="cbTitle">From this call: ' + esc(leadName(S.lead)) + '</h2>' +
+    var who = S.mode === 'tx' ? 'Transcribe now: ' + (S.leadId ? leadName(S.lead) : (c.contactName || 'this call')) : 'From this call: ' + leadName(S.lead);
+    return '<div class="cb-head"><div><h2 class="cb-title" id="cbTitle">' + esc(who) + '</h2>' +
       '<div class="cb-meta">' + esc(meta) + (c.urgent ? ' <span class="cb-badge is-urgent">Urgent</span>' : '') + '</div></div>' +
       '<button type="button" class="btn btn-ghost cb-close" data-cb-act="close" aria-label="Close">✕</button></div>';
   }
@@ -213,6 +225,7 @@
     if (t.reliable === false) out += '<div class="cb-banner is-danger" role="status">Transcript unreliable, listen to the recording. Only the summary is shown' + (t.why ? ': ' + esc(t.why) : '.') + '</div>';
     if (t.cutOff) out += '<div class="cb-banner" role="status">The transcript ends mid-call.</div>';
     if (b.flags && b.flags.injection) out += '<div class="cb-banner" role="status">Part of this call reads like instructions to a computer. Nothing was taken from those words.</div>';
+    if (b.flags && b.flags.lowConfidence) out += '<div class="cb-banner" role="status">Parts of this call were hard to hear. Those quotes say Unsure, and you type any number from them yourself.</div>';
     return out;
   }
 
@@ -224,7 +237,7 @@
     return '<div class="cb-sec" role="group" aria-labelledby="cbSumH"><h3 class="cb-sec-title" id="cbSumH">Summary</h3>' +
       '<label class="cb-field-lbl" for="cbSummary">What the call was about' + (sm.inferred ? ' (inferred: no quote backs it)' : '') + '</label>' +
       '<textarea class="cb-text" id="cbSummary" data-cb-input="summary"' + (settled ? ' disabled' : '') + '>' + esc(S.summaryText != null ? S.summaryText : (sm.text || '')) + '</textarea>' +
-      ((sm.quotes || []).length ? '<div class="cb-quotes">' + sm.quotes.map(quoteHtml).join('') + '</div>' : '') +
+      ((sm.quotes || []).length ? '<div class="cb-quotes">' + sm.quotes.map(function (q, i) { return quoteHtml(q, (sm.unsure || []).indexOf(i) !== -1); }).join('') + '</div>' : '') +
       (settled ? statusFor(item) : confirming
         ? '<div class="cb-warn">Timeline notes cannot be undone. Add this summary to the timeline?</div><div class="cb-acts">' + btn('Add note', 'summary-yes', '', 'btn-orange') + btn('Cancel', 'cancel') + '</div>'
         : '<div class="cb-acts">' + btn('Add to timeline', 'summary') + '</div>' + statusFor(item)) +
@@ -247,6 +260,11 @@
           acts = '<div class="cb-warn">' + esc(r.warn) + ' Fill it in?</div><div class="cb-acts">' + btn('Yes, fill it in', 'accept-yes', ' data-k="' + esc(r.key) + '"', 'btn-orange') + btn('Cancel', 'cancel') + '</div>';
         } else if (r.filled) {
           acts = '<div class="cb-meta">Already filled in on the customer. Change it on the customer card if it is wrong.</div><div class="cb-acts">' + btn('Skip', 'skip', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
+        } else if (r.retype) {
+          // Digits from a hard-to-hear quote: no Accept, the person types them.
+          acts = '<label class="cb-field-lbl" for="cbEdit-' + esc(r.key) + '">Type it from the recording</label>' +
+            '<input class="cb-input" id="cbEdit-' + esc(r.key) + '" data-cb-input="edit" data-k="' + esc(r.key) + '"' + (r.isDate ? ' type="date"' : ' type="text" maxlength="120" autocomplete="off"') + ' value="' + esc(S.edit[item] || '') + '">' +
+            '<div class="cb-acts">' + btn('Save', 'edit-save', ' data-k="' + esc(r.key) + '"') + btn('Skip', 'skip', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
         } else if (editing) {
           acts = '<label class="cb-field-lbl" for="cbEdit-' + esc(r.key) + '">Your value</label>' +
             '<input class="cb-input" id="cbEdit-' + esc(r.key) + '" data-cb-input="edit" data-k="' + esc(r.key) + '"' + (r.isDate ? ' type="date"' : ' type="text" maxlength="120"') + ' value="' + esc(S.edit[item]) + '">' +
@@ -255,8 +273,8 @@
           acts = '<div class="cb-acts">' + btn('Accept', 'accept', ' data-k="' + esc(r.key) + '"') + btn('Edit', 'edit', ' data-k="' + esc(r.key) + '"') + btn('Skip', 'skip', ' data-k="' + esc(r.key) + '"') + '</div>' + statusFor(item);
         }
         return '<div class="cb-card" data-cb-row="' + esc(item) + '"><div class="cb-row-head"><span class="cb-label">' + esc(r.label) + '</span><span class="cb-badge">' + esc(r.conf) + '</span></div>' +
-          '<div class="cb-diff"><span class="cb-now">Now: ' + esc(r.current ? (r.isDate ? fmtYmd(r.current) : r.current) : 'empty') + '</span> → <strong>' + esc(shown) + '</strong></div>' +
-          quoteHtml(r.quote) + (r.warn && !settled && S.confirm !== item ? '<div class="cb-warn">' + esc(r.warn) + '</div>' : '') + acts + '</div>';
+          '<div class="cb-diff"><span class="cb-now">Now: ' + esc(r.current ? (r.isDate ? fmtYmd(r.current) : r.current) : 'empty') + '</span> → ' + (r.retype && !settled ? 'heard as <strong>' + esc(shown) + '</strong>, but it was hard to hear. Listen and type it.' : '<strong>' + esc(shown) + '</strong>') + '</div>' +
+          quoteHtml(r.quote, r.unsure) + (r.warn && !settled && S.confirm !== item ? '<div class="cb-warn">' + esc(r.warn) + '</div>' : '') + acts + '</div>';
       }).join('') + '</div>';
   }
 
@@ -268,7 +286,7 @@
       ps.map(function (p, i) {
         var st = S.prom[i];
         var item = 'promise:' + i;
-        var head = '<div class="cb-row-head"><span class="cb-label">' + esc(p.text) + '</span>' + (p.dueSpoken ? '<span class="cb-meta">' + esc(p.dueSpoken) + '</span>' : '') + '</div>' + quoteHtml(p.quote);
+        var head = '<div class="cb-row-head"><span class="cb-label">' + esc(p.text) + '</span>' + (p.dueSpoken ? '<span class="cb-meta">' + esc(p.dueSpoken) + '</span>' : '') + '</div>' + quoteHtml(p.quote, p.unsure === true);
         if (st.done || st.skipped || isSettled(item)) return '<div class="cb-card">' + head + (statusFor(item) || '<div class="cb-done">Added</div>') + '</div>';
         var toggle = '<div class="cb-toggle" role="radiogroup" aria-label="Who promised it">' +
           '<button type="button" role="radio" aria-checked="' + (st.who === 'jo') + '" tabindex="' + (st.who === 'jo' ? 0 : -1) + '" data-cb-act="who" data-i="' + i + '" data-who="jo">You</button>' +
@@ -301,7 +319,7 @@
       ? btn('Change the stage…', 'stage')
       : '<a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to change it</a>';
     return '<div class="cb-sec" role="group" aria-labelledby="cbStageH"><h3 class="cb-sec-title" id="cbStageH">Stage</h3><div class="cb-card">' +
-      '<div class="cb-diff">Suggests: <strong>' + esc(st.label) + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote) +
+      '<div class="cb-diff">Suggests: <strong>' + esc(st.label) + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote, st.unsure === true) +
       '<div class="cb-meta">Nothing moves from here. You change the stage yourself.</div><div class="cb-acts">' + act + '</div></div></div>';
   }
 
@@ -328,7 +346,10 @@
   function render() {
     if (!dlg || !S) return;
     var body;
-    if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
+    if (S.mode === 'tx') body = S.loading ? '<div class="cb-loading" role="status">Transcribing this call now. A long call can take a minute or two.</div>'
+      : S.error ? '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>'
+      : '<div class="cb-banner" role="status">' + esc(S.txMsg) + '</div>';
+    else if (S.loading) body = '<div class="cb-loading" role="status">Reading the call… Notes arrive 30-60 minutes after the call.</div>';
     else if (S.error) body = '<div class="cb-banner is-danger" role="alert">' + esc(S.error) + '</div>';
     else body = renderBanners() + renderSummary() + renderFields() + renderPromises() + renderFollowUp() + renderHandled() + renderStage() + renderDrafts();
     dlg.innerHTML = renderHeader() + '<div class="cb-scroll">' + body + '</div>' +
@@ -361,6 +382,9 @@
       var extra = { confirmedInsurance: confirmed === true && w === INSURANCE_WARN };
       if (confirmed === true && w === CALENDAR_WARN) extra.confirmedCalendar = true;
       if (value != null) extra.value = value;
+      // A hard-to-hear value the person typed (the server refuses it otherwise).
+      var r0 = fieldRows(S.brief, S.lead).filter(function (r) { return r.key === key; })[0];
+      if (value != null && r0 && r0.retype) extra.retyped = true;
       await decide(item, 'accept', extra);
       var row = fieldRows(S.brief, S.lead).filter(function (r) { return r.key === key; })[0];
       var final = value != null ? value : row && row.proposed;
@@ -625,6 +649,29 @@
     render();
   }
 
+  /**
+   * "Transcribe now" (P1, 2026-11-09): the cards' button. callTranscribeNow
+   * runs this one stored call through the scheduled transcription pass now;
+   * the sheet says what happened and the card reloads. o: as open().
+   */
+  async function transcribe(o) {
+    var x = o || {};
+    if (!x.callId) return;
+    S = { mode: 'tx', callId: x.callId, call: Object.assign({}, x.call || {}), lead: Object.assign({}, x.lead || {}), leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
+      loading: true, error: '', txMsg: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], onChange: x.onChange };
+    var mine = S;
+    show();
+    var r = null, err = null;
+    try { r = await callable('callTranscribeNow', { callId: x.callId }); } catch (e) { err = e; }
+    // The card reloads even when the sheet was closed while it ran.
+    if (r && /^(noted|already|personal)$/.test(r.state) && typeof x.onChange === 'function') { try { x.onChange(); } catch (_) { /* the card reloads itself */ } }
+    if (S !== mine) return;
+    S.loading = false;
+    if (err) S.error = errText(err);
+    else S.txMsg = (r && r.message) || 'Done.';
+    render();
+  }
+
   /** Show a brief already in hand (no server call): the screenshot walk and the tests. */
   function showWith(o) {
     var x = o || {};
@@ -636,7 +683,7 @@
   }
 
   window.NBDCallBrief = {
-    open: open, close: close, _showWith: showWith,
+    open: open, transcribe: transcribe, close: close, _showWith: showWith,
     _fieldRows: fieldRows, _followUpChange: followUpChange, _projectSeed: projectSeed, _scopeHints: scopeHints, _warnFor: warnFor,
     _render: function () { render(); return dlg ? dlg.innerHTML : ''; },
     INSURANCE_WARN: INSURANCE_WARN, CALENDAR_WARN: CALENDAR_WARN, LEAD_FIELD_ALIASES: LEAD_FIELD_ALIASES,

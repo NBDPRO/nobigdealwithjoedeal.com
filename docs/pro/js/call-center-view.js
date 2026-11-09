@@ -79,6 +79,12 @@
     if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
   }
+  // P1: "Transcribe now" on a stored call with no transcript, same roles
+  // (functions/call-transcribe-now.js re-checks).
+  function txGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+  }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
     var s = String(d || '');
@@ -419,6 +425,7 @@
       var bg = c.leadId ? briefGate(c) : '';
       if (bg === 'draft') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Draft from this call</button>';
       else if (bg === 'confirm') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Confirm the customer first</button>';
+      if (txGate(c)) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="tx" data-id="' + esc(c.id) + '">Transcribe now</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -1371,7 +1378,7 @@
   }
 
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
-  async function openBrief(id) {
+  async function openBrief(id, tx) {
     var c = byId(id);
     if (!c) return;
     try {
@@ -1379,7 +1386,7 @@
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     var lead = c.leadId ? leadsById()[c.leadId] : null;
-    window.NBDCallBrief.open({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
+    window.NBDCallBrief[tx ? 'transcribe' : 'open']({ callId: id, call: c, lead: lead || {}, leadId: c.leadId, page: 'calls', onChange: load });
   }
 
   document.addEventListener('click', function (e) {
@@ -1398,6 +1405,7 @@
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
     else if (a === 'brief') openBrief(id);
+    else if (a === 'tx') openBrief(id, 1);
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {

@@ -64,6 +64,12 @@
     if (c.status !== 'noted' || !c.transcript || c.callType === 'personal' || c.callType === 'spam') return '';
     return !c.leadId || (c.alternateLeadIds || []).length || !(c.attachedBy || c.movedBy) ? 'confirm' : 'draft';
   }
+  // P1: "Transcribe now" on a stored call with no transcript, same roles
+  // (functions/call-transcribe-now.js re-checks).
+  function txGate(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+  }
 
   async function callable(name, data) {
     if (!window._functions || !window._httpsCallable) {
@@ -193,6 +199,7 @@
       var bg = briefGate(c);
       if (bg === 'draft') acts += '<button type="button" class="btn pc-play" data-calls-act="pc-brief" data-call-id="' + esc(id) + '">📝 Draft from this call</button>';
       else if (bg === 'confirm') acts += '<button type="button" class="btn pc-play" data-calls-act="pc-confirm" data-call-id="' + esc(id) + '">Confirm the customer first</button>';
+      if (txGate(c)) acts += '<button type="button" class="btn pc-play" data-calls-act="pc-tx" data-call-id="' + esc(id) + '">Transcribe now</button>';
     }
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
@@ -466,14 +473,14 @@
   }
 
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
-  async function openBrief(id) {
+  async function openBrief(id, tx) {
     var pc = phoneCall(id);
     if (!pc) return;
     try {
       if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=1');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
-    window.NBDCallBrief.open({ callId: pc._id, call: pc, lead: window._leadDoc || {}, leadId: window._customerId, page: 'customer', onChange: load });
+    window.NBDCallBrief[tx ? 'transcribe' : 'open']({ callId: pc._id, call: pc, lead: window._leadDoc || {}, leadId: window._customerId, page: 'customer', onChange: load });
   }
   async function confirmCustomer(id) {
     var pc = phoneCall(id);
@@ -492,6 +499,7 @@
     var id = b.getAttribute('data-call-id');
     var a = b.getAttribute('data-calls-act');
     if (a === 'pc-brief') { openBrief(id); return; }
+    if (a === 'pc-tx') { openBrief(id, 1); return; }
     if (a === 'pc-confirm') { confirmCustomer(id); return; }
     if (a === 'pc-handled' || a === 'pc-unhandled') { setHandled(id, a === 'pc-handled'); return; }
     if (a === 'pc-moveopen') { openMove(id); return; }
