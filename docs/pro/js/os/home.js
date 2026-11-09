@@ -110,7 +110,7 @@
     var line;
     if (next) line = 'Next ' + next.time + (size !== 's' && next.place ? ' · ' + next.place : '');
     else if (apptsFailed()) line = 'Couldn\'t check appointments';
-    else line = plan ? 'No more appointments today' : 'Checking appointments…';
+    else line = plan ? HL.noMoreLine(plan) : 'Checking appointments…';
     var h = clockHtml(size !== 's') + '<p class="os-hw-next">' + esc(line) + '</p>';
     if (size === 's') return h;
     var gc = HL.glanceCounts(counts());
@@ -522,6 +522,9 @@
         d.close();
         commit(next, 'new', 'Added ');
       });
+      // Escape closes the sheet here: a page-wide key handler can swallow the dialog's own cancel,
+      // and edit mode stays on underneath
+      d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); d.close(); } });
       d.addEventListener('close', function () { if (d.parentNode) d.parentNode.removeChild(d); if (addEl === d) addEl = null; });
       doc.body.appendChild(d);
       addEl = d;

@@ -156,10 +156,25 @@
     t.innerHTML = S.homeEditing
       ? '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homeadd">Add widget</button>' +
         '<button type="button" class="btn btn-ghost os-hw-tool" data-osdo="homedone">Done</button>'
-      : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>';
+      : '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="homeedit">Edit Home</button>' +
+        '<button type="button" class="ui-btn-quiet os-hw-tool" data-osdo="wallpaper">Wallpaper</button>';
   }
-  // the system layer's Control Center (when it is loaded): an Edit Home tile
-  var CONTROL_IDS = ['os-home-edit'];
+  // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
+  // Load My Skin (a same-origin bundle), then open Settings at its panel.
+  function openWallpaper() {
+    var B = W.NBDMySkinBoot;
+    if (B && typeof B.load === 'function') safe(function () { B.load(); });
+    var O = W.NBDOS;
+    if (O && typeof O.settingsTab === 'function') { safe(function () { O.settingsTab('appearance', 'myskinPanel'); }); return; }
+    if (typeof W.goTo === 'function') safe(function () { W.goTo('settings', { id: 'appearance' }); });
+    setTimeout(function () {
+      if (typeof W.switchSettingsTab === 'function') safe(function () { W.switchSettingsTab('appearance'); });
+      var p = byId('myskinPanel');
+      if (p && typeof p.scrollIntoView === 'function') safe(function () { p.scrollIntoView({ block: 'start' }); });
+    }, 250);
+  }
+  // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
+  var CONTROL_IDS = ['os-home-edit', 'os-wallpaper'];
   function registerControls() {
     var tries = 0;
     (function reg() {
@@ -167,6 +182,7 @@
       var O = W.NBDOS;
       if (O && typeof O.registerControl === 'function') {
         safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
+        safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
@@ -700,6 +716,7 @@
     if (what === 'homeedit') return setHomeEditing(true, true);
     if (what === 'homedone') return setHomeEditing(false);
     if (what === 'homeadd' && S.home) return safe(function () { S.home.openAdd(); });
+    if (what === 'wallpaper') return openWallpaper();
   }
   function onDeskClick(ev) {
     var t = ev.target;

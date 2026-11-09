@@ -209,6 +209,9 @@ G(() => {
   longPress(T4, byKey(phoneOf(T4), 'glance-1'));
   click(T4.dom, phoneOf(T4).querySelector('[data-osp="homeadd"]'));
   ok('the phone\'s edit bar opens the same sheet', !!T4.document.querySelector('dialog.os-hw-add'));
+  const esc = key(T4.dom, T4.document.querySelector('dialog.os-hw-add .os-hw-add-chip'), 'Escape');
+  ok('Escape closes the sheet (even when a page-wide key handler would swallow the dialog\'s cancel)', !T4.document.querySelector('dialog.os-hw-add') && esc.defaultPrevented);
+  ok('…and edit mode stays on underneath', byKey(phoneOf(T4), 'glance-1').classList.contains('is-editing'));
 });
 
 console.log('\n6. the Control Center tile (system layer, when loaded)');

@@ -32,6 +32,7 @@
  *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
  *   glanceCounts(counts)       NBDHomeAttention.lastCounts as plain lines + a state
  *   headline(total)            "3 things today" / "Nothing due today"
+ *   noMoreLine(plan)           "No more appointments · 2 jobs today" (P0c), else the plain line
  *   dayKey(ms)                 local 'YYYY-MM-DD', the Daily Success writer's key
  *   dsLite(snapshot)           the tracker's snapshot cut to floors / streak state / week %
  *   dsPersonal(lite, dk, now)  that cut, only when it is today's, under 12 h and whole
@@ -285,6 +286,11 @@
     var state = failed ? 'failed' : (c.pending ? 'pending' : (lines.length ? 'ok' : 'clear'));
     return { state: state, lines: lines };
   }
+  /** At a Glance with nothing still to come: say how many jobs Today has, so it never reads as an empty day. */
+  function noMoreLine(plan) {
+    var n = plan && Array.isArray(plan.appointments) ? plan.appointments.length : 0;
+    return n ? 'No more appointments · ' + plural(n, 'job', 'jobs') + ' today' : 'No more appointments today';
+  }
   function headline(total) {
     var n = int(total);
     return n ? plural(n, 'thing', 'things') + ' today' : 'Nothing due today';
@@ -339,7 +345,7 @@
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
-    CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline,
+    CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline, noMoreLine: noMoreLine,
     dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal, todaySummary: todaySummary,
     GROUPS: GROUPS, SIZE_NAME: SIZE_NAME, pack: pack, moveTo: moveTo, moveBy: moveBy, resize: resize, remove: remove, add: add, describe: describe,
   };

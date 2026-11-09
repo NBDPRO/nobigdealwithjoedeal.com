@@ -96,6 +96,7 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-hw.is-s { padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); }
 .os-hw.is-s .os-hw-time { font-size: var(--ui-fs-title, 20px); }
 .os-hw.is-s .os-hw-row-sub { display: none; }
+.os-hw.is-s .os-hw-next { white-space: normal; }
 .os-hw.is-m .os-hw-row { flex-direction: row; align-items: center; gap: var(--ui-space-2, 8px); }
 .os-hw.is-m .os-hw-row-name { flex: 1 1 auto; }
 .os-hw.is-m .os-hw-row-sub { flex: 0 1 auto; max-width: 50%; }
@@ -124,7 +125,11 @@ html.os-locked .os-hw-daily { visibility: hidden; }
 .os-p-edit.has-home > span { flex: 1 1 100%; }
 .os-p-edit.has-home .btn { flex: 1 1 0; justify-content: center; }
 /* the desk column's own buttons */
-.os-hw-tools { display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px); }
+.os-hw-tools {
+  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--ui-space-2, 8px); margin-top: var(--ui-space-3, 12px);
+  padding: var(--ui-space-1, 4px); background: color-mix(in srgb, var(--s) 88%, transparent);
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-lg, 12px);
+}
 .os-hw-tool { flex: 1 1 auto; min-height: 44px; justify-content: center; }
 
 /* Add widget: a native <dialog> */
