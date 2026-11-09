@@ -39,6 +39,7 @@
   "callCenterTranscribe": "./call-center",
   "callPipelineHealth": "./pipeline-health",
   "callPromisesList": "./call-center",
+  "callRetention": "./call-retention",
   "callTaggedMatch": "./call-center",
   "callTranscribeNow": "./call-transcribe-now",
   "callWatch": "./call-watch",

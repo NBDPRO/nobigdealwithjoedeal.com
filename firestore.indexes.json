@@ -1227,6 +1227,25 @@
   ],
   "fieldOverrides": [
     {
+      "_comment": "Call retention (2026-11-09, Call to Close Q7): callRetention sweeps collectionGroup('call_briefs').where('generatedAtMs','<',cutoff).orderBy('generatedAtMs').orderBy(documentId) daily to delete briefs older than 24 months. Single-field COLLECTION_GROUP index on generatedAtMs; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "call_briefs",
+      "fieldPath": "generatedAtMs",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
       "_comment": "Reel Studio cleanup (2026-10-04): reelCleanup sweeps collectionGroup('reel_media').where('createdAtMs','<',…) daily to expire intermediates and abandoned upload slots. Single-field COLLECTION_GROUP index on createdAtMs (the emulator never enforces it; prod would throw FAILED_PRECONDITION without it). COLLECTION asc/desc kept so default single-parent indexing is preserved.",
       "collectionGroup": "reel_media",
       "fieldPath": "createdAtMs",

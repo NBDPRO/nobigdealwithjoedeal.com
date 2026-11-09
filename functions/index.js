@@ -939,6 +939,12 @@ exports.callBriefAuto = require('./call-brief').callBriefAuto;
 // DRY-RUN unless PROMISE_CLEANUP_ENABLED=true.
 exports.promiseCleanup = require('./promise-cleanup').promiseCleanup;
 
+// Call retention (Call to Close Q7, 2026-11-09): daily 03:20 ET. Transcripts,
+// AI notes and briefs after 24 months, CRM audio copies after 12; Drive
+// originals and held calls untouched; the phone_calls doc is kept. Every
+// deletion logged to call_retention_log. DRY-RUN unless CALL_RETENTION_ENABLED=true.
+exports.callRetention = require('./call-retention').callRetention;
+
 // Away mode + backup person (never-forget lane, 2026-10-12): manageAway callable
 // + the 15-min awayModeTick (AWAY_MODE_ENABLED gates the notifying).
 exports.manageAway = require('./away-mode').manageAway;
