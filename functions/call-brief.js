@@ -55,6 +55,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { secretValue } = require('./integrations/_shared');
 const L = require('./call-brief-logic');
+const MG = require('./call-merge-logic');
 const AiSpend = require('./ai-spend');
 const { ANTHROPIC_API_KEY, aiAllowed } = require('./lead-brief');
 
@@ -103,6 +104,8 @@ async function loadGated(db, auth, data) {
   const call = Object.assign({}, snap.data(), { id: callId });
   if (String((auth.token || {}).role || '') === 'viewer') throw new HttpsError('permission-denied', 'Your role is view-only.');
   if (!L.canActOnCall(auth, call)) throw new HttpsError('permission-denied', 'Not your call.');
+  // P2: a call merged into another is read through that one's brief.
+  if (call.mergedInto) throw new HttpsError('failed-precondition', 'This call was merged with the call before it. Draft from that one.');
   const problem = L.humanFiledProblem(call);
   if (problem) throw new HttpsError('failed-precondition', problem);
   const leadId = String(call.leadId);
@@ -198,6 +201,28 @@ function tenantOf(profile) {
   };
 }
 
+/**
+ * P2 (2026-11-09): what the brief reads. A call alone: its own transcript and
+ * segIndex. A merged primary (callCenterAction merge): its transcript, the
+ * separator, then the redial's (call-merge-logic joinTranscripts), so the hash
+ * changes and the stored brief is redrafted. The other call counts only while
+ * both marks agree, it is in the same tenant and not filed on another
+ * customer; otherwise the brief reads this call alone.
+ */
+async function briefInput(db, g) {
+  const own = { transcript: String(g.call.transcript || ''), segIndex: g.call.segIndex || null, mergedFrom: null };
+  const sid = g.call.mergedFrom;
+  if (!sid || !MG.isCallId(sid)) return own;
+  const ss = await db.collection(CALLS).doc(String(sid)).get().catch(() => null);
+  const sec = ss && ss.exists ? Object.assign({}, ss.data(), { id: String(sid) }) : null;
+  if (!sec || !MG.mergedTogether(g.call, sec)) return own;
+  if (sec.userId !== g.call.userId || (sec.companyId || null) !== (g.call.companyId || null)) return own;
+  if (sec.leadId && sec.leadId !== g.leadId) return own;
+  if (sec.status === 'personal' || sec.callType === 'personal' || sec.callType === 'spam') return own;
+  const st = String(sec.transcript || '');
+  return { transcript: MG.joinTranscripts(own.transcript, st), segIndex: MG.joinSegIndex(own.segIndex, sec.segIndex || null, own.transcript, st), mergedFrom: sec.id };
+}
+
 const answer = (doc, extra) => Object.assign({
   brief: doc.brief, generatedAtMs: doc.generatedAtMs, cached: true, decisions: Array.isArray(doc.decisions) ? doc.decisions : [],
 }, extra || {});
@@ -206,7 +231,8 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (await switchedOff(true)) throw new HttpsError('failed-precondition', 'Call briefs are switched off right now.');
   const g = await gateFor(data)(db, auth, data);
-  const transcript = String(g.call.transcript || '');
+  const input = await briefInput(db, g);
+  const transcript = input.transcript;
   const hash = L.transcriptHash(transcript);
   const force = !!(data && data.refresh);
   const cs = await g.briefRef.get().catch(() => null);
@@ -223,7 +249,7 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   if (over === 'user') throw new HttpsError('resource-exhausted', 'You have drafted ' + L.USER_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
   if (over === 'company') throw new HttpsError('resource-exhausted', 'Your company has drafted ' + L.COMPANY_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
 
-  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached });
+  const doc = await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, input });
   return answer(doc, { cached: false });
 }
 
@@ -232,7 +258,7 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
  * leads/{leadId}/call_briefs/{callId}). The caller has already run every gate
  * and taken the quota. opts.auto marks a brief the P1 auto-brief drafted.
  */
-async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto }) {
+async function generate({ db, g, auth, nowMs, callModel, log = logger, transcript, hash, cached, auto, input }) {
   const ps = await db.doc('companyProfile/' + g.companyId).get().catch(() => null);
   const profile = ps && ps.exists ? ps.data() : {};
   const stages = L.tenantStages(profile.pipelines);
@@ -249,7 +275,8 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
   const raw = L.parseResponse(resp);
   if (!raw) throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
   // segIndex (P1): Whisper's per-segment confidence; hard-to-hear quotes are marked unsure.
-  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex: g.call.segIndex || null });
+  const segIndex = input ? input.segIndex : (g.call.segIndex || null);
+  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex });
   // P2 walkthrough: the notes' scope_facts never reach the model; the ones
   // whose words ground in the transcript feed the scope (prefill, proposal list).
   if (g.kind === 'visit') L.mergeVisitScope(brief, L.groundScopeFacts(((g.visit || {}).notes || {}).scopeFacts, transcript).facts);
@@ -262,6 +289,7 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
   if (auto) doc.auto = true;
   // The rules read a walkthrough brief through these (firestore.rules call_briefs).
   if (g.kind === 'visit') Object.assign(doc, { source: 'visit', visitId: g.visitId, visitUid: g.visitUid });
+  if (input && input.mergedFrom) doc.mergedFrom = input.mergedFrom;
   await g.briefRef.set(doc);
   return doc;
 }
@@ -420,7 +448,8 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   if (await require('./tenant-guard').isGhost(filer, auth.token, db)) return { state: 'gated', why: require('./tenant-guard').GHOST_MESSAGE };
   let g;
   try { g = await loadGated(db, auth, { callId }); } catch (e) { return { state: 'gated', why: (e && e.message) || 'gated' }; }
-  const transcript = String(g.call.transcript || '');
+  const input = await briefInput(db, g);
+  const transcript = input.transcript;
   const hash = L.transcriptHash(transcript);
   const cs = await g.briefRef.get().catch(() => null);
   const cached = cs && cs.exists ? cs.data() : null;
@@ -430,7 +459,7 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
   if (over) return { state: 'quota', why: over };
   try {
-    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true });
+    await generate({ db, g, auth, nowMs, callModel, log, transcript, hash, cached, auto: true, input });
   } catch (e) {
     log.warn('call_brief_auto_failed', { callId, err: e && e.message });
     return { state: 'failed' };
@@ -472,4 +501,4 @@ exports.callBriefAuto = onDocumentUpdated(
   }
 );
 
-exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, loadGatedVisit, tenantOf, INSURANCE_ACK };
+exports._test = { briefCallable, decideCallable, autoBriefHandler, generate, takeQuota, loadGated, loadGatedVisit, briefInput, tenantOf, INSURANCE_ACK };
