@@ -101,7 +101,8 @@
       if (men[x[0]] !== true) return;
       var q = str(mq[x[0]], 300);
       if (q) out.items.push(item(x[1], true, q));
-      else out.hints.mentions.push(x[2] + ' mentioned on the call, no exact words kept, so its flashing is not switched on');
+      // A full line beside the "not filled in" ones (the builder lists hints.unsure as written).
+      else out.hints.unsure.push(x[2] + ' was mentioned on the call, but no exact words were kept, so its flashing is not switched on. Check it and set it yourself.');
     });
     if (men.gutters === true) out.hints.mentions.push('Gutters');
     if (men.decking === true) out.hints.mentions.push('Decking');

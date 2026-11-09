@@ -132,7 +132,7 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     const noQ = clone(s); noQ.scope.mentionQuotes = { chimney: '', skylight: '' };
     const pre2 = P.fromBrief(noQ);
     ok('no quote → no chimney / skylight chip (never switched on)', !pre2.items.some((i) => i.key === 'hasChimneyFlash' || i.key === 'hasSkylightFlash'), pre2.items);
-    ok('…each is a hint line instead', pre2.hints.mentions.some((h) => /Chimney/.test(h) && /not switched on/.test(h)) && pre2.hints.mentions.some((h) => /Skylight/.test(h)), pre2.hints.mentions);
+    ok('…each is a "not filled in" line instead', pre2.hints.unsure.some((h) => /^Chimney/.test(h) && /not switched on/.test(h)) && pre2.hints.unsure.some((h) => /^Skylight/.test(h)), pre2.hints);
     const old = clone(s); delete old.scope.mentionQuotes;
     ok('a brief from before P2 (no mentionQuotes) → no chip either', !P.fromBrief(old).items.some((i) => i.key === 'hasChimneyFlash'));
     ok('every chip the prefill makes carries a quote', P.fromBrief(s).items.every((i) => typeof i.quote === 'string' && i.quote.length > 0), P.fromBrief(s).items);
