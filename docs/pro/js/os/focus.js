@@ -10,6 +10,10 @@
  *     mode ("In a home", os/acts.js) holds it (os/focus-logic.js restore). If a
  *     mode holds it, the block hands it to the mode (acts.js's memo
  *     nbd_os_acts_dnd), so leaving the mode turns it off.
+ *     A switch by hand during the block is not tracked: if the rep turns DND
+ *     off, the end leaves it off; off and back on, the end still turns it off
+ *     (the block turned it on, and the rep was in the block when they turned
+ *     it back on).
  *   - a calm countdown in whole minutes (no seconds; the home's 30 s tick repaints
  *     it when the minute changes) and a native <progress> of the time used.
  *   - the doors knocked in this block: os/ds-business.js countKnocks, the same

@@ -202,6 +202,15 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     await settle();
     ok('the rep turned DND off meanwhile: the end changes nothing', J(m.log.dnd) === J([true, false]), J(m.log.dnd));
   }
+  {
+    const m = await mount([{ id: 'focus', s: 'm' }]);
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="start:30"]'));
+    await settle();
+    m.W.NBDOS.setDnd(false); m.W.NBDOS.setDnd(true);   // off and back on by hand: not tracked (documented)
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="end"]'));
+    await settle();
+    ok('the rep turned DND off and back on meanwhile: the end still turns it off', J(m.log.dnd) === J([true, false, true, false]) && m.dnd() === false, J(m.log.dnd));
+  }
 
   {
     // the field sequence: a block turns DND on, the rep is invited in ("In a home"), the block runs out
