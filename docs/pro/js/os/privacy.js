@@ -10,7 +10,8 @@
  *            action runner's search corner (command-runner.js), so it is never
  *            offered here: the two can not collide. Never over a window or a
  *            control, never a touch pointer, and after a lock the pointer has
- *            to leave the corner before it can lock again.
+ *            to leave the corner before it can lock again. An open sheet's
+ *            backdrop is not a window: the corner locks over it.
  *   Keys     Ctrl+Alt+L (Control+Option+L on a Mac), on both surfaces: the OS
  *            desk's Ctrl+Alt family (Ctrl+Alt+O, 1-4, arrows). Not while AltGr
  *            makes a letter (Ctrl+Alt is AltGr on Windows: Polish AltGr+L
@@ -114,6 +115,18 @@
   }
   // the runner's rule: resting on a window or a control in the corner (a maximized window's buttons) is not a lock
   var CORNER_BLOCK = '.os-win, button, a, input, textarea, select, [contenteditable], dialog';
+  /**
+   * The pointer on an open modal sheet's backdrop (Peek, Shutdown...): the event targets the
+   * dialog itself, outside its box. That is when a customer's name is on screen, so the corner
+   * still locks there (the lock cover goes inside that dialog); never on the sheet itself.
+   */
+  function onBackdrop(t, x, y) {
+    if (!t || t.tagName !== 'DIALOG' || typeof t.getBoundingClientRect !== 'function') return false;
+    var r = t.getBoundingClientRect();
+    if (!r) return false;
+    var right = r.right != null ? r.right : r.left + r.width, bottom = r.bottom != null ? r.bottom : r.top + r.height;
+    return x < r.left || x >= right || y < r.top || y >= bottom;
+  }
 
   // ── settings (this device; read once, then cached: the corner is checked on mouse moves) ──
   function ls(k, v) {
@@ -268,7 +281,7 @@
       if (!inCorner(c, ev.clientX, ev.clientY, root.innerWidth, root.innerHeight)) { st.out = true; return clear(); }
       if (!st.out) return;   // locked from here: leave the corner first
       var t = ev.target;
-      if (t && t.closest && t.closest(CORNER_BLOCK)) return clear();
+      if (t && t.closest && t.closest(CORNER_BLOCK) && !onBackdrop(t, ev.clientX, ev.clientY)) return clear();
       if (st.t) return;
       st.t = setT(function () {
         st.t = 0;

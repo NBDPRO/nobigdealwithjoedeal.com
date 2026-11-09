@@ -223,6 +223,19 @@ function desk() {
     ok('the new corner locks', isLocked(T));
     ok('the lock cover sits inside the open sheet (the top layer), so Unlock works', D.getElementById('osLock').parentNode === dlg);
     W.NBDOS.unlock();
+    // a modal sheet is open (Peek shows a customer's name): the pointer over its backdrop targets the dialog
+    dlg.getBoundingClientRect = () => ({ left: 400, top: 200, right: 880, bottom: 600, width: 480, height: 400 });
+    mv(1270, 600, null, D.querySelector('.content')); mv(1279, 1, null, dlg); T.fire(250);
+    ok('the corner over an open sheet\'s backdrop (outside its box) locks', isLocked(T));
+    W.NBDOS.unlock();
+    mv(500, 500, null, D.querySelector('.content'));
+    const inSheet = dlg.querySelector('input');
+    mv(1279, 1, null, inSheet); T.fire(250);
+    ok('…but never over a control inside the sheet', !isLocked(T));
+    dlg.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1280, bottom: 800, width: 1280, height: 800 });
+    mv(500, 500, null, D.querySelector('.content')); mv(1279, 1, null, dlg); T.fire(250);
+    ok('…nor over the sheet itself where it reaches the corner', !isLocked(T));
+    mv(500, 500, null, D.querySelector('.content'));
     dlg.close();
     ok('closing the sheet removes it', !D.querySelector('dialog.os-pv'));
 
