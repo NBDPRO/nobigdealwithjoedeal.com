@@ -78,7 +78,7 @@ Screenshots of the integrated sheet, the Call Center and the builder at 375x812 
 
 ## Update 2026-11-09 (P2 lane "dmmap"): who decides, and the P1 leftovers
 
-Branch `ctc-p2-dmmap` from `d1f7bfe0c`. Tests: `tests/call-to-close-decision-map-2026-11-09.test.js` and `tests/call-to-close-p1-leftovers-2026-11-09.test.js`, both written red first against `d1f7bfe0c`.
+Branch `ctc-p2-dmmap` from `d1f7bfe0c`. Tests: `tests/call-to-close-decision-map-2026-11-09.test.js` and `tests/call-to-close-p1-leftovers-2026-11-09.test.js`, both written red first against `d1f7bfe0c`. (Correction from the review round: the callBriefAuto "unrelated updates do no reads" handler checks would also pass on `d1f7bfe0c`, whose transition was already pure; only its 256 MiB, `filingChanged` export and source-order checks were red first.)
 
 - **Who decides (design §6 #5, Q4).** The brief schema gains `people[].said` (the words used for the person, verbatim: "my husband", "the HOA") and `people[].decides` (true only when the call says they must agree, approve or sign). `sanitizeBrief` keeps a name or `said` only when it sits inside the person's own grounded quote, drops instruction-shaped words, and marks a hard-to-hear quote. The sheet shows a "Who decides" section after the objections: each decider labelled as said (else name, else role), a "Heard on the call" badge, the quote, a Copy per person and a Copy list. Nothing is written to the customer, logged or sent. `BRIEF_VERSION` stays 1: a brief drafted before this has no deciders and shows no section until it is refreshed.
 - **Flashing chips need words.** The schema gains `scope.mentionQuotes { chimney, skylight }`; a quote must ground and name the thing. `estimate-call-prefill.js` makes a chimney / skylight flashing chip only with its quote; a mention with no words is a "not filled in" line in the builder ("…no exact words were kept, so its flashing is not switched on. Check it and set it yourself."). An older brief (no `mentionQuotes`) no longer switches flashing on.
@@ -99,3 +99,24 @@ gcloud firestore fields ttls update expireAt --collection-group=coach_line_quota
 ```
 
 Counters written before this change have no `expireAt` and are never deleted by TTL; there are at most a few hundred (two per active user / company per day since the features shipped). Delete them once by hand in the console if wanted; nothing reads them.
+
+### Review round (2026-11-09)
+
+Fixed, each test first:
+
+- A chimney / skylight quote heard in a hard-to-hear segment is now marked: `scope.mentionUnsure { chimney, skylight }` (counted in `flags.lowConfidence`), and the builder shows it as a "hard to hear, so its flashing is not switched on" line with the words, never a priced chip.
+- `call-brief-ui.js` is `?v=3` in both loaders (P1 shipped `v=2`; a cached P1 sheet never sends `retyped: true`, so a typed heard-as date would be refused with a misleading "type the date yourself"). The chain that names it moved too: `call-center-view.js` v=29, `customer-calls.js` v=11, `script-loader.js` v=212 on both pages; every bump is the same length, so boot bytes are unchanged.
+- Each Who decides Copy button has an accessible name (`Copy: my husband`); Copy list says "Copy the Who decides list".
+- Comments and `FUNCTIONS_INDEX.md`: the promise retype check does not cover slot 0 / no slot or an Add with no `dueYmd` (the sheet always sends slot 1-5 and `dueYmd`), its brief read fails open on purpose, and an old client with no `briefPromise` has every retype promise compared (a non-retype promise that shares a heard-as date is refused too: the conservative side). The `callBrief`, `coachLine` and `callTranscribeNow` rows now name the 7-day `expireAt` TTL.
+
+Checked, no change:
+
+- The builder's flashing chip carries its quote as the chip's `title` (pinned in `call-to-close-estimate-prefill-2026-11-09.test.js`); it shows on hover (desktop) and to assistive tech, not inline, so a phone does not show it; an inline quote is a later design call.
+- The sample account's `callBrief` throws the quiet "no phone in the sample" answer (`docs/pro/demo-sdk/firebase-functions.js`); there is no canned brief to update. The screenshots use the test fixture.
+- `mentionQuotes` needs the literal word: a transcript that says "sky light" falls to the "not switched on" line (the safe side); the live eval may show a lower chip rate.
+
+For Jo / the PR body:
+
+- `callBriefAuto` went 512 MiB → 256 MiB with no load evidence (the work is one fetch plus grounding over at most 60,000 characters). Check the first prod runs for out-of-memory restarts.
+- `estimate-v2-ui.js` `_callPanelHtml` keeps the fallback chip title "Mentioned on the call; no exact words kept"; no chip reaches it any more (every chip needs a quote). Left in place per the dead-code rule; mention it in the PR.
+- Quota counters written before this lane have no `expireAt`; TTL never deletes them. One-off console cleanup if wanted (see Quota TTL above).
