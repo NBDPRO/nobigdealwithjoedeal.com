@@ -530,7 +530,7 @@ async function labelFor(db, phoneDigits, feed) {
   const dg = String(phoneDigits || '').replace(/\D/g, '').slice(-10);
   if (dg.length !== 10) return {};
   try {
-    const s = await db.collection('companies').doc((feed || NBD_FEED).companyId).collection('contact_labels').doc(dg).get();
+    const s = await db.collection('companies').doc(feed ? feed.companyId : OWNER).collection('contact_labels').doc(dg).get();
     const x = s && s.exists ? (s.data() || {}) : null;
     return x && x.kind ? { [dg]: { kind: x.kind, policy: x.policy || '' } } : {};
   } catch (e) {
@@ -540,8 +540,9 @@ async function labelFor(db, phoneDigits, feed) {
 }
 
 // A tenant feed's urgent call goes to that tenant's own owner (feed.owner).
+// (Self-contained, no NBD_FEED: tests run this function's source alone.)
 async function pushUrgent({ db, d, call, notes, leadName, nowMs, feed }) {
-  const fd = feed || NBD_FEED;
+  const fd = feed || { nbd: true, owner: OWNER, companyId: OWNER };
   if (process.env.CALL_WATCH_ENABLED !== 'true' || typeof d.push !== 'function') return false;
   const W = require('./call-watch-logic');
   if (!W.inWatchHours(nowMs)) return false;
@@ -568,7 +569,7 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs, feed }) {
       const today = W.etYmd(nowMs), key = W.callerKey(call);
       (snap.docs || []).forEach((doc) => {
         const c = Object.assign({}, doc.data(), { id: doc.id });
-        if (c.id === call.id || W.callerKey(c) !== key || !inFeed(fd, c)) return;
+        if (c.id === call.id || W.callerKey(c) !== key || (!fd.nbd && c.companyId !== fd.companyId)) return;
         const at = W.toMs(c.urgentPushedAtMs);
         if (!at || c.urgentFoldedAtMs || W.etYmd(at) !== today) return;
         if (!W.callNeedsYou(c, nowMs, { labels })) return;          // handled / done / parked: a new need

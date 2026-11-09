@@ -52,6 +52,8 @@ const ROWS = {
     meaning: 'Copies your Cube call recordings from Drive into the CRM every 30 minutes. Off = it only counts them.' },
   CALL_CENTER_TRANSCRIBE_ENABLED: { group: 'Calls & texts', doc: 'documentation/architecture/CALL-CENTER-2026-10-01.md',
     meaning: 'Turns recent customer calls into a transcript, summary and follow-up task. Off = recordings only.' },
+  CALL_CENTER_MULTI_TENANT_ENABLED: { group: 'Calls & texts', kind: 'enabled', file: 'call-center-logic.js', doc: 'documentation/projects/SESSION-2026-11-09-call-to-close-p2-tenantfeed.md',
+    meaning: 'Lets another company\'s call recordings run through the call pipeline, only for a company whose own feed config is also switched on. Off = NBD only. Not before the lawyer review of recording and consent.' },
   CALL_CENTER_SWEEP_ENABLED: { group: 'Calls & texts', doc: 'documentation/architecture/CALL-CENTER-2026-10-01.md',
     meaning: 'Emails you the "you said you would" list of open call promises, morning and afternoon.' },
   CALL_WATCH_ENABLED: { group: 'Calls & texts', doc: 'documentation/architecture/CALL-CENTER-2026-10-01.md',
