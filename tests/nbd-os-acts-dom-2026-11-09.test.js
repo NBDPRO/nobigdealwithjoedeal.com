@@ -248,8 +248,21 @@ const PRIV_HOME = {
     ok('the name is saved as text', saved.acts[1].name === '<img src=x onerror=alert(1)>'.slice(0, 24), J(saved.acts[1]));
     ok('...shown escaped (no element made from it)', !phoneEl(T).querySelector('img') && !d.querySelector('img') && /<img src=x/.test(text(phoneEl(T).querySelector('.os-act-chip'))));
     ok('...and Spotlight follows the new name', T.W.cmd.some((a) => a.label === 'Switch to ' + saved.acts[1].name));
+    // a pick from the chip's menu repaints the phone (the chip is a new node): focus goes to the new chip
+    T.document.activeElement = phoneEl(T).querySelector('.os-act-chip');
+    click(T.dom, phoneEl(T).querySelector('.os-act-chip'));
+    await flush();
+    click(T.dom, d.querySelector('[data-osacts="pick"][data-id="storm"]'));
+    const chip = phoneEl(T).querySelector('.os-act-chip');
+    ok('picking a mode from the chip: focus lands on the new chip, not <body>', !!chip && /Storm day/.test(text(chip)) && T.document.activeElement === chip,
+      String(T.document.activeElement && (T.document.activeElement.tagName + '.' + T.document.activeElement.className)));
+    click(T.dom, chip);
+    await flush();
     click(T.dom, d.querySelector('[data-osacts="pick"][data-id=""]'));
     ok('Off turns the mode off', !lastOn(T) || !lastOn(T).phone);
+    const region = phoneEl(T).querySelector('.os-p-pages');
+    ok('...and with no chip left, focus goes to the home screen region', !phoneEl(T).querySelector('.os-act-chip') && !!region && T.document.activeElement === region,
+      String(T.document.activeElement && (T.document.activeElement.tagName + '.' + T.document.activeElement.className)));
     T.W._impl.unmount();
     ok('unmount takes the tile and the Spotlight actions down', !T.W.controls.some((c) => c.id === 'os-acts') && !T.W.cmd.some((a) => /^os:act:/.test(a.id)));
   });

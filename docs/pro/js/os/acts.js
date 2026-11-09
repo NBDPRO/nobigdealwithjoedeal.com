@@ -189,13 +189,22 @@
       '<div class="os-acts-foot"><button type="button" class="btn btn-ghost os-acts-btn" data-osacts="close">Done</button></div>';
   }
   var opener = null;
-  function closeMenu() {
+  function closeMenu(noFocus) {
     if (!dlg) return;
     renaming = null;
     if (dlg.open) safe(function () { dlg.close(); });
     var f = opener;
     opener = null;
+    if (noFocus === true) return f;
     if (f && f.isConnected !== false && typeof f.focus === 'function') safe(function () { f.focus(); });
+    return f;
+  }
+  /** A pick repaints the home (the chip is a new node, or gone): focus the opener if it is still there, else the layout's chip / home. */
+  function pick(id) {
+    var f = closeMenu(true);
+    switchTo(id);
+    if (f && f.isConnected !== false && doc.contains(f) && typeof f.focus === 'function') return safe(function () { f.focus(); });
+    if (host && typeof host.focus === 'function') safe(host.focus);
   }
   function focusIn(sel) { var b = dlg && dlg.querySelector(sel); if (b) safe(function () { b.focus(); }); }
   function onMenuClick(ev) {
@@ -203,7 +212,7 @@
     if (!t) return;
     var what = t.getAttribute('data-osacts'), id = t.getAttribute('data-id') || '';
     if (what === 'close') return closeMenu();
-    if (what === 'pick') { closeMenu(); return switchTo(id || null); }
+    if (what === 'pick') return pick(id || null);
     if (what === 'rename' && phone()) { renaming = id; paintMenu(); return focusIn('.os-acts-input'); }
     if (what === 'cancel') { var was = renaming; renaming = null; paintMenu(); return focusIn('[data-osacts="rename"][data-id="' + esc(was) + '"]'); }
   }

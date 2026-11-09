@@ -432,8 +432,14 @@
     return {
       surface: homeSurface(), act: curAct,
       acts: function () { return W.NBDOSHomeLogic.actsOf(ownHome()); },
-      switchTo: switchAct, rename: renameAct,
+      switchTo: switchAct, rename: renameAct, focus: focusAct,
     };
+  }
+  /** After a pick repainted the home: the mode's chip (phone) or the taskbar button (laptop); no chip, the home region. */
+  function focusAct() {
+    if (!S) return;
+    var el = S.surface === 'phone' ? S.phoneEl && (S.phoneEl.querySelector('.os-act-chip') || S.phoneEl.querySelector('.os-p-pages')) : S.actBtn;
+    if (el && typeof el.focus === 'function') safe(function () { el.focus(); });
   }
   function loadActs() {
     var H = W.NBDOSHome;
