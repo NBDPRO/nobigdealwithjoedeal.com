@@ -173,6 +173,18 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
       ok('the worked example runs through the offline harness', sc.rows.length === 1 && sc.rows[0].gate === true, sc.rows[0]);
     }
     ok('runbook: the key is read silently, never typed into a command (no shell history), and unset after', keySafe(rb), rb.split('\n').filter((l) => /ANTHROPIC_API_KEY/.test(l)));
+    const hm = /<!-- transcript-helper:start -->\s*```bash\s*([\s\S]*?)```\s*<!-- transcript-helper:end -->/.exec(rb);
+    ok('step 4 gives a marked one-line helper instead of escaping by hand', !!hm && !/replace each `"` with `\\"`/.test(rb), hm && hm[1]);
+    if (hm) {
+      const home = tmp(); made.push(home);
+      const kit = path.join(home, 'nbd-call-eval');
+      await quiet(() => E.main(['--init', kit, '--count', '1'], {}));
+      const said = 'He said "the back slope\\ridge" leaks.\r\nThen: "call me Tuesday."\n';
+      fs.writeFileSync(path.join(kit, 'case-01.txt'), said);
+      const run = require('child_process').spawnSync('bash', ['-c', hm[1]], { cwd: ROOT, env: Object.assign({}, process.env, { HOME: home }), encoding: 'utf8' });
+      let filled = null; try { filled = JSON.parse(fs.readFileSync(path.join(kit, 'case-01.json'), 'utf8')); } catch (_) { filled = null; }
+      ok('the helper puts a transcript with quotes, a backslash and line breaks into case-01.json as valid JSON (the rest of the file untouched; callYmd is still Jo\'s to fill)', run.status === 0 && !!filled && filled.transcript === said.trim() && filled.id === 'case-01' && E.validateCase(filled).every((m) => /^callYmd/.test(m)), [run.status, run.stderr, filled && filled.transcript]);
+    }
     ok('no key in the runbook', !/sk-ant-[A-Za-z0-9]/.test(rb));
     ok('still no network', fetchCalls === 0);
   } finally {

@@ -46,7 +46,15 @@ For each call, from the CRM (owner or admin login):
 1. Open **Call Center** in the sidebar, or the customer's page, and find the call card.
 2. Note the **call date** and whether it was **in** or **out** (inbound = they called you).
 3. Open **Transcript** on the card, select all of the text, copy it.
-4. Open the next empty `case-NN.json` in a text editor and paste the transcript between the quotes of `"transcript": ""`. A transcript with double quotes or line breaks in it must be JSON-escaped (`\"`, `\n`); the easy way is to paste into one line and replace each `"` with `\"`.
+4. Don't paste the transcript into the `.json` file by hand: its quotes and line breaks would have to be escaped (`\"`, `\n`), and one slip breaks the file. Instead paste it into a plain text file next to it, `case-NN.txt` in the eval folder (e.g. `~/nbd-call-eval/case-01.txt`, saved as is), then run this from the repo folder, changing both `01`s to the case number:
+
+   <!-- transcript-helper:start -->
+   ```bash
+   node -e "const fs=require('fs'),[f,t]=process.argv.slice(1),c=JSON.parse(fs.readFileSync(f,'utf8'));c.transcript=fs.readFileSync(t,'utf8').trim();fs.writeFileSync(f,JSON.stringify(c,null,2)+'\n')" ~/nbd-call-eval/case-01.json ~/nbd-call-eval/case-01.txt
+   ```
+   <!-- transcript-helper:end -->
+
+   It writes the text into `"transcript"` with the escaping done for you and leaves the rest of the file alone. The `.txt` files hold the same PII: they stay in the eval folder and go when you delete it (the script reads only `.json` files). If a `.json` file is ever broken, the run names it: `<path> is not valid JSON (...)`.
 5. Listen to the recording (Play on the card) or read the transcript, and fill `expect` with **what was actually said**, not what the brief should guess. Labels are the truth.
 
 Alternative for the transcript only: the Firebase console → Firestore → `phone_calls` → the call → copy the `transcript` field (read it, never edit it). `startedAtMs` is the call time and `direction` is in/out.
