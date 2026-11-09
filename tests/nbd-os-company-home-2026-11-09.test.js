@@ -320,6 +320,16 @@ G(() => {
     prefsEv(T);
     ok('when the claims say owner, the next settings read gives them their own home', J(ids(col)) === J(['upnext-1']), J(ids(col)));
     ok('…with Edit Home back', !!col.querySelector('[data-osdo="homeedit"]'));
+    // claims that land after the last settings read (hydrate does not wait for them)
+    const C = makeWin({ surface: 'desktop', uid: 'u3', home: OWN, company: coDoc(true) });
+    C.W._userClaims = undefined;
+    C.W._impl.mount({ surface: 'desktop' });
+    ok('(a second member, claims not loaded: locked home)', J(ids(deskCol(C))) === J(['coach-1', 'glance-1']));
+    C.W._userClaims = { companyId: 'u3' };
+    C.fire(500);
+    ok('claims that arrive with no settings read after them still repaint the owner onto their own home', J(ids(deskCol(C))) === J(['upnext-1']), J(ids(deskCol(C))));
+    const nT = C.timers.filter((t) => t.fn && t.ms === 500).length;
+    ok('…and the claims check stops once they are known', nT === 0, nT);
     T.W._userClaims = {};   // loaded, no companyId at all: still the solo owner (the CRM's rule)
     prefsEv(T);
     ok('loaded claims with no companyId are still the solo owner', J(ids(col)) === J(['upnext-1']));

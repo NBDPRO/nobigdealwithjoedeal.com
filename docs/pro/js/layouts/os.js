@@ -1419,6 +1419,14 @@
     // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
     S.homeSig = homeSig();
     on(doc, 'nbd:layout-prefs', onLayoutPrefs);
+    // the settings read does not wait for the auth claims: until they load nobody is admin
+    // (canAdmin), so look again when they land, the way a settings read would
+    var claimTries = 0;
+    (function claims() {
+      if (!S) return;
+      if (W._userClaims && typeof W._userClaims === 'object') return onLayoutPrefs();
+      if (++claimTries <= 120) S.claimsT = setTimeout(claims, 500);   // a minute, like layout-system's poll
+    })();
     // Crossing the phone breakpoint keeps the same layout id, so the engine
     // won't remount it: switch between the desktop and the home screen here.
     var surfT = null;
@@ -1445,7 +1453,7 @@
     // a change still waiting to be saved is written now, not dropped
     if (saveT) { clearTimeout(saveT); saveT = null; writeState(st); }
     flushHome();
-    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.ctrlT);
+    clearInterval(st.clockT); clearTimeout(st.appsT); clearTimeout(st.visitT); clearTimeout(st.claimsT); clearTimeout(st.ctrlT);
     unregisterControls();
     if (st.mo) st.mo.disconnect();
     if (st.home) safe(function () { st.home.unmount(); });
