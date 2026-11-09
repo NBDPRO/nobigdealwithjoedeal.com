@@ -64,7 +64,21 @@
     return L.appsFromNav(L.readNav(doc).map(function (e) {
       if (!byId('view-' + e.id)) e.hidden = true;
       return e;
-    }));
+    })).concat(WM.linkApps(navShown));
+  }
+  // a link app's sidebar item, by readNav's hidden test (role gating, the customizer)
+  function navShown(navId) {
+    var n = byId(navId);
+    return !!n && !(n.hidden || (n.classList && n.classList.contains('dn')) || (n.style && n.style.display === 'none') ||
+      n.getAttribute('aria-hidden') === 'true');
+  }
+  /** A link app (Daily Success) opens its own page in the same tab; true when `id` was one. */
+  function openLink(id) {
+    var a = appById(id);
+    if (!a || !a.href) return false;
+    if (S.startOpen) setStart(false);
+    safe(function () { W.open(a.href, '_self'); });   // openDailyTracker's call; the demo's wrapper remaps it
+    return true;
   }
   function appById(id) {
     for (var i = 0; i < S.apps.length; i++) if (S.apps[i].id === id) return S.apps[i];
@@ -437,6 +451,7 @@
   /** Open (or restore and focus) the window for view `id`. */
   function openWin(id, opts) {
     var o = opts || {};
+    if (openLink(id)) return;
     if (!viewEl(id)) return;
     var rec = winRec(id);
     if (!rec) {
@@ -1099,6 +1114,7 @@
   }
   function phoneOpen(id, opts) {
     var o = opts || {};
+    if (S && openLink(id)) return;
     if (!S || !viewEl(id)) return;
     closeSwitcher();
     S.phoneOpen = id;
