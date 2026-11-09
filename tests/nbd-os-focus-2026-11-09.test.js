@@ -110,6 +110,9 @@ ok('...and from none, still none', [undefined, null, NaN].every((n) => !('doors'
 const ended = F.finish(c7, NOW + 60 * MIN);
 ok('the summary: doors in this block and how long it ran', F.view(ended, NOW + 61 * MIN).done === 'Block done: 7 doors in 60 min');
 ok('ended early: the minutes it really ran', F.view(F.finish(c7, NOW + 38 * MIN), NOW + 39 * MIN).done === 'Block done: 7 doors in 38 min');
+ok('the small widget\'s short forms carry the same counted numbers', J(F.view(c7, NOW + 5 * MIN).s) === J({ left: '55 min', doors: '7 doors', ran: '' })
+  && J(F.view(ended, NOW + 61 * MIN).s) === J({ left: '', doors: '7 doors', ran: 'in 60 min' }) && F.view(r60, NOW + 5 * MIN).s.doors === ''
+  && F.view(F.finish(r60, NOW + 60 * MIN), NOW + 61 * MIN).s.doors === 'Block done');
 ok('no count at the end: no number of doors', F.view(F.finish(r60, NOW + 60 * MIN), NOW + 61 * MIN).done === 'Block done after 60 min');
 
 console.log('\n7. the doors floor: the company goal, Mon-Sat');

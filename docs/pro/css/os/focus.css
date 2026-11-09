@@ -5,11 +5,23 @@
    to stop. Floors: 44px targets, no text under 11px. The card itself is .os-hw
    (home.css). */
 
-.os-fb-go { display: flex; gap: var(--ui-space-1, 4px); margin-top: auto; }
+.os-fb-go { display: flex; gap: var(--ui-space-1, 4px); padding: 2px; }
 .os-fb-len { flex: 1 1 0; min-width: 44px; padding-inline: var(--ui-space-2, 8px); white-space: nowrap; }
-.os-fb-left { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.15; }
+.os-fb-sel {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 var(--ui-space-1, 4px); font: inherit; font-size: var(--ui-fs-body-sm, 13px);
+  color: var(--t); background: var(--s2, var(--s)); border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+}
+.os-fb-start { flex: 0 0 auto; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-fb-row { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2, 8px); min-width: 0; padding: 2px; }  /* room for the focus ring inside the clipped body */
+.os-fb-nums { display: flex; flex-direction: column; min-width: 0; margin: 0; overflow: hidden; }
+.os-fb-nums > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-fb-left { margin: 0; font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.15; white-space: nowrap; }
 .os-hw.is-m .os-fb-left, .os-hw.is-l .os-fb-left { font-size: var(--ui-fs-display, 28px); }
 .os-fb-doors, .os-fb-done { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.os-fb-ran, .os-fb-none { font-size: var(--ui-fs-caption, 12px); color: var(--m); }
+.os-fb-row .os-fb-done { flex: 1 1 auto; min-width: 0; }
+/* a narrow card (the one-column desk, a 320px phone): the minutes at title size */
+@container oshw (max-width: 260px) { .os-hw.is-m .os-fb-left, .os-fb-left { font-size: var(--ui-fs-title, 20px); } }
 
 /* the time used: a native <progress>, calm (no stripes, no motion) */
 .os-fb-bar {
@@ -20,12 +32,12 @@
 .os-fb-bar::-webkit-progress-value { background: var(--orange); border-radius: 3px; transition: none; }
 .os-fb-bar::-moz-progress-bar { background: var(--orange); border-radius: 3px; }
 
-.os-fb-end, .os-fb-ok, .os-fb-recount { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-3, 12px); }
-.os-fb-end { margin-top: auto; }
-.os-fb-len:focus-visible, .os-fb-end:focus-visible, .os-fb-ok:focus-visible, .os-fb-recount:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
+.os-fb-end, .os-fb-ok, .os-fb-recount { flex: 0 0 auto; align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-3, 12px); }
+.os-fb-row .os-fb-end, .os-fb-row .os-fb-ok { align-self: center; }
+.os-fb-sel:focus-visible, .os-fb-start:focus-visible, .os-fb-len:focus-visible, .os-fb-end:focus-visible, .os-fb-ok:focus-visible, .os-fb-recount:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 
-/* small: one line of numbers, then the button */
-.os-hw.is-s .os-fb-doors { font-size: var(--ui-fs-body-sm, 13px); }
-.os-hw.is-s .os-fb-bar { display: none; }
+/* small: the minutes and the doors stacked, the button beside them */
+.os-hw.is-s .os-fb-end, .os-hw.is-s .os-fb-ok { padding-inline: var(--ui-space-2, 8px); }
+.os-hw.is-s .os-fb-doors, .os-hw.is-s .os-fb-done { font-size: var(--ui-fs-body-sm, 13px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .os-fb-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

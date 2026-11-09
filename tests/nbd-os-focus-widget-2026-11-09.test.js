@@ -235,10 +235,19 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
     ok('ended with no count: "Block done after 1 min" and Count again, no doors number', /Block done after 1 min/.test(text(m.card())) && !!m.card().querySelector('[data-oshw-focus="recount"]'), text(m.card()));
   }
   {
-    const m = await mount([{ id: 'focus', s: 's' }], { answers: [5] });
-    click(m.T.dom, m.card().querySelector('[data-oshw-focus="start:30"]'));
+    const m = await mount([{ id: 'focus', s: 's' }], { answers: [5, 5] });
+    const sel = m.card().querySelector('select.os-fb-sel');
+    ok('small, idle: a native length picker (30 / 60 / 90, 60 picked) and one Start', !!sel && sel.getAttribute('aria-label') === 'Block length'
+      && J(sel.querySelectorAll('option').map((x) => x.getAttribute('value'))) === J(['30', '60', '90']) && sel.querySelectorAll('option')[1].hasAttribute('selected')
+      && !!m.card().querySelector('[data-oshw-focus="start"]'), text(m.card()));
+    sel.value = '30';
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="start"]'));
     await settle();
-    ok('small: the minutes, the doors and End', /30 min left/.test(text(m.card())) && /5 doors this block/.test(text(m.card())) && !!m.card().querySelector('[data-oshw-focus="end"]'), text(m.card()));
+    ok('small: the minutes, the doors and End, short', /30 min/.test(text(m.card())) && /5 doors/.test(text(m.card())) && !!m.card().querySelector('[data-oshw-focus="end"]')
+      && m.card().querySelector('[data-oshw-focus="end"]').getAttribute('aria-label') === 'End the knock block now', text(m.card()));
+    click(m.T.dom, m.card().querySelector('[data-oshw-focus="end"]'));
+    await settle();
+    ok('small, ended: the doors, how long, and Done', /5 doors/.test(text(m.card())) && /in 1 min/.test(text(m.card())) && !!m.card().querySelector('[data-oshw-focus="done"]'), text(m.card()));
   }
   {
     // Sunday: no floor
@@ -256,7 +265,7 @@ const rec = (T) => { try { return JSON.parse(T.store.nbd_os_focus); } catch (e) 
   ok('every widget value goes through esc()', !/'\s*\+\s*(v\.(left|doors|floor|done)|r\.\w+)\s*\+/.test(code));
   ok('no motion in the stylesheet', !/transition:(?!\s*none)|animation/.test(FOCUS_CSS.replace(/\/\*[\s\S]*?\*\//g, "")));
   ok('44px targets: every button rides .os-hw-btn (min-height 44px) with a 44px min-width', /class="[^"]*os-hw-btn os-fb-len"/.test(FOCUS_JS) && /\.os-fb-len \{[^}]*min-width: 44px/.test(FOCUS_CSS)
-    && /\.os-fb-end, \.os-fb-ok, \.os-fb-recount \{[^}]*min-width: 44px/.test(FOCUS_CSS) && /\.os-hw-btn \{ min-height: 44px/.test(read('docs/pro/css/os/home.css')));
+    && /\.os-fb-end, \.os-fb-ok, \.os-fb-recount \{[^}]*min-width: 44px/.test(FOCUS_CSS) && /\.os-fb-sel \{[^}]*min-height: 44px/.test(FOCUS_CSS) && /\.os-fb-start \{[^}]*min-width: 44px/.test(FOCUS_CSS) && /\.os-hw-btn \{ min-height: 44px/.test(read('docs/pro/css/os/home.css')));
   ok('no font size under 11px in the stylesheet', !(FOCUS_CSS.match(/font-size:\s*(\d+)px/g) || []).some((x) => Number(x.replace(/\D/g, '')) < 11));
   ok('home.js registers osfocus with same-origin css/os + js/os files', /SL\.bundles\.osfocus = FOCUS_BUNDLE\.slice\(\)/.test(HOME_JS)
     && /var FOCUS_BUNDLE = \['css\/os\/focus\.css\?v=1', 'js\/os\/ds-business\.js\?v=2', 'js\/os\/focus-logic\.js\?v=1', 'js\/os\/focus\.js\?v=1'\];/.test(HOME_JS));

@@ -139,21 +139,27 @@
    *   { phase, left: '42 min left' | '', pct: 0-100 (time used) | null,
    *     doors: '7 doors this block' | '' (not counted yet, or the count failed),
    *     floor: 'Toward today's floor of 40' | '',
-   *     done: 'Block done: 12 doors in 60 min' | 'Block done after 38 min' (no count) | '' }
+   *     done: 'Block done: 12 doors in 60 min' | 'Block done after 38 min' (no count) | '',
+   *     s: the small widget's short forms { left: '42 min', doors: '7 doors' | '' (running; at the end
+   *        '12 doors' | 'Block done' with no count), ran: 'in 60 min' } }
    */
   function view(r, now) {
     var p = phase(r, now);
-    var out = { phase: p, left: '', pct: null, doors: '', floor: '', done: '' };
+    var out = { phase: p, left: '', pct: null, doors: '', floor: '', done: '', s: { left: '', doors: '', ran: '' } };
     if (p === 'none') return out;
     var counted = isCount(r.doors);
     if (p === 'running') {
       out.left = minsLeft(r, now) + ' min left';
+      out.s.left = minsLeft(r, now) + ' min';
       var used = Math.min(r.mins * MIN, Math.max(0, Number(now) - r.start));
       out.pct = Math.floor(used * 100 / (r.mins * MIN));
       if (counted) out.doors = r.doors === 0 ? 'No doors yet this block' : plural(r.doors, 'door', 'doors') + ' this block';
+      if (counted) out.s.doors = plural(r.doors, 'door', 'doors');
     } else {
       var ran = Math.max(1, Math.round((stopAt(r) - r.start) / MIN));
       out.done = counted ? 'Block done: ' + plural(r.doors, 'door', 'doors') + ' in ' + ran + ' min' : 'Block done after ' + ran + ' min';
+      out.s.doors = counted ? plural(r.doors, 'door', 'doors') : 'Block done';
+      out.s.ran = 'in ' + ran + ' min';
     }
     if (isFloor(r.floor)) out.floor = (p === 'running' ? 'Toward today\'s floor of ' : 'Today\'s floor is ') + plural(r.floor, 'door', 'doors');
     return out;

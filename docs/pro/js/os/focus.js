@@ -196,6 +196,7 @@
     failedAt = 0;
     notify();
     refocus(from, 'start:60');
+    refocus(from, 'start');
   }
   /** After the repaint, focus the new state's button in the same card (the tapped one was replaced). */
   function refocus(card, what) {
@@ -219,10 +220,17 @@
   // ── the widget ─────────────────────────────────────────────
   var TITLE = '<h3 class="os-hw-title">Knock block</h3>';
   function timeOf(ms) { return safe(function () { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }) || ''; }
+  var PICK = 60;   // the small widget's length picker starts here
   function startBtns(size) {
+    if (size === 's') {
+      // three 44px buttons don't fit a narrow small card: a native length picker and one Start
+      return '<div class="os-fb-go"><select class="os-fb-sel" aria-label="Block length">' + FL.LENGTHS.map(function (m) {
+        return '<option value="' + m + '"' + (m === PICK ? ' selected' : '') + '>' + esc(m + ' min') + '</option>';
+      }).join('') + '</select><button type="button" class="btn btn-ghost os-hw-btn os-fb-start" data-oshw-focus="start" aria-label="Start the knock block">Start</button></div>';
+    }
     return '<div class="os-fb-go" role="group" aria-label="Start a knock block">' + FL.LENGTHS.map(function (m) {
       return '<button type="button" class="btn btn-ghost os-hw-btn os-fb-len" data-oshw-focus="start:' + m + '" aria-label="' +
-        esc('Start a ' + m + '-minute knock block') + '">' + esc(size === 's' ? String(m) : m + ' min') + '</button>';
+        esc('Start a ' + m + '-minute knock block') + '">' + esc(m + ' min') + '</button>';
     }).join('') + '</div>';
   }
   function widget(size, cfg, kit) {
@@ -233,24 +241,31 @@
     if (r && FL.phase(r, now) === 'over' && r.endedAt == null) { W.setTimeout(check, 0); }   // the end timer was throttled: end it now
     var v = FL.view(r, now);
     if (v.phase === 'none') {
-      return TITLE + (size === 's' ? '' : '<p class="os-hw-empty">Do Not Disturb on and your doors counted, for one block.</p>') + startBtns(size);
+      // the buttons first: a short card (the one-column desk) clips the line under them, never them
+      return TITLE + startBtns(size) + (size === 's' ? '' : '<p class="os-hw-empty">Do Not Disturb goes on and your doors are counted.</p>');
     }
     var failed = !!r && failedAt === r.start;
+    var small = size === 's';
     if (v.phase === 'running') {
-      var h = TITLE + '<p class="os-fb-left ui-num">' + esc(v.left) + '</p>' +
-        '<progress class="os-fb-bar" max="100" value="' + esc(String(v.pct)) + '" aria-label="' + esc('Block ' + v.pct + '% done') + '"></progress>';
-      if (v.doors) h += '<p class="os-fb-doors">' + esc(v.doors) + '</p>';
-      else if (failed) h += '<p class="os-hw-empty">Couldn\'t count doors yet.</p>';
-      if (size !== 's') {
-        if (v.floor) h += '<p class="os-hw-sub">' + esc(v.floor) + '</p>';
-        h += '<p class="os-hw-sub">' + esc('Ends ' + timeOf(r.end) + (r.dnd === 'mine' || r.dnd === 'kept' ? ' · Do Not Disturb on' : '')) + '</p>';
-      }
-      return h + '<button type="button" class="ui-btn-quiet os-hw-btn os-fb-end" data-oshw-focus="end" aria-label="End the knock block now">End block</button>';
+      var endBtn = '<button type="button" class="ui-btn-quiet os-hw-btn os-fb-end" data-oshw-focus="end" aria-label="End the knock block now">End</button>';
+      var doors = small ? v.s.doors : v.doors;
+      var h = TITLE + '<div class="os-fb-row"><p class="os-fb-nums"><span class="os-fb-left ui-num">' + esc(small ? v.s.left : v.left) + '</span>' +
+        (doors ? '<span class="os-fb-doors">' + esc(doors) + '</span>' : (failed && !small ? '<span class="os-fb-none">Couldn\'t count doors yet.</span>' : '')) +
+        '</p>' + endBtn + '</div>';
+      if (small) return h;
+      h += '<progress class="os-fb-bar" max="100" value="' + esc(String(v.pct)) + '" aria-label="' + esc('Block ' + v.pct + '% done') + '"></progress>';
+      if (v.floor) h += '<p class="os-hw-sub">' + esc(v.floor) + '</p>';
+      return h + '<p class="os-hw-sub">' + esc('Ends ' + timeOf(r.end) + (r.dnd === 'mine' || r.dnd === 'kept' ? ' · Do Not Disturb on' : '')) + '</p>';
     }
-    var o = TITLE + '<p class="os-fb-done">' + esc(v.done) + '</p>';
-    if (v.floor && size !== 's') o += '<p class="os-hw-sub">' + esc(v.floor) + '</p>';
+    var ok = '<button type="button" class="btn btn-ghost os-hw-btn os-fb-ok" data-oshw-focus="done">Done</button>';
+    if (small) {
+      return TITLE + '<div class="os-fb-row"><p class="os-fb-nums"><span class="os-fb-done">' + esc(v.s.doors) + '</span>' +
+        '<span class="os-fb-ran">' + esc(v.s.ran) + '</span></p>' + ok + '</div>';
+    }
+    var o = TITLE + '<div class="os-fb-row"><p class="os-fb-done">' + esc(v.done) + '</p>' + ok + '</div>';
+    if (v.floor) o += '<p class="os-hw-sub">' + esc(v.floor) + '</p>';
     if (failed && r.doors == null) o += '<button type="button" class="ui-btn-quiet os-hw-btn os-fb-recount" data-oshw-focus="recount">Count again</button>';
-    return o + '<button type="button" class="btn btn-ghost os-hw-btn os-fb-ok" data-oshw-focus="done">Done</button>';
+    return o;
   }
   /** The home's tick repaints the widget when this changes: the minute, the phase, the count. */
   function key() {
@@ -263,6 +278,12 @@
     var card = el && el.closest ? el.closest('[data-oshw]') : null;   // before the repaint replaces el
     var m = /^start:(\d+)$/.exec(String(what || ''));
     if (m) { start(Number(m[1]), card); return; }
+    if (what === 'start') {   // the small widget: its picker's length
+      var sel = card && card.querySelector ? card.querySelector('.os-fb-sel') : null;
+      var n = sel ? Number(sel.value) : PICK;
+      start(FL.LENGTHS.indexOf(n) !== -1 ? n : PICK, card);
+      return;
+    }
     if (what === 'end') end(true, card);
     else if (what === 'done') done(card);
     else if (what === 'recount') count();
