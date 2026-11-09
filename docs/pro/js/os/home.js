@@ -10,12 +10,18 @@
  *                the Today list does
  *   Shortcuts    New lead and Search (the OS layout's own actions), and the
  *                clock when its cfg says so
+ *   Coach        (P0c) the top rule of os/coach-logic.js, 2 more on expand (M)
+ *                or always (L); each with its CRM action, Later (snooze) and
+ *                Not today (dismiss), kept in localStorage nbd_os_coach only
  *
  * Read cost 0: every widget reads what the CRM already holds in memory.
  * The Today plan comes from NBDToday.last() and the nbd:today-rendered event
  * it fires; NEVER NBDToday.compute(), which mutates the handled-call state.
  * Counts come from NBDHomeAttention.lastCounts (never re-queried), sync from
- * NBDOfflineSync.pending() and navigator.onLine. No fetch, no Firestore.
+ * NBDOfflineSync.pending() and navigator.onLine; the Coach also reads _leads,
+ * the tenant's stageRole and the Daily Success snapshot (localStorage
+ * nbd_ds_snapshot, else LayoutEngine.ds(): the doc the engine already read).
+ * No fetch, no Firestore.
  *
  * NBDOSHome.mount({ surface:'phone'|'desk', items, act, visible }) returns
  * { el, update(items), paint(), unmount() }. `el` is one node the OS layout
@@ -40,7 +46,7 @@
   var HL = W.NBDOSHomeLogic;
   if (!HL) return;
 
-  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'online', 'offline'];
+  var EVENTS = ['nbd:today-rendered', 'nbd:attention-loaded', 'nbd:data-refreshed', 'online', 'offline'];
   var TICK_MS = 30000;
 
   function esc(s) {
@@ -127,7 +133,68 @@
         '<button type="button" class="btn btn-ghost os-hw-btn" ' + esc(act) + '="search">Search</button>' +
       '</div>';
   }
-  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts };
+  // ── Coach (P0c): rules over in-memory data, os/coach-logic.js ──
+  var COACH_KEY = 'nbd_os_coach';   // today's dismissed / snoozed rules; an nbd_ key, wiped at sign-out
+  function lsGet(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { W.localStorage.setItem(k, v); } catch (e) {} }
+  function parse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+  /** The Daily Success snapshot cut to floors / streak / week %, only when today's and fresh: this device's copy, else the layout engine's. */
+  function dsNow() {
+    var now = Date.now(), dk = HL.dayKey(now);
+    var v = HL.dsPersonal(HL.dsLite(parse(lsGet('nbd_ds_snapshot'))), dk, now);
+    if (v) return v;
+    var E = W.LayoutEngine;
+    var lite = null;
+    try { lite = E && typeof E.ds === 'function' ? E.ds() : null; } catch (e) { lite = null; }
+    return HL.dsPersonal(lite, dk, now);
+  }
+  function leadsNow() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
+  function actionHtml(a, cls) {
+    if (!a) return '';
+    if (a.href) return '<a class="' + esc(cls) + '" href="' + esc(a.href) + '">' + esc(a.label) + '</a>';
+    return '<button type="button" class="' + esc(cls) + '" data-oshw-go="' + esc(a.go) + '">' + esc(a.label) + '</button>';
+  }
+  function coachRules(cfg) {
+    var CL = W.NBDOSCoachLogic;
+    var plan = todayPlan(), leads = leadsNow();
+    if (!CL || (!plan && !leads)) return null;
+    var now = Date.now();
+    var rules = CL.evaluate({ plan: plan, leads: leads, roleOf: typeof W.stageRole === 'function' ? W.stageRole : null,
+      ds: dsNow(), nowMs: now, show: cfg && cfg.show });
+    var memo = parse(lsGet(COACH_KEY));
+    var p = CL.pick(rules, memo, HL.dayKey(now), now);
+    if (JSON.stringify(p.memo) !== JSON.stringify(memo)) lsSet(COACH_KEY, JSON.stringify(p.memo));
+    return p.shown;
+  }
+  function coach(size, cfg, act, rec) {
+    var h = '<h3 class="os-hw-title">Coach</h3>';
+    var list = coachRules(cfg);
+    if (!list) return h + '<p class="os-hw-empty">Getting your day ready…</p>';
+    if (!list.length) return h + '<p class="os-hw-coach-calm">Nothing pressing right now. Nice work.</p>';
+    var top = list[0];
+    h += '<p class="os-hw-coach-line">' + esc(top.text) + '</p>' +
+      '<div class="os-hw-coach-acts">' + actionHtml(top.action, 'btn btn-ghost os-hw-btn os-hw-coach-act') +
+        '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="snooze" data-rule="' + esc(top.id) + '">Later</button>' +
+        '<button type="button" class="ui-btn-quiet os-hw-btn" data-oshw-coach="dismiss" data-rule="' + esc(top.id) + '">Not today</button>' +
+      '</div>';
+    var rest = list.slice(1, 3);
+    if (!rest.length) return h;
+    var open = size === 'l' || !!(rec && rec.open);
+    if (size !== 'l') h += '<button type="button" class="ui-btn-quiet os-hw-btn os-hw-coach-toggle" data-oshw-coach="more" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Show less' : 'More') + '</button>';
+    if (open) h += '<ul class="os-hw-coach-more">' + rest.map(function (r) {
+      return '<li><span class="os-hw-coach-text">' + esc(r.text) + '</span>' + actionHtml(r.action, 'ui-btn-quiet os-hw-btn os-hw-coach-go') + '</li>';
+    }).join('') + '</ul>';
+    return h;
+  }
+  function coachTap(rec, what, id) {
+    var CL = W.NBDOSCoachLogic;
+    if (what === 'more') { rec.open = !rec.open; rec.el.classList.toggle('is-open', rec.open); return; }
+    if (!CL || !/^[a-z-]{1,24}$/.test(id || '')) return;
+    var now = Date.now(), dk = HL.dayKey(now), memo = parse(lsGet(COACH_KEY));
+    lsSet(COACH_KEY, JSON.stringify(what === 'dismiss' ? CL.dismiss(memo, id, dk) : CL.snooze(memo, id, dk, now)));
+  }
+
+  var WIDGETS = { glance: glance, upnext: upnext, shortcuts: shortcuts, coach: coach };
 
   function failHtml(key) {
     return '<p class="os-hw-fail">Couldn\'t load · <button type="button" class="ui-btn-quiet os-hw-btn os-hw-retry" data-oshw-retry="' + esc(key) + '">Retry</button></p>';
@@ -156,7 +223,7 @@
     }
     function paintOne(rec, force) {
       var html;
-      try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act); }
+      try { html = WIDGETS[rec.it.id](rec.it.s, rec.it.cfg || null, act, rec); }
       catch (e) {
         html = failHtml(rec.key);
         try { console.warn('[os-home] widget failed:', rec.it.id, e && e.message); } catch (_) {}
@@ -195,6 +262,9 @@
       if (!t || !t.closest) return;
       var r = t.closest('[data-oshw-retry]');
       if (r) { var rec = recs[r.getAttribute('data-oshw-retry')]; if (rec) paintOne(rec, true); return; }
+      var cb = t.closest('[data-oshw-coach]');
+      var crec = cb && recs[(cb.closest('[data-oshw]') || cb).getAttribute('data-oshw')];
+      if (crec) { coachTap(crec, cb.getAttribute('data-oshw-coach'), cb.getAttribute('data-rule')); paintOne(crec, true); return; }
       var g = t.closest('[data-oshw-go]');
       var id = g ? g.getAttribute('data-oshw-go') : '';
       if (g && /^[a-z][a-z0-9-]{0,31}$/.test(id) && typeof W.goTo === 'function') {

@@ -332,7 +332,7 @@
     blurb: 'Your CRM as an operating system: a desktop with windows on a laptop, a home screen and app switcher on a phone.',
     surfaces: SURFACES, tier: 'free', flag: 'osLayout',
     script: 'js/layouts/os.js', css: 'css/layouts/os.css',
-    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/home.js'], css: ['css/os/home.css'] },
+    needs: { script: ['js/os/system-logic.js', 'js/layouts/os-wm-logic.js', 'js/os/home-logic.js', 'js/os/coach-logic.js', 'js/os/home.js'], css: ['css/os/home.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
@@ -637,6 +637,16 @@
     hydrating = hydrateOnce().then(function (ok) { hydrating = null; return ok; }, function (e) { hydrating = null; throw e; });
     return hydrating;
   }
+  // The NBD OS home's Daily Success line reads the tracker's snapshot from the
+  // doc this read already has: floors met / of, streak state and week % only,
+  // never weight, money or the scorecard, and never in the prefs cache.
+  var dsLite = null;
+  function liteDs(s) {
+    if (!s || !s.today) return null;
+    var f = Array.isArray(s.today.floors) ? s.today.floors : [], st = s.streak || {};
+    return { dk: s.today.dk, asOf: s.asOf, met: f.filter(function (x) { return x && x.met === true; }).length, of: f.length,
+      warned: st.warned === true, broken: st.broken === true, pct: s.week ? s.week.pct : null };
+  }
   function hydrateOnce() {
     uid = window._user.uid;
     var cached = parse(lsGet(PREFS_KEY));
@@ -647,8 +657,9 @@
       // another account's cache: forget it before it can influence anything
       user = R.normalizeUser(null); company = R.normalizeCompany(null);
     }
+    dsLite = null;
     var userRead = readDoc(window.doc(window.db, 'userSettings', uid), 'layout', 0)
-      .then(function (d) { return d.layout || null; }, function () { return undefined; });
+      .then(function (d) { dsLite = liteDs(d.dsSnapshot); return d.layout || null; }, function () { return undefined; });
     var companyRead = companyKey().then(function (key) {
       if (!key) return undefined;
       return readDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), 'defaultLayout', 0)
@@ -893,6 +904,7 @@
     surface: surface, resolve: resolveNow, hydrate: hydrate,
     current: function () { return { id: current.id, source: current.source, surface: current.surface }; },
     prefs: function () { return { user: user, company: company, hydrated: hydrated, uid: uid }; },
+    ds: function () { return dsLite; },
     // picker hook (D2): admin default read by the company settings UI
     _setCompany: function (c) { company = R.normalizeCompany(c); writePrefsCache(); return refresh(); },
   };

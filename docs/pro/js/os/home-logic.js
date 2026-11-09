@@ -29,6 +29,9 @@
  *   nextAppointment(plan, now) { time, place } of the next timed appointment, no name
  *   glanceCounts(counts)       NBDHomeAttention.lastCounts as plain lines + a state
  *   headline(total)            "3 things today" / "Nothing due today"
+ *   dayKey(ms)                 local 'YYYY-MM-DD', the Daily Success writer's key
+ *   dsLite(snapshot)           the tracker's snapshot cut to floors / streak state / week %
+ *   dsPersonal(lite, dk, now)  that cut, only when it is today's, under 12 h and whole
  *
  * Classic script: window.NBDOSHomeLogic; require()-able for tests. Loaded
  * lazily with the OS layout (layout-system.js `needs`), never at boot.
@@ -48,8 +51,10 @@
     glance: { title: 'At a Glance', sizes: ['s', 'm', 'l'], def: 'm', reads: 0 },
     upnext: { title: 'Up Next', sizes: ['s', 'm', 'l'], def: 'm', reads: 0 },
     shortcuts: { title: 'Shortcuts', sizes: ['s', 'm', 'l'], def: 's', reads: 0, config: { clock: ['on', 'off'] } },
+    // P0c: rules over in-memory data (os/coach-logic.js); show = which half
+    coach: { title: 'Coach', sizes: ['m', 'l'], def: 'm', reads: 0, config: { show: ['both', 'business', 'personal'] } },
   };
-  var ORDER = ['glance', 'upnext', 'shortcuts'];
+  var ORDER = ['glance', 'upnext', 'shortcuts', 'coach'];
   var DEFAULT = [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }, { id: 'shortcuts', s: 's' }];
 
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -200,10 +205,41 @@
     return n ? plural(n, 'thing', 'things') + ' today' : 'Nothing due today';
   }
 
+  // ── Daily Success, personal half (P0c) ────────────────────────
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  /** ms -> the device's local 'YYYY-MM-DD': the Daily Success writer's own key (daily-success/js/app.js todayKey). */
+  function dayKey(ms) { var d = new Date(Number(ms)); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  /**
+   * The tracker's published snapshot (nbd_ds_snapshot / userSettings.dsSnapshot,
+   * review-logic.js snapshotDoc) cut to what the home may show: today's floors
+   * met / of, the streak state and the week %. Never weight, goal, money or the
+   * scorecard. The same cut as layout-system.js liteDs.
+   */
+  function dsLite(s) {
+    if (!isObj(s) || !isObj(s.today)) return null;
+    var f = Array.isArray(s.today.floors) ? s.today.floors : [];
+    var st = isObj(s.streak) ? s.streak : {};
+    return { dk: s.today.dk, asOf: s.asOf, met: f.filter(function (x) { return x && x.met === true; }).length, of: f.length,
+      warned: st.warned === true, broken: st.broken === true, pct: isObj(s.week) ? s.week.pct : null };
+  }
+  function isCount(n, max) { return typeof n === 'number' && Math.floor(n) === n && n >= 0 && n <= max; }
+  var DS_MAX_AGE = 12 * 3600000;
+  /** A lite snapshot that is today's (the writer's key), under 12 h old and whole; else null (show no numbers). */
+  function dsPersonal(x, dk, now) {
+    if (!isObj(x) || typeof dk !== 'string' || x.dk !== dk) return null;
+    var t = Number(now);
+    if (typeof x.asOf !== 'number' || !isFinite(x.asOf) || x.asOf > t + 5 * 60000 || t - x.asOf >= DS_MAX_AGE) return null;
+    if (!isCount(x.of, 99) || x.of < 1 || !isCount(x.met, x.of)) return null;
+    if (x.pct != null && !isCount(x.pct, 100)) return null;
+    if (typeof x.warned !== 'boolean' || typeof x.broken !== 'boolean') return null;
+    return { dk: x.dk, asOf: x.asOf, met: x.met, of: x.of, warned: x.warned, broken: x.broken, pct: x.pct == null ? null : x.pct };
+  }
+
   var api = {
     KEY: KEY, MAX_ITEMS: MAX_ITEMS, MAX_CFG: MAX_CFG, SIZES: SIZES, SURFACES: SURFACES, CATALOG: CATALOG,
     ids: ids, defaults: defaults, normalize: normalize, cleanCfg: cleanCfg,
     CELLS: CELLS, pageRoom: pageRoom, upNext: upNext, nextAppointment: nextAppointment, glanceCounts: glanceCounts, headline: headline,
+    dayKey: dayKey, dsLite: dsLite, dsPersonal: dsPersonal,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDOSHomeLogic = api;

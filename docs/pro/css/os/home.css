@@ -57,6 +57,21 @@
 .os-hw-fail { display: flex; align-items: center; gap: 6px; }
 .os-hw-row:focus-visible, .os-hw-btn:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 
+/* Coach: one rule, its action, Later / Not today; 2 more on expand (M) or always (L) */
+.os-hw-coach-line { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 600; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.os-hw-coach-calm { margin: 0; font-size: var(--ui-fs-body, 14px); line-height: 1.35; color: var(--m); }
+.os-hw-coach-acts { display: flex; flex-wrap: wrap; gap: var(--ui-space-1, 4px); min-width: 0; }
+.os-hw-coach-acts .os-hw-btn { flex: 0 1 auto; min-width: 44px; padding-inline: var(--ui-space-3, 12px); }
+.os-hw-coach-toggle { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-coach-more { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-space-1, 4px); min-width: 0; }
+.os-hw-coach-more li {
+  display: flex; align-items: center; gap: var(--ui-space-2, 8px); min-width: 0;
+  padding-top: var(--ui-space-1, 4px); border-top: 1px solid var(--ui-line-divider, var(--br));
+}
+.os-hw-coach-text { flex: 1 1 auto; min-width: 0; font-size: var(--ui-fs-body-sm, 13px); line-height: 1.35; overflow-wrap: anywhere; }
+.os-hw-coach-go { flex: none; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+.os-hw-coach-act { text-decoration: none; }
+
 /* ── sizes: S one number, M up to three rows, L a list with an action ── */
 .os-hw.is-s { padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px); }
 .os-hw.is-s .os-hw-time { font-size: var(--ui-fs-title, 20px); }
@@ -84,6 +99,8 @@
 .os-p-page .os-hw.is-s { grid-column: span 2; grid-row: span 1; }
 .os-p-page .os-hw.is-m { grid-column: span 4; grid-row: span 2; }
 .os-p-page .os-hw.is-l { grid-column: span 4; grid-row: span 4; }
+/* an M Coach opened to show 2 more takes the rows of an L while open */
+.os-p-page .os-hw.is-m.is-open { grid-row: span 4; }
 .os-p-page .os-hw.is-s .os-hw-sc { flex-direction: row; }
 /* a home taller than the page scrolls inside page 1 only */
 .os-p-home { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
