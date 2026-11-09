@@ -124,16 +124,18 @@
   // ── 2. said vs. proposal ─────────────────────────────────────────────
   // Order matters: the specific item before the general one (gutter guards
   // before gutters). `said` finds it in what the call said; `has` finds it in
-  // the proposal. `phrase` is the fixed scope line "Copy into scope" adds.
+  // the proposal, narrowly enough not to hide a real gap (gutter guards are
+  // not gutters, a pipe vent is not attic ventilation, a patio deck is not
+  // roof decking). `phrase` is the fixed scope line "Copy into scope" adds.
   var VOCAB = [
     { key: 'gutterGuards', label: 'Gutter guards', phrase: 'Gutter guards', said: /\b(gutter|leaf)\s*(guards?|screens?|covers?)\b/, has: /\b(gutter|leaf)\s*(guards?|screens?|covers?)\b/ },
-    { key: 'gutters', label: 'Gutters', phrase: 'Gutters', said: /\bgutters?\b(?!\s*(guards?|screens?|covers?))/, has: /\bgutters?\b/ },
+    { key: 'gutters', label: 'Gutters', phrase: 'Gutters', said: /\bgutters?\b(?!\s*(guards?|screens?|covers?))/, has: /\bgutters?\b(?!\s*(guards?|screens?|covers?))/ },
     { key: 'downspouts', label: 'Downspouts', phrase: 'Downspouts', said: /\bdown\s*spouts?\b/, has: /\bdown\s*spouts?\b/ },
     { key: 'chimney', label: 'Chimney flashing', phrase: 'Chimney flashing', said: /\bchimney\b/, has: /\bchimney\b/ },
     { key: 'skylight', label: 'Skylights', phrase: 'Skylights', said: /\bsky\s*lights?\b/, has: /\bsky\s*lights?\b/ },
-    { key: 'decking', label: 'Decking', phrase: 'Replace damaged decking as needed', said: /\b(decking|plywood|sheathing|osb)\b/, has: /\b(deck|decking|plywood|sheathing|osb)\b/ },
+    { key: 'decking', label: 'Decking', phrase: 'Replace damaged decking as needed', said: /\b(decking|plywood|sheathing|osb)\b/, has: /\b(roof\s*deck(ing)?|decking|plywood|sheathing|osb)\b/ },
     { key: 'ridgeVent', label: 'Ridge vent', phrase: 'Ridge vent', said: /\bridge\s*vents?\b/, has: /\bridge\s*vents?\b/ },
-    { key: 'ventilation', label: 'Attic ventilation', phrase: 'Attic ventilation', said: /\b(attic\s*(fan|vent|ventilation)|ventilation|box\s*vents?|turbines?)\b/, has: /\b(ventilation|vents?|turbines?|attic\s*fan)\b/ },
+    { key: 'ventilation', label: 'Attic ventilation', phrase: 'Attic ventilation', said: /\b(attic\s*(fan|vent|ventilation)|ventilation|box\s*vents?|turbines?)\b/, has: /\b(ventilation|(ridge|box|attic|soffit|static|power|off[\s-]*ridge|turtle)\s*vents?|turbines?|attic\s*fans?)\b/ },
     { key: 'dripEdge', label: 'Drip edge', phrase: 'Drip edge', said: /\bdrip\s*edge\b/, has: /\bdrip\s*edge\b/ },
     { key: 'iceWater', label: 'Ice and water shield', phrase: 'Ice and water shield', said: /\bice\s*(and|&|n)?\s*water\b/, has: /\bice\s*(and|&|n)?\s*water\b/ },
     { key: 'fascia', label: 'Fascia', phrase: 'Fascia', said: /\bfascia\b/, has: /\bfascia\b/ },

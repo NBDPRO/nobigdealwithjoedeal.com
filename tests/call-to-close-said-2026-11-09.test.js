@@ -82,6 +82,18 @@ const brief = (over) => Object.assign({
     const gOut = C.saidVsProposal(guards, Object.assign({}, empty, { scopeItems: ['New gutters'] }));
     ok('gutter guards are their own item: gutters in the proposal do not cover them', gOut.length === 1 && gOut[0].key === 'gutterGuards', gOut);
     ok('no briefs, a bad row or no proposal → nothing, no throw', C.saidVsProposal([], empty).length === 0 && C.saidVsProposal([null, { brief: 'x' }], null).length === 0 && Array.isArray(C.saidVsProposal(rows, undefined)));
+    // `has` must not hide a real gap (review 2026-11-09).
+    const svc = (value, quote) => [{ callId: 'cube_D', brief: brief({ scope: { service: { value, quote }, mentions: {} }, promises: [] }), decisions: [], generatedAtMs: GEN }];
+    const gaps = (rowsIn, scopeItems) => C.saidVsProposal(rowsIn, Object.assign({}, empty, { scopeItems })).map((x) => x.key);
+    ok('"gutter guards" in the proposal does not cover gutters', gaps(rows, ['Gutter guards']).includes('gutters'), gaps(rows, ['Gutter guards']));
+    ok('…"gutters and gutter guards" does', !gaps(rows, ['New gutters and gutter guards']).includes('gutters'));
+    const vent = svc('Attic ventilation', 'the attic needs ventilation');
+    ok('"pipe vents" in the proposal does not cover attic ventilation', gaps(vent, ['Replace pipe vent boots']).includes('ventilation'));
+    ok('…a ridge vent, box vents or "ventilation" do', !gaps(vent, ['Ridge vent']).includes('ventilation') && !gaps(vent, ['Four box vents']).includes('ventilation') && !gaps(vent, ['Balanced ventilation']).includes('ventilation'));
+    const deck = svc('Decking', 'some of the plywood is rotten');
+    ok('a patio "deck" in the proposal does not cover roof decking', gaps(deck, ['Haul debris from the back deck']).includes('decking'));
+    ok('…"roof deck" or "sheathing" does', !gaps(deck, ['Inspect roof deck']).includes('decking') && !gaps(deck, ['Replace sheathing as needed']).includes('decking'));
+    ok('every fixed phrase satisfies its own item once copied', C.VOCAB.every((v) => v.has.test(v.phrase.toLowerCase())), C.VOCAB.filter((v) => !v.has.test(v.phrase.toLowerCase())).map((v) => v.key));
     ok('the matcher calls no model and no network', !/fetch\(|callable\(|anthropic|httpsCallable/i.test(read(LOGIC_PATH).split('function saidVsProposal')[1].split('function copyIntoScope')[0]));
   }
 
