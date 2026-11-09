@@ -4,7 +4,7 @@
 
 The Call Brief reads a filed call's transcript and suggests fields, promises and a stage. CI only proves the harness on seven made-up calls with canned answers. This runbook is the real test: about 20 of your own calls, labelled by you, sent to the real model twice (Haiku 4.5, then Sonnet 5.5). The scores decide which model the CRM uses and what bar it has to clear.
 
-**Cost and consent.** The two `--live` runs send every filled transcript to the Anthropic API with your key and spend real money (at the rates in `functions/ai-spend.js`, a rough estimate is well under a dollar per 20-call run). Nothing else in this runbook calls a model or touches Firestore.
+**Cost and consent.** The two `--live` runs send every filled transcript to the Anthropic API with your key and spend real money (at the rates in `functions/ai-spend.js`, a rough estimate is well under a dollar per 20-call run; that is an estimate, not a measurement: check the spend in the Anthropic console after run 1). Nothing else in this runbook calls a model or touches Firestore.
 
 ## 1. Where the files go (never in the repo)
 
