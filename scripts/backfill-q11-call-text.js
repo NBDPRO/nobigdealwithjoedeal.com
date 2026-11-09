@@ -85,7 +85,11 @@ const OLD_LEAD_NOTES = '📞 Thursday call ';
 const POINTER = L.buildFollowUpTask({ call: { id: 'x' }, notes: { promises: [], followUpDate: 'x', summary: 'x' }, leadId: 'x', ownerUid: 'x', todayYmd: 'x' }).notes;
 
 const has = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// One half ({ full } or { generic }) of a sidecar, field by field: Firestore
+// hands a map back with its keys sorted, not in the order split() wrote them.
+const same = (a, b) => !!a && !!b && typeof a === 'object' && typeof b === 'object'
+  && Object.keys(a).length === Object.keys(b).length
+  && Object.keys(b).every((k) => TCT.FIELDS.includes(k) && has(a, k) && a[k] === b[k]);
 
 /** 'cube' | 'sms' | 'thursday' | 'promise' for a leads/{id}/tasks/{taskId} path, else null. */
 function kindOf(taskPath) {

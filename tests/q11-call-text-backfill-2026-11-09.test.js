@@ -86,6 +86,16 @@ function seed() {
   };
 }
 
+// Firestore hands a map back with its keys sorted, not in the order written
+// (review 2026-11-09): the fake does the same, so a comparison that leans on
+// key order fails here as it would in production.
+function sortKeys(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return v;
+  const o = {};
+  for (const k of Object.keys(v).sort()) o[k] = sortKeys(v[k]);
+  return o;
+}
+
 // ── a fake Firestore (admin-like) with an ordered op log ──
 function fakeDb(docs) {
   const ops = [], forbidden = [], ver = {};
@@ -95,7 +105,7 @@ function fakeDb(docs) {
   function ref(p) {
     return {
       path: p,
-      get: async () => ({ exists: exists(p), updateTime: exists(p) ? { v: ver[p] || 0 } : undefined, data: () => docs[p] }),
+      get: async () => ({ exists: exists(p), updateTime: exists(p) ? { v: ver[p] || 0 } : undefined, data: () => sortKeys(docs[p]) }),
       create: async (data) => {
         if (exists(p)) { const e = new Error('6 ALREADY_EXISTS: Document already exists: ' + p); e.code = 6; throw e; }
         ops.push({ op: 'create', p, data }); docs[p] = data; ver[p] = 0;
@@ -123,7 +133,7 @@ function fakeDb(docs) {
         if (++gets > 200) throw new Error('pagination did not advance');
         const paths = Object.keys(docs).filter((p) => inGroup(p, group)).sort().filter((p) => after === undefined || p > after);
         const page = lim ? paths.slice(0, lim) : paths;
-        const out = page.map((p) => ({ id: p.split('/').pop(), ref: ref(p), updateTime: { v: ver[p] || 0 }, data: () => docs[p] }));
+        const out = page.map((p) => ({ id: p.split('/').pop(), ref: ref(p), updateTime: { v: ver[p] || 0 }, data: () => sortKeys(docs[p]) }));
         return { empty: !out.length, size: out.length, docs: out };
       },
     };
