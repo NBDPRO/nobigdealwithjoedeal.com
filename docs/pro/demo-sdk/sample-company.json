@@ -725,7 +725,9 @@
    "companyId": "demo-owner",
    "uid": "demo-owner",
    "name": "Sam Sample",
-   "tz": "America/New_York",
+   "tz": {
+    "__tzLocal": true
+   },
    "tzSet": true,
    "dayKey": {
     "__date": {
@@ -755,7 +757,9 @@
    "companyId": "demo-owner",
    "uid": "sample-rep-riley",
    "name": "Riley Example",
-   "tz": "America/New_York",
+   "tz": {
+    "__tzLocal": true
+   },
    "tzSet": true,
    "dayKey": {
     "__date": {
@@ -785,7 +789,9 @@
    "companyId": "demo-owner",
    "uid": "sample-rep-jordan",
    "name": "Jordan Placeholder",
-   "tz": "America/New_York",
+   "tz": {
+    "__tzLocal": true
+   },
    "tzSet": true,
    "dayKey": {
     "__date": {
@@ -850,7 +856,9 @@
    }
   },
   "companyProfile/demo-owner": {
-   "timeZone": "America/New_York",
+   "timeZone": {
+    "__tzLocal": true
+   },
    "companyName": "Sample Roofing Co.",
    "companyId": "demo-owner",
    "ownerName": "Sam Sample",

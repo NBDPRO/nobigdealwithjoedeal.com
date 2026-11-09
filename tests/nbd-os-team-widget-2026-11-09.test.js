@@ -194,6 +194,39 @@ async function mount(items, opts) {
     ok('a company_admin gets it', !!byKey(T.document.querySelector('.os-widgets'), 'teamboard-1'));
   }
 
+  console.log('\n4b. the sample account (demo seed): the team reads as today for a viewer in any zone');
+  {
+    // review 2026-11-09: the seed's dayKey / weekKey resolve to the VIEWER's local date, so the rows'
+    // zone must be the viewer's too; a fixed America/New_York made a viewer west of Eastern late in the
+    // evening (or on Sunday night) see 'not counted yet' instead of the sample team.
+    const { execFileSync } = require('child_process');
+    const probe = (tz, iso) => {
+      const js = [
+        "const path = require('path'); const { pathToFileURL } = require('url');",
+        'const FIX = Date.parse(' + J(iso) + '); const RD = Date;',
+        'class FD extends RD { constructor(...a) { super(...(a.length ? a : [FIX])); } static now() { return FIX; } }',
+        'globalThis.Date = FD;',
+        '(async () => {',
+        "  const store = await import(pathToFileURL(path.join(" + J(ROOT) + ", 'docs/pro/demo-sdk/_store.js')).href);",
+        "  const TB = require(path.join(" + J(ROOT) + ", 'docs/pro/js/team-board-logic.js'));",
+        "  const json = JSON.parse(require('fs').readFileSync(path.join(" + J(ROOT) + ", 'docs/pro/demo-sdk/sample-company.json'), 'utf8'));",
+        '  const docs = json.docs || json;',
+        "  const rows = Object.keys(docs).filter((k) => /^leaderboard\\//.test(k)).map((k) => store.reviveSeed(docs[k]));",
+        "  const prof = store.reviveSeed(docs['companyProfile/demo-owner'] || {});",
+        "  process.stdout.write(JSON.stringify({ n: rows.length, tz: rows.map((r) => r.tz), profTz: prof.timeZone, local: Intl.DateTimeFormat().resolvedOptions().timeZone, day: TB.board(rows, 'day', FIX).length, week: TB.board(rows, 'week', FIX).length }));",
+        '})().catch((e) => { console.error(e); process.exit(1); });',
+      ].join('\n');
+      try { return JSON.parse(execFileSync(process.execPath, ['-e', js], { env: Object.assign({}, process.env, { TZ: tz }), encoding: 'utf8' })); } catch (e) { return { err: String(e.stderr || e.message).slice(0, 300) }; }
+    };
+    const la = probe('America/Los_Angeles', '2026-11-09T22:30:00-08:00');   // Mon 10:30 PM in LA = Tue 1:30 AM Eastern
+    ok('a viewer in Los Angeles at 10:30 PM: all three sample rows read as today and this week', la.n === 3 && la.day === 3 && la.week === 3, J(la));
+    ok('the sample rows (and the sample company\'s time zone) are in the viewer\'s own zone', !!la.tz && la.tz.every((z) => z === la.local) && la.profTz === la.local, J(la));
+    const sun = probe('America/Denver', '2026-11-15T23:10:00-07:00');   // Sunday night in Denver = Monday in Eastern
+    ok('a viewer in Denver late on Sunday night still sees the sample week', sun.week === 3 && sun.day === 3, J(sun));
+    const ny = probe('America/New_York', '2026-11-09T13:05:00-05:00');
+    ok('and in Eastern, as before', ny.day === 3 && ny.week === 3 && ny.profTz === 'America/New_York', J(ny));
+  }
+
   console.log('\n5. CSP, floors and boot');
   const code = noComments(TEAM_JS);
   ok('os/team.js exists; no style attribute, no inline handler, no el.style', !!TEAM_JS && !/style="|\son[a-z]+=|\.style\b/.test(code));

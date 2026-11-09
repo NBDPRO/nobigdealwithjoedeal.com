@@ -127,8 +127,11 @@ function build() {
   // 30 minutes, so the owner's Team widget and the Leaderboard page show a team with no network. The two teammates
   // are invented (Example / Placeholder names) and exist only here; dayKey/weekKey resolve to today, so the rows
   // always read as current (team-board-logic.js compares the week by its Monday). Counts only, no money.
+  // tz is the viewer's own zone (__tzLocal), the zone __date resolves in: a fixed Eastern made a viewer west of
+  // it late in the evening, or on Sunday night, see the rows as not counted yet.
+  const tzLocal = { __tzLocal: true };
   const lbRow = (uid, name, today, week) => ({
-    companyId: UID, uid, name, tz: 'America/New_York', tzSet: true, dayKey: date(0), weekKey: date(0),
+    companyId: UID, uid, name, tz: tzLocal, tzSet: true, dayKey: date(0), weekKey: date(0),
     today: { doors: today[0], appts: today[1], estimates: today[2], deals: today[3] },
     week: { doors: week[0], appts: week[1], estimates: week[2], deals: week[3] }, isSample: true,
   });
@@ -141,7 +144,7 @@ function build() {
   });
   add('companies/' + UID + '/members/' + UID, { uid: UID, role: 'company_admin', displayName: owner, email: 'owner@sample-roofing.example', status: 'active', joinedAt: ts(-120) });
   add('companyProfile/' + UID, {
-    timeZone: 'America/New_York',   // NBD OS P2: Settings > Company Profile > Time zone shows it set
+    timeZone: tzLocal,   // NBD OS P2: Settings > Company Profile > Time zone shows it set (the viewer's zone, as the team rows)
     companyName: S.company, companyId: UID, ownerName: owner, phone: '(859) 555-0100', email: 'office@sample-roofing.example',
     address: '100 Sample Way, Fort Thomas, KY 41075', serviceStates: ['KY', 'OH'], website: '', docPrefix: 'SMP',
     displayName: S.company, legalName: S.company + ' (sample)',
