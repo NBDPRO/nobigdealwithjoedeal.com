@@ -104,8 +104,9 @@
       '<div class="wc-foot"><button class="btn wc-finish" data-th-action="import-go">Import ' + p.days + ' days</button>' +
       '<button class="btn btn-ghost" data-th-action="import-close">Not now</button></div></div>';
     el.classList.add('open'); document.body.classList.add('wc-lock');
+    if (window.NBDNav) window.NBDNav.opened('history', closeImport);
   }
-  function closeImport() { const el = document.getElementById('thOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
+  function closeImport() { if (window.NBDNav) window.NBDNav.closed('history'); const el = document.getElementById('thOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
 
   async function doImport(btn) {
     if (!_plan || !_plan.sessions.length) { closeImport(); return; }

@@ -50,8 +50,10 @@ function boot(o) {
   };
   const badge = { style: {}, _text: '', set textContent(v) { this._text = v; badges.push(v); }, get textContent() { return this._text; }, appendChild() {}, setAttribute() {} };
   const document = { getElementById: () => null, createElement: () => badge, body: { appendChild() {} } };
+  const chipEvents = [];
   const window = {
-    NBDDsSync: L, loadPages() {}, dsRefreshView() {},
+    NBDDsSync: L, NBDSyncChip: require(path.join(ROOT, 'docs', 'pro', 'daily-success', 'js', 'sync-chip-logic.js')),
+    dispatchEvent: (e) => { if (e.type === 'nbd-ds-sync') chipEvents.push(e.detail); return true; }, loadPages() {}, dsRefreshView() {},
     savePages() {},
     NBDCoach: { mergeSessions: (a, b) => { const m = new Map(); for (const x of a.concat(b)) { const c = m.get(String(x.id)); if (!c || (x.mt || 0) > (c.mt || 0)) m.set(String(x.id), x); } return [...m.values()]; } },
   };
@@ -81,10 +83,10 @@ function boot(o) {
     serverTimestamp: () => 'ts', connectEmulatorsIfLocal: async () => {},
   };
   const body = SYNC_SRC.replace(/^import [\s\S]*?from '[^']+';\n/gm, '');
-  const ctx = vm.createContext(Object.assign({ window, document, localStorage, console: { log() {}, warn() {}, error() {} }, setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, JSON, Date, Math, Promise, Map, Set, Object, Array, String, Number, Error }, stubs));
+  const ctx = vm.createContext(Object.assign({ window, document, localStorage, CustomEvent: class { constructor(n, i) { this.type = n; this.detail = i && i.detail; } }, console: { log() {}, warn() {}, error() {} }, setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, JSON, Date, Math, Promise, Map, Set, Object, Array, String, Number, Error }, stubs));
   vm.runInContext('(async () => {\n' + body + '\n})();', ctx, { filename: 'ds-firebase-sync.js' });
   return {
-    store, writes, reads, badges, badge, window, advance,
+    store, writes, reads, badges, badge, window, advance, opts: o, chipEvents,
     signIn: async (uid) => { while (!authCb) await new Promise((r) => setImmediate(r)); await authCb({ uid }); await flush(); },
   };
 }
@@ -145,6 +147,35 @@ const visible = (p) => p.badge.style.opacity === '1';
     await p.signIn('U1');
     ok('the local-only workout is still pushed to the cloud', p.writes.some((w) => /ds_workouts\/w-local/.test(w)), JSON.stringify(p.writes));
     ok('the failure is shown (not silent)', p.badge.textContent === 'Sync error' && p.badges.includes('Sync error'), JSON.stringify(p.badges));
+  }
+
+  console.log('\n4. the sync chip: a failure is retried with backoff, quietly, and a tap retries at once (audit M9)');
+  {
+    const p = boot({ failPagesCommit: true });
+    await p.signIn('U1');
+    const states = () => p.chipEvents.map((e) => e.cloud);
+    const fails = () => states().filter((c) => c === 'failed').length;
+    ok('a failed sync tells the chip: failed', states().slice(-1)[0] === 'failed', JSON.stringify(states()));
+    const n0 = fails();
+    await p.advance(1500);
+    ok('...no retry before the first backoff step (2 s)', fails() === n0, JSON.stringify(states()));
+    await p.advance(700);
+    ok('...a retry after it, by itself', fails() === n0 + 1, JSON.stringify(states()));
+    await p.advance(3000);
+    ok('...the next step is longer (5 s), not another 2 s', fails() === n0 + 1, JSON.stringify(states()));
+    await p.advance(3000);
+    ok('...and it does come', fails() === n0 + 2, JSON.stringify(states()));
+    ok('...without flashing the pill (the retry is the chip\'s business)', p.badge.style.opacity !== '1' || p.badge.textContent === 'Sync failed', p.badge.textContent);
+    p.opts.failPagesCommit = false;
+    await p.window.NBDDsCloud.retry();
+    await p.advance(0);
+    ok('a tap on the chip (NBDDsCloud.retry) pushes at once and the chip goes to synced with a time', states().slice(-1)[0] === 'synced' && p.chipEvents.slice(-1)[0].at > 0, JSON.stringify(states()));
+    ok('...and the retries stop (nothing further fails or syncs once it is synced)', (await p.advance(400000), states().slice(-1)[0] === 'synced'), JSON.stringify(states().slice(-3)));
+  }
+  {
+    const p = boot();
+    await p.signIn('U1');
+    ok('signing in tells the chip: syncing, then synced', p.chipEvents.some((e) => e.cloud === 'syncing' && e.signedIn === true) && p.chipEvents.slice(-1)[0].cloud === 'synced', JSON.stringify(p.chipEvents));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

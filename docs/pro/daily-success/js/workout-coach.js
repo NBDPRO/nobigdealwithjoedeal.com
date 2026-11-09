@@ -26,6 +26,7 @@
   const ROUTINES = 'nbd_ds_coach_routines';   // [{ id, name, split, lifts: [{ exId, name, slot, sets }] }] - this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
+  const REST = 'nbd_ds_coach_rest';   // { until, label } - the running rest timer, this device only (so a reload or a closed coach does not lose it)
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -256,9 +257,12 @@
     if (!was) opener = document.activeElement;
     el.classList.add('open'); document.body.classList.add('wc-lock'); render();
     if (!was) (el.querySelector(FOCUSABLE) || el).focus();
+    if (window.NBDNav) window.NBDNav.opened('coach', close);
+    updateRestBar();
   }
   function close() {
-    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard();
+    if (window.NBDNav) window.NBDNav.closed('coach');
+    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard(); updateRestBar();
     const o = opener; opener = null;
     let back = o && document.contains(o) ? o : null;
     // The card is re-drawn on close, so the opener may be gone: use the new button with the same action.
@@ -638,11 +642,12 @@
     const t = document.getElementById('wcRestT'), b = document.getElementById('wcRestBtn');
     if (t) t.innerHTML = restLine();
     if (b) b.textContent = restLeft() > 0 ? 'Skip' : 'OK';
+    updateRestBar();
     const A = window.NBDA11yLogic;
     if (A) { const r = A.restSay(restLeft(), rest.said || ''); rest.said = r.said; say(r.say); }
   }
-  function startRest(seconds, label) {
-    rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
+  function persistRest() { if (rest) writeJson(REST, { until: rest.until, label: rest.label }); else try { localStorage.removeItem(REST); } catch (_) { /* nothing to clear */ } }
+  function runRest() {
     clearInterval(restTimer);
     restTick();
     restTimer = setInterval(() => {
@@ -651,7 +656,36 @@
       if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
     }, 1000);
   }
-  function stopRest() { rest = null; clearInterval(restTimer); }
+  function startRest(seconds, label) {
+    rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
+    persistRest();
+    runRest();
+  }
+  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); }
+  // A rest that was running when the page was closed or reloaded. One that ended more than a minute ago is dropped; one that
+  // ended since is shown as "Go" without buzzing (the alert for it is long past).
+  function restoreRest() {
+    const r = readJson(REST, null);
+    if (!r || !(Number(r.until) > Date.now() - 60000)) { if (r) persistRest(); return; }
+    rest = { until: Number(r.until), label: String(r.label || ''), buzzed: Number(r.until) <= Date.now(), said: '' };
+    runRest();
+  }
+  // The slim "Rest m:ss - Skip" bar: whenever a rest is running and the coach is closed (the coach shows its own line while open),
+  // so the alert is never a mystery. One element, built once; only its two text nodes change.
+  function updateRestBar() {
+    let b = document.getElementById('dsRestBar');
+    if (!rest || isOpen()) { if (b) b.hidden = true; return; }
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'dsRestBar'; b.className = 'wc-restbar';
+      b.innerHTML = '<span class="wc-restbar-t" role="timer" aria-live="off"></span><button type="button" class="wc-restbar-b" data-coach-action="skip-rest"></button>';
+      document.body.appendChild(b);
+    }
+    const left = restLeft();
+    b.hidden = false;
+    b.firstChild.textContent = left > 0 ? 'Rest ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : 'Go \u2014 next set';
+    b.lastChild.textContent = left > 0 ? 'Skip' : 'OK';
+  }
 
   // Rest-over alert. iPhone Safari has no navigator.vibrate, so the default also beeps; WebAudio only plays after a tap,
   // so the audio context is unlocked inside the set's checkmark tap (unlockAudio) and reused when the timer ends.
@@ -981,6 +1015,7 @@
 
   function boot() {
     if (!C()) return;
+    restoreRest();
     if (hookFitness() && typeof window.renderPage === 'function') {
       try { if (document.getElementById('fit-pb')) window.renderPage(); } catch (_) {}
     }

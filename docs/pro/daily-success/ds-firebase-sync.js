@@ -76,15 +76,48 @@ function injectBadge() {
 // success messages so a failed save is actually seen.
 const BADGE_MS = 2400, BADGE_ERR_MS = 7000;
 let _badgeTimer = null;
+let _quiet = false;   // an automatic retry is running: the chip shows it, the pill stays out of the way
 function showBadge(text, color, ms) {
-  if (!_badge) return;
+  if (!_badge || _quiet) return;
   _badge.textContent = text;
   _badge.style.color = color || 'var(--ac-text,#E4783F)';
   _badge.style.opacity = '1';
   clearTimeout(_badgeTimer);
   _badgeTimer = setTimeout(() => { _badge.style.opacity = '0'; }, ms || BADGE_MS);
 }
-const showError = (text) => showBadge(text, null, BADGE_ERR_MS);
+const showError = (text) => { showBadge(text, null, BADGE_ERR_MS); chipFailed(); };
+
+// ── the one sync chip (audit M9) ──────────────────────────────────────────
+// js/sync-chip-ui.js draws the persistent state into #sdot from these events: { cloud, signedIn, at }. The pill above stays as the
+// short confirmation. A failure is retried with backoff (sync-chip-logic.js), at once when the network comes back, or by a tap on the chip.
+let _cloud = 'idle', _synced = false, _user = null, _attempt = 0, _retryT = null;
+const emit = (cloud, extra) => {
+  _cloud = cloud;
+  try {
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('nbd-ds-sync', { detail: Object.assign({ cloud, signedIn: !!_uid }, extra || {}) }));
+  } catch (_) { /* the chip is best-effort */ }
+};
+const chipOk = () => { _attempt = 0; clearTimeout(_retryT); emit('synced', { at: Date.now() }); };
+function chipFailed() {
+  emit('failed');
+  clearTimeout(_retryT);
+  if (!_uid) return;
+  const C = window.NBDSyncChip;
+  _retryT = setTimeout(retrySync, C && C.backoffMs ? C.backoffMs(++_attempt) : 5000);
+}
+// Not through showError/showBadge: a retry that fails again must not flash the pill every few seconds.
+async function retrySync() {
+  clearTimeout(_retryT);
+  if (!_uid) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) { emit('failed'); return; }
+  if (!_synced) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
+  emit('syncing');
+  try { await pushToFirestore(readJson(STORE, [])); await pushSettings(); chipOk(); }
+  catch (e) { console.warn('[ds-sync] retry failed', e && e.code); chipFailed(); }
+}
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('online', () => { if (_uid && _cloud === 'failed') retrySync(); });
+}
 
 const readJson = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
 
@@ -246,31 +279,41 @@ async function pushWorkout(session) {
   } catch (e) { console.warn('[ds-sync] workout push failed', e && e.code); return false; }
 }
 
-window.NBDDsCloud = { pushSettings, pushWorkout };
+window.NBDDsCloud = { pushSettings, pushWorkout, retry: retrySync };
 
+let _intercepted = false;
 function installInterceptor() {
+  if (_intercepted) return;
   const orig = window.savePages;
   if (!orig) { setTimeout(installInterceptor, 500); return; }
+  _intercepted = true;
   window.savePages = function() {
-    orig.apply(this, arguments);
-    if (!_uid) return;
+    // savePages reports a full / blocked storage as false instead of throwing; the cloud push has nothing new to send then.
+    const wrote = orig.apply(this, arguments);
+    if (wrote === false) return wrote;
+    if (!_uid) return wrote;
     clearTimeout(_syncTimer);
     showBadge('Saving...');
+    emit('syncing');
     _syncTimer = setTimeout(() => {
-      pushToFirestore(readJson(STORE, [])).catch(() => showError('Sync failed'));
+      pushToFirestore(readJson(STORE, [])).then(chipOk).catch(() => showError('Sync failed'));
     }, DEBOUNCE);
+    return wrote;
   };
 }
 
 injectBadge();
 
-onAuthStateChanged(auth, async user => {
-  if (!user) { _acct = null; announceAccount(); showBadge('Offline mode'); return; }
+async function onAuth(user) {
+  if (!user) { _acct = null; _uid = null; _user = null; clearTimeout(_retryT); announceAccount(); showBadge('Offline mode'); emit('idle', { signedIn: false }); return; }
+  if (!_user || _user.uid !== user.uid) _synced = false;
+  _user = user;
   _uid = user.uid;
   _acct = user.uid;
   announceAccount();
   installInterceptor();
   showBadge('Loading...');
+  emit('syncing');
   try {
     if (!L()) { showError('Sync error'); return; }
     // Shared phone: another account was last signed in here (the dashboard records nbd_last_uid), so its local pages, workouts, food
@@ -282,8 +325,8 @@ onAuthStateChanged(auth, async user => {
     if (L().accountSwitched(lastUid, user.uid)) {
       const canPurge = () => !!(window.NBDAuth && typeof window.NBDAuth.purgeAccountStorage === 'function');
       for (let i = 0; i < 30 && !canPurge(); i++) await new Promise((r) => setTimeout(r, 100));
-      if (!canPurge()) { dropPhotosDb(); showBadge('Sync paused'); return; }
-      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { dropPhotosDb(); showBadge('Sync paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
+      if (!canPurge()) { dropPhotosDb(); showBadge('Sync paused'); emit('paused'); return; }
+      try { await window.NBDAuth.purgeAccountStorage(); } catch (_) { dropPhotosDb(); showBadge('Sync paused'); emit('paused'); return; }   // a rejected purge pauses the sync: nbd_last_uid is not advanced
       try { if (typeof window.loadPages === 'function') window.loadPages(); } catch (_) { /* the purge already ran; the sync below repopulates */ }
     }
     try { localStorage.setItem('nbd_last_uid', user.uid); } catch (_) { /* best-effort */ }
@@ -312,6 +355,7 @@ onAuthStateChanged(auth, async user => {
     try { await pushToFirestore(merged.pages); } catch (e) { failed = true; console.warn('[ds-sync] pages push failed', e && e.code); }
     try { await syncWorkouts(); } catch (e) { failed = true; console.warn('[ds-sync] workout sync failed', e && e.code); }
     if (failed) showError('Sync error');
-    else showBadge(merged.pages.length + ' days loaded', '#2ECC8A');
+    else { _synced = true; showBadge(merged.pages.length + ' days loaded', '#2ECC8A'); chipOk(); }
   } catch(e) { showError('Sync error'); }
-});
+}
+onAuthStateChanged(auth, onAuth);

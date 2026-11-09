@@ -25,6 +25,13 @@
 <script type="module" src="/pro/daily-success/js/auth-init.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* DESIGN.md foundation tokens (audit M15), mirrored from docs/pro/css/ui-primitives.css so new cards use the same space, type and radius
+   steps. Values only: nothing below reads them yet, so no layout changes. tests/ds-flow-batch-2-2026-11-09.test.js keeps them in step. */
+:root{
+  --ui-space-1:4px;--ui-space-2:8px;--ui-space-3:12px;--ui-space-4:16px;--ui-space-5:20px;--ui-space-6:24px;--ui-space-8:32px;--ui-space-10:40px;--ui-space-12:48px;
+  --ui-fs-display:28px;--ui-fs-title:20px;--ui-fs-heading:16px;--ui-fs-body:14px;--ui-fs-body-sm:13px;--ui-fs-caption:12px;--ui-fs-label:11px;
+  --ui-radius-xs:4px;--ui-radius-sm:6px;--ui-radius-md:8px;--ui-radius-lg:12px;--ui-radius-pill:999px;
+}
 [data-theme="dark"], [data-theme="nbd-original"], [data-theme="default"]{
   --bg:#0A0C0F;--bar:#111418;--tabbar:#181C22;--taboff:#1a2a45;
   --paper:#f5f3ef;--ink:#1a1a1a;--rule:#d4c9b0;--muted:#8a9ab0;
@@ -73,7 +80,9 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-h
 .tbtitle{font-family:'Barlow Condensed',sans-serif;font-size:20px;color:#f4efe6;letter-spacing:.06em;white-space:nowrap;font-weight:700;text-transform:uppercase;}
 .tbl-divider{width:1px;height:22px;background:rgba(189,87,40,.3);flex-shrink:0;}
 .sdot{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;transition:color .25s;white-space:nowrap;font-weight:600;}
-.sdot.ok{color:#4caf82;}.sdot.dirty{color:var(--gold);}.sdot.neu{color:#8fa1b8;}
+.sdot.ok{color:#4caf82;}.sdot.dirty{color:var(--gold);}.sdot.neu{color:#8fa1b8;}.sdot.err{color:#ff8a80;}
+.sdot[role=button]{cursor:pointer;text-decoration:underline;padding:8px 0;}
+.sdot{flex-shrink:0;}
 .tbr{display:flex;align-items:center;gap:4px;flex-shrink:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.tbr::-webkit-scrollbar{display:none;}
 .btn{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;line-height:1.2;height:32px;display:flex;align-items:center;gap:4px;}
 .btn-red{background:var(--ac);color:#fff;}.btn-red:hover{background:#a14a22;}
@@ -171,9 +180,6 @@ button,input,select,textarea{font-family:inherit;}
 .dsc-bar-fill{height:100%;background:linear-gradient(90deg,var(--ac),var(--gold));border-radius:2px;transition:width .4s ease;}
 
 /* SECTION CARDS */
-.pc{background:var(--paper);width:100%;max-width:760px;border-radius:4px;overflow:hidden;box-shadow:var(--shad);}
-.ph{display:flex;align-items:center;gap:11px;padding:13px 26px;border-bottom:2px solid var(--ink);cursor:pointer;user-select:none;transition:background .15s;}
-.ph:hover{background:rgba(0,0,0,.03);}
 .collapse-ico{margin-left:auto;font-size:13px;color:var(--muted);opacity:.45;transition:transform .22s;flex-shrink:0;}
 .pc.collapsed .collapse-ico{transform:rotate(-90deg);}
 .pc{background:var(--paper);width:100%;max-width:760px;border-radius:8px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s;}
@@ -531,7 +537,7 @@ canvas{max-width:100%;display:block;}
 
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
-<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=22">
+<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=23">
 <link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=13">
 <link rel="stylesheet" href="/pro/daily-success/css/week-strip.css?v=2">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=2">
@@ -817,6 +823,8 @@ body.has-banner .today-bar{top:calc(148px + var(--sat));}
      bar below follows the 100px header: tab row 100, content 150, search bar 100, banner 100 (+96 tall). */
   .topbar{flex-wrap:wrap;height:calc(100px + var(--sat));align-content:flex-start;padding:var(--sat) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));}
   .tbl{width:100%;height:52px;}
+  .sd-l{display:none;}   /* the sync chip's long-only words ("ON PHONE", "TAP TO"): room for about 130 px in this row */
+  .tbtitle{min-width:0;overflow:hidden;text-overflow:ellipsis;}
   .tbr{width:100%;height:48px;flex-shrink:0;gap:6px;}
   .tbr > *{flex-shrink:0;}
   /* the strip scrolls sideways (DELETE / CSV / PDF / SAVE live past the edge), and the scrollbar is hidden: fade the right edge so a
@@ -1194,14 +1202,17 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/day-layout-logic.js?v=4"></script>
 <script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/notebook-logic.js?v=1"></script>
+<script src="/pro/daily-success/js/sync-chip-logic.js?v=1"></script>
+<script src="/pro/daily-success/js/sync-chip-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/nav-router.js?v=1"></script>
 <script src="/pro/daily-success/js/app.js"></script>
 <script src="/pro/daily-success/js/notebook-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/exercise-notes-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=19"></script>
 <script src="/pro/daily-success/js/volume-range-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/workout-coach.js?v=25"></script>
+<script src="/pro/daily-success/js/workout-coach.js?v=26"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/tracker-history-ui.js?v=2"></script>
+<script src="/pro/daily-success/js/tracker-history-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/business-tile-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/business-tile-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/checkin-logic.js?v=1" defer></script>
@@ -1237,10 +1248,10 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/food-search-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-ui.js?v=2" defer></script>
-<script src="/pro/daily-success/js/review-ui.js?v=8"></script>
+<script src="/pro/daily-success/js/review-ui.js?v=9"></script>
 <script src="/pro/daily-success/js/week-training-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/money-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/money-ui.js?v=2"></script>
+<script src="/pro/daily-success/js/money-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/export-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/export-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
@@ -1342,5 +1353,5 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="nbd-toast" id="nbd-toast"></div>
 
 </body>
-  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=7"></script>
+  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=8"></script>
 </html>
