@@ -149,7 +149,9 @@ console.log('\n4. failure modes never leak and never wedge');
 console.log('\n5. source shape (comment-stripped)');
 {
   const src = SYNC_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
-  const cb = src.slice(src.indexOf('onAuthStateChanged(auth, async user'));
+  // The auth callback is the named onAuth(user) (flow batch 2 let the sync chip retry it); it is registered on every auth change.
+  const cb = src.slice(src.indexOf('async function onAuth(user)'));
+  ok('the named onAuth is what onAuthStateChanged runs', src.indexOf('async function onAuth(user)') > -1 && /onAuthStateChanged\(auth,\s*onAuth\)/.test(src));
   ok('the purge sits before the first cloud read in the auth callback', cb.indexOf('purgeAccountStorage()') > -1 && cb.indexOf('purgeAccountStorage()') < cb.indexOf('syncSettings()') && cb.indexOf('purgeAccountStorage()') < cb.indexOf('pullFromFirestore()'));
   ok('control: a commented-out purge would not satisfy that pin', !/purgeAccountStorage\(\)/.test('// window.NBDAuth.purgeAccountStorage();'.replace(/(^|[^:'"])\/\/[^\n]*/g, '$1')));
 }
