@@ -54,7 +54,8 @@ Where it is wired:
 - `photo-engine.js` `uploadPhotoToFirebase`: the device `capturedAt` pinned at capture stays the
   photo's identity and the fallback. EXIF GPS wins over a camera session fix, and `onSite` is
   measured from it to the lead.
-- `customer-bootstrap.module.js` `uploadSinglePhoto`: the fields are merged into the photo doc.
+- `customer-bootstrap.module.js` `uploadSinglePhoto`: the fields are merged into the photo doc. Since the
+  review round, they come through `PhotoEngine.photoExif` (see below).
 - `dashboard-bootstrap.module.js` `_uploadPhoto`, a HELD file: two lines, around 4890 and 4893.
 - `customer-photo-hub.js` `photoTime` reads `deviceCapturedAt` before `capturedAt`. A photo that was
   just uploaded, with `createdAt` not yet resolved, still sorts as just uploaded instead of under an
@@ -109,3 +110,16 @@ integration branch `claude/funny-hawking-t9zyzm`, so the plan is reachable from 
 - **Fixed, defect 5: a stalled module fetch.** The 4 s ceiling now covers the `import()` of
   `photo-exif.js` and the read together, on all three paths. In the held file this rewrote line 4890,
   the import line this branch added.
+- **Fixed, found by the gates after the rebase: the customer page boot budget.** The base left the
+  customer page 8 B under its shipped ceiling of 1379328 B, and this branch put it at 1379603 B.
+  The ceiling stays where it is. The changes:
+  - `photo-engine.js` (the lazy photos bundle) exposes its raced read as `PhotoEngine.photoExif`.
+  - `uploadSinglePhoto` already loads that bundle first, so it now makes one call:
+    `window.PhotoEngine?.photoExif?.(file, timestamp)`. If the bundle fails to load, the doc is
+    written the way it was before this branch, with no `capturedAt`.
+  - To offset the bytes in the same function without changing behaviour: one log line's
+    parenthetical moved into a comment, and three guards now use optional chaining.
+
+  Measured at 1379318 B after the change.
+- Emulator: `install-completed-at` is 24/24, now with job-doc cases. `photo-exif-fields` is 9/9,
+  and the dashboard shape there now carries `uploadedAt`.
