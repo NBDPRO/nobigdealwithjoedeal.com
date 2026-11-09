@@ -98,19 +98,26 @@ const _tasksFromCache = new Set();
 // it laid back over the task (js/task-call-text.js, lazy, open tasks only on
 // this whole-book load). A viewer, a failed load or a refused read keeps the
 // generic task.
-async function _overlayCallText(tasks) {
+// keys[i] is the lead in task i's PATH: the call text is read there, never at
+// a stored leadId field (which can differ), and each task keeps its own
+// fields. Same length and order as tasks (review 2026-11-09).
+async function _overlayCallText(tasks, keys) {
   try {
     const w = window;
     if (!(tasks||[]).some(t=>t&&t.callText===true&&t.done!==true) || ((w._userClaims||{}).role||'')==='viewer') return tasks;
     if (!w.NBDTaskCallText && w.ScriptLoader) await w.ScriptLoader.load('js/task-call-text.js?v=1');
-    return w.NBDTaskCallText ? await w.NBDTaskCallText.overlay(w, tasks, { openOnly: true }) : tasks;
+    if (!w.NBDTaskCallText) return tasks;
+    const probe = tasks.map((t,i)=>t && keys && keys[i] && t.leadId!==keys[i] ? Object.assign({}, t, { leadId: keys[i] }) : t);
+    const full = await w.NBDTaskCallText.overlay(w, probe, { openOnly: true });
+    return full.map((t,i)=>t===probe[i] ? tasks[i] : Object.assign(t, { leadId: tasks[i].leadId }));
   } catch (_) { return tasks; }
 }
 async function _loadTasks(leadId) {
   if (!window._taskCache) window._taskCache = {};
   try {
     const snap = await getDocs(query(collection(db,'leads',leadId,'tasks'), orderBy('createdAt','asc')));
-    const tasks = await _overlayCallText(snap.docs.map(d=>({id:d.id,leadId,...d.data()})));
+    const docs = snap.docs.map(d=>({id:d.id,leadId,...d.data()}));
+    const tasks = await _overlayCallText(docs, docs.map(()=>leadId));
     window._taskCache[leadId] = tasks;
     if (snap.metadata && snap.metadata.fromCache) _tasksFromCache.add(leadId);
     else _tasksFromCache.delete(leadId);
@@ -181,10 +188,10 @@ async function _loadAllTasksGroup() {
   const cg = window.collectionGroup || (await import(_FS_SDK)).collectionGroup;
   const snap = await getDocs(query(cg(db, spec.group), where(spec.field, '==', spec.value), orderBy(spec.orderBy, spec.dir)));
   const by = plan.groupTasksByLead(snap.docs.map(d=>({ id: d.id, parentPath: d.ref && d.ref.parent ? d.ref.parent.path : '', data: d.data() })));
-  const flat = [];
-  Object.keys(by).forEach(k=>by[k].forEach(t=>flat.push(t.leadId ? t : Object.assign(t, { leadId: k }))));
-  const full = await _overlayCallText(flat);
-  if (full !== flat) { Object.keys(by).forEach(k=>{ by[k] = []; }); full.forEach(t=>by[t.leadId].push(t)); }
+  const flat = [], keys = [];
+  Object.keys(by).forEach(k=>by[k].forEach(t=>{ keys.push(k); flat.push(t.leadId ? t : Object.assign(t, { leadId: k })); }));
+  const full = await _overlayCallText(flat, keys);
+  if (full !== flat) { Object.keys(by).forEach(k=>{ by[k] = []; }); full.forEach((t,i)=>by[keys[i]].push(t)); }
   return { by, fromCache: !!(snap.metadata && snap.metadata.fromCache) };
 }
 async function loadAllTasks(opts) {

@@ -178,6 +178,53 @@ function memDb(seed) {
     const done = await CT.overlay(w, [Object.assign({}, task, { done: true })], { openOnly: true });
     ok('openOnly: a done task is not read', done[0].text === 'Send estimate');
   }
+  // Review 2026-11-09 item 1: the dashboard regroups and reads call text by
+  // the lead in the task's PATH, never by a stored leadId field that differs.
+  {
+    const vm = require('vm');
+    const SRC = read('docs/pro/js/tasks.js');
+    const TP = require(path.join(ROOT, 'docs/pro/js/today-plan.js'));
+    const rows = [
+      { id: 'cube-c9', parent: 'leads/L1/tasks', data: { title: 'Follow up with Kim', text: 'Follow up with Kim', callText: true, done: false, leadId: 'LSTALE', companyId: 'co1', userId: 'u1' } },
+      { id: 't2', parent: 'leads/L2/tasks', data: { text: 'plain', done: false, companyId: 'co1', userId: 'u1' } },
+    ];
+    const rig = () => {
+      const log = { cg: 0, perLead: [], sideReads: [] };
+      const listeners = {};
+      const g = { console: { log() {}, warn() {}, error() {} }, Promise, Object, Array, Set, Map, JSON, Date, Math, String, Number, Error,
+        setTimeout: () => 0, clearTimeout() {}, CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
+        document: { readyState: 'complete', addEventListener() {}, getElementById() { return null; }, querySelector() { return null; }, createElement() { return { textContent: '', innerHTML: '' }; } },
+        addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+        dispatchEvent(ev) { (listeners[ev.type] || []).forEach((fn) => fn(ev)); return true; },
+        db: {}, auth: { currentUser: null }, _leads: [], _leadsLoaded: false, _taskCache: {}, _user: null, _userClaims: {},
+        NBDTodayPlan: TP, NBDTaskCallText: CT, renderLeads() {}, showToast() {}, serverTimestamp: () => '__TS__',
+        collection: (_db, ...segs) => ({ segs }), collectionGroup: (_db, name) => ({ cg: name }), query: (base, ...cons) => ({ base, cons }),
+        where: (f, op, v) => ({ where: [f, op, v] }), orderBy: (f, d) => ({ orderBy: [f, d || 'asc'] }),
+        doc: (_db, ...segs) => segs.join('/'),
+        getDoc: async (p) => { log.sideReads.push(p); return { exists: () => p === 'leads/L1/task_call_text/cube-c9', data: () => ({ full: { title: 'FULLTEXT the leak (Kim)', text: 'FULLTEXT the leak (Kim)' }, generic: { title: 'Follow up with Kim', text: 'Follow up with Kim' } }) }; },
+        getDocs: async (q) => {
+          const base = q.base || q;
+          if (base.cg) { log.cg++; return { metadata: { fromCache: false }, docs: rows.map((r) => ({ id: r.id, ref: { parent: { path: r.parent } }, data: () => Object.assign({}, r.data) })) }; }
+          const leadId = base.segs && base.segs[1]; log.perLead.push(leadId);
+          return { metadata: { fromCache: false }, docs: rows.filter((r) => r.parent === 'leads/' + leadId + '/tasks').map((r) => ({ id: r.id, data: () => Object.assign({}, r.data) })) };
+        },
+        addDoc: async () => ({ id: 'n' }), updateDoc: async () => {}, deleteDoc: async () => {} };
+      g.window = g; vm.createContext(g); vm.runInContext(SRC, g, { filename: 'tasks.js' });
+      g._leads = [{ id: 'L1', userId: 'u1', companyId: 'co1' }, { id: 'L2', userId: 'u1', companyId: 'co1' }];
+      g._user = { uid: 'u1' }; g._userClaims = { role: 'company_admin', companyId: 'co1' }; g._leadsLoaded = true;
+      return { g, log };
+    };
+    const r = rig();
+    await r.g.loadAllTasks(); for (let i = 0; i < 20; i++) await new Promise((s) => setImmediate(s));
+    const c = (r.g._taskCache.L1 || []).find((x) => x.id === 'cube-c9');
+    ok('dashboard: a call task whose stored leadId differs from its path stays in group mode (no per-lead fallback)', r.log.cg === 1 && r.log.perLead.length === 0, JSON.stringify(r.log));
+    ok('…is filed under the lead in its path, with the call text read from that lead', !!c && c.title === 'FULLTEXT the leak (Kim)' && r.log.sideReads.join() === 'leads/L1/task_call_text/cube-c9', JSON.stringify({ c, reads: r.log.sideReads }));
+    ok('…and keeps its stored leadId field as before', !!c && c.leadId === 'LSTALE' && (r.g._taskCache.L2 || []).length === 1);
+    const r2 = rig();
+    const one = await r2.g._loadTasks('L1');
+    const c2 = (one || []).find((x) => x.id === 'cube-c9');
+    ok('the per-lead read (task panel / fallback) reads the call text at the path\'s lead too', !!c2 && c2.title === 'FULLTEXT the leak (Kim)' && r2.log.sideReads.join() === 'leads/L1/task_call_text/cube-c9', JSON.stringify({ c2, reads: r2.log.sideReads }));
+  }
   const tasksJs = read('docs/pro/js/tasks.js');
   const cust = read('docs/pro/js/customer-bootstrap.module.js');
   ok('tasks.js lays the call text over the one task load (lazy, never for a viewer)', /NBDTaskCallText/.test(tasksJs) && /task-call-text\.js\?v=\d+/.test(tasksJs));
