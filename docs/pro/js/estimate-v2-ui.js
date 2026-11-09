@@ -5843,7 +5843,7 @@
       (chips ? '<div class="v2-call-chips">' + chips + '</div>' : '') +
       (notes.length ? '<ul class="v2-call-notes">' + notes.map((x) => '<li>' + _callEsc(x) + '</li>').join('') + '</ul>' : '') +
       tpls +
-      '<div class="v2-call-meta">Choices only, each marked from call: × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
+      '<div class="v2-call-meta">Choices only, each marked ' + (where === 'on the call' ? 'from call' : 'from the walkthrough') + ': × undoes one. Measurements and prices come from you and your price book. Nothing is saved until you press Save.</div></details>';
   }
   function _callWhere() { return _callPrefill && /^visit_/.test(String(_callPrefill.callId || '')) ? 'at the walkthrough' : 'on the call'; }
   const CALL_STRIP_SEEN_KEY = 'nbd.callStripSeen';

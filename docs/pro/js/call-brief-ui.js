@@ -664,7 +664,7 @@
     if (b.transcriptOk && b.transcriptOk.reliable === false) return '';
     var wk = b.fields && b.fields.workKind && b.fields.workKind.value;
     var label = wk === 'repair' ? 'Start repair quote' : 'Start estimate';
-    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons ' + (isVisit() ? 'named at the walkthrough' : 'the caller named') + ', each marked from call. ' +
+    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons ' + (isVisit() ? 'named at the walkthrough, each marked from the walkthrough. ' : 'the caller named, each marked from call. ') +
       (wk === 'repair' ? 'Repair templates are offered for a quick quote. ' : '') +
       'Measurements and prices come from you and your price book; nothing is saved until you press Save.</div>' +
       (S.err && S.err['draft:estimate'] ? '<div class="cb-err" role="alert">' + esc(S.err['draft:estimate']) + '</div>' : '') +
@@ -868,7 +868,7 @@
       var who = whoDecides(S.brief);
       var one = a === 'dm-copy' ? who[i] : null;
       if (a === 'dm-copy' && !one) return;
-      var txt = one ? whoLine(one) : 'Who decides (heard on the call):\n' + who.map(function (d) { return '- ' + whoLine(d); }).join('\n');
+      var txt = one ? whoLine(one) : 'Who decides (' + (isVisit() ? 'heard at the walkthrough' : 'heard on the call') + '):\n' + who.map(function (d) { return '- ' + whoLine(d); }).join('\n');
       S.dmCopied = S.dmCopied || {};
       S.dmCopied[one ? i : 'all'] = (await copyText(txt)) ? 'Copied' : 'Could not copy. Select the text and copy it.';
       render(); return;

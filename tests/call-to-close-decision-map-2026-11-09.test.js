@@ -201,7 +201,7 @@ const ctx = () => ({ transcript: TRANSCRIPT, stageKeys: B.tenantStages(null).map
     ok('Copy puts the label and the quote on the clipboard', copied[0] && /my husband/.test(copied[0]) && /before we sign anything/.test(copied[0]), copied);
     ok('…and says Copied', /Copied/.test(section(CB._render(), 'cbWhoH')));
     await click({ 'data-cb-act': 'dm-copy-all' });
-    ok('Copy list copies both, marked heard on the call', copied[1] && /my husband/.test(copied[1]) && /the HOA/.test(copied[1]) && /heard on the call/i.test(copied[1]), copied);
+    ok('Copy list copies both, marked heard on the call', copied[1] && /my husband/.test(copied[1]) && /the HOA/.test(copied[1]) && /^Who decides \(heard on the call\):/.test(copied[1]), copied);
     ok('copying calls no server function (nothing is logged, written or sent)', calls.length === 0, calls);
   }
   {

@@ -311,6 +311,7 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     await tick(600);
     const vh = CP().panelHtml();
     ok('P2 integration: a walkthrough\'s strip says "From the walkthrough" and "mentioned at the walkthrough", never "on the call"', /From the walkthrough/.test(vh) && /Gutters mentioned at the walkthrough/.test(vh) && !/on the call|From the call/.test(vh), vh.slice(0, 400));
+    ok('…and its footer says "each marked from the walkthrough", never "from call" (final review 2026-11-09)', /each marked from the walkthrough:/.test(vh) && !/from call/.test(vh), (vh.match(/v2-call-meta">[^<]*/) || [''])[0]);
     ok('…and its square-count words say "Said at the walkthrough"', /^Said at the walkthrough/.test(CP().sqftHintHtml()), CP().sqftHintHtml());
     const PFM = W.NBDEstimateCallPrefill;
     const noWords = { scope: { mentions: { chimney: true }, mentionQuotes: { chimney: '' } } };

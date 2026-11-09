@@ -229,6 +229,18 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     const order = ['cbSumH', 'cbObjH', 'cbWhoH'].map((id) => html.indexOf('id="' + id + '"'));
     ok('…after the objections, in the one sheet order (summary, …, objections, who decides, drafts)', order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], order);
   }
+  {
+    // Final review 2026-11-09: Copy list's header and the drafts copy say walkthrough too.
+    const B = Object.assign(clone(BRIEF), { people: [{ role: 'spouse', name: null, said: 'my husband', decides: true, quote: 'I need to ask my husband first' }] });
+    const { CB, dlg, win, click } = load({ brief: B, generatedAtMs: 1, decisions: [] });
+    const copied = [];
+    win.navigator = { clipboard: { writeText: async (t) => { copied.push(t); } } };
+    await CB.openVisit(clone(OPEN));
+    await click({ 'data-cb-act': 'dm-copy-all' });
+    ok('a walkthrough\'s Copy list header says "Heard at the walkthrough", never "on the call"', copied[0] && /^Who decides \(heard at the walkthrough\):/.test(copied[0]) && !/on the call/i.test(copied[0]), copied);
+    const html = dlg.innerHTML;
+    ok('the walkthrough drafts copy says "each marked from the walkthrough", never "from call"', /named at the walkthrough, each marked from the walkthrough\./.test(html) && !/from call/.test(html), (html.match(/Opens the estimate builder[^<]*/) || [''])[0]);
+  }
   finish();
 
   function finish() {
