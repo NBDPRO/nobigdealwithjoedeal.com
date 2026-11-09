@@ -1654,6 +1654,7 @@
     "firestore-rules.voicemail-viewers.test.js",
     "firestore-rules.install-completed-at.test.js",
     "firestore-rules.photo-exif-fields.test.js",
+    "firestore-rules.project-consent.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

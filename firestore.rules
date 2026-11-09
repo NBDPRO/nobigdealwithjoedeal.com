@@ -244,7 +244,9 @@ service cloud.firestore {
         // Texting consent evidence is server-captured only (2026-10-19, see the update rule).
         'tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion',
         // Owner-confirmed source (2026-10-19): set only by the owner, on an update.
-        'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'
+        'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt',
+        // The project-page consent tick (2026-11-09): set only by the owner, on an update.
+        'projectConsent'
       ]);
     }
     // A customerId whose leading segment is a RESERVED prefix
@@ -516,6 +518,28 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys()
                .hasAny(['confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'])
         || (confirmedSourceRoleOk() && confirmedSourceShapeOk());
+    }
+
+    // 2026-11-09 (content plan §2 step 1) — leads/{id}.projectConsent, the
+    // consent tick: the homeowner said yes to their job becoming a public
+    // project page (scripts/draft-project-page.mjs refuses without on == true;
+    // it maps to projects.json consentOnFile: true). Jo confirms each job
+    // himself, so the writer set is the same owner side as confirmedSource
+    // (confirmedSourceRoleOk: platform admin, the lead's company_admin, a solo
+    // operator who owns the lead); managers, reps and viewers cannot set,
+    // clear or delete it. When it changes it is exactly {on: bool, by: the
+    // caller, at: request.time} (or removed). Unchanged, ordinary lead saves
+    // by any writer are unaffected. Never present on a create.
+    function projectConsentWriteOk() {
+      let pc = request.resource.data.get('projectConsent', null);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['projectConsent'])
+        || (confirmedSourceRoleOk()
+            && (pc == null
+                || (pc is map
+                    && pc.keys().hasOnly(['on', 'by', 'at'])
+                    && pc.get('on', null) is bool
+                    && pc.get('by', null) == request.auth.uid
+                    && pc.get('at', null) == request.time)));
     }
 
     // 2026-09-15 (Warranty Claim lane) — the denormalized pointer to the
@@ -834,6 +858,7 @@ service cloud.firestore {
           && openClaimIdOk()
           && scheduleWindowOk()
           && portalNoteOk()
+          && projectConsentWriteOk()
         );
       allow delete: if (isOwner(resource.data.userId) && notViewer())
         || isAdmin()
