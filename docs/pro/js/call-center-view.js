@@ -23,6 +23,12 @@
  * a customer whose last call, 2-30 days ago, got no promise, follow-up or
  * stage move: Brief / Follow-up / Dismiss (callCenterAction rescueDismiss).
  *
+ * "Looks like one call" (Call to Close P2, 2026-11-09; call-merge-logic.js):
+ * two calls from one number, the second within 10 minutes of the first's
+ * end, get a Merge button (callCenterAction merge; Undo = unmerge). The
+ * redial (mergedInto) leaves every list; the first call's card says so,
+ * still plays it, and its Call Brief reads both transcripts.
+ *
  * Reads mirror firestore.rules on phone_calls: own userId always, plus
  * companyId for company_admin / manager / viewer. Viewers get no buttons.
  * Lazy bundle 'callcenter' (script-loader.js); goTo('calls') calls init().
@@ -38,7 +44,7 @@
   var PROMISE_WINDOW_MS = 45 * 86400000;   // = NBDHomeAttention.PROMISE_WINDOW
   // readFailed: which reads came back as errors on the last load (QA 2026-10-13).
   // A list built from a failed read is NOT "nothing needs you"; render says so.
-  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {} };
+  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {}, mergedAway: {} };
 
   // Date / direction / sort filters (call-center-filters-logic.js, Jo 2026-10-21). They narrow the same list the tabs and the
   // search narrow; the choice is saved between visits. customOpen keeps the two date boxes showing while Jo picks.
@@ -88,6 +94,11 @@
   function txGate(c) {
     var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
     return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager'))) && c.status === 'stored' && !!c.storagePath && !c.transcript;
+  }
+  // P2: Merge / Undo merge, same roles (functions/call-center.js mergeAction re-checks both calls).
+  function canActOn(c) {
+    var cl = claims(), me = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    return !isViewer() && (cl.role === 'admin' || me === c.userId || !!(cl.companyId && cl.companyId === c.companyId && (cl.role === 'company_admin' || cl.role === 'manager')));
   }
   function todayYmd() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
   function fmtPhone(d) {
@@ -435,6 +446,47 @@
       '</div>';
   }
 
+  // ── Split calls (Call to Close P2) ─────────────────────────────────
+  // Pairs the open list suggests (call-merge-logic.js), indexed both ways.
+  var mergeCache = { rows: null, idx: {} };
+  function mergeIdx() {
+    var MG = window.NBDCallMerge;
+    if (!MG || isViewer()) return {};
+    if (mergeCache.rows !== state.calls) {
+      var idx = {};
+      try {
+        MG.candidates(state.calls).forEach(function (p) {
+          idx[p.primaryId] = { other: p.secondaryId, first: true, gapMs: p.gapMs };
+          idx[p.secondaryId] = { other: p.primaryId, first: false, gapMs: p.gapMs };
+        });
+      } catch (_) { idx = {}; }
+      mergeCache = { rows: state.calls, idx: idx };
+    }
+    return mergeCache.idx;
+  }
+  function clock(ms) { return ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+  function gapText(ms) { var m = Math.round(Math.max(0, Number(ms) || 0) / 60000); return m < 1 ? 'under a minute' : m + ' min'; }
+  function mergeRow(c) {
+    if (!c || c.channel === 'text' || !canActOn(c)) return '';
+    if (c.mergedFrom) {
+      // The redial may be older than the calls loaded: the card still says so and can split them.
+      var away = state.mergedAway[c.id] && state.mergedAway[c.id].id === c.mergedFrom ? state.mergedAway[c.id] : null;
+      return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Merged with the redial' + (away ? ' at ' + esc(clock(away.startedAtMs)) +
+        (away.durationSec ? ' (' + esc(fmtDur(away.durationSec)) + ')' : '') : '') + '. One call now: the brief reads both.</span>' +
+        '<span class="pc-actions">' + (away && away.storagePath ? '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(away.id) + '">▶ Play the redial</button>' : '') +
+        '<button type="button" class="btn btn-ghost pc-play cc-suggest-btn" data-cc="unmerge" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Undo merge</button></span>' +
+        (away ? '<div class="pc-audio" data-cc-audio="' + esc(away.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(away.id) + '"></div>' : '') + '</div>';
+    }
+    var m = mergeIdx()[c.id];
+    var o = m ? byId(m.other) : null;
+    if (!o || !canActOn(o)) return '';
+    var note = m.first ? 'The line may have dropped: the same number called again at ' + clock(o.startedAtMs) + ', ' + gapText(m.gapMs) + ' after this call ended.'
+      : 'This may be a redial of the ' + clock(o.startedAtMs) + ' call from the same number, ' + gapText(m.gapMs) + ' after it ended.';
+    return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Looks like one call. Merge?</span><span class="cc-suggest-note">' + esc(note) +
+      ' Both recordings and notes stay; the redial leaves the list and the brief reads both.</span>' +
+      '<button type="button" class="btn btn-ghost pc-play cc-suggest-btn" data-cc="merge" data-id="' + esc(c.id) + '" data-arg="' + esc(o.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Merge into one call</button></div>';
+  }
+
   function renderCall(c, L) {
     if (c.channel === 'text') return renderTextDay(c, L);
     var lead = c.leadId ? L[c.leadId] : null;
@@ -487,7 +539,7 @@
       (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
       (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
       (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') +
-      fileRow(c) + suggestRow(c) +
+      fileRow(c) + suggestRow(c) + mergeRow(c) +
       '<div class="pc-actions">' + actions + '</div>' +
       '<div class="cc-attach" data-cc-attach="' + esc(c.id) + '" hidden></div>' +
       '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div>' +
@@ -519,7 +571,7 @@
       return '<li class="cc-group-call" data-call-id="' + esc(c.id) + '">' +
         '<div class="pc-meta">' + esc(when) + ' · ' + esc(kind) + (c.durationSec ? ' · ' + esc(fmtDur(c.durationSec)) : '') + (c.urgent ? ' · <b>urgent</b>' : '') + '</div>' +
         (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
-        (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
+        (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') + mergeRow(c) +
         (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button></div>' +
           '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' : '') +
         '</li>';
@@ -751,7 +803,12 @@
     return res && res.data;
   }
 
-  function byId(id) { return state.calls.filter(function (c) { return c.id === id; })[0]; }
+  function byId(id) {
+    var c = state.calls.filter(function (x) { return x.id === id; })[0];
+    if (c) return c;
+    // A merged redial is off every list but still plays from its first call's card.
+    return Object.keys(state.mergedAway).map(function (k) { return state.mergedAway[k]; }).filter(function (x) { return x.id === id; })[0];
+  }
 
   async function play(id) {
     var c = byId(id);
@@ -806,6 +863,12 @@
       if (action === 'rescueDismiss') undoToast('Dismissed from Needs a next step', function () { return act(id, 'rescueUndismiss'); });
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
+      if (action === 'merge' || action === 'unmerge') {
+        await load();
+        var keep = r && r.primaryId ? r.primaryId : id;
+        if (action === 'merge' && r && r.merged) undoToast('Merged into one call', function () { return act(keep, 'unmerge'); });
+        status(keep, action === 'merge' ? 'Merged. Draft from this call to read both.' : 'Split back into two calls.');
+      }
       return r;
     } catch (e) {
       delete state.busy[id];
@@ -1455,7 +1518,10 @@
     render();
     // Labels load beside the calls; either failing leaves the old rule.
     var got = await Promise.all([fetchCalls(), ensureLabels()]);
-    state.calls = got[0];
+    // A merged redial (mergedInto) is hidden from every list and count; its first call's card carries it.
+    var away = {};
+    state.calls = got[0].filter(function (c) { if (c.mergedInto && c.channel !== 'text') { away[c.mergedInto] = c; return false; } return true; });
+    state.mergedAway = away;
     state.loading = false; state.loaded = true;
     render();
     if (state.again) { state.again = false; load(); }
@@ -1485,6 +1551,13 @@
   function loadRescue() {
     if (window.NBDCallRescue || isViewer() || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
     Promise.resolve(window.ScriptLoader.load('/pro/js/call-rescue-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* the tab stays hidden */ });
+  }
+
+  // "Looks like one call" reads call-merge-logic.js, fetched once when the
+  // Call Center opens (never at boot; no suggestion until it has arrived).
+  function loadMerge() {
+    if (window.NBDCallMerge || isViewer() || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
+    Promise.resolve(window.ScriptLoader.load('/pro/js/call-merge-logic.js?v=1')).then(function () { if (state.loaded) render(); }, function () { /* no suggestions */ });
   }
 
   // The Call Brief sheet (call-brief-ui.js) loads on the first tap only.
@@ -1517,6 +1590,8 @@
     else if (a === 'brief') openBrief(id);
     else if (a === 'tx') openBrief(id, 1);
     else if (a === 'rescuedismiss') act(id, 'rescueDismiss');
+    else if (a === 'merge') act(id, 'merge', { withId: b.getAttribute('data-arg') });
+    else if (a === 'unmerge') act(id, 'unmerge');
     else if (a === 'autobrief') toggleAutoBrief();
     else if (a === 'label') {
       var lc = byId(id);
@@ -1575,7 +1650,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadAutoBrief(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); loadRescue(); loadMerge(); loadAutoBrief(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,

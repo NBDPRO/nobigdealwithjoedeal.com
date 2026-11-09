@@ -194,7 +194,8 @@
   }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
-    if (!c || c.handledAtMs || c.status === 'personal') return false;
+    // A merged redial (Call to Close P2) is carried by its first call.
+    if (!c || c.handledAtMs || c.status === 'personal' || c.mergedInto) return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
     // Parked with a date: not open until that day arrives (mirror of the server).
     if (parkedUntil(c, t)) return false;
@@ -286,7 +287,7 @@
   function isOldPromise(c, now) {
     const t = now == null ? Date.now() : now;
     // A texted promise counts too (QA 2026-10-13: it appeared nowhere past 45 days).
-    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true) return false;
+    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.mergedInto) return false;
     return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c, t);
   }
   function oldPromiseCount(rows, now) {

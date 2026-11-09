@@ -143,7 +143,8 @@
         }
       }
     }
-    return Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) {
+    // A merged redial (Call to Close P2) shows through its first call.
+    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto; }).sort(function (a, b) {
       return callTime(b) - callTime(a);
     });
   }
@@ -179,6 +180,7 @@
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
     var summary = c.summary || (c.transcript ? '' : c.status === 'short' ? 'Short call (under 15 seconds).' : 'Recorded on your phone. Notes appear here once it is transcribed.');
     if (c.urgent) chips += chip('Urgent', '#7f1d1d', '#fecaca');
+    if (c.mergedFrom) chips += chip('Merged with the redial', 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
     // AI notes (functions/call-center.js stage 2): who promised what.
     var promises = Array.isArray(c.promises) ? c.promises : [];
     var promisesHtml = promises.length ? '<ul class="pc-promises">' + promises.map(function (p) {
