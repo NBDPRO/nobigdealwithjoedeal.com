@@ -278,6 +278,7 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     const actA = db.docs.get('leads/aLead/activity/cube-cube_a1'), taskA = db.docs.get('leads/aLead/tasks/cube-cube_a1');
     ok('timeline entry on Acme\'s lead, keyed to Acme', actA && actA.userId === A.owner && actA.companyId === A.cid, actA);
     ok('follow-up task on Acme\'s lead for Acme\'s owner', taskA && taskA.userId === A.owner, taskA);
+    ok('…stamped with Acme\'s company, so Acme\'s teammates see it in their task list', taskA && taskA.companyId === A.cid, taskA);
     ok('nothing filed on NBD\'s or Beta\'s lead from Acme\'s call', !db.docs.has('leads/nbdLead/activity/cube-cube_a1') && !db.docs.has('leads/bLead/activity/cube-cube_a1'));
     ok('the urgent push went to each tenant\'s own owner, never NBD\'s', pushes.length === 2 && pushes.every((p) => p.uid === A.owner || p.uid === B.owner), pushes);
     const bells = [...db.docs.entries()].filter(([k]) => k.startsWith('notifications/')).map(([, v]) => v.userId);

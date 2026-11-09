@@ -966,6 +966,9 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         await db.doc('leads/' + call.leadId + '/activity/cube-' + call.id)
           .set(Object.assign(L.buildCallActivity({ call: full, notes, ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId }), { createdAt: FieldValue.serverTimestamp() }));
         const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: fd.owner, todayYmd: today, nowMs });
+        // A tenant's task carries its company, so its teammates' task list
+        // (scoped by companyId) sees it; NBD's stays as it was.
+        if (task && !fd.nbd) task.companyId = fd.companyId;
         // create(): a re-run must never un-tick a task Jo already completed.
         if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         // The lead itself knows Jo talked to them (lastContactedAt, followUp).
