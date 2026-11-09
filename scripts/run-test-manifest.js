@@ -462,7 +462,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1014/74/1152 -> 1025/74/1163, NBD OS P3 joins Jo's follow-ups on this branch: Pocket,
 //               Knock block, privacy lock, tenant wallpaper palette, KPI tiles + Copy my setup, Nearby and
 //               the P3 integration suite. MEASURED via --check.
-const FLOORS = { node: 1025, smoke: 74, disk: 1163 };
+//   2026-11-09  1025/74/1163 -> 1026/74/1164, the Q11 task-summary backfill suite (script dry run /
+//               --apply / scope, and the REST adapter's collection-group query). MEASURED via --check.
+const FLOORS = { node: 1026, smoke: 74, disk: 1164 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

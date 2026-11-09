@@ -53,7 +53,7 @@ Re-verified after this round: `check-js-syntax` (2383 files), `run-test-manifest
 
 **Q11 (viewers) is not fully closed.** The PR body must carry this list so nobody reads Q11 as done.
 
-1. **Old tasks backfill (viewers).** Tasks filed before this branch still carry `Call: <summary>` (Call Center) or Thursday's `Summary:` / `Urgent:` lines, and a viewer can read them: the tasks read rule is unchanged. `scrubTaskSummary` runs only when a Call Center task is moved, never on a Thursday task. The backfill is described in the P0 note, not written or run. Needs Jo's OK before any `--apply`.
+1. **Old tasks backfill (viewers).** Tasks filed before this branch still carry `Call: <summary>` (Call Center) or Thursday's `Summary:` / `Urgent:` lines, and a viewer can read them: the tasks read rule is unchanged. `scrubTaskSummary` runs only when a Call Center task is moved, never on a Thursday task. The backfill is described in the P0 note, not written or run. Needs Jo's OK before any `--apply`. *(Update 2026-11-09: the script now exists and has not been run; see "Q11 task-summary backfill" below.)*
 2. **Viewer-readable call-derived text still open.** Each is listed with options in the P0 note's review round. **Jo decides each one:**
    - Thursday task titles, `Call back X - <issue>` built from `shortIssue(ex, call)` (`functions/integrations/thursday-logic.js` `buildTask`).
    - Call Brief promise tasks `leads/{id}/tasks/promise-<callId>-<n>`, and the "You said you would" lines on `cube-` tasks.
@@ -67,3 +67,16 @@ Re-verified after this round: `check-js-syntax` (2383 files), `run-test-manifest
 ## Gaps
 
 - **Demo path.** `customer-calls.js` renders only on `/pro/customer(.html)`, so in the demo (`/pro/explore/customer`) the Calls card says "Loading calls…" for every role. Older than these lanes; the screenshots patch the path check in the shot script only.
+
+## Q11 task-summary backfill (2026-11-09)
+
+The backfill for item 1 of "What Jo must run or decide" now exists: `scripts/backfill-q11-task-summaries.js`. **It has not been run against production. `--apply` needs Jo's OK.**
+
+- **What it does.** It reads every `leads/{leadId}/tasks` doc whose id starts with `cube-`, `sms-` or `thursday-`, and puts its notes through `scrubTaskSummary` (`functions/call-center-logic.js`; `'thursday'` mode for `thursday-` tasks). It writes only when that changes the notes, and then only `notes` plus `updatedAt` (server time, as every server-side task write in `functions/call-center.js` does), with `update()`. It never deletes a task, never touches other prefixes, top-level `/tasks`, or already-clean notes. A second run finds 0 to change.
+- **Output is counts only** (scanned, skipped, clean, to scrub per prefix, written, failures). It never prints notes or a write's error text.
+- **Dry run (the default, read-only):**
+  - `node scripts/backfill-q11-task-summaries.js` (every company)
+  - `node scripts/backfill-q11-task-summaries.js --company <companyId>` (one company: `lead.companyId`, or `lead.userId` for a lead with no `companyId`)
+  - Credentials: ADC, or token mode with `NBD_ACCESS_TOKEN=$(gcloud auth print-access-token)`. Token mode uses `scripts/_firestore-rest.js`, which now has a collection-group query (`collectionGroup(id).orderBy('__name__').limit(n).startAfter(doc).get()` over `documents:runQuery`).
+- **Write:** the same command with `--apply`, only after Jo's OK.
+- Test: `tests/q11-task-summary-backfill-2026-11-09.test.js` (node bucket), against a fake Firestore and a fake REST server.
