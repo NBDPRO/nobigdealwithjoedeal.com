@@ -36,6 +36,7 @@
   if (!NL) return;
 
   var ROWS = { s: 1, m: 2, l: 4 };
+  var GUARD_MS = 20000;   // longer than the 15 s the browser gets once permission is granted
   // fix: { lat, lng, at } in memory only; err: nearby-logic geoError; all: the "All you can see" view
   var S = { fix: null, asking: false, err: null, all: false };
 
@@ -71,8 +72,12 @@
     repaint();
     refocus(card);
     var done = false;
+    // Firefox never calls back when the prompt is dismissed ("Not now" or X), and the spec's
+    // timeout only counts once permission is granted: this guard ends the wait either way
+    var guard = W.setTimeout(function () { fail({ code: 3 }); }, GUARD_MS);
+    function settle() { done = true; try { W.clearTimeout(guard); } catch (e) {} }
     function ok(p) {
-      if (done) return; done = true;
+      if (done) return; settle();
       var c = p && p.coords ? NL.coordsOf({ lat: p.coords.latitude, lng: p.coords.longitude }) : null;
       S.asking = false;
       if (c) { S.fix = { lat: c.lat, lng: c.lng, at: Date.now() }; S.err = null; }
@@ -81,7 +86,7 @@
       refocus(card);
     }
     function fail(e) {
-      if (done) return; done = true;
+      if (done) return; settle();
       S.asking = false; S.fix = null; S.err = NL.geoError(e);
       repaint();
       refocus(card);

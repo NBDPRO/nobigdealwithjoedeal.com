@@ -226,6 +226,29 @@ const find = (T, el) => click(T.dom, el.querySelector('[data-oshw-nb="find"]'));
     ok('S denied: "Location off" in the title, then Try again; nothing else to clip', /Location off/.test(text(el.querySelector('.os-hw-title'))) && !el.querySelector('p') && /Try again/.test(text(el)), text(el));
   }
   {
+    // Firefox: dismissing the prompt with "Not now" or X never calls back, and the spec's
+    // timeout only counts once permission is granted, so a guard timer ends the wait
+    const { T, g, card } = await mount([{ id: 'nearby', s: 'm' }]);
+    const el = card('nearby-1');
+    find(T, el);
+    ok('a read that never answers: still asking at first', /Finding where you are/.test(text(el)) && g.calls.length === 1, text(el));
+    T.fire(20000);
+    ok('after 20 s with no answer: the timeout line and Try again', /took too long/.test(text(el)) && /Try again/.test(text(el)) && T.W.NBDOSNearby.state().asking === false, text(el));
+    find(T, el);
+    ok('Try again asks once more after the guard fired', g.calls.length === 2);
+    g.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    ok('an answer after a fresh ask lands normally', el.querySelectorAll('.os-nb-row').length === 2, text(el));
+    T.fire(20000);
+    ok('the first ask\'s guard, fired late, does not undo the newer answer', el.querySelectorAll('.os-nb-row').length === 2, text(el));
+    const { T: T2, g: g2, card: card2 } = await mount([{ id: 'nearby', s: 'm' }]);
+    const el2 = card2('nearby-1');
+    find(T2, el2); g2.answer(HERE);
+    for (let i = 0; i < 3; i++) await tick();
+    T2.fire(20000);
+    ok('an answered read: its guard timer is cleared and changes nothing', el2.querySelectorAll('.os-nb-row').length === 2 && T2.timers.filter((t) => t.ms === 20000 && t.fn).length === 0, text(el2));
+  }
+  {
     const { T, card } = await mount([{ id: 'nearby', s: 'm' }], { geo: false });
     const el = card('nearby-1');
     find(T, el);
