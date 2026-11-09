@@ -61,7 +61,8 @@
   function miText(mi) {
     if (typeof mi !== 'number' || !isFinite(mi) || mi < 0) return '';
     if (mi < 0.1) return 'Under 0.1 mi';
-    if (mi < 10) return (Math.round(mi * 10) / 10).toFixed(1) + ' mi';
+    var tenths = Math.round(mi * 10) / 10;   // round first, then pick the format: 9.96 is "10 mi", not "10.0 mi"
+    if (tenths < 10) return tenths.toFixed(1) + ' mi';
     return String(Math.round(mi)) + ' mi';
   }
   function ownerOf(l) { return l ? String(l.userId || l.assignedTo || '') : ''; }

@@ -84,6 +84,7 @@ const find = (T, el) => click(T.dom, el.querySelector('[data-oshw-nb="find"]'));
     [{}, { lat: 39 }, { lat: '', lng: '' }, { lat: 'abc', lng: -84 }, { lat: true, lng: -84 }, { lat: 91, lng: 0 }, { lat: 39, lng: -181 }, { lat: 0, lng: 0 }, null, 'x'].every((l) => NL.coordsOf(l) === null));
   ok('miles: Cincinnati to Columbus is about 99 miles (great circle)', Math.abs(NL.miles({ lat: 39.1031, lng: -84.512 }, { lat: 39.9612, lng: -82.9988 }) - 99) < 3, NL.miles({ lat: 39.1031, lng: -84.512 }, { lat: 39.9612, lng: -82.9988 }));
   ok('miText: under a tenth, one decimal under 10, whole miles after', NL.miText(0.04) === 'Under 0.1 mi' && NL.miText(0.44) === '0.4 mi' && NL.miText(3) === '3.0 mi' && NL.miText(12.6) === '13 mi' && NL.miText(NaN) === '' && NL.miText(-1) === '');
+  ok('miText rounds first, then picks the format: 9.95 to 9.99 is "10 mi", never "10.0 mi"', NL.miText(9.95) === '10 mi' && NL.miText(9.999) === '10 mi' && NL.miText(9.94) === '9.9 mi' && NL.miText(0.1) === '0.1 mi', [9.95, 9.999, 9.94, 0.1].map(NL.miText).join(' | '));
   {
     const r = NL.nearest(LEADS, HERE, { uid: 'u1', scope: 'mine', n: 10 });
     ok('nearest (mine): own and unowned leads with a location, nearest first', J(r.rows.map((x) => x.id)) === J(['near', 'unowned', 'mid', 'far']), J(r.rows.map((x) => x.id)));
