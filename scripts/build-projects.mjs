@@ -39,6 +39,13 @@
  * USAGE:
  *   node scripts/build-projects.mjs            # restamp all surfaces
  *   node scripts/build-projects.mjs --check    # write nothing; exit 1 on drift
+ *   --strict                 with --check: no lag allowance (exact match for today only)
+ *   --live-on=YYYY-MM-DD     decide which projects are live as of that day instead of today
+ *
+ * LAG (2026-11-09, scripts/lib/date-gate.mjs): a future-dated project goes live on the first deploy after its date,
+ * and the weekly scheduled deploy restamps inside the job without committing. So --check also passes when every
+ * stamped surface is exactly the render as of an earlier day (projects went live since the last restamp) and says
+ * so; any other difference is drift and exits 1.
  *
  * TAXONOMY: every project carries services[] — 1+ keys of the SERVICES map
  * below. The keys are exactly the /services/ hub filenames, so one list
@@ -67,8 +74,10 @@
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { priceContext, parseAsOf, yearRuleErrors } from './project-price-context.mjs';
+import { readLiveOn, isLiveOn, lagCuts, lagNotice } from './lib/date-gate.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = path.join(ROOT, 'docs', 'assets', 'data', 'projects.json');
@@ -77,6 +86,9 @@ const SERVICES_DIR = path.join(ROOT, 'docs', 'services');
 const WALL = path.join(ROOT, 'docs', 'assets', 'data', 'homeowner-wall.json');
 const DETAIL_DIR = path.join(ROOT, 'docs', 'our-work');
 const CHECK = process.argv.includes('--check');
+const STRICT = process.argv.includes('--strict');
+let LIVE_ON;
+try { LIVE_ON = readLiveOn(process.argv.slice(2)); } catch (e) { console.error(`FATAL: ${e.message}`); process.exit(2); }
 
 // Key = /services/<key>.html hub page = filter value = strip target.
 // Order = filter-button order on /our-work.
@@ -247,11 +259,7 @@ if (process.exitCode) process.exit(1);
 const esc = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const today = new Date(); today.setHours(0, 0, 0, 0);
-const live = all.filter((p) => {
-  const d = new Date(p.published); d.setHours(0, 0, 0, 0);
-  return d <= today;                       // future date = staged, blog model
-});
+const live = all.filter((p) => isLiveOn(p.published, LIVE_ON.date)); // future date = staged, blog model
 // Newest first everywhere; Array.prototype.sort is stable, so same-date
 // entries keep their curated manifest order. New entries are appended at the
 // END of projects.json and still render first.
@@ -1412,6 +1420,19 @@ if (CHECK) {
   if (!stale.length) {
     console.log(`build-projects --check: ${live.length} live project(s), ${stripCount} hub strip(s), ${areaCount} area block(s), ${localCount} town-service strip(s), ${live.length} detail page(s) — all stamped surfaces clean.`);
     process.exit(0);
+  }
+  // Lag allowance: is the committed tree exactly an earlier day's render? Re-run this check as of each cut day
+  // (newest first) in a child, so every surface is compared exactly as a restamp on that day would have left it.
+  if (!STRICT && !LIVE_ON.given) {
+    const self = fileURLToPath(import.meta.url);
+    const passThrough = process.argv.slice(2).filter((a) => a !== '--check' && a !== '--strict' && !a.startsWith('--live-on='));
+    const lagged = lagCuts(all.map((p) => p.published), LIVE_ON.date).find((cut) => spawnSync(process.execPath,
+      [self, '--check', '--strict', `--live-on=${cut.iso}`, ...passThrough], { encoding: 'utf8' }).status === 0);
+    if (lagged) {
+      console.log(lagNotice(`build-projects --check: every stamped surface (${stale.length} differ from today's render)`, lagged,
+        'node scripts/build-projects.mjs'));
+      process.exit(0);
+    }
   }
   console.error(`build-projects --check: stale generated surfaces vs assets/data/projects.json:
 ${stale.map((s) => `  - ${s}`).join('\n')}
