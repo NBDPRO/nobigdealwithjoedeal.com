@@ -94,6 +94,20 @@ function memDb(seed) {
     d = memDb({ 'leads/A/task_call_text/cube-c1': SIDE('FROM text'), 'leads/B/tasks/cube-c1': { title: 'Follow up', callText: true } });
     await TCT.moveSide(d, 'leads/A/tasks/cube-c1', 'leads/B/tasks/cube-c1');
     ok('moveSide: a retry whose task copy already landed still carries the call text', (d.docs.get('leads/B/task_call_text/cube-c1') || { full: {} }).full.title === 'FROM text' && d.docs.get('leads/B/task_call_text/cube-c1').leadId === 'B');
+    // Review item 3: a call-text write that failed once is written by the re-run.
+    const task = TCT.split({ title: 'FULL issue text', source: 'cube-acr' }, { title: 'Follow up' });
+    const cia = async (ref, data) => { const s = await ref.get(); if (s.exists) return false; await ref.set(data); return true; };
+    d = memDb();
+    const flaky = Object.assign({}, d, { doc: (p) => { const r = d.doc(p); return /task_call_text/.test(p) && !flaky.ok ? Object.assign({}, r, { set: async () => { throw new Error('unavailable'); }, create: async () => { throw new Error('unavailable'); } }) : r; } });
+    let threw = false;
+    try { await TCT.createTaskIfAbsent(flaky, cia, 'leads/A/tasks/cube-c1', task); } catch (_) { threw = true; }
+    flaky.ok = true;
+    await TCT.createTaskIfAbsent(flaky, cia, 'leads/A/tasks/cube-c1', task).catch(() => {});
+    ok('createTaskIfAbsent: a call-text write that failed is written by the re-run (owner text not lost)', threw && d.docs.has('leads/A/tasks/cube-c1') && (d.docs.get('leads/A/task_call_text/cube-c1') || { full: {} }).full.title === 'FULL issue text', [...d.docs.keys()]);
+    ok('…and the stored task is still the generic one', d.docs.get('leads/A/tasks/cube-c1').title === 'Follow up' && !/FULL issue/.test(JSON.stringify(d.docs.get('leads/A/tasks/cube-c1'))));
+    d = memDb({ 'leads/A/tasks/cube-c1': { title: 'Follow up', callText: true }, 'leads/A/task_call_text/cube-c1': SIDE('FIRST text') });
+    await TCT.createTaskIfAbsent(d, cia, 'leads/A/tasks/cube-c1', TCT.split({ title: 'SECOND text' }, { title: 'Follow up' }));
+    ok('…but a re-run never rewrites call text that is already there', d.docs.get('leads/A/task_call_text/cube-c1').full.title === 'FIRST text');
   }
 
   console.log('\n2. the builders');

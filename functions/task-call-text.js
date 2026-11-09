@@ -74,6 +74,8 @@ function sideDoc(taskPath, task) {
   };
 }
 
+const alreadyExists = (e) => !!e && (e.code === 6 || e.code === 'already-exists' || /already exists/i.test(String(e.message || '')));
+
 /** Write (set) the task's call text next to it. No-op for a task without one. */
 async function writeSide(db, taskPath, task) {
   const p = sidePath(taskPath);
@@ -84,16 +86,25 @@ async function writeSide(db, taskPath, task) {
 
 /**
  * createIfAbsent(ref, data) is the caller's own (each writer has one). The
- * call text is written only when the task was created, so a re-run never
- * rewrites what a finished task points at.
+ * call text is written (set) when the task was created. When the task was
+ * already there, it is only created if missing (review 2026-11-09: a write
+ * that failed once, after the task landed, is filled by the next run), so a
+ * re-run never rewrites what a finished task points at.
  */
 async function createTaskIfAbsent(db, createIfAbsent, taskPath, task) {
   const made = await createIfAbsent(db.doc(taskPath), task);
   if (made) await writeSide(db, taskPath, task);
+  else await writeSideIfAbsent(db, taskPath, task);
   return made;
 }
 
-const alreadyExists = (e) => !!e && (e.code === 6 || e.code === 'already-exists' || /already exists/i.test(String(e.message || '')));
+/** writeSide, but never over call text that is already there. */
+async function writeSideIfAbsent(db, taskPath, task) {
+  const p = sidePath(taskPath);
+  if (!p || !task || !task.callTextFull) return false;
+  try { await db.doc(p).create(sideDoc(taskPath, task)); return true; }
+  catch (e) { if (alreadyExists(e)) return false; throw e; }
+}
 
 /**
  * Copy a task's call text along with a moved task, then remove the old one.
