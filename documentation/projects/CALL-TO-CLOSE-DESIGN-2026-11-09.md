@@ -139,6 +139,8 @@ Gates, in order:
 
 The pipeline that feeds the brief is single-tenant: `OWNER` falls back to NBD's uid (`call-center.js:36`), and the prompts name NBD (`call-center-logic.js:397`, `:434`). The Brief itself is tenant-clean: it reads `companyId` from the call and the lead, checks they match, and takes wording and stages from the tenant. It needs no change when ingest becomes multi-tenant.
 
+**Update 2026-11-09 (P2, lane "tenantfeed"):** the feed is now tenant-capable and still dark for everyone but NBD: a tenant runs only when `CALL_CENTER_MULTI_TENANT_ENABLED === 'true'` AND its `integrations/callCenter_{companyId}` config says `enabled: true`; its prompts take its name and region from `companyProfile`. NBD's pass is unchanged (golden test). See [SESSION-2026-11-09-call-to-close-p2-tenantfeed](SESSION-2026-11-09-call-to-close-p2-tenantfeed.md); Q6 (lawyer review first) stands.
+
 ## 4. The review sheet
 
 - **Where the button goes:** the card actions in `call-center-view.js` (delegated click router `:1355`) and `customer-calls.js:173-178` (`data-calls-act` buttons).
