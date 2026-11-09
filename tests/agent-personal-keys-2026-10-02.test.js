@@ -45,7 +45,9 @@ function ok(label, cond, detail) {
   ok('the change signature ignores the timestamp (no re-write when nothing changed)', snap.sig === snap2.sig && snap.asOf !== snap2.asOf);
   const today = L.personalToday(snap, NOW);
   ok('my_today: floors, streak with the missed-last-workday warning, weight, age', today.floors.length === 2 && today.streak.days === 9 && today.streak.missed_last_workday === true && today.weight.latest === 238.4 && today.as_of_hours_ago === 2, JSON.stringify(today));
-  ok('...named for the last workday, not yesterday (on a Monday the miss is Saturday; Sunday is optional)', !('missed_yesterday' in today.streak) && /Saturday/.test(L.TOOLS.my_today.description), JSON.stringify(today.streak));
+  ok('...named for the last workday, not yesterday (on a Monday the miss is Saturday; Sunday is optional)', /Saturday/.test(L.TOOLS.my_today.description), JSON.stringify(today.streak));
+  ok('...and the old missed_yesterday still rides along for one release, the same value, named deprecated', today.streak.missed_yesterday === today.streak.missed_last_workday
+    && /missed_yesterday[^.]*deprecated/.test(L.TOOLS.my_today.description), JSON.stringify(today.streak));
   const wk = L.personalWeek(snap, NOW);
   ok('my_week: floors out of 7, $ miss tax, weigh-in rule, goal, scorecard', wk.floors_pct === 86 && wk.miss_tax_dollars === 10 && wk.weigh_in.verdict === 'on-track' && wk.goal.to_go === 18.9 && /WEEKLY SCORECARD/.test(wk.scorecard), JSON.stringify(wk));
   ok('nothing published yet → says to open the tracker, no invented numbers', /has not published/.test(L.personalToday(undefined, NOW).note) && /has not published/.test(L.personalWeek({}, NOW).note));
