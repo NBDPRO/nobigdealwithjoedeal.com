@@ -684,7 +684,7 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
     ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', /window\.openEstimateV2Builder\(leadParam \? \{ leadId: leadParam \} : \{\}\)/.test(boot));
     const cb = read('functions/call-brief.js');
-    ok('callBriefDecide accepts the draft:estimate log item', /draft:proposal\|draft:estimate|draft:\(proposal\|estimate\)/.test(cb));
+    ok('callBriefDecide accepts the draft:estimate log item', /draft:proposal\|draft:estimate|draft:\((?:[A-Za-z]+\|)*estimate[|)]/.test(cb));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
