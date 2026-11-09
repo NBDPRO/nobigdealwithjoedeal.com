@@ -379,6 +379,7 @@ Walkthrough briefs, merging split calls, the decision-maker map (Q4), retention 
 9. **Should sales reps who own the lead get briefs?** That means widening `callCenterAction` too. *Default:* no.
 10. **May a seeded scope list be saved into the proposal's per-document overrides?** *Default:* no. It is shown as a list to copy in.
 11. **Stop viewers reading call transcripts** (`phone_calls`)? *Default:* yes, as a separate fix.
+    - *Update 2026-11-09:* done for `phone_calls`, then (Jo: "close all four") for `thursday_calls`, `phone_texts` / `phone_text_days`, call summaries on the customer (timeline rules, follow-up tasks) and lead briefs. Some call-derived text still reaches a viewer and is listed for Jo, not closed: see [the session note's review round](SESSION-2026-11-09-call-to-close-p0.md#review-round-2026-11-09-lane-fu-viewers).
 
 ---
 
