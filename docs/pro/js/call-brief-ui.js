@@ -30,6 +30,10 @@
  *      the Project Description seeded, and only when the customer has none
  *      (it persists to lead.scopeOfWork). Scope items are never seeded: the
  *      call's scope shows as a "From the call" list to copy in.
+ *   8. Start estimate / Start repair quote (P1, design §5.1, Q8): the
+ *      estimate builder with the call's CHOICES filled in (estimate-v2-ui.js
+ *      callPrefill). On the dashboard it opens the builder here; on the
+ *      customer page it goes to /pro/dashboard.html?lead=<id>&callBrief=<id>.
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
  * signed, and no stage moves. Everything shown is escaped.
  *
@@ -323,14 +327,26 @@
       '<div class="cb-meta">Nothing moves from here. You change the stage yourself.</div><div class="cb-acts">' + act + '</div></div></div>';
   }
 
+  // Start estimate (P1): fixed label, the repair wording only for a repair call.
+  function estimateDraftHtml() {
+    var b = S.brief || {};
+    if (b.transcriptOk && b.transcriptOk.reliable === false) return '';
+    var wk = b.fields && b.fields.workKind && b.fields.workKind.value;
+    var label = wk === 'repair' ? 'Start repair quote' : 'Start estimate';
+    return '<div class="cb-meta">Opens the estimate builder with the job type, work kind, tier, stories, layers and add-ons the caller named, each marked from call. ' +
+      (wk === 'repair' ? 'Repair templates are offered for a quick quote. ' : '') +
+      'Measurements and prices come from you and your price book; nothing is saved until you press Save.</div>' +
+      '<div class="cb-acts">' + btn(label, 'estimate', '', S.page === 'customer' ? 'btn-ghost' : 'btn-orange') + '</div>';
+  }
+
   function renderDrafts() {
     var hints = scopeHints(S.brief);
     var seed = projectSeed(S.brief, S.lead);
-    var body = S.page === 'customer'
+    var body = estimateDraftHtml() + (S.page === 'customer'
       ? '<div class="cb-meta">Opens the proposal' + (seed ? '. If its project description is empty, it is filled in from this call' : ' with its usual details') + '. You finish it, nothing is sent.</div>' +
         (hints.length ? '<div class="cb-meta">From the call (copy what fits into the scope list):</div><ul class="cb-list">' + hints.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ul>' : '') +
         '<div class="cb-acts">' + btn('Draft proposal', 'proposal', '', 'btn-orange') + '</div>'
-      : '<div class="cb-acts"><a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to draft a proposal</a></div>';
+      : '<div class="cb-acts"><a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to draft a proposal</a></div>');
     return '<div class="cb-sec" role="group" aria-labelledby="cbDraftH"><h3 class="cb-sec-title" id="cbDraftH">Drafts</h3><div class="cb-card">' + body + '</div></div>';
   }
 
@@ -481,6 +497,7 @@
       return;
     }
     if (a === 'proposal') { draftProposal(); return; }
+    if (a === 'estimate') { startEstimate(); }
   }
 
   /**
@@ -587,6 +604,27 @@
         wrap.appendChild(box);
       }
     })();
+  }
+
+  /**
+   * Start estimate (P1). The builder sets the call's choices only and saves
+   * nothing by itself. On the dashboard (the builder, or its load-then-run
+   * stub, is here) it opens over this page. On the customer page it goes to
+   * the dashboard's ?lead= branch, which opens the builder for that customer;
+   * the dashboard cleans its URL before the lazy builder loads, so the pair is
+   * also handed over in sessionStorage (estimate-v2-ui.js reads it once).
+   */
+  function startEstimate() {
+    var leadId = S.leadId, callId = S.callId, brief = S.brief, onDashboard = S.page !== 'customer';
+    if (!leadId) return;
+    decide('draft:estimate', 'accept', { value: 'opened the estimate builder' }).catch(function () {});
+    close();
+    if (onDashboard && typeof window.openEstimateV2Builder === 'function') {
+      window.openEstimateV2Builder({ leadId: leadId, callPrefill: { callId: callId, brief: brief } });
+      return;
+    }
+    try { window.sessionStorage.setItem('nbd.callBriefLink', JSON.stringify({ leadId: leadId, callId: callId, at: Date.now() })); } catch (_) { /* the URL still carries it */ }
+    window.location.href = '/pro/dashboard.html?lead=' + encodeURIComponent(leadId) + '&callBrief=' + encodeURIComponent(callId);
   }
 
   // ── open / close ───────────────────────────────────────────────────────

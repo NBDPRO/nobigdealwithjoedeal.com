@@ -1002,7 +1002,8 @@
     "call-brief-ui-2026-11-09.test.js",
     "call-brief-buttons-2026-11-09.test.js",
     "call-to-close-transcribe-now-2026-11-09.test.js",
-    "call-to-close-segment-confidence-2026-11-09.test.js"
+    "call-to-close-segment-confidence-2026-11-09.test.js",
+    "call-to-close-estimate-prefill-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
