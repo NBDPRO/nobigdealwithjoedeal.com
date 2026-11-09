@@ -173,7 +173,7 @@ const cols = (qs) => qs.map((q) => q.col);
   ok('…and skipped for a viewer', /if \(\(claims\.role \|\| ''\) !== 'viewer'\) for \(const scope of scopes\)/.test(thuBlock), thuBlock.slice(0, 0));
   const actReads = CB.match(/getDocs\([^\n]*'activity'[^\n]*\)/g) || [];
   ok('the customer page reads activity in two places, both through NBDCallTimeline (positive control)', (CB.match(/const CT = window\.NBDCallTimeline;/g) || []).length === 2);
-  ok('both activity reads go through NBDCallTimeline.activityQuery (the viewer-safe query)', (CB.match(/getDocs\(CT\.activityQuery\(window, (db|window\.db), leadId\)\)/g) || []).length === 2 && actReads.length === 0, actReads.join(' | '));
+  ok('both activity reads go through NBDCallTimeline.activityDocs (the viewer-safe query, retried when claims were late)', (CB.match(/await CT\.activityDocs\(window, (db|window\.db), leadId\)/g) || []).length === 2 && actReads.length === 0, actReads.join(' | '));
   delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/call-timeline.js'))];
   const CT = require(path.join(ROOT, 'docs/pro/js/call-timeline.js'));
   ok('call-timeline exports activityQuery and the viewer sources', typeof CT.activityQuery === 'function' && JSON.stringify(CT.VIEWER_SOURCES) === JSON.stringify(VIEWER_OK));
@@ -187,6 +187,29 @@ const cols = (qs) => qs.map((q) => q.col);
     const s = CT.activityQuery(W(null), {}, 'L1');
     ok('a solo owner (no claims yet) reads the whole collection, as before', s.col === 'leads/L1/activity' && !s.filters);
   }
+  if (typeof CT.activityDocs === 'function') {
+    // A viewer whose claims had not loaded yet sends the unfiltered list, which
+    // the rule refuses whole; activityDocs asks again with the viewer's sources.
+    const runDocs = async (role, deniedUnfiltered) => {
+      const sent = [];
+      const W = { _userClaims: role == null ? undefined : { role }, collection: (db, ...p) => ({ col: p.join('/') }),
+        query: (c, ...f) => ({ col: c.col, filters: f }), where: (f, op, v) => ({ f, op, v }),
+        getDocs: async (q) => { sent.push(q); if (!q.filters && deniedUnfiltered) { const e = new Error('denied'); e.code = 'permission-denied'; throw e; } return { docs: [{ id: 'note1' }] }; } };
+      let out, err;
+      try { out = await CT.activityDocs(W, {}, 'L1'); } catch (e) { err = e; }
+      return { sent, out, err };
+    };
+    const late = await runDocs(null, true);
+    ok('activityDocs: a viewer whose claims were late still gets the rows, through the viewer query', late.out && late.out.docs.length === 1 && late.sent.length === 2
+      && late.sent[1].filters && late.sent[1].filters[0].op === 'in' && JSON.stringify(late.sent[1].filters[0].v) === JSON.stringify(VIEWER_OK), late);
+    const own = await runDocs(null, false);
+    ok('activityDocs: a solo owner reads once, the whole collection (positive control)', own.out && own.sent.length === 1 && !own.sent[0].filters, own.sent);
+    const vw = await runDocs('viewer', true);
+    ok('activityDocs: a viewer with claims asks once, filtered', vw.out && vw.sent.length === 1 && vw.sent[0].filters, vw.sent);
+    const other = await (async () => { const W = { _userClaims: { role: 'manager' }, collection: (db, ...p) => ({ col: p.join('/') }), query: (c, ...f) => ({ col: c.col, filters: f }), where: (f, op, v) => ({ f, op, v }),
+      getDocs: async () => { const e = new Error('unavailable'); e.code = 'unavailable'; throw e; } }; try { await CT.activityDocs(W, {}, 'L1'); return null; } catch (e) { return e.code; } })();
+    ok('activityDocs: any other failure is passed on (the caller\'s catch decides)', other === 'unavailable', other);
+  } else ok('call-timeline exports activityDocs', false);
   const RULES = read('firestore.rules');
   const actRule = (RULES.match(/match \/activity\/\{activityId\} \{[\s\S]*?allow create/) || [''])[0];
   const ruleList = (actRule.match(/notViewer\(\) \|\| resource\.data\.source in (\[[^\]]*\])/) || [])[1];

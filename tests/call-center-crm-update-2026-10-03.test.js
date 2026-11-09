@@ -59,11 +59,11 @@ function ok(name, cond, detail) {
   console.log('\n2. customer page wiring');
   const cb = read('docs/pro/js/customer-bootstrap.module.js');
   const tl = cb.slice(cb.indexOf('async function loadTimeline('), cb.indexOf('// Sort by time (newest first)'));
-  ok('loadTimeline reads leads/{id}/activity through NBDCallTimeline', /getDocs\(CT\.activityQuery\(window, db, leadId\)\)/.test(tl) && /CT\.fromActivity\(d\.id, d\.data\(\)\)/.test(tl));
+  ok('loadTimeline reads leads/{id}/activity through NBDCallTimeline', /await CT\.activityDocs\(window, db, leadId\)/.test(tl) && /CT\.fromActivity\(d\.id, d\.data\(\)\)/.test(tl));
   const render = cb.slice(cb.indexOf('// Sort by time (newest first)'), cb.indexOf("document.getElementById('timelineList').innerHTML = html"));
   ok('…and every row is rendered through esc() (title + desc)', /\$\{esc\(item\.title\)\}/.test(render) && /\$\{esc\(item\.desc\)\}/.test(render));
   const rep = cb.slice(cb.indexOf('async function _gatherTimelineForReport('), cb.indexOf('async function _gatherNotesForReport('));
-  ok('the PDF report gathers the same calls + texts', /getDocs\(CT\.activityQuery\(window, window\.db, leadId\)\)/.test(rep) && /CT\.fromActivity/.test(rep));
+  ok('the PDF report gathers the same calls + texts', /await CT\.activityDocs\(window, window\.db, leadId\)/.test(rep) && /CT\.fromActivity/.test(rep));
   const html = read('docs/pro/customer.html');
   const iCT = html.indexOf('js/call-timeline.js?v='), iCB = html.indexOf('js/customer-bootstrap.module.js?v=');
   ok('customer.html loads call-timeline.js (defer) before the bootstrap module', iCT > 0 && iCB > iCT && /<script defer src="js\/call-timeline\.js\?v=\d+"><\/script>/.test(html));

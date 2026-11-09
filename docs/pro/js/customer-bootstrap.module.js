@@ -1497,7 +1497,7 @@ async function loadTimeline(leadId, lead) {
   try {
     const CT = window.NBDCallTimeline;
     if (CT) {
-      const actSnap = await getDocs(CT.activityQuery(window, db, leadId));
+      const actSnap = await CT.activityDocs(window, db, leadId);
       actSnap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
         if (row) timeline.push(Object.assign(row, { icon: row.icon || (row.kind === 'text' ? '💬' : '📞'), callEntry: row.kind === 'call' || row.kind === 'text' }));
@@ -4249,7 +4249,7 @@ async function _gatherTimelineForReport(leadId, lead) {
   try {
     const CT = window.NBDCallTimeline;
     if (CT) {
-      const snap = await getDocs(CT.activityQuery(window, window.db, leadId));
+      const snap = await CT.activityDocs(window, window.db, leadId);
       snap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
         // the away hand-back line is an internal note to the owner: not in a report

@@ -126,12 +126,21 @@
   // sources (firestore.rules allowlist; no call or text summary), and only
   // through a query that names them.
   const VIEWER_SOURCES = ['rep', 'visit-capture'];
-  function activityQuery(W, db, leadId) {
+  function activityQuery(W, db, leadId, viewer) {
     const col = W.collection(db, 'leads', leadId, 'activity');
-    return (W._userClaims || {}).role === 'viewer' ? W.query(col, W.where('source', 'in', VIEWER_SOURCES)) : col;
+    return viewer || (W._userClaims || {}).role === 'viewer' ? W.query(col, W.where('source', 'in', VIEWER_SOURCES)) : col;
+  }
+  // A viewer whose claims had not loaded yet sent the whole-collection list,
+  // which the rule refuses whole: ask once more for the viewer's sources.
+  function activityDocs(W, db, leadId) {
+    const v = (W._userClaims || {}).role === 'viewer';
+    return W.getDocs(activityQuery(W, db, leadId)).catch((e) => {
+      if (v || !e || e.code !== 'permission-denied') throw e;
+      return W.getDocs(activityQuery(W, db, leadId, 1));
+    });
   }
 
-  const api = { fromActivity, activityQuery, VIEWER_SOURCES };
+  const api = { fromActivity, activityQuery, activityDocs, VIEWER_SOURCES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallTimeline = api;
   if (root) root.nbdVisitBrief = (v, u) => root.ScriptLoader.load('js/call-brief-ui.js?v=4').then(() => root.NBDCallBrief.openVisit({ visitId: v, visitUid: u })).catch(() => root.showToast && root.showToast('Could not open the call brief. Try again in a moment.', 'error'));
