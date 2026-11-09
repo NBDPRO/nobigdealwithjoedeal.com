@@ -133,6 +133,24 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
       ok('a tap lazy-loads call-brief-ui.js through ScriptLoader (page-relative: the same resolved key as the call card\'s /pro/js/ URL)', loads.length === 1 && /^js\/call-brief-ui\.js\?v=\d+$/.test(loads[0]), loads);
       ok('…then opens the walkthrough sheet (the sheet takes this customer from the page)', opened.length === 1 && opened[0].visitId === 'vWalk0000001' && opened[0].visitUid === 'jo', opened);
     }
+    // call-brief-ui.js failed to load: ScriptLoader resolves anyway and
+    // NBDCallBrief is missing. The tap says so, as the call card does (review 2026-11-09).
+    const toasts = [];
+    const bad = { ScriptLoader: { load: async () => {} }, showToast: (m, k) => toasts.push([m, k]) };
+    timeline(bad);
+    await bad.nbdVisitBrief('vWalk0000001', 'jo');
+    await new Promise((r) => setTimeout(r, 5));
+    ok('the sheet did not load → a toast says the brief could not open (never a silent tap)', toasts.length === 1 && /Could not open the call brief/.test(toasts[0][0]) && toasts[0][1] === 'error', toasts);
+    const rej = { ScriptLoader: { load: async () => { throw new Error('offline'); } }, showToast: (m, k) => toasts.push([m, k]) };
+    timeline(rej);
+    await rej.nbdVisitBrief('vWalk0000001', 'jo');
+    await new Promise((r) => setTimeout(r, 5));
+    ok('…and when the load itself fails', toasts.length === 2);
+    const quietWin = { ScriptLoader: { load: async () => {} } };
+    timeline(quietWin);
+    let threw = false;
+    try { await quietWin.nbdVisitBrief('vWalk0000001', 'jo'); } catch (_) { threw = true; }
+    ok('…and a page with no showToast does not throw', !threw);
     for (const page of ['docs/pro/customer.html', 'docs/pro/dashboard.html']) ok(page + ' has no <script> tag for the sheet', !/<script[^>]+call-brief-ui\.js/.test(read(page)));
     const ver = (/call-brief-ui\.js\?v=(\d+)/.exec(TL) || [])[1];
     ok('the timeline loads the same sheet version as the call cards', ver && read('docs/pro/js/customer-calls.js').includes('call-brief-ui.js?v=' + ver), ver);
