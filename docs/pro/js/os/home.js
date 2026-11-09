@@ -93,6 +93,8 @@
   }
 
   // ── what the widgets read: memory only ───────────────────────
+  /** An element's visible words, whitespace folded (what the live region reads back). */
+  function text(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
   function todayPlan() {
     var T = W.NBDToday;
     return T && typeof T.last === 'function' ? T.last() : null;
@@ -885,8 +887,8 @@
       var srec = sb && recs[(sb.closest('[data-oshw]') || sb).getAttribute('data-oshw')];
       if (srec && W.NBDOSHomeP1 && typeof W.NBDOSHomeP1.stackTap === 'function') {
         var sw = sb.getAttribute('data-oshw-stack');
-        var n = (srec.it.items || []).filter(function (id) { return HL.CATALOG[id] && !hiddenId(id) && !!WIDGETS[id]; }).length;
-        W.NBDOSHomeP1.stackTap(srec, sw, n);
+        var nCards = (srec.it.items || []).filter(function (id) { return HL.CATALOG[id] && !hiddenId(id) && !!WIDGETS[id]; }).length;
+        W.NBDOSHomeP1.stackTap(srec, sw, nCards);
         paintOne(srec, true);
         var again = srec.el.querySelector('[data-oshw-stack="' + (sw === 'prev' || sw === 'next' || sw === 'why' ? sw : 'next') + '"]');
         if (again) { try { again.focus({ preventScroll: true }); } catch (e) {} }
@@ -982,7 +984,6 @@
       setEditing: setEditing, editing: function () { return editing; }, openAdd: openAdd, cellItems: cellItems, show: show,
     };
   }
-  function text(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
 
   W.NBDOSHome = { mount: mount, urgency: urgencyNow };
 })();

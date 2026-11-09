@@ -214,14 +214,14 @@
       '</div><p class="os-hw-why" id="' + k.esc(whyId) + '"' + (st.why ? '' : ' hidden') + '>' + k.esc(why) + '</p>';
     return '<div class="os-hw-stack-card os-hw-' + k.esc(id) + '">' + inner + '</div>' + bar;
   }
-  /** prev / next / why on a stack: the card moves, nothing re-picks. */
-  function stackTap(rec, what, cards) {
+  /** prev / next / why on a stack (nCards = how many cards it shows): the card moves, nothing re-picks. */
+  function stackTap(rec, what, nCards) {
     var st = rec.stack;
     var SLg = W.NBDOSStackLogic;
     if (!st || !SLg) return;
     if (what === 'why') { st.why = !st.why; return; }
-    if (cards < 2) return;
-    st.cur = SLg.step(cards, st.cur, what === 'prev' ? -1 : 1);
+    if (nCards < 2) return;
+    st.cur = SLg.step(nCards, st.cur, what === 'prev' ? -1 : 1);
     st.manual = true;
   }
 
