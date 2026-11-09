@@ -56,9 +56,9 @@ Checked and left as they are:
 
 - Transcribe now shows on any stored call the user can act on, but the server only takes the owner tenant's calls (single-tenant pipeline until P2).
 - `call_transcribe_quota` docs never expire (P2 retention should list them). **Update 2026-11-09 (P2 lane dmmap):** fixed, see "Quota TTL" below.
-- `callBriefAuto` starts on every `phone_calls` update (512 MiB, `maxInstances: 5`); the transition check returns before any read.
-- Chimney / skylight chips carry no quote (the brief keeps those mentions as yes / no).
-- The sheet has two filled buttons when a follow-up message and a proposal draft both show (Check and open in Messages, Draft proposal). Each is the main act of its own card.
+- `callBriefAuto` starts on every `phone_calls` update (512 MiB, `maxInstances: 5`); the transition check returns before any read. **Update 2026-11-09 (P2 lane dmmap):** a field compare (`filingChanged`) now runs first, and the trigger is 256 MiB; see below.
+- Chimney / skylight chips carry no quote (the brief keeps those mentions as yes / no). **Update 2026-11-09 (P2 lane dmmap):** fixed, a chip needs its quote; see below.
+- The sheet has two filled buttons when a follow-up message and a proposal draft both show (Check and open in Messages, Draft proposal). Each is the main act of its own card. **Update 2026-11-09 (P2 lane dmmap):** fixed, one filled button per sheet; see below.
 - The stage lane wrote no session note of its own; this note is its record.
 
 ## How it was checked
@@ -76,7 +76,17 @@ After the final review round (same branch, five fix commits): `check-js-syntax` 
 
 Screenshots of the integrated sheet, the Call Center and the builder at 375x812 and 1280x800 (demo account, no network): the section order above, no sideways scroll, no one-tap follow-up for a hard-to-hear date, an empty date on the hard-to-hear promise, the builder listing the hard-to-hear story count as a line and not filling it, 2 rescue rows with one Brief button, Transcribe now on the stored call, nothing blocked by the demo tripwire, no page errors.
 
-## Update 2026-11-09 (P2 lane "dmmap"): quota TTL
+## Update 2026-11-09 (P2 lane "dmmap"): who decides, and the P1 leftovers
+
+Branch `ctc-p2-dmmap` from `d1f7bfe0c`. Tests: `tests/call-to-close-decision-map-2026-11-09.test.js` and `tests/call-to-close-p1-leftovers-2026-11-09.test.js`, both written red first against `d1f7bfe0c`.
+
+- **Who decides (design §6 #5, Q4).** The brief schema gains `people[].said` (the words used for the person, verbatim: "my husband", "the HOA") and `people[].decides` (true only when the call says they must agree, approve or sign). `sanitizeBrief` keeps a name or `said` only when it sits inside the person's own grounded quote, drops instruction-shaped words, and marks a hard-to-hear quote. The sheet shows a "Who decides" section after the objections: each decider labelled as said (else name, else role), a "Heard on the call" badge, the quote, a Copy per person and a Copy list. Nothing is written to the customer, logged or sent. `BRIEF_VERSION` stays 1: a brief drafted before this has no deciders and shows no section until it is refreshed.
+- **Flashing chips need words.** The schema gains `scope.mentionQuotes { chimney, skylight }`; a quote must ground and name the thing. `estimate-call-prefill.js` makes a chimney / skylight flashing chip only with its quote; a mention with no words is a hint line ("…no exact words kept, so its flashing is not switched on"). An older brief (no `mentionQuotes`) no longer switches flashing on.
+- **One filled button.** The sheet picks one primary act: the Yes of the confirm being asked, else the follow-up message's send (when it renders), else a one-tap stage move, else Draft proposal (customer page) / Start estimate (Call Center). Every other button that used to be orange renders quiet.
+- **callBriefAuto.** `filingChanged(before, after)` compares only the fields the transition reads (status, callType, leadId, attachedBy / movedBy and their times, refiledFrom, the transcript, the alternates count) and returns before the transition, before the Firestore client is asked for, and before any read. Memory 512 MiB → 256 MiB (one fetch and the grounding pass); `maxInstances: 5` unchanged. Every start is still billed; only a filing does any work.
+- **Promise retype on the server.** `callCenterAction` (`promise`, slot 1-5, the sheet's Add) refuses a `dueYmd` equal to the heard-as date of a brief promise marked `retype` unless `retyped: true` is passed (`promiseRetypeProblem` in `call-brief-logic.js`; with `briefPromise: i` only that promise is compared, without it every retype promise of the stored brief). One read of `leads/{id}/call_briefs/{callId}`, only for a dated brief Add. Honour-based, exactly like `callBriefDecide`'s retype fields: it stops an old client or a script taking the model's date, not a deliberate bypass. The sheet sends `briefPromise` and, for a retype promise with a date in its (initially empty) box, `retyped: true`. Slot 0 (the card's Promise button) is unchanged.
+
+### Quota TTL
 
 The three AI day counters now expire. `call_transcribe_quota` (callTranscribeNow), `call_brief_quota` (callBrief and callBriefAuto) and `coach_line_quota` (coachLine) write `expireAt` = write time + 7 days on every counter (only today's count is ever read; the week is for a support question). `firestore.indexes.json` declares a TTL policy on `expireAt` for each of the three, with no index on the field. Tested in `tests/call-to-close-p1-leftovers-2026-11-09.test.js` section 1.
 
