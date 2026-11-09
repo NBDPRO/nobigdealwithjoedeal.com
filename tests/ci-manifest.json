@@ -1036,7 +1036,8 @@
     "call-to-close-p1-leftovers-2026-11-09.test.js",
     "call-to-close-decision-map-2026-11-09.test.js",
     "call-to-close-viewers-2026-11-09.test.js",
-    "q11-task-call-text-2026-11-09.test.js"
+    "q11-task-call-text-2026-11-09.test.js",
+    "q11-thursday-lead-notes-2026-11-09.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

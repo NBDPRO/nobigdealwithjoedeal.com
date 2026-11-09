@@ -541,6 +541,10 @@ async function processCall(ref, data) {
     callerName: extraction ? extraction.caller_name : '',
     town: extraction ? extraction.town : '',
     issue: extraction ? extraction.issue : T.str(call.summary, 300),
+    // What a lead Thursday creates used to carry in lead.notes (issue, urgent
+    // reason, carrier, claim #): kept here, on the call, which a viewer
+    // cannot read (Q11, Jo 2026-11-09). The customer page's Thursday row shows it.
+    callNotes: extraction ? T.callNotes(extraction, call) : null,
     urgent: !!(extraction && extraction.urgent),
     route: {
       action: route.action, label: route.label,

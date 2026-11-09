@@ -762,6 +762,16 @@ function callNotes(ex, call) {
   return lines.join('\n');
 }
 
+// The new lead's notes (Call to Close Q11, Jo 2026-11-09, review item 3).
+// A viewer reads the lead, so lead.notes only points at the call; callNotes()
+// (issue, urgent reason, best time, carrier, claim #) is written on the call
+// doc (thursday_calls/<id>.callNotes, viewer-closed by firestore.rules) and
+// the customer page's Thursday row shows it to everyone else.
+function leadNotesPointer(call) {
+  const day = call && call.startedAt ? etYmd(call.startedAt) : null;
+  return '📞 From a Thursday call' + (day ? ' on ' + day : '') + '. The details are on the call.';
+}
+
 // A brand-new CRM lead from a call. Mirrors lead-bridge-logic.js
 // mapPublicLeadToLead (same owner/tenant/stage conventions) minus the
 // serverTimestamp fields, which the handler adds.
@@ -788,7 +798,7 @@ function buildLeadDoc(args) {
     source: mapHeardAboutToSource(ex.heard_about_us),
     intake: INTAKE_LABEL,
     sourcePage: SOURCE_PAGE,
-    notes: callNotes(ex, call),
+    notes: leadNotesPointer(call),
     webLead: false,
     publicLeadKind: PUBLIC_LEAD_KIND,
     publicLeadCollection: 'thursday_calls',
@@ -1056,7 +1066,7 @@ module.exports = {
   buildExtractionRequest, extractionHeaders, parseExtractionResponse, ExtractionError,
   sanitizeExtraction, silentExtraction, applyCallOverrides, OWNER_NUMBERS_DEFAULT, mapHeardAboutToSource,
   isProxyLead, parseStreet, splitCallerName, matchLeads, displayName,
-  decideRoute, buildLeadDoc, buildTask, buildActivity,
+  decideRoute, buildLeadDoc, buildTask, buildActivity, callNotes, leadNotesPointer,
   buildSmsText, buildPush, buildEmail, fmtDuration,
   jobHintForStage, buildLookupResponse, lookupFirstName, secondNumberPatch,
 };

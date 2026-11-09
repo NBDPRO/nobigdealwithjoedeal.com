@@ -466,7 +466,9 @@ const RUNNABLE = ['node', 'smoke'];
 //               --apply / scope, and the REST adapter's collection-group query). MEASURED via --check.
 //   2026-11-09  1025/74/1163 -> 1026/74/1164, Q11 (Jo's decision on review item 2): the task call text
 //               suite (generic task titles for viewers, the call text beside the task). MEASURED via --check.
-const FLOORS = { node: 1026, smoke: 74, disk: 1164 };
+//   2026-11-09  1026/74/1164 -> 1027/74/1165, Q11 review item 3: the Thursday lead-notes suite (lead.notes
+//               points at the call; the call keeps the issue, carrier and claim #). MEASURED via --check.
+const FLOORS = { node: 1027, smoke: 74, disk: 1165 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
