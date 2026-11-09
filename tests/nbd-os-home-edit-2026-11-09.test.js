@@ -257,6 +257,14 @@ G(() => {
   ok('system.js offers unregisterControl', /function unregisterControl\(id\)/.test(SYSTEM_JS) && /unregisterControl: unregisterControl/.test(SYSTEM_JS));
   const T2 = mountPhone({ phone: [], desk: [] });
   ok('no system layer: nothing breaks (it is optional)', !!phoneOf(T2) && !T2.W.controls);
+  // review nit: the system layer can load after the 20 polls; the tiles still arrive by the time its Control Center opens
+  for (let i = 0; i < 25; i++) T2.fire(1500);
+  T2.W.controls = [];
+  T2.W.NBDOS = { registerControl(def) { T2.W.controls = T2.W.controls.filter((c) => c.id !== def.id).concat([def]); }, unregisterControl(id) { T2.W.controls = T2.W.controls.filter((c) => c.id !== id); } };
+  click(T2.dom, T2.document.body);
+  ok('a system layer that loads late still gets Edit Home (checked on the tap that opens its Control Center)', T2.W.controls.some((x) => x.id === 'os-home-edit') && T2.W.controls.some((x) => x.id === 'os-wallpaper'), J(T2.W.controls.map((x) => x.id)));
+  T2.W._impl.unmount();
+  ok('…and taken down with the layout', T2.W.controls.length === 0);
 });
 
 console.log('\n6b. focus is never dropped (review nits)');

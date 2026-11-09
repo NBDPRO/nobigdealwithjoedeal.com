@@ -197,17 +197,22 @@
   // the system layer's Control Center (when it is loaded): Edit Home and Wallpaper tiles
   var CONTROL_IDS = ['os-home-edit', 'os-wallpaper'];
   function registerControls() {
-    var tries = 0;
-    (function reg() {
-      if (!S || !S.home) return;
+    var tries = 0, done = false;
+    function reg() {
+      if (done || !S || !S.home) return;
       var O = W.NBDOS;
       if (O && typeof O.registerControl === 'function') {
+        done = true;
         safe(function () { O.registerControl({ id: 'os-home-edit', label: 'Edit Home', run: function () { setHomeEditing(true, true); } }); });
         safe(function () { O.registerControl({ id: 'os-wallpaper', label: 'Wallpaper', run: openWallpaper }); });
         return;
       }
       if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
-    })();
+    }
+    // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
+    // (capture, so the tiles are in before the sheet paints; a no-op once registered)
+    if (S && S.home) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    reg();
   }
   function unregisterControls() {
     var O = W.NBDOS;
