@@ -10,3 +10,6 @@
 .os-hw-ai-line { color: var(--t); }
 .os-hw-ai-busy { color: var(--m); }
 .os-hw-ai-ask { align-self: flex-start; min-width: 44px; padding-inline: var(--ui-space-2, 8px); }
+/* the line takes focus when the answer lands (tabindex -1, js/os/home.js): the page's ring sits outside the
+   box and the card clips it, so focus shows inside the line as an orange underline (no layout shift) */
+.os-hw-ai:focus-visible { outline: none; text-decoration: underline; text-decoration-color: var(--orange); text-decoration-thickness: 2px; text-underline-offset: 3px; }

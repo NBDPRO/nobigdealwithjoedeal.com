@@ -328,6 +328,12 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     ok('no network on paint: html() has no call in it', (() => { const h = code.slice(code.indexOf('function html('), code.indexOf('function repaint(')); return !/callable|fetch|import\(/.test(h); })());
     ok('coach-ai.css: theme tokens only, no motion, nothing under 11px', !/#[0-9a-fA-F]{3,6}\b|rgb\(/.test(AI_CSS) && !/transition|animation/.test(AI_CSS)
       && (AI_CSS.match(/font-size:\s*([^;]+);/g) || []).every((d) => /var\(--ui-fs-(label|body-sm|body), 1[1-4]px\)/.test(d)), AI_CSS);
+    // review follow-up (2026-11-09): the line takes focus (tabindex -1); the page's 3px ring at offset 2px was
+    // clipped at the card's sides and struck through the title, so the line marks focus inside its own box
+    const ring = (AI_CSS.match(/\.os-hw-ai:focus-visible \{([^}]*)\}/) || [])[1] || '';
+    ok('coach-ai.css: a focused line shows focus inside its box (outline none, an orange underline), no clipped ring',
+      /outline: none;/.test(ring) && /text-decoration: underline/.test(ring) && /var\(--orange\)/.test(ring), ring);
+    ok('…the line and the waiting line are focus targets (tabindex -1)', /<p class="os-hw-ai" tabindex="-1">/.test(code) && /os-hw-ai-busy" role="status" tabindex="-1"/.test(code));
     ok('…the ask button keeps a 44px target (os-hw-btn) and min-width 44px', /\.os-hw-ai-ask \{[^}]*min-width: 44px/.test(AI_CSS) && /os-hw-btn os-hw-ai-ask/.test(code));
     // review fix (2026-11-09): at 320px a long AI line (up to 180 characters) runs a Coach past its rows; the
     // card clipped its actions or last rule out of reach. A Coach's body now scrolls inside the card, and
