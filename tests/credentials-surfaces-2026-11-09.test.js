@@ -126,6 +126,35 @@ console.log('C. the footer disclaimer and /credentials name the same issuers');
       named(indep) === named(fine), 'footer: ' + named(indep));
   }
   ok('the footer partials carrying the cert bar were checked', seen >= 4, String(seen));
+
+  // 2026-11-09 review: 13 pages carry the footer by hand (no partial), so the
+  // partial check above cannot see them. Every shipped page's cert-bar
+  // disclaimer (the site-wide independence statement) must name the same
+  // issuers as /credentials. Page-specific lines (a product page's copyright
+  // line naming the marks it shows, a blog post's "either manufacturer") are
+  // not the site-wide list and are left to their pages.
+  const htmlFiles = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { if (e.name !== 'pro' && e.name !== 'node_modules') walk(p); }
+      else if (e.name.endsWith('.html')) htmlFiles.push(p);
+    }
+  })(path.join(ROOT, 'docs'));
+  let pages = 0;
+  const stale = [];
+  for (const p of htmlFiles) {
+    const html = fs.readFileSync(p, 'utf8');
+    if (!html.includes('data-nbd-certbar')) continue;
+    pages++;
+    const bar = html.slice(html.indexOf('data-nbd-certbar'));
+    const m = /<span data-nosnippet>Independent Contractor\. Not an employee or agent of ([^.]*)\./.exec(bar);
+    if (!m) stale.push(path.relative(ROOT, p) + ': no cert-bar disclaimer');
+    else if (named(m[1]) !== named(fine)) stale.push(path.relative(ROOT, p) + ': "' + m[1].trim() + '"');
+  }
+  ok('every page with the cert bar was scanned (partial-stamped and hand-carried footers)', pages >= 280, String(pages));
+  ok('every cert-bar disclaimer on those pages names the same issuers as /credentials (' + named(fine) + ')',
+    stale.length === 0, stale.slice(0, 5).join(' || ') + (stale.length > 5 ? ' (+' + (stale.length - 5) + ' more)' : ''));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
