@@ -423,6 +423,56 @@ async function decide(db, auth, data) {
     ok('demo: callBrief answers a walkthrough with the sample\'s quiet no-recording answer (nothing leaves)', /noVisitInSample|no visit recordings/i.test(demo));
   }
 
+  console.log('\n6. P2 integration: a walkthrough brief keeps the decision-map, low-confidence and digit rules');
+  {
+    const PF = require(path.join(ROOT, 'docs', 'pro', 'js', 'estimate-call-prefill.js'));
+    const stored = (db) => (db.store.get(BRIEF_PATH) || {}).brief || {};
+    const db1 = makeDb(seed());
+    await brief(db1, OWNER);
+    const b1 = stored(db1);
+    const sc1 = b1.scope || {};
+    ok('a chimney said at the walkthrough keeps its words for the flashing chip (mentionQuotes)', sc1.mentions && sc1.mentions.chimney === true && sc1.mentionQuotes && /chimney/i.test(sc1.mentionQuotes.chimney || ''), sc1.mentionQuotes);
+    ok('...not unsure (a clear recording)', !(sc1.mentionUnsure && sc1.mentionUnsure.chimney));
+    const pf1 = PF.fromBrief(b1);
+    ok('Start estimate: the walkthrough\'s chimney is a flashing chip with its words', pf1.items.some((i) => i.key === 'hasChimneyFlash' && i.value === true), pf1.items.map((i) => i.key));
+    ok('...and not the "no exact words were kept" line', !pf1.hints.unsure.some((h) => /Chimney/.test(h)), pf1.hints.unsure);
+
+    // A walkthrough whose recording was hard to hear: the visit pipeline keeps a
+    // segIndex now (visit-capture.js), and the brief marks what it covers.
+    const LOW = { v: 1, start: [0], end: [90], off: [0], lp: [-2], merged: 1 };
+    const db2 = makeDb(seed({}, { segIndex: LOW }));
+    await brief(db2, OWNER);
+    const b2 = stored(db2); const sc2 = b2.scope || {};
+    ok('hard to hear: layers from the walkthrough are retype (never filled in)', sc2.layers && sc2.layers.retype === true && sc2.layers.unsure === true, sc2.layers);
+    ok('hard to hear: the chimney mention is unsure', sc2.mentionUnsure && sc2.mentionUnsure.chimney === true, sc2.mentionUnsure);
+    ok('hard to hear: counted in flags.lowConfidence', b2.flags && b2.flags.lowConfidence >= 2, b2.flags);
+    const pf2 = PF.fromBrief(b2);
+    ok('Start estimate: no layers item and no chimney chip from a hard-to-hear walkthrough', !pf2.items.some((i) => i.key === 'hasChimneyFlash') && !pf2.items.some((i) => /layer/i.test(i.key)), pf2.items.map((i) => i.key));
+    ok('...the chimney is a "hard to hear" line instead', pf2.hints.unsure.some((h) => /Chimney was hard to hear/.test(h)), pf2.hints.unsure);
+    const db3 = makeDb(seed({}, { segIndex: { v: 1, start: [0], end: [90], off: [0], lp: [-0.2], merged: 1 } }));
+    await brief(db3, OWNER);
+    const sc3 = (stored(db3).scope || {});
+    ok('a clear segIndex marks nothing', !(sc3.layers && sc3.layers.unsure) && !(sc3.mentionUnsure && sc3.mentionUnsure.chimney));
+    const g = await CB._test.loadGatedVisit(makeDb(seed({}, { segIndex: LOW })), OWNER, { visitId: VISIT_ID, visitUid: OWNER_UID });
+    ok('loadGatedVisit hands the visit\'s segIndex to the brief', g && g.call && JSON.stringify(g.call.segIndex) === JSON.stringify(LOW));
+    const vc = read('functions/visit-capture.js');
+    ok('visit-capture.js asks Groq for segment confidence', /transcribeGroqBuffer\(\{[\s\S]{0,400}confidence: true/.test(vc));
+    ok('visit-capture.js stores segIndex (call-center-logic buildSegIndex) with the transcript', /segIndex: [^,\n]*buildSegIndex\(/.test(vc));
+
+    // Who decides is kept in the brief only: nothing writes a lead field from it.
+    const PEOPLE = Object.assign({}, CANNED, { people: [{ role: 'spouse', name: '', said: 'my husband', decides: true, quote: 'Thanks for coming out today' }] });
+    const db4 = makeDb(seed());
+    currentDb = db4;
+    await briefCallable({ db: db4, auth: OWNER, data: { visitId: VISIT_ID, visitUid: OWNER_UID }, nowMs: NOW, log: silent,
+      callModel: async (req) => ({ model: req.model, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: JSON.stringify(PEOPLE) }] }) });
+    const before = JSON.stringify(db4.store.get('leads/L1'));
+    for (const item of ['people:0', 'who:0', 'field:decisionMaker', 'field:spouse']) {
+      const d = await decide(db4, OWNER, { item, decision: 'accept', value: 'my husband' });
+      ok('callBriefDecide refuses "' + item + '" on a walkthrough (Who decides never writes the lead)', d.e && d.e.code === 'invalid-argument', d.e ? d.e.code : d.r);
+    }
+    ok('...and the lead is byte-identical', JSON.stringify(db4.store.get('leads/L1')) === before);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

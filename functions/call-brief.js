@@ -167,7 +167,7 @@ async function loadGatedVisit(db, auth, data) {
   const callId = L.visitBriefId(visitId);
   return {
     kind: 'visit', callId, visitId, visitUid, visit, leadId, lead, companyId,
-    call: { userId: visitUid, companyId, startedAtMs: Number(visit.startedAtMs) || null, transcript: String(visit.transcript || ''), segIndex: null },
+    call: { userId: visitUid, companyId, startedAtMs: Number(visit.startedAtMs) || null, transcript: String(visit.transcript || ''), segIndex: visit.segIndex || null },
     briefRef: db.doc('leads/' + leadId + '/call_briefs/' + callId),
   };
 }
@@ -285,7 +285,7 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
   const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex });
   // P2 walkthrough: the notes' scope_facts never reach the model; the ones
   // whose words ground in the transcript feed the scope (prefill, proposal list).
-  if (g.kind === 'visit') L.mergeVisitScope(brief, L.groundScopeFacts(((g.visit || {}).notes || {}).scopeFacts, transcript).facts);
+  if (g.kind === 'visit') L.mergeVisitScope(brief, L.groundScopeFacts(((g.visit || {}).notes || {}).scopeFacts, transcript).facts, { transcript, segIndex });
   const doc = {
     callId: g.callId, leadId: g.leadId, companyId: g.companyId, userId: g.call.userId || null,
     v: L.BRIEF_VERSION, transcriptHash: hash, model: req.model, generatedAtMs: nowMs, generatedBy: auth.uid,

@@ -61,6 +61,9 @@ function deps() {
     transcribe: ({ buffer, ext, prompt }) => V.transcribeGroqBuffer({
       buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : (ext === 'webm' ? 'audio/webm' : 'audio/' + ext),
       filename: 'visit.' + ext, timeoutMs: 480_000, feature: 'visit-transcribe', prompt,
+      // Call to Close P2 integration: per-segment confidence (avg_logprob), so a
+      // walkthrough brief marks hard-to-hear quotes as a call's does.
+      confidence: true,
     }),
     notes: (a) => require('./call-center').claudeNotes(a),
     checkConsent: (a) => V._checkVerbalConsent(a),
@@ -269,7 +272,7 @@ async function doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason, final 
   const del = await deleteAudio(bucket, uid, visitId, d.audioPath);
   const finalState = final || PIPELINE.SKIPPED;
   const patch = {
-    transcript: null, transcriptRaw: null, transcriptSegments: null, transcriptCorrections: null,
+    transcript: null, transcriptRaw: null, transcriptSegments: null, transcriptCorrections: null, segIndex: null,
     notes: null, suggestions: [], suggestionsAtMs: null, consentEvidence: null, providerOutage: null,
     pipelineLeaseUntilMs: 0,
     skipReason: reason, purgeFinal: finalState,
@@ -454,6 +457,8 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     const save = {
       transcript: fixed.text.slice(0, 120000), transcriptRaw: raw.slice(0, 120000), transcriptCorrections: fixed.corrections,
       transcriptSegments: segments, transcriptDurationSec: durationSec, transcribedAtMs: nowMs,
+      // The walkthrough brief's unsure marks (call-brief-logic unsureQuotes), offsets into the stored transcript.
+      segIndex: L.buildSegIndex(t.segments, fixed.text.slice(0, 120000)),
       pipelineStatus: PIPELINE.TRANSCRIBED, pipelineNote: null, pipelineError: null, pipelineNextAtMs: 0, pipelineLeaseUntilMs: nowMs + LG.LEASE_MS,
       transcribeStrikes: 0, transientFails: 0, objectChecks: 0, storageFails: 0, providerOutage: null, audioLive: true,
       audioBytes: size, audioMime: d.mime || null,

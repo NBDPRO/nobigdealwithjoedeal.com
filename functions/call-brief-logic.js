@@ -962,27 +962,47 @@ const VISIT_MENTIONS = { gutters: /gutter/, chimney: /chimney/, skylight: /skyli
  * "From the walkthrough" list (visitFacts, said quantities). Fills only what
  * the brief left empty (a value the model grounded is never replaced), keeps
  * the digit rule, and merges nothing into an unreliable brief.
+ * P2 integration: opts { transcript, segIndex } (the visit's own segIndex,
+ * visit-capture.js) keeps the low-confidence rule: a story / layer count
+ * heard in a hard-to-hear stretch is retype, a chimney / skylight mention
+ * there is mentionUnsure, each counted in flags.lowConfidence. A chimney /
+ * skylight fact keeps its words in scope.mentionQuotes (the builder's
+ * flashing chip needs them, as on a call).
  */
-function mergeVisitScope(brief, facts) {
+function mergeVisitScope(brief, facts, opts) {
   if (!brief || !brief.scope || (brief.transcriptOk && brief.transcriptOk.reliable === false)) return brief;
   const sc = brief.scope;
   const list = (Array.isArray(facts) ? facts : []).filter((f) => f && typeof f.text === 'string' && typeof f.quote === 'string').slice(0, MAX_VISIT_FACTS);
   if (!list.length) return brief;
+  const o = opts || {};
+  const unsureOf = unsureQuotes(o.transcript, o.segIndex);
+  let low = 0;
+  const flagUnsure = (fact) => { if (fact && unsureOf(fact.quote)) { fact.unsure = true; fact.retype = true; low++; } return fact; };
   sc.mentions = sc.mentions || { gutters: false, chimney: false, skylight: false, decking: false };
+  sc.mentionQuotes = sc.mentionQuotes && typeof sc.mentionQuotes === 'object' ? sc.mentionQuotes : { chimney: '', skylight: '' };
+  sc.mentionUnsure = sc.mentionUnsure && typeof sc.mentionUnsure === 'object' ? sc.mentionUnsure : { chimney: false, skylight: false };
   sc.saidQuantities = Array.isArray(sc.saidQuantities) ? sc.saidQuantities : [];
   for (const f of list) {
     const n = normalizeSpeech(f.text);
     const small = (re) => { const m = re.exec(n); return m && digitsInQuote(m[1], f.quote) ? { value: Number(m[1]), quote: str(f.quote, 300) } : null; };
     const st = small(/\b([123]) (?:story|stories|storey|storeys)\b/);
     const ly = small(/\b([123]) layers?\b/);
-    if (st && !sc.stories) sc.stories = st;
-    if (ly && !sc.layers) sc.layers = ly;
-    Object.keys(VISIT_MENTIONS).forEach((k) => { if (VISIT_MENTIONS[k].test(n)) sc.mentions[k] = true; });
+    if (st && !sc.stories) sc.stories = flagUnsure(st);
+    if (ly && !sc.layers) sc.layers = flagUnsure(ly);
+    Object.keys(VISIT_MENTIONS).forEach((k) => {
+      if (!VISIT_MENTIONS[k].test(n)) return;
+      sc.mentions[k] = true;
+      if ((k === 'chimney' || k === 'skylight') && !sc.mentionQuotes[k] && new RegExp(k, 'i').test(f.quote)) {
+        sc.mentionQuotes[k] = str(f.quote, 300);
+        if (unsureOf(f.quote)) { sc.mentionUnsure[k] = true; low++; }
+      }
+    });
     if (!st && !ly && /\d/.test(n) && digitsInQuote(f.text, f.quote) && sc.saidQuantities.length < MAX_VISIT_FACTS && !sc.saidQuantities.some((q) => q && q.quote === f.quote)) {
       sc.saidQuantities.push({ text: str(f.text, 80), quote: str(f.quote, 300) });
     }
   }
-  sc.visitFacts = list.map((f) => ({ text: str(f.text, 160), quote: str(f.quote, 300) }));
+  sc.visitFacts = list.map((f) => Object.assign({ text: str(f.text, 160), quote: str(f.quote, 300) }, unsureOf(f.quote) ? { unsure: true } : {}));
+  if (low) { brief.flags = brief.flags || {}; brief.flags.lowConfidence = (Number(brief.flags.lowConfidence) || 0) + low; }
   return brief;
 }
 
