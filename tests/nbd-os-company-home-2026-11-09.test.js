@@ -75,6 +75,9 @@ function withLoader(T) {
   return T;
 }
 const tick = () => new Promise((r) => setImmediate(r));
+// the focused element, only while it is still in the page (a repaint detaches the old node)
+const live = (T) => { const a = T.document.activeElement; return a && a !== T.document.body && T.document.body.contains(a) ? a : null; };
+const focusOf = (T) => { const a = T.document.activeElement; return a ? (a.tagName + ' ' + J(a.attrs) + ' live=' + !!live(T)) : 'null'; };
 const summary = (uid, over) => JSON.stringify(Object.assign({ v: 1, uid, asOf: NOW - 20 * 60000, calls: 3, followUps: 5, jobs: 2 }, over || {}));
 const snap = () => JSON.stringify({ asOf: NOW - 2 * 3600000, today: { dk: DK, floors: [{ met: true }, { met: true }, { met: false }] }, streak: { warned: false, broken: false }, week: { pct: 86 } });
 
@@ -227,7 +230,9 @@ G(() => {
     ok('Cancel has focus (the safe choice)', T.document.activeElement && T.document.activeElement.getAttribute('data-oshw-pub') === 'cancel');
     click(T.dom, d.querySelector('[data-oshw-pub="cancel"]'));
     ok('Cancel closes it and writes nothing', !T.document.querySelector('dialog.os-hw-pub') && !(T.W._coSaves || []).length);
-    click(T.dom, col.querySelector('[data-osdo="homepublish"]'));
+    const pubAgain = col.querySelector('[data-osdo="homepublish"]');
+    pubAgain.focus();
+    click(T.dom, pubAgain);
     await tick();
     const d2 = T.document.querySelector('dialog.os-hw-pub');
     click(T.dom, d2.querySelector('[data-oshw-pub="go"]'));
@@ -239,8 +244,12 @@ G(() => {
     ok('…the Bento default board is kept', w && J(w.defaultWidgets.bento) === J([{ widgetId: 'rev' }]));
     ok('…and it does not touch the lock', w && !('homeLocked' in w));
     ok('the dialog closed and a toast says it published', !T.document.querySelector('dialog.os-hw-pub') && T.W.toasts.some((t) => /Published/.test(t.msg)), J(T.W.toasts));
-    click(T.dom, col.querySelector('[data-osdo="homelock"]'));
+    ok('after the publish repaint, focus is back on Publish to team (never dropped to <body>)', live(T) && live(T).getAttribute('data-osdo') === 'homepublish', focusOf(T));
+    const lockBtn = col.querySelector('[data-osdo="homelock"]');
+    lockBtn.focus();
+    click(T.dom, lockBtn);
     await tick(); await tick();
+    ok('after the lock repaint, focus is on the Lock team homes switch again', live(T) && live(T).getAttribute('data-osdo') === 'homelock' && live(T).getAttribute('aria-checked') === 'true', focusOf(T));
     const w2 = T.W._coSaves[T.W._coSaves.length - 1];
     ok('the lock switch writes homeLocked: true (no dialog)', w2 && J(w2) === J({ homeLocked: true }), J(w2));
     const lock2 = col.querySelector('[data-osdo="homelock"]');
@@ -262,6 +271,12 @@ G(() => {
     await tick();
     click(F.dom, F.document.querySelector('dialog.os-hw-pub [data-oshw-pub="go"]'));
     await tick(); await tick();
+    ok('on the phone too, focus returns to Publish to team after the repaint', live(F) && live(F).getAttribute('data-osp') === 'homepublish', focusOf(F));
+    const pl = P.querySelector('[data-osp="homelock"]');
+    pl.focus();
+    click(F.dom, pl);
+    await tick(); await tick();
+    ok('…and to the lock switch after a lock tap (even a refused one)', live(F) && live(F).getAttribute('data-osp') === 'homelock', focusOf(F));
     ok('a refused write says so (no false "Published")', F.W.toasts.some((t) => /Couldn't publish/.test(t.msg)) && !F.W.toasts.some((t) => /^Published/.test(t.msg)), J(F.W.toasts));
     ok('the phone publish targets os-phone', J(Object.keys(F.W._coSaves[0].defaultWidgets)) === J(['os-phone']));
 

@@ -264,7 +264,7 @@
       var C = W.NBDOSHomeCompany;
       if (!S || !C || typeof C[what] !== 'function') return;
       flushHome();
-      safe(function () { C[what]({ surface: surface, items: homeItems(surface), after: afterTeam }); });
+      safe(function () { C[what]({ surface: surface, items: homeItems(surface), after: function () { afterTeam('home' + what); } }); });
     }
     if (W.NBDOSHomeCompany) return run();
     var SL = W.ScriptLoader;
@@ -272,11 +272,19 @@
     if (SL.bundles && !SL.bundles.oshomeco) SL.bundles.oshomeco = ['js/os/home-company.js?v=1'];
     Promise.resolve(SL.loadBundle('oshomeco')).then(run, function () { toast('Couldn\'t open that just now. Try again.', 'error'); });
   }
-  // after a publish or a lock change: repaint the home and its controls from the saved settings
-  function afterTeam() {
+  // after a publish or a lock change: repaint the home and its controls from the saved settings.
+  // The repaint replaces the control that was used; `refocus` ('homepublish' | 'homelock') puts
+  // focus back on its new copy when focus would otherwise fall to <body>.
+  function afterTeam(refocus) {
     if (!S) return;
     refreshHome();
     if (S.surface !== 'phone') paintDeskTools();
+    if (!refocus) return;
+    var a = doc.activeElement;
+    if (a && a !== doc.body && doc.body.contains(a)) return;   // focus moved on by itself: leave it
+    var root = S.surface === 'phone' ? S.phoneEl : S.deskEl;
+    var b = root && root.querySelector('[data-osp="' + esc(refocus) + '"], [data-osdo="' + esc(refocus) + '"]');
+    if (b) safe(function () { b.focus(); });
   }
   // Wallpaper (P0c): My Skin's existing background picker, no store of our own.
   // Load My Skin (a same-origin bundle), then open Settings at its panel.
