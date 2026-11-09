@@ -14,7 +14,7 @@ function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringi
 
 function fakeDb(seed) {
   const docs = new Map();
-  for (const [k, v] of Object.entries(seed || {})) docs.set(k, v);
+  for (const [k, v] of Object.entries(seed || {})) if (v !== undefined) docs.set(k, v);
   const log = [];
   const snapOf = (p) => ({ exists: docs.has(p), id: p.split('/').pop(), ref: mk(p), data: () => docs.get(p) });
   function mk(p) {
