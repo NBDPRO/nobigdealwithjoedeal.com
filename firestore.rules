@@ -3321,7 +3321,7 @@ service cloud.firestore {
       // { bento: [ {widgetId,x,y,w,h}, ... ] } = the Bento Board new hires get;
       // bounded to 8 layouts and 24 tiles so a settings doc stays small.
       // NBD OS company home (P1, 2026-11-09): defaultWidgets['os-phone'] and
-      // ['os-desk'] are the team's published home, lists of <= 24 { id, s, cfg? }
+      // ['os-desk'] are the team's published home, lists of <= 24 { id, s, cfg?, items?, x?, y?, w?, h? }
       // (the client's cleanDefaultWidgets checks each item); homeLocked = members
       // see that home and cannot edit their own (OFF unless set).
       function layoutDocOk() {

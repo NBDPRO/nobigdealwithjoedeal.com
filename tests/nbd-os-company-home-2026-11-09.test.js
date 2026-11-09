@@ -239,8 +239,8 @@ G(() => {
     await tick(); await tick();
     const w = (T.W._coSaves || [])[0];
     ok('Publish writes through LayoutEngine.saveCompany', !!w, J(T.W._coSaves));
-    ok('…the desk home as the company os-desk default', w && J(w.defaultWidgets['os-desk']) === J(OWN.desk), w && J(w));
-    ok('…ids and sizes only', w && w.defaultWidgets['os-desk'].every((x) => Object.keys(x).every((k) => ['id', 's', 'cfg'].indexOf(k) !== -1)));
+    ok('…the desk home as the company os-desk default, with its board cells (P1 integration)', w && J(w.defaultWidgets['os-desk']) === J(HL.normalize(OWN).desk), w && J(w));
+    ok('…ids, sizes, cells and stack cards only', w && w.defaultWidgets['os-desk'].every((x) => Object.keys(x).every((k) => ['id', 's', 'cfg', 'items', 'x', 'y', 'w', 'h'].indexOf(k) !== -1)));
     ok('…the Bento default board is kept', w && J(w.defaultWidgets.bento) === J([{ widgetId: 'rev' }]));
     ok('…and it does not touch the lock', w && !('homeLocked' in w));
     ok('the dialog closed and a toast says it published', !T.document.querySelector('dialog.os-hw-pub') && T.W.toasts.some((t) => /Published/.test(t.msg)), J(T.W.toasts));
@@ -291,6 +291,25 @@ G(() => {
     fire(M.dom, phoneOf(M).querySelector('.os-p-icon'), 'pointerdown', { pointerId: 7 });
     M.fire(550);
     ok('…nor on the phone', !phoneOf(M).querySelector('[data-osp="homepublish"]'));
+  });
+
+  console.log('\n6b. P1 integration: a published home keeps its board cells and Smart Stack cards');
+  await GA(async () => {
+    const DESK = [{ id: 'glance', s: 's', x: 3, y: 0, w: 1, h: 1 }, { id: 'stack', s: 'l', x: 0, y: 0, w: 2, h: 2, items: ['upnext', 'shutdown'] }];
+    const T = withLoader(mount('desk', { claims: ADMIN, home: { v: 1, phone: [{ id: 'stack', s: 'm', items: ['storm', 'coach'] }], desk: DESK } }));
+    const col = deskCol(T);
+    click(T.dom, col.querySelector('[data-osdo="homeedit"]'));
+    click(T.dom, col.querySelector('[data-osdo="homepublish"]'));
+    await tick();
+    click(T.dom, T.document.querySelector('dialog.os-hw-pub [data-oshw-pub="go"]'));
+    await tick(); await tick();
+    const w = (T.W._coSaves || [])[0];
+    const pub = w && w.defaultWidgets['os-desk'];
+    ok('the published desk keeps each widget\'s cell', !!pub && J(pub.map((x) => [x.id, x.x, x.y])) === J([['stack', 0, 0], ['glance', 3, 0]]), J(pub));
+    ok('…and the Smart Stack\'s own cards', !!pub && J((pub.find((x) => x.id === 'stack') || {}).items) === J(['upnext', 'shutdown']), J(pub));
+    const member = HL.resolveHome({ own: null, company: w && w.defaultWidgets, locked: true });
+    ok('a member on that company home gets the same board, stack and cards', J(member.desk.map((x) => [x.id, x.x, x.y, x.items || null])) === J([['stack', 0, 0, ['upnext', 'shutdown']], ['glance', 3, 0, null]]), J(member.desk));
+    ok('a phone publish keeps its stack cards too', J(HL.companyList({ 'os-phone': [{ id: 'stack', s: 'm', items: ['storm', 'coach'] }] }, 'phone')) === J([{ id: 'stack', s: 'm', items: ['storm', 'coach'] }]));
   });
 
   console.log('\n7. settings that arrive after mount, and the wiring');

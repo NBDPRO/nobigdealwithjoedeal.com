@@ -4,8 +4,9 @@
  *
  * An owner or company_admin, in edit mode, can:
  *   publish(o)  "Publish to team": a native <dialog> asks first, then this
- *               surface's arrangement (widget ids, sizes and their enum
- *               settings only, never anyone's numbers) is written as the
+ *               surface's arrangement (widget ids, sizes, their enum settings,
+ *               a Smart Stack's card ids and the desk's board cells; never
+ *               anyone's numbers) is written as the
  *               company default, companies/{cid}/settings/layout.defaultWidgets
  *               ['os-phone' | 'os-desk'], through LayoutEngine.saveCompany (the
  *               existing company-settings write; firestore.rules lets only the
@@ -45,15 +46,17 @@
     return (p && p.company) || {};
   }
   function HL() { return W.NBDOSHomeLogic; }
-  /** What is published: { id, s, cfg? } per widget, nothing else. */
-  function clean(items) {
+  /**
+   * What is published: the arrangement only, cleaned the way a member's copy will be read
+   * (home-logic companyList): { id, s, cfg? } per widget, plus a Smart Stack's card ids and,
+   * on the desk, each widget's board cell (x, y, w, h). Never anyone's numbers.
+   */
+  function clean(items, surface) {
     var L = HL();
-    return (Array.isArray(items) ? items : []).filter(function (it) { return it && L && L.CATALOG[it.id]; }).map(function (it) {
-      var o = { id: it.id, s: it.s };
-      var cfg = L.cleanCfg(it.id, it.cfg);
-      if (cfg) o.cfg = cfg;
-      return o;
-    });
+    if (!L || !Array.isArray(items) || !items.length) return [];
+    var dw = {};
+    dw[L.CO_KEY[surface]] = items;
+    return L.companyList(dw, surface) || [];
   }
   function done(o) { if (o && typeof o.after === 'function') { try { o.after(); } catch (e) {} } }
   function outside(d, ev) {
@@ -67,7 +70,7 @@
     var E = engine(), L = HL();
     if (!E || !L) return;
     var surface = opts.surface === 'desk' ? 'desk' : 'phone';
-    var items = clean(opts.items);
+    var items = clean(opts.items, surface);
     if (openEl && openEl.parentNode) openEl.parentNode.removeChild(openEl);
     var d = doc.createElement('dialog');
     d.className = 'os-hw-add os-hw-pub';

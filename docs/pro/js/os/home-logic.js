@@ -64,7 +64,7 @@
  *
  * The company home (P1): an owner or company_admin publishes one surface's
  * arrangement to companies/{cid}/settings/layout.defaultWidgets['os-phone' |
- * 'os-desk'] (ids and sizes only, never anyone's numbers) and may lock it.
+ * 'os-desk'] (ids, sizes, stack cards and desk cells; never anyone's numbers) and may lock it.
  *   companyList(defaultWidgets, surface)  that surface's published home, cleaned; null when none
  *   resolveHome({ own, company, locked, admin })
  *                              per surface: company lock > own home > company default > built-in,
