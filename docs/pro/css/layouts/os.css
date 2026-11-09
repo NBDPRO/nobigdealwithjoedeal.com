@@ -399,7 +399,6 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
    one color-mix(in srgb, var(--a) N%, var(--b)) so
    tests/nbd-os-wallpaper-2026-11-09.test.js can recompute the contrast of
    widget text over it for every theme. No motion: a period change just paints. */
-.os-desk, .os-phone { isolation: isolate; }
 .os-desk[data-os-wp="auto"], .os-desk[data-os-wp="tod"],
 .os-phone[data-os-wp="auto"], .os-phone[data-os-wp="tod"] {
   background: linear-gradient(180deg, var(--os-wp-a) 0%, var(--os-wp-b) 55%, var(--os-wp-c) 100%);
@@ -425,12 +424,11 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
   --os-wp-c: color-mix(in srgb, var(--bg) 92%, var(--blue));
 }
 /* a My Skin picture: one pre-dimmed layer (the veil is --bg at the dim My Skin's
-   own readability guard picked), under the widgets; the URL is a blob: object
-   URL os/wallpaper.js sets as --os-wp-img through the CSSOM */
-.os-desk[data-os-wp="img"], .os-phone[data-os-wp="img"] { background: var(--bg); }
-.os-desk[data-os-wp="img"]::before, .os-phone[data-os-wp="img"]::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(var(--os-wp-veil), var(--os-wp-veil)), var(--os-wp-img, none) center / cover no-repeat;
+   own readability guard picked) over --bg, as the surface's own background (no
+   pseudo layer, so no new stacking context); the URL is a blob: object URL
+   os/wallpaper.js sets as --os-wp-img through the CSSOM */
+.os-desk[data-os-wp="img"], .os-phone[data-os-wp="img"] {
+  background: linear-gradient(var(--os-wp-veil), var(--os-wp-veil)), var(--os-wp-img, none) center / cover no-repeat, var(--bg);
   --os-wp-veil: color-mix(in srgb, var(--bg) var(--os-wp-dim, 55%), transparent);
 }
 /* text that sits straight on the picture (icon labels) gets a token chip: --t on it
@@ -442,7 +440,5 @@ html[data-os-buttons="linux"] .os-win-title { text-align: center; }
 html.my-skin-wallpaper .os-desk[data-os-wp="auto"], html.my-skin-wallpaper .os-phone[data-os-wp="auto"] { background: none; }
 /* a company-enforced My Skin background wins over every choice here */
 html.my-skin-locked .os-desk[data-os-wp], html.my-skin-locked .os-phone[data-os-wp] { background: none; }
-html.my-skin-locked [data-os-wp]::before { content: none; }
 /* Sunlight: day, and nothing behind sunlit text (field-sunlight.css) */
 html.sun-all .os-desk[data-os-wp], html.sun-all .os-phone[data-os-wp] { background: var(--bg); }
-html.sun-all [data-os-wp]::before { content: none; }

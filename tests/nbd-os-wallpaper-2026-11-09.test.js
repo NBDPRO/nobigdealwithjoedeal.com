@@ -127,13 +127,15 @@ G(() => {
   ok('no hex, rgb() or hsl() literal in the wallpaper section (tokens only, DESIGN.md "Color")', !/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(WP_CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
   ok('no image bytes: the only url is the --os-wp-img custom property os/wallpaper.js sets', !/url\(/.test(WP_CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
   ok('the gradient paints .os-desk and .os-phone for auto and tod', /\.os-desk\[data-os-wp="auto"\][\s\S]*?\.os-phone\[data-os-wp="tod"\][^{]*\{\s*background: linear-gradient\(180deg, var\(--os-wp-a\)/.test(WP_CSS));
-  ok('a My Skin picture is ONE pre-dimmed layer: a --bg veil over var(--os-wp-img) in a single ::before',
-    /\[data-os-wp="img"\]::before[^{]*\{[^}]*background: linear-gradient\(var\(--os-wp-veil\), var\(--os-wp-veil\)\), var\(--os-wp-img, none\)/.test(WP_CSS)
+  ok('a My Skin picture is ONE pre-dimmed layer: a --bg veil over var(--os-wp-img), the surface\'s own background (over --bg)',
+    /\.os-phone\[data-os-wp="img"\] \{[^}]*background: linear-gradient\(var\(--os-wp-veil\), var\(--os-wp-veil\)\), var\(--os-wp-img, none\) center \/ cover no-repeat, var\(--bg\)/.test(WP_CSS)
     && /--os-wp-veil: color-mix\(in srgb, var\(--bg\) var\(--os-wp-dim, 55%\), transparent\)/.test(WP_CSS));
+  ok('no new stacking context: no isolation, no z-index and no ::before layer in the wallpaper section (windows, snap preview and Start keep their page-level z order)',
+    !/isolation|z-index|::before/.test(WP_CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
   ok('on a picture, icon labels get a token chip (--bg at 72%)', /\[data-os-wp="img"\] \.os-icon-label, \[data-os-wp="img"\] \.os-p-label \{[^}]*background: color-mix\(in srgb, var\(--bg\) 72%, transparent\)/.test(WP_CSS));
   ok('the default gives way to a My Skin picture (html.my-skin-wallpaper)', /html\.my-skin-wallpaper \.os-desk\[data-os-wp="auto"\][^{]*\{\s*background: none/.test(WP_CSS));
-  ok('a company-enforced My Skin background wins over every choice (html.my-skin-locked)', /html\.my-skin-locked \.os-desk\[data-os-wp\][^{]*\{\s*background: none/.test(WP_CSS) && /html\.my-skin-locked \[data-os-wp\]::before \{ content: none; \}/.test(WP_CSS));
-  ok('Sunlight: a plain background, no picture (html.sun-all)', /html\.sun-all \.os-desk\[data-os-wp\][^{]*\{\s*background: var\(--bg\)/.test(WP_CSS) && /html\.sun-all \[data-os-wp\]::before \{ content: none; \}/.test(WP_CSS));
+  ok('a company-enforced My Skin background wins over every choice (html.my-skin-locked)', /html\.my-skin-locked \.os-desk\[data-os-wp\][^{]*\{\s*background: none/.test(WP_CSS));
+  ok('Sunlight: a plain background, no picture (html.sun-all)', /html\.sun-all \.os-desk\[data-os-wp\][^{]*\{\s*background: var\(--bg\)/.test(WP_CSS));
   ok('no motion: no transition or animation in the wallpaper section', !/transition|animation/.test(WP_CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
   const nc = (c) => c.replace(/\/\*[\s\S]*?\*\//g, '');
   ok('no backdrop-filter on a widget card (os.css and home.css; only the dialog\'s ::backdrop colour)', !/backdrop-filter/.test(nc(OS_CSS)) && !/backdrop-filter/.test(nc(HOME_CSS)));
