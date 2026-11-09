@@ -49,6 +49,7 @@ const MAX_DECISIONS = 300;
 // adjusterMeetingDate feeds the calendar feed and Google Calendar (google-calendar-logic WATCHED).
 const CALENDAR_ACK = 'This puts the adjuster meeting on the calendar and on Google Calendar when it is connected. Confirm it first.';
 const INSURANCE_ACK = 'This makes the job an insurance job: Kentucky notices and the cancellation form will apply. Confirm it first.';
+const RETYPE_ACK = 'This was hard to hear on the recording. Listen to it and type the value yourself.';
 
 /** Default model call: raw /v1/messages (the repo's server pattern). */
 async function anthropicCall(req) {
@@ -167,7 +168,8 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
   await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('call-brief', req.model, resp), { db, nowMs, log });
   const raw = L.parseResponse(resp);
   if (!raw) throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
-  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd });
+  // segIndex (P1): Whisper's per-segment confidence; hard-to-hear quotes are marked unsure.
+  const brief = L.sanitizeBrief(raw, { transcript, stages, stageKeys: stages.map((s) => s.key), callYmd, segIndex: g.call.segIndex || null });
   const doc = {
     callId: g.callId, leadId: g.leadId, companyId: g.companyId, userId: g.call.userId || null,
     v: L.BRIEF_VERSION, transcriptHash: hash, model: req.model, generatedAtMs: nowMs, generatedBy: auth.uid,
@@ -215,6 +217,9 @@ async function decideCallable({ db, auth, data, nowMs, log = logger }) {
     const leadField = L.LEAD_FIELD[fieldKey];
     finalValue = L.str(finalValue, fieldKey === 'claimNumber' ? 40 : 120);
     if (!finalValue) throw new HttpsError('invalid-argument', 'Nothing to fill in.');
+    // P1: digits from a hard-to-hear quote are never one-tap; the person types them.
+    const fact = ((stored.brief || {}).fields || {})[fieldKey];
+    if (fact && fact.retype === true && !(data.retyped === true && data.value != null && L.str(data.value, 200))) throw new HttpsError('failed-precondition', RETYPE_ACK);
     if (L.DATE_FIELDS.includes(fieldKey) && !L.isYmd(finalValue)) throw new HttpsError('invalid-argument', 'Use a date (YYYY-MM-DD).');
     if (fieldKey === 'jobType' && !['insurance', 'cash'].includes(finalValue)) throw new HttpsError('invalid-argument', 'Job type is insurance or cash.');
     const insurance = fieldKey === 'insCarrier' || fieldKey === 'claimNumber' || (fieldKey === 'jobType' && finalValue === 'insurance');

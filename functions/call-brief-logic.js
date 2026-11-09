@@ -455,6 +455,42 @@ function parseResponse(resp) {
 
 function transcriptHash(t) { return crypto.createHash('sha256').update(String(t || '')).digest('hex'); }
 
+// ── segment confidence (P1, 2026-11-09) ──────────────────────────────────
+// The call's segIndex (call-center-logic buildSegIndex) holds Whisper's
+// avg_logprob per segment. Below LOW_LOGPROB (-1.0, Whisper's own
+// logprob_threshold for "decode this again") a segment was hard to hear.
+const LOW_LOGPROB = -1;
+/**
+ * unsure(quote) for this transcript: true when the quote falls ONLY in
+ * low-confidence segments (one clear segment under it is enough), or when the
+ * index cannot place it (not known to be clear). No index (a call transcribed
+ * before P1): nothing is unsure.
+ */
+function unsureQuotes(transcript, seg) {
+  const t = String(transcript || '');
+  const offs = seg && Array.isArray(seg.off) ? seg.off : [];
+  const lps = seg && Array.isArray(seg.lp) ? seg.lp : [];
+  if (!t || !offs.length || offs.length !== lps.length) return () => false;
+  // Each segment's slice, normalised the way grounding normalises, joined by
+  // one space, with its range in the joined string.
+  let joined = '';
+  const spans = offs.map((a, i) => {
+    const s = normalizeSpeech(t.slice(Number(a) || 0, i + 1 < offs.length ? Number(offs[i + 1]) || t.length : t.length));
+    const r = [joined.length, joined.length + s.length];
+    joined += s + ' ';
+    return r;
+  });
+  return function unsure(quote) {
+    const q = normalizeSpeech(quote);
+    if (!q) return false;
+    const at = joined.indexOf(q);
+    if (at < 0) return true;
+    const end = at + q.length;
+    const hit = spans.map((r, i) => (r[0] < end && r[1] > at ? i : -1)).filter((i) => i >= 0);
+    return hit.length > 0 && hit.every((i) => Number(lps[i]) < LOW_LOGPROB);
+  };
+}
+
 // ── the server's own reliability guards ──────────────────────────────────
 const SPANISH = new Set(['que', 'el', 'la', 'los', 'las', 'por', 'para', 'usted', 'sí', 'si', 'gracias', 'señor', 'señora', 'techo', 'una', 'tiene', 'está', 'pero', 'muy', 'bueno', 'buenos', 'días', 'hola', 'aseguranza', 'seguro', 'cuando', 'martes', 'lunes', 'casa']);
 function serverReliability(transcript) {
@@ -481,6 +517,18 @@ function sanitizeBrief(raw, ctx) {
   const callYmd = c.callYmd;
   const dropped = { ungrounded: 0, digits: 0, injection: 0, dates: 0, offList: 0 };
   let injection = INSTRUCTION_RES.some((re) => re.test(transcript));
+  const unsureOf = unsureQuotes(transcript, c.segIndex);
+  let lowConfidence = 0;
+  // Marks a fact whose quote was hard to hear (only when it was: a P0-shaped
+  // fact otherwise). A FIELD value with a digit (claim #, a date) from such a
+  // quote is never offered for one-tap fill: retype.
+  function mark(o, quote, field) {
+    if (!o || !unsureOf(quote)) return o;
+    o.unsure = true;
+    lowConfidence++;
+    if (field && /\d/.test(String(o.value || ''))) o.retype = true;
+    return o;
+  }
 
   function grounded(q) {
     const s = str(q, 400);
@@ -526,6 +574,8 @@ function sanitizeBrief(raw, ctx) {
   const sm = r.summary && typeof r.summary === 'object' ? r.summary : {};
   const quotes = (Array.isArray(sm.quote) ? sm.quote : []).map((q) => str(q, 300)).filter((q) => q && grounded(q)).slice(0, 4);
   const summary = { text: str(sm.text, 600), quotes, inferred: quotes.length === 0 };
+  const sumUnsure = quotes.map((q, i) => (unsureOf(q) ? i : -1)).filter((i) => i >= 0);
+  if (sumUnsure.length) { summary.unsure = sumUnsure; lowConfidence += sumUnsure.length; }
 
   const fIn = r.fields && typeof r.fields === 'object' ? r.fields : {};
   const fields = {
@@ -538,6 +588,7 @@ function sanitizeBrief(raw, ctx) {
     jobType: enumFact(fIn.jobType, ['insurance', 'cash']),
     workKind: enumFact(fIn.workKind, ['repair', 'replace']),
   };
+  for (const k of Object.keys(fields)) mark(fields[k], fields[k] && fields[k].quote, true);
 
   const sc = r.scope && typeof r.scope === 'object' ? r.scope : {};
   const small = (v, q) => (['1', '2', '3'].includes(String(v)) && grounded(q) && digitsInQuote(String(v), q) ? { value: Number(v), quote: str(q, 300) } : null);
@@ -573,7 +624,7 @@ function sanitizeBrief(raw, ctx) {
     if (!dueYmd && !dueSpoken && str(p.dueSpoken, 80) === '' && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (!dueYmd && dueSpoken && isYmd(p.dueYmd)) dueYmd = p.dueYmd;
     if (dueYmd && !dateInWindow(dueYmd, callYmd, 'future')) { dropped.dates++; dueYmd = ''; }
-    promises.push({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) });
+    promises.push(mark({ who, text, kind, dueSpoken, dueYmd, quote: str(p.quote, 400) }, p.quote, false));
   }
 
   let stage = null;
@@ -582,7 +633,7 @@ function sanitizeBrief(raw, ctx) {
     const meta = stageList.find((s) => s.key === st.targetKey);
     if (!stageKeys.has(st.targetKey) || !meta) dropped.offList++;
     else if (!looksLikeInstruction(st.reason) && grounded(st.quote)) {
-      stage = { targetKey: meta.key, label: meta.label, role: meta.role, reason: str(st.reason, 160), quote: str(st.quote, 400) };
+      stage = mark({ targetKey: meta.key, label: meta.label, role: meta.role, reason: str(st.reason, 160), quote: str(st.quote, 400) }, st.quote, false);
     } else if (looksLikeInstruction(st.reason)) { dropped.injection++; injection = true; }
   }
 
@@ -598,7 +649,7 @@ function sanitizeBrief(raw, ctx) {
   const out = {
     v: BRIEF_VERSION, transcriptOk, summary, fields, scope, promises, followUp: followUp && followUp.value ? followUp : null,
     objections, competitor, people, stage, drafts,
-    flags: { injection: !!injection, unreliable: !reliable, cutOff: transcriptOk.cutOff },
+    flags: Object.assign({ injection: !!injection, unreliable: !reliable, cutOff: transcriptOk.cutOff }, lowConfidence ? { lowConfidence } : {}),
     dropped,
   };
   if (!reliable) {
@@ -658,7 +709,7 @@ function cacheState(doc, hash, nowMs, force) {
 module.exports = {
   BRIEF_VERSION, BRIEF_MODEL, ALLOWED_MODELS, MAX_TOKENS, TRANSCRIPT_MAX, REFRESH_MIN_MS, USER_DAY_CAP, COMPANY_DAY_CAP,
   MAX_PROMISES, PROMISE_KINDS, TIERS, FIELD_KEYS, LEAD_FIELD, LEAD_FIELD_ALIASES, leadFieldValue, DATE_FIELDS, DEFAULT_STAGES, OFFER_ROLES,
-  normalizeSpeech, groundQuote, digitsInQuote, looksLikeInstruction, resolveSpokenDate, tenantStages,
+  normalizeSpeech, groundQuote, digitsInQuote, LOW_LOGPROB, unsureQuotes, looksLikeInstruction, resolveSpokenDate, tenantStages,
   buildSchema, buildSystem, buildRequest, parseResponse, transcriptHash, sanitizeBrief, dateInWindow,
   canActOnCall, humanFiledProblem, cacheState, fenceSafe, isYmd, str,
 };
