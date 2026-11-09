@@ -30,6 +30,8 @@
   "backfillAnalytics": "./handlers/migrations",
   "backupFreshnessCron": "./backup-freshness",
   "calcomWebhook": "./integrations/calcom",
+  "callBrief": "./call-brief",
+  "callBriefDecide": "./call-brief",
   "callCenterAction": "./call-center",
   "callCenterIngest": "./call-center",
   "callCenterSweep": "./call-center",

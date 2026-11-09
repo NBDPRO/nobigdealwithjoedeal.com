@@ -506,6 +506,10 @@ const VERDICTS = {
   // oppDraftList / oppDraftDecide (functions/opp-decide.js): the same owner-only gate; proven in tests/opp-decide-callable-2026-11-04.test.js section 1.
   oppDraftList: 'role-gated',
   oppDraftDecide: 'role-gated',
+  // Call to Close P0 (2026-11-09, functions/call-brief.js): exactly callCenterAction's role test (a viewer is refused,
+  // and a sales rep unless they own the call). Proven in tests/call-brief-callable-2026-11-09.test.js sections 1 and 8.
+  callBrief: 'role-gated',
+  callBriefDecide: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', transferCompanyOwnership: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',

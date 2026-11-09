@@ -172,4 +172,6 @@ exports.leadBrief = onCall(
 
 exports.getBrief = getBrief;
 exports.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
+// The same plan gate for the Call Brief (functions/call-brief.js).
+exports.aiAllowed = aiAllowed;
 exports._test = { gatherFacts, getBrief, briefCallable, aiAllowed, takeQuota, DAILY_FRESH_CAP };

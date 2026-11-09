@@ -911,6 +911,14 @@ exports.morningBrief = require('./morning-brief').morningBrief;
 // server-side only, cached per lead for 4 h (functions/lead-brief.js).
 exports.leadBrief = require('./lead-brief').leadBrief;
 
+// Call to Close P0 (2026-11-09): "Draft from this call" — a grounded brief of
+// one human-filed call (every fact quoted from the transcript, checked on the
+// server), and its Accept / Skip log + fill-empty field writes. On tap only,
+// 20 per user / 60 per company a day, feature_flags/global callBriefDisabled
+// (functions/call-brief.js, call-brief-logic.js).
+exports.callBrief = require('./call-brief').callBrief;
+exports.callBriefDecide = require('./call-brief').callBriefDecide;
+
 // Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
 // quoted later evidence; every change logged (functions/promise-cleanup.js).
 // DRY-RUN unless PROMISE_CLEANUP_ENABLED=true.

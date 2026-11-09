@@ -99,6 +99,14 @@ async function isAiDraftDisabled() {
   return f.aiDraftDisabled === true;
 }
 
+// Call to Close P0 (2026-11-09, functions/call-brief.js): the Call Brief
+// callables. Own flag: an operator can stop call briefs without darkening
+// claudeProxy or the notes pass; aiDisabled still stops them too.
+async function isCallBriefDisabled() {
+  const f = await getFlags();
+  return f.callBriefDisabled === true;
+}
+
 // Test hook — clears the cache so unit tests can assert fresh reads.
 function _resetCache() { _cache = { at: 0, flags: {} }; }
 
@@ -108,5 +116,6 @@ module.exports = {
   isWebLeadMeasureDisabled,
   isVoiceIntelDisabled,
   isAiDraftDisabled,
+  isCallBriefDisabled,
   _resetCache
 };
