@@ -100,6 +100,10 @@ console.log('B. docs/llms.txt credentials come from the generated region');
     !active.some((r) => r.contractorId && outside.includes(r.contractorId)) && !/certified (January|February|March|April|May|June|July|August|September|October|November|December)/i.test(outside),
     (outside.match(/.{0,60}(181382|1162011|certified (July|August)).{0,40}/) || [])[0]);
   ok('the region links /credentials', region.includes('https://nobigdealwithjoedeal.com/credentials'));
+  // 2026-11-09 review: the heading must not promise a verify link for every row
+  // while some active rows (insurance, James Hardie) have no verifyUrl.
+  ok('the region heading promises a verify link only if every active row has one',
+    active.every((r) => r.verifyUrl) || !/with its verify link/i.test(region));
 }
 
 console.log('C. the footer disclaimer and /credentials name the same issuers');
