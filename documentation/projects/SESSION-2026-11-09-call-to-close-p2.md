@@ -59,8 +59,8 @@ Two reviewers, deduped to these fixes, each test first, one commit each:
 - Visit recordings made before this deploy have no `segIndex`, so their walkthrough briefs mark nothing unsure (the digit rule still applies).
 - Visit transcripts themselves (`users/{uid}/visit_captures`) and `thursday_calls` are not swept by retention; only the briefs made from walkthroughs are (retention note, question 4).
 - Done (follow-up, 2026-11-09): the sheet's footer Close button was under 44 px tall at desktop width (44 px on a phone); `.cb-foot .btn` now has `min-height: 44px` at every width (call-brief-ui suite §12).
-- The sheet does not say on a merged call's brief that it read two recordings (the Call Center card does).
-- Both of the above are follow-ups, agreed in the final review.
+- Done (follow-up, 2026-11-09): the sheet did not say on a merged call's brief that it read two recordings (the Call Center card does). `callBrief`'s answer now carries the stored brief's `mergedFrom` (no new read), and the sheet shows one quiet line at its top, "This brief read 2 recordings (the call and its redial)." (`role="note"`; call-brief-ui suite §13, split-merge-brief suite).
+- Both of the above were follow-ups agreed in the final review; both are now built.
 - If a merged pair's calls are both unfiled and the redial is filed later, the redial hides on that customer's page (its first call shows there by number only). The final-review rule refuses the merge only when it is made; filing a merged redial is not blocked.
 - Retention's per-phase scan counts records already stripped (retention note, Scale): needs a done marker or a `retention.*` filter before tenants scale up.
 

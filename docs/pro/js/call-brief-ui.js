@@ -440,6 +440,8 @@
     var b = S.brief || {};
     var t = b.transcriptOk || {};
     var out = '';
+    // P2 merge: the brief's answer names the redial it read too (never the call doc: a brief cached before the merge read one).
+    if (S.mergedFrom && !isVisit()) out += '<div class="cb-note" role="note">This brief read 2 recordings (the call and its redial).</div>';
     if (t.reliable === false) out += '<div class="cb-banner is-danger" role="status">Transcript unreliable, listen to the recording. Only the summary is shown' + (t.why ? ': ' + esc(t.why) : '.') + '</div>';
     if (t.cutOff) out += '<div class="cb-banner" role="status">The transcript ends mid-call.</div>';
     if (b.flags && b.flags.injection) out += '<div class="cb-banner" role="status">Part of this call reads like instructions to a computer. Nothing was taken from those words.</div>';
@@ -1181,7 +1183,7 @@
       var r = await callable('callBrief', ids());
       await logic;
       if (S !== mine) return;
-      S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
+      S.brief = r && r.brief; S.mergedFrom = r && r.mergedFrom ? String(r.mergedFrom) : ''; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
       if (!S.brief) S.error = 'The brief did not come back. Try again in a minute.';
       else initPromises();
     } catch (e) {
@@ -1220,7 +1222,7 @@
   function showWith(o) {
     var x = o || {};
     S = { callId: x.visit ? 'visit_' + x.visit.visitId : (x.callId || 'cube_PREVIEW'), visit: x.visit || null, call: x.call || {}, lead: x.lead || {}, leadId: x.leadId || '', page: x.page === 'customer' ? 'customer' : 'calls',
-      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
+      loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], msg: {}, objCopied: {}, decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, mergedFrom: x.mergedFrom ? String(x.mergedFrom) : '', onChange: null };
     initPromises();
     show();
     var mine = S;

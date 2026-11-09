@@ -354,6 +354,27 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     ok('every loader of call-brief-ui.js names v=4+', ['docs/pro/js/customer-calls.js', 'docs/pro/js/call-center-view.js', 'docs/pro/js/call-timeline.js'].every((f) => vOf(f, /call-brief-ui\.js\?v=(\d+)/) >= 4));
   }
 
+  console.log('\n13. A merged call\'s brief says it read two recordings (P2 follow-up, 2026-11-09)');
+  {
+    const NOTE = /<div class="cb-note" role="note">This brief read 2 recordings \(the call and its redial\)\.<\/div>/;
+    const { CB, win } = load();
+    CB._showWith({ brief: clone(BRIEF), mergedFrom: 'cube_REDIAL0001', call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    const html = CB._render();
+    ok('a merged brief shows the one quiet note', NOTE.test(html) && (html.match(/cb-note/g) || []).length === 1, (html.match(/<div class="cb-note[^<]*/) || [])[0]);
+    const scroll = html.split('<div class="cb-scroll">')[1] || '';
+    ok('...at the top of the sheet, before the summary', scroll.search(NOTE) >= 0 && scroll.search(NOTE) < scroll.indexOf('Hail leak'));
+    CB._showWith({ brief: clone(BRIEF), call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('a single call\'s brief has no note', !/cb-note/.test(CB._render()));
+    CB._showWith({ brief: clone(BRIEF), call: Object.assign({}, CALL, { mergedFrom: 'cube_REDIAL0001' }), lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('the note follows the brief\'s answer, not the call doc (a cached brief made before the merge read one)', !/cb-note/.test(CB._render()));
+    // Through open(): the callable's answer carries mergedFrom.
+    win._httpsCallable = () => async () => ({ data: { brief: clone(BRIEF), generatedAtMs: 1, decisions: [], mergedFrom: 'cube_REDIAL0001' } });
+    await CB.open({ callId: 'cube_ABCDE12345', call: CALL, lead: clone(LEAD), leadId: 'L1', page: 'calls' });
+    ok('open(): the callable\'s mergedFrom reaches the sheet', NOTE.test(CB._render()));
+    const css = read('docs/pro/css/call-brief.css');
+    ok('the note has a quiet style in the sheet CSS', /\.cb-note \{/.test(css));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

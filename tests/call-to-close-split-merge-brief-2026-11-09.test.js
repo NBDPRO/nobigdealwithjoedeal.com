@@ -151,6 +151,8 @@ const briefDoc = (db) => db.store.get('leads/L1/call_briefs/' + P_ID);
     const d = briefDoc(db);
     ok('the stored hash is the joined text\'s', d && d.transcriptHash === L.transcriptHash(A + SEP + B));
     ok('the stored brief names the call it merged in', d && d.mergedFrom === S_ID);
+    // 2026-11-09 follow-up: the sheet says it read two recordings, from the answer itself (no new read).
+    ok('the answer carries mergedFrom, so the sheet can say it read both', r.r && r.r.mergedFrom === S_ID, r.r && r.r.mergedFrom);
     const b = r.r && r.r.brief;
     ok('a fact said on the redial grounds (claim # from the second call)', b && b.fields && b.fields.claimNumber && /44729/.test(b.fields.claimNumber.value), b && b.fields && b.fields.claimNumber);
     ok('a fact said on the first call grounds too (carrier)', b && b.fields && b.fields.insCarrier && b.fields.insCarrier.value === 'State Farm');
@@ -190,10 +192,12 @@ const briefDoc = (db) => db.store.get('leads/L1/call_briefs/' + P_ID);
     ok('decisions already made are kept (append-only log)', Array.isArray(briefDoc(db).decisions) && briefDoc(db).decisions.length === 1);
     const again = await brief(db);
     ok('a re-tap is then cached (no second model call)', modelCalls.length === 1 && again.r && again.r.cached === true);
+    ok('...and the cached answer still carries mergedFrom', again.r && again.r.mergedFrom === S_ID, again.r && again.r.mergedFrom);
     const ctl = makeDb(seed({ mergedFrom: null }, { mergedInto: null }, { ['leads/L1/call_briefs/' + P_ID]: pre }));
     modelCalls = [];
     const c = await brief(ctl);
     ok('control: unmerged, the same stored brief is used as it was', modelCalls.length === 0 && c.r && c.r.cached === true && c.r.brief.summary.text === 'old');
+    ok('...and its answer names no merged call (the sheet stays quiet)', c.r && !c.r.mergedFrom);
   }
 
   console.log('\n3. The redial itself');
@@ -219,6 +223,7 @@ const briefDoc = (db) => db.store.get('leads/L1/call_briefs/' + P_ID);
     const r = await brief(db);
     ok('after Undo the hash is the first call\'s again, so it redrafts', modelCalls.length === 2 && r.r && r.r.cached === false && briefDoc(db).transcriptHash === L.transcriptHash(A));
     ok('...from the first call alone', fenced(modelCalls[1]) === L.fenceSafe(A) && !briefDoc(db).mergedFrom);
+    ok('...and the answer after Undo names no merged call', r.r && !r.r.mergedFrom);
   }
 
   console.log('\n5. When the redial does not count');

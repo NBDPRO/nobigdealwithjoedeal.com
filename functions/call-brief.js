@@ -231,6 +231,8 @@ async function briefInput(db, g) {
 
 const answer = (doc, extra) => Object.assign({
   brief: doc.brief, generatedAtMs: doc.generatedAtMs, cached: true, decisions: Array.isArray(doc.decisions) ? doc.decisions : [],
+  // The redial this brief read too (P2 merge), so the sheet can say so; null for a call alone.
+  mergedFrom: doc.mergedFrom || null,
 }, extra || {});
 
 async function briefCallable({ db, auth, data, nowMs, callModel, log = logger }) {

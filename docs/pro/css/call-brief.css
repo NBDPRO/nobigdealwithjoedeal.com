@@ -69,6 +69,8 @@
 .cb-foot { border-top: 1px solid var(--ui-line-divider, var(--br, rgba(255,255,255,.12))); padding: var(--ui-space-3, 12px) var(--ui-space-4, 16px); display: flex; gap: var(--ui-space-2, 8px); align-items: center; justify-content: space-between; flex-wrap: wrap; }
 /* P2 follow-up (2026-11-09): the footer Close was under 44px on desktop. */
 .cb-foot .btn { min-height: 44px; }
+/* P2 follow-up: a merged call's brief says it read two recordings. */
+.cb-note { font-size: var(--ui-fs-caption, 12px); color: var(--m, #9ca3af); line-height: 1.45; }
 .cb-loading { padding: var(--ui-space-6, 24px) 0; text-align: center; color: var(--m, #9ca3af); }
 /* The "From the call" list beside the proposal's scope field (pre-flight modal). */
 .cb-from-call { margin-top: 8px; padding: 8px 12px; border-radius: var(--ui-radius-sm, 6px); font-size: 13px; line-height: 1.45;
