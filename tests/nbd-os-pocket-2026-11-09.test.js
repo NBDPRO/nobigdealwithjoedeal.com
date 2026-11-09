@@ -146,5 +146,22 @@ G(() => {
   ok('css: no literal font size under 11px', sizes.every((x) => x >= 11), J(sizes));
 });
 
+console.log('\n5. a shared device: sign-out (nbd-auth.js purgeAccountStorage) wipes the kept notes and the draft');
+G(() => {
+  const vm = require('vm');
+  const AUTH = read('docs/pro/js/nbd-auth.js');
+  const ki = AUTH.indexOf('      const KEEP = new Set([');
+  const kEnd = '      drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });';
+  const kj = AUTH.indexOf(kEnd, ki);
+  ok('(found the sign-out sweep)', ki >= 0 && kj > ki);
+  const st = {};
+  const keys = PL ? [PL.key('u1'), PL.draftKey('u1'), PL.key('u2')] : [];
+  keys.forEach((k) => { st[k] = 'v'; });
+  const c = vm.createContext({ localStorage: { get length() { return Object.keys(st).length; }, key: (n) => Object.keys(st)[n], removeItem: (k) => { delete st[k]; } }, Set, RegExp });
+  if (ki >= 0 && kj > ki) vm.runInContext(AUTH.slice(ki, kj + kEnd.length), c);
+  ok('Pocket\'s keys are nbd_ keys the sweep drops: notes and draft, every member', keys.length === 3 && Object.keys(st).length === 0, J(Object.keys(st)));
+  ok('the sheet says so (kept until filed or until sign-out)', /until you file it or sign out/.test(read('docs/pro/js/os/pocket.js')));
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);

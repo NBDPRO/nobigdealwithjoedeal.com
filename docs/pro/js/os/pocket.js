@@ -13,7 +13,8 @@
  * (os/system.js) has to stay above it and reachable, so it traps Tab itself.
  *
  * A typed note is kept on THIS device only (localStorage nbd_os_pocket:<uid>, at most 20,
- * and the unsent draft in nbd_os_pocket_draft:<uid>) until the member files it. "File"
+ * and the unsent draft in nbd_os_pocket_draft:<uid>) until the member files it. Both are
+ * nbd_ keys, so sign-out (nbd-auth.js purgeAccountStorage) wipes them on a shared device. "File"
  * hands the text to quick-capture.js (NBDQuickCapture.review): its own Save / link to a
  * lead screen and its own writer; the note leaves this device only when that writer says
  * it saved. "Voice note" opens quick-capture's recorder. Pocket has no writer of its own:
@@ -63,7 +64,7 @@
       '<div class="os-pocket" role="dialog" aria-modal="true" aria-labelledby="osPocketTitle" aria-describedby="osPocketLede">' +
         '<div class="os-pocket-hd"><h2 class="os-pocket-title" id="osPocketTitle">Pocket</h2>' +
           '<button type="button" class="btn btn-ghost os-pocket-x" data-pocket="close" aria-label="Close Pocket">✕</button></div>' +
-        '<p class="os-pocket-lede" id="osPocketLede">A quick note over whatever is open. It stays on this device until you file it.</p>' +
+        '<p class="os-pocket-lede" id="osPocketLede">A quick note over whatever is open. It stays on this device until you file it or sign out.</p>' +
         '<label class="os-pocket-lbl" for="osPocketText">Note</label>' +
         '<textarea class="os-pocket-ta" id="osPocketText" rows="3" maxlength="' + PL.MAX_LEN + '" placeholder="A gate code, a callback, a measurement"></textarea>' +
         '<div class="os-pocket-acts">' +
