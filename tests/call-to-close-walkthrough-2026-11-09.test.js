@@ -383,6 +383,22 @@ async function decide(db, auth, data) {
     ok('a same-company manager (who may act on it) still hears not-found', mg.e && mg.e.code === 'not-found', mg.e && mg.e.code);
   }
 
+  console.log('\n8. Grounding is word-bounded: "2 layers" never grounds inside "12 layers" (review 2026-11-09)');
+  {
+    const G = L.groundScopeFacts;
+    const T12 = 'Okay so this one is a twelve story building and it has twelve layers of shingles somehow.';
+    ok('groundQuote: "2 layers" is not inside "12 layers"', L.groundQuote('2 layers', L.normalizeSpeech('it has 12 layers here')) === false);
+    ok('groundQuote: "2 story" is not inside "12 story"', L.groundQuote('2 story house', L.normalizeSpeech('a 12 story house')) === false);
+    ok('groundQuote: "layers" is not grounded by "players"', L.groundQuote('layers of it', L.normalizeSpeech('the players of it')) === false);
+    ok('groundQuote: a whole-word quote still grounds, at the start, middle and end', ['okay so this', 'twelve layers of shingles', 'shingles somehow'].every((q) => L.groundQuote(q, L.normalizeSpeech(T12))));
+    ok('scope facts: "two layers" / "two story" are dropped against a twelve-layer, twelve-story transcript', G(['two layers', 'two story building'], T12).facts.length === 0, G(['two layers', 'two story building'], T12));
+    ok('…so they never set the stories or layers chip', (() => {
+      const sb = L.sanitizeBrief(JSON.parse(JSON.stringify(CANNED)), { transcript: T12, callYmd: '2026-11-05' });
+      const m = L.mergeVisitScope(sb, G(['two layers', 'two story building'], T12).facts);
+      return !(m.scope.stories && m.scope.stories.value === 2) && !(m.scope.layers && m.scope.layers.value === 2);
+    })());
+  }
+
   console.log('\n5. Wiring');
   {
     const fi = read('functions/FUNCTIONS_INDEX.md');

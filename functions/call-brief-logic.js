@@ -204,11 +204,15 @@ function normalizeSpeech(s) {
   return out.join(' ');
 }
 
-/** Is the quote (normalised) inside the transcript (normalised)? */
+/**
+ * Is the quote (normalised) inside the transcript (normalised), on whole
+ * words? Both are single-space-joined tokens, so padding with spaces keeps
+ * "2 layers" from grounding inside "12 layers" (review 2026-11-09).
+ */
 function groundQuote(quote, normTranscript) {
   const q = normalizeSpeech(quote);
   if (q.length < 4) return false;
-  return String(normTranscript || '').includes(q);
+  return (' ' + String(normTranscript || '') + ' ').includes(' ' + q + ' ');
 }
 
 /** Every digit run in the value appears in its quote (spoken numbers counted). */
