@@ -40,3 +40,8 @@
 @media (max-width: 640px) {
   .cmdx-bar { padding: 6px 10px; }
 }
+/* phone / touch: the scope chips (@ # > = t:) under the search box are full
+   44px tap targets (NBD OS P2 runner, 2026-11-09) */
+@media (max-width: 640px), (pointer: coarse) {
+  .cmdx-hint, .cmdx-chip { min-height: 44px; min-width: 44px; padding: 0 14px; font-size: 13px; }
+}
