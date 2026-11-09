@@ -178,6 +178,11 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     ok('no consent + a brief that heard "you can text me" → the text draft refuses and says why', /No written texting consent/.test(sec) && /not consent/.test(sec) && !/data-cb-act="msg-text"/.test(sec), sec.slice(0, 900));
     await click({ 'data-cb-act': 'msg-text' });
     ok('…and nothing can be handed to Messages', shares.length === 0);
+    const { CB: CBe, dlg: dlgE } = load();
+    open(CBe, { lead: { firstName: 'Pat', phone: '5135550100', email: 'pat@example.com' }, decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    CBe._render();
+    const esec = section(dlgE.innerHTML, 'cbMsgH');
+    ok('no texting consent but an email on file → opens on the email draft and still says why there is no text', /data-cb-act="msg-email"/.test(esec) && /No written texting consent/.test(esec));
     ok('…with no email either, the email draft says so', (await (async () => { await click({ 'data-cb-act': 'msg-channel', 'data-ch': 'email' }); return /No email address/.test(section(dlg.innerHTML, 'cbMsgH')); })()));
   }
 
@@ -201,7 +206,15 @@ const words = (html) => html.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
     CB._render();
     await click({ 'data-cb-act': 'msg-text' });
+    ok('…shown as a refusal (cb-err), not as done', /cb-err[^>]*>Texting hours/.test(dlg.innerHTML));
     ok('the check says no (quiet hours) → the reason shows, nothing logged', shares.length === 1 && /Texting hours/.test(dlg.innerHTML) && !calls.some((c) => c.data && c.data.item === 'draft:followupText'));
+  }
+  {
+    const { CB, click, dlg, calls } = load({ shareResult: { shared: false, via: null, cancelled: true } });
+    open(CB, { decisions: [{ item: 'followUp', decision: 'accept', finalValue: '2026-11-10', gen: GEN }] });
+    CB._render();
+    await click({ 'data-cb-act': 'msg-text' });
+    ok('the person says it did not go out → a plain note (not an error, not done), nothing logged', /cb-meta[^>]*>Not sent\. The message is still here\./.test(dlg.innerHTML) && !/cb-(err|done)[^>]*>Not sent/.test(dlg.innerHTML) && !calls.some((c) => c.data && c.data.item === 'draft:followupText'));
   }
   {
     const { CB, click, dlg, shares, calls } = load();

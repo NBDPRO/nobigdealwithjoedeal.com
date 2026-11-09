@@ -521,15 +521,15 @@
             '<div class="cb-acts">' + btn('Check and open in Messages', 'msg-text', '', 'btn-orange') + btn('Copy', 'msg-copy') + '</div>' +
             '<div class="cb-meta">Checks Do Not Text, consent and texting hours first, then opens Messages with this written. You press Send there.</div>';
       } else {
-        var em = emailOk(S.lead);
-        inner = !em.ok ? '<div class="cb-banner" role="status">' + esc(em.why) + '</div>'
+        var em = emailOk(S.lead), tcE = textConsent(S.lead);
+        inner = (tcE.ok ? '' : '<div class="cb-meta">' + esc(tcE.why) + '</div>') + (!em.ok ? '<div class="cb-banner" role="status">' + esc(em.why) + '</div>'
           : '<label class="cb-field-lbl" for="cbMsgSubj">Subject</label><input class="cb-input" type="text" id="cbMsgSubj" data-cb-input="msg-subject" maxlength="120" value="' + esc(S.msg.subject != null ? S.msg.subject : draft.subject) + '">' +
             '<label class="cb-field-lbl" for="cbMsgBody">Email</label><textarea class="cb-text" id="cbMsgBody" data-cb-input="msg-body" maxlength="2000">' + esc(S.msg.body != null ? S.msg.body : draft.body) + '</textarea>' +
             '<div class="cb-acts">' + btn('Open in Mail', 'msg-email', '', 'btn-orange') + btn('Copy', 'msg-copy') + '</div>' +
-            '<div class="cb-meta">Opens your mail app with this written. You press Send there; the CRM does not send it.</div>';
+            '<div class="cb-meta">Opens your mail app with this written. You press Send there; the CRM does not send it.</div>');
       }
       body = '<div class="cb-meta">Built only from what you accepted, in fixed wording. Nothing is sent until you send it yourself.</div>' + toggle + inner +
-        (S.msg.err ? '<div class="cb-err" role="alert">' + esc(S.msg.err) + '</div>' : '') + (S.msg.done ? '<div class="cb-done" role="status">' + esc(S.msg.done) + '</div>' : '');
+        (S.msg.err ? '<div class="cb-err" role="alert">' + esc(S.msg.err) + '</div>' : '') + (S.msg.done ? '<div class="cb-done" role="status">' + esc(S.msg.done) + '</div>' : '') + (S.msg.note ? '<div class="cb-meta" role="status">' + esc(S.msg.note) + '</div>' : '');
     }
     return '<div class="cb-sec" role="group" aria-labelledby="cbMsgH"><h3 class="cb-sec-title" id="cbMsgH">Follow-up message</h3><div class="cb-card">' + body + '</div></div>';
   }
@@ -740,7 +740,7 @@
     }
     if (a === 'stage-move' || a === 'stage-yes') { moveStage(a); return; }
     if (a === 'proposal') { draftProposal(); return; }
-    if (a === 'msg-channel') { S.msg.ch = b.getAttribute('data-ch') === 'email' ? 'email' : 'text'; S.msg.err = ''; S.msg.done = ''; render(); return; }
+    if (a === 'msg-channel') { S.msg.ch = b.getAttribute('data-ch') === 'email' ? 'email' : 'text'; S.msg.err = ''; S.msg.done = ''; S.msg.note = ''; render(); return; }
     if (a === 'msg-text' || a === 'msg-email') { sendMessage(a === 'msg-text' ? 'text' : 'email'); return; }
     if (a === 'msg-copy') {
       var dr = msgDraftNow();
@@ -847,7 +847,7 @@
     if (!draft) return;
     var lead = S.lead || {};
     var gate = kind === 'text' ? textConsent(lead) : emailOk(lead);
-    S.msg.err = ''; S.msg.done = '';
+    S.msg.err = ''; S.msg.done = ''; S.msg.note = '';
     if (!gate.ok) { S.msg.err = gate.why; render(); return; }
     var ps = window.NBDPhoneShare;
     if (!ps || typeof ps.share !== 'function') { S.msg.err = 'Messages and Mail cannot be opened from this page. Copy the message instead.'; render(); return; }
@@ -863,7 +863,7 @@
       S.msg.done = kind === 'text' ? 'Sent from your phone.' : 'Sent from your mail app.';
       decide(kind === 'text' ? 'draft:followupText' : 'draft:followupEmail', 'accept', { value: String(words).slice(0, 600) }).catch(function () { /* it went; the log is best effort */ });
     } else if (r && (r.blocked || r.reason)) S.msg.err = r.reason || 'Not sent.';
-    else S.msg.done = 'Not sent. The message is still here.';
+    else S.msg.note = 'Not sent. The message is still here.';
     render();
   }
 
