@@ -24,8 +24,15 @@
  *      (NBDFollowUpDeck.setFollowUp, with its undo; followup-deck.js is
  *      lazy-loaded on the customer page).
  *   5. Mark handled (callCenterAction handled).
- *   6. Stage: READ-ONLY in P0. "Suggests: …, because '…'" and a button that
- *      opens the normal place to change it.
+ *   6. Stage (P1): "Suggests: …, because '…'". A plain forward move is one
+ *      tap through the CRM's own stage writer (progressStage on the customer
+ *      page, moveCard on #/calls), with every gate that writer has.
+ *      Inspected, install_complete and Lost / Archived / Cancelled ask first,
+ *      naming why (Lost takes a reason, offered from what was said); a stage
+ *      that sets an appointment never moves from here (it opens the normal
+ *      place); a signed / job / won stage never moves. call-to-close-logic.js
+ *      stagePlan decides; the move is logged in callBriefDecide decisions[]
+ *      only once the writer moved it.
  *   7. Draft proposal (P0b): DocPreflight.open('proposal', leadId) with only
  *      the Project Description seeded, and only when the customer has none
  *      (it persists to lead.scopeOfWork). Scope items are never seeded: the
@@ -35,7 +42,7 @@
  *      callPrefill). On the dashboard it opens the builder here; on the
  *      customer page it goes to /pro/dashboard.html?lead=<id>&callBrief=<id>.
  * Nothing is pre-ticked, there is no Apply-all, nothing is sent, priced or
- * signed, and no stage moves. Everything shown is escaped.
+ * signed, and no stage moves without a tap. Everything shown is escaped.
  *
  * P1 (2026-11-09): a quote Whisper was unsure of (the call's segIndex,
  * functions/call-brief-logic.js unsureQuotes) says "Unsure"; a field whose
@@ -53,6 +60,7 @@
   var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   var CSS_HREF = '/pro/css/call-brief.css?v=1';
   var FOLLOWUP_JS = '/pro/js/followup-deck.js?v=2';
+  var CTC_JS = '/pro/js/call-to-close-logic.js?v=1';
   var INSURANCE_WARN = 'This makes the job an insurance job. Kentucky notices and the cancellation form will apply.';
   // The meeting date feeds the calendar feed and the Google Calendar sync
   // (google-calendar-logic WATCHED), so it is labelled and always confirmed.
@@ -316,15 +324,45 @@
     return '<div class="cb-sec" role="group" aria-labelledby="cbFuH"><h3 class="cb-sec-title" id="cbFuH">Follow-up</h3><div class="cb-card">' + body + '</div></div>';
   }
 
+  // The customer's stage now, and which CRM writer can move it from here
+  // ('' = none: the sheet only offers the normal place to change it).
+  function currentStage() { return (S.page === 'customer' && window._currentStage) || (S.lead && S.lead.stage) || ''; }
+  function stageWriter() {
+    // progressStage(target, opts) since P1; an older cached copy takes no target.
+    if (S.page === 'customer') return typeof window.progressStage === 'function' && window.progressStage.length >= 1 ? 'customer' : '';
+    var onBoard = (window._leads || []).some(function (l) { return l && l.id === S.leadId; });
+    return typeof window.moveCard === 'function' && onBoard ? 'board' : '';
+  }
+  function stagePlanNow() {
+    var st = S.brief && S.brief.stage;
+    var C = window.NBDCallToClose;
+    return st && C && typeof C.stagePlan === 'function' ? C.stagePlan(st, currentStage()) : null;
+  }
   function renderStage() {
     var st = S.brief && S.brief.stage;
     if (!st) return '';
-    var act = S.page === 'customer'
+    var picker = S.page === 'customer'
       ? btn('Change the stage…', 'stage')
       : '<a class="btn btn-ghost" href="/pro/customer.html?id=' + encodeURIComponent(S.leadId) + '">Open the customer to change it</a>';
+    var plan = stagePlanNow();
+    var canMove = plan && (plan.kind === 'one-tap' || plan.kind === 'confirm') && stageWriter();
+    var to = esc(st.label);
+    var body;
+    if (plan && plan.kind === 'none') body = '<div class="cb-meta">' + esc(plan.why || 'The customer is already at this stage.') + '</div>';
+    else if (!canMove) {
+      body = '<div class="cb-meta">' + esc((plan && (plan.kind === 'flow' || plan.kind === 'refuse') && plan.why) || 'Nothing moves from here. You change the stage yourself.') + '</div><div class="cb-acts">' + picker + '</div>';
+    } else if (plan.kind === 'one-tap') {
+      body = '<div class="cb-meta">One tap moves it through the usual stage change, with its checks.</div><div class="cb-acts">' + btn('Move to ' + st.label, 'stage-move', '', 'btn-orange') + picker + '</div>';
+    } else if (S.confirm === 'stage') {
+      body = '<div class="cb-warn">' + esc(plan.why) + ' Move to ' + to + '?</div>' +
+        (plan.needsReason ? '<label class="cb-field-lbl" for="cbLostReason">Reason</label><input class="cb-input" id="cbLostReason" type="text" maxlength="300" data-cb-input="lostReason" value="' + esc(S.lostReason != null ? S.lostReason : (st.quote || '')) + '">' : '') +
+        '<div class="cb-acts">' + btn('Yes, move to ' + st.label, 'stage-yes', '', 'btn-orange') + btn('Cancel', 'cancel') + '</div>';
+    } else {
+      body = '<div class="cb-meta">' + esc(plan.why) + '</div><div class="cb-acts">' + btn('Move to ' + st.label + '…', 'stage-ask') + picker + '</div>';
+    }
     return '<div class="cb-sec" role="group" aria-labelledby="cbStageH"><h3 class="cb-sec-title" id="cbStageH">Stage</h3><div class="cb-card">' +
-      '<div class="cb-diff">Suggests: <strong>' + esc(st.label) + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote, st.unsure === true) +
-      '<div class="cb-meta">Nothing moves from here. You change the stage yourself.</div><div class="cb-acts">' + act + '</div></div></div>';
+      '<div class="cb-diff">Suggests: <strong>' + to + '</strong>' + (st.reason ? ', because ' + esc(st.reason.charAt(0).toLowerCase() + st.reason.slice(1).replace(/\.$/, '')) : '') + '</div>' + quoteHtml(st.quote, st.unsure === true) +
+      body + statusFor('stage-move') + '</div></div>';
   }
 
   // Start estimate (P1): fixed label, the repair wording only for a repair call.
@@ -420,7 +458,7 @@
     if (a === 'close') { close(); return; }
     // An edit box's Cancel closes that box; a confirm's Cancel closes only the
     // confirm and keeps what was typed (a retype box has no prefill).
-    if (a === 'cancel') { if (k) delete S.edit['field:' + k]; else S.confirm = ''; render(); return; }
+    if (a === 'cancel') { if (k) delete S.edit['field:' + k]; else { S.confirm = ''; S.lostReason = null; } render(); return; }
     if (a === 'summary') { S.confirm = 'summary'; render(); return; }
     if (a === 'summary-yes') {
       var text = S.summaryText != null ? S.summaryText : ((S.brief.summary || {}).text || '');
@@ -497,8 +535,49 @@
       if (edit) edit.click();
       return;
     }
+    if (a === 'stage-ask') {
+      var sp = stagePlanNow();
+      if (sp && sp.kind === 'confirm') { S.confirm = 'stage'; render(); }
+      return;
+    }
+    if (a === 'stage-move' || a === 'stage-yes') { moveStage(a); return; }
     if (a === 'proposal') { draftProposal(); return; }
     if (a === 'estimate') { startEstimate(); }
+  }
+
+  /**
+   * The brief's stage, through the CRM's own writer. One tap only for a plain
+   * forward move; a confirm-list stage only from its Yes; never an
+   * appointment, signed, job or won stage. The sheet closes first (the
+   * writer may open its own sheet or confirm), and the decision is logged
+   * only once the customer actually moved.
+   */
+  async function moveStage(a) {
+    var plan = stagePlanNow();
+    var how = plan ? stageWriter() : '';
+    var mode = plan && plan.kind === 'one-tap' && a === 'stage-move' ? 'one-tap'
+      : plan && plan.kind === 'confirm' && a === 'stage-yes' && S.confirm === 'stage' ? 'confirmed' : '';
+    if (!mode || !how) return;
+    var reason = plan.needsReason ? String(S.lostReason != null ? S.lostReason : ((S.brief.stage || {}).quote || '')).trim().slice(0, 300) : '';
+    if (plan.needsReason && !reason) { S.err = S.err || {}; S.err['stage-move'] = 'Give a reason first.'; render(); return; }
+    var callId = S.callId, leadId = S.leadId, onChange = S.onChange;
+    var opts = { asked: mode === 'confirmed' };
+    if (reason) opts.lostReason = reason;
+    close();
+    var moved = false;
+    try {
+      if (how === 'customer') moved = (await window.progressStage(plan.key, opts)) === true;
+      else {
+        await window.moveCard(leadId, plan.key, reason ? { lostReason: reason } : undefined);
+        var l = (window._leads || []).filter(function (x) { return x && x.id === leadId; })[0];
+        moved = !!l && l.stage === plan.key;
+      }
+    } catch (e) {
+      if (typeof window.showToast === 'function') window.showToast('The stage did not move: ' + errText(e), 'error');
+    }
+    if (!moved) return;
+    callable('callBriefDecide', { callId: callId, item: 'stage', decision: 'accept', value: plan.key, mode: mode }).catch(function () { /* the move itself is saved */ });
+    if (typeof onChange === 'function') { try { onChange(); } catch (_) { /* the card reloads itself */ } }
   }
 
   /**
@@ -667,6 +746,7 @@
     var kind = t.getAttribute('data-cb-input');
     var i = Number(t.getAttribute('data-i'));
     if (kind === 'summary') S.summaryText = t.value;
+    else if (kind === 'lostReason') S.lostReason = t.value;
     else if (kind === 'edit') S.edit['field:' + t.getAttribute('data-k')] = t.value;
     else if (kind === 'due' && S.prom[i]) S.prom[i].dueYmd = t.value;
     else if (kind === 'kind' && S.prom[i] && KINDS.indexOf(t.value) !== -1) {
@@ -678,6 +758,11 @@
     ensureDialog();
     render();
     if (!dlg.open) { if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', ''); }
+  }
+  // call-to-close-logic.js (the stage plan) loads with the sheet, never at boot.
+  function loadLogic() {
+    if (window.NBDCallToClose || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return Promise.resolve();
+    return Promise.resolve(window.ScriptLoader.load(CTC_JS)).catch(function () { /* the stage card stays read-only */ });
   }
   function close() { if (dlg && dlg.open) { try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); } } S = null; }
 
@@ -692,8 +777,10 @@
       page: x.page === 'customer' ? 'customer' : 'calls', loading: true, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: [], onChange: x.onChange };
     var mine = S;
     show();
+    var logic = loadLogic();
     try {
       var r = await callable('callBrief', { callId: x.callId });
+      await logic;
       if (S !== mine) return;
       S.brief = r && r.brief; S.decisions = (r && r.decisions) || []; S.gen = r && r.generatedAtMs != null ? Number(r.generatedAtMs) : null; S.loading = false;
       if (!S.brief) S.error = 'The brief did not come back. Try again in a minute.';
@@ -735,6 +822,8 @@
       loading: false, error: '', done: {}, err: {}, edit: {}, confirm: '', prom: [], decisions: x.decisions || [], gen: x.generatedAtMs != null ? Number(x.generatedAtMs) : null, brief: x.brief, onChange: null };
     initPromises();
     show();
+    var mine = S;
+    loadLogic().then(function () { if (S === mine) render(); });
     return dlg;
   }
 
