@@ -3536,7 +3536,7 @@ service cloud.firestore {
 
       // Per-number contact labels (2026-10-12). Read: the solo owner, the
       // company's pipeline readers (company_admin / manager / viewer — the
-      // phone_calls audience) and the platform admin. A sales_rep never reads
+      // thursday_calls audience) and the platform admin. A sales_rep never reads
       // them: a label is keyed by a phone number, and a rep must not see
       // teammates' numbers. Write: the solo owner or company_admin / manager,
       // never a viewer (decision B). Delete = the same writers (undo of a
@@ -3706,7 +3706,7 @@ service cloud.firestore {
     // assignStripeTransaction callable. Read: owner, same-company staff, admin.
     // Roof Care Plan memberships (2026-10-05, functions/care-plan.js). Written
     // only by the server (checkout, Stripe webhook, the owner's invite
-    // callable). Readable inside the tenant, like phone_calls. The event
+    // callable). Readable inside the tenant, like thursday_calls. The event
     // markers and the Stripe portal config are server-internal.
     match /careplans/{planId} {
       allow read: if isOwner(resource.data.userId)
