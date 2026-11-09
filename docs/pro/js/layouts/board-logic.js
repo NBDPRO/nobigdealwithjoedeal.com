@@ -22,14 +22,17 @@
  *     cfg.defaults  the board a new person starts with (sanitized)
  *     cfg.carry     extra fields each tile keeps through every op (a copy, never shared)
  *
- * Bento itself is left byte-for-byte as it shipped: make() configured with
- * Bento's catalogue gives exactly NBDBentoLogic's outputs, which
- * tests/nbd-os-board-2026-11-09.test.js proves on a table of inputs and a
- * random walk. firstFit() is the one addition (the OS desk auto-places a
- * widget saved without a position into the first gap, reading order).
+ * Since NBD OS P2 (2026-11-09) Bento builds its own board math from this
+ * file: layouts/bento.js calls make() with Bento's catalogue and exposes the
+ * result as NBDBentoLogic, so there is one copy, not two. Bento's behaviour is
+ * unchanged: tests/nbd-os-board-2026-11-09.test.js pins make()'s outputs to
+ * the math Bento shipped with, on a table of inputs and a random walk.
+ * firstFit() is the one addition (the OS desk auto-places a widget saved
+ * without a position into the first gap, reading order).
  *
  * Classic script: window.NBDBoardLogic; require()-able for tests. Loaded
- * lazily with the OS layout (layout-system.js `needs`), never at boot.
+ * lazily with the Bento and OS layouts (each lists it in layout-system.js
+ * `needs`), never at boot.
  */
 (function (root) {
   'use strict';
