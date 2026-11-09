@@ -884,6 +884,9 @@
    * still counts (nobody else is on it). A missed call (P2) is the member's when its phone_calls doc's
    * userId is (callOwners: { callId: userId }, NBDHomeAttention.lastRows, by the row's callIds), else
    * when the lead it is filed on is (the lead rule above); with neither on file it counts.
+   * That call check is defensive today: the plan's calls are NBDHomeAttention.lastRows, which
+   * home-attention.js reads with where('userId', '==', uid), so every row is already the member's
+   * and the lead fallback never runs in production. It guards a future team-wide calls read.
    */
   function urgency(x) {
     var o = isObj(x) ? x : {};
