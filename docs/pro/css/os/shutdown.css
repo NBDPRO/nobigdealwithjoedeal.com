@@ -42,6 +42,7 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2, 8px); margin: var(--ui-space-3, 12px) 0 0;
   font-size: var(--ui-fs-body-sm, 13px); font-weight: 600;
 }
+.os-sd-undo[hidden] { display: none; }
 .os-sd-ft { margin-top: var(--ui-space-3, 12px); padding-top: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-divider, var(--br)); }
 .os-sd-closed { margin: 0; font-size: var(--ui-fs-body, 14px); font-weight: 700; }
 .os-sd-closed:empty { display: none; }

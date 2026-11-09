@@ -227,10 +227,17 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     const u = dialog(T).querySelector('[data-sd-undo]');
     ok('and Undo is in the sheet too (the modal sheet sits over the toast), with focus on it', !!u && T.document.activeElement === u);
     ok('the home widget repainted from the same data (1 lead left)', /1 lead with no next step/.test(text(widgetOf(T))), text(widgetOf(T)));
+    const st = dialog(T).querySelector('[role="status"]');
+    ok('the Undo line is a role=status node', !!st && /Follow up with Ann/.test(text(st)) && st.contains(u));
+    T.W.dispatchEvent({ type: 'nbd:data-refreshed' });
+    await flush();
+    ok('a repaint (data refresh) keeps the same status node and its text: no re-announcement',
+      dialog(T).querySelector('[role="status"]') === st && /Follow up with Ann/.test(text(st)) && st.querySelector('[data-sd-undo]') === u);
     click(T.dom, u);
     await flush(); await flush();
     const w2 = T.W.writes.slice(before);
     ok('Undo puts the previous follow-up back through the writer\'s own undo', w2.length === 2 && w2[1].ref === 'leads/A' && w2[1].patch.followUp === '', J(w2));
+    ok('after Undo the status node is the same node, emptied and hidden', dialog(T).querySelector('[role="status"]') === st && st.hasAttribute('hidden') && !text(st));
     ok('the row is back and the count is back', !!dialog(T).querySelector('[data-sd-row="lead:A"]') && /Loop closed: 1 lead, 1 visit/.test(text(dialog(T).querySelector('.os-sd-closed'))));
     T.W.toasts[0].undoAction();
     await flush();

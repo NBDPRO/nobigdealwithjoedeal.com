@@ -161,14 +161,23 @@
     }
     if (r.promises.length) h += section('Promises past due', r.promises, promiseRow);
     if (!r.open && known && s.visits !== undefined) h += '<p class="os-sd-note">Nothing left open. Every lead you touched today has a next step.</p>';
-    if (s.last) {
-      h += '<p class="os-sd-undo" role="status">' + esc(s.last.text) +
-        ' <button type="button" class="ui-btn-quiet os-sd-btn" data-sd-undo="">Undo</button></p>';
-    }
     var line = known ? SL.closedLine(r.closed) : '';
-    h += '<div class="os-sd-ft"><p class="os-sd-closed" tabindex="-1">' + esc(line) + (line && r.open ? ' · ' + esc(String(r.open) + ' still open') : '') + '</p></div>';
+    var ft = '<p class="os-sd-closed" tabindex="-1">' + esc(line) + (line && r.open ? ' · ' + esc(String(r.open) + ' still open') : '') + '</p>';
     var keep = focusKey(s.d);
-    s.d.innerHTML = h;
+    s.body.innerHTML = h;
+    s.ft.innerHTML = ft;
+    // the Undo line is one role=status node for the sheet's life, rewritten only when the follow-up
+    // it speaks for changes: a repaint (the visits read, a data refresh) never re-announces it
+    if (s.shown !== s.last) {
+      s.shown = s.last;
+      if (s.last) {
+        s.status.innerHTML = esc(s.last.text) + ' <button type="button" class="ui-btn-quiet os-sd-btn" data-sd-undo="">Undo</button>';
+        s.status.removeAttribute('hidden');
+      } else {
+        s.status.innerHTML = '';
+        s.status.setAttribute('hidden', '');
+      }
+    }
     if (keep) focusIn(keep);
     var c = SL.carry(r, uid(), Date.now());   // not before the visits read answered: it would carry no visits
     if (c && known && s.visits !== undefined) lsSet(SL.CARRY_KEY, JSON.stringify(c));
@@ -272,8 +281,20 @@
     var d = doc.createElement('dialog');
     d.className = 'os-sd';
     d.setAttribute('aria-labelledby', 'osSdTitle');
-    sheet = { d: d, visits: undefined, visitsPartial: false, busy: {}, last: null, returnFocus: o.returnFocus || null };
+    sheet = { d: d, visits: undefined, visitsPartial: false, busy: {}, last: null, shown: null, returnFocus: o.returnFocus || null };
     var s = sheet;
+    // three parts: the rows (repainted), the Undo status line (kept), the Loop closed footer (repainted)
+    s.body = doc.createElement('div');
+    s.body.className = 'os-sd-body';
+    s.status = doc.createElement('p');
+    s.status.className = 'os-sd-undo';
+    s.status.setAttribute('role', 'status');
+    s.status.setAttribute('hidden', '');
+    s.ft = doc.createElement('div');
+    s.ft.className = 'os-sd-ft';
+    d.appendChild(s.body);
+    d.appendChild(s.status);
+    d.appendChild(s.ft);
     d.addEventListener('click', function (ev) {
       var t = ev.target;
       if (!t || !t.closest) return;
