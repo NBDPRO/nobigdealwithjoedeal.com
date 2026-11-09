@@ -574,11 +574,10 @@
     var moved = false;
     try {
       if (how === 'customer') moved = (await window.progressStage(plan.key, opts)) === true;
-      else {
-        await window.moveCard(leadId, plan.key, reason ? { lostReason: reason } : undefined);
-        var l = (window._leads || []).filter(function (x) { return x && x.id === leadId; })[0];
-        moved = !!l && l.stage === plan.key;
-      }
+      // moveCard resolves true only once its write committed (or the card
+      // already sat at the target); a lost race reloads _leads, so the board's
+      // copy of the lead says nothing about whether THIS tap moved it.
+      else moved = (await window.moveCard(leadId, plan.key, reason ? { lostReason: reason } : undefined)) === true;
     } catch (e) {
       if (typeof window.showToast === 'function') window.showToast('The stage did not move: ' + errText(e), 'error');
     }

@@ -258,7 +258,14 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       win.progressStage = async (target, popts) => { moves.push({ via: 'progressStage', target, opts: popts }); if (opts.refuse) return undefined; win._currentStage = target; return true; };
     } else {
       win._leads = [{ id: 'L1', stage: 'new' }];
-      win.moveCard = async (id, stage, mopts) => { moves.push({ via: 'moveCard', id, target: stage, opts: mopts }); if (!opts.refuse) win._leads[0].stage = stage; };
+      // moveCard resolves true only when its own write committed. raceLost: another
+      // tab landed the same target first, moveCard reloaded _leads and resolved undefined.
+      win.moveCard = async (id, stage, mopts) => {
+        moves.push({ via: 'moveCard', id, target: stage, opts: mopts });
+        if (opts.raceLost) { win._leads[0].stage = stage; return undefined; }
+        if (opts.refuse) return undefined;
+        win._leads[0].stage = stage; return true;
+      };
     }
     ctx = vm.createContext({ window: win, document: { createElement: () => dlgEl, body, querySelector: () => null }, console, setTimeout, Date, Event: function () {} });
     vm.runInContext(read('docs/pro/js/call-brief-ui.js'), ctx);
@@ -311,6 +318,13 @@ const LOGIC_PATH = 'docs/pro/js/call-to-close-logic.js';
       await h.click({ 'data-cb-act': 'stage-move' });
       ok('on #/calls the one tap goes through window.moveCard(leadId, target)', h.moves.length === 1 && h.moves[0].via === 'moveCard' && h.moves[0].id === 'L1' && h.moves[0].target === 'contacted', h.moves);
       ok('…and is logged once it landed', h.calls.some((c) => c.name === 'callBriefDecide' && c.data.item === 'stage' && c.data.mode === 'one-tap'));
+    }
+    {
+      const h = load({ page: 'calls', raceLost: true });
+      show(h, CONTACTED, 'calls');
+      await new Promise((r) => setTimeout(r, 10));
+      await h.click({ 'data-cb-act': 'stage-move' });
+      ok('on #/calls only moveCard\'s own true counts: a lost race that reloaded the board at the target logs nothing', h.moves.length === 1 && !h.calls.some((c) => c.name === 'callBriefDecide' && c.data.decision === 'accept'));
     }
     {
       const h = load({ page: 'calls' });
