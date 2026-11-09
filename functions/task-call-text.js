@@ -93,16 +93,25 @@ async function createTaskIfAbsent(db, createIfAbsent, taskPath, task) {
   return made;
 }
 
-/** Copy a task's call text along with a moved task, then remove the old one. */
+const alreadyExists = (e) => !!e && (e.code === 6 || e.code === 'already-exists' || /already exists/i.test(String(e.message || '')));
+
+/**
+ * Copy a task's call text along with a moved task, then remove the old one.
+ * create(), not set(): a target that already has call text keeps it (review
+ * 2026-11-09), while a retry whose task copy landed before the call text did
+ * still carries it.
+ */
 async function moveSide(db, fromTaskPath, toTaskPath) {
   const from = sidePath(fromTaskPath), to = sidePath(toTaskPath);
   if (!from || !to) return false;
   const s = await db.doc(from).get();
   if (!s || !s.exists) return false;
   const m = /^leads\/([^/]+)\/tasks\/([^/]+)$/.exec(toTaskPath);
-  await db.doc(to).set(Object.assign({}, s.data(), { leadId: m[1], taskId: m[2] }));
+  let moved = true;
+  try { await db.doc(to).create(Object.assign({}, s.data(), { leadId: m[1], taskId: m[2] })); }
+  catch (e) { if (!alreadyExists(e)) throw e; moved = false; }
   await db.doc(from).delete();
-  return true;
+  return moved;
 }
 
 /**

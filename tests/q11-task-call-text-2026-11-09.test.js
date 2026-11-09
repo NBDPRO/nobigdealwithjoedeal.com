@@ -83,6 +83,19 @@ function memDb(seed) {
     }
   }
 
+  if (TCT) {
+    // Review 2026-11-09 item 2: a move never overwrites call text the target
+    // task already has; a retry after a half-done move still carries it.
+    const SIDE = (title) => ({ leadId: 'X', taskId: 'cube-c1', full: { title }, generic: { title: 'Follow up' } });
+    let d = memDb({ 'leads/A/task_call_text/cube-c1': SIDE('FROM text'), 'leads/B/task_call_text/cube-c1': SIDE('TARGET own text') });
+    await TCT.moveSide(d, 'leads/A/tasks/cube-c1', 'leads/B/tasks/cube-c1');
+    ok('moveSide: a target that has its own call text keeps it (not overwritten)', d.docs.get('leads/B/task_call_text/cube-c1').full.title === 'TARGET own text', d.docs.get('leads/B/task_call_text/cube-c1'));
+    ok('…and the source call text is removed with its task', !d.docs.has('leads/A/task_call_text/cube-c1'));
+    d = memDb({ 'leads/A/task_call_text/cube-c1': SIDE('FROM text'), 'leads/B/tasks/cube-c1': { title: 'Follow up', callText: true } });
+    await TCT.moveSide(d, 'leads/A/tasks/cube-c1', 'leads/B/tasks/cube-c1');
+    ok('moveSide: a retry whose task copy already landed still carries the call text', (d.docs.get('leads/B/task_call_text/cube-c1') || { full: {} }).full.title === 'FROM text' && d.docs.get('leads/B/task_call_text/cube-c1').leadId === 'B');
+  }
+
   console.log('\n2. the builders');
   const L = require(path.join(ROOT, 'functions/call-center-logic.js'));
   const notes = { summary: 'SECRET SUMMARY: hail on the north slope', promises: [{ who: 'jo', text: 'PROMISESECRET send the estimate', due: '2026-11-12' }], followUpDate: null, urgent: false };
