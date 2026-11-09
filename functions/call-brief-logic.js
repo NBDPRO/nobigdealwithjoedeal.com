@@ -875,7 +875,10 @@ function visitBriefProblem(v, leadId) {
 
 // A scope fact that talks money is never kept, said or not (no price, rate,
 // total, deductible, ACV or warranty term ever comes from a recording).
-const MONEY_RE = /\$|\bdollars?\b|\bbucks\b|\bprice|\bcost|\bquote[ds]?\b|\bper (square|sq|foot|ft)\b|\bdeductible|\bacv\b|\brcv\b|\bwarrant|\btotal\b|\bgrand\b/i;
+// Shorthand counts too ("15k", "fifteen thousand", "8 hundred"); a hundreds
+// figure followed by an area or length unit ("fifteen hundred square feet") is
+// a measurement, not money (review 2026-11-09).
+const MONEY_RE = /\$|\bdollars?\b|\bbucks\b|\bprice|\bcost|\bquote[ds]?\b|\bper (square|sq|foot|ft)\b|\bdeductible|\bacv\b|\brcv\b|\bwarrant|\btotal\b|\bgrand\b|\d\s?k\b|\b(hundred|thousand)\b(?!\s+(square|sq|linear|lineal|feet|foot|ft|sf|lf|squares)\b)/i;
 const MAX_VISIT_FACTS = 8;
 /**
  * The visit notes' scope_facts (untrusted model output) → only those whose

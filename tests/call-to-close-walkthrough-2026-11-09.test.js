@@ -399,6 +399,19 @@ async function decide(db, auth, data) {
     })());
   }
 
+  console.log('\n9. A scope fact that talks money in shorthand is dropped too (review 2026-11-09)');
+  {
+    const G = L.groundScopeFacts;
+    const T = 'We figure about 15k for it, maybe 15 k, fifteen thousand, or 8 hundred for the gutters, or twelve grand. ' +
+      'The back is about fifteen hundred square feet and it is 2 layers.';
+    for (const f of ['about 15k for it', 'maybe 15 k', 'fifteen thousand', '8 hundred for the gutters', 'twelve grand']) {
+      const r = G([f], T);
+      ok('"' + f + '" → dropped as money', r.facts.length === 0 && r.dropped.money === 1, r);
+    }
+    ok('…but a said area in hundreds of square feet is kept ("fifteen hundred square feet")', G(['about fifteen hundred square feet'], T).facts.length === 1, G(['about fifteen hundred square feet'], T));
+    ok('…and a plain count is kept ("2 layers")', G(['2 layers'], T).facts.length === 1);
+  }
+
   console.log('\n5. Wiring');
   {
     const fi = read('functions/FUNCTIONS_INDEX.md');
