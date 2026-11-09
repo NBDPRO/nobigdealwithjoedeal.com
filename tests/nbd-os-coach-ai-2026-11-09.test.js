@@ -201,6 +201,21 @@ const card = (T) => byKey(T.document.getElementById('osPhone'), 'coach-1');
     click(M.dom, card(M).querySelector('[data-oshw-coach="ai"]'));
     await tick(); await tick();
     ok('the model down (reason model) → Try again, not none', !!card(M).querySelector('[data-oshw-coach="ai"]') && !M.store.nbd_os_coach_ai);
+    // review fix (2026-11-09): "no-facts" (a client sending rules the server doesn't know) is kept only for
+    // the rules it was asked about; when other rules fire later the button comes back
+    const NF = setup();
+    await tick(); await tick();
+    NF.answer = { line: null, cached: false, reason: 'no-facts' };
+    click(NF.dom, card(NF).querySelector('[data-oshw-coach="ai"]'));
+    await tick(); await tick();
+    ok('no-facts → no button while the same rules stand', !card(NF).querySelector('[data-oshw-coach="ai"]') && NF.calls.length === 1, text(card(NF)));
+    const nfKept = JSON.parse(NF.store.nbd_os_coach_ai || 'null');
+    ok('…kept with the rule ids it was about', nfKept && nfKept.none === true && typeof nfKept.ids === 'string' && nfKept.ids.length > 0, NF.store.nbd_os_coach_ai);
+    NF.W.NBDToday.last = () => ({ total: 1, appointments: [], promises: [], calls: [], promised: [{ key: 'p', leadId: 'L3', overdue: true }], estimates: [], money: [], stalled: [] });
+    NF.W._leads = [];
+    NF.W.dispatchEvent(new NF.W.CustomEvent('nbd:today-rendered'));
+    await tick();
+    ok('…other rules fire later: the button is back', !!card(NF).querySelector('[data-oshw-coach="ai"]'), text(card(NF)));
     const E = setup({ leads: [], plan: { total: 0, appointments: [], promises: [], calls: [], promised: [], estimates: [], money: [], stalled: [] } });
     await tick(); await tick();
     ok('no rule fired → no AI button (nothing to focus on)', !card(E).querySelector('[data-oshw-coach="ai"]'), text(card(E)));

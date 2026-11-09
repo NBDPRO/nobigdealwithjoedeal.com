@@ -10,7 +10,9 @@
  * on the device: after a reload a tap re-reads the server's day cache (no model
  * call), which checks the AI kill switches first, so an operator can pull a line
  * back the same day. "No line" is kept for the day on this device (localStorage
- * nbd_os_coach_ai: { d: day key, u: uid, none }; an nbd_ key, wiped at sign-out).
+ * nbd_os_coach_ai: { d: day key, u: uid, none }; an nbd_ key, wiped at sign-out);
+ * a "no-facts" answer (rules this server doesn't know) also keeps the rule ids it
+ * was about ({ …, ids }) and stands only while those same rules are the ones firing.
  * What is sent is the rules' counted evidence
  * only: rule ids and whole numbers, no names, no text (the server drops anything
  * else too). A failed call can be tried again; "no line" is final for the day.
@@ -44,12 +46,15 @@
     return HL && typeof HL.dayKey === 'function' ? HL.dayKey(Date.now()) : '';
   }
   function mine(v) { return !!v && typeof v === 'object' && !!v.d && v.d === dk() && v.u === uid(); }
-  /** Today's answer for this user: this page's line, or a "no line" kept on the device; else null. */
-  function today() {
+  /** The rule ids firing now, as one key (what a "no-facts" answer was about). */
+  function sig(rules) { return evidence(rules).map(function (r) { return r.id; }).join(','); }
+  /** Today's answer for this user and these rules: this page's line, or a "no line" kept on the device; else null. */
+  function today(rules) {
     if (mine(mem)) return { line: mem.line };
     var v = null;
     try { v = JSON.parse(W.localStorage.getItem(KEY) || 'null'); } catch (e) { v = null; }
-    return mine(v) && v.none === true ? { none: true } : null;
+    if (!mine(v) || v.none !== true) return null;
+    return typeof v.ids === 'string' && v.ids !== sig(rules) ? null : { none: true };
   }
   function keep(v) {
     if (v.line) { mem = { d: dk(), u: uid(), line: v.line }; return; }
@@ -75,7 +80,7 @@
   }
   function html(rules) {
     if (!on() || !Array.isArray(rules) || !rules.length) return '';
-    var t = today();
+    var t = today(rules);
     if (t && t.line) {
       return '<p class="os-hw-ai"><span class="os-hw-ai-tag">AI focus</span> <span class="os-hw-ai-line">' + esc(t.line) + '</span></p>';
     }
@@ -95,7 +100,7 @@
     });
   }
   function ask(rules) {
-    if (busy || !on() || today()) return Promise.resolve(null);
+    if (busy || !on() || today(rules)) return Promise.resolve(null);
     var ev = evidence(rules);
     if (!ev.length) return Promise.resolve(null);
     busy = true; failed = false;
@@ -105,11 +110,12 @@
       var line = typeof d.line === 'string' ? d.line.replace(/\s+/g, ' ').trim() : '';
       if (line && line.length <= 200) keep({ line: line });
       else if (d.reason === 'model') failed = true;   // the model was down: worth one more try
-      else keep({ none: true });                       // off, capped, checked out, nothing to say: not today
+      else if (d.reason === 'no-facts') keep({ none: true, ids: sig(rules) });   // not for these rules; others may fire
+      else keep({ none: true });                       // off, capped, checked out: not today
     }, function () { failed = true; }).then(function () {
       busy = false;
       repaint();
-      return today();
+      return today(rules);
     });
   }
 
