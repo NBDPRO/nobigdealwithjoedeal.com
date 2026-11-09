@@ -11,3 +11,17 @@
 /* edit mode: View, the size chip and Remove (three 44px chips) fit a phone's narrowest S tile (146px at 320) */
 .os-hw-kpi.is-s .os-hw-edit { gap: 2px; margin-left: -8px; margin-right: -8px; }
 .os-hw .os-kpi-ed { padding: 0 var(--ui-space-1, 4px); }
+/* edit mode: the View chip picks the view, so the tile's own buttons step aside; an S tile
+   (one 92px phone row) puts its name and number on one line under the chips, no 44px row
+   (the body is inert while editing) and no "leads match", so nothing clips at 320 */
+.os-hw-kpi.is-editing .os-kpi-pick, .os-hw-kpi.is-editing .os-kpi-change { display: none; }
+.os-hw-kpi.is-s.is-editing .os-hw-body { flex-direction: row; align-items: center; gap: var(--ui-space-2, 8px); }
+.os-hw-kpi.is-s.is-editing .os-hw-title { display: block; flex: 1 1 auto; min-width: 0; }
+.os-hw-kpi.is-s.is-editing .os-kpi-big { flex: none; min-height: 0; }
+.os-hw-kpi.is-s.is-editing .os-kpi-n { font-size: var(--ui-fs-num, 20px); }
+.os-hw-kpi.is-s.is-editing .os-kpi-l, .os-hw-kpi.is-s.is-editing .os-hw-empty { display: none; }
+/* the phone's M tile is two rows tall: the body fills it, the number (its tap target) takes the
+   room between the name and Change view, larger, and Change view sits at its foot */
+.os-p-page .os-hw-kpi.is-m .os-hw-body { flex: 1 1 auto; }
+.os-p-page .os-hw-kpi.is-m .os-kpi-big { flex: 1 1 auto; }
+.os-p-page .os-hw-kpi.is-m .os-kpi-n { font-size: calc(var(--ui-fs-num-lg, 28px) * 1.5); }

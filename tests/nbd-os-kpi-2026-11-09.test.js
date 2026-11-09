@@ -295,6 +295,9 @@ async function mount(items, opts) {
     ok('no style attributes, no inline handlers, no el.style', !/style\s*=|\son[a-z]+\s*=|\.style\./.test(code + noComments(read('docs/pro/js/os/kpi-logic.js'))));
     ok('kpi.css: no text under 11px, no motion, tokens only', !/font-size:\s*(?:[0-9]|10)px/.test(KPI_CSS) && !/transition|animation/.test(KPI_CSS) && !/#[0-9a-f]{3,6}\b/i.test(KPI_CSS));
     ok('home.js registers oskpi with same-origin js/os + css/os files only', /var KPI_BUNDLE = \['css\/os\/kpi\.css\?v=1', 'js\/os\/kpi-logic\.js\?v=1', 'js\/os\/kpi\.js\?v=1'\];/.test(HOME_JS));
+    ok('kpi.css: an S tile in edit mode puts its name and number on one line under the chips (no 44px row, no label), so nothing clips at 320', /\.os-hw-kpi\.is-s\.is-editing \.os-hw-body \{[^}]*flex-direction: row/.test(KPI_CSS) && /\.os-hw-kpi\.is-s\.is-editing \.os-kpi-big \{[^}]*min-height: 0/.test(KPI_CSS) && /\.os-hw-kpi\.is-s\.is-editing \.os-kpi-l[^{]*\{[^}]*display: none/.test(KPI_CSS));
+    ok('…in edit mode the tile\'s own Pick / Change view step aside (the View chip does it)', /\.os-hw-kpi\.is-editing \.os-kpi-pick, \.os-hw-kpi\.is-editing \.os-kpi-change \{ display: none; \}/.test(KPI_CSS));
+    ok('…an M tile on the phone fills its two rows (the body and the number grow, Change view at its foot)', /\.os-p-page \.os-hw-kpi\.is-m \.os-hw-body \{[^}]*flex: 1 1 auto/.test(KPI_CSS) && /\.os-p-page \.os-hw-kpi\.is-m \.os-kpi-big \{[^}]*flex: 1 1 auto/.test(KPI_CSS));
     const mc = noComments(MAPS_SRC);
     ok('maps-customers.js exposes openCustomersView (the tap\'s landing) and maps-core.js bumped its ?v=', /window\.openCustomersView\s*=\s*openCustomersView/.test(mc) && /maps-customers\.js\?v=14/.test(read('docs/pro/js/maps-core.js')));
   }
