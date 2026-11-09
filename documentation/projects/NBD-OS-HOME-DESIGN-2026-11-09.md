@@ -2,6 +2,16 @@
 
 Design note for Jo. Read-only recon at HEAD c178a7818. It merges the design brief, the adversarial critique of that brief (every correction applied), and the ranked macOS / Linux / web-desktop research. Parent plan: [NBD-OS-PLAN-2026-11-06](NBD-OS-PLAN-2026-11-06.md). Related: [CRM-STYLE-D5-BENTO-BOARD-2026-10-12](CRM-STYLE-D5-BENTO-BOARD-2026-10-12.md), [DAILY-SUCCESS-BUSINESS-TILE-2026-10-23](DAILY-SUCCESS-BUSINESS-TILE-2026-10-23.md), [DAILY-SUCCESS-EOD-REVIEW-2026-10-22](DAILY-SUCCESS-EOD-REVIEW-2026-10-22.md), [VISUAL-AUDIT-LAYOUTS-2026-10-19](../audit/VISUAL-AUDIT-LAYOUTS-2026-10-19.md), [CHARACTER-STYLE-BAR-2026-10-25](CHARACTER-STYLE-BAR-2026-10-25.md), [DESIGN.md](../../DESIGN.md).
 
+## Update 2026-11-09 (night): P3 Pocket (#9), what shipped
+
+Pocket is built on branch `os-p3-pocket`, dark behind `osLayout`: `os/pocket.js` + `os/pocket-logic.js` + `css/os/pocket.css`, the lazy ScriptLoader bundle `ospocket`. Where it differs from §6 #9:
+
+- **Ways in:** Alt+` on the laptop (by key position, never inside a field, never while the lock screen is up), the Control Center tile, Spotlight ("Pocket: a quick note"), and a Pocket icon on the phone's page 1. **Alt+` is not reachable everywhere:** some Linux desktops bind it at the OS level (GNOME's "switch windows of an application"), so the browser never sees it. There the Control Center tile and Spotlight are the way in, and the sheet's keyboard line says so.
+- **Notes are device-only** (`nbd_os_pocket:<uid>`, at most 20 of 2,000 characters, plus the draft) until filed. They are `nbd_` keys, so sign-out (`nbd-auth.js` `purgeAccountStorage`) wipes them on a shared device.
+- **Filing** goes through quick-capture's `review()` and writer. The screen reads "File this note"; on a lead the activity is labelled "Note" and keeps the whole text (a voice capture keeps "Voice capture" and its gist). `review()` refuses while a voice capture is recording, processing or unsaved, and Pocket keeps the note and says Quick Capture is busy.
+- **Focus** goes back where it was from every way in. Spotlight now restores focus on close (`command-palette.js`), which Pocket relies on.
+- **Boot weight** (shipped local bytes, the boot-budget test's measure): before the lane customer.html 1,374,197 and dashboard.html 2,626,158. `review()` alone made them 1,374,606 and 2,626,567 (+409 each); with the review fixes they are 1,374,794 and 2,626,755 (+597 each), inside the lane's 600-byte allowance. Pocket's own files load only on the first toggle.
+
 ## Update 2026-11-09 (evening): what shipped in P2
 
 P2 is built on branch `os-p2` (on `os-p1`), dark behind `osLayout`; the session note is [SESSION-2026-11-09-nbd-os-p2](SESSION-2026-11-09-nbd-os-p2.md). Where it differs from §6 and §8 below:

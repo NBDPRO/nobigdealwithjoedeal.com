@@ -114,6 +114,9 @@ function typeKeep(T, s) {
     ok('Alt+` takes the key (preventDefault)', ev.defaultPrevented === true);
     ok('Pocket is open, a labelled dialog', pocketEl(T) && pocketEl(T).querySelector('[role="dialog"]') && pocketEl(T).querySelector('[role="dialog"]').getAttribute('aria-labelledby') === 'osPocketTitle');
     ok('focus moves into its note box', T.document.activeElement === area(T));
+    const keys = pocketEl(T).querySelector('.os-pocket-keys');
+    ok('laptop: the sheet names the shortcut and the way in when the desktop keeps Alt+` (GNOME)',
+      keys && /Alt\+`/.test(text(keys)) && /Control Center/.test(text(keys)) && /Spotlight/.test(text(keys)), keys && text(keys));
     ok('NBDOSPocket.isOpen() says so', T.W.NBDOSPocket.isOpen() === true);
     const esc = key(T.dom, area(T), 'Escape');
     ok('Esc closes it', !pocketEl(T) && T.W.NBDOSPocket.isOpen() === false);

@@ -71,7 +71,7 @@
           '<button type="button" class="btn btn-orange os-pocket-btn" data-pocket="keep">Keep</button>' +
           (canVoice() ? '<button type="button" class="btn btn-ghost os-pocket-btn" data-pocket="voice">Voice note</button>' : '') +
         '</div>' +
-        (desk ? '<p class="os-pocket-keys">Alt+` opens and closes Pocket. Ctrl+Enter keeps the note.</p>' : '') +
+        (desk ? '<p class="os-pocket-keys">Alt+` opens and closes Pocket (if your desktop keeps Alt+` for itself, use Control Center or Spotlight). Ctrl+Enter keeps the note.</p>' : '') +
         '<div class="os-pocket-status" role="status" aria-live="polite"></div>' +
         '<div class="os-pocket-kept"></div>' +
       '</div>';
