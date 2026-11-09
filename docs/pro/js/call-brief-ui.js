@@ -624,13 +624,13 @@
   }
 
   // ── server calls ───────────────────────────────────────────────────────
-  async function callable(name, data) {
+  async function callable(name, data, opts) {
     if (!window._functions || !window._httpsCallable) {
       var mod = await import(FUNCTIONS_SDK);
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }
-    var res = await window._httpsCallable(window._functions, name)(data);
+    var res = await (opts ? window._httpsCallable(window._functions, name, opts) : window._httpsCallable(window._functions, name))(data);
     return res && res.data;
   }
   function errText(e) { return (e && e.message ? String(e.message).replace(/^FirebaseError:\s*/, '') : '') || 'That did not work. Try again.'; }
@@ -1082,7 +1082,9 @@
     var mine = S;
     show();
     var r = null, err = null;
-    try { r = await callable('callTranscribeNow', { callId: x.callId }); } catch (e) { err = e; }
+    // The SDK's 70 s default would call a long recording a failure while the
+    // server is still transcribing it: wait as long as the function may run.
+    try { r = await callable('callTranscribeNow', { callId: x.callId }, { timeout: 540000 }); } catch (e) { err = e; }
     // The card reloads even when the sheet was closed while it ran.
     if (r && /^(noted|already|personal)$/.test(r.state) && typeof x.onChange === 'function') { try { x.onChange(); } catch (_) { /* the card reloads itself */ } }
     if (S !== mine) return;

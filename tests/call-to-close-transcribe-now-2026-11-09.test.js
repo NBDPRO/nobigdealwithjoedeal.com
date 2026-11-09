@@ -413,6 +413,21 @@ async function tap(db, auth, data, nowMs) {
     && ['GROQ_API_KEY', 'ANTHROPIC_API_KEY'].every((n) => (TN.callTranscribeNow.__opts.secrets || []).some((s) => (s && s.name) === n)), TN && TN.callTranscribeNow && TN.callTranscribeNow.__opts);
   ok('callTranscribeNow: ghost check in the wrapper', /assertNotGhost\(request\)/.test(TN ? read('functions/call-transcribe-now.js') : ''));
   ok('a timeout long enough for a long call (≥ 300 s), under the lease', TN && TN.callTranscribeNow.__opts.timeoutSeconds >= 300 && TN.callTranscribeNow.__opts.timeoutSeconds * 1000 < CC.TRANSCRIBE_LEASE_MS, TN && TN.callTranscribeNow.__opts.timeoutSeconds);
+  {
+    // Review 2026-11-09: the FLAC re-encode runs before Groq and the notes
+    // step after it, so the function deadline must leave room past Groq's own
+    // timeout, or a paid transcript dies with the instance (no keepTranscript,
+    // no refund, the lease held 15 min).
+    const m = read('functions/call-center.js').match(/transcribeGroqBuffer\(\{[^}]*timeoutMs: ([\d_]+)/);
+    const groqMs = m ? Number(m[1].replace(/_/g, '')) : NaN;
+    const fnSec = TN && TN.callTranscribeNow.__opts.timeoutSeconds;
+    ok('the callable deadline leaves ≥ 120 s past the Groq request timeout', groqMs > 0 && fnSec * 1000 >= groqMs + 120e3, { fnSec, groqMs });
+    // The Firebase SDK gives up on a callable after 70 s by default, so the
+    // button would say it failed while the server was still transcribing.
+    const ui = read('docs/pro/js/call-brief-ui.js');
+    const cm = ui.match(/callable\('callTranscribeNow', \{ callId: x\.callId \}, \{ timeout: ([\d_]+) \}\)/);
+    ok('the button waits as long as the function may run (client timeout ≥ the deadline)', cm && Number(cm[1].replace(/_/g, '')) >= fnSec * 1000 && /httpsCallable\(window\._functions, name, opts\)|_httpsCallable\(window\._functions, name, opts\)/.test(ui), cm && cm[1]);
+  }
   ok('index.js exports callTranscribeNow', /exports\.callTranscribeNow = require\('\.\/call-transcribe-now'\)\.callTranscribeNow/.test(read('functions/index.js')));
   ok('function-map.json maps it', JSON.parse(read('functions/function-map.json')).callTranscribeNow === './call-transcribe-now');
   ok('FUNCTIONS_INDEX.md has its row', /\| `callTranscribeNow` \|/.test(read('functions/FUNCTIONS_INDEX.md')));

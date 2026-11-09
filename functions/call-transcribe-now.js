@@ -157,9 +157,12 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
 }
 
 exports.callTranscribeNow = onCall(
-  // 300 s: a long call's Groq request (call-center.js gives it 300 s); under
-  // the 15-minute transcribe lease. 1 GiB: the FLAC re-encode, as the schedule.
-  { region: 'us-central1', enforceAppCheck: true, secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY], memory: '1GiB', timeoutSeconds: 300, maxInstances: 5 },
+  // 540 s, as the schedule: a long call's Groq request alone may take 300 s
+  // (call-center.js), and the FLAC re-encode runs before it and the notes step
+  // after, so a paid transcript is still saved (keepTranscript) and the quota
+  // refund still runs. Under the 15-minute transcribe lease. 1 GiB: the FLAC
+  // re-encode, as the schedule.
+  { region: 'us-central1', enforceAppCheck: true, secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY], memory: '1GiB', timeoutSeconds: 540, maxInstances: 5 },
   async (request) => {
     await require('./tenant-guard').assertNotGhost(request);
     return transcribeNow({ db: getFirestore(), bucket: getStorage().bucket(), auth: request.auth, data: request.data, nowMs: Date.now() });
