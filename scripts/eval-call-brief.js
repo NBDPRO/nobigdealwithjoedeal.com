@@ -212,12 +212,12 @@ function initCases(dir, count) {
   const why = insideRepo(dir);
   if (why) return 'refusing --init ' + dir + ': it is ' + why + '. Transcripts hold customer PII and stay out of every repo; pick a folder like ~/nbd-call-eval.';
   if (fs.existsSync(dir) && (!fs.statSync(dir).isDirectory() || fs.readdirSync(dir).length)) return 'refusing --init ' + dir + ': it exists and is not an empty folder (nothing was overwritten).';
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); // the labels will hold customer PII: owner-only
   for (let i = 1; i <= n; i++) {
     const id = 'case-' + String(i).padStart(2, '0');
-    fs.writeFileSync(path.join(dir, id + '.json'), JSON.stringify(skeleton(id), null, 2) + '\n', { flag: 'wx' });
+    fs.writeFileSync(path.join(dir, id + '.json'), JSON.stringify(skeleton(id), null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   }
-  fs.writeFileSync(path.join(dir, 'README.md'), kitReadme(n), { flag: 'wx' });
+  fs.writeFileSync(path.join(dir, 'README.md'), kitReadme(n), { flag: 'wx', mode: 0o600 });
   return '';
 }
 

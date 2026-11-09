@@ -66,6 +66,10 @@ const FAKE_KEY = 'sk-' + 'ant-' + 'test-not-a-real-key';
     const readme = files.includes('README.md') ? fs.readFileSync(path.join(dir, 'README.md'), 'utf8') : '';
     ok('README: never commit, points at the runbook, gives the Haiku and Sonnet commands', /never/i.test(readme) && /commit/i.test(readme) && /documentation\/runbooks\/CALL-BRIEF-LIVE-EVAL\.md/.test(readme)
       && /--live --cases/.test(readme) && /--model claude-sonnet-5-5/.test(readme), readme.slice(0, 300));
+    if (process.platform !== 'win32') {
+      ok('the kit folder is private to Jo (0700)', (fs.statSync(dir).mode & 0o777) === 0o700, (fs.statSync(dir).mode & 0o777).toString(8));
+      ok('every kit file is private to Jo (0600)', files.every((f) => (fs.statSync(path.join(dir, f)).mode & 0o777) === 0o600), files.map((f) => f + ':' + (fs.statSync(path.join(dir, f)).mode & 0o777).toString(8)));
+    }
     ok('README holds no key', !/sk-ant-/.test(readme) && !/ANTHROPIC_API_KEY=\S*[a-z0-9]{8}/i.test(readme));
 
     const r3dir = path.join(base, 'three');
