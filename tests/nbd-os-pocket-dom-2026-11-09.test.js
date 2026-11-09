@@ -187,6 +187,28 @@ function typeKeep(T, s) {
     ok('...and works again once unlocked', !!pocketEl(T));
   });
 
+  console.log('\n3b. a modal dialog is open (Peek, Shutdown, Add widget, Copy my setup...): Alt+` waits');
+  await G(async () => {
+    const T = win();
+    await flush();
+    // the sheet would land on <body> under the dialog's top layer: inert, unseen, its focus failing
+    const d = T.document.createElement('dialog');
+    const base = d.matches.bind(d);
+    d.matches = (sel) => (sel === ':modal' ? !!d.open && !!d.modal : base(sel));
+    const inDlg = T.document.createElement('button');
+    d.appendChild(inDlg);
+    T.document.body.appendChild(d);
+    d.showModal();
+    inDlg.focus();
+    const e = key(T.dom, inDlg, '`', ALT);
+    await flush();
+    ok('Alt+` inside an open modal dialog opens nothing and takes no key', loads(T) === 0 && !pocketEl(T) && e.defaultPrevented === false);
+    d.close();
+    key(T.dom, T.document.body, '`', ALT);
+    await flush();
+    ok('...and works once the dialog is closed', !!pocketEl(T));
+  });
+
   console.log('\n4. keep, delete, undo: this device only, per user, escaped');
   await G(async () => {
     const T = win();

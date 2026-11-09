@@ -701,9 +701,15 @@
       toast('Pocket did not load. Check your connection and try again.');
     });
   }
+  function modalOpen() {
+    var ds = doc.querySelectorAll('dialog[open]');
+    for (var i = 0; i < ds.length; i++) if (safe(function () { return ds[i].matches(':modal'); }) === true) return true;
+    return false;
+  }
   function onPocketKey(ev) {
     if (!WM.pocketKey || !WM.pocketKey(ev)) return;
     if (doc.documentElement.classList.contains('os-locked')) return;   // the lock screen hides the desk (os/system.js)
+    if (modalOpen()) return;   // the sheet would sit under the dialog's top layer, inert and unseen, until it closed
     ev.preventDefault();
     pocket();
   }
