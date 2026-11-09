@@ -394,7 +394,7 @@
           if (F.enabled('thursdayLabelPlaybooks')) {
             return w.ScriptLoader.load('css/thursday-handled.css?v=1')
               .then(function () { return w.ScriptLoader.load('js/thursday-handled-logic.js?v=1'); })
-              .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=1'); });
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=2'); });
           }
           if (n < 6) setTimeout(function () { thTry(n + 1); }, 2500);
           return null;

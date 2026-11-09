@@ -1022,7 +1022,7 @@
     "call-to-close-tenantfeed-golden-2026-11-09.test.js",
     "call-to-close-tenantfeed-2026-11-09.test.js",
     "call-to-close-p1-leftovers-2026-11-09.test.js",
-    "call-to-close-decision-map-2026-11-09.test.js"
+    "call-to-close-decision-map-2026-11-09.test.js",
     "call-to-close-viewers-2026-11-09.test.js"
   ],
   "smoke": {

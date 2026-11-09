@@ -310,7 +310,7 @@
       // inserts into the V2 builder — end-of-bundle satisfies all three.
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
-      'js/job-templates-data.js?v=6',
+      'js/job-templates-data.js?v=7',
       'js/job-templates.js?v=9',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=13',
@@ -489,7 +489,7 @@
     callcenter: [
       'js/call-center-filters-logic.js?v=4',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=30'
+      'js/call-center-view.js?v=31'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export

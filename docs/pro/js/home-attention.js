@@ -599,7 +599,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=4', 'js/contact-labels-logic.js?v=7', 'js/contact-labels.js?v=7', 'js/contact-suggest-logic.js?v=3', 'js/contact-suggest.js?v=3'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=4', 'js/contact-labels-logic.js?v=7', 'js/contact-labels.js?v=8', 'js/contact-suggest-logic.js?v=3', 'js/contact-suggest.js?v=4'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.

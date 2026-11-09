@@ -456,7 +456,10 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1002/74/1137 -> 1010/74/1147, Call to Close P2 joins the sell-price change on this branch:
 //               walkthrough briefs, split-call merge, retention sweep, multi-tenant feed, decision-maker
 //               map + P1 leftovers (node suites) and their emulator rules suites. MEASURED via --check.
-const FLOORS = { node: 1010, smoke: 74, disk: 1147 };
+//   2026-11-09  1010/74/1147 -> 1014/74/1152, Jo's follow-ups join Call to Close P2 on this branch:
+//               viewer close-out, Designer template lines, eval kit, leaderboard on, prod switches and
+//               token mode (node suites) and the call-content-viewers rules suite. MEASURED via --check.
+const FLOORS = { node: 1014, smoke: 74, disk: 1152 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
