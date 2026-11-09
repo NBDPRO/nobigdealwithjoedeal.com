@@ -7,7 +7,8 @@
  * documentation/projects/SESSION-2026-11-09-call-to-close-p0.md, "For Jo,
  * still open" item 1. scripts/backfill-q11-task-summaries.js scrubs the AI
  * summary out of task notes; this one does the rest. Run the summary scrub
- * FIRST: a cube-/sms- task whose notes still carry a "Call: " paragraph is
+ * FIRST: a cube-/sms- task whose notes still carry a "Call: " paragraph, or a
+ * thursday- task whose notes still carry a "Summary: " / "Urgent: " line, is
  * skipped here (counted "summary scrub first").
  *
  * Per task under leads/{leadId}/tasks (collection group 'tasks'), when the
@@ -163,6 +164,9 @@ function planFollowUp(kind, taskId, data, src) {
 /** A thursday- task: { generic } or { skip }. src is the thursday_calls doc. */
 function planThursday(data, src) {
   if (!src) return { skip: 'sourceMissing' };
+  // Run order: notes the summary scrub would still change ("Summary:" /
+  // "Urgent:" lines, call-center-logic.js scrubTaskSummary) wait for it.
+  if (typeof data.notes === 'string' && L.scrubTaskSummary(data.notes, 'thursday') !== data.notes) return { skip: 'needsSummaryScrub' };
   let built = null;
   try {
     built = T.buildTask({ extraction: src.extraction, call: src.call || {}, route: { action: src.route && src.route.action }, leadId: 'x', ownerUid: 'x' });

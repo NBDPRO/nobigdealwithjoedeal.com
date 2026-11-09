@@ -183,6 +183,10 @@ const T1 = 'leads/LEADIDX1/tasks/cube-CUBEIDX1';
   ok(S.planThursday(Object.assign({}, seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], { text: 'x' }), seed()['thursday_calls/bland_calls__CALLIDX9']).skip === 'edited', 'thursday: text edited -> edited');
   ok(S.planThursday({ title: 'Call back NAMESECRET bob', text: 'Call back NAMESECRET bob' }, seed()['thursday_calls/bland_calls__CALLIDX8']).skip === 'alreadyGeneric', 'thursday: already generic');
   ok(S.planThursday(seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], null).skip === 'sourceMissing', 'thursday: call gone');
+  // the run order holds for Thursday tasks too (review 2026-11-09): notes the
+  // summary scrub would still change wait for it
+  ok(S.planThursday(Object.assign({}, seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], { notes: 'Number: +15135559876\nSummary: SUMMARYSECRET' }), seed()['thursday_calls/bland_calls__CALLIDX9']).skip === 'needsSummaryScrub', 'thursday: a Summary: line left -> summary scrub first');
+  ok(S.planThursday(Object.assign({}, seed()['leads/LEADIDX1/tasks/thursday-CALLIDX9'], { notes: 'Urgent: URGENTSECRET tarp\nNumber: +15135559876' }), seed()['thursday_calls/bland_calls__CALLIDX9']).skip === 'needsSummaryScrub', 'thursday: an Urgent: line left -> summary scrub first');
   pl = S.planPromise(seed()['leads/LEADIDX1/tasks/promise-CUBEIDX1']);
   ok(pl.generic && pl.generic.title === 'Send estimate' && pl.generic.text === 'Send estimate' && pl.generic.why === '', 'promise: taskText(kind, \'\', waitingOn), why \'\'');
   pl = S.planPromise(seed()['leads/LEADIDX2/tasks/promise-CUBEIDX3-2']);
