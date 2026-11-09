@@ -268,6 +268,13 @@ const dialog = (T) => T.document.querySelector('dialog.os-sd');
     click(To.dom, widgetOf(To).querySelector('[data-oshw-sd]'));
     await flush(); await flush();
     ok('an older recorder with no remoteOk counts as not read (never a count from half the rows)', !/visit/.test(text(dialog(To).querySelector('.os-sd-closed'))), text(dialog(To).querySelector('.os-sd-closed')));
+    const Th = win();
+    Th.W.NBDVisitRecorder.listAll = () => new Promise(() => {});   // the visits read never answers
+    await flush();
+    click(Th.dom, widgetOf(Th).querySelector('[data-oshw-sd]'));
+    await flush(); await flush();
+    ok('while the visits are still unread, no carry-over is written (it would say no visits open)',
+      !!dialog(Th) && /Checking today's visits/.test(text(dialog(Th))) && !Th.store.nbd_os_carry, Th.store.nbd_os_carry);
     const Tn = win({ noNns: true });
     await flush();
     const wn = text(widgetOf(Tn));

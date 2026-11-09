@@ -170,8 +170,8 @@
     var keep = focusKey(s.d);
     s.d.innerHTML = h;
     if (keep) focusIn(keep);
-    var c = SL.carry(r, uid(), Date.now());
-    if (c && known) lsSet(SL.CARRY_KEY, JSON.stringify(c));
+    var c = SL.carry(r, uid(), Date.now());   // not before the visits read answered: it would carry no visits
+    if (c && known && s.visits !== undefined) lsSet(SL.CARRY_KEY, JSON.stringify(c));
   }
   /** A repaint replaces the sheet's markup: the selector of the focused control, to put focus back on its twin. */
   function focusKey(d) {
