@@ -12,8 +12,8 @@
  * home, each its own view, within the 24-widget cap.
  *
  * Reads nothing: no Firestore, no listener, no timer. Missing data shows no
- * number: no view picked, a view that is gone, or leads not loaded yet each
- * say so in words. The tile stores only the view's id (kpi-logic viewId).
+ * number: no view picked, a view that is gone, leads or the company profile
+ * not loaded yet each say so in words. The tile stores only the view's id (kpi-logic viewId).
  *
  *   NBDOSKpi.widget(size, cfg, kit)   the tile's markup (every value escaped)
  *   NBDOSKpi.pick({ current, onPick, returnFocus })  a native <dialog> of the views
@@ -36,6 +36,11 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function profile() { var p = W._companyProfile; return p && typeof p === 'object' ? p : null; }
+  // Until company-profile.js has read the profile (or when that read failed), _companyProfile holds
+  // the NBD defaults, mapViews [], so "no saved views" would be a guess: maps-customers.js gates its
+  // View list on the same flag (_custViewsReady). The home repaints on nbd:company-profile-loaded.
+  function profileReady() { return W._companyProfileLoaded === true; }
+  var LOADING = 'Loading your team\'s views';
   function leads() { return W._leadsLoaded === true && Array.isArray(W._leads) ? W._leads : null; }
   function env() { return { normalizeStage: W.normalizeStage, stageRole: W.stageRole }; }
   function viewOf(cfg) { return cfg && typeof cfg.view === 'string' ? KL.findView(profile(), cfg.view) : null; }
@@ -46,6 +51,7 @@
   function title(t) { return '<h3 class="os-hw-title">' + esc(t) + '</h3>'; }
 
   function widget(size, cfg) {
+    if (!profileReady()) return title('Saved view') + '<p class="os-hw-empty">' + esc(LOADING) + '</p>';
     var all = KL.listViews(profile());
     var picked = cfg && typeof cfg.view === 'string';
     var v = viewOf(cfg);
@@ -81,7 +87,9 @@
     d.setAttribute('aria-labelledby', 'osKpiTitle');
     var h = '<div class="os-hw-add-hd"><h2 class="os-hw-add-title" id="osKpiTitle">Count a saved view</h2>' +
       '<button type="button" class="btn btn-ghost os-hw-add-close" data-oskpi-close="">Close</button></div>';
-    if (!views.length) {
+    if (!profileReady()) {
+      h += '<p class="os-hw-add-full" role="status">Your team\'s saved map views are still loading. Close this and try again in a moment.</p>';
+    } else if (!views.length) {
       h += '<p class="os-hw-add-full">Your team has no saved map views yet. An owner or admin saves them from the Customers layer on the Map (the View row).</p>';
     } else {
       h += '<p class="os-hw-add-full">Your team\'s saved map views. The tile counts the leads that match, from what is already loaded.</p><ul class="os-hw-add-list">' +

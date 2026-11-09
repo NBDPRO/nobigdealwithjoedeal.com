@@ -162,6 +162,7 @@ async function mount(items, opts) {
   const T = makeWin(Object.assign({ surface: o.phone ? 'phone' : 'desk', loader: true, leads: HOME_LEADS,
     home: o.phone ? { phone: items, desk: [] } : { phone: [], desk: items } }, o));
   T.W._companyProfile = o.profile === undefined ? { mapViews: VIEWS } : o.profile;
+  T.W._companyProfileLoaded = o.profileLoaded === undefined ? true : o.profileLoaded;
   T.W.normalizeStage = (s) => String(s || 'new').toLowerCase();
   T.W.stageRole = (k) => (k === 'won' ? 'won' : k === 'new' ? 'new' : 'active');
   T.W._impl.mount({ surface: o.phone ? 'phone' : 'desktop' });
@@ -204,6 +205,23 @@ async function mount(items, opts) {
     ok('no company profile: no number', !noProfile.card('kpi-1').querySelector('.os-kpi-n'), text(noProfile.card('kpi-1')));
     const notLoaded = await mount([{ id: 'kpi', s: 's', cfg: { view: ID0 } }], { leadsLoaded: false });
     ok('leads not loaded yet: the name, "Waiting for your leads", never 0', /Waiting for your leads/.test(text(notLoaded.card('kpi-1'))) && !notLoaded.card('kpi-1').querySelector('.os-kpi-n'), text(notLoaded.card('kpi-1')));
+    // the profile not read yet (_companyProfileLoaded unset): it holds the NBD defaults, mapViews []
+    const early = await mount([{ id: 'kpi', s: 'm', cfg: { view: ID0 } }, { id: 'kpi', s: 's' }], { profile: { mapViews: [] }, profileLoaded: undefined });
+    early.T.W._companyProfileLoaded = false;
+    early.T.W.dispatchEvent(new early.T.W.CustomEvent('nbd:data-refreshed'));
+    const e1 = early.card('kpi-1'), e2 = early.card('kpi-2');
+    ok('profile not loaded yet: a picked tile says the views are loading, never "no saved map views"', /Loading your team's views/.test(text(e1)) && !/no saved/i.test(text(e1)) && !e1.querySelector('.os-kpi-n') && !e1.querySelector('[data-oshw-kpi="pick"]'), text(e1));
+    ok('…and an unpicked one too (S)', /Loading your team's views/.test(text(e2)) && !/no saved/i.test(text(e2)), text(e2));
+    early.T.W._companyProfile = { mapViews: VIEWS };
+    early.T.W._companyProfileLoaded = true;
+    early.T.W.dispatchEvent(new early.T.W.CustomEvent('nbd:company-profile-loaded'));
+    ok('…the profile lands (nbd:company-profile-loaded): the count shows', text(early.card('kpi-1').querySelector('.os-kpi-n')) === '2', text(early.card('kpi-1')));
+    early.T.W._companyProfileLoaded = false;
+    early.T.W._companyProfile = { mapViews: [] };
+    early.T.W.NBDOSKpi.pick({});
+    await tick();
+    const ed = early.T.document.querySelector('dialog.os-kpi-dlg');
+    ok('the picker before the profile lands: says the views are loading, not "no saved map views"', ed && /still loading/.test(text(ed)) && !/no saved map views/.test(text(ed)) && !ed.querySelector('[data-oskpi-view]'), ed && text(ed));
     // the bundle fails: Couldn't load, Retry (never a number)
     const T = makeWin({ surface: 'desk', home: { phone: [], desk: [{ id: 'kpi', s: 's', cfg: { view: ID0 } }] }, leads: HOME_LEADS });
     T.W.ScriptLoader = { bundles: {}, loadBundle: () => Promise.reject(new Error('offline')) };
