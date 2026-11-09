@@ -118,8 +118,10 @@
 .ipx-send-receipt.ipx-send-receipt.ipx-send-receipt, .tl-send-receipt.tl-send-receipt.tl-send-receipt { min-height: 44px; }
 .tl-send-receipt.tl-send-receipt.tl-send-receipt { margin-top: 6px; }
 /* A timeline row's own action button (the walkthrough's "Brief this
-   walkthrough", Call to Close P2): the same 44px target and spacing. */
-.tl-row-btn.tl-row-btn.tl-row-btn { min-height: 44px; margin-top: 6px; }
+   walkthrough", Call to Close P2): the same 44px target and spacing, as a
+   ghost (the btn-ghost tokens): the card's Add Task is its one filled button. */
+.tl-row-btn.tl-row-btn.tl-row-btn { min-height: 44px; margin-top: 6px; background: var(--s2); color: var(--t); border: 1px solid var(--br); }
+.tl-row-btn.tl-row-btn.tl-row-btn:hover { background: var(--s2); border-color: var(--orange); color: var(--orange); }
 .ipx-rp-note.ipx-rp-note.ipx-rp-note { margin: -4px 0 12px; line-height: 1.4; }
 /* Save payment is THE action (phone audit 2026-10-07 #2). On the customer
    page .btn-green has no rule (it lives in dashboard-app.css), so Save

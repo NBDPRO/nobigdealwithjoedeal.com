@@ -128,6 +128,11 @@ const OPEN = { visitId: 'vWalk0000001', visitUid: 'jo', visit: { startedAtMs: RO
     const css = read('docs/pro/css/invoice-pipeline.css');
     ok('the button has its own neutral class (tl-row-btn), not the receipt button\'s', /class="doc-btn tl-row-btn"/.test(vbBtn) && !/tl-send-receipt/.test(vbBtn), vbBtn.trim());
     ok('…a 44 px target with the receipt button\'s spacing, from the shared stylesheet', /\.tl-row-btn\.tl-row-btn\.tl-row-btn[^{]*\{[^}]*min-height:\s*44px/.test(css) && /\.tl-row-btn\.tl-row-btn\.tl-row-btn[^{]*\{[^}]*margin-top:\s*6px/.test(css));
+    // Final review 2026-11-09: the row sits next to the card's filled-orange
+    // Add Task, so it is a ghost (DESIGN.md: one filled button per region).
+    const rowRule = (/\.tl-row-btn\.tl-row-btn\.tl-row-btn\s*\{([^}]*)\}/.exec(css) || [])[1] || '';
+    const hoverRule = (/\.tl-row-btn\.tl-row-btn\.tl-row-btn:hover\s*\{([^}]*)\}/.exec(css) || [])[1] || '';
+    ok('…a ghost, never filled orange: the btn-ghost tokens (--s2 / --t / --br), and its hover never fills', /background:\s*var\(--s2\)/.test(rowRule) && /color:\s*var\(--t\)/.test(rowRule) && /border:\s*1px solid var\(--br\)/.test(rowRule) && /background:\s*var\(--s2\)/.test(hoverRule) && !/--orange|--ob/.test(rowRule), [rowRule, hoverRule]);
     const cssV = Number((/invoice-pipeline\.css\?v=(\d+)/.exec(read('docs/pro/customer.html')) || [])[1]);
     ok('…and customer.html asks for the new stylesheet (cache-bust past v6)', cssV > 6, cssV);
     const loads = []; const opened = [];
