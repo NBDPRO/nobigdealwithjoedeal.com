@@ -109,6 +109,20 @@ G(() => {
   ok('the scroll timer is gone after the drop', page.scrollTop === 184);
 });
 
+console.log('\n2b. a refused drop keeps its reason on the live line');
+G(() => {
+  const T = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'shortcuts', s: 's' }, { id: 'daily', s: 's' }, { id: 'upnext', s: 'm' }], desk: [] });
+  const ph = phoneOf(T);
+  longPress(T, byKey(ph, 'glance-1'));
+  const up = byKey(ph, 'upnext-1');
+  T.document.elementFromPoint = () => byKey(ph, 'daily-1');
+  fire(T.dom, up, 'pointerdown', { clientX: 200, clientY: 600, pointerId: 12 });
+  fire(T.dom, up, 'pointermove', { clientX: 300, clientY: 300, pointerId: 12 });
+  fire(T.dom, up, 'pointerup', { clientX: 300, clientY: 300, pointerId: 12 });
+  ok('dropped between an S pair: nothing moves', J(ids(ph)) === J(['glance-1', 'shortcuts-1', 'daily-1', 'upnext-1']), J(ids(ph)));
+  ok('…and the live line still says why (the pair), not just that it stayed', /Small widgets sit in pairs, so Up Next stays where it is/.test(live(ph)), live(ph));
+});
+
 console.log('\n3. tap-pick-place still works alongside drag');
 G(() => {
   const T = mountPhone({ phone: [{ id: 'glance', s: 'm' }, { id: 'upnext', s: 'm' }], desk: [] });

@@ -640,10 +640,11 @@
       swallow = true;
       W.clearTimeout(swallowT);
       swallowT = W.setTimeout(function () { swallow = false; }, 700);
-      var done = false;
-      if (apply && d.mode === 'drop' && d.drop) { pick = null; done = placeOn(d.key, d.drop); }
+      var done = false, spoke = false;
+      // placeOn says why a refused drop stays (the S pair); that line is kept
+      if (apply && d.mode === 'drop' && d.drop) { pick = null; done = placeOn(d.key, d.drop); spoke = true; }
       else if (apply && d.next) done = commit(d.next, d.key, d.mode === 'size' ? 'Resized. ' : '');
-      if (!done) { preview(d.base); announce(apply ? title(d.key) + ' stays where it is.' : ''); }
+      if (!done) { preview(d.base); if (!spoke) announce(apply ? title(d.key) + ' stays where it is.' : ''); }
     }
 
     // long-press a widget to edit (the 550 ms pattern); a move of 10px or a lift cancels it
