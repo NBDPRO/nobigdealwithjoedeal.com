@@ -35,6 +35,12 @@ ok('the button loads the file lazily through ScriptLoader.load', /data-action="S
 ok('customer.html has no <script> tag for project-consent.js (no boot cost)', !/<script[^>]+project-consent\.js/.test(html));
 ok('customer.html has the #projectConsentPanel container, hidden', /<div[^>]*id="projectConsentPanel"[^>]*hidden/.test(html));
 ok('no inline handler on the new markup', !/on[a-z]+=/i.test(btn));
+// Review 2026-11-09 #5: the panel sits inside .quick-actions (a wrapping flex
+// row, a 2-column grid on a phone); it must take the full row, like
+// #gallerySharePanel, and its classes need styles.
+ok('.pc-panel has a style rule that takes the full width', /\.pc-panel\s*\{[^}]*width:\s*100%/.test(html), (html.match(/\.pc-panel[^{]*\{[^}]*\}/) || ['(none)'])[0]);
+ok('.pc-panel spans both columns of the phone grid', /\.quick-actions\s+(?:>\s*)?(?:#projectConsentPanel|\.pc-panel)\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/.test(html));
+ok('.pc-tick is styled', /\.pc-tick\s*\{/.test(html));
 
 // ── the file ────────────────────────────────────────────────────────
 ok('docs/pro/js/project-consent.js exists', fs.existsSync(SRC_PATH));
@@ -58,6 +64,7 @@ function boot(opts) {
   const win = {
     _user: { uid: opts.uid },
     _userClaims: opts.claims || {},
+    _isNbdPlatformTenant: () => opts.nbd !== false,
     _customerId: opts.leadId || 'lead1',
     _currentLead: opts.lead,
     db: {},
@@ -128,6 +135,19 @@ const repLead = { companyId: 'co-a', userId: 'rep1' };
   // Escaping: a hostile lead id never reaches the markup raw.
   const b2 = boot({ uid: 'co-a', claims: {}, lead: owned, leadId: '<img src=x>' });
   ok('a hostile lead id is not rendered raw', !/<img/.test(b2.els.projectConsentPanel.innerHTML));
+
+  // Review #1: project pages go on NBD's website only. Another tenant (or a
+  // platform admin looking at another tenant's lead) gets no tick, no command.
+  const b3 = boot({ uid: 'co-b', claims: {}, lead: { companyId: 'co-b', userId: 'co-b', projectConsent: { on: true, by: 'co-b', at: new Date() } }, nbd: false });
+  ok('another tenant sees no checkbox', !/type="checkbox"/.test(b3.els.projectConsentPanel.innerHTML), b3.els.projectConsentPanel.innerHTML);
+  ok('another tenant sees no draft command', !/draft-project-page/.test(b3.els.projectConsentPanel.innerHTML));
+  ok('another tenant is told why', /No Big Deal/.test(b3.els.projectConsentPanel.innerHTML), b3.els.projectConsentPanel.innerHTML);
+  await b3.P.setConsent(true);
+  ok('another tenant\'s setConsent writes nothing', b3.writes.length === 0);
+  const b4 = boot({ uid: 'nbd-owner', claims: { role: 'admin', companyId: 'nbd-owner' }, lead: { companyId: 'co-b', userId: 'co-b', projectConsent: { on: true, by: 'co-b', at: new Date() } } });
+  ok('platform admin on another tenant\'s lead sees no command', !/draft-project-page/.test(b4.els.projectConsentPanel.innerHTML), b4.els.projectConsentPanel.innerHTML);
+  ok('…and no checkbox', !/type="checkbox"/.test(b4.els.projectConsentPanel.innerHTML));
+  ok('siteJob is exported for the rules of who sees the tick', typeof b4.P.siteJob === 'function');
 
   console.log('\nproject consent UI: ' + pass + ' passed, ' + fail + ' failed');
   if (fail) process.exit(1);

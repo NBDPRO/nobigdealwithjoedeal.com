@@ -58,6 +58,23 @@
 
   function isOn(l) { return !!(l && l.projectConsent && l.projectConsent.on === true); }
 
+  // Project pages go on ONE website, NBD's. The tick (and the draft command)
+  // is only for an NBD job seen by NBD: the signed-in identity is the NBD
+  // platform tenant (company-profile.js _isNbdPlatformTenant, keyed on the
+  // companyId claim) AND the lead is that same tenant's (companyId, or userId
+  // on a legacy lead). Another tenant's homeowner never agreed to NBD's site,
+  // and a platform admin opening another tenant's lead gets no tick either.
+  // scripts/draft-project-page.mjs refuses any other tenant's lead as well.
+  function siteJob(c, u, l) {
+    c = c || {}; l = l || {};
+    var nbd = false;
+    try { nbd = typeof w._isNbdPlatformTenant === 'function' && w._isNbdPlatformTenant() === true; } catch (_) { nbd = false; }
+    if (!nbd || !u) return false;
+    var mine = String(c.companyId || u);
+    var theirs = String(l.companyId || l.userId || '');
+    return !!theirs && theirs === mine;
+  }
+
   function patchFor(on, u, ts) { return { projectConsent: { on: on === true, by: u, at: ts } }; }
 
   // The dry-run command for a consented job. Lead ids are Firestore ids; anything
@@ -81,6 +98,13 @@
     var el = document.getElementById(PANEL);
     if (!el) return;
     var l = lead();
+    if (!siteJob(claims(), uid(), l)) {
+      el.innerHTML = '<div class="pc-title"><strong>Project page consent</strong></div>'
+        + '<div class="pc-meta">Project pages are published on the No Big Deal website, for No Big Deal jobs only. '
+        + 'There is nothing to tick for this job.</div>';
+      el.hidden = false;
+      return;
+    }
     var on = isOn(l);
     var can = canSet(claims(), uid(), l);
     var cmd = on ? commandFor(w._customerId) : '';
@@ -110,6 +134,7 @@
     var l = lead();
     var u = uid();
     var leadId = w._customerId;
+    if (!siteJob(claims(), u, l)) { toast('Project pages are for No Big Deal jobs only', 'error'); render(); return; }
     if (!canSet(claims(), u, l)) { toast('Only the owner can set project page consent', 'error'); render(); return; }
     if (!leadId || !w.db || typeof w.updateDoc !== 'function' || typeof w.doc !== 'function') { toast('Customer not loaded yet', 'error'); return; }
     var ts = typeof w.serverTimestamp === 'function' ? w.serverTimestamp() : new Date();
@@ -139,7 +164,7 @@
     }
   }
 
-  w.NBDProjectConsent = { canSet: canSet, isOn: isOn, patchFor: patchFor, commandFor: commandFor,
+  w.NBDProjectConsent = { canSet: canSet, siteJob: siteJob, isOn: isOn, patchFor: patchFor, commandFor: commandFor,
     open: open, render: render, setConsent: setConsent, toggle: toggle, copyCommand: copyCommand };
 
   // First tap: the button loaded this file. Point it at open() from now on, then open.
