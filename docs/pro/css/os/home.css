@@ -87,6 +87,7 @@
 .os-hw-ds-row.is-strong { font-size: var(--ui-fs-body, 14px); font-weight: 600; color: var(--t); }
 .os-hw-ds-row.is-warn { font-weight: 600; color: var(--t); }
 .os-hw-ds-row.is-label { font-size: var(--ui-fs-label, 11px); font-weight: 700; letter-spacing: var(--ui-ls-label, .07em); text-transform: uppercase; }
+.os-hw-ds-row.is-label:not(:first-child) { margin-top: var(--ui-space-1, 4px); }
 .os-hw-ds-big { font-size: var(--ui-fs-title, 20px); font-weight: 700; line-height: 1.1; }
 .os-hw-ds-open { align-self: flex-start; text-decoration: none; }
 /* personal numbers never show on the lock screen */

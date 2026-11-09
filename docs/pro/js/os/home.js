@@ -317,25 +317,29 @@
       if (b) return h + open + dsRow('Left today', 'is-label') + dsRow(items.slice(0, 2).join(' · ')) + '</a>';
       return h + (show === 'business' ? noBiz : noDs);
     }
-    var parts = [];
+    // rows that go to the tracker share ONE link (one tap target): a link per row put each one-line
+    // row in its own 44px box, which spread the M card into loose rows (phone review, P1)
+    var parts = [], rows = '';
+    function flush() { if (rows) { parts.push(open + rows + '</a>'); rows = ''; } }
     if (show !== 'business') {
       if (!d) parts.push(noDs);
       else {
         var floors = 'Floors ' + String(d.met) + '/' + String(d.of);
         var week = d.pct == null ? '' : 'Week ' + String(d.pct) + '%';
-        parts.push(open + (size === 'l'
+        rows += size === 'l'
           ? dsRow(floors, 'is-strong') + dsRow(streakLine(d), d.warned ? 'is-warn' : '') + (week ? dsRow(week) : '')
-          : dsRow([floors, week].filter(Boolean).join(' · '), 'is-strong') + dsRow(streakLine(d), d.warned ? 'is-warn' : '')) + '</a>');
+          : dsRow([floors, week].filter(Boolean).join(' · '), 'is-strong') + dsRow(streakLine(d), d.warned ? 'is-warn' : '');
       }
     }
     if (show !== 'personal') {
-      if (!b) parts.push(noBiz);
-      else parts.push(open + (size === 'l'
+      if (!b) { flush(); parts.push(noBiz); }
+      else rows += size === 'l'
         ? dsRow('Left today', 'is-label') + items.map(function (t) { return dsRow(t); }).join('')
-        : dsRow('Left today: ' + items.join(' · '))) + '</a>');
+        : dsRow('Left today: ' + items.join(' · '));
       // doors are work DONE (counted), so they sit under their own label, never among what is left
-      if (doors) parts.push(open + (size === 'l' ? dsRow('Done today', 'is-label') + dsRow(doors) : dsRow(doors)) + '</a>');
+      if (doors) rows += size === 'l' ? dsRow('Done today', 'is-label') + dsRow(doors) : dsRow(doors);
     }
+    flush();
     return h + parts.join('');
   }
 

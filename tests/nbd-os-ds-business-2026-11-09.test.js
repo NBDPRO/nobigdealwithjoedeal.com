@@ -175,7 +175,7 @@ function fakeWin(o) {
   /** The real OS layout, with ds-business.js loaded and a Door-to-Door sidebar item (or not). */
   function widget(o) {
     const opt = o || {};
-    const T = makeWin({ surface: 'phone', store: { nbd_today_summary: summary }, home: { phone: [{ id: 'daily', s: opt.s || 'l', cfg: opt.cfg }], desk: [] } });
+    const T = makeWin({ surface: 'phone', store: Object.assign({ nbd_today_summary: summary }, opt.store || {}), home: { phone: [{ id: 'daily', s: opt.s || 'l', cfg: opt.cfg }], desk: [] } });
     const W = T.W;
     if (opt.d2d !== false) {
       const b = T.document.createElement('button');
@@ -250,6 +250,24 @@ function fakeWin(o) {
     ok('the lock screen and tray never read goals or doors', !/NBDOSDsBiz|settings', 'goals'|knocks/.test(lock));
     ok('no style attribute in the painted widget', !/style=/.test(T.document.getElementById('osPhone').innerHTML));
     void W;
+  }
+
+  {
+    // phone M review: each row was its own 44px link, so one-line rows sat in 44px boxes with big gaps between them
+    const snapDs = JSON.stringify({ asOf: NOW - 3600000, sig: 'x', today: { dk: DK, floors: [{ label: 'a', met: true }, { label: 'b', met: true }, { label: 'c', met: false }, { label: 'd', met: false }] },
+      streak: { count: 4, warned: true, broken: false }, week: { pct: 71 } });
+    for (const s of ['m', 'l']) {
+      const { T, card } = widget({ s, goals: { doorsPerDay: 30 }, count: 3, store: { nbd_ds_snapshot: snapDs } });
+      await settle();
+      const links = card().querySelectorAll('.os-hw-ds-link');
+      ok(s.toUpperCase() + ': floors, streak, left today and doors are ONE tap target (rows stack, no 44px box per row)', links.length === 1
+        && /Floors 2\/4/.test(text(links[0])) && /Left today/.test(text(links[0])) && /Doors 3 of 30/.test(text(links[0])), J([links.length, text(card())]));
+      ok('...still the tracker\'s link', links[0] && links[0].getAttribute('href') === '/pro/daily-success/');
+      void T;
+    }
+    const { card } = widget({ s: 'm', goals: { doorsPerDay: 30 }, count: 3 });
+    await settle();
+    ok('M with no tracker page: the Open button stays its own, the business rows one link', card().querySelectorAll('.os-hw-ds-open').length === 1 && card().querySelectorAll('.os-hw-ds-link').length === 1, card().innerHTML);
   }
 
   console.log('\n6. lazy: no boot file and no OS `needs` slot');
