@@ -23,6 +23,8 @@
  *   joinTranscripts     primary + SEPARATOR + secondary, in call order.
  *   joinSegIndex        the two calls' segment-confidence indexes, the
  *                       second's char offsets moved past the separator.
+ *   fitJoin             both texts trimmed so the joined text fits the
+ *                       brief's cap (the redial is never cut off silently).
  *
  * Merging never deletes either doc and never moves audio: both keep their
  * own recording, notes, timeline row and task. Undo clears the two marks.
@@ -131,6 +133,26 @@ function joinTranscripts(primaryText, secondaryText) {
   return a + SEPARATOR + b;
 }
 
+const CUT_MARK = '\n[...the rest of this call is cut for length...]';
+/**
+ * { a, b }: the two texts, trimmed so a + SEPARATOR + b fits max (call-brief-
+ * logic TRANSCRIPT_MAX). Under the cap nothing changes. Over it, a short call
+ * keeps all of itself and the long one gives up its end; two long calls keep
+ * about half each. A trimmed text ends with CUT_MARK, so the model is told.
+ */
+function fitJoin(primaryText, secondaryText, max) {
+  let a = String(primaryText || '');
+  let b = String(secondaryText || '');
+  if (!b.trim() || !(max > 0) || a.length + SEPARATOR.length + b.length <= max) return { a, b };
+  const room = Math.max(0, max - SEPARATOR.length);
+  const half = Math.floor(room / 2);
+  const cut = (t, n) => (t.length <= n ? t : t.slice(0, Math.max(0, n - CUT_MARK.length)) + CUT_MARK);
+  if (b.length <= half) a = cut(a, room - b.length);
+  else if (a.length <= half) b = cut(b, room - a.length);
+  else { a = cut(a, half); b = cut(b, room - a.length); }
+  return { a, b };
+}
+
 /**
  * Both calls' segIndex (call-center-logic buildSegIndex: off[] / lp[] /
  * start[] / end[]) as one index over joinTranscripts. A call with no index
@@ -144,8 +166,15 @@ function joinSegIndex(pSeg, sSeg, primaryText, secondaryText) {
   if (!b.trim()) return ok(pSeg) ? pSeg : null;
   if (!ok(pSeg) && !ok(sSeg)) return null;
   const one = { off: [0], lp: [0], start: [0], end: [0] };
-  const p = ok(pSeg) ? pSeg : one;
-  const s = ok(sSeg) ? sSeg : one;
+  // A segment that starts past a trimmed text's end (fitJoin) is dropped.
+  const within = (x, len) => {
+    const keep = x.off.map((o, i) => (i === 0 || Number(o) < len ? i : -1)).filter((i) => i >= 0);
+    if (keep.length === x.off.length) return x;
+    const pickArr = (k) => (Array.isArray(x[k]) && x[k].length === x.off.length ? keep.map((i) => x[k][i]) : undefined);
+    return { v: x.v, off: pickArr('off'), lp: pickArr('lp'), start: pickArr('start'), end: pickArr('end') };
+  };
+  const p = within(ok(pSeg) ? pSeg : one, a.length);
+  const s = within(ok(sSeg) ? sSeg : one, b.length);
   const shift = a.length + SEPARATOR.length;
   const arr = (x, k, n) => (Array.isArray(x[k]) && x[k].length === n ? x[k] : new Array(n).fill(0));
   return {
@@ -158,7 +187,7 @@ function joinSegIndex(pSeg, sSeg, primaryText, secondaryText) {
 }
 
 module.exports = {
-  MERGE_GAP_MS, OVERLAP_GRACE_MS, SEPARATOR,
+  MERGE_GAP_MS, OVERLAP_GRACE_MS, SEPARATOR, CUT_MARK,
   isCallId, endOf, callProblem, orderPair, pairProblem, candidates,
-  mergePatch, unmergePatch, mergedTogether, joinTranscripts, joinSegIndex,
+  mergePatch, unmergePatch, mergedTogether, joinTranscripts, joinSegIndex, fitJoin,
 };

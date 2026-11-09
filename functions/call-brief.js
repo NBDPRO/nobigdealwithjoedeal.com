@@ -219,8 +219,9 @@ async function briefInput(db, g) {
   if (sec.userId !== g.call.userId || (sec.companyId || null) !== (g.call.companyId || null)) return own;
   if (sec.leadId && sec.leadId !== g.leadId) return own;
   if (sec.status === 'personal' || sec.callType === 'personal' || sec.callType === 'spam') return own;
-  const st = String(sec.transcript || '');
-  return { transcript: MG.joinTranscripts(own.transcript, st), segIndex: MG.joinSegIndex(own.segIndex, sec.segIndex || null, own.transcript, st), mergedFrom: sec.id };
+  // Trimmed to the model's cap here, so a long first call never cuts the redial off silently.
+  const fit = MG.fitJoin(own.transcript, String(sec.transcript || ''), L.TRANSCRIPT_MAX);
+  return { transcript: MG.joinTranscripts(fit.a, fit.b), segIndex: MG.joinSegIndex(own.segIndex, sec.segIndex || null, fit.a, fit.b), mergedFrom: sec.id };
 }
 
 const answer = (doc, extra) => Object.assign({

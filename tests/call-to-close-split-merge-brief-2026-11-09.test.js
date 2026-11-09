@@ -157,6 +157,28 @@ const briefDoc = (db) => db.store.get('leads/L1/call_briefs/' + P_ID);
     ok('nothing is written to either call doc', !db.writes.some((w) => /^phone_calls\//.test(w.path)));
   }
 
+  {
+    // Review 2026-11-09: a very long first call pushed the redial past
+    // TRANSCRIPT_MAX, so it was cut off silently after the separator.
+    modelCalls = [];
+    const long = 'We talked about the roof for a long while. '.repeat(Math.ceil((L.TRANSCRIPT_MAX + 5000) / 43)).slice(0, L.TRANSCRIPT_MAX + 5000);
+    const db = makeDb(seed({ transcript: long }));
+    const r = await brief(db);
+    const sent = modelCalls[0] ? fenced(modelCalls[0]) : '';
+    ok('a first call longer than the cap: the redial still reaches the model, whole', r.r && sent.indexOf(L.fenceSafe(B)) >= 0 && sent.endsWith(L.fenceSafe(B)), sent.slice(-200));
+    ok('...the joined text fits the cap', sent.length <= L.TRANSCRIPT_MAX, sent.length);
+    ok('...and the cut is said, not silent', /cut for length/.test(sent));
+    ok('...the claim # on the redial grounds', r.r && r.r.brief && r.r.brief.fields && r.r.brief.fields.claimNumber && /44729/.test(r.r.brief.fields.claimNumber.value));
+    if (MG) {
+      const f = MG.fitJoin('a'.repeat(100), 'b'.repeat(100), 120 + MG.SEPARATOR.length);
+      ok('fitJoin: both long, each keeps about half and the first says it was cut', f.b.length <= 60 && f.b.length > 30 && /cut for length/.test(f.a) && f.a.length + MG.SEPARATOR.length + f.b.length <= 120 + MG.SEPARATOR.length, [f.a.length, f.b.length]);
+      const g = MG.fitJoin('short', 'also short', 1000);
+      ok('fitJoin: under the cap, nothing changes', g.a === 'short' && g.b === 'also short');
+      const seg = MG.joinSegIndex({ off: [0, 50, 90], lp: [0, 0, -2] }, { off: [0], lp: [0] }, 'x'.repeat(60), 'y');
+      ok('joinSegIndex drops a first-call segment that starts past the cut', seg.off.length === 3 && seg.lp.join() === '0,0,0', seg);
+    }
+  }
+
   console.log('\n2. The merge invalidates the stored brief');
   {
     modelCalls = [];
