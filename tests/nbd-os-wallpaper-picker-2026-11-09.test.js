@@ -335,6 +335,22 @@ async function openPicker(T) {
     ok('a dim over My Skin\'s 0.85 cap is held at 85%', (await dimOf(2)) === '85%', await dimOf(2));
   }
 
+  console.log('\n10. opening the picker again replaces the open one and leaves the surface picture alone');
+  {
+    const T = setup({ surface: 'phone', home: { phone: [], desk: [], wp: { phone: PICS[0].id, desk: null } } });
+    T.W._impl.mount({ surface: 'phone' });
+    const props = css(T.document.getElementById('osPhone'));
+    await flush();
+    const live = (props['--os-wp-img'] || '').replace(/^url\("|"\)$/g, '');
+    ok('(the saved picture is painted)', /^blob:/.test(live), J(props));
+    const first = T.W.NBDOSWallpaper.open({ surface: 'phone', current: PICS[0].id });
+    await flush();
+    const second = T.W.NBDOSWallpaper.open({ surface: 'phone', current: PICS[0].id });
+    await flush();
+    ok('one picker: the first is gone, the second is open', !first.parentNode && second.parentNode && T.document.querySelectorAll('dialog.os-wp-pick').length === 1);
+    ok('the surface still shows its picture (its URL not revoked, its properties kept)', props['--os-wp-img'] === 'url("' + live + '")' && T.W.urls.revoked.indexOf(live) === -1, J({ props, revoked: T.W.urls.revoked }));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log('  ✗ the suite threw: ' + (e && e.stack)); process.exit(1); });

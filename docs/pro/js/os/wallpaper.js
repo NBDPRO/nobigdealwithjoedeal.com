@@ -134,7 +134,7 @@
   function open(opts) {
     var o = opts || {};
     var call = function (fn, v) { if (typeof fn === 'function') safe(function () { fn(v); }); };
-    if (dlg) clear();
+    if (dlg) { var was = dlg; safe(function () { was.close(); }); closeDlg(was); }   // only the open picker; the surface keeps its picture
     var phone = o.surface === 'phone';
     var lock = locked();
     // the default: time of day, or None while My Skin paints a picture (that is what shows)
