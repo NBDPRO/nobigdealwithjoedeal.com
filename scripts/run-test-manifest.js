@@ -472,9 +472,9 @@ const RUNNABLE = ['node', 'smoke'];
 //               checks and LLMS:BLOG region suites. MEASURED via --check.
 //   2026-11-09  1042/74/1183 -> 1043/74/1184, the catalog 20% price floor suite
 //               (catalog-price-floor-2026-11-09; Jo OK'd the before/after list). MEASURED via --check.
-//   2026-11-09  1042/74/1183 -> 1043/74/1184, the Q11 call-text backfill suite
-//               (q11-call-text-backfill, node). MEASURED via --check.
-const FLOORS = { node: 1043, smoke: 74, disk: 1184 };
+//   2026-11-09  1043/74/1184 -> 1044/74/1185, the Q11 call-text backfill suite
+//               (q11-call-text-backfill, node), same PR as the price floor. MEASURED via --check.
+const FLOORS = { node: 1044, smoke: 74, disk: 1185 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
