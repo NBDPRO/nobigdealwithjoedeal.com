@@ -3418,10 +3418,10 @@ service cloud.firestore {
           && request.resource.data.companyId == companyId
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.status == 'draft'
-          && !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'reelId', 'video', 'aiGenerated']);
+          && !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'reelId', 'video', 'aiGenerated', 'blogUrl']);
         allow update: if socialManager()
           && resource.data.status != 'publishing'
-          && didNotChange(['companyId', 'createdBy', 'approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'groupId', 'captionFilter', 'reelId', 'video', 'aiGenerated'])
+          && didNotChange(['companyId', 'createdBy', 'approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'groupId', 'captionFilter', 'reelId', 'video', 'aiGenerated', 'blogUrl'])
           && socialAiRuleOk()
           && socialStatusOk();
         allow delete: if socialManager() && resource.data.status != 'publishing';

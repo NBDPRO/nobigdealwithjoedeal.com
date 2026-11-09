@@ -16,6 +16,10 @@
  *      (socialApprovePost stays the only way to approved/scheduled), the
  *      caption filter applied, a title that trips the wording rules skipped.
  *   E. planWeeks puts a live blog post in the first Thursday slot after its date.
+ *   H. The link survives every text platform (review fix 2026-11-09): X's 280
+ *      characters used to cut the link off 25 of the 31 real feed posts. The
+ *      title / description shrink to fit; the link and hashtags never get cut.
+ *      socialApprovePost refuses a blog_post whose final message lost its link.
  *   F. Server wiring (when functions deps are installed): the feed loader is NBD
  *      only, tolerates a dead feed, skips URLs already shared.
  *   G. Wiring: client kind label, FUNCTIONS_INDEX.
@@ -125,6 +129,40 @@ const fn = (name) => (typeof L[name] === 'function' ? L[name] : () => { throw ne
   const p4 = attempt(() => L.planWeeks({ weeks: 1, platforms: ['facebook'], startMs: NOW, seed: 2, blogPosts: [claimItem] }));
   ok('plan: a post whose title trips the rules is left out of the plan', Array.isArray(p4) && !p4.some((p) => p.kind === 'blog_post'));
 
+  // ── H. the link survives every text platform ───────────────────────────
+  console.log('H. the link survives');
+  const TEXT_PLATFORMS = Object.keys(L.PLATFORMS).filter((p) => !L.PLATFORMS[p].needsMedia);
+  ok('positive control: X is a text platform with a 280 limit', TEXT_PLATFORMS.includes('x') && L.PLATFORMS.x.maxCaption === 280);
+  const realItems = attempt(() => fn('parseBlogFeed')(read('docs/feed.xml'))) || [];
+  const lost = [];
+  let xDrafts = 0, fbDrafts = 0;
+  for (const it of (Array.isArray(realItems) ? realItems : [])) {
+    for (const p of TEXT_PLATFORMS) {
+      const d = attempt(() => fn('buildBlogPostDraft')({ post: it, platform: p }));
+      if (!d || d.__error) { if (d && d.__error) lost.push(p + ':' + it.url + ' threw ' + d.__error); continue; }
+      if (p === 'x') xDrafts++;
+      if (p === 'facebook') fbDrafts++;
+      const msg = L.composeMessage(d);
+      if (!msg.includes(it.url) || msg.length > L.PLATFORMS[p].maxCaption || !d.caption.includes(it.url)) lost.push(p + ':' + it.url.replace(/^.*\/blog\//, ''));
+    }
+  }
+  ok('every real feed post on every text platform: the final message carries the full link', lost.length === 0, lost.length + ' lost, e.g. ' + lost.slice(0, 4).join(' | '));
+  ok('X gets a draft for every post Facebook does (no silent skip for length)', xDrafts > 0 && xDrafts === fbDrafts, xDrafts + ' on X, ' + fbDrafts + ' on Facebook, of ' + realItems.length);
+  const longPost = { title: 'A Very Long Title About Roof Ventilation And Attic Moisture And Why Your Shingles Curl Early In Northern Kentucky Winters And What To Do About It Before Spring Arrives Again This Year', url: 'https://nobigdealwithjoedeal.com/blog/a-very-long-slug-about-roof-ventilation-and-attic-moisture-and-curling-shingles-in-northern-kentucky-winters', description: 'Ventilation matters. '.repeat(18).trim(), publishedMs: NOW - 86400000 };
+  const xLong = attempt(() => fn('buildBlogPostDraft')({ post: longPost, platform: 'x' }));
+  ok('X, a long title + long slug: link intact, message within 280', xLong && !xLong.__error && L.composeMessage(xLong).includes(longPost.url) && L.composeMessage(xLong).length <= 280, xLong && JSON.stringify(xLong.caption));
+  ok('X, a long title is shortened on a word with an ellipsis, not mid-word', xLong && /New on the blog: A Very Long Title[^\n]*\u2026/.test(xLong.caption || ''), xLong && xLong.caption);
+  const fbIce = attempt(() => fn('buildBlogPostDraft')({ post: ice, platform: 'facebook' }));
+  ok('Facebook keeps the description when it fits', fbIce && /Why the eaves freeze/.test(fbIce.caption || ''));
+  const pAll = attempt(() => L.planWeeks({ weeks: 4, platforms: TEXT_PLATFORMS, startMs: NOW, seed: 3, blogPosts: [longPost, ice] }));
+  const pBlog = Array.isArray(pAll) ? pAll.filter((p) => p.kind === 'blog_post') : [];
+  ok('planWeeks on every text platform (X included): each blog row\'s final message carries its blogUrl', pBlog.length === TEXT_PLATFORMS.length * 2 && pBlog.every((p) => L.composeMessage(p).includes(p.blogUrl) && L.composeMessage(p).length <= L.PLATFORMS[p.platform].maxCaption), pBlog.filter((p) => !L.composeMessage(p).includes(p.blogUrl)).map((p) => p.platform).join() + ' / ' + pBlog.length);
+  const blk = fn('blogLinkBlocker');
+  ok('approval gate: a blog_post whose message still has its link passes', attempt(() => blk({ kind: 'blog_post', platform: 'x', blogUrl: ice.url, caption: 'New. Read it here: ' + ice.url, hashtags: ['#rooftips'] })) === null);
+  ok('approval gate: a blog_post whose link was edited out is refused', typeof attempt(() => blk({ kind: 'blog_post', platform: 'facebook', blogUrl: ice.url, caption: 'New on the blog: Ice Dams.', hashtags: [] })) === 'string');
+  ok('approval gate: a blog_post with no blogUrl is refused', typeof attempt(() => blk({ kind: 'blog_post', platform: 'facebook', caption: 'x', hashtags: [] })) === 'string');
+  ok('approval gate: other kinds are untouched', attempt(() => blk({ kind: 'tip', platform: 'x', caption: 'Check your flashing.', hashtags: [] })) === null);
+
   // ── F. server wiring ───────────────────────────────────────────────────
   console.log('F. server');
   let SS = null;
@@ -134,8 +172,14 @@ const fn = (name) => (typeof L[name] === 'function' ? L[name] : () => { throw ne
   } else {
     const NBD = SS.NBD_OWNER_UID;
     const fakeFetch = (body, okFlag) => { const calls = []; const f = async (url) => { calls.push(url); if (body instanceof Error) throw body; return { ok: okFlag !== false, status: okFlag === false ? 500 : 200, text: async () => body }; }; f.calls = calls; return f; };
-    const fakeDb = (shared) => ({
-      collection: () => ({ doc: () => ({ collection: () => ({ where: () => ({ limit: () => ({ get: async () => ({ forEach: (cb) => shared.forEach((d) => cb({ data: () => d })) }) }) }) }) }) }),
+    // Dedupe asks only for the candidate URLs (blogUrl in [...]), so it never
+    // misses an old share behind a row cap.
+    const fakeDb = (shared, seen) => ({
+      collection: () => ({ doc: () => ({ collection: () => ({ where: (field, op, val) => {
+        if (seen) seen.push([field, op, val]);
+        const rows = shared.filter((d) => field === 'blogUrl' && op === 'in' && Array.isArray(val) && val.includes(d.blogUrl));
+        return { get: async () => ({ forEach: (cb) => rows.forEach((d) => cb({ data: () => d })) }) };
+      } }) }) }),
     });
     const f1 = fakeFetch(FEED);
     const nbd = await SS.loadBlogShares(fakeDb([]), NBD, NOW, f1).catch((e) => ({ __error: e.message }));
@@ -151,11 +195,22 @@ const fn = (name) => (typeof L[name] === 'function' ? L[name] : () => { throw ne
     const dup = await SS.loadBlogShares(fakeDb([{ kind: 'blog_post', blogUrl: 'https://nobigdealwithjoedeal.com/blog/ice-dams', status: 'posted' }]), NBD, NOW, fakeFetch(FEED));
     ok('a post already drafted / posted is not shared again', Array.isArray(dup) && !dup.some((s) => s.url.endsWith('/ice-dams')));
     const cancelled = await SS.loadBlogShares(fakeDb([{ kind: 'blog_post', blogUrl: 'https://nobigdealwithjoedeal.com/blog/ice-dams', status: 'cancelled' }]), NBD, NOW, fakeFetch(FEED));
+    const seen = [];
+    const many = Array.from({ length: 600 }, (_, i) => ({ kind: 'blog_post', blogUrl: 'https://nobigdealwithjoedeal.com/blog/filler-' + i, status: 'posted' }));
+    const deep = await SS.loadBlogShares(fakeDb(many.concat([{ kind: 'blog_post', blogUrl: 'https://nobigdealwithjoedeal.com/blog/ice-dams', status: 'posted' }]), seen), NBD, NOW, fakeFetch(FEED));
+    ok('dedupe asks for the candidate URLs only (blogUrl in [...], at most 30), so 600 older shares cannot hide one', Array.isArray(deep) && !deep.some((s) => s.url.endsWith('/ice-dams')) && seen.length === 1 && seen[0][0] === 'blogUrl' && seen[0][1] === 'in' && seen[0][2].length <= 30, JSON.stringify(seen.map((x) => x.slice(0, 2))));
     ok('a cancelled share does not block a fresh one', Array.isArray(cancelled) && cancelled.some((s) => s.url.endsWith('/ice-dams')));
   }
   const src = read('functions/social-studio.js');
   ok('eligibleJobs ranks with the consent helper (consented first, nothing added)', /L\.hasProjectConsent\(/.test(src) && /L\.rankShowcaseJobs\(/.test(src));
   ok('socialPlanWeeks hands blog posts to planWeeks and stores blogUrl on the draft', /L\.planWeeks\(\{[^\n]*\bblogPosts\b/.test(src) && /blogUrl/.test(src));
+
+  ok('socialApprovePost runs the blog link gate on the final caption + hashtags', /L\.blogLinkBlocker\(\{[^\n]*caption[^\n]*hashtags/.test(src));
+  ok('dedupe no longer caps at 500 unordered rows', !/where\('kind', '==', 'blog_post'\)\.limit\(500\)/.test(src));
+  const rules = read('firestore.rules');
+  const spBlock = rules.slice(rules.indexOf('match /social_posts/{postId}'), rules.indexOf('match /social_posts/{postId}') + 1200);
+  ok('rules: a client cannot create a social post carrying blogUrl', /allow create:[\s\S]*?hasAny\(\[[^\]]*'blogUrl'/.test(spBlock));
+  ok('rules: a client cannot change blogUrl on update', /allow update:[\s\S]*?didNotChange\(\[[^\]]*'blogUrl'/.test(spBlock));
 
   // ── G. wiring ──────────────────────────────────────────────────────────
   console.log('G. wiring');

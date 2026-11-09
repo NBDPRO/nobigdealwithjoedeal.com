@@ -461,10 +461,14 @@ function composeMessage(post) {
 
 // ── Consent (2026-11-09) ────────────────────────────────────────────────
 /**
- * Jo's per-job consent tick: lead.projectConsent = { on, by, at }, set only by
- * the owner or an admin. Only on === true counts (the same value that maps to
- * projects.json consentOnFile: true). Social Studio uses it to PREFER a job for
- * the Tuesday showcase; it does not widen what is eligible.
+ * Jo's per-job consent tick: lead.projectConsent = { on, by, at }. Only
+ * on === true counts (the same value that maps to projects.json
+ * consentOnFile: true). Who may write it is decided by firestore.rules, not
+ * here: the consent-tick lane (plan §2 step 1) adds projectConsentWriteOk()
+ * so only a platform admin, the company_admin or a solo owner can set it.
+ * Without that rule any staff member with lead update rights could. So
+ * Social Studio uses it only to PREFER a job for the Tuesday showcase; it
+ * never widens what is eligible, and Jo still approves every post.
  */
 function hasProjectConsent(lead) {
   return !!(lead && lead.projectConsent && typeof lead.projectConsent === 'object' && lead.projectConsent.on === true);
@@ -528,12 +532,47 @@ function blogPostsToShare(items, opts) {
     .sort((a, b) => b.publishedMs - a.publishedMs);
 }
 
-/** "New on the blog" caption, or '' when the title itself trips the wording rules. */
-function blogCaption(post) {
+/**
+ * "New on the blog" caption, or '' when the title itself trips the wording
+ * rules. The link goes last, so it is never what a length cut removes: the
+ * caption is built to fit the platform with its hashtags (composeMessage adds
+ * them), dropping the description first, then shortening the title on a word
+ * with an ellipsis. X's 280 used to cut the link off most posts (review fix,
+ * 2026-11-09).
+ */
+function blogCaption(post, platform, hashtags) {
   const title = cleanLabel(post && post.title, 200);
   if (!title || cleanCaption(title, {}).dropped.length) return '';
   const desc = cleanCaption(cleanLabel(post.description, 400), {}).text;
-  return 'New on the blog: ' + title.replace(/[.!?]*$/, '') + '.' + (desc ? ' ' + desc : '') + '\n\nRead it here: ' + post.url;
+  const max = (PLATFORMS[platform] && PLATFORMS[platform].maxCaption) || 2200;
+  const tags = (hashtags || []).join(' ');
+  const tail = '\n\nRead it here: ' + post.url;
+  const room = max - (tags ? tags.length + 2 : 0) - tail.length;
+  const lead = 'New on the blog: ';
+  const t = title.replace(/[.!?]*$/, '');
+  const full = lead + t + '.' + (desc ? ' ' + desc : '');
+  if (full.length <= room) return full + tail;
+  if ((lead + t + '.').length <= room) return lead + t + '.' + tail;
+  const avail = room - lead.length - 1;
+  if (avail < 12) return tail.trim();
+  const cut = t.slice(0, avail + 1);
+  const sp = cut.lastIndexOf(' ');
+  const short = (sp > avail * 0.5 ? cut.slice(0, sp) : t.slice(0, avail)).replace(/[\s,;:.!?-]+$/, '');
+  return lead + short + '\u2026' + tail;
+}
+
+/**
+ * Approval gate for a blog share: null when fine, else the reason. A
+ * blog_post must name its post and its final message (caption + hashtags, as
+ * the platform gets it) must still carry the full link. Other kinds: null.
+ */
+function blogLinkBlocker(post) {
+  const p = post || {};
+  if (p.kind !== 'blog_post') return null;
+  const url = String(p.blogUrl || '');
+  if (!BLOG_URL_RE.test(url)) return 'This blog post share is not linked to a post on the blog.';
+  if (!composeMessage(p).includes(url)) return 'The link to the blog post is missing or cut off. Put "' + url + '" back in the caption (or shorten it) and try again.';
+  return null;
 }
 
 /**
@@ -546,15 +585,17 @@ function buildBlogPostDraft(opts) {
   const post = o.post || {};
   const p = PLATFORMS[o.platform];
   if (!p || p.needsMedia || !BLOG_URL_RE.test(String(post.url || ''))) return null;
-  const caption = blogCaption(post);
+  const hashtags = limitHashtags(hashtagsFor({}, 'blog_post'), o.platform);
+  const caption = blogCaption(post, o.platform, hashtags);
   if (!caption) return null;
   const cleaned = cleanCaption(caption, {});
+  if (blogLinkBlocker({ kind: 'blog_post', platform: o.platform, blogUrl: post.url, caption: cleaned.text, hashtags })) return null;
   return {
     kind: 'blog_post',
     platform: o.platform,
     format: 'text',
-    caption: limitCaption(cleaned.text, o.platform),
-    hashtags: limitHashtags(hashtagsFor({}, 'blog_post'), o.platform),
+    caption: cleaned.text,
+    hashtags,
     media: [],
     town: '', state: '', packageLabel: '', shingle: '',
     sourceLeadId: null,
@@ -651,12 +692,17 @@ function planWeeks(opts) {
     }
     dayIdx++;
     seed++;
-    const caption = cleanCaption(blog ? blogCaption(blog) : templateCaption(kind, facts, seed), {}).text;
+    const caption = blog ? '' : cleanCaption(templateCaption(kind, facts, seed), {}).text;
     const hashtags = hashtagsFor(facts, kind);
     for (const p of platforms) {
       if (format === 'text' && PLATFORMS[p].needsMedia) continue;
-      const row = { kind, platform: p, scheduledAtMs: at, caption: limitCaption(caption, p), hashtags: limitHashtags(hashtags, p), leadId, format };
-      if (blog) row.blogUrl = blog.url;
+      const tags = limitHashtags(hashtags, p);
+      // A blog caption is fitted per platform so its link is never cut.
+      const row = { kind, platform: p, scheduledAtMs: at, caption: blog ? cleanCaption(blogCaption(blog, p, tags), {}).text : limitCaption(caption, p), hashtags: tags, leadId, format };
+      if (blog) {
+        row.blogUrl = blog.url;
+        if (blogLinkBlocker(row)) continue;
+      }
       out.push(row);
     }
   }
@@ -676,5 +722,5 @@ module.exports = {
   limitCaption, limitHashtags, planWeeks, zonedMs, zonedYmd, isStormSeason, canApprove, canReschedule,
   SOCIAL_RULES, ms,
   hasProjectConsent, rankShowcaseJobs,
-  SITE_ORIGIN, BLOG_FEED_URL, BLOG_URL_RE, BLOG_SHARE_WINDOW_MS, parseBlogFeed, blogPostsToShare, blogCaption, buildBlogPostDraft,
+  SITE_ORIGIN, BLOG_FEED_URL, BLOG_URL_RE, BLOG_SHARE_WINDOW_MS, parseBlogFeed, blogPostsToShare, blogCaption, buildBlogPostDraft, blogLinkBlocker,
 };

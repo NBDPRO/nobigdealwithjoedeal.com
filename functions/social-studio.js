@@ -237,10 +237,14 @@ async function loadBlogShares(db, companyId, nowMs, fetchImpl) {
     logger.warn('social: blog feed unreadable', { err: e && e.message });
     return [];
   }
+  // Dedupe asks only about the candidates (recent, live posts: a handful),
+  // so no row cap can hide an older share of the same post.
+  const candidates = L.blogPostsToShare(L.parseBlogFeed(xml), { nowMs, sharedUrls: new Set() }).slice(0, 30);
+  if (!candidates.length) return [];
   const shared = new Set();
-  const snap = await postsCol(db, companyId).where('kind', '==', 'blog_post').limit(500).get();
-  snap.forEach((d) => { const v = d.data() || {}; if (v.blogUrl && v.status !== 'cancelled') shared.add(v.blogUrl); });
-  return L.blogPostsToShare(L.parseBlogFeed(xml), { nowMs, sharedUrls: shared });
+  const snap = await postsCol(db, companyId).where('blogUrl', 'in', candidates.map((c) => c.url)).get();
+  snap.forEach((d) => { const v = d.data() || {}; if (v.kind === 'blog_post' && v.blogUrl && v.status !== 'cancelled') shared.add(v.blogUrl); });
+  return L.blogPostsToShare(candidates, { nowMs, sharedUrls: shared });
 }
 
 const callOpts = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true };
@@ -335,6 +339,9 @@ exports.socialApprovePost = onCall(Object.assign({}, callOpts, { timeoutSeconds:
   if (L.PLATFORMS[post.platform] && L.PLATFORMS[post.platform].needsMedia && !(post.media || []).length) {
     throw new HttpsError('failed-precondition', L.PLATFORMS[post.platform].label + ' posts need a photo.');
   }
+  // A blog share must still carry its full link once the platform gets it.
+  const noLink = L.blogLinkBlocker({ kind: post.kind, platform: post.platform, blogUrl: post.blogUrl, caption, hashtags });
+  if (noLink) throw new HttpsError('failed-precondition', noLink);
   // Reel Studio: a reel's privacy gate + the AI-image rule (also re-checked at publish).
   const block = await approvalBlockers(db, ctx.companyId, post);
   if (block) throw new HttpsError('failed-precondition', block.message);
