@@ -403,6 +403,33 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     await tick(600);
     ok('a hand-off with no brief → the builder opens as usual, and autosave is not held back', reads.length === 0 && CP().applied().length === 0 && env.store[DRAFT_KEY] !== undefined);
     W.closeEstimateV2Builder();
+
+    section('C2. the brief lands after the rep has already acted (review 2026-11-09)');
+    // The mapper loads (and the hand-off parses) asynchronously. A rep who
+    // taps or types first has started their own estimate: the call's choices
+    // are shown as suggestions only, never applied, so nothing the rep did
+    // not tap reaches the drafts, and V3 is not re-opened under them.
+    leads([{ id: 'L13', firstName: 'Hu', lastName: 'Ix', address: '13 Elm St', jobType: '' }]);
+    W.openEstimateV2Builder({ leadId: 'L13' });
+    await tick(450);
+    const pre13 = JSON.stringify({ j: st().jobMode, t: st().tier, w: st().workKind, s: st().measurements.stories, l: st().measurements.tearOffLayers, c: st().measurements.hasChimneyFlash });
+    const v3Opens = [];
+    const prevV3 = W.EstimateV3;
+    W.EstimateV3 = { onOpen: (o) => { v3Opens.push(o); } };
+    W.openEstimateV2Builder({ leadId: 'L13', callPrefill: { callId: 'cube_LATE1', brief: clone(BRIEF) } });
+    const opensAtOpen = v3Opens.length;
+    ok('(test seam: the rep-acted hook exists)', typeof CP().acted === 'function' && typeof CP().suggested === 'function');
+    if (typeof CP().acted === 'function') CP().acted();   // the rep taps before the brief lands
+    await tick(600);
+    const post13 = JSON.stringify({ j: st().jobMode, t: st().tier, w: st().workKind, s: st().measurements.stories, l: st().measurements.tearOffLayers, c: st().measurements.hasChimneyFlash });
+    ok('a brief that lands after the rep acted changes nothing', post13 === pre13 && CP().applied().length === 0, [pre13, post13]);
+    ok('…its choices are offered as suggestions, marked not filled in', typeof CP().suggested === 'function' && CP().suggested().length === 6 && /not filled in/i.test(CP().panelHtml()), typeof CP().suggested === 'function' ? CP().suggested() : null);
+    ok('…and V3 is not re-opened over the rep\'s step', v3Opens.length === opensAtOpen, v3Opens);
+    let saved13 = null;
+    try { saved13 = JSON.parse(env.store[DRAFT_KEY] || 'null'); } catch (_) { saved13 = null; }
+    ok('…so the draft the rep\'s own act saves holds none of the call\'s choices', !saved13 || (saved13.jobMode !== 'cash' && saved13.workKind !== 'repair'), saved13 && { jobMode: saved13.jobMode, workKind: saved13.workKind });
+    W.EstimateV3 = prevV3;
+    W.closeEstimateV2Builder();
   }
 
   // ════════════════════════════════════════════════════════════════════

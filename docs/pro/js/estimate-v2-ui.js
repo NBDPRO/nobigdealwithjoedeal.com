@@ -5671,8 +5671,17 @@
       || (window._leadDoc && window._leadDoc.id === leadId ? window._leadDoc : null);
     const plan = P.plan(pre, { state, leadJobType: lead && lead.jobType, tiers: _v2Tiers() });
     const applied = [];
-    plan.forEach((it) => { if (_callSet(it.key, it.to)) applied.push(it); });
-    _callPrefill = { leadId, callId: src.callId || '', applied, hints: pre.hints || {}, templates: P.templateMatches(window.JobTemplates, pre, 5) };
+    const suggested = [];
+    // The rep tapped or typed while the brief was on its way: they have
+    // started their own estimate, so the call's choices are only offered
+    // (applying them now would autosave choices the rep never tapped, and
+    // closing would no longer undo them).
+    const late = !state._callPrefillClean;
+    plan.forEach((it) => {
+      if (late) suggested.push(Object.assign({}, it, { why: 'you had already started' }));
+      else if (_callSet(it.key, it.to)) applied.push(it);
+    });
+    _callPrefill = { leadId, callId: src.callId || '', applied, suggested, hints: pre.hints || {}, templates: P.templateMatches(window.JobTemplates, pre, 5) };
     _callSyncInputs();
     render();
     _callPaint();
@@ -5787,7 +5796,8 @@
     const chips = c.applied.map((a) => '<span class="v2-call-chip" title="' + _callEsc(a.quote ? '“' + a.quote + '”' : 'From the call') + '">' +
       '<span class="v2-call-k">' + _callEsc(a.name) + '</span> ' + _callEsc(a.label) +
       '<button type="button" class="v2-call-x" data-action="call-clear" data-arg="' + _callEsc(a.key) + '" aria-label="' + _callEsc('Undo ' + a.name + ' from the call') + '">×</button></span>').join('');
-    const notes = (h.mentions || []).map((m) => m + ' mentioned on the call').concat((h.said || []).map((q) => 'Said: “' + q + '”'));
+    const notes = (c.suggested || []).map((a) => a.name + ': ' + a.label + (a.quote ? ' (“' + a.quote + '”)' : '') + ', said on the call, not filled in (' + a.why + ')')
+      .concat((h.mentions || []).map((m) => m + ' mentioned on the call')).concat((h.said || []).map((q) => 'Said: “' + q + '”'));
     const repair = c.applied.some((a) => a.key === 'workKind' && a.to === 'repair') || (state.workKind === 'repair');
     const tpls = c.templates.length
       ? '<div class="v2-call-sub">' + (repair ? 'Repair quick quote: tap a repair template, priced from your price book' : 'Templates for this job, priced from your price book') + '</div>' +
@@ -6389,6 +6399,8 @@
         applied: () => (_callPrefill ? _callPrefill.applied.slice() : []),
         templates: () => (_callPrefill ? _callPrefill.templates.slice() : []),
         clear: _callPrefillClear,
+        acted: _callUserActed,
+        suggested: () => (_callPrefill && _callPrefill.suggested ? _callPrefill.suggested.slice() : []),
         template: _callPrefillTemplate,
         panelHtml: _callPanelHtml,
         sqftHintHtml: _callSqftHintHtml,
