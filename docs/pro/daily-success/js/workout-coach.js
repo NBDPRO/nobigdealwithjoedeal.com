@@ -602,6 +602,9 @@
     return vs + lifts;
   }
   function summaryHtml(r) {
+    // Flow batch 3 (M2): the summary ends with a primary "Next: ..." hand-off (the next thing from Next-Up); Close is the secondary button.
+    let nextHtml = '';
+    try { nextHtml = window.NBDNextUp && window.NBDNextUp.buttonHtml ? window.NBDNextUp.buttonHtml({ exclude: ['workout'] }) : ''; } catch (_) { nextHtml = ''; }
     const prs = r.prs.length
       ? `<div class="wc-prs">${r.prs.map((p) => (p.kind === 'reps'
         ? `<div>🏆 ${esc(p.name)}: ${esc(p.reps)} reps${p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : ''} <small>(was ${esc(p.prev)})</small></div>`
@@ -614,7 +617,8 @@
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
       ${r.wrotePage ? '<div class="wc-hint">Logged to today\'s Exercise Log.</div>' : ''}
-      <div class="wc-foot"><button class="btn wc-finish" data-coach-action="close">Close</button></div></div>`;
+      ${nextHtml}
+      <div class="wc-foot"><button class="btn wc-finish${nextHtml ? ' wc-secondary' : ''}" data-coach-action="close">Close</button></div></div>`;
   }
 
   // ── rest timer ───────────────────────────────────────────────────────
@@ -762,6 +766,8 @@
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
+    // Flow batch 3 (D3): tell the page a workout is done, so it can ASK whether to tick the floor (floor-tick-ui.js; it never ticks by itself).
+    try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: session.date } })); } catch (_) { /* the summary still shows */ }
     render();
   }
 
@@ -1022,5 +1028,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { refresh: refreshCard, open, start, _render: render };
+  window.NBDCoachUI = { refresh: refreshCard, open, close, start, _render: render };
 })();

@@ -122,7 +122,7 @@ const stored = (page, id) => page.evaluate((id) => { const l = JSON.parse(localS
     ok('openRename() on the Dashboard does not throw or open the rename box', r.renErr === '' && !r.ren);
     await page.evaluate(() => switchTo(0));
     await page.evaluate(() => triggerDel());
-    ok('control: on a real page triggerDel() still opens the delete box', await page.evaluate(() => document.getElementById('mDel').classList.contains('open')));
+    ok('control: on a real page triggerDel() deletes at once and shows the undo toast (flow batch 3: DS_CONFIRM_DELETE is false)', await page.evaluate(() => { const u = document.getElementById('dsUndo'); return !!u && !u.hidden && !document.getElementById('mDel').classList.contains('open'); }));
     ok('control: no page errors', errs.length === 0, errs.join(' | '));
     await ctx.close();
   }

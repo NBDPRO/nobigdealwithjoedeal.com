@@ -73,11 +73,11 @@ console.log('\n3. tables reflowed for 390 px');
 console.log('\n4. dialogs and banners');
 {
   ok('no stray markdown fences in the page (they rendered as literal ``` around the goal wizard)', !/^```/m.test(HTML));
-  ok('the onboarding banner wraps and keeps its tabs/main offsets on a phone', /\.onboard-banner\{top:calc\(100px \+ var\(--sat\)\);height:96px;/.test(tableBlock) && /\.ob-msg\{white-space:normal;/.test(tableBlock) && /body\.has-banner \.tabrow\{top:calc\(196px \+ var\(--sat\)\);\}/.test(tableBlock) && /body\.has-banner \.main\{margin-top:calc\(248px \+ var\(--sat\)\);\}/.test(tableBlock));
-  ok('control: 100 px header + 96 px banner = the 196 px tab row offset; + 52 px tab row = the 248 px content offset', 100 + 96 === 196 && 196 + 52 === 248);
-  ok('the phone header is two rows (52 + 48 = 100) with the ten buttons in a full-width strip', /\.topbar\{flex-wrap:wrap;height:calc\(100px \+ var\(--sat\)\);/.test(tableBlock) && /\.tbl\{width:100%;height:52px;\}/.test(tableBlock) && /\.tbr\{width:100%;height:48px;/.test(tableBlock) && 52 + 48 === 100);
-  ok('every fixed bar follows the 100 px header (tabs 100, search tabs 148, content 150, search 100, dropdown 148)', /\.tabrow\{top:calc\(100px \+ var\(--sat\)\);\}/.test(tableBlock) && /\.tabrow\.sp\{top:calc\(148px \+ var\(--sat\)\);\}/.test(tableBlock) && /\.main\{margin-top:calc\(150px \+ var\(--sat\)\);\}/.test(tableBlock) && /\.sbar\{top:calc\(100px \+ var\(--sat\)\);\}/.test(tableBlock) && /\.sdrop\{top:calc\(148px \+ var\(--sat\)\);\}/.test(tableBlock));
-  ok('control: the header really has ten controls (the reason it cannot be one row)', (HTML.match(/<div class="tbr">([\s\S]*?)<\/div>/) || ['', ''])[1].match(/<button/g).length === 10);
+  ok('the onboarding banner wraps and keeps its tabs/main offsets on a phone', /\.onboard-banner\{top:calc\(52px \+ var\(--sat\)\);height:96px;/.test(tableBlock) && /\.ob-msg\{white-space:normal;/.test(tableBlock) && /body\.has-banner \.tabrow\{top:calc\(148px \+ var\(--sat\)\);\}/.test(tableBlock) && /body\.has-banner \.main\{margin-top:calc\(200px \+ var\(--sat\)\);\}/.test(tableBlock));
+  ok('control: 52 px one-row header + 96 px banner = the 148 px tab row offset; + 52 px tab row = the 200 px content offset (flow batch 3: the ten header controls moved into the menu)', 52 + 96 === 148 && 148 + 52 === 200);
+  ok('the phone header is ONE row (52px): brand + status, search icon and the menu button, no second strip', !/\.topbar\{[^}]*flex-wrap:wrap/.test(tableBlock) && !/height:calc\(100px/.test(tableBlock) && /\.tbl\{min-width:0;flex:1 1 auto;/.test(tableBlock) && /\.tbr \.btn-ico\{min-width:44px;min-height:44px;/.test(tableBlock));
+  ok('every fixed bar takes the default one-row offsets on a phone too (no 100 px overrides left: tabs 52, search tabs 100, content 102, search 52, dropdown 100)', !/\.tabrow\{top:calc\(100px/.test(tableBlock) && !/\.sbar\{top:calc\(100px/.test(tableBlock) && !/\.sdrop\{top:calc\(148px/.test(tableBlock) && !/\.main\{margin-top:calc\(150px/.test(tableBlock) && /\.tabrow\{[^}]*top:calc\(52px \+ var\(--sat\)\)/.test(HTML) && /\.tabrow\.sp\{top:calc\(100px \+ var\(--sat\)\);\}/.test(HTML) && /margin-top:calc\(102px \+ var\(--sat\)\);\}/.test(HTML));
+  ok('control: the header has two controls (search, menu) and the menu holds the rest: Save, New, Rename, CSV, PDF, Appearance, Customize, Guide, Delete', (HTML.match(/<div class="tbr">([\s\S]*?)<\/div>/) || ['', ''])[1].match(/<button/g).length === 2 && (HTML.match(/<div class="ds-menu"[\s\S]*?<\/div>/) || [''])[0].match(/<button/g).length === 9);
   ok('the banner buttons fit the width (centred, shrinkable)', /\.ob-btns\{width:100%;justify-content:center;\}/.test(tableBlock) && /\.ob-btns \.btn\{flex:1 1 auto;min-width:0;/.test(tableBlock));
   ok('the wizard Save & Launch label does not wrap', /#ob-next\{white-space:nowrap;\}/.test(tableBlock));
   ok('the transient "Offline mode" / "Synced" badge is a chip just under the header on a phone (it landed on the title in the header row; the fixed header is its containing block, so it is positioned against that)', /#autosave-badge\{position:absolute;right:12px;top:calc\(100% \+ 8px\);/.test(tableBlock) && /id="autosave-badge"/.test(HTML));
@@ -125,8 +125,8 @@ console.log('\n9. header strip says it scrolls');
 {
   const noComments = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
   const phone = noComments.slice(noComments.lastIndexOf('<style'));
-  ok('the right edge fades (mask) so a half-cut button reads as "more this way"', /\.tbr\{[^}]*mask-image:linear-gradient\(to right,#000 calc\(100% - 28px\),transparent\)/.test(phone));
-  ok('the strip ends with a spacer wider than the fade so the last button stays clear of it', /\.tbr::after\{content:"";flex:0 0 30px;\}/.test(phone));
+  ok('the sideways strip and its right-edge fade are gone: nothing is half-cut off the header any more', !/\.tbr\{[^}]*mask-image/.test(phone));
+  ok('control: the header no longer ends its row with a 30px spacer', !/\.tbr::after\{content:"";flex:0 0 30px;\}/.test(phone));
   ok('control: the strip still scrolls sideways (hidden scrollbar, overflow-x auto)', /\.tbr\{[^}]*overflow-x:auto/.test(noComments));
   ok('control: a commented-out rule would not satisfy the pin', !/\.tbr\{[^}]*mask-image/.test('/* .tbr{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)} */'.replace(/\/\*[\s\S]*?\*\//g, '')));
 }
