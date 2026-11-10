@@ -39,8 +39,19 @@ Tool: `scripts/match-job-photos.js` (dry run only; scoring in `scripts/lib/photo
 - 644 photos across 25 jobs (about 1.8 GB) copied, never moved, into `COMPANIES/NBD/CUSTOMERS/<customer>/Photos/`,
   named `<date>_<phase>_<original name>`. All 644 verified by size. No existing file was overwritten.
 - 4 matched jobs had no Drive customer folder and were skipped; Jo decides whether to create them.
-- Not done: the CRM upload. It needs JPEG copies of the HEIC originals, a `/photos` record per file
-  (`source: 'photo-match'`), and Jo's own signed-in token run in his terminal, as a dry run first.
+## CRM upload (built, NOT run)
+
+- `scripts/upload-job-photos.js` (pure core `scripts/lib/photo-upload.js`, pinned by
+  `tests/upload-job-photos-2026-11-10.test.js`): full-size JPEG + thumbnail to Storage at
+  `photos/{uid}/{leadId}/`, and a `/photos/{id}` doc in the `photo-engine.js` shape with `source: 'photo-match'`.
+- Phase comes from the date window, so docs carry `phaseSource: 'stage'` and Photo Review asks the rep to confirm it.
+- Safe by construction: dry run by default (local only, counts), `--apply` needs `--yes` and `--company=<id>`,
+  stable doc ids so a rerun skips what exists and never overwrites rep edits, other-company or unknown leads are skipped.
+- Staged inputs (outside the repo): `Documents\nbd-photo-review\upload-manifest.csv` and `upload-stage\`
+  (569 HEIC converted to JPEG, thumbnails for all 644). Dry run: 644 photos, 25 jobs, 2.4 GB, nothing missing.
+- Run (Jo, own terminal, after `gcloud auth application-default login`):
+  `node scripts/upload-job-photos.js --manifest <upload-manifest.csv> --company=<id> --apply --yes`.
+  Jo approves that specific run in chat first (CLAUDE.md rule f). Not run by any agent.
 
 ## Still open (was: blocked on Jo)
 
