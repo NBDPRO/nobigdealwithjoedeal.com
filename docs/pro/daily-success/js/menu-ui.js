@@ -21,8 +21,11 @@
   function close(refocus) {
     const m = menu(), b = btn();
     if (!m || m.hidden) return;
+    // focus on a menu item (a keyboard or tap choice) goes back to the button before the item is hidden; a dialog the choice opened has
+    // already taken focus outside the menu, so it is left alone
+    const inMenu = m.contains(document.activeElement);
     m.hidden = true;
-    if (b) { b.setAttribute('aria-expanded', 'false'); if (refocus) b.focus(); }
+    if (b) { b.setAttribute('aria-expanded', 'false'); if (refocus || inMenu) b.focus(); }
   }
   function open() {
     const m = menu(), b = btn();
@@ -42,7 +45,13 @@
   });
   document.addEventListener('keydown', (ev) => {
     if (!isOpen()) return;
-    if (ev.key === 'Escape') { ev.preventDefault(); close(true); return; }
+    if (ev.key === 'Escape' || ev.key === 'Tab') { ev.preventDefault(); close(true); return; }
+    if (ev.key === 'Home' || ev.key === 'End') {
+      const l = items(); if (!l.length) return;
+      ev.preventDefault();
+      l[ev.key === 'Home' ? 0 : l.length - 1].focus();
+      return;
+    }
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       const list = items(); if (!list.length) return;
       const i = list.indexOf(document.activeElement);
@@ -52,6 +61,13 @@
   });
 
   // ── the delete-undo toast ────────────────────────────────────────────────────────────────
+  // One fixed column holds the undo toast and the floor-tick prompt (floor-tick-ui.js uses the same #dsToasts), so two showing at once stack
+  // instead of overlapping when one wraps to several lines.
+  function stack() {
+    let s = document.getElementById('dsToasts');
+    if (!s) { s = document.createElement('div'); s.id = 'dsToasts'; s.className = 'ds-toasts'; document.body.appendChild(s); }
+    return s;
+  }
   function undoEl() {
     let el = document.getElementById('dsUndo');
     if (el) return el;
@@ -65,7 +81,7 @@
     const undo = document.createElement('button'); undo.type = 'button'; undo.dataset.undo = 'restore'; undo.textContent = 'Undo';
     const x = document.createElement('button'); x.type = 'button'; x.className = 'ds-undo-x'; x.dataset.undo = 'dismiss'; x.setAttribute('aria-label', 'Dismiss'); x.textContent = '×';
     el.appendChild(msg); el.appendChild(undo); el.appendChild(x);
-    document.body.appendChild(el);
+    stack().appendChild(el);
     return el;
   }
   function hideUndo() { clearTimeout(undoTimer); undoTimer = null; const el = document.getElementById('dsUndo'); if (el) { el.hidden = true; delete el.dataset.id; } }

@@ -163,7 +163,11 @@ let _saveErrAt=0;
 function savePages(){try{if(window.NBDDsSync)window.NBDDsSync.stampChanged(pages,_dsSnap,Date.now());localStorage.setItem(STORE,JSON.stringify(pages));return true;}catch(e){if(Date.now()-_saveErrAt>5000){_saveErrAt=Date.now();toastErr('Could not save on this device. Free some space or leave private mode.');}return false;}}
 // A deleted page is remembered until the cloud has been told, or the next
 // sign-in's merge would bring it straight back.
-function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'[]');if(!t.includes(String(id)))t.push(String(id));localStorage.setItem(DS_TOMB,JSON.stringify(t));}catch(e){}}
+function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'[]');if(!t.includes(String(id)))t.push(String(id));localStorage.setItem(DS_TOMB,JSON.stringify(t));}catch(e){}dsRestoredMark(id,false);}
+// A page brought back from Undo / Recently deleted is listed here until a push has told the cloud (ds-firebase-sync.js clears it), so a pull
+// that still reads the cloud copy as deleted does not drop it again.
+const DS_RESTORED='nbd_dsp_restored';
+function dsRestoredMark(id,on){try{const r=JSON.parse(localStorage.getItem(DS_RESTORED)||'[]').map(String).filter(x=>x!==String(id));if(on)r.push(String(id));if(r.length)localStorage.setItem(DS_RESTORED,JSON.stringify(r));else localStorage.removeItem(DS_RESTORED);}catch(e){}}
 // Settings + goal targets sync to userSettings/{uid} (ds-firebase-sync.js);
 // the *_at stamp lets the newer copy win across devices.
 function dsSettingsChanged(key){try{localStorage.setItem(key+'_at',String(Date.now()));}catch(e){}if(window.NBDDsCloud&&typeof window.NBDDsCloud.pushSettings==='function')window.NBDDsCloud.pushSettings();}
@@ -178,11 +182,13 @@ function triggerDel(idx){idx=idx??cur;if(!pages[idx]){toast('Open a day first');
 function doDelete(){closeM('mDel');deletePageAt(_di??cur);}
 function deletePageAt(i){
 const gone=pages[i];if(!gone)return;
-if(i===cur)collectPage(true);
+// Collect whatever is on screen first, even when it is another page than the one being deleted (an edit not yet written would be lost).
+collectPage(true);const stay=cur>=0&&cur!==i?pages[cur]:null;
 const label=tlbl(gone);
 trashSave(NBDNotebook.trashAdd(trashLoad(),{page:gone,idx:i,label:label},Date.now()));
 dsTombstone(gone.id);_dsSnap.delete(String(gone.id));pages.splice(i,1);savePages();
-cur=Math.min(i>0?i-1:0,pages.length-1);renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();
+// Deleting a page other than the open one leaves you where you were; deleting the open page moves to the one before it.
+cur=stay?pages.indexOf(stay):(cur<0?-1:Math.min(i>0?i-1:0,pages.length-1));renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();
 const landed=pages[cur]?tlbl(pages[cur]):'';
 const msg='Deleted "'+label+'"'+(landed?'. Now showing "'+landed+'".':'.');
 if(window.NBDMenuUI&&window.NBDMenuUI.undoToast)window.NBDMenuUI.undoToast(msg,gone.id);else toast('Page deleted');
@@ -192,7 +198,7 @@ function restoreDeleted(id){
 const t=NBDNotebook.trashTake(trashLoad(),id);if(!t.entry)return false;
 const pg=t.entry.page;
 try{const tb=JSON.parse(localStorage.getItem(DS_TOMB)||'[]').filter(x=>String(x)!==String(pg.id));localStorage.setItem(DS_TOMB,JSON.stringify(tb));}catch(e){}
-trashSave(t.list);
+trashSave(t.list);dsRestoredMark(pg.id,true);
 if(!pages.some(p=>String(p.id)===String(pg.id))){collectPage(true);pages.splice(Math.min(Math.max(0,t.entry.idx),pages.length),0,pg);savePages();}
 cur=pages.findIndex(p=>String(p.id)===String(pg.id));
 renderTabs();killCharts();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();

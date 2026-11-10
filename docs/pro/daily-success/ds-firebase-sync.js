@@ -35,6 +35,7 @@ await connectEmulatorsIfLocal({ auth, db });
 
 const STORE = 'nbd_dsp_v1';
 const TOMB  = 'nbd_dsp_tomb';
+const RESTORED = 'nbd_dsp_restored';   // ids restored from Undo / Recently deleted until a push has told the cloud (app.js restoreDeleted)
 // localStorage key ↔ userSettings field. `<key>_at` is the local stamp
 // (app.js dsSettingsChanged); `<field>At` is the cloud one.
 const SETTINGS = [
@@ -200,6 +201,11 @@ async function pushToFirestore(pages) {
       await batch.commit();
     }
     for (const p of changed) _ledger.set(String(p.id), L().mtOf(p));
+    if (changed.length) {
+      const pushed = changed.map(p => String(p.id));
+      const rest = readJson(RESTORED, []).map(String).filter(id => !pushed.includes(id));
+      if (rest.length) localStorage.setItem(RESTORED, JSON.stringify(rest)); else localStorage.removeItem(RESTORED);
+    }
     if (tomb.length) {
       // Keep any tombstone added while this push was in flight.
       const left = readJson(TOMB, []).map(String).filter(id => !tomb.includes(id));
@@ -362,7 +368,7 @@ async function onAuth(user) {
     _ledger.clear();
     for (const cp of cloud) if (!cp.deleted) _ledger.set(String(cp.id), L().mtOf(cp));
     const local = readJson(STORE, []);
-    const merged = L().mergePages(local, cloud, readJson(TOMB, []));
+    const merged = L().mergePages(local, cloud, readJson(TOMB, []), readJson(RESTORED, []));
     const changedLocal = merged.removed.length || merged.pages.length !== local.length
       || merged.pages.some((p, i) => p !== local[i] && JSON.stringify(p) !== JSON.stringify(local[i]));
     // Typing in a field (or an edit not yet collected) must not be redrawn away by a merge, least of all by a background retry:

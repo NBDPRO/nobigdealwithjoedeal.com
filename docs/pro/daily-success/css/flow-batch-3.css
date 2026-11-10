@@ -25,14 +25,17 @@
 #dsMenuBtn{font-size:22px;font-weight:700;}
 
 /* ── undo toast (D6) ── */
-.ds-undo{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:10001;display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100vw - 24px));padding:6px 6px 6px 16px;background:var(--bar);color:var(--on-dark,#e8eaf0);border:1px solid var(--rule,#334);border-left:3px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
+/* undo toast and tick prompt share this column so they stack instead of overlapping (menu-ui.js and floor-tick-ui.js append to it) */
+.ds-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:10001;width:min(520px,calc(100vw - 24px));display:flex;flex-direction:column-reverse;align-items:center;gap:8px;pointer-events:none;}
+.ds-toasts>*{pointer-events:auto;}
+.ds-undo{order:0;display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100vw - 24px));padding:6px 6px 6px 16px;background:var(--bar);color:var(--on-dark,#e8eaf0);border:1px solid var(--rule,#334);border-left:3px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
 .ds-undo[hidden]{display:none;}
 .ds-undo .ds-undo-msg{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
 .ds-undo button{flex:0 0 auto;min-height:44px;min-width:44px;padding:0 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;}
 .ds-undo button.ds-undo-x{background:transparent;color:var(--muted,#9aa6b6);font-size:18px;}
 
 /* ── floor-tick prompt (D3) ── */
-.ds-tick{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(128px + env(safe-area-inset-bottom,0px));z-index:10001;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;max-width:min(520px,calc(100vw - 24px));padding:8px 8px 8px 16px;background:var(--bar);color:var(--on-dark,#e8eaf0);border:1px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
+.ds-tick{order:1;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;max-width:min(520px,calc(100vw - 24px));padding:8px 8px 8px 16px;background:var(--bar);color:var(--on-dark,#e8eaf0);border:1px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
 .ds-tick[hidden]{display:none;}
 .ds-tick .ds-tick-msg{flex:1 1 180px;min-width:0;}
 .ds-tick .ds-tick-msg b{display:block;font-weight:700;}
@@ -68,6 +71,8 @@
 .qj-go{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:260;min-width:56px;min-height:56px;padding:0 18px;border:0;border-radius:28px;background:var(--ac);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.08em;font-weight:800;text-transform:uppercase;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer;}
 .qj-go:hover{filter:brightness(1.08);}
 body.nbk-open .qj-go{display:none;}
+/* a running rest bar (workout-coach.css, full width, above the Go button) hides it for the minute or two the rest lasts */
+body:has(#dsRestBar:not([hidden])) .qj-go{display:none;}
 
 /* ── jump sheet ── */
 .qj[hidden]{display:none;}

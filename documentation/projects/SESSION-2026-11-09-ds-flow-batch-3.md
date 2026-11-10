@@ -58,6 +58,24 @@ Asset versions (`?v=`) were bumped for each changed script; `flow-batch-3.css?v=
 - The old header search bar (`#sbar`, `toggleSearch`, `doSearch`, the `search-jump` action) is no longer reachable from the UI (the icon opens the sheet). It is left in place and
   not deleted; `trigger-del-tab` is likewise an unused handler now.
 - `smoke.test.js` fails 8 checks here before and after (missing `firebase-functions` dependency: gbp-reviews, photo-vision, receipt-vision); unrelated.
-- The rest bar (`#dsRestBar`) and the new undo / tick toasts share the bottom of a phone; the toasts sit above it (76 px / 128 px) and the Go button, but a rest running while a
-  toast shows was not checked on a real phone.
+- The rest bar (`#dsRestBar`) and the toasts share the bottom of a phone: see the review round below (measured at 320 and 360 px, now stacked in one column).
 - Not built: M5, M13, Tier 3 (L1 settings sheet, L2 Dash tiles, L3 Siri / home-screen entries).
+
+## Review round (same day): five findings, test-first
+
+Each has a test in `tests/ds-flow-batch-3-2026-11-09.test.js` (section "review fixes"), written first and seen red.
+
+1. **Restored page dropped again by the next pull (medium): fixed.** Undo / Restore now also writes the page id to a device-local marker, `nbd_dsp_restored`.
+   `mergePages(local, cloud, tombstones, restored)` keeps a restored page even when the cloud copy still says `deleted:true`; a successful push of that page clears the
+   marker; deleting the page again removes it. Saved-page keys are unchanged (`nbd_dsp_restored` is new and device-local; `purgeAccountStorage` clears it like the other `nbd_` keys).
+2. **Notebook delete of another page lost unsaved typing (low-medium): fixed.** `deletePageAt` always collects the page on screen first, and a delete of a different page
+   leaves you on the page you were on (the open page is found again by identity). Deleting the open page still moves to the one before it.
+3. **Protein prompt on page open (low-medium): fixed.** A crossing now needs a user action in the last 3 seconds (typing in a meal field or a tap inside the food card).
+   The total filling in when a page opens no longer asks. Cost: none for real use, since both ways of logging protein are those two actions.
+4. **Menu keyboard (low): fixed.** Tab closes the menu and leaves focus on the ⋯ button, Home and End jump to the first and last item, and choosing an item returns focus to the
+   button (a dialog the choice opens keeps its own focus).
+5. **Go button vs toasts (low): measured, partly pushed back.** Stacking was already correct and the toasts did not cover the Go button, but at 320 and 360 px the undo toast and the
+   tick prompt overlapped each other when the prompt wrapped to several lines, and a running rest bar covered the Go button (it peeked 6 px above the bar). Fixed: both toasts now sit
+   in one fixed column (`#dsToasts`) so they stack, and the Go button hides while the rest bar is up. `.main` bottom padding left as is: the toasts are transient and each has a
+   dismiss (Not now, x).
+

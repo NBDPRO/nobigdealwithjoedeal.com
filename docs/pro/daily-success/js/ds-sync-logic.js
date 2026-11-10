@@ -93,8 +93,11 @@
     return !rows.some((r) => r && Object.values(r).some((v) => v != null && String(v).trim() !== ''));
   }
 
-  function mergePages(local, cloud, tombstones) {
+  // `restored`: ids of pages Jo brought back from Undo / Recently deleted whose deleted:false has not reached the cloud yet. A cloud copy that
+  // still reads deleted:true must not drop them again (the marker is cleared after a push succeeds).
+  function mergePages(local, cloud, tombstones, restored) {
     const tomb = new Set((tombstones || []).map(String));
+    const back = new Set((restored || []).map(String));
     const cloudDeleted = [];
     const map = new Map();
     const cloudIds = new Set();
@@ -111,6 +114,7 @@
     for (const cp of cloud || []) {
       if (!cp) continue;
       const k = idOf(cp);
+      if (cp.deleted && back.has(k) && map.has(k)) continue;
       if (cp.deleted) { cloudDeleted.push(k); tomb.add(k); map.delete(k); continue; }
       if (tomb.has(k)) continue;
       const lp = map.get(k);

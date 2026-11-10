@@ -696,6 +696,109 @@ const pageData = (page, dk) => page.evaluate((d) => { const p = JSON.parse(local
     }
   }
 
+  console.log('\nreview fixes (round 2): restore survives the next pull, unsaved edits survive a Notebook delete, no false protein prompt, menu keyboard, toast geometry');
+  {
+    // 1. a restored page must not be dropped again by a cloud copy that still reads deleted:true
+    const L = load('js', 'ds-sync-logic.js') || {};
+    const pg = (id, dk) => ({ id, dk, suf: 1, name: '', data: { x: '1' }, mt: 5 });
+    ok('control: with no restore marker a cloud deleted:true still drops the page (the old rule)', typeof L.mergePages === 'function' && L.mergePages([pg(7, 'a')], [{ id: 7, dk: 'a', deleted: true }], []).pages.length === 0);
+    const kept = typeof L.mergePages === 'function' ? L.mergePages([pg(7, 'a'), pg(8, 'b')], [{ id: 7, dk: 'a', deleted: true }, { id: 8, dk: 'b', deleted: true }], [], ['7']) : null;
+    ok('a page Jo restored (listed in the restore marker) survives a pull that still shows the cloud copy deleted; others are still dropped', !!kept && kept.pages.length === 1 && String(kept.pages[0].id) === '7' && !kept.cloudDeleted.includes('7') && kept.cloudDeleted.includes('8'), JSON.stringify(kept && kept.pages.map((p) => p.id)));
+    const sync = read('ds-firebase-sync.js');
+    ok('the sign-in merge passes the restore marker, and a successful push clears the ids it just wrote', /mergePages\(local, cloud, readJson\(TOMB, \[\]\), readJson\(RESTORED, \[\]\)\)/.test(sync) && /RESTORED\s*=\s*'nbd_dsp_restored'/.test(sync) && /localStorage\.(setItem|removeItem)\(RESTORED/.test(sync));
+    const { ctx, page } = await open(browser, srv, { w: 390 });
+    await page.evaluate(() => switchTo(1));
+    await page.waitForTimeout(200);
+    const gid = await page.evaluate(() => pages[1].id);
+    await page.evaluate(() => triggerDel(1));
+    await page.waitForTimeout(200);
+    await page.click('#dsUndo [data-undo="restore"]');
+    await page.waitForTimeout(250);
+    ok('Undo leaves a restore marker for that page (kept until a push has succeeded), and the tombstone and trash entry are cleared', await page.evaluate((id) => JSON.parse(localStorage.getItem('nbd_dsp_restored') || '[]').includes(String(id)) && !JSON.parse(localStorage.getItem('nbd_dsp_tomb') || '[]').includes(String(id)) && JSON.parse(localStorage.getItem('nbd_ds_deleted') || '[]').length === 0, gid));
+    await page.evaluate(() => triggerDel(1));
+    await page.waitForTimeout(150);
+    ok('deleting the page again drops the marker (the tombstone wins again)', await page.evaluate((id) => !JSON.parse(localStorage.getItem('nbd_dsp_restored') || '[]').includes(String(id)) && JSON.parse(localStorage.getItem('nbd_dsp_tomb') || '[]').includes(String(id)), gid));
+    await ctx.close();
+  }
+  {
+    // 2. deleting a DIFFERENT page from the Notebook must not discard what is being typed on the open page
+    const { ctx, page } = await open(browser, srv, { w: 390 });
+    await page.evaluate((ti) => switchTo(ti), await todayIdx(page));
+    await page.waitForTimeout(300);
+    const r = await page.evaluate((dk) => {
+      const el = document.querySelector('[data-k="l-win"]'); el.value = 'typed a second ago'; el.dispatchEvent(new Event('input', { bubbles: true }));
+      const before = pages[cur].id;
+      const other = pages.findIndex((p) => p.dk !== dk);
+      triggerDel(other);
+      return { sameId: pages[cur] && pages[cur].id === before, onToday: pages[cur] && pages[cur].dk === dk };
+    }, TODAY);
+    await page.waitForTimeout(250);
+    const kept = await page.evaluate((dk) => ({ dom: (document.querySelector('[data-k="l-win"]') || {}).value, stored: (JSON.parse(localStorage.getItem('nbd_dsp_v1')).find((p) => p.dk === dk) || { data: {} }).data['l-win'] }), TODAY);
+    ok('deleting another page keeps you on the page you were typing on, with the edit on screen and saved', r.sameId && r.onToday && kept.dom === 'typed a second ago' && kept.stored === 'typed a second ago', JSON.stringify({ r, kept }));
+    await ctx.close();
+  }
+  {
+    // 3. the protein prompt needs a real user action: filling the total when a page opens is not a crossing
+    const { ctx, page } = await open(browser, srv, { extra: { nbd_ds_food: JSON.stringify({ favorites: [], targets: { protein: 100, calories: 2500 } }) } });
+    await page.evaluate((ti) => switchTo(ti), await todayIdx(page));
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { window.NBDFloorTickUI.hide(); });
+    await page.evaluate(() => { const n = document.getElementById('ms-p'); n.textContent = '—'; window.updateTodayBar(); n.textContent = '120'; window.updateTodayBar(); });
+    await page.waitForTimeout(200);
+    ok('the total filling in from "—" to over target with nobody typing (a page opening) does NOT offer the protein floor', !(await vis(page, '#dsTick')), await text(page, '#dsTick'));
+    await page.evaluate(() => { const n = document.getElementById('ms-p'); n.textContent = '—'; window.updateTodayBar(); });
+    await page.evaluate(() => { const el = document.querySelector('[data-k="diet-m0-p"]'); el.value = '130'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await page.waitForTimeout(250);
+    ok('...but typing protein over target right afterwards still offers it', /Protein target hit/.test(await text(page, '#dsTick')), await text(page, '#dsTick'));
+    await ctx.close();
+  }
+  {
+    // 4. the menu is keyboard-managed: Tab leaves it closed with focus on the button, Home/End, focus returns after a choice
+    const { ctx, page } = await open(browser, srv, { w: 390 });
+    await page.focus('#dsMenuBtn');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('End');
+    const last = await page.evaluate(() => document.activeElement && document.activeElement.dataset.action);
+    await page.keyboard.press('Home');
+    const first = await page.evaluate(() => document.activeElement && (document.activeElement.dataset.action || document.activeElement.tagName));
+    ok('Home and End jump to the first and last menu item', last === 'trigger-del' && first === 'A', last + ' / ' + first);
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(100);
+    ok('Tab closes the menu and leaves focus on the ⋯ button (not on the page behind an open menu)', !(await vis(page, '#dsMenu')) && (await page.evaluate(() => document.activeElement.id)) === 'dsMenuBtn');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    ok('choosing an item by keyboard closes the menu and puts focus back on the ⋯ button (not on a hidden item)', !(await vis(page, '#dsMenu')) && (await page.evaluate(() => document.activeElement.id)) === 'dsMenuBtn', await page.evaluate(() => document.activeElement.outerHTML.slice(0, 80)));
+    await page.evaluate((ti) => switchTo(ti), await todayIdx(page));
+    await page.waitForTimeout(200);
+    await page.click('#dsMenuBtn');
+    await page.click('#dsMenu [data-action="open-rename"]');
+    await page.waitForTimeout(300);
+    ok('control: a choice that opens a dialog keeps the dialog\'s own focus (the menu does not steal it back)', await page.evaluate(() => document.activeElement.id === 'renInp'));
+    await ctx.close();
+  }
+  for (const w of [320, 360]) {
+    // 5. the toasts, the Go button and a running rest bar stay clear of each other
+    const { ctx, page } = await open(browser, srv, { w });
+    await page.evaluate((ti) => switchTo(ti), await todayIdx(page));
+    await page.waitForTimeout(300);
+    const g = await page.evaluate(() => {
+      const rb = document.createElement('div'); rb.id = 'dsRestBar'; rb.className = 'wc-restbar';
+      rb.innerHTML = '<span class="wc-restbar-t">1:30</span><button type="button" class="wc-restbar-b">Skip</button>'; document.body.appendChild(rb);
+      window.NBDMenuUI.undoToast('Deleted "Mon". Now showing "Today".', 'x');
+      window.NBDFloorTickUI.ask('workout', pages[cur].dk);
+      const r = (s) => { const e = document.querySelector(s); if (!e || e.hidden) return null; const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+      const hit = (a, b) => a && b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+      const u = r('#dsUndo'), t = r('#dsTick'), go = r('.qj-go'), rest = r('#dsRestBar');
+      return { shown: !!u && !!t && !!go && !!rest, undoTick: hit(u, t), undoRest: hit(u, rest), tickRest: hit(t, rest), undoGo: hit(u, go), tickGo: hit(t, go), goRest: hit(go, rest), goTop: go && go.t, restTop: rest && rest.t, vh: window.innerHeight };
+    });
+    ok('at ' + w + 'px the undo toast, the tick prompt and a running rest bar do not cover one another or the Go button', g.shown && !g.undoTick && !g.undoRest && !g.tickRest && !g.undoGo && !g.tickGo && !g.goRest, JSON.stringify(g));
+    await ctx.close();
+  }
+
   console.log('\nwiring, versions and the invariants');
   {
     const html = read('index.html');

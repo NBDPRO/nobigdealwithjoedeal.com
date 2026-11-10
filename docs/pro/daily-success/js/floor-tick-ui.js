@@ -17,6 +17,8 @@
   const UNDO_MS = 8000, IDLE_MS = 30000;
   let timer = null, shown = null;       // shown = { dk, id, kind, ticked }
   const declined = {};                  // 'dk|kind' -> true after Not now
+  let lastUserAt = -1e9;                // performance.now() of the last meal-field input or food-log tap
+  const USER_MS = 3000;
   const lastProtein = {};               // dk -> last grams seen (the baseline; a prompt needs a crossing)
 
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : '');
@@ -29,7 +31,9 @@
     e = document.createElement('div');
     e.id = 'dsTick'; e.className = 'ds-tick'; e.hidden = true;
     e.setAttribute('role', 'status'); e.setAttribute('aria-live', 'polite');
-    document.body.appendChild(e);
+    let s = document.getElementById('dsToasts');
+    if (!s) { s = document.createElement('div'); s.id = 'dsToasts'; s.className = 'ds-toasts'; document.body.appendChild(s); }
+    s.appendChild(e);
     return e;
   }
   function mk(tag, attrs, text) {
@@ -97,6 +101,9 @@
     ask(String(d.kind || ''), d.dk || today(), d.value);
   });
 
+  document.addEventListener('input', (ev) => { const k = ev.target && ev.target.dataset && ev.target.dataset.k; if (k && k.indexOf('diet-m') === 0) lastUserAt = performance.now(); }, true);
+  document.addEventListener('click', (ev) => { if (ev.target && ev.target.closest && ev.target.closest('#flCard')) lastUserAt = performance.now(); }, true);
+
   // Protein: watched from the Today bar numbers. The first number seen for a day is only the baseline; a prompt needs the total to CROSS the target.
   function watchProtein() {
     const F = FT(); if (!F) return;
@@ -111,6 +118,9 @@
     try { target = (window.NBDFoodLogUI && window.NBDFoodLogUI.targets && window.NBDFoodLogUI.targets().protein) || 0; } catch (_) { target = 0; }
     const prev = lastProtein[p.dk];
     lastProtein[p.dk] = have;
+    // A crossing is something Jo did: typing in a meal field or tapping the food log, just now. A page opening and the food log filling the
+    // total in is not (that read as 0 then over target and asked the question on open).
+    if (performance.now() - lastUserAt > USER_MS) return;
     if (prev == null || !(prev < target) || !F.proteinHit(have, target)) return;
     window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'protein', dk: p.dk, value: have } }));
   }
