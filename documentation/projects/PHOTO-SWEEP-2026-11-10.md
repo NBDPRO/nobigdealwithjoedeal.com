@@ -33,6 +33,15 @@ Tool: `scripts/match-job-photos.js` (dry run only; scoring in `scripts/lib/photo
   because the export has no per-stage history. Treat as candidates for Jo's review, not final.
 - `review.csv` and `review.html` are in `Documents\nbd-photo-review` (outside the repo, they hold names). Nothing was uploaded.
 
+## Filed to Drive (Jo's OK in chat, 2026-11-10)
+
+- Scope Jo chose: clean matches only (high confidence, not ambiguous), jobs that already have a Drive customer folder.
+- 644 photos across 25 jobs (about 1.8 GB) copied, never moved, into `COMPANIES/NBD/CUSTOMERS/<customer>/Photos/`,
+  named `<date>_<phase>_<original name>`. All 644 verified by size. No existing file was overwritten.
+- 4 matched jobs had no Drive customer folder and were skipped; Jo decides whether to create them.
+- Not done: the CRM upload. It needs JPEG copies of the HEIC originals, a `/photos` record per file
+  (`source: 'photo-match'`), and Jo's own signed-in token run in his terminal, as a dry run first.
+
 ## Still open (was: blocked on Jo)
 
 - The real match needs lead coordinates and stage dates: a leads export (`--leads file.json`) or a
