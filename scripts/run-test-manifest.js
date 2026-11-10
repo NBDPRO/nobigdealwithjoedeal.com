@@ -479,7 +479,6 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-09  1044/74/1185 -> 1045/74/1186, Social Studio consented-jobs-first + the "New blog post"
 //               type (social-consent-blog-2026-11-09, node). MEASURED via --check.
 //   2026-11-09  three content-plan lanes in one PR (consent draft, photo matcher, social/blog). MEASURED via --check.
-const FLOORS = { node: 1048, smoke: 74, disk: 1192 };
 //   2026-11-09  1048/74/1192 -> 1048/74/1193, the Daily Success flow batch 3 suite (ds-flow-batch-3, wired-individually). MEASURED via --check.
 const FLOORS = { node: 1048, smoke: 74, disk: 1193 };
 
