@@ -58,3 +58,14 @@ Each item starts as a counts-only dry run. Every write needs Jo's OK for that sp
 - `scripts/match-job-photos.js`, which Jo runs on his own computer.
 - The 12-week blog calendar and the Social Studio feed.
 - Each new credential as Jo obtains it: the insurance carrier plus a COI on request, Haag, BBB, and OSHA 10/30.
+
+## Update 2026-11-10: what merged after this brief, and what waits on Jo
+
+Merged since the close: **#3029** (content plan steps 2-4: the project-page consent tick, `scripts/draft-project-page.mjs`, `scripts/match-job-photos.js`, Social Studio consented-jobs-first and the "New blog post" draft type, the 12-week [blog calendar](../runbooks/BLOG-CALENDAR-2026-11-17.md)), **#3030** (Daily Success quick wins), **#3031** (flow batch 2: honest sync chip, back button that stays in the app, persistent rest timer, spacing and type tokens) and **#3032** (flow batch 3).
+
+- **Daily Success audit:** [daily-success-ux-audit-2026-11-09](../qa/daily-success-ux-audit-2026-11-09.md). Jo asked not to be interrupted, so the six open decisions were built on the safest default each. The defaults and the one-line flip for each are in [SESSION-2026-11-09-ds-flow-batch-3](SESSION-2026-11-09-ds-flow-batch-3.md). Tier 3 items from the audit are not built.
+- **Photo matcher:** merged, not run. It must run on Jo's own computer in a session started there (Claude Desktop, or `claude remote-control` in the repo folder), dry run first, then `--apply` only with Jo's OK for that run (CLAUDE.md rule f).
+- **Blog calendar:** no post is in `POSTS`. A merged future-dated post auto-publishes through the scheduled deploy, so each waits for Jo's read.
+- **Google Business posting** stays off (`SOCIAL_GBP_ENABLED`) until Google approves API access (case 8-9748000042165).
+- **Still waiting on Jo, unchanged:** the prod runs (Q11 cleanups, cost book v3 diff, leaderboard check, retention log, NBD OS on for all of NBD; each needs a Firestore token and Jo's OK per run), the Hardie footer line (needs CI visual baselines committed from GitHub), and a real-iPhone pass over the Daily Success PRs (no zoom on field tap, floors survive swiping away, back swipe stays in the app, the Open today card and ⋯ menu, undo after delete).
+- **Sandbox notes:** a symlinked `tests/node_modules` makes browser tests pick a Playwright with no matching browser (run them without it). A squash-merged PR leaves the old branch history on the remote, so a plain push after restarting the branch from main is rejected; merge the remote branch in with `-X ours` and confirm the tree is unchanged.
