@@ -39,6 +39,7 @@ const APPLY = flag('--apply');
 const YES = flag('--yes');
 const COMPANY = val('--company');
 const MANIFEST = val('--manifest');
+const LIMIT = Number(val('--limit')) || 0;   // --limit=N uploads only the first N (a small first run)
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 const BUCKET = process.env.NBD_BUCKET || 'nobigdeal-pro.firebasestorage.app';
 
@@ -86,20 +87,25 @@ async function main() {
   const bucket = getStorage().bucket(BUCKET);
 
   // Resolve leads and existing photo ids from the live CRM.
+  // The CRM export's "Customer ID" is a display id (NBD-0367) stored in the lead's customerId
+  // field. Exactly one match, inside this company, or the lead is skipped (never guessed).
   const leads = {};
   for (const id of new Set(rows.map((r) => r.lead_id))) {
-    const d = await db.collection('leads').doc(id).get();
-    if (!d.exists) continue;
+    const s = await db.collection('leads').where('customerId', '==', id).where('companyId', '==', COMPANY).get();
+    if (s.size !== 1) continue;
+    const d = s.docs[0];
     const x = d.data() || {};
-    leads[id] = { uid: x.userId, companyId: x.companyId, lat: Number(x.lat), lng: Number(x.lng) };
-    if (!leads[id].uid) delete leads[id];
+    if (x.deleted === true || !x.userId) continue;
+    leads[id] = { docId: d.id, uid: x.userId, companyId: x.companyId, lat: Number(x.lat), lng: Number(x.lng) };
   }
   const existingIds = new Set();
   for (const r of rows) {
-    const id = U.photoIdFor(r.lead_id, r.source);
+    if (!leads[r.lead_id]) continue;
+    const id = U.photoIdFor(leads[r.lead_id].docId, r.source);
     if ((await db.collection('photos').doc(id).get()).exists) existingIds.add(id);
   }
-  const plan = U.planUpload(rows, { leads, company: COMPANY, fileExists: fs.existsSync, existingIds });
+  let plan = U.planUpload(rows, { leads, company: COMPANY, fileExists: fs.existsSync, existingIds });
+  if (LIMIT > 0) plan = { toUpload: plan.toUpload.slice(0, LIMIT), skipped: plan.skipped };
   console.log(JSON.stringify(Object.assign(U.summarizePlan(plan), { mode: 'apply' }), null, 2));
 
   let ok = 0, failed = 0;

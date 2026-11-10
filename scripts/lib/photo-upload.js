@@ -78,10 +78,12 @@ function planUpload(rows, opts) {
     if (!lead) { skipped.noLead++; continue; }
     if (lead.companyId !== opts.company) { skipped.otherCompany++; continue; }
     if (!opts.fileExists(r.jpeg) || !opts.fileExists(r.thumb)) { skipped.missingFile++; continue; }
-    const id = photoIdFor(r.lead_id, r.source);
+    // The manifest may carry a display id (NBD-0367); paths and docs use the lead's real doc id.
+    const leadId = lead.docId || r.lead_id;
+    const id = photoIdFor(leadId, r.source);
     if (opts.existingIds.has(id) || seen.has(id)) { skipped.alreadyThere++; continue; }
     seen.add(id);
-    toUpload.push({ id, leadId: r.lead_id, uid: lead.uid, companyId: lead.companyId, row: r });
+    toUpload.push({ id, leadId, uid: lead.uid, companyId: lead.companyId, row: r });
   }
   return { toUpload, skipped };
 }

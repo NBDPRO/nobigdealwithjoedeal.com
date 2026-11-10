@@ -101,6 +101,13 @@ t('plan skips an id that already exists (rerun is safe, nothing overwritten)', (
   assert.strictEqual(p.skipped.alreadyThere, 1);
 });
 
+t('a display id in the manifest maps to the lead doc id for paths and photo ids', () => {
+  const l2 = { L1: { uid: 'U1', companyId: 'C1', docId: 'REALDOC' } };
+  const p = U.planUpload([rows[0]], { leads: l2, company: 'C1', fileExists: exists, existingIds: new Set() });
+  assert.strictEqual(p.toUpload[0].leadId, 'REALDOC');
+  assert.strictEqual(p.toUpload[0].id, U.photoIdFor('REALDOC', 'a.heic'));
+});
+
 t('plan refuses to run without a company', () => {
   assert.throws(() => U.planUpload(rows, { leads, company: '', fileExists: exists, existingIds: new Set() }), /company/);
 });
