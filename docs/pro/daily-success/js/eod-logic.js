@@ -86,7 +86,14 @@
     return lines;
   }
 
-  const api = { MAX, KEEP_DAYS, PROMPT_HOUR, BODY, clean, normalize, isAnswered, save, skip, state, weekSummary, scorecardLines, addDays };
+  /** Last night's "tomorrow's non-negotiable" (audit Q12): yesterday's answer for today, or '' when there is none. Only yesterday counts as last night. */
+  function carryForward(map, todayDk) {
+    if (!isDk(todayDk) || !map || typeof map !== 'object') return '';
+    const rec = map[addDays(todayDk, -1)];
+    return isAnswered(rec) ? clean(rec.tomorrow) : '';
+  }
+
+  const api = { MAX, KEEP_DAYS, PROMPT_HOUR, BODY, clean, normalize, isAnswered, save, skip, state, weekSummary, scorecardLines, addDays, carryForward };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.NBDEod = api;
 })();

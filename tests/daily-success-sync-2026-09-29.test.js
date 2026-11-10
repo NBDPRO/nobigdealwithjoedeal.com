@@ -157,7 +157,7 @@ console.log('\n6. wiring');
     html.indexOf('js/ds-sync-logic.js') > -1 && html.indexOf('js/ds-sync-logic.js') < html.indexOf('js/app.js'));
   ok('savePages stamps changed pages', /function savePages\(\)\{[^}]*stampChanged\(pages,_dsSnap/.test(app));
   ok('loadPages seeds the snapshots', /function loadPages\(\)\{[\s\S]{0,120}seedSnapshots\(pages,_dsSnap\)/.test(app));
-  ok('doDelete tombstones the page', /function doDelete\(\)\{[^\n]*dsTombstone\(gone\.id\)/.test(app));
+  ok('deleting a page tombstones it (deletePageAt, which doDelete and the immediate delete both use; flow batch 3)', /function deletePageAt\(i\)\{[\s\S]*?dsTombstone\(gone\.id\)/.test(app) && /function doDelete\(\)\{[^\n]*deletePageAt\(/.test(app));
   ok('both config writers and the goal-target writer stamp + push',
     (app.match(/setItem\(NBD_CFG,JSON\.stringify\(config\)\);dsSettingsChanged\(NBD_CFG\)/g) || []).length === 2
     && /setItem\(GT_KEY,JSON\.stringify\(gt\)\);dsSettingsChanged\(GT_KEY\)/.test(app));
@@ -196,7 +196,7 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
   ok('renderPage stamps the page on screen; renderDash clears it',
     /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\n(?:rememberScroll\(\);)?killCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
-  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree)', /loadPages\(\);cur=-1;renderTabs\(\);renderDash\(\);/.test(app));
+  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', /const DS_OPEN_TO='dash';\r?\ninitTheme\(\);loadPages\(\);cur=-1;[\s\S]{0,200}renderTabs\(\);if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(app));
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');
   ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));

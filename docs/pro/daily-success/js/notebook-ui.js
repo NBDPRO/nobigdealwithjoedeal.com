@@ -61,17 +61,27 @@
     '</li>';
   }
 
+  // Recently deleted (flow batch 3, D6): pages deleted in the last 30 days, kept on this device (app.js trashLoad), each with a Restore button.
+  function trashHtml() {
+    if (query.trim() || typeof window.trashLoad !== 'function') return '';
+    const items = window.trashLoad();
+    if (!items.length) return '';
+    return '<section class="nbk-trash"><h3>Recently deleted</h3><ul>' + items.map((e) =>
+      '<li><span class="nbk-tl">' + esc(e.label || e.dk) + '<small>' + esc(e.dk) + ' \u00b7 deleted ' + esc(new Date(e.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) + '</small></span>' +
+      '<button type="button" data-nbk="restore" data-id="' + esc(e.id) + '" aria-label="Restore ' + esc(e.label || e.dk) + '">Restore</button></li>').join('') + '</ul></section>';
+  }
+
   function renderList() {
     const list = document.getElementById('nbk-list');
     if (!list) return;
     const today = typeof window.todayKey === 'function' ? window.todayKey() : '';
     const sections = N.filterEntries(N.groupByMonth(P(), today), query, label);
-    if (!sections.length) { list.innerHTML = '<p class="nbk-empty">' + (query.trim() ? 'Nothing matches “' + esc(query.trim()) + '”.' : 'No pages yet. Tap + Today to start one.') + '</p>'; return; }
+    if (!sections.length) { list.innerHTML = '<p class="nbk-empty">' + (query.trim() ? 'Nothing matches “' + esc(query.trim()) + '”.' : 'No pages yet. Tap + Today to start one.') + '</p>' + trashHtml(); return; }
     list.innerHTML = sections.map((s) =>
       '<details class="nbk-month"' + (s.open ? ' open' : '') + '>' +
         '<summary class="nbk-sum"><span>' + esc(s.label) + '</span><span class="nbk-count">' + s.count + (s.count === 1 ? ' page' : ' pages') + '</span></summary>' +
         '<ul class="nbk-rows">' + s.entries.map(row).join('') + '</ul>' +
-      '</details>').join('');
+      '</details>').join('') + trashHtml();
   }
 
   function open(opener) {
@@ -105,6 +115,7 @@
     if (act === 'close') close();
     else if (act === 'new') { close(); if (typeof window.smartNewPage === 'function') window.smartNewPage(); }
     else if (act === 'go') { const i = +el.dataset.idx; close(); if (typeof window.switchTo === 'function') window.switchTo(i); }
+    else if (act === 'restore') { const id = el.dataset.id; close(); if (typeof window.restoreDeleted === 'function' && window.restoreDeleted(id)) { if (typeof window.toast === 'function') window.toast('Page restored'); } }
     else if (act === 'del') { const i = +el.dataset.idx; lastFocus = null; close(); if (typeof window.triggerDel === 'function') window.triggerDel(i); }
   }
 

@@ -136,7 +136,7 @@
     // floors count Mon-Sat (review-logic.js floorStreak): on a Monday the missed workday is Saturday
     var mon = typeof ds.dk === 'string' && new Date(ds.dk + 'T12:00:00').getDay() === 1;
     return rule('ds-warned', 'personal', 60, 'You missed your floors ' + (mon ? 'on Saturday' : 'yesterday') + '. Don\'t miss twice.', { warned: true },
-      { label: 'Open Daily Success', href: '/pro/daily-success/' });
+      { label: 'Open Daily Success', href: '/pro/daily-success/?go=floors' });
   }
   function roleFor(l, roleOf) {
     if (typeof l._stageRole === 'string' && l._stageRole) return l._stageRole;

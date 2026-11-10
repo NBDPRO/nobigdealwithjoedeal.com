@@ -551,6 +551,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/export.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/notebook.css?v=2">
+<link rel="stylesheet" href="/pro/daily-success/css/flow-batch-3.css?v=2">
 </head>
 <body>
 <!-- ═══════════════════════════════════════════════════════════════
@@ -818,31 +819,22 @@ body.has-banner .today-bar{top:calc(148px + var(--sat));}
    stacked cards (name, then sets / reps / weight, then notes) with 44 px inputs; the rest get room. */
 @media (max-width:560px){
   .pr-grid{grid-template-columns:1fr;}
-  /* two-row header: brand + status on row 1 (52px), a full-width scrolling button strip on row 2 (48px). The ten header
-     controls used to share ~50px beside the title, so 🎨 / ⚙️ / 📖 sat off-screen at x=419 on a 390px phone. Every fixed
-     bar below follows the 100px header: tab row 100, content 150, search bar 100, banner 100 (+96 tall). */
-  .topbar{flex-wrap:wrap;height:calc(100px + var(--sat));align-content:flex-start;padding:var(--sat) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));}
-  .tbl{width:100%;height:52px;}
-  .sd-l{display:none;}   /* the sync chip's long-only words ("ON PHONE", "TAP TO"): room for about 130 px in this row */
-  .tbtitle{min-width:0;overflow:hidden;text-overflow:ellipsis;}
-  .tbr{width:100%;height:48px;flex-shrink:0;gap:6px;}
-  .tbr > *{flex-shrink:0;}
-  /* the strip scrolls sideways (DELETE / CSV / PDF / SAVE live past the edge), and the scrollbar is hidden: fade the right edge so a
-     half-cut button reads as "more this way", and end the strip with a spacer so the last button is clear of the fade once scrolled */
-  .tbr{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);}
-  .tbr::after{content:"";flex:0 0 30px;}
-  .tabrow{top:calc(100px + var(--sat));}
-  .tabrow.sp{top:calc(148px + var(--sat));}
-  .main{margin-top:calc(150px + var(--sat));}
-  .sbar{top:calc(100px + var(--sat));}
-  .sdrop{top:calc(148px + var(--sat));}
-  .onboard-banner{top:calc(100px + var(--sat));height:96px;padding:6px 12px;gap:4px;align-content:center;}
+  /* one-row header (flow batch 3, D6): the old second row of ten controls is the menu (the ⋯ button) now, so the header is 52px like the
+     desktop one and the tab row, content, search bar and Today bar take their default offsets. Only the onboarding banner is taller here. */
+  .topbar{padding:var(--sat) max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px));gap:4px;}
+  .tbl{min-width:0;flex:1 1 auto;gap:6px;}
+  .tbl-divider{display:none;}   /* the logo stays: it is the way back to the CRM (the menu has it too) */
+  .sd-l{display:none;}   /* the sync chip's long-only words ("ON PHONE", "TAP TO") */
+  .tbtitle{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:17px;}
+  .tbr{flex:0 0 auto;gap:0;overflow:visible;}
+  .tbr .btn-ico{min-width:44px;min-height:44px;justify-content:center;}
+  .onboard-banner{top:calc(52px + var(--sat));height:96px;padding:6px 12px;gap:4px;align-content:center;}
   .ob-msg{white-space:normal;text-align:center;width:100%;line-height:1.25;}
-  .today-bar{top:calc(150px + var(--sat));font-size:13px;gap:6px;padding:6px 10px;}
-  body.has-banner .today-bar{top:calc(246px + var(--sat));}
-  body.has-banner .tabrow{top:calc(196px + var(--sat));}
-  body.has-banner .main{margin-top:calc(248px + var(--sat));}
-  body.has-banner .sbar{top:calc(196px + var(--sat));}
+  .today-bar{top:calc(102px + var(--sat));font-size:13px;gap:6px;padding:6px 10px;}
+  body.has-banner .today-bar{top:calc(198px + var(--sat));}
+  body.has-banner .tabrow{top:calc(148px + var(--sat));}
+  body.has-banner .main{margin-top:calc(200px + var(--sat));}
+  body.has-banner .sbar{top:calc(148px + var(--sat));}
   .mbtns .btn{padding:10px 8px;letter-spacing:.02em;}
   #ob-next{white-space:nowrap;}
   .ob-btns{width:100%;justify-content:center;}
@@ -941,7 +933,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 }
 /* Q6: the sync pill ("Saving...", "Synced", "Sync failed"), positioned here by its class: just under the header, past the inset. */
 .ds-sync-badge{position:fixed;top:calc(var(--sat) + 60px);right:max(16px,env(safe-area-inset-right,0px));z-index:9999;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(189,87,40,.12);border:1px solid rgba(189,87,40,.3);color:var(--ac-text,#E4783F);transition:opacity .4s;opacity:0;pointer-events:none;}
-@media (max-width:560px){.ds-sync-badge{top:calc(var(--sat) + 108px);}}
+@media (max-width:560px){.ds-sync-badge{top:calc(var(--sat) + 104px);}}
 /* Q9: the Today bar numbers are buttons that look the same as before; 44 px tall. */
 .today-bar button.tb-i{background:transparent;border:0;margin:0;padding:0 6px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border-radius:8px;}
 /* Q10: the field a search hit landed on, ringed for a couple of seconds. */
@@ -1079,17 +1071,22 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
     <span id="autosave-badge" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--grn);letter-spacing:.08em;opacity:0;transition:opacity .4s;margin-left:4px;"></span>
   </div>
   <div class="tbr">
-    <button class="btn-ico" data-action="toggle-search" title="Search (Ctrl+F)" aria-label="Search all pages">🔍</button>
-          <button class="btn-ico" id="themeBtn" data-action="nbd-picker-open" title="Appearance — Themes, Fonts, Custom" aria-label="Appearance: themes, fonts, custom">🎨</button>
-    <button class="btn-ico" data-action="open-onboard" title="Customize Your Daily OS" aria-label="Customize your Daily OS">⚙️</button>
-    <button class="btn-ico" data-action="open-welcome-guide" title="Welcome Guide &amp; Install" aria-label="Welcome guide and install">📖</button>
-    <button class="btn btn-ghost" data-action="smart-new-page">+ NEW</button>
-    <button class="btn btn-ghost" data-action="open-rename">RENAME</button>
-    <button class="btn btn-ghost" data-action="trigger-del">DELETE</button>
-    <button class="btn btn-ghost" data-action="export-csv">CSV</button>
-    <button class="btn btn-gold" data-action="do-print">PDF</button>
-    <button class="btn btn-red" data-action="save-now">SAVE</button>
+    <button class="btn-ico" data-action="qj-open" title="Search and jump (Ctrl+K)" aria-label="Search and jump to anything">🔍</button>
+    <button class="btn-ico" id="dsMenuBtn" data-action="menu-toggle" title="More" aria-label="More: save, new, rename, export, appearance, delete" aria-haspopup="menu" aria-expanded="false" aria-controls="dsMenu">⋯</button>
   </div>
+</div>
+<!-- HEADER MENU (flow batch 3, D6): everything that used to crowd the header, Delete last in danger styling. menu-ui.js opens and closes it. -->
+<div class="ds-menu" id="dsMenu" role="menu" aria-label="More" hidden>
+  <a class="ds-mi" role="menuitem" href="/pro/dashboard.html">Back to the CRM</a>
+  <button type="button" class="ds-mi" role="menuitem" data-action="save-now">Save now</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="smart-new-page">New (jump to today)</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-rename">Rename this page</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="export-csv">Export CSV</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="do-print">Print or PDF</button>
+  <button type="button" class="ds-mi" role="menuitem" id="themeBtn" data-action="nbd-picker-open">Appearance</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-onboard">Customize</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-welcome-guide">Guide</button>
+  <button type="button" class="ds-mi danger" role="menuitem" data-action="trigger-del">Delete this page</button>
 </div>
 
 <!-- ONBOARD BANNER -->
@@ -1196,29 +1193,29 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 </div>
 
 <script src="/pro/js/toast.js?v=1"></script>
-<script src="/pro/daily-success/js/ds-sync-logic.js?v=2"></script>
+<script src="/pro/daily-success/js/ds-sync-logic.js?v=3"></script>
 <script src="/pro/daily-success/js/weekly-targets-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/review-logic.js?v=5"></script>
 <script src="/pro/daily-success/js/day-layout-logic.js?v=4"></script>
 <script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/notebook-logic.js?v=1"></script>
+<script src="/pro/daily-success/js/notebook-logic.js?v=2"></script>
 <script src="/pro/daily-success/js/sync-chip-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/sync-chip-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/nav-router.js?v=2"></script>
 <script src="/pro/daily-success/js/app.js"></script>
-<script src="/pro/daily-success/js/notebook-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/notebook-ui.js?v=2"></script>
 <script src="/pro/daily-success/js/exercise-notes-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=19"></script>
 <script src="/pro/daily-success/js/volume-range-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/workout-coach.js?v=27"></script>
+<script src="/pro/daily-success/js/workout-coach.js?v=28"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/business-tile-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/business-tile-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/checkin-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/checkin-ui.js?v=2" defer></script>
-<script src="/pro/daily-success/js/eod-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/eod-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/checkin-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/eod-logic.js?v=2" defer></script>
+<script src="/pro/daily-success/js/eod-ui.js?v=3" defer></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/measurements-ui.js?v=4" defer></script>
@@ -1236,7 +1233,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/cockpit-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/quest-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/quest-ui.js?v=3" defer></script>
-<script src="/pro/daily-success/js/onething-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/onething-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/onething-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/journal-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/weekstrip-ui.js?v=1" defer></script>
@@ -1259,6 +1256,12 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/stats-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/stats-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/a11y-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/quickjump-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/floor-tick-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/menu-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/floor-tick-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/nextup-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/quickjump-ui.js?v=1" defer></script>
 
 
 <!-- NBD UNIFIED APPEARANCE ENGINE MODALS -->
@@ -1353,5 +1356,5 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="nbd-toast" id="nbd-toast"></div>
 
 </body>
-  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=9"></script>
+  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=11"></script>
 </html>
