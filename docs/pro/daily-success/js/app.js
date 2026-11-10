@@ -168,8 +168,36 @@ function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'
 // the *_at stamp lets the newer copy win across devices.
 function dsSettingsChanged(key){try{localStorage.setItem(key+'_at',String(Date.now()));}catch(e){}if(window.NBDDsCloud&&typeof window.NBDDsCloud.pushSettings==='function')window.NBDDsCloud.pushSettings();}
 function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();toast('New page created');}
-function triggerDel(idx){idx=idx??cur;if(!pages[idx]){toast('Open a day first');return;}if(pages.length<=1){toast('Cannot delete the only page');return;}_di=idx;document.getElementById('mDelMsg').textContent=`Delete "${tlbl(pages[idx])}"? This cannot be undone.`;openM('mDel');}
-function doDelete(){closeM('mDel');const i=_di??cur;const gone=pages[i];if(gone)dsTombstone(gone.id);_dsSnap.delete(String(gone&&gone.id));pages.splice(i,1);savePages();cur=Math.min(i>0?i-1:0,pages.length-1);renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();toast('Page deleted');}
+// Delete with undo (flow batch 3, D6 / audit M10): a delete happens at once and an 8-second Undo toast restores the page (menu-ui.js shows it).
+// The page is also kept in "Recently deleted" (Notebook, this device, 30 days). Flip DS_CONFIRM_DELETE to true to ask "Delete page?" first.
+const DS_CONFIRM_DELETE=false;
+const DS_TRASH='nbd_ds_deleted';
+function trashLoad(){try{return NBDNotebook.trashPrune(JSON.parse(localStorage.getItem(DS_TRASH)||'[]'),Date.now());}catch(e){return [];}}
+function trashSave(l){try{localStorage.setItem(DS_TRASH,JSON.stringify(l));}catch(e){}}
+function triggerDel(idx){idx=idx??cur;if(!pages[idx]){toast('Open a day first');return;}if(pages.length<=1){toast('Cannot delete the only page');return;}if(!DS_CONFIRM_DELETE){deletePageAt(idx);return;}_di=idx;document.getElementById('mDelMsg').textContent=`Delete "${tlbl(pages[idx])}"? You can undo it for 8 seconds, or bring it back from the Notebook.`;openM('mDel');}
+function doDelete(){closeM('mDel');deletePageAt(_di??cur);}
+function deletePageAt(i){
+const gone=pages[i];if(!gone)return;
+if(i===cur)collectPage(true);
+const label=tlbl(gone);
+trashSave(NBDNotebook.trashAdd(trashLoad(),{page:gone,idx:i,label:label},Date.now()));
+dsTombstone(gone.id);_dsSnap.delete(String(gone.id));pages.splice(i,1);savePages();
+cur=Math.min(i>0?i-1:0,pages.length-1);renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();
+const landed=pages[cur]?tlbl(pages[cur]):'';
+const msg='Deleted "'+label+'"'+(landed?'. Now showing "'+landed+'".':'.');
+if(window.NBDMenuUI&&window.NBDMenuUI.undoToast)window.NBDMenuUI.undoToast(msg,gone.id);else toast('Page deleted');
+}
+// Put a deleted page back where it was and clear its tombstone, so the cloud copy is not dropped again. Used by the Undo toast and the Notebook.
+function restoreDeleted(id){
+const t=NBDNotebook.trashTake(trashLoad(),id);if(!t.entry)return false;
+const pg=t.entry.page;
+try{const tb=JSON.parse(localStorage.getItem(DS_TOMB)||'[]').filter(x=>String(x)!==String(pg.id));localStorage.setItem(DS_TOMB,JSON.stringify(tb));}catch(e){}
+trashSave(t.list);
+if(!pages.some(p=>String(p.id)===String(pg.id))){collectPage(true);pages.splice(Math.min(Math.max(0,t.entry.idx),pages.length),0,pg);savePages();}
+cur=pages.findIndex(p=>String(p.id)===String(pg.id));
+renderTabs();killCharts();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();
+return true;
+}
 function openRename(){if(cur<0||!pages[cur]){toast('Open a day first');return;}document.getElementById('renInp').value=pages[cur].name||'';openM('mRen');setTimeout(()=>document.getElementById('renInp').focus(),80);}
 function applyRen(){pages[cur].name=document.getElementById('renInp').value.trim();savePages();closeM('mRen');renderTabs();toast('Renamed');}
 
@@ -210,24 +238,30 @@ function renderTabs(){
 // in the notebook drawer (notebook-logic.js / notebook-ui.js) by month, newest first.
 const w=document.getElementById('tabrow');w.innerHTML='';
 NBDNotebook.tabSet(pages,cur,todayKey()).forEach(tab=>{
-if(tab.kind==='new'){const plus=document.createElement('div');plus.className='tplus';plus.textContent='+';plus.title='New / jump to today';plus.dataset.action='smart-new-page';w.appendChild(plus);return;}
+// Open-to (flow batch 3, D1): the unlabeled "+" is a labelled TODAY tab. With a page for today it is the Today tab itself (below), so the
+// "+" tab only shows when there is none, and then it starts today's page when tapped (nothing is created at boot).
+if(tab.kind==='new'){if(NBDNotebook.tabSet(pages,cur,todayKey()).some(x=>x.kind==='today'))return;const nt=document.createElement('div');nt.className='tab tab-newtoday';nt.setAttribute('role','button');nt.tabIndex=0;nt.title="Start today's page";nt.dataset.action='smart-new-page';nt.innerHTML='<span class="tlbl">+ TODAY</span>';w.appendChild(nt);return;}
 const t=document.createElement('div');
 if(tab.kind==='dash'){t.className='tab dtab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx='-1';t.innerHTML='<span class="tlbl">📊 DASH</span>';w.appendChild(t);return;}
 if(tab.kind==='notebook'){t.className='tab ntab';t.dataset.action='notebook-open';t.setAttribute('role','button');t.tabIndex=0;t.title='All pages, filed by month';t.innerHTML=`<span class="tlbl">📓 NOTEBOOK</span><span class="ntab-n">${tab.count}</span>`;w.appendChild(t);return;}
 const p=pages[tab.idx];if(!p)return;
 t.className='tab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx=tab.idx;
+// The today tab reads TODAY; no tab carries a × (Delete lives in the ⋯ menu and the Notebook, flow batch 3 D6).
 const td=tab.kind==='today'?'<span class="today-dot"></span>':'';
-t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}<button class="tx" data-action="trigger-del-tab" data-tab-idx="${tab.idx}">×</button>`;
+t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}`;
+if(tab.kind==='today'){t.querySelector('.tlbl').textContent='TODAY';t.title=tlbl(p);}
 w.appendChild(t);
 });
 setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior(),block:'nearest',inline:'nearest'});},50);
 try{window.dispatchEvent(new CustomEvent('nbd-pages-changed'));}catch(e){}
 }
 
+// Flow batch 3, D2: the quote printed twice (the poster's italic line AND the orange Mindset card). Dropped. Flip to true to bring the card back.
+const DS_COVER_QCARD=false;
 function buildCover(p,qi){
 const ds=dkFull(p.dk)+(p.suf>1?` · ENTRY ${p.suf}`:'');
 const q=QUOTES[qi];
-return ` <div class="cover"> <div class="cover-eyebrow">No Big Deal with Joe Deal · Daily Success Program</div> <div class="cover-title">SHOW<br>UP.<span> WIN.</span></div> <div class="cover-date">📅 ${ds}</div> <div class="cover-quote">"${q}"</div> <div class="cover-corner">WIN</div> </div> <div class="qcard"><div class="ql">Today's Mindset</div><div class="qt">${q}</div></div>`;
+return ` <div class="cover"> <div class="cover-eyebrow">No Big Deal with Joe Deal · Daily Success Program</div> <div class="cover-title">SHOW<br>UP.<span> WIN.</span></div> <div class="cover-date">📅 ${ds}</div> <div class="cover-quote">"${q}"</div> <div class="cover-corner">WIN</div> </div>${DS_COVER_QCARD?` <div class="qcard"><div class="ql">Today's Mindset</div><div class="qt">${q}</div></div>`:''}`;
 }
 
 function buildDayScore(p){
@@ -259,6 +293,18 @@ p.data['floormet-'+floorId]=p.data['floormet-'+floorId]==='1'?'0':'1';
 markDirty();
 const wrap=document.getElementById('day-score-wrap');if(wrap)wrap.innerHTML=buildDayScore(p);
 updateTodayBar();
+}
+
+// Tick (or untick) a floor on the page for a DATE, whichever page is open (flow batch 3, D3 / D5; audit M3 says "by date key, not pages[cur]").
+// Writes the same floormet-<id> key the manual tap writes. Returns true when a page for that date took it.
+function setFloorByDk(dk,floorId,on){
+const p=pages.find(x=>x.dk===dk&&(Number(x.suf)||1)===1)||pages.find(x=>x.dk===dk);if(!p)return false;
+p.data=p.data||{};p.data['floormet-'+floorId]=on?'1':'0';
+savePages();syncToWidgetKeys();
+if(pages[cur]===p){const wrap=document.getElementById('day-score-wrap');if(wrap)wrap.innerHTML=buildDayScore(p);updateTodayBar();}
+else if(cur===-1)renderDash();
+try{window.dispatchEvent(new CustomEvent('nbd-floors-changed',{detail:{dk:dk,id:String(floorId),on:!!on}}));}catch(e){}
+return true;
 }
 
 function buildMindsetSection(p){
@@ -664,7 +710,8 @@ st[card.dataset.sec]=false;
 try{localStorage.setItem('nbd_collapsed',JSON.stringify(st));}catch(e){}
 card.querySelectorAll('textarea.ed').forEach(ta=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';});
 }
-function scrollToEl(el){_userMoved=true;if(el)el.scrollIntoView({behavior:window.NBDA11yLogic?NBDA11yLogic.scrollBehavior():'auto',block:'center'});}
+// A jump of more than a screen and a half is instant (a long smooth crawl past five screens of cards is slower than the jump is worth); a short one follows the reduced-motion setting.
+function scrollToEl(el){_userMoved=true;if(el){const far=Math.abs(el.getBoundingClientRect().top)>window.innerHeight*1.5;el.scrollIntoView({behavior:far?'auto':(window.NBDA11yLogic?NBDA11yLogic.scrollBehavior():'auto'),block:'center'});}}
 // A search hit lands on the match (audit Q10): open its section, bring it on screen, flash it.
 function jumpToField(key){
 if(!key)return;const el=document.querySelector('[data-k="'+String(key).replace(/["\\]/g,'\\$&')+'"]');if(!el)return;
@@ -1158,14 +1205,18 @@ if(cur===-1)renderDash();else renderPage();
 
 document.addEventListener('keydown',e=>{
 if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveNow();}
-if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();toggleSearch();}
+// Ctrl/Cmd+F is the browser's again (flow batch 3, D4): search is Ctrl/Cmd+K and the header icon, and both open the jump sheet (quickjump-ui.js).
 if(e.key==='Escape'){closeM('mDel');closeM('mRen');closeM('mPRH');closeM('mOnboard');if(searchOpen)toggleSearch();}
 });
 window.addEventListener('beforeunload',()=>{if(dirty)collectPage(true);});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushDirty();});
 window.addEventListener('pagehide',flushDirty);
 
-initTheme();loadPages();cur=-1;renderTabs();renderDash();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
+// Open-to (flow batch 3, D1). 'dash' (the default, Jo's usual landing view) or 'today': open on today's page when one exists. Nothing is created at boot.
+const DS_OPEN_TO='dash';
+initTheme();loadPages();cur=-1;
+if(DS_OPEN_TO==='today'){const ti=pages.findIndex(p=>p.dk===todayKey()&&(Number(p.suf)||1)===1);if(ti>=0)cur=ti;}
+renderTabs();if(cur===-1)renderDash();else renderPage();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
 
 // ── DAILY SUCCESS THEME SYSTEM ──────────────────
 /* ═══════════════════════════════════════════════════════════════════

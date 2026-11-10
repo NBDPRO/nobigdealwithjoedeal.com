@@ -1445,6 +1445,12 @@ jobs:
         run: |
           cd tests
           node ds-flow-batch-2-2026-11-09.test.js
+      # The Daily Success flow batch 3 (Jo's six decisions, safest defaults): the TODAY tab and ?go= links, the one-line phone cover, ask-first floor
+      # ticks, the Go button and jump sheet, the header menu with delete-undo, the Next-Up strip, the wrap-up moved up after 5 pm. Same server, same Chromium.
+      - name: Run the Daily Success flow batch 3 check
+        run: |
+          cd tests
+          node ds-flow-batch-3-2026-11-09.test.js
       # The CRM dashboard on the same sample account (overnight pass 2026-10-26):
       # the "This Week" tiles populate on a first visit, the sample estimates show
       # an address / squares / sent / signed, the Door-to-Door tab labels stay

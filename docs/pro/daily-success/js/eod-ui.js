@@ -47,7 +47,9 @@
         (rec.body ? '<div class="eod-line"><b>Body:</b> ' + esc(E().BODY[rec.body]) + '</div>' : '') +
         (rec.win ? '<div class="eod-line"><b>Win / next:</b> ' + esc(rec.win) + '</div>' : '') +
         (rec.tomorrow ? '<div class="eod-line"><b>Tomorrow:</b> ' + esc(rec.tomorrow) + '</div>' : '') +
-        '<button type="button" class="wc-link eod-edit" data-eod-action="edit">Edit</button>';
+        '<button type="button" class="wc-link eod-edit" data-eod-action="edit">Edit</button>' +
+        // flow batch 3 (M2): the finish surface ends with the next thing, as the primary button
+        (window.NBDNextUp && window.NBDNextUp.buttonHtml ? window.NBDNextUp.buttonHtml({ exclude: ['eod'] }) : '');
     } else if (st === 'prompt' || st === 'edit') {
       body = '<div class="wc-card-h">🌙 Day wrap-up <small>60 seconds, all optional</small></div>' + formHtml(dk, rec);
     } else {
@@ -55,6 +57,9 @@
     }
     return '<div class="wc-card eod-card eod-' + st + '" data-dk="' + esc(dk) + '">' + body + '</div>';
   }
+  // Q11 (flow batch 3): from 17:00, while today's wrap-up is still waiting (state 'prompt'), the card sits under the Today bar instead of at the
+  // bottom of the page. Once it is saved or skipped it goes back to its quiet place below the Daily Log.
+  function up(dk) { return !!E() && E().state(load(), dk, today(), new Date().getHours()) === 'prompt'; }
   function mount() {
     const dk = pageDk();
     const host = document.querySelector('.pc[data-sec="log"]');
@@ -63,12 +68,35 @@
     const box = document.createElement('div');
     box.className = 'eod-wrap';
     box.innerHTML = cardHtml(dk);
-    host.parentNode.insertBefore(box, host.nextSibling);
+    const bar = document.getElementById('today-bar');
+    if (bar && up(dk) && bar.parentNode) { bar.parentNode.insertBefore(box, bar.nextSibling); if (window.NBDNextUp && window.NBDNextUp.place) window.NBDNextUp.place(); }
+    else host.parentNode.insertBefore(box, host.nextSibling);
+    carryHint(dk);
   }
   function repaint() {
-    const dk = pageDk();
-    const box = document.querySelector('.eod-wrap');
-    if (dk && box) box.innerHTML = cardHtml(dk); else mount();
+    mount();
+  }
+
+  // Q12 (flow batch 3): an empty Today's non-negotiable shows last night's answer as "From last night" with a Use button. It never fills
+  // the field by itself; Use types it in, and it saves under the same ms-nonneg key as anything Jo types.
+  function carryHint(dk) {
+    document.querySelectorAll('.eod-carry').forEach((n) => n.remove());
+    if (dk !== today() || !E() || !E().carryForward) return;
+    const ta = document.querySelector('[data-k="ms-nonneg"]');
+    if (!ta || String(ta.value || '').trim()) return;
+    const text = E().carryForward(load(), dk);
+    if (!text) return;
+    const box = document.createElement('div');
+    box.className = 'eod-carry';
+    const msg = document.createElement('span');
+    msg.className = 'eod-carry-msg';
+    const b = document.createElement('b'); b.textContent = 'From last night: ';
+    msg.appendChild(b); msg.appendChild(document.createTextNode(text));
+    const use = document.createElement('button');
+    use.type = 'button'; use.dataset.carry = 'use'; use.textContent = 'Use it';
+    box.appendChild(msg); box.appendChild(use);
+    const anchor = ta.closest('.rln') || ta;
+    anchor.parentNode.insertBefore(box, anchor.nextSibling);
   }
 
   document.addEventListener('click', (ev) => {
@@ -88,11 +116,29 @@
       const val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
       const rec = { body: row ? Number(row.dataset.body) : 0, win: val('eodWin'), tomorrow: val('eodTomorrow') };
       if (!E().normalize(rec)) { toast('Nothing to save - answer one, or tap Not tonight'); return; }
-      if (store(E().save(load(), dk, rec, Date.now()))) { editing = null; repaint(); toast('Wrap-up saved'); }
+      if (store(E().save(load(), dk, rec, Date.now()))) {
+        editing = null; repaint(); toast('Wrap-up saved');
+        // flow batch 3 (D3): the page ASKS whether to tick the Journaled floor (floor-tick-ui.js; nothing is ticked by itself)
+        try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'wrap', dk } })); } catch (_) { /* optional */ }
+      }
     } else if (a === 'skip') {
       editing = null;
       if (store(E().skip(load(), dk, Date.now()))) repaint();
     }
+  });
+
+  document.addEventListener('click', (ev) => {
+    const u = ev.target.closest && ev.target.closest('[data-carry="use"]');
+    if (!u) return;
+    const ta = document.querySelector('[data-k="ms-nonneg"]');
+    const msg = u.parentNode && u.parentNode.querySelector('.eod-carry-msg');
+    if (!ta || !msg) return;
+    ta.value = msg.textContent.replace(/^From last night:\s*/, '');
+    ta.dispatchEvent(new Event('input', { bubbles: true }));   // app.js sizes the box and marks the page dirty, so it saves like typing
+    u.parentNode.remove();
+  });
+  document.addEventListener('input', (ev) => {
+    if (ev.target && ev.target.matches && ev.target.matches('[data-k="ms-nonneg"]') && String(ev.target.value || '').trim()) document.querySelectorAll('.eod-carry').forEach((n) => n.remove());
   });
 
   function hook() {

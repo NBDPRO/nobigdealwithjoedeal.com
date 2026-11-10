@@ -262,7 +262,7 @@ function fakeWin(o) {
       const links = card().querySelectorAll('.os-hw-ds-link');
       ok(s.toUpperCase() + ': floors, streak, left today and doors are ONE tap target (rows stack, no 44px box per row)', links.length === 1
         && /Floors 2\/4/.test(text(links[0])) && /Left today/.test(text(links[0])) && /Doors 3 of 30/.test(text(links[0])), J([links.length, text(card())]));
-      ok('...still the tracker\'s link', links[0] && links[0].getAttribute('href') === '/pro/daily-success/');
+      ok('...still the tracker\'s link, opening on the floors (?go=floors)', links[0] && links[0].getAttribute('href') === '/pro/daily-success/?go=floors');
       void T;
     }
     const { card } = widget({ s: 'm', goals: { doorsPerDay: 30 }, count: 3 });

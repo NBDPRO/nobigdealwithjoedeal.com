@@ -1670,6 +1670,7 @@
     "ds-layouts-phone-fit-2026-10-25.test.js",
     "ds-quick-wins-2026-11-09.test.js",
     "ds-flow-batch-2-2026-11-09.test.js",
+    "ds-flow-batch-3-2026-11-09.test.js",
     "crm-dashboard-sample-render-2026-10-26.test.js",
     "crm-sample-boot-render-2026-10-26.test.js",
     "crm-home-boot-layout-shift-2026-10-26.test.js",

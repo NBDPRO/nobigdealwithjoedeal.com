@@ -172,7 +172,8 @@ async function pushToFirestore(pages) {
     const tomb = readJson(TOMB, []).map(String);
     const writes = changed.map(p => ({
       ref: doc(db, 'users', _uid, 'ds_pages', String(p.id)),
-      data: { ...p, _uid, _updatedAt: serverTimestamp() }, merge: true,
+      // deleted:false so a page Jo restored from Undo / Recently deleted (flow batch 3) clears the soft-delete the cloud may already hold
+      data: { ...p, deleted: false, _uid, _updatedAt: serverTimestamp() }, merge: true,
     }));
     // Soft delete: the doc stays (nothing is ever hard-deleted from here), it
     // just says so, and every device's merge drops it.

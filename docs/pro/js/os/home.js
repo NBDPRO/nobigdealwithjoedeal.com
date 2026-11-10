@@ -357,6 +357,8 @@
 
   // ── Daily Success (P0c): the tracker's snapshot (personal) + Today's counts (business) ──
   var DS_HREF = '/pro/daily-success/';   // same tab, as openDailyTracker does (widgets.js); the demo remaps it
+  // deep links (Daily Success flow batch 3): the floors rows open ON the floors, everything else on today's page (daily-success/js/quickjump-logic.js parseGo)
+  var DS_HREF_FLOORS = DS_HREF + '?go=floors', DS_HREF_TODAY = DS_HREF + '?go=today';
   function plural(n, one, many) { return String(n) + ' ' + (n === 1 ? one : many); }
   function streakLine(d) {
     if (d.broken) return 'Two misses ended the streak. Today is day one.';
@@ -422,9 +424,10 @@
     // jobs LEFT: the summary counts every appointment; the Today plan in memory says which are past
     var left = b ? HL.jobsLeft(todayPlan(), Date.now()) : null;
     if (left != null) b.jobs = left;
-    var open = '<a class="os-hw-ds-link" href="' + esc(DS_HREF) + '">';
+    // ONE link for the rows (one tap target): on the floors when the personal half is shown, else on today's page
+    var open = '<a class="os-hw-ds-link" href="' + esc(d ? DS_HREF_FLOORS : DS_HREF_TODAY) + '">';
     var items = b ? [plural(b.calls, 'call', 'calls'), plural(b.followUps, 'follow-up', 'follow-ups'), plural(b.jobs, 'job', 'jobs')] : [];
-    var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF) + '">Open Daily Success</a>';
+    var noDs = '<a class="btn btn-ghost os-hw-btn os-hw-ds-open" href="' + esc(DS_HREF_TODAY) + '">Open Daily Success</a>';
     var noBiz = '<p class="os-hw-empty">Today\'s numbers load with your Today list.</p>';
     var biz = show !== 'personal' ? bizNow() : null;
     var doors = biz ? W.NBDOSDsBiz.bizRows(null, biz.doors, biz.goals).doors : '';
