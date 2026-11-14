@@ -32,6 +32,12 @@ A read-only review on 2026-11-14 found 12 problems on the lead → estimate → 
   - a verdict in `tests/viewer-callables.test.js`;
   - words in `docs/pro/demo-sdk/firebase-functions.js`.
 
+## Money-rules follow-ups (found in review, not done)
+These were already in the rules before this lane; they need their own PR.
+- **`balanceDue` isn't checked** on a browser invoice update. A rep can zero it to drop an invoice from A/R, or change it to move the synthetic Collected remainder. The fix needs care: deposit credit lines legitimately make it differ from `total − amountPaid`.
+- **Some server-only fields are still writable on update:** `paidIntentIds`, `refundedTotal`, `supersededPayments`, `reconciliations`. Each extra frozen key costs a rules expression, and a third one broke the pinned 12-payment append (measured). The real fix is a server-only money doc per invoice, which would also give #3077's reopened amount a safe home.
+- **Leaving `'paid'`:** a rep can move a legacy invoice out of `'paid'`. `invoiceCarriesMoney` now covers the legacy shapes, so it can't then be deleted.
+
 ## On this Windows machine
 - **Line endings:** files are CRLF in the working tree (`core.autocrlf=true`). Edit with the Edit tool or a script that keeps CRLF. A hook checks this, and `C:/Users/jonat/.claude/hooks/fix-eol.js` repairs it.
 - **Known failures:** seven node suites fail on a clean main here (`photo-exif-capture` and six `call-*-2026-11-09`).
