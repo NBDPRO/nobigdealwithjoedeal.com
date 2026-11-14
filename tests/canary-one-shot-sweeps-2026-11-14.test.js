@@ -162,6 +162,25 @@ const seedWith = (canary) => {
     ok('one email, to the customer', r.sent === true && resend.sent.length === 1 && resend.sent[0].to === 'pat@example.com');
   }
 
+  console.log('\nB2. review ask by TEXT (no email on file), canary on');
+  {
+    MC._resetCache();
+    const ENV_T = { REVIEW_ASK_AUTO_EMAIL_ENABLED: 'true', REVIEW_ASK_AUTO_TEXT_ENABLED: 'true' };
+    const db = makeDb(Object.assign(seedWith(true), {
+      'leads/L3': leadOf({ email: '', phoneDigits: '8595550142', tcpaConsent: true, tcpaConsentText: Object.keys(require(path.join(FN, 'tcpa-consent.js')).CONSENT_TEXTS)[0] }),
+      'invoices/i3': paidInvOf('L3', ago(8)),
+    }));
+    // Noon Eastern today: inside the homeowner texting window whatever time the suite runs.
+    const d0 = new Date(); const NOON = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), 17, 0, 0);
+    const texts = [];
+    const sendText = async (m) => { texts.push(m); return { sid: 'SM' + texts.length }; };
+    const due = await RN.findReviewDueLeads(db, NBD, { mode: 'auto', env: ENV_T, nowMs: NOW });
+    const r = due.length ? await AUTO.askOne(db, due[0], NBD, deps({ env: ENV_T, sendText, resend: fakeResend(), nowMs: NOON })) : { reason: 'not_due' };
+    const L3 = db.store.get('leads/L3');
+    ok('no text is sent under the canary', texts.length === 0, JSON.stringify(texts));
+    ok('the job\'s ask is not used up', gone(L3.reviewAutoAsk) && L3.reviewRequested !== true, JSON.stringify(L3.reviewAutoAsk) + ' ' + JSON.stringify(r));
+  }
+
   console.log('\nC. the sweeps treat canary as not live');
   {
     const strip = (p) => fs.readFileSync(path.join(FN, p), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');

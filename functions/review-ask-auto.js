@@ -147,6 +147,7 @@ async function askOne(db, entry, uid, deps) {
       // send must not use up the job's single ask. Retried next run while in window.
       const sw = await MessagingControls.channelStatus(db, 'email');
       if (!sw.allowed) return { sent: false, reason: 'messaging_paused' };
+      if (sw.canary) return { sent: false, reason: 'canary' };   // no claim under the canary (2026-11-14)
       if (!(await claim(db, entry.id, entry.jobId, 'email', nowMs))) return { sent: false, reason: 'claimed' };
       const c = RA.emailContent(entry, reviewUrl, photo ? photo.content : null);
       const body = Suppression.applyFooter(gate, c.html, c.text);
@@ -196,6 +197,10 @@ async function askOne(db, entry, uid, deps) {
     if (!cd.allowed) return { sent: false, reason: cd.code };
     const status = await TextingGate.textingStatus(db, tenantKey);
     if (!status.allowed) return { sent: false, reason: 'texting_' + status.reason };
+    // Same pre-claim switch check as the email path: a pause or the canary must not use up the job's ask (2026-11-14).
+    const swText = await MessagingControls.channelStatus(db, 'sms');
+    if (!swText.allowed) return { sent: false, reason: 'messaging_paused' };
+    if (swText.canary) return { sent: false, reason: 'canary' };
     if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
     try {
       if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
