@@ -188,6 +188,21 @@ const ESTIMATE = {
   r = await post(ESTIMATE);
   ok('a non-JSON estimate reply is not passed through (502; the page shows its own fallback)', r.code === 502 && !(r.body && r.body.text), r);
 
+  console.log('\npublicVisualizerAI (AI audit F6): the same order');
+  {
+    const viz = ai.publicVisualizerAI && ai.publicVisualizerAI.__handler;
+    reset();
+    const res = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    await viz({ method: 'POST', body: {}, headers: {}, ip: '203.0.113.9' }, res);
+    ok('visualizer: an empty request → 400 and its daily cap is not counted', res.code === 400 && calls.global.length === 0, { code: res.code, global: calls.global });
+    reset();
+    const res2 = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    modelText = 'Looks great. CANVAS: #333333';
+    await viz({ method: 'POST', body: { imageBase64: 'AAAA', mediaType: 'image/jpeg', selectionsText: 'roof' }, headers: {}, ip: '203.0.113.9' }, res2);
+    ok('visualizer: a valid request counts its own cap once', calls.global.length === 1 && calls.global[0] === 'publicVisualizerAI:global', calls.global);
+    modelText = 'Hi Pat, thanks for checking in.';
+  }
+
   console.log('\nOrder in the handler: validate → cap → model');
   const src = fs.readFileSync(path.join(ROOT, 'functions', 'handlers', 'ai.js'), 'utf8');
   const s = src.indexOf('exports.publicFunnelAI'), e = src.indexOf('\nexports.', s + 10);

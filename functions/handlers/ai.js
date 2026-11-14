@@ -409,7 +409,6 @@ exports.publicVisualizerAI = onRequest(
     // Per-IP cap — 5 visualizer calls / hour from a single IP. Each call is
     // a ~$0.01 Haiku request; 5/hour caps cost per IP at ~$0.05/hour worst case.
     if (!(await httpRateLimit(req, res, 'publicVisualizerAI:ip', 5, 3_600_000))) return;
-    if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
     try {
       const { imageBase64, mediaType, selectionsText, notes } = req.body || {};
@@ -426,6 +425,11 @@ exports.publicVisualizerAI = onRequest(
       const safeMediaType = allowedMedia.has(mediaType) ? mediaType : 'image/jpeg';
       const safeSelections = String(selectionsText || '').slice(0, 400);
       const safeNotes = String(notes || '').slice(0, 400);
+
+      // Counted only once the request is valid (2026-11-14, AI audit F6):
+      // counted first, empty requests used up the day's cap for free and
+      // switched the visualizer off for real homeowners.
+      if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
       const anthropicBody = {
         model: 'claude-haiku-4-5-20251001',
