@@ -37,7 +37,7 @@ const ready = { '2026-11-13': { sleep: 2, sore: 1, energy: 2 } };
   {
     const cloud = { 'userSettings/U1': { dsMeasurements: meas, dsMeasurementsAt: 50, dsCoachRoutines: routines, dsCoachRoutinesAt: 50, dsCoachCustom: custom, dsCoachCustomAt: 50, dsCoachReady: ready, dsCoachReadyAt: 50 } };
     let reloaded = 0;
-    const h = boot({ storage: { nbd_last_uid: 'U1' }, cloud, window: { NBDCoachUI: { reload() { reloaded++; } } } });
+    const h = boot({ storage: { nbd_last_uid: 'U1' }, cloud, window: { dispatchEvent: (e) => { if (e.type === 'nbd-ds-settings-restored') reloaded++; return true; } } });
     await h.signIn('U1');
     ok('all four lists are restored on the phone', JSON.stringify(h.read('nbd_ds_measurements')) === JSON.stringify(meas) && JSON.stringify(h.read('nbd_ds_coach_routines')) === JSON.stringify(routines) && JSON.stringify(h.read('nbd_ds_coach_custom')) === JSON.stringify(custom) && JSON.stringify(h.read('nbd_ds_coach_ready')) === JSON.stringify(ready));
     ok('the coach is told to reload its in-memory routines and lifts', reloaded >= 1, String(reloaded));
@@ -91,6 +91,16 @@ const ready = { '2026-11-13': { sleep: 2, sore: 1, energy: 2 } };
     ok('saving a routine stamps it', stamped.includes('nbd_ds_coach_routines'), JSON.stringify(stamped));
     h.field('cx', 0, 0, 'Sled push', { k: 'name' }); h.click('custom-add');
     ok('adding a custom lift stamps it', stamped.includes('nbd_ds_coach_custom'), JSON.stringify(stamped));
+  }
+
+  console.log('\n5b. the coach picks up routines the sync restored');
+  {
+    const h = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-11-14', fitness: true });
+    ok('control: no routines on the card yet', !/My routines/.test(h.card()));
+    h.store.set('nbd_ds_coach_routines', JSON.stringify([{ id: 'rC', name: 'Cloud Push', split: 'push', lifts: [{ exId: 'bb_bench', name: 'Bench', slot: 0, sets: 3 }] }]));
+    ok('control: written to storage alone, the coach still shows its old in-memory list', !/Cloud Push/.test(h.card()));
+    h.fireWindow('nbd-ds-settings-restored');
+    ok('after the sync says it restored settings, the card lists the restored routine', /Cloud Push/.test(h.card()), h.card().slice(0, 200));
   }
 
   console.log('\n6. "Download my data" includes them');

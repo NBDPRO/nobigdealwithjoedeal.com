@@ -306,7 +306,7 @@ async function syncSettings() {
   }
   if (needPush) await pushSettingsOrThrow();
   // The coach keeps its routines and custom lifts in memory: reload them after a restore (custom lifts join the library).
-  if (restored && window.NBDCoachUI && typeof window.NBDCoachUI.reload === 'function') { try { window.NBDCoachUI.reload(); } catch (_) { /* the next coach action reloads them */ } }
+  if (restored) { try { window.dispatchEvent(new CustomEvent('nbd-ds-settings-restored')); } catch (_) { /* the next coach action reloads them */ } }
   return restored;
 }
 
