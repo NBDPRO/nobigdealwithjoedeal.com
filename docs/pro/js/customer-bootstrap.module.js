@@ -1342,6 +1342,13 @@ async function loadTimeline(leadId, lead) {
     });
     // Jump-nav OPEN-task badge (RoofLink ToDo count) — done tasks and
     // Add-Event entries don't count.
+    // Open tasks and upcoming events get their own block above the timeline,
+    // where they can be done, rescheduled or deleted (wave-1 daily #8).
+    if (window.NBDOpenTasks && typeof window.NBDOpenTasks.render === 'function') {
+      window.NBDOpenTasks.render(leadId, taskSnap.docs.map(d => Object.assign({ id: d.id }, d.data() || {})));
+    } else {
+      console.warn('[customer] open-tasks block not loaded (customer-tasks-ui.js)');
+    }
     if (typeof window.nbdNavCount === 'function') {
       window.nbdNavCount('navCountTasks',
         taskSnap.docs.filter(d => { const t = d.data() || {}; return !t.done && t.type !== 'event'; }).length);

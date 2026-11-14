@@ -274,8 +274,52 @@
     return arr;
   }
 
+  // Customer page (wave-1 daily #4, 2026-11-14): window._leads there is only
+  // [this customer], so Cmd+K or "/" for anyone else said "No results". The
+  // first open on that page reads the rep's lead book once, with the same
+  // scopes as the dashboard's lead load (team readers: the tenant AND their
+  // own; everyone else: their own), and searches that instead. Read only.
+  let _leadIndex = null;
+  let _leadIndexLoading = false;
+  const LEAD_INDEX_LIMIT = 1000;
+  function _onCustomerPage() {
+    return /\/customer(\.html)?\/?$/.test((window.location && window.location.pathname) || '');
+  }
+  function _leadPool() {
+    return _leadIndex || (Array.isArray(window._leads) ? window._leads : []);
+  }
+  async function _ensureLeadIndex() {
+    if (_leadIndex || _leadIndexLoading || !_onCustomerPage()) return;
+    const w = window;
+    if (!(w.db && w.getDocs && w.query && w.where && w.collection && w.limit)) return;
+    const uid = (w.auth && w.auth.currentUser && w.auth.currentUser.uid) || (w._user && w._user.uid) || null;
+    if (!uid) return;
+    _leadIndexLoading = true;
+    try {
+      const c = w._userClaims || {};
+      const team = ['company_admin', 'manager', 'viewer'].includes(c.role || '') && !!c.companyId;
+      const scopes = team && c.companyId !== uid
+        ? [w.where('companyId', '==', c.companyId), w.where('userId', '==', uid)]
+        : [team ? w.where('companyId', '==', c.companyId) : w.where('userId', '==', uid)];
+      const byId = new Map();
+      for (const s of scopes) {
+        const snap = await w.getDocs(w.query(w.collection(w.db, 'leads'), s, w.limit(LEAD_INDEX_LIMIT)));
+        snap.docs.forEach((d) => { const v = d.data() || {}; if (!v.deleted) byId.set(d.id, Object.assign({ id: d.id }, v)); });
+      }
+      // The customer on screen keeps its freshest copy.
+      (w._leads || []).forEach((l) => { if (l && l.id) byId.set(l.id, l); });
+      _leadIndex = Array.from(byId.values());
+      const i = document.getElementById('nbd-cmd-input');
+      if (i) _renderResults(i.value || '');
+    } catch (e) {
+      console.warn('[NBDCommand] customer-page lead search could not load:', e && (e.code || e.message));
+    } finally {
+      _leadIndexLoading = false;
+    }
+  }
+
   function _buildLeadResults(query, pool) {
-    const leads = Array.isArray(pool) ? pool : (Array.isArray(window._leads) ? window._leads : []);
+    const leads = Array.isArray(pool) ? pool : _leadPool();
     if (leads.length === 0) return [];
     const q = (query || '').trim();
     // W138: when NBDLeadScore is loaded, sort the empty-query lead
@@ -509,6 +553,7 @@
     const wrap = _buildModal();
     document.body.appendChild(wrap);
     _ensureLeadSearch();
+    _ensureLeadIndex();
     _selectedIndex = 0;
     if (_X()) { _X().onOpen(); _X().decorate(wrap); }
     _renderResults('');
