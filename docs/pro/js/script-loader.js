@@ -185,7 +185,7 @@
     // view. numbers-logic / numbers-data / the lost-reason picker and
     // invoice-pipeline.js (Record payment) are eager on the dashboard.
     catchup: [
-      'js/catchup-logic.js?v=2',
+      'js/catchup-logic.js?v=3',
       'css/catchup.css?v=1',
       'js/catchup.js?v=2'
     ],
