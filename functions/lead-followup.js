@@ -97,8 +97,10 @@ exports.leadFollowUpSweep = onSchedule(
     // the global email switch (2026-10-19; fail closed). maxPerRun caps one
     // sweep so enabling it can never flood.
     const auto = await MessagingControls.automationStatus(db, 'leadFollowupEmail', 'email', process.env.LEAD_FOLLOWUP_ENABLED !== 'false');
-    if (!auto.enabled) {
-      logger.info('leadFollowUp: not enabled — skipping', { reason: auto.reason });
+    // Canary (redirect-to-owner test mode): no claim, no send, so the one-shot
+    // follow-up is still owed when the canary is switched off (2026-11-14).
+    if (!auto.enabled || auto.canary) {
+      logger.info('leadFollowUp: not enabled — skipping', { reason: auto.enabled ? 'canary' : auto.reason });
       return;
     }
     const now = Date.now();
@@ -221,6 +223,8 @@ exports.leadFollowUpSweep = onSchedule(
             tags: unsub.tags,
           });
           if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+          // Canary switched on mid-sweep: nothing goes out; the 'failed' release retries it later.
+          if (gated.canary) throw new Error('canary_redirect');
           const response = await resend.emails.send(gated.msg);
           // Resend resolves { data: null, error } on an API-level rejection
           // instead of throwing — without this check followUpEmailSentAt
