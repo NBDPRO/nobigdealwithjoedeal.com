@@ -118,6 +118,13 @@ const DAY = today.slice(0, 10), MONTH = today.slice(0, 7);
   docs = { 'users/paidRep': { companyId: 'paidCo' }, 'subscriptions/paidCo': { plan: 'growth', status: 'active' }, 'subscriptions/paidRep': { plan: 'free' } };
   const ctx = await VI._getCompanyContext(db, 'paidRep');
   ok('a paying tenant\'s rep gets the company\'s plan, not the free tier', ctx.companyId === 'paidCo' && ctx.plan === 'growth', ctx);
+  docs = { ['users/' + NBD]: { companyId: NBD } };
+  const nbdCtx = await VI._getCompanyContext(db, NBD);
+  ok('NBD\'s own company with no subscription doc gets the top voice tier, not 1 hr/month', nbdCtx.plan === 'professional', nbdCtx);
+  {
+    const src = require('fs').readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8');
+    ok('the walkthrough budget gives NBD the same top tier', /if \(companyId === require\('\.\/ai-gate'\)\.PLATFORM_UID && \(plan === 'lite' \|\| plan === 'free'\)\) plan = 'professional';/.test(src));
+  }
 
   console.log('\n4. processRecording refuses free / unconfirmed uploaders before any spend');
   async function upload(uid, companyId) {

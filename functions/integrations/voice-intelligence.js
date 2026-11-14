@@ -34,7 +34,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { getSecret, hasSecret, secretValue, PROVIDERS, SECRETS } = require('./_shared');
 const { isVoiceIntelDisabled } = require('./killswitch');
-const { aiEntitlementForUid, MESSAGES: AI_GATE_MESSAGES } = require('../ai-gate');
+const { aiEntitlementForUid, MESSAGES: AI_GATE_MESSAGES, PLATFORM_UID } = require('../ai-gate');
 const prompts = require('../voice-prompts');
 const { matchDocPath } = require('../collection-group-paths');
 const { isReservedLeadId } = require('../lead-artifact-paths');
@@ -159,6 +159,9 @@ async function getCompanyContext(db, uid) {
     // paying tenant's reps got the free tier's budget.
     const subSnap = await db.doc('subscriptions/' + out.companyId).get();
     if (subSnap.exists) out.plan = subSnap.data().plan || 'lite';
+    // NBD's own company is exempt from the plan rule and may have no
+    // subscription doc: its voice budget is the top tier, never 'lite'.
+    if (out.companyId === PLATFORM_UID && (out.plan === 'lite' || out.plan === 'free')) out.plan = 'professional';
   } catch (_) {
     // Unknown plan: the caller must not read this as the free hour.
     out.planReadFailed = true;

@@ -124,7 +124,10 @@ async function contextFor(db, uid) {
   const companyId = (u.exists && u.data() && u.data().companyId) || uid;
   // The COMPANY's plan (2026-11-14, AI audit F1), not the rep's own uid.
   const sub = await db.doc('subscriptions/' + companyId).get();
-  const plan = (sub.exists && sub.data() && sub.data().plan) || 'lite';
+  let plan = (sub.exists && sub.data() && sub.data().plan) || 'lite';
+  // NBD's own company is exempt from the plan rule and may have no
+  // subscription doc: its voice budget is the top tier, never 'lite'.
+  if (companyId === require('./ai-gate').PLATFORM_UID && (plan === 'lite' || plan === 'free')) plan = 'professional';
   const co = await db.doc('companies/' + companyId).get();
   const cd = co.exists ? (co.data() || {}) : {};
   return {
