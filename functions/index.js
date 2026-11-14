@@ -291,6 +291,11 @@ Object.assign(exports, leadAlertFns);
 // Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
 // re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
 exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
+// /estimate saves at step 1 and later UPDATES that lead (2026-11-14): tell Joe
+// when it is finished, and re-apply the CRM-card patch if the inline one failed.
+const estimateFunnelTriggers = require('./estimate-funnel-triggers');
+exports.leadAlertEstimateFinished = estimateFunnelTriggers.leadAlertEstimateFinished;
+exports.leadBridgeEstimateUpdate = estimateFunnelTriggers.leadBridgeEstimateUpdate;
 
 // Mirror each high-intent public lead into the tenant's CRM `leads` pipeline
 // (Phase C, H-1 fix). Additive triggers; tenant-aware routing; idempotent.

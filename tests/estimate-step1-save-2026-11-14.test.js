@@ -85,17 +85,17 @@ function makeDb(opts) {
     async create(d) { if (docs[p]) throw new Error('ALREADY_EXISTS'); docs[p] = apply({}, d); },
   });
   const db = {
-    docs,
+    docs, txWrites: [],
     collection: (name) => ({
       doc: (id) => ref(name + '/' + id),
-      async add(row) { const id = 'pub' + (++seq); docs[name + '/' + id] = apply({}, row); return { id }; },
+      async add(row) { const id = 'pubdoc' + (++seq); docs[name + '/' + id] = apply({}, row); return { id }; },
     }),
     async runTransaction(fn) {
       if (o.failTx) throw new Error('tx down');
       const writes = [];
       const tx = {
         get: (r) => r.get(),
-        update: (r, d) => writes.push(() => { if (!docs[r.path]) throw new Error('NOT_FOUND'); docs[r.path] = apply(docs[r.path], d); }),
+        update: (r, d) => { if (o.failUpdate && o.failUpdate(r.path)) throw new Error('boom'); db.txWrites.push(r.path); writes.push(() => { if (!docs[r.path]) throw new Error('NOT_FOUND'); docs[r.path] = apply(docs[r.path], d); }); },
         set: (r, d) => writes.push(() => { docs[r.path] = apply({}, d); }),
       };
       const res = await fn(tx);
@@ -284,7 +284,7 @@ function mkRes() {
     ok('…the CRM card mirrors the decline (the server send gate reads it)', card2.tcpaConsent === false && !!card2.tcpaConsentWithdrawnAt, card2);
     const r2b = await submit(Object.assign({}, step1, { tcpaConsent: true, leadToken: token }));
     const p2b = db.docs['estimate_leads/' + id];
-    ok('a re-tick → tcpaConsent true, a fresh tcpaConsentRenewedAt, the withdrawal cleared, original kept', r2b.body.updated === true && p2b.tcpaConsent === true && !!p2b.tcpaConsentRenewedAt && p2b.tcpaConsentWithdrawnAt === undefined && JSON.stringify(p2b.tcpaConsentAt) === JSON.stringify(pub.tcpaConsentAt) && p2b.tcpaConsentHistory.length === 2, p2b);
+    ok('a re-tick → tcpaConsent true, a fresh tcpaConsentRenewedAt; the withdrawal stamp and the original are both kept', r2b.body.updated === true && p2b.tcpaConsent === true && !!p2b.tcpaConsentRenewedAt && !!p2b.tcpaConsentWithdrawnAt && JSON.stringify(p2b.tcpaConsentAt) === JSON.stringify(pub.tcpaConsentAt) && p2b.tcpaConsentHistory.length === 2, p2b);
 
     // Finish at step 5.
     const fin = { firstName: 'Pat', lastName: 'Tester', phone: '(513) 555-0110', email: 'pat@example.test', address: step1.address, lat: step1.lat, lon: step1.lon, service: 'roof-repair', roofType: 'asphalt', timeline: 'asap', tcpaConsent: true, ballpark: { min: 350, max: 2500 }, wantsFollowUp: true, source: 'estimate-funnel-v2', leadToken: token, estimateStage: 'completed' };
@@ -304,7 +304,7 @@ function mkRes() {
     // A second finish with the same token is refused → falls back to a create.
     const n4 = pubDocs(db).length;
     const r4 = await submit(Object.assign({}, fin, { phone: '(513) 555-0113' }));
-    ok('a second finish with a spent token is NOT applied to the lead; it creates instead (never lost)', r4.code === 200 && r4.body.id !== id && pubDocs(db).length === n4 + 1 && !r4.body.updated, r4.body);
+    ok('a second finish with the spent token is answered as the same lead (a lost answer retried), with no new lead', r4.code === 200 && r4.body.id === id && pubDocs(db).length === n4, r4.body);
     ok('…and the finished lead is untouched by it', db.docs['estimate_leads/' + id].phone === '(513) 555-0110');
 
     // Card edited by a rep: the homeowner's later change never overwrites it.
@@ -407,6 +407,171 @@ function mkRes() {
     try { P = require(F('public-lead-photos.js'))._internal; } catch (e) { ok('public-lead-photos loads', false, String(e && e.message)); }
     if (P) ok('estimate-funnel mirrors the grant collection, TTL and hash of public-lead-photos', EF._internal.GRANTS === P.GRANTS && EF._internal.hashToken('abc') === P.hashToken('abc') && P.checkGrant({ exp: Date.now() + EF._internal.GRANT_TTL_MS - 1000, collection: 'estimate_leads', publicId: 'x', used: 0 }, Date.now()).ok === true);
   } catch (e) { ok('grant mirror check ran', false, String(e && e.message || e)); }
+
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nD3. review fixes: replay, phone change, moved address, card retries, finish alert');
+  try {
+    const EF = require(F('estimate-funnel.js'));
+    const fin = { firstName: 'Pat', phone: '(513) 555-0110', address: step1.address, lat: step1.lat, lon: step1.lon, service: 'roof-repair', tcpaConsent: true, source: 'estimate-funnel-v2', estimateStage: 'completed' };
+
+    // A finish whose answer was lost: the browser retries with the same token.
+    const db = makeDb();
+    const submit = gateway(db);
+    const r1 = await submit(step1);
+    bridge(db, r1.body.id);
+    const tok = r1.body.photoToken;
+    await submit(Object.assign({}, fin, { leadToken: tok }));
+    const n = pubDocs(db).length;
+    const again = await submit(Object.assign({}, fin, { leadToken: tok, lastName: 'Changed' }));
+    ok('a repeated finish (lost answer, browser retries) → the SAME id, no new lead, nothing rewritten', again.code === 200 && again.body.id === r1.body.id && pubDocs(db).length === n && db.docs['estimate_leads/' + r1.body.id].lastName === undefined, { body: again.body, n: pubDocs(db).length - n });
+    ok('…card writes go through a transaction (a rep edit is not lost to a stale read)', db.txWrites.some((p) => p.startsWith('leads/')), db.txWrites);
+
+    // The box stays ticked but the number changes.
+    const dbP = makeDb();
+    const sP = gateway(dbP);
+    const p1 = await sP(Object.assign({}, step1, { phone: '(513) 555-0130' }));
+    bridge(dbP, p1.body.id);
+    await sP(Object.assign({}, step1, { phone: '(513) 555-0131', leadToken: p1.body.photoToken }));
+    const pp = dbP.docs['estimate_leads/' + p1.body.id];
+    const ph = (pp.tcpaConsentHistory || [])[0] || {};
+    ok('a new number under a ticked box → a fresh tcpaConsentRenewedAt (consent for the NEW number)', pp.tcpaConsent === true && !!pp.tcpaConsentRenewedAt, pp);
+    ok('…and a history entry naming the new number', ph.reason === 'phone_changed' && ph.phoneDigits === '5135550131' && ph.value === true, ph);
+    const pc = dbP.docs['leads/' + L.bridgeDocId('estimate_leads', p1.body.id)];
+    ok('…mirrored onto the CRM card', pc.phoneDigits === '5135550131' && !!pc.tcpaConsentRenewedAt, pc);
+    // Control: an unchanged number under a ticked box stamps nothing.
+    const dbQ = makeDb();
+    const sQ = gateway(dbQ);
+    const q1 = await sQ(step1);
+    await sQ(Object.assign({}, step1, { firstName: 'Patty', leadToken: q1.body.photoToken }));
+    ok('control: a name change alone adds no consent stamp or history', !dbQ.docs['estimate_leads/' + q1.body.id].tcpaConsentRenewedAt && !dbQ.docs['estimate_leads/' + q1.body.id].tcpaConsentHistory);
+
+    // The address moves after the roof was measured.
+    const dbM = makeDb();
+    const sM = gateway(dbM);
+    const m1 = await sM(step1);
+    bridge(dbM, m1.body.id);
+    dbM.docs['estimate_leads/' + m1.body.id].publicMeasurement = { measured: true, squares: 22, sqft: 2200 };
+    await sM(Object.assign({}, step1, { address: '99 Other Rd, Mason, OH', lat: 39.4, lon: -84.2, leadToken: m1.body.photoToken }));
+    const pm = dbM.docs['estimate_leads/' + m1.body.id];
+    ok('a moved address voids the old roof measurement on the public lead', pm.publicMeasurementVoid === true && pm.publicMeasurement === undefined, pm);
+    const cm = dbM.docs['leads/' + L.bridgeDocId('estimate_leads', m1.body.id)];
+    ok('…and the card says to check the measurement (once)', cm.notes.split('\n').filter((x) => x === EF.LOCATION_CHANGED_NOTE).length === 1 && cm.address === '99 Other Rd, Mason, OH', cm.notes);
+    await sM(Object.assign({}, step1, { address: '100 Third Rd, Mason, OH', lat: 39.5, lon: -84.1, leadToken: m1.body.photoToken }));
+    ok('…a second move does not repeat the line', dbM.docs['leads/' + L.bridgeDocId('estimate_leads', m1.body.id)].notes.split('\n').filter((x) => x === EF.LOCATION_CHANGED_NOTE).length === 1);
+    // Control: a name change leaves the measurement alone.
+    const dbN = makeDb();
+    const sN = gateway(dbN);
+    const n1 = await sN(step1);
+    dbN.docs['estimate_leads/' + n1.body.id].publicMeasurement = { measured: true, squares: 22 };
+    await sN(Object.assign({}, step1, { firstName: 'Patty', leadToken: n1.body.photoToken }));
+    ok('control: a name change keeps the measurement', !!dbN.docs['estimate_leads/' + n1.body.id].publicMeasurement && !dbN.docs['estimate_leads/' + n1.body.id].publicMeasurementVoid);
+
+    // publicRoofMeasure honours the void.
+    stubs = {
+      'firebase-functions/v2/https': { onRequest: (op, h) => ({ __handler: h }), onCall: (op, h) => ({ __handler: h }), HttpsError: class extends Error {} },
+      'firebase-functions/v2/firestore': { onDocumentCreated: (op, h) => ({ __handler: h }) },
+      'firebase-functions/v2': { logger: noopLogger },
+      'firebase-admin/firestore': { getFirestore: () => ({ doc: (p) => ({ get: async () => ({ exists: !!dbM.docs[p], data: () => dbM.docs[p] }) }) }), FieldValue },
+      './upstash-ratelimit': { enforceRateLimit: async () => ({}) },
+    };
+    const PM = fresh(F('integrations/public-measure.js'));
+    stubs = null;
+    const mres = mkRes();
+    await PM.publicRoofMeasure.__handler({ method: 'POST', headers: {}, body: { kind: 'estimate', leadId: m1.body.id } }, mres);
+    ok('publicRoofMeasure answers "no measurement" for a voided lead (wizard falls back to the size tile)', mres.code === 200 && mres.body.pending === true && !mres.body.measurement, mres.body);
+    dbN.docs['estimate_leads/' + n1.body.id].publicMeasurement.measured = true;
+    stubs = {
+      'firebase-functions/v2/https': { onRequest: (op, h) => ({ __handler: h }), onCall: (op, h) => ({ __handler: h }), HttpsError: class extends Error {} },
+      'firebase-functions/v2/firestore': { onDocumentCreated: (op, h) => ({ __handler: h }) },
+      'firebase-functions/v2': { logger: noopLogger },
+      'firebase-admin/firestore': { getFirestore: () => ({ doc: (p) => ({ get: async () => ({ exists: !!dbN.docs[p], data: () => dbN.docs[p] }) }) }), FieldValue },
+      './upstash-ratelimit': { enforceRateLimit: async () => ({}) },
+    };
+    const PM2 = fresh(F('integrations/public-measure.js'));
+    stubs = null;
+    const mres2 = mkRes();
+    await PM2.publicRoofMeasure.__handler({ method: 'POST', headers: {}, body: { kind: 'estimate', leadId: n1.body.id } }, mres2);
+    ok('control: a kept measurement is still served', mres2.body && mres2.body.measurement && mres2.body.measurement.squares === 22, mres2.body);
+
+    // The inline card write fails: the update trigger's second chance lands it.
+    const dbF = makeDb({ failUpdate: (p) => p.startsWith('leads/') });
+    const sF = gateway(dbF);
+    const f1 = await sF(step1);
+    bridge(dbF, f1.body.id);
+    const beforeUntick = Object.assign({}, dbF.docs['estimate_leads/' + f1.body.id]);
+    await sF(Object.assign({}, step1, { tcpaConsent: false, leadToken: f1.body.photoToken }));
+    const cardPath = 'leads/' + L.bridgeDocId('estimate_leads', f1.body.id);
+    ok('(setup) the inline card write failed: the card still says consent true', dbF.docs[cardPath].tcpaConsent === true);
+    const afterUntick = Object.assign({}, dbF.docs['estimate_leads/' + f1.body.id]);
+    // The trigger, run over the same documents with writes working again.
+    const healed = makeDb();
+    Object.assign(healed.docs, dbF.docs);
+    const r = await EF.syncCardFromUpdate(healed, f1.body.id, beforeUntick, afterUntick, { FieldValue, wait: async () => {} });
+    ok('the update trigger re-applies the untick to the card', r === 'synced' && healed.docs[cardPath].tcpaConsent === false && !!healed.docs[cardPath].tcpaConsentWithdrawnAt, { r, card: healed.docs[cardPath] });
+    // Finish, inline write failing again; then the trigger.
+    const beforeFin = Object.assign({}, healed.docs['estimate_leads/' + f1.body.id]);
+    Object.assign(dbF.docs, healed.docs);
+    await sF(Object.assign({}, fin, { tcpaConsent: false, leadToken: f1.body.photoToken }));
+    const afterFin = Object.assign({}, dbF.docs['estimate_leads/' + f1.body.id]);
+    Object.assign(healed.docs, dbF.docs);
+    await EF.syncCardFromUpdate(healed, f1.body.id, beforeFin, afterFin, { FieldValue, wait: async () => {} });
+    const hc = healed.docs[cardPath];
+    ok('the trigger finishes the card when the inline write failed', hc.estimateStage === 'completed' && hc.notes.indexOf(L.STARTED_ESTIMATE_NOTE) === -1 && /Finished the estimate/.test(hc.notes), hc);
+    await EF.syncCardFromUpdate(healed, f1.body.id, beforeFin, afterFin, { FieldValue, wait: async () => {} });
+    ok('…and running it again changes nothing (idempotent: one "Finished" block)', healed.docs[cardPath].notes.split('Finished the estimate').length === 2, healed.docs[cardPath].notes);
+    ok('a legacy or finished lead is never touched by the trigger', await EF.syncCardFromUpdate(healed, f1.body.id, afterFin, afterFin, { FieldValue }) === 'skipped' && await EF.syncCardFromUpdate(healed, 'x', {}, { tcpaConsent: false }, { FieldValue }) === 'skipped');
+
+    // The finish alert.
+    const FP = EF.finishAlertPlan;
+    const pl = FP({ estimateStage: 'started' }, { estimateStage: 'completed', firstName: 'Pat' });
+    ok('finishAlertPlan: started → completed alerts Joe, labelled finished, acks off', pl && pl.alert === true && pl.opts.ack === false && /finished/.test(pl.opts.label), pl);
+    ok('…a duplicate / over-cap lead stays quiet', FP({ estimateStage: 'started' }, { estimateStage: 'completed', alertSuppressed: 'duplicate' }).alert === false && FP({ estimateStage: 'started' }, { estimateStage: 'completed', alertSuppressed: 'volume' }).alert === false);
+    ok('…anything else is not a finish', FP({ estimateStage: 'started' }, { estimateStage: 'started', firstName: 'X' }) === null && FP({ estimateStage: 'completed' }, { estimateStage: 'completed' }) === null && FP({}, { estimateStage: 'completed' }) === null);
+  } catch (e) { stubs = null; ok('section D3 ran', false, String(e && e.stack || e)); }
+
+  // The finish alert, through the real lead-alert trigger.
+  try {
+    const emails = [];
+    const texts = [];
+    process.env.LEAD_ACK_SMS_ENABLED = 'true';
+    stubs = {
+      './messaging-controls': require('./lib/messaging-controls-stub'),
+      'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __handler: h }), onDocumentUpdated: (o, h) => ({ __opts: o, __handler: h }) },
+      'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },
+      'firebase-functions/v2': { logger: noopLogger },
+      resend: { Resend: class { constructor() { this.emails = { send: async (p) => { emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
+      twilio: () => ({ messages: { create: async (m) => { texts.push(m); return { sid: 'SM' + texts.length }; } } }),
+      'firebase-admin/firestore': {
+        FieldValue,
+        getFirestore: () => ({ collection: () => ({ add: async () => ({ id: 'obx' }), doc: () => ({ get: async () => ({ exists: false }), update: async () => {}, create: async () => {}, set: async () => {} }) }), doc: () => ({ get: async () => ({ exists: false }) }), runTransaction: async (fn) => fn({ get: async () => ({ exists: false }), set() {}, update() {}, create() {} }) }),
+      },
+      './rate-limit': { enforceRateLimit: async () => ({}), rateLimitIpKey: (x) => x },
+      './push-functions': { sendCustomNotification: async () => ({ sent: 1 }) },
+      './opt-out': { isOptedOut: async () => ({ optedOut: false }), READ_TIMEOUT_MS: 100, optOutKey: (p) => p },
+      './texting-gate': { tenantKeyOfRecord: () => OWNER, NBD_OWNER_UID: OWNER, textingStatus: async () => ({ allowed: true }) },
+      './send-window': { withinRecipientWindow: () => true },
+    };
+    fresh(F('lead-alert.js'));
+    const LA = fresh(F('estimate-funnel-triggers.js'));
+    stubs = null;
+    const doc = { firstName: 'Pat', phone: '5135550140', email: 'pat@example.test', tcpaConsent: true, tcpaConsentAt: { atMs: 1 }, source: 'estimate-funnel-v2' };
+    const ev = (b, a) => ({ data: { before: { data: () => b }, after: { data: () => a } }, params: { leadId: 'fin1' } });
+    ok('leadAlertEstimateFinished listens on estimate_leads updates', !!LA.leadAlertEstimateFinished && /estimate_leads\/\{leadId\}/.test(LA.leadAlertEstimateFinished.__opts.document));
+    await LA.leadAlertEstimateFinished.__handler(ev(Object.assign({ estimateStage: 'started' }, doc), Object.assign({}, doc, { estimateStage: 'completed', requestType: 'otp_skipped_call_request' })));
+    const alertMail = emails.filter((e) => /New lead/.test(e.subject || ''));
+    ok('a finish pages Joe once, labelled finished', alertMail.length === 1 && /finished/.test(alertMail[0].subject), emails.map((e) => e.subject));
+    ok('…and sends the homeowner nothing (no ack email, no ack text)', emails.length === 1 && !texts.some((t) => /estimate request/.test(t.body || '')), { e: emails.map((x) => x.to), t: texts.map((x) => x.body) });
+    emails.length = 0; texts.length = 0;
+    await LA.leadAlertEstimateFinished.__handler(ev(Object.assign({ estimateStage: 'started' }, doc), Object.assign({ estimateStage: 'started', publicMeasurement: { measured: true } }, doc)));
+    await LA.leadAlertEstimateFinished.__handler(ev(Object.assign({ estimateStage: 'completed' }, doc), Object.assign({ estimateStage: 'completed', intakeUpdatedAt: 1 }, doc)));
+    ok('other updates (measurement copy, thank-you answers) page nobody', emails.length === 0 && texts.length === 0, emails.map((e) => e.subject));
+    delete process.env.LEAD_ACK_SMS_ENABLED;
+    ok('leadBridgeEstimateUpdate is a retried onDocumentUpdated trigger on estimate_leads', !!LA.leadBridgeEstimateUpdate && LA.leadBridgeEstimateUpdate.__opts.document === 'estimate_leads/{leadId}' && LA.leadBridgeEstimateUpdate.__opts.retry === true);
+    ok('…the finish alert is NOT retried (a redelivery must not page Joe twice)', LA.leadAlertEstimateFinished.__opts.retry !== true);
+    const idx = fs.readFileSync(F('index.js'), 'utf8');
+    const trg = fs.readFileSync(F('estimate-funnel-triggers.js'), 'utf8');
+    ok('both triggers are exported from index.js and match the deploy allowlist shape (exports.X = onDocumentUpdated)', /exports\.leadAlertEstimateFinished = /.test(idx) && /exports\.leadBridgeEstimateUpdate = /.test(idx) && /^exports\.leadAlertEstimateFinished = onDocumentUpdated\(/m.test(trg) && /^exports\.leadBridgeEstimateUpdate = onDocumentUpdated\(/m.test(trg));
+  } catch (e) { stubs = null; delete process.env.LEAD_ACK_SMS_ENABLED; ok('finish-alert trigger harness ran', false, String(e && e.stack || e)); }
 
   // ════════════════════════════════════════════════════════════════════
   console.log('\nE. the wizard: save on Continue, one lead, finish at Submit');
@@ -621,6 +786,15 @@ function mkRes() {
     const W2 = loadWizard(happyServer(), { storage: store });
     W2.ctx.goToStep(2); await tick(5);
     ok('after a reload, the same phone UPDATES that lead (no second lead)', W2.saves.length === 1 && W2.saves[0].payload.leadToken === T1, W2.saves.map((s) => s.payload.leadToken));
+    W2.ctx.__t.funnelData.service = 'roof-repair';
+    await W2.ctx.submitAndGetEstimate(); await tick(900);
+    ok('…finishing after a reload still mounts the thank-you questions (the step-1 grant is restored)', W2.ctx._lastPhotoToken === T1 && W2.d.getElementById('estFollowUp').hidden === false, { t: W2.ctx._lastPhotoToken });
+    // A restored lead for another number is never finished with that number's grant.
+    const store2 = { nbdEstimateLead: JSON.stringify({ id: 'lead-9', token: T2, phone: '5135550177' }) };
+    const W5 = loadWizard(happyServer(), { storage: store2 });
+    W5.ctx.__t.funnelData.service = 'roof-repair';
+    await W5.ctx.submitAndGetEstimate(); await tick(900);
+    ok('…a restored grant for a DIFFERENT number is not used to finish (full save instead)', leadSaves(W5).length >= 1 && leadSaves(W5).every((s) => !s.payload.leadToken), leadSaves(W5).map((s) => s.payload.leadToken));
     const W3 = loadWizard(happyServer(), { storage: store });
     W3.d.getElementById('phoneNumber').value = '(513) 555-0199';
     W3.ctx.goToStep(2); await tick(5);

@@ -1257,10 +1257,17 @@ async function _doSaveStartedLead() {
 async function _saveFinishedLead(leadData) {
   try { await _estLead.chain; } catch (e) { /* the chain never rejects */ }
   var id = null;
-  if (_estLead.id && _estLead.token && !_estLead.finished) {
+  // The step-1 lead is for the number now on the form (a restored one may not be).
+  var digits = String(leadData.phone || '').replace(/\D/g, '');
+  var sameNumber = !_estLead.phone || _estLead.phone === digits;
+  if (_estLead.id && _estLead.token && !_estLead.finished && sameNumber) {
     try {
       id = await window._saveLead(Object.assign({}, leadData, { leadToken: _estLead.token, estimateStage: 'completed' }));
     } catch (e) { id = null; }
+    // Finished on the step-1 grant: the thank-you screen's optional questions
+    // and photos use that same grant (it is not handed back again, and after
+    // a reload of this tab only _estLead still holds it).
+    if (id && id === _estLead.id) window._lastPhotoToken = _estLead.token;
   }
   if (!id) {
     id = await window._saveLead(leadData);

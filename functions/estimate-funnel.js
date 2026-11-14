@@ -54,6 +54,9 @@ const MAX_ESTIMATE_UPDATES = 10;
 const FINISH_WINDOW_MS = 24 * 60 * 60 * 1000;
 const CRM_LEAD_TRIES = 3;
 const CRM_LEAD_WAIT_MS = 2500;
+// Added to the card when the homeowner moves the address after the step-1
+// save: the roof measured for the first address may be the wrong building.
+const LOCATION_CHANGED_NOTE = 'The homeowner changed the address on the website after the first save; check the roof measurement before using it.';
 
 // What an update may change on the public lead. All of it has already been
 // through submitPublicLead's validation for kind 'estimate'. Not source, type,
@@ -93,27 +96,47 @@ function buildPublicPatch(prev, data, a) {
     if (k === 'tcpaConsent') continue;
     if (d[k] !== undefined && d[k] !== p[k]) patch[k] = d[k];
   }
-  const consent = { changed: false, record: {} };
+  const consent = { changed: false, reason: '' };
+  const phoneChanged = d.phone !== undefined && phoneDigits10(d.phone) !== phoneDigits10(p.phone);
   if (d.tcpaConsent === true && p.tcpaConsent !== true) {
     consent.changed = true;
+    consent.reason = 'ticked';
     patch.tcpaConsent = true;
     if (p.tcpaConsentAt == null) {
-      consent.record = TCPA.consentRecord({ consent: true, kind: 'estimate', referer: a.referer, source: p.source || d.source, ip: a.ip, at: a.ts });
-      Object.assign(patch, consent.record);
+      Object.assign(patch, TCPA.consentRecord({ consent: true, kind: 'estimate', referer: a.referer, source: p.source || d.source, ip: a.ip, at: a.ts }));
     } else {
+      // A re-tick after an untick: a fresh stamp; the original tcpaConsentAt
+      // and the withdrawal stamp both stay (sms-consent-declined dates by the
+      // newest of each).
       patch.tcpaConsentRenewedAt = a.ts;
-      if (p.tcpaConsentWithdrawnAt != null) patch.tcpaConsentWithdrawnAt = a.del;
     }
   } else if (d.tcpaConsent === false && p.tcpaConsent !== false) {
     consent.changed = true;
+    consent.reason = 'unticked';
     patch.tcpaConsent = false;
     if (p.tcpaConsent === true) patch.tcpaConsentWithdrawnAt = a.ts;
+  } else if (phoneChanged && p.tcpaConsent === true && d.tcpaConsent !== false) {
+    // The box is still ticked but the number above it changed: the consent is
+    // for the NEW number as of now (security review M3).
+    consent.changed = true;
+    consent.reason = 'phone_changed';
+    patch.tcpaConsentRenewedAt = a.ts;
   }
   if (consent.changed) {
+    const value = patch.tcpaConsent !== undefined ? patch.tcpaConsent : p.tcpaConsent === true;
     patch.tcpaConsentHistory = a.arrayUnion({
-      value: patch.tcpaConsent, atMs: a.nowMs,
+      value, reason: consent.reason, atMs: a.nowMs,
+      phoneDigits: phoneDigits10(d.phone !== undefined ? d.phone : p.phone),
       version: TCPA.consentVersionForKind('estimate', p.source), step: a.stage === L.ESTIMATE_STAGE_COMPLETED ? 'finish' : 'step1',
     });
+  }
+  // The roof was measured for the step-1 address. A new address or point
+  // makes it the wrong building: void the public copy so the wizard falls
+  // back to the size tile (publicRoofMeasure honours publicMeasurementVoid,
+  // and a measurement that lands later cannot clear it).
+  if (patch.address !== undefined || patch.lat !== undefined || patch.lon !== undefined) {
+    patch.publicMeasurementVoid = true;
+    patch.publicMeasurement = a.del;
   }
   if (a.stage === L.ESTIMATE_STAGE_COMPLETED) {
     patch.estimateStage = L.ESTIMATE_STAGE_COMPLETED;
@@ -146,24 +169,30 @@ function buildCrmPatch(card, prev, merged, pub, a) {
     patch.lat = Number(merged.lat);
     patch.lng = Number(merged.lon);
   }
-  if (pub.tcpaConsent === true) {
-    patch.tcpaConsent = true;
-    for (const k of ['tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentRenewedAt']) {
-      if (pub[k] !== undefined) patch[k] = pub[k];
-    }
-    if (pub.tcpaConsentWithdrawnAt !== undefined) patch.tcpaConsentWithdrawnAt = a.del;
-  } else if (pub.tcpaConsent === false) {
-    patch.tcpaConsent = false;
-    if (pub.tcpaConsentWithdrawnAt !== undefined) patch.tcpaConsentWithdrawnAt = pub.tcpaConsentWithdrawnAt;
+  // Consent: the card is what the CRM's send gates read, so it follows every
+  // change (and, from the update trigger, any change it missed).
+  if (pub.tcpaConsent !== undefined && c.tcpaConsent !== pub.tcpaConsent) patch.tcpaConsent = pub.tcpaConsent;
+  for (const k of ['tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentRenewedAt', 'tcpaConsentWithdrawnAt']) {
+    if (pub[k] !== undefined && !sameStamp(c[k], pub[k])) patch[k] = pub[k];
   }
-  if (a.stage === L.ESTIMATE_STAGE_COMPLETED) {
+  let notes = typeof c.notes === 'string' ? c.notes : '';
+  let notesChanged = false;
+  if ((pub.address !== undefined || pub.lat !== undefined || pub.lon !== undefined)
+      && notes.split(/\r?\n/).indexOf(LOCATION_CHANGED_NOTE) === -1) {
+    notes = (notes ? notes + '\n' : '') + LOCATION_CHANGED_NOTE;
+    notesChanged = true;
+  }
+  // Finishing: once (a card already marked completed is left alone, so the
+  // inline write and the update trigger can both run this).
+  if (a.stage === L.ESTIMATE_STAGE_COMPLETED && c.estimateStage !== L.ESTIMATE_STAGE_COMPLETED) {
     patch.estimateStage = L.ESTIMATE_STAGE_COMPLETED;
     patch.estimateCompletedAt = a.ts;
-    const prior = typeof c.notes === 'string' ? c.notes : '';
-    const kept = prior.split(/\r?\n/).filter((line) => line !== L.STARTED_ESTIMATE_NOTE).join('\n');
+    const kept = notes.split(/\r?\n/).filter((line) => line !== L.STARTED_ESTIMATE_NOTE).join('\n');
     const lines = ['Finished the estimate on the website.'].concat(L.estimateContextLines(merged));
-    patch.notes = (kept ? kept + '\n' : '') + lines.join('\n');
+    notes = (kept ? kept + '\n' : '') + lines.join('\n');
+    notesChanged = true;
   }
+  if (notesChanged) patch.notes = notes;
   if (!Object.keys(patch).length) return null;
   patch.updatedAt = a.ts;
   return patch;
@@ -175,11 +204,45 @@ function phoneDigits10(v) {
   return d.length === 10 ? d : '';
 }
 
+// Two stored stamps are the same instant (Firestore Timestamps, or the
+// tests' plain {atMs}); a fresh serverTimestamp sentinel never is.
+function sameStamp(x, y) {
+  if (x === y) return true;
+  const ms = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : (v && typeof v.atMs === 'number' ? v.atMs : null));
+  const a = ms(x), b = ms(y);
+  return a != null && a === b;
+}
+
+/**
+ * Patch the CRM card in a transaction (a rep's edit between the read and the
+ * write is never lost). The bridge makes the card on the step-1 create,
+ * normally long before anything changes; if it is not there yet, wait
+ * briefly — never create it here (the bridge's create() would then fail and
+ * lose the lead). → true when the card was found.
+ */
+async function patchCard(db, publicId, build, wait) {
+  const leadRef = db.collection('leads').doc(L.bridgeDocId(COLLECTION, publicId));
+  for (let i = 0; i < CRM_LEAD_TRIES; i++) {
+    if (i) await wait(CRM_LEAD_WAIT_MS);
+    const found = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(leadRef);
+      if (!snap.exists) return false;
+      const patch = build(snap.data() || {});
+      if (patch) tx.update(leadRef, patch);
+      return true;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
 /**
  * Apply one update. → { ok: true, id, crm } | { ok: false, reason }
  * Never throws for a refusal; a Firestore error before the commit is
  * { ok:false, reason:'error' } (the caller then creates as usual). Once the
- * public doc is committed the result is ok even if the CRM card write fails.
+ * public doc is committed the result is ok even if the CRM card write fails:
+ * the estimate_leads update trigger (lead-bridge.js leadBridgeEstimateUpdate)
+ * applies the same card patch again.
  *
  * @param {object} db         Firestore (admin)
  * @param {object} a
@@ -208,7 +271,7 @@ async function applyEstimateUpdate(db, a) {
       const g = gs.exists ? gs.data() : null;
       const nowMs = now();
       const c = checkEstimateGrant(g, nowMs, stage);
-      if (!c.ok) return { refused: c.reason };
+      if (!c.ok) return { refused: c.reason, publicId: g && g.collection === COLLECTION ? String(g.publicId || '') : '' };
       const pubRef = db.collection(COLLECTION).doc(String(g.publicId));
       const ps = await tx.get(pubRef);
       const prev = ps.exists ? (ps.data() || {}) : null;
@@ -229,35 +292,82 @@ async function applyEstimateUpdate(db, a) {
     log.error('estimateFunnel: update failed before commit', { err: e && e.message });
     return { ok: false, reason: 'error' };
   }
-  if (out.refused) return { ok: false, reason: out.refused };
+  if (out.refused) {
+    // The finish already landed and the browser is retrying (its first answer
+    // was lost): answer as before rather than create a duplicate lead
+    // (silent-failure review #2). Nothing is written again.
+    if (out.refused === 'already_finished' && stage === L.ESTIMATE_STAGE_COMPLETED && out.publicId) {
+      log.info('estimateFunnel: finish replayed — same lead', { publicId: out.publicId });
+      return { ok: true, id: out.publicId, crm: false, replay: true };
+    }
+    return { ok: false, reason: out.refused };
+  }
 
-  // The CRM card the bridge made at step 1. Normally there long before
-  // anyone finishes; if not yet, wait briefly — never create it here (that
-  // would make the bridge's create() fail and lose the lead).
   let crm = false;
   try {
-    const leadRef = db.collection('leads').doc(L.bridgeDocId(COLLECTION, out.publicId));
     const merged = Object.assign({}, out.prev, o.data || {});
-    for (let i = 0; i < CRM_LEAD_TRIES && !crm; i++) {
-      if (i) await wait(CRM_LEAD_WAIT_MS);
-      const snap = await leadRef.get();
-      if (!snap.exists) continue;
-      const patch = buildCrmPatch(snap.data() || {}, out.prev, merged, out.patch, Object.assign({ stage }, helpers));
-      if (patch) await leadRef.update(patch);
-      crm = true;
-    }
-    if (!crm) log.warn('estimateFunnel: CRM card not found — public lead updated only', { publicId: out.publicId, stage });
+    crm = await patchCard(db, out.publicId,
+      (card) => buildCrmPatch(card, out.prev, merged, out.patch, Object.assign({ stage }, helpers)), wait);
+    if (!crm) log.warn('estimateFunnel: CRM card not found — public lead updated; the update trigger retries', { publicId: out.publicId, stage });
   } catch (e) {
-    log.error('estimateFunnel: CRM card update failed — public lead updated', { publicId: out.publicId, stage, err: e && e.message });
+    log.error('estimateFunnel: CRM card update failed — public lead updated; the update trigger retries', { publicId: out.publicId, stage, err: e && e.message });
   }
   return { ok: true, id: out.publicId, crm };
 }
 
+/**
+ * Second chance for the card (estimate_leads update trigger): rebuild the same
+ * patch from the stored before/after of the public lead. buildCrmPatch is
+ * idempotent, so running after a successful inline write changes nothing.
+ * → 'skipped' | 'synced' | 'no_card'
+ */
+async function syncCardFromUpdate(db, publicId, before, after, opts) {
+  const o = opts || {};
+  const b = before || {};
+  const af = after || {};
+  // Only started estimates are ever updated this way.
+  if (!L.isStartedEstimate(COLLECTION, b)) return 'skipped';
+  const pub = {};
+  for (const k of UPDATE_FIELDS.concat(['tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentRenewedAt', 'tcpaConsentWithdrawnAt'])) {
+    if (af[k] === undefined) continue;
+    const same = (af[k] && typeof af[k] === 'object') ? sameStamp(af[k], b[k]) : af[k] === b[k];
+    if (!same) pub[k] = af[k];
+  }
+  const stage = af.estimateStage === L.ESTIMATE_STAGE_COMPLETED ? L.ESTIMATE_STAGE_COMPLETED : L.ESTIMATE_STAGE_STARTED;
+  if (!Object.keys(pub).length && stage !== L.ESTIMATE_STAGE_COMPLETED) return 'skipped';
+  const FV = o.FieldValue;
+  const helpers = { ts: FV.serverTimestamp(), del: FV.delete() };
+  const wait = typeof o.wait === 'function' ? o.wait : (ms) => new Promise((r) => setTimeout(r, ms));
+  const found = await patchCard(db, String(publicId), (card) => buildCrmPatch(card, b, af, pub, Object.assign({ stage }, helpers)), wait);
+  return found ? 'synced' : 'no_card';
+}
+
+/**
+ * The finish alert (lead-alert.js leadAlertEstimateFinished): a started
+ * estimate just finished. Joe got the step-1 alert; this tells him they
+ * finished (and, on the OTP-skip path, that they asked for a call). Never a
+ * homeowner message (ack:false). A lead the intake guard marked duplicate or
+ * over the daily cap stays quiet, like its step-1 alert.
+ * → null (not a finish) | { alert:false, reason } | { alert:true, opts }
+ */
+const FINISHED_ESTIMATE_LABEL = 'Instant Estimate (finished)';
+function finishAlertPlan(before, after) {
+  if (!L.isStartedEstimate(COLLECTION, before)) return null;
+  if (String((after || {}).estimateStage || '') !== L.ESTIMATE_STAGE_COMPLETED) return null;
+  const sup = (after || {}).alertSuppressed;
+  if (sup === 'duplicate' || sup === 'volume') return { alert: false, reason: sup };
+  return { alert: true, opts: { ack: false, label: FINISHED_ESTIMATE_LABEL } };
+}
+
 module.exports = {
   applyEstimateUpdate,
+  syncCardFromUpdate,
+  finishAlertPlan,
   isLeadToken,
+  FINISHED_ESTIMATE_LABEL,
+  LOCATION_CHANGED_NOTE,
   _internal: {
     checkEstimateGrant, buildPublicPatch, buildCrmPatch, UPDATE_FIELDS, GRANTS, GRANT_TTL_MS, hashToken,
-    MAX_ESTIMATE_UPDATES, FINISH_WINDOW_MS, CRM_LEAD_TRIES,
+    MAX_ESTIMATE_UPDATES, FINISH_WINDOW_MS, CRM_LEAD_TRIES, sameStamp,
   },
 };
