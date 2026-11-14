@@ -299,6 +299,9 @@ Rules:
 // Per-uid daily counter for AI photo analysis. Tracked separately from
 // claudeProxy budget because vision calls cost more.
 const PHOTO_AI_DAILY_CAP = 100;
+// Per-COMPANY daily cap (2026-11-14, AI audit F3): the per-uid cap alone let
+// a company's spend grow with its seat count. Override: PHOTO_AI_COMPANY_DAILY_CAP.
+const PHOTO_AI_COMPANY_DAILY_CAP = require('../env-number').envCap(process.env.PHOTO_AI_COMPANY_DAILY_CAP, 300);
 
 exports.analyzeRoofPhoto = onRequest(
   {
@@ -350,9 +353,20 @@ exports.analyzeRoofPhoto = onRequest(
       return;
     }
 
-    // Per-uid daily cap
+    // Free accounts get no AI (Joe, 2026-11-14; AI audit F3): a confirmed
+    // email and a paid plan on the company, NBD exempt. Before any counter,
+    // so a refusal spends nothing.
+    const ent = await require('../ai-gate').aiEntitlement(getFirestore(), decoded, decoded.uid);
+    if (!ent.ok) {
+      const { MESSAGES } = require('../ai-gate');
+      res.status(ent.reason === 'plan_check_failed' ? 503 : 403).json({ error: MESSAGES[ent.reason] || MESSAGES.plan });
+      return;
+    }
+
+    // Per-uid and per-company daily caps
     try {
       await enforceRateLimit('analyzeRoofPhoto:uid', decoded.uid, PHOTO_AI_DAILY_CAP, 86_400_000);
+      await enforceRateLimit('analyzeRoofPhoto:co', decoded.companyId || decoded.uid, PHOTO_AI_COMPANY_DAILY_CAP, 86_400_000);
     } catch (e) {
       if (e.rateLimited) {
         res.status(429).json({ error: 'Daily photo analysis limit reached' });

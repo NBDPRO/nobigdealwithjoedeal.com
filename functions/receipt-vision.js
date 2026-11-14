@@ -218,6 +218,9 @@ exports.extractReceiptData = onCall({
     throw new HttpsError('unavailable', 'AI temporarily disabled');
   }
 
+  // Free accounts get no AI (Joe, 2026-11-14; AI audit F4). Before the rate limit.
+  await require('./ai-gate').assertAiEntitled(getFirestore(), request.auth);
+
   // 30 receipts/min/uid — plenty for real use, blocks runaway loops.
   await callableRateLimit(request, 'extractReceiptData', 30, 60_000);
 
@@ -243,19 +246,23 @@ exports.extractReceiptData = onCall({
   // reads capped paying tenants' reps at the 'lite' budget (gauntlet gap).
   // The spend meter itself stays per-uid.
   const billingKey = (request.auth.token && request.auth.token.companyId) || uid;
-  const [userMeterSnap, subSnap] = await Promise.all([
-    userMeterRef.get(),
+  // The monthly cap is the COMPANY's (2026-11-14, AI audit F4), shared with
+  // photo-vision's companyCostMeter; the per-uid meter is still written.
+  const companyMeterRef = db.doc(`companyCostMeter/${billingKey}__${monthKey}`);
+  const [companyMeterSnap, subSnap] = await Promise.all([
+    companyMeterRef.get(),
     db.doc(`subscriptions/${billingKey}`).get(),
   ]);
-  const userUsd = (userMeterSnap.exists && userMeterSnap.data().visionUsd) || 0;
+  const companyUsd = (companyMeterSnap.exists && companyMeterSnap.data().visionUsd) || 0;
   const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
   // Unmapped/legacy/free plans get the most CONSERVATIVE cap, not the $50
   // global mid-range (QA finding).
   var planCaps = Object.values(PER_USER_MONTHLY_USD_CAP_BY_PLAN);
-  const userMonthlyCap = PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] ?? Math.min.apply(null, planCaps);
-  if (userUsd >= userMonthlyCap) {
-    logger.info('receipt-vision.cap.user', { uid, monthKey, userUsd, plan, cap: userMonthlyCap });
-    return { skipped: true, reason: 'user-cap', userUsd, cap: userMonthlyCap };
+  const companyMonthlyCap = Object.prototype.hasOwnProperty.call(PER_USER_MONTHLY_USD_CAP_BY_PLAN, plan)
+    ? PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] : Math.min.apply(null, planCaps);
+  if (companyUsd >= companyMonthlyCap) {
+    logger.info('receipt-vision.cap.company', { uid, billingKey, monthKey, companyUsd, plan, cap: companyMonthlyCap });
+    return { skipped: true, reason: 'company-cap', companyUsd, cap: companyMonthlyCap };
   }
 
   // ── Read the receipt bytes via admin SDK ──
@@ -376,6 +383,12 @@ exports.extractReceiptData = onCall({
   await db.runTransaction(async (tx) => {
     tx.set(userMeterRef, {
       uid, monthKey,
+      visionUsd: FieldValue.increment(callCostUsd),
+      visionCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    tx.set(companyMeterRef, {
+      companyId: billingKey, monthKey,
       visionUsd: FieldValue.increment(callCostUsd),
       visionCount: FieldValue.increment(1),
       updatedAt: FieldValue.serverTimestamp(),

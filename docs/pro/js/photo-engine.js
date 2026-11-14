@@ -3026,6 +3026,7 @@
           const reasonLabel = capReason === 'daily-cap' ? 'daily (100/day)'
                             : capReason === 'lead-cap'  ? 'per-lead ($10)'
                             : capReason === 'user-cap'  ? 'monthly ($50)'
+                            : capReason === 'company-cap' ? 'your company\'s monthly'
                             : 'AI';
           const msg = `Hit ${reasonLabel} cap. Analyzed ${summary.analyzed} — try again later.`;
           showToast(msg, 'info');

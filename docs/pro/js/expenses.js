@@ -663,7 +663,7 @@
         var reason = d && d.reason;
         setScanStatus(
           reason === 'unsupported-format' ? 'That image format can’t be auto-read — enter the details manually.'
-          : reason === 'user-cap' ? 'Monthly AI limit reached — enter the details manually.'
+          : reason === 'user-cap' || reason === 'company-cap' ? 'Monthly AI limit reached — enter the details manually.'
           : 'Couldn’t scan this one — enter the details manually.', 'warn');
         return;
       }

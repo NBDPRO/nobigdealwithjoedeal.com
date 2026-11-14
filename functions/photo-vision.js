@@ -257,30 +257,34 @@ async function classifyPhoto(args) {
     const monthKey = new Date(now()).toISOString().slice(0, 7);
     const leadMeterRef = db.doc(`leadCostMeter/${leadId}`);
     const userMeterRef = db.doc(`userCostMeter/${uid}__${monthKey}`);
+    // The monthly cap is the COMPANY's (2026-11-14, AI audit F4): per uid it
+    // grew with every seat and every fake signup. Shared with receipt-vision.
+    const companyMeterRef = db.doc(`companyCostMeter/${billingKey || uid}__${monthKey}`);
 
     // Plan resolves from the COMPANY's subscription (companyId claim || uid) —
     // an invited rep has no subscriptions/{uid} doc, so keying on uid capped
     // every rep of a paying tenant at the 'lite' budget (gauntlet gap). The
     // per-user spend METERS stay uid-keyed on purpose.
-    const [leadMeterSnap, userMeterSnap, subSnap] = await Promise.all([
+    const [leadMeterSnap, companyMeterSnap, subSnap] = await Promise.all([
       leadMeterRef.get(),
-      userMeterRef.get(),
+      companyMeterRef.get(),
       db.doc(`subscriptions/${billingKey || uid}`).get(),
     ]);
     const leadUsd = (leadMeterSnap.exists && leadMeterSnap.data().visionUsd) || 0;
-    const userUsd = (userMeterSnap.exists && userMeterSnap.data().visionUsd) || 0;
+    const companyUsd = (companyMeterSnap.exists && companyMeterSnap.data().visionUsd) || 0;
     const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
-    const userMonthlyCap = PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] ?? PER_USER_MONTHLY_USD_CAP;
+    const companyMonthlyCap = Object.prototype.hasOwnProperty.call(PER_USER_MONTHLY_USD_CAP_BY_PLAN, plan)
+      ? PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] : PER_USER_MONTHLY_USD_CAP;
 
     if (leadUsd >= PER_LEAD_USD_CAP) {
       logger.info('photo-vision.cap.lead', { leadId, leadUsd, source });
       await release();
       return { skipped: true, reason: 'lead-cap', leadUsd };
     }
-    if (userUsd >= userMonthlyCap) {
-      logger.info('photo-vision.cap.user', { uid, monthKey, userUsd, plan, cap: userMonthlyCap, source });
+    if (companyUsd >= companyMonthlyCap) {
+      logger.info('photo-vision.cap.company', { uid, billingKey: billingKey || uid, monthKey, companyUsd, plan, cap: companyMonthlyCap, source });
       await release();
-      return { skipped: true, reason: 'user-cap', userUsd, cap: userMonthlyCap };
+      return { skipped: true, reason: 'company-cap', companyUsd, cap: companyMonthlyCap };
     }
 
     // ── Cache check ──
@@ -408,6 +412,14 @@ async function classifyPhoto(args) {
         updatedAt:   FieldValue.serverTimestamp(),
       }, { merge: true });
 
+      tx.set(companyMeterRef, {
+        companyId:   billingKey || uid,
+        monthKey,
+        visionUsd:   FieldValue.increment(callCostUsd),
+        visionCount: FieldValue.increment(1),
+        updatedAt:   FieldValue.serverTimestamp(),
+      }, { merge: true });
+
       tx.set(cacheRef, {
         cacheKey,
         suggestion,
@@ -457,6 +469,9 @@ exports.analyzePhotoVision = onCall({
     throw new HttpsError('unavailable', 'AI temporarily disabled');
   }
 
+  // Free accounts get no AI (Joe, 2026-11-14; AI audit F4). Before the rate limit.
+  await require('./ai-gate').assertAiEntitled(getFirestore(), request.auth);
+
   // 100/min/uid — handles a 100-photo batch in ~1 minute with parallel
   // client throttling at 5 concurrent. Generous enough that legitimate
   // workflow never hits it.
@@ -498,6 +513,11 @@ async function handlePhotoCreated(photoId, photo, deps) {
   const killswitch = deps.killswitch || require('./integrations/killswitch');
   if (await killswitch.isAiDisabled()) return { skipped: true, reason: 'ai-disabled' };
   const db = deps.db || getFirestore();
+  // Free accounts get no AI (Joe, 2026-11-14; AI audit F4): the photo
+  // owner's entitlement, from their Auth record (a trigger has no token).
+  const entitled = deps.entitled || ((d, u) => require('./ai-gate').aiEntitlementForUid(d, u));
+  const ent = await entitled(db, photo.userId);
+  if (!ent || !ent.ok) return { skipped: true, reason: 'not-entitled', why: ent && ent.reason };
   return classifyPhoto({
     db,
     photoRef: db.doc(`photos/${photoId}`),
