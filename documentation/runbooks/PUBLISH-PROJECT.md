@@ -196,10 +196,17 @@ you review the PR preview and merge.
    - `build-llms.mjs --write-regions` updates the CASE-STUDIES list in
      `docs/llms.txt` (the newest 12 jobs and the project count). Skip it and
      the Site integrity job and two llms suites go red.
+   - **Bump the `/pro` proof counts by hand.** `docs/pro/index.html` says
+     `<strong>N jobs</strong>` and `<strong>N towns</strong>` in its proof
+     row, and no generator stamps them. Set jobs to the number of entries in
+     `projects.json` and towns to the number of distinct `city` values, then
+     run `node tests/pro-claims-honesty-2026-09-13.test.js` (check 12 fails
+     with the numbers it expects if either is off).
 
 6. **Commit ALL stamped files** — `projects.json`, `our-work.html`, any
    restamped `/services/` hub pages, `homeowner-wall.json`, the new
-   `docs/our-work/<slug>.html` case page, `docs/llms.txt`, plus the new
+   `docs/our-work/<slug>.html` case page, `docs/llms.txt`,
+   `docs/pro/index.html` (if the counts changed), plus the new
    images — one project per commit, message like `Our Work: add <slug>`.
 
 ## AI assist (optional)
