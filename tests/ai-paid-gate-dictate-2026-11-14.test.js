@@ -91,6 +91,7 @@ const SUBS = {
       freeOwner: { emailVerified: true, customClaims: { companyId: 'freeCo', role: 'company_admin' } },
       unconfirmed: { emailVerified: false, customClaims: { companyId: 'paidCo' } },
       disabledRep: { emailVerified: true, disabled: true, customClaims: { companyId: 'paidCo', role: 'sales_rep' } },
+      staleClaimsRep: { emailVerified: true, customClaims: { role: 'sales_rep' } },
       [NBD]: { emailVerified: true, customClaims: {} },
     };
     const getUser = async (u) => { if (!users[u]) throw new Error('auth/user-not-found'); return users[u]; };
@@ -100,6 +101,13 @@ const SUBS = {
     ok('by uid: unconfirmed email → refused', (await byUid('unconfirmed')).reason === 'unverified');
     ok('by uid: NBD → allowed', (await byUid(NBD)).ok === true);
     ok('by uid: a disabled (deactivated) rep of a paid company → refused', (await byUid('disabledRep')).ok === false);
+    const withUsers = makeDb(Object.assign({}, SUBS));
+    const baseDoc = withUsers.doc;
+    withUsers.doc = (p) => (p === 'users/staleClaimsRep'
+      ? { get: async () => ({ exists: true, data: () => ({ companyId: 'paidCo' }) }) }
+      : baseDoc(p));
+    const stale = await G.aiEntitlementForUid(withUsers, 'staleClaimsRep', { getUser });
+    ok('by uid: a rep with no companyId claim falls back to users/{uid}.companyId (paid) → allowed', stale.ok === true, stale);
     ok('by uid: a failed Auth lookup fails closed', (await byUid('nobody')).reason === 'plan_check_failed');
   }
 
