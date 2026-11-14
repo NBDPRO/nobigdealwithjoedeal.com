@@ -29,6 +29,9 @@
  *     itself, is REPORTED and left alone (no guessing a tenant).
  *   • A PERSON MUST READ THE DRY-RUN OUTPUT (every "would stamp" and every
  *     "cannot place" line) before anyone runs --apply.
+ *   • Joe's decision (2026-11-14): this stays a DRY RUN. Joe reviews its
+ *     output first; nobody runs it against production (dry run or --apply)
+ *     without Joe asking for that specific run.
  *   • Writes only `companyId`, with update() (fails if the doc is gone; never
  *     re-creates one), so the invoiced stamp, the money and the provenance
  *     fields are untouched. The Admin SDK skips rules.
