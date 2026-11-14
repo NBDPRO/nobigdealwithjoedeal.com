@@ -571,6 +571,21 @@ exports.visualizerImageGen = onRequest(
       const prompt = buildPrompt(selections);
       const modelForRequest = pickModelForSelections(selections);
 
+      // Whole-endpoint daily cap (2026-11-14, AI audit F7): the per-IP limit
+      // doesn't bound spend for a caller rotating IPs, and each image costs
+      // Replicate credit. Counted only for a valid request, just before the
+      // paid call. Override: VISUALIZER_IMAGEGEN_DAILY_CAP. A limiter-store
+      // failure refuses (503): unknown spend on a public endpoint is "no".
+      try {
+        const cap = require('./env-number').envCap(process.env.VISUALIZER_IMAGEGEN_DAILY_CAP, 60);
+        await require('./integrations/upstash-ratelimit').enforceRateLimit('visualizerImageGen:global', 'GLOBAL_DAILY', cap, 86_400_000);
+      } catch (e) {
+        if (e && e.rateLimited) { res.status(429).json({ error: 'daily_limit' }); return; }
+        logger.error('visualizerImageGen: daily cap check failed', { err: e && e.message });
+        res.status(503).json({ error: 'unavailable' });
+        return;
+      }
+
       const inputDataUrl = 'data:' + mediaType + ';base64,' + imageBase64;
       const result = await generateViaReplicate(prompt, inputDataUrl, modelForRequest);
 
