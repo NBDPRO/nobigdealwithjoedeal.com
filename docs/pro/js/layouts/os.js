@@ -784,7 +784,9 @@
   function placeWin(rec) {
     var el = winEl(rec.id);
     if (!el) return;
-    var f = rec.zone ? WM.zoneFrac(rec.zone) : rec;
+    // a free window is drawn at least 320 x 240 px and moved in from the edge to fit it,
+    // so its title-bar buttons are never clipped (the saved rect is untouched)
+    var f = rec.zone ? WM.zoneFrac(rec.zone) : WM.fitFloor(rec, WM.minFrac(deskSize()));
     el.style.setProperty('--wx', String(f.x));
     el.style.setProperty('--wy', String(f.y));
     el.style.setProperty('--ww', String(f.w));
@@ -942,12 +944,14 @@
     if (anyOpen) {
       // remember what THIS press hid: the second press puts back only those (Windows'
       // Show desktop), not windows the member had minimised before
-      S.shownHid = mine.filter(function (w) { return !w.min; }).map(function (w) { return w.id; });
+      S.shownHid = S.shownHid || {};
+      S.shownHid[S.desk] = mine.filter(function (w) { return !w.min; }).map(function (w) { return w.id; });
       mine.forEach(function (w) { w.min = true; });
     } else {
-      var hid = S.shownHid && S.shownHid.length ? S.shownHid : mine.map(function (w) { return w.id; });
+      var mem = S.shownHid && S.shownHid[S.desk];
+      var hid = mem && mem.length ? mem : mine.map(function (w) { return w.id; });
       mine.forEach(function (w) { if (hid.indexOf(w.id) !== -1) w.min = false; });
-      S.shownHid = null;
+      if (S.shownHid) delete S.shownHid[S.desk];
     }
     S.focus = anyOpen ? null : WM.nextFocus(mine, null);
     paintAllWins();
@@ -1033,6 +1037,10 @@
     m.style.setProperty('--mx', String(Math.max(0, Math.round((Number(x) || 0) - box.left))) + 'px');
     m.style.setProperty('--my', String(Math.max(0, Math.round((Number(y) || 0) - box.top))) + 'px');
     S.deskEl.appendChild(m);
+    // keep it on the desk: a taskbar right-click would open it below the screen edge
+    var mh = m.offsetHeight || 0, mw = m.offsetWidth || 0;
+    if (box.height && mh) m.style.setProperty('--my', String(Math.max(0, Math.min(Math.round((Number(y) || 0) - box.top), Math.round(box.height - mh - 4)))) + 'px');
+    if (box.width && mw) m.style.setProperty('--mx', String(Math.max(0, Math.min(Math.round((Number(x) || 0) - box.left), Math.round(box.width - mw - 4)))) + 'px');
     S.ctxMenu = m; S.ctxAnchor = anchor;
     var first = m.querySelector('button');
     if (first) first.focus();
@@ -1049,9 +1057,10 @@
     }
   }
   function ctxAction(what, id) {
+    // Pin repaints the taskbar: focus goes back to (the replacement of) what was right-clicked
+    if (what === 'pin') { togglePin(id); closeCtxMenu(true); return; }
     closeCtxMenu();
     if (what === 'open') openWin(id, { focus: true });
-    else if (what === 'pin') togglePin(id);
     else if (what === 'close') closeWin(id);
   }
   // Up / Down / Home / End through an open menu's items (role=menu)
@@ -1069,7 +1078,8 @@
   // ── pinned apps (ChromeOS shelf / macOS Dock) ──
   function togglePin(id) {
     if (S.pins.indexOf(id) === -1 && S.pins.length >= WM.MAX_PINS) {
-      toast('The taskbar is full (' + String(WM.MAX_PINS) + ' pinned apps). Unpin one first.', 'info');
+      // 'warning': the answer to a tap, which Do Not Disturb never holds (it holds info / success)
+      toast('The taskbar is full (' + String(WM.MAX_PINS) + ' pinned apps). Unpin one first.', 'warning');
       return;
     }
     S.pins = WM.togglePin(S.pins, id);
@@ -1154,10 +1164,11 @@
       // a size drag stops at the desk edge; past it clampFrac moved x / y instead
       // a size drag stops at the desk edge; past it clampFrac moved x / y instead.
       // It never goes under the pixel floor (WM.minFrac: 320 x 240, or the fraction on a big desk).
+      // The edge wins over the floor, so the window never jumps sideways mid-resize.
       var mf = WM.minFrac(d.desk);
       px = { x: d.start.x, y: d.start.y,
-        w: Math.max(mf.w * d.desk.w, Math.min(d.start.w + dx, d.desk.w - d.start.x)),
-        h: Math.max(mf.h * d.desk.h, Math.min(d.start.h + dy, d.desk.h - d.start.y)) };
+        w: Math.min(d.desk.w - d.start.x, Math.max(mf.w * d.desk.w, d.start.w + dx)),
+        h: Math.min(d.desk.h - d.start.y, Math.max(mf.h * d.desk.h, d.start.h + dy)) };
     }
     var f = WM.toFrac(px, d.desk);
     rec.x = f.x; rec.y = f.y; rec.w = f.w; rec.h = f.h;
@@ -1317,7 +1328,7 @@
     on(desk, 'pointerdown', onDeskPointerDown);
     on(desk, 'contextmenu', function (ev) {
       var it = ev.target.closest && ev.target.closest('[data-ostask], .os-icon');
-      if (!it) return;
+      if (!it || !appById(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'))) return;
       ev.preventDefault();
       // a small menu (Open, Pin / Unpin, Close), not a silent pin toggle (2026-11-14)
       openCtxMenu(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'), it, ev.clientX, ev.clientY);
@@ -1878,6 +1889,7 @@
     S.barEl = bar;
     var st = savedState();
     S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
+    S.rects = st.rects || {};   // carried through a phone visit: writeState saves the whole os key
     S.wins = st.wins;   // kept as-is so a laptop session survives a phone visit
     S.desk = st.desk; S.pins = st.pins;   // the laptop's desk and taskbar pins too; the next save writes them back
     S.focus = st.focus;
@@ -2022,7 +2034,9 @@
     startActs();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
     // …and a window move / resize still inside the 700 ms debounce
-    on(W, 'pagehide', function () { if (saveT && S) { clearTimeout(saveT); saveT = null; writeState(S); } });
+    function flushWins() { if (saveT && S) { clearTimeout(saveT); saveT = null; writeState(S); } }
+    on(W, 'pagehide', flushWins);
+    on(doc, 'visibilitychange', function () { if (doc.visibilityState === 'hidden' || doc.hidden) flushWins(); });
     // settings read after mount (a company home published or locked): show what they say now.
     // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
     S.homeSig = homeSig();
@@ -2058,8 +2072,10 @@
     S.appsT = setTimeout(function () {
       if (!S) return;
       S.apps = readApps();
-      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); refreshHome(); }
+      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); refreshHome(); paintStartMark(); }
     }, 3000);
+    // the system layer (lazy) carries the company mark: repaint the Start button when it is up
+    on(W, 'nbd:os-system-ready', function () { if (S && S.surface !== 'phone') paintStartMark(); });
   }
   function unmount() {
     if (!S) return;

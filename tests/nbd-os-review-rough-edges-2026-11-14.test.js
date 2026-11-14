@@ -78,6 +78,15 @@ console.log('7. Show desktop puts back only what it hid');
   H.click(D.T.dom, show);
   ok('pressing it again restores the two it hid', !D.win('crm').classList.contains('is-min') && !D.win('photos').classList.contains('is-min'));
   ok('…and the one minimised before stays minimised', D.win('money').classList.contains('is-min'));
+  // per desk: Show desktop on desk 2 doesn't overwrite desk 1's memory
+  H.click(D.T.dom, show);   // desk 1: hide crm + photos
+  H.click(D.T.dom, D.doc.querySelector('[data-osdesk="1"]'));
+  D.launch('calls');
+  H.click(D.T.dom, show);   // desk 2: hide calls
+  H.click(D.T.dom, D.doc.querySelector('[data-osdesk="0"]'));
+  H.click(D.T.dom, D.doc.querySelector('[data-osdesk="0"]') && show);
+  ok('Show desktop remembers each desk on its own', !D.win('crm').classList.contains('is-min') && !D.win('photos').classList.contains('is-min') && D.win('money').classList.contains('is-min'),
+    ['crm', 'photos', 'money'].map((id) => id + ':' + D.win(id).classList.contains('is-min')).join(' '));
 }
 
 console.log('8. windows remember their place; new ones never stack exactly');
@@ -99,7 +108,37 @@ console.log('8. windows remember their place; new ones never stack exactly');
   H.click(D.T.dom, D.btn('money', 'max')); H.click(D.T.dom, D.btn('money', 'max'));   // repaint for the spy
   const back = D.win('money').__geo;
   ok('a reopened app comes back at the size it was closed at', Math.abs(back['--ww'] - sized['--ww']) < 0.002 && Math.abs(back['--wh'] - sized['--wh']) < 0.002, JSON.stringify({ sized, back }));
-  ok('…and survives a reload (saved with the layout)', !!(D.lastOs() && D.lastOs().rects && D.lastOs().rects.money), JSON.stringify(D.lastOs() && D.lastOs().rects));
+  const os = D.lastOs();
+  ok('…and is saved with the layout', !!(os && os.rects && os.rects.money), JSON.stringify(os && os.rects));
+  // reload: the saved rect is read back
+  const D2 = desk({ os: Object.assign({}, os, { wins: [], focus: null, idle: true }) });
+  D2.launch('money');
+  D2.spy();
+  H.click(D2.T.dom, D2.btn('money', 'max')); H.click(D2.T.dom, D2.btn('money', 'max'));
+  const g = D2.win('money').__geo;
+  ok('…and a reload opens it at that size (read back, not just written)', Math.abs(g['--ww'] - sized['--ww']) < 0.002, JSON.stringify({ sized, g }));
+  // a phone visit carries them
+  const T = H.makeWin({ surface: 'phone', home: { desk: [], phone: [] } });
+  T.W.location = { hash: '', pathname: '/', search: '' }; T.W.history = { replaceState() {} };
+  const prefs = T.W.LayoutEngine.prefs;
+  T.W.LayoutEngine.prefs = function () { const p = prefs.call(this); p.user.layoutState.os = os; return p; };
+  let pmo = null;
+  T.W.MutationObserver = function (cb) { pmo = this; this.cb = cb; this.observe = () => {}; this.disconnect = () => {}; };
+  T.W._impl.mount({ surface: 'phone' });
+  // the router opens an app on the phone (phoneOpen saves the recents)
+  const pv = T.document.getElementById('view-crm');
+  pv.classList.add('active');
+  if (pmo) pmo.cb([{ target: pv }]);
+  T.fire(0); T.fire(700);
+  const ph = (T.W._saves || []).filter((x) => x.layoutState && x.layoutState.os).map((x) => x.layoutState.os);
+  ok('…and a phone visit keeps them (the phone saves the whole os key)', ph.length > 0 && ph.every((x) => x.rects && x.rects.money), JSON.stringify(ph.map((x) => x.rects)));
+}
+{
+  // the newest rect is kept at the 40 cap
+  let rects = {};
+  for (let i = 0; i < 40; i++) rects = WM.rememberRect(rects, 'app' + i, { x: 0.1, y: 0.1, w: 0.5, h: 0.5 });
+  rects = WM.rememberRect(rects, 'newest', { x: 0.2, y: 0.2, w: 0.4, h: 0.4 });
+  ok('at the cap, the newest app\'s rect is kept', !!rects.newest && Object.keys(rects).length === 40, Object.keys(rects).length);
 }
 {
   const D = desk();
@@ -129,7 +168,14 @@ console.log('9. a pixel floor on window size');
   H.fire(D.T.dom, grip, 'pointerup', { clientX: 0, clientY: 0, pointerId: 4 });
   const g = D.win('crm').__geo;
   ok('a size drag stops at the floor (1280px desk: max(22%, 320px) wide)', g['--ww'] * 1280 >= 319.5, JSON.stringify(g));
-  ok('CSS floor: a window is never narrower than 320px (or the desk)', /\.os-win\s*\{[^}]*min-width:\s*min\(320px,\s*100%\)/.test(CSS));
+  // the floor is applied to the drawn rect (not CSS min-width, which ignores --wx and clipped
+  // a right-edge window's buttons): a tiny saved window at the far right is drawn 320px wide, inside
+  const D2 = desk({ os: { v: 1, wins: [{ id: 'crm', x: 0.9, y: 0.1, w: 0.1, h: 0.2, z: 1, min: false, zone: null, desk: 0 }], focus: 'crm', icons: [], dock: [], recent: [], desk: 0, pins: [] } });
+  D2.spy();
+  H.click(D2.T.dom, D2.btn('crm', 'max')); H.click(D2.T.dom, D2.btn('crm', 'max'));
+  const g2 = D2.win('crm').__geo;
+  ok('a tiny window at the right edge is drawn >= 320px wide and fully on the desk', g2['--ww'] * 1280 >= 319.5 && g2['--wx'] + g2['--ww'] <= 1.0001, JSON.stringify(g2));
+  ok('…no CSS min-width that ignores the window\'s place', !/\.os-win\s*\{[^}]*min-width:\s*min\(/.test(CSS));
 }
 
 console.log('10. right-click is a menu, and the pin limit says so');
@@ -146,6 +192,10 @@ console.log('10. right-click is a menu, and the pin limit says so');
   const pinItem = menu && menu.querySelectorAll('[role="menuitem"]').filter((b) => b.textContent.trim() === 'Pin to taskbar')[0];
   if (pinItem) H.click(D.T.dom, pinItem);
   ok('Pin to taskbar pins it and closes the menu', !!D.doc.querySelector('.os-task.is-pinned[data-ostask="money"]') && !D.doc.querySelector('.os-ctxmenu'));
+  ok('…and focus goes back to the icon (not <body>)', D.doc.activeElement === icon, D.doc.activeElement && D.doc.activeElement.className);
+  const out = D.doc.createElement('div'); D.doc.querySelector('.os-desk').appendChild(out);
+  const ev = H.fire(D.T.dom, out, 'contextmenu');
+  ok('right-click on desk space that is not an app keeps the browser\'s own menu', !ev.defaultPrevented && !D.doc.querySelector('.os-ctxmenu'));
   const task = D.doc.querySelector('.os-task[data-ostask="crm"]');
   H.fire(D.T.dom, task, 'contextmenu');
   const m2 = D.doc.querySelector('.os-ctxmenu');
@@ -169,6 +219,7 @@ function key(D, k, extra) { H.key(D.T.dom, D.doc.activeElement || D.doc.body, k,
   W.toasts.length = 0;
   if (pin) H.click(T.dom, pin);
   ok('pinning a ninth says the taskbar is full (a toast), not nothing', W.toasts.some((t) => /taskbar/i.test(t.msg) && /8|full/i.test(t.msg)), JSON.stringify(W.toasts));
+  ok('…as a warning, which Do Not Disturb never holds', W.toasts.some((t) => /taskbar/i.test(t.msg) && t.kind === 'warning'), JSON.stringify(W.toasts));
 }
 
 console.log('11. Start search keeps the text; arrow keys move');
@@ -215,6 +266,16 @@ console.log('12. a pending save is written on pagehide');
   const s = D.W._saves.filter((x) => x.layoutState && x.layoutState.os);
   ok('pagehide writes the window state at once', s.length === 1 && s[0].layoutState.os.wins[0].zone === 'max', JSON.stringify(s));
 }
+{
+  const D = desk();
+  D.launch('crm');
+  D.W._saves = [];
+  H.click(D.T.dom, D.btn('crm', 'max'));
+  D.doc.visibilityState = 'hidden';
+  (D.doc.listeners.visibilitychange || []).forEach((f) => f({ type: 'visibilitychange' }));
+  const s = D.W._saves.filter((x) => x.layoutState && x.layoutState.os);
+  ok('the tab going hidden writes it too (pagehide is often skipped on iOS)', s.length === 1, s.length);
+}
 
 console.log('13. touch targets on a touchscreen laptop');
 ok('touch sizing keys on any-pointer: coarse (a touchscreen laptop has a fine primary pointer)', /@media \(any-pointer: coarse\)/.test(CSS) && !/@media \(pointer: coarse\)/.test(CSS));
@@ -226,6 +287,11 @@ console.log('14. the Start button wears a real mark');
   const mark = D.doc.querySelector('.os-start-btn .os-start-mark');
   ok('the Start mark is an image (the NBD Pro icon), not an empty orange span', !!mark && !!mark.querySelector('img'), mark && JSON.stringify(mark.children.map((c) => c.tagName)));
   ok('…and the CSS has no orange fill behind an image mark', !/\.os-start-mark\s*\{[^}]*background:\s*var\(--orange\)/.test(CSS));
+  // the system layer comes up later with the company's letters: the Start button follows
+  D.W.NBDOS = { mark: () => ({ kind: 'text', text: 'OR' }), registerControl() {}, unregisterControl() {} };
+  D.W.dispatchEvent(new D.W.CustomEvent('nbd:os-system-ready'));
+  const m2 = D.doc.querySelector('.os-start-btn .os-start-mark');
+  ok('when the system layer comes up, the Start mark shows the company mark', !!m2 && /OR/.test(m2.textContent), m2 && m2.textContent);
 }
 
 console.log('15. the app list follows the claims');

@@ -60,8 +60,7 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
   position: absolute; pointer-events: auto;
   left: calc(var(--wx, .06) * 100%); top: calc(var(--wy, .05) * 100%);
   width: calc(var(--ww, .62) * 100%); height: calc(var(--wh, .78) * 100%); z-index: var(--wz, 1);
-  /* a pixel floor (2026-11-14): the title bar's buttons never clip, even on a tablet */
-  display: flex; flex-direction: column; min-width: min(320px, 100%); min-height: 0;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
   background: var(--s); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br));
   border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-2); overflow: hidden;
   animation: os-win-in var(--ui-dur-enter, 220ms) var(--ui-ease-enter, ease-out);

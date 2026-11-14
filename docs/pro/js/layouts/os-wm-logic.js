@@ -235,8 +235,9 @@
   /** rects with id's free rect remembered (a snap / maximise is not its size). */
   function rememberRect(rects, id, rec) {
     var out = {};
-    Object.keys(rects || {}).forEach(function (k) { if (k !== id) out[k] = rects[k]; });
+    // newest first, so at the cap the oldest app's rect is the one dropped
     out[id] = clampFrac({ x: rec.x, y: rec.y, w: rec.w, h: rec.h });
+    Object.keys(rects || {}).forEach(function (k) { if (k !== id) out[k] = rects[k]; });
     return normRects(out, null) || {};
   }
   /** The first cascade slot (0..5) no window in wins sits in exactly; wraps to 0 when all six are taken. */
@@ -255,6 +256,12 @@
     var w = num(d.w, 0) > 0 ? Math.min(1, 320 / d.w) : MIN_W;
     var h = num(d.h, 0) > 0 ? Math.min(1, 240 / d.h) : MIN_H;
     return { w: Math.max(MIN_W, w), h: Math.max(MIN_H, h) };
+  }
+  /** f drawn at least min (fractions), moved in from the right / bottom edge so it fits. */
+  function fitFloor(f, min) {
+    var w = Math.min(1, Math.max(num(f.w, 0.5), num(min && min.w, MIN_W)));
+    var h = Math.min(1, Math.max(num(f.h, 0.6), num(min && min.h, MIN_H)));
+    return { x: round4(clamp(num(f.x, 0), 0, 1 - w)), y: round4(clamp(num(f.y, 0), 0, 1 - h)), w: round4(w), h: round4(h) };
   }
   /** A desk number 0..DESKS-1; anything else is desk 0. */
   function deskIndex(v) {
@@ -395,7 +402,7 @@
     clampFrac: clampFrac, toPx: toPx, toFrac: toFrac, snapZone: snapZone, zoneFrac: zoneFrac, keySnap: keySnap,
     cascadeFrac: cascadeFrac, front: front, nextFocus: nextFocus, orderApps: orderApps, mergeOrder: mergeOrder, restoreIndex: restoreIndex, normalizeState: normalizeState,
     pages: pages, pushRecent: pushRecent, dockApps: dockApps,
-    rememberRect: rememberRect, freeCascade: freeCascade, minFrac: minFrac,
+    rememberRect: rememberRect, freeCascade: freeCascade, minFrac: minFrac, fitFloor: fitFloor,
     DESKS: DESKS, MAX_PINS: MAX_PINS, BUTTON_STYLES: BUTTON_STYLES, deskIndex: deskIndex, deskCounts: deskCounts,
     taskItems: taskItems, togglePin: togglePin, overviewSlots: overviewSlots, fitInto: fitInto, buttonStyle: buttonStyle,
     pocketKey: pocketKey,
