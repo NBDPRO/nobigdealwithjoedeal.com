@@ -762,6 +762,21 @@ service cloud.firestore {
              == request.auth.token.get('companyId', '');
     }
 
+    // 2026-11-14 (Jo's decision): managers do not delete leads. "Delete lead"
+    // is a SOFT delete (an update that sets deleted / deletedAt), so it rode
+    // the staff branch of the update rule below: a manager could bin any
+    // teammate's lead, which the hard-delete rule never allowed. Setting OR
+    // clearing a soft-delete marker (delete, restore from the Deleted bin;
+    // isDeleted is honoured by some readers too) is now held to the hard-delete
+    // rule's writers: the lead's own non-viewer owner, a company_admin (the
+    // update clause already pins the tenant), or a platform admin. A manager
+    // keeps every other edit. Unchanged markers never trigger the check.
+    function softDeleteWriteOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted'])
+        || request.auth.token.get('role', '') in ['admin', 'company_admin']
+        || (isOwner(resource.data.userId) && notViewer());
+    }
+
     // ── LEADS ─────────────────────────────────────────
     // companyId is required on create. The Rock 3 backfill
     // (PR #56 audit/backfill callable) stamped companyId on every
@@ -808,7 +823,9 @@ service cloud.firestore {
       // shared kanban is fully workable — but provenance is frozen
       // (didNotChange userId/companyId: managers edit content, they don't
       // reassign ownership or re-tenant a lead; reassignment ships as its
-      // own feature). DELETE stays owner + same-company company_admin —
+      // own feature). The soft delete (deleted / deletedAt) is held to the
+      // same writers as DELETE (softDeleteWriteOk, 2026-11-14), so a manager
+      // cannot bin or restore a lead either. DELETE stays owner + same-company company_admin —
       // managers manage the board, only the lead owner or the tenant owner
       // destroys data. Legacy docs without companyId stay owner-only for
       // both (the company clause errors-to-deny on the absent key).
@@ -857,6 +874,7 @@ service cloud.firestore {
           && confirmedSourceWriteOk()
           && openClaimIdOk()
           && projectConsentWriteOk()
+          && softDeleteWriteOk()
           && scheduleWindowOk()
           && portalNoteOk()
         );

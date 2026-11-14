@@ -629,6 +629,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-osteam-test 'node firestore-rules.os-team.test.js'
+      # Lead soft delete (2026-11-14): only the owner side (lead's owner, company_admin, platform admin) sets or clears deleted/deletedAt; managers cannot bin or restore a teammate's lead. Own file (positive controls inside).
+      - name: Run lead soft-delete rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-leaddel-test 'node firestore-rules.lead-soft-delete.test.js'
       # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
       - name: Run job-conflict notice rules tests under emulator
         run: |

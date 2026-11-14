@@ -312,13 +312,18 @@ async function bulkDelete() {
     showToast('No cards selected', 'error');
     return;
   }
+  // Managers do not delete leads (2026-11-14): the rules refuse the soft
+  // delete on a lead the caller may not delete, and one refused update fails
+  // the whole batch. Like commitBulkLeadOp's skip, leave those out and say so.
+  const selectedIds = Array.from(selSet).filter((id) => _mayDeleteLead(id));
+  const _notMine = selSet.size - selectedIds.length;
+  if (!selectedIds.length) { showToast(NO_LEAD_DELETE + ' Nothing was deleted.', 'error'); return; }
 
   const _askDel = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-  if (!(await _askDel(`Delete ${selSet.size} lead(s)? They will be moved to the trash.`))) {
+  if (!(await _askDel(`Delete ${selectedIds.length} lead(s)? They will be moved to the trash.`
+    + (_notMine ? ` ${_notMine} you can't delete will stay.` : '')))) {
     return;
   }
-
-  const selectedIds = Array.from(selSet);
 
   // writeBatch is atomic + 1 round-trip vs N for a serial loop. Caps
   // at 500 ops per batch (Firestore hard limit). Joe's biggest manual
@@ -636,7 +641,28 @@ function editLead(id){
 // Delete lead — soft delete with confirm modal
 let _pendingDeleteId = null;
 
+// Who may soft-delete / restore a lead (2026-11-14, Jo: managers do not
+// delete leads): the client mirror of firestore.rules softDeleteWriteOk() —
+// a platform admin, a company_admin of the lead's tenant, or the lead's own
+// non-viewer owner. Claims not loaded yet, or a lead not in window._leads:
+// true, and the rules decide (the failure toast still tells). Also read by
+// kanban-context-menu.js (window.nbdMayDeleteLead). Lives here, not in
+// role-gate.js, because role-gate boots on customer.html too, whose shipped
+// boot budget has no room left.
+const NO_LEAD_DELETE = 'Only the lead’s owner or a company admin can delete or restore this lead.';
+function _mayDeleteLead(idOrLead) {
+  const c = window._userClaims;
+  const lead = (idOrLead && typeof idOrLead === 'object') ? idOrLead
+    : (window._leads||[]).find(l => l && l.id === idOrLead);
+  if (!c || !lead) return true;
+  const uid = window._user && window._user.uid;
+  return c.role !== 'viewer' && (c.role === 'admin'
+    || (c.role === 'company_admin' && !!c.companyId && lead.companyId === c.companyId)
+    || (!!uid && lead.userId === uid));
+}
+
 function deleteLead(id) {
+  if (!_mayDeleteLead(id)) { showToast(NO_LEAD_DELETE, 'error'); return; }
   const lead = (window._leads||[]).find(l=>l.id===id);
   const name = lead ? (((lead.firstName||'')+' '+(lead.lastName||'')).trim() || lead.address || 'This Lead') : 'This Lead';
   showDeleteConfirm(id, name);
@@ -672,6 +698,7 @@ async function confirmDeleteLead() {
   const overlay = document.getElementById('delConfirmOverlay');
   if (overlay) overlay.classList.remove('open');
   _pendingDeleteId = null;
+  if (!_mayDeleteLead(id)) { showToast(NO_LEAD_DELETE, 'error'); return; }
   try {
     // _deleteLead resolves true only when the soft-delete write landed. Check
     // === true, not truthiness of "it resolved": an older callee resolved
@@ -734,8 +761,11 @@ async function renderDeletedDrawer() {
     const _uid = window._user && window._user.uid;
     const _own = !!_uid && l.userId === _uid && _c.role !== 'viewer';
     const _sameCo = !!_c.companyId && l.companyId != null && l.companyId === _c.companyId;
-    const canRestore = _c.role === 'admin' || _own || ((_c.role === 'company_admin' || _c.role === 'manager') && _sameCo);
     const canRemove = _c.role === 'admin' || _own || (_c.role === 'company_admin' && _sameCo);
+    // Restore clears the same soft-delete markers, so it has the same writers
+    // as Remove (firestore.rules softDeleteWriteOk, 2026-11-14): a manager no
+    // longer restores a teammate's lead.
+    const canRestore = canRemove;
     const _btns = (canRestore ? `<button type="button" class="dc-restore nbd-dc-restore" data-id="${safeId}">Restore</button>` : '')
       + (canRemove ? `<button type="button" class="dc-perm nbd-dc-perm" data-id="${safeId}" data-name="${name}">Remove</button>` : '');
     return `<div class="deleted-card" id="dc-${safeId}">
@@ -978,6 +1008,7 @@ window.sendFollowUpSMS = async function(leadId) {
 // the names are IIFE-scoped); this file owns its window surface.
 window.editLead = editLead;                        // crm-pipeline.js:351 (bare), dashboard-actions/bootstrap, kanban-context-menu
 window.deleteLead = deleteLead;                    // kanban-context-menu.js:273 (window.deleteLead)
+window.nbdMayDeleteLead = _mayDeleteLead;          // kanban-context-menu.js (hides Delete lead)
 window.showDeleteConfirm = showDeleteConfirm;      // maps-overlays.js:358 (bare) — was only a classic auto-global before
 window.toggleCardSelection = toggleCardSelection;  // crm-pipeline.js:2007
 window.clearBulkSelection = clearBulkSelection;    // lead-snooze.js:773 (direct window.clearBulkSelection()) — stays allowlisted too

@@ -78,7 +78,10 @@ function slice(src, start, endAt) {
     const asViewer = await run({ uid: 'u1', claims: { role: 'viewer', companyId: 'co' }, docs: bin });
     ok('a viewer sees the bin but no Restore / Remove at all', !/nbd-dc-restore|nbd-dc-perm/.test(asViewer.html) && /teammate|deleted-card/.test(asViewer.html));
     const asMgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' }, docs: bin });
-    ok('a manager can Restore a teammate\'s lead but not Remove it (rules: delete is company_admin)', btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove);
+    // 2026-11-14 (Jo: managers do not delete leads): Restore clears the soft-delete
+    // markers, which firestore.rules softDeleteWriteOk now holds to the delete
+    // rule's writers, so a manager gets neither on a teammate's lead.
+    ok('a manager can neither Restore nor Remove a teammate\'s lead (rules: softDeleteWriteOk / delete)', !btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove && /teammate/.test(asMgr.html));
     ok('…and keeps both on their own lead (positive control)', btns(asMgr.html, 'mine').restore && btns(asMgr.html, 'mine').remove);
     const asAdmin = await run({ uid: 'u1', claims: { role: 'company_admin', companyId: 'co' }, docs: bin });
     ok('a company_admin keeps both on a teammate\'s lead', btns(asAdmin.html, 'teammate').restore && btns(asAdmin.html, 'teammate').remove);

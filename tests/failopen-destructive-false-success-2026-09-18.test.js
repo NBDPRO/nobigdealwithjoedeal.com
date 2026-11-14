@@ -311,7 +311,9 @@ console.log('\n3. crm-portal-bridge.js confirmDeleteLead / permanentDeleteLead â
       refreshTrashBadge: () => { calls.badge++; },
       renderDeletedDrawer: async () => { calls.drawer++; },
     });
-    vm.runInContext('let _pendingDeleteId = null;\n' + showSrc + '\n' + confirmSrc + '\n' + permSrc
+    // confirmDeleteLead's role check (2026-11-14); with no window._userClaims it allows.
+    const roleSrc = (BRIDGE.match(/^const NO_LEAD_DELETE = [^\n]*;$/m) || [''])[0] + '\n' + lift(BRIDGE, 'function _mayDeleteLead(');
+    vm.runInContext('let _pendingDeleteId = null;\n' + roleSrc + '\n' + showSrc + '\n' + confirmSrc + '\n' + permSrc
       + '\n;this.__show = showDeleteConfirm; this.__confirm = confirmDeleteLead; this.__perm = permanentDeleteLead;',
       ctx, { filename: 'crm-portal-bridge.lifted.js' });
     return { calls, els, show: ctx.__show, confirm: ctx.__confirm, perm: ctx.__perm };
