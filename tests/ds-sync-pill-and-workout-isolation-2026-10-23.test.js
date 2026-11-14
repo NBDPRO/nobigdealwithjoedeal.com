@@ -81,6 +81,8 @@ function boot(o) {
         },
       };
     },
+    // the sync reads from the server only (audit 2026-11-14 #4): same stubs under the names it now calls
+    get getDocFromServer() { return this.getDoc; }, get getDocsFromServer() { return this.getDocs; },
     serverTimestamp: () => 'ts', connectEmulatorsIfLocal: async () => {},
   };
   const body = SYNC_SRC.replace(/^import [\s\S]*?from '[^']+';\n/gm, '');

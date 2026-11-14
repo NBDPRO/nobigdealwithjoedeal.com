@@ -12,7 +12,7 @@
 import { initializeApp, getApps } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, getDocs,
+  getFirestore, doc, getDocFromServer, setDoc, getDocsFromServer,
   collection, writeBatch, serverTimestamp
 } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '/pro/js/nbd-emulator-connect.js';
@@ -220,7 +220,10 @@ async function pushToFirestore(pages) {
 async function pullFromFirestore() {
   if (!_uid) return null;
   try {
-    const snap = await getDocs(collection(db, 'users', _uid, 'ds_pages'));
+    // From the SERVER (audit 2026-11-14 #4): offline, a plain getDocs resolves an EMPTY snapshot from the cache instead of failing,
+    // and the merge below then queued every local page over the cloud (undoing other devices' deletes and newer edits on reconnect).
+    // Offline this now fails: the chip says so and the 'online' retry pulls before it pushes.
+    const snap = await getDocsFromServer(collection(db, 'users', _uid, 'ds_pages'));
     const pages = [];
     snap.forEach(d => { const data = d.data(); delete data._uid; delete data._updatedAt; delete data.deletedAt; pages.push(data); });
     return pages;
@@ -254,7 +257,7 @@ async function pushSettings() {
 // Returns true when a cloud copy was restored into localStorage.
 async function syncSettings() {
   let cloudDoc = {};
-  try { const snap = await getDoc(doc(db, 'userSettings', _uid)); cloudDoc = snap.exists() ? (snap.data() || {}) : {}; }
+  try { const snap = await getDocFromServer(doc(db, 'userSettings', _uid)); cloudDoc = snap.exists() ? (snap.data() || {}) : {}; }
   catch (e) { return false; }
   let restored = false, needPush = false;
   for (const s of SETTINGS) {
@@ -284,7 +287,7 @@ async function syncWorkouts() {
   if (!_uid || !window.NBDCoach || !L()) return;
   const cloud = [];
   // A failed read propagates (no silent skip): the chip must not say synced over a workout sync that did not happen.
-  const snap = await getDocs(collection(db, 'users', _uid, 'ds_workouts'));
+  const snap = await getDocsFromServer(collection(db, 'users', _uid, 'ds_workouts'));   // server only, same reason as the pages pull
   snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
   const merged = window.NBDCoach.mergeSessions(readJson(WKEY, []), cloud);
   // A full / private-mode localStorage must not abort the cloud pushes below; the failure is rethrown at the end so the caller shows it.
