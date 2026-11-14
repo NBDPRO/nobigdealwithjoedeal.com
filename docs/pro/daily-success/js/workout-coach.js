@@ -752,7 +752,8 @@
     // A set with reps typed counts even if ✓ was never tapped.
     live.exercises.forEach((x) => (x.sets || []).forEach((st) => { if (parseFloat(st.reps) > 0) st.done = true; }));
     const now = Date.now();
-    const day = live.firstSetDay || live.date || today();
+    // No set was logged before Finish (reps pre-filled from the target, ticked by Finish): it was done today.
+    const day = live.firstSetDay || today();
     // Filed under a later day than it was built for: time it from the first set, not from the night before.
     const startedAt = day !== live.date && live.firstSetAt ? live.firstSetAt : live.startedAt;
     const session = {

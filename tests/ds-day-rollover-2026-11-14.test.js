@@ -51,6 +51,16 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     ok('typing reps (no ✓) next morning also files it under the morning', h.saved()[0] && h.saved()[0].date === '2026-11-14', JSON.stringify(h.saved().map((s) => s.date)));
   }
 
+  {
+    // reps pre-filled from the target and never ticked or typed: Finish ticks them, so nothing marked the first set
+    const h = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-11-13' });
+    h.click('start');
+    const live = h.live(); live.exercises[0].sets[0].reps = '8'; h.store.set('nbd_ds_coach_live', JSON.stringify(live));
+    const h2 = makeHarness({ storage: { nbd_ds_workouts: [], nbd_ds_coach_live: live }, today: '2026-11-14' });
+    h2.click('finish');
+    ok('Finish the next morning with only pre-filled reps files it under that morning', h2.saved()[0] && h2.saved()[0].date === '2026-11-14', JSON.stringify(h2.saved().map((s) => s.date)) + ' ' + JSON.stringify(h2.toasts));
+  }
+
   console.log('\n#10 the page left open past midnight');
   let chromium, start;
   try { ({ chromium } = require('playwright')); ({ start } = require('./lib/demo-hosting-server.js')); }
@@ -81,7 +91,11 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
     await page.waitForTimeout(400);
     const st = await page.evaluate(() => ({ dk: cur >= 0 && pages[cur] ? pages[cur].dk : null, today: todayKey(), days: pages.map((p) => p.dk) }));
-    ok('coming back the next morning shows Nov 14 (a new day page), not yesterday', st.dk === '2026-11-14' && st.days.includes('2026-11-14'), JSON.stringify(st));
+    ok('coming back the next morning no longer shows yesterday as the open day: the Dash, with today\'s card', st.dk === null && await page.evaluate(() => cur === -1), JSON.stringify(st));
+    ok('...and no Nov 14 page is made before the cloud pull (another device may already have one)', !st.days.includes('2026-11-14'), JSON.stringify(st.days));
+    await page.click('#main .nu-today [data-nu="open-today"]');
+    await page.waitForTimeout(300);
+    ok('"Open today" then opens Nov 14', await page.evaluate(() => pages[cur] && pages[cur].dk) === '2026-11-14');
     await page.evaluate(() => { const f = getFloors()[0]; toggleFloor(f.id); flushDirty(); });
     const where = await page.evaluate(() => { const ps = JSON.parse(localStorage.getItem('nbd_dsp_v1')); const id = getFloors()[0].id; return ps.filter((p) => p.data && p.data['floormet-' + id] === '1').map((p) => p.dk); });
     ok('a floor tick then lands on Nov 14, not Nov 13', JSON.stringify(where) === '["2026-11-14"]', JSON.stringify(where));
@@ -102,6 +116,13 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     await p2.evaluate(() => { document.dispatchEvent(new Event('visibilitychange')); });
     await p2.waitForTimeout(400);
     ok('control: an older day Jo was reading stays open', await p2.evaluate(() => pages[cur] && pages[cur].dk) === '2026-11-12');
+    // today's page already on the phone (e.g. pulled from the laptop): coming back on yesterday's page moves straight to it
+    await p2.evaluate(() => { pages.push(mkPage('2026-11-14'), mkPage('2026-11-15')); savePages(); switchTo(pages.findIndex((p) => p.dk === '2026-11-14')); });
+    const from = await p2.evaluate(() => pages[cur].dk);
+    await p2.clock.setSystemTime(new Date(2026, 10, 15, 7, 0, 0));
+    await p2.evaluate(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    await p2.waitForTimeout(400);
+    ok('a today page that already exists is opened on return (from ' + from + ')', await p2.evaluate(() => pages[cur] && pages[cur].dk) === '2026-11-15' && await p2.evaluate(() => pages.filter((p) => p.dk === '2026-11-15').length) === 1);
     await ctx2.close();
   } finally { await browser.close(); if (srv.close) srv.close(); }
   finish();
