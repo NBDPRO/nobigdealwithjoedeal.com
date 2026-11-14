@@ -480,6 +480,7 @@
     "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
+    "stripe-ledger-connect-skip-2026-11-14.test.js",
     "care-plan-2026-10-05.test.js",
     "twilio-line-2026-10-06.test.js",
     "billing-state-2026-11-06.test.js",
