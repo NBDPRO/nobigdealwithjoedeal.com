@@ -615,7 +615,7 @@
       : '<div class="wc-hint">No new PRs this time — the targets are set for next time.</div>';
     return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
       <div class="wc-title">${esc(r.label)} day done ✓</div><span></span></div>
-      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div><div><b>${r.minutes}</b> min</div></div>
+      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div>${r.minutes ? `<div><b>${r.minutes}</b> min</div>` : ''}</div>
       ${recapHtml(r.recap)}
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
@@ -755,7 +755,9 @@
     // No set was logged before Finish (reps pre-filled from the target, ticked by Finish): it was done today.
     const day = live.firstSetDay || today();
     // Filed under a later day than it was built for: time it from the first set, not from the night before.
-    const startedAt = day !== live.date && live.firstSetAt ? live.firstSetAt : live.startedAt;
+    // Moved to a later day with no logged set to time it from: the start is unknown (0), not the night before (an hours-long
+    // "workout"). History already shows no minutes for that; the summary and the day page's duration skip it too.
+    const startedAt = day === live.date ? live.startedAt : (live.firstSetAt || 0);
     const session = {
       id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
@@ -769,7 +771,7 @@
     const wrotePage = writeToPage(session);
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
-      minutes: Math.max(1, Math.round((now - (startedAt || now)) / 60000)),
+      minutes: startedAt ? Math.max(1, Math.round((now - startedAt) / 60000)) : null,
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
@@ -797,7 +799,7 @@
       // Drop the page's ex-N-* mirror of the old list; the next collect rebuilds it.
       Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
       if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
-      if (!String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
+      if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
       window.savePages();
       if (typeof window.renderPage === 'function') window.renderPage();
       return true;

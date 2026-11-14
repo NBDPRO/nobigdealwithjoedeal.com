@@ -59,6 +59,7 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     const h2 = makeHarness({ storage: { nbd_ds_workouts: [], nbd_ds_coach_live: live }, today: '2026-11-14' });
     h2.click('finish');
     ok('Finish the next morning with only pre-filled reps files it under that morning', h2.saved()[0] && h2.saved()[0].date === '2026-11-14', JSON.stringify(h2.saved().map((s) => s.date)) + ' ' + JSON.stringify(h2.toasts));
+    ok('...without a start time from the night before (no hours-long duration): the duration is left unknown', h2.saved()[0] && !h2.saved()[0].startedAt && !/null min|\d{3,} min/.test(h2.html()), String(h2.saved()[0] && h2.saved()[0].startedAt) + ' ' + (h2.html().match(/<b>[^<]*<\/b> min/) || [''])[0]);
   }
 
   console.log('\n#10 the page left open past midnight');
