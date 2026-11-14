@@ -4745,7 +4745,8 @@
   //   • not floored → null, a fresh builder's "none set" (its old floor, if
   //     any, is unknowable). One edge stays: an old PER-SQ doc priced under
   //     the shop's per-SQ roof minimum by a lower preset floor re-floors at
-  //     that roof minimum on its first edit — see the PR for Joe's call.
+  //     that roof minimum on its first edit (the conservative choice, decided
+  //     2026-11-14).
   // Never left as is: that would keep the previous session's value.
   function _savedMinJobCharge(doc, passThru) {
     if (doc.minJobCharge !== undefined) {
