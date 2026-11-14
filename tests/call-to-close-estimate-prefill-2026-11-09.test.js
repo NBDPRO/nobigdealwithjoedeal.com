@@ -325,9 +325,15 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     ok('× on the tier chip → back to better, chip gone', st().tier === 'better' && !CP().applied().some((a) => a.key === 'tier'));
     // A template tap: the rep acts, so the builder may autosave from here on.
     const before = (st().scope || []).length;
+    // spy on the real insertIntoV2 (2026-11-14: this check now carries the dropped
+    // "inserts templates only through insertIntoV2" source pin from section E)
+    const realInsert = W.JobTemplates.insertIntoV2, inserted = [];
+    W.JobTemplates.insertIntoV2 = function (...a) { inserted.push(a[0]); return realInsert.apply(this, a); };
     const r = CP().template(tpls[0].id);
     await tick(600);
-    ok('a template tap goes through JobTemplates.insertIntoV2 and lands priced scope lines', (st().scope || []).length > before && r && r.added > 0, r);
+    W.JobTemplates.insertIntoV2 = realInsert;
+    ok('a template tap goes through JobTemplates.insertIntoV2 and lands priced scope lines',
+      inserted.length === 1 && (st().scope || []).length > before && r && r.added > 0, { inserted: inserted.length, r });
     const est = V2._test.effectiveEstimate();
     ok('…the engine prices it (a total in dollars, money stays numeric)', est && typeof est.total === 'number' && est.total > 0, est && est.total);
     ok('after the rep\'s own tap the normal autosave resumes (their work is kept)', env.store[DRAFT_KEY] !== undefined);
@@ -688,7 +694,9 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
   //     "a hostile brief: rawSqft, every measurement, … untouched"
   //   never writes Firestore → B, "no Firestore write of any kind"
   //   templates only through insertIntoV2 → B, "a template tap goes through
-  //     JobTemplates.insertIntoV2" and "no template inserted by itself"
+  //     JobTemplates.insertIntoV2" (spies on it since 2026-11-14) and "…the engine
+  //     prices it"; a template inserted at open reddens B's "choices set" and the
+  //     hostile-brief "…untouched" checks (mutation-proved 2026-11-14)
   //   no inline handler → tests/csp-inline-lint-2026-11-14.test.js (every docs/ JS file)
   //   the sheet's ?lead=&callBrief= link → D, "on the customer page it goes to the dashboard deep link"
   //   callBriefDecide accepts draft:estimate → tests/call-brief-callable-2026-11-09.test.js
@@ -731,7 +739,8 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     // Behaviour: the strip escapes the caller's words, and carries no style or handler attribute.
     if (V2 && CP()) {
       const evil = clone(BRIEF);
-      evil.scope.tierInterest = { value: 'best', quote: '<img src=x onerror=alert(1)>"><b>hi</b>' };
+      // markup AND an attribute break-out: the quote must stay inside its own title
+      evil.scope.tierInterest = { value: 'best', quote: 'x" onmouseover="alert(1)" data-x=\'y\' <img src=x onerror=alert(1)>"><b>hi</b>' };
       leads([{ id: 'L20', firstName: 'Eve', lastName: 'X', address: '9 Elm St', jobType: '' }]);
       W.openEstimateV2Builder({ leadId: 'L20' });
       await tick(450);
@@ -740,8 +749,9 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       await tick(600);
       const tree = K.parseTags(CP().panelHtml());
       const tierChip = tree.all.find((e) => (e.attrs.title || '').includes('onerror'));
-      ok('…escapes what it shows: the hostile quote is text in a title, never an <img> or <b> element',
-        tree.$$('img, b').length === 0 && !!tierChip && tierChip.attrs.title.includes('<img src=x onerror=alert(1)>'), CP().panelHtml().slice(0, 300));
+      ok('…escapes what it shows: the hostile quote is whole text in one title (no break-out attribute), never an <img> or <b> element',
+        tree.$$('img, b').length === 0 && !!tierChip && tierChip.attrs.title.includes('x" onmouseover="alert(1)" data-x=\'y\' <img src=x onerror=alert(1)>')
+          && !Object.keys(tierChip.attrs).some((k) => /^on|^data-x$/.test(k)), CP().panelHtml().slice(0, 300));
       ok('…the parser would have found an injected element (control)', K.parseTags('<span title="x"><img src=x></span>').$$('img').length === 1);
       const attrs = tree.all.flatMap((e) => Object.keys(e.attrs));
       ok('…no style attribute and no on* handler in the strip it renders', tree.all.length > 5 && !attrs.includes('style') && !attrs.some((a) => /^on/.test(a)), attrs.filter((a) => a === 'style' || /^on/.test(a)));
@@ -758,8 +768,9 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
     K.loadInVm('injectCss', { document: fakeDoc }, { src: { injectCss: K.sliceFn(K.read('docs/pro/js/estimate-v3-wizard.js'), 'injectCss') + '\ninjectCss();' } });
     const v3css = K.cssRules(made[0].textContent);
     const closed = K.cssRule(v2css, '.v2-call summary::after'), opened = K.cssRule(v2css, '.v2-call[open] summary::after');
+    const glyph = (r) => K.cssString(r && r.content);   // "\25BE" and '▾' are the same glyph
     ok('the folded strip shows it can open (a chevron on the summary, which display:flex strips of its marker), closed and open differ',
-      !!closed && !!opened && /\S/.test(closed.content || '') && /\S/.test(opened.content || '') && closed.content !== opened.content, { closed, opened });
+      !!glyph(closed) && !!glyph(opened) && glyph(closed) !== glyph(opened), { closed, opened });
     // Review 2026-11-09 (builder-2-strip-open-desktop): in the V3 wizard the
     // step body is a centred 560 px column, so a full-width strip sat apart
     // from the builder at desktop width. It takes the same column.
@@ -768,11 +779,15 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       !!body && !!wrap && /^\d+px$/.test(body['max-width']) && wrap['max-width'] === body['max-width'] && wrap.margin === body.margin && /\bauto\b/.test(wrap.margin) && wrap['box-sizing'] === 'border-box', { body, wrap });
 
     // The held bootstrap's deep-link branch, run as written with ?lead= set.
-    const boot = K.read('docs/pro/js/dashboard-bootstrap.module.js');
-    const at = boot.indexOf('if (estParam && !editId)');
+    // Located in a comment-blanked copy (same offsets), so a commented-out copy can't be the one run.
+    // The anchor is the statement's head; renaming estParam/editId fails here, loudly, not vacuously.
+    const boot = K.blankComments(K.read('docs/pro/js/dashboard-bootstrap.module.js'));
+    const heads = [...boot.matchAll(/if \(\s*(?:estParam && !editId|!editId && estParam)\s*\)\s*\{/g)];
+    const at = heads.length === 1 ? heads[0].index : -1;
     const end1 = at === -1 ? -1 : K.matchBrace(boot, boot.indexOf('{', at));
     const end2 = end1 === -1 ? -1 : K.matchBrace(boot, boot.indexOf('{', end1 + 1));
-    ok('the held bootstrap\'s ?lead= / ?est= branch was found', at !== -1 && end2 > end1 && /^\s*else\s*\{/.test(boot.slice(end1 + 1)));
+    const found = at !== -1 && end2 > end1 && /^\s*else\s*\{/.test(boot.slice(end1 + 1));
+    ok('the held bootstrap\'s ?lead= / ?est= branch was found, once', found, heads.length);
     const runBranch = async (leadParam, hasV2) => {
       const opened = [], started = [];
       const w = {};
@@ -782,7 +797,8 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       await c.__p;
       return { opened, started };
     };
-    const a = await runBranch('L7', true), b = await runBranch('', true), c = await runBranch('L8', false);
+    const none = { opened: [], started: [] };
+    const a = found ? await runBranch('L7', true) : none, b = found ? await runBranch('', true) : none, c = found ? await runBranch('L8', false) : none;
     ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', JSON.stringify(a.opened) === '[{"leadId":"L7"}]' && a.started.length === 0, a);
     ok('…no lead: the builder opens with nothing; no builder: the classic path keeps the lead', JSON.stringify(b.opened) === '[{}]' && JSON.stringify(c.started) === '["L8"]', { b, c });
   }

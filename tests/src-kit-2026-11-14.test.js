@@ -132,6 +132,11 @@ section('cssRules / cssRule');
   ok('a ; or } inside a string value does not split it', K.cssRule(css, '.d', { media: 'max-width' }).content === '"};{"');
   ok('@supports is walked, @keyframes is not a rule', K.cssRule(css, '.g') && K.cssRule(css, '.g').display === 'grid' && K.cssRule(css, 'from', { media: '*' }) === null);
   ok('no match is null (so .prop throws on a typo)', K.cssRule(css, '.zzz') === null);
+  ok('cssString decodes quotes and \\XXXX escapes (same glyph, two spellings)',
+    K.cssString('"\\25BE"') === '▾' && K.cssString("'▾'") === '▾' && K.cssString('"\\25B8 "') === '▸' && K.cssString('"a\\"b"') === 'a"b' && K.cssString(undefined) === '');
+  const blanked = K.blankComments("a(); // x\n/* y\n z */ b('//not');");
+  ok('blankComments keeps offsets and newlines, leaves strings alone',
+    blanked.length === "a(); // x\n/* y\n z */ b('//not');".length && blanked.split('\n').length === 3 && !/[xyz]/.test(blanked) && blanked.includes("b('//not')"));
 }
 
 section('esmImports');

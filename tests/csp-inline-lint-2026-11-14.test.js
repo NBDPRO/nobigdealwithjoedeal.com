@@ -57,7 +57,10 @@ function htmlViolations(html) {
   return out;
 }
 // an attribute inside an emitted tag: `<tag … onclick="` (quote may be escaped)
-const JS_HANDLER = /<[a-zA-Z][\w-]*\b[^<>]*?\son[a-z]{3,}\s*=\s*(?:\\?["'`]|[^\s>]*\()/g;
+// (any case: HTML attribute names are case-insensitive, so ONCLICK= runs too)
+const JS_HANDLER = /<[a-zA-Z][\w-]*\b[^<>]*?\son[a-z]{3,}\s*=\s*(?:\\?["'`]|[^\s>]*\()/gi;
+// an unquoted value with no call in it (`ONCLICK=go`): only for real event names, so `online=1` is not flagged
+const JS_HANDLER_BARE = /<[a-zA-Z][\w-]*\b[^<>]*?\son(?:click|dblclick|mouse\w+|key\w+|load|error|change|input|submit|focus\w*|blur|touch\w+|pointer\w+|drag\w*|drop|scroll|wheel|contextmenu|resize|reset|select|toggle|abort|animation\w+|transition\w+|play|pause|ended|beforeunload|unload)\s*=\s*[^\s>"'`\\(]+[\s>]/gi;
 const JS_JSURL = /<[a-zA-Z][\w-]*\b[^<>]*?\s(?:href|src|action|formaction)\s*=\s*\\?["'`]?\s*javascript:/gi;
 const JS_SETATTR = /setAttribute\(\s*["'`]on[a-z]+["'`]|setAttribute\(\s*["'`](?:href|src|action)["'`]\s*,\s*["'`]\s*javascript:/gi;
 /** Violations in one JS file's text: [{ line, what }]. */
@@ -65,10 +68,15 @@ function jsViolations(code) {
   const s = K.stripJsComments(code);
   const out = [];
   const lineOf = (i) => s.slice(0, i).split('\n').length;
-  for (const [re, what] of [[JS_HANDLER, 'emitted inline handler'], [JS_JSURL, 'emitted javascript: URL'], [JS_SETATTR, 'setAttribute handler / javascript: URL']]) {
+  const seen = new Set();
+  for (const [re, what] of [[JS_HANDLER, 'emitted inline handler'], [JS_HANDLER_BARE, 'emitted inline handler'], [JS_JSURL, 'emitted javascript: URL'], [JS_SETATTR, 'setAttribute handler / javascript: URL']]) {
     re.lastIndex = 0;
     let m;
-    while ((m = re.exec(s))) out.push({ line: lineOf(m.index), what: what + ': ' + m[0].slice(0, 70) });
+    while ((m = re.exec(s))) {
+      if (seen.has(what + '@' + m.index)) continue;   // one tag caught by both handler patterns counts once
+      seen.add(what + '@' + m.index);
+      out.push({ line: lineOf(m.index), what: what + ': ' + m[0].slice(0, 70) });
+    }
   }
   return out;
 }
@@ -107,9 +115,11 @@ section('the detectors catch what they claim (positive controls) and nothing els
     "el.setAttribute('onclick', 'go()');",
     "a.setAttribute('href', 'javascript:x()');",
     "h += '<div onmouseover=go()>';",
+    "h += '<button ONCLICK=go>';",
+    "h += '<a OnClick=\"go()\">';",
   ].join('\n'));
-  ok('JS: emitted handlers ("…", `…`, escaped \\\'…\\\', bare call), emitted javascript: URLs, setAttribute — all 7',
-    jsBad.length === 7, JSON.stringify(jsBad));
+  ok('JS: emitted handlers ("…", `…`, escaped \\\'…\\\', bare call, bare name, any case), emitted javascript: URLs, setAttribute — all 9',
+    jsBad.length === 9, JSON.stringify(jsBad));
   const jsFine = jsViolations([
     "btn.addEventListener('click', go);",
     "h += '<button data-onclick=\"go\" data-act=\"x\">';",
@@ -118,6 +128,7 @@ section('the detectors catch what they claim (positive controls) and nothing els
     "/* el.setAttribute('onclick', 'x') */",
     'const s = "onclick=\\"x\\""; // a string with no tag around it',
     "el.setAttribute('href', '/js-guide');",
+    "h += '<input data-v=1 online=yes>';",
   ].join('\n'));
   ok('JS: listeners, data-on*, navigator.onLine, comments, and a bare string with no tag are not flagged', jsFine.length === 0, JSON.stringify(jsFine));
 }

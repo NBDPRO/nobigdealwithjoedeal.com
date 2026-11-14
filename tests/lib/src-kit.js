@@ -11,9 +11,11 @@
  *   read(rel)                 file text, CRLF folded to LF (checkout-independent)
  *   stripJsComments(src)      tests/lib/strip-js-comments.js (string-aware)
  *   stripCssComments(css)     drops CSS comments, keeps line count
- *   sliceFn(src, name)        one function's source, by brace matching
+ *   blankComments(src)        JS with comments blanked to spaces (offsets kept)
+ *   sliceFn(src, name, {unique})   one function's source, by brace matching
  *   parseTags(html)           tolerant tag/attribute parser with a tiny selector engine
  *   cssRules(css) / cssRule(css, selector, { media })   declarations, not text
+ *   cssString(value)          a CSS string value decoded ("\25BE" === '▾')
  *   esmImports(src)           an ES module's static imports, as data
  *   loadInVm(files, globals, opts)   run browser scripts in a vm context
  *   fakeClock(now)            a frozen Date plus hand-fired timers
@@ -400,6 +402,17 @@ function cssRule(css, selector, opts) {
   return Object.assign({}, ...hit.map((r) => r.decls));
 }
 
+/**
+ * A CSS string value as the browser reads it: quotes dropped, \XXXX escapes
+ * decoded, so `"\25BE"` and `'▾'` compare equal. Non-strings → ''.
+ */
+function cssString(v) {
+  const s = String(v == null ? '' : v).trim().replace(/!important$/i, '').trim();
+  const q = /^(["'])([\s\S]*)\1$/.exec(s);
+  const body = q ? q[2] : s;
+  return body.replace(/\\([0-9a-fA-F]{1,6})\s?|\\([\s\S])/g, (_m, hex, ch) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch));
+}
+
 // ── vm ─────────────────────────────────────────────────────────────────────
 /**
  * Run one or more browser scripts in a fresh vm context and return it.
@@ -524,7 +537,7 @@ function suite(title) {
 }
 
 module.exports = {
-  ROOT, read, exists, lf, stripJsComments, stripCssComments, sliceFn, matchBrace,
-  parseTags, cssRules, cssRule, esmImports, loadInVm, fakeClock, spy, suite,
+  ROOT, read, exists, lf, stripJsComments, stripCssComments, blankComments, sliceFn, matchBrace,
+  parseTags, cssRules, cssRule, cssString, esmImports, loadInVm, fakeClock, spy, suite,
   makeDom: osHarness.makeDom, fire: osHarness.fire, click: osHarness.click,
 };
