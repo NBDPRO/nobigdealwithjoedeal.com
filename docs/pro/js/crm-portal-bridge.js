@@ -314,7 +314,10 @@ async function bulkDelete() {
   }
   // Managers do not delete leads (2026-11-14): the rules refuse the soft
   // delete on a lead the caller may not delete, and one refused update fails
-  // the whole batch. Like commitBulkLeadOp's skip, leave those out and say so.
+  // the whole batch, the caller's own leads included. So only a clear yes goes
+  // in (an id the cache can't vouch for is left out too), and nothing at all
+  // while the claims load. Like commitBulkLeadOp's skip, say what stayed.
+  if (!window._userClaims) { showToast(LEAD_ROLE_LOADING, 'error'); return; }
   const selectedIds = Array.from(selSet).filter((id) => _mayDeleteLead(id));
   const _notMine = selSet.size - selectedIds.length;
   if (!selectedIds.length) { showToast(NO_LEAD_DELETE + ' Nothing was deleted.', 'error'); return; }
@@ -342,7 +345,7 @@ async function bulkDelete() {
     await loadLeads();
     clearBulkSelection();
     toggleBulkMode();
-    showToast(`Deleted ${applied} lead(s)`, 'ok');
+    showToast(`Deleted ${applied} lead(s)` + (_notMine ? ` · ${_notMine} skipped` : ''), 'ok');
   } catch (error) {
     console.error('Bulk delete error:', error);
     showToast('Bulk delete failed: ' + (error && error.message || 'unknown error'), 'error');
@@ -644,25 +647,37 @@ let _pendingDeleteId = null;
 // Who may soft-delete / restore a lead (2026-11-14, Jo: managers do not
 // delete leads): the client mirror of firestore.rules softDeleteWriteOk() —
 // a platform admin, a company_admin of the lead's tenant, or the lead's own
-// non-viewer owner. Claims not loaded yet, or a lead not in window._leads:
-// true, and the rules decide (the failure toast still tells). Also read by
-// kanban-context-menu.js (window.nbdMayDeleteLead). Lives here, not in
+// non-viewer owner. ONE predicate for Delete, bulk Delete, the Deleted bin's
+// buttons, Restore and the card menu (window.nbdMayDeleteLead). It never
+// fails open: 'loading' while the claims are unset, 'unknown' for an id it
+// can't find (in window._leads or the bin it last drew). Lives here, not in
 // role-gate.js, because role-gate boots on customer.html too, whose shipped
 // boot budget has no room left.
 const NO_LEAD_DELETE = 'Only the lead’s owner or a company admin can delete or restore this lead.';
-function _mayDeleteLead(idOrLead) {
+const LEAD_ROLE_LOADING = 'Still loading your account. Try again in a moment.';
+let _binLeads = {};
+function _leadDeletePerm(idOrLead) {
   const c = window._userClaims;
+  if (!c) return 'loading';
   const lead = (idOrLead && typeof idOrLead === 'object') ? idOrLead
-    : (window._leads||[]).find(l => l && l.id === idOrLead);
-  if (!c || !lead) return true;
+    : ((window._leads||[]).find(l => l && l.id === idOrLead) || _binLeads[idOrLead]);
+  if (!lead) return 'unknown';
   const uid = window._user && window._user.uid;
   return c.role !== 'viewer' && (c.role === 'admin'
     || (c.role === 'company_admin' && !!c.companyId && lead.companyId === c.companyId)
-    || (!!uid && lead.userId === uid));
+    || (!!uid && lead.userId === uid)) ? 'yes' : 'no';
+}
+function _mayDeleteLead(idOrLead) { return _leadDeletePerm(idOrLead) === 'yes'; }
+// One lead: refuse a clear no, or while the claims load. An uncached lead is
+// one write the rules decide, and a refusal is toasted, so it may go ahead.
+function _deleteRefusal(id) {
+  const p = _leadDeletePerm(id);
+  return p === 'no' ? NO_LEAD_DELETE : p === 'loading' ? LEAD_ROLE_LOADING : '';
 }
 
 function deleteLead(id) {
-  if (!_mayDeleteLead(id)) { showToast(NO_LEAD_DELETE, 'error'); return; }
+  const why = _deleteRefusal(id);
+  if (why) { showToast(why, 'error'); return; }
   const lead = (window._leads||[]).find(l=>l.id===id);
   const name = lead ? (((lead.firstName||'')+' '+(lead.lastName||'')).trim() || lead.address || 'This Lead') : 'This Lead';
   showDeleteConfirm(id, name);
@@ -698,7 +713,8 @@ async function confirmDeleteLead() {
   const overlay = document.getElementById('delConfirmOverlay');
   if (overlay) overlay.classList.remove('open');
   _pendingDeleteId = null;
-  if (!_mayDeleteLead(id)) { showToast(NO_LEAD_DELETE, 'error'); return; }
+  const why = _deleteRefusal(id);
+  if (why) { showToast(why, 'error'); return; }
   try {
     // _deleteLead resolves true only when the soft-delete write landed. Check
     // === true, not truthiness of "it resolved": an older callee resolved
@@ -717,6 +733,17 @@ async function confirmDeleteLead() {
 }
 
 // ── DELETED LEADS DRAWER ─────────────────────
+// The claims land just before the first leads load (nbd:data-refreshed,
+// source 'leads'): an open bin drawn before that showed no buttons, so draw it
+// again then.
+function _rerenderBinIfOpen(e) {
+  const src = e && e.detail && e.detail.source;
+  if (src && src !== 'leads') return;
+  const d = document.getElementById('deletedDrawer');
+  if (d && d.classList.contains('open')) return renderDeletedDrawer();
+}
+window.addEventListener('nbd:data-refreshed', _rerenderBinIfOpen);
+
 async function openDeletedDrawer() {
   const drawer = document.getElementById('deletedDrawer');
   if (!drawer) return;
@@ -735,6 +762,9 @@ async function renderDeletedDrawer() {
   const deleted = await window.__NBD_CALL_REGISTRY._loadDeletedLeads();
   // undefined = not signed in yet: keep "Loading..." (steward review of #2949).
   if (deleted === undefined) return;
+  // Restore looks the lead up here: binned leads are not in window._leads.
+  _binLeads = {};
+  (deleted || []).forEach(l => { if (l && l.id) _binLeads[l.id] = l; });
   // null = the read failed (PL-F13): never "All Clear" for a bin we couldn't read.
   if (deleted === null) {
     body.innerHTML = '<div class="empty" role="alert"><div class="empty-title">Could not load deleted leads</div><div class="empty-sub">Check your connection and open the bin again. Nothing was deleted.</div></div>';
@@ -756,15 +786,11 @@ async function renderDeletedDrawer() {
     const stage = escHtml((typeof window.stageLabel === 'function' && l.stage && window.stageLabel(l.stage)) || l.stage || 'New');
     const safeId = escHtml(l.id);
     // Offer only what firestore.rules allows on THIS lead (the bin now shows
-    // teammates' deletes to company readers; steward review of #2949).
-    const _c = window._userClaims || {};
-    const _uid = window._user && window._user.uid;
-    const _own = !!_uid && l.userId === _uid && _c.role !== 'viewer';
-    const _sameCo = !!_c.companyId && l.companyId != null && l.companyId === _c.companyId;
-    const canRemove = _c.role === 'admin' || _own || (_c.role === 'company_admin' && _sameCo);
-    // Restore clears the same soft-delete markers, so it has the same writers
-    // as Remove (firestore.rules softDeleteWriteOk, 2026-11-14): a manager no
-    // longer restores a teammate's lead.
+    // teammates' deletes to company readers; steward review of #2949). Remove
+    // (the delete rule) and Restore (softDeleteWriteOk, 2026-11-14) have the
+    // same writers, so both use the guard's own predicate: nothing while the
+    // claims load (the bin is drawn again when they land: _rerenderBinIfOpen).
+    const canRemove = _mayDeleteLead(l);
     const canRestore = canRemove;
     const _btns = (canRestore ? `<button type="button" class="dc-restore nbd-dc-restore" data-id="${safeId}">Restore</button>` : '')
       + (canRemove ? `<button type="button" class="dc-perm nbd-dc-perm" data-id="${safeId}" data-name="${name}">Remove</button>` : '');
@@ -793,6 +819,10 @@ async function renderDeletedDrawer() {
 // restore can be retried, say it failed, and leave the board and the badge
 // alone — never "Lead restored" for a lead that is still in the Deleted bin.
 async function restoreDeletedLead(id) {
+  // The same guard as Delete: the button is not drawn for a refusal, but the
+  // function is reachable without it.
+  const why = _deleteRefusal(id);
+  if (why) { showToast(why, 'error'); return; }
   const card = document.getElementById('dc-'+id);
   if(card) { card.style.opacity='0.4'; card.style.pointerEvents='none'; }
   let ok = false;

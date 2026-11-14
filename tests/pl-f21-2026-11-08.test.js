@@ -74,6 +74,8 @@ function boot(win) {
   };
   const toasts = [], asked = [], moved = [];
   win.nbdConfirm = async (m) => { asked.push(String(m)); return true; };
+  // A real window has it; the bridge listens for nbd:data-refreshed (2026-11-14).
+  if (!win.addEventListener) win.addEventListener = () => {};
   const ctx = vm.createContext({
     window: win,
     console: { warn() {}, error() {}, log() {} },

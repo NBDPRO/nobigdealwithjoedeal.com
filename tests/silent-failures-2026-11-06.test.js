@@ -43,7 +43,13 @@ function slice(src, start, endAt) {
     const fn = slice(BOOT, '  async function _loadDeletedLeads() {', eol + '  }' + eol);
     const BR = read('crm-portal-bridge.js');
     const beol = BR.includes('\r\n') ? '\r\n' : '\n';
-    const draw = slice(BR, 'async function renderDeletedDrawer() {', beol + '}' + beol);
+    // The bin's buttons use the delete guard's own predicate (2026-11-14):
+    // lift it, and the module-level state it reads, with the drawer.
+    const guard = ['const NO_LEAD_DELETE = ', 'const LEAD_ROLE_LOADING = ']
+      .map((p) => slice(BR, p, ';' + beol)).join(beol) + beol + 'let _binLeads = {};' + beol
+      + slice(BR, 'function _leadDeletePerm(idOrLead) {', beol + '}' + beol)
+      + slice(BR, 'function _mayDeleteLead(idOrLead) {', '}' + beol);
+    const draw = guard + slice(BR, 'async function renderDeletedDrawer() {', beol + '}' + beol);
     ok('both functions found (positive control)', fn.length > 100 && draw.length > 100);
     const run = async (opts) => {
       const queries = [];

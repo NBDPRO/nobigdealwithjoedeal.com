@@ -9,9 +9,12 @@
  * a teammate's lead although the hard-delete rule says only the lead's owner or
  * the tenant owner destroys data. Jo's decision: managers do not delete leads.
  *
- *   softDeleteWriteOk() — setting or clearing deleted / deletedAt / isDeleted
- *   is limited to the hard-delete rule's writers: the lead's own non-viewer
- *   owner, a company_admin of the lead's tenant, a platform admin.
+ *   softDeleteWriteOk() — setting or clearing deleted / deletedAt / isDeleted /
+ *   e2eTestData is limited to the hard-delete rule's writers: the lead's own
+ *   non-viewer owner, a company_admin of the lead's tenant, a platform admin;
+ *   and `deleted` stays a bool.
+ *   _test (the rules-probe flag, which the dashboard loader drops with no way
+ *   back) is frozen on update for every role (2026-11-14 security review).
  *
  * RUN (throwaway emulator):
  *   cd tests
@@ -77,6 +80,11 @@ async function run() {
     vicLead: lead('vic', 'co-a'),
     soloLead: lead('solo', 'solo'),
     bLead: lead('ray', 'co-b'),
+    plain: lead('alice', 'co-a'),            // no deleted field at all
+    live: lead('alice', 'co-a', { deleted: false }),
+    hide: lead('alice', 'co-a'),
+    probe: lead('alice', 'co-a', { _test: true }),
+    e2e: lead('alice', 'co-a', { e2eTestData: true }),
   };
   await env.withSecurityRulesDisabled(async (c) => {
     const d = c.firestore();
@@ -111,9 +119,40 @@ async function run() {
   await check('a platform admin soft-deletes a tenant lead', 'allow', updateDoc(L(platform, 'repLead3'), binIt()));
   await check('a viewer cannot soft-delete even their own lead', 'deny', updateDoc(L(vic, 'vicLead'), binIt()));
 
+  // -- markers left unchanged never trigger the check (managers' ordinary saves)
+  await check('a manager re-sending the SAME deleted value (false) with an edit is allowed', 'allow', updateDoc(L(mgr, 'live'), { notes: 'same', deleted: false }));
+  await check('a manager adding deleted:false to a lead that has no deleted field is refused', 'deny', updateDoc(L(mgr, 'plain'), { notes: 'x', deleted: false }));
+  await check('positive control: the same edit without deleted is allowed', 'allow', updateDoc(L(mgr, 'plain'), { notes: 'x' }));
+
+  // -- deleted must stay a bool (a string hides the lead from the board and never shows in the bin)
+  await check('an owner cannot write deleted: \'yes\'', 'deny', updateDoc(L(rep, 'hide'), { deleted: 'yes' }));
+  await check('a company_admin cannot write deleted: 1', 'deny', updateDoc(L(coAdmin, 'hide'), { deleted: 1, deletedAt: serverTimestamp() }));
+  await check('positive control: the owner writes deleted: true', 'allow', updateDoc(L(rep, 'hide'), binIt()));
+
+  // -- the hidden-lead flags. _test (the loader drops it, nothing un-hides it):
+  //    frozen on update for every role; only a create may carry it.
+  //    e2eTestData (agent tools, Home, storm, mission/coach, closes-this-week skip
+  //    it): the owner side's, like the soft-delete markers (E2E tags its own leads).
+  await check('a manager cannot set _test on a teammate\'s lead', 'deny', updateDoc(L(mgr, 'plain'), { _test: true }));
+  await check('positive control: the same manager edit without _test', 'allow', updateDoc(L(mgr, 'plain'), { notes: 'probe-free' }));
+  await check('the lead\'s own rep cannot set _test', 'deny', updateDoc(L(rep, 'plain'), { _test: true }));
+  await check('a company_admin cannot set _test', 'deny', updateDoc(L(coAdmin, 'plain'), { _test: true }));
+  await check('a platform admin cannot set _test from a client', 'deny', updateDoc(L(platform, 'plain'), { _test: true }));
+  await check('a manager cannot clear _test on a probe lead', 'deny', updateDoc(L(mgr, 'probe'), { _test: false }));
+  await check('a manager cannot set e2eTestData on a teammate\'s lead', 'deny', updateDoc(L(mgr, 'plain'), { e2eTestData: true }));
+  await check('a manager cannot clear e2eTestData on a teammate\'s lead', 'deny', updateDoc(L(mgr, 'e2e'), { e2eTestData: false }));
+  await check('another rep cannot set e2eTestData on alice\'s lead', 'deny', updateDoc(L(rep2, 'plain'), { e2eTestData: true }));
+  await check('positive control: a manager sets it on a lead they own', 'allow', updateDoc(L(mgr, 'mgrOwn'), { e2eTestData: true }));
+  await check('positive control: the lead\'s own rep tags it (the E2E post-hoc tag)', 'allow', updateDoc(L(rep, 'plain'), { e2eTestData: true }));
+  await check('positive control: a company_admin clears it', 'allow', updateDoc(L(coAdmin, 'plain'), { e2eTestData: false }));
+  await check('positive control: an ordinary edit of an e2e lead (flag untouched) is allowed', 'allow', updateDoc(L(rep, 'e2e'), { notes: 'still a test lead' }));
+  await check('positive control: a create may still carry _test (the rules probe)', 'allow',
+    setDoc(doc(rep, 'leads/newprobe'), { userId: 'alice', companyId: 'co-a', firstName: 'Test', stage: 'New', meter: 'sample', _test: true }));
+
   // -- tenant isolation (unchanged)
-  await check('another tenant\'s company_admin cannot soft-delete a co-a lead', 'deny', updateDoc(L(otherAdmin, 'repLead2'), restore()));
-  await check('another tenant\'s manager cannot soft-delete a co-a lead', 'deny', updateDoc(L(otherMgr, 'mgrOwn'), restore()));
+  await check('another tenant\'s company_admin cannot restore (clear the markers on) a co-a lead', 'deny', updateDoc(L(otherAdmin, 'repLead2'), restore()));
+  await check('another tenant\'s manager cannot restore (clear the markers on) a co-a lead', 'deny', updateDoc(L(otherMgr, 'mgrOwn'), restore()));
+  await check('another tenant\'s company_admin cannot soft-delete a co-a lead', 'deny', updateDoc(L(otherAdmin, 'plain'), binIt()));
   await check('positive control: co-b\'s company_admin soft-deletes a co-b lead', 'allow', updateDoc(L(otherAdmin, 'bLead'), binIt()));
   await check('a manager cannot restore a co-b lead', 'deny', updateDoc(L(mgr, 'bLead'), restore()));
 

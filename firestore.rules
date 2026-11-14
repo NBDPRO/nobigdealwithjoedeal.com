@@ -767,14 +767,24 @@ service cloud.firestore {
     // the staff branch of the update rule below: a manager could bin any
     // teammate's lead, which the hard-delete rule never allowed. Setting OR
     // clearing a soft-delete marker (delete, restore from the Deleted bin;
-    // isDeleted is honoured by some readers too) is now held to the hard-delete
-    // rule's writers: the lead's own non-viewer owner, a company_admin (the
-    // update clause already pins the tenant), or a platform admin. A manager
-    // keeps every other edit. Unchanged markers never trigger the check.
+    // isDeleted is honoured by some readers too; e2eTestData hides a lead from
+    // the agent tools, Home strips, storm mode, mission/coach, closes-this-week
+    // and DOL fill, and the E2E suites tag their own leads with it after the
+    // fact, so it is the owner side's rather than frozen) is now held to the hard-delete
+    // rule's writers: the lead's own non-viewer owner, a company_admin, or a
+    // platform admin. A manager keeps every other edit. Unchanged markers
+    // never trigger the check. When they change, `deleted` must be a bool (or
+    // absent): a string or number hid the lead from the board without ever
+    // putting it in the Deleted bin (which queries deleted == true).
+    // The company_admin branch carries NO tenant check of its own: it relies on
+    // the update rule's outer clause, which only lets a company_admin reach
+    // this far on a lead whose companyId == myCompanyId() (or one they own).
+    // Moving this helper anywhere without that pin would widen it.
     function softDeleteWriteOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted'])
-        || request.auth.token.get('role', '') in ['admin', 'company_admin']
-        || (isOwner(resource.data.userId) && notViewer());
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted', 'e2eTestData'])
+        || ((request.auth.token.get('role', '') in ['admin', 'company_admin']
+             || (isOwner(resource.data.userId) && notViewer()))
+            && request.resource.data.get('deleted', false) is bool);
     }
 
     // ── LEADS ─────────────────────────────────────────
@@ -829,7 +839,12 @@ service cloud.firestore {
       // managers manage the board, only the lead owner or the tenant owner
       // destroys data. Legacy docs without companyId stay owner-only for
       // both (the company clause errors-to-deny on the absent key).
-      allow update: if isAdmin()
+      // _test hides a lead for everyone (the dashboard loader drops _test
+      // docs, the Deleted bin never lists them, nothing un-hides them), so no
+      // client may set, change or clear it on UPDATE, whatever the role
+      // (2026-11-14 review). Only a create carries it (the Settings rules
+      // probe); the admin SDK skips rules. e2eTestData: softDeleteWriteOk.
+      allow update: if (isAdmin() && didNotChange(['_test']))
         || (
           (
             (isOwner(resource.data.userId) && notViewer())
@@ -842,6 +857,8 @@ service cloud.firestore {
           // admin-SDK-only; the sole client write is the rep's Mark Paid / Mark
           // Unpaid toggle (owed<->paid), carved out below. See onReferralLeadWrite.
           && didNotChange(['userId', 'companyId'])
+          // The rules-probe flag (see above): frozen for owner and staff too.
+          && didNotChange(['_test'])
           // activeJobId names the job the lead's fields describe
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.

@@ -50,6 +50,9 @@ const code = [allow,
   extractFn(SRC, 'async function bulkAssignCarrier('),
   // bulkDelete's role check (2026-11-14); with no window._userClaims it allows.
   (SRC.match(/^const NO_LEAD_DELETE = [^\n]*;$/m) || [''])[0],
+  (SRC.match(/^const LEAD_ROLE_LOADING = [^\n]*;$/m) || [''])[0],
+  'let _binLeads = {};',
+  extractFn(SRC, 'function _leadDeletePerm('),
   extractFn(SRC, 'function _mayDeleteLead('),
   extractFn(SRC, 'async function bulkDelete('),
 ].join('\n') + '\nglobalThis.api = { bulkAssignCarrier, bulkDelete };';
