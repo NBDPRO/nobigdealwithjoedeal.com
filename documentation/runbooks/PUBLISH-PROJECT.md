@@ -175,7 +175,11 @@ you review the PR preview and merge.
 
    ```bash
    node scripts/build-projects.mjs
+   node scripts/apply-partials.js
+   node scripts/build-llms.mjs --write-regions
    node scripts/build-projects.mjs --check
+   node scripts/apply-partials.js --check --diff
+   node scripts/build-llms.mjs --check-regions
    node scripts/check-site-integrity.js --quiet
    node tests/catalog-cost-privacy.test.js
    ```
@@ -183,8 +187,19 @@ you review the PR preview and merge.
    The build fails loudly on anything rule-breaking — read the message, fix
    the entry, rerun.
 
+   - `apply-partials.js` fills the nav and footer regions on a **new** case
+     page. `build-projects.mjs` writes `docs/our-work/<slug>.html` with those
+     marker pairs empty, and CI fails four suites on it
+     (`ourwork-detail-pages`, `reviews-strip-every-homeowner-page`,
+     `seo-surface`, `schema-entity-address`). Added 2026-11-14 after
+     PR #3034 hit exactly that.
+   - `build-llms.mjs --write-regions` updates the CASE-STUDIES list in
+     `docs/llms.txt` (the newest 12 jobs and the project count). Skip it and
+     the Site integrity job and two llms suites go red.
+
 6. **Commit ALL stamped files** — `projects.json`, `our-work.html`, any
-   restamped `/services/` hub pages, `homeowner-wall.json`, plus the new
+   restamped `/services/` hub pages, `homeowner-wall.json`, the new
+   `docs/our-work/<slug>.html` case page, `docs/llms.txt`, plus the new
    images — one project per commit, message like `Our Work: add <slug>`.
 
 ## AI assist (optional)
