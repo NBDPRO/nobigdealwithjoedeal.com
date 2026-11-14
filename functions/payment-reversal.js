@@ -20,10 +20,10 @@
  * with negatives (docs/pro/js/collected-revenue.js and its mirrors); lists,
  * receipts and the homeowner portal hide the reversed payment.
  *
- * WHO: the owner side of the invoice's company only — platform admin, the
- * company's company_admin, or a solo owner (no role claim, company keyed by
- * their uid) — the same people firestore.rules backfillWriterOk trusts with
- * money. Never a viewer, rep or manager.
+ * WHO (Joe, 2026-11-14): the OWNER of the invoice's company only —
+ * companies/{id}.ownerId, or a solo owner whose company is keyed by their own
+ * uid. Not another company_admin, a manager, a rep, a viewer or a platform
+ * admin. A reason is required.
  *
  * WHY A CALLABLE, not a client write: the invoice update rule already runs at
  * Firestore's 1000-expression budget (tests/firestore-rules.test.js pins a
@@ -57,14 +57,8 @@ function cleanReason(v) {
   return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, REASON_MAX);
 }
 
-/** Ids of the payments a reversal entry in this list cancels. Pure. */
-function reversedPaymentIds(payments) {
-  const out = new Set();
-  (Array.isArray(payments) ? payments : []).forEach((p) => {
-    if (p && p.reversal === true && Number(p.amount) < 0 && typeof p.reverses === 'string' && p.reverses) out.add(p.reverses);
-  });
-  return out;
-}
+// Which payments a reversal cancels, from frozen fields only: functions/reversal-pairs.js.
+const { reversalPairs } = require('./reversal-pairs');
 
 /**
  * Why payments[index] cannot be reversed, or '' when it can. Pure. The same
@@ -76,19 +70,24 @@ function reversalBlockedReason(invoice, index) {
   const list = Array.isArray(inv.payments) ? inv.payments : [];
   const p = list[index];
   if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
-  if (p.reversal === true || !(cents(p.amount) > 0)) return 'That entry is not a payment';
-  if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger') {
+  if (!(cents(p.amount) > 0)) return 'That entry is not a payment';
+  // recordedBy is set on every payment typed in the CRM (the rules force it) and frozen; no Stripe / ACH
+  // server writer sets it. Keyed on it rather than on stripeRef / source, which an editor could strip.
+  if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger'
+      || typeof p.recordedBy !== 'string' || !p.recordedBy) {
     return 'Card and bank payments made online are refunded in Stripe, not reversed here';
   }
   if (!MANUAL_METHODS.includes(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
   if (typeof p.paymentId !== 'string' || !PAYMENT_ID_RE.test(p.paymentId)) {
     return 'This older payment has no id to reverse — ask for help fixing it';
   }
-  if (reversedPaymentIds(list).has(p.paymentId)) return 'That payment is already reversed';
+  if (reversalPairs(list).has(index)) return 'That payment is already reversed';
   if (!(tsMs(p.at) > 0)) return 'That payment has no date';
   const st = String(inv.status || '').toLowerCase();
   if (st === 'sending') return 'The invoice is being sent — try again in a minute';
   if (inv.deleted === true || st === 'void' || st === 'cancelled') return 'The invoice is voided';
+  // The rules let a browser edit a payments list of at most 15; past that the invoice would lock.
+  if (list.length >= 15) return 'This invoice has too many payment lines to add a reversal — ask for help';
   return '';
 }
 
@@ -125,6 +124,10 @@ function planReversal(invoice, index, o) {
   const balC = Math.max(0, totalC - newPaidC);
   const depositC = cents(Math.max(0, Number(inv.depositAmount) || 0));
   const paid = totalC > 0 && balC === 0 && newPaidC > 0;
+  // Nothing paid any more: back to the status the money moved it off ('sent'), but an 'overdue' or
+  // 'viewed' invoice keeps that word (only 'paid' / 'partial' were statuses the money set).
+  const prior = String(inv.status || '').toLowerCase();
+  const unpaidStatus = (prior === 'paid' || prior === 'partial' || !prior) ? 'sent' : inv.status;
   return {
     entry,
     patch: {
@@ -132,7 +135,7 @@ function planReversal(invoice, index, o) {
       amountPaid: dollars(newPaidC),
       balanceDue: dollars(balC),
       depositPaid: depositC > 0 ? newPaidC >= depositC : newPaidC > 0,
-      status: paid ? 'paid' : (newPaidC > 0 ? 'partial' : 'sent'),
+      status: paid ? 'paid' : (newPaidC > 0 ? 'partial' : unpaidStatus),
       paidAt: paid ? (inv.paidAt == null ? null : inv.paidAt) : null,
       updatedAt: now,
     },
@@ -140,19 +143,29 @@ function planReversal(invoice, index, o) {
 }
 
 /**
- * The owner side of THIS invoice's company (firestore.rules backfillWriterOk,
- * plus the tenant match the invoice update rule adds). Pure.
+ * Is the caller the OWNER of this invoice's company? (Joe, 2026-11-14: only the
+ * company owner may reverse a payment.) company = companies/{inv.companyId}
+ * data, or null when there is no company doc. Pure.
+ *   - a company doc: its ownerId must be the caller (another company_admin,
+ *     a manager or a platform admin is not the owner);
+ *   - no company doc: a solo owner, whose company is keyed by their own uid
+ *     (and who carries no other company claim);
+ *   - an invoice with no companyId: nobody (an ex-member could be its creator;
+ *     such an invoice needs a hand fix).
  */
-function ownerSideFor(auth, inv) {
+function isCompanyOwner(auth, inv, company) {
   if (!auth || !auth.uid || !inv) return false;
   const c = auth.token || {};
-  const role = c.role || '';
+  if (c.role === 'viewer') return false;
   const cid = typeof inv.companyId === 'string' ? inv.companyId : '';
-  if (role === 'admin') return true;
-  if (role === 'company_admin') return !!c.companyId && !!cid && c.companyId === cid;
-  if (role) return false;
+  if (company && typeof company === 'object') {
+    return !!cid && typeof company.ownerId === 'string' && company.ownerId === auth.uid
+      && (!c.companyId || c.companyId === cid);
+  }
+  if (!cid) return false;
   if (c.companyId && c.companyId !== auth.uid) return false;   // a claimed company that is not their own uid
-  return cid ? cid === auth.uid : inv.createdBy === auth.uid;
+  if (c.role && c.role !== 'company_admin') return false;
+  return cid === auth.uid;
 }
 
 async function handleReversePayment(request, deps) {
@@ -165,26 +178,42 @@ async function handleReversePayment(request, deps) {
   const invoiceId = typeof data.invoiceId === 'string' ? data.invoiceId : '';
   const paymentId = typeof data.paymentId === 'string' ? data.paymentId : '';
   const reason = cleanReason(data.reason);
+  // The amount the owner saw and confirmed: the entry must still carry it (paymentId alone is editable).
+  const expectCents = Number(data.cents);
   if (!ID_RE.test(invoiceId)) throw new HttpsError('invalid-argument', 'invoiceId is required');
   if (!PAYMENT_ID_RE.test(paymentId)) throw new HttpsError('invalid-argument', 'paymentId is required');
   if (!reason) throw new HttpsError('invalid-argument', 'Say why the payment is reversed');
+  if (!Number.isInteger(expectCents) || expectCents <= 0) throw new HttpsError('invalid-argument', 'cents is required');
 
   const db = (deps && deps.db) || require('firebase-admin/firestore').getFirestore();
   const now = (deps && deps.now) || new Date();
   const ref = db.collection('invoices').doc(invoiceId);
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpsError('not-found', 'Invoice not found');
+    // A missing invoice gets the same answer as someone else's: nothing about other tenants leaks.
+    if (!snap.exists) throw new HttpsError('permission-denied', 'Only the company owner can reverse a payment.');
     const inv = snap.data() || {};
-    // The same answer for "no such invoice in your company" and "not yours to reverse": nothing leaks across tenants.
-    if (!ownerSideFor(auth, inv)) throw new HttpsError('permission-denied', 'Only the owner can reverse a payment.');
+    let company = null;
+    if (typeof inv.companyId === 'string' && ID_RE.test(inv.companyId)) {
+      const cs = await tx.get(db.collection('companies').doc(inv.companyId));
+      company = cs.exists ? (cs.data() || {}) : null;
+    }
+    // The same answer for "not in your company" and "not the owner": nothing leaks across tenants.
+    if (!isCompanyOwner(auth, inv, company)) throw new HttpsError('permission-denied', 'Only the company owner can reverse a payment.');
     const list = Array.isArray(inv.payments) ? inv.payments : [];
-    const index = list.findIndex((p) => p && p.paymentId === paymentId && p.reversal !== true);
+    const index = list.findIndex((p) => p && p.paymentId === paymentId && cents(p.amount) === expectCents);
     if (index < 0) throw new HttpsError('failed-precondition', 'That payment changed — reopen the invoice and try again');
     let plan;
     try { plan = planReversal(inv, index, { reason, by: auth.uid, now }); }
     catch (e) { throw new HttpsError('failed-precondition', (e && e.message) || 'This payment cannot be reversed'); }
     tx.update(ref, plan.patch);
+    // The record nobody can edit: payments[] entries keep only amount, date, method and recorder frozen, so
+    // the reason and who reversed what are kept here too (server-only: the rules' catch-all denies clients).
+    tx.create(db.collection('payment_reversals').doc(invoiceId + '_' + plan.entry.paymentId), {
+      invoiceId, companyId: inv.companyId, leadId: inv.leadId || null,
+      paymentId, paymentIndex: index, cents: -Math.round(plan.entry.amount * 100),
+      paymentAt: plan.entry.at, method: plan.entry.method, reason, byUid: auth.uid, at: now,
+    });
     return { plan, cents: -Math.round(plan.entry.amount * 100) };
   });
   try {
@@ -199,7 +228,7 @@ const { onCall } = require('firebase-functions/v2/https');
 
 module.exports = {
   MANUAL_METHODS, REASON_MAX,
-  reversedPaymentIds, reversalBlockedReason, planReversal, ownerSideFor, handleReversePayment,
+  reversalPairs, reversalBlockedReason, planReversal, isCompanyOwner, handleReversePayment,
   reversePayment: onCall(
     {
       region: 'us-central1',

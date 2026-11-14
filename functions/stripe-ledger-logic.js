@@ -184,10 +184,10 @@ function findManualDuplicate(invoices, mv) {
   for (const inv of invoices || []) {
     if (!inv || inv.deleted === true) continue;
     // A manual payment the owner reversed (a negative entry naming it) is not money that arrived.
-    const reversed = new Set((inv.payments || []).filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
-    for (const p of inv.payments || []) {
+    const reversed = require('./reversal-pairs').reversedIndexes(inv.payments || []);
+    for (const [pi, p] of (inv.payments || []).entries()) {
       if (!p || p.source === 'stripe_ledger' || p.stripeRef) continue;
-      if (p.paymentId && reversed.has(String(p.paymentId))) continue;
+      if (reversed.has(pi)) continue;
       // A catch-up "Paid in full?" entry is a stand-in, not a payment Jo
       // typed for this charge: planCatchUpAbsorb replaces it with the real
       // Stripe payment (its own date and method) instead of just linking.
@@ -301,12 +301,13 @@ function findCatchUpInvoice(invoices, mv, pick) {
   if (!mv || !(mv.amountCents > 0)) return null;
   const at = Number(mv.atMs);
   const live = (invoices || []).filter((i) => i && i.id && i.deleted !== true && i.status !== 'void');
-  const hits = live.filter((inv) => (inv.payments || []).concat(inv.supersededPayments || []).some((p) => {
+  const hits = live.filter((inv) => { const rev = require('./reversal-pairs').reversedIndexes(inv.payments || []); return (inv.payments || []).concat(inv.supersededPayments || []).some((p, idx) => {
     if (!isCatchUpPayment(p)) return false;
+    if (idx < (inv.payments || []).length && rev.has(idx)) return false;   // reversed by the owner: not a stand-in any more
     const pm = msOf(p.at != null ? p.at : p.date);
     if (!isFinite(pm) || !isFinite(at)) return true;   // no usable date: assume it is this job (safer than a double count)
     return at >= pm - CATCHUP_BEFORE_MS && at <= pm + CATCHUP_AFTER_MS;
-  }));
+  }); });
   if (!hits.length) return null;
   if (pick && pick.invoiceId) return hits.some((i) => i.id === pick.invoiceId) ? { invoiceId: pick.invoiceId } : null;
   if (hits.length === 1) return { invoiceId: hits[0].id };
@@ -332,7 +333,8 @@ function planCatchUpAbsorb(inv, mv, nowMs) {
   if (mv.paymentIntentId && Array.isArray(inv.paidIntentIds) && inv.paidIntentIds.includes(mv.paymentIntentId)) return null;
   const pays = Array.isArray(inv.payments) ? inv.payments : [];
   const cuIdx = [];
-  pays.forEach((p, i) => { if (isCatchUpPayment(p) && cents(p.amount) > 0) cuIdx.push(i); });
+  const reversedCu = require('./reversal-pairs').reversedIndexes(pays);
+  pays.forEach((p, i) => { if (isCatchUpPayment(p) && cents(p.amount) > 0 && !reversedCu.has(i)) cuIdx.push(i); });
   const hadCatchUp = cuIdx.length > 0 || (inv.supersededPayments || []).some(isCatchUpPayment);
   if (!hadCatchUp) return null;
   const totalC = cents(inv.total);

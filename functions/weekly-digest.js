@@ -253,7 +253,7 @@ function _paymentsOnlyOf(inv) {
     inv.payments.forEach(p => {
       const amt = Number(p && p.amount);
       const at = p && (p.at != null ? p.at : p.date);
-      // A reversal (negative entry, invoice-pipeline.js planPaymentReversal) nets the money back out on the reversed payment's own date.
+      // A reversal (negative entry, functions/payment-reversal.js planReversal) nets the money back out on the reversed payment's own date.
       if (!amt || at == null) return;
       out.push(amt < 0 ? { amount: amt, at, reversal: true } : { amount: amt, at });
       ledgerCents += Math.round(amt * 100);

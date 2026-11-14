@@ -220,7 +220,7 @@
       if (!inv || inv.deleted === true || inv.deletedAt) return s;
       var st = String(inv.status || '').toLowerCase();
       if (st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return s;
-      // A reversal entry is negative (invoice-pipeline.js planPaymentReversal): the sum nets it out.
+      // A reversal entry is negative (functions/payment-reversal.js planReversal): the sum nets it out.
       var ledger = Math.max(0, (Array.isArray(inv.payments) ? inv.payments : []).reduce(function (t, p) { var a = c100(p && p.amount); return t + a; }, 0));
       return s + Math.max(ledger, Math.max(0, c100(inv.amountPaid)));
     }, 0);

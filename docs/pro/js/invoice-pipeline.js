@@ -724,41 +724,54 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
   // nbd:payment-reversal:start
   // Reverse a payment (wave-1 money review 2026-11-14, finding 1). A mistyped
-  // or bounced manual payment is never deleted: the owner side appends a
-  // NEGATIVE entry for the whole amount ({ reversal: true, reverses: <the
-  // payment's id>, reason }) dated the day the original said the money came
+  // or bounced manual payment is never deleted: the company owner calls
+  // reversePayment (functions/payment-reversal.js), which appends a NEGATIVE
+  // entry for the whole amount, dated the day the original said the money came
   // in, so every period total nets back to what really arrived. Readers sum
-  // payments[] with negatives (collected-revenue.js and its mirrors); lists
-  // and receipts hide the reversed payment (reversedPaymentIds). The rules
-  // (firestore.rules reversalEntryOk) allow only this shape, owner side only.
+  // payments[] with negatives (collected-revenue.js and its mirrors); lists and
+  // receipts hide the reversed payment (reversalPairs). A browser cannot write
+  // or undo a negative entry (firestore.rules paymentEntryOk / the Undo branch).
   const REVERSAL_REASON_MAX = 300;
-  /** Ids of the payments a reversal entry in this list cancels. Pure. */
-  function reversedPaymentIds(payments) {
-    const out = new Set();
-    (Array.isArray(payments) ? payments : []).forEach((p) => {
-      if (p && p.reversal === true && Number(p.amount) < 0 && typeof p.reverses === 'string' && p.reverses) out.add(p.reverses);
+  // nbd:reversal-pairs — WHICH payment a reversal cancels, from FROZEN fields only (the rules let an
+  // editor rewrite paymentId / reverses / reversal / reason on an existing entry, never amount, at,
+  // method or recordedBy). Each negative entry cancels the first earlier positive entry with the same
+  // amount, date and method that no other negative entry claimed. Same logic as
+  // functions/payment-reversal.js reversalPairs. → Map(positiveIndex → negativeIndex). Pure.
+  function reversalPairs(payments) {
+    const list = Array.isArray(payments) ? payments : [];
+    const out = new Map();
+    list.forEach((n, j) => {
+      if (!n || !(Number(n.amount) < 0)) return;
+      const c = -Math.round(Number(n.amount) * 100);
+      const t = _tsMs(n.at);
+      for (let i = 0; i < j; i++) {
+        const p = list[i];
+        if (p && !out.has(i) && Math.round((Number(p.amount) || 0) * 100) === c && _tsMs(p.at) === t && p.method === n.method) { out.set(i, j); break; }
+      }
     });
     return out;
   }
-  /** Why payments[index] cannot be reversed, or '' when it can. Pure. */
+  /** Why payments[index] cannot be reversed, or '' when it can. Pure. Same words as the server. */
   function reversalBlockedReason(invoice, index) {
     const inv = invoice || {};
     const list = Array.isArray(inv.payments) ? inv.payments : [];
     const p = list[index];
     if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
-    if (p.reversal === true || !(toCents(Number(p.amount)) > 0)) return 'That entry is not a payment';
-    if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger') {
+    if (!(toCents(Number(p.amount)) > 0)) return 'That entry is not a payment';
+    if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger'
+        || typeof p.recordedBy !== 'string' || !p.recordedBy) {
       return 'Card and bank payments made online are refunded in Stripe, not reversed here';
     }
     if (!isManualPaymentMethod(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
     if (typeof p.paymentId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(p.paymentId)) {
       return 'This older payment has no id to reverse — ask for help fixing it';
     }
-    if (reversedPaymentIds(list).has(p.paymentId)) return 'That payment is already reversed';
+    if (reversalPairs(list).has(index)) return 'That payment is already reversed';
     if (!(_tsMs(p.at) > 0)) return 'That payment has no date';
     const st = String(inv.status || '').toLowerCase();
     if (st === 'sending') return 'The invoice is being sent — try again in a minute';
     if (inv.deleted === true || st === 'void' || st === 'cancelled') return 'The invoice is voided';
+    if (list.length >= 15) return 'This invoice has too many payment lines to add a reversal — ask for help';
     return '';
   }
   // nbd:payment-reversal:end
@@ -808,15 +821,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const list = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
     // A reversed payment stays listed, marked reversed with the reason; the
     // negative reversal entry itself is not a row of its own.
-    const reversedBy = {};
-    list.forEach((p) => {
-      if (p && p.reversal === true && Number(p.amount) < 0 && typeof p.reverses === 'string' && !reversedBy[p.reverses]) reversedBy[p.reverses] = p;
-    });
+    const pairs = reversalPairs(list);
     return list.map((p, index) => {
       p = p || {};
       const k = paymentKey(p);
       const isStripe = p.method === 'stripe';
-      const rev = (typeof p.paymentId === 'string' && p.paymentId && reversedBy[p.paymentId]) || null;
+      const rev = pairs.has(index) ? (list[pairs.get(index)] || {}) : null;
       return {
         reversed: !!rev,
         reversalReason: rev && rev.reason ? String(rev.reason) : '',
@@ -865,7 +875,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const reversed = r.reversed
         ? `<div class="ipx-m11 ipx-mt2" data-ip-reversed>Reversed${r.reversalReason ? ': ' + escHtml(r.reversalReason) : ''}</div>`
         : '';
-      const reverse = (r.canReverse && _isOwnerSide())
+      const reverse = (r.canReverse && _isCompanyOwner())
         ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="reversePayment" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''} title="Typed the wrong amount, or the check bounced">↶ Reverse</button>`
         : '';
       const rkey = receiptKeyOf(p, r.index);
@@ -969,13 +979,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const p = list[i] || {};
     if (receiptStateOf(p) === 'none') return null;
     // A reversed payment gets no receipt, and never counts toward "paid so far".
-    const reversedIds = reversedPaymentIds(list);
-    if (p.paymentId && reversedIds.has(p.paymentId)) return null;
+    const pairs = reversalPairs(list);
+    if (pairs.has(i)) return null;
     const totalC = toCents(Math.max(0, Number(inv.total) || 0)) || 0;
     let paidC = 0;
     for (let j = 0; j <= i; j++) {
       const a = list[j];
-      if (a && Number(a.amount) > 0 && !(a.paymentId && reversedIds.has(a.paymentId))) paidC += toCents(Number(a.amount)) || 0;
+      if (a && Number(a.amount) > 0 && !pairs.has(j)) paidC += toCents(Number(a.amount)) || 0;
     }
     const balC = Math.max(0, totalC - paidC);
     const atMs = _tsMs(p.at != null ? p.at : p.date);
@@ -3452,6 +3462,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    */
   // Owner side = the platform admin, a company_admin, or a solo operator (no role, no company or the company is their own
   // uid); the same set firestore.rules calls backfillWriterOk(). A manager or rep never sees the release button.
+  // The company OWNER (Joe, 2026-11-14: only the owner reverses a payment): the owner claim, or a
+  // solo owner whose company is their own uid. The reversePayment callable checks companies/{id}.ownerId.
+  function _isCompanyOwner() {
+    const c = (typeof window !== 'undefined' && window._userClaims) || {};
+    const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
+    if (!u || c.role === 'viewer') return false;
+    if (c.owner === true) return true;
+    return !c.role && (!c.companyId || c.companyId === u);
+  }
   function _isOwnerSide() {
     const c = (typeof window !== 'undefined' && window._userClaims) || {};
     const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
@@ -3727,7 +3746,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    */
   async function reversePaymentUI(invoiceId, index, recordedAtMs) {
     if (!invoiceId || !Number.isInteger(index)) return false;
-    if (!_isOwnerSide()) { _toast('Only the owner can reverse a payment.', 'error'); return false; }
+    if (!_isCompanyOwner()) { _toast('Only the company owner can reverse a payment.', 'error'); return false; }
     const db = getDb();
     const invRef = window.doc(db, 'invoices', invoiceId);
     let amount, paymentId;
@@ -3750,8 +3769,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const ask = (typeof window.nbdPrompt === 'function')
       ? window.nbdPrompt
       : (m) => Promise.resolve(typeof window.prompt === 'function' ? window.prompt(m) : null);
-    const reason = _cleanText(await ask('Why reverse this ' + formatCurrency(amount) + ' payment? (for example: typed the wrong amount, check bounced)', ''), REVERSAL_REASON_MAX);
-    if (!reason) return false;
+    const typed = await ask('Why reverse this ' + formatCurrency(amount) + ' payment? (for example: typed the wrong amount, check bounced)', '');
+    const reason = _cleanText(typed, REVERSAL_REASON_MAX);
+    if (!reason) {
+      if (typed != null) _toast('A reason is required to reverse a payment.', 'error');   // null = cancelled
+      return false;
+    }
     const yesNo = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
       : (m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false);
     const ok = await yesNo('Reverse the ' + formatCurrency(amount) + ' payment? It stays in the payment history, marked reversed, and comes off Collected. '
@@ -3763,7 +3786,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
-      const res = await window._httpsCallable(window._functions, 'reversePayment')({ invoiceId, paymentId, reason });
+      const res = await window._httpsCallable(window._functions, 'reversePayment')({ invoiceId, paymentId, reason, cents: toCents(amount) });
       const out = (res && res.data) || {};
       if (out.ok !== true) throw new Error('the server did not confirm the reversal');
       _toast('Payment reversed', 'success');
@@ -4518,7 +4541,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     buildManualPaymentEntry,
     PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
-    reversedPaymentIds,
+    reversalPairs,
     reversalBlockedReason,
     reversePaymentUI,
     paymentKey,

@@ -60,7 +60,7 @@ console.log('\n1. reversePayment (functions/payment-reversal.js)');
 if (PR) ok('planReversal is exported', typeof PR.planReversal === 'function');
 if (IP) {
   ok('reversalBlockedReason is exported', typeof IP.reversalBlockedReason === 'function');
-  ok('reversedPaymentIds is exported', typeof IP.reversedPaymentIds === 'function');
+  ok('reversalPairs is exported', typeof IP.reversalPairs === 'function');
 }
 if (IP && PR && typeof PR.planReversal === 'function' && typeof IP.reversalBlockedReason === 'function') {
   const now = D(2026, 11, 14);
@@ -80,11 +80,11 @@ if (IP && PR && typeof PR.planReversal === 'function' && typeof IP.reversalBlock
 
   // A real $4,000 plus the typo: reversing the typo leaves a paid invoice.
   const two = typoInv();
-  two.payments = [{ paymentId: 'p_ok', amount: 4000, at: D(2026, 10, 1), method: 'zelle' }, Object.assign({}, typo)];
+  two.payments = [{ paymentId: 'p_ok', amount: 4000, at: D(2026, 10, 1), method: 'zelle', recordedBy: 'u1' }, Object.assign({}, typo)];
   two.amountPaid = 44000;
   const r2 = PR.planReversal(two, 1, { reason: 'duplicate', by: 'o' });
   ok('the rest still covers the total: stays paid with its paidAt', r2.patch.status === 'paid' && r2.patch.amountPaid === 4000 && r2.patch.balanceDue === 0 && r2.patch.paidAt != null);
-  const part = { total: 10000, amountPaid: 6000, balanceDue: 4000, status: 'partial', payments: [{ paymentId: 'a', amount: 2000, at: D(2026, 9, 1), method: 'cash' }, { paymentId: 'b', amount: 4000, at: D(2026, 9, 9), method: 'check' }] };
+  const part = { total: 10000, amountPaid: 6000, balanceDue: 4000, status: 'partial', payments: [{ paymentId: 'a', amount: 2000, at: D(2026, 9, 1), method: 'cash', recordedBy: 'u1' }, { paymentId: 'b', amount: 4000, at: D(2026, 9, 9), method: 'check', recordedBy: 'u1' }] };
   const r3 = PR.planReversal(part, 1, { reason: 'check bounced', by: 'o' });
   ok('a bounced $4,000 check on a part-paid invoice: partial, $8,000 owed', r3.patch.status === 'partial' && r3.patch.amountPaid === 2000 && r3.patch.balanceDue === 8000);
   // a Firestore Timestamp date is passed through as-is
@@ -187,7 +187,7 @@ console.log('\n3b. Everywhere else a reversed payment never arrived');
   const CU = req('docs/pro/js/catchup-logic.js');
   if (CU) ok('catch-up: already collected nets to $0', CU.collectedCentsOf([inv]) === 0, String(CU.collectedCentsOf([inv])));
   const cust = read('docs/pro/js/customer-tasks-ui.js');
-  ok('customer page: no Send receipt for a reversed payment', /reversedIds\.has\(String\(p\.paymentId\)\)\) return;/.test(cust));
+  ok('customer page: no Send receipt for a reversed payment', /nbd:reversal-pairs/.test(cust) && /if \(reversedIdx\[i\]\) return;/.test(cust));
 }
 
 console.log('\n4. The callable: who may reverse, and the write it makes');
@@ -195,38 +195,91 @@ async function callableChecks() {
   if (!PR || typeof PR.handleReversePayment !== 'function') { ok('handleReversePayment is exported', false); return; }
   // A one-document fake Firestore with a transaction.
   function fakeDb(seed) {
-    const docs = new Map(Object.entries(seed));
+    const docs = new Map(Object.entries(seed));   // keyed by path: 'invoices/inv1', 'companies/co-a'
     const writes = [];
-    const ref = (id) => ({ id, path: 'invoices/' + id });
+    const ref = (name, id) => ({ id, path: name + '/' + id });
     return {
       docs, writes,
-      collection: (name) => ({ doc: (id) => ref(id) }),
+      collection: (name) => ({ doc: (id) => ref(name, id) }),
       runTransaction: async (fn) => fn({
-        get: async (r) => ({ exists: docs.has(r.id), data: () => JSON.parse(JSON.stringify(docs.get(r.id)), (k, v) => (k === 'at' || k === 'paidAt' || k === 'recordedAt') && typeof v === 'string' ? new Date(v) : v) }),
-        update: (r, patch) => { writes.push([r.id, patch]); docs.set(r.id, Object.assign({}, docs.get(r.id), patch)); },
+        get: async (r) => ({ exists: docs.has(r.path), data: () => JSON.parse(JSON.stringify(docs.get(r.path)), (k, v) => (k === 'at' || k === 'paidAt' || k === 'recordedAt') && typeof v === 'string' ? new Date(v) : v) }),
+        update: (r, patch) => { writes.push([r.path, patch]); docs.set(r.path, Object.assign({}, docs.get(r.path), patch)); },
+        create: (r, v) => { if (docs.has(r.path)) throw new Error('ALREADY_EXISTS'); writes.push([r.path, v]); docs.set(r.path, v); },
       }),
     };
   }
   const base = () => Object.assign(typoInv(), { companyId: 'co-a', createdBy: 'rep1' });
+  const seedA = (inv) => ({ 'invoices/inv1': inv || base(), 'companies/co-a': { ownerId: 'carol' }, 'companies/co-b': { ownerId: 'bob' } });
   const call = async (auth, data, db) => {
     try { return { out: await PR.handleReversePayment({ auth, data }, { db, now: D(2026, 11, 14) }) }; }
     catch (e) { return { err: e }; }
   };
-  const good = { invoiceId: 'inv1', paymentId: 'p_typo', reason: 'Typed $40,000 for a $4,000 check' };
+  const good = { invoiceId: 'inv1', paymentId: 'p_typo', reason: 'Typed $40,000 for a $4,000 check', cents: 4000000 };
   const owner = { uid: 'carol', token: { role: 'company_admin', companyId: 'co-a' } };
 
-  let db = fakeDb({ inv1: base() });
+  let db = fakeDb(seedA());
   let r = await call(owner, good, db);
-  ok('the company_admin reverses it', r.out && r.out.ok === true && r.out.amountPaid === 0 && r.out.balanceDue === 4000 && r.out.status === 'sent', r.err && r.err.message);
-  const w = db.writes[0] && db.writes[0][1];
-  ok('...one write, appending one negative entry for the whole amount', db.writes.length === 1 && w.payments.length === 2 && w.payments[1].amount === -40000 && w.payments[1].reversal === true);
+  ok('the company owner (companies/co-a.ownerId) reverses it', r.out && r.out.ok === true && r.out.amountPaid === 0 && r.out.balanceDue === 4000 && r.out.status === 'sent', r.err && r.err.message);
+  const wInv = db.writes.find((x) => x[0] === 'invoices/inv1');
+  const w = wInv && wInv[1];
+  ok('...the invoice write appends one negative entry for the whole amount', !!w && w.payments.length === 2 && w.payments[1].amount === -40000 && w.payments[1].reversal === true);
   ok('...the original payment is untouched', w && w.payments[0].amount === 40000 && w.payments[0].paymentId === 'p_typo');
   ok('...recorded by the caller, with the reason', w && w.payments[1].recordedBy === 'carol' && /Typed/.test(w.payments[1].reason));
+  const audit = db.writes.find((x) => /^payment_reversals\//.test(x[0]));
+  ok('...and a server-only audit record (who, why, how much) that no browser can edit',
+    !!audit && audit[1].byUid === 'carol' && audit[1].cents === 4000000 && /Typed/.test(audit[1].reason) && audit[1].companyId === 'co-a', JSON.stringify(audit && audit[1]));
+  const nWrites = db.writes.length;
   r = await call(owner, good, db);
-  ok('a second reversal of the same payment is refused', r.err && /changed|already/.test(r.err.message) && db.writes.length === 1, r.err && r.err.message);
+  ok('a second reversal of the same payment is refused', r.err && /changed|already/.test(r.err.message) && db.writes.length === nWrites, r.err && r.err.message);
+
+  // Tampering (security review 2026-11-14): an editor may rewrite every non-money key of an entry.
+  // Which payment is reversed is read only from amount / date / method, which the rules freeze.
+  const done = JSON.parse(JSON.stringify(db.docs.get('invoices/inv1')));
+  const tampered = JSON.parse(JSON.stringify(done));
+  tampered.payments[1].reversal = false; tampered.payments[1].reverses = 'something_else'; tampered.payments[0].paymentId = 'p_renamed';
+  db = fakeDb(seedA(tampered));
+  r = await call(owner, Object.assign({}, good, { paymentId: 'p_renamed' }), db);
+  ok('flags / ids rewritten by an editor do not reopen a reversed payment (no double reversal)', !!r.err && /already/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  const realPlusTypo = Object.assign(base(), { amountPaid: 44000, payments: [
+    { paymentId: 'p1', amount: 4000, at: D(2026, 10, 1), method: 'check', recordedBy: 'rep1' }, Object.assign({}, typo)] });
+  db = fakeDb(seedA(realPlusTypo));
+  r = await call(owner, good, db);
+  const afterTwo = JSON.parse(JSON.stringify(db.docs.get('invoices/inv1')));
+  afterTwo.payments[2].reverses = 'p1';           // point the reversal at the real payment
+  const rowsT = IP.paymentHistoryRows(Object.assign({}, afterTwo, { payments: afterTwo.payments.map((p) => Object.assign({}, p, { at: new Date(p.at) })) }));
+  const realRow = rowsT.find((x) => x.index === 0), typoRow = rowsT.find((x) => x.index === 1);
+  ok('history: re-pointing the reversal at the real payment changes nothing (amount + date decide)', realRow && !realRow.reversed && typoRow && typoRow.reversed);
+  db = fakeDb(seedA(Object.assign(base(), { payments: [{ paymentId: 'x1', amount: 40000, at: D(2026, 10, 2), method: 'card' }] })));
+  r = await call(owner, good, db);
+  ok('refused: an entry with no recordedBy (Stripe-ledger money whose markers were stripped)', !!r.err && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  db = fakeDb(seedA(Object.assign(base(), { companyId: undefined, createdBy: 'rep1' })));
+  r = await call({ uid: 'rep1', token: {} }, good, db);
+  ok('refused: an invoice with no companyId, even to its creator (an ex-member)', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
+  db = fakeDb(Object.assign(seedA(), { 'companies/co-a': { ownerId: 'dan' } }));
+  r = await call(owner, good, db);
+  ok('refused: a former owner after the company was transferred', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
+  db = fakeDb(seedA());
+  r = await call(owner, Object.assign({}, good, { cents: 400000 }), db);
+  ok('refused: the entry no longer carries the amount the owner confirmed', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
+  db = fakeDb(seedA());
+  const missing = await call(owner, Object.assign({}, good, { invoiceId: 'nope' }), db);
+  const foreign = await call({ uid: 'bob', token: { role: 'company_admin', companyId: 'co-b' } }, good, db);
+  ok('a missing invoice gets the same answer as another company\'s (nothing leaks)', missing.err && foreign.err && missing.err.code === foreign.err.code && missing.err.message === foreign.err.message, (missing.err && missing.err.code) + ' / ' + (foreign.err && foreign.err.code));
+  const full = Object.assign(base(), { payments: Array.from({ length: 15 }, (_, k) => ({ paymentId: 'q' + k, amount: 100, at: D(2026, 10, 1), method: 'cash', recordedBy: 'rep1' })) });
+  db = fakeDb(seedA(full));
+  r = await call(owner, Object.assign({}, good, { paymentId: 'q3', cents: 10000 }), db);
+  ok('refused: an invoice with 15 payment lines (a 16th would lock it for the browser)', !!r.err && /too many/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  const SL = req('functions/stripe-ledger-logic.js');
+  if (SL) {
+    const cu = { id: 'cu', leadId: 'L', status: 'paid', total: 10000, amountPaid: 10000, payments: [
+      { paymentId: 'cu1', amount: 10000, at: D(2026, 10, 1), method: 'other', basis: 'catchup', recordedBy: 'o' },
+      { paymentId: 'rev_cu1', amount: -10000, at: D(2026, 10, 1), method: 'other', reversal: true, recordedBy: 'o' },
+      { paymentId: 'q', amount: 10000, at: D(2026, 10, 5), method: 'check', recordedBy: 'o' }] };
+    ok('Stripe catch-up: a reversed catch-up entry is not a stand-in to absorb', SL.findCatchUpInvoice([cu], { amountCents: 1000000, atMs: D(2026, 10, 3).getTime() }) === null);
+  }
 
   const solo = { uid: 'solo1', token: {} };
-  db = fakeDb({ inv1: Object.assign(base(), { companyId: 'solo1', createdBy: 'solo1' }) });
+  db = fakeDb({ 'invoices/inv1': Object.assign(base(), { companyId: 'solo1', createdBy: 'solo1' }) });
   r = await call(solo, good, db);
   ok('a solo owner reverses their own', r.out && r.out.ok === true, r.err && r.err.message);
 
@@ -234,13 +287,16 @@ async function callableChecks() {
     ['signed out', null],
     ['the rep who typed it', { uid: 'rep1', token: { role: 'sales_rep', companyId: 'co-a' } }],
     ['a manager', { uid: 'm1', token: { role: 'manager', companyId: 'co-a' } }],
+    ['a company_admin who is not the owner (Joe: owner only)', { uid: 'dan', token: { role: 'company_admin', companyId: 'co-a' } }],
+    ['a platform admin (not the company owner)', { uid: 'pat', token: { role: 'admin' } }],
+    ['the owner of co-b claiming co-a', { uid: 'bob', token: { role: 'company_admin', companyId: 'co-a' } }],
     ['a viewer', { uid: 'v1', token: { role: 'viewer', companyId: 'co-a' } }],
     ['another company\'s owner', { uid: 'bob', token: { role: 'company_admin', companyId: 'co-b' } }],
     ['a solo owner of another company', { uid: 'solo2', token: {} }],
     ['a claimless user whose company claim is someone else\'s', { uid: 'x', token: { companyId: 'co-a' } }],
   ];
   for (const [label, auth] of refusals) {
-    db = fakeDb({ inv1: base() });
+    db = fakeDb(seedA());
     r = await call(auth, good, db);
     ok('refused: ' + label + ' (nothing written)', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
   }
@@ -251,12 +307,12 @@ async function callableChecks() {
     ['an unknown payment id', Object.assign({}, good, { paymentId: 'p_nope' })],
     ['a missing invoice', Object.assign({}, good, { invoiceId: 'nope' })],
   ]) {
-    db = fakeDb({ inv1: base() });
+    db = fakeDb(seedA());
     r = await call(owner, data, db);
     ok('refused: ' + label + ' (nothing written)', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
   }
-  db = fakeDb({ inv1: Object.assign(base(), { payments: [{ paymentId: 'p_typo', amount: 4000, at: D(2026, 10, 2), method: 'stripe', paymentIntentId: 'pi_1' }] }) });
-  r = await call(owner, good, db);
+  db = fakeDb(seedA(Object.assign(base(), { payments: [{ paymentId: 'p_typo', amount: 4000, at: D(2026, 10, 2), method: 'stripe', paymentIntentId: 'pi_1' }] })));
+  r = await call(owner, Object.assign({}, good, { cents: 400000 }), db);
   ok('refused: a Stripe payment (refund it in Stripe)', !!r.err && /Stripe/.test(r.err.message) && db.writes.length === 0);
 }
 
@@ -271,8 +327,13 @@ function wiringChecks() {
   ok('...App Check enforced, behind the ghost-account guard', /enforceAppCheck: true/.test(fsrc) && /wrapCallable\(/.test(fsrc));
   const src = read('docs/pro/js/invoice-pipeline.js');
   ok('the client calls the callable and writes no ledger entry itself', /_httpsCallable\(window\._functions, 'reversePayment'\)/.test(src) && !/planPaymentReversal/.test(src));
-  ok('the Reverse button is only drawn for the owner side', /\(r\.canReverse && _isOwnerSide\(\)\)/.test(src));
-  ok('reversePaymentUI refuses anyone else', /async function reversePaymentUI[\s\S]{0,200}if \(!_isOwnerSide\(\)\)/.test(src));
+  ok('the Reverse button is only drawn for the company owner', /\(r\.canReverse && _isCompanyOwner\(\)\)/.test(src));
+  ok('reversePaymentUI refuses anyone else', /async function reversePaymentUI[\s\S]{0,200}if \(!_isCompanyOwner\(\)\)/.test(src));
+  ok('a blank reason says so (not a silent no-op)', /A reason is required to reverse a payment/.test(src));
+  // an overdue invoice whose only payment is reversed stays overdue (the money set 'paid', not the aging)
+  const od = PR.planReversal(Object.assign(typoInv(), { status: 'overdue' }), 0, { reason: 'x', by: 'o' });
+  ok('reversing the only payment keeps "overdue"', od.patch.status === 'overdue', od.patch.status);
+  ok('a paid invoice whose only payment is reversed reads "sent"', PR.planReversal(typoInv(), 0, { reason: 'x', by: 'o' }).patch.status === 'sent');
   ok('the click is dispatched', /case 'reversePayment':/.test(src));
   ok('role-gate hides it from a viewer too', /\[data-ip-action="reversePayment"\]/.test(read('docs/pro/js/role-gate.js')));
 }

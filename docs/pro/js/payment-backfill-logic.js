@@ -275,11 +275,19 @@
       if (!inv || inv.deleted === true) return;
       var pays = Array.isArray(inv.payments) ? inv.payments : [];
       // A payment the owner reversed (a negative entry naming it) is not in the CRM any more.
-      var reversed = {};
-      pays.forEach(function (p) { if (p && p.reversal === true && parseFloat(p.amount) < 0 && p.reverses) reversed[String(p.reverses)] = 1; });
-      pays.forEach(function (p) {
+      var reversedIdx = (function (list) {   // nbd:reversal-pairs (functions/reversal-pairs.js): frozen fields only
+        var ms = function (x) { return x == null ? NaN : typeof x.toMillis === 'function' ? x.toMillis() : x instanceof Date ? x.getTime() : typeof x.seconds === 'number' ? x.seconds * 1000 : new Date(x).getTime(); };
+        var c = function (x) { return Math.round((Number(x) || 0) * 100); };
+        var out = {};
+        list.forEach(function (n, j) {
+          if (!n || !(Number(n.amount) < 0)) return;
+          for (var i = 0; i < j; i++) { var p = list[i]; if (p && !out[i] && c(p.amount) === -c(n.amount) && ms(p.at) === ms(n.at) && p.method === n.method) { out[i] = 1; break; } }
+        });
+        return out;
+      })(pays);
+      pays.forEach(function (p, pi) {
         if (!p) return;
-        if (p.paymentId && reversed[String(p.paymentId)]) return;
+        if (reversedIdx[pi]) return;
         var amt = parseFloat(p.amount);
         if (!(amt > 0)) return;
         var ymd = toYmd(p.at);

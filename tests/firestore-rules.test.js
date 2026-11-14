@@ -1018,6 +1018,23 @@ async function run() {
   await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'paid', balanceDue: 0 }));                         // 'paid' with nothing left
   await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 500, status: 'partial', balanceDue: 4840 }));                // amountPaid does not follow the removal
   await assertSucceeds(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));                  // a clean Undo
+  // Payment reversal (2026-11-14, functions/payment-reversal.js): the server appends a NEGATIVE entry; no browser may Undo it
+  // (that would restore the reversed money to Collected and delete the record) — not the owner side, not the rep.
+  {
+    const typoAt = daysAgo(3);
+    const typoE = { paymentId: 'p_typo', amount: 40000, at: typoAt, method: 'check', recordedBy: 'alice' };
+    const revE = { paymentId: 'rev_p_typo', amount: -40000, at: typoAt, method: 'check', recordedBy: 'carol', reversal: true, reverses: 'p_typo', reason: 'typo' };
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'invoices/rev1'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined,
+        status: 'sent', total: 4000, amountPaid: 0, balanceDue: 4000, payments: [typoE, revE] }));
+    });
+    const undoRev = { payments: [typoE], amountPaid: 40000, balanceDue: 0, status: 'paid' };
+    await assertFails(updateDoc(doc(coAdmin, 'invoices/rev1'), undoRev));   // the owner side cannot delete a reversal
+    // (the platform admin is not covered: the invoice update rule lets isAdmin() skip every invoice check, as before)
+    await assertFails(updateDoc(doc(alice, 'invoices/rev1'), undoRev));     // nor the rep
+    await assertFails(updateDoc(doc(alice, 'invoices/rev1'), { payments: [typoE, Object.assign({}, revE, { amount: -1 })], amountPaid: 39999 }));   // its amount is frozen
+    await assertSucceeds(updateDoc(doc(alice, 'invoices/rev1'), { payments: [typoE, Object.assign({}, revE, { note: 'x' })] }));   // control: a non-money edit passes as before
+  }
   // (4) the recorder: set by the caller, never rewritten
   await assertFails(updateDoc(await fresh('r1'), paidPatch(payEntry({ recordedBy: 'bob' }))));                                  // recorded "by" someone else
   await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all

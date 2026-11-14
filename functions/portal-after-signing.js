@@ -78,12 +78,12 @@ function _paymentCounts(p) {
 }
 
 // The payments a homeowner sees on one invoice: real ones, less any the owner reversed (a typo,
-// a bounced check: a negative reversal entry naming the payment, invoice-pipeline.js
-// planPaymentReversal). Neither the reversed payment nor its reversal is shown.
+// a bounced check: a negative reversal entry naming the payment, functions/payment-reversal.js
+// planReversal). Neither the reversed payment nor its reversal is shown.
 function _countedPayments(inv) {
   const pays = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
-  const reversed = new Set(pays.filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
-  return pays.filter((p) => _paymentCounts(p) && !(p.paymentId && reversed.has(String(p.paymentId))));
+  const reversed = require('./reversal-pairs').reversedIndexes(pays);
+  return pays.filter((p, i) => _paymentCounts(p) && !reversed.has(i));
 }
 
 /** Has any money landed on this job? (any live invoice with a payment) */

@@ -1574,6 +1574,8 @@ service cloud.firestore {
                 && paymentsKept(n, o)
                 && (n.size() < o.size()
                     ? (n.size() == o.size() - 1
+                        // a negative entry is a payment REVERSAL (functions/payment-reversal.js, owner only): never undone from a browser
+                        && o[o.size() - 1].get('amount', 0) > 0
                         && (backfillWriterOk() || o[o.size() - 1].get('recordedBy', '') == request.auth.uid)
                         && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) - o[o.size() - 1].get('amount', 0))) < 0.005
                         && (d.get('status', '') != 'paid' || (n.size() > 0 && d.get('amountPaid', 0) >= r.get('total', 0) - 0.005))
