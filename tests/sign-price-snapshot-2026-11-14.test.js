@@ -377,9 +377,24 @@ const activity = (db, type) => [...db.store.entries()].filter(([k, v]) => k.star
     const ok2 = await rig(makeDb(world())).mint('d1');
     ok('a normal contract link returns priceLocked:true', ok2.priceLocked === true, JSON.stringify(ok2));
 
-    // (The viewer toast for priceLocked:false is held for Joe's customer-page
-    // budget call — nbd-doc-viewer.js boots on customer.html, which has 10 B
-    // of headroom. The response field above is what it would read.)
+    // The viewer warns the rep when the link went out unlocked.
+    const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/nbd-doc-viewer.js'), 'utf8').replace(/\r\n/g, '\n');
+    const at = src.indexOf('async function handleSendForSignature()');
+    const end = at === -1 ? -1 : src.indexOf('\n  }\n', at);
+    ok('found handleSendForSignature in nbd-doc-viewer.js', at !== -1 && end !== -1);
+    if (at !== -1 && end !== -1) {
+      const run = async (resp) => {
+        const toasts = [];
+        const sb = { window: { prompt: () => 'pat@example.test', showToast: (m, t) => toasts.push([m, t]) }, flashStatus: () => {},
+          currentContext: { signerEmailDefault: '', onSendForSignature: async () => resp } };
+        await require('vm').runInNewContext('(' + src.slice(at, end + 4).replace(/^async function handleSendForSignature\(\)/, 'async function ()') + ')', sb)();
+        return toasts;
+      };
+      const t1 = await run({ emailed: true, signLink: 'x', priceLocked: false, priceLockReason: 'no_primary_estimate' });
+      ok('the viewer shows a warning toast when priceLocked is false', t1.some(([m, t]) => t === 'warning' && /price/i.test(m)), JSON.stringify(t1));
+      const t2 = await run({ emailed: true, signLink: 'x', priceLocked: true });
+      ok('…and no warning for a locked (or non-contract) link', t2.length === 0, JSON.stringify(t2));
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════
