@@ -1466,11 +1466,20 @@ service cloud.firestore {
       // supplement with no companyId stays owner-only (absent-key access errors
       // to deny, never widens) and another tenant never matches. Query-safe for
       // where('parentEstimateId','==') + where('companyId','==',claim).
-      allow read: if isOwner(resource.data.userId) || isAdmin()
+      // A read of an id that does not exist answers "does not exist" (second
+      // security pass M-B, 2026-11-14): the office's invoice cross-checks the
+      // lead timeline by supplement id, and a denied read of a deleted doc
+      // looked like "forbidden" and blocked the invoice for good. It reveals
+      // only that no supplement has that random id.
+      allow read: if (resource == null && isAuth())
+        || isOwner(resource.data.userId) || isAdmin()
         || (isCompanyStaff()
             && resource.data.companyId != null
             && resource.data.companyId == myCompanyId());
-      allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      // Soft delete only (M-B): the owner sets deleted: true (the owner update
+      // branch), which staff can still read and the invoice never bills. A hard
+      // delete is the platform admin's.
+      allow delete: if isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
       // re-owned, re-tenanted, moved to another lead or re-pointed to another
       // parent estimate, and only supStampOk() writes the invoiced stamp.
@@ -1483,6 +1492,7 @@ service cloud.firestore {
             && (resource.data.get('invoicedInvoiceId', null) == null
                 || didNotChange(['status', 'supplementTotal', 'submission'])))
         || supStampOk()
+        || supStampClearOk()
         || isAdmin();
       // Create (security review HIGH 2, 2026-11-14): companyId is required and
       // pinned to the caller's tenant (the /expenses create shape), AND the
@@ -1517,6 +1527,26 @@ service cloud.firestore {
             || (staff && ecid != '' && ecid == request.auth.token.get('companyId', '')))
         && (ecid == d.companyId || (ecid == '' && e.get('userId', '') == request.auth.uid))
         && (e.get('leadId', null) == null || d.get('leadId', null) == e.get('leadId', null));
+    }
+
+    // Clearing a STRANDED stamp (second security pass M-A, 2026-11-14): the
+    // company_admin of the supplement's company (or a claimless solo owner of
+    // it) may remove invoicedInvoiceId + invoicedAt, and nothing else, once the
+    // invoice it names no longer exists or is void / cancelled / deleted, so
+    // the supplement bills again. Never while that invoice is live.
+    function supStampClearOk() {
+      let id = resource.data.get('invoicedInvoiceId', '');
+      let cid = resource.data.get('companyId', '');
+      let invPath = /databases/$(database)/documents/invoices/$(id);
+      return id is string && id.size() > 0 && cid != ''
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt'])
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && request.resource.data.get('invoicedAt', null) == null
+        && ((request.auth.token.get('role', '') == 'company_admin' && cid == request.auth.token.get('companyId', ''))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(cid)))
+        && (!exists(invPath)
+            || get(invPath).data.get('status', '') in ['void', 'cancelled']
+            || get(invPath).data.get('deleted', false) == true);
     }
 
     // The invoiced stamp (security review HIGH 1): write-once, by the owner or
@@ -1785,7 +1815,11 @@ service cloud.firestore {
       let enters = !(r.get('status', '') in ['void', 'cancelled']) && d.get('status', '') in ['void', 'cancelled'];
       let newlyDeleted = d.get('deleted', false) == true && r.get('deleted', false) != true;
       return backfillWriterOk()
+        // An invoice that billed supplements is voided by the owner side only
+        // (second security pass M-A, 2026-11-14), so a $1 throwaway invoice
+        // cannot strand them; the company_admin can then clear the stamps.
         || (!leaves
+            && r.get('supplementIds', []).size() == 0
             && ((!invoiceCarriesMoney(r) && !invoiceCarriesMoney(d))
                 || (invoiceCarriesMoney(r) && !enters && !newlyDeleted
                     && d.get('payments', []) == r.get('payments', [])
@@ -4030,7 +4064,9 @@ service cloud.firestore {
           // jobId frozen (R3-6); leadId frozen once set — a lead-less
           // invoice may be attached once, to a lead the writer can reach
           // (leadIdStable, 2026-10-05).
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'])
+          // supplementIds frozen (2026-11-14): the supplements this invoice
+          // billed (their stamps point here) cannot be dropped off it.
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds'])
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
@@ -4046,9 +4082,13 @@ service cloud.firestore {
           // A backfill invoice is the owner side's to edit or void (a manager cannot).
           && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
         );
+      // An invoice that billed supplements (supplementIds) is the owner side's
+      // to delete (second security pass M-A, 2026-11-14): deleting a throwaway
+      // invoice must not leave those supplements stamped "billed" with no bill.
       allow delete: if isAdmin()
         || (isOwner(resource.data.createdBy) && notViewer()
-            && (!invoiceCarriesMoney(resource.data) || backfillWriterOk()))
+            && (!invoiceCarriesMoney(resource.data) || backfillWriterOk())
+            && (resource.data.get('supplementIds', []).size() == 0 || backfillWriterOk()))
         || (isCompanyAdmin()
             && resource.data.companyId != null
             && resource.data.companyId == myCompanyId());

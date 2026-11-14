@@ -2003,7 +2003,10 @@ async function run() {
   await assertFails(updateDoc(doc(alice,    'supplements/sup-a'), { userId: 'bob' }));
   await assertFails(updateDoc(doc(bob,      'supplements/sup-a'), { status: 'void' }));
   await assertFails(deleteDoc(doc(bob,      'supplements/sup-a')));
-  await assertSucceeds(deleteDoc(doc(alice, 'supplements/sup-new')));
+  // Soft delete only since 2026-11-14 (second security pass M-B): the owner
+  // flags it deleted; a hard delete is the platform admin's.
+  await assertFails(deleteDoc(doc(alice, 'supplements/sup-new')));
+  await assertSucceeds(updateDoc(doc(alice, 'supplements/sup-new'), { deleted: true }));
   // connectAccounts: same-tenant read (a rep must resolve the collect-online
   // capability), solo uid==companyId read, cross-tenant + anon denied, and
   // NO client write of any kind — flipping chargesEnabled from devtools would
@@ -2257,7 +2260,7 @@ async function run() {
   // payload for an update that is otherwise legal for the owner.
   const top = {
     estimates:         { mk: (u) => ({ userId: u, companyId: CO, total: 100 }),                  upd: { note: 'x' } },
-    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e34-' + u, version: 1, status: 'draft' }), upd: { note: 'x' } },
+    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e34-' + u, version: 1, status: 'draft' }), upd: { note: 'x' }, noDelete: true }, // soft delete only (2026-11-14)
     expenses:          { mk: (u) => expDoc(u, CO, null, 'Lowes'),                                 upd: { amountCents: 500 } },
     recurringExpenses: { mk: (u) => ({ userId: u, companyId: CO, amountCents: 5000, costType: 'overhead' }), upd: { amountCents: 6000 } },
     suppliers:         { mk: (u) => ({ userId: u, companyId: CO, displayName: 'Supply' }),        upd: { displayName: 'Supply 2' } },

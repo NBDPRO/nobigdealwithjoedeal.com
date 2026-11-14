@@ -19,10 +19,19 @@
  *     Jo runs it, after the rules + client change is deployed.
  *   • Fill-only and idempotent: a supplement that already has a companyId is
  *     never touched, so it is safe to re-run.
+ *   • Stamps ONLY when the supplement's author belongs to the estimate's tenant
+ *     (they wrote the estimate, or their companyId claim equals the
+ *     estimate's companyId) AND its leadId is the estimate's leadId (second
+ *     security pass M-C, 2026-11-14). A supplement saved before this PR could
+ *     name ANOTHER tenant's estimate; stamping it would pull its amount into
+ *     that tenant's billing. Everything else is REPORTED for a person.
  *   • A supplement whose parent estimate is missing, or has no companyId
  *     itself, is REPORTED and left alone (no guessing a tenant).
- *   • Writes only `companyId` (merge), so the invoiced stamp, the money and the
- *     provenance fields are untouched. The Admin SDK skips rules.
+ *   • A PERSON MUST READ THE DRY-RUN OUTPUT (every "would stamp" and every
+ *     "cannot place" line) before anyone runs --apply.
+ *   • Writes only `companyId`, with update() (fails if the doc is gone; never
+ *     re-creates one), so the invoiced stamp, the money and the provenance
+ *     fields are untouched. The Admin SDK skips rules.
  *
  * SETUP (admin-script-runner pattern; firebase-admin via scripts/_admin.js)
  *   export GOOGLE_APPLICATION_CREDENTIALS=~/.nbd/nobigdeal-pro-sa.json
@@ -40,9 +49,11 @@
 /**
  * @param {Array<{id: string, data: object}>} supplements
  * @param {Object<string, object>} estimatesById  parent estimate data by id (missing = not found)
+ * @param {Object<string, string>} [authorCompanyById]  uid → that user's companyId claim
  * @returns {{ updates: Array<{id, companyId}>, skipped: {already: number}, problems: Array<{id, reason}> }}
  */
-function planBackfill(supplements, estimatesById) {
+function planBackfill(supplements, estimatesById, authorCompanyById) {
+  const authors = authorCompanyById || {};
   const updates = [];
   const problems = [];
   let already = 0;
@@ -54,6 +65,17 @@ function planBackfill(supplements, estimatesById) {
     if (!e) { problems.push({ id: s.id, reason: 'parent estimate ' + (pid || '(none)') + ' not found' }); continue; }
     if (!(typeof e.companyId === 'string' && e.companyId)) {
       problems.push({ id: s.id, reason: 'parent estimate ' + pid + ' has no companyId' });
+      continue;
+    }
+    const author = d.userId;
+    const ownsEstimate = !!author && author === e.userId;
+    if (!ownsEstimate && !(author && authors[author] && authors[author] === e.companyId)) {
+      problems.push({ id: s.id, reason: 'author ' + (author || '(none)') + ' is not in the estimate company '
+        + e.companyId + ' (author company: ' + ((author && authors[author]) || 'unknown') + ')' });
+      continue;
+    }
+    if ((d.leadId || null) !== (e.leadId || null)) {
+      problems.push({ id: s.id, reason: 'leadId ' + (d.leadId || '(none)') + ' is not the estimate lead ' + (e.leadId || '(none)') });
       continue;
     }
     updates.push({ id: s.id, companyId: e.companyId });
@@ -70,7 +92,7 @@ async function main() {
     console.error('Refusing to --apply without --yes. Re-run with: --apply --yes');
     process.exit(2);
   }
-  const { initAdmin, getFirestore } = require('./_admin');
+  const { initAdmin, getFirestore, getAuth } = require('./_admin');
   initAdmin({ projectId: PROJECT });
   const db = getFirestore();
 
@@ -100,7 +122,17 @@ async function main() {
     const e = await db.collection('estimates').doc(pid).get();
     if (e.exists) estimatesById[pid] = e.data() || {};
   }
-  const plan = planBackfill(missing, estimatesById);
+  // Each author's tenant, from their auth claims (the source of truth the
+  // rules use). An author that cannot be read stays unknown → reported.
+  const authorCompanyById = {};
+  for (const uid of [...new Set(missing.map((s) => s.data.userId).filter((x) => typeof x === 'string' && x))]) {
+    try {
+      const u = await getAuth().getUser(uid);
+      const cid = (u.customClaims && u.customClaims.companyId) || null;
+      if (cid) authorCompanyById[uid] = cid;
+    } catch (e) { /* unknown author: reported by planBackfill */ }
+  }
+  const plan = planBackfill(missing, estimatesById, authorCompanyById);
 
   console.log('  scanned          : ' + scanned);
   console.log('  missing companyId: ' + missing.length);
@@ -113,7 +145,7 @@ async function main() {
   let written = 0;
   for (let i = 0; i < plan.updates.length; i += 400) {
     const batch = db.batch();
-    for (const u of plan.updates.slice(i, i + 400)) batch.set(db.collection('supplements').doc(u.id), { companyId: u.companyId }, { merge: true });
+    for (const u of plan.updates.slice(i, i + 400)) batch.update(db.collection('supplements').doc(u.id), { companyId: u.companyId });
     await batch.commit();
     written += Math.min(400, plan.updates.length - i);
   }

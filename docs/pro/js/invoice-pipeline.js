@@ -1164,10 +1164,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           // createInvoiceFromEstimate when it folds the supplement. NOTE: a future
           // invoice-void feature MUST clear invoicedInvoiceId to allow re-billing.
           invoiced: !!(sup && sup.invoicedInvoiceId),
+          // Soft-deleted (the rep removed it; 2026-11-14): never billed.
+          deleted: !!(sup && sup.deleted === true),
           description: description
         };
       })
-      .filter(function (s) { return s.billable > 0 && !s.invoiced; });
+      .filter(function (s) { return s.billable > 0 && !s.invoiced && !s.deleted; });
   }
 
   /**
@@ -1748,6 +1750,24 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * @param {string} estimateId
    * @param {{ leadId?: string }} [opts]  the estimate's lead, for check 3
    */
+  /**
+   * The signed-in user's claims from the live ID token (2026-11-14). The cached
+   * window._userClaims is used only when there is no token API (it may not
+   * have loaded yet, and an empty cache silently meant "no company"). Throws
+   * SUPPLEMENTS_UNREADABLE when neither is available or the token read fails.
+   */
+  async function _liveClaims() {
+    const user = (window._auth && window._auth.currentUser) || (window.auth && window.auth.currentUser) || window._user || null;
+    if (user && typeof user.getIdTokenResult === 'function') {
+      let claims = null;
+      try { claims = ((await user.getIdTokenResult()) || {}).claims || null; }
+      catch (err) { throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err); }
+      if (!claims) throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+      return claims;
+    }
+    if (window._userClaims && typeof window._userClaims === 'object') return window._userClaims;
+    throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+  }
   function _supplementsUnreadable(message, cause) {
     const e = new Error(message);
     e.code = 'SUPPLEMENTS_UNREADABLE';
@@ -1771,17 +1791,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // a cache that may not have loaded yet, and an empty cache silently meant
     // "own supplements only". No token API and no cache, or a failed token
     // read → refuse.
-    let claims = null;
-    const user = (window._auth && window._auth.currentUser) || (window.auth && window.auth.currentUser) || window._user || null;
-    if (user && typeof user.getIdTokenResult === 'function') {
-      try { claims = ((await user.getIdTokenResult()) || {}).claims || null; }
-      catch (err) { throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err); }
-      if (!claims) throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
-    } else if (window._userClaims && typeof window._userClaims === 'object') {
-      claims = window._userClaims;
-    } else {
-      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
-    }
+    const claims = await _liveClaims();
     const role = claims.role || '';
     const companyId = claims.companyId || '';
     const teamScope = !!(companyId && (role === 'company_admin' || role === 'manager' || role === 'admin'));
@@ -1849,6 +1859,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           + 'Have the person who entered the supplement make the invoice, or contact support to share it with your company.');
       }
     }
+    // Soft-deleted supplements are returned too (selectBillableSupplements
+    // never bills them); they no longer look "unreadable" (2026-11-14).
     return Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId && mine(s); });
   }
 
@@ -2101,7 +2113,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // Tenant key (mirrors /expenses): lets same-company staff read team
         // invoices and is required by the hardened /invoices create rule. Solo
         // operators key by uid (companyId == uid convention).
-        companyId: window._userClaims?.companyId || window._auth?.currentUser?.uid || null,
+        companyId: (await _liveClaims()).companyId || window._auth?.currentUser?.uid || null,
         // Multi-job (2026-09-30): the job this invoice bills — the estimate's
         // own job if it names one, else the job on the customer's card right
         // now. money-paper.js marks exactly this job paid in full, and a later
@@ -4248,7 +4260,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const uid = _currentUid();
         const doc = jobValueInvoiceDoc({
           lead: o.lead, leadId: o.leadId, totalCents: o.totalCents, jobId: target.jobId, credits: plan.credits, uid,
-          companyId: (window._userClaims && window._userClaims.companyId) || uid,
+          companyId: (await _liveClaims()).companyId || uid,
           depRule: window.NBDDepositRule || null, J: window.NBDJurisdiction || null, now: new Date(),
         });
         invoiceId = (await window.addDoc(window.collection(db, 'invoices'), doc)).id;

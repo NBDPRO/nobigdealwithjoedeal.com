@@ -777,22 +777,26 @@ ${signBlock}
       console.warn('[Supplement] Firestore not available — cannot save');
       return null;
     }
+    // companyId (Finding 5, 2026-11-14): the office invoices a job by reading
+    // its supplements by companyId, and the /supplements create rule requires
+    // the caller's tenant here: the companyId claim, or a solo owner's uid.
+    // Read from the live ID token (customer.html may not have
+    // window._userClaims yet); fall back to the cached claims. With neither,
+    // guessing the uid would only be refused by the rules, so say so (L-B).
+    let claims = null;
+    try {
+      if (typeof window.auth.currentUser.getIdTokenResult === 'function') {
+        claims = (await window.auth.currentUser.getIdTokenResult()).claims || null;
+      }
+    } catch (_) { claims = null; }
+    claims = claims || window._userClaims || null;
+    if (!claims) {
+      throw new Error('Supplement not saved: your account could not be confirmed. Check your connection, reload and try again.');
+    }
     try {
       const ts = (typeof window.serverTimestamp === 'function')
         ? window.serverTimestamp()
         : new Date().toISOString(); // last-resort fallback
-      // companyId (Finding 5, 2026-11-14): the office invoices a job by reading
-      // its supplements by companyId, and the /supplements create rule requires
-      // the caller's tenant here: the companyId claim, or a solo owner's uid.
-      // Read from the live ID token (customer.html may not have
-      // window._userClaims yet); fall back to the cached claims.
-      let claims = null;
-      try {
-        if (typeof window.auth.currentUser.getIdTokenResult === 'function') {
-          claims = (await window.auth.currentUser.getIdTokenResult()).claims || null;
-        }
-      } catch (_) { claims = null; }
-      claims = claims || window._userClaims || {};
       const data = Object.assign({}, supplement, {
         userId: window.auth.currentUser.uid,
         companyId: claims.companyId || window.auth.currentUser.uid,
@@ -854,6 +858,12 @@ ${signBlock}
       return ref.id;
     } catch (e) {
       console.error('[Supplement] Save failed:', e);
+      // The rules refused it (wrong estimate, company or status): say so
+      // instead of "check console" (L-B, 2026-11-14).
+      if (e && e.code === 'permission-denied') {
+        throw new Error('Supplement not saved: your account is not allowed to add a supplement to this estimate. '
+          + 'Ask the person who wrote the estimate, or your office.');
+      }
       return null;
     }
   }
