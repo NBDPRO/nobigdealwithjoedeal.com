@@ -30,7 +30,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
+const { sliceFn, loadInVm } = require('./lib/src-kit');
 
 const ROOT = process.env.NBD_ROOT || path.join(__dirname, '..');
 const JS = path.join(ROOT, 'docs/pro/js');
@@ -42,20 +42,21 @@ function ok(name, cond, detail) {
   else { failed++; console.log('  ✗ ' + name + (detail ? ' — ' + detail : '')); }
 }
 
-// The function that starts inside `anchor`; its end is found by the parser.
+// One function's source by name (src-kit sliceFn: string/regex-aware, and null
+// when the name is defined twice, so a stale copy is never the one that runs).
 function extractFn(src, anchor, file) {
-  const at = src.indexOf(anchor);
-  if (at < 0 || src.indexOf(anchor, at + 1) >= 0) throw new Error(file + ': anchor not unique: ' + anchor);
-  const kw = src.slice(at).search(/(async\s+)?function\b/);
-  const start = at + kw;
-  for (let i = src.indexOf('}', start); i >= 0; i = src.indexOf('}', i + 1)) {
-    const cand = src.slice(start, i + 1);
-    try { new Function('return (' + cand + ');'); return cand; } catch (_) { /* not yet */ }
-  }
-  throw new Error(file + ': could not find the end of ' + anchor);
+  const name = /function\s+([\w$]+)/.exec(anchor)[1];
+  const fn = sliceFn(src, name, { unique: true });
+  if (!fn) throw new Error(file + ': no single definition of ' + name);
+  return fn;
 }
 function optionalFn(src, anchor, file) {
   try { return extractFn(src, anchor, file); } catch (_) { return ''; }
+}
+// One top-level `const NAME = …;` line, cut out by position (empty if absent).
+function constLine(src, n) {
+  const i = src.indexOf('\nconst ' + n + ' = ');
+  return i < 0 ? '' : src.slice(i + 1, src.indexOf('\n', i + 1));
 }
 
 const CO = 'co-a';
@@ -78,8 +79,8 @@ const soloLead = { id: 'L3', userId: 'solo', companyId: 'solo', firstName: 'Sol'
 // so the harness still runs and the checks say what is missing.
 const BRIDGE = 'crm-portal-bridge.js';
 function bridgeHelpers(src) {
-  const lines = ['NO_LEAD_DELETE', 'LEAD_ROLE_LOADING'].map((n) => (src.match(new RegExp('^const ' + n + ' = [^\\n]*;$', 'm')) || [''])[0]);
-  lines.push(/^let _binLeads = /m.test(src) ? 'let _binLeads = {};' : '');
+  const lines = ['NO_LEAD_DELETE', 'LEAD_ROLE_LOADING'].map((n) => constLine(src, n));
+  lines.push('let _binLeads = {};');
   ['function _leadDeletePerm(', 'function _mayDeleteLead(', 'function _deleteRefusal(', 'function _rerenderBinIfOpen(']
     .forEach((a) => lines.push(optionalFn(src, a, BRIDGE)));
   return lines.join('\n');
@@ -117,8 +118,7 @@ function partA() {
   ok('_mayDeleteLead is false while claims load (the card menu hides Delete)', !!may && may(teammateLead) === false);
   win._userClaims = C.rep;
   ok('…and true once they say the rep owns it', !!may && may(teammateLead) === true);
-  const S = read(BRIDGE);
-  ok('exported as window.nbdMayDeleteLead for the card menu', /\nwindow\.nbdMayDeleteLead = _mayDeleteLead;/.test(S));
+  // (window.nbdMayDeleteLead, the export the card menu reads: part E loads the whole bridge.)
 }
 
 // ── B + C: crm-portal-bridge.js ──────────────────────────────────────────────
@@ -290,7 +290,7 @@ async function partC() {
   b = loadBridge(C.coAdmin, 'carol', leads, { binOnly: true, drawerOpen: false });
   if (b.api.rerender) await b.api.rerender({ detail: { source: 'leads' } });
   ok('a closed bin is not re-rendered', b.log.binLoads === 0);
-  ok('…the listener is registered', /window\.addEventListener\('nbd:data-refreshed', _rerenderBinIfOpen\)/.test(read(BRIDGE)));
+  // (That the bridge registers it on nbd:data-refreshed: part E fires the real listener.)
 }
 
 function partD() {
@@ -314,11 +314,63 @@ function partD() {
   ok('positive control: "Delete lead" for the lead\'s own rep', run(C.rep, 'alice', teammateLead) === true);
 }
 
-function partE() {
-  console.log('E. crm.js restore aliases');
-  const crm = read('crm.js');
-  ok('crm.js no longer defines the unguarded window.restoreLead alias', !/window\.restoreLead\s*=/.test(crm));
-  ok('crm.js no longer defines the unguarded window.restoreDeletedLead alias', !/window\.restoreDeletedLead\s*=/.test(crm));
+// Just enough browser for crm-portal-bridge.js and crm.js to run top to bottom
+// (both are classic scripts the dashboard loads whole).
+function browserStubs(extra) {
+  const noop = () => {};
+  const el = () => ({ classList: { add: noop, remove: noop, toggle: noop, contains: () => false }, style: {}, addEventListener: noop,
+    appendChild: noop, setAttribute: noop, querySelectorAll: () => [], querySelector: () => null, textContent: '', value: '' });
+  return Object.assign({
+    document: { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener: noop,
+      createElement: el, body: el(), documentElement: el(), readyState: 'complete' },
+    addEventListener: noop, removeEventListener: noop, setTimeout: () => 0, clearTimeout: noop, setInterval: () => 0, clearInterval: noop,
+    localStorage: { getItem: () => null, setItem: noop, removeItem: noop }, location: { hash: '', pathname: '/pro/dashboard.html', search: '' },
+    navigator: { userAgent: '' }, matchMedia: () => ({ matches: false, addEventListener: noop, addListener: noop }), requestAnimationFrame: noop,
+    showToast: noop, escHtml: (s) => String(s == null ? '' : s),
+  }, extra || {});
+}
+async function partE() {
+  console.log('E. the whole files, run');
+  // crm-portal-bridge.js, loaded whole as the dashboard does.
+  const listeners = [];
+  const drawerBody = { innerHTML: '', querySelectorAll: () => [] };
+  const open = { classList: { contains: (c) => c === 'open', add() {}, remove() {} } };
+  let binLoads = 0;
+  const g = browserStubs({
+    addEventListener: (type, fn) => listeners.push({ type, fn }),
+    __NBD_CALL_REGISTRY: { _loadDeletedLeads: () => { binLoads++; return Promise.resolve([]); } },
+  });
+  g.document.getElementById = (id) => (id === 'deletedDrawer' ? open : id === 'deletedDrawerBody' ? drawerBody : null);
+  let ctx = null;
+  try { ctx = loadInVm('docs/pro/js/crm-portal-bridge.js', g, { src: { 'docs/pro/js/crm-portal-bridge.js': read(BRIDGE) } }); }
+  catch (e) { ok('crm-portal-bridge.js runs top to bottom', false, e.message); }
+  if (ctx) {
+    ok('the bridge exports window.nbdMayDeleteLead for the card menu', typeof ctx.nbdMayDeleteLead === 'function');
+    if (typeof ctx.nbdMayDeleteLead === 'function') {
+      ctx._userClaims = C.manager; ctx._user = { uid: 'eve' };
+      ok('…which refuses a manager on a teammate\'s lead', ctx.nbdMayDeleteLead(teammateLead) === false);
+      ctx._userClaims = C.coAdmin; ctx._user = { uid: 'carol' };
+      ok('positive control: …and allows a company_admin', ctx.nbdMayDeleteLead(teammateLead) === true);
+    }
+    const refresh = listeners.filter((l) => l.type === 'nbd:data-refreshed');
+    ok('the bridge listens for nbd:data-refreshed', refresh.length >= 1);
+    for (const l of refresh) await l.fn({ detail: { source: 'leads' } });
+    ok('…and that listener redraws an open Deleted bin', binLoads >= 1, 'binLoads=' + binLoads);
+  }
+
+  // crm.js: the unguarded restore aliases are gone; the remove alias is untouched.
+  const noop = () => {};
+  const crmStubs = browserStubs();
+  ['renderLeads', 'updatePipeline', 'openLeadModal', 'closeLeadModal', 'saveLead', 'moveCard', 'changeLeadType',
+    'kanbanFilter', 'kanbanFilterDebounced', 'clearCrmSearch', 'handleCardClick'].forEach((n) => { crmStubs[n] = noop; });
+  let crm = null;
+  try { crm = loadInVm('docs/pro/js/crm.js', crmStubs, { src: { 'docs/pro/js/crm.js': read('crm.js') } }); }
+  catch (e) { ok('crm.js runs top to bottom', false, e.message); }
+  if (crm) {
+    ok('crm.js no longer defines the unguarded window.restoreLead alias', typeof crm.restoreLead === 'undefined', typeof crm.restoreLead);
+    ok('crm.js no longer defines the unguarded window.restoreDeletedLead alias', typeof crm.restoreDeletedLead === 'undefined', typeof crm.restoreDeletedLead);
+    ok('positive control: crm.js still defines window.permanentlyDelete', typeof crm.permanentlyDelete === 'function');
+  }
 }
 
 (async () => {
@@ -326,7 +378,7 @@ function partE() {
   await partB();
   await partC();
   partD();
-  partE();
+  await partE();
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
