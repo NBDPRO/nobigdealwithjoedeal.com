@@ -68,6 +68,64 @@ function slice(text, start) {
     ok('a lead refresh after the tasks are minutes old re-reads them', ctx.loads === 2, 'loads=' + ctx.loads);
   }
 
+  // ── review round: the refresh must not race itself or flip modes on a blip ──
+  {
+    const decls = (TASKS.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS|TASK_CACHE_MAX_RETRIES|FS_SDK|taskLoadMode|tasksLoaded|tasksLoadedAt|taskEditGen|taskLoadP)\b[^\n]*$/gm) || []).join('\n');
+    const once = slice(TASKS, 'async function _loadAllTasksOnce(');
+    const wrapper = once ? slice(TASKS, 'function loadAllTasks(') : slice(TASKS, 'async function loadAllTasks(');
+    function rig() {
+      const st = { reads: 0, fail: null, gate: null, server: [{ id: 't1', text: 'old', dueDate: '', done: false, leadId: 'L1' }] };
+      const win = { _leads: [{ id: 'L1' }], _taskCache: {}, _user: { uid: 'u1' }, _userClaims: {},
+        NBDTodayPlan: {
+          tasksQuery: () => ({ group: 'tasks', field: 'userId', value: 'u1', orderBy: 'createdAt', dir: 'asc' }),
+          groupTasksByLead: (rows) => { const by = {}; rows.forEach((r) => { (by.L1 = by.L1 || []).push(Object.assign({ id: r.id }, r.data)); }); return by; },
+        },
+        collectionGroup: () => ({}), dispatchEvent: () => true };
+      const timers = [];
+      const ctx = vm.createContext({
+        window: win, console: { log() {}, warn() {}, error() {} }, Date, Promise, Object, Array,
+        CustomEvent: function () {}, setTimeout: (fn) => { timers.push(fn); return 1; },
+        db: {}, where: () => ({}), orderBy: () => ({}), query: (c) => c, collection: () => ({}),
+        getDocs: async () => {
+          st.reads++;
+          if (st.gate) await st.gate;
+          if (st.fail) { const e = new Error('net'); e.code = st.fail; throw e; }
+          return { docs: st.server.map((t) => ({ id: t.id, ref: { parent: { path: 'leads/L1/tasks' } }, data: () => Object.assign({}, t) })), metadata: { fromCache: false } };
+        },
+        renderTodayTasks() {}, renderLeads() {},
+      });
+      vm.runInContext([decls, slice(TASKS, 'async function _overlayCallText('), slice(TASKS, 'async function _loadTasks('),
+        slice(TASKS, 'async function _loadAllTasksGroup('), once, wrapper,
+        'this.load = loadAllTasks; this.bump = () => { if (typeof _taskEditGen !== "undefined") _taskEditGen++; }; this.mode = () => _taskLoadMode;'].join('\n'), ctx);
+      return { ctx, win, st, timers };
+    }
+    // two asks at once → one read
+    let R = rig();
+    let open; R.st.gate = new Promise((r) => { open = r; });
+    const a = R.ctx.load(), b = R.ctx.load();
+    open(); await a; await b; await flush();
+    ok('two refreshes at once make ONE task read', R.st.reads === 1, 'reads=' + R.st.reads);
+    // a write lands while a read is in flight → that read does not overwrite it
+    R = rig();
+    R.st.gate = new Promise((r) => { open = r; });
+    const p = R.ctx.load();
+    await flush();
+    R.win._taskCache = { L1: [{ id: 't1', text: 'old', done: true, leadId: 'L1' }] }; // the rep ticked Done
+    R.ctx.bump();
+    open(); await p; await flush();
+    ok('a read that started before a write does not undo the write', R.win._taskCache.L1[0].done === true, JSON.stringify(R.win._taskCache));
+    ok('...and a fresh read is queued', R.timers.length >= 1);
+    // a network blip keeps the one-query mode
+    R = rig();
+    R.st.fail = 'unavailable';
+    await R.ctx.load(); await flush();
+    ok('a network error does not switch the session to per-lead reads', R.ctx.mode() === 'group', 'mode=' + R.ctx.mode());
+    R = rig();
+    R.st.fail = 'permission-denied';
+    await R.ctx.load(); await flush();
+    ok('(a real refusal still falls back to per-lead)', R.ctx.mode() === 'per-lead');
+  }
+
   // ── #1 the Schedule calendar's refresh re-reads tasks too ──
   {
     const clicks = [];
