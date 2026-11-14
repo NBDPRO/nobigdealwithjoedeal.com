@@ -511,6 +511,8 @@
   function reloadLists() {
     try { routines = C().normRoutines(readJson(ROUTINES, [])); custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { /* keep what we have */ }
   }
+  // The sync restored routines / custom lifts from the cloud (ds-firebase-sync.js): reload them (custom lifts join the library).
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd-ds-settings-restored', () => { reloadLists(); refreshCard(); });
   const SAVE_FAILED = "Couldn't save that on this phone - storage is full or blocked";
   function saveRoutine() {
     if (!live) return;
@@ -1034,5 +1036,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { reload: () => { reloadLists(); refreshCard(); }, refresh: refreshCard, open, close, start, _render: render };
+  window.NBDCoachUI = { refresh: refreshCard, open, close, start, _render: render };
 })();
