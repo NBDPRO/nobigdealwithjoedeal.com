@@ -603,9 +603,8 @@ exports.getSignDocument = onRequest(
     if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
       res.status(410).json({ error: 'This signing link has expired. Contact your rep for a new one.' }); return;
     }
-    if (tok.status === 'superseded') { res.status(410).json({ error: SUPERSEDED_MSG }); return; }
     if (tok.status !== 'pending') {
-      res.status(410).json({ error: 'This document has already been signed.' }); return;
+      res.status(410).json({ error: tok.status === 'superseded' ? SUPERSEDED_MSG : 'This document has already been signed.' }); return;
     }
 
     // Re-check the path on every use: a token minted before the 2026-10-05
