@@ -1466,30 +1466,77 @@ service cloud.firestore {
             && resource.data.companyId == myCompanyId());
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
-      // re-owned, re-tenanted or re-pointed to a different parent estimate.
+      // re-owned, re-tenanted, moved to another lead or re-pointed to another
+      // parent estimate, and only supStampOk() writes the invoiced stamp.
       // Supplements are created append-only (addDoc, versioned), so a legit
-      // update keeps userId + companyId + parentEstimateId stable → passes; only
-      // tampering trips the guard. Same-company staff may write ONLY the
-      // invoiced stamp (invoice-pipeline.js stamps the supplements it folds into
-      // an invoice so a later invoice cannot bill them twice).
+      // update (updateResponse / markSubmittedRemote) keeps all of that stable.
+      // Once stamped (billed on an invoice) the money is frozen too: status,
+      // supplementTotal and submission (security review HIGH 1, 2026-11-14).
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'companyId', 'parentEstimateId']))
-        || (isCompanyStaff()
-            && resource.data.companyId != null
-            && resource.data.companyId == myCompanyId()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt']))
+            && didNotChange(['userId', 'companyId', 'parentEstimateId', 'leadId', 'invoicedInvoiceId', 'invoicedAt'])
+            && (resource.data.get('invoicedInvoiceId', null) == null
+                || didNotChange(['status', 'supplementTotal', 'submission'])))
+        || supStampOk()
         || isAdmin();
-      // companyId is required and pinned to the caller's tenant (the /expenses
-      // create shape): the claim, or, for a claimless solo owner, a tenant they
-      // own by uid. Without the pin a rep could stamp a VICTIM tenant's
-      // companyId on a supplement pointed at that tenant's estimate and have it
-      // folded into the victim's invoice.
+      // Create (security review HIGH 2, 2026-11-14): companyId is required and
+      // pinned to the caller's tenant (the /expenses create shape), AND the
+      // supplement must name a parent estimate the caller may bill — their own,
+      // or (staff) one in their company — carrying that estimate's companyId
+      // and lead, born a 'draft' and unbilled. Without it a rep could add an
+      // "approved" supplement to a teammate's job and the office's team query
+      // would bill it; without the companyId pin a rep could aim one at a
+      // VICTIM tenant's estimate.
       allow create: if isAuth() && notViewer()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.companyId is string
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == request.auth.token.get('companyId', '')
-            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)));
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
+        && request.resource.data.get('status', '') == 'draft'
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && supParentOk(request.resource.data);
+    }
+
+    // The parent estimate a NEW supplement names (security review HIGH 2): the
+    // caller's own estimate, or one in their company for staff; the supplement
+    // carries that estimate's companyId (a legacy estimate with none: only its
+    // owner, under their own tenant) and, when the estimate has a lead, that
+    // lead. A missing estimate errors to deny. One get().
+    function supParentOk(d) {
+      let e = get(/databases/$(database)/documents/estimates/$(d.parentEstimateId)).data;
+      let ecid = e.get('companyId', '');
+      let staff = request.auth.token.get('role', '') in ['company_admin', 'manager'];
+      return d.parentEstimateId is string
+        && (e.get('userId', '') == request.auth.uid
+            || (staff && ecid != '' && ecid == request.auth.token.get('companyId', '')))
+        && (ecid == d.companyId || (ecid == '' && e.get('userId', '') == request.auth.uid))
+        && (e.get('leadId', null) == null || d.get('leadId', null) == e.get('leadId', null));
+    }
+
+    // The invoiced stamp (security review HIGH 1): write-once, by the owner or
+    // same-company staff, ONLY in the same batch as a NEW invoice (absent before
+    // this write, present after) that this caller is creating for the same
+    // estimate and company and that lists this supplement in supplementIds;
+    // invoicedAt is the server time. Clearing or overwriting it is the platform
+    // admin's alone. Two gets on the one invoice doc per supplement.
+    function supStampOk() {
+      let n = request.resource.data;
+      let id = n.get('invoicedInvoiceId', '');
+      let staff = request.auth.token.get('role', '') in ['company_admin', 'manager'];
+      let cid = resource.data.get('companyId', '');
+      let invPath = /databases/$(database)/documents/invoices/$(id);
+      return notViewer()
+        && resource.data.get('invoicedInvoiceId', null) == null
+        && n.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt'])
+        && id is string && id.size() > 0
+        && n.get('invoicedAt', null) == request.time
+        && (isOwner(resource.data.userId)
+            || (staff && cid != '' && cid == request.auth.token.get('companyId', '')))
+        && !exists(invPath)
+        && getAfter(invPath).data.get('createdBy', '') == request.auth.uid
+        && getAfter(invPath).data.get('estimateId', '') == resource.data.parentEstimateId
+        && (cid == '' ? isOwner(resource.data.userId) : getAfter(invPath).data.get('companyId', '') == cid)
+        && request.resource.id in getAfter(invPath).data.get('supplementIds', []);
     }
 
     // ── EXPENSES (job costs / supplier spend) ─────────

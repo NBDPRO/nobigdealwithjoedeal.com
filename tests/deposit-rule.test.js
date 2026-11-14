@@ -591,7 +591,7 @@ function closeBoardPage(price, mode, deductible, ohio) {
     // Signed in (2026-11-14, Finding 5): invoice creation now refuses when it
     // cannot read the job's supplements, and a signed-out caller cannot.
     Object.assign(W, {
-      _user: { uid: 'u1' },
+      _user: { uid: 'u1' }, _userClaims: {},
       _db: {}, doc: () => ({}), collection: () => ({}), _leads: [],
       getDoc: async () => ({ exists: () => true, data: () => JSON.parse(JSON.stringify(invSource)) }),
       addDoc: async (_c, data) => { captured = data; return { id: 'inv_' + seq }; },

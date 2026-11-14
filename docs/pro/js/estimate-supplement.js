@@ -824,23 +824,31 @@ ${signBlock}
             ? supplement.supplementTotal
             : ((supplement.addedItems || []).reduce((s, it) => s + (Number(it.lineTotal) || 0), 0)
               + (supplement.modifiedItems || []).reduce((s, m) => s + (Number(m.deltaLineTotal) || 0), 0));
-          await window.addDoc(
-            window.collection(window.db, `leads/${supplement.leadId}/activity`),
-            {
-              userId: window.auth.currentUser.uid,
-              source: 'rep', // F-05: client-written activity must declare source:'rep'
-              type: 'supplement_created',
-              label: 'Supplement #' + (supplement.version || 1)
-                + (totalDelta ? ' (+$' + Math.round(totalDelta).toLocaleString() + ')' : ''),
-              supplementId: ref.id,
-              parentEstimateId: supplement.parentEstimateId || null,
-              version: supplement.version || 1,
-              reason: (supplement.reason || '').slice(0, 280),
-              createdAt: ts,
-            }
-          );
+          const entry = {
+            userId: window.auth.currentUser.uid,
+            source: 'rep', // F-05: client-written activity must declare source:'rep'
+            type: 'supplement_created',
+            label: 'Supplement #' + (supplement.version || 1)
+              + (totalDelta ? ' (+$' + Math.round(totalDelta).toLocaleString() + ')' : ''),
+            supplementId: ref.id,
+            parentEstimateId: supplement.parentEstimateId || null,
+            version: supplement.version || 1,
+            reason: (supplement.reason || '').slice(0, 280),
+            createdAt: ts,
+          };
+          // The office's invoice cross-checks this entry to find supplements it
+          // cannot read (invoice-pipeline.js loadEstimateSupplements), so a lost
+          // entry is not cosmetic: retry once, then tell the rep (review
+          // 2026-11-14) instead of a console line only.
+          const col = window.collection(window.db, `leads/${supplement.leadId}/activity`);
+          try { await window.addDoc(col, entry); }
+          catch (firstErr) { await window.addDoc(col, entry); }
         } catch (actErr) {
           console.warn('[Supplement] activity log write failed:', actErr.message);
+          if (typeof window.showToast === 'function') {
+            window.showToast('Supplement saved, but it could not be added to the customer timeline. '
+              + 'Tell the office before they invoice this job.', 'warning');
+          }
         }
       }
       return ref.id;

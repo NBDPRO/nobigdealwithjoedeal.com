@@ -158,7 +158,7 @@ function loadIIFE(file, pre) {
   // Signed in, with an empty query API (2026-11-14, Finding 5): invoice
   // creation now refuses when it cannot read the job's supplements.
   Object.assign(win, {
-    _user: { uid: 'u1' }, query: () => ({}), where: () => ({}),
+    _user: { uid: 'u1' }, _userClaims: {}, query: () => ({}), where: () => ({}),
     getDocs: async () => ({ empty: true, size: 0, forEach() {}, docs: [] }),
     _db: {}, doc: () => ({}), collection: () => ({}),
     getDoc: async () => ({ exists: () => true, data: () => EST }),

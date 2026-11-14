@@ -2257,7 +2257,7 @@ async function run() {
   // payload for an update that is otherwise legal for the owner.
   const top = {
     estimates:         { mk: (u) => ({ userId: u, companyId: CO, total: 100 }),                  upd: { note: 'x' } },
-    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e1', version: 1 }), upd: { note: 'x' } },
+    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e34-' + u, version: 1, status: 'draft' }), upd: { note: 'x' } },
     expenses:          { mk: (u) => expDoc(u, CO, null, 'Lowes'),                                 upd: { amountCents: 500 } },
     recurringExpenses: { mk: (u) => ({ userId: u, companyId: CO, amountCents: 5000, costType: 'overhead' }), upd: { amountCents: 6000 } },
     suppliers:         { mk: (u) => ({ userId: u, companyId: CO, displayName: 'Supply' }),        upd: { displayName: 'Supply 2' } },
@@ -2297,6 +2297,9 @@ async function run() {
     const db = ctx.firestore();
     for (const u of ['vx', 'rx']) {
       await setDoc(doc(db, 'leads/' + LEAD[u]), { userId: u, companyId: CO, name: u + ' lead' });
+      // A supplement names a parent estimate the writer may bill (2026-11-14); kept
+      // apart from estimates/s34-<u>, which this matrix deletes first.
+      await setDoc(doc(db, 'estimates/e34-' + u), { userId: u, companyId: CO });
       for (const [c, d] of Object.entries(top)) await setDoc(doc(db, c + '/s34-' + u), d.mk(u));
       for (const [s, d] of Object.entries(sub)) await setDoc(doc(db, 'leads/' + LEAD[u] + '/' + s + '/s34'), d.mk());
       await setDoc(doc(db, 'leads/' + LEAD[u] + '/ai_drafts/s34'), { userId: u, leadId: LEAD[u], status: 'pending', draftText: 'hi' });

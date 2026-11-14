@@ -59,7 +59,26 @@ function browser(seed, extra) {
   const clone = (v) => JSON.parse(JSON.stringify(v));
   const W = {
     _db: { fake: true }, db: { fake: true },
-    doc: (db, ...segs) => ({ path: segs.join('/'), id: segs[segs.length - 1] }),
+    // doc(collectionRef) mints an auto id (the v9 SDK); writeBatch is all or
+    // nothing — the invoice + supplement stamp land together (2026-11-14).
+    doc: (db, ...segs) => {
+      if (db && db.col && !segs.length) { const id = 'new' + (++seq); return { path: db.col + '/' + id, id }; }
+      return { path: segs.join('/'), id: segs[segs.length - 1] };
+    },
+    writeBatch: () => {
+      const ops = [];
+      return {
+        set: (r, data) => { ops.push(['set', r.path, data]); },
+        update: (r, patch) => { ops.push(['update', r.path, patch]); },
+        commit: async () => {
+          for (const [k, p, d] of ops) {
+            if (k === 'update' && !store.has(p)) throw new Error('NOT_FOUND ' + p);
+            writes.push([k, p]);
+            store.set(p, k === 'set' ? clone(d) : Object.assign({}, store.get(p), clone(d)));
+          }
+        },
+      };
+    },
     collection: (db, col) => ({ col }),
     where: (f, op, v) => ({ f, op, v }),
     query: (col, ...ws) => ({ col: col.col, ws }),

@@ -1767,10 +1767,35 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (!window.query || !window.where || !window.getDocs || !window.collection || !window.getDoc || !window.doc) {
       throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
     }
-    const claims = window._userClaims || {};
+    // Claims from the live ID token (review 2026-11-14): window._userClaims is
+    // a cache that may not have loaded yet, and an empty cache silently meant
+    // "own supplements only". No token API and no cache, or a failed token
+    // read → refuse.
+    let claims = null;
+    const user = (window._auth && window._auth.currentUser) || (window.auth && window.auth.currentUser) || window._user || null;
+    if (user && typeof user.getIdTokenResult === 'function') {
+      try { claims = ((await user.getIdTokenResult()) || {}).claims || null; }
+      catch (err) { throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err); }
+      if (!claims) throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+    } else if (window._userClaims && typeof window._userClaims === 'object') {
+      claims = window._userClaims;
+    } else {
+      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+    }
     const role = claims.role || '';
     const companyId = claims.companyId || '';
     const teamScope = !!(companyId && (role === 'company_admin' || role === 'manager' || role === 'admin'));
+    // The tenant whose supplements this invoice may bill: the claim, or a solo
+    // owner's uid. Anything else found is another company's (review Low 1).
+    const tenant = companyId || uid;
+    const mine = function (sd) { return sd.companyId === tenant || sd.userId === uid; };
+    // No lead → no timeline to cross-check. Only the estimate's own author can
+    // then be sure every supplement on it is one they can read; anyone else
+    // (the office on a rep's estimate) is refused (review 2026-11-14).
+    if (!opts.leadId && opts.estimateOwnerId !== uid) {
+      throw _supplementsUnreadable('Invoice not made: this estimate is not linked to a customer, so its insurance supplements '
+        + 'cannot all be checked from your account. Link the estimate to its customer, or have the person who wrote it make the invoice.');
+    }
     const byId = new Map();
     const take = (snap) => snap.docs.forEach(function (d) { byId.set(d.id, Object.assign({ id: d.id }, d.data())); });
     try {
@@ -1806,7 +1831,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         try {
           const s = await window.getDoc(window.doc(db, 'supplements', sid));
           // Gone (deleted by an admin): nothing left to bill.
-          if (s.exists()) byId.set(sid, Object.assign({ id: sid }, s.data()));
+          if (s.exists()) {
+            const sd = s.data() || {};
+            if (mine(sd)) byId.set(sid, Object.assign({ id: sid }, sd));
+            // Readable (a platform admin) but with no company to place it in:
+            // it may be this job's money — refuse rather than guess.
+            else if (!sd.companyId) unreadable.push(a.version ? '#' + a.version : sid);
+            // Another company's supplement: never billed here.
+          }
         } catch (err) {
           unreadable.push(a.version ? '#' + a.version : sid);
         }
@@ -1817,7 +1849,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           + 'Have the person who entered the supplement make the invoice, or contact support to share it with your company.');
       }
     }
-    return Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId; });
+    return Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId && mine(s); });
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1841,7 +1873,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * same work.
    * @returns {Promise<{ invoiceId: string, reused: boolean, reason?: string, creditCents?: number }>}
    */
-  async function createOrOpenJobInvoice(estimateId) {
+  async function createOrOpenJobInvoice(estimateId, opts) {
+    opts = opts || {};
     const db = getDb();
 
     try {
@@ -1884,7 +1917,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // loadEstimateSupplements THROWS when it cannot read every supplement on
       // the job (Finding 5, 2026-11-14): no invoice is better than one that
       // silently leaves approved supplement money off.
-      const supplements = await loadEstimateSupplements(db, estimateId, { leadId: est.leadId || null });
+      // The lead: the estimate's, else the one the caller is billing for
+      // (Record payment passes it), so the timeline check is never skipped
+      // just because the estimate itself carries no leadId (review 2026-11-14).
+      const supplements = await loadEstimateSupplements(db, estimateId,
+        { leadId: est.leadId || opts.leadId || null, estimateOwnerId: est.userId || null });
       const folded = applySupplementsToTotals({ items, subtotal, tax, total }, supplements);
       items = folded.items;
       subtotal = folded.subtotal;
@@ -2088,24 +2125,42 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         throw new Error('This estimate has no dollar total — open it and set a price before invoicing.');
       }
 
-      const invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
-
       // Stamp each supplement folded into THIS invoice so it can't be re-billed on
       // a later invoice for the same estimate. Progress billing intentionally
       // allows multiple invoices per estimate (Jo's call 2026-07-08), so a
-      // supplement must land on exactly ONE. Best-effort — a stamp miss risks a
-      // manual double-check, never a create failure; the invoice already exists.
+      // supplement must land on exactly ONE. The stamp is written in the SAME
+      // batch as the invoice (review 2026-11-14): both land or neither does. It
+      // was a best-effort update after the invoice, so a failed stamp left the
+      // supplement billable again on the next invoice (a double bill). The
+      // /supplements rule (supStampOk) accepts the stamp only this way: a NEW
+      // same-job invoice that lists the supplement in supplementIds, once.
       const foldedIds = (folded && folded.supplementIds) || [];
-      if (foldedIds.length && typeof window.updateDoc === 'function' && typeof window.doc === 'function') {
-        const stampTs = (typeof window.serverTimestamp === 'function') ? window.serverTimestamp() : new Date().toISOString();
-        await Promise.all(foldedIds.map(function (sid) {
-          return window.updateDoc(window.doc(db, 'supplements', sid), {
-            invoicedInvoiceId: invoiceRef.id,
-            invoicedAt: stampTs,
-          }).catch(function (e) {
-            console.warn('[invoice-pipeline] supplement invoiced-stamp failed:', sid, e && e.message);
-          });
-        }));
+      let invoiceRef;
+      if (foldedIds.length) {
+        if (typeof window.writeBatch !== 'function' || typeof window.serverTimestamp !== 'function') {
+          throw _supplementsUnreadable('Invoice not made: this job has approved insurance supplements, and they could not be '
+            + 'marked as billed with the invoice. Reload the page and try again.');
+        }
+        invoiceData.supplementIds = foldedIds.slice();
+        invoiceRef = window.doc(window.collection(db, 'invoices'));
+        const batch = window.writeBatch(db);
+        batch.set(invoiceRef, invoiceData);
+        const stampTs = window.serverTimestamp();
+        foldedIds.forEach(function (sid) {
+          batch.update(window.doc(db, 'supplements', sid), { invoicedInvoiceId: invoiceRef.id, invoicedAt: stampTs });
+        });
+        try {
+          await batch.commit();
+        } catch (e) {
+          console.warn('[invoice-pipeline] invoice + supplement stamp batch refused:', e && e.message);
+          const err = new Error('Invoice not made: the insurance supplements on this job could not be marked as billed '
+            + '(one may already be on another invoice). Reload and try again.');
+          err.code = 'SUPPLEMENTS_STAMP_FAILED';
+          err.cause = e;
+          throw err;
+        }
+      } else {
+        invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
       }
       return { invoiceId: invoiceRef.id, reused: false, creditCents: jobCredits.reduce((s, c) => s + c.cents, 0) };
 
@@ -4181,7 +4236,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (target.kind === 'existing') {
       invoiceId = o.invoiceId || (target.invoices && target.invoices[0] && target.invoices[0].id);
     } else if (target.kind === 'estimate') {
-      invoiceId = (await createOrOpenJobInvoice(target.estimateId)).invoiceId;
+      invoiceId = (await createOrOpenJobInvoice(target.estimateId, { leadId: o.leadId || null })).invoiceId;
     } else {
       // Re-read the job's invoices right before writing: another device
       // may have made one since the sheet opened.
@@ -4239,11 +4294,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // the estimate is refused rather than under-billed.
     let supplements = [], supErr = null;
     if (estimate && estimate.id) {
-      try { supplements = await loadEstimateSupplements(db, estimate.id, { leadId: estimate.leadId || leadId }); }
+      try { supplements = await loadEstimateSupplements(db, estimate.id, { leadId: estimate.leadId || leadId, estimateOwnerId: estimate.userId || null }); }
       catch (e) { supErr = e; }
     }
     const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts(), supplements });
-    if (supErr && target.kind === 'estimate') throw supErr;
+    // An existing invoice is paid as it stands. Anything that makes a NEW one
+    // (from the estimate, or from the job total when the estimate has none) is
+    // refused while the supplements cannot be read (review 2026-11-14).
+    if (supErr && target.kind !== 'existing') throw supErr;
     return { lead, invoices, estimate, target };
   }
 
