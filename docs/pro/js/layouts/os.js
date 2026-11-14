@@ -876,7 +876,16 @@
     S.order = S.order.filter(function (x) { return x !== id; });
     var next = WM.nextFocus(here(), id);
     S.focus = next;
-    if (next) focusWin(next); else { paintAllWins(); save(); }
+    if (next) { focusWin(next); return; }
+    // No window takes over, so the CRM's router still has the closed view
+    // active. Left there, the router observer (release() just changed the
+    // view's class) read it as "routed here" and opened it again at the first
+    // cascade slot: close looked like re-centre (2026-11-14). goTo() sets
+    // .active afresh on every route, so opening the app later still works.
+    var v = viewEl(id);
+    if (v) v.classList.remove('active');
+    paintAllWins();
+    save();
   }
   function toggleMax(id) {
     var rec = winRec(id);
