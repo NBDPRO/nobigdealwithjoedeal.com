@@ -1861,7 +1861,62 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     }
     // Soft-deleted supplements are returned too (selectBillableSupplements
     // never bills them); they no longer look "unreadable" (2026-11-14).
-    return Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId && mine(s); });
+    const found = Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId && mine(s); });
+    // Joe (2026-11-14): a supplement bills only with the company owner side's
+    // approval record. One that claims money without it (approved before the
+    // rule), or one saved before supplements carried companyId, is neither
+    // billed nor dropped: the invoice is refused and says what to do. The
+    // server (functions/supplement-invoice.js) applies the same test.
+    const claimsMoney = function (sd) {
+      return sd.deleted !== true && !sd.invoicedInvoiceId && (sd.status === 'approved' || sd.status === 'partial')
+        && supplementBillableAmount(sd) > 0;
+    };
+    const label = function (list) { return list.map(function (sd) { return '#' + (sd.version || 1); }).join(', '); };
+    const legacy = found.filter(function (sd) { return claimsMoney(sd) && !sd.companyId; });
+    if (legacy.length) {
+      throw _supplementsUnreadable('Invoice not made: insurance supplement ' + label(legacy) + ' was saved before supplements were tied '
+        + 'to a company, so it cannot be billed yet. Ask your NBD Pro admin to review it (supplement backfill).');
+    }
+    const unapproved = found.filter(function (sd) { return claimsMoney(sd) && !supplementApprovalOk(sd, sd.companyId); });
+    if (unapproved.length) {
+      throw _supplementsUnreadable('Invoice not made: insurance supplement ' + label(unapproved) + ' is marked approved, but the company '
+        + 'owner has not recorded the approval (with the carrier\'s approval note or letter). The owner or company admin must re-approve it, then make the invoice.');
+    }
+    return found;
+  }
+
+  /**
+   * The company owner side's approval record on a supplement (Joe,
+   * 2026-11-14): approvedBy, approvedAt and approvalEvidence with a note (not
+   * blank, at most 1000 characters) and/or a document under
+   * companies/{companyId}/supplement-evidence/. Byte-for-byte the same test as
+   * functions/supplement-invoice.js approvalEvidenceOk.
+   */
+  function supplementApprovalOk(sup, companyId) {
+    const s = sup || {};
+    if (!(typeof s.approvedBy === 'string' && s.approvedBy)) return false;
+    if (s.approvedAt == null) return false;
+    const ev = s.approvalEvidence;
+    if (!ev || typeof ev !== 'object') return false;
+    const note = typeof ev.note === 'string' ? ev.note.trim() : '';
+    const pth = typeof ev.path === 'string' ? ev.path : '';
+    const noteOk = note.length > 0 && note.length <= 1000;
+    const pathOk = !!companyId && pth.indexOf('companies/' + companyId + '/supplement-evidence/') === 0 && pth.length <= 400 && !/\.\./.test(pth);
+    return noteOk || pathOk;
+  }
+
+  // Callables (onCall, App Check) from this classic script: the Functions SDK
+  // is imported on first use, the same way accepted-tier-chip.js does it.
+  // window.__importFunctions is a test hook only.
+  const FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
+  async function _onCall(name, data) {
+    if (!(window._functions && window._httpsCallable)) {
+      const mod = await (typeof window.__importFunctions === 'function' ? window.__importFunctions() : import(FUNCTIONS_SDK));
+      window._functions = window._functions || mod.getFunctions();
+      window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+    }
+    const res = await window._httpsCallable(window._functions, name)(data || {});
+    return (res && res.data) || {};
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -2137,43 +2192,32 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         throw new Error('This estimate has no dollar total — open it and set a price before invoicing.');
       }
 
-      // Stamp each supplement folded into THIS invoice so it can't be re-billed on
-      // a later invoice for the same estimate. Progress billing intentionally
-      // allows multiple invoices per estimate (Jo's call 2026-07-08), so a
-      // supplement must land on exactly ONE. The stamp is written in the SAME
-      // batch as the invoice (review 2026-11-14): both land or neither does. It
-      // was a best-effort update after the invoice, so a failed stamp left the
-      // supplement billable again on the next invoice (a double bill). The
-      // /supplements rule (supStampOk) accepts the stamp only this way: a NEW
-      // same-job invoice that lists the supplement in supplementIds, once.
+      // An invoice that bills insurance supplements is made by the SERVER
+      // (functions/supplement-invoice.js createSupplementInvoice, Joe
+      // 2026-11-14): it re-reads the estimate, every supplement on it and the
+      // job's other invoices, computes the lines, credits and deposit itself,
+      // creates the invoice and marks each supplement billed in ONE
+      // transaction. The browser never writes the stamp (firestore.rules has
+      // no client branch for it) and cannot create an invoice that carries
+      // supplements. Any refusal or failure: no invoice, the server's words.
       const foldedIds = (folded && folded.supplementIds) || [];
-      let invoiceRef;
       if (foldedIds.length) {
-        if (typeof window.writeBatch !== 'function' || typeof window.serverTimestamp !== 'function') {
-          throw _supplementsUnreadable('Invoice not made: this job has approved insurance supplements, and they could not be '
-            + 'marked as billed with the invoice. Reload the page and try again.');
-        }
-        invoiceData.supplementIds = foldedIds.slice();
-        invoiceRef = window.doc(window.collection(db, 'invoices'));
-        const batch = window.writeBatch(db);
-        batch.set(invoiceRef, invoiceData);
-        const stampTs = window.serverTimestamp();
-        foldedIds.forEach(function (sid) {
-          batch.update(window.doc(db, 'supplements', sid), { invoicedInvoiceId: invoiceRef.id, invoicedAt: stampTs });
-        });
+        let made;
         try {
-          await batch.commit();
+          made = await _onCall('createSupplementInvoice', { estimateId: estimateId, leadId: est.leadId || opts.leadId || null });
         } catch (e) {
-          console.warn('[invoice-pipeline] invoice + supplement stamp batch refused:', e && e.message);
-          const err = new Error('Invoice not made: the insurance supplements on this job could not be marked as billed '
-            + '(one may already be on another invoice). Reload and try again.');
-          err.code = 'SUPPLEMENTS_STAMP_FAILED';
+          console.warn('[invoice-pipeline] createSupplementInvoice refused:', e && (e.code || e.message));
+          const msg = String((e && e.message) || '').replace(/^FirebaseError:\s*/, '');
+          const err = new Error(/^Invoice not made/.test(msg) || /You cannot make an invoice/.test(msg) || /changed/.test(msg)
+            ? msg : 'Invoice not made: the server could not make the invoice with its insurance supplements. Check your connection and try again.');
+          err.code = 'SUPPLEMENTS_INVOICE_REFUSED';
           err.cause = e;
           throw err;
         }
-      } else {
-        invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
+        if (!made || !made.invoiceId) throw new Error('Invoice not made: the server returned no invoice. Reload and try again.');
+        return { invoiceId: made.invoiceId, reused: !!made.reused, reason: made.reason, creditCents: Number(made.creditCents) || 0 };
       }
+      const invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
       return { invoiceId: invoiceRef.id, reused: false, creditCents: jobCredits.reduce((s, c) => s + c.cents, 0) };
 
     } catch (error) {
@@ -4562,6 +4606,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     isOwedInvoice,
     owedDollarsOf,
     supplementBillableAmount,
+    supplementApprovalOk,
     selectBillableSupplements,
     applySupplementsToTotals,
     buildRowItems,

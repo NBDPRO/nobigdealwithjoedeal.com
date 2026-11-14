@@ -539,6 +539,11 @@ exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
 // See functions/messaging-controls.js + messaging-controls-fns.js.
 exports.manageMessagingControls = require('./messaging-controls-fns').manageMessagingControls;
 
+// An invoice WITH insurance supplements, and the supplements marked billed, made on the
+// server in one transaction (Finding 5, Joe 2026-11-14): the browser may never stamp a
+// supplement or create an invoice that carries one. supplement-invoice.js.
+exports.createSupplementInvoice = require('./supplement-invoice').createSupplementInvoice;
+
 // "Ok to text this customer from my phone?" (review R2-3-1 / R2-3-2,
 // 2026-10-06): the server check every phone send asks before Messages opens
 // (STOP register + Do Not Text, consent, switch, homeowner-time hours), the

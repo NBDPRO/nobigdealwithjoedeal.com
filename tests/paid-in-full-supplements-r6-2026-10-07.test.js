@@ -51,6 +51,9 @@ const OH = '1 Main St, Cincinnati, OH 45202';
 const CL = req('docs/pro/js/catchup-logic.js');
 const NL = req('docs/pro/js/numbers-logic.js');
 const CER_CLIENT = req('docs/pro/js/customer-estimate-rows.js');
+// An invoice with supplements is made by the server since 2026-11-14 (functions/supplement-invoice.js):
+// the real handler runs over this sandbox's store.
+const { installSupplementCallable } = require('./lib/supplement-callable-fake');
 let IP = null, CU = null;
 function browser(seed, extra) {
   const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
@@ -113,6 +116,7 @@ function browser(seed, extra) {
       loadSpend: async () => ({ months: {} }), saveSpendMonth: async () => true, mergeSpendMonths: async () => true,
     },
   };
+  installSupplementCallable(W, store, () => ({ uid: 'u1', token: {} }));
   Object.assign(W, extra || {});
   global.window = W;
   global.showToast = () => {};
@@ -131,7 +135,9 @@ const insEst = (f) => Object.assign({
   userId: 'u1', leadId: 'C2', grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0, mode: 'insurance', addr: OH,
   rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }],
 }, f || {});
-const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, f || {});
+// Saved with its company and approved by the owner side with the carrier's evidence (Joe, 2026-11-14).
+const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', companyId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield',
+  approvedBy: 'u1', approvedAt: 1, approvalEvidence: { note: 'Carrier letter: ice & water approved.' } }, f || {});
 
 (async () => {
   // ════════════════════════════════════════════════════════════════════

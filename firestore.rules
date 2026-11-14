@@ -1482,16 +1482,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
       // re-owned, re-tenanted, moved to another lead or re-pointed to another
-      // parent estimate, and only supStampOk() writes the invoiced stamp.
-      // Supplements are created append-only (addDoc, versioned), so a legit
-      // update (updateResponse / markSubmittedRemote) keeps all of that stable.
-      // Once stamped (billed on an invoice) the money is frozen too: status,
-      // supplementTotal and submission (security review HIGH 1, 2026-11-14).
+      // parent estimate. Supplements are created append-only (addDoc,
+      // versioned), so a legit update keeps all of that stable.
+      //
+      // The invoiced stamp is the SERVER's (functions/supplement-invoice.js
+      // createSupplementInvoice, Joe 2026-11-14): no client branch writes it.
+      // Only supStampClearOk (the company_admin, a stamp whose invoice is gone
+      // or void) and the platform admin touch it.
+      //
+      // Approval (Joe, 2026-11-14): the OWNER branch (the rep who wrote it) may
+      // record submitted / denied and edit notes, but never approve: it cannot
+      // move status into or out of approved / partial, change supplementTotal,
+      // submission.approvedAmount or the approval record, and once approved
+      // (or billed) it cannot change status, submission or the deleted flag.
+      // supApproveOk is the owner SIDE's branch (company_admin of the company,
+      // a solo owner, the platform admin) and requires the approval record.
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'companyId', 'parentEstimateId', 'leadId', 'invoicedInvoiceId', 'invoicedAt'])
-            && (resource.data.get('invoicedInvoiceId', null) == null
-                || didNotChange(['status', 'supplementTotal', 'submission'])))
-        || supStampOk()
+            && didNotChange(['userId', 'companyId', 'parentEstimateId', 'leadId', 'invoicedInvoiceId', 'invoicedAt',
+                             'supplementTotal', 'approvalEvidence', 'approvedBy', 'approvedAt'])
+            && supOwnerStatusOk())
+        || supApproveOk()
         || supStampClearOk()
         || isAdmin();
       // Create (security review HIGH 2, 2026-11-14): companyId is required and
@@ -1510,7 +1520,58 @@ service cloud.firestore {
             || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
         && request.resource.data.get('status', '') == 'draft'
         && request.resource.data.get('invoicedInvoiceId', null) == null
+        && !request.resource.data.keys().hasAny(['approvedBy', 'approvedAt', 'approvalEvidence'])
         && supParentOk(request.resource.data);
+    }
+
+    // The rep's own status changes (Joe, 2026-11-14): never into or out of
+    // approved / partial, never the approved amount, and an approved or billed
+    // supplement's status, carrier response and deleted flag stay as they are.
+    function supOwnerStatusOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let ap = ['approved', 'partial'];
+      return (n.get('status', '') == r.get('status', '') || (!(n.get('status', '') in ap) && !(r.get('status', '') in ap)))
+        && n.get('submission', {}).get('approvedAmount', null) == r.get('submission', {}).get('approvedAmount', null)
+        && ((!(r.get('status', '') in ap) && r.get('invoicedInvoiceId', null) == null)
+            || didNotChange(['status', 'submission', 'deleted']));
+    }
+
+    // The owner SIDE of the supplement's company (Joe, 2026-11-14): its
+    // company_admin, a solo owner (no role / company claim, the company keyed
+    // by their uid), or the platform admin (role 'admin', isAdmin()).
+    function supApproverOk(cid) {
+      return isAdmin()
+        || (cid != '' && request.auth.token.get('role', '') == 'company_admin'
+            && request.auth.token.get('companyId', '') == cid)
+        || (cid != '' && request.auth.token.get('role', '') == '' && request.auth.token.get('companyId', '') == ''
+            && ownsTenantByUid(cid));
+    }
+    // Approval evidence: a note (1..1000 characters, not blank) and/or a
+    // document under the company's own folder.
+    function supEvidenceOk(ev, cid) {
+      return ev is map
+        && ((ev.get('note', '') is string && ev.get('note', '').trim().size() > 0 && ev.get('note', '').size() <= 1000)
+            || (ev.get('path', '') is string
+                && ev.get('path', '').matches('^companies/' + cid + '/supplement-evidence/[A-Za-z0-9_. -]{1,200}$')
+                && !ev.get('path', '').matches('.*[.][.].*')));
+    }
+    // The owner side approves, re-prices or records a response on an
+    // UNBILLED supplement. Moving it to approved / partial (or keeping it
+    // there) carries the approval record: approvedBy == caller, approvedAt ==
+    // the server time, approvalEvidence.
+    function supApproveOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let cid = r.get('companyId', '');
+      return notViewer() && supApproverOk(cid)
+        && r.get('invoicedInvoiceId', null) == null
+        && n.diff(r).affectedKeys().hasOnly(['status', 'supplementTotal', 'submission', 'approvalEvidence',
+                                              'approvedBy', 'approvedAt', 'updatedAt', 'reason', 'deleted'])
+        && (!(n.get('status', '') in ['approved', 'partial'])
+            || (n.get('approvedBy', '') == request.auth.uid
+                && n.get('approvedAt', null) == request.time
+                && supEvidenceOk(n.get('approvalEvidence', null), cid)));
     }
 
     // The parent estimate a NEW supplement names (security review HIGH 2): the
@@ -1547,32 +1608,6 @@ service cloud.firestore {
         && (!exists(invPath)
             || get(invPath).data.get('status', '') in ['void', 'cancelled']
             || get(invPath).data.get('deleted', false) == true);
-    }
-
-    // The invoiced stamp (security review HIGH 1): write-once, by the owner or
-    // same-company staff, ONLY in the same batch as a NEW invoice (absent before
-    // this write, present after) that this caller is creating for the same
-    // estimate and company and that lists this supplement in supplementIds;
-    // invoicedAt is the server time. Clearing or overwriting it is the platform
-    // admin's alone. Two gets on the one invoice doc per supplement.
-    function supStampOk() {
-      let n = request.resource.data;
-      let id = n.get('invoicedInvoiceId', '');
-      let staff = request.auth.token.get('role', '') in ['company_admin', 'manager'];
-      let cid = resource.data.get('companyId', '');
-      let invPath = /databases/$(database)/documents/invoices/$(id);
-      return notViewer()
-        && resource.data.get('invoicedInvoiceId', null) == null
-        && n.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt'])
-        && id is string && id.size() > 0
-        && n.get('invoicedAt', null) == request.time
-        && (isOwner(resource.data.userId)
-            || (staff && cid != '' && cid == request.auth.token.get('companyId', '')))
-        && !exists(invPath)
-        && getAfter(invPath).data.get('createdBy', '') == request.auth.uid
-        && getAfter(invPath).data.get('estimateId', '') == resource.data.parentEstimateId
-        && (cid == '' ? isOwner(resource.data.userId) : getAfter(invPath).data.get('companyId', '') == cid)
-        && request.resource.id in getAfter(invPath).data.get('supplementIds', []);
     }
 
     // ── EXPENSES (job costs / supplier spend) ─────────
@@ -4043,6 +4078,10 @@ service cloud.firestore {
         // A new invoice carries no money: payments arrive one at a time through Record Payment (checked on update),
         // so nobody can create an invoice that is already "paid" with a back-dated payment.
         && request.resource.data.get('payments', []) is list && request.resource.data.get('payments', []).size() == 0
+        // An invoice that bills insurance supplements is made by the server
+        // (functions/supplement-invoice.js, Joe 2026-11-14), never a browser.
+        && request.resource.data.get('supplementIds', []) is list && request.resource.data.get('supplementIds', []).size() == 0
+        && request.resource.data.get('supplementTotal', 0) == 0
         && request.resource.data.get('status', '') != 'paid'
         && invoiceStatusWord(request.resource.data)
         // an invoice is never BORN locked: the send lock is taken on update, with a truthful marker (invoiceLockOk)

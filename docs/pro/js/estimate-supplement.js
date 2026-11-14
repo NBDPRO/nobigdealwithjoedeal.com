@@ -903,11 +903,19 @@ ${signBlock}
    *   - 'partial'  → bills submission.approvedAmount (the adjuster's $ figure).
    *   - 'denied'   → not billable.
    *
-   * The /supplements rule already permits this: an owner update passes as long
-   * as userId + parentEstimateId are unchanged (which they are here).
+   * WHO (Joe, 2026-11-14): only the company OWNER SIDE (company_admin, a solo
+   * owner, the platform admin) records 'approved' / 'partial', and it must come
+   * with evidence: response.evidenceNote (the carrier's approval, not blank, at
+   * most 1000 characters) and/or response.evidencePath (a document under
+   * companies/{companyId}/supplement-evidence/). This writes the approval
+   * record the rules (/supplements supApproveOk) and the invoice
+   * (functions/supplement-invoice.js) require: approvedBy = the caller,
+   * approvedAt = server time, approvalEvidence. A rep records 'denied' only
+   * (the rules refuse a rep's approval). Without evidence an approval is not
+   * sent: returns false.
    *
    * @param {string} supplementId  Firestore doc id in `supplements`
-   * @param {Object} response  { status:'approved'|'partial'|'denied', approvedAmount?, notes? }
+   * @param {Object} response  { status:'approved'|'partial'|'denied', approvedAmount?, notes?, evidenceNote?, evidencePath? }
    * @returns {Promise<boolean>} true on success
    */
   async function updateResponse(supplementId, response) {
@@ -930,10 +938,21 @@ ${signBlock}
     const approvedAmount = (status === 'partial')
       ? (Number(response.approvedAmount) || 0)
       : null;
+    const approving = status === 'approved' || status === 'partial';
+    let evidence = null;
+    if (approving) {
+      const note = typeof response.evidenceNote === 'string' ? response.evidenceNote.trim() : '';
+      const pth = typeof response.evidencePath === 'string' ? response.evidencePath.trim() : '';
+      if (note.length > 1000) { console.warn('[Supplement] approval evidence note is over 1000 characters'); return false; }
+      if (!note && !pth) { console.warn('[Supplement] an approval needs the carrier evidence'); return false; }
+      evidence = {};
+      if (note) evidence.note = note;
+      if (pth) evidence.path = pth;
+    }
     try {
       await window.updateDoc(
         window.doc(window.db, 'supplements', supplementId),
-        {
+        Object.assign({
           status: status,
           'submission.responseStatus': status,
           'submission.approvedAmount': approvedAmount,
@@ -944,7 +963,12 @@ ${signBlock}
           'submission.itemDecisions': sanitizeItemDecisions(response.itemDecisions),
           'submission.respondedAt': ts,
           updatedAt: ts,
-        }
+        }, approving ? {
+          // The owner side's approval record (Joe, 2026-11-14).
+          approvedBy: window.auth && window.auth.currentUser ? window.auth.currentUser.uid : null,
+          approvedAt: ts,
+          approvalEvidence: evidence,
+        } : {})
       );
       return true;
     } catch (e) {
