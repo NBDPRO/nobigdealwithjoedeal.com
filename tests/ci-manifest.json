@@ -303,6 +303,7 @@
     "portal-rating-backfill-2026-10-19.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",
+    "canary-one-shot-sweeps-2026-11-14.test.js",
     "background-job-reliability-2026-10-03.test.js",
     "ga4-landing-coverage.test.js",
     "web-vitals-2026-11-04.test.js",
