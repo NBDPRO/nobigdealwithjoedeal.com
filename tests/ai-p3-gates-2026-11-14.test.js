@@ -107,6 +107,13 @@ async function callable(h, auth, d) { try { return { res: await h({ auth, data: 
   c = await callable(inbox, paid, { storagePath: '' });
   ok('paying owner → past the gate', seen.rate === 1 && c.code !== 'permission-denied', Object.assign({ seen }, c));
 
+  {
+    const ri = read('docs/pro/js/receipt-inbox.js');
+    ok('receipt inbox UI: a plan refusal shows the server\'s message and stops the batch',
+      /if \(\/permission-denied\/\.test\(code\) && e && e\.message\) \{\s*toast\(e\.message, 'warn'\);\s*if \(path\) await deleteFile\(path\);\s*break;/.test(ri));
+    ok('receipt inbox UI: a retry shows the plan message too', /toast\(\/permission-denied\/\.test\(code\) && e && e\.message \? e\.message : 'Could not read it\. Try again\.'/.test(ri));
+  }
+
   console.log('\nF10 Reel Studio');
   const reel = read('functions/reel-studio.js');
   const rq = reel.slice(reel.indexOf('async function requireReelsOn('), reel.indexOf('function randomKey()'));
