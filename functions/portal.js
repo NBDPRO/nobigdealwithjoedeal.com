@@ -35,6 +35,16 @@
 // portal used to loop good/better/best only, dropping the other two prices.
 const PORTAL_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 
+// "The rep meant the homeowner to see this estimate" — the portal card's
+// gate (getHomeownerPortalView, where the full rationale lives) and, since
+// 2026-11-14 (review M2), getEstimateForView's too: a token holder who knows
+// an estimate id can no longer read an unshared draft.
+const SHARED_SIG = ['sent', 'viewed', 'signed', 'declined', 'expired'];
+const isSharedEstimate = (e) =>
+  e.sharedWithHomeowner === true
+  || SHARED_SIG.includes(e.signatureStatus)
+  || !!e.sentAt;
+
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
@@ -60,7 +70,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // a smoke drift guard in tests/customer-estimate-rows.test.js asserts the two
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
-const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+const { buildDisplayRows, buildDocLineItems, tierApplies, hasSignedPrice } = require('./customer-estimate-rows');
 const { portalPriced } = require('./signed-price');
 const { isQuietBackfill, backfillBlocksRating } = require('./quiet-backfill');
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
@@ -790,11 +800,8 @@ exports.getHomeownerPortalView = onRequest(
     // the three, so they stay hidden until the rep re-shares. Hiding a price
     // the customer already saw is recoverable in one click; leaking one the
     // rep never approved is not.
-    const SHARED_SIG = ['sent', 'viewed', 'signed', 'declined', 'expired'];
-    const isSharedEstimate = (e) =>
-      e.sharedWithHomeowner === true
-      || SHARED_SIG.includes(e.signatureStatus)
-      || !!e.sentAt;
+    // (isSharedEstimate is module-level since 2026-11-14: getEstimateForView
+    // applies the same gate, review M2.)
 
     // An archived (soft-deleted) estimate is gone for the homeowner too, as a
     // hard-deleted one was (review R5-8-2).
@@ -1090,6 +1097,13 @@ exports.getHomeownerPortalView = onRequest(
     const _jobStatus = PAS.portalJobStatus({
       progress: hp, via: _signedVia, invoices: tenantInvoices, signatureStatus: latest && latest.signatureStatus,
     });
+    // Signed, but no signed price was locked on this estimate (a legacy deal
+    // room, a signature by the job's stage alone, a pre-stamp e-sign): its
+    // saved total may be a later edit, so "✓ Signed" carries no amount
+    // (review 2026-11-14). A revision out for a new signature is the ask, so
+    // it keeps its amount.
+    const _pricePending = !!latest && !!_signedVia && !hasSignedPrice(latest)
+      && latest.signatureStatus !== 'sent' && latest.signatureStatus !== 'viewed';
     // What was paid, when and how (audit M3) — from the invoices' payments[]
     // ledger, in cents, redacted (no processor ids, notes or proof paths).
     const _paid = PAS.paidSummaryFor(tenantInvoices);
@@ -1210,7 +1224,8 @@ exports.getHomeownerPortalView = onRequest(
       estimate: latest ? {
         id:              latest.id,
         builder:         latest.builder || 'classic',
-        grandTotal:      latestPriced.grandTotal || latestPriced.total || null,
+        grandTotal:      _pricePending ? null : (latestPriced.grandTotal ?? latestPriced.total ?? null),
+        pricePending:    _pricePending,
         // V2 estimate builder persists only the tier KEY (good/better/best),
         // not tierName, so the portal's tier-label line was dropped for all V2
         // estimates. Derive the label from the key when tierName is absent.
@@ -1245,7 +1260,7 @@ exports.getHomeownerPortalView = onRequest(
         // What is due at signing, in the rule's own words (deposit-rule.js via
         // the saved stamp, 2026-09-25) — the same sentence the homeowner's
         // quote, contract and invoice print. null when absent or stale.
-        depositPlan: safeDepositPlan(latestPriced),
+        depositPlan: _pricePending ? null : safeDepositPlan(latestPriced),
         createdAt: latest.createdAt?.toDate?.()?.toISOString() || null
       } : null,
       bookingUrl: rep.calcomUsername
@@ -2690,6 +2705,12 @@ exports.getEstimateForView = onRequest(
       res.status(403).json({ error: 'Estimate not available for this link.' });
       return;
     }
+    // Only an estimate the rep shared (review M2, 2026-11-14) — the portal
+    // card's own gate. Before any viewedAt / viewCount / activity write.
+    if (!isSharedEstimate(est)) {
+      res.status(403).json({ error: 'Estimate not available for this link.' });
+      return;
+    }
 
     // Stamp viewedAt + bump counters. viewedAt only sets on the
     // FIRST view so the W92 engagement tier doesn't churn, but
@@ -2776,7 +2797,7 @@ exports.getEstimateForView = onRequest(
     // per key rather than passing raw (tiers objects can embed cost splits).
     let safeTiers = null;
     const rawTiers = (priced.prices && typeof priced.prices === 'object') ? priced.prices
-      : (est.tiers && typeof est.tiers === 'object') ? est.tiers : null;
+      : (priced.tiers && typeof priced.tiers === 'object') ? priced.tiers : null;
     if (rawTiers) {
       safeTiers = {};
       for (const k of PORTAL_TIERS) {
@@ -2791,8 +2812,8 @@ exports.getEstimateForView = onRequest(
       // null when no tier applies (a Job Template estimate — see tierApplies).
       tier:        tierApplies(priced) ? (priced.tier || null) : null,
       mode:        priced.mode || null,
-      grandTotal:  priced.grandTotal || priced.total || null,
-      total:       priced.total || priced.grandTotal || null,
+      grandTotal:  priced.grandTotal ?? priced.total ?? null,
+      total:       priced.total ?? priced.grandTotal ?? null,
       // Same whitelist for both readers — name / quantity / unit / lineTotal
       // only, so no material or labor cost key can ride along from either.
       lines:       docLines

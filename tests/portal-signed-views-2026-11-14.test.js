@@ -380,6 +380,86 @@ const sumLines = (lines) => Math.round((lines || []).reduce((s, l) => s + Number
     ok('PAS.signedVia: a deal with no estimateId (legacy) still counts', PAS.signedVia({ estimate: { id: 'b' }, deals: [{ status: 'accepted' }], progress: null }) === 'deal-room');
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('\n3. getEstimateForView serves only a shared estimate of this lead and tenant (review M2)');
+  // ══════════════════════════════════════════════════════════════════════
+  {
+    // T3: an unshared draft on the right lead → 403, and nothing is stamped.
+    world({ 'estimates/est-draft': gutters({ sharedWithHomeowner: false }) });
+    let r = await openEstimate('est-draft');
+    ok('T3 an unshared draft estimate → 403', r.statusCode === 403, r.statusCode + ' ' + JSON.stringify(r.body));
+    const d = W.docs['estimates/est-draft'];
+    ok('…and its viewCount / viewedAt are not bumped', !d.viewCount && !d.viewedAt, JSON.stringify({ c: d.viewCount, v: !!d.viewedAt }));
+    ok('…and no "Homeowner viewed estimate" activity is logged', !Object.keys(W.docs).some((k) => k.startsWith('leads/lead-1/activity/')));
+    // Each sharing signal still opens it.
+    for (const [name, over] of [['sharedWithHomeowner', { sharedWithHomeowner: true }], ['sentAt', { sharedWithHomeowner: false, sentAt: Timestamp.fromMillis(Date.now()) }], ['signatureStatus sent', { sharedWithHomeowner: false, signatureStatus: 'sent' }]]) {
+      world({ 'estimates/est-s': gutters(over) });
+      r = await openEstimate('est-s');
+      ok('a shared estimate (' + name + ') still opens → 200', r.statusCode === 200, String(r.statusCode));
+    }
+    // T5: another tenant's estimate on this lead id → 403.
+    world({ 'estimates/est-x': gutters({ userId: 'intruder', companyId: 'intruder' }) });
+    r = await openEstimate('est-x');
+    ok('T5 another tenant\'s (shared) estimate on this lead → 403', r.statusCode === 403, String(r.statusCode));
+    // T6: this tenant's shared estimate on ANOTHER lead → 403.
+    world({ 'estimates/est-y': gutters({ leadId: 'lead-2' }) });
+    r = await openEstimate('est-y');
+    ok('T6 a shared estimate on another lead → 403', r.statusCode === 403, String(r.statusCode));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('\n4. "✓ Signed" with no locked price shows no amount (review, portal-after-signing ~67/~78)');
+  // ══════════════════════════════════════════════════════════════════════
+  {
+    // A legacy deal room (no estimateId) accepted; the estimate carries no
+    // signedPrice, so its saved total may not be what was signed.
+    world({
+      'estimates/est-1': gutters({ grandTotal: 12000, total: 12000, depositPlan: { v: 1, summary: 'x', valueText: '$6,000.00' } }),
+      'deal_rooms/deal-1': { userId: 'u1', companyId: 'u1', leadId: 'lead-1', status: 'accepted', acceptedTier: 'better', acceptedPrice: 12000 },
+    }, { stage: 'estimate_sent_cash' });
+    let est = (await openPortal()).body.estimate;
+    ok('signed (legacy deal room) but no signedPrice → "✓ Signed" with no amount, pricePending', est && est.jobStatus && est.jobStatus.key === 'signed'
+      && est.grandTotal === null && est.pricePending === true && est.depositPlan === null, JSON.stringify(est && { g: est.grandTotal, p: est.pricePending, js: est.jobStatus }));
+    // Signed by the stage alone, no stamp → same.
+    world({ 'estimates/est-1': gutters({ grandTotal: 12000, total: 12000 }) }, { stage: 'contract_signed' });
+    est = (await openPortal()).body.estimate;
+    ok('signed by the job stage alone, no signedPrice → no amount, pricePending', est && est.grandTotal === null && est.pricePending === true, JSON.stringify(est && { g: est.grandTotal, p: est.pricePending }));
+    // A stamped estimate keeps its signed amount.
+    world({ 'estimates/est-roof': signedRoof() });
+    est = (await openPortal()).body.estimate;
+    ok('a stamped signed estimate keeps its signed $14,500 (not pending)', est && est.grandTotal === 14500 && !est.pricePending);
+    // Not signed: the amount shows as before.
+    world({ 'estimates/est-g': gutters() }, { stage: 'estimate_sent_cash' });
+    est = (await openPortal()).body.estimate;
+    ok('not signed → the amount shows as before', est && est.grandTotal === 2300 && !est.pricePending);
+    // The page says so in words (docs/pro/js/portal.js).
+    const PJS = fs.readFileSync(path.join(ROOT, 'docs/pro/js/portal.js'), 'utf8');
+    ok('docs/pro/js/portal.js renders pricePending as "confirming the signed price"', /e\.pricePending/.test(PJS) && /confirming the signed price/.test(PJS));
+    // $0 is a real total (?? not ||): an all-insurance $0 estimate is not "still putting the numbers together".
+    world({ 'estimates/est-z': gutters({ grandTotal: 0, total: 0 }) }, { stage: 'estimate_sent_cash' });
+    est = (await openPortal()).body.estimate;
+    const ev = (await openEstimate('est-z')).body.estimate;
+    ok('a $0 grandTotal reads as $0 on the card and the page (?? not ||)', est && est.grandTotal === 0 && ev && ev.grandTotal === 0, JSON.stringify({ card: est && est.grandTotal, page: ev && ev.grandTotal }));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('\n5. Every estimate-view link marks the estimate shared first (M2 would 403 it otherwise)');
+  // ══════════════════════════════════════════════════════════════════════
+  {
+    const JT = fs.readFileSync(path.join(ROOT, 'docs/pro/js/job-templates-ui.js'), 'utf8').replace(/\r\n/g, '\n');
+    const at = JT.indexOf('async function sendToCustomer()');
+    const body = at === -1 ? '' : JT.slice(at, JT.indexOf('\n  function duplicateTemplate', at));
+    const stampAt = body.search(/sharedWithHomeowner:\s*true/);
+    const linkAt = body.indexOf('navigator.share');
+    ok('job-templates-ui sendToCustomer stamps sharedWithHomeowner before handing out the link', stampAt !== -1 && linkAt !== -1 && stampAt < linkAt);
+    // The customer page already stamped sharedWithHomeowner before its share
+    // sheet (unchanged; a failed stamp still only warns — budget, see PR).
+    const CB = fs.readFileSync(path.join(ROOT, 'docs/pro/js/customer-bootstrap.module.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cStamp = CB.indexOf('sharedWithHomeowner: true');
+    const cShare = CB.indexOf("title: 'Your estimate from '");
+    ok('customer page: stamps sharedWithHomeowner before handing out the link', cStamp !== -1 && cShare !== -1 && cStamp < cShare);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
   process.exit(0);
