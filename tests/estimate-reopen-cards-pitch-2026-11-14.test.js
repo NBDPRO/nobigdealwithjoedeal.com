@@ -105,6 +105,9 @@ function boot() {
   const env = makeSandbox();
   FILES.forEach((f) => vm.runInContext(read(f), env.sandbox, { filename: path.basename(f) }));
   const W = env.win;
+  // updateMeasurement / applyImportedMeasurements name EstimateBuilderV2 as a
+  // bare global (a browser's window IS the global; this vm's is not).
+  env.sandbox.EstimateBuilderV2 = W.EstimateBuilderV2;
   // finalize() tries the server PDF first; make that fail fast (as it does
   // offline) so it falls through to the client formatter, whose meta we keep.
   W._functions = {};
@@ -192,6 +195,53 @@ function reopen(T, W, doc) {
     const { T } = boot();
     const { doc } = buildAndSave(T, 'est_pitch9', (st) => { st.measurements.pitch = 9; });
     ok('a typed 9/12 still saves as "9/12"', doc.pl === '9/12', j(doc.pl));
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('C. Review follow-up 3 — one blank-pitch default for the waste factor too');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const { W, T, UI } = boot();
+    const EB = W.EstimateBuilderV2;
+    const w6 = EB.wasteFactorForPitch(6 / 12), w8 = EB.wasteFactorForPitch(8 / 12);
+    ok('control: the waste factor differs between 6/12 and 8/12 (' + w6 + ' vs ' + w8 + ')', w6 !== w8, j([w6, w8]));
+    buildAndSave(T, 'est_w');
+    UI.updateMeasurement('pitch', '');   // the rep clears the pitch box
+    const st = T.getState();
+    ok('a cleared pitch box stores 0', st.measurements.pitch === 0, j(st.measurements.pitch));
+    ok('…and derives waste at 6/12, the pitch it is priced and saved at (was 8/12)', st.measurements.waste === w6, j([st.measurements.waste, w6, w8]));
+    st.measurements.waste = 1.0;
+    UI.applyImportedMeasurements({ rawSqft: 1200, pitch: 0 });
+    ok('a drawing import with no pitch also derives waste at 6/12 (was 8/12)', st.measurements.waste === w6, j([st.measurements.waste, w6, w8]));
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('D. Review follow-up 4 — saved prices of null or $0 never become cards');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const { W, T, UI } = boot();
+    const { doc } = buildAndSave(T, 'est_nullprices');
+    doc.prices = { economy: null, good: null, better: null, best: null, beyond: null };
+    reopen(T, W, doc);
+    let meta = null;
+    W.EstimateFinalization.formatEstimate = (e, fmt, m) => { meta = m; return { html: '<p>quote</p>' }; };
+    await UI.finalize('retail-quote');
+    const tiers = (meta && meta.tiers) || {};
+    const priced = ['economy', 'good', 'better', 'best', 'beyond'].filter((k) => tiers[k] && Number(tiers[k].total) > 0);
+    ok('a saved prices{} of all nulls does not blank the comparison — the cards fall back to the per-SQ engine (was: no cards at all)',
+      priced.length === 5, j(Object.keys(tiers)));
+  }
+  {
+    const { W, T, UI } = boot();
+    const { doc } = buildAndSave(T, 'est_zeroprice');
+    doc.prices = Object.assign({}, doc.prices, { economy: 0 });
+    reopen(T, W, doc);
+    let meta = null;
+    W.EstimateFinalization.formatEstimate = (e, fmt, m) => { meta = m; return { html: '<p>quote</p>' }; };
+    await UI.finalize('retail-quote');
+    const tiers = (meta && meta.tiers) || {};
+    ok('a saved $0 tier price prints no $0 card (was: an Economy card for $0)', !tiers.economy, j(tiers.economy));
+    ok('…while the other saved prices still show', !!tiers.better && tiers.better.total === doc.prices.better, j(tiers.better));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

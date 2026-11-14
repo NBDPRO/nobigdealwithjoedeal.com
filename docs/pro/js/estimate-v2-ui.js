@@ -1812,7 +1812,7 @@
     // integer, so the rise/run ratio is pitch/12. Without this, waste stayed stuck
     // at the initial default (1.17) regardless of the chosen pitch.
     if (key === 'pitch' || key === 'cutUpRoof') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
         let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
         if (state.measurements.cutUpRoof) w += 0.03;
@@ -4971,7 +4971,7 @@
         // estimate's cached object reused by later renders.
         meta.tiers = Object.assign({}, estimate.perSqTiers);
       } else if (state._reopenedClean && estimate.prices
-                 && _v2Tiers().some(k => Number.isFinite(Number(estimate.prices[k])))) {
+                 && _v2Tiers().some(k => estimate.prices[k] != null && Number(estimate.prices[k]) > 0)) {
         // A clean reopen replays the saved doc, which keeps prices{} but not
         // perSqTiers. Rebuilding the cards live dropped the saved pass-through
         // fees and today's settings moved them, so the cards disagreed with the
@@ -4980,7 +4980,7 @@
         meta.tiers = {};
         _v2Tiers().forEach(k => {
           const v = Number(estimate.prices[k]);
-          if (estimate.prices[k] != null && Number.isFinite(v)) meta.tiers[k] = { total: v };
+          if (estimate.prices[k] != null && v > 0) meta.tiers[k] = { total: v };
         });
       } else if (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.calculateAllTiers === 'function') {
         meta.tiers = window.EstimateBuilderV2.calculateAllTiers(buildPerSqInput());
@@ -5444,7 +5444,7 @@
     // Same pitch→waste rule as updateMeasurement so the imported pitch
     // doesn't leave a stale waste factor behind.
     if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
       if (state.measurements.cutUpRoof) w += 0.03;
       state.measurements.waste = w;
