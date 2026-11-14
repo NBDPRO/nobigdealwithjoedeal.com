@@ -12,10 +12,18 @@
  * that estimate's companyId and leadId, and be born a 'draft' — so a rep cannot
  * add billable money to a teammate's job, and nobody creates one "approved".
  *
- * The invoiced stamp (security review HIGH 1) is write-once and only in the
- * same batch as a NEW invoice for the same job that lists the supplement; once
- * stamped, nobody but the platform admin changes it, and the owner can no
- * longer change status / supplementTotal / submission.
+ * The invoiced stamp is the SERVER's (functions/supplement-invoice.js, Joe
+ * 2026-11-14): no client writes it, and no client creates an invoice that
+ * carries supplements. Once stamped, nobody but the platform admin changes it
+ * (the company_admin may clear one whose invoice is gone or void), and the
+ * owner can no longer change status / supplementTotal / submission.
+ *
+ * Approval (Joe, 2026-11-14): only the owner side (company_admin of the
+ * supplement's company, a solo owner, the platform admin) moves a supplement to
+ * approved / partial or sets supplementTotal / submission.approvedAmount after
+ * create, and only with an approval record: approvedBy == caller, approvedAt ==
+ * server time, approvalEvidence { note 1..1000 and/or a path under
+ * companies/{companyId}/supplement-evidence/ }.
  *
  * SYNTHETIC ids and numbers only (public repo).
  *
@@ -96,8 +104,11 @@ async function run() {
     await setDoc(doc(db, 'supplements/sOld'), legacy);
     await setDoc(doc(db, 'supplements/sStamped'), sup({ version: 4, invoicedInvoiceId: 'invOld', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sFree'), sup({ version: 5 }));
-    await setDoc(doc(db, 'supplements/sJ1'), sup({ version: 6 }));
-    await setDoc(doc(db, 'supplements/sJ2'), sup({ version: 7 }));
+    // Invoices the SERVER made (createSupplementInvoice), with the supplements it stamped.
+    await setDoc(doc(db, 'supplements/sJ1'), sup({ version: 6, invoicedInvoiceId: 'invJ1', invoicedAt: 1 }));
+    await setDoc(doc(db, 'supplements/sJ2'), sup({ version: 7, invoicedInvoiceId: 'invJ2', invoicedAt: 1 }));
+    await setDoc(doc(db, 'invoices/invJ1'), inv('rep1', { supplementIds: ['sJ1'], total: 1, items: [] }));
+    await setDoc(doc(db, 'invoices/invJ2'), inv('mike', { supplementIds: ['sJ2'], total: 1, items: [] }));
     await setDoc(doc(db, 'supplements/sJGone'), sup({ version: 8, invoicedInvoiceId: 'invNever', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sDel'), sup({ version: 9, deleted: true }));
     await setDoc(doc(db, 'supplements/sH'), draft({ version: 10 }));
@@ -149,74 +160,75 @@ async function run() {
   await check('cannot create for another user', 'deny', setDoc(ref(rep, 'n8'), draft({ userId: 'rep2' })));
   await check('a create cannot arrive pre-stamped as invoiced', 'deny', setDoc(ref(rep, 'n9'), draft({ invoicedInvoiceId: 'invOld' })));
 
-  // ── the approve flow still works on the owner's own (unstamped) supplement ──
+  // ── the response flow (Joe, 2026-11-14): a rep records sent / denied; ONLY the owner side approves ──
+  const EV = (by, f) => Object.assign({ approvedBy: by, approvedAt: serverTimestamp(), approvalEvidence: { note: 'Carrier letter 2026-11-10: adjuster approved the ice & water line.' } }, f || {});
   await check('owner records submitted (markSubmittedRemote)', 'allow', updateDoc(ref(rep, 'n1'), { status: 'submitted', 'submission.method': 'email' }));
-  await check('owner records the carrier response (updateResponse)', 'allow', updateDoc(ref(rep, 'n1'), { status: 'approved', 'submission.responseStatus': 'approved', supplementTotal: 2000 }));
+  await check('owner records a denial on a submitted supplement', 'allow', updateDoc(ref(rep, 'n1'), { status: 'denied', 'submission.responseStatus': 'denied' }));
+  await check('#3 FLIPPED: a rep cannot approve their own supplement', 'deny', updateDoc(ref(rep, 'sH'), Object.assign({ status: 'approved', 'submission.responseStatus': 'approved' }, EV('rep1'))));
+  await check('#3 FLIPPED: …nor mark it partial with an amount', 'deny', updateDoc(ref(rep, 'sH'), Object.assign({ status: 'partial', 'submission.approvedAmount': 49999 }, EV('rep1'))));
+  await check('a rep cannot change supplementTotal after create', 'deny', updateDoc(ref(rep, 'sH'), { supplementTotal: 50000 }));
+  await check('a rep cannot set submission.approvedAmount', 'deny', updateDoc(ref(rep, 'sH'), { 'submission.approvedAmount': 10 }));
+  await check('a rep cannot write the approval record', 'deny', updateDoc(ref(rep, 'sH'), EV('rep1')));
+  await check('a manager cannot approve', 'deny', updateDoc(ref(mike, 'sH'), Object.assign({ status: 'approved' }, EV('mike'))));
+  await check('company_admin cannot approve WITHOUT evidence', 'deny', updateDoc(ref(carol, 'sH'), { status: 'approved', approvedBy: 'carol', approvedAt: serverTimestamp() }));
+  await check('company_admin cannot approve with a blank note', 'deny', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved' }, EV('carol', { approvalEvidence: { note: '   ' } }))));
+  await check('company_admin cannot approve with a note over 1000 characters', 'deny', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved' }, EV('carol', { approvalEvidence: { note: 'x'.repeat(1001) } }))));
+  await check('company_admin cannot approve in someone else\'s name', 'deny', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved' }, EV('joe'))));
+  await check('company_admin cannot back-date the approval (approvedAt must be the server time)', 'deny', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved' }, EV('carol', { approvedAt: 12345 }))));
+  await check('company_admin cannot point the evidence at another company\'s folder', 'deny', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved' }, EV('carol', { approvalEvidence: { path: 'companies/co-b/supplement-evidence/x.pdf' } }))));
+  await check('another company\'s admin cannot approve it', 'deny', updateDoc(doc(eve, 'supplements/sH'), Object.assign({ status: 'approved' }, EV('eve'))));
+  await check('company_admin approves with the carrier evidence note', 'allow', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'approved', 'submission.responseStatus': 'approved' }, EV('carol'))));
+  await check('company_admin records a partial with an evidence document in the company\'s folder', 'allow', updateDoc(ref(carol, 'sH'), Object.assign({ status: 'partial', 'submission.approvedAmount': 1500 }, EV('carol', { approvalEvidence: { path: 'companies/co-a/supplement-evidence/letter.pdf' } }))));
+  await check('once approved, the rep cannot change its status', 'deny', updateDoc(ref(rep, 'sH'), { status: 'denied' }));
+  await check('once approved, the rep cannot change the carrier response', 'deny', updateDoc(ref(rep, 'sH'), { 'submission.responseNotes': 'x' }));
+  await check('once approved, the rep cannot soft-delete it (that would stop it billing)', 'deny', updateDoc(ref(rep, 'sH'), { deleted: true }));
+  await check('once approved, the rep may still edit the reason', 'allow', updateDoc(ref(rep, 'sH'), { reason: 'note' }));
+  await check('a solo owner approves their own with evidence', 'allow', updateDoc(ref(solo, 'n5'), Object.assign({ status: 'approved' }, EV('solo1'))));
+  await check('the platform admin approves with evidence', 'allow', updateDoc(ref(joe, 'sA2'), Object.assign({ status: 'approved' }, EV('joe'))));
+  await check('a create cannot carry an approval record', 'deny', setDoc(ref(rep, 'n10'), draft(EV('rep1'))));
   await check('owner cannot re-tenant (companyId)', 'deny', updateDoc(ref(rep, 'sA'), { companyId: 'co-b' }));
   await check('owner cannot re-point the lead (leadId)', 'deny', updateDoc(ref(rep, 'sA'), { leadId: 'L2' }));
 
-  // ── the invoiced stamp (HIGH 1) ──
-  await check('rep cannot stamp their own supplement with no invoice', 'deny', updateDoc(ref(rep, 'sA'), { invoicedInvoiceId: 'x', invoicedAt: serverTimestamp() }));
+  // ── the invoiced stamp is the SERVER's (createSupplementInvoice); no client ever writes it ──
+  await check('rep cannot stamp their own supplement', 'deny', updateDoc(ref(rep, 'sA'), { invoicedInvoiceId: 'x', invoicedAt: serverTimestamp() }));
   await check('staff cannot stamp a nonexistent invoice', 'deny', updateDoc(ref(carol, 'sA'), { invoicedInvoiceId: 'ghost', invoicedAt: serverTimestamp() }));
-  await check('staff cannot point the stamp at an EXISTING older invoice', 'deny', updateDoc(ref(carol, 'sFree'), { invoicedInvoiceId: 'invOld', invoicedAt: serverTimestamp() }));
-  await check('staff cannot stamp in a batch whose invoice is for ANOTHER estimate', 'deny', billWith(carol, 'invW1', ['sA'], { estimateId: 'estX', leadId: 'L2' }));
-  await check('staff cannot stamp in a batch whose invoice does not list the supplement', 'deny', (() => {
-    const b = writeBatch(carol);
-    b.set(doc(carol, 'invoices/invW2'), inv('carol', { supplementIds: ['sA2'] }));
-    b.update(ref(carol, 'sA'), { invoicedInvoiceId: 'invW2', invoicedAt: serverTimestamp() });
-    return b.commit();
-  })());
-  await check('the stamp time must be the server time', 'deny', billWith(carol, 'invW3', ['sA'], null, { invoicedAt: 12345 }));
-  await check('another tenant cannot stamp co-a\'s supplement with its own invoice', 'deny', billWith(eve, 'invW4', ['sA'], { createdBy: 'eve', companyId: 'co-b', leadId: 'LB' }));
-  await check('a teammate rep cannot stamp it', 'deny', billWith(rep2, 'invW5', ['sA'], { createdBy: 'rep2', leadId: 'L1' }));
-  await check('staff stamp three supplements in ONE batch with a real same-job invoice that lists them', 'allow', billWith(carol, 'invOk', ['sA', 'sA2', 'sA3']));
-  await check('the owner bills their own supplement the same way', 'allow', billWith(rep, 'invRep', ['n1'], { createdBy: 'rep1', supplementIds: ['n1'] }));
-  await check('staff cannot CLEAR a stamp', 'deny', updateDoc(ref(carol, 'sStamped'), { invoicedInvoiceId: deleteField() }));
-  await check('staff cannot OVERWRITE a stamp, even with a new real invoice', 'deny', billWith(carol, 'invW6', ['sStamped']));
+  await check('staff cannot point the stamp at an EXISTING invoice', 'deny', updateDoc(ref(carol, 'sFree'), { invoicedInvoiceId: 'invOld', invoicedAt: serverTimestamp() }));
+  await check('staff cannot stamp even in a batch with a real same-job invoice that lists it', 'deny', billWith(carol, 'invOk', ['sA', 'sA2', 'sA3']));
+  await check('the owner cannot stamp that way either', 'deny', billWith(rep, 'invRep', ['sA'], { createdBy: 'rep1' }));
+  await check('a client cannot create an invoice that carries supplementIds', 'deny', setDoc(doc(carol, 'invoices/invS1'), inv('carol', { supplementIds: ['sA'], supplementTotal: 0 })));
+  await check('a client cannot create an invoice with a supplementTotal', 'deny', setDoc(doc(carol, 'invoices/invS2'), inv('carol', { supplementIds: [], supplementTotal: 2000 })));
+  await check('a client still creates an ordinary invoice (no supplements)', 'allow', setDoc(doc(carol, 'invoices/invPlain'), inv('carol', { supplementIds: [], supplementTotal: 0 })));
+  await check('staff cannot CLEAR a stamp whose invoice is live', 'deny', updateDoc(ref(carol, 'sStamped'), { invoicedInvoiceId: deleteField() }));
   await check('the owner cannot clear the stamp', 'deny', updateDoc(ref(rep, 'sStamped'), { invoicedInvoiceId: null }));
   await check('the owner cannot change supplementTotal once stamped', 'deny', updateDoc(ref(rep, 'sStamped'), { supplementTotal: 99999 }));
   await check('the owner cannot change status once stamped', 'deny', updateDoc(ref(rep, 'sStamped'), { status: 'denied' }));
   await check('the owner cannot change the carrier response once stamped', 'deny', updateDoc(ref(rep, 'sStamped'), { 'submission.approvedAmount': 5 }));
   await check('the owner may still edit a note on a stamped supplement', 'allow', updateDoc(ref(rep, 'sStamped'), { reason: 'note' }));
-  await check('staff cannot change the money', 'deny', updateDoc(ref(carol, 'sFree'), { supplementTotal: 99999 }));
-  await check('viewer cannot stamp', 'deny', billWith(vera, 'invW7', ['sFree'], { createdBy: 'vera' }));
-  await check('same-company admin cannot stamp a LEGACY (no companyId) supplement', 'deny', billWith(carol, 'invW8', ['sOld'], { supplementIds: ['sOld'] }));
+  await check('company_admin cannot re-approve a stamped (billed) supplement', 'deny', updateDoc(ref(carol, 'sStamped'), Object.assign({ status: 'approved', supplementTotal: 5000 }, EV('carol'))));
+  await check('staff cannot change the money without approving', 'deny', updateDoc(ref(mike, 'sFree'), { supplementTotal: 99999 }));
   await check('platform admin can still correct a stamp', 'allow', updateDoc(ref(joe, 'sStamped'), { invoicedInvoiceId: 'invFix' }));
 
-  // ── second security pass (2026-11-14) ──
-  // M-A: a throwaway invoice must not strand a supplement as "billed" for good.
-  await check('#1 a rep bills their supplement on a $1 invoice (allowed — it is a real same-job invoice)', 'allow',
-    billWith(rep, 'invJ1', ['sJ1'], { createdBy: 'rep1', total: 1, items: [] }));
-  await check('#1 …but cannot then DELETE that invoice (it carries supplements)', 'deny', deleteDoc(doc(rep, 'invoices/invJ1')));
-  await check('#2 a manager bills a supplement on a $1 invoice', 'allow', billWith(mike, 'invJ2', ['sJ2'], { createdBy: 'mike', total: 1, items: [] }));
-  await check('#2 …but cannot VOID it (status void)', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { status: 'void' }));
+  // ── interim protections kept: a SERVER-made invoice that billed supplements (seeded) ──
+  await check('#1 a rep cannot DELETE an invoice that billed supplements', 'deny', deleteDoc(doc(rep, 'invoices/invJ1')));
+  await check('#2 a manager cannot VOID it (status void)', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { status: 'void' }));
   await check('#2 …nor void it by the deleted flag', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { deleted: true, voidNote: 'oops' }));
   await check('#2 …nor strip its supplementIds', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { supplementIds: [] }));
   await check('a manager cannot clear the stamp while its invoice is live', 'deny', updateDoc(ref(mike, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
   await check('company_admin cannot clear a stamp whose invoice is still live', 'deny', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
-  await check('company_admin voids the throwaway invoice (owner side)', 'allow', updateDoc(doc(carol, 'invoices/invJ2'), { status: 'void' }));
+  await check('company_admin voids the mistaken invoice (owner side)', 'allow', updateDoc(doc(carol, 'invoices/invJ2'), { status: 'void' }));
   await check('a manager still cannot clear the stamp after the void', 'deny', updateDoc(ref(mike, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
   await check('another tenant\'s admin cannot clear it', 'deny', updateDoc(doc(eve, 'supplements/sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
   await check('company_admin cannot clear the stamp AND change the money', 'deny', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField(), supplementTotal: 1 }));
   await check('company_admin clears a stranded stamp (invoice void) so the supplement bills again', 'allow', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
   await check('company_admin clears a stranded stamp whose invoice no longer exists', 'allow', updateDoc(ref(carol, 'sJGone'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
-  await check('company_admin may delete an invoice that carries supplements (owner side)', 'allow', deleteDoc(doc(carol, 'invoices/invJ1')));
+  await check('company_admin may delete an invoice that billed supplements (owner side)', 'allow', deleteDoc(doc(carol, 'invoices/invJ1')));
   // M-B: soft delete only; staff can tell "deleted" from "forbidden".
   await check('staff read of a supplement id that does not exist is allowed (exists() == false, not denied)', 'allow', getDoc(ref(carol, 'never-was')));
   await check('a rep read of a nonexistent id is allowed too', 'allow', getDoc(ref(rep, 'never-was')));
   await check('the owner cannot HARD-delete their supplement', 'deny', deleteDoc(ref(rep, 'n6b')));
-  await check('the owner soft-deletes it (deleted: true)', 'allow', updateDoc(ref(rep, 'n6b'), { deleted: true }));
+  await check('the owner soft-deletes a draft (deleted: true)', 'allow', updateDoc(ref(rep, 'n6b'), { deleted: true }));
   await check('staff read the soft-deleted supplement (and so never bill it)', 'allow', getDoc(ref(carol, 'sDel')));
-  // #4, #6
   await check('#4 a co-b company_admin cannot update a co-a supplement', 'deny', updateDoc(doc(eve, 'supplements/sFree'), { reason: 'x' }));
-  await check('#6 ten supplements stamped in ONE batch with their invoice fit the rules budget', 'allow',
-    billWith(carol, 'invTen', ['sT0', 'sT1', 'sT2', 'sT3', 'sT4', 'sT5', 'sT6', 'sT7', 'sT8', 'sT9']));
-  // #3 H-A (pre-existing, Joe decides): the owner may declare their own supplement approved, at any amount,
-  // before it is billed. Pinned so a change to it is deliberate.
-  await check('#3 KNOWN (Joe decides): the owner sets status approved + supplementTotal 50000 with no carrier evidence', 'allow',
-    updateDoc(ref(rep, 'sH'), { status: 'approved', supplementTotal: 50000, 'submission.responseStatus': 'approved' }));
-  await check('#3 KNOWN (Joe decides): …or partial with any approvedAmount', 'allow',
-    updateDoc(ref(rep, 'sH'), { status: 'partial', 'submission.approvedAmount': 49999 }));
 
   // ── delete: platform admin only (soft delete for everyone else) ──
   await check('same-company admin cannot delete it', 'deny', deleteDoc(ref(carol, 'sFree')));

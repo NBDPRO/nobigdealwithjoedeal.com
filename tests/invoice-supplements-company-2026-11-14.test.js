@@ -47,6 +47,7 @@ const c = (dollars) => Math.round(Number(dollars) * 100);
 const OH = '1 Main St, Cincinnati, OH 45202';
 
 const CER_CLIENT = req('docs/pro/js/customer-estimate-rows.js');
+const { installSupplementCallable } = require('./lib/supplement-callable-fake');
 let IP = null;
 
 /**
@@ -128,6 +129,11 @@ function browser(seed, opts) {
     showToast: (m, k) => { toasts.push([m, k]); },
   };
   const toasts = [];
+  // The supplement invoice is the SERVER's (functions/supplement-invoice.js);
+  // run the real handler over this same store (tests/lib/supplement-callable-fake.js).
+  const srv = installSupplementCallable(W, store, () => ({ uid,
+    token: (('tokenClaims' in opts) && !(opts.tokenClaims instanceof Error)) ? (opts.tokenClaims || {}) : (opts.claims || {}) }), opts);
+  W.__calls = srv.calls;
   global.window = W;
   global.showToast = (m, k) => { toasts.push([m, k]); };
   global.fetch = async () => ({ ok: true, json: async () => ({}) });
@@ -144,9 +150,11 @@ const est = (f) => Object.assign({
 }, f || {});
 const lead = (f) => Object.assign({ userId: 'rep1', companyId: 'co-a', firstName: 'Syn', lastName: 'Thetic', address: OH,
   stage: 'closed', primaryEstimateId: 'estC', insCarrier: 'Carrier', claimNumber: 'C-1', createdAt: 1 }, f || {});
-// The rep's approved $2,000 supplement, saved with companyId (after the fix).
+// The rep's $2,000 supplement, saved with companyId, APPROVED by the company
+// owner side with the carrier's evidence (Joe, 2026-11-14).
+const EVID = { approvedBy: 'carol', approvedAt: 1, approvalEvidence: { note: 'Carrier letter 2026-11-10: ice & water approved.' } };
 const sup = (f) => Object.assign({ parentEstimateId: 'estC', leadId: 'L1', userId: 'rep1', companyId: 'co-a', version: 1,
-  status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, f || {});
+  status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, EVID, f || {});
 const CAROL = { uid: 'carol', claims: { role: 'company_admin', companyId: 'co-a' } };
 const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith('invoices/')).map(([id, v]) => Object.assign({ _id: id }, v));
 
@@ -180,13 +188,19 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     const inv = invoicesOf(B.store)[0];
     ok('the rep\'s invoice is $16,000', inv && c(inv.total) === 1600000, inv && inv.total);
   });
-  await sec('A4 a solo owner (no claims) still bills their own supplement saved before companyId existed', async () => {
+  await sec('A4 a solo owner bills their own supplement; one saved before companyId waits for the backfill review', async () => {
     if (!IP) return;
-    const B = browser({ 'leads/L1': lead({ userId: 'u1', companyId: 'u1' }), 'estimates/estC': est({ userId: 'u1', companyId: 'u1' }),
-      'supplements/s1': sup({ userId: 'u1', companyId: undefined }) }, { uid: 'u1', claims: {} });
+    let B = browser({ 'leads/L1': lead({ userId: 'u1', companyId: 'u1' }), 'estimates/estC': est({ userId: 'u1', companyId: 'u1' }),
+      'supplements/s1': sup({ userId: 'u1', companyId: 'u1', approvedBy: 'u1' }) }, { uid: 'u1', claims: {} });
     try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('solo invoice did not throw', false, e.message); }
-    const inv = invoicesOf(B.store)[0];
+    let inv = invoicesOf(B.store)[0];
     ok('the solo owner\'s invoice is $16,000', inv && c(inv.total) === 1600000, inv && inv.total);
+    B = browser({ 'leads/L1': lead({ userId: 'u1', companyId: 'u1' }), 'estimates/estC': est({ userId: 'u1', companyId: 'u1' }),
+      'supplements/s1': sup({ userId: 'u1', companyId: undefined, approvedBy: 'u1' }) }, { uid: 'u1', claims: {} });
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('…one saved before companyId (legacy) is refused with the backfill message, not billed or dropped',
+      !!err && /backfill/.test(err.message) && invoicesOf(B.store).length === 0, err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
   });
 
   console.log('\nB. A failed supplement read blocks the invoice (never a silent under-bill)');
@@ -234,15 +248,16 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     ok('the message names the supplement and says it cannot be read',
       !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && /#2/.test(err.message), err && err.message);
   });
-  await sec('C2 the timeline names a supplement this account CAN read (fetched and billed)', async () => {
+  await sec('C2 the timeline names a LEGACY supplement this account can read', async () => {
     if (!IP) return;
     const B = browser({ 'leads/L1': lead(), 'estimates/estC': est(),
       'supplements/sOld': sup({ companyId: undefined, userId: 'carol' }),
       'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'carol', supplementId: 'sOld', parentEstimateId: 'estC', version: 1 } },
     CAROL);
-    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('did not throw', false, e.message); }
-    const inv = invoicesOf(B.store)[0];
-    ok('the invoice is $16,000', inv && c(inv.total) === 1600000, inv && inv.total);
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('a readable legacy supplement (no companyId) is refused for the backfill review, not billed blind',
+      !!err && /backfill/.test(err.message) && invoicesOf(B.store).length === 0, err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
   });
   await sec('C3 a timeline entry for ANOTHER estimate is ignored', async () => {
     if (!IP) return;
@@ -348,33 +363,35 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     ok('a teammate\'s legacy supplement (no companyId) the admin can read but cannot place → refused', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0, err && err.message);
   });
 
-  console.log('\nE4. The billed stamp is written WITH the invoice (one batch), never best-effort');
+  console.log('\nE4. The invoice and the billed stamps are the SERVER\'s (createSupplementInvoice), never the browser\'s');
   await sec('E4', async () => {
     if (!IP) return;
     const REP = { uid: 'rep1', claims: { role: 'sales_rep', companyId: 'co-a' } };
-    let failStamp = true;
-    const B = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) },
-      Object.assign({ failBatch: (ops) => failStamp && ops.some((o) => o[1].startsWith('supplements/')) }, REP));
+    const refused = Object.assign(new Error('Invoice not made: the supplements changed.'), { code: 'functions/failed-precondition' });
+    let B = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) }, Object.assign({ callableFail: refused }, REP));
     let err = null;
     try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
-    ok('the stamp is refused → NO invoice is written (was: invoice written, stamp failure only logged)',
-      !!err && invoicesOf(B.store).length === 0, err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
-    failStamp = false;
+    ok('the server refuses → NO invoice, the server\'s words shown, nothing written by the browser',
+      !!err && /supplements changed/.test(err.message) && invoicesOf(B.store).length === 0 && !B.writes.some((w) => /^(add|batch|update)/.test(w[0])),
+      err ? err.message : JSON.stringify(B.writes));
+    B = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) }, REP);
     let r = null;
-    try { r = await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('retry did not throw', false, e.message); }
+    try { r = await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('server path did not throw', false, e.message); }
     const inv = invoicesOf(B.store)[0];
-    ok('retry: one $16,000 invoice, the supplement stamped with it, and the invoice lists the supplement ids',
+    ok('one $16,000 invoice made by the server, the supplement stamped with it, the browser wrote nothing to supplements',
       inv && c(inv.total) === 1600000 && B.store.get('supplements/s1').invoicedInvoiceId === (r && r.invoiceId)
-        && JSON.stringify(inv.supplementIds) === '["s1"]' && B.store.get('supplements/s1').invoicedAt === '__TS__',
-      JSON.stringify({ total: inv && inv.total, ids: inv && inv.supplementIds, sup: B.store.get('supplements/s1') }));
+        && JSON.stringify(inv.supplementIds) === '["s1"]' && B.W.__calls.length === 1 && B.W.__calls[0].data.estimateId === 'estC'
+        && !B.writes.some((w) => w[1] && String(w[1]).startsWith('supplements/')),
+      JSON.stringify({ total: inv && inv.total, ids: inv && inv.supplementIds, sup: B.store.get('supplements/s1'), writes: B.writes }));
     try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('second invoice did not throw', false, e.message); }
     const second = invoicesOf(B.store).filter((i) => i._id !== 'invoices/' + (r && r.invoiceId))[0];
     ok('a second (progress) invoice for the same estimate does NOT bill the supplement again ($14,000)', second && c(second.total) === 1400000, second && second.total);
-    const B2 = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) }, REP);
-    B2.W.writeBatch = undefined;
+    B = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) }, REP);
+    B.W._httpsCallable = undefined; B.W._functions = undefined;
+    B.W.__importFunctions = async () => { throw new Error('offline'); };
     err = null;
     try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
-    ok('no batch API → refused rather than billed without a stamp', !!err && invoicesOf(B2.store).length === 0, err && err.message);
+    ok('the server cannot be reached → refused rather than billed by the browser', !!err && invoicesOf(B.store).length === 0, err && err.message);
   });
 
   console.log('\nF. The lead id reaches the timeline check from Record payment, and staff never skip it');
@@ -546,6 +563,49 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
       plan.problems.map((p) => p.id).join(',') === 'evil,nobody,lead', JSON.stringify(plan.problems));
     const src = require('fs').readFileSync(path.join(ROOT, 'scripts/backfill-supplement-company-id.js'), 'utf8');
     ok('the write is an update() (fails on a missing doc), not set(merge)', /\.update\(/.test(src) && !/merge:\s*true/.test(src));
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // Joe's decisions (2026-11-14): only the owner side approves, with evidence
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nN. A supplement bills only with an owner-side approval record');
+  await sec('N1 the loader', async () => {
+    if (!IP) return;
+    const B = browser({ 'leads/L1': lead(), 'estimates/estC': est(),
+      'supplements/s1': sup({ approvedBy: undefined, approvedAt: undefined, approvalEvidence: undefined, version: 2 }) }, CAROL);
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('an approved supplement with no approval record (approved before the rule) refuses the invoice and says to re-approve it',
+      !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && /#2/.test(err.message) && /re-approve/.test(err.message) && invoicesOf(B.store).length === 0 && B.W.__calls.length === 0,
+      err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
+    const B2 = browser({ 'leads/L1': lead(), 'estimates/estC': est(),
+      'supplements/s1': sup({ status: 'submitted', approvedBy: undefined, approvedAt: undefined, approvalEvidence: undefined }) }, CAROL);
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('a submitted supplement does not block', false, e.message); }
+    ok('a submitted (not yet approved) supplement neither bills nor blocks ($14,000)', invoicesOf(B2.store).length === 1 && c(invoicesOf(B2.store)[0].total) === 1400000);
+  });
+  await sec('N2 updateResponse writes the approval record', async () => {
+    const run = async (resp) => {
+      let patch = null;
+      global.window = {
+        db: {}, auth: { currentUser: { uid: 'carol' } }, serverTimestamp: () => '__TS__',
+        doc: (db, c2, id) => ({ path: c2 + '/' + id }),
+        updateDoc: async (r, p) => { patch = p; },
+      };
+      delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/estimate-supplement.js'))];
+      const ES = req('docs/pro/js/estimate-supplement.js');
+      const okv = ES ? await ES.updateResponse('s1', resp) : null;
+      return { okv, patch };
+    };
+    const a = await run({ status: 'approved', evidenceNote: 'Carrier letter 11/10' });
+    ok('approved → status, approvedBy = the caller, approvedAt = server time, approvalEvidence.note',
+      a.okv === true && a.patch && a.patch.status === 'approved' && a.patch.approvedBy === 'carol' && a.patch.approvedAt === '__TS__'
+        && a.patch.approvalEvidence && a.patch.approvalEvidence.note === 'Carrier letter 11/10', JSON.stringify(a.patch));
+    const b = await run({ status: 'partial', approvedAmount: 1500, evidenceNote: '' });
+    ok('an approval with no evidence note is not sent (returns false, nothing written)', b.okv === false && b.patch === null, JSON.stringify(b));
+    const d = await run({ status: 'denied' });
+    ok('a denial needs no evidence and writes no approval record', d.okv === true && d.patch && d.patch.status === 'denied' && !('approvedBy' in d.patch), JSON.stringify(d.patch));
+    const e = await run({ status: 'approved', evidenceNote: 'x'.repeat(1001) });
+    ok('an evidence note over 1000 characters is refused', e.okv === false && e.patch === null);
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
