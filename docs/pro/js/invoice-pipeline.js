@@ -3943,7 +3943,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
         // More than is owed asks first (a "no" keeps the sheet open, nothing written).
         const over = overpaymentNotice(amount, balanceCents);
-        if (over) { if (!(await _askOverpay(over))) return; }
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         const details = { at, reference: $('#nbd-mp-ref').value, note: $('#nbd-mp-note').value };
         const depSel = $('#nbd-mp-dep');
         if (depSel && depSel.value) details.depositedTo = depSel.value;
@@ -4337,7 +4342,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           owedC = totalCents > 0 ? totalCents : null;
         }
         const over = overpaymentNotice(amount, owedC);
-        if (over) { if (!(await _askOverpay(over))) return; }
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         try {
