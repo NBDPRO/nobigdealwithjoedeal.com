@@ -1,5 +1,26 @@
 [
   {
+    "image": "/assets/images/projects/white-oak-oh-roof-replacement-2026-4.jpg",
+    "city": "White Oak, OH",
+    "alt": "Finished hip line with new brown architectural shingles and matching ridge caps",
+    "slug": "white-oak-oh-roof-replacement-2026",
+    "tag": "Roof Replacement"
+  },
+  {
+    "image": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-4.jpg",
+    "city": "Cincinnati, OH",
+    "alt": "New black micromesh gutter guard sitting flat along the gutter below the shingles",
+    "slug": "cincinnati-oh-gutter-guard-replacement-2026",
+    "tag": "Gutter Guards"
+  },
+  {
+    "image": "/assets/images/projects/west-chester-oh-siding-repair-2026-4.jpg",
+    "city": "West Chester, OH",
+    "alt": "Back of a two-story home with the repaired overhang siding painted to match, ladders still set up",
+    "slug": "west-chester-oh-siding-repair-2026",
+    "tag": "Siding Repair"
+  },
+  {
     "image": "/assets/images/projects/cincinnati-oh-gutter-shingle-repair-2026-1.jpg",
     "city": "Cincinnati, OH",
     "alt": "Aerial view of a shingle roof between two neighboring houses, showing the ridge, chimney vent, and dormer window",
@@ -61,26 +82,5 @@
     "alt": "White gambrel shed with dark green trim and double doors under a new charcoal shingle roof, chain-link fence and woods behind",
     "slug": "mason-oh-shed-reroof-2026",
     "tag": "Shed Re-Roof"
-  },
-  {
-    "image": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-1.jpg",
-    "city": "Loveland, OH",
-    "alt": "Close-up before photo at a gable peak: a gloved hand points to an open gap where the painted fascia trim and J-channel meet above vinyl siding",
-    "slug": "loveland-oh-siding-peak-reseal-2026",
-    "tag": "Small Repair"
-  },
-  {
-    "image": "/assets/images/projects/loveland-oh-epdm-inspection-2026-3.jpg",
-    "city": "Loveland, OH",
-    "alt": "Fingertip pointing to torn, bunched EPDM membrane at a corner drain fitting on a flat roof edge, where the sheet should lap flat and sealed",
-    "slug": "loveland-oh-epdm-inspection-2026",
-    "tag": "Flat Roof"
-  },
-  {
-    "image": "/assets/images/projects/loveland-oh-shingle-samples-2026-1.jpg",
-    "city": "Loveland, OH",
-    "alt": "Full strip of aged three-tab asphalt shingle laid on a concrete walkway after removal from the roof, showing heavy granule loss, a worn seam line, and torn spots along one edge",
-    "slug": "loveland-oh-shingle-samples-2026",
-    "tag": "Warranty Support"
   }
 ]
