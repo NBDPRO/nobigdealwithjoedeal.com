@@ -221,6 +221,7 @@ async function loadAllTasks(opts) {
     fromCache = _tasksFromCache.size > 0;
   }
   _tasksLoaded = true;
+  _tasksLoadedAt = Date.now();
   renderTodayTasks();
   renderLeads(window._leads, window._filteredLeads);
   // Wave 13: tell the notification bell tasks just refreshed.
@@ -233,13 +234,23 @@ async function loadAllTasks(opts) {
     setTimeout(() => { loadAllTasks({ retry: true }); }, _TASK_CACHE_RETRY_MS);
   }
 }
-// Boot: once the lead book is in (and again if the account changes); a lead
-// refresh after that only repaints from the cache.
+// Boot: once the lead book is in (and again if the account changes). A later
+// lead refresh (the tab-return reload in dashboard-sw-bootstrap.js, a manual
+// refresh) re-reads the tasks too when the last read is older than
+// TASK_FRESH_MS: tasks, promises and appointments added from the phone,
+// another tab or the server used to stay missing from Today, the bell, the
+// card badges and the Schedule calendar until a full reload (wave-1 daily #1,
+// 2026-11-14). A refresh inside that window only repaints from the cache.
 let _taskBootUid = null;
+let _tasksLoadedAt = 0;
+const TASK_FRESH_MS = 30000;
 function _bootTasks() {
   if (window._leadsLoaded !== true) return;
   const uid = (window._user&&window._user.uid) || null;
-  if (_taskBootUid !== null && _taskBootUid === uid) { renderTodayTasks(); return; }
+  if (_taskBootUid !== null && _taskBootUid === uid) {
+    if (Date.now() - _tasksLoadedAt > TASK_FRESH_MS) { loadAllTasks(); return; }
+    renderTodayTasks(); return;
+  }
   _taskBootUid = uid;
   loadAllTasks();
 }
@@ -434,7 +445,14 @@ async function addTask(){
   if(!text){ if(typeof showToast==='function')showToast('Type a task first','info'); inp.focus(); return; }
   if(!_taskModalLeadId){ if(typeof showToast==='function')showToast('Open a lead to add a task','info'); return; }
   inp.value='';
-  await _saveTask(_taskModalLeadId,text,due.value||'');
+  // _saveTask answers null when the write failed. The text used to vanish with
+  // nothing added and nothing said (wave-1 daily #2): put it back and say so.
+  const id = await _saveTask(_taskModalLeadId,text,due.value||'');
+  if(!id){
+    if(!inp.value) inp.value=text;
+    if(typeof showToast==='function')showToast('Task not saved. Check your connection and tap + Add again.','error');
+    return;
+  }
   renderTaskList(await _loadTasks(_taskModalLeadId));
 }
 // Wave 28: Enter-key submit on the task input. Replaces the inline
