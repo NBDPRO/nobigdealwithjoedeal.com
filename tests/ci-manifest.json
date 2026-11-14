@@ -778,6 +778,7 @@
     "home-welcome-video-2026-10-05.test.js",
     "turnstile-contract.test.js",
     "webhook-signatures.test.js",
+    "webhook-signature-wiring-2026-11-14.test.js",
     "booking-events-tenancy.test.js",
     "contact-panel-no-false-comms.test.js",
     "portal-estimate-share-gate.test.js",
