@@ -2988,6 +2988,13 @@ async function run() {
   await x47('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
   await x47('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { lastName: 'Edited' }));
   await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA', meter: 'manual' }));
+  // (b2) stripeCustomerId is ledger-only (2026-11-14): it outranks email/phone/address in the Stripe
+  //      ledger's match and is billed by mintCrmStripeInvoice.
+  await x47('create carrying stripeCustomerId', 'deny', setDoc(doc(rep47, 'leads/n46-cus'), NEWLEAD47({ stripeCustomerId: 'cus_victim' })));
+  await x47('rep sets stripeCustomerId on own lead', 'deny', updateDoc(doc(rep47, 'leads/lead46b'), { stripeCustomerId: 'cus_victim' }));
+  // (b3) docPrefixes: get yes, list no (a list mapped every tenant's prefix to its owner uid).
+  await x47('signed-in user gets one prefix doc', 'allow', getDoc(doc(solo47, 'docPrefixes/OAK46')));
+  await x47('signed-in user lists every prefix', 'deny', getDocs(collection(solo47, 'docPrefixes')));
   // (c) /emails read
   await x47('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver47, 'emails/e46')));
   await x47('verified owner of that email can read it', 'allow', getDoc(doc(ver47, 'emails/e46')));
