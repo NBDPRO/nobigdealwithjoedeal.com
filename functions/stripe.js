@@ -34,6 +34,8 @@ const KyPayLinkGate = require('./ky-pay-link-gate-logic');
 // processing is not money, a failed debit reverts + alerts Jo (internal).
 const AchPay = require('./ach-payments');
 const InvoiceCharge = require('./invoice-charge');
+// Only the subscription Checkout we mint may grant a plan (2026-11-14).
+const { planCheckoutRefusal } = require('./plan-checkout-guard');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
 // eagerly). Required on first client construction instead.
@@ -523,6 +525,14 @@ exports.stripeWebhook = onRequest(
 
           if (!uid) {
             logger.warn('stripeWebhook.checkout_session_completed missing client_reference_id');
+            break;
+          }
+          // Payment Links accept ?client_reference_id= from the URL and every
+          // tenant invoice link lives on this account, so a paid invoice link
+          // must never grant a plan to whatever id the payer typed (2026-11-14).
+          const planRefusal = planCheckoutRefusal(session);
+          if (planRefusal) {
+            logger.warn('stripeWebhook.checkout_session_not_a_plan', { sessionId: session.id, mode: session.mode || '', reason: planRefusal });
             break;
           }
 
