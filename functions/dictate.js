@@ -236,6 +236,13 @@ exports.dictate = onCall(
       throw new HttpsError('unavailable', 'AI temporarily disabled');
     }
 
+    // Free accounts get no AI (Joe, 2026-11-14; AI audit F2): a paid plan and
+    // a confirmed email, NBD's own company and the platform admin exempt.
+    // Viewers can't dictate into anything, so they are refused too. Both
+    // checks run before the rate limit, so a refusal spends nothing.
+    require('./shared').assertNotViewer(request.auth.token);
+    await require('./ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth);
+
     // Per-uid rate limit. 30/hr is generous for an active dictator
     // — the W128 click-to-toggle UI naturally tops out around
     // ~5/min during a session, far below this ceiling — but kills
