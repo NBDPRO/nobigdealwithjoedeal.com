@@ -452,12 +452,13 @@ const sumLines = (lines) => Math.round((lines || []).reduce((s, l) => s + Number
     const stampAt = body.search(/sharedWithHomeowner:\s*true/);
     const linkAt = body.indexOf('navigator.share');
     ok('job-templates-ui sendToCustomer stamps sharedWithHomeowner before handing out the link', stampAt !== -1 && linkAt !== -1 && stampAt < linkAt);
-    // The customer page already stamped sharedWithHomeowner before its share
-    // sheet (unchanged; a failed stamp still only warns — budget, see PR).
     const CB = fs.readFileSync(path.join(ROOT, 'docs/pro/js/customer-bootstrap.module.js'), 'utf8').replace(/\r\n/g, '\n');
     const cStamp = CB.indexOf('sharedWithHomeowner: true');
     const cShare = CB.indexOf("title: 'Your estimate from '");
     ok('customer page: stamps sharedWithHomeowner before handing out the link', cStamp !== -1 && cShare !== -1 && cStamp < cShare);
+    const cAt = CB.indexOf("console.warn('[estimate-share] could not stamp sharedWithHomeowner:'");
+    const after = cAt === -1 ? '' : CB.slice(cAt, cAt + 400);
+    ok('customer page: a failed share stamp stops with an error (the link would not open)', cAt !== -1 && /showToast\([^)]*error/.test(after) && /return;/.test(after), after.slice(0, 200));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
