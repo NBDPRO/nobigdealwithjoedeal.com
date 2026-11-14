@@ -67,7 +67,7 @@
 body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
 
 /* SAFE AREA (audit Q6): the notch / status bar height. Everything pinned under the header adds it, so nothing slides beneath. */
-:root{--sat:env(safe-area-inset-top,0px);}
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);}
 /* TOPBAR */
 .topbar{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--bar);border-bottom:3px solid var(--ac);display:flex;align-items:center;justify-content:space-between;padding:var(--sat) max(14px,env(safe-area-inset-right,0px)) 0 max(14px,env(safe-area-inset-left,0px));min-height:calc(52px + var(--sat));gap:6px;overflow:hidden;}
 .tbl{display:flex;align-items:center;gap:10px;flex-shrink:0;}
@@ -521,7 +521,7 @@ canvas{max-width:100%;display:block;}
 .nhm-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
 .nhm-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; letter-spacing: .1em; color: #e8eaf0; }
 .nhm-sub { font-size: 12px; color: #5a6478; letter-spacing: .12em; margin-top: 2px; }
-.nhm-close { background: rgba(255,255,255,.07); border: 1px solid #2a3040; border-radius: 6px; color: #8a93a8; font-size: 14px; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: .15s; }
+.nhm-close { background: rgba(255,255,255,.07); border: 1px solid #2a3040; border-radius: 6px; color: #8a93a8; font-size: 14px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: .15s; }
 .nhm-close:hover { color: #fff; }
 .nhm-section { margin-bottom: 14px; }
 .nhm-section-title { font-size: 12px; color: var(--orange, #BD5728); letter-spacing: .15em; text-transform: uppercase; margin-bottom: 8px; }
@@ -532,7 +532,7 @@ canvas{max-width:100%;display:block;}
 .nhm-tip { background: #0e1218; border: 1px solid #1e2530; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #8a93a8; line-height: 1.7; margin-top: 8px; }
 
 /* ── TOAST ─────────────────────────────────────────────────────────── */
-.nbd-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2530; border: 1px solid #2a3040; border-radius: 8px; padding: 9px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: #e8eaf0; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9999; }
+.nbd-toast { position: fixed; bottom: calc(24px + var(--sab, 0px)); left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2530; border: 1px solid #2a3040; border-radius: 8px; padding: 9px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: #e8eaf0; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9999; }
 .nbd-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 </style>
@@ -928,7 +928,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 /* QUICK WINS (2026-11-09 audit, docs: documentation/qa/daily-success-ux-audit-2026-11-09.md) */
 /* Q2: every text field is 16 px on a phone, so iOS never zooms the page when one is tapped. !important, because several fields carry an inline size (the Diet totals row). */
-@media (max-width:768px){
+/* 2026-11-14 (audit): also any touch screen, so a phone turned sideways (844 px) does not zoom into fields again. */
+@media (max-width:768px),(pointer:coarse){
   :root:root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=color]):not([type=file]):not([type=hidden]):not([type=image]),:root:root textarea,:root:root select{font-size:16px!important;}
 }
 /* Q6: the sync pill ("Saving...", "Synced", "Sync failed"), positioned here by its class: just under the header, past the inset. */
