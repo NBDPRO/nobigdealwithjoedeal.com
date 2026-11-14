@@ -273,8 +273,13 @@
     var out = [];
     (invoices || []).forEach(function (inv) {
       if (!inv || inv.deleted === true) return;
-      (Array.isArray(inv.payments) ? inv.payments : []).forEach(function (p) {
+      var pays = Array.isArray(inv.payments) ? inv.payments : [];
+      // A payment the owner reversed (a negative entry naming it) is not in the CRM any more.
+      var reversed = {};
+      pays.forEach(function (p) { if (p && p.reversal === true && parseFloat(p.amount) < 0 && p.reverses) reversed[String(p.reverses)] = 1; });
+      pays.forEach(function (p) {
         if (!p) return;
+        if (p.paymentId && reversed[String(p.paymentId)]) return;
         var amt = parseFloat(p.amount);
         if (!(amt > 0)) return;
         var ymd = toYmd(p.at);

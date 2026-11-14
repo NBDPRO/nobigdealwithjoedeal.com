@@ -172,9 +172,11 @@ function paymentsOnlyOf(inv) {
       const p = inv.payments[i] || {};
       const amt = parseFloat(p.amount);
       const at = p.at != null ? p.at : p.date;
-      if (!(amt > 0) || at == null) continue;
-      out.push({ amount: amt, at: at });
+      // A reversal (negative entry, invoice-pipeline.js planPaymentReversal) nets the money back out on the reversed payment's own date.
+      if (!amt || at == null) continue;
+      out.push(amt < 0 ? { amount: amt, at: at, reversal: true } : { amount: amt, at: at });
       ledgerCents += Math.round(amt * 100);
+      if (amt < 0) continue;
       const d = toDate(at);
       if (d && d.getTime() < earliestMs) { earliestMs = d.getTime(); earliestAt = at; }
     }

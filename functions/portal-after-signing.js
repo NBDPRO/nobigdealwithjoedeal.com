@@ -77,10 +77,19 @@ function _paymentCounts(p) {
   return !!p && Number(p.amount) > 0 && p.reverted !== true && p.achStatus !== 'failed';
 }
 
+// The payments a homeowner sees on one invoice: real ones, less any the owner reversed (a typo,
+// a bounced check: a negative reversal entry naming the payment, invoice-pipeline.js
+// planPaymentReversal). Neither the reversed payment nor its reversal is shown.
+function _countedPayments(inv) {
+  const pays = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
+  const reversed = new Set(pays.filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
+  return pays.filter((p) => _paymentCounts(p) && !(p.paymentId && reversed.has(String(p.paymentId))));
+}
+
 /** Has any money landed on this job? (any live invoice with a payment) */
 function anyPaid(invoices) {
   return (Array.isArray(invoices) ? invoices : []).some((inv) => _liveInvoice(inv)
-    && (cents(inv.amountPaid) > 0 || (Array.isArray(inv.payments) && inv.payments.some(_paymentCounts))));
+    && (cents(inv.amountPaid) > 0 || _countedPayments(inv).length > 0));
 }
 
 /**
@@ -147,8 +156,7 @@ function paymentsFor(invoices) {
   (Array.isArray(invoices) ? invoices : []).forEach((inv) => {
     if (!_liveInvoice(inv)) return;
     const num = String(inv.invoiceNumber || (inv.paper && inv.paper.invoice && inv.paper.invoice.instanceId) || '').trim().slice(0, 40);
-    (Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
-      if (!_paymentCounts(p)) return;
+    _countedPayments(inv).forEach((p) => {
       const m = String(p.method || '').toLowerCase();
       out.push({
         date: _isoOf(p.at != null ? p.at : p.date),

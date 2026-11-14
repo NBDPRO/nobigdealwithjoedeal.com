@@ -722,6 +722,47 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     };
   }
 
+  // nbd:payment-reversal:start
+  // Reverse a payment (wave-1 money review 2026-11-14, finding 1). A mistyped
+  // or bounced manual payment is never deleted: the owner side appends a
+  // NEGATIVE entry for the whole amount ({ reversal: true, reverses: <the
+  // payment's id>, reason }) dated the day the original said the money came
+  // in, so every period total nets back to what really arrived. Readers sum
+  // payments[] with negatives (collected-revenue.js and its mirrors); lists
+  // and receipts hide the reversed payment (reversedPaymentIds). The rules
+  // (firestore.rules reversalEntryOk) allow only this shape, owner side only.
+  const REVERSAL_REASON_MAX = 300;
+  /** Ids of the payments a reversal entry in this list cancels. Pure. */
+  function reversedPaymentIds(payments) {
+    const out = new Set();
+    (Array.isArray(payments) ? payments : []).forEach((p) => {
+      if (p && p.reversal === true && Number(p.amount) < 0 && typeof p.reverses === 'string' && p.reverses) out.add(p.reverses);
+    });
+    return out;
+  }
+  /** Why payments[index] cannot be reversed, or '' when it can. Pure. */
+  function reversalBlockedReason(invoice, index) {
+    const inv = invoice || {};
+    const list = Array.isArray(inv.payments) ? inv.payments : [];
+    const p = list[index];
+    if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
+    if (p.reversal === true || !(toCents(Number(p.amount)) > 0)) return 'That entry is not a payment';
+    if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger') {
+      return 'Card and bank payments made online are refunded in Stripe, not reversed here';
+    }
+    if (!isManualPaymentMethod(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
+    if (typeof p.paymentId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(p.paymentId)) {
+      return 'This older payment has no id to reverse — ask for help fixing it';
+    }
+    if (reversedPaymentIds(list).has(p.paymentId)) return 'That payment is already reversed';
+    if (!(_tsMs(p.at) > 0)) return 'That payment has no date';
+    const st = String(inv.status || '').toLowerCase();
+    if (st === 'sending') return 'The invoice is being sent — try again in a minute';
+    if (inv.deleted === true || st === 'void' || st === 'cancelled') return 'The invoice is voided';
+    return '';
+  }
+  // nbd:payment-reversal:end
+
   // Which payments[] entry a rep tapped "Attach proof" on. The index is the
   // fast path, but the array can shift under us (another device logged a
   // payment), so the entry must still MATCH the key captured at render time:
@@ -765,11 +806,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // Display rows for the invoice's payment history (newest first). Pure.
   function paymentHistoryRows(inv) {
     const list = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
+    // A reversed payment stays listed, marked reversed with the reason; the
+    // negative reversal entry itself is not a row of its own.
+    const reversedBy = {};
+    list.forEach((p) => {
+      if (p && p.reversal === true && Number(p.amount) < 0 && typeof p.reverses === 'string' && !reversedBy[p.reverses]) reversedBy[p.reverses] = p;
+    });
     return list.map((p, index) => {
       p = p || {};
       const k = paymentKey(p);
       const isStripe = p.method === 'stripe';
+      const rev = (typeof p.paymentId === 'string' && p.paymentId && reversedBy[p.paymentId]) || null;
       return {
+        reversed: !!rev,
+        reversalReason: rev && rev.reason ? String(rev.reason) : '',
+        canReverse: !rev && reversalBlockedReason(inv, index) === '',
         index,
         atMs: k.atMs,
         amount: Number(p.amount) || 0,
@@ -781,7 +832,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         proofName: p.proofName ? String(p.proofName) : '',
         depositedTo: isDepositAccount(p.depositedTo) ? p.depositedTo : '',
         isStripe,
-        canAttach: !isStripe && !p.proofStoragePath,
+        canAttach: !isStripe && !p.proofStoragePath && !rev,
         keyRecordedAtMs: k.recordedAtMs,
       };
     }).filter(r => r.amount > 0)
@@ -810,7 +861,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       }
       // The receipt draft for this payment: one tap sends it (2026-10-04).
       const p = (inv.payments || [])[r.index];
-      const rs = receiptStateOf(p);
+      const rs = r.reversed ? 'none' : receiptStateOf(p);
+      const reversed = r.reversed
+        ? `<div class="ipx-m11 ipx-mt2" data-ip-reversed>Reversed${r.reversalReason ? ': ' + escHtml(r.reversalReason) : ''}</div>`
+        : '';
+      const reverse = (r.canReverse && _isOwnerSide())
+        ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="reversePayment" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''} title="Typed the wrong amount, or the check bounced">↶ Reverse</button>`
+        : '';
       const rkey = receiptKeyOf(p, r.index);
       const receipt = rs === 'draft'
         ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="sendReceipt" data-ip-id="${id}" data-ip-pay="${escHtml(rkey)}" data-send-receipt>✉️ Send receipt</button>`
@@ -820,12 +877,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           <div class="ipx-minw0">
             <div><strong>${escHtml(date)}</strong> · ${escHtml(r.methodLabel)}${ref}</div>
             ${note}
+            ${reversed}
             ${acct}
           </div>
           <div class="ipx-row-fixed">
-            <span class="ipx-b">${escHtml(formatCurrency(r.amount))}</span>
+            <span class="ipx-b"${r.reversed ? ' data-ip-reversed-amt' : ''}>${r.reversed ? '<s>' + escHtml(formatCurrency(r.amount)) + '</s>' : escHtml(formatCurrency(r.amount))}</span>
             ${proof}
             ${receipt}
+            ${reverse}
           </div>
         </div>`;
     }).join('');
@@ -909,11 +968,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (i < 0) return null;
     const p = list[i] || {};
     if (receiptStateOf(p) === 'none') return null;
+    // A reversed payment gets no receipt, and never counts toward "paid so far".
+    const reversedIds = reversedPaymentIds(list);
+    if (p.paymentId && reversedIds.has(p.paymentId)) return null;
     const totalC = toCents(Math.max(0, Number(inv.total) || 0)) || 0;
     let paidC = 0;
     for (let j = 0; j <= i; j++) {
       const a = list[j];
-      if (a && Number(a.amount) > 0) paidC += toCents(Number(a.amount)) || 0;
+      if (a && Number(a.amount) > 0 && !(a.paymentId && reversedIds.has(a.paymentId))) paidC += toCents(Number(a.amount)) || 0;
     }
     const balC = Math.max(0, totalC - paidC);
     const atMs = _tsMs(p.at != null ? p.at : p.date);
@@ -3657,6 +3719,73 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * page has no runTransaction), matched by index + recordedAt / at+amount,
    * so a payment another device logged meanwhile is never clobbered.
    */
+  /**
+   * UI: reverse one manual payment (owner side only). Asks why, confirms,
+   * then calls the reversePayment callable (functions/payment-reversal.js),
+   * which re-checks who is asking and appends the negative entry in one
+   * transaction on the server. → true when done.
+   */
+  async function reversePaymentUI(invoiceId, index, recordedAtMs) {
+    if (!invoiceId || !Number.isInteger(index)) return false;
+    if (!_isOwnerSide()) { _toast('Only the owner can reverse a payment.', 'error'); return false; }
+    const db = getDb();
+    const invRef = window.doc(db, 'invoices', invoiceId);
+    let amount, paymentId;
+    try {
+      const snap = await window.getDoc(invRef);
+      if (!snap.exists()) throw new Error('Invoice not found');
+      const inv = snap.data() || {};
+      const p = (Array.isArray(inv.payments) ? inv.payments : [])[index];
+      if (!p) throw new Error('That payment changed — reopen the invoice and try again');
+      const key = paymentKey(p);
+      if (Number.isFinite(recordedAtMs) && key.recordedAtMs !== recordedAtMs) {
+        throw new Error('That payment changed — reopen the invoice and try again');
+      }
+      const why = reversalBlockedReason(inv, index);
+      if (why) throw new Error(why);
+      amount = Number(p.amount) || 0;
+      paymentId = p.paymentId;
+    } catch (e) { _toast((e && e.message) || 'Could not load the invoice', 'error'); return false; }
+
+    const ask = (typeof window.nbdPrompt === 'function')
+      ? window.nbdPrompt
+      : (m) => Promise.resolve(typeof window.prompt === 'function' ? window.prompt(m) : null);
+    const reason = _cleanText(await ask('Why reverse this ' + formatCurrency(amount) + ' payment? (for example: typed the wrong amount, check bounced)', ''), REVERSAL_REASON_MAX);
+    if (!reason) return false;
+    const yesNo = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
+      : (m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false);
+    const ok = await yesNo('Reverse the ' + formatCurrency(amount) + ' payment? It stays in the payment history, marked reversed, and comes off Collected. '
+      + 'If the right amount came in, record that as a new payment afterwards.');
+    if (!ok) return false;
+    try {
+      if (!window._functions || !window._httpsCallable) {
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
+        window._functions = window._functions || mod.getFunctions();
+        window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+      }
+      const res = await window._httpsCallable(window._functions, 'reversePayment')({ invoiceId, paymentId, reason });
+      const out = (res && res.data) || {};
+      if (out.ok !== true) throw new Error('the server did not confirm the reversal');
+      _toast('Payment reversed', 'success');
+      // Money is owed again: a live pay link was minted for the smaller balance, so re-mint it (as markPaid does).
+      // Best-effort: the reversal is already saved; a failed re-mint says so.
+      if (Number(out.balanceDue) > 0) {
+        try {
+          const s2 = await window.getDoc(invRef);
+          if (s2.exists() && (s2.data() || {}).stripePaymentLink) await generateStripePaymentLink(invoiceId);
+        } catch (regenErr) {
+          console.warn('reversePayment: payment-link regen failed', regenErr && regenErr.message);
+          _toast('Payment reversed, but the online payment link may still show the old balance. Re-send the invoice.', 'warning');
+        }
+      }
+      if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+      return true;
+    } catch (e) {
+      _toast('Could not reverse the payment: ' + ((e && (e.message || e.code)) || 'error'), 'error');
+      return false;
+    }
+  }
+
   async function attachProofUI(invoiceId, index, recordedAtMs) {
     if (!invoiceId) return false;
     const db = getDb();
@@ -4389,6 +4518,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     buildManualPaymentEntry,
     PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
+    reversedPaymentIds,
+    reversalBlockedReason,
+    reversePaymentUI,
     paymentKey,
     findPaymentIndex,
     attachProofToPayments,
@@ -4495,6 +4627,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'sendReceipt': {
           const key = t.dataset.ipPay;
           if (typeof IP.sendReceiptUI === 'function' && id && key) IP.sendReceiptUI(id, key);
+          break;
+        }
+        case 'reversePayment': {
+          const idx = parseInt(t.dataset.ipIdx, 10);
+          const rec = t.dataset.ipRec != null ? Number(t.dataset.ipRec) : NaN;
+          if (typeof IP.reversePaymentUI === 'function' && Number.isInteger(idx)) IP.reversePaymentUI(id, idx, rec);
           break;
         }
         case 'viewProof': {

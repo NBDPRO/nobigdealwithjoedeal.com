@@ -840,8 +840,11 @@ window.loadInvoices = async function(leadId) {
     const receiptBtns = (inv) => {
       const pays = Array.isArray(inv.payments) ? inv.payments : [];
       const drafts = [];
+      // A payment the owner reversed (a negative entry naming it) gets no receipt.
+      const reversedIds = new Set(pays.filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
       pays.forEach((p, i) => {
         if (!p || !(Number(p.amount) > 0) || p.achStatus === 'failed' || p.reverted === true) return;
+        if (p.paymentId && reversedIds.has(String(p.paymentId))) return;
         if (p.receipt && p.receipt.status === 'sent') return;
         drafts.push({ key: _payIdOf(p) || ('idx:' + i), amount: Number(p.amount) });
       });

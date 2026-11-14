@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "payment-reversal-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
     "draft-project-page-2026-11-09.test.js",
     "match-job-photos-2026-11-09.test.js",

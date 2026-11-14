@@ -183,8 +183,11 @@ function findManualDuplicate(invoices, mv) {
   const WINDOW = 14 * 86400000;
   for (const inv of invoices || []) {
     if (!inv || inv.deleted === true) continue;
+    // A manual payment the owner reversed (a negative entry naming it) is not money that arrived.
+    const reversed = new Set((inv.payments || []).filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
     for (const p of inv.payments || []) {
       if (!p || p.source === 'stripe_ledger' || p.stripeRef) continue;
+      if (p.paymentId && reversed.has(String(p.paymentId))) continue;
       // A catch-up "Paid in full?" entry is a stand-in, not a payment Jo
       // typed for this charge: planCatchUpAbsorb replaces it with the real
       // Stripe payment (its own date and method) instead of just linking.

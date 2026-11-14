@@ -77,7 +77,10 @@ function receivedMs(invoices) {
     if (!inv || inv.deleted === true || DEAD[String(inv.status || '').toLowerCase()]) continue;
     // A payment-backfill invoice records money collected long ago: its date never opens the ask window.
     if (isBackfillInvoice(inv)) continue;
-    const pays = (Array.isArray(inv.payments) ? inv.payments : []).filter((p) => p && !p.refund && Number(p.amount) > 0);
+    const all = Array.isArray(inv.payments) ? inv.payments : [];
+    // A payment the owner reversed (a negative entry naming it) never arrived.
+    const reversed = new Set(all.filter((p) => p && p.reversal === true && Number(p.amount) < 0 && p.reverses).map((p) => String(p.reverses)));
+    const pays = all.filter((p) => p && !p.refund && Number(p.amount) > 0 && !(p.paymentId && reversed.has(String(p.paymentId))));
     if (pays.length) { for (const p of pays) m = Math.max(m, ms(p.at)); continue; }
     if (String(inv.status || '').toLowerCase() === 'paid') m = Math.max(m, ms(inv.paidAt));
   }

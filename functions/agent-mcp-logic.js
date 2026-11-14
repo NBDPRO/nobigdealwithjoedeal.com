@@ -1132,9 +1132,11 @@ function paymentsOf(inv) {
     inv.payments.forEach((p) => {
       const amt = parseFloat(p && p.amount);
       const at = p && (p.at != null ? p.at : p.date);
-      if (!(amt > 0) || at == null) return;
-      out.push({ amount: amt, at });
+      // A reversal (negative entry, invoice-pipeline.js planPaymentReversal) nets the money back out on the reversed payment's own date.
+      if (!amt || at == null) return;
+      out.push(amt < 0 ? { amount: amt, at, reversal: true } : { amount: amt, at });
       ledgerCents += Math.round(amt * 100);
+      if (amt < 0) return;
       const t = ms(at);
       if (t && t < earliestMs) { earliestMs = t; earliestAt = at; }
     });
@@ -1180,7 +1182,7 @@ function collectedRevenue(invoices, leads, from, to, tz) {
       if (day < from || day > to) return;
       const c = Math.round(p.amount * 100);
       cents += c;
-      if (p.refund) refundCents += -c; else payments++;
+      if (p.refund) refundCents += -c; else if (!p.reversal) payments++;
       const m = day.slice(0, 7);
       byMonth[m] = (byMonth[m] || 0) + c;
       const k = inv.leadId || '(no customer)';
