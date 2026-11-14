@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=45"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=46"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -7312,7 +7312,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=3"></script>
+<script defer src="js/repos.js?v=4"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)

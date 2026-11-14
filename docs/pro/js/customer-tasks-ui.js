@@ -226,21 +226,41 @@ function _taskNotify(msg, kind) {
   if (kind === 'error') console.error('[tasks]', msg); else console.log('[tasks]', msg);
 }
 
+// Wave-1 (2026-11-14, daily #6 / field #3): Save Task and Save Event had no
+// busy guard, so a double-tap wrote the task twice; and offline addDoc never
+// resolves (it waits for the server's ack), so the modal hung open although
+// the write was already in Firestore's on-phone queue. settle() answers
+// 'queued' once the phone is offline or the ack is slow.
+function _taskSettle(p) {
+  const S = window.NBDOfflineSync;
+  if (S && typeof S.settle === 'function') return S.settle(p);
+  return Promise.resolve(p).then(() => 'synced');
+}
+const _taskSaving = { task: false, event: false };
+function _taskBusy(kind, on) {
+  _taskSaving[kind] = on;
+  const btn = document.querySelector('[data-action="' + (kind === 'task' ? 'saveTask' : 'saveEvent') + '"]');
+  if (btn) btn.disabled = !!on;
+}
+
 window.saveEvent = async function() {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  if (_taskSaving.event) return;
   const title = document.getElementById('eventTitle').value.trim();
   const when = document.getElementById('eventWhen').value;
   const notes = document.getElementById('eventNotes').value.trim();
   if (!title) { _taskNotify('Enter an event title', 'warning'); return; }
   if (!when) { _taskNotify('Pick a date and time', 'warning'); return; }
   if (!window._customerId) { _taskNotify('Customer ID not found', 'error'); return; }
+  _taskBusy('event', true);
   try {
     // The one event writer (lead-events.js, 2026-10-03) — D2D's "Appointment
     // Set" books through it too. Inline copy kept only for a stale cache.
+    let sync;
     if (window.NBDLeadEvents && typeof window.NBDLeadEvents.add === 'function') {
-      await window.NBDLeadEvents.add(window._customerId, { title: title, when: when, notes: notes, source: 'manual' });
-    } else await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
+      sync = await _taskSettle(window.NBDLeadEvents.add(window._customerId, { title: title, when: when, notes: notes, source: 'manual' }));
+    } else sync = await _taskSettle(window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
       type: 'event',
       leadId: window._customerId,
       userId: window.auth.currentUser?.uid || null,
@@ -252,8 +272,9 @@ window.saveEvent = async function() {
       source: 'manual',
       createdAt: window.serverTimestamp(),
       createdBy: window.auth.currentUser?.email || 'Unknown'
-    });
+    }));
     window.closeEventModal();
+    if (sync === 'queued') { showToast('📅 Event saved on this phone. It syncs when you have signal.', 'success'); return; }
     const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
     if (leadSnap.exists()) {
       await loadTimeline(window._customerId, leadSnap.data());
@@ -262,12 +283,15 @@ window.saveEvent = async function() {
   } catch (error) {
     console.error('Error saving event:', error);
     showToast('Could not save event — try again', 'error');
+  } finally {
+    _taskBusy('event', false);
   }
 };
 
 window.saveTask = async function() {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  if (_taskSaving.task) return;
   const title = document.getElementById('taskTitle').value.trim();
   const dueDate = document.getElementById('taskDueDate').value;
   const priority = document.getElementById('taskPriority').value;
@@ -283,6 +307,7 @@ window.saveTask = async function() {
     return;
   }
   
+  _taskBusy('task', true);
   try {
     // Task unification: the CANONICAL store is the leads/{leadId}/tasks
     // subcollection — the same one the dashboard (tasks.js), notification
@@ -290,7 +315,7 @@ window.saveTask = async function() {
     // top-level 'tasks' collection write made customer-page tasks
     // invisible everywhere else (and vice versa). `text` mirrors `title`
     // because the dashboard renders t.text.
-    await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
+    const sync = await _taskSettle(window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
       leadId: window._customerId,
       userId: window.auth.currentUser?.uid || null,
       title: title,
@@ -301,9 +326,10 @@ window.saveTask = async function() {
       done: false,
       createdAt: window.serverTimestamp(),
       createdBy: window.auth.currentUser?.email || 'Unknown'
-    });
+    }));
 
     closeTaskModal();
+    if (sync === 'queued') { showToast('✓ Task saved on this phone. It syncs when you have signal.', 'success'); return; }
 
     // Reload timeline to show new task
     const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
@@ -317,6 +343,8 @@ window.saveTask = async function() {
   } catch (error) {
     console.error('Error saving task:', error);
     _taskNotify('Task not saved: ' + ((error && error.message) || 'unknown error'), 'error');
+  } finally {
+    _taskBusy('task', false);
   }
 };
 
