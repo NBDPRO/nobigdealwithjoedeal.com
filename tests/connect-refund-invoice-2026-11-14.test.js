@@ -486,6 +486,29 @@ async function main() {
     ok('R9 planner present', false, 'functions/connect-refund-logic.js missing');
   }
 
+  console.log('\nR10 — Joe, 2026-11-14: EVERY refund reopens what\'s owed, whatever the reason');
+  {
+    // Decided, not an accident: a cancelled job, a goodwill refund, a duplicate
+    // charge or a fraud refund all put the amount back into what's owed. No
+    // reason, metadata flag or refund description gates it.
+    for (const [label, extra] of [
+      ['requested_by_customer (a cancelled job)', { reason: 'requested_by_customer' }],
+      ['duplicate', { reason: 'duplicate' }],
+      ['fraudulent', { reason: 'fraudulent' }],
+      ['no reason at all', { reason: null }],
+      ['a goodwill note in metadata', { reason: 'requested_by_customer', metadata: { note: 'goodwill', reopen: 'false' } }],
+    ]) {
+      const wr = world();
+      wr.refunds.ch_T = [Object.assign({ id: 're_r', amount: 40000, status: 'succeeded', created: T0 + 86400, charge: 'ch_T' }, extra)];
+      await run(wr, charge());
+      ok('R10 ' + label + ': reopened (amountPaid 600, balanceDue 400)',
+        inv(wr).amountPaid === 600 && inv(wr).balanceDue === 400, JSON.stringify([inv(wr).amountPaid, inv(wr).balanceDue]));
+    }
+    ok('R10 the planner source never reads a refund\'s reason or metadata',
+      !!PLAN && !/\.reason\b|\.metadata\b/.test(fs.readFileSync(path.join(ROOT, 'functions', 'connect-refund-logic.js'), 'utf8')
+        .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')));
+  }
+
   console.log('\nT2 — a rep editing refunds[] cannot steer the money (server-only record)');
   {
     // Tamper A: mark the applied refund 'failed' on the invoice, then a new refund lands.
