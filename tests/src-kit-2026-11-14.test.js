@@ -51,6 +51,11 @@ section('sliceFn');
   const crlf = src.replace(/\n/g, '\r\n');
   ok('a CRLF checkout slices to the same text (LF)', K.sliceFn(crlf, 'target') === got);
   ok('an unknown name is null, not the empty string', K.sliceFn(src, 'nope') === null);
+  const twice = 'function f() { return 1; }\nfunction f() { return 2; }';
+  ok('{ unique }: a second definition makes it ambiguous (null); one definition, or one in a comment, is fine',
+    K.sliceFn(twice, 'f') === 'function f() { return 1; }' && K.sliceFn(twice, 'f', { unique: true }) === null
+      && K.sliceFn('// function f() {}\nfunction f() { return 3; }', 'f', { unique: true }) === 'function f() { return 3; }'
+      && K.sliceFn(src, 'target', { unique: true }) === got);
   ok('a name that is only a prefix of another does not match it', K.sliceFn('function targetX() { return 1; }', 'target') === null);
   ok('window.x = async function', K.sliceFn('window.progressStage = async function (o) { if (o) { go(); } };\nnext();', 'progressStage') === 'window.progressStage = async function (o) { if (o) { go(); } }');
   ok('object property `name: function`', K.sliceFn('var o = { name: function (x) { return { x }; }, b: 1 };', 'name') === 'name: function (x) { return { x }; }');

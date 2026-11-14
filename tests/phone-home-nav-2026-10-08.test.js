@@ -73,8 +73,9 @@ console.log('\n2. progressStage asks only through the rule; Undo for a plain mov
   const imp = K.esmImports(cb).find((i) => i.names._stageMoveNeedsConfirm);
   ok('imports stageMoveNeedsConfirm from stage-write.js', !!imp && imp.from === './stage-write.js' && imp.names._stageMoveNeedsConfirm === 'stageMoveNeedsConfirm', imp);
   ok('…and commitStageChange from the same file (the guarded writer Undo reuses)', !!imp && imp.names._commitStageChange === 'commitStageChange', imp);
-  const fnSrc = K.sliceFn(cb, 'progressStage'), undoSrc = K.sliceFn(cb, '_undoStageMove');
-  ok('progressStage and _undoStageMove were found', !!fnSrc && !!undoSrc);
+  // unique: a second definition (a decoy, or a copy left behind) is ambiguous → null, never "the first one"
+  const fnSrc = K.sliceFn(cb, 'progressStage', { unique: true }), undoSrc = K.sliceFn(cb, '_undoStageMove', { unique: true });
+  ok('progressStage and _undoStageMove were found, each defined once', !!fnSrc && !!undoSrc);
 
   /** The real progressStage + _undoStageMove, with the REAL stageMoveNeedsConfirm, over spies. */
   function world(o) {
@@ -101,6 +102,7 @@ console.log('\n2. progressStage asks only through the rule; Undo for a plain mov
   }
   const undoOf = (t) => (t.toasts.find((x) => typeof x.undoAction === 'function') || {}).undoAction;
 
+  if (fnSrc && undoSrc) {   // the check above already failed otherwise; running half a world would only crash
   const plain = world({ from: 'inspected', roles: { estimate_sent_cash: 'active' } });
   await plain.move('estimate_sent_cash');
   ok('a plain forward move asks nothing and writes once, through commitStageChange (to, from)',
@@ -114,14 +116,16 @@ console.log('\n2. progressStage asks only through the rule; Undo for a plain mov
   const again = world({ from: 'inspected' });
   await again.move('contacted');
   again.w._currentStage = 'negotiating';   // moved again since (another tap, another tab)
-  await undoOf(again)();
-  ok('Undo does nothing if the lead moved again since', again.commits.length === 1, again.commits);
+  const againUndo = undoOf(again);
+  if (againUndo) await againUndo();
+  ok('Undo does nothing if the lead moved again since', !!againUndo && again.commits.length === 1, again.commits);
 
   for (const code of ['STAGE_RACE_NOOP', 'STAGE_RACE_LOST']) {
     const race = world({ from: 'inspected', race: { at: 2, code } });
     await race.move('contacted');
-    await undoOf(race)();
-    ok('Undo refreshes on a race instead of clobbering (' + code + ')', race.reloads() === 1 && race.toasts.some((t) => /refreshing/.test(t.message || '')), race.toasts);
+    const raceUndo = undoOf(race);
+    if (raceUndo) await raceUndo();
+    ok('Undo refreshes on a race instead of clobbering (' + code + ')', !!raceUndo && race.reloads() === 1 && race.toasts.some((t) => /refreshing/.test(t.message || '')), race.toasts);
   }
 
   const lost = world({ from: 'inspected', answer: false });
@@ -146,6 +150,7 @@ console.log('\n2. progressStage asks only through the rule; Undo for a plain mov
   const ctl = world({ from: 'closed' });
   await ctl.move('contacted');
   ok('…(control: the same world offers Undo for a plain move)', typeof undoOf(ctl) === 'function');
+  }
 }
 
 console.log('\n3. Home order: needs-you strip, Today, then More on Home');
@@ -180,14 +185,16 @@ console.log('\n4. today-home.css folds the body on a phone only');
   const top = (sel) => K.cssRule(css, sel) || {};
   const phone = (sel) => K.cssRule(css, sel, { media: '(max-width:768px)' }) || {};
   ok('desktop: the toggle and the repeated links are hidden', top('.home-more-toggle').display === 'none' && top('.home-more-acts').display === 'none');
-  ok('desktop: nothing hides the body outside a media query',
-    css.filter((r) => r.media === null && r.selectors.some((s) => /\.home-more-body$/.test(s)) && r.decls.display === 'none').length === 0);
+  // any rule that can apply at desktop width: no @media, or an @media that is not a max-width (phone) query
+  const disp = (r) => String(r.decls.display || '').replace(/!important/i, '').trim().toLowerCase();
+  const desktopHides = css.filter((r) => (r.media === null || !/max-width/.test(r.media)) && r.selectors.some((s) => /\.home-more-body$/.test(s)) && disp(r) === 'none');
+  ok('desktop: nothing hides the body outside a phone media query', desktopHides.length === 0, desktopHides.map((r) => (r.media || 'top level') + ' line ' + r.line));
   ok('phone: the body hides until the box is checked', phone('.home-more-chk:not(:checked)~.home-more-body').display === 'none');
   ok('phone: the header extras hide', phone('.home-hdr-acts>.home-hdr-extra').display === 'none');
   ok('phone: the toggle is a ≥44px target', parseFloat(phone('.home-more-toggle')['min-height']) >= 44, phone('.home-more-toggle'));
   const chk = css.filter((r) => r.selectors.includes('.home-more-chk'));
-  ok('the hidden checkbox stays focusable (opacity:0, never display:none)',
-    chk.some((r) => r.decls.opacity === '0') && !chk.some((r) => r.decls.display === 'none'), chk.map((r) => r.decls));
+  ok('the hidden checkbox stays focusable (opacity:0 at every width, never display:none)',
+    (K.cssRule(css, '.home-more-chk') || {}).opacity === '0' && !chk.some((r) => disp(r) === 'none'), chk.map((r) => [r.media, r.decls]));
 }
 
 console.log('\n5. More drawer: field tools first');

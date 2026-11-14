@@ -53,8 +53,10 @@ const stripCssComments = (css) => String(css).replace(/\/\*[\s\S]*?\*\//g, (c) =
  * matching skips strings, template literals (with ${} nesting), comments and
  * regex literals, so a '}' inside a string does not end the function early.
  * CRLF input is folded to LF first. Returns null if the name is not found.
+ * opts.unique: also null when the name is defined more than once (outside
+ * comments), so a decoy or a stale copy can never be the one that gets run.
  */
-function sliceFn(src, name) {
+function sliceFn(src, name, opts) {
   const s = lf(src);
   const n = name.replace(/[$.*+?^()[\]{}|\\]/g, '\\$&');
   const heads = [
@@ -64,8 +66,19 @@ function sliceFn(src, name) {
     new RegExp('(?:^|[^\\w$.])(?:[\\w$]+\\.)*' + n + '\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[\\w$]+)\\s*=>\\s*\\{'),
     new RegExp('^[ \\t]*(?:async\\s+)?' + n + '\\s*\\([^)]*\\)\\s*\\{', 'm'),
   ];
+  // search a copy with comments blanked (same offsets), slice the original
+  const code = blankComments(s);
+  if (opts && opts.unique) {
+    const starts = new Set();
+    for (const re of heads) {
+      const g = new RegExp(re.source, 'g' + re.flags);
+      let m;
+      while ((m = g.exec(code))) { starts.add(m.index + m[0].length); if (!m[0].length) g.lastIndex++; }
+    }
+    if (starts.size > 1) return null;
+  }
   for (const re of heads) {
-    const m = re.exec(s);
+    const m = re.exec(code);
     if (!m) continue;
     const start = m.index + (m[0].length - m[0].replace(/^[^\w$'"]+/, '').length);
     // first '{' after the parameter list: skip the (…) so a default value `= {}` is not taken for the body
@@ -78,6 +91,20 @@ function sliceFn(src, name) {
     return close === -1 ? null : s.slice(start, close + 1);
   }
   return null;
+}
+
+/** s with every // and /* comment replaced by spaces (newlines kept), so offsets still line up. */
+function blankComments(s) {
+  let out = '';
+  for (let j = 0; j < s.length; j++) {
+    const e = skipLiteral(s, j);
+    if (e !== j && s[j] === '/' && (s[j + 1] === '/' || s[j + 1] === '*')) {
+      const end = Math.min(s.length - 1, s[j + 1] === '/' ? e - 1 : e);
+      out += s.slice(j, end + 1).replace(/[^\n]/g, ' ');
+      j = end;
+    } else if (e !== j) { out += s.slice(j, e + 1); j = e; } else out += s[j];
+  }
+  return out;
 }
 
 function skipBalanced(s, i, o, c) {
