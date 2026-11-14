@@ -805,7 +805,24 @@ exports.getHomeownerPortalView = onRequest(
       const tb = b.createdAt?.toMillis?.() || 0;
       return tb - ta;
     });
-    const latest = estimates.find(isSharedEstimate) || null;
+    // Signed by ANY path (audit M1, 2026-10-07): a deal-room acceptance never
+    // touches the estimate's signatureStatus, so the card read "Sent to you"
+    // from signing to paid in full. This lead's accepted deal rooms (tenant-
+    // filtered) count, as do the signed price stamp and the job's own stage.
+    // Best-effort: a failed read only loses the deal-room signal.
+    let _deals = [];
+    try {
+      const ds = await db.collection('deal_rooms').where('leadId', '==', tok.leadId).limit(20).get();
+      _deals = ds.docs.map((d) => d.data() || {}).filter((d) => recordInPortalTenant(d, ['userId'], tenant));
+    } catch (e) {
+      logger.warn('portal deal-room read failed', { err: e && e.message });
+    }
+    // The estimate that carries the signature (or is out for one) wins over a
+    // newer unsigned add-on (money review 2026-11-14, finding 6): a $2,300
+    // gutter estimate shared after the roof was signed never takes the card.
+    const latest = PAS.pickPortalEstimate(estimates, isSharedEstimate, _deals);
+    // Another estimate carries the signature: job-level signals are not this one's.
+    const _signedElsewhere = !!latest && estimates.some((e) => e.id !== latest.id && PAS.estimateIsSigned(e));
     // The card's money is the SIGNED price once there is one (review R6-2-2,
     // Jo 2026-10-07): a rep's later edit is not what the homeowner signed or
     // is billed, so "✓ Signed" never sits beside a re-priced total
@@ -1065,19 +1082,11 @@ exports.getHomeownerPortalView = onRequest(
       progress.payLink = _payCard.stripePaymentLink;
     }
 
-    // Signed by ANY path (audit M1, 2026-10-07): a deal-room acceptance never
-    // touches the estimate's signatureStatus, so the card read "Sent to you"
-    // from signing to paid in full. This lead's accepted deal rooms (tenant-
-    // filtered) count, as do the signed price stamp and the job's own stage.
-    // Best-effort: a failed read only loses the deal-room signal.
-    let _deals = [];
-    try {
-      const ds = await db.collection('deal_rooms').where('leadId', '==', tok.leadId).limit(20).get();
-      _deals = ds.docs.map((d) => d.data() || {}).filter((d) => recordInPortalTenant(d, ['userId'], tenant));
-    } catch (e) {
-      logger.warn('portal deal-room read failed', { err: e && e.message });
-    }
-    const _signedVia = PAS.signedVia({ estimate: latest, deals: _deals, progress: hp });
+    // (_deals is read above, before the card's estimate is picked.)
+    const _signedVia = PAS.signedVia({
+      estimate: latest, deals: _deals, progress: hp,
+      primaryEstimateId: lead.primaryEstimateId || null, signedElsewhere: _signedElsewhere,
+    });
     const _jobStatus = PAS.portalJobStatus({
       progress: hp, via: _signedVia, invoices: tenantInvoices, signatureStatus: latest && latest.signatureStatus,
     });
@@ -2729,7 +2738,15 @@ exports.getEstimateForView = onRequest(
     // (retailTotal → cost×(1+markup) → face; per-SQ → no rows; O&P footer),
     // mapped here onto the shape estimate-view.js renders
     // ({name, quantity, unit, lineTotal}).
-    const displayRows = buildDisplayRows(est);
+    //
+    // Money review 2026-11-14 (finding 4): every priced field below — totals,
+    // rows, tier cards, tier, deposit plan — is read through portalPriced,
+    // the same view as the portal card: the SIGNED price once there is one
+    // (a rep's later edit is not what the homeowner signed or is billed),
+    // the revision while it is out for a new signature. Before this the card
+    // said "Signed $14,500" and this page said $16,200.
+    const priced = portalPriced(est);
+    const displayRows = buildDisplayRows(priced);
     // buildDisplayRows reads est.rows and nothing else. A doc whose scope
     // lives only in est.lineItems therefore yields [], and estimate-view.js
     // falls through to "Detailed line items will be reviewed in person." —
@@ -2750,15 +2767,15 @@ exports.getEstimateForView = onRequest(
     // already served by the safeTiers cards below. Widening this would change
     // a shape that is not broken.
     let docLines = null;
-    if (!displayRows.length && Array.isArray(est.lineItems) && est.lineItems.length) {
-      docLines = buildDocLineItems(est);
+    if (!displayRows.length && Array.isArray(priced.lineItems) && priced.lineItems.length) {
+      docLines = buildDocLineItems(priced);
     }
     // Per-SQ docs persist retail tier totals in `prices` — synthesize the
     // tier cards the client expects ({good|better|best: {grandTotal}}). If a
     // doc ever carries a real `tiers` payload, sanitize to grandTotal-only
     // per key rather than passing raw (tiers objects can embed cost splits).
     let safeTiers = null;
-    const rawTiers = (est.prices && typeof est.prices === 'object') ? est.prices
+    const rawTiers = (priced.prices && typeof priced.prices === 'object') ? priced.prices
       : (est.tiers && typeof est.tiers === 'object') ? est.tiers : null;
     if (rawTiers) {
       safeTiers = {};
@@ -2772,10 +2789,10 @@ exports.getEstimateForView = onRequest(
     const safeEstimate = {
       id: estSnap.id,
       // null when no tier applies (a Job Template estimate — see tierApplies).
-      tier:        tierApplies(est) ? (est.tier || null) : null,
-      mode:        est.mode || null,
-      grandTotal:  est.grandTotal || est.total || null,
-      total:       est.total || est.grandTotal || null,
+      tier:        tierApplies(priced) ? (priced.tier || null) : null,
+      mode:        priced.mode || null,
+      grandTotal:  priced.grandTotal || priced.total || null,
+      total:       priced.total || priced.grandTotal || null,
       // Same whitelist for both readers — name / quantity / unit / lineTotal
       // only, so no material or labor cost key can ride along from either.
       lines:       docLines
@@ -2793,7 +2810,7 @@ exports.getEstimateForView = onRequest(
         unit:      '',
         lineTotal: r.total,
       })),
-      tierName:    est.tierName || null,
+      tierName:    priced.tierName || null,
       addr:        est.addr || est.address || null,
       owner:       est.owner || null,
       createdAt:   est.createdAt?.toDate?.()?.toISOString() || null,
@@ -2803,7 +2820,7 @@ exports.getEstimateForView = onRequest(
       // Payment terms (2026-09-25): the deposit-rule stamp, validated — see
       // functions/deposit-plan-view.js. Per-SQ docs stamp the selected tier's
       // total, so this is that tier's deposit.
-      depositPlan: safeDepositPlan(est),
+      depositPlan: safeDepositPlan(priced),
       // Photo embeds (2026-07): the rep-selected photos ride the shared
       // view. URL-only pass-through — {url} per entry, ids and any other
       // photo-doc fields stay server-side.
