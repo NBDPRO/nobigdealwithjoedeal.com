@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "invoice-supplements-company-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
     "draft-project-page-2026-11-09.test.js",
     "match-job-photos-2026-11-09.test.js",
@@ -1654,6 +1655,7 @@
     "firestore-rules.morning-brief-state.test.js",
     "firestore-rules.confirmed-source.test.js",
     "firestore-rules.month-close.test.js",
+    "firestore-rules.supplements-company.test.js",
     "firestore-rules.reputation.test.js",
     "firestore-rules.receipt-inbox.test.js",
     "firestore-rules.call-briefs.test.js",

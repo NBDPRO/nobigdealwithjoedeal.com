@@ -1716,38 +1716,105 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // nbd:payment-timeline:end
 
   /**
-   * Load this user's supplements for a parent estimate.
+   * The job's supplements for a parent estimate — EVERY one this account may
+   * bill, or an error. Never a silent [] (Finding 5, 2026-11-14).
    *
-   * Query: where('parentEstimateId','==',id) + where('userId','==',uid) on the
-   * `supplements` collection — backed by the composite index added in
-   * firestore.indexes.json. Per the index-build-race runbook the index ships
-   * (and finishes BUILDING) before this code relies on it; until then the query
-   * can throw FAILED_PRECONDITION. So this is deliberately fail-soft: on ANY
-   * error we log and return [], and the invoice is created from the base
-   * estimate only (the pre-existing behavior) — invoice creation never throws
-   * because of supplements. It self-heals the moment the index is live.
+   * Before: one query, where('parentEstimateId') + where('userId' == the person
+   * invoicing), and [] on ANY error. A rep enters the supplement, the office
+   * makes the invoice, the office's query matched nothing and the invoice
+   * under-billed by the approved supplement without a word.
+   *
+   * Now three reads, all required:
+   *   1. own: parentEstimateId + userId == me (a rep's own; a solo owner's, and
+   *      every supplement saved before supplements carried companyId);
+   *   2. team, for company staff (company_admin / manager, or platform admin
+   *      with a company claim): parentEstimateId + companyId == my claim. The
+   *      /supplements read rule allows exactly this for same-company staff;
+   *      saveToFirestore stamps companyId since this change;
+   *   3. the lead's timeline: every 'supplement_created' entry for this
+   *      estimate names a supplementId. One the two queries did not return is
+   *      read by id; if it cannot be read (an old supplement with no companyId
+   *      that a teammate saved), the invoice is REFUSED, because it would leave
+   *      that supplement off.
+   * Any failure throws an Error with code 'SUPPLEMENTS_UNREADABLE' and a plain
+   * message; the callers refuse to bill from the estimate on it.
    *
    * We re-implement the query here rather than reuse
    * EstimateSupplement.loadForEstimate because the supplement builder module is
    * NOT loaded on dashboard.html (where invoices are created) — only on
    * customer.html / legacy — so reusing it would silently yield zero supplements.
+   *
+   * @param {object} db
+   * @param {string} estimateId
+   * @param {{ leadId?: string }} [opts]  the estimate's lead, for check 3
    */
-  async function loadEstimateSupplements(db, estimateId) {
-    try {
-      const uid = window._auth && window._auth.currentUser && window._auth.currentUser.uid;
-      if (!uid || !estimateId) return [];
-      if (!window.query || !window.where || !window.getDocs || !window.collection) return [];
-      const q = window.query(
-        window.collection(db, 'supplements'),
-        window.where('parentEstimateId', '==', estimateId),
-        window.where('userId', '==', uid)
-      );
-      const snap = await window.getDocs(q);
-      return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-    } catch (err) {
-      console.warn('[invoice-pipeline] supplement load failed (index still building?); invoicing base estimate only:', err && err.message);
-      return [];
+  function _supplementsUnreadable(message, cause) {
+    const e = new Error(message);
+    e.code = 'SUPPLEMENTS_UNREADABLE';
+    if (cause) e.cause = cause;
+    return e;
+  }
+  const SUPPLEMENTS_UNREADABLE_MSG = 'Invoice not made: the insurance supplements for this job could not be read, '
+    + 'so the invoice could leave approved supplement money off. Check your connection and try again.';
+  async function loadEstimateSupplements(db, estimateId, opts) {
+    opts = opts || {};
+    const uid = window._auth && window._auth.currentUser && window._auth.currentUser.uid;
+    if (!estimateId) return [];
+    if (!uid) throw _supplementsUnreadable('Invoice not made: you are signed out, so the insurance supplements for this job could not be read. Sign in and try again.');
+    if (!window.query || !window.where || !window.getDocs || !window.collection || !window.getDoc || !window.doc) {
+      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
     }
+    const claims = window._userClaims || {};
+    const role = claims.role || '';
+    const companyId = claims.companyId || '';
+    const teamScope = !!(companyId && (role === 'company_admin' || role === 'manager' || role === 'admin'));
+    const byId = new Map();
+    const take = (snap) => snap.docs.forEach(function (d) { byId.set(d.id, Object.assign({ id: d.id }, d.data())); });
+    try {
+      const col = window.collection(db, 'supplements');
+      take(await window.getDocs(window.query(col,
+        window.where('parentEstimateId', '==', estimateId),
+        window.where('userId', '==', uid))));
+      if (teamScope) {
+        take(await window.getDocs(window.query(col,
+          window.where('parentEstimateId', '==', estimateId),
+          window.where('companyId', '==', companyId))));
+      }
+    } catch (err) {
+      console.warn('[invoice-pipeline] supplement load failed; refusing to bill from the estimate:', err && err.message);
+      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err);
+    }
+    if (opts.leadId) {
+      let entries;
+      try {
+        const snap = await window.getDocs(window.query(
+          window.collection(db, 'leads', String(opts.leadId), 'activity'),
+          window.where('type', '==', 'supplement_created')));
+        entries = snap.docs.map(function (d) { return d.data() || {}; })
+          .filter(function (a) { return a.parentEstimateId === estimateId && a.supplementId; });
+      } catch (err) {
+        console.warn('[invoice-pipeline] supplement timeline check failed; refusing to bill from the estimate:', err && err.message);
+        throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err);
+      }
+      const unreadable = [];
+      for (const a of entries) {
+        const sid = String(a.supplementId);
+        if (byId.has(sid)) continue;
+        try {
+          const s = await window.getDoc(window.doc(db, 'supplements', sid));
+          // Gone (deleted by an admin): nothing left to bill.
+          if (s.exists()) byId.set(sid, Object.assign({ id: sid }, s.data()));
+        } catch (err) {
+          unreadable.push(a.version ? '#' + a.version : sid);
+        }
+      }
+      if (unreadable.length) {
+        throw _supplementsUnreadable('Invoice not made: this job has insurance supplement '
+          + unreadable.join(', ') + ' that your account cannot read, so the invoice would leave it off. '
+          + 'Have the person who entered the supplement make the invoice, or contact support to share it with your company.');
+      }
+    }
+    return Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId; });
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1811,9 +1878,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // (Adversarial review 2026-06-27, confirmed HIGH; deferred from #793 for
       // the new composite index.) Insurance supplements are tax-exempt, so each
       // billable amount lands in subtotal + total as its own line, never taxed.
-      // loadEstimateSupplements is fail-soft (returns [] on any error / while
-      // the index is still building), so this can never break invoice create.
-      const supplements = await loadEstimateSupplements(db, estimateId);
+      // loadEstimateSupplements THROWS when it cannot read every supplement on
+      // the job (Finding 5, 2026-11-14): no invoice is better than one that
+      // silently leaves approved supplement money off.
+      const supplements = await loadEstimateSupplements(db, estimateId, { leadId: est.leadId || null });
       const folded = applySupplementsToTotals({ items, subtotal, tax, total }, supplements);
       items = folded.items;
       subtotal = folded.subtotal;
@@ -4161,10 +4229,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
     const estimate = estId ? await _readEstimate(db, estId) : null;
     // Approved supplements fold into the invoice made from the estimate, so
-    // they are part of the amount owed (R6-2-9). Fail-soft ([] on any error),
-    // the same query createOrOpenJobInvoice runs.
-    const supplements = (estimate && estimate.id) ? await loadEstimateSupplements(db, estimate.id) : [];
+    // they are part of the amount owed (R6-2-9) — the same read
+    // createOrOpenJobInvoice runs. When they cannot be read (Finding 5,
+    // 2026-11-14) a payment on an invoice that already exists still goes
+    // through (supplements play no part there), but making a new invoice from
+    // the estimate is refused rather than under-billed.
+    let supplements = [], supErr = null;
+    if (estimate && estimate.id) {
+      try { supplements = await loadEstimateSupplements(db, estimate.id, { leadId: estimate.leadId || leadId }); }
+      catch (e) { supErr = e; }
+    }
     const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts(), supplements });
+    if (supErr && target.kind === 'estimate') throw supErr;
     return { lead, invoices, estimate, target };
   }
 
@@ -4181,7 +4257,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     try {
       ({ lead, target } = await recordPaymentContext(leadId));
     } catch (e) {
-      _toast('Could not load the invoices for this customer — try again.', 'error');
+      _toast((e && e.code === 'SUPPLEMENTS_UNREADABLE') ? e.message : 'Could not load the invoices for this customer — try again.', 'error');
       return false;
     }
 

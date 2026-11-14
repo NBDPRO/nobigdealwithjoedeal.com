@@ -1453,16 +1453,43 @@ service cloud.firestore {
     match /supplements/{supplementId} {
       // read and delete were one line; split 2026-09-25 so delete can carry
       // notViewer() (decision B) without touching read.
-      allow read: if isOwner(resource.data.userId) || isAdmin();
+      // Finding 5 (2026-11-14): the office invoices a job whose supplement a
+      // rep entered, so same-company STAFF (company_admin / manager, the
+      // /invoices + /expenses readers) read it too. Same shape as /invoices:
+      // companyId must be non-null AND equal the caller's claim, so a legacy
+      // supplement with no companyId stays owner-only (absent-key access errors
+      // to deny, never widens) and another tenant never matches. Query-safe for
+      // where('parentEstimateId','==') + where('companyId','==',claim).
+      allow read: if isOwner(resource.data.userId) || isAdmin()
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
-      // re-owned or re-pointed to a different parent estimate. Supplements are
-      // created append-only (addDoc, versioned), so a legit update keeps userId +
-      // parentEstimateId stable → passes; only tampering trips the guard.
+      // re-owned, re-tenanted or re-pointed to a different parent estimate.
+      // Supplements are created append-only (addDoc, versioned), so a legit
+      // update keeps userId + companyId + parentEstimateId stable → passes; only
+      // tampering trips the guard. Same-company staff may write ONLY the
+      // invoiced stamp (invoice-pipeline.js stamps the supplements it folds into
+      // an invoice so a later invoice cannot bill them twice).
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'parentEstimateId']))
+            && didNotChange(['userId', 'companyId', 'parentEstimateId']))
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt']))
         || isAdmin();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      // companyId is required and pinned to the caller's tenant (the /expenses
+      // create shape): the claim, or, for a claimless solo owner, a tenant they
+      // own by uid. Without the pin a rep could stamp a VICTIM tenant's
+      // companyId on a supplement pointed at that tenant's estimate and have it
+      // folded into the victim's invoice.
+      allow create: if isAuth() && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)));
     }
 
     // ── EXPENSES (job costs / supplier spend) ─────────

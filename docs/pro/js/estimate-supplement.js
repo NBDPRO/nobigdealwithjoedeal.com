@@ -781,8 +781,21 @@ ${signBlock}
       const ts = (typeof window.serverTimestamp === 'function')
         ? window.serverTimestamp()
         : new Date().toISOString(); // last-resort fallback
+      // companyId (Finding 5, 2026-11-14): the office invoices a job by reading
+      // its supplements by companyId, and the /supplements create rule requires
+      // the caller's tenant here: the companyId claim, or a solo owner's uid.
+      // Read from the live ID token (customer.html may not have
+      // window._userClaims yet); fall back to the cached claims.
+      let claims = null;
+      try {
+        if (typeof window.auth.currentUser.getIdTokenResult === 'function') {
+          claims = (await window.auth.currentUser.getIdTokenResult()).claims || null;
+        }
+      } catch (_) { claims = null; }
+      claims = claims || window._userClaims || {};
       const data = Object.assign({}, supplement, {
         userId: window.auth.currentUser.uid,
+        companyId: claims.companyId || window.auth.currentUser.uid,
         updatedAt: ts,
         // W159: stamp createdAt with server time too so the doc has
         // a sortable canonical timestamp (the supplement object's

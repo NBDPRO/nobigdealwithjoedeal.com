@@ -427,7 +427,7 @@
     const ip = IP();
     if (!ip || typeof ip.recordPaymentContext !== 'function') { toast('Payments did not load — reload and try again', 'error'); return; }
     let ctx;
-    try { ctx = await ip.recordPaymentContext(leadId); } catch (_) { toast('Could not read the invoices — try again', 'error'); return; }
+    try { ctx = await ip.recordPaymentContext(leadId); } catch (e) { toast((e && e.code === 'SUPPLEMENTS_UNREADABLE') ? e.message : 'Could not read the invoices — try again', 'error'); return; }
     const plan = L().paidInFullPlan(ctx.target, { collectedCents: L().collectedCentsOf(ctx.invoices) });
     if (!plan.ok) {
       toast(plan.reason === 'no_total' ? 'No job total on file — record what came in instead'
