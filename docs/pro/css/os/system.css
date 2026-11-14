@@ -187,6 +187,11 @@
   background: var(--orange); color: var(--accent-fg, var(--bg)); border-radius: var(--ui-radius-lg, 12px);
   font-weight: 800; font-size: 26px; letter-spacing: .02em; box-shadow: var(--ui-elev-2);
 }
+/* An image mark (the company's logo, or the NBD Pro app icon while the profile
+   loads) sits on no orange fill: an empty orange tile read as broken. */
+.os-boot-mark:not(.is-text), .os-lock-mark:not(.is-text) { background: transparent; box-shadow: none; overflow: hidden; }
+.os-boot-mark img, .os-lock-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.os-boot-mark.is-app img, .os-lock-mark.is-app img { border-radius: var(--ui-radius-lg, 12px); }
 .os-boot-title { margin: 0; }
 .os-boot-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: left; }
 .os-boot-steps li { display: flex; align-items: center; gap: 8px; color: var(--m); font-size: var(--ui-fs-body, 14px); }
