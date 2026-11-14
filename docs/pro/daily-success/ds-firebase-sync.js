@@ -123,7 +123,7 @@ async function retrySync() {
   _retrying = true;
   try {
     // Not synced yet, or a merge was put off while Jo typed (a re-pull on return): run the whole pull + merge again, not just a push.
-    if (!_synced || _pullOwed) { _pullOwed = false; _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
+    if (!_synced || _pullOwed) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
     emit('syncing');
     try {
       const sent = await pushToFirestore(readJson(STORE, []));
@@ -413,7 +413,7 @@ async function onAuth(user) {
       _retryT = setTimeout(retrySync, 3000);
       return;
     }
-    _lastPull = Date.now();
+    _lastPull = Date.now(); _pullOwed = false;   // cleared only once a pull really merged (a failed one stays owed)
     if (changedLocal) {
       localStorage.setItem(STORE, JSON.stringify(merged.pages));
       if (typeof window.loadPages === 'function') window.loadPages();

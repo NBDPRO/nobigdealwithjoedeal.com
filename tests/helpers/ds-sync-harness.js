@@ -84,7 +84,7 @@ function boot(opts) {
     getDoc: async (ref) => { if (offline) { if (o.cachedDocs && o.cachedDocs[ref.path]) return dsnap(o.cachedDocs[ref.path], true); throw unavailable(); } return dsnap(cloud.get(ref.path), false); },
     getDocFromServer: async (ref) => { if (o.holdReads) await o.holdReads; if (offline) throw unavailable(); if (o.failReads && o.failReads.test(ref.path)) { const e = new Error('read failed'); e.code = 'internal'; throw e; } return dsnap(cloud.get(ref.path), false); },
     getDocs: async (ref) => (offline ? qsnap([], true) : qsnap(docsUnder(ref.path), false)),
-    getDocsFromServer: async (ref) => { if (o.holdReads) await o.holdReads; if (offline) throw unavailable(); return qsnap(docsUnder(ref.path), false); },
+    getDocsFromServer: async (ref) => { if (o.holdReads) await o.holdReads; if (offline) throw unavailable(); if (o.failReads && o.failReads.test(ref.path)) { const e = new Error('read failed'); e.code = 'internal'; throw e; } return qsnap(docsUnder(ref.path), false); },
     setDoc: (ref, data, opt) => write(ref.path, data, !!(opt && opt.merge)),
     writeBatch: () => { const ops = []; return { set: (ref, data, opt) => { ops.push([ref.path, data, !!(opt && opt.merge)]); }, commit: () => Promise.all(ops.map(([p, d, m]) => write(p, d, m))) }; },
     serverTimestamp: () => 'ts', connectEmulatorsIfLocal: async () => {},

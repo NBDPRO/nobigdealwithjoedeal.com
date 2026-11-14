@@ -65,6 +65,23 @@ const pg = (id, dk, mt, data) => ({ id, dk, suf: 1, name: '', data, kpi: {}, exe
     ok('once the field is let go, the deferred pull still lands', h.read('nbd_dsp_v1')[0].data.x === 'laptop', JSON.stringify(h.read('nbd_dsp_v1')[0].data));
   }
   {
+    // the deferred pull's retry fails (a bad moment on the network): the pull stays owed, not downgraded to a push
+    const o = { storage: { nbd_last_uid: 'U1', nbd_dsp_v1: [pg(1, '2026-11-14', 100, {})] }, cloud: { 'users/U1/ds_pages/1': pg(1, '2026-11-14', 100, {}) } };
+    const h = boot(o);
+    await h.signIn('U1');
+    await h.advance(60000);
+    h.cloud.set('users/U1/ds_pages/1', pg(1, '2026-11-14', 500, { x: 'laptop' }));
+    h.document.activeElement = { tagName: 'INPUT' };
+    await h.fireDocument('visibilitychange');
+    h.document.activeElement = null;
+    o.failReads = /ds_pages$/;
+    await h.advance(4000);                       // the deferred retry runs and its pull fails
+    ok('control: the failed retry merged nothing', !h.read('nbd_dsp_v1')[0].data.x);
+    delete o.failReads;
+    await h.advance(120000);                     // the backoff retry
+    ok('the next retry pulls again and the laptop entry lands', h.read('nbd_dsp_v1')[0].data.x === 'laptop', JSON.stringify(h.read('nbd_dsp_v1')[0].data));
+  }
+  {
     const h = boot({ storage: { nbd_last_uid: 'U1' } });
     await h.fireDocument('visibilitychange');
     ok('signed out: nothing is read or written', h.cloud.size === 0 && h.queued.length === 0);
