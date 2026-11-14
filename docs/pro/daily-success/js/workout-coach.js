@@ -121,6 +121,9 @@
   let rest = null;             // { until, label }
   let restTimer = null;
 
+  // The day lifting actually began (audit 2026-11-14 #8): a workout opened at night and lifted the next morning was filed under
+  // the night it was built. Finish files it under this day instead; one that runs past midnight stays on the day it began.
+  function markFirstSet() { if (live && !live.firstSetDay) { live.firstSetDay = today(); live.firstSetAt = Date.now(); } }
   function persistLive() { if (live) writeJson(LIVE, live); else try { localStorage.removeItem(LIVE); } catch (_) {} }
 
   function newSession(split, opts) {
@@ -749,8 +752,11 @@
     // A set with reps typed counts even if ✓ was never tapped.
     live.exercises.forEach((x) => (x.sets || []).forEach((st) => { if (parseFloat(st.reps) > 0) st.done = true; }));
     const now = Date.now();
+    const day = live.firstSetDay || live.date || today();
+    // Filed under a later day than it was built for: time it from the first set, not from the night before.
+    const startedAt = day !== live.date && live.firstSetAt ? live.firstSetAt : live.startedAt;
     const session = {
-      id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
+      id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
         sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {}, !st.warm && (st.kind === 'drop' || st.kind === 'fail') ? { kind: st.kind } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
@@ -762,7 +768,7 @@
     const wrotePage = writeToPage(session);
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
-      minutes: Math.max(1, Math.round((now - (live.startedAt || now)) / 60000)),
+      minutes: Math.max(1, Math.round((now - (startedAt || now)) / 60000)),
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
@@ -962,6 +968,7 @@
         const st = live.exercises[i] && live.exercises[i].sets[j];
         if (!st) return;
         st.done = !st.done;
+        if (st.done) markFirstSet();
         if (st.done && !(parseFloat(st.reps) > 0)) st.reps = st.warm ? (st.plan || '') : (live.exercises[i].target ? live.exercises[i].target.reps : '');
         persistLive();
         if (st.done) {
@@ -1009,6 +1016,7 @@
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
     if (!st) return;
     st[el.dataset.coachField] = el.value;
+    if (el.dataset.coachField === 'reps' && parseFloat(el.value) > 0) markFirstSet();
     persistLive();
   }
 
