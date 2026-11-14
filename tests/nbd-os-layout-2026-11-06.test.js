@@ -143,7 +143,8 @@ ok('saves through LayoutEngine.saveUser, normalised, and unmount flushes a pendi
 ok('stylesheet: no hex colours', !/#[0-9a-fA-F]{3,8}\b/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')));
 ok('stylesheet: no transition: all, durations from tokens', !/transition:\s*all/.test(CSS) && (CSS.match(/transition:[^;]+/g) || []).every((s) => !/\d+m?s/.test(s.replace(/var\([^)]*\)/g, ''))));
 ok('stylesheet: windowed views show, the rest stay hidden', /\.os-win-body > \.view\.os-in-win \{ display: flex !important;/.test(CSS) && /\.content > \.view \{ display: none !important; \}/.test(CSS));
-ok('touch screens get the 44px floor on window controls', /@media \(pointer: coarse\)[\s\S]*?\.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
+// 2026-11-14: any-pointer, so a touchscreen laptop (fine primary pointer) gets the floor too
+ok('touch screens get the 44px floor on window controls', /@media \(any-pointer: coarse\)[\s\S]*?\.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
 
 const has = (src, s) => src.indexOf(s) !== -1;
 ok('phone: #mobile-nav hidden (the bar replaces it)', has(CSS, '[data-os-surface="phone"] #mobile-nav { display: none !important; }'));
@@ -167,7 +168,7 @@ ok('desk / overview keys never fire while typing', has(OS, 'if (ev.ctrlKey && ev
 ok('desk and overview are Spotlight entries, removed on unmount', has(OS, "id: 'os:overview'") && has(OS, 'unregisterDeskSpotlight();'));
 ok('pinning: Start menu toggle is a pressed button, right-click on shelf/icon also toggles', has(OS, 'data-ospin=') && has(OS, "aria-pressed=\"' + (pinned ? 'true' : 'false')") && has(OS, "on(desk, 'contextmenu'"));
 ok('button styles: mac / chrome / linux from one attribute; coarse pointers keep the 44px floor',
-  has(CSS, 'html[data-os-buttons="mac"]') && has(CSS, 'html[data-os-buttons="linux"]') && /@media \(pointer: coarse\) \{\n  html\[data-os-buttons="mac"\] \.os-win-btns \.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
+  has(CSS, 'html[data-os-buttons="mac"]') && has(CSS, 'html[data-os-buttons="linux"]') && /@media \(any-pointer: coarse\) \{\n  html\[data-os-buttons="mac"\] \.os-win-btns \.os-win-btn \{ width: 44px; height: 44px; \}/.test(CSS));
 
 R._reset();
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

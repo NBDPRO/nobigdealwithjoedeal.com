@@ -719,6 +719,8 @@
     var orig = w.showToast;
     if (typeof orig !== 'function' || orig.__nbdOs) return;
     var wrapped = function (a, b) {
+      // after the kill switch (off()) the layer is gone: never hold or log a toast again
+      if (state.off) return orig.apply(this, arguments);
       var t = L.toastEntry(a, b);   // both signatures: ('msg', 'type') and ({ message, type, undoAction })
       var held = L.holdToast(t.type, state.dnd, t.undo);
       state.history = L.pushHistory(state.history, { message: t.message, type: t.type, ts: Date.now(), held: held });
@@ -877,6 +879,7 @@
     history: function () { return state.history.slice(); },
     apps: apps, registerControl: registerControl, unregisterControl: unregisterControl, settingsTab: settingsTab,
     lock: lock, unlock: unlock, isLocked: function () { return state.locked; }, sound: sound, off: off,
+    mark: function () { return markSpec(); },   // the company mark (logo / letters / app icon), for the Start button
   };
 
   // window.NBDOS is up: what waits for the layer (os/acts.js's Do Not Disturb) listens for this, never polls
