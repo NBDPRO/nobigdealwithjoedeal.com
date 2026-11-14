@@ -74,6 +74,12 @@ console.log('2. pin from Start');
   ok('control: a pin button is listed', !!pin);
   H.click(D.T.dom, pin);
   ok('pinning keeps Start open', D.start() && !D.start().hidden);
+  const id = pin.getAttribute('data-ospin');
+  const pin2 = D.start().querySelector('[data-ospin="' + id + '"]');
+  pin2.focus();
+  H.click(D.T.dom, pin2);
+  const a = D.doc.activeElement;
+  ok('keyboard focus stays on that app\'s pin after the list re-renders', !!a && a.isConnected && a.getAttribute('data-ospin') === id, a && (a.className + ' connected=' + a.isConnected));
 }
 
 console.log('3. no stale active view');

@@ -100,6 +100,27 @@ ok('a stranger tenant with letters but no logo gets its letters', /is-text/.test
 h = html({ platform: false, override: { logoUrl: 'https://x.test/a.png"><script>' } });
 ok('the logo src is escaped', !/"><script>/.test(h), h);
 
+console.log('a logo that failed stays failed (no flicker loop)');
+{
+  // paintBoot re-reads markSpec() every 250 ms: if the failed src came back,
+  // the error fallback and the bad logo would swap until the boot closed.
+  const w = { _companyProfile: { businessName: '' } };
+  w._isNbdPlatformTenant = () => false;
+  w._brandOverride = () => ({ logoUrl: 'https://x.test/missing.png', legalName: 'Oaks Roofing LLC' });
+  const doc = { querySelector: () => null };
+  const ctx = { w, doc, L, esc, call: (fn) => { try { return fn(); } catch (e) { return undefined; } }, __h: null, __fail: null };
+  let h1 = '', h2 = '';
+  try {
+    vm.runInNewContext(body + '\n__h = markHtml; __fail = typeof markFailed === "function" ? markFailed : null;', ctx);
+    h1 = ctx.__h('os-boot-mark');
+    if (ctx.__fail) ctx.__fail('https://x.test/missing.png');
+    h2 = ctx.__h('os-boot-mark');
+  } catch (e) { h2 = 'THREW ' + e.message; }
+  ok('control: the logo is drawn first', /src="https:\/\/x\.test\/missing\.png"/.test(h1), h1);
+  ok('after it failed, the next paint draws the letters, not the bad logo again', /is-text/.test(h2) && />OR</.test(h2), h2);
+  ok('the error listener records the failure', /addEventListener\('error'[\s\S]{0,400}markFailed\(/.test(DOM));
+}
+
 console.log('broken logo falls back');
 ok('a load error on the mark image steps down (listener, not an inline handler)',
   /addEventListener\('error'/.test(DOM) && /function wireMark\(/.test(DOM), 'wireMark not found');

@@ -987,7 +987,14 @@
   function togglePin(id) {
     S.pins = WM.togglePin(S.pins, id);
     paintTaskbar();
-    if (S.startOpen) S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(S.startEl.querySelector('input').value);
+    if (S.startOpen) {
+      var list = S.startEl.querySelector('.os-start-list');
+      var had = list.contains(doc.activeElement);
+      list.innerHTML = startListHtml(S.startEl.querySelector('input').value);
+      // the re-render dropped the pressed pin: keyboard focus goes to its replacement, not <body>
+      var again = had && list.querySelector(attrSel('data-ospin', id));
+      if (again) again.focus();
+    }
     save();
   }
   // ── overview (macOS Mission Control / GNOME Activities / ChromeOS overview) ──

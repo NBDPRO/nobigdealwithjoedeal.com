@@ -88,7 +88,16 @@
   // (RAW override; the merged profile's blank is NBD's logo). '' = none.
   var NBD_LOGO = '/assets/images/nbd-logo-150w.webp';
   var APP_ICON = '/pro/img/nbd-icon-192.png';
+  // A logo that failed to load stays failed for this page: paintBoot re-reads
+  // the mark every 250 ms, and handing the bad src back made the fallback and
+  // the broken logo swap until the boot closed.
+  var badLogo = '';
+  function markFailed(src) { badLogo = String(src || ''); }
   function logoSrc() {
+    var s = rawLogoSrc();
+    return s && s === badLogo ? '' : s;
+  }
+  function rawLogoSrc() {
     if (typeof w._isNbdPlatformTenant === 'function' && call(function () { return w._isNbdPlatformTenant(); }) === true) return NBD_LOGO;
     var raw = typeof w._brandOverride === 'function' ? call(function () { return w._brandOverride(); }) : null;
     return raw && typeof raw.logoUrl === 'string' ? raw.logoUrl : '';
@@ -112,6 +121,7 @@
       // The app icon itself failing (same origin; offline cache miss) leaves a
       // clear tile, never an orange one.
       if (box.classList.contains('is-app')) { img.remove(); return; }
+      markFailed(img.getAttribute('src'));
       var t = markText();
       var next = t ? { kind: 'text', text: t } : { kind: 'app', src: APP_ICON };
       var tmp = doc.createElement('div');
