@@ -63,6 +63,20 @@ const page = (id, dk, mt, data) => ({ id, dk, suf: 1, name: '', data: data || {}
     ok('the newer cloud workout and settings survive the reconnect', h.cloud.get('users/U1/ds_workouts/w1').mt === 9 && h.cloud.get('userSettings/U1').dsGoalTargets.a === 2);
   }
 
+  console.log('\n3b. an edit made with no signal reaches the cloud when it comes back (audit: offline-edit-then-reconnect was untested)');
+  {
+    const h = boot({ storage: { nbd_dsp_v1: [page(1, '2026-11-14', 100, {})], nbd_last_uid: 'U1' }, cloud: { 'users/U1/ds_pages/1': page(1, '2026-11-14', 100, {}) } });
+    await h.signIn('U1');
+    h.goOffline();
+    h.store.set('nbd_dsp_v1', JSON.stringify([page(1, '2026-11-14', 900, { 'l-win': 'typed in the basement' })]));
+    h.window.savePages();                        // the page save, through the sync's interceptor
+    await h.advance(3000);                       // past the 2 s debounce
+    ok('control: nothing reached the cloud while offline', !h.cloud.get('users/U1/ds_pages/1').data['l-win']);
+    ok('the push is queued, not dropped', h.queued.some((w) => /ds_pages\/1$/.test(w.p)), JSON.stringify(h.queued.map((w) => w.p)));
+    await h.goOnline(); await h.advance(1000);
+    ok('back online, the offline edit is in the cloud', h.cloud.get('users/U1/ds_pages/1').data['l-win'] === 'typed in the basement', JSON.stringify(h.cloud.get('users/U1/ds_pages/1')));
+  }
+
   console.log('\n4. a settings read that fails (online) is not reported as synced');
   {
     const h = boot({ storage: { nbd_dsp_v1: phonePages, nbd_last_uid: 'U1', nbd_gt: { a: 1 }, nbd_gt_at: '5' }, cloud, failReads: /^userSettings\// });
