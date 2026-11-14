@@ -65,7 +65,11 @@ function browser(seed, opts) {
   const uid = opts.uid || 'u1';
   const W = {
     _db: { fake: true }, db: { fake: true },
-    doc: (db, ...segs) => ({ path: segs.join('/'), id: segs[segs.length - 1] }),
+    // doc(collectionRef) mints an auto id, like the v9 SDK.
+    doc: (db, ...segs) => {
+      if (db && db.col && !segs.length) { const id = 'auto' + (++seq); return { path: db.col + '/' + id, id }; }
+      return { path: segs.join('/'), id: segs[segs.length - 1] };
+    },
     collection: (db, ...segs) => ({ col: segs.join('/') }),
     where: (f, op, v) => ({ f, op, v }),
     query: (col, ...ws) => ({ col: col.col, ws }),
@@ -92,24 +96,43 @@ function browser(seed, opts) {
     addDoc: async (col, data) => { const id = 'new' + (++seq); writes.push(['add', col.col + '/' + id]); store.set(col.col + '/' + id, clone(data)); return { id }; },
     setDoc: async (r, data, o) => { writes.push(['set', r.path]); store.set(r.path, (o && o.merge) ? Object.assign({}, store.get(r.path) || {}, clone(data)) : clone(data)); },
     deleteDoc: async (r) => { writes.push(['delete', r.path]); store.delete(r.path); },
+    // writeBatch: all or nothing. opts.failBatch(ops) → the commit is refused
+    // (the rules denying the stamp) and NOTHING is written.
+    writeBatch: () => {
+      const ops = [];
+      return {
+        set: (r, data) => { ops.push(['set', r.path, data]); },
+        update: (r, patch) => { ops.push(['update', r.path, patch]); },
+        commit: async () => {
+          if (opts.failBatch && opts.failBatch(ops)) { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; }
+          for (const [k, p, d] of ops) {
+            if (k === 'update' && !store.has(p)) throw new Error('NOT_FOUND ' + p);
+            writes.push([k === 'set' ? 'batch-set' : 'batch-update', p]);
+            store.set(p, k === 'set' ? clone(d) : Object.assign({}, store.get(p), clone(d)));
+          }
+        },
+      };
+    },
     serverTimestamp: () => '__TS__',
     NBDComms: { sendEmail: async () => ({ success: true }), sendSMS: async () => ({ success: true }) },
     NBDDepositRule: req('docs/pro/js/deposit-rule.js'),
     NBDJurisdiction: req('docs/pro/js/ky-insurance-law.js'),
     NBDCustomerEstimateRows: CER_CLIENT,
-    _auth: { currentUser: { uid, getIdToken: async () => 'tok' } },
+    _auth: { currentUser: Object.assign({ uid, getIdToken: async () => 'tok' },
+      ('tokenClaims' in opts) ? { getIdTokenResult: async () => { if (opts.tokenClaims instanceof Error) throw opts.tokenClaims; return { claims: opts.tokenClaims }; } } : {}) },
     _user: { uid },
-    _userClaims: opts.claims || {},
+    _userClaims: ('claims' in opts) ? opts.claims : {},
     _leads: [],
     _estimates: [],
     __nbdInvoiceLockTimeoutMs: 5,
-    showToast: () => {},
+    showToast: (m, k) => { toasts.push([m, k]); },
   };
+  const toasts = [];
   global.window = W;
-  global.showToast = () => {};
+  global.showToast = (m, k) => { toasts.push([m, k]); };
   global.fetch = async () => ({ ok: true, json: async () => ({}) });
   W.InvoicePipeline = IP;
-  return { W, store, writes };
+  return { W, store, writes, toasts };
 }
 browser({});
 IP = req('docs/pro/js/invoice-pipeline.js');
@@ -251,6 +274,189 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     ok('a company member\'s supplement carries their companyId claim', member && member.companyId === 'co-a', JSON.stringify(member));
     const solo = await run({}, 'solo1');
     ok('a solo owner\'s supplement carries companyId = their uid', solo && solo.companyId === 'solo1', JSON.stringify(solo));
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // Review round 1 (2026-11-14): silent-failure + security review of #3060
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nE1. A legacy supplement (no companyId) with NO timeline entry, and the backfill');
+  await sec('E1', async () => {
+    if (!IP) return;
+    const BF = req('scripts/backfill-supplement-company-id.js');
+    const legacy = sup({ companyId: undefined });
+    const B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': legacy }, CAROL);
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { /* reported below */ }
+    const inv = invoicesOf(B.store)[0];
+    ok('KNOWN GAP (pinned, Joe decides): with no companyId and no timeline entry the office cannot see it — $14,000',
+      inv && c(inv.total) === 1400000, inv && inv.total);
+    ok('the backfill planner exists (scripts/backfill-supplement-company-id.js planBackfill)', !!(BF && typeof BF.planBackfill === 'function'));
+    if (!BF || typeof BF.planBackfill !== 'function') return;
+    const plan = BF.planBackfill([
+      { id: 's1', data: legacy },
+      { id: 's2', data: sup() },                                              // already stamped: untouched
+      { id: 's3', data: sup({ companyId: undefined, parentEstimateId: 'gone' }) }, // parent missing: reported, untouched
+      { id: 's4', data: sup({ companyId: undefined, parentEstimateId: 'estX' }) }, // parent has no companyId: reported
+      { id: 's5', data: sup({ companyId: undefined, parentEstimateId: 'estY', userId: 'eve' }) }, // creator is not the estimate's tenant member? still the estimate's tenant
+    ], { estC: est(), estX: est({ companyId: undefined }), estY: est({ companyId: 'co-b', userId: 'eve' }) });
+    ok('it stamps companyId from the parent estimate', JSON.stringify(plan.updates) === JSON.stringify([
+      { id: 's1', companyId: 'co-a' }, { id: 's5', companyId: 'co-b' }]), JSON.stringify(plan.updates));
+    ok('it never touches an already-stamped supplement and reports the ones it cannot place',
+      plan.skipped.already === 1 && plan.problems.map((p) => p.id).join(',') === 's3,s4', JSON.stringify(plan));
+    B.store.set('supplements/s1', Object.assign({}, legacy, { companyId: 'co-a' }));
+    for (const k of [...B.store.keys()]) if (k.startsWith('invoices/')) B.store.delete(k);
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('after backfill: did not throw', false, e.message); }
+    const inv2 = invoicesOf(B.store)[0];
+    ok('after the backfill the office invoice is $16,000', inv2 && c(inv2.total) === 1600000, inv2 && inv2.total);
+  });
+
+  console.log('\nE2. Claims come from the ID token, not a cache that may not have loaded');
+  await sec('E2', async () => {
+    if (!IP) return;
+    let B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup() },
+      { uid: 'carol', claims: {}, tokenClaims: { role: 'company_admin', companyId: 'co-a' } });
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('did not throw', false, e.message); }
+    let inv = invoicesOf(B.store)[0];
+    ok('cached claims empty, token says company_admin → the team query runs: $16,000', inv && c(inv.total) === 1600000, inv && inv.total);
+    B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup() },
+      { uid: 'carol', claims: undefined });
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('no token API and no cached claims → refused, not an own-only read', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0,
+      err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
+    B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup() },
+      { uid: 'carol', claims: { role: 'company_admin', companyId: 'co-a' }, tokenClaims: new Error('network') });
+    err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('the token read fails → refused', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0, err && err.message);
+  });
+
+  console.log('\nE3. Only this company\'s supplements are billed, even for a platform admin');
+  await sec('E3', async () => {
+    if (!IP) return;
+    const JOE = { uid: 'joe', claims: { role: 'admin', companyId: 'co-a' } };
+    let B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup(),
+      'supplements/sB': sup({ userId: 'eve', companyId: 'co-b', supplementTotal: 9999, version: 2 }),
+      'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'eve', supplementId: 'sB', parentEstimateId: 'estC', version: 2 } }, JOE);
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('did not throw', false, e.message); }
+    let inv = invoicesOf(B.store)[0];
+    ok('a co-b supplement named on the timeline is NOT billed by the platform admin ($16,000)', inv && c(inv.total) === 1600000, inv && inv.total);
+    B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup(),
+      'supplements/sL': sup({ companyId: undefined, version: 2 }),
+      'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'rep1', supplementId: 'sL', parentEstimateId: 'estC', version: 2 } }, JOE);
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('a teammate\'s legacy supplement (no companyId) the admin can read but cannot place → refused', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0, err && err.message);
+  });
+
+  console.log('\nE4. The billed stamp is written WITH the invoice (one batch), never best-effort');
+  await sec('E4', async () => {
+    if (!IP) return;
+    const REP = { uid: 'rep1', claims: { role: 'sales_rep', companyId: 'co-a' } };
+    let failStamp = true;
+    const B = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) },
+      Object.assign({ failBatch: (ops) => failStamp && ops.some((o) => o[1].startsWith('supplements/')) }, REP));
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('the stamp is refused → NO invoice is written (was: invoice written, stamp failure only logged)',
+      !!err && invoicesOf(B.store).length === 0, err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
+    failStamp = false;
+    let r = null;
+    try { r = await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('retry did not throw', false, e.message); }
+    const inv = invoicesOf(B.store)[0];
+    ok('retry: one $16,000 invoice, the supplement stamped with it, and the invoice lists the supplement ids',
+      inv && c(inv.total) === 1600000 && B.store.get('supplements/s1').invoicedInvoiceId === (r && r.invoiceId)
+        && JSON.stringify(inv.supplementIds) === '["s1"]' && B.store.get('supplements/s1').invoicedAt === '__TS__',
+      JSON.stringify({ total: inv && inv.total, ids: inv && inv.supplementIds, sup: B.store.get('supplements/s1') }));
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('second invoice did not throw', false, e.message); }
+    const second = invoicesOf(B.store).filter((i) => i._id !== 'invoices/' + (r && r.invoiceId))[0];
+    ok('a second (progress) invoice for the same estimate does NOT bill the supplement again ($14,000)', second && c(second.total) === 1400000, second && second.total);
+    const B2 = browser({ 'estimates/estC': est({ leadId: null }), 'supplements/s1': sup({ leadId: null }) }, REP);
+    B2.W.writeBatch = undefined;
+    err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('no batch API → refused rather than billed without a stamp', !!err && invoicesOf(B2.store).length === 0, err && err.message);
+  });
+
+  console.log('\nF. The lead id reaches the timeline check from Record payment, and staff never skip it');
+  await sec('F', async () => {
+    if (!IP) return;
+    const legacyOnTimeline = (extra) => Object.assign({ 'leads/L1': lead(), 'estimates/estC': est({ leadId: null }),
+      'supplements/sOld': sup({ companyId: undefined, leadId: 'L1', version: 2 }),
+      'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'rep1', supplementId: 'sOld', parentEstimateId: 'estC', version: 2 } }, extra || {});
+    let B = browser(legacyOnTimeline(), Object.assign({ canRead: (p, d) => d.userId === 'carol' }, CAROL));
+    let err = null;
+    try {
+      await IP.recordPaymentCommit({ leadId: 'L1', lead: Object.assign({ id: 'L1' }, lead()), target: { kind: 'estimate', estimateId: 'estC' },
+        totalCents: 1400000, amount: '14000.00', method: 'check', at: new Date() });
+    } catch (e) { err = e; }
+    ok('Record payment on a leadless estimate checks the lead\'s timeline → refused', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0,
+      err ? err.message : JSON.stringify(invoicesOf(B.store).map((i) => i.total)));
+    B = browser({ 'estimates/estC': est({ leadId: null }) }, CAROL);
+    err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('office invoicing a teammate\'s estimate with no lead at all → refused (no timeline to check)', !!err && err.code === 'SUPPLEMENTS_UNREADABLE' && invoicesOf(B.store).length === 0, err && err.message);
+    B = browser({ 'estimates/estC': est({ leadId: null }) }, { uid: 'rep1', claims: { role: 'sales_rep', companyId: 'co-a' } });
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('own leadless estimate did not throw', false, e.message); }
+    ok('a rep invoicing their OWN leadless estimate still works ($14,000)', invoicesOf(B.store).length === 1);
+  });
+
+  console.log('\nG. A failed timeline write on save is retried, then the rep is warned');
+  await sec('G', async () => {
+    const run = async (actFailures) => {
+      let n = 0; const toastsG = []; const acts = [];
+      global.window = {
+        db: {}, auth: { currentUser: { uid: 'rep1', getIdTokenResult: async () => ({ claims: { role: 'sales_rep', companyId: 'co-a' } }) } },
+        collection: (db, p) => ({ col: p }), serverTimestamp: () => '__TS__',
+        showToast: (m, k) => toastsG.push([m, k]),
+        addDoc: async (col, data) => {
+          if (col.col !== 'supplements') { if (n++ < actFailures) throw new Error('offline'); acts.push(data); }
+          return { id: 'x1' };
+        },
+      };
+      delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/estimate-supplement.js'))];
+      const ES = req('docs/pro/js/estimate-supplement.js');
+      const id = ES ? await ES.saveToFirestore({ leadId: 'L1', parentEstimateId: 'estC', version: 1, status: 'draft' }) : null;
+      return { id, toastsG, acts };
+    };
+    const once = await run(1);
+    ok('one failure → retried, the timeline entry is written, no warning', once.id === 'x1' && once.acts.length === 1 && once.toastsG.length === 0, JSON.stringify(once));
+    const twice = await run(2);
+    ok('two failures → the supplement is saved and the rep is WARNED it is missing from the timeline',
+      twice.id === 'x1' && twice.acts.length === 0 && twice.toastsG.some(([m, k]) => k === 'warning' && /timeline/i.test(m)), JSON.stringify(twice.toastsG));
+  });
+
+  console.log('\nI. The Home pay link stops waiting the moment Record payment refuses');
+  await sec('I', async () => {
+    const vm = require('vm');
+    let qs = 0;
+    const sbx = {
+      URLSearchParams, console, setTimeout, clearTimeout, Date, Promise,
+      document: { documentElement: { style: { opacity: '1' } }, querySelector: () => { qs++; return null; }, getElementById: () => null },
+    };
+    sbx.window = sbx;
+    Object.assign(sbx, {
+      location: { search: '?id=L1&pay=I1', pathname: '/pro/customer.html', hash: '' },
+      history: { state: null, replaceState() {} },
+      _customerId: 'L1', _userClaims: { role: 'company_admin', companyId: 'co-a' },
+      showToast() {},
+      NBDCustomerInvoices: { recordPayment: () => Promise.resolve() },   // refused: no sheet ever opens
+    });
+    vm.createContext(sbx);
+    vm.runInContext(require('fs').readFileSync(path.join(ROOT, 'docs/pro/js/customer-pay-link.js'), 'utf8'), sbx);
+    await new Promise((r) => setTimeout(r, 1200));
+    const at1 = qs;
+    await new Promise((r) => setTimeout(r, 1000));
+    ok('no more polling for a sheet once recordPayment has settled without one', qs === at1, 'querySelector calls ' + at1 + ' → ' + qs);
+  });
+
+  console.log('\nJ. "No estimate total" (job value) does not slip past an unreadable supplement');
+  await sec('J', async () => {
+    if (!IP) return;
+    browser({ 'leads/L1': lead({ jobValue: 14000 }), 'estimates/estC': est({ grandTotal: 0, subtotal: 0, rows: [] }), 'supplements/s1': sup() },
+      Object.assign({ failSupplementQueries: true }, CAROL));
+    let err = null, ctx = null;
+    try { ctx = await IP.recordPaymentContext('L1'); } catch (e) { err = e; }
+    ok('the job-value path is refused too when the supplements cannot be read', !!err && err.code === 'SUPPLEMENTS_UNREADABLE', err ? err.message : JSON.stringify(ctx && ctx.target));
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
