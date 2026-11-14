@@ -337,6 +337,7 @@
     "legacy-documents-audit.test.js",
     "lead-pipeline-logic.test.js",
     "microsite-publication-gate.test.js",
+    "site-slug-squat-2026-11-14.test.js",
     "tenant-site-publish-2026-10-04.test.js",
     "st-f64-2026-11-08.test.js",
     "migration-run-once-guard.test.js",

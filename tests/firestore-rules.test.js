@@ -634,6 +634,10 @@ async function run() {
   await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { siteSlug: 'alice-roofing' }, { merge: true })); // ✅ platform-admin path (the callable itself uses the admin SDK, which skips rules)
   await assertFails(updateDoc(doc(alice, 'companies/co-a'), { siteSlug: 'another-one' }));              // ❌ still frozen once a slug exists
   await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing 2' }));            // ✅ unrelated owner edit still fine with a slug present
+  // …and at CREATE (2026-11-14): a client-created company born with another
+  // tenant's slug took over that tenant's site + leads in resolveCompanyByKey.
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', siteSlug: 'alice-roofing' })); // ❌ born with a slug
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', siteSlugUpdatedAt: 'now' }));  // ❌ born with a slug stamp
 
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
