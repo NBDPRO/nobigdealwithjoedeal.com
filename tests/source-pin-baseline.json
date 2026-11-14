@@ -1,5 +1,5 @@
 {
-  "//": "Source-text assertion count per suite (tests/source-pin-ratchet.test.js has the counting rule). A count may only go down; lower it with: node tests/source-pin-ratchet.test.js --lower. Suites with 0 are not listed; a suite not listed may have at most 5.",
+  "//": "Source-text assertion count per suite (tests/source-pin-ratchet.test.js has the counting rule). A count may only go down; lower it with: node tests/source-pin-ratchet.test.js --lower. A suite converted to 0 stays listed at 0; a suite not listed may have at most 5.",
   "suites": {
     "a11y-audit-2026-10-23.test.js": 82,
     "a11y-contrast-sweep-2026-11-04.test.js": 16,
@@ -549,6 +549,7 @@
     "perf-watch-2026-10-02.test.js": 12,
     "personal-capture-off-2026-10-12.test.js": 7,
     "phone-calls-viewer-hidden-2026-11-09.test.js": 19,
+    "phone-home-nav-2026-10-08.test.js": 0,
     "phone-quick-wins-2026-10-08.test.js": 20,
     "phone-quick-wins-part2-2026-10-13.test.js": 17,
     "photo-cache-lazy-2026-10-04.test.js": 19,

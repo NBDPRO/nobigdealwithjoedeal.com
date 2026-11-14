@@ -105,10 +105,11 @@ function measure() {
   for (const f of suites()) out[f] = countPins(fs.readFileSync(path.join(TESTS, f), 'utf8'));
   return out;
 }
-function writeBaseline(counts) {
-  const keys = Object.keys(counts).filter((k) => counts[k] > 0).sort();
+// keepZero: a suite converted to 0 stays listed at 0, so it cannot regain pins as a "new" suite
+function writeBaseline(counts, keepZero) {
+  const keys = Object.keys(counts).filter((k) => counts[k] > 0 || keepZero).sort();
   const body = keys.map((k) => '    ' + JSON.stringify(k) + ': ' + counts[k]).join(',\n');
-  const head = '{\n  "//": "Source-text assertion count per suite (tests/source-pin-ratchet.test.js has the counting rule). A count may only go down; lower it with: node tests/source-pin-ratchet.test.js --lower. Suites with 0 are not listed; a suite not listed may have at most ' + NEW_SUITE_CAP + '.",\n  "suites": {\n';
+  const head = '{\n  "//": "Source-text assertion count per suite (tests/source-pin-ratchet.test.js has the counting rule). A count may only go down; lower it with: node tests/source-pin-ratchet.test.js --lower. A suite converted to 0 stays listed at 0; a suite not listed may have at most ' + NEW_SUITE_CAP + '.",\n  "suites": {\n';
   fs.writeFileSync(BASELINE, head + body + '\n  }\n}\n');
 }
 
@@ -143,7 +144,7 @@ if (argv.includes('--lower')) {
     next[f] = Math.min(b, now[f]);
     if (now[f] < b) lowered++;
   }
-  writeBaseline(next);
+  writeBaseline(next, true);
   console.log('lowered ' + lowered + ', dropped ' + dropped + ' deleted suite(s); nothing was raised');
   return;
 }
