@@ -1427,6 +1427,11 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      # Daily Success KPI tiles removed (Joe, 2026-11-14): no door / close / revenue tiles, stored pages keep their fields. Same server, same Chromium.
+      - name: Run the Daily Success KPI-tiles-removed check
+        run: |
+          cd tests
+          node ds-no-kpi-tiles-2026-11-14.test.js
       # The Daily Success layouts (interfaces brief gate, 2026-10-25): every layout x every theme
       # at 320 px, plus 390 px, on the tracker's day page. Same server, same Chromium, no auth.
       - name: Run the Daily Success layouts phone-fit check

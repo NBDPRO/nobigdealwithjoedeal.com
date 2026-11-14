@@ -1633,6 +1633,7 @@
     "firestore-rules.contact-labels.test.js",
     "firestore-rules.messaging-controls.test.js",
     "firestore-rules.thursday-handled.test.js",
+    "ds-no-kpi-tiles-2026-11-14.test.js",
     "firestore-rules.layout-usage.test.js",
     "firestore-rules.os-company-home.test.js",
     "firestore-rules.os-daily-goals.test.js",
