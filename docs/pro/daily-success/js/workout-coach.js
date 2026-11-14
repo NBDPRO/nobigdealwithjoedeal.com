@@ -741,6 +741,13 @@
     if (!live) { live = newSession(C().nextSplit(sessions(), settings().rotation)); persistLive(); }
     open();
   }
+  // Every "Workout" button outside the card (Today bar, Next Up, Jump, layouts) and a stale
+  // "Resume" tap land here: with no live workout, summary or history to show, open() would draw
+  // an empty (black) overlay, so start today's workout instead (audit 2026-11-14 #1).
+  function openOrStart() {
+    if (!live && !summary && !histView && C()) { start(); return; }
+    open();
+  }
 
   function finish() {
     const done = live.exercises.some((x) => (x.sets || []).some((st) => !st.warm && (st.done || parseFloat(st.reps) > 0)));
@@ -807,7 +814,7 @@
       case 'start': start(); return;
       case 'vol-range': try { localStorage.setItem(VOL_RANGE, String(t.dataset.range || 'week')); } catch (_) { /* the choice just is not remembered */ } refreshCard(); return;
       case 'repeat': repeatLast(); return;
-      case 'open': histView = false; open(); return;
+      case 'open': histView = false; openOrStart(); return;
       case 'hist-open': histView = true; histId = null; summary = null; open(); return;
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
@@ -1028,5 +1035,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { refresh: refreshCard, open, close, start, _render: render };
+  window.NBDCoachUI = { refresh: refreshCard, open: openOrStart, close, start, _render: render };
 })();
