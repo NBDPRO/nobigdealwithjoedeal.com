@@ -94,6 +94,10 @@ async function run() {
     await setDoc(doc(db, 'leads/lead41/documents/legacy41'), { name: 'old-contract.html', signedAt: signedAt41, userId: 'owner41' });
     await setDoc(doc(db, 'leads/lead41/documents/draft41'), { name: 'proposal.html', status: 'draft', userId: 'owner41' });
     await setDoc(doc(db, 'leads/lead41/documents/draft41b'), { name: 'scratch.html', status: 'draft', userId: 'owner41' });
+    // §41 signedSaveFailed (2026-11-14): server-owned flag; a flagged signed row and a clean draft.
+    await setDoc(doc(db, 'leads/lead41/documents/flagged41'), { name: 'contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41', signedSaveFailed: true });
+    await setDoc(doc(db, 'leads/lead41/documents/draft41c'), { name: 'proposal-c.html', status: 'draft', userId: 'owner41' });
+    await setDoc(doc(db, 'leads/lead41/documents/sent41c'), { name: 'proposal-s.html', status: 'sent', userId: 'owner41' });
     // §41 legacy top-level /documents twins (2026-09-30).
     await setDoc(doc(db, 'documents/legacySigned41'), { name: 'old-contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
     await setDoc(doc(db, 'documents/legacySigned41b'), { name: 'old-contract-2.html', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
@@ -2733,6 +2737,19 @@ async function run() {
   await x41('legacy: platform admin hard-deletes a signed row', 'deny', deleteDoc(t41(admin, 'legacySigned41b')));
   await x41('legacy: an unsigned row stays editable', 'allow', updateDoc(t41(own41, 'legacyDraft41'), { name: 'old-draft-v2.html' }));
   await x41('legacy: an unsigned row can still be deleted by its owner', 'allow', deleteDoc(t41(own41, 'legacyDraft41')));
+  // signedSaveFailed is written only by submitSignature (admin SDK): no client
+  // sets it, clears it, or creates a row carrying it (security review 2026-11-14).
+  await x41('owner clears signedSaveFailed on a signed row (delete)', 'deny', updateDoc(d41(own41, 'flagged41'), { signedSaveFailed: deleteField() }));
+  await x41('owner clears signedSaveFailed on a signed row (false)', 'deny', updateDoc(d41(own41, 'flagged41'), { signedSaveFailed: false }));
+  await x41('company_admin clears signedSaveFailed on a signed row', 'deny', updateDoc(d41(ca41, 'flagged41'), { signedSaveFailed: false }));
+  await x41('owner sets signedSaveFailed on a draft', 'deny', updateDoc(d41(own41, 'draft41c'), { signedSaveFailed: true }));
+  await x41('company_admin (staff) sets signedSaveFailed on a draft', 'deny', updateDoc(d41(ca41, 'draft41c'), { signedSaveFailed: true }));
+  await x41('same-company manager sets signedSaveFailed on a sent row', 'deny', updateDoc(d41(mgr41, 'sent41c'), { signedSaveFailed: true }));
+  await x41('owner creates a row carrying signedSaveFailed', 'deny', setDoc(d41(own41, 'new41-flag'), { name: 'x.html', status: 'draft', signedSaveFailed: true }));
+  await x41('same-company manager creates a row carrying signedSaveFailed', 'deny', setDoc(d41(mgr41, 'new41-flag-m'), { name: 'x.html', status: 'draft', signedSaveFailed: false }));
+  await x41('owner still edits the draft without the flag', 'allow', updateDoc(d41(own41, 'draft41c'), { name: 'proposal-c2.html' }));
+  await x41('manager still creates a plain row', 'allow', setDoc(d41(mgr41, 'new41-plain'), { name: 'y.html', status: 'draft' }));
+  await x41('the flagged signed row can still be shared with the homeowner', 'allow', updateDoc(d41(own41, 'flagged41'), { sharedWithHomeowner: true }));
   console.log('  41: ' + s41Pass + ' signed-document lock checks passed, ' + s41Fail.length + ' failed');
   if (s41Fail.length) {
     throw new Error('41 signed-document lock: ' + s41Fail.length + ' check(s) went the wrong way:\n    ' + s41Fail.join('\n    '));

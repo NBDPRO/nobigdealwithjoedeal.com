@@ -34,22 +34,43 @@ function ok(name, cond, detail) {
 function section(t) { console.log('\n' + t); }
 
 // ── harness ──────────────────────────────────────────────────────────────
-function makeDb(seed) {
+// failTimes: { '<path prefix>': n } makes the next n writes touching a path
+// with that prefix throw (a direct set/add, or a batch commit holding one).
+function makeDb(seed, failTimes) {
   const store = new Map(Object.entries(seed || {}));
+  const fails = Object.assign({}, failTimes || {});
+  const trip = (p) => {
+    for (const k of Object.keys(fails)) if (p.startsWith(k) && fails[k] > 0) { fails[k]--; throw new Error('firestore unavailable ' + p); }
+  };
   const apply = (prev, patch) => {
     const next = Object.assign({}, prev);
-    for (const [k, v] of Object.entries(patch)) next[k] = (v && v.__fv) ? ('FV:' + v.__fv) : v;
+    for (const [k, v] of Object.entries(patch)) {
+      if (v && v.__fv === 'delete') delete next[k];
+      else next[k] = (v && v.__fv) ? ('FV:' + v.__fv) : v;
+    }
     return next;
   };
+  let auto = 0;
   const ref = (p) => ({
     id: p.split('/').pop(), path: p,
     get: async () => { const d = store.get(p); return { exists: d !== undefined, data: () => d, ref: ref(p), id: p.split('/').pop() }; },
-    set: async (patch, o) => { store.set(p, apply((o && o.merge) ? (store.get(p) || {}) : {}, patch)); },
+    set: async (patch, o) => { trip(p); store.set(p, apply((o && o.merge) ? (store.get(p) || {}) : {}, patch)); },
     update: async (patch) => { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); store.set(p, apply(store.get(p), patch)); },
   });
   return {
     doc: ref,
-    collection: (c) => ({ add: async (d) => { store.set(c + '/auto' + store.size, d); return { id: 'auto' }; }, doc: (id) => ref(c + '/' + id) }),
+    collection: (c) => ({
+      add: async (d) => { trip(c + '/'); store.set(c + '/auto' + (++auto), d); return { id: 'auto' + auto }; },
+      doc: (id) => ref(c + '/' + (id || ('auto' + (++auto)))),
+    }),
+    batch: () => {
+      const ops = [];
+      return {
+        set: (r, d, o) => { ops.push(() => store.set(r.path, apply((o && o.merge) ? (store.get(r.path) || {}) : {}, d))); ops.paths = (ops.paths || []).concat(r.path); },
+        update: (r, d) => { ops.push(() => store.set(r.path, apply(store.get(r.path) || {}, d))); ops.paths = (ops.paths || []).concat(r.path); },
+        commit: async () => { (ops.paths || []).forEach(trip); ops.forEach((f) => f()); },
+      };
+    },
     runTransaction: async (fn) => fn({ get: (r) => r.get(), update: (r, d) => { r.update(d); }, set: (r, d, o) => { r.set(d, o); } }),
     _store: store,
   };
@@ -66,16 +87,17 @@ function makeStorage(files, failSave) {
   };
 }
 const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
+const LOGS = [];
 function loadFn(db, storage) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
-  const logger = { info() {}, warn() {}, error() {} };
+  const logger = { info() {}, warn(m, o) { LOGS.push({ level: 'warn', m, o }); }, error(m, o) { LOGS.push({ level: 'error', m, o }); } };
   const stubs = {
     'firebase-functions/v2/https': { onCall: (o, h) => h, onRequest: (o, h) => h, HttpsError },
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
     'firebase-functions/v2': { logger },
     'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) },
-      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }) } },
+      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), delete: () => ({ __fv: 'delete' }) } },
     'firebase-admin/storage': { getStorage: () => storage },
     './integrations/upstash-ratelimit': { httpRateLimit: async () => true },
     './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
@@ -145,19 +167,26 @@ function world(extra) {
   }, extra || {});
 }
 
-async function submit(failSave) {
+async function submit(failSave, opts) {
+  opts = opts || {};
   const db = makeDb(world({
-    'leads/L1/documents/d1': { name: 'Roofing Agreement', status: 'sent', htmlPath: GOOD_PATH },
+    'leads/L1/documents/d1': Object.assign({ name: 'Roofing Agreement', status: 'sent', htmlPath: GOOD_PATH }, opts.docExtra || {}),
     'doc_sign_tokens/TOKSAVE00001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'U1', htmlPath: GOOD_PATH, signerName: 'Dana Whitfield' },
-  }));
+  }), opts.failTimes);
   const st = makeStorage({ [GOOD_PATH]: ORIGINAL }, failSave);
   const s = reqRes({ token: 'TOKSAVE00001', signedHtml: widgetSign(ORIGINAL) });
-  await loadFn(db, st).submitSignature(s.req, s.res);
+  LOGS.length = 0;
+  const fns = loadFn(db, st);
+  await fns.submitSignature(s.req, s.res);
   const notes = [...db._store.entries()].filter(([k]) => k.startsWith('notifications/')).map(([, v]) => v);
+  const activity = [...db._store.entries()].filter(([k]) => k.startsWith('leads/L1/activity/')).map(([, v]) => v);
+  const reload = reqRes({ token: 'TOKSAVE00001' });
+  await fns.getSignDocument(reload.req, reload.res);
   return {
     status: s.res.statusCode, body: s.res.body || {}, doc: db._store.get('leads/L1/documents/d1') || {},
-    stored: st._files.get(GOOD_PATH).toString('utf8'), notes,
+    stored: st._files.get(GOOD_PATH).toString('utf8'), notes, activity, logs: LOGS.slice(),
     burned: db._store.get('doc_sign_tokens/TOKSAVE00001').status === 'signed',
+    reload: { status: reload.res.statusCode, body: reload.res.body || {} },
   };
 }
 
@@ -206,6 +235,50 @@ async function docRow(row) {
   {
     const r = await submit((p) => p !== GOOD_PATH);
     ok('not flagged as a lost signature (the record itself saved)', r.body.saved !== false && !r.doc.signedSaveFailed && r.stored.includes(PNG));
+  }
+
+  section('5. review round 2 (2026-11-14)');
+  {
+    // M1: a successful save clears a stale flag (no client can: the signed-row lock).
+    const r = await submit(null, { docExtra: { signedSaveFailed: true } });
+    ok('a successful save removes a stale signedSaveFailed', r.status === 200 && !('signedSaveFailed' in r.doc), JSON.stringify(r.doc.signedSaveFailed));
+    ok('…and records signedSha256 of the stored copy', /^[0-9a-f]{64}$/.test(r.doc.signedSha256 || ''));
+  }
+  {
+    // M2: no signedSha256 for a copy that was never stored.
+    const r = await submit((p) => p === GOOD_PATH);
+    ok('save failed: signedSha256 is null (nothing stored to hash)', r.doc.signedSha256 === null, String(r.doc.signedSha256));
+    ok('save failed: the unsaved record is hashed as unsavedRecordSha256', /^[0-9a-f]{64}$/.test(r.doc.unsavedRecordSha256 || ''));
+    ok('save failed: the error log carries docId, leadId and ownerUid',
+      r.logs.some((l) => l.level === 'error' && /NOT saved/.test(l.m) && l.o && l.o.docId === 'd1' && l.o.leadId === 'L1' && l.o.ownerUid === 'U1'));
+    // LOW: a reload of the burned link is honest too.
+    ok('save failed: reloading the link does not say "already signed" plainly',
+      r.reload.status === 410 && /could not be saved/i.test(r.reload.body.error || '') && /contractor/i.test(r.reload.body.error || ''), JSON.stringify(r.reload.body));
+  }
+  {
+    const r = await submit(null);
+    ok('save ok: reloading the link still says "already signed"', r.reload.status === 410 && /already been signed/.test(r.reload.body.error || ''));
+  }
+  {
+    // HIGH: the flag and the bell survive one failed write (retried together).
+    const r = await submit((p) => p === GOOD_PATH, { failTimes: { 'leads/L1/documents/d1': 1 } });
+    ok('first flag write fails: the document is still flagged (retried)', r.doc.signedSaveFailed === true, JSON.stringify(r.doc));
+    ok('…and exactly one "NOT saved" bell went out', r.notes.length === 1 && /NOT saved/.test(r.notes[0].title), JSON.stringify(r.notes));
+    ok('…and the failed attempt is logged at error level with the ids',
+      r.logs.some((l) => l.level === 'error' && /attempt 1 of 2/.test(l.m) && l.o && l.o.docId === 'd1' && l.o.ownerUid === 'U1'), JSON.stringify(r.logs.map((l) => l.level + ' ' + l.m)));
+  }
+  {
+    // HIGH: when the flag + bell cannot be written at all, a second channel.
+    const r = await submit((p) => p === GOOD_PATH, { failTimes: { 'leads/L1/documents/d1': 9, 'notifications/': 9 } });
+    ok('flag and bell both unwritable: an activity row on the lead says the copy was not saved',
+      r.activity.length === 1 && /not saved/i.test(r.activity[0].label + ' ' + r.activity[0].message) && r.activity[0].docId === 'd1', JSON.stringify(r.activity));
+    ok('…and every failed Firestore write is logged at error, none only at warn (Storage retries keep their warn)',
+      r.logs.filter((l) => l.level === 'warn' && !/upload failed|archive failed/.test(l.m)).length === 0 && r.logs.filter((l) => l.level === 'error').length >= 3, JSON.stringify(r.logs.map((l) => l.level + ' ' + l.m)));
+    ok('…and the homeowner is still told the truth (saved:false)', r.body.saved === false);
+  }
+  {
+    const html = fs.readFileSync(path.join(ROOT, 'docs/pro/sign.html'), 'utf8');
+    ok('sign.html cache-busts the changed sign-page.js (v=5)', /js\/sign-page\.js\?v=5"/.test(html));
   }
 
   section('4. the homeowner and the rep see it');

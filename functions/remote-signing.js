@@ -530,7 +530,11 @@ exports.getSignDocument = onRequest(
       res.status(410).json({ error: 'This signing link has expired. Contact your rep for a new one.' }); return;
     }
     if (tok.status !== 'pending') {
-      res.status(410).json({ error: 'This document has already been signed.' }); return;
+      // A signature whose signed copy could not be stored (2026-11-14): say so
+      // on a reload too, not "nothing more to do".
+      res.status(410).json({ error: tok.signedSaveFailed === true
+        ? 'We received your signature, but the signed copy could not be saved. Your contractor will contact you to confirm.'
+        : 'This document has already been signed.' }); return;
     }
 
     // Re-check the path on every use: a token minted before the 2026-10-05
@@ -801,45 +805,93 @@ exports.submitSignature = onRequest(
     // holds the UNSIGNED original and the token is burned. Flag the document,
     // tell the rep plainly (not "Document signed"), and tell the page so the
     // homeowner is not promised a recorded signature.
-    if (!recordSaved) logger.error('[submitSignature] signed copy NOT saved — document flagged signedSaveFailed', { docId: info.docId, leadId: info.leadId });
-    try {
-      await db.doc(`leads/${info.leadId}/documents/${info.docId}`).set({
-        status: 'signed',
-        signedAt: FieldValue.serverTimestamp(),
-        signedRemotely: true,
-        remoteSignerName: info.signerName || null,
-        // htmlPath now holds the signed copy (unchanged behaviour for the
-        // documents tab); this is the untouched original we served.
-        originalHtmlPath: archivePath,
-        // Digest of the document we SERVED, so a later dispute can prove what
-        // was put in front of the signer without trusting either party's copy.
-        originalSha256: originalHtml
-          ? require('crypto').createHash('sha256').update(originalHtml, 'utf8').digest('hex')
-          : null,
-        signedSha256: require('crypto').createHash('sha256').update(recordHtml, 'utf8').digest('hex'),
-        ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
-        ...(recordSaved ? {} : { signedSaveFailed: true }),
-      }, { merge: true });
-    } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+    const sha = (s) => require('crypto').createHash('sha256').update(s, 'utf8').digest('hex');
+    const ids = { docId: info.docId, leadId: info.leadId, ownerUid: info.ownerUid };
+    if (!recordSaved) logger.error('[submitSignature] signed copy NOT saved — document flagged signedSaveFailed', ids);
+    const docRef = db.doc(`leads/${info.leadId}/documents/${info.docId}`);
+    const docPatch = {
+      status: 'signed',
+      signedAt: FieldValue.serverTimestamp(),
+      signedRemotely: true,
+      remoteSignerName: info.signerName || null,
+      // htmlPath now holds the signed copy (unchanged behaviour for the
+      // documents tab); this is the untouched original we served.
+      originalHtmlPath: archivePath,
+      // Digest of the document we SERVED, so a later dispute can prove what
+      // was put in front of the signer without trusting either party's copy.
+      originalSha256: originalHtml ? sha(originalHtml) : null,
+      // Only a STORED signed copy gets signedSha256. An unsaved one is
+      // recorded as unsavedRecordSha256 so nobody mistakes it for the hash of
+      // what htmlPath holds; a successful save clears any stale flag (the
+      // signed-row lock means no client can).
+      ...(recordSaved
+        ? { signedSha256: sha(recordHtml), signedSaveFailed: FieldValue.delete() }
+        : { signedSha256: null, unsavedRecordSha256: sha(recordHtml), signedSaveFailed: true }),
+      ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+    };
+    const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
+    const note = {
+      userId: info.ownerUid,
+      type: 'remote_signature',
+      leadId: info.leadId,
+      title: recordSaved ? 'Document signed' : 'Signed copy NOT saved — action needed',
+      message: who + (recordSaved
+        ? 'signed a document remotely.'
+        : 'signed a document remotely, but the signed copy was not saved. The stored document is still the unsigned original. Contact them and send a new signing link.'),
+      priority: 'high',
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    let notified = false;
+    if (recordSaved) {
+      try { await docRef.set(docPatch, { merge: true }); } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+    } else {
+      // The flag and the bell are the rep's only signals: one batch (with the
+      // token, so a reload of the link says the same thing), tried twice, then
+      // a row on the lead's activity timeline as the second channel.
+      for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
+        try {
+          const b = db.batch();
+          b.set(docRef, docPatch, { merge: true });
+          b.set(db.collection('notifications').doc(), note);
+          b.update(tokRef, { signedSaveFailed: true });
+          await b.commit();
+          notified = true;
+        } catch (e) {
+          logger.error('[submitSignature] save-failure flag + rep alert write failed (attempt ' + attempt + ' of 2)', Object.assign({ msg: e.message }, ids));
+        }
+      }
+      if (!notified) {
+        // Second channel: the flag alone, and a row on the lead's activity
+        // timeline. The bell is tried once more on its own below.
+        try { await docRef.set(docPatch, { merge: true }); } catch (e) {
+          logger.error('[submitSignature] save-failure flag write failed', Object.assign({ msg: e.message }, ids));
+        }
+        try {
+          await db.collection(`leads/${info.leadId}/activity`).add({
+            userId: info.ownerUid,
+            type: 'remote_signature_unsaved',
+            label: 'Signed copy NOT saved',
+            message: note.message,
+            docId: info.docId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.error('[submitSignature] activity fallback failed too — the rep has NO signal of the unsaved signature', Object.assign({ msg: e.message }, ids));
+        }
+      }
+    }
     if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
     await spineAfterRemoteSign(db, info);
-    try {
-      await db.collection('notifications').add({
-        userId: info.ownerUid,
-        type: 'remote_signature',
-        leadId: info.leadId,
-        title: recordSaved ? 'Document signed' : 'Signed copy NOT saved — action needed',
-        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + (recordSaved
-          ? 'signed a document remotely.'
-          : 'signed a document remotely, but the signed copy was not saved. The stored document is still the unsigned original. Contact them and send a new signing link.'),
-        priority: 'high',
-        read: false,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    } catch (e) { logger.warn('[submitSignature] notify failed', { msg: e.message }); }
+    if (!notified) {
+      try { await db.collection('notifications').add(note); } catch (e) {
+        if (recordSaved) logger.warn('[submitSignature] notify failed', { msg: e.message });
+        else logger.error('[submitSignature] save-failure rep alert failed', Object.assign({ msg: e.message }, ids));
+      }
+    }
 
     res.status(200).json(recordSaved ? { ok: true } : { ok: true, saved: false });
   }

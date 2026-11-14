@@ -674,6 +674,16 @@ service cloud.firestore {
       return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
         || (keys.hasOnly(['deleted', 'deletedAt']) && isOwner(resource.data.userId));
     }
+    // signedSaveFailed (2026-11-14) is server-owned: submitSignature (admin
+    // SDK) sets it when a signed copy could not be stored and clears it on a
+    // later successful save. No client creates a row with it, or changes or
+    // removes it, so a rep can neither forge nor hide the warning.
+    function documentSaveFlagCreateOk() {
+      return !('signedSaveFailed' in request.resource.data);
+    }
+    function documentSaveFlagUpdateOk() {
+      return request.resource.data.get('signedSaveFailed', null) == resource.data.get('signedSaveFailed', null);
+    }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
       return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
@@ -1233,7 +1243,8 @@ service cloud.firestore {
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk()
-          && documentHtmlPathOk(leadId);
+          && documentHtmlPathOk(leadId)
+          && documentSaveFlagCreateOk();
         // Split from create (2026-09-29): an update reads `resource`, which a
         // create does not have. A signed row is locked — see documentIsSigned().
         allow update: if isAuth() && notViewer()
@@ -1241,6 +1252,7 @@ service cloud.firestore {
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
+          && documentSaveFlagUpdateOk()
           && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
