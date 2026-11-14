@@ -84,7 +84,31 @@ function loadV2(opts) {
   win.window = win;
   win._user = { uid: 'u1' };
   win._leads = [];
-  win._estimates = opts.estimates || [];
+  // `store` is Firestore (what a fresh getDoc reads); window._estimates is the
+  // page's cached list, which can be stale or emptied (a failed loadEstimates).
+  const store = {};
+  (opts.estimates || []).forEach((e) => { store[e.id] = e; });
+  win._estimates = (opts.estimates || []).slice();
+  win.db = {};
+  win.doc = (_db, col, id) => ({ col, id });
+  win.getDoc = async (ref) => {
+    calls.push(['read', ref.id]);
+    if (opts.readFails) throw new Error('unavailable');
+    const d = store[ref.id];
+    return { exists: () => !!d, data: () => Object.assign({}, d) };
+  };
+  win.NBDJurisdiction = J;
+  win._functions = {};
+  win._httpsCallable = (_fns, name) => async () => {
+    calls.push(['callable', name]);
+    return { data: { ok: true, emailed: true, link: 'https://nobigdealwithjoedeal.com/pro/esign.html?t=ABCDEFGHJKMNPQRS' } };
+  };
+  win.CloseBoard = {
+    createFromEstimate: () => { calls.push(['deal']); return { id: 'dr_1' }; },
+    getAcceptLink: async () => 'https://example.test/deal/tok123',
+    markShared: () => {},
+  };
+  win.open = () => null;
   win.NBD_XACT_CATALOG = { find: (code) => ({ code, name: code, unit: 'SQ' }) };
   win.EstimateLogic = {
     resolveEstimate: () => ({ lines: [{ code: 'RFG', name: 'Shingles', quantity: 20, unit: 'SQ', lineTotal: 9000 }], subtotal: 9000, tax: 0, total: 9000 }),
@@ -103,16 +127,18 @@ function loadV2(opts) {
     const editId = win._editingEstimateId || null;
     if (opts.saveFails) { calls.push(['save', { editing: editId, failed: true }]); return null; }
     clock += 10;
+    win._saveEstimateWarning = opts.leadWarn || null;
+    await Promise.resolve(); // a real write yields (lets a double tap overlap)
     if (editId) {
       calls.push(['save', { editing: editId, kind: 'update' }]);
-      const i = win._estimates.findIndex((e) => e.id === editId);
-      if (i !== -1) win._estimates[i] = Object.assign({}, win._estimates[i], payload, { updatedAt: ts(clock) });
+      if (store[editId]) Object.assign(store[editId], payload, { updatedAt: ts(clock) });
       win._editingEstimateId = null;
       return editId;
     }
     const id = 'est_new' + (++n);
     calls.push(['save', { editing: null, kind: 'create', id }]);
-    win._estimates.push(Object.assign({ id, userId: 'u1' }, payload, { createdAt: ts(clock), updatedAt: ts(clock) }));
+    store[id] = Object.assign({ id, userId: 'u1' }, payload, { createdAt: ts(clock), updatedAt: ts(clock) });
+    win._estimates.push(store[id]);
     return id;
   };
   win.showToast = (m, t) => { calls.push(['toast', m, t]); };
@@ -133,12 +159,14 @@ function loadV2(opts) {
   st.mode = 'per-sq';
   st.jobMode = 'cash';
   st.tier = 'better';
-  st.customer = { name: 'Pat Homeowner', address: '1 Test St, Milford, OH 45150', phone: '', email: '', leadId: 'L1' };
-  return { UI, T, st, win, doc, calls };
+  st.customer = { name: 'Pat Homeowner', address: '1 Test St, Milford, OH 45150', phone: '', email: 'pat@example.test', leadId: 'L1' };
+  return { UI, T, st, win, doc, calls, store };
 }
+const J = require(path.join(ROOT, 'docs/pro/js/ky-insurance-law.js'));
 const saves = (V) => V.calls.filter((c) => c[0] === 'save').map((c) => c[1]);
 const creates = (V) => saves(V).filter((s) => s.kind === 'create');
-const findEst = (V, id) => V.win._estimates.find((e) => e.id === id);
+const findEst = (V, id) => V.store[id];
+const toasts = (V) => V.calls.filter((c) => c[0] === 'toast').map((c) => c[1]);
 
 async function main() {
   await asection('A. Fresh estimate: Save, then Save again updates the same estimate', async () => {
@@ -244,6 +272,7 @@ async function main() {
     await no.UI.save();
     findEst(no, 'est_new1').updatedAt = ts(999999); // another device saved it
     const r = await no.UI.save();
+    ok('a "no" refusal is toasted too (the doc viewer can save from another step)', toasts(no).some((m) => /another device/i.test(m)), JSON.stringify(toasts(no)));
     ok('asks the rep', no.calls.some((c) => c[0] === 'confirm' && /another device|changed/i.test(c[1])), JSON.stringify(no.calls.filter((c) => c[0] === 'confirm')));
     ok('"no" writes nothing', r === null && saves(no).length === 1, JSON.stringify(saves(no)));
     const yes = loadV2({ confirm: true });
@@ -257,13 +286,179 @@ async function main() {
     ok('no change elsewhere → no question', !quiet.calls.some((c) => c[0] === 'confirm'));
   });
 
-  await asection('F. Saved estimate gone from the list (archived elsewhere) → saved as a new one', async () => {
+  await asection('F. Saved estimate archived elsewhere (a fresh read says so) → saved as a new one', async () => {
     const V = loadV2();
     await V.UI.save();
-    V.win._estimates = []; // archived on another device: the list drops it
+    findEst(V, 'est_new1').deleted = true; // archived on another device
+    V.win._estimates = [];
     const r = await V.UI.save();
     ok('not written onto the archived estimate', saves(V)[1].kind === 'create' && r === 'est_new2', JSON.stringify(saves(V)));
-    ok('the rep is told', V.calls.some((c) => c[0] === 'toast' && /new estimate/i.test(c[1])), JSON.stringify(V.calls.filter((c) => c[0] === 'toast')));
+    ok('the rep is told', toasts(V).some((m) => /new estimate/i.test(m)), JSON.stringify(toasts(V)));
+  });
+
+  await asection('I. The checks read the estimate fresh, never the page cache', async () => {
+    // loadEstimates failed: the cached list is empty, the estimate is fine.
+    const V = loadV2();
+    await V.UI.save();
+    V.win._estimates = [];
+    const r = await V.UI.save();
+    ok('empty cache, estimate still there → Save again UPDATES it (no duplicate)', r === 'est_new1' && saves(V)[1].kind === 'update' && creates(V).length === 1, JSON.stringify(saves(V)));
+    ok('the check read the estimate itself', V.calls.some((c) => c[0] === 'read' && c[1] === 'est_new1'));
+
+    // Signed per Firestore, unsigned in a stale cache.
+    const S = loadV2();
+    await S.UI.save();
+    S.win._estimates = [Object.assign({}, findEst(S, 'est_new1'))]; // stale copy
+    findEst(S, 'est_new1').signatureStatus = 'signed';
+    const rs = await S.UI.save();
+    ok('stale cache says unsigned, Firestore says signed → refused', rs === null && saves(S).length === 1, JSON.stringify(saves(S)));
+
+    // The read fails → refuse (never "gone", never "unchanged").
+    const F = loadV2();
+    await F.UI.save();
+    F.win.getDoc = async () => { throw new Error('unavailable'); };
+    const rf = await F.UI.save();
+    ok('a failed read writes nothing (no update, no duplicate)', rf === null && saves(F).length === 1, JSON.stringify(saves(F)));
+    ok('a failed read says so, in the status line and a toast', /couldn.t check/i.test(F.doc.els.v2saveStatus.textContent) && toasts(F).some((m) => /couldn.t check/i.test(m)), F.doc.els.v2saveStatus.textContent);
+    ok('a failed read keeps Save again pointed at the estimate', F.win._v2SavedEstimateId === 'est_new1');
+
+    // A pending-write / unknown updatedAt → ask, never assume unchanged.
+    const P = loadV2({ confirm: false });
+    await P.UI.save();
+    findEst(P, 'est_new1').updatedAt = null;
+    const rp = await P.UI.save();
+    ok('unknown updatedAt → asks; "no" writes nothing', rp === null && saves(P).length === 1 && P.calls.some((c) => c[0] === 'confirm'), JSON.stringify(saves(P)));
+  });
+
+  await asection('H. Send for Signature / Send to homeowner run the same checks', async () => {
+    const A = loadV2();
+    await A.UI.save();
+    findEst(A, 'est_new1').signatureStatus = 'signed';
+    const ra = await A.T.sendForSignature();
+    ok('signed since the save: Send for Signature saves nothing', saves(A).length === 1, JSON.stringify(saves(A)));
+    ok('signed since the save: nothing is sent', !A.calls.some((c) => c[0] === 'callable') && ra === 'failed', ra);
+
+    const B = loadV2();
+    await B.UI.save();
+    findEst(B, 'est_new1').signatureStatus = 'sent';
+    await B.T.sendForSignature();
+    ok('out for signature: Send for Signature re-sends (updates, then sends)', saves(B)[1] && saves(B)[1].kind === 'update' && B.calls.some((c) => c[0] === 'callable'), JSON.stringify(saves(B)));
+
+    const C = loadV2({ confirm: false });
+    await C.UI.save();
+    findEst(C, 'est_new1').updatedAt = ts(999999);
+    await C.T.sendForSignature();
+    ok('changed on another device + "no": Send for Signature writes and sends nothing', saves(C).length === 1 && !C.calls.some((c) => c[0] === 'callable'), JSON.stringify(saves(C)));
+
+    const D = loadV2();
+    await D.UI.save();
+    findEst(D, 'est_new1').signatureStatus = 'signed';
+    await D.T.sendToHomeowner();
+    ok('signed since the save: Send to homeowner saves nothing and makes no deal', saves(D).length === 1 && !D.calls.some((c) => c[0] === 'deal'), JSON.stringify(saves(D)));
+
+    const E = loadV2();
+    await E.UI.save();
+    await E.T.sendToHomeowner();
+    ok('nothing changed: Send to homeowner updates the same estimate', saves(E)[1] && saves(E)[1].kind === 'update' && saves(E)[1].editing === 'est_new1' && E.calls.some((c) => c[0] === 'deal'), JSON.stringify(saves(E)));
+    ok('no edit id left behind', E.win._editingEstimateId == null);
+  });
+
+  await asection('K. Save as copy: a double tap makes ONE copy', async () => {
+    const V = loadV2();
+    await V.UI.save();
+    await Promise.all([V.UI.saveAsCopy(), V.UI.saveAsCopy()]);
+    ok('one original + one copy', creates(V).length === 2, JSON.stringify(saves(V)));
+    ok('the copy button is enabled again after', V.doc.els.v2saveCopyBtn.disabled === false);
+  });
+
+  await asection('L. A failed lead stamp-back shows in the status line', async () => {
+    const V = loadV2({ leadWarn: 'Estimate saved, but the customer\'s job value / primary estimate did not update.' });
+    await V.UI.save();
+    ok('status names the lead problem', /did not update/.test(V.doc.els.v2saveStatus.textContent), V.doc.els.v2saveStatus.textContent);
+  });
+
+  await asection('M. _saveEstimate (dashboard-bootstrap.module.js): update branch + loadEstimates', async () => {
+    const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
+    const braceBlock = (src, from) => {
+      const open = src.indexOf('{', from); if (open === -1) return null;
+      let depth = 0;
+      for (let i = open; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
+      }
+      return null;
+    };
+    const anchor = 'window._saveEstimate = async (data) =>';
+    const at = boot.indexOf(anchor);
+    const body = at === -1 ? null : braceBlock(boot, at + anchor.length);
+    ok('anchor: window._saveEstimate found', !!body);
+    // Module-scope helpers declared just above it (absent on an older build).
+    const h = boot.lastIndexOf('const _LEAD_STAMP_WARN', at);
+    const helpers = (h !== -1 && at - h < 2000) ? boot.slice(h, at) : '';
+    const CER = require(path.join(ROOT, 'functions', 'customer-estimate-rows.js'));
+    async function run({ leads, estimates, store, data, editId, failLeadWrite }) {
+      const writes = []; const toastsM = [];
+      const db = Object.assign({}, store || {});
+      Object.keys(leads || {}).forEach((k) => { db['leads/' + k] = Object.assign({}, leads[k]); });
+      const win = { _editingEstimateId: editId, _estimates: estimates || [], _user: { uid: 'u1' }, _userClaims: {},
+        showToast: (m) => toastsM.push(m) };
+      const api = {
+        window: win, db: {},
+        doc: (_db, col, id) => ({ path: col + '/' + id }),
+        collection: (_db, col) => ({ col }),
+        serverTimestamp: () => 'TS',
+        getDoc: async (ref) => ({ exists: () => !!db[ref.path], data: () => db[ref.path] }),
+        updateDoc: async (ref, patch) => {
+          if (failLeadWrite && ref.path.startsWith('leads/')) throw new Error('denied');
+          writes.push({ path: ref.path, patch });
+          if (db[ref.path]) Object.assign(db[ref.path], patch);
+        },
+        addDoc: async () => ({ id: 'NEW' }),
+        loadEstimates: async () => {},
+        _estValue: (e) => CER.estimateValue(e),
+        _canStampJobValue: (v) => Number.isFinite(v) && v > 0,
+        normalizeStage: (s) => s, S: { NEW: 'new' }, _estimateBumpToContacted: async () => {},
+        console: { warn() {}, error() {}, log() {} },
+      };
+      const names = Object.keys(api);
+      const save = new Function(...names, helpers + '\nreturn async (data) => ' + body + ';')(...names.map((k) => api[k]));
+      const ret = await save(data);
+      return { ret, writes, db, win, toasts: toastsM };
+    }
+    if (body) {
+      const a = await run({ leads: { L1: { jobValue: 0 } }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
+      ok('update, lead has NO primary → this estimate becomes primary with its value',
+        a.db['leads/L1'].primaryEstimateId === 'E1' && a.db['leads/L1'].jobValue === 16200, JSON.stringify(a.writes));
+      const b = await run({ leads: { L1: { primaryEstimateId: 'E9', jobValue: 9000 } }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
+      ok('update, lead\'s primary is ANOTHER estimate → lead left alone', b.db['leads/L1'].primaryEstimateId === 'E9' && b.db['leads/L1'].jobValue === 9000);
+      const c = await run({ leads: { L0: { primaryEstimateId: 'E1', jobValue: 14500 }, L1: {} },
+        estimates: [{ id: 'E1', leadId: 'L0', grandTotal: 14500 }], editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
+      ok('moved to another customer → the old lead no longer points at it', c.db['leads/L0'].primaryEstimateId === null, JSON.stringify(c.writes));
+      ok('moved to another customer → the new lead takes it as primary', c.db['leads/L1'].primaryEstimateId === 'E1');
+      const d = await run({ leads: { L0: { primaryEstimateId: 'E1' }, L1: {} }, estimates: [],
+        store: { 'estimates/E1': { leadId: 'L0', grandTotal: 14500 } }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
+      ok('empty page cache → the previous lead is read from the estimate itself (old pointer broken)', d.db['leads/L0'].primaryEstimateId === null, JSON.stringify(d.writes));
+      const e = await run({ leads: { L1: { primaryEstimateId: 'E1', jobValue: 1 } }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 }, failLeadWrite: true });
+      ok('lead write fails → the estimate save still returns its id', e.ret === 'E1');
+      ok('lead write fails → window._saveEstimateWarning is set and a toast says so', !!e.win._saveEstimateWarning && e.toasts.some((m) => /job value/i.test(m)), JSON.stringify(e.toasts));
+      const f = await run({ leads: { L1: {} }, editId: null, data: { leadId: 'L1', grandTotal: 16200 }, failLeadWrite: true });
+      ok('create: lead stamp fails → warning set too', f.ret === 'NEW' && !!f.win._saveEstimateWarning);
+      const g = await run({ leads: { L1: { primaryEstimateId: 'E1', jobValue: 16200 } }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
+      ok('a clean save clears the warning', g.win._saveEstimateWarning == null);
+    }
+    const la = 'async function loadEstimates()';
+    const li = boot.indexOf(la);
+    const lbody = li === -1 ? null : braceBlock(boot, li + la.length);
+    ok('anchor: loadEstimates found', !!lbody);
+    if (lbody) {
+      const prior = [{ id: 'E1' }];
+      const win = { _user: { uid: 'u1' }, _userClaims: {}, _estimates: prior, dispatchEvent() {} };
+      const fn = new Function('window', 'getDocs', 'query', 'collection', 'where', 'db', 'console', 'CustomEvent',
+        'return async function () ' + lbody + ';')(win, async () => { throw new Error('unavailable'); },
+        () => ({}), () => ({}), () => ({}), {}, { warn() {}, log() {}, error() {} }, function () {});
+      await fn();
+      ok('a failed estimates read keeps the last good list (never empties it)', win._estimates === prior && win._estimates.length === 1, JSON.stringify(win._estimates));
+    }
   });
 
   await asection('G. Markup + wiring (CSP-safe, V3-placed)', async () => {

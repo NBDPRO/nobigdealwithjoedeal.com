@@ -4873,6 +4873,9 @@
     state._reopenedDoc = doc;
     state._reopenedClean = true;
     _stateFromSavedDoc = estimateId;           // next fresh open resets (see open())
+    // Baseline for save()'s checks: signed / sent / changed elsewhere SINCE
+    // this reopen (a reopen may re-price a signed estimate, R6-2-2).
+    _lastSavedStamp = { id: estimateId, ms: _estimateStampMs(doc), lock: _lockOf(doc) };
     window._editingEstimateId = estimateId;   // _saveEstimate updates this doc
     window._v2SavedEstimateId = estimateId;    // sendForSignature scopes to it
     if (typeof syncCustomerInputs === 'function') syncCustomerInputs();
@@ -5089,11 +5092,14 @@
   // no edit id pins the estimate this builder last saved, the way Send for
   // Signature / Send to homeowner already did — unless it was signed or sent
   // for signature since (refused: Save as copy is the way to a new version),
-  // changed on another device (asks first), or is gone from the list
-  // (archived elsewhere: saved as a new estimate, never onto the archived one).
-  async function save() {
+  // changed on another device (asks first), or is gone (archived elsewhere:
+  // saved as a new estimate, never onto the archived one). The checks read the
+  // estimate FRESH (one getDoc), never the window._estimates cache, and a
+  // failed read refuses. opts.resend: Send for Signature, which replaces the
+  // envelope, may update an estimate that is out for signature.
+  async function save(opts) {
     _savedIdOut = null;
-    const pinned = await _pinSavedEstimate();
+    const pinned = await _pinSavedEstimate(opts || {});
     if (pinned === false) return null;
     try { await _saveInner(); }
     finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
@@ -5106,7 +5112,10 @@
   let _lastSavedStamp = null;
 
   function _estimateStampMs(est) {
-    const t = est && (est.updatedAt || est.createdAt);
+    if (!est) return null;
+    // updatedAt present but null = a pending serverTimestamp: unknown, never
+    // the older createdAt (which would read as "unchanged").
+    const t = Object.prototype.hasOwnProperty.call(est, 'updatedAt') ? est.updatedAt : est.createdAt;
     if (t && typeof t.toMillis === 'function') return t.toMillis();
     if (t && Number.isFinite(Number(t.seconds))) return Number(t.seconds) * 1000;
     return null;
@@ -5118,9 +5127,25 @@
     if (est.signatureStatus === 'sent' || est.signatureStatus === 'viewed') return 'out';
     return null;
   }
-  function _rememberSaved(id) {
-    const est = (window._estimates || []).find((e) => e && e.id === id) || null;
-    _lastSavedStamp = { id, ms: _estimateStampMs(est), lock: _lockOf(est) };
+  // The estimate read fresh: { ok: true, est } (est null = no such estimate,
+  // or archived) or { ok: false } (the read failed / Firestore not loaded).
+  async function _readSavedEstimate(id) {
+    if (!window.db || typeof window.doc !== 'function' || typeof window.getDoc !== 'function') return { ok: false };
+    try {
+      const snap = await window.getDoc(window.doc(window.db, 'estimates', id));
+      if (!snap || !snap.exists()) return { ok: true, est: null };
+      const est = Object.assign({ id }, snap.data());
+      return { ok: true, est: est.deleted === true ? null : est };
+    } catch (e) {
+      console.warn('[EstimateV2UI] saved-estimate read failed:', e && (e.code || e.message));
+      return { ok: false };
+    }
+  }
+  async function _rememberSaved(id) {
+    const r = await _readSavedEstimate(id);
+    const est = (r.ok && r.est) || null;
+    // Unread: ms null, so the next Save again asks rather than assume unchanged.
+    _lastSavedStamp = { id, ms: est ? _estimateStampMs(est) : null, lock: _lockOf(est) };
   }
   const SAVE_AGAIN_SIGNED = 'The homeowner signed this estimate, so Save again won\'t change it. ' +
     'Use Save as copy to keep these changes as a new estimate.';
@@ -5129,18 +5154,27 @@
 
   // → the pinned id (the caller clears it after the save), null (nothing to
   // pin: save as before), or false (refused; nothing written).
-  async function _pinSavedEstimate() {
-    const id = window._v2SavedEstimateId;
-    if (!id || window._editingEstimateId) return null;
-    const say = (msg) => {
+  const SAVE_AGAIN_UNREAD = 'Couldn\'t check the saved estimate just now (offline?), so nothing was saved. ' +
+    'Try again in a moment, or use Save as copy.';
+  async function _pinSavedEstimate(opts) {
+    const id = window._v2SavedEstimateId || null;
+    const editing = window._editingEstimateId || null;
+    // Nothing this builder saved or reopened, or another flow's edit id: as before.
+    if (!id || (editing && editing !== id)) return null;
+    const refuse = (msg) => {
       const el = document.getElementById('v2saveStatus');
       if (el) { el.textContent = msg; el.style.color = 'var(--red,#c53030)'; }
+      if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
+      return false;
     };
-    const est = (window._estimates || []).find((e) => e && e.id === id) || null;
+    const read = await _readSavedEstimate(id);
+    if (!read.ok) return refuse(SAVE_AGAIN_UNREAD);
+    const est = read.est;
     if (!est) {
       window._v2SavedEstimateId = null;
+      if (editing === id) window._editingEstimateId = null;
       if (typeof window.showToast === 'function') {
-        window.showToast('The estimate you saved is no longer on your list, so this was saved as a new estimate.', 'warning');
+        window.showToast('The estimate you saved is no longer there (archived?), so this was saved as a new estimate.', 'warning');
       }
       return null;
     }
@@ -5150,18 +5184,23 @@
     // Save again keeps doing what that first save did.
     const lock = _lockOf(est);
     const mine = _lastSavedStamp && _lastSavedStamp.id === id ? _lastSavedStamp : null;
-    if (lock && !(mine && mine.lock === lock)) {
-      const msg = lock === 'signed' ? SAVE_AGAIN_SIGNED : SAVE_AGAIN_OUT;
-      say(msg);
-      if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
-      return false;
+    if (lock && !(mine && mine.lock === lock) && !(lock === 'out' && opts.resend)) {
+      return refuse(lock === 'signed' ? SAVE_AGAIN_SIGNED : SAVE_AGAIN_OUT);
     }
     const nowMs = _estimateStampMs(est);
-    if (mine && mine.ms != null && nowMs != null && nowMs > mine.ms) {
+    const changed = !!(mine && mine.ms != null && nowMs != null && nowMs > mine.ms);
+    const unknown = !mine || mine.ms == null || nowMs == null;
+    if (changed || unknown) {
       const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-      const go = await ask('This estimate was changed on another device since you saved it here.\n\n' +
-        'Save over those changes? (Cancel, then use Save as copy to keep both.)');
-      if (!go) { say('Not saved: the estimate changed on another device. Use Save as copy to keep both.'); return false; }
+      const go = await ask((changed
+        ? 'This estimate was changed on another device since you saved it here.'
+        : 'Couldn\'t confirm this estimate is unchanged since you saved it here.') +
+        '\n\nSave over it? (Cancel, then use Save as copy to keep both.)');
+      if (!go) {
+        return refuse(changed
+          ? 'Not saved: the estimate changed on another device. Use Save as copy to keep both.'
+          : 'Not saved. Use Save as copy to keep both versions.');
+      }
     }
     window._editingEstimateId = id;
     return id;
@@ -5169,7 +5208,16 @@
 
   // "Save as copy" (Jo, 2026-11-14): a NEW estimate from what is on screen,
   // the original left as it is. After it, Save updates the copy.
+  let _copyBusy = false;
   async function saveAsCopy() {
+    if (_copyBusy) return null; // a double tap makes ONE copy
+    _copyBusy = true;
+    const copyBtn = document.getElementById('v2saveCopyBtn');
+    if (copyBtn) copyBtn.disabled = true;
+    try { return await _saveAsCopyInner(); }
+    finally { _copyBusy = false; if (copyBtn) copyBtn.disabled = false; }
+  }
+  async function _saveAsCopyInner() {
     const prevEdit = window._editingEstimateId || null;
     const prevSaved = window._v2SavedEstimateId || null;
     window._editingEstimateId = null;
@@ -5267,12 +5315,15 @@
         // server builds the contract from the saved doc).
         window._v2SavedEstimateId = savedId;
         _savedIdOut = savedId;
-        _rememberSaved(savedId);
+        await _rememberSaved(savedId);
         _applySaveCopyGate();
         // F7: saved estimate → draft is obsolete.
         clearDraft();
         setStatus((_saveAsCopyOn ? '✓ Saved as a new copy — estimate #' : '✓ Saved — estimate #')
-          + savedId.substring(0, 8) + '…', 'var(--green,#2ECC8A)');
+          + savedId.substring(0, 8) + '…'
+          // _saveEstimate's lead stamp-back failed (best-effort): say so here too.
+          + (window._saveEstimateWarning ? ' ' + window._saveEstimateWarning : ''),
+          window._saveEstimateWarning ? 'var(--orange,#BD5728)' : 'var(--green,#2ECC8A)');
         if (typeof window.showToast === 'function') {
           window.showToast('✓ Estimate saved to Firestore', 'success');
         }
@@ -5363,16 +5414,11 @@
     _signBusy = true;
     if (btn) btn.disabled = true;
     try {
-      // 1. Save — re-sending the same estimate updates it instead of adding a copy.
+      // 1. Save — re-sending the same estimate updates it instead of adding a
+      // copy. save() pins it and runs the signed / changed-elsewhere checks;
+      // re-sending replaces the envelope, so "out for signature" is allowed.
       say('Saving the estimate…');
-      let pinned = null;
-      if (window._v2SavedEstimateId && !window._editingEstimateId) {
-        pinned = window._v2SavedEstimateId;
-        window._editingEstimateId = pinned;
-      }
-      let estimateId = null;
-      try { estimateId = await save(); }
-      finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+      const estimateId = await save({ resend: true });
       if (!estimateId) { closeTab(w); say('The estimate did not save — nothing was sent.', 'error'); return 'failed'; }
 
       // 2. Send.
@@ -6257,17 +6303,10 @@
     if (!prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
 
     // 1. Save. Re-sending the same estimate updates it instead of adding a
-    //    copy; the edit id is cleared afterwards so it can't leak into the
-    //    next builder session.
+    //    copy; save() pins it, runs the signed / changed-elsewhere checks and
+    //    clears the edit id afterwards so it can't leak into the next session.
     say('Saving the estimate…');
-    let pinned = null;
-    if (window._v2SavedEstimateId && !window._editingEstimateId) {
-      pinned = window._v2SavedEstimateId;
-      window._editingEstimateId = pinned;
-    }
-    let estimateId = null;
-    try { estimateId = await save(); }
-    finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+    const estimateId = await save();
     if (!estimateId) { say('The estimate did not save — nothing was sent.', 'error'); return null; }
 
     // 2. The Close Board engine loads with its view; load it here if needed.
