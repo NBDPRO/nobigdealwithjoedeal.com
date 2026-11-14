@@ -139,6 +139,31 @@ const payer = cust('cus_payer', 'ZZ_QA Shared', 'shared@example.com', '(513) 555
     ok('the owner\'s invoice took the $2,000 (the skip is not a blanket off-switch)', inv.balanceDue === 0 && inv.status === 'paid', JSON.stringify(inv));
   }
 
+  console.log('\ncontrol: the owner\'s OWN payment link (PI stamped companyId OWNER) still books');
+  {
+    const db = makeDb({ leads: seedLeads, invoices: seedInvoices });
+    const own = charge('ch_ownlink', 200000, payer, { payment_intent: { id: 'pi_ownlink', metadata: { companyId: 'OWNER' } } });
+    X.setStripe(makeStripe({ charges: [own], invoices: [], refunds: [], disputes: [], payouts: [] }));
+    await X.sync(db, { sinceSec: null, dryRun: false });
+    const inv = db._dump('invoices').find((i) => i.id === 'INV_OWN');
+    ok('an owner-stamped charge books onto the owner\'s invoice', inv.balanceDue === 0 && inv.status === 'paid', JSON.stringify(inv));
+  }
+
+  console.log('\na refund and a dispute on a Connect charge stay out of the owner\'s ledger');
+  {
+    const db = makeDb({ leads: seedLeads, invoices: seedInvoices });
+    const dest = charge('ch_cx', 200000, payer, { transfer_data: { destination: 'acct_B' }, payment_intent: { id: 'pi_cx', metadata: { companyId: 'tenantB' } } });
+    const re = { id: 're_cx', object: 'refund', amount: 200000, created: T0 + 100, status: 'succeeded', charge: 'ch_cx', reason: 'requested_by_customer' };
+    const dp = { id: 'dp_cx', object: 'dispute', amount: 200000, created: T0 + 200, status: 'needs_response', charge: 'ch_cx', reason: 'fraudulent' };
+    X.setStripe(makeStripe({ charges: [dest], invoices: [], refunds: [re], disputes: [dp], payouts: [] }));
+    await X.sync(db, { sinceSec: null, dryRun: false });
+    const rows = db._dump('stripeLedger');
+    ok('no refund row for the tenant\'s refund', !rows.some((r) => r.id === 're_cx'), JSON.stringify(rows.map((r) => r.id)));
+    ok('no dispute row, so nothing lands in the owner\'s review list', !rows.some((r) => r.id === 'dp_cx') && !rows.some((r) => r.needsReview === true));
+    const inv = db._dump('invoices').find((i) => i.id === 'INV_OWN');
+    ok('the owner\'s invoice carries no refunds', !(inv.refunds && inv.refunds.length) && !inv.refundedTotal);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

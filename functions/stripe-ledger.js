@@ -295,6 +295,17 @@ function connectTenantOf(ch) {
   return co && String(co) !== String(OWNER) ? 'company:' + co : '';
 }
 
+/** A refund / dispute whose charge is a Connect tenant's (no owner row; the
+ * charge says so) → true. A lookup error → false (handled as before). */
+async function onConnectCharge(chargeRef, chargeRow) {
+  if (!chargeRef || (chargeRow && chargeRow.exists)) return false;
+  try {
+    const ch = typeof chargeRef === 'object' && chargeRef.id ? chargeRef
+      : await stripeClient().charges.retrieve(String(chargeRef), { expand: ['payment_intent'] });
+    return !!connectTenantOf(ch);
+  } catch (e) { return false; }
+}
+
 async function ingestCharge(ctx, chargeOrId, opts) {
   const o = opts || {};
   const stripe = stripeClient();
@@ -473,6 +484,8 @@ async function ingestRefund(ctx, re, opts) {
   const refund = typeof re === 'string' ? await stripe.refunds.retrieve(re) : re;
   const chargeId = refund.charge && (refund.charge.id || refund.charge);
   const chargeRow = chargeId ? await ctx.db.collection(COL).doc(chargeId).get() : null;
+  // Another company's Connect refund: not in the owner's ledger (2026-11-14).
+  if (await onConnectCharge(refund.charge, chargeRow)) return { id: refund.id, kind: 'connect_tenant_refund', amount: 0 };
   const row = L.refundEntry(refund, OWNER, null);
   const cm = chargeRow && chargeRow.exists ? (chargeRow.data().match || {}) : {};
   row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
@@ -497,6 +510,8 @@ async function ingestDispute(ctx, dp, opts) {
   const o = opts || {};
   const chargeId = dp.charge && (dp.charge.id || dp.charge);
   const chargeRow = chargeId ? await ctx.db.collection(COL).doc(String(chargeId)).get() : null;
+  // Another company's Connect dispute: not in the owner's ledger or review list (2026-11-14).
+  if (await onConnectCharge(dp.charge, chargeRow)) return { id: dp.id, kind: 'connect_tenant_dispute', amount: 0 };
   const row = L.disputeEntry(dp, OWNER, null);
   const cm = chargeRow && chargeRow.exists ? chargeRow.data().match || {} : {};
   row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
