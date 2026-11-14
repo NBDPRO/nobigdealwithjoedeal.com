@@ -126,7 +126,7 @@ const SUBS = {
   for (const [label, uid, token, wantCode] of [
     ['free account, confirmed email', 'u5', { companyId: 'freeCo', email_verified: true, role: 'company_admin' }, 'permission-denied'],
     ['paid company, unconfirmed email', 'u4', { companyId: 'paidCo', email_verified: false, role: 'sales_rep' }, 'permission-denied'],
-    ['viewer on a paid company', 'v1', { companyId: 'paidCo', email_verified: true, role: 'viewer' }, 'permission-denied'],
+    ['viewer on a free company', 'v1', { companyId: 'freeCo', email_verified: true, role: 'viewer' }, 'permission-denied'],
   ]) {
     const r = await call(uid, token);
     ok('dictate: ' + label + ' → ' + wantCode, r.code === wantCode, r);
@@ -141,6 +141,7 @@ const SUBS = {
   for (const [label, uid, token] of [
     ['paid company, confirmed email', 'u2', { companyId: 'paidCo', email_verified: true, role: 'sales_rep' }],
     ['NBD itself, no subscription doc', NBD, { companyId: NBD, email_verified: true, role: 'company_admin' }],
+    ['a viewer on a paid company (dictation writes nothing)', 'v2', { companyId: 'paidCo', email_verified: true, role: 'viewer' }],
   ]) {
     const r = await call(uid, token);
     ok('dictate: ' + label + ' → past the gate (rate limit counted; then the empty audio is refused)', seen.rate === 1 && r.code !== 'permission-denied' && r.code !== 'unavailable', Object.assign({ seen }, r));
@@ -192,6 +193,18 @@ const SUBS = {
     ok('…same for unavailable (plan check down)', r.fellBack === 0 && !!r.thrown);
     r = await runWith(Object.assign(new Error('not found'), { code: 'functions/not-found' }));
     ok('a missing deploy (not-found) still falls back as before', r.fellBack === 1 && !r.thrown);
+  }
+
+  console.log('\n5. the other mics show the plan message, not "transcription failed"');
+  {
+    const fs = require('fs');
+    const ui = fs.readFileSync(path.join(ROOT, 'docs/pro/js/ui.js'), 'utf8');
+    ok('docs/pro/js/ui.js: permission-denied / unavailable show the server\'s message',
+      ui.includes("if ((code === 'permission-denied' || code === 'unavailable') && e.message) { _cmdResetMic(e.message); return; }"));
+    const vmail = fs.readFileSync(path.join(ROOT, 'docs/pro/js/voicemail.js'), 'utf8');
+    ok('docs/pro/js/voicemail.js: permission-denied / unavailable show the server\'s message',
+      vmail.includes("const planRefusal = (code === 'permission-denied' || code === 'unavailable') && e.message;")
+      && vmail.includes('showError(planRefusal ? e.message : '));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
