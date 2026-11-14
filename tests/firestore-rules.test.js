@@ -98,6 +98,8 @@ async function run() {
     await setDoc(doc(db, 'leads/lead41/documents/flagged41'), { name: 'contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41', signedSaveFailed: true });
     await setDoc(doc(db, 'leads/lead41/documents/draft41c'), { name: 'proposal-c.html', status: 'draft', userId: 'owner41' });
     await setDoc(doc(db, 'leads/lead41/documents/sent41c'), { name: 'proposal-s.html', status: 'sent', userId: 'owner41' });
+    // The shape an unsaved remote signature now leaves (Joe 2026-11-14): status unchanged, flag set.
+    await setDoc(doc(db, 'leads/lead41/documents/unsaved41'), { name: 'contract-u.html', status: 'sent', userId: 'owner41', signedSaveFailed: true });
     // §41 legacy top-level /documents twins (2026-09-30).
     await setDoc(doc(db, 'documents/legacySigned41'), { name: 'old-contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
     await setDoc(doc(db, 'documents/legacySigned41b'), { name: 'old-contract-2.html', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
@@ -2747,6 +2749,9 @@ async function run() {
   await x41('same-company manager sets signedSaveFailed on a sent row', 'deny', updateDoc(d41(mgr41, 'sent41c'), { signedSaveFailed: true }));
   await x41('owner creates a row carrying signedSaveFailed', 'deny', setDoc(d41(own41, 'new41-flag'), { name: 'x.html', status: 'draft', signedSaveFailed: true }));
   await x41('same-company manager creates a row carrying signedSaveFailed', 'deny', setDoc(d41(mgr41, 'new41-flag-m'), { name: 'x.html', status: 'draft', signedSaveFailed: false }));
+  await x41('owner clears the flag on an unsaved (status sent) row', 'deny', updateDoc(d41(own41, 'unsaved41'), { signedSaveFailed: deleteField() }));
+  await x41('manager clears the flag on an unsaved row', 'deny', updateDoc(d41(mgr41, 'unsaved41'), { signedSaveFailed: false }));
+  await x41('owner still renames an unsaved row (the flag untouched)', 'allow', updateDoc(d41(own41, 'unsaved41'), { name: 'contract-u2.html' }));
   await x41('owner still edits the draft without the flag', 'allow', updateDoc(d41(own41, 'draft41c'), { name: 'proposal-c2.html' }));
   await x41('manager still creates a plain row', 'allow', setDoc(d41(mgr41, 'new41-plain'), { name: 'y.html', status: 'draft' }));
   await x41('the flagged signed row can still be shared with the homeowner', 'allow', updateDoc(d41(own41, 'flagged41'), { sharedWithHomeowner: true }));

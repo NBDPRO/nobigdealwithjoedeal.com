@@ -380,6 +380,13 @@ exports.createSignRequest = onCall(
     const docSnap = await db.doc(`leads/${leadId}/documents/${docId}`).get();
     if (!docSnap.exists) throw new HttpsError('not-found', 'Document not found');
     const docMeta = docSnap.data();
+    // Joe 2026-11-14: a document that is already signed never gets a new
+    // link (a second signing would overwrite the signed record). The one
+    // exception is a signature whose signed copy could not be saved
+    // (signedSaveFailed): re-sending it is the recovery path.
+    if ((docMeta.signedAt || docMeta.status === 'signed') && docMeta.signedSaveFailed !== true) {
+      throw new HttpsError('failed-precondition', 'This document is already signed. Open the signed copy from the Documents tab; to change it, generate a new document and send that one.');
+    }
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
     // htmlPath is client-written: confine it to THIS lead's own documents/
@@ -800,7 +807,7 @@ exports.submitSignature = onRequest(
     }
     // The stored copy still holds the contract as generated (its old date).
     if (cxl && !recordSaved) cxl.stale = true;
-    if (cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
+    if (recordSaved && cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
     // Both tries to store the signed copy failed (2026-11-14): htmlPath still
     // holds the UNSIGNED original and the token is burned. Flag the document,
     // tell the rep plainly (not "Document signed"), and tell the page so the
@@ -809,10 +816,14 @@ exports.submitSignature = onRequest(
     const ids = { docId: info.docId, leadId: info.leadId, ownerUid: info.ownerUid };
     if (!recordSaved) logger.error('[submitSignature] signed copy NOT saved — document flagged signedSaveFailed', ids);
     const docRef = db.doc(`leads/${info.leadId}/documents/${info.docId}`);
+    // Joe 2026-11-14: an unsaved signature does NOT mark the document signed.
+    // No status / signedAt / signedRemotely (customer-documents.js infers
+    // "signed" from any of them), so it keeps reading "sent" with the
+    // warning; unsavedSignatureAt records when the signature came in.
     const docPatch = {
-      status: 'signed',
-      signedAt: FieldValue.serverTimestamp(),
-      signedRemotely: true,
+      ...(recordSaved
+        ? { status: 'signed', signedAt: FieldValue.serverTimestamp(), signedRemotely: true }
+        : { unsavedSignatureAt: FieldValue.serverTimestamp() }),
       remoteSignerName: info.signerName || null,
       // htmlPath now holds the signed copy (unchanged behaviour for the
       // documents tab); this is the untouched original we served.
@@ -827,7 +838,7 @@ exports.submitSignature = onRequest(
       ...(recordSaved
         ? { signedSha256: sha(recordHtml), signedSaveFailed: FieldValue.delete() }
         : { signedSha256: null, unsavedRecordSha256: sha(recordHtml), signedSaveFailed: true }),
-      ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+      ...(cancelBy && recordSaved ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
     };
     const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
     const note = {
@@ -881,11 +892,14 @@ exports.submitSignature = onRequest(
         }
       }
     }
-    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
+    // Joe 2026-11-14: with no stored signed copy the job does not advance and
+    // no cancel-by date is stamped; the rep re-sends (createSignRequest allows
+    // it for a signedSaveFailed document) and the good signing does both.
+    if (cancelBy && recordSaved) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
-    await spineAfterRemoteSign(db, info);
+    if (recordSaved) await spineAfterRemoteSign(db, info);
     if (!notified) {
       try { await db.collection('notifications').add(note); } catch (e) {
         if (recordSaved) logger.warn('[submitSignature] notify failed', { msg: e.message });

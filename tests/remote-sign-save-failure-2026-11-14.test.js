@@ -10,8 +10,10 @@
  *
  * Now: the document is flagged signedSaveFailed, the rep's notification says
  * the signed copy was NOT saved, the response carries saved:false, the sign
- * page tells the homeowner the contractor will confirm. (The CRM documents-row
- * warning is held behind the customer page's boot budget: see KNOWN BUG below.)
+ * page tells the homeowner the contractor will confirm, the CRM documents row
+ * warns, and (Joe, 2026-11-14) the document is NOT marked signed, the job does
+ * not advance, no cancel-by date is stamped, and an already-signed document
+ * cannot be sent for signature again (a flagged one can: the recovery path).
  *
  * Drives the real handler against stubbed firebase modules (the harness from
  * remote-signing-record-and-path-2026-10-05.test.js). Zero network.
@@ -88,6 +90,7 @@ function makeStorage(files, failSave) {
 }
 const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
 const LOGS = [];
+const SPINE = [];
 function loadFn(db, storage) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
@@ -105,7 +108,7 @@ function loadFn(db, storage) {
     './integrations/_shared': { secretOr: (_s, d) => d },
     './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => '' },
-    './job-spine': { spineAfterRemoteSign: async () => ({}) },
+    './job-spine': { spineAfterRemoteSign: async (_db, info) => { SPINE.push(info && info.docId); return {}; } },
     resend: { Resend: class { constructor() { this.emails = { send: async () => ({ data: { id: 'm1' } }) }; } } },
   };
   const req = (id) => {
@@ -173,9 +176,10 @@ async function submit(failSave, opts) {
     'leads/L1/documents/d1': Object.assign({ name: 'Roofing Agreement', status: 'sent', htmlPath: GOOD_PATH }, opts.docExtra || {}),
     'doc_sign_tokens/TOKSAVE00001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'U1', htmlPath: GOOD_PATH, signerName: 'Dana Whitfield' },
   }), opts.failTimes);
-  const st = makeStorage({ [GOOD_PATH]: ORIGINAL }, failSave);
-  const s = reqRes({ token: 'TOKSAVE00001', signedHtml: widgetSign(ORIGINAL) });
-  LOGS.length = 0;
+  const original = opts.original || ORIGINAL;
+  const st = makeStorage({ [GOOD_PATH]: original }, failSave);
+  const s = reqRes({ token: 'TOKSAVE00001', signedHtml: widgetSign(original) });
+  LOGS.length = 0; SPINE.length = 0;
   const fns = loadFn(db, st);
   await fns.submitSignature(s.req, s.res);
   const notes = [...db._store.entries()].filter(([k]) => k.startsWith('notifications/')).map(([, v]) => v);
@@ -187,6 +191,7 @@ async function submit(failSave, opts) {
     stored: st._files.get(GOOD_PATH).toString('utf8'), notes, activity, logs: LOGS.slice(),
     burned: db._store.get('doc_sign_tokens/TOKSAVE00001').status === 'signed',
     reload: { status: reload.res.statusCode, body: reload.res.body || {} },
+    lead: db._store.get('leads/L1') || {}, spine: SPINE.slice(),
   };
 }
 
@@ -281,6 +286,56 @@ async function docRow(row) {
     ok('sign.html cache-busts the changed sign-page.js (v=5)', /js\/sign-page\.js\?v=5"/.test(html));
   }
 
+  section('6. Joe\'s decisions (2026-11-14)');
+  {
+    // A contract carrying the Notice of Right to Cancel, so the cancel-by
+    // stamp is really exercised (no packet → no cancelBy at all).
+    const KY = require(path.join(FN, 'ky-insurance-law.js'));
+    const packet = KY.cancelPacketHtml({ transactionDate: '2026-01-05', timeZone: 'America/New_York', sellerName: 'No Big Deal Home Solutions',
+      sellerAddress: '4400 Test Pike, Cincinnati, OH 45202', email: 'info@example.test', homeownerName: 'Dana Whitfield',
+      propertyAddress: '902 Ridge Rd, Cincinnati, OH 45230', state: 'OH', kyInsurance: false });
+    const WITH_PACKET = ORIGINAL.replace('</body>', packet + '\n</body>');
+
+    const okSave = await submit(null, { original: WITH_PACKET });
+    ok('fixture check: a saved signing stamps the lead cancelBy and runs the job spine',
+      /^\d{4}-\d{2}-\d{2}$/.test(okSave.lead.cancelBy || '') && okSave.spine.length === 1, JSON.stringify({ cancelBy: okSave.lead.cancelBy, spine: okSave.spine, status: okSave.status, body: okSave.body }));
+
+    // 1. Save failed: the job does not advance and no screen reads "signed".
+    const bad = await submit((p) => p === GOOD_PATH, { original: WITH_PACKET });
+    ok('save failed: the job spine does NOT run', bad.spine.length === 0, JSON.stringify(bad.spine));
+    ok('save failed: no cancel-by date is stamped on the lead', !('cancelBy' in bad.lead), JSON.stringify(bad.lead));
+    ok('save failed: no cancel-by date on the document either', !('cancelBy' in bad.doc), JSON.stringify(bad.doc.cancelBy));
+    ok('save failed: the document keeps its pre-signing status (not "signed")', bad.doc.status === 'sent', String(bad.doc.status));
+    ok('save failed: no signedAt / signedRemotely (the CRM infers "signed" from either)', !('signedAt' in bad.doc) && !('signedRemotely' in bad.doc), JSON.stringify(bad.doc));
+    ok('save failed: when the signature came in is still recorded (unsavedSignatureAt)', !!bad.doc.unsavedSignatureAt && bad.doc.signedSaveFailed === true);
+    ok('save failed: the rep is still alerted', bad.notes.length === 1 && /NOT saved/.test(bad.notes[0].title));
+  }
+  {
+    // 2. No new link for a document that is already properly signed; a
+    // document whose save failed may get one (the recovery path).
+    async function mint(docExtra) {
+      const db = makeDb(world({ 'leads/L1/documents/d1': Object.assign({ name: 'Roofing Agreement', htmlPath: GOOD_PATH }, docExtra) }));
+      const st = makeStorage({ [GOOD_PATH]: ORIGINAL });
+      const fns = loadFn(db, st);
+      try {
+        const v = await fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test' } });
+        return { v, tokens: [...db._store.keys()].filter((k) => k.startsWith('doc_sign_tokens/')).length };
+      } catch (e) { return { e, tokens: [...db._store.keys()].filter((k) => k.startsWith('doc_sign_tokens/')).length }; }
+    }
+    const signed = await mint({ status: 'signed', signedAt: 'FV:ts' });
+    ok('already signed: createSignRequest refuses (failed-precondition) and mints no token',
+      !!signed.e && signed.e.code === 'failed-precondition' && signed.tokens === 0, signed.e ? signed.e.code + ' ' + signed.e.message : 'minted');
+    ok('…with a message that says it is already signed', !!signed.e && /already signed/i.test(signed.e.message));
+    const signedAtOnly = await mint({ signedAt: 'FV:ts' });
+    ok('a legacy row with only signedAt is refused too', !!signedAtOnly.e && signedAtOnly.tokens === 0);
+    const recover = await mint({ status: 'sent', signedSaveFailed: true, unsavedSignatureAt: 'FV:ts' });
+    ok('save failed: a new link CAN be minted (recovery path)', !recover.e && recover.tokens === 1, recover.e ? recover.e.message : '');
+    const stale = await mint({ status: 'signed', signedAt: 'FV:ts', signedSaveFailed: true });
+    ok('a signed row that also carries signedSaveFailed may be re-sent (recovery)', !stale.e && stale.tokens === 1, stale.e ? stale.e.message : '');
+    const fresh = await mint({ status: 'draft' });
+    ok('an unsigned draft still mints', !fresh.e && fresh.tokens === 1, fresh.e ? fresh.e.message : '');
+  }
+
   section('4. the homeowner and the rep see it');
   {
     const page = fs.readFileSync(path.join(ROOT, 'docs/pro/js/sign-page.js'), 'utf8');
@@ -289,15 +344,15 @@ async function docRow(row) {
     ok('…and that branch does not say "All done" or "recorded", and names the contractor',
       !!branch && !/All done|recorded/.test(branch) && /contractor/i.test(branch), branch.slice(0, 200));
 
-    // KNOWN BUG (held, 2026-11-14): the CRM documents row still shows "✓ Signed"
-    // for a signedSaveFailed document. The row warning (~190 B minified in
-    // customer-documents.js) would push docs/pro/customer.html past its shipped
-    // boot budget (tests/dashboard-boot-budget-2026-10-03.test.js: 10 B of
-    // headroom on main), and raising that ceiling is Jo's call. The rep is told
-    // by the high-priority notification above. Flip this pin in the PR that
-    // adds the row warning.
-    const bad = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, signedSaveFailed: true, htmlPath: GOOD_PATH });
-    ok('KNOWN BUG (held): the CRM documents row does not yet warn — it still shows "✓ Signed"', /✓ Signed/.test(bad) && !/not saved/i.test(bad), bad.slice(0, 300));
+    // The CRM documents row warns (Joe 2026-11-14: put it back; the boot-budget
+    // raise rides with it until the conductor's own raise lands).
+    // The row as submitSignature now leaves it: status unchanged ('sent'), the flag set.
+    const bad = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'sent', signedSaveFailed: true, htmlPath: GOOD_PATH });
+    ok('CRM documents row warns the signed copy was not saved', /not saved/i.test(bad), bad.slice(0, 300));
+    ok('…and does not show "✓ Signed" or plain "Awaiting signature"', !/✓ Signed/.test(bad) && !/Awaiting signature/.test(bad));
+    // A row flagged under the round-2 shape (status signed) warns too.
+    const bad2 = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, signedSaveFailed: true, htmlPath: GOOD_PATH });
+    ok('a flagged row stamped signed also warns, not "✓ Signed"', /not saved/i.test(bad2) && !/✓ Signed/.test(bad2));
     const good = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, htmlPath: GOOD_PATH });
     ok('a normally signed row still shows "✓ Signed"', /✓ Signed/.test(good) && !/not saved/i.test(good));
   }
