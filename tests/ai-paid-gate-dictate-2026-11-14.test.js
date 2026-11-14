@@ -50,6 +50,9 @@ const SUBS = {
   freeCo: { plan: 'free', status: 'none' },
   lapsedCo: { plan: 'pro', status: 'canceled' },
   soloPaid: { plan: 'starter', status: 'active' },
+  codeExpired: { plan: 'growth', status: 'active', source: 'access_code', trialEndsAt: { toMillis: () => Date.now() - 86_400_000 } },
+  codeLive: { plan: 'growth', status: 'active', source: 'access_code', trialEndsAt: { toMillis: () => Date.now() + 86_400_000 } },
+  codeComp: { plan: 'growth', status: 'active', source: 'access_code' },
 };
 
 (async () => {
@@ -71,6 +74,9 @@ const SUBS = {
       ['no subscription doc at all', { companyId: 'ghostCo', email_verified: true }, 'u7', false, 'plan'],
       ['company_admin role is NOT an exemption', { role: 'company_admin', companyId: 'freeCo', email_verified: true }, 'u8', false, 'plan'],
       ['the plan is the COMPANY\'s, not the user\'s own uid', { companyId: 'freeCo', email_verified: true }, 'soloPaid', false, 'plan'],
+      ['an access-code trial past its end date is free', { companyId: 'codeExpired', email_verified: true }, 'u10', false, 'plan'],
+      ['an access-code trial still running is allowed', { companyId: 'codeLive', email_verified: true }, 'u11', true],
+      ['an access-code comp with no end date is allowed', { companyId: 'codeComp', email_verified: true }, 'u12', true],
     ];
     for (const [label, claims, uid, want, reason] of cases) {
       const r = await G.aiEntitlement(db, claims, uid);
@@ -84,6 +90,7 @@ const SUBS = {
       paidRep: { emailVerified: true, customClaims: { companyId: 'paidCo', role: 'sales_rep' } },
       freeOwner: { emailVerified: true, customClaims: { companyId: 'freeCo', role: 'company_admin' } },
       unconfirmed: { emailVerified: false, customClaims: { companyId: 'paidCo' } },
+      disabledRep: { emailVerified: true, disabled: true, customClaims: { companyId: 'paidCo', role: 'sales_rep' } },
       [NBD]: { emailVerified: true, customClaims: {} },
     };
     const getUser = async (u) => { if (!users[u]) throw new Error('auth/user-not-found'); return users[u]; };
@@ -92,6 +99,7 @@ const SUBS = {
     ok('by uid: a free owner → refused', (await byUid('freeOwner')).ok === false);
     ok('by uid: unconfirmed email → refused', (await byUid('unconfirmed')).reason === 'unverified');
     ok('by uid: NBD → allowed', (await byUid(NBD)).ok === true);
+    ok('by uid: a disabled (deactivated) rep of a paid company → refused', (await byUid('disabledRep')).ok === false);
     ok('by uid: a failed Auth lookup fails closed', (await byUid('nobody')).reason === 'plan_check_failed');
   }
 

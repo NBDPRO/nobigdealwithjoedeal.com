@@ -31,8 +31,13 @@ const MESSAGES = {
   plan_check_failed: 'Could not check your plan. Try again shortly.',
 };
 
-function isPaidSubscription(s) {
-  return !!(s && s.plan && s.plan !== 'free' && (s.status === 'active' || s.status === 'trialing'));
+function isPaidSubscription(s, nowMs) {
+  if (!(s && s.plan && s.plan !== 'free' && (s.status === 'active' || s.status === 'trialing'))) return false;
+  // An access-code trial past its trialEndsAt is free (billing.js reads it
+  // the same way; nothing ever downgrades the doc itself).
+  if (s.source === 'access_code' && s.trialEndsAt && typeof s.trialEndsAt.toMillis === 'function'
+    && s.trialEndsAt.toMillis() < (nowMs || Date.now())) return false;
+  return true;
 }
 
 async function aiEntitlement(db, claims, uid) {
@@ -63,6 +68,7 @@ async function aiEntitlementForUid(db, uid, opts) {
   } catch (_) {
     return { ok: false, reason: 'plan_check_failed' };
   }
+  if (rec && rec.disabled === true) return { ok: false, reason: 'plan' }; // a deactivated account spends nothing
   const c = (rec && rec.customClaims) || {};
   return aiEntitlement(db, { role: c.role, companyId: c.companyId, email_verified: !!(rec && rec.emailVerified) }, uid);
 }
