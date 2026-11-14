@@ -33,6 +33,9 @@ console.log('\n1. miss tax: Sundays are free, like the streak');
   ok('a week that only skipped Sunday owes nothing', w.missTaxCents === 0, String(w.missTaxCents));
   const offMonday = all.map((p) => (p.dk === '2026-11-09' ? page(p.dk, []) : p));
   ok('control: the same two misses on a Monday cost $10', R.weekFloors(offMonday, F, '2026-11-15', 500).missTaxCents === 1000);
+  const snap = R.snapshotDoc({ week: w, floors: F, todayDk: '2026-11-15' }, 1763200000000);
+  const sw = (snap && (snap.week || (snap.body && snap.body.week))) || {};
+  ok('the snapshot the personal bots read carries the taxed count next to the tax (not only the raw misses)', sw.taxedMisses === 0 && sw.missTaxCents === 0 && sw.misses === 2, JSON.stringify(sw));
   ok('a Sunday with NO page is not taxed either', R.weekFloors(all.filter((p) => p.dk !== '2026-11-08'), F, '2026-11-15', 500).missTaxCents === 0);
 }
 

@@ -171,7 +171,7 @@
     const body = {
       today: { dk: x.todayDk || null, floors, allMet: floors.length > 0 && floors.every((f) => f.met) },
       streak: x.streak ? { count: x.streak.count, warned: !!x.streak.warned, broken: !!x.streak.broken } : null,
-      week: x.week ? { from: x.week.from, to: x.week.to, pct: x.week.pct, fullDays: x.week.fullDays, misses: x.week.misses, missTaxCents: x.week.missTaxCents,
+      week: x.week ? { from: x.week.from, to: x.week.to, pct: x.week.pct, fullDays: x.week.fullDays, misses: x.week.misses, taxedMisses: x.week.taxedMisses, missTaxCents: x.week.missTaxCents,
         rows: x.week.rows.map((r) => ({ label: String(r.label || '').slice(0, 60), hit: r.hit, of: r.of })) } : null,
       weight: x.trend ? { latest: x.trend.latest, avg7: x.trend.avg7, change7: x.trend.change7, verdict: x.rule ? x.rule.verdict : null, text: x.rule ? x.rule.text : '' } : null,
       goal: x.goal ? { now: x.goal.now, goal: x.goal.goal, left: x.goal.left } : null,
