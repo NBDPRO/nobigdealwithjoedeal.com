@@ -758,13 +758,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const p = list[index];
     if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
     if (!(toCents(Number(p.amount)) > 0)) return 'That entry is not a payment';
-    if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger'
-        || typeof p.recordedBy !== 'string' || !p.recordedBy) {
+    // Frozen fields only (amount, at, method, recordedBy), as the server decides.
+    if (p.method === 'stripe' || typeof p.recordedBy !== 'string' || !p.recordedBy) {
       return 'Card and bank payments made online are refunded in Stripe, not reversed here';
     }
     if (!isManualPaymentMethod(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
-    if (typeof p.paymentId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(p.paymentId)) {
-      return 'This older payment has no id to reverse — ask for help fixing it';
+    if (Array.isArray(inv.stripeCreditKeys) && inv.stripeCreditKeys.length > 0 && (p.method === 'card' || p.method === 'ach')) {
+      return 'This invoice has Stripe money matched to it — ask for help reversing a card or bank payment here';
     }
     if (reversalPairs(list).has(index)) return 'That payment is already reversed';
     if (!(_tsMs(p.at) > 0)) return 'That payment has no date';
@@ -3468,7 +3468,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const c = (typeof window !== 'undefined' && window._userClaims) || {};
     const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
     if (!u || c.role === 'viewer') return false;
-    if (c.owner === true) return true;
+    // company_admin too: the owner of a company is usually its company_admin, and the owner claim is not always
+    // minted. The callable checks companies/{id}.ownerId and tells a non-owner admin so in plain words.
+    if (c.owner === true || c.role === 'company_admin') return true;
     return !c.role && (!c.companyId || c.companyId === u);
   }
   function _isOwnerSide() {
@@ -3749,7 +3751,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (!_isCompanyOwner()) { _toast('Only the company owner can reverse a payment.', 'error'); return false; }
     const db = getDb();
     const invRef = window.doc(db, 'invoices', invoiceId);
-    let amount, paymentId;
+    let amount, fingerprint;
     try {
       const snap = await window.getDoc(invRef);
       if (!snap.exists()) throw new Error('Invoice not found');
@@ -3763,7 +3765,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const why = reversalBlockedReason(inv, index);
       if (why) throw new Error(why);
       amount = Number(p.amount) || 0;
-      paymentId = p.paymentId;
+      // The frozen fingerprint of the row the owner tapped (the rules never let anyone change these four).
+      fingerprint = { index, cents: toCents(amount), atMs: _tsMs(p.at), method: p.method, recordedBy: p.recordedBy };
     } catch (e) { _toast((e && e.message) || 'Could not load the invoice', 'error'); return false; }
 
     const ask = (typeof window.nbdPrompt === 'function')
@@ -3786,7 +3789,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
-      const res = await window._httpsCallable(window._functions, 'reversePayment')({ invoiceId, paymentId, reason, cents: toCents(amount) });
+      const res = await window._httpsCallable(window._functions, 'reversePayment')(Object.assign({ invoiceId, reason }, fingerprint));
       const out = (res && res.data) || {};
       if (out.ok !== true) throw new Error('the server did not confirm the reversal');
       _toast('Payment reversed', 'success');

@@ -71,15 +71,18 @@ function reversalBlockedReason(invoice, index) {
   const p = list[index];
   if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
   if (!(cents(p.amount) > 0)) return 'That entry is not a payment';
-  // recordedBy is set on every payment typed in the CRM (the rules force it) and frozen; no Stripe / ACH
-  // server writer sets it. Keyed on it rather than on stripeRef / source, which an editor could strip.
-  if (p.method === 'stripe' || p.paymentIntentId || p.stripeRef || p.source === 'stripe_ledger'
-      || typeof p.recordedBy !== 'string' || !p.recordedBy) {
+  // Decided ONLY from frozen fields (the rules freeze amount, at, method, recordedBy on an existing entry):
+  // recordedBy is set on every payment typed in the CRM and on none the Stripe / ACH servers write. stripeRef,
+  // source, paymentIntentId and paymentId are NOT used here: an editor could add or strip them to block a
+  // reversal or to make Stripe money look typed-in (security review 2026-11-14).
+  if (p.method === 'stripe' || typeof p.recordedBy !== 'string' || !p.recordedBy) {
     return 'Card and bank payments made online are refunded in Stripe, not reversed here';
   }
   if (!MANUAL_METHODS.includes(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
-  if (typeof p.paymentId !== 'string' || !PAYMENT_ID_RE.test(p.paymentId)) {
-    return 'This older payment has no id to reverse — ask for help fixing it';
+  // A typed-in payment the Stripe ledger matched to a real charge: reversing it would lose that charge for good
+  // (the charge key stays "credited"), so the owner fixes it by hand instead.
+  if (Array.isArray(inv.stripeCreditKeys) && inv.stripeCreditKeys.length > 0 && (p.method === 'card' || p.method === 'ach')) {
+    return 'This invoice has Stripe money matched to it — ask for help reversing a card or bank payment here';
   }
   if (reversalPairs(list).has(index)) return 'That payment is already reversed';
   if (!(tsMs(p.at) > 0)) return 'That payment has no date';
@@ -111,14 +114,19 @@ function planReversal(invoice, index, o) {
     at: orig.at,                    // its own date value, unchanged (a Timestamp stays one)
     method: orig.method,
     reversal: true,
-    reverses: orig.paymentId,
+    reverses: typeof orig.paymentId === 'string' ? orig.paymentId : null,   // display only; never trusted
     reversesIndex: index,
     reason,
     recordedBy: String(o.by || ''),
     recordedAt: now,
-    paymentId: 'rev_' + orig.paymentId.slice(0, 60),
+    paymentId: 'rev_' + index + '_' + tsMs(orig.at) + '_' + amtC,
   };
   list.push(entry);
+  // Two identical payments (same amount, date and method): every reader pairs a reversal with the EARLIER one,
+  // so reversing the later twin would show the wrong one as reversed. Refuse and say which to reverse.
+  if (reversalPairs(list).get(index) !== list.length - 1) {
+    throw new Error('There is an identical earlier payment (same amount, date and method) — reverse that one first');
+  }
   const totalC = cents(Math.max(0, Number(inv.total) || 0));
   const newPaidC = Math.max(0, cents(Math.max(0, Number(inv.amountPaid) || 0)) - amtC);
   const balC = Math.max(0, totalC - newPaidC);
@@ -176,14 +184,19 @@ async function handleReversePayment(request, deps) {
   assertNotViewer(auth.token || {});
   const data = (request && request.data) || {};
   const invoiceId = typeof data.invoiceId === 'string' ? data.invoiceId : '';
-  const paymentId = typeof data.paymentId === 'string' ? data.paymentId : '';
   const reason = cleanReason(data.reason);
-  // The amount the owner saw and confirmed: the entry must still carry it (paymentId alone is editable).
+  // WHICH payment: its index plus the FROZEN fingerprint the owner saw and confirmed (amount, date, method,
+  // recorder). paymentId is not used to pick it: any invoice editor can rewrite it (security review 2026-11-14).
+  const index = Number(data.index);
   const expectCents = Number(data.cents);
+  const expectAtMs = Number(data.atMs);
+  const expectMethod = typeof data.method === 'string' ? data.method : '';
+  const expectBy = typeof data.recordedBy === 'string' ? data.recordedBy : '';
   if (!ID_RE.test(invoiceId)) throw new HttpsError('invalid-argument', 'invoiceId is required');
-  if (!PAYMENT_ID_RE.test(paymentId)) throw new HttpsError('invalid-argument', 'paymentId is required');
   if (!reason) throw new HttpsError('invalid-argument', 'Say why the payment is reversed');
+  if (!Number.isInteger(index) || index < 0 || index > 100) throw new HttpsError('invalid-argument', 'index is required');
   if (!Number.isInteger(expectCents) || expectCents <= 0) throw new HttpsError('invalid-argument', 'cents is required');
+  if (!Number.isFinite(expectAtMs) || !expectMethod || !expectBy) throw new HttpsError('invalid-argument', 'the payment\'s date, method and recorder are required');
 
   const db = (deps && deps.db) || require('firebase-admin/firestore').getFirestore();
   const now = (deps && deps.now) || new Date();
@@ -201,15 +214,18 @@ async function handleReversePayment(request, deps) {
     // The same answer for "not in your company" and "not the owner": nothing leaks across tenants.
     if (!isCompanyOwner(auth, inv, company)) throw new HttpsError('permission-denied', 'Only the company owner can reverse a payment.');
     const list = Array.isArray(inv.payments) ? inv.payments : [];
-    const index = list.findIndex((p) => p && p.paymentId === paymentId && cents(p.amount) === expectCents);
-    if (index < 0) throw new HttpsError('failed-precondition', 'That payment changed — reopen the invoice and try again');
+    const p = list[index];
+    if (!p || cents(p.amount) !== expectCents || tsMs(p.at) !== expectAtMs || p.method !== expectMethod || p.recordedBy !== expectBy) {
+      throw new HttpsError('failed-precondition', 'That payment changed — reopen the invoice and try again');
+    }
+    const paymentId = typeof p.paymentId === 'string' ? p.paymentId : null;
     let plan;
     try { plan = planReversal(inv, index, { reason, by: auth.uid, now }); }
     catch (e) { throw new HttpsError('failed-precondition', (e && e.message) || 'This payment cannot be reversed'); }
     tx.update(ref, plan.patch);
     // The record nobody can edit: payments[] entries keep only amount, date, method and recorder frozen, so
     // the reason and who reversed what are kept here too (server-only: the rules' catch-all denies clients).
-    tx.create(db.collection('payment_reversals').doc(invoiceId + '_' + plan.entry.paymentId), {
+    tx.create(db.collection('payment_reversals').doc(invoiceId + '_' + plan.entry.paymentId), {   // id from frozen fields
       invoiceId, companyId: inv.companyId, leadId: inv.leadId || null,
       paymentId, paymentIndex: index, cents: -Math.round(plan.entry.amount * 100),
       paymentAt: plan.entry.at, method: plan.entry.method, reason, byUid: auth.uid, at: now,
@@ -218,7 +234,7 @@ async function handleReversePayment(request, deps) {
   });
   try {
     require('firebase-functions/v2').logger.info('payment_reversed', {
-      invoiceId, paymentId, cents: result.cents, byUid: auth.uid, status: result.plan.patch.status,
+      invoiceId, index, cents: result.cents, byUid: auth.uid, status: result.plan.patch.status,
     });
   } catch (_) { /* logging never fails the reversal */ }
   return { ok: true, amountPaid: result.plan.patch.amountPaid, balanceDue: result.plan.patch.balanceDue, status: result.plan.patch.status };

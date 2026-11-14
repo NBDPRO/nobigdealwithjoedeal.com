@@ -72,7 +72,7 @@ if (IP && PR && typeof PR.planReversal === 'function' && typeof IP.reversalBlock
   ok('dated the day the original said the money came in', e.at.getTime() === typo.at.getTime());
   ok('same method; who and when it was recorded', e.method === 'check' && e.recordedBy === 'owner1' && e.recordedAt === now);
   ok('carries the reason', e.reason === 'Typed $40,000 for a $4,000 check');
-  ok('its own id', /^rev_p_typo$/.test(e.paymentId));
+  ok('its own id, built from frozen fields (index, date, cents)', e.paymentId === 'rev_0_' + typo.at.getTime() + '_4000000', e.paymentId);
   ok('amountPaid falls by the whole amount', r.patch.amountPaid === 0, String(r.patch.amountPaid));
   ok('the full $4,000 is owed again', r.patch.balanceDue === 4000);
   ok('no longer paid, paidAt cleared, deposit not paid', r.patch.status === 'sent' && r.patch.paidAt === null && r.patch.depositPaid === false);
@@ -101,7 +101,7 @@ if (IP && PR && typeof PR.planReversal === 'function' && typeof IP.reversalBlock
   const ledgerInv = typoInv(); ledgerInv.payments = [{ paymentId: 'x1', amount: 4000, at: D(2026, 10, 2), method: 'card', stripeRef: 'ch_1' }];
   ok('a Stripe-ledger card entry is not reversible either', /Stripe/.test(IP.reversalBlockedReason(ledgerInv, 0)));
   const legacy = typoInv(); delete legacy.payments[0].paymentId; delete legacy.payments[0].id;
-  ok('an old entry with no id cannot be reversed (nothing to name)', /no id/.test(IP.reversalBlockedReason(legacy, 0)));
+  ok('an old typed-in entry with no paymentId CAN be reversed (it is picked by its frozen fields)', IP.reversalBlockedReason(legacy, 0) === '');
   ok('a void invoice: refused', /voided/.test(IP.reversalBlockedReason(Object.assign(typoInv(), { status: 'void' }), 0)));
   ok('a sending invoice: refused', /being sent/.test(IP.reversalBlockedReason(Object.assign(typoInv(), { status: 'sending' }), 0)));
   ok('no such entry: refused', IP.reversalBlockedReason(typoInv(), 3) !== '');
@@ -214,7 +214,9 @@ async function callableChecks() {
     try { return { out: await PR.handleReversePayment({ auth, data }, { db, now: D(2026, 11, 14) }) }; }
     catch (e) { return { err: e }; }
   };
-  const good = { invoiceId: 'inv1', paymentId: 'p_typo', reason: 'Typed $40,000 for a $4,000 check', cents: 4000000 };
+  // The row the owner tapped: its index plus its FROZEN fingerprint (amount, date, method, recorder).
+  const fp = (p, index) => ({ index, cents: Math.round(p.amount * 100), atMs: new Date(p.at).getTime(), method: p.method, recordedBy: p.recordedBy });
+  const good = Object.assign({ invoiceId: 'inv1', reason: 'Typed $40,000 for a $4,000 check' }, fp(typo, 0));
   const owner = { uid: 'carol', token: { role: 'company_admin', companyId: 'co-a' } };
 
   let db = fakeDb(seedA());
@@ -238,12 +240,12 @@ async function callableChecks() {
   const tampered = JSON.parse(JSON.stringify(done));
   tampered.payments[1].reversal = false; tampered.payments[1].reverses = 'something_else'; tampered.payments[0].paymentId = 'p_renamed';
   db = fakeDb(seedA(tampered));
-  r = await call(owner, Object.assign({}, good, { paymentId: 'p_renamed' }), db);
+  r = await call(owner, good, db);
   ok('flags / ids rewritten by an editor do not reopen a reversed payment (no double reversal)', !!r.err && /already/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
   const realPlusTypo = Object.assign(base(), { amountPaid: 44000, payments: [
     { paymentId: 'p1', amount: 4000, at: D(2026, 10, 1), method: 'check', recordedBy: 'rep1' }, Object.assign({}, typo)] });
   db = fakeDb(seedA(realPlusTypo));
-  r = await call(owner, good, db);
+  r = await call(owner, Object.assign({}, good, fp(typo, 1)), db);
   const afterTwo = JSON.parse(JSON.stringify(db.docs.get('invoices/inv1')));
   afterTwo.payments[2].reverses = 'p1';           // point the reversal at the real payment
   const rowsT = IP.paymentHistoryRows(Object.assign({}, afterTwo, { payments: afterTwo.payments.map((p) => Object.assign({}, p, { at: new Date(p.at) })) }));
@@ -267,8 +269,31 @@ async function callableChecks() {
   ok('a missing invoice gets the same answer as another company\'s (nothing leaks)', missing.err && foreign.err && missing.err.code === foreign.err.code && missing.err.message === foreign.err.message, (missing.err && missing.err.code) + ' / ' + (foreign.err && foreign.err.code));
   const full = Object.assign(base(), { payments: Array.from({ length: 15 }, (_, k) => ({ paymentId: 'q' + k, amount: 100, at: D(2026, 10, 1), method: 'cash', recordedBy: 'rep1' })) });
   db = fakeDb(seedA(full));
-  r = await call(owner, Object.assign({}, good, { paymentId: 'q3', cents: 10000 }), db);
+  r = await call(owner, Object.assign({}, good, fp(full.payments[3], 3)), db);
   ok('refused: an invoice with 15 payment lines (a 16th would lock it for the browser)', !!r.err && /too many/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  // Second security pass: the entry is picked by index + frozen fingerprint, never by paymentId.
+  const R1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 1), method: 'check', recordedBy: 'alice' };
+  const F1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 20), method: 'cash', recordedBy: 'alice' };   // a rep renamed the fake to the real one's id
+  db = fakeDb(seedA(Object.assign(base(), { total: 10000, amountPaid: 10000, payments: [R1, F1] })));
+  r = await call(owner, Object.assign({}, good, fp(F1, 1)), db);
+  const wA = (db.writes.find((x) => x[0] === 'invoices/inv1') || [])[1];
+  ok('a renamed paymentId cannot steer the reversal onto the real check: the tapped row (Oct 20 cash) is the one reversed',
+    r.out && wA && new Date(wA.payments[2].at).getTime() === D(2026, 10, 20).getTime() && wA.payments[2].method === 'cash', r.err ? r.err.message : JSON.stringify(wA && wA.payments[2]));
+  const stripped = Object.assign({}, typo, { stripeRef: 'ch_x', source: 'stripe_ledger' }); delete stripped.paymentId;
+  db = fakeDb(seedA(Object.assign(base(), { payments: [stripped] })));
+  r = await call(owner, good, db);
+  ok('an editor adding stripeRef / deleting paymentId cannot block the owner\'s reversal of a typed-in payment', r.out && r.out.ok === true, r.err && r.err.message);
+  const twinA = { paymentId: 'a', amount: 5000, at: D(2026, 10, 3), method: 'check', recordedBy: 'alice' };
+  const twinB = Object.assign({}, twinA, { paymentId: 'b' });
+  db = fakeDb(seedA(Object.assign(base(), { total: 10000, amountPaid: 10000, payments: [twinA, twinB] })));
+  r = await call(owner, Object.assign({}, good, fp(twinB, 1)), db);
+  ok('two identical payments: reversing the later twin is refused (readers would mark the earlier one)', !!r.err && /identical earlier/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  r = await call(owner, Object.assign({}, good, fp(twinA, 0)), db);
+  ok('...the earlier twin can be reversed', r.out && r.out.ok === true, r.err && r.err.message);
+  const cardTypo = Object.assign({}, typo, { method: 'card' });
+  db = fakeDb(seedA(Object.assign(base(), { stripeCreditKeys: ['ch_1'], payments: [cardTypo] })));
+  r = await call(owner, Object.assign({}, good, fp(cardTypo, 0)), db);
+  ok('a typed-in card payment on an invoice with Stripe money matched to it is refused (would lose the charge)', !!r.err && /Stripe money matched/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
   const SL = req('functions/stripe-ledger-logic.js');
   if (SL) {
     const cu = { id: 'cu', leadId: 'L', status: 'paid', total: 10000, amountPaid: 10000, payments: [
@@ -303,8 +328,12 @@ async function callableChecks() {
   for (const [label, data] of [
     ['no reason', Object.assign({}, good, { reason: '   ' })],
     ['a bad invoice id', Object.assign({}, good, { invoiceId: '../x' })],
-    ['no payment id', Object.assign({}, good, { paymentId: '' })],
-    ['an unknown payment id', Object.assign({}, good, { paymentId: 'p_nope' })],
+    ['no index', Object.assign({}, good, { index: undefined })],
+    ['an index past the list', Object.assign({}, good, { index: 7 })],
+    ['a different date than the row shows', Object.assign({}, good, { atMs: good.atMs + 86400000 })],
+    ['a different method than the row shows', Object.assign({}, good, { method: 'cash' })],
+    ['a different recorder than the row shows', Object.assign({}, good, { recordedBy: 'someone' })],
+    ['no recorder in the request', Object.assign({}, good, { recordedBy: '' })],
     ['a missing invoice', Object.assign({}, good, { invoiceId: 'nope' })],
   ]) {
     db = fakeDb(seedA());
@@ -312,8 +341,9 @@ async function callableChecks() {
     ok('refused: ' + label + ' (nothing written)', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
   }
   db = fakeDb(seedA(Object.assign(base(), { payments: [{ paymentId: 'p_typo', amount: 4000, at: D(2026, 10, 2), method: 'stripe', paymentIntentId: 'pi_1' }] })));
-  r = await call(owner, Object.assign({}, good, { cents: 400000 }), db);
-  ok('refused: a Stripe payment (refund it in Stripe)', !!r.err && /Stripe/.test(r.err.message) && db.writes.length === 0);
+  r = await call(owner, Object.assign({}, good, { cents: 400000, method: 'stripe', recordedBy: 'nobody' }), db);
+  ok('refused: a Stripe payment (no recorder, method stripe; nothing written)', !!r.err && db.writes.length === 0, r.out ? 'ALLOWED' : '');
+  ok('...and the reason the UI shows for it says to refund in Stripe', /Stripe/.test(PR.reversalBlockedReason({ payments: [{ amount: 4000, at: D(2026, 10, 2), method: 'stripe', paymentIntentId: 'pi_1' }] }, 0)));
 }
 
 console.log('\n5. Wiring');
