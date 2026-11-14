@@ -148,6 +148,7 @@ function boot(opts) {
     }),
   };
   const ctx = { window: win, document, setTimeout: () => 0, setInterval: () => 0, console, Date, Promise, Set, Math, JSON, parseInt, String, Object, Array, isFinite };
+  Object.assign(win, opts.win || {});
   win.window = win;
   vm.runInNewContext(SRC, ctx, { filename: 'stale-leads-cleanup.js' });
   const fire = (type, ev) => (handlers[type] || []).forEach((fn) => fn(ev));
@@ -164,6 +165,21 @@ const staleLeads = () => [mk('ZZ_QA_1'), mk('ZZ_QA_2'), mk('ZZ_QA_3'), mk('ZZ_QA
   const realNow = Date.now;
   Date.now = () => NOW;
   try {
+    // 2026-11-14: the boot task cache keeps only open + 30 days of done tasks,
+    // so a lead whose tasks were all finished long ago looks task-less there.
+    // Opening the tool checks each such candidate's own tasks.
+    console.log('a lead with only long-done tasks still starts unchecked');
+    {
+      const e = boot({ flag: true, leads: staleLeads(), win: {
+        getDocs: async (q) => ({ docs: q.lead === 'ZZ_QA_2' ? [{ id: 'old' }] : [] }),
+        query: (c) => c, limit: () => ({}), collection: (db, a, id) => ({ lead: id }),
+      } });
+      e.win.NBDStaleLeads.open();
+      for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+      const un = e.win.NBDStaleLeads._unchecked ? e.win.NBDStaleLeads._unchecked() : new Set();
+      ok('the lead with past tasks is unchecked; the others stay checked', un.has('ZZ_QA_2') && !un.has('ZZ_QA_1') && !un.has('ZZ_QA_3'), JSON.stringify([...un]));
+      e.win.NBDStaleLeads.close();
+    }
     console.log('flag off renders nothing');
     {
       const e = boot({ flag: false, leads: staleLeads() });

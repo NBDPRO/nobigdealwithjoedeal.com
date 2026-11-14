@@ -188,20 +188,28 @@
    * ever. Two queries on tasksQuery's scope:
    *   open   — done == false, oldest first (createdAt asc)
    *   recent — done == true AND completedAt >= since (completedAt asc)
-   * Every task writer stamps done (client and functions/*-logic.js), and a
-   * Done tick stamps completedAt (tasks.js _toggleTask, promise-ui setDone),
-   * so nothing open is dropped. A done task with no completedAt was already
-   * invisible to the Done stats. Each shape has a COLLECTION_GROUP index.
-   * Returns null when tasksQuery does.
+   *   legacy — status == 'open': rows the old voicemail.js / tools.js writers
+   *            made with NO done field (scripts/backfill-lead-tasks-shape.js
+   *            heals them, but nothing here can prove it ran), which an
+   *            equality on done would silently drop
+   * Every current task writer stamps done (client and functions/*-logic.js),
+   * and a Done tick stamps completedAt (tasks.js _toggleTask, promise-ui
+   * setDone), so nothing open is dropped. A done task with no completedAt was
+   * already invisible to the Done stats. Each shape has a COLLECTION_GROUP
+   * index. Returns null when tasksQuery does.
    */
   var RECENT_DONE_DAYS = 30;
   function boundedTaskQueries(claims, uid, now) {
     var base = tasksQuery(claims, uid);
     if (!base) return null;
     var since = new Date((now == null ? Date.now() : now) - RECENT_DONE_DAYS * DAY);
+    var q = function (filters, orderBy) {
+      return { group: base.group, field: base.field, value: base.value, filters: filters, orderBy: orderBy, dir: 'asc' };
+    };
     return [
-      { group: base.group, field: base.field, value: base.value, done: false, orderBy: 'createdAt', dir: 'asc' },
-      { group: base.group, field: base.field, value: base.value, done: true, since: since, orderBy: 'completedAt', dir: 'asc' },
+      q([['done', '==', false]], 'createdAt'),
+      q([['done', '==', true], ['completedAt', '>=', since]], 'completedAt'),
+      q([['status', '==', 'open']], 'createdAt'),
     ];
   }
   /**

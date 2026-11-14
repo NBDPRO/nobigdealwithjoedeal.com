@@ -1218,6 +1218,26 @@
       ]
     },
     {
+      "_comment": "Bounded task load (2026-11-14): legacy open rows with NO done field (old voicemail.js / tools.js shape, status:'open'; scripts/backfill-lead-tasks-shape.js heals them, unproven in prod) — where('userId','==',uid).where('status','==','open').orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): the legacy open rows for company staff — where('companyId','==',co).where('status','==','open').orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "_comment": "Bounded task load (2026-11-14): tasks done in the last 30 days — where('userId','==',uid).where('done','==',true).where('completedAt','>=',since).orderBy('completedAt','asc').",
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION_GROUP",

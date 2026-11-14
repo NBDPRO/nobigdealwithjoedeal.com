@@ -52,6 +52,8 @@ const ROWS = [
   { id: 'done-recent', data: { userId: 'u1', done: true, completedAt: ts(NOW - 5 * DAY), createdAt: ts(NOW - 9 * DAY), text: 'done 5 days ago' } },
   { id: 'done-old', data: { userId: 'u1', done: true, completedAt: ts(NOW - 40 * DAY), createdAt: ts(NOW - 60 * DAY), text: 'done 40 days ago' } },
   { id: 'other-user', data: { userId: 'u2', done: false, createdAt: ts(NOW), text: 'not mine' } },
+  // the old voicemail.js / tools.js shape: status 'open', NO done field
+  { id: 'legacy-open', data: { userId: 'u1', status: 'open', title: 'Call back about the voicemail', createdAt: ts(NOW - 100 * DAY) } },
 ];
 
 function run(opts) {
@@ -64,6 +66,7 @@ function run(opts) {
   const getDocs = async (q) => {
     const parts = q.parts;
     reads.push(parts.filter((p) => p.kind === 'where').map((p) => p.f + p.op + (p.v instanceof Date ? 'date' : p.v)).join('&'));
+    if (opts.noIndex && parts.some((p) => p.kind === 'where' && p.f === 'status')) { const e = new Error('index'); e.code = 'failed-precondition'; throw e; }
     if (opts.noIndex && parts.some((p) => p.kind === 'where' && p.f === 'done')) { const e = new Error('index'); e.code = 'failed-precondition'; throw e; }
     const docs = ROWS.filter((r) => parts.every((p) => {
       if (p.kind !== 'where') return true;
@@ -96,13 +99,14 @@ function run(opts) {
   ok('a task done 5 days ago is loaded', ids.includes('done-recent'), ids.join(','));
   ok('a task done 40 days ago is NOT loaded', !ids.includes('done-old'), ids.join(','));
   ok('...nor another rep\'s task', !ids.includes('other-user'));
-  ok('two scoped reads: open, and done since 30 days', T.reads.length === 2 && T.reads[0] === 'userId==u1&done==false' && T.reads[1] === 'userId==u1&done==true&completedAt>=date', JSON.stringify(T.reads));
-  ok('still oldest first', ids.join(',') === 'open-old,done-recent,open-new', ids.join(','));
+  ok('three scoped reads: open, done since 30 days, and the legacy open shape', T.reads.length === 3 && T.reads[0] === 'userId==u1&done==false' && T.reads[1] === 'userId==u1&done==true&completedAt>=date' && T.reads[2] === 'userId==u1&status==open', JSON.stringify(T.reads));
+  ok('a legacy open task with no done field is still loaded (review round)', ids.includes('legacy-open'), ids.join(','));
+  ok('still oldest first', ids.join(',') === 'open-old,legacy-open,done-recent,open-new', ids.join(','));
 
   T = run({ noIndex: true });
   const f = await T.ctx.load();
   const fids = ((f && f.by && f.by.L1) || []).map((t) => t.id);
-  ok('index not built yet: falls back to the whole read (nothing lost)', fids.length === 4 && T.reads[T.reads.length - 1] === 'userId==u1', JSON.stringify(T.reads));
+  ok('index not built yet: falls back to the whole read (nothing lost)', fids.length === 5 && T.reads[T.reads.length - 1] === 'userId==u1', JSON.stringify(T.reads));
 
   // Each query shape has its COLLECTION_GROUP index.
   const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'firestore.indexes.json'), 'utf8')).indexes
@@ -111,6 +115,7 @@ function run(opts) {
   ['userId', 'companyId'].forEach((scope) => {
     ok(scope + ': open-task index declared', idx.includes(scope + ',done,createdAt'));
     ok(scope + ': recently-done index declared', idx.includes(scope + ',done,completedAt'));
+    ok(scope + ': legacy open-shape index declared', idx.includes(scope + ',status,createdAt'));
   });
   const staff = plan.boundedTaskQueries && plan.boundedTaskQueries({ role: 'manager', companyId: 'co1' }, 'u1');
   ok('company staff are scoped by the tenant on both reads', !!staff && staff.every((s) => s.field === 'companyId' && s.value === 'co1'));

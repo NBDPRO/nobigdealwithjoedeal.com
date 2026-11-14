@@ -200,8 +200,7 @@ async function _loadAllTasksGroup() {
   if (specs) {
     try {
       const snaps = await Promise.all(specs.map(s => {
-        const parts = [where(s.field, '==', s.value), where('done', '==', s.done)];
-        if (s.since) parts.push(where('completedAt', '>=', s.since));
+        const parts = [where(s.field, '==', s.value)].concat(s.filters.map(w => where(w[0], w[1], w[2])));
         return getDocs(query(cg(db, s.group), ...parts, orderBy(s.orderBy, s.dir)));
       }));
       const seen = new Set();
