@@ -44,7 +44,10 @@ ok('gates run before the vendor fetch', vendor !== -1 && emailGate !== -1 && sub
   && emailGate < vendor && subRead < vendor && paidCheck < vendor);
 ok('…and after the role gate', roleGate !== -1 && emailGate > roleGate && subRead > roleGate);
 const exempt = body.slice(roleGate, emailGate === -1 ? roleGate : emailGate);
-ok('only the platform admin is exempt', /if \(role !== 'admin'\)/.test(exempt));
+ok('only the platform admin and the platform tenant are exempt', /if \(role !== 'admin' && !isPlatformTenant\) \{/.test(exempt));
+ok('the platform tenant is NBD\'s own uid / company only (never a role)',
+  /const isPlatformTenant = decoded\.uid === PLATFORM_UID \|\| decoded\.companyId === PLATFORM_UID;/.test(exempt)
+  && /const PLATFORM_UID = process\.env\.NBD_OWNER_UID \|\| '[A-Za-z0-9]{20,}';/.test(exempt));
 // Each refusal returns before anything else runs.
 ok('an unverified email is refused with 403 and returns', /email_verified !== true\) \{\s*res\.status\(403\)[\s\S]{0,120}?return;/.test(body));
 ok('a free / lapsed plan is refused with 403 and returns', /if \(!paid\) \{\s*res\.status\(403\)[\s\S]{0,120}?return;/.test(body));
