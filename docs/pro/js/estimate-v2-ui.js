@@ -4529,9 +4529,13 @@
       // The estimate's own minimum job charge (state.minJobCharge: a preset /
       // job template floor, null = none set), so a reopen re-prices with THIS
       // floor, not whatever the last session left in memory (finding 2,
-      // 2026-11-14). null is written, not omitted: a missing key marks a doc
-      // saved before this field (see _savedMinJobCharge).
-      minJobCharge:     num(state.minJobCharge),
+      // 2026-11-14). With none set but a floor APPLIED (the shop's Settings
+      // repair minimum, or the per-SQ roof minimum), the applied floor is
+      // saved, so a later Settings change can't move this price. null is
+      // written, not omitted: a missing key marks a doc saved before this
+      // field (see _savedMinJobCharge).
+      minJobCharge:     (state.minJobCharge != null) ? num(state.minJobCharge)
+        : ((estimate.minJobApplied && Number(estimate.minJobCharge) > 0) ? Number(estimate.minJobCharge) : null),
       prices:           estimate.prices || null,           // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
       selectedTier:     estimate.tier || state.tier,
       priceMode:        estimate.priceMode || state.mode,   // 'per-sq' | 'line-item' — tells consumers which model set grandTotal
@@ -4732,8 +4736,12 @@
   // An older doc never stored it, so infer the conservative value — the one
   // that keeps the SAVED price from moving on an edit that changes nothing:
   //   • floored (minJobApplied) → its floor, which is the saved total less the
-  //     pass-through fees that ride on top of the floor (doc-preflight.js
-  //     reads a floored doc's total as its floor the same way);
+  //     pass-through fees that ride on top of the floor, plus a Roof Care Plan
+  //     member discount taken off after it (doc-preflight.js reads a floored
+  //     doc's total as its floor the same way). The floor is the all-in total
+  //     (tax included: resolveEstimate floors total = subtotal + tax). Upgrade
+  //     cents are NOT taken off: NBDUpgrades.totalsWithUpgrades re-applies
+  //     the minimum to the whole job, so a still-floored total holds them;
   //   • not floored → null, a fresh builder's "none set" (its old floor, if
   //     any, is unknowable). One edge stays: an old PER-SQ doc priced under
   //     the shop's per-SQ roof minimum by a lower preset floor re-floors at
@@ -4747,6 +4755,8 @@
     if (!doc.minJobApplied) return null;
     let cents = Math.round((Number(doc.grandTotal) || 0) * 100);
     (passThru || []).forEach((p) => { cents -= Math.round((Number(p.amount) || 0) * 100); });
+    const off = doc.memberDiscount && Number(doc.memberDiscount.cents);
+    if (Number.isSafeInteger(off) && off > 0) cents += off;
     return cents > 0 ? cents / 100 : null;
   }
 

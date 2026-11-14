@@ -96,6 +96,8 @@ const FILES = [
   'docs/pro/js/estimate-builder-v2.js',
   'docs/pro/js/estimate-logic-engine.js',
   'docs/pro/js/estimate-finalization.js',
+  'docs/pro/js/upgrade-pricing.js',
+  'docs/pro/js/care-plan-discount.js',
   'docs/pro/js/estimate-v2-ui.js',
 ];
 
@@ -118,7 +120,7 @@ function boot(labor) {
 
 // Build a fresh line-item cash estimate with the given floor (what loadPreset
 // / a job template sets), price it, and save it the way save() does.
-function buildAndSave(T, W, id, floor) {
+function buildAndSave(T, W, id, floor, edit) {
   const st = T.getState();
   st._reopenedClean = false; st._reopenedDoc = null;
   st.mode = 'line-item'; st.jobMode = 'cash'; st.tier = 'better'; st.county = '';
@@ -126,6 +128,7 @@ function buildAndSave(T, W, id, floor) {
   st.scope = [{ code: 'JT TEST-0', overrides: {} }];
   st.passThru = []; st.upgrades = []; st.photos = [];
   st.minJobCharge = floor;
+  if (edit) edit(st);
   const est = T.effectiveEstimate();
   const doc = JSON.parse(JSON.stringify(Object.assign({ id }, T.buildSavePayload(est, st))));
   return { est, doc };
@@ -285,6 +288,67 @@ section('C. Finding 3 — a photo or a note is not a price edit');
   const savedNote = T.buildSavePayload(afterNote, T.getState());
   const row = (savedNote.rows || []).find((r) => r.code === 'JT TEST-0');
   ok('…and the note is still saved on its row', !!row && row.note === 'Seal the two tabs left of the boot' && savedNote.grandTotal === 275, j([row && row.note, savedNote.grandTotal]));
+}
+
+// ════════════════════════════════════════════════════════════════════
+section('D. Review follow-up 1 — a floor from the shop\'s Settings repair minimum is saved');
+// ════════════════════════════════════════════════════════════════════
+{
+  // No preset floor (state.minJobCharge null); Settings > Estimates repair
+  // minimum $400 floors the $275 job. Later the shop raises it to $600.
+  const { W, T } = boot(212);
+  const EB = W.EstimateBuilderV2;
+  const base = EB.loadSettings.bind(EB);
+  let shopMin = 400;
+  EB.loadSettings = () => Object.assign({}, base(), { minRepairCharge: shopMin });
+  const { est, doc } = buildAndSave(T, W, 'est_shopmin', null);
+  ok('control: the $275 job is floored to the shop\'s $400 repair minimum', est.total === 400 && est.minJobApplied === true, j([est.total, est.minJobApplied]));
+  ok('the save records the $400 floor that was applied (was null — "use today\'s shop minimum")', doc.minJobCharge === 400, j(doc.minJobCharge));
+  shopMin = 600;
+  reopen(T, W, doc, null);
+  const after = edited(T);
+  ok('after the shop raises its minimum to $600, the reopened estimate is still $400 after one edit (was $600)',
+    after && after.total === 400, j(after && after.total));
+}
+
+// ════════════════════════════════════════════════════════════════════
+section('E. Review follow-up 2 — legacy floor inference with upgrades and a member discount');
+// ════════════════════════════════════════════════════════════════════
+{
+  // Upgrades: NBDUpgrades.totalsWithUpgrades re-applies the minimum to the
+  // WHOLE job, so a floored total already contains the upgrade ($100 + 7%):
+  // $275 + $107 = $382 < $500 → $500 saved, minJobApplied true.
+  const { W, T } = boot(212);
+  ok('upgrade-pricing.js loaded (NBDUpgrades.totalsWithUpgrades)', !!(W.NBDUpgrades && W.NBDUpgrades.totalsWithUpgrades));
+  const { est, doc } = buildAndSave(T, W, 'est_old_upg', 500, (st) => {
+    st.upgrades = [{ code: 'UPG TEST', desc: 'Synthetic upgrade', quantity: 1, unit: 'EA', upgrade: true, upgradeCents: 10000, retailTotal: 100, total: 100, category: 'Upgrades' }];
+  });
+  ok('control: $275 job + $107 upgrade under a $500 floor saves $500 (the floor absorbs the upgrade), minJobApplied true',
+    est.total === 500 && est.minJobApplied === true && doc.upgradeCents === 10000, j([est.total, est.minJobApplied, doc.upgradeCents]));
+  delete doc.minJobCharge;
+  reopen(T, W, doc, null);
+  ok('an old floored doc with an upgrade infers the $500 floor — the upgrade is inside the floored total, not on top of it',
+    T.getState().minJobCharge === 500, j(T.getState().minJobCharge));
+  const after = edited(T);
+  ok('…and stays $500 after one edit', after && after.total === 500, j(after && after.total));
+}
+{
+  // Member discount: applied AFTER the floor ($500 − 10% = $450 saved, still
+  // minJobApplied true). The floor is the total before the discount.
+  const { W, T } = boot(212);
+  ok('care-plan-discount.js loaded', !!W.NBDCarePlanDiscount);
+  W._leads = [{ id: 'lead_m', carePlan: { member: true, status: 'active' } }];
+  const { est, doc } = buildAndSave(T, W, 'est_old_member', 500, (st) => {
+    st.leadId = 'lead_m'; st.customer = Object.assign({}, st.customer, { leadId: 'lead_m' }); st.workKind = 'repair';
+  });
+  ok('control: a member\'s $500-floored repair saves $450 (10% off after the floor), minJobApplied true',
+    est.total === 450 && est.minJobApplied === true && !!doc.memberDiscount, j([est.total, est.minJobApplied, doc.memberDiscount]));
+  delete doc.minJobCharge;
+  reopen(T, W, doc, null);
+  ok('an old floored member doc infers the $500 floor (saved total plus the discount), not $450',
+    T.getState().minJobCharge === 500, j(T.getState().minJobCharge));
+  const after = edited(T);
+  ok('…and stays $450 after one edit (was $405: the discount came off twice)', after && after.total === 450, j(after && after.total));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
