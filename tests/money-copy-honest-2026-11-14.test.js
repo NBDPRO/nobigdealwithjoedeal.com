@@ -27,6 +27,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const kit = require('./lib/src-kit');
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
@@ -44,34 +45,28 @@ function liftBetween(src, start, end) {
 (async function () {
   console.log('1. invoice-success.html (every pay link, deposits and ACH included)');
   {
-    const h = read('docs/pro/invoice-success.html');
-    const body = h.slice(h.indexOf('<body'));
-    const text = body.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    ok('does not claim the invoice was marked paid', !/marked paid/i.test(text), text.slice(0, 200));
-    ok('does not say no further action is needed', !/no further action/i.test(text));
-    ok('does not assert the money has been "received" as settled (ACH may still be clearing)', !/Payment Received/.test(h));
-    ok('says a remaining balance is confirmed by the contractor', /remaining balance/i.test(text) && /contractor/i.test(text));
-    ok('mentions the emailed receipt', /receipt/i.test(text) && /email/i.test(text));
-    ok('still fetch-free and loads only its external script', !/fetch\(|XMLHttpRequest/.test(h) && /<script type="module" src="js\/pages\/invoice-success\.js"><\/script>/.test(h));
+    const page = kit.parseTags(kit.read('docs/pro/invoice-success.html'));
+    const words = [page.$('title'), page.$('h1'), page.$('.sub'), page.$('.receipt-note')].map((e) => (e ? e.text : '')).join(' ').replace(/\s+/g, ' ');
+    ok('found the title, heading, body and receipt note', !!(page.$('title') && page.$('h1') && page.$('.sub') && page.$('.receipt-note')));
+    ok('does not claim the invoice was marked paid', !/marked paid/i.test(words), words);
+    ok('does not say no further action is needed', !/no further action/i.test(words));
+    ok('does not assert the money has been "received" as settled (ACH may still be clearing)', !/Payment Received/i.test(words));
+    ok('says a remaining balance is confirmed by the contractor', /remaining balance/i.test(words) && /contractor/i.test(words));
+    ok('mentions the emailed receipt', /receipt/i.test(words) && /email/i.test(words));
+    const scripts = page.$$('script');
+    ok('loads only its one external module script (no inline script)', scripts.length === 1 && scripts[0].attr('src') === 'js/pages/invoice-success.js' && scripts[0].attr('type') === 'module' && !scripts[0].html.trim());
   }
 
   console.log('\n2. e-sign completion only promises an emailed copy when one went out');
   {
-    const fn = read('functions/esign-envelope.js');
-    ok('server: copyEmailed is THIS signer\'s copy, not any signer\'s',
-      /copyEmailed: copies\.some\(\(c\) => c\.emailed && (c\.attached && )?c\.signerId === signer\.id\)/.test(fn));
-    const js = read('docs/pro/js/esign-sign.js');
-    const i = js.indexOf("if (r.data.complete === false)");
-    const block = i >= 0 ? js.slice(i, js.indexOf('return;', i)) : '';
-    ok('found the completion block', !!block);
-    const promise = block.indexOf('on its way to your email');
-    const guard = block.indexOf('r.data.copyEmailed === true');
-    ok('the "on its way to your email" promise sits behind r.data.copyEmailed === true',
-      promise > 0 && guard > 0 && guard < promise, 'guard@' + guard + ' promise@' + promise);
-    const after = guard > 0 ? block.slice(guard) : '';
-    const elseBranch = after.slice(after.indexOf('} else {'));
-    const elseMsg = (elseBranch.match(/showMsg\([\s\S]*?\);/) || ['email'])[0];
-    ok('the not-emailed branch makes no email promise', guard > 0 && !/email/i.test(elseMsg), elseMsg);
+    const fn = kit.read('functions/esign-envelope.js');
+    ok('server: copyEmailed is THIS signer\'s copy, sent WITH the PDF attached',
+      /copies\.push\(\{ signerId: s\.id, emailed: !!r\.emailed, attached: attach,[\s\S]*copyEmailed: copies\.some\(\(c\) => c\.emailed && c\.attached && c\.signerId === signer\.id\)/.test(fn));
+    const js = kit.read('docs/pro/js/esign-sign.js');
+    // One pin: the emailed promise sits in the copyEmailed === true branch, and
+    // the else branch's message never mentions email.
+    ok('the "on its way to your email" promise is behind r.data.copyEmailed === true; the other branch promises no email',
+      /\} else if \(r\.data\.copyEmailed === true\) \{\s*showMsg\([^;]*on its way to your email[^;]*\);\s*\} else \{[^}]*?showMsg\((?:(?!email)[^;])*\);\s*\}/i.test(js));
   }
 
   console.log('\n3. estimate-view: a permanently blocked link is not told to try again');
@@ -87,7 +82,7 @@ function liftBetween(src, start, end) {
     const limiter = ctx.f(429, null);
     ok('a plain 429 (per-IP limiter, no code) is still transient with Try again', limiter.retry === true);
     ok('load() reads the response body for its code before choosing the state',
-      /res\.clone\(\)\.json\(\)/.test(src) && /errorStateFor\(res\.status, code\)/.test(src));
+      /res\.clone\(\)\.json\(\)[\s\S]{0,200}errorStateFor\(res\.status, code\)/.test(src));
   }
 
   console.log('\n4. portal: an open page repaints on every balance change');
@@ -142,21 +137,33 @@ function liftBetween(src, start, end) {
     ok('poll 429 from the per-IP limiter (no code): keeps polling', limiter.timers === 1 && limiter.banners.length === 0);
 
     // 12. The banner is built with textContent, not innerHTML.
-    const banner = liftBetween(PJS, '  function _showUpdateBanner(events) {', '\n  }\n') || '';
-    ok('update banner does not use innerHTML', !!banner && !/innerHTML/.test(banner) && /textContent/.test(banner));
+    const bannerSrc = liftBetween(PJS, '  function _showUpdateBanner(events) {', '\n  }\n') || '';
+    const made = []; let htmlWrites = 0;
+    const mk = (tag) => {
+      const el = { tag, children: [], style: {}, attrs: {}, textContent: '', parentNode: null,
+        setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {}, remove() {},
+        appendChild(c) { this.children.push(c); c.parentNode = this; return c; } };
+      Object.defineProperty(el, 'innerHTML', { set() { htmlWrites++; }, get() { return ''; } });
+      made.push(el); return el;
+    };
+    const bctx = { document: { getElementById: () => null, createElement: mk, body: mk('body') },
+      requestAnimationFrame: () => {}, setTimeout: () => 0, Array };
+    vm.createContext(bctx);
+    vm.runInContext(bannerSrc + '\nthis.show = _showUpdateBanner;', bctx);
+    const evil = '<img src=x onerror=alert(1)>';
+    bctx.show([{ msg: evil }, { msg: '💳 Your balance was updated' }]);
+    const bannerEl = made.find((e) => e.attrs.role === 'status');
+    ok('update banner writes each message as text (no innerHTML, markup stays inert)',
+      htmlWrites === 0 && !!bannerEl && bannerEl.children.length === 2 && bannerEl.children[0].textContent === evil, 'innerHTML writes=' + htmlWrites);
 
     // 10. copyEmailed only when the PDF was attached.
-    const fn = read('functions/esign-envelope.js');
-    ok('server: copyEmailed requires the copy was attached', /copyEmailed: copies\.some\(\(c\) => c\.emailed && c\.attached && c\.signerId === signer\.id\)/.test(fn)
-      && /copies\.push\(\{ signerId: s\.id, emailed: !!r\.emailed, attached: attach,/.test(fn));
-    const js = read('docs/pro/js/esign-sign.js');
-    const mid = (js.match(/will get their own link to sign next\.[^']*'/) || [''])[0];
-    ok('multi-signer line does not promise an email', !!mid && !/email/i.test(mid), mid);
+    // (copyEmailed + attached is pinned once in section 2.)
+    ok('multi-signer line does not promise an email',
+      /will get their own link to sign next\. Once everyone has signed, you will get a signed copy\.'/.test(kit.read('docs/pro/js/esign-sign.js')));
 
     // 11. The success page is reachable by any redirect: say it conditionally.
-    const h = read('docs/pro/invoice-success.html');
-    const text = h.slice(h.indexOf('<body')).replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    ok('success page does not assert the payment went through', !/We've got your payment|We’ve got your payment/.test(text) && /If your payment went through/i.test(text), text.slice(0, 240));
+    const sub = (kit.parseTags(kit.read('docs/pro/invoice-success.html')).$('.sub') || {}).text || '';
+    ok('success page does not assert the payment went through', !/got your payment/i.test(sub) && /^If your payment went through/i.test(sub.trim()), sub);
   }
 
   console.log('\n' + (failed === 0 ? '✓' : '✗') + ' money copy honest: ' + passed + ' passed, ' + failed + ' failed');
