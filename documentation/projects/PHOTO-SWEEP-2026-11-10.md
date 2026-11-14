@@ -40,7 +40,9 @@ it is a separate implementation, so a rerun with it will not reproduce these exa
 - Scope Jo chose: clean matches only (high confidence, not ambiguous), jobs that already have a Drive customer folder.
 - 644 photos across 25 jobs (about 1.8 GB) copied, never moved, into `COMPANIES/NBD/CUSTOMERS/<customer>/Photos/`,
   named `<date>_<phase>_<original name>`. All 644 verified by size. No existing file was overwritten.
-- 4 matched jobs had no Drive customer folder and were skipped; Jo decides whether to create them.
+- 4 matched jobs had no Drive customer folder and were skipped at first. On 2026-11-14 three of them turned out to have
+  folders under other names (Jo confirmed the ambiguous one), and their 58 clean matches were copied the same way
+  (size-verified, nothing overwritten). The fourth had no clean match, so it needs no folder.
 ## CRM upload (built, NOT run)
 
 - `scripts/upload-job-photos.js` (pure core `scripts/lib/photo-upload.js`, pinned by
@@ -60,6 +62,5 @@ it is a separate implementation, so a rerun with it will not reproduce these exa
 - Done since the first draft of this note: the match ran on the CRM's Export Leads CSV, and
   `review.csv`, `review.html` and `ready-jobs.html` exist in `Documents\nbd-photo-review`.
 - CRM upload: built and dry-run only. Jo runs `--apply` himself after approving that specific run in chat.
-- 4 matched jobs have no Drive customer folder (marked `NO FOLDER` in `drive-map.csv`); Jo decides whether to create them.
 - 102 medium, 27 low and 141 ambiguous matches still need Jo's review in `review.html` before any filing.
 - iCloud pass: not started; needs Jo signed in to iCloud in Chrome.
