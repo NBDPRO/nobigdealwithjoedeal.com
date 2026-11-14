@@ -193,13 +193,40 @@ async function _loadAllTasksGroup() {
   const spec = plan && plan.tasksQuery(window._userClaims||{}, uid);
   if (!spec) return null;
   const cg = window.collectionGroup || (await import(_FS_SDK)).collectionGroup;
-  const snap = await getDocs(query(cg(db, spec.group), where(spec.field, '==', spec.value), orderBy(spec.orderBy, spec.dir)));
-  const by = plan.groupTasksByLead(snap.docs.map(d=>({ id: d.id, parentPath: d.ref && d.ref.parent ? d.ref.parent.path : '', data: d.data() })));
+  // Open tasks + the last 30 days of done ones (wave-1 daily #10), not every
+  // task ever. While the two new indexes build, the old whole read answers.
+  const specs = typeof plan.boundedTaskQueries === 'function' ? plan.boundedTaskQueries(window._userClaims||{}, uid) : null;
+  let docs = null, fromCache = false;
+  if (specs) {
+    try {
+      const snaps = await Promise.all(specs.map(s => {
+        const parts = [where(s.field, '==', s.value), where('done', '==', s.done)];
+        if (s.since) parts.push(where('completedAt', '>=', s.since));
+        return getDocs(query(cg(db, s.group), ...parts, orderBy(s.orderBy, s.dir)));
+      }));
+      const seen = new Set();
+      docs = [];
+      snaps.forEach(sn => { if (sn.metadata && sn.metadata.fromCache) fromCache = true; sn.docs.forEach(d => { const k = d.ref && d.ref.path ? d.ref.path : d.id; if (!seen.has(k)) { seen.add(k); docs.push(d); } }); });
+      // Oldest first across both reads, like the single read was.
+      const ms = (d) => { const c = (d.data() || {}).createdAt; return c && typeof c.toMillis === 'function' ? c.toMillis() : (c && c.seconds ? c.seconds * 1000 : (Date.parse(c) || 0)); };
+      docs.sort((a, b) => ms(a) - ms(b));
+    } catch (e) {
+      if (!e || e.code !== 'failed-precondition') throw e;
+      console.warn('[tasks] bounded task load index not built yet; reading every task');
+      docs = null;
+    }
+  }
+  if (!docs) {
+    const snap = await getDocs(query(cg(db, spec.group), where(spec.field, '==', spec.value), orderBy(spec.orderBy, spec.dir)));
+    docs = snap.docs;
+    fromCache = !!(snap.metadata && snap.metadata.fromCache);
+  }
+  const by = plan.groupTasksByLead(docs.map(d=>({ id: d.id, parentPath: d.ref && d.ref.parent ? d.ref.parent.path : '', data: d.data() })));
   const flat = [], keys = [];
   Object.keys(by).forEach(k=>by[k].forEach(t=>{ keys.push(k); flat.push(t.leadId ? t : Object.assign(t, { leadId: k })); }));
   const full = await _overlayCallText(flat, keys);
   if (full !== flat) { Object.keys(by).forEach(k=>{ by[k] = []; }); full.forEach((t,i)=>by[keys[i]].push(t)); }
-  return { by, fromCache: !!(snap.metadata && snap.metadata.fromCache) };
+  return { by, fromCache };
 }
 // One load at a time: a second ask while one runs gets the same promise (the
 // tab-return refresh, the calendar button and the cache retry can all ask at

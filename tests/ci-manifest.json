@@ -1070,7 +1070,8 @@
     "voicemail-viewer-hidden-2026-11-09.test.js",
     "voicemail-retag-backfill-2026-11-09.test.js",
     "plan-checkout-guard-2026-11-14.test.js",
-    "tasks-stay-fresh-2026-11-14.test.js"
+    "tasks-stay-fresh-2026-11-14.test.js",
+    "tasks-load-bounded-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

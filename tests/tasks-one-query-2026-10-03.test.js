@@ -70,7 +70,11 @@ function rig(opts) {
     db: { name: 'db' },
     auth: { currentUser: null },
     _leads: [], _leadsLoaded: false, _taskCache: {}, _user: null, _userClaims: {},
-    NBDTodayPlan: opts.noPlan ? undefined : TP,
+    // 2026-11-14: boundedTaskQueries (open + 30 days of done, two reads) is
+    // hidden here so this suite keeps pinning the single read, which is still
+    // the fallback while the new indexes build; the bounded load is pinned by
+    // tests/tasks-load-bounded-2026-11-14.test.js.
+    NBDTodayPlan: opts.noPlan ? undefined : Object.assign({}, TP, { boundedTaskQueries: undefined }),
     renderLeads() {},
     showToast() {},
     serverTimestamp: () => '__TS__',

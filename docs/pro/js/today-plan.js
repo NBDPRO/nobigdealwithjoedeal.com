@@ -183,6 +183,28 @@
     return uid ? { group: 'tasks', field: 'userId', value: String(uid), orderBy: 'createdAt', dir: 'asc' } : null;
   }
   /**
+   * The bounded task load (wave-1 daily #10, Joe 2026-11-14): every OPEN task
+   * plus the ones finished in the last RECENT_DONE_DAYS, instead of every task
+   * ever. Two queries on tasksQuery's scope:
+   *   open   — done == false, oldest first (createdAt asc)
+   *   recent — done == true AND completedAt >= since (completedAt asc)
+   * Every task writer stamps done (client and functions/*-logic.js), and a
+   * Done tick stamps completedAt (tasks.js _toggleTask, promise-ui setDone),
+   * so nothing open is dropped. A done task with no completedAt was already
+   * invisible to the Done stats. Each shape has a COLLECTION_GROUP index.
+   * Returns null when tasksQuery does.
+   */
+  var RECENT_DONE_DAYS = 30;
+  function boundedTaskQueries(claims, uid, now) {
+    var base = tasksQuery(claims, uid);
+    if (!base) return null;
+    var since = new Date((now == null ? Date.now() : now) - RECENT_DONE_DAYS * DAY);
+    return [
+      { group: base.group, field: base.field, value: base.value, done: false, orderBy: 'createdAt', dir: 'asc' },
+      { group: base.group, field: base.field, value: base.value, done: true, since: since, orderBy: 'completedAt', dir: 'asc' },
+    ];
+  }
+  /**
    * collectionGroup rows → { leadId: [task…] }. Only leads/{id}/tasks rows
    * count: the retired TOP-LEVEL /tasks store (migration 006 copied it into
    * the subcollections, same ids) also answers collectionGroup('tasks').
@@ -780,7 +802,7 @@
 
   var API = {
     followUpDue: followUpDue, followUpDay: followUpDay, followUpDaysLate: followUpDaysLate, isUnreachableKnock: isUnreachableKnock,
-    tasksQuery: tasksQuery, groupTasksByLead: groupTasksByLead, taskDue: taskDue, taskDueYmd: taskDueYmd,
+    tasksQuery: tasksQuery, boundedTaskQueries: boundedTaskQueries, RECENT_DONE_DAYS: RECENT_DONE_DAYS, groupTasksByLead: groupTasksByLead, taskDue: taskDue, taskDueYmd: taskDueYmd,
     collectTodayItems: collectTodayItems, buildTodayPlan: buildTodayPlan, headline: headline, stormLine: stormLine,
     fmtCents: fmtCents, ymdLocal: ymdLocal, addDaysYmdLocal: addDaysYmdLocal, nyDateOf: nyDateOf, actionId: actionId,
     JOB_FIELDS: JOB_FIELDS, summaryForTracker: summaryForTracker,

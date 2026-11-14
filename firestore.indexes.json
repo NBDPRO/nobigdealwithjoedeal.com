@@ -1198,6 +1198,46 @@
       ]
     },
     {
+      "_comment": "Bounded task load (2026-11-14, wave-1 daily #10): open tasks only — collectionGroup('tasks').where('userId','==',uid).where('done','==',false).orderBy('createdAt','asc') (today-plan.js boundedTaskQueries). The two older entries above stay for the fallback read while these build.",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "done",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): open tasks for company staff — where('companyId','==',co).where('done','==',false).orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "done",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): tasks done in the last 30 days — where('userId','==',uid).where('done','==',true).where('completedAt','>=',since).orderBy('completedAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",      "order": "ASCENDING" },
+        { "fieldPath": "done",        "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): done in the last 30 days, company staff — where('companyId','==',co).where('done','==',true).where('completedAt','>=',since).orderBy('completedAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId",   "order": "ASCENDING" },
+        { "fieldPath": "done",        "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "_comment": "Visit recordings (2026-10-13): visitCaptureSweep finds uploaded visits whose trigger never ran: collectionGroup('visit_captures').where('status','==','uploaded').where('uploadedAtMs','>',now-48h).where('uploadedAtMs','<',now+1h).orderBy('uploadedAtMs'). Equality + a two-sided range on uploadedAtMs across every user's visit docs: composite COLLECTION_GROUP (the emulator never enforces it).",
       "collectionGroup": "visit_captures",
       "queryScope": "COLLECTION_GROUP",

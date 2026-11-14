@@ -224,7 +224,8 @@ function memDb(seed) {
         addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
         dispatchEvent(ev) { (listeners[ev.type] || []).forEach((fn) => fn(ev)); return true; },
         db: {}, auth: { currentUser: null }, _leads: [], _leadsLoaded: false, _taskCache: {}, _user: null, _userClaims: {},
-        NBDTodayPlan: TP, NBDTaskCallText: CT, renderLeads() {}, showToast() {}, serverTimestamp: () => '__TS__',
+        // single-read path (2026-11-14: the bounded two-read load is pinned by tests/tasks-load-bounded-2026-11-14.test.js)
+        NBDTodayPlan: Object.assign({}, TP, { boundedTaskQueries: undefined }), NBDTaskCallText: CT, renderLeads() {}, showToast() {}, serverTimestamp: () => '__TS__',
         collection: (_db, ...segs) => ({ segs }), collectionGroup: (_db, name) => ({ cg: name }), query: (base, ...cons) => ({ base, cons }),
         where: (f, op, v) => ({ where: [f, op, v] }), orderBy: (f, d) => ({ orderBy: [f, d || 'asc'] }),
         doc: (_db, ...segs) => segs.join('/'),
