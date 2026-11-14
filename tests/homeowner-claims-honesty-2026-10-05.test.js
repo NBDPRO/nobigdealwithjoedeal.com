@@ -391,5 +391,17 @@ console.log('\n14. No wording about what the insurer decides');
   ok('no "change the outcome" / "accelerates" / "approved in two weeks" wording', outcome.length === 0, show(outcome));
 }
 
+// ── 15. AI-written notes are labelled (2026-11-14) ─────────────────────
+// /storm-check and /roof-score print a model-written first-person note; like
+// /estimate, the box must say it is AI-drafted and Joe hasn't seen the roof.
+console.log('\n15. AI-written notes say they are AI-drafted');
+for (const page of ['storm-check.html', 'roof-score.html', 'estimate.html']) {
+  const src = stripComments(read('docs/' + page), 'x.html');
+  const at = src.search(/<div class="(sc-take|joes-take)"/);
+  const box = at === -1 ? '' : src.slice(at, at + 400);
+  ok(page + ': the AI note box says "AI-drafted" and that Joe hasn\'t seen the roof',
+    /AI-drafted/.test(box) && /hasn(&#8217;|&rsquo;|'|’)t seen your roof/.test(box), box.slice(0, 160));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('\nFailures:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }
