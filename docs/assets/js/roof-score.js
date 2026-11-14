@@ -388,17 +388,19 @@
   function joesTake() {
     var fb = (S.firstName || 'Hey') + ', thanks for running the numbers on your roof. Whatever the score says, the honest next step is the same: I’ll take a free look, tell you exactly where it stands, and lay out your options with zero pressure.';
     try {
-      var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a straight-talking Cincinnati roofer. Write a warm, 2-sentence, no-BS note to ' +
-        (S.firstName || 'a homeowner') + ' who just got a Roof Health Score of ' + S.score + '/100 (' + (S.band && S.band.label) + '). Roof age: ' + S.roofAge +
-        ', material: ' + S.roofType + ', signs: ' + (S.signs.join(', ') || 'none') + ', interior moisture: ' + S.moisture +
-        '. Offer a free inspection. Do NOT guarantee any condition, claim approval, or mention any dollar amounts.';
+      // Structured answers only (2026-11-14, AI audit F5): the server builds
+      // the prompt (functions/public-funnel-ai-logic.js) and refuses free text.
+      var aiRequest = {
+        kind: 'roofScore', firstName: S.firstName || '', score: S.score, bandLabel: (S.band && S.band.label) || '',
+        roofAge: S.roofAge, roofType: S.roofType, signs: S.signs, moisture: S.moisture
+      };
       // 30 s client timeout (2026-10-15, review M3): a slow or cold backend
       // held the result (and the lead saved/failed notice) behind a spinner.
       var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
       var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, maxTokens: 180 }),
+        body: JSON.stringify(aiRequest),
         signal: ctrl ? ctrl.signal : undefined
       }).then(function (r) { return r.json(); }).then(function (d) {
         var txt = d && d.text; return (txt && txt.trim()) ? txt.trim() : fb;

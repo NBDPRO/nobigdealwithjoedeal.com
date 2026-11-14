@@ -221,8 +221,11 @@ section('the wizard uses the measurement without letting a model do the money ma
     /if \(!m \|\| !m\.measured \|\| !\(Number\(m\.squares\) > 0\)\) return null;/.test(wiz));
   ok('tier pricing is computed from real squares, never taken from the model',
     /function tiersFromSquares/.test(wiz) && /est\.tiers = tiersFromSquares\(est\.squares\)/.test(wiz));
+  // 2026-11-14 (AI audit F5): the prompt is built server-side now; the page
+  // sends the measurement as structured fields.
   ok('the model is told the size is measured and must not re-estimate it',
-    /use it EXACTLY and do not re-estimate the size/.test(wiz));
+    /aiRequest\.measurement = \{ sqft: Number\(_meas\.sqft\), squares: Number\(_meas\.squares\)/.test(wiz)
+    && /use it EXACTLY and do not re-estimate the size/.test(read('functions/public-funnel-ai-logic.js')));
   ok('the offline fallback also uses the measurement when the AI call fails',
     /var measured = !!\(meas && Number\(meas\.squares\) > 0\)/.test(wiz));
   ok('a measured roof drops the "~" so the page stops hedging a real number',
