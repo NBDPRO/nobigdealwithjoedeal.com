@@ -706,9 +706,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return fmt(amtC) + ' is ' + fmt(amtC - balC) + ' more than the ' + fmt(balC)
       + ' still owed on this invoice. Record ' + fmt(amtC) + ' anyway? Check the amount first.';
   }
-  const _askOverpay = (m) => (typeof window !== 'undefined' && window.nbdConfirm)
-    ? window.nbdConfirm(m)
-    : Promise.resolve(typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(m) : false);
+  // The iOS-PWA-safe ask (tests/pwa-confirm-guard.test.js): the real modal when there is one, else the native confirm.
+  function _askOverpay(m) {
+    const ask = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
+      : (x) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(x) : false);
+    return ask(m);
+  }
 
   function applyPaymentToInvoice(invoice, entry) {
     invoice = invoice || {};
