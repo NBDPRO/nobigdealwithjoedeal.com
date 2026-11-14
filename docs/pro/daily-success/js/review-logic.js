@@ -89,11 +89,13 @@
     const possible = rows.length * days.length;
     const hit = rows.reduce((s, r) => s + r.hit, 0);
     const misses = possible - hit;
+    // Sunday is not a required day (floorStreak skips it), so a floor missed on Sunday is not taxed (audit 2026-11-14 #12).
+    const taxedMisses = days.filter((dk) => !isSunday(dk)).reduce((n, dk) => n + (floors || []).filter((f) => !(byDay.get(dk) || new Set()).has(f.id)).length, 0);
     return {
-      from, to, rows, hit, possible, misses,
+      from, to, rows, hit, possible, misses, taxedMisses,
       pct: possible ? Math.round(hit / possible * 100) : null,
       fullDays: days.filter((dk) => dayStatus(byDay, floors, dk) === 'met').length,
-      missTaxCents: misses * tax,
+      missTaxCents: taxedMisses * tax,
     };
   }
 
