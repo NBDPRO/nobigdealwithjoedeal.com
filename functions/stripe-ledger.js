@@ -284,12 +284,40 @@ function summarize(row, match, booked) {
 }
 
 // ── ingest: one Stripe object each ───────────────────────────────────────
+/** A charge made for a Connect tenant (destination / on_behalf_of, or a PI
+ * stamped with another company) → that marker; the owner's own charge → ''. */
+function connectTenantOf(ch) {
+  const c = ch || {};
+  if (c.on_behalf_of) return String(c.on_behalf_of.id || c.on_behalf_of);
+  if (c.transfer_data && c.transfer_data.destination) return String(c.transfer_data.destination.id || c.transfer_data.destination);
+  const pi = c.payment_intent && typeof c.payment_intent === 'object' ? c.payment_intent : null;
+  const co = (pi && pi.metadata && pi.metadata.companyId) || (c.metadata && c.metadata.companyId) || '';
+  return co && String(co) !== String(OWNER) ? 'company:' + co : '';
+}
+
+/** A refund / dispute whose charge is a Connect tenant's (no owner row; the
+ * charge says so) → true. A lookup error → false (handled as before). */
+async function onConnectCharge(chargeRef, chargeRow) {
+  if (!chargeRef || (chargeRow && chargeRow.exists)) return false;
+  try {
+    const ch = typeof chargeRef === 'object' && chargeRef.id ? chargeRef
+      : await stripeClient().charges.retrieve(String(chargeRef), { expand: ['payment_intent'] });
+    return !!connectTenantOf(ch);
+  } catch (e) { return false; }
+}
+
 async function ingestCharge(ctx, chargeOrId, opts) {
   const o = opts || {};
   const stripe = stripeClient();
   const ch = typeof chargeOrId === 'object' && chargeOrId.balance_transaction !== undefined && typeof chargeOrId.customer === 'object'
     ? chargeOrId
     : await stripe.charges.retrieve(typeof chargeOrId === 'string' ? chargeOrId : chargeOrId.id, { expand: CHARGE_EXPAND });
+  // A Connect tenant's payment-link charge is a destination charge, so it sits
+  // on this account, but it is another company's money and homeowner: never
+  // match it to the owner's leads, book it, or copy the payer into the owner's
+  // ledger (2026-11-14). The owner never mints Connect charges (stripe.js).
+  const tenantOf = connectTenantOf(ch);
+  if (tenantOf) return { id: ch.id, kind: 'connect_tenant_charge', status: ch.status, amount: 0, action: 'another company\'s Connect payment — not in this ledger' };
   const row = L.chargeEntry(ch, OWNER);
   row._id = ch.id;
   const sInv = ch.invoice && typeof ch.invoice === 'object' ? ch.invoice : null;
@@ -456,6 +484,8 @@ async function ingestRefund(ctx, re, opts) {
   const refund = typeof re === 'string' ? await stripe.refunds.retrieve(re) : re;
   const chargeId = refund.charge && (refund.charge.id || refund.charge);
   const chargeRow = chargeId ? await ctx.db.collection(COL).doc(chargeId).get() : null;
+  // Another company's Connect refund: not in the owner's ledger (2026-11-14).
+  if (await onConnectCharge(refund.charge, chargeRow)) return { id: refund.id, kind: 'connect_tenant_refund', amount: 0 };
   const row = L.refundEntry(refund, OWNER, null);
   const cm = chargeRow && chargeRow.exists ? (chargeRow.data().match || {}) : {};
   row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
@@ -480,6 +510,8 @@ async function ingestDispute(ctx, dp, opts) {
   const o = opts || {};
   const chargeId = dp.charge && (dp.charge.id || dp.charge);
   const chargeRow = chargeId ? await ctx.db.collection(COL).doc(String(chargeId)).get() : null;
+  // Another company's Connect dispute: not in the owner's ledger or review list (2026-11-14).
+  if (await onConnectCharge(dp.charge, chargeRow)) return { id: dp.id, kind: 'connect_tenant_dispute', amount: 0 };
   const row = L.disputeEntry(dp, OWNER, null);
   const cm = chargeRow && chargeRow.exists ? chargeRow.data().match || {} : {};
   row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
