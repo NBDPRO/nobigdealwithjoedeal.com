@@ -1,7 +1,7 @@
 # Functions deploy skip (2026-11-14)
 
-A push to `main` used to redeploy all ~340 Cloud Functions every time, about 16-17 minutes of a ~23 minute
-deploy, even for a one-page change. Now a push **skips the functions deploy** when nothing that can change
+A push to `main` used to redeploy all ~340 Cloud Functions every time (the strict step's export grep finds 339;
+the strict step took 16m23s in run 43634215715), even for a one-page change. Now a push **skips the functions deploy** when nothing that can change
 the deployed functions has changed since the last successful functions deploy. All functions or none: it
 never deploys "only the changed functions", because shared modules (`index.js`, `ai-gate.js`, helpers) fan out.
 
@@ -23,13 +23,13 @@ Code: [scripts/functions-deploy-decision.js](../../scripts/functions-deploy-deci
    - `firebase.json`, except edits that only touch its `hosting` block
    - `.firebaserc`, `.github/workflows/firebase-deploy.yml`, `scripts/functions-deploy-decision.js`
 4. Any function input changed → deploy everything. None changed → skip.
-5. **Any doubt deploys**: no functions deploy in the last 100 runs, the last attempt failed / was cancelled /
+5. **Any doubt deploys**: no functions deploy in the last 35 days of runs (or more than 2000 runs to read), the last attempt failed / was cancelled /
    timed out, it came from a branch, the base is not an ancestor, git or the API errors, or the plan job
    itself fails (the deploy steps skip only on an explicit `false`).
 
 Skipped on a push: *Ensure integration secrets exist*, the strict deploy and the tolerant retry.
 Still run on every push: hosting, the rules test gate and all rules deploys, *Enable required Google APIs*,
-the function smoke gate, the fleet/orphan check and `verify-live`. The weekly schedule and scope=hosting /
+the function smoke gate and the fleet/orphan check; `verify-live` still runs after every successful deploy. The weekly schedule and scope=hosting /
 scope=rules dispatches still never deploy functions.
 
 ## How to force a full functions deploy
@@ -70,8 +70,11 @@ gh run view <RUN_ID> --json jobs --jq '.jobs[] | select(.name=="Deploy to Fireba
 
 ## If live functions are ever behind main
 
-1. Find the last run whose strict step succeeded (command above on recent runs) and compare its commit with
-   `main`: `git diff --name-only <that sha> origin/main -- functions firebase.json .firebaserc`.
+1. The plan job's summary on the latest push run names the base ("since <sha>", run id). Or run the script
+   read-only yourself (it only reads the Actions API and git, writes nothing, deploys nothing):
+   `EVENT_NAME=push HEAD_SHA=$(git rev-parse origin/main) RUN_ID=0 GITHUB_REPOSITORY=NBDPRO/nobigdealwithjoedeal.com node scripts/functions-deploy-decision.js`
+   Then compare that commit with `main`:
+   `git diff --name-only <that sha> origin/main -- functions firebase.json .firebaserc .github/workflows/firebase-deploy.yml scripts/functions-deploy-decision.js`.
 2. Dispatch `scope=functions` (above) and watch the strict step go green; the fleet check runs after it.
 3. For a new function, confirm it exists: `gcloud functions describe <NAME> --gen2 --region=us-central1`.
 4. If the skip itself was wrong, set `NBD_FUNCTIONS_SKIP=0` first so the next pushes deploy too, then fix the

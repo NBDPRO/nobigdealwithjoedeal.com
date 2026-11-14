@@ -1,7 +1,7 @@
 /**
  * tests/functions-deploy-decision-2026-11-14.test.js
  *
- * WHY: every push to main redeployed all ~340 Cloud Functions (~16-17 of a ~23 minute deploy), even for a one-page
+ * WHY: every push to main redeployed all ~340 Cloud Functions (strict step 16m23s in run 43634215715), even for a one-page
  * change. scripts/functions-deploy-decision.js lets a push skip the functions deploy steps, but ONLY when nothing
  * that can change the deployed functions changed since the last commit whose functions deploy SUCCEEDED. The
  * failure this guards against is the quiet one: a skipped deploy that was needed leaves production functions stale.
@@ -116,7 +116,10 @@ console.log('\nfindLastFunctionsAttempt(): reading the run history');
   };
   const r = M.findLastFunctionsAttempt(runs, jobs, 99);
   ok('a skipped step is ignored; the newest started step wins', r && r.runId === 2 && r.sha === B, J(r));
-  ok('the current run is never its own marker', M.findLastFunctionsAttempt(runs, jobs, 2).runId === 1);
+  const rerunSelf = { ...jobs, 2: [{ name: JOB, run_attempt: 1, steps: [step('failure', '2026-11-14T10:50:00Z')] }, { name: JOB, run_attempt: 2, steps: [{ name: S, status: 'queued', conclusion: null, started_at: null }] }] };
+  const rs = M.findLastFunctionsAttempt(runs, rerunSelf, 2);
+  ok('the current run\'s own EARLIER failed attempt counts (re-run all jobs deploys)', rs && rs.runId === 2 && rs.conclusion === 'failure', J(rs));
+  ok('…while its current, not-yet-started attempt is ignored', M.findLastFunctionsAttempt(runs, { ...jobs, 2: [rerunSelf[2][1]] }, 2).runId === 1);
   const rerun = { ...jobs, 1: [job([step('failure', '2026-11-14T09:50:00Z')], 1), job([step('failure', '2026-11-14T11:30:00Z')], 2)] };
   const runsRerun = [runs[0], runs[1], run(1, A, '2026-11-14T11:40:00Z')];
   const rr = M.findLastFunctionsAttempt(runsRerun, rerun, 99);
@@ -129,6 +132,11 @@ console.log('\nfindLastFunctionsAttempt(): reading the run history');
   ok('a run whose jobs could not be read → unreadable', (M.findLastFunctionsAttempt(runs, { 3: null }, 99) || {}).unreadable === true);
   const pruned = M.findLastFunctionsAttempt(runs, { 3: jobs[3], 2: jobs[2] }, 99);
   ok('the walk stops once older runs cannot beat the found attempt (run 1 never read)', pruned && pruned.runId === 2, J(pruned));
+  // The early stop must use updated_at, not "stop at the first find": run X is updated later but its step started
+  // earlier than run Y's (Y updated 11:00, step 10:50; X updated 12:00, step 10:00). Y must win.
+  const X = run(30, A, '2026-11-14T12:00:00Z'), Y = run(31, B, '2026-11-14T11:00:00Z');
+  const xy = M.findLastFunctionsAttempt([X, Y], { 30: [job([step('success', '2026-11-14T10:00:00Z')])], 31: [job([step('failure', '2026-11-14T10:50:00Z')])] }, 99);
+  ok('a run updated earlier can still hold the newest step start; the walk reads it', xy && xy.runId === 31, J(xy));
   const otherJob = { 3: [{ name: 'Something else', steps: [step('success', '2026-11-14T11:59:00Z')] }], 2: jobs[2], 1: jobs[1] };
   ok('a step with the same name in another job is not the functions deploy', M.findLastFunctionsAttempt(runs, otherJob, 99).runId === 2);
 }
@@ -262,23 +270,37 @@ console.log('\nreadLastAttempt(): paging the whole re-runnable window, not one p
   ok('a page that fails to load → error (doubt → deploy)', fl && /502/.test(fl.error || ''), J(fl));
 }
 
+console.log('\nrealGh(): the API paths it asks for');
+{
+  const seen = [];
+  const gh = M.realGh('o/r', (p) => { seen.push(p); return { workflow_runs: [], jobs: [] }; });
+  gh.listRunsPage(3); gh.listJobs(42);
+  ok('runs are listed for THIS workflow file, 100 per page, by page number', seen[0] === 'repos/o/r/actions/workflows/firebase-deploy.yml/runs?per_page=100&page=3', seen[0]);
+  ok('jobs are read for EVERY attempt (filter=all), so an earlier failed attempt is not hidden by a re-run', /^repos\/o\/r\/actions\/runs\/42\/jobs\?/.test(seen[1]) && /[?&]filter=all(&|$)/.test(seen[1]), seen[1]);
+}
+
 console.log('\nthe workflow wires the script the way the script assumes');
 {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'firebase-deploy.yml'), 'utf8').replace(/\r\n/g, '\n');
   ok('the strict step is named exactly STRICT_STEP_NAME', yml.includes('      - name: ' + M.STRICT_STEP_NAME + '\n'));
   ok('the deploy job is named exactly DEPLOY_JOB_NAME', yml.includes('    name: ' + M.DEPLOY_JOB_NAME + '\n'));
-  const plan = (yml.match(/\n  functions_plan:\n([\s\S]*?)\n  [a-z_-]+:\n/) || [])[1] || '';
+  const strip = (t) => t.split('\n').filter((l) => !/^\s*#/.test(l)).map((l) => l.replace(/\s+#.*$/, '')).join('\n');
+  const jobBlockOf = (name) => strip((yml.match(new RegExp('\\n  ' + name + ':\\n([\\s\\S]*?)(?=\\n  [a-z_-]+:\\n|$)')) || [])[1] || '');
+  const plan = jobBlockOf('functions_plan');
   ok('a functions_plan job exists', plan.length > 0);
   ok('…reads no secret', !/secrets\./.test(plan));
   ok('…token: contents read + actions read, nothing writable',
     /permissions:\s*\n\s+contents: read\s*\n\s+actions: read\s*\n/.test(plan) && !/: write/.test(plan), plan.slice(0, 600));
   ok('…checks out full history without persisted credentials', /fetch-depth:\s*0/.test(plan) && /persist-credentials:\s*false/.test(plan));
-  ok('…runs this script', /node scripts\/functions-deploy-decision\.js/.test(plan));
   ok('…passes the trigger through env, never interpolated into the shell',
     /SCOPE: \$\{\{ github\.event\.inputs\.scope \}\}/.test(plan) && !/run: .*\$\{\{/.test(plan));
   ok('…passes the off switch from the NBD_FUNCTIONS_SKIP repository variable', /SKIP_SWITCH: \$\{\{ vars\.NBD_FUNCTIONS_SKIP \}\}/.test(plan));
   ok('…publishes the functions output', /functions: \$\{\{ steps\.\w+\.outputs\.functions \}\}/.test(plan));
-  ok('the deploy job waits for functions_plan', /\n  deploy:\n[\s\S]*?\n    needs: \[[^\]]*functions_plan[^\]]*\]/.test(yml));
+  ok('the deploy job itself waits for functions_plan', /^    needs: \[[^\]]*\bfunctions_plan\b[^\]]*\]/m.test(jobBlockOf('deploy')), (jobBlockOf('deploy').match(/^    needs:.*$/m) || [''])[0]);
+  for (const k of ['GH_TOKEN: ${{ github.token }}', 'EVENT_NAME: ${{ github.event_name }}', 'FORCE_FUNCTIONS: ${{ github.event.inputs.force_functions }}',
+    'HEAD_SHA: ${{ github.sha }}', 'RUN_ID: ${{ github.run_id }}']) ok('…plan step env carries ' + k.split(':')[0], plan.includes('          ' + k));
+  ok('…the plan step id is the one the outputs read', /\n        id: plan\n/.test(plan) && /functions: \$\{\{ steps\.plan\.outputs\.functions \}\}/.test(plan));
+  ok('…runs as the step\'s only command', /\n        run: node scripts\/functions-deploy-decision\.js\n/.test(plan + '\n'));
   ok('workflow_dispatch has a force_functions boolean input', /\n      force_functions:\n[\s\S]{0,400}?type: boolean/.test(yml));
 }
 

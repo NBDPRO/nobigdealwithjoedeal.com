@@ -3,8 +3,9 @@
  * scripts/functions-deploy-decision.js — should this deploy run touch Cloud Functions? (2026-11-14)
  *
  * Called by the `functions_plan` job of .github/workflows/firebase-deploy.yml. Before this, every push to main
- * redeployed all ~340 functions (the strict step names each one in `--only functions:NAME`, which turns off
- * firebase-tools' skip-unchanged logic): about 16-17 of a ~23 minute deploy, even for a one-page change.
+ * redeployed all ~340 functions (the strict step names each one in `--only functions:NAME`; per the workflow's own
+ * note on firebase-tools planner.ts, that turns off its skip-unchanged logic): the strict step took 16m23s of the
+ * deploy in run 43634215715, even for a one-page change. (The strict step's export grep finds 339 functions.)
  *
  * THE RULE: all functions or none. A push skips the functions deploy steps only when NOTHING that can change the
  * deployed functions changed since the last commit whose functions deploy SUCCEEDED. Never "only the changed
@@ -94,8 +95,11 @@ function firebaseJsonFunctionsChanged(baseText, headText) {
  * Exact despite looking at a window: runs are walked newest-updated first, and a run cannot have started a step
  * after its own updated_at, so once a found attempt is newer than the next run's updated_at, nothing older can win.
  */
-function findLastFunctionsAttempt(runs, jobsByRun, currentRunId) {
-  const sorted = runs.filter((r) => String(r.id) !== String(currentRunId))
+function findLastFunctionsAttempt(runs, jobsByRun, currentRunId) { // eslint-disable-line no-unused-vars
+  // The current run is NOT excluded: its own EARLIER attempts are history too ("Re-run all jobs" after a failed
+  // strict step must see that failure). Its current attempt has not started the step yet (deploy waits for this
+  // job), so it is queued, pending or absent and ignored below.
+  const sorted = runs
     .slice().sort((x, y) => Date.parse(y.updated_at) - Date.parse(x.updated_at));
   let best = null;
   for (const run of sorted) {
@@ -202,8 +206,7 @@ function realGit(cwd) {
   };
 }
 
-function realGh(repo) {
-  const api = (p) => JSON.parse(execFileSync('gh', ['api', p], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }));
+function realGh(repo, api = (p) => JSON.parse(execFileSync('gh', ['api', p], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }))) {
   return {
     listRunsPage(page) { return api(`repos/${repo}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=100&page=${page}`).workflow_runs || []; },
     // filter=all: every attempt, so a re-run that never reached the step still shows the earlier attempt that did.
@@ -293,5 +296,5 @@ if (require.main === module) main();
 
 module.exports = {
   DEPLOY_JOB_NAME, STRICT_STEP_NAME, WORKFLOW_FILE, WORKFLOW_PATH, HISTORY_DAYS, readLastAttempt,
-  isFunctionInput, firebaseJsonFunctionsChanged, findLastFunctionsAttempt, decide, summaryMarkdown, realGit, main,
+  isFunctionInput, firebaseJsonFunctionsChanged, findLastFunctionsAttempt, decide, summaryMarkdown, realGit, realGh, main,
 };
