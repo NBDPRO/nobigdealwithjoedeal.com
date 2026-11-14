@@ -86,6 +86,8 @@ const FAIL_WORDS = {
   no_speech: 'no speech was heard on it',
   gave_up_after_14_days: 'it kept failing for two weeks',
   internal_error_gave_up: 'something went wrong on our side',
+  needs_paid_plan: 'walkthrough notes are part of the paid plans',
+  needs_confirmed_email: 'confirm your email address to get walkthrough notes',
 };
 function failureWords(note) { return FAIL_WORDS[str(note)] || 'something went wrong'; }
 // A person may ask for the transcription again only where another try can help

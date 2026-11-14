@@ -68,6 +68,7 @@ function deps() {
     notes: (a) => require('./call-center').claudeNotes(a),
     checkConsent: (a) => V._checkVerbalConsent(a),
     checkBudget: (db, companyId, plan) => V._checkBudget(db, companyId, plan),
+    entitled: (db, uid) => require('./ai-gate').aiEntitlementForUid(db, uid),
     recordUsage: (db, a) => V._incrementVoiceUsage(db, a),
     aiDisabled: async () => {
       const K = require('./integrations/killswitch');
@@ -121,7 +122,8 @@ const STAFF_ROLES = ['', 'owner', 'company_admin', 'manager', 'admin'];
 async function contextFor(db, uid) {
   const u = await db.doc('users/' + uid).get();
   const companyId = (u.exists && u.data() && u.data().companyId) || uid;
-  const sub = await db.doc('subscriptions/' + uid).get();
+  // The COMPANY's plan (2026-11-14, AI audit F1), not the rep's own uid.
+  const sub = await db.doc('subscriptions/' + companyId).get();
   const plan = (sub.exists && sub.data() && sub.data().plan) || 'lite';
   const co = await db.doc('companies/' + companyId).get();
   const cd = co.exists ? (co.data() || {}) : {};
@@ -351,16 +353,32 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'no_disclosure_ack', final: PIPELINE.QUARANTINED });
   }
 
-  // 3. the day's budget (company), before any vendor spend
-  if (!hasTranscript) {
-    try {
-      const b = await D.checkBudget(db, ctx.companyId, ctx.plan);
-      if (b && b.overBudget) {
-        await state({ pipelineStatus: PIPELINE.TRANSCRIBE_PENDING, pipelineNote: 'over_budget', pipelineNextAtMs: nowMs + 60 * 60000 });
-        return { step: 'process', state: PIPELINE.TRANSCRIBE_PENDING, note: 'over_budget' };
-      }
-    } catch (_) { /* budget read failed: do not block the customer's memo */ }
+  // 2b. free accounts get no AI (Joe, 2026-11-14; AI audit F1): a confirmed
+  // email and a paid plan on the company, NBD exempt. Read from the Auth
+  // record (no ID token here). Refused = parked as failed with a clear note,
+  // audio kept until retention; a plan-check blip retries in 30 minutes.
+  const ent = D.entitled ? await D.entitled(db, uid) : { ok: false, reason: 'plan_check_failed' };
+  if (!ent.ok) {
+    if (ent.reason === 'plan_check_failed') {
+      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: 'plan_check_failed', pipelineNextAtMs: nowMs + 30 * 60000 });
+      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: 'plan_check_failed' };
+    }
+    const note = ent.reason === 'unverified' ? 'needs_confirmed_email' : 'needs_paid_plan';
+    await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: note, pipelineNextAtMs: 0 });
+    return { step: 'process', state: PIPELINE.FAILED, note };
   }
+
+  // 3. the company's budget, before any vendor spend: audio this month
+  // (skipped when the transcript is already saved) and Claude calls today
+  // (the notes step below always needs one).
+  try {
+    const b = await D.checkBudget(db, ctx.companyId, ctx.plan);
+    if (b && (b.claudeOver || (!hasTranscript && b.overBudget))) {
+      const to = hasTranscript ? PIPELINE.NOTES_PENDING : PIPELINE.TRANSCRIBE_PENDING;
+      await state({ pipelineStatus: to, pipelineNote: 'over_budget', pipelineNextAtMs: nowMs + 60 * 60000 });
+      return { step: 'process', state: to, note: 'over_budget' };
+    }
+  } catch (_) { /* budget read failed: do not block the customer's memo */ }
 
   // 4. TRANSCRIBE (skipped when a previous pass already saved the transcript)
   let leads = null;
@@ -531,8 +549,8 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   }
   // Claude spend counted against the company (tokens are an estimate from the text sent + the 1.5k cap).
   try {
-    await D.recordUsage(db, { uid, companyId: ctx.companyId, audioSec: 0, analysisTokens: Math.round((notesPrompt.length + LG.VISIT_NOTES_SYSTEM.length) / 4) + 700, costCents: 0 });
-  } catch (_) { /* best effort: the audio seconds are the budgeted quantity */ }
+    await D.recordUsage(db, { uid, companyId: ctx.companyId, audioSec: 0, analysisTokens: Math.round((notesPrompt.length + LG.VISIT_NOTES_SYSTEM.length) / 4) + 700, costCents: 0, claudeCalls: 1 });
+  } catch (_) { /* best effort: counted toward the company's daily voice Claude cap */ }
   if (notes.visitType === 'personal') {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'personal' });
   }

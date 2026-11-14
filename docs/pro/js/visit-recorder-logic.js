@@ -341,6 +341,8 @@
     no_speech: 'no speech was heard on it',
     gave_up_after_14_days: 'it kept failing for two weeks',
     internal_error_gave_up: 'something went wrong on our side',
+    needs_paid_plan: 'walkthrough notes are part of the paid plans',
+    needs_confirmed_email: 'confirm your email address to get walkthrough notes',
   };
   function failureWords(note) { return Object.prototype.hasOwnProperty.call(FAIL_WORDS, String(note || '')) ? FAIL_WORDS[note] : 'something went wrong'; }
   var RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up'];

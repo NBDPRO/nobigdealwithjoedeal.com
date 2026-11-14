@@ -34,6 +34,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { getSecret, hasSecret, secretValue, PROVIDERS, SECRETS } = require('./_shared');
 const { isVoiceIntelDisabled } = require('./killswitch');
+const { aiEntitlementForUid, MESSAGES: AI_GATE_MESSAGES } = require('../ai-gate');
 const prompts = require('../voice-prompts');
 const { matchDocPath } = require('../collection-group-paths');
 const { isReservedLeadId } = require('../lead-artifact-paths');
@@ -41,9 +42,11 @@ const { isReservedLeadId } = require('../lead-artifact-paths');
 // Claude analysis + consent check reuse the existing Anthropic key.
 const ANTHROPIC_API_KEY_FOR_VOICE = defineSecret('ANTHROPIC_API_KEY');
 
-// Per-tier daily cap on recorded seconds. Mirrors CLAUDE_COMPANY_BUDGET
-// in functions/index.js. Starter = 20 hr/month ≈ 2400s/day soft cap
-// (burstable — budget is per-day, users can backload).
+// Per-tier MONTHLY cap on recorded seconds, per company. Until 2026-11-14
+// (AI audit F1) these monthly figures were compared against a per-DAY
+// counter, so every tier got 30x its allowance; checkBudget now reads a
+// monthly counter (api_usage_monthly/{YYYY-MM}__co__{companyId}). Starter =
+// 20 hr/month, burstable within the month.
 const VOICE_COMPANY_BUDGET_SEC = {
   free:         3600,      // canonical free tier (gap #6 seeds plan:'free');
                            // matches the legacy 'lite' default explicitly so a
@@ -60,6 +63,13 @@ const VOICE_COMPANY_BUDGET_SEC = {
   professional:600000      // 166 hr/mo ≈ 20000s/day
 };
 const VOICE_COMPANY_BUDGET_DEFAULT = 3600;
+// Every clip with speech also costs Claude calls (consent check, analysis,
+// walkthrough notes), which the audio-seconds budget never counted. Each
+// company gets this many voice Claude calls a day (UTC), shared by call
+// recordings and the walkthrough recorder. Override: VOICE_CLAUDE_DAILY_CAP.
+function voiceClaudeDailyCap() {
+  return require('../env-number').envCap(process.env.VOICE_CLAUDE_DAILY_CAP, 200);
+}
 
 // Max audio file size the pipeline will accept. Matches storage.rules
 // upper bound so a client that slipped past the rule still gets
@@ -140,7 +150,9 @@ async function getCompanyContext(db, uid) {
     }
   } catch (_) {}
   try {
-    const subSnap = await db.doc('subscriptions/' + uid).get();
+    // The COMPANY's plan (2026-11-14, AI audit F1): keyed on the uid, a
+    // paying tenant's reps got the free tier's budget.
+    const subSnap = await db.doc('subscriptions/' + out.companyId).get();
     if (subSnap.exists) out.plan = subSnap.data().plan || 'lite';
   } catch (_) {}
   try {
@@ -155,33 +167,52 @@ async function getCompanyContext(db, uid) {
   return out;
 }
 
-// Daily budget check. Reads the materialized counter from M2
-// (api_usage_daily/{date}__co__{companyId}) and compares against
-// the per-plan cap.
-async function checkBudget(db, companyId, plan) {
-  const dayKey = new Date().toISOString().slice(0, 10);
-  const ref = db.doc('api_usage_daily/' + dayKey + '__co__' + companyId);
-  let consumed = 0;
+// Budget check, per company: audio seconds this MONTH against the plan's
+// monthly cap, and voice Claude calls TODAY against voiceClaudeDailyCap().
+//   audioOver  — no more transcription this month
+//   claudeOver — no more Claude (consent / analysis / notes) today
+//   overBudget — either
+// A failed counter read counts as 0 (unchanged: a blip never blocks a memo).
+async function checkBudget(db, companyId, plan, nowMs) {
+  const iso = new Date(nowMs || Date.now()).toISOString();
+  let consumed = 0, claudeCalls = 0;
   try {
-    const snap = await ref.get();
+    const snap = await db.doc('api_usage_monthly/' + iso.slice(0, 7) + '__co__' + companyId).get();
     if (snap.exists) consumed = Number(snap.data().voice_audioSec) || 0;
   } catch (_) {}
-  const cap = VOICE_COMPANY_BUDGET_SEC[plan] || VOICE_COMPANY_BUDGET_DEFAULT;
-  return { consumed, cap, overBudget: consumed >= cap };
+  try {
+    const snap = await db.doc('api_usage_daily/' + iso.slice(0, 10) + '__co__' + companyId).get();
+    if (snap.exists) claudeCalls = Number(snap.data().voice_claudeCalls) || 0;
+  } catch (_) {}
+  const cap = Object.prototype.hasOwnProperty.call(VOICE_COMPANY_BUDGET_SEC, plan) ? VOICE_COMPANY_BUDGET_SEC[plan] : VOICE_COMPANY_BUDGET_DEFAULT;
+  const claudeCap = voiceClaudeDailyCap();
+  const audioOver = consumed >= cap;
+  const claudeOver = claudeCalls >= claudeCap;
+  return { consumed, cap, claudeCalls, claudeCap, audioOver, claudeOver, overBudget: audioOver || claudeOver };
 }
 
 // Stamp per-company + per-uid voice usage counters. Uses the same
 // materialized-counter docs that M2 introduced for claudeProxy, so
 // "AI usage today" dashboards get voice minutes for free.
 async function incrementVoiceUsage(db, {
-  uid, companyId, audioSec, analysisTokens, costCents
+  uid, companyId, audioSec, analysisTokens, costCents, claudeCalls
 }) {
-  const dayKey = new Date().toISOString().slice(0, 10);
+  const iso = new Date().toISOString();
+  const dayKey = iso.slice(0, 10);
+  const monthKey = iso.slice(0, 7);
   const srv = FieldValue.serverTimestamp();
   const incSec    = FieldValue.increment(Math.max(0, audioSec|0));
   const incTok    = FieldValue.increment(Math.max(0, analysisTokens|0));
   const incCost   = FieldValue.increment(Math.max(0, costCents|0));
+  const incCalls  = FieldValue.increment(Math.max(0, claudeCalls|0));
   await Promise.all([
+    // What checkBudget reads: audio this month, Claude calls today.
+    db.doc('api_usage_monthly/' + monthKey + '__co__' + companyId).set({
+      companyId, monthKey, scope: 'company', updatedAt: srv,
+      voice_audioSec: incSec,
+      voice_claudeCalls: incCalls,
+      voice_costCents: incCost
+    }, { merge: true }),
     db.doc('api_usage_daily/' + dayKey + '__uid__' + uid).set({
       uid, dayKey, scope: 'uid', updatedAt: srv,
       voice_audioSec: incSec,
@@ -192,6 +223,7 @@ async function incrementVoiceUsage(db, {
       companyId, dayKey, scope: 'company', updatedAt: srv,
       voice_audioSec: incSec,
       voice_analysisTokens: incTok,
+      voice_claudeCalls: incCalls,
       voice_costCents: incCost
     }, { merge: true })
   ]);
@@ -589,6 +621,26 @@ async function processRecording({
     return { ok: true, skipped: 'lead_not_accessible' };
   }
 
+  // ── AI entitlement ── (2026-11-14, AI audit F1; Joe: free accounts get no AI)
+  // The uploader needs a confirmed email and a paid plan on their company
+  // (NBD itself exempt), read from their Auth record: this trigger has no
+  // ID token. A failed doc (not a silent no-op) so the customer page stops
+  // waiting; the audio is kept, so it can be reprocessed after an upgrade.
+  const ent = await aiEntitlementForUid(db, uid);
+  if (!ent.ok) {
+    await recordingRef.set({
+      userId: uid, companyId: ctx.companyId, leadId, recordingId,
+      audioPath: path, contentType: contentType || null,
+      audioBytes: Number(size) || 0,
+      status: 'failed',
+      statusError: AI_GATE_MESSAGES[ent.reason] || AI_GATE_MESSAGES.plan,
+      recordedAt: existing?.recordedAt || FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    logger.info('voice: uploader not entitled to AI — not processed', { uid, leadId, recordingId, reason: ent.reason });
+    return { ok: true, skipped: 'not_entitled', reason: ent.reason };
+  }
+
   // ── Global kill switch (SPEND_KILLSWITCH.md) ──
   // One write to feature_flags/global.voiceIntelDisabled halts new Groq/
   // Anthropic spend without a deploy or secret rotation. We still write a
@@ -619,8 +671,11 @@ async function processRecording({
       audioPath: path, contentType: contentType || null,
       audioBytes: Number(size) || 0,
       status: 'failed',
-      statusError: 'voice budget exhausted for company this cycle (' +
-        budget.consumed + 's / ' + budget.cap + 's cap on plan=' + ctx.plan + ')',
+      statusError: budget.audioOver
+        ? 'voice budget exhausted for company this month (' +
+          budget.consumed + 's / ' + budget.cap + 's cap on plan=' + ctx.plan + ')'
+        : 'voice AI daily limit reached for company (' +
+          budget.claudeCalls + ' / ' + budget.claudeCap + ' AI calls today); try again tomorrow',
       recordedAt: existing?.recordedAt || FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
@@ -654,6 +709,23 @@ async function processRecording({
   let transcriptResult = null;
   let analysis = null;
   let tokensUsed = 0;
+  // Claude calls made for this clip (consent check, analysis), counted
+  // against the company's daily voice Claude cap (AI audit F1). Every exit
+  // that spent anything records it, not only a completed recording.
+  let claudeCalls = 0;
+  let spendCounted = false;
+  const countSpend = async () => {
+    if (spendCounted) return;
+    spendCounted = true;
+    const audioSec = transcriptResult && !(forceReanalyze && existing && existing.transcript)
+      ? Math.round(transcriptResult.durationSec) || 0 : 0;
+    if (!audioSec && !claudeCalls) return;
+    try {
+      await incrementVoiceUsage(db, { uid, companyId: ctx.companyId, audioSec, analysisTokens: tokensUsed, costCents: 0, claudeCalls });
+    } catch (e) {
+      logger.warn('voice: usage-counter update failed', { err: e.message });
+    }
+  };
 
   try {
     // ── (1) Transcription ── skip when reprocessing a doc that
@@ -686,6 +758,7 @@ async function processRecording({
     if (ctx.consentMode === 'two_party_verbal' && !forceReanalyze) {
       let consentResult;
       try {
+        claudeCalls++;
         consentResult = await checkVerbalConsent({
           transcript: transcriptResult.text,
           segments: transcriptResult.segments
@@ -705,6 +778,7 @@ async function processRecording({
           consent: { ...baseDoc.consent, verbalPhrase: null, checkFailed: true },
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
+        await countSpend();
         return { ok: true, quarantined: true };
       }
       if (!consentResult.consented) {
@@ -718,6 +792,7 @@ async function processRecording({
           },
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
+        await countSpend();
         return { ok: true, quarantined: true };
       }
       // Stamp the evidence for audit.
@@ -744,6 +819,7 @@ async function processRecording({
       }
     } catch (_) {}
 
+    claudeCalls++;
     analysis = await analyzeTranscript({
       transcript: transcriptResult.text,
       segments:   transcriptResult.segments,
@@ -773,12 +849,15 @@ async function processRecording({
     // Stamp usage counters AFTER the doc lands — better to have
     // a recording without a counter increment than a counter
     // increment without a recording if the write race goes sideways.
+    spendCounted = true;
     try {
       await incrementVoiceUsage(db, {
         uid, companyId: ctx.companyId,
-        audioSec,
+        // A reanalysis reuses the stored transcript: no new audio seconds.
+        audioSec: forceReanalyze && existing && existing.transcript ? 0 : audioSec,
         analysisTokens: tokensUsed,
-        costCents
+        costCents,
+        claudeCalls
       });
     } catch (e) {
       logger.warn('voice: usage-counter update failed', { err: e.message });
@@ -793,6 +872,7 @@ async function processRecording({
     const code = (e && e.isVoiceError) ? e.code : 'pipeline-error';
     const msg  = (e && e.message) || String(e);
     logger.error('voice: pipeline failed', { leadId, recordingId, code, msg });
+    await countSpend();
     try {
       await recordingRef.set({
         status: 'failed',
@@ -824,7 +904,10 @@ exports.onAudioUploaded = onObjectFinalized(
     memory: '512MiB',
     timeoutSeconds: 540,
     concurrency: 1,
-    cpu: 1
+    cpu: 1,
+    // Bounds how much Groq + Claude a burst of uploads can run at once
+    // (AI audit F1: this lane had no instance cap). Events beyond it queue.
+    maxInstances: 10
   },
   async (event) => {
     const obj = event.data;

@@ -105,8 +105,10 @@ function stub(over) {
       return JSON.parse(JSON.stringify(NOTES));
     },
     checkConsent: async (a) => { counts.consent++; return scripted.consent ? scripted.consent(a) : { consented: true, evidence: 'yes that is fine' }; },
-    checkBudget: async () => ({ overBudget: flags.overBudget }),
-    recordUsage: async () => { counts.usage++; },
+    checkBudget: async () => (scripted.budget ? scripted.budget() : { overBudget: flags.overBudget }),
+    // 2026-11-14: the uploader's AI entitlement (functions/ai-gate.js); a paying tenant here.
+    entitled: async (db, uid) => { counts.entitledFor = uid; return scripted.entitled ? scripted.entitled() : { ok: true }; },
+    recordUsage: async (db, a) => { counts.usage++; (counts.usageArgs = counts.usageArgs || []).push(a); },
     aiDisabled: async () => flags.aiOff,
     signUrl: async (b, p) => 'https://signed.example/' + p + '?exp=600',
     rateLimit: async () => { counts.rate = (counts.rate || 0) + 1; if (scripted.rateLimited) { const e = new Error('rate'); e.code = 'resource-exhausted'; throw e; } },
@@ -1010,6 +1012,36 @@ async function channelRead(w, owner) {
     const written = [...src.matchAll(/pipelineStatus: (?:dead \? )?PIPELINE\.FAILED[^}]*?pipelineNote: (?:dead \? )?'([a-z_]+)'/g)].map((m) => m[1]);
     ok('FAIL_WORDS covers every literal FAILED note in visit-capture.js', written.length >= 6 && written.every((k) => LG.FAIL_WORDS[k]), J(written));
     ok('RETRANSCRIBE_NOTES are all failure codes with words', LG.RETRANSCRIBE_NOTES.every((k) => LG.FAIL_WORDS[k]));
+  }
+
+  // 2026-11-14 (AI audit F1): free accounts get no AI; Claude calls are budgeted too
+  console.log('\nAI entitlement and the voice Claude budget (2026-11-14)');
+  stub({ entitled: () => ({ ok: false, reason: 'plan' }) });
+  w = world({ v12free0001: cap('v12free0001') });
+  await run(w, 'v12free0001');
+  ok('a free account\'s walkthrough: no Groq, no Claude', counts.transcribe === 0 && counts.notes === 0);
+  ok('…marked failed with needs_paid_plan (words on the phone)', D(w, 'v12free0001').pipelineStatus === 'failed' && D(w, 'v12free0001').pipelineNote === 'needs_paid_plan' && /paid plans/.test(LG.failureWords('needs_paid_plan')), J(D(w, 'v12free0001')));
+  ok('…the entitlement is the UPLOADER\'s', counts.entitledFor === OWNER);
+  stub({ entitled: () => ({ ok: false, reason: 'unverified' }) });
+  w = world({ v12unver001: cap('v12unver001') });
+  await run(w, 'v12unver001');
+  ok('an unconfirmed email: no spend, needs_confirmed_email', counts.transcribe === 0 && D(w, 'v12unver001').pipelineNote === 'needs_confirmed_email');
+  stub({ entitled: () => ({ ok: false, reason: 'plan_check_failed' }) });
+  w = world({ v12blip0001: cap('v12blip0001') });
+  await run(w, 'v12blip0001');
+  ok('a plan-check blip parks it for a retry (not failed), no spend', counts.transcribe === 0 && D(w, 'v12blip0001').pipelineStatus !== 'failed' && D(w, 'v12blip0001').pipelineNote === 'plan_check_failed' && D(w, 'v12blip0001').pipelineNextAtMs > NOW);
+  stub({ budget: () => ({ overBudget: true, claudeOver: true, audioOver: false }) });
+  w = world({ v12cap00001: cap('v12cap00001', { transcript: TRANSCRIPT, pipelineStatus: 'notes_pending' }) });
+  await run(w, 'v12cap00001');
+  ok('over the company\'s daily voice Claude cap with a transcript saved: notes parked, no Claude call', counts.notes === 0 && D(w, 'v12cap00001').pipelineNote === 'over_budget' && D(w, 'v12cap00001').pipelineStatus === 'notes_pending', J(D(w, 'v12cap00001')));
+  stub();
+  w = world({ v12ok000001: cap('v12ok000001') });
+  await run(w, 'v12ok000001');
+  ok('a paying tenant\'s walkthrough still runs end to end', D(w, 'v12ok000001').pipelineStatus === 'ready' && counts.transcribe === 1 && counts.notes === 1);
+  ok('…its notes call is counted as one voice Claude call', (counts.usageArgs || []).some((a) => a.claudeCalls === 1), J(counts.usageArgs));
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8');
+    ok('the plan is read from the COMPANY\'s subscription doc', /db\.doc\('subscriptions\/' \+ companyId\)/.test(src) && !/db\.doc\('subscriptions\/' \+ uid\)/.test(src));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
