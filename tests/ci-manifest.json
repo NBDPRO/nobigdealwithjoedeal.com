@@ -1642,6 +1642,7 @@
     "firestore-rules.cross-tenant.test.js",
     "firestore-rules.visit-captures.test.js",
     "firestore-rules.d2d-doorlists.test.js",
+    "ds-storage-full-2026-11-14.test.js",
     "firestore-rules.canvassers.test.js",
     "firestore-rules.company-docs.test.js",
     "firestore-rules.sub-paperwork.test.js",

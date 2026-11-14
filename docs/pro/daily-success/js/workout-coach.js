@@ -124,7 +124,15 @@
   // The day lifting actually began (audit 2026-11-14 #8): a workout opened at night and lifted the next morning was filed under
   // the night it was built. Finish files it under this day instead; one that runs past midnight stays on the day it began.
   function markFirstSet() { if (live && !live.firstSetDay) { live.firstSetDay = today(); live.firstSetAt = Date.now(); } }
-  function persistLive() { if (live) writeJson(LIVE, live); else try { localStorage.removeItem(LIVE); } catch (_) {} }
+  // A set that the phone will not store (full / blocked storage) stays in memory and Finish retries it, but Jo is told at once
+  // instead of finding out at Finish (audit 2026-11-14 #13); once per few seconds, since typing calls this on every keystroke.
+  let liveErrAt = 0;
+  function persistLive() {
+    if (!live) { try { localStorage.removeItem(LIVE); } catch (_) {} return true; }
+    if (writeJson(LIVE, live)) return true;
+    if (Date.now() - liveErrAt > 5000) { liveErrAt = Date.now(); toastErr("Couldn't save that set on this phone - storage is full or blocked. Keep this screen open and free some space."); }
+    return false;
+  }
 
   function newSession(split, opts) {
     const s = settings();
@@ -800,9 +808,10 @@
       Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
       if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
       if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
-      window.savePages();
+      // A refused save (full storage) must not show "Logged to today's Exercise Log" (the workout itself is saved above).
+      const saved = window.savePages() !== false;
       if (typeof window.renderPage === 'function') window.renderPage();
-      return true;
+      return saved;
     } catch (_) { return false; }
   }
 
