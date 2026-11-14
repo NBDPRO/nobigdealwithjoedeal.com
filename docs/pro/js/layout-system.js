@@ -225,8 +225,11 @@
 
   // phone is the app's own mobile breakpoint (768px — what #mobile-nav and the
   // pipeline already key on); tablet is a wider touch screen; the rest desktop.
-  function surfaceFor(width, coarsePointer) {
+  function surfaceFor(width, coarsePointer, height) {
     if (width <= 768) return 'phone';
+    // a phone on its side (2026-11-14): wide but short, with a touch screen. Windows on an
+    // 844x390 iPhone were unusable; a short laptop window (fine pointer) stays desktop.
+    if (coarsePointer && height > 0 && height <= 500 && width <= 1000) return 'phone';
     if (width <= 1180 && coarsePointer) return 'tablet';
     return 'desktop';
   }
@@ -403,7 +406,7 @@
   function coarse() {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   }
-  function surface() { return R.surfaceFor(window.innerWidth || 1024, coarse()); }
+  function surface() { return R.surfaceFor(window.innerWidth || 1024, coarse(), window.innerHeight || 0); }
 
   // ── tiny storage helpers (storage can throw: private mode, blocked) ──
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }

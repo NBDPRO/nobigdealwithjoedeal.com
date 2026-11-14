@@ -625,8 +625,24 @@
     if (!state.open) return;
     var el = sheetRoot();
     byId('osSheetTitle').textContent = TITLES[state.open] || '';
-    byId('osSheetBody').innerHTML = state.open === 'notifs' ? notifsHtml() : controlHtml();
+    var body = byId('osSheetBody');
+    // the body is rebuilt on every toggle and refresh: keyboard focus goes back to the
+    // same control (by data-os + data-key, + data-val for a choice), never <body> (2026-11-14)
+    var a = doc.activeElement, was = null;
+    if (a && body.contains(a) && a.getAttribute) was = { os: a.getAttribute('data-os'), key: a.getAttribute('data-key'), val: a.getAttribute('data-val') };
+    body.innerHTML = state.open === 'notifs' ? notifsHtml() : controlHtml();
     el.setAttribute('data-panel', state.open);
+    if (was && was.os && was.key) {
+      var same = body.querySelectorAll('[data-os]'), hit = null, near = null;
+      for (var i = 0; i < same.length; i++) {
+        if (same[i].getAttribute('data-os') !== was.os || same[i].getAttribute('data-key') !== was.key) continue;
+        if (!near) near = same[i];
+        if (same[i].getAttribute('data-val') === was.val) { hit = same[i]; break; }
+      }
+      // a switch flips its data-val on each toggle, so the same key is the same control
+      var t = hit || near;
+      if (t) t.focus();
+    }
   }
   function open(panel) {
     if (panel === 'layouts') { openLayouts(); return; }

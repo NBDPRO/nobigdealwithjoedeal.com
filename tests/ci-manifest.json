@@ -82,6 +82,7 @@
     "nbd-os-boot-mark-2026-11-14.test.js",
     "nbd-os-close-window-2026-11-14.test.js",
     "nbd-os-window-polish-2026-11-14.test.js",
+    "nbd-os-review-bugs-2026-11-14.test.js",
     "nbd-os-visits-2026-11-07.test.js",
     "nbd-os-review-fixes-2026-11-08.test.js",
     "nbd-os-release-order-2026-11-08.test.js",

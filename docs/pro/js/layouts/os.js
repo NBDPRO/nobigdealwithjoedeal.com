@@ -101,7 +101,8 @@
   }
   var saveT = null;
   function writeState(src) {
-    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
+    // idle: the member left the desk with no window in front (2026-11-14), so a reload doesn't open the active view
+    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, idle: !src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
     safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
   }
   function save() {
@@ -849,6 +850,9 @@
     adopt(id, el.querySelector('.os-win-body'));
     rec.min = false;
     focusWin(id, { route: o.route !== false });
+    // the member opened it (Start, an icon, the taskbar): keyboard focus goes with it, not to
+    // <body>, the hidden Start box or the taskbar button the repaint just replaced
+    if (o.focus === true) safe(function () { el.focus(); });
   }
   function focusWin(id, opts) {
     var o = opts || {};
@@ -877,6 +881,16 @@
   function dropActive() {
     var act = doc.querySelectorAll('.view.active');
     for (var i = 0; i < act.length; i++) act[i].classList.remove('active');
+    // the URL still names the app just closed: a reload would deep-link back into it
+    safe(function () {
+      var loc = W.location;
+      if (loc && loc.hash && W.history && typeof W.history.replaceState === 'function') W.history.replaceState(null, '', loc.pathname + loc.search);
+    });
+  }
+  // A view the URL names on load (#/crm): a deep link, opened even on an empty desk.
+  function hashView() {
+    var m = /^#\/([a-z][a-z0-9-]*)/.exec(String((W.location && W.location.hash) || ''));
+    return m && viewEl(m[1]) ? m[1] : null;
   }
   // Was keyboard focus inside this window? (its buttons are about to vanish)
   function hadFocus(id) {
@@ -1029,6 +1043,13 @@
     var rec = winRec(id);
     if (!rec || ev.button > 0) return;
     var desk = deskSize();
+    // resizing a snapped window starts from the snapped rect and leaves the snap (Windows);
+    // the grip used to draw nothing and overwrite the saved free size
+    if (kind === 'size' && rec.zone) {
+      var z = WM.zoneFrac(rec.zone);
+      rec.x = z.x; rec.y = z.y; rec.w = z.w; rec.h = z.h; rec.zone = null;
+      placeWin(rec);
+    }
     var f = rec.zone ? WM.zoneFrac(rec.zone) : rec;
     var start = WM.toPx(f, desk);
     S.drag = { id: id, kind: kind, sx: ev.clientX, sy: ev.clientY, start: start, desk: desk, origin: S.winsEl.getBoundingClientRect(), moved: false, zone: null, pid: ev.pointerId };
@@ -1057,7 +1078,8 @@
       d.zone = WM.snapZone({ x: ev.clientX - d.origin.left, y: ev.clientY - d.origin.top }, d.desk);
       paintSnapPreview(d.zone);
     } else {
-      px = { x: d.start.x, y: d.start.y, w: d.start.w + dx, h: d.start.h + dy };
+      // a size drag stops at the desk edge; past it clampFrac moved x / y instead
+      px = { x: d.start.x, y: d.start.y, w: Math.min(d.start.w + dx, d.desk.w - d.start.x), h: Math.min(d.start.h + dy, d.desk.h - d.start.y) };
     }
     var f = WM.toFrac(px, d.desk);
     rec.x = f.x; rec.y = f.y; rec.w = f.w; rec.h = f.h;
@@ -1236,7 +1258,7 @@
       ev.preventDefault();
       // a Visits row shares .os-start-app but is not an app (no data-osapp)
       var first = S.startEl.querySelector('.os-start-app[data-osapp]');
-      if (first) { setStart(false); openWin(first.getAttribute('data-osapp')); }
+      if (first) { setStart(false); openWin(first.getAttribute('data-osapp'), { focus: true }); }
       else { setStart(false); openSearch(); }
     });
     on(doc, 'keydown', onDeskKey);
@@ -1259,11 +1281,13 @@
     });
     S.order = S.wins.map(function (w) { return w.id; });
     var active = doc.querySelector('.content .view.active');
-    var focusId = st.focus || (active ? active.id.slice(5) : null);
+    var deep = hashView();
+    // an empty desk saved on purpose stays empty (view-home ships .active), unless the URL deep-links an app
+    var focusId = st.focus || (st.idle && !deep ? null : (deep || (active ? active.id.slice(5) : null)));
     paintDeskBtns();
     paintActBtn();
-    if (focusId && viewEl(focusId)) openWin(focusId);
-    else paintAllWins();
+    if (focusId && viewEl(focusId)) openWin(focusId, { focus: false });
+    else { if (st.idle) dropActive(); paintAllWins(); }
     registerDeskSpotlight();
     attachRunner();
   }
@@ -1346,12 +1370,12 @@
       return;
     }
     var app = t.closest('[data-osapp]');
-    if (app) { if (S.startOpen) setStart(false); openWin(app.getAttribute('data-osapp')); return; }
+    if (app) { if (S.startOpen) setStart(false); openWin(app.getAttribute('data-osapp'), { focus: true }); return; }
     var task = t.closest('[data-ostask]');
     if (task) {
       var tid = task.getAttribute('data-ostask');
       var rec = winRec(tid);
-      if (rec && S.focus === tid && !rec.min) minimiseWin(tid); else openWin(tid);
+      if (rec && S.focus === tid && !rec.min) minimiseWin(tid); else openWin(tid, { focus: true });
       return;
     }
     var act = t.closest('[data-osdo]');

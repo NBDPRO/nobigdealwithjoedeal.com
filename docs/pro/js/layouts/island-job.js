@@ -56,9 +56,10 @@
     return urlOf(pick || list[0]);
   }
   /** Is Island Dock this screen's resolved layout? cache = parsed nbd_layout_resolved. */
-  function wantsIsland(cache, width, coarse) {
+  function wantsIsland(cache, width, coarse, height) {
     if (!cache || typeof cache !== 'object' || !cache.byDevice) return false;
-    var surface = width <= 768 ? 'phone' : (width <= 1180 && coarse ? 'tablet' : 'desktop');
+    // mirrors layout-system.js surfaceFor (a touch phone on its side is a phone)
+    var surface = width <= 768 || (coarse && height > 0 && height <= 500 && width <= 1000) ? 'phone' : (width <= 1180 && coarse ? 'tablet' : 'desktop');
     return cache.byDevice[surface] === 'island';
   }
 
@@ -72,7 +73,7 @@
   try { cache = JSON.parse(root.localStorage.getItem('nbd_layout_resolved') || 'null'); } catch (e) { cache = null; }
   var coarse = false;
   try { coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches); } catch (e) { /* none */ }
-  if (!wantsIsland(cache, root.innerWidth || 1024, coarse)) return;
+  if (!wantsIsland(cache, root.innerWidth || 1024, coarse, root.innerHeight || 0)) return;
 
   de.setAttribute('data-island-job', '1');
   var link = doc.createElement('link');

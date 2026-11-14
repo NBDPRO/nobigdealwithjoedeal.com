@@ -107,6 +107,8 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
   display: flex; align-items: center; gap: var(--ui-space-1, 4px); flex-shrink: 0;
   height: 52px; padding: 0 var(--ui-space-2, 8px);
   background: color-mix(in srgb, var(--s) 94%, transparent); border-top: 1px solid var(--ui-line-divider, var(--br));
+  /* an iPad's home indicator sits over the bottom edge (2026-11-14) */
+  box-sizing: content-box; padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .os-start-btn, .os-task {
   display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 var(--ui-space-3, 12px);
