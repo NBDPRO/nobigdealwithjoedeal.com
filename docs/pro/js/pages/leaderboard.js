@@ -160,11 +160,25 @@ async function loadRaw() {
 // dated lastPaymentAt||paidAt. TRANSITION RECONCILIATION: when the ledger
 // sums short of total−balanceDue (pre-ledger partial), append a synthetic
 // remainder dated at the EARLIEST ledger entry so totals stay exact.
+// What a Connect refund moved back into balanceDue (connect-refund-logic.js),
+// added back to total - balanceDue so the refund comes off once, via refunds[].
+// refundReopenedTotal is client-writable, so it is capped at the server-tagged
+// (reopens:true) refunds[] that returned money; #3064 freezes refunds[] for
+// browsers. Same helper in all six revenue readers.
+function reopenedOf(inv) {
+  var list = Array.isArray(inv.refunds) ? inv.refunds : [], cap = 0;
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i] || {}, a = parseFloat(r.amount);
+    if (r.reopens === true && a > 0 && r.status !== 'failed' && r.status !== 'canceled') cap += Math.round(a * 100);
+  }
+  var v = Math.round((parseFloat(inv.refundReopenedTotal) || 0) * 100);
+  return Math.min(Math.max(0, v), cap) / 100;
+}
 function paymentsOnlyOf(inv) {
   const collected = Math.max(0,
     (parseFloat(inv.total) || 0)
     - ((inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0)
-    + (parseFloat(inv.refundReopenedTotal) || 0)); // same as collected-revenue.js collectedDollarsOf
+    + reopenedOf(inv));
   if (Array.isArray(inv.payments) && inv.payments.length > 0) {
     const out = [];
     let ledgerCents = 0;

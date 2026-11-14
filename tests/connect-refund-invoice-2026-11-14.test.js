@@ -589,19 +589,19 @@ async function main() {
     // A: total 1000; $300 cash never put on payments[]; $700 card on it; $200 refunded.
     const A = { total: 1000, status: 'partial', amountPaid: 800, balanceDue: 200, refundReopenedTotal: 200,
       payments: [{ amount: 700, at: D('2026-11-02T16:00:00Z') }], lastPaymentAt: D('2026-11-02T16:00:00Z'),
-      refunds: [{ amount: 200, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+      refunds: [{ amount: 200, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund', reopens: true }] };
     // B: full ledger: $1000 card, $400 refunded.
     const B = { total: 1000, status: 'partial', amountPaid: 600, balanceDue: 400, refundReopenedTotal: 400,
       payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
-      refunds: [{ amount: 400, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+      refunds: [{ amount: 400, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund', reopens: true }] };
     // C (security T6): payments[] only the $1000 card; $500 cash unrecorded; total 1500; $1000 refunded.
     const C = { total: 1500, status: 'partial', amountPaid: 500, balanceDue: 1000, refundReopenedTotal: 1000,
       payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
-      refunds: [{ amount: 1000, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+      refunds: [{ amount: 1000, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund', reopens: true }] };
     // L: no payments[] at all (lump), $1000 paid, $250 refunded.
     const L = { total: 1000, status: 'partial', amountPaid: 750, balanceDue: 250, refundReopenedTotal: 250,
       lastPaymentAt: D('2026-11-01T16:00:00Z'),
-      refunds: [{ amount: 250, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+      refunds: [{ amount: 250, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund', reopens: true }] };
     // O: owner-ledger shape (refund NOT reopened, no refundReopenedTotal) — unchanged behaviour.
     const O = { total: 1000, status: 'paid', amountPaid: 1000, balanceDue: 0, refundedTotal: 250,
       payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
@@ -620,10 +620,10 @@ async function main() {
     const readers = {};
     readers['collected-revenue.js'] = (i) => R.paymentsOf(i);
     for (const [f, names] of [
-      ['docs/pro/js/money-dashboard.js', ['toJSDate', 'collectedCentsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
-      ['docs/pro/js/analytics-kpi.js', ['toJSDate', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
-      ['docs/pro/js/pages/leaderboard.js', ['toDate', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
-      ['functions/weekly-digest.js', ['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf']],
+      ['docs/pro/js/money-dashboard.js', ['toJSDate', 'reopenedOf', 'collectedCentsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['docs/pro/js/analytics-kpi.js', ['toJSDate', 'reopenedOf', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['docs/pro/js/pages/leaderboard.js', ['toDate', 'reopenedOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['functions/weekly-digest.js', ['timestampMillis', '_reopenedOf', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf']],
     ]) {
       const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
       const body = names.map((n) => lift(src, n)).join('\n');
@@ -643,7 +643,35 @@ async function main() {
         catch (e) { got = 'threw ' + e.message; }
         ok('T6 ' + rname + ' ' + k + ' collects ' + WANT[k], got === WANT[k], 'got ' + got);
       }
+      // T9: refundReopenedTotal is client-writable (the invoice rule is at its
+      // expression budget). A rep writing 99999 must not raise Collected past what
+      // the server-tagged refunds[] entries allow (frozen for browsers by #3064).
+      const T9 = {
+        'Connect B, rep writes 99999': [Object.assign({}, B, { refundReopenedTotal: 99999 }), 600],
+        'Connect A, rep writes 99999': [Object.assign({}, A, { refundReopenedTotal: 99999 }), 800],
+        'owner-ledger O (untagged refund), rep writes 250': [Object.assign({}, O, { refundReopenedTotal: 250 }), 750],
+        'no refunds, rep writes 99999': [{ total: 1000, balanceDue: 0, refundReopenedTotal: 99999, payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }] }, 1000],
+        'tagged refund that FAILED, rep writes 400': [Object.assign({}, B, { refundReopenedTotal: 400, balanceDue: 0, amountPaid: 1000,
+          refunds: [{ amount: 400, at: D('2026-11-05T16:00:00Z'), status: 'failed', kind: 'refund', reopens: true }] }), 1000],
+      };
+      for (const [k, [i, want]] of Object.entries(T9)) {
+        let got;
+        try { got = sumOf(fn(JSON.parse(JSON.stringify(i), (kk, v) => (kk === 'at' || kk === 'lastPaymentAt') ? new Date(v) : v))); }
+        catch (e) { got = 'threw ' + e.message; }
+        ok('T9 ' + rname + ' ' + k + ' → collects ' + want + ' (capped)', got === want, 'got ' + got);
+      }
     }
+  }
+
+  console.log('\nT9b — the server tags the entries the readers may add back');
+  {
+    const wt9 = world();
+    await run(wt9, charge());
+    ok('T9 every Connect refunds[] entry carries reopens:true', inv(wt9).refunds.every((r) => r.reopens === true), JSON.stringify(inv(wt9).refunds));
+    inv(wt9).refunds[0].reopens = false;
+    wt9.refunds.ch_T.push({ id: 're_2', amount: 10000, status: 'succeeded', created: T0 + 2 * 86400, charge: 'ch_T' });
+    await run(wt9, charge(), 'evt_t9');
+    ok('T9 a cleared tag is put back on the next delivery', inv(wt9).refunds.every((r) => r.reopens === true));
   }
 
   console.log('\nT8 — the homeowner portal does not read a refunded job as paid');

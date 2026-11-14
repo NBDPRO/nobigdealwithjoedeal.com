@@ -85,13 +85,16 @@ function planConnectRefund(inv, stripeRefunds, applied, opts) {
     }
 
     // Display / revenue copy: rebuilt from Stripe (repairs an edited entry).
-    const entry = { amount: amtC / 100, stripeRef: id, status, kind: 'refund' };
+    // reopens:true marks the entries whose money this planner may have moved
+    // into balanceDue; revenue readers cap refundReopenedTotal (client-writable)
+    // at the sum of these (reopenedOf in collected-revenue.js and its mirrors).
+    const entry = { amount: amtC / 100, stripeRef: id, status, kind: 'refund', reopens: true };
     if (o.chargeId) entry.chargeId = String(o.chargeId);
     const i = list.findIndex((x) => x && x.stripeRef === id);
     if (i > -1) {
       const cur = list[i];
       if (hasDate) entry.at = new Date(Number(r.created) * 1000);
-      const same = cents(cur.amount) === amtC && cur.status === status && cur.kind === 'refund'
+      const same = cents(cur.amount) === amtC && cur.status === status && cur.kind === 'refund' && cur.reopens === true
         && (!hasDate || (cur.at != null && new Date(cur.at.toDate ? cur.at.toDate() : cur.at).getTime() === entry.at.getTime()));
       if (!same) { list[i] = Object.assign({}, cur, entry); listChanged = true; }
     } else {

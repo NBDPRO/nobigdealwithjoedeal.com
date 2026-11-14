@@ -243,11 +243,24 @@ function _refundsOf(inv) {
   return out;
 }
 
+// What a Connect refund moved back into balanceDue (connect-refund-logic.js),
+// added back to total - balanceDue so the refund comes off once, via refunds[].
+// refundReopenedTotal is client-writable, so it is capped at the server-tagged
+// (reopens:true) refunds[] that returned money; #3064 freezes refunds[] for
+// browsers. Same helper in all six revenue readers.
+function _reopenedOf(inv) {
+  var list = Array.isArray(inv.refunds) ? inv.refunds : [], cap = 0;
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i] || {}, a = parseFloat(r.amount);
+    if (r.reopens === true && a > 0 && r.status !== 'failed' && r.status !== 'canceled') cap += Math.round(a * 100);
+  }
+  var v = Math.round((parseFloat(inv.refundReopenedTotal) || 0) * 100);
+  return Math.min(Math.max(0, v), cap) / 100;
+}
 function _paymentsOnlyOf(inv) {
   const total = Number(inv.total) || 0;
   const bal = inv.balanceDue != null ? (Number(inv.balanceDue) || 0) : 0;
-  // + refundReopenedTotal — same as collected-revenue.js collectedDollarsOf.
-  const collectedCents = Math.round(Math.max(0, total - bal + (Number(inv.refundReopenedTotal) || 0)) * 100);
+  const collectedCents = Math.round(Math.max(0, total - bal + _reopenedOf(inv)) * 100);
   if (Array.isArray(inv.payments) && inv.payments.length) {
     const out = [];
     let ledgerCents = 0, earliestAt = null, earliestMs = Infinity;
