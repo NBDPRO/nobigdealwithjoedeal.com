@@ -59,7 +59,7 @@ function liftBetween(src, start, end) {
   {
     const fn = read('functions/esign-envelope.js');
     ok('server: copyEmailed is THIS signer\'s copy, not any signer\'s',
-      /copyEmailed: copies\.some\(\(c\) => c\.emailed && c\.signerId === signer\.id\)/.test(fn));
+      /copyEmailed: copies\.some\(\(c\) => c\.emailed && (c\.attached && )?c\.signerId === signer\.id\)/.test(fn));
     const js = read('docs/pro/js/esign-sign.js');
     const i = js.indexOf("if (r.data.complete === false)");
     const block = i >= 0 ? js.slice(i, js.indexOf('return;', i)) : '';
@@ -111,6 +111,52 @@ function liftBetween(src, start, end) {
     const paid = clone(base); paid.paid.totalPaidCents = 600000; paid.balance = null;
     const ev = ctx.diff(base, paid);
     ok('a posted payment still reads "Payment received" (one banner)', !!ev && ev.length === 1 && /Payment received/.test(ev[0].msg));
+  }
+
+  console.log('\n5. review round 2 (2026-11-14)');
+  {
+    // 9. A poll that comes back 429 too_many_opens (or 410) stops polling.
+    const PJS = read('docs/pro/js/portal.js');
+    const pollSrc = liftBetween(PJS, '  async function _pollOnce() {', '\n  }\n');
+    const schedSrc = liftBetween(PJS, '  function _scheduleNextPoll() {', '\n  }\n');
+    async function poll(status, body) {
+      const ctx = { banners: [], timers: 0, document: { hidden: false }, Date };
+      ctx.setTimeout = () => { ctx.timers++; return 1; };
+      ctx.clearTimeout = () => {};
+      vm.createContext(ctx);
+      vm.runInContext(
+        'var _pollInflight = false, _pollTimer = 1, _payWatchUntil = 0, POLL_INTERVAL_MS = 1, PAY_POLL_INTERVAL_MS = 1, _lastView = null, _pollStopped = false;\n' +
+        'function _pulseLivePill() {}\nfunction getToken() { return "TOKEN123"; }\nfunction _diffView() { return null; }\nfunction renderView() {}\n' +
+        'function _showUpdateBanner(ev) { banners.push(ev); }\n' + schedSrc + '\n' + pollSrc + '\nthis.pollOnce = _pollOnce;', ctx);
+      ctx._fetchView = async () => ({ ok: false, status, clone() { return this; }, json: async () => body });
+      vm.runInContext('_fetchView = this._fetchView;', ctx);
+      await ctx.pollOnce();
+      return ctx;
+    }
+    const capped = await poll(429, { code: 'too_many_opens' });
+    ok('poll 429 too_many_opens: no further poll is scheduled', capped.timers === 0, 'timers=' + capped.timers);
+    ok('poll 429 too_many_opens: a banner tells them to get a fresh link', capped.banners.length === 1 && /fresh link/i.test(capped.banners[0][0].msg));
+    const gone = await poll(410, { code: 'expired' });
+    ok('poll 410: no further poll is scheduled either (finally re-armed it)', gone.timers === 0, 'timers=' + gone.timers);
+    const limiter = await poll(429, {});
+    ok('poll 429 from the per-IP limiter (no code): keeps polling', limiter.timers === 1 && limiter.banners.length === 0);
+
+    // 12. The banner is built with textContent, not innerHTML.
+    const banner = liftBetween(PJS, '  function _showUpdateBanner(events) {', '\n  }\n') || '';
+    ok('update banner does not use innerHTML', !!banner && !/innerHTML/.test(banner) && /textContent/.test(banner));
+
+    // 10. copyEmailed only when the PDF was attached.
+    const fn = read('functions/esign-envelope.js');
+    ok('server: copyEmailed requires the copy was attached', /copyEmailed: copies\.some\(\(c\) => c\.emailed && c\.attached && c\.signerId === signer\.id\)/.test(fn)
+      && /copies\.push\(\{ signerId: s\.id, emailed: !!r\.emailed, attached: attach,/.test(fn));
+    const js = read('docs/pro/js/esign-sign.js');
+    const mid = (js.match(/will get their own link to sign next\.[^']*'/) || [''])[0];
+    ok('multi-signer line does not promise an email', !!mid && !/email/i.test(mid), mid);
+
+    // 11. The success page is reachable by any redirect: say it conditionally.
+    const h = read('docs/pro/invoice-success.html');
+    const text = h.slice(h.indexOf('<body')).replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    ok('success page does not assert the payment went through', !/We've got your payment|We’ve got your payment/.test(text) && /If your payment went through/i.test(text), text.slice(0, 240));
   }
 
   console.log('\n' + (failed === 0 ? '✓' : '✗') + ' money copy honest: ' + passed + ' passed, ' + failed + ' failed');

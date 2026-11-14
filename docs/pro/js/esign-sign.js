@@ -809,7 +809,7 @@ el.submit.addEventListener('click', async () => {
       // Multi-signer: someone signs after this person, on their own link.
       showMsg('✅', 'Thank you — your signature is recorded',
         (r.data.nextSigner ? r.data.nextSigner : 'The next signer') +
-        ' will get their own link to sign next. Once everyone has signed, a copy comes to your email.');
+        ' will get their own link to sign next. Once everyone has signed, you will get a signed copy.');
     } else if (r.data.copyEmailed === true) {
       showMsg('🎉', 'All done — thank you!',
         'Your signature has been recorded. A signed copy is on its way to your email, and your rep has been told. You can close this page.');
