@@ -88,6 +88,16 @@ const target = (attrs) => {
   await flush();
   ok('a refused move (required field, Lost picker cancelled, offline) snaps back', sel2.value === 'inspected', sel2.value);
 
+  // Review round: another tab moved the lead first. moveCard reloads the lead at
+  // that tab's stage and returns undefined (STAGE_RACE_LOST); the select must
+  // show that stage, not the one captured before the move.
+  T = app({ win: { moveCard: async function (id, to) { T.win._leads[0].stage = 'new'; return undefined; } } });
+  T.F._state.leadId = 'L1';
+  const sel3 = target({ 'data-fa-stage': 'L1', __value: 'estimate_sent' });
+  T.F._onShellChange({ target: sel3 });
+  await flush();
+  ok('a lost race shows the lead\'s stage as it is now (another tab\'s move)', sel3.value === 'new', sel3.value);
+
   T = app({ win: { moveCard: undefined } });
   T.F._state.leadId = 'L1';
   ok('no stage writer on the page: no select (never a dead control)', !/data-fa-stage/.test(T.F._renderLead()));

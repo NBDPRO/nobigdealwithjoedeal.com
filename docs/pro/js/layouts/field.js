@@ -824,11 +824,15 @@
     var want = sel.value;
     if (typeof W.moveCard !== 'function') { sel.value = prev; return Promise.resolve(false); }
     sel.disabled = true;
+    // Not moved: show the lead's stage as it is NOW, re-read after moveCard
+    // (a lost race with another tab reloads the lead at THAT tab's stage, so
+    // the stage captured before the move would be stale).
+    var current = function () { var l = leadById(leadId); return (l && (l._stageKey || l.stage)) || prev; };
     return Promise.resolve(W.moveCard(leadId, want)).then(function (ok) {
       sel.disabled = false;
-      if (ok !== true) sel.value = prev;
+      if (ok !== true) sel.value = current();
       return ok === true;
-    }, function () { sel.disabled = false; sel.value = prev; return false; });
+    }, function () { sel.disabled = false; sel.value = current(); return false; });
   }
 
   // slide-to-confirm: pointer drag on the knob; keyboard arrows as the accessible path
