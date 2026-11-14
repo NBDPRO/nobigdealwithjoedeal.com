@@ -12,6 +12,19 @@
  * - Background sync coordination
  */
 
+// safe-reload.js (the deploy-reload guard) is injected, not a page tag: it
+// stays off the parse-blocking path and the boot budget's tag count. Until it
+// has loaded, an update reloads the old way (reloadForUpdate's fallback).
+(function loadSafeReload() {
+  try {
+    if (window.NBDSafeReload || document.querySelector('script[data-nbd-safe-reload]')) return;
+    var s = document.createElement('script');
+    s.src = '/pro/js/safe-reload.js?v=2';
+    s.async = true;
+    s.setAttribute('data-nbd-safe-reload', '1');
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) { console.warn('[sw] could not load safe-reload.js:', e && e.message); }
+})();
 (function() {
   'use strict';
 

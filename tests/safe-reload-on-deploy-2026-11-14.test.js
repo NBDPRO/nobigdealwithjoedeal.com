@@ -49,7 +49,12 @@ function makeEl(tag, opts) {
     getClientRects() { return this._visible && this.isConnected ? [{}] : []; },
     closest() { return null; },
     contains(x) { return x === el || el.children.includes(x); },
-    appendChild(c) { el.children.push(c); c.isConnected = true; c.parentNode = el; return c; },
+    appendChild(c) {
+      el.children.push(c); c.isConnected = true; c.parentNode = el;
+      // An injected <script src=".../safe-reload.js"> "loads": the real file runs.
+      if (c.tagName === 'SCRIPT' && /safe-reload\.js/.test(c.src || '') && makeEl.loadScript) makeEl.loadScript(c.src);
+      return c;
+    },
     removeChild(c) { el.children = el.children.filter((x) => x !== c); c.isConnected = false; },
     remove() { if (el.parentNode) el.parentNode.removeChild(el); },
     setAttribute(k, v) { el.attrs[k] = v; }, getAttribute(k) { return el.attrs[k]; },
@@ -134,6 +139,7 @@ function makeEnv(pathname) {
   window.MediaRecorder = FakeRecorder;
   window.window = window; window.document = document; window.navigator = ctx.navigator;
   vm.createContext(ctx);
+  makeEl.loadScript = () => vm.runInContext(SAFE, ctx, { filename: 'safe-reload.js' });
   const env = {
     ctx, window, document, body, modals, reloads,
     run(src, name) { vm.runInContext(src, ctx, { filename: name }); },
@@ -158,8 +164,9 @@ const tick = () => new Promise((r) => setImmediate(r));
 async function settle() { for (let i = 0; i < 12; i++) await tick(); }
 
 async function dashboard(setup) {
+  // safe-reload.js is not pre-loaded: it arrives only through the bootstrap's
+  // own injected <script> (see makeEl's appendChild).
   const env = makeEnv('/pro/dashboard.html');
-  env.run(SAFE, 'safe-reload.js');
   env.run(BOOT, 'dashboard-sw-bootstrap.js');
   await settle();
   if (setup) setup(env);
@@ -168,7 +175,6 @@ async function dashboard(setup) {
 
 async function customerPage(setup) {
   const env = makeEnv('/pro/customer.html');
-  env.run(SAFE, 'safe-reload.js');
   env.run(OFFM, 'offline-manager.js');
   await settle();
   if (setup) setup(env);
@@ -291,16 +297,15 @@ async function customerPage(setup) {
   ok('customer page: half-typed note → no reload', env.reloads.length === 0, 'reloads=' + env.reloads.length);
   ok('customer page: bar shown', !!env.bar());
 
-  // Every page that loads either registration file loads the guard first.
-  const pages = ['docs/pro/dashboard.html', 'docs/pro/customer.html', 'docs/pro/login.html',
-    'docs/pro/leaderboard.html', 'docs/pro/roof-rep.html', 'docs/pro/daily-success/index.html'];
-  pages.forEach((p) => {
-    const html = read(p);
-    const reg = html.search(/js\/(dashboard-sw-bootstrap|offline-manager)\.js/);
-    if (reg < 0) return;
-    const guard = html.search(/js\/safe-reload\.js/);
-    ok(p + ' loads safe-reload.js before the SW registration script', guard >= 0 && guard < reg);
-  });
+  // Both registration files inject the guard themselves (no page tag): every
+  // page that loads either one gets it, and only once.
+  for (const [name, src, page] of [['dashboard-sw-bootstrap.js', BOOT, '/pro/dashboard.html'], ['offline-manager.js', OFFM, '/pro/login.html']]) {
+    const e = makeEnv(page);
+    e.run(src, name);
+    await settle();
+    const tags = [e.body, e.document.head].reduce((n, h) => n + h.children.filter((c) => /safe-reload\.js/.test(c.src || '')).length, 0);
+    ok(name + ' injects safe-reload.js once and it loads', tags === 1 && !!e.window.NBDSafeReload, 'tags=' + tags);
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
   process.exit(failed ? 1 : 0);

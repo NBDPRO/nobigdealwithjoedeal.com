@@ -5,6 +5,19 @@
 //   2. Remote kill — if any GET to /pro/nosw.txt returns non-404, we
 //      unregister and refuse to register. Deploy that file to kill
 //      SW for every user in the next reload.
+// safe-reload.js (the deploy-reload guard) is injected, not a page tag: it
+// stays off the parse-blocking path and the boot budget's tag count. Until it
+// has loaded, an update reloads the old way (reloadForUpdate's fallback).
+(function loadSafeReload() {
+  try {
+    if (window.NBDSafeReload || document.querySelector('script[data-nbd-safe-reload]')) return;
+    var s = document.createElement('script');
+    s.src = '/pro/js/safe-reload.js?v=2';
+    s.async = true;
+    s.setAttribute('data-nbd-safe-reload', '1');
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) { console.warn('[sw] could not load safe-reload.js:', e && e.message); }
+})();
 let nbdDiag; // module-local (globals Tranche 1 — was window.*)
 // A new version used to reload unconditionally, wiping a half-typed lead or
 // cutting a voice note on a phone (wave-1 field finding #3, 2026-11-14).
