@@ -65,8 +65,8 @@
     var coarse = false;
     try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) {}
     var w = window.innerWidth || 1024;
-    var hh = window.innerHeight || 0;
-    // mirrors layout-system.js surfaceFor: a touch phone on its side (short, <= 1000 wide) is a phone
+    var sc = window.screen, hh = sc && sc.width > 0 && sc.height > 0 ? Math.min(sc.width, sc.height) : 0;
+    // mirrors layout-system.js surfaceFor: a touch device whose short SCREEN side is phone-sized is a phone
     var surface = w <= 768 || (coarse && hh > 0 && hh <= 500 && w <= 1000) ? 'phone' : (w <= 1180 && coarse ? 'tablet' : 'desktop');
     if (c.glove === true) de.setAttribute('data-tap', 'glove');
     var id = c.byDevice && c.byDevice[surface];

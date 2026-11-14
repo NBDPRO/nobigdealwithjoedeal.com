@@ -56,10 +56,10 @@
     return urlOf(pick || list[0]);
   }
   /** Is Island Dock this screen's resolved layout? cache = parsed nbd_layout_resolved. */
-  function wantsIsland(cache, width, coarse, height) {
+  function wantsIsland(cache, width, coarse, screenShort) {
     if (!cache || typeof cache !== 'object' || !cache.byDevice) return false;
-    // mirrors layout-system.js surfaceFor (a touch phone on its side is a phone)
-    var surface = width <= 768 || (coarse && height > 0 && height <= 500 && width <= 1000) ? 'phone' : (width <= 1180 && coarse ? 'tablet' : 'desktop');
+    // mirrors layout-system.js surfaceFor (a touch device with a phone-sized short screen side is a phone)
+    var surface = width <= 768 || (coarse && screenShort > 0 && screenShort <= 500 && width <= 1000) ? 'phone' : (width <= 1180 && coarse ? 'tablet' : 'desktop');
     return cache.byDevice[surface] === 'island';
   }
 
@@ -73,7 +73,8 @@
   try { cache = JSON.parse(root.localStorage.getItem('nbd_layout_resolved') || 'null'); } catch (e) { cache = null; }
   var coarse = false;
   try { coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches); } catch (e) { /* none */ }
-  if (!wantsIsland(cache, root.innerWidth || 1024, coarse, root.innerHeight || 0)) return;
+  var sc = root.screen;
+  if (!wantsIsland(cache, root.innerWidth || 1024, coarse, sc && sc.width > 0 && sc.height > 0 ? Math.min(sc.width, sc.height) : 0)) return;
 
   de.setAttribute('data-island-job', '1');
   var link = doc.createElement('link');

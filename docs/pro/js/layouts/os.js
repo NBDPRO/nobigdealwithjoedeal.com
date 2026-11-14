@@ -102,7 +102,7 @@
   var saveT = null;
   function writeState(src) {
     // idle: the member left the desk with no window in front (2026-11-14), so a reload doesn't open the active view
-    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, idle: !src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
+    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, idle: src.surface !== 'phone' && !src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
     safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
   }
   function save() {
@@ -881,15 +881,16 @@
   function dropActive() {
     var act = doc.querySelectorAll('.view.active');
     for (var i = 0; i < act.length; i++) act[i].classList.remove('active');
-    // the URL still names the app just closed: a reload would deep-link back into it
+    // the URL still names the app just closed: a reload would deep-link back into it.
+    // Only a route hash is cleared; any other fragment stays.
     safe(function () {
       var loc = W.location;
-      if (loc && loc.hash && W.history && typeof W.history.replaceState === 'function') W.history.replaceState(null, '', loc.pathname + loc.search);
+      if (hashView() && W.history && typeof W.history.replaceState === 'function') W.history.replaceState(null, '', loc.pathname + loc.search);
     });
   }
-  // A view the URL names on load (#/crm): a deep link, opened even on an empty desk.
+  // A view the URL names (#/crm or #crm, as dashboard-state.js routeFromHash reads it): a deep link.
   function hashView() {
-    var m = /^#\/([a-z][a-z0-9-]*)/.exec(String((W.location && W.location.hash) || ''));
+    var m = /^#\/?([a-z][a-z0-9-]*)(?:[/?]|$)/.exec(String((W.location && W.location.hash) || ''));
     return m && viewEl(m[1]) ? m[1] : null;
   }
   // Was keyboard focus inside this window? (its buttons are about to vanish)
@@ -1269,6 +1270,8 @@
     on(W, 'resize', function () { paintAllWins(); });
 
     // restore the saved session, bottom window first, then follow the active view
+    // the URL's deep link, read first: hydrating a restored window routes, and goTo rewrites the hash
+    var deep = hashView();
     var st = savedState();
     S.icons = st.icons; S.dock = st.dock; S.recent = st.recent; S.desk = st.desk; S.pins = st.pins;
     var restoring = st.wins.slice().sort(function (a, b) { return a.z - b.z; });
@@ -1281,9 +1284,9 @@
     });
     S.order = S.wins.map(function (w) { return w.id; });
     var active = doc.querySelector('.content .view.active');
-    var deep = hashView();
-    // an empty desk saved on purpose stays empty (view-home ships .active), unless the URL deep-links an app
-    var focusId = st.focus || (st.idle && !deep ? null : (deep || (active ? active.id.slice(5) : null)));
+    // an empty desk saved on purpose stays empty (view-home ships .active), unless the URL deep-links an app;
+    // a deep link also wins over the saved front window: a link opens what it links to
+    var focusId = deep || st.focus || (st.idle ? null : (active ? active.id.slice(5) : null));
     paintDeskBtns();
     paintActBtn();
     if (focusId && viewEl(focusId)) openWin(focusId, { focus: false });

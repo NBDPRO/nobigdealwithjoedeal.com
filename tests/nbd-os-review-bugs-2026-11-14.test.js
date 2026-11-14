@@ -89,6 +89,22 @@ console.log('1. an empty desktop is remembered');
   ok('a real deep link (#/crm) still opens its app on an empty desk', D3.wins().join() === 'crm', D3.wins().join());
   const D4 = desk({ active: 'home' });
   ok('control: no saved state at all (first use) still opens the active view', D4.wins().join() === 'home', D4.wins().join());
+  // from the silent-failure review of this fix:
+  const D5 = desk({ os, active: 'crm', hash: '#crm' });
+  ok('a deep link in the router\'s other form (#crm) also opens its app', D5.wins().join() === 'crm', D5.wins().join());
+  const D6 = desk({ os, active: 'home', hash: '#section-2' });
+  ok('an idle mount keeps a fragment that is not a route', D6.W.location.hash === '#section-2' && D6.wins().length === 0, D6.W.location.hash + ' ' + D6.wins().join());
+  const saved = { v: 1, wins: [{ id: 'money', x: 0.1, y: 0.1, w: 0.5, h: 0.5, z: 1, min: false, zone: null, desk: 0 }], focus: 'money', icons: [], dock: [], recent: [], desk: 0, pins: [] };
+  const D7 = desk({ os: saved, active: 'crm', hash: '#/crm' });
+  const front = D7.doc.querySelector('.os-win.is-focus');
+  ok('a deep link wins over the saved front window', !!front && front.getAttribute('data-win') === 'crm', D7.wins().join());
+}
+{
+  // a save made on the phone surface never marks the desktop idle
+  const T = H.makeWin({ surface: 'phone', home: { desk: [], phone: [] } });
+  T.W.location = { hash: '', pathname: '/', search: '' }; T.W.history = { replaceState() {} };
+  // the phone surface has no window in front by design: writeState must not read that as an empty desk
+  ok('a phone save is never idle', /idle: src\.surface !== 'phone' && !src\.focus/.test(H.read('docs/pro/js/layouts/os.js')));
 }
 
 // geometry spy: placeWin writes --wx/--wy/--ww/--wh with style.setProperty
@@ -181,17 +197,20 @@ console.log('5. focus follows the window you open');
 {
   // control: the mount's own restore never steals focus from what the page focused
   const D = desk({ os: { v: 1, wins: [{ id: 'crm', x: 0.1, y: 0.1, w: 0.5, h: 0.5, z: 1, min: false, zone: null, desk: 0 }], focus: 'crm', icons: [], dock: [], recent: [], desk: 0, pins: [] } });
-  ok('control: restoring a saved window on load does not move focus', D.doc.activeElement === null || !D.win('crm').contains(D.doc.activeElement));
+  ok('control: restoring a saved window on load does not move focus', D.doc.activeElement === null, D.doc.activeElement && D.doc.activeElement.className);
 }
 
 console.log('6. a phone in landscape is a phone');
-ok('iPhone landscape (844x390, touch) -> phone', R.surfaceFor(844, true, 390) === 'phone', R.surfaceFor(844, true, 390));
+// third argument: the device screen's SHORT side (min(screen.width, screen.height))
+ok('iPhone landscape (844 wide, 390 screen short side, touch) -> phone', R.surfaceFor(844, true, 390) === 'phone', R.surfaceFor(844, true, 390));
+ok('an iPad in portrait with the keyboard up (810 wide; its SCREEN short side is still 810) stays tablet', R.surfaceFor(810, true, 810) === 'tablet', R.surfaceFor(810, true, 810));
 ok('big phone landscape (932x430, touch) -> phone', R.surfaceFor(932, true, 430) === 'phone', R.surfaceFor(932, true, 430));
 ok('control: iPad landscape (1180x820, touch) -> tablet', R.surfaceFor(1180, true, 820) === 'tablet');
 ok('control: a short laptop window (1280x400, mouse) -> desktop', R.surfaceFor(1280, false, 400) === 'desktop');
 ok('control: old two-argument calls still work', R.surfaceFor(700, false) === 'phone' && R.surfaceFor(1000, true) === 'tablet');
 const LS = H.read('docs/pro/js/layout-system.js');
-ok('the live surface passes the screen height', /R\.surfaceFor\(window\.innerWidth[^;]*window\.innerHeight/.test(LS));
+ok('the live surface passes the screen\'s short side, not the viewport height',
+  /R\.surfaceFor\(window\.innerWidth[^;]*screenShort\(\)/.test(LS) && /Math\.min\(s\.width, s\.height\)/.test(LS));
 {
   // the two pre-paint copies of the rule agree with surfaceFor (else a landscape phone flashes the desktop first)
   const I = require('../docs/pro/js/layouts/island-job.js');
