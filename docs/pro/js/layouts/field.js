@@ -169,6 +169,36 @@
   function searchBtn() {
     return '<button type="button" class="fa-sun fa-search" data-fa="search" aria-label="Search customers">Search</button>';
   }
+  // Add a lead from Field (wave-1 field #12, Joe 2026-11-14): the 3-field Quick
+  // Add (tools.js openQuickAddLead, GPS-first) had no touch entry in Field.
+  function newLeadBtn() {
+    return '<button type="button" class="fa-sun fa-newlead" data-fa="new-lead" aria-label="Add a lead">+ Lead</button>';
+  }
+  // The lead's stage, changed in Field: the same track the board's stage menu
+  // and the list view offer (stageOptionsForType), moved through moveCard (the
+  // one stage writer: required fields, Lost reason, offline retry).
+  function stageOptions(lead) {
+    var sk = (lead && (lead._stageKey || lead.stage)) || 'new';
+    var opts = null;
+    try {
+      if (typeof W.stageOptionsForType === 'function') {
+        var jt = lead.jobType || (typeof W.inferJobType === 'function' ? W.inferJobType(lead) : null) || 'insurance';
+        opts = W.stageOptionsForType(jt);
+      }
+    } catch (e) { opts = null; }
+    if (!Array.isArray(opts) || !opts.length) return null;
+    var label = function (k) { return typeof W.stageLabel === 'function' ? W.stageLabel(k) : k; };
+    var list = opts.some(function (o) { return o.value === sk; }) ? opts : [{ value: sk, label: label(sk) }].concat(opts);
+    return list.map(function (o) {
+      return '<option value="' + esc(o.value) + '"' + (o.value === sk ? ' selected' : '') + '>' + esc(o.label || label(o.value)) + '</option>';
+    }).join('');
+  }
+  function stageRow(lead) {
+    if (!lead || !lead.id || typeof W.moveCard !== 'function') return '';
+    var opts = stageOptions(lead);
+    if (!opts) return '';
+    return '<label class="fa-stage">Stage <select class="fa-stage-select" data-fa-stage="' + esc(lead.id) + '" aria-label="Stage">' + opts + '</select></label>';
+  }
   function sunBtn() {
     var on = doc.documentElement.classList.contains('sun');
     return '<button type="button" class="fa-sun" data-fa="sun" aria-pressed="' + on + '">' + (on ? 'Sun: on' : 'Sun') + '</button>';
@@ -183,7 +213,7 @@
     var current = pending[0] || null;
     // the sync dot (kit.js): online / offline and photos still waiting, since the
     // shell covers the header's own connection dot
-    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + searchBtn() + sunBtn() + '</span>');
+    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + newLeadBtn() + searchBtn() + sunBtn() + '</span>');
 
     var lead0 = current && current.leadId ? leadById(current.leadId) : null;
     if (lead0 && lead0.lat != null) loadWeather(lead0.lat, lead0.lng);
@@ -324,9 +354,10 @@
     h += '<div class="fa-lead-name">' + esc(it.name) + '</div>';
     if (it.address) h += '<div class="fa-now-addr">' + esc(it.address) + '</div>';
     h += '<div class="fa-now-why"><span class="fa-do">Why you are here</span> ' + esc(it.why) + '</div>';
+    h += stageRow(lead);
     var tel = K.telUrl(it.phone), sms = K.smsUrl(it.phone);
     h += '<div class="fa-tiles">' +
-      '<button type="button" class="fa-tile" data-fa="capture">' + K.icon('photo') + '<span>Test square</span></button>' +
+      '<button type="button" class="fa-tile" data-fa="capture">' + K.icon('photo') + '<span>' + (camMode() === 'square' ? 'Test square' : 'Photos') + '</span></button>' +
       (tel ? '<a class="fa-tile" href="' + esc(tel) + '">' + K.icon('call') + '<span>Call</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('call') + '<span>Call</span></button>') +
       (sms ? '<a class="fa-tile" href="' + esc(sms) + '">' + K.icon('text') + '<span>Text</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('text') + '<span>Text</span></button>') +
       '<button type="button" class="fa-tile" data-fa="voice">' + K.icon('voice') + '<span>Voice note</span></button>' +
@@ -739,6 +770,11 @@
     }
     ev.preventDefault();
     if (a === 'sun') { setSun(!doc.documentElement.classList.contains('sun')); return; }
+    if (a === 'new-lead') {
+      if (typeof W.openQuickAddLead === 'function') W.openQuickAddLead();
+      else toast('Quick add is still loading. Try again in a moment.', 'info');
+      return;
+    }
     if (a === 'search') {
       if (W.NBDCommand && typeof W.NBDCommand.open === 'function') W.NBDCommand.open();
       else toast('Search is still loading. Try again in a moment.', 'info');
@@ -776,6 +812,23 @@
       return;
     }
     if (t.hasAttribute('data-fa-file') && t.files && t.files[0]) { saveShot(t.files[0]); t.value = ''; }
+    var sid = t.getAttribute('data-fa-stage');
+    if (sid) moveStage(t, sid);
+  }
+  // moveCard resolves true when the move went through; anything else (refused,
+  // a missing required field, the Lost picker cancelled, offline) snaps the
+  // select back to the stored stage instead of claiming a move.
+  function moveStage(sel, leadId) {
+    var lead = leadById(leadId);
+    var prev = (lead && (lead._stageKey || lead.stage)) || sel.getAttribute('data-prev') || '';
+    var want = sel.value;
+    if (typeof W.moveCard !== 'function') { sel.value = prev; return Promise.resolve(false); }
+    sel.disabled = true;
+    return Promise.resolve(W.moveCard(leadId, want)).then(function (ok) {
+      sel.disabled = false;
+      if (ok !== true) sel.value = prev;
+      return ok === true;
+    }, function () { sel.disabled = false; sel.value = prev; return false; });
   }
 
   // slide-to-confirm: pointer drag on the knob; keyboard arrows as the accessible path
@@ -929,6 +982,7 @@
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
     _queueLine: queueLine, // tests/daily-polish-2026-11-14.test.js
-    _saveShotWith: saveShotWith, _renderCapture: renderCapture, _camMode: camMode, // tests/field-camera-modes-2026-11-14.test.js
+    _saveShotWith: saveShotWith, _renderCapture: renderCapture, _camMode: camMode,
+    _renderLead: renderLead, _renderToday: renderToday, _onShellChange: onShellChange, _onShellClick: onShellClick, // tests/field-lead-stage-2026-11-14.test.js // tests/field-camera-modes-2026-11-14.test.js
   };
 })();

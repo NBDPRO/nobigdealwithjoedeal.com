@@ -173,3 +173,8 @@ html[data-layout="field"] .fa-cam.fa-flash::after { opacity: .7; transition: non
 
 /* Camera mode chips (wave-1 field #10): Photo | Test square. */
 html[data-layout="field"] .fa-modes { margin-bottom: 6px; }
+
+/* + Lead and the stage select in Field (wave-1 field #12). 44px targets. */
+html[data-layout="field"] .fa-newlead { min-height: 44px; font-weight: 700; }
+html[data-layout="field"] .fa-stage { display: flex; align-items: center; gap: 10px; margin: 10px 0; font-weight: 600; }
+html[data-layout="field"] .fa-stage-select { flex: 1; min-height: 44px; font-size: 16px; }
