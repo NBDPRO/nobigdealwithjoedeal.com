@@ -347,12 +347,18 @@ window.saveTask = async function() {
     return { text: 'Due ' + nice, kind: 'later' };
   }
   // Open tasks (not done) and events from today on; soonest first, undated last.
+  // eventAt is a UTC ISO string: its LOCAL date is what "today" means here (a
+  // 9 pm event is already tomorrow in UTC).
+  function _eventDay(t) {
+    const at = new Date(t.eventAt);
+    return isNaN(at) ? '' : _ymd(at);
+  }
   function openRows(tasks, now) {
     const today = _ymd(now || new Date());
-    const key = (t) => (t.type === 'event' ? String(t.eventAt || '').slice(0, 10) : String(t.dueDate || '').slice(0, 10)) || '9999-99-99';
+    const key = (t) => (t.type === 'event' ? _eventDay(t) : String(t.dueDate || '').slice(0, 10)) || '9999-99-99';
     return (Array.isArray(tasks) ? tasks : []).filter((t) => {
       if (!t || !t.id || t.done) return false;
-      if (t.type === 'event') return !!t.eventAt && String(t.eventAt).slice(0, 10) >= today;
+      if (t.type === 'event') return !!t.eventAt && _eventDay(t) >= today;
       return true;
     }).sort((a, b) => key(a).localeCompare(key(b)));
   }

@@ -19,6 +19,8 @@
  * Run: node tests/customer-open-tasks-2026-11-14.test.js
  */
 'use strict';
+// A US time zone, so an evening event's UTC date is the next day (review round).
+process.env.TZ = 'America/New_York';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -87,6 +89,12 @@ const btn = (row, act) => row.querySelector('[data-ot-action="' + act + '"]');
   ok('overdue and tomorrow are said in words, not a raw date', /Overdue · /.test(txt) && /Due tomorrow/.test(txt) && /No due date/.test(txt), txt);
   ok('the block shows only when there is something open', P.host.hidden === false);
 
+  // Review round: an event last night at 9:30 pm is past, though its UTC date is today.
+  {
+    const last = new Date(); last.setDate(last.getDate() - 1); last.setHours(21, 30, 0, 0);
+    const ids2 = P.W.NBDOpenTasks.openRows([{ id: 'lastNight', type: 'event', title: 'Late meeting', eventAt: last.toISOString(), done: false }]).map((t) => t.id);
+    ok('an event last night (UTC date today) is not listed as upcoming', ids2.length === 0, ids2.join(','));
+  }
   // Reschedule a task.
   H.click(P.dom, btn(rowsOf(P)[0], 'move'));
   const input = rowsOf(P)[0].querySelector('.ot-move');

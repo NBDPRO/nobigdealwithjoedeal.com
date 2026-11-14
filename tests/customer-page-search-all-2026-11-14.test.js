@@ -94,6 +94,28 @@ async function search(P, q) {
   await search(P, 'bob');
   ok('team reader: tenant AND own leads, like the dashboard load', P.reads.length === 2 && P.reads[0].f === 'companyId' && P.reads[1].f === 'userId', JSON.stringify(P.reads));
 
+  // Review round: claims not loaded yet → no read (a manager would be indexed
+  // as a solo rep); the next open, with claims, reads the tenant.
+  P = page('/pro/customer.html', { role: 'manager', companyId: 'co1' });
+  const claims = P.W._userClaims; P.W._userClaims = undefined;
+  await search(P, 'bob');
+  ok('claims not loaded yet: nothing is cached from the wrong scope', P.reads.length === 0, JSON.stringify(P.reads));
+  P.W.NBDCommand.close(); P.W._userClaims = claims;
+  out = await search(P, 'marsh');
+  ok('...the next open, with claims, reads tenant + own and finds the customer', P.reads.length === 2 && /Bob Marsh/.test(out), JSON.stringify(P.reads));
+
+  // A failed read says so instead of "No results".
+  P = page('/pro/customer.html');
+  P.W.getDocs = async () => { const e = new Error('offline'); e.code = 'unavailable'; throw e; };
+  out = await search(P, 'marsh');
+  ok('a failed read tells the rep the other customers could not load', /Could not load your other customers/.test(out), out);
+
+  // A full page (the 1000 cap) says the search is partial.
+  P = page('/pro/customer.html');
+  P.W.getDocs = async () => ({ docs: Array.from({ length: 1000 }, (_, i) => ({ id: 'X' + i, data: () => ({ firstName: 'Zed', lastName: String(i), userId: 'u1' }) })) });
+  out = await search(P, 'nobody-here');
+  ok('at the 1000 cap an empty result says only the first 1,000 were searched', /first 1,000 customers/.test(out), out);
+
   P = page('/pro/dashboard.html');
   out = await search(P, 'marsh');
   ok('dashboard: searches the loaded book and reads nothing extra', /Bob Marsh/.test(out) && P.reads.length === 0, JSON.stringify(P.reads));
