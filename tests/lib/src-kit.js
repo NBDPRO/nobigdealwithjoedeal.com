@@ -211,9 +211,10 @@ function parseTags(html) {
     stack.push(el);
   }
   while (stack.length > 1) { const e = stack.pop(); e.innerEnd = src.length; e.end = src.length; }
+  // html / text are computed on first use: most suites read a handful of elements
   for (const el of all) {
-    el.html = src.slice(el.openEnd, el.innerEnd);
-    el.text = RAW.has(el.tag) ? el.html : unesc(el.html.replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '').replace(/<[^>]*>/g, ''));
+    Object.defineProperty(el, 'html', { get() { return src.slice(el.openEnd, el.innerEnd); } });
+    Object.defineProperty(el, 'text', { get() { return RAW.has(el.tag) ? el.html : unesc(el.html.replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '').replace(/<[^>]*>/g, '')); } });
   }
   root.html = src;
   root.all = all;
