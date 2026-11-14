@@ -428,8 +428,10 @@ if (!SHIPPED_GATES) {
 // loads only for a card the Numbers panel shows; measured 128 local tags, 1340 KB shipped (2444 KB readable).
 // RAISED 2026-11-09 by 1 KB (Jo: "Raise 1 KB, merge both" for the parked boot PRs, "Ship it" for #2981): the
 // tenant stage emails (#2981) and the Q11 task call text put the page 222 B over 1346 KB; measured 1347 KB shipped.
+// RAISED 2026-11-14 by 1 KB — NEEDS JO'S OK (PR #3077, draft): collected-revenue.js adds refundReopenedTotal back
+// to what was collected, so a Connect refund comes off revenue once; that put the page 31 B over 1347 KB.
 const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
-  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1347 * 1024, shippedBlockingBytes: 16 * 1024 };
+  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1348 * 1024, shippedBlockingBytes: 16 * 1024 };
 console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
 const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
 ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));
