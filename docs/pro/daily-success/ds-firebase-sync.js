@@ -141,15 +141,24 @@ function editingNow() {
 
 const readJson = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
 
+// The floors a win day is counted from: the same list and keys as the Dash (app.js getFloors / renderDash: floormet-<id>, 67%).
+// The old list (l-sleep, l-workout, ...) named keys no page ever had, so the cloud win streak was always 0 (audit 2026-11-14 #6).
+function floorIds() {
+  try { if (typeof window.getFloors === 'function') { const f = window.getFloors(); if (Array.isArray(f) && f.length) return f.map((x) => String(x.id)); } } catch (_) { /* fall through to the stored config */ }
+  const cfg = readJson('nbd_user_config', null);
+  if (cfg && Array.isArray(cfg.floors) && cfg.floors.length) return cfg.floors.map((x) => String(x.id));
+  return ['qs1', 'qs2', 'qs3', 'qs4', 'qs5'];   // app.js getDefaultFloors
+}
+
 function computeStreaks(pages) {
   let runD = 0, runW = 0, runWin = 0, maxD = 0, maxW = 0, maxWin = 0;
   let totalDoors = 0, totalCloses = 0, totalRevenue = 0;
   const sorted = [...pages].sort((a, b) => a.dk > b.dk ? 1 : -1);
+  const floors = floorIds();
   for (const p of sorted) {
     const d = p.data || {}, kpi = p.kpi || {};
     const doors = kpi.doors || 0;
-    const floors = ['l-sleep','l-workout','l-protein','l-task','l-journal'];
-    const pct = floors.filter(f => d[f] === '1').length / floors.length;
+    const pct = floors.length ? floors.filter(f => d['floormet-' + f] === '1').length / floors.length : 0;
     runD = doors >= 60 ? runD + 1 : 0;
     runW = d['habit-1-0'] === '1' ? runW + 1 : 0;
     runWin = pct >= 0.67 ? runWin + 1 : 0;
