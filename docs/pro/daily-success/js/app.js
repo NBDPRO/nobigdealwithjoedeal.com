@@ -171,7 +171,7 @@ function dsRestoredMark(id,on){try{const r=JSON.parse(localStorage.getItem(DS_RE
 // Settings + goal targets sync to userSettings/{uid} (ds-firebase-sync.js);
 // the *_at stamp lets the newer copy win across devices.
 function dsSettingsChanged(key){try{localStorage.setItem(key+'_at',String(Date.now()));}catch(e){}if(window.NBDDsCloud&&typeof window.NBDDsCloud.pushSettings==='function')window.NBDDsCloud.pushSettings();}
-function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();toast('New page created');}
+function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){const w=collectPage(true);cur=idx;renderTabs();renderPage();if(w!==false)markSaved();toast('Jumped to today');return;}const w=collectPage(true);pages.push(mkPage(todayKey()));const w2=savePages();cur=pages.length-1;renderTabs();renderPage();if(w!==false&&w2!==false)markSaved();if(window.NBDNav)window.NBDNav.viewChanged();toast('New page created');}
 // Delete with undo (flow batch 3, D6 / audit M10): a delete happens at once and an 8-second Undo toast restores the page (menu-ui.js shows it).
 // The page is also kept in "Recently deleted" (Notebook, this device, 30 days). Flip DS_CONFIRM_DELETE to true to ask "Delete page?" first.
 const DS_CONFIRM_DELETE=false;
@@ -238,7 +238,7 @@ const key=_shownKey=viewKey(),top=_scrollMemo[key]||0;_userMoved=false;window.sc
 [0,250].forEach(ms=>setTimeout(()=>{if(_shownKey===key&&!_userMoved&&Math.abs((window.scrollY||0)-top)>2)window.scrollTo({top:top,behavior:'auto'});},ms));
 }
 function dsRefreshView(){if(cur>=pages.length)cur=pages.length-1;renderTabs();if(cur===-1)renderDash();else renderPage();}
-function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();}
+function switchTo(idx){const w=collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();if(w!==false)markSaved();if(window.NBDNav)window.NBDNav.viewChanged();}
 
 function renderTabs(){
 // Notebook (2026-10-25): the row is Dash · Today · the open page · Notebook (n) · +, never one tab per page. Every page is filed

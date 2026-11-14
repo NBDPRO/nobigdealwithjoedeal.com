@@ -799,9 +799,10 @@
       Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
       if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
       if (!String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
-      window.savePages();
+      // A refused save (full storage) must not show "Logged to today's Exercise Log" (the workout itself is saved above).
+      const saved = window.savePages() !== false;
       if (typeof window.renderPage === 'function') window.renderPage();
-      return true;
+      return saved;
     } catch (_) { return false; }
   }
 

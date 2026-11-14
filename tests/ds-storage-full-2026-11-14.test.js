@@ -37,6 +37,19 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     ok('control: once storage has room again the next set saves with every set typed so far', h.live().exercises[0].sets[1].reps === '7' && h.live().exercises[0].sets[2].reps === '6');
   }
 
+  console.log('\n#13b Finish: "Logged to today\'s Exercise Log" only when the day page really saved');
+  {
+    const run = (saveOk) => {
+      const h = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-11-14' });
+      h.sandbox.pages = [{ id: 1, dk: '2026-11-14', data: {}, exercises: [] }]; h.sandbox.cur = 0;
+      h.sandbox.collectPage = () => true; h.sandbox.savePages = () => saveOk; h.sandbox.renderPage = () => {};
+      h.click('start'); h.click('done', { i: 0, s: 0 }); h.click('finish');
+      return h.html();
+    };
+    ok('control: a saved day page says it was logged', /Logged to today/.test(run(true)));
+    ok('a day page the phone refused to save does not claim it was logged', !/Logged to today/.test(run(false)));
+  }
+
   console.log('\n#9 Day page: the chip never says SAVED after a failed save');
   let chromium, start;
   try { ({ chromium } = require('playwright')); ({ start } = require('./lib/demo-hosting-server.js')); }
@@ -69,6 +82,9 @@ function ok(label, cond, detail) { if (cond) { console.log('  ✓ ' + label); pa
     const said = await page.evaluate(() => window.__toasts);
     ok('the SAVE button does not say "Saved ✓" when nothing was saved', !said.some((m) => /Saved ✓/.test(m)), JSON.stringify(said));
     ok('...and the chip still says UNSAVED', /UNSAVED/i.test(await chip()), await chip());
+    const switched = await page.evaluate(() => { pages.unshift(mkPage('2026-11-01')); cur += 1; renderTabs(); const back = cur; switchTo(0); switchTo(back); return pages.length; });
+    ok('control: there was another tab to switch to', switched >= 2, String(switched));
+    ok('switching tabs after a failed save does not flip the chip to SAVED', /UNSAVED/i.test(await chip()), await chip());
     await page.evaluate(() => { Storage.prototype.setItem = window.__realSet; });
     await page.evaluate(() => saveNow());
     ok('control: once storage has room, SAVE saves it and the chip says SAVED', /SAVED/i.test(await chip()) && !/UNSAVED/i.test(await chip()) && await page.evaluate(() => JSON.parse(localStorage.getItem('nbd_dsp_v1')).some((p) => p.data && p.data['l-win'] === 'lost win')), await chip());
