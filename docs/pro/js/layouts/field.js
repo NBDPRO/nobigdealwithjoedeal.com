@@ -634,8 +634,9 @@
     if (el) el.textContent = String(n);
     if (ln) ln.textContent = counterLine();
   }
-  function slopeTag() {
-    for (var i = 0; i < SLOPES.length; i++) if (SLOPES[i].id === S.slope) return SLOPES[i];
+  function slopeTag(id) {
+    var want = id || S.slope;
+    for (var i = 0; i < SLOPES.length; i++) if (SLOPES[i].id === want) return SLOPES[i];
     return SLOPES[0];
   }
   // photo-engine.js is NOT an eager tag on the dashboard: it arrives with
@@ -649,14 +650,50 @@
     return Promise.resolve(null);
   }
   // One photo -> the existing durable queue (IndexedDB) -> the existing drain.
+  // The slope and hit count are read at the shutter, not when the save lands.
   function saveShot(blob) {
-    var leadId = S.leadId;
-    return ensurePhotos().then(function (P) { return saveShotWith(P, blob, leadId); });
+    var shot = { blob: blob, leadId: S.leadId, slope: S.slope, hits: S.hits[S.slope] || 0 };
+    return ensurePhotos().then(function (P) {
+      if (shot.leadId && !(P && typeof P.enqueueForRetry === 'function')) return holdShot(shot);
+      return saveShotWith(P, shot);
+    });
   }
-  function saveShotWith(P, blob, leadId) {
+  // Wave-1 field #9 (2026-11-14): when the photos bundle could not load (no
+  // signal and not cached yet) the shot was thrown away with "still loading".
+  // It is now held on this screen and saved as soon as the bundle loads: on
+  // the `online` event or every 15 s.
+  var held = [];
+  var heldTimer = null;
+  var HELD_MAX = 20;
+  function holdShot(shot) {
+    if (held.length >= HELD_MAX) { toast('Too many photos are waiting for the photo tools. Get signal before taking more.', 'error'); return; }
+    held.push(shot);
+    toast(held.length === 1
+      ? 'Photo kept on this screen. It saves once the photo tools load. Keep NBD Pro open.'
+      : held.length + ' photos kept on this screen. They save once the photo tools load. Keep NBD Pro open.', 'warning');
+    scheduleHeld();
+  }
+  function scheduleHeld() {
+    if (heldTimer || !held.length) return;
+    heldTimer = setTimeout(retryHeld, 15000);
+  }
+  function retryHeld() {
+    if (heldTimer) { clearTimeout(heldTimer); heldTimer = null; }
+    if (!held.length) return Promise.resolve();
+    return ensurePhotos().then(function (P) {
+      if (!(P && typeof P.enqueueForRetry === 'function')) { scheduleHeld(); return; }
+      var batch = held.splice(0, held.length);
+      return batch.reduce(function (p, shot) {
+        return p.then(function () { return saveShotWith(P, shot); });
+      }, Promise.resolve());
+    });
+  }
+  W.addEventListener('online', function () { if (held.length) retryHeld(); });
+  function saveShotWith(P, shot) {
+    var blob = shot.blob, leadId = shot.leadId;
     if (!P || typeof P.enqueueForRetry !== 'function' || !leadId) { toast('The photo tools are still loading. Try again in a moment.', 'error'); return Promise.resolve(); }
-    var sl = slopeTag();
-    var hits = S.hits[S.slope] || 0;
+    var sl = slopeTag(shot.slope);
+    var hits = shot.hits;
     var tags = ['hail', 'test_square', sl.tag];
     var description = 'Test square, ' + sl.label + ': ' + hits + (hits === 1 ? ' hit' : ' hits') + ' counted in 10 ft x 10 ft';
     var lead = leadById(leadId);
@@ -896,5 +933,6 @@
   W.NBDFieldApp = {
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
+    _saveShot: saveShot, _retryHeld: retryHeld, _heldCount: function () { return held.length; },
   };
 })();
