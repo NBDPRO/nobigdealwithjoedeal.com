@@ -244,7 +244,12 @@
     var now = stripeKeys(current);
     var then = entry.created ? {} : stripeKeys(entry.restore || {});
     var added = Object.keys(now).some(function (k) { return !then[k]; });
-    return added ? 'A Stripe payment was recorded on this invoice since — undo would erase it. Fix the invoice itself instead.' : '';
+    if (added) return 'A Stripe payment was recorded on this invoice since — undo would erase it. Fix the invoice itself instead.';
+    // Any other payment since (another device, the customer page's Record
+    // Payment): the catch-up added ONE entry, so more than that means undo
+    // would wipe someone's payment (2026-11-14).
+    var had = entry.created ? 0 : ((entry.restore || {}).payments || []).length;
+    return (current.payments || []).length > had + 1 ? 'Another payment was recorded on this invoice since. Fix the invoice itself instead.' : '';
   }
 
   var PAID_STAGES = ['final_payment', 'deductible_collected', 'install_complete', 'final_photos', 'closed'];
