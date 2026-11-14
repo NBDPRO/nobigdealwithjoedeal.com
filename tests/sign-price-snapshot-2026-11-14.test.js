@@ -224,6 +224,28 @@ async function sendThenSign(db, { editBeforeSign, dropSnapshot } = {}) {
   return { token, res: s.res, spy, est: db.store.get('estimates/E1'), db };
 }
 
+// Step-by-step helpers for the multi-link scenarios (review round, 2026-11-14).
+const HTML_PATH_2 = 'documents/' + U + '/L1/d2.html';
+function rig(db) {
+  const st = makeStorage({ [HTML_PATH]: CONTRACT, [HTML_PATH_2]: CONTRACT.replace('Roofing Contract</h1>', 'Roofing Contract (revised)</h1>') });
+  const fns = loadRemoteSigning(db, st, []);
+  return {
+    fns,
+    async mint(docId) {
+      try { return await fns.createSignRequest({ auth: { uid: U, token: {} }, data: { leadId: 'L1', docId, signerEmail: 'pat@example.test' } }); }
+      catch (e) { return { err: e.message }; }
+    },
+    async sign(token, docId, extraBody) {
+      const html = docId === 'd2' ? CONTRACT.replace('Roofing Contract</h1>', 'Roofing Contract (revised)</h1>') : CONTRACT;
+      const s = reqRes(Object.assign({ token, signedHtml: signIt(html) }, extraBody || {}));
+      await fns.submitSignature(s.req, s.res);
+      return s.res;
+    },
+  };
+}
+const notes = (db, type) => [...db.store.entries()].filter(([k, v]) => k.startsWith('notifications/') && (!type || v.type === type)).map(([, v]) => v);
+const activity = (db, type) => [...db.store.entries()].filter(([k, v]) => k.startsWith('leads/L1/activity/') && (!type || v.type === type)).map(([, v]) => v);
+
 (async () => {
   // ════════════════════════════════════════════════════════════════════
   console.log('\n1. Sent at $14,500, edited to $16,200 while the link was out, then signed');
@@ -280,6 +302,120 @@ async function sendThenSign(db, { editBeforeSign, dropSnapshot } = {}) {
     ok('planSignedStamp uses a snapshot of this estimate', p2.action === 'stamp' && p2.signedPrice.totalCents === 1450000 && p2.signedPrice.from === 'sign_request');
     ok('signedEstimateIdFor: the sign request\'s estimate beats the lead\'s primary',
       SP.signedEstimateIdFor({ primaryEstimateId: 'E1' }, null, null, { estimateId: 'E2' }) === 'E2');
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\n3. T1 — an older link signed after a newer one never lowers the signed price (H1)');
+  // ════════════════════════════════════════════════════════════════════
+  {
+    const db = makeDb(world({ 'leads/L1/documents/d2': { type: 'contract', typeName: 'Roofing Contract', htmlPath: HTML_PATH_2, userId: U } }));
+    const R = rig(db);
+    const a = await R.mint('d1');                                   // link A at $14,500
+    db.store.set('estimates/E1', reprice(db.store.get('estimates/E1'))); // re-priced to $16,200
+    const b = await R.mint('d2');                                   // contract d2 / link B at $16,200
+    ok('both links mint', !a.err && !b.err, a.err || b.err);
+    ok('minting B supersedes the older pending contract link A', db.store.get('doc_sign_tokens/' + a.token).status === 'superseded',
+      db.store.get('doc_sign_tokens/' + a.token).status);
+    const rb = await R.sign(b.token, 'd2');
+    ok('the homeowner signs B → 200, stamped $16,200', rb.statusCode === 200 && db.store.get('estimates/E1').signedPrice.totalCents === 1620000,
+      rb.statusCode + ' ' + JSON.stringify(db.store.get('estimates/E1').signedPrice && db.store.get('estimates/E1').signedPrice.totalCents));
+    const ra = await R.sign(a.token, 'd1');
+    ok('…then signs the older link A → refused (410, replaced by a newer link)', ra.statusCode === 410 && /newer/i.test((ra.body && ra.body.error) || ''), ra.statusCode + ' ' + JSON.stringify(ra.body));
+    ok('signedPrice stays $16,200 (1620000)', db.store.get('estimates/E1').signedPrice.totalCents === 1620000, String(db.store.get('estimates/E1').signedPrice.totalCents));
+
+    // A legacy pending contract link (minted before this shipped, so never
+    // superseded at mint) is retired when a contract_signed stamps.
+    const db2 = makeDb(world({
+      'leads/L1/documents/d2': { type: 'contract', typeName: 'Roofing Contract', htmlPath: HTML_PATH_2, userId: U },
+      'doc_sign_tokens/LEGACYTOKEN0000000001': { leadId: 'L1', docId: 'd2', ownerUid: U, htmlPath: HTML_PATH_2, status: 'pending', signerName: 'Pat Lee' },
+    }));
+    const R2 = rig(db2);
+    db2.store.get('doc_sign_tokens/LEGACYTOKEN0000000001').status = 'pending';
+    const c1 = await R2.mint('d1');
+    await R2.sign(c1.token, 'd1');
+    ok('a new contract link or a contract signing retires the lead\'s other pending contract links (a legacy token with no docType too)', db2.store.get('doc_sign_tokens/LEGACYTOKEN0000000001').status === 'superseded',
+      db2.store.get('doc_sign_tokens/LEGACYTOKEN0000000001').status);
+
+    // The pure guard (a race the supersede cannot close): a snapshot minted
+    // before the current stamp's offer never overwrites it.
+    const lead = Object.assign({ id: 'L1' }, lead0());
+    const newer = { fields: CER.signedPriceSnapshot(reprice(est14500())), fingerprint: 'p1-n', totalCents: 1620000, source: 'contract_signed', sourceId: 'doc_d2', from: 'sign_request', mintedAtMs: NOW - 1000, at: NOW };
+    const older = { estimateId: 'E1', fields: CER.signedPriceSnapshot(est14500()), mintedAtMs: NOW - 5000 };
+    const p = SP.planSignedStamp({ leadId: 'L1', lead, est: Object.assign(reprice(est14500()), { signedPrice: newer }), estimateId: 'E1', event: 'contract_signed', sourceId: 'doc_d1', signRequest: older, nowMs: NOW });
+    ok('planSignedStamp: an older link\'s snapshot → skip older_than_current', p.action === 'skip' && p.reason === 'older_than_current', JSON.stringify(p));
+    const later = { estimateId: 'E1', fields: CER.signedPriceSnapshot(est14500()), mintedAtMs: NOW + 5000 };
+    const p2 = SP.planSignedStamp({ leadId: 'L1', lead, est: Object.assign(reprice(est14500()), { signedPrice: newer }), estimateId: 'E1', event: 'contract_signed', sourceId: 'doc_d3', signRequest: later, nowMs: NOW + 6000 });
+    ok('…a link minted AFTER the current stamp (a real re-sign) still stamps', p2.action === 'stamp' && p2.signedPrice.mintedAtMs === NOW + 5000);
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\n4. T8 — a homeowner-supplied priceSnapshot in the submit body is ignored');
+  // ════════════════════════════════════════════════════════════════════
+  {
+    const db = makeDb(world());
+    const R = rig(db);
+    const a = await R.mint('d1');
+    const forged = { estimateId: 'E1', fields: { grandTotal: 1, total: 1 }, totalCents: 100, mintedAtMs: NOW + 99999 };
+    const r = await R.sign(a.token, 'd1', { priceSnapshot: forged, signRequestPrice: forged, meta: { signRequestPrice: forged } });
+    ok('signed at the token\'s $14,500, not the body\'s $0.01', r.statusCode === 200 && db.store.get('estimates/E1').signedPrice.totalCents === 1450000,
+      r.statusCode + ' ' + JSON.stringify(db.store.get('estimates/E1').signedPrice && db.store.get('estimates/E1').signedPrice.totalCents));
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\n5. A link that goes out without a locked price says so (silent-failure review)');
+  // ════════════════════════════════════════════════════════════════════
+  {
+    const db = makeDb(world({ 'leads/L1': Object.assign(lead0(), { primaryEstimateId: null }) }));
+    const R = rig(db);
+    const a = await R.mint('d1');
+    ok('createSignRequest returns priceLocked:false + a reason when there is no snapshot', a.priceLocked === false && a.priceLockReason === 'no_primary_estimate', JSON.stringify(a));
+    ok('…and stamps priceSnapshotMissing on the token', db.store.get('doc_sign_tokens/' + a.token).priceSnapshotMissing === true);
+    await R.sign(a.token, 'd1');
+    const bell = notes(db, 'remote_signature')[0];
+    ok('at signing the rep\'s bell says the price was not locked', !!bell && /price was not locked/i.test(bell.message), bell && bell.message);
+
+    const ok2 = await rig(makeDb(world())).mint('d1');
+    ok('a normal contract link returns priceLocked:true', ok2.priceLocked === true, JSON.stringify(ok2));
+
+    // (The viewer toast for priceLocked:false is held for Joe's customer-page
+    // budget call — nbd-doc-viewer.js boots on customer.html, which has 10 B
+    // of headroom. The response field above is what it would read.)
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\n6. A signature whose price could not be locked tells the rep (silent-failure review)');
+  // ════════════════════════════════════════════════════════════════════
+  {
+    // The contract's estimate belongs to another tenant → estimate_other_tenant.
+    const db = makeDb(world());
+    const R = rig(db);
+    const a = await R.mint('d1');
+    db.store.set('estimates/E1', Object.assign(db.store.get('estimates/E1'), { userId: 'other', companyId: 'other' }));
+    await R.sign(a.token, 'd1');
+    const n = notes(db, 'price_not_locked')[0];
+    ok('a skipped stamp (estimate_other_tenant) notifies the rep "signed, but the price was not locked"', !!n && n.userId === U && /not locked/i.test(n.title + ' ' + n.message), JSON.stringify(n));
+    ok('…and logs it on the lead\'s activity feed', activity(db, 'price_not_locked').length === 1);
+
+    // A throw inside the stamp.
+    const dbT = makeDb(world());
+    const realTx = dbT.runTransaction;
+    dbT.runTransaction = async () => { throw new Error('contention'); };
+    const out = await SP.stampSignedPrice(dbT, { leadId: 'L1', event: 'contract_signed', sourceId: 'doc_z', meta: {} }, { logger: quiet, FieldValue: FV });
+    dbT.runTransaction = realTx;
+    ok('a stamp that throws → reason error, rep notified, estimate flagged', out.reason === 'error' && notes(dbT, 'price_not_locked').length === 1
+      && !!(dbT.store.get('estimates/E1').priceLockIssue && dbT.store.get('estimates/E1').priceLockIssue.reason === 'error'), JSON.stringify({ out, e: dbT.store.get('estimates/E1').priceLockIssue }));
+
+    // already_stamped is not an alert.
+    const dbS = makeDb(world({ 'estimates/E1': Object.assign(est14500(), { signedPrice: { fields: CER.signedPriceSnapshot(est14500()), totalCents: 1450000, sourceId: 'doc_same', at: NOW } }) }));
+    await SP.stampSignedPrice(dbS, { leadId: 'L1', event: 'contract_signed', sourceId: 'doc_same', meta: {} }, { logger: quiet, FieldValue: FV });
+    ok('already_stamped → no alert', notes(dbS, 'price_not_locked').length === 0);
+
+    // The moved-price warning also lands on the activity feed (a bell that
+    // fails to write is not the only record).
+    const dbM = makeDb(world());
+    await sendThenSign(dbM, { editBeforeSign: true });
+    const m = activity(dbM, 'signed_price_moved')[0];
+    ok('movedSinceSent is written to the lead\'s activity feed with both prices', !!m && /\$14,500/.test(m.label) && /\$16,200/.test(m.label), JSON.stringify(m));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

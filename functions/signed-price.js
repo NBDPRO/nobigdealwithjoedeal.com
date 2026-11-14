@@ -124,6 +124,16 @@ function planSignedStamp(ctx) {
   const sr = ctx.signRequest;
   const fromSignRequest = !fromEnvelope && !!(sr && sr.estimateId === ctx.estimateId
     && sr.fields && typeof sr.fields === 'object');
+  // Newest offer wins (review H1, 2026-11-14): a link minted before the
+  // current signed price was offered (its own mint, or its signing) never
+  // overwrites it — an older $10,000 link signed after a $12,000 one would
+  // otherwise lower the price under a $12,000 deposit draft. A snapshot with
+  // no mint time can't prove it is newer, so it does not overwrite either.
+  if (fromSignRequest && prev) {
+    const prevOffer = Number(prev.mintedAtMs) || Number(prev.at) || 0;
+    const mine = Number(sr.mintedAtMs) || 0;
+    if (prevOffer && (!mine || mine < prevOffer)) return { action: 'skip', reason: 'older_than_current' };
+  }
   const fields = fromEnvelope ? env.pricedSnapshot : fromSignRequest ? sr.fields : CER.signedPriceSnapshot(est);
   const totalCents = cents(CER.estimateValue(fields));
   if (!(totalCents > 0)) return { action: 'skip', reason: 'no_total' };
@@ -137,6 +147,7 @@ function planSignedStamp(ctx) {
     from: fromEnvelope ? 'envelope' : fromSignRequest ? 'sign_request' : 'estimate',
     at: Number(ctx.nowMs) || Date.now(),
   };
+  if (fromSignRequest && Number(sr.mintedAtMs) > 0) signedPrice.mintedAtMs = Number(sr.mintedAtMs);
   // The estimate was re-priced while the link was out: the snapshot (what
   // was signed) wins; record the estimate's price now so the rep is told.
   if (fromSignRequest && CER.pricedFingerprint(est) !== fingerprint) {
@@ -149,16 +160,94 @@ function planSignedStamp(ctx) {
 /**
  * The price snapshot a remote sign request carries (createSignRequest in
  * remote-signing.js): the priced fields of the estimate the contract bills
- * (the lead's primary), as the homeowner is shown them. Pure.
- * → { estimateId, fields, fingerprint, totalCents } | null
+ * (the lead's primary), as it stands when the link is minted. Pure.
+ * → { snapshot: { estimateId, fields, fingerprint, totalCents, mintedAtMs }, reason: null }
+ *   | { snapshot: null, reason } — the link goes out with no locked price.
  */
-function signRequestSnapshot(leadId, lead, est, estimateId) {
-  if (!lead || !est || _isDeleted(est) || typeof estimateId !== 'string' || !ID_RE.test(estimateId)) return null;
-  if (!_sameTenant(est, lead, leadId)) return null;
+function signRequestSnapshot(leadId, lead, est, estimateId, nowMs) {
+  const no = (reason) => ({ snapshot: null, reason });
+  if (!lead) return no('no_lead');
+  if (typeof estimateId !== 'string' || !ID_RE.test(estimateId)) return no('no_primary_estimate');
+  if (!est || _isDeleted(est)) return no('no_estimate');
+  if (!_sameTenant(est, lead, leadId)) return no('estimate_other_tenant');
   const fields = CER.signedPriceSnapshot(est);
   const totalCents = cents(CER.estimateValue(fields));
-  if (!(totalCents > 0)) return null;
-  return { estimateId, fields, fingerprint: CER.pricedFingerprint(fields), totalCents };
+  if (!(totalCents > 0)) return no('no_total');
+  return { snapshot: { estimateId, fields, fingerprint: CER.pricedFingerprint(fields), totalCents, mintedAtMs: Number(nowMs) || Date.now() }, reason: null };
+}
+
+// Why a price was not locked, in the rep's words.
+const NOT_LOCKED_WHY = {
+  no_primary_estimate: 'the customer has no primary estimate',
+  no_estimate: 'the contract\'s estimate could not be found on this customer',
+  estimate_other_tenant: 'the contract\'s estimate could not be found on this customer',
+  no_total: 'the estimate has no total',
+  acceptance_not_applied: 'the accepted package has not been applied to the estimate yet',
+  older_than_current: 'an older contract link was signed after a newer one, so the newer signed price was kept',
+  read_failed: 'the estimate could not be read',
+  error: 'a server error',
+};
+// Skips that are not a problem: a replay, or nothing to do.
+const QUIET_SKIPS = ['already_stamped', 'duplicate', 'not_a_signing_event', 'bad_lead_id', 'no_lead'];
+const usd = (c) => '$' + (Number(c) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Tell the rep (review, silent failures 2026-11-14): a bell, a line on the
+ * lead's activity feed and, for a lock that failed, a flag on the estimate.
+ * Two independent writes so one failing is not the only record. Never throws.
+ *   kind 'not_locked' { reason } | 'moved' { totalCents, currentTotalCents }
+ */
+async function _tellRep(db, a, deps) {
+  const logger = deps.logger;
+  const FV = deps.FieldValue || require('firebase-admin/firestore').FieldValue;
+  try {
+    let lead = a.lead;
+    if (!lead) { const ls = await db.collection('leads').doc(a.leadId).get(); lead = ls.exists ? (ls.data() || {}) : null; }
+    if (!lead || !lead.userId) return;
+    const estimateId = a.estimateId || (typeof lead.primaryEstimateId === 'string' && ID_RE.test(lead.primaryEstimateId) ? lead.primaryEstimateId : null);
+    let title, label, type;
+    if (a.kind === 'moved') {
+      type = 'signed_price_moved';
+      title = 'Signed price differs from the estimate';
+      label = 'Signed at ' + usd(a.totalCents) + '; the estimate now says ' + usd(a.currentTotalCents)
+        + '. Bills use the signed ' + usd(a.totalCents) + ' until the homeowner re-signs.';
+    } else if (a.reason === 'older_than_current') {
+      type = 'price_not_locked';
+      title = 'An older contract was signed — price kept';
+      label = 'The homeowner signed ' + NOT_LOCKED_WHY.older_than_current + '. Check which contract they meant to sign.';
+    } else {
+      type = 'price_not_locked';
+      title = 'Signed, but the price was not locked';
+      label = 'The contract is signed, but its price was not locked (' + (NOT_LOCKED_WHY[a.reason] || a.reason)
+        + '). Bills follow the estimate as saved — check it before you invoice.';
+    }
+    const writes = [
+      db.collection('leads').doc(a.leadId).collection('activity').add({
+        userId: lead.userId, type, label, estimateId: estimateId || null, reason: a.reason || null,
+        sourceId: a.sourceId || null, createdAt: FV.serverTimestamp(),
+      }),
+    ];
+    if (a.kind !== 'moved') {
+      writes.push(db.collection('notifications').add({
+        userId: lead.userId, type, leadId: a.leadId, title, message: label, priority: 'high', read: false, createdAt: FV.serverTimestamp(),
+      }));
+      // The flag goes only on THIS tenant's estimate (never on the other
+      // tenant's doc an estimate_other_tenant skip points at).
+      if (estimateId && a.reason !== 'older_than_current' && a.reason !== 'estimate_other_tenant') {
+        writes.push((async () => {
+          const ref = db.collection('estimates').doc(estimateId);
+          const es = await ref.get();
+          const est = es.exists ? (es.data() || {}) : null;
+          if (!est || _isDeleted(est) || !_sameTenant(est, lead, a.leadId)) return;
+          await ref.update({ priceLockIssue: { reason: a.reason, event: a.event || null, sourceId: a.sourceId || null, at: Number(a.nowMs) || Date.now() } });
+        })());
+      }
+    }
+    const res = await Promise.allSettled(writes);
+    res.forEach((r) => { if (r.status === 'rejected') logger.warn('[signedPrice] rep alert write failed', { leadId: a.leadId, type, err: r.reason && r.reason.message }); });
+  } catch (e) {
+    logger.warn('[signedPrice] rep alert failed', { leadId: a.leadId, err: e && e.message });
+  }
 }
 
 /**
@@ -211,17 +300,26 @@ async function stampSignedPrice(db, args, deps) {
       const es = await tx.get(estRef);
       const est = es.exists ? (es.data() || {}) : null;
       const plan = planSignedStamp({ leadId, lead, est, estimateId, event, sourceId, envelope, signRequest, duplicate: !!args.duplicate, nowMs: now() });
-      if (plan.action !== 'stamp') return { stamped: false, reason: plan.reason, estimateId };
-      tx.update(estRef, { signedPrice: plan.signedPrice });
-      const res = { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from };
+      if (plan.action !== 'stamp') return { stamped: false, reason: plan.reason, estimateId, lead };
+      // A lock that lands clears an earlier "not locked" flag.
+      tx.update(estRef, Object.assign({ signedPrice: plan.signedPrice },
+        est && est.priceLockIssue ? { priceLockIssue: (deps.FieldValue || require('firebase-admin/firestore').FieldValue).delete() } : {}));
+      const res = { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from, lead };
       if (plan.signedPrice.movedSinceSent) Object.assign(res, { movedSinceSent: true, currentTotalCents: plan.signedPrice.currentTotalCents });
       return res;
     });
+    const lead = out.lead; delete out.lead;
     logger.info('[signedPrice] ' + (out.stamped ? 'stamped' : 'not stamped'), { leadId, event, sourceId, estimateId: out.estimateId || null, reason: out.reason || null, totalCents: out.totalCents || null });
-    if (out.movedSinceSent) logger.warn('[signedPrice] estimate re-priced while the sign link was out — billing the signed snapshot', { leadId, estimateId: out.estimateId, signedCents: out.totalCents, currentCents: out.currentTotalCents });
+    if (out.movedSinceSent) {
+      logger.warn('[signedPrice] estimate re-priced while the sign link was out — billing the signed snapshot', { leadId, estimateId: out.estimateId, signedCents: out.totalCents, currentCents: out.currentTotalCents });
+      await _tellRep(db, { kind: 'moved', leadId, lead, estimateId: out.estimateId, sourceId, event, totalCents: out.totalCents, currentTotalCents: out.currentTotalCents, nowMs: now() }, Object.assign({}, deps, { logger }));
+    } else if (!out.stamped && QUIET_SKIPS.indexOf(out.reason) === -1) {
+      await _tellRep(db, { kind: 'not_locked', leadId, lead, estimateId: out.estimateId, sourceId, event, reason: out.reason, nowMs: now() }, Object.assign({}, deps, { logger }));
+    }
     return out;
   } catch (e) {
     logger.warn('[signedPrice] stamp failed', { leadId, event, sourceId, err: e && e.message });
+    await _tellRep(db, { kind: 'not_locked', leadId, sourceId, event, reason: 'error', nowMs: now() }, Object.assign({}, deps, { logger }));
     return { stamped: false, reason: 'error', error: String((e && e.message) || e) };
   }
 }

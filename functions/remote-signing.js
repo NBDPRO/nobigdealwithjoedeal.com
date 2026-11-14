@@ -216,6 +216,33 @@ function signablePathUid(htmlPath, leadId) {
 }
 
 /** Shape + tenant check. One users/{uid} read only for a teammate's path. */
+/**
+ * Mark this lead's other pending CONTRACT sign links superseded (review H1,
+ * 2026-11-14). A token minted before docType was stamped is judged by its
+ * document's type. Only the lead owner's tokens. Best-effort, never throws:
+ * the price guard in signed-price.js (older_than_current) still holds if
+ * this misses one.
+ */
+const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+  try {
+    const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+    for (const d of snap.docs) {
+      if (d.id === keepToken) continue;
+      const t = d.data() || {};
+      if (t.ownerUid !== ownerUid) continue;
+      let type = t.docType || null;
+      if (!type && typeof t.docId === 'string' && t.docId) {
+        try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
+      }
+      if (!CW.isContractDocType(type)) continue;
+      await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+    }
+  } catch (e) {
+    logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
+  }
+}
+
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
   const uid = signablePathUid(htmlPath, leadId);
   if (!uid || !lead) return false;
@@ -417,14 +444,26 @@ exports.createSignRequest = onCall(
     // the way an e-sign envelope keeps its pricedSnapshot. Best-effort: with
     // no snapshot the signing bills the estimate as it then stands (the old
     // behaviour).
+    // A contract that goes out WITHOUT a locked price is never silent (review,
+    // 2026-11-14): the caller gets priceLocked:false + why, the token carries
+    // priceSnapshotMissing, and the rep's bell says so at signing.
+    // Note: the snapshot is the primary estimate as it stands at SEND, not a
+    // reading of the contract page (it may have been generated earlier).
+    const isContract = CW.isContractDocType(docMeta.type);
     let priceSnapshot = null;
-    if (CW.isContractDocType(docMeta.type) && typeof lead.primaryEstimateId === 'string' && lead.primaryEstimateId) {
+    let priceLockReason = null;
+    if (isContract) {
+      const pid = typeof lead.primaryEstimateId === 'string' ? lead.primaryEstimateId : '';
       try {
-        const es = await db.doc(`estimates/${lead.primaryEstimateId}`).get();
-        priceSnapshot = SP.signRequestSnapshot(leadId, lead, es.exists ? es.data() : null, lead.primaryEstimateId);
+        const es = pid && /^[A-Za-z0-9_-]{1,128}$/.test(pid) ? await db.doc(`estimates/${pid}`).get() : null;
+        const r = SP.signRequestSnapshot(leadId, lead, es && es.exists ? es.data() : null, pid, Date.now());
+        priceSnapshot = r.snapshot;
+        priceLockReason = r.reason;
       } catch (e) {
+        priceLockReason = 'read_failed';
         logger.warn('[createSignRequest] price snapshot failed', { leadId, docId, err: e.message });
       }
+      if (!priceSnapshot) logger.warn('[createSignRequest] contract link sent WITHOUT a locked price', { leadId, docId, reason: priceLockReason });
     }
 
     const now = Date.now();
@@ -461,11 +500,18 @@ exports.createSignRequest = onCall(
       signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
+      docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       priceSnapshot,
+      ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
     });
+
+    // One live contract link per customer (review H1, 2026-11-14): a new
+    // contract link retires the older pending ones, so a homeowner can't sign
+    // yesterday's price after today's (the e-sign envelope does the same).
+    if (isContract) await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link');
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
@@ -518,7 +564,13 @@ exports.createSignRequest = onCall(
     }
 
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
-    return { token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token };
+    return {
+      token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
+      // null = not a contract (nothing to lock); false = sent without a
+      // locked price, with why (the viewer warns the rep).
+      priceLocked: isContract ? !!priceSnapshot : null,
+      priceLockReason: isContract && !priceSnapshot ? priceLockReason : null,
+    };
   }
 );
 
@@ -551,6 +603,7 @@ exports.getSignDocument = onRequest(
     if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
       res.status(410).json({ error: 'This signing link has expired. Contact your rep for a new one.' }); return;
     }
+    if (tok.status === 'superseded') { res.status(410).json({ error: SUPERSEDED_MSG }); return; }
     if (tok.status !== 'pending') {
       res.status(410).json({ error: 'This document has already been signed.' }); return;
     }
@@ -741,6 +794,7 @@ exports.submitSignature = onRequest(
         if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) {
           const e = new Error('exp'); e._http = 410; e._msg = 'This signing link has expired.'; throw e;
         }
+        if (t.status === 'superseded') { const e = new Error('superseded'); e._http = 410; e._msg = SUPERSEDED_MSG; throw e; }
         if (t.status !== 'pending') {
           const e = new Error('done'); e._http = 409; e._msg = 'This document has already been signed.'; throw e;
         }
@@ -749,7 +803,9 @@ exports.submitSignature = onRequest(
         }
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
-          priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null };
+          docType: t.docType || null,
+          priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
+          priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
     } catch (err) {
       if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
@@ -843,13 +899,24 @@ exports.submitSignature = onRequest(
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
     const spineOut = await spineAfterRemoteSign(db, info);
+    // A signed contract retires the customer's other pending contract links
+    // (review H1, 2026-11-14) — tokens minted before docType was stamped too.
+    if (CW.isContractDocType(info.docType) || (spineOut && spineOut.spine)) {
+      await supersedeContractTokens(db, info.leadId, info.ownerUid, token, 'contract_signed');
+    }
     // The estimate was re-priced while the link was out: the bills use the
     // price the homeowner signed — say so on the rep's bell (finding 8).
+    // (signed-price.js also writes it to the lead's activity feed.)
     const sp = spineOut && spineOut.spine && spineOut.spine.signedPrice;
-    const moved = sp && sp.movedSinceSent
+    let moved = sp && sp.movedSinceSent
       ? ' Signed at ' + usd(sp.totalCents) + '; the estimate now says ' + usd(sp.currentTotalCents)
         + '. Bills use the signed ' + usd(sp.totalCents) + ' until the homeowner re-signs.'
       : '';
+    // The link went out without a locked price: never silent at signing.
+    if (info.priceSnapshotMissing) {
+      moved += ' The price was not locked when this link was sent (' + String(info.priceLockReason || 'unknown').replace(/_/g, ' ')
+        + '), so bills follow the estimate as it stood at signing — check it.';
+    }
     try {
       await db.collection('notifications').add({
         userId: info.ownerUid,
