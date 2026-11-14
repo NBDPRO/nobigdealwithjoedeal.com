@@ -53,9 +53,11 @@ Tool: `scripts/match-job-photos.js` (dry run only; scoring in `scripts/lib/photo
   `node scripts/upload-job-photos.js --manifest <upload-manifest.csv> --company=<id> --apply --yes`.
   Jo approves that specific run in chat first (CLAUDE.md rule f). Not run by any agent.
 
-## Still open (was: blocked on Jo)
+## Still open (updated 2026-11-14)
 
-- The real match needs lead coordinates and stage dates: a leads export (`--leads file.json`) or a
-  read-only token (`NBD_ACCESS_TOKEN` plus `--company=<id>`). Until then `review.csv` and `review.html`
-  cannot be built, and no job can be named ready for social posts or Google Business updates.
-- Any upload (`--apply`) is built only after Jo reviews a dry run and approves that run in chat.
+- Done since the first draft of this note: the match ran on the CRM's Export Leads CSV, and
+  `review.csv`, `review.html` and `ready-jobs.html` exist in `Documents\nbd-photo-review`.
+- CRM upload: built and dry-run only. Jo runs `--apply` himself after approving that specific run in chat.
+- 4 matched jobs have no Drive customer folder (marked `NO FOLDER` in `drive-map.csv`); Jo decides whether to create them.
+- 102 medium, 27 low and 141 ambiguous matches still need Jo's review in `review.html` before any filing.
+- iCloud pass: not started; needs Jo signed in to iCloud in Chrome.
