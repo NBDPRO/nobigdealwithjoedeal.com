@@ -12,3 +12,10 @@ lomanco-logo-120.png/.webp  525x120, a resize of Lomanco_Logo.png (3205x733);
                             drops the source metadata.
 Used as the badge on the two Lomanco rows of credentials.json (training and
 Materials we install). Lomanco® is a registered trademark of Lomanco, Inc.
+
+Product photos (2026-11-14): web copies of Lomanco's own product photos from
+the same media kit ("Product photos" folders), resized to 800 px, metadata
+dropped, captioned as manufacturer photos (never as an NBD job):
+  lomanco-omniridge-or4-800.jpg/.webp       from OR4_05-Edit.jpg  (OmniRidge OR4)
+  lomanco-deck-air-roof-edge-800.jpg/.webp  from Deck-Air_Roof_Edge.jpg
+Used on /guides/how-a-roof-works (ventilation section).
