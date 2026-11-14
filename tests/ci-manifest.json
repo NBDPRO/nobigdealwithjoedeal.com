@@ -174,6 +174,7 @@
     "active-leads-open-only-2026-10-26.test.js",
     "paid-in-full-not-on-deposit-2026-10-05.test.js",
     "remote-signing-record-and-path-2026-10-05.test.js",
+    "remote-sign-save-failure-2026-11-14.test.js",
     "r3-security-fixes-2026-10-06.test.js",
     "numbers-you-can-trust-2026-10-04.test.js",
     "deposit-draft-2026-10-03.test.js",

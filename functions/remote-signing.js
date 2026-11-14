@@ -797,6 +797,11 @@ exports.submitSignature = onRequest(
     // The stored copy still holds the contract as generated (its old date).
     if (cxl && !recordSaved) cxl.stale = true;
     if (cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
+    // Both tries to store the signed copy failed (2026-11-14): htmlPath still
+    // holds the UNSIGNED original and the token is burned. Flag the document,
+    // tell the rep plainly (not "Document signed"), and tell the page so the
+    // homeowner is not promised a recorded signature.
+    if (!recordSaved) logger.error('[submitSignature] signed copy NOT saved — document flagged signedSaveFailed', { docId: info.docId, leadId: info.leadId });
     try {
       await db.doc(`leads/${info.leadId}/documents/${info.docId}`).set({
         status: 'signed',
@@ -813,6 +818,7 @@ exports.submitSignature = onRequest(
           : null,
         signedSha256: require('crypto').createHash('sha256').update(recordHtml, 'utf8').digest('hex'),
         ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+        ...(recordSaved ? {} : { signedSaveFailed: true }),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
     if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
@@ -825,14 +831,16 @@ exports.submitSignature = onRequest(
         userId: info.ownerUid,
         type: 'remote_signature',
         leadId: info.leadId,
-        title: 'Document signed',
-        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + 'signed a document remotely.',
+        title: recordSaved ? 'Document signed' : 'Signed copy NOT saved — action needed',
+        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + (recordSaved
+          ? 'signed a document remotely.'
+          : 'signed a document remotely, but the signed copy was not saved. The stored document is still the unsigned original. Contact them and send a new signing link.'),
         priority: 'high',
         read: false,
         createdAt: FieldValue.serverTimestamp(),
       });
     } catch (e) { logger.warn('[submitSignature] notify failed', { msg: e.message }); }
 
-    res.status(200).json({ ok: true });
+    res.status(200).json(recordSaved ? { ok: true } : { ok: true, saved: false });
   }
 );
