@@ -63,6 +63,14 @@ const page = (id, dk, mt, data) => ({ id, dk, suf: 1, name: '', data: data || {}
     ok('the newer cloud workout and settings survive the reconnect', h.cloud.get('users/U1/ds_workouts/w1').mt === 9 && h.cloud.get('userSettings/U1').dsGoalTargets.a === 2);
   }
 
+  console.log('\n4. a settings read that fails (online) is not reported as synced');
+  {
+    const h = boot({ storage: { nbd_dsp_v1: phonePages, nbd_last_uid: 'U1', nbd_gt: { a: 1 }, nbd_gt_at: '5' }, cloud, failReads: /^userSettings\// });
+    await h.signIn('U1');
+    ok('the chip says failed, not synced, when settings could not be read', h.chipEvents.some((e) => e.cloud === 'failed') && !h.chipEvents.some((e) => e.cloud === 'synced'), JSON.stringify(h.chipEvents.map((e) => e.cloud)));
+    ok('control: the pages still synced (the settings failure is isolated)', h.read('nbd_dsp_v1').find((p) => p.id === 1).data['l-win'] === 'newer laptop text');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

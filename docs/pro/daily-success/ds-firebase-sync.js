@@ -257,8 +257,9 @@ async function pushSettings() {
 // Returns true when a cloud copy was restored into localStorage.
 async function syncSettings() {
   let cloudDoc = {};
-  try { const snap = await getDocFromServer(doc(db, 'userSettings', _uid)); cloudDoc = snap.exists() ? (snap.data() || {}) : {}; }
-  catch (e) { return false; }
+  // A failed read throws (it used to return false): onAuth marks the sync failed, so the chip never says synced over settings it could not read.
+  const snap = await getDocFromServer(doc(db, 'userSettings', _uid));
+  cloudDoc = snap.exists() ? (snap.data() || {}) : {};
   let restored = false, needPush = false;
   for (const s of SETTINGS) {
     const loc = localSetting(s);
