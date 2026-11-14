@@ -92,7 +92,9 @@ const FAIL_WORDS = {
 function failureWords(note) { return FAIL_WORDS[str(note)] || 'something went wrong'; }
 // A person may ask for the transcription again only where another try can help
 // (the audio is the same; too big / too long / missing never change).
-const RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up'];
+// needs_paid_plan / needs_confirmed_email: after an upgrade or a confirmed
+// email a retry can help (doProcess re-checks the plan on every pass).
+const RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up', 'needs_paid_plan', 'needs_confirmed_email'];
 function canRetryTranscription(d) {
   return !!d && d.pipelineStatus === PIPELINE.FAILED && d.audioLive === true && RETRANSCRIBE_NOTES.indexOf(str(d.pipelineNote)) !== -1;
 }

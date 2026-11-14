@@ -100,7 +100,9 @@ const DAY = today.slice(0, 10), MONTH = today.slice(0, 7);
   b = await VI._checkBudget(db, 'paidCo', 'starter');
   ok('199 → still under', b.claudeOver === false && b.overBudget === false, b);
   b = await VI._checkBudget(db, 'paidCo', 'constructor');
-  ok('an unknown plan name (even a prototype key) gets the default cap', b.cap === 3600, b);
+  ok('an unknown plan name (even a prototype key) gets the default cap', b.cap === 72000, b);
+  b = await VI._checkBudget(db, 'paidCo', 'enterprise');
+  ok('an unlisted PAID plan (enterprise) gets the Starter allowance, not the free hour', b.cap === 72000, b);
 
   console.log('\n2. incrementVoiceUsage feeds both counters');
   docs = {}; writes.length = 0;
@@ -143,6 +145,25 @@ const DAY = today.slice(0, 10), MONTH = today.slice(0, 7);
   spend.download = 0; spend.fetch = 0;
   const r2 = await VI._processRecording({ uid: 'paidRep', leadId: 'L1', recordingId: 'R2', path: 'audio/paidRep/L1/R2.webm', contentType: 'audio/webm', size: 5, forceReanalyze: false });
   ok('paying company over its daily voice Claude cap: skipped over_budget, no spend, says try tomorrow', r2.skipped === 'over_budget' && spend.fetch === 0 && /daily limit/.test(docs['leads/L1/recordings/R2'].statusError), docs['leads/L1/recordings/R2']);
+
+  console.log('\n4b. a blip is not a refusal');
+  {
+    const realGetUser = STUBS['firebase-admin/auth'].getAuth;
+    let n = 0;
+    STUBS['firebase-admin/auth'].getAuth = () => ({ getUser: async (x) => { n++; if (n === 1) throw new Error('auth blip'); return users[x]; } });
+    const r = await upload('paidRep', 'paidCo');
+    ok('one failed Auth lookup is re-checked; the paying rep is processed', n === 2 && r.r && r.r.skipped !== 'not_entitled', Object.assign({ n }, r.r));
+    STUBS['firebase-admin/auth'].getAuth = realGetUser;
+  }
+  {
+    const realDoc = db.doc;
+    docs = { 'users/paidRep': { companyId: 'paidCo' }, 'subscriptions/paidCo': { plan: 'pro', status: 'active' }, ['api_usage_monthly/' + MONTH + '__co__paidCo']: { voice_audioSec: 999999 } };
+    const ctxOk = await VI._getCompanyContext(db, 'paidRep');
+    db.doc = (p) => (p === 'subscriptions/paidCo' ? { get: async () => { throw new Error('read failed'); } } : realDoc(p));
+    const ctxFail = await VI._getCompanyContext(db, 'paidRep');
+    db.doc = realDoc;
+    ok('a failed plan read is flagged (not silently the free tier)', ctxOk.planReadFailed !== true && ctxFail.planReadFailed === true, ctxFail);
+  }
 
   console.log('\n5. the upload trigger has an instance cap');
   const opts = VI.onAudioUploaded && VI.onAudioUploaded.__opts;

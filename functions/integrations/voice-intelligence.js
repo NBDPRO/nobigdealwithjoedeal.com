@@ -62,11 +62,16 @@ const VOICE_COMPANY_BUDGET_SEC = {
   growth:      180000,     // 50 hr/mo ≈ 6000s/day
   professional:600000      // 166 hr/mo ≈ 20000s/day
 };
-const VOICE_COMPANY_BUDGET_DEFAULT = 3600;
+// A plan name missing from the table (e.g. 'enterprise'): free accounts are
+// refused before the budget by the AI gate, so an unknown name belongs to a
+// paying tenant and gets the Starter allowance, not the free hour (2026-11-14).
+const VOICE_COMPANY_BUDGET_DEFAULT = 72000;
 // Every clip with speech also costs Claude calls (consent check, analysis,
 // walkthrough notes), which the audio-seconds budget never counted. Each
 // company gets this many voice Claude calls a day (UTC), shared by call
 // recordings and the walkthrough recorder. Override: VOICE_CLAUDE_DAILY_CAP.
+const PLAN_RECHECK_MS = Number(process.env.VOICE_PLAN_RECHECK_MS) >= 0 && process.env.VOICE_PLAN_RECHECK_MS !== undefined
+  ? Number(process.env.VOICE_PLAN_RECHECK_MS) : 2000;
 function voiceClaudeDailyCap() {
   return require('../env-number').envCap(process.env.VOICE_CLAUDE_DAILY_CAP, 200);
 }
@@ -154,7 +159,10 @@ async function getCompanyContext(db, uid) {
     // paying tenant's reps got the free tier's budget.
     const subSnap = await db.doc('subscriptions/' + out.companyId).get();
     if (subSnap.exists) out.plan = subSnap.data().plan || 'lite';
-  } catch (_) {}
+  } catch (_) {
+    // Unknown plan: the caller must not read this as the free hour.
+    out.planReadFailed = true;
+  }
   try {
     const coSnap = await db.doc('companies/' + out.companyId).get();
     if (coSnap.exists) {
@@ -626,7 +634,13 @@ async function processRecording({
   // (NBD itself exempt), read from their Auth record: this trigger has no
   // ID token. A failed doc (not a silent no-op) so the customer page stops
   // waiting; the audio is kept, so it can be reprocessed after an upgrade.
-  const ent = await aiEntitlementForUid(db, uid);
+  let ent = await aiEntitlementForUid(db, uid);
+  if (!ent.ok && ent.reason === 'plan_check_failed') {
+    // This trigger never retries, so one blip would fail a paying tenant's
+    // recording for good: look again once before refusing.
+    await new Promise((r) => setTimeout(r, PLAN_RECHECK_MS));
+    ent = await aiEntitlementForUid(db, uid);
+  }
   if (!ent.ok) {
     await recordingRef.set({
       userId: uid, companyId: ctx.companyId, leadId, recordingId,
@@ -665,6 +679,9 @@ async function processRecording({
   // of the raw audio + ability to reprocess next cycle is the
   // expected behaviour. Admin can manually reprocess after cycle reset.
   const budget = await checkBudget(db, ctx.companyId, ctx.plan);
+  // Plan unreadable: the audio cap is unknown, so only the (plan-free) Claude
+  // call cap applies; the entitlement gate above already read a paid plan.
+  if (ctx.planReadFailed) budget.overBudget = budget.claudeOver;
   if (budget.overBudget) {
     await recordingRef.set({
       userId: uid, companyId: ctx.companyId, leadId, recordingId,

@@ -317,6 +317,21 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     return { step: 'process', state: to, note: 'gave_up_after_14_days' };
   }
 
+  // 0c. free accounts get no AI (Joe, 2026-11-14; AI audit F1): a confirmed
+  // email and a paid plan on the company, NBD exempt. Read from the Auth
+  // record (no ID token here). Refused = parked as failed with a clear note,
+  // audio kept until retention; a plan-check blip retries in 30 minutes.
+  const ent = D.entitled ? await D.entitled(db, uid) : { ok: false, reason: 'plan_check_failed' };
+  if (!ent.ok) {
+    if (ent.reason === 'plan_check_failed') {
+      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: 'plan_check_failed', pipelineNextAtMs: nowMs + 30 * 60000 });
+      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: 'plan_check_failed' };
+    }
+    const note = ent.reason === 'unverified' ? 'needs_confirmed_email' : 'needs_paid_plan';
+    await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: note, pipelineNextAtMs: 0 });
+    return { step: 'process', state: PIPELINE.FAILED, note };
+  }
+
   // 1. the AI kill switch parks the work; nothing is spent
   try {
     if (await D.aiDisabled()) {
@@ -351,21 +366,6 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   const consent = LG.stricterConsent(d.consentMode, ctx.companyConsentMode);
   if (consent === 'two_party_attested' && !(Number(d.disclosureAckedAtMs) > 0)) {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'no_disclosure_ack', final: PIPELINE.QUARANTINED });
-  }
-
-  // 2b. free accounts get no AI (Joe, 2026-11-14; AI audit F1): a confirmed
-  // email and a paid plan on the company, NBD exempt. Read from the Auth
-  // record (no ID token here). Refused = parked as failed with a clear note,
-  // audio kept until retention; a plan-check blip retries in 30 minutes.
-  const ent = D.entitled ? await D.entitled(db, uid) : { ok: false, reason: 'plan_check_failed' };
-  if (!ent.ok) {
-    if (ent.reason === 'plan_check_failed') {
-      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: 'plan_check_failed', pipelineNextAtMs: nowMs + 30 * 60000 });
-      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: 'plan_check_failed' };
-    }
-    const note = ent.reason === 'unverified' ? 'needs_confirmed_email' : 'needs_paid_plan';
-    await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: note, pipelineNextAtMs: 0 });
-    return { step: 'process', state: PIPELINE.FAILED, note };
   }
 
   // 3. the company's budget, before any vendor spend: audio this month
@@ -487,10 +487,23 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     } catch (e) { logger.warn('visit_capture_usage_failed', { visitId, err: msg(e) }); }
   }
 
+  // One voice Claude call, counted against the company's daily cap whether
+  // it succeeded or not (a provider outage bills nothing and isn't counted).
+  const countClaudeCall = () => Promise.resolve()
+    .then(() => D.recordUsage(db, { uid, companyId: ctx.companyId, audioSec: 0, analysisTokens: 0, costCents: 0, claudeCalls: 1 }))
+    .catch(() => { /* best effort, like the notes count below */ });
+
   // 5. verbal consent: the opening must contain a yes
   if (consent === 'two_party_verbal' && !d.consentCheckedAtMs) {
     try {
-      const c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })) });
+      let c;
+      try {
+        c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })) });
+      } catch (ce) {
+        if (!LG.visitOutage(ce)) await countClaudeCall();
+        throw ce;
+      }
+      await countClaudeCall();
       if (!c || c.consented !== true) {
         return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'no_verbal_consent', final: PIPELINE.QUARANTINED });
       }
@@ -524,6 +537,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     notes = LG.sanitizeVisitNotes(raw);
   } catch (e) {
     const outage = LG.visitOutage(e);
+    if (!outage) await countClaudeCall(); // the call ran (bad output / sanitize failure) and was billed
     const transient = outage && outage.kind === 'overloaded' ? (Number(d.transientFails) || 0) + 1 : 0;
     if (outage && !(transient >= LG.TRANSIENT_MAX)) {
       await state({

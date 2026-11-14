@@ -1026,6 +1026,13 @@ async function channelRead(w, owner) {
   w = world({ v12unver001: cap('v12unver001') });
   await run(w, 'v12unver001');
   ok('an unconfirmed email: no spend, needs_confirmed_email', counts.transcribe === 0 && D(w, 'v12unver001').pipelineNote === 'needs_confirmed_email');
+  {
+    const CL = require(path.join(ROOT, 'docs', 'pro', 'js', 'visit-recorder-logic.js'));
+    const refused = Object.assign({ audioLive: true }, D(w, 'v12unver001'));
+    ok('after confirming the email the walkthrough can be retried (phone and server agree)', LG.canRetryTranscription(refused) === true && CL.canRetryTranscription(refused) === true);
+    ok('the recorder says why a walkthrough is parked on the company\'s voice AI limit',
+      /voice AI limit/.test((CL.pipelineBadge({ status: 'uploaded', pipelineStatus: 'notes_pending', pipelineNote: 'over_budget' }) || {}).text || ''));
+  }
   stub({ entitled: () => ({ ok: false, reason: 'plan_check_failed' }) });
   w = world({ v12blip0001: cap('v12blip0001') });
   await run(w, 'v12blip0001');
@@ -1039,6 +1046,24 @@ async function channelRead(w, owner) {
   await run(w, 'v12ok000001');
   ok('a paying tenant\'s walkthrough still runs end to end', D(w, 'v12ok000001').pipelineStatus === 'ready' && counts.transcribe === 1 && counts.notes === 1);
   ok('…its notes call is counted as one voice Claude call', (counts.usageArgs || []).some((a) => a.claudeCalls === 1), J(counts.usageArgs));
+  const calls = () => (counts.usageArgs || []).reduce((n, a) => n + (Number(a.claudeCalls) || 0), 0);
+  stub();
+  w = world({ v12verbal01: cap('v12verbal01', { consentMode: 'two_party_verbal' }) });
+  await run(w, 'v12verbal01');
+  ok('two-party verbal consent: the consent check AND the notes are counted (2 Claude calls)', counts.consent === 1 && counts.notes === 1 && calls() === 2, J(counts.usageArgs));
+  stub({ notes: () => { throw new Error('model returned something unparsable'); } });
+  w = world({ v12badout01: cap('v12badout01') });
+  await run(w, 'v12badout01');
+  ok('a notes call that ran but failed (not an outage) is still counted', counts.notes === 1 && calls() === 1, J(counts.usageArgs));
+  stub({ notes: () => { throw creditErr(); } });
+  w = world({ v12outage01: cap('v12outage01') });
+  await run(w, 'v12outage01');
+  ok('CONTROL: a provider outage (nothing billed) is not counted', counts.notes === 1 && calls() === 0, J(counts.usageArgs));
+  stub({ entitled: () => ({ ok: false, reason: 'plan' }) });
+  flags.aiOff = true;
+  w = world({ v12early001: cap('v12early001') });
+  await run(w, 'v12early001');
+  ok('a refused walkthrough exits before the kill switch and the tenant reads (cheap exit)', D(w, 'v12early001').pipelineNote === 'needs_paid_plan', J(D(w, 'v12early001')));
   {
     const src = fs.readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8');
     ok('the plan is read from the COMPANY\'s subscription doc', /db\.doc\('subscriptions\/' \+ companyId\)/.test(src) && !/db\.doc\('subscriptions\/' \+ uid\)/.test(src));

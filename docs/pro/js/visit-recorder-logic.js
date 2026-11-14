@@ -345,7 +345,9 @@
     needs_confirmed_email: 'confirm your email address to get walkthrough notes',
   };
   function failureWords(note) { return Object.prototype.hasOwnProperty.call(FAIL_WORDS, String(note || '')) ? FAIL_WORDS[note] : 'something went wrong'; }
-  var RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up'];
+  // needs_paid_plan / needs_confirmed_email: after an upgrade or a confirmed
+  // email a retry can help (the server re-checks the plan on every pass).
+  var RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up', 'needs_paid_plan', 'needs_confirmed_email'];
   /** Another transcription try can help (same rule the server enforces). */
   function canRetryTranscription(doc) {
     return !!doc && doc.pipelineStatus === 'failed' && doc.audioLive === true && RETRANSCRIBE_NOTES.indexOf(String(doc.pipelineNote || '')) !== -1;
@@ -368,6 +370,9 @@
   function pipelineBadge(doc) {
     var p = doc && doc.pipelineStatus;
     if (!doc || doc.status !== 'uploaded') return null;
+    // The company's daily voice AI limit, or a plan check that failed (2026-11-14).
+    if (doc.pipelineNote === 'over_budget' && (p === 'transcribe_pending' || p === 'notes_pending')) return { text: 'Uploaded - your company reached its voice AI limit; it retries by itself', tone: 'wait' };
+    if (doc.pipelineNote === 'plan_check_failed') return { text: 'Uploaded - could not check your plan just now; it retries by itself', tone: 'wait' };
     if (!p || p === 'queued') return { text: 'Uploaded - transcribing soon', tone: 'busy' };
     if (p === 'waiting_object') return { text: 'Uploaded - waiting for the audio to land', tone: 'busy' };
     if (p === 'transcribe_pending') return { text: 'Uploaded - transcription is waiting on the AI service, will retry', tone: 'wait' };
