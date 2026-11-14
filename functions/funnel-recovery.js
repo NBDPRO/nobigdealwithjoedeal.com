@@ -311,7 +311,9 @@ exports.runAbandonRecovery = onSchedule(
     // funnelRecoveryEmail === true AND the global email switch all say so
     // (2026-10-19, fail closed). Otherwise the dry run below. maxPerRun caps one sweep.
     const auto = await MessagingControls.automationStatus(db, 'funnelRecoveryEmail', 'email', process.env.FUNNEL_RECOVERY_ENABLED === 'true');
-    const enabled = auto.enabled;
+    // Canary (redirect-to-owner test mode) runs as the dry run: no claim, no
+    // send, so the record is still owed its email once the canary is off (2026-11-14).
+    const enabled = auto.enabled && !auto.canary;
     const now = Date.now();
     const cutoffOld = new Date(now - ABANDON_WINDOW_MS);
     const cutoffTooOld = new Date(now - RECOVERY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
@@ -499,6 +501,8 @@ exports.runAbandonRecovery = onSchedule(
           tags: unsub.tags,
         });
         if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+        // Canary switched on mid-sweep: nothing goes out; 'failed' is retried next hour.
+        if (gated.canary) throw new Error('canary_redirect');
         const response = await resend.emails.send(gated.msg);
         // Resend resolves { data: null, error } on an API-level rejection
         // instead of throwing — without this check recoveryEmailSentAt

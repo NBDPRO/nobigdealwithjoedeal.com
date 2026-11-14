@@ -159,11 +159,17 @@ async function askOne(db, entry, uid, deps) {
         if (photo) msg.attachments = photo.attachments;
         const gated = await MessagingControls.guardEmail(db, msg);
         if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+        if (gated.canary) throw new Error('canary_redirect');
         const r = await d.resend.emails.send(gated.msg);
         if (resendRejected(r)) throw new Error(resendErrorMessage(r));
         delivered = true;
       } catch (e) {
         log.warn('review_auto_email_failed', { leadId: entry.id, err: e && e.message });
+        // Canary switched on after the claim: nothing went out, so give the job its ask back.
+        if (e && e.message === 'canary_redirect') {
+          await db.collection('leads').doc(entry.id).update({ reviewAutoAsk: FV.delete() }).catch(() => {});
+          return { sent: false, reason: 'canary' };
+        }
         await settle(db, entry.id, entry.jobId, 'email', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
         return { sent: false, reason: 'send_failed' };
       }
@@ -247,8 +253,10 @@ exports.reviewAskAutoSweep = onSchedule(
     // pure planning code is unchanged. maxPerRun caps the whole sweep.
     const autoEmail = await MessagingControls.automationStatus(db, 'reviewAskAutoEmail', 'email', process.env.REVIEW_ASK_AUTO_EMAIL_ENABLED === 'true');
     const autoText = await MessagingControls.automationStatus(db, 'reviewAskAutoText', 'sms', process.env.REVIEW_ASK_AUTO_TEXT_ENABLED === 'true');
-    const emailOn = autoEmail.enabled;
-    const textOn = autoText.enabled;
+    // Canary (redirect-to-owner test mode): no claim and no ask, so the job's
+    // single ask is still owed once the canary is off (2026-11-14).
+    const emailOn = autoEmail.enabled && !autoEmail.canary;
+    const textOn = autoText.enabled && !autoText.canary;
     if (!emailOn && !textOn) { fnLogger.info('review_auto_disabled', { email: autoEmail.reason, text: autoText.reason }); return; }
     const runEnv = Object.assign({}, process.env, {
       REVIEW_ASK_AUTO_EMAIL_ENABLED: emailOn ? 'true' : 'false',
