@@ -65,9 +65,7 @@
     var coarse = false;
     try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) {}
     var w = window.innerWidth || 1024;
-    var sc = window.screen, hh = sc && sc.width > 0 && sc.height > 0 ? Math.min(sc.width, sc.height) : 0;
-    // mirrors layout-system.js surfaceFor: a touch device whose short SCREEN side is phone-sized is a phone
-    var surface = w <= 768 || (coarse && hh > 0 && hh <= 500 && w <= 1000) ? 'phone' : (w <= 1180 && coarse ? 'tablet' : 'desktop');
+    var surface = w <= 768 ? 'phone' : (w <= 1180 && coarse ? 'tablet' : 'desktop');
     if (c.glove === true) de.setAttribute('data-tap', 'glove');
     var id = c.byDevice && c.byDevice[surface];
     // 'pixel' was never a real layout (no stylesheet, no implementation) and is
