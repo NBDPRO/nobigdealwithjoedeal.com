@@ -74,7 +74,7 @@ console.log('\n2. stripeWebhook calls the guard before any write');
   // Exact shape: the result is held, tested on its own (no `&& false`
   // wrapper can disable it), and the refusal branch breaks out of the case.
   ok('the refusal is assigned straight from the guard', /const planRefusal = planCheckoutRefusal\(session\);/.test(cs));
-  ok('a refusal breaks out of the case', /if \(planRefusal\) \{[^{}]{0,300}?break;\s*\}/.test(cs));
+  ok('a refusal breaks out of the case', /if \(planRefusal\) \{\s*logger\.warn\([^;]*\);\s*break;\s*\}/.test(cs));
   ok('stripe.js requires the guard module', /require\(['"]\.\/plan-checkout-guard['"]\)/.test(src));
 }
 
