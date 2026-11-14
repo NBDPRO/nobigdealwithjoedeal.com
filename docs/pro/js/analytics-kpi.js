@@ -124,7 +124,8 @@
   function collectedDollarsOf(inv) {
     var total = parseFloat(inv.total) || 0;
     var bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0;
-    return Math.round(Math.max(0, total - bal) * 100) / 100;
+    // + refundReopenedTotal — same as collected-revenue.js collectedDollarsOf.
+    return Math.round(Math.max(0, total - bal + (parseFloat(inv.refundReopenedTotal) || 0)) * 100) / 100;
   }
 
   // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept

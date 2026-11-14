@@ -246,7 +246,8 @@ function _refundsOf(inv) {
 function _paymentsOnlyOf(inv) {
   const total = Number(inv.total) || 0;
   const bal = inv.balanceDue != null ? (Number(inv.balanceDue) || 0) : 0;
-  const collectedCents = Math.round(Math.max(0, total - bal) * 100);
+  // + refundReopenedTotal — same as collected-revenue.js collectedDollarsOf.
+  const collectedCents = Math.round(Math.max(0, total - bal + (Number(inv.refundReopenedTotal) || 0)) * 100);
   if (Array.isArray(inv.payments) && inv.payments.length) {
     const out = [];
     let ledgerCents = 0, earliestAt = null, earliestMs = Infinity;

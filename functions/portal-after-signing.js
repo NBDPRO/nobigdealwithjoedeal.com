@@ -79,8 +79,20 @@ function _paymentCounts(p) {
 
 /** Has any money landed on this job? (any live invoice with a payment) */
 function anyPaid(invoices) {
-  return (Array.isArray(invoices) ? invoices : []).some((inv) => _liveInvoice(inv)
-    && (cents(inv.amountPaid) > 0 || (Array.isArray(inv.payments) && inv.payments.some(_paymentCounts))));
+  return (Array.isArray(invoices) ? invoices : []).some((inv) => _liveInvoice(inv) && _netPaidCents(inv) > 0);
+}
+
+// Money still held on an invoice after refunds (2026-11-14). A Connect
+// refund (connect-refund-logic.js) lowers amountPaid itself and records what
+// it moved in refundReopenedTotal, so amountPaid is the truth there even at 0;
+// an owner-ledger refund (stripe-ledger.js) leaves amountPaid as it was, so
+// the part of refundedTotal that was not reopened comes off here.
+function _netPaidCents(inv) {
+  const reopened = cents(inv.refundReopenedTotal);
+  const paid = (cents(inv.amountPaid) > 0 || reopened > 0)
+    ? cents(inv.amountPaid)
+    : (Array.isArray(inv.payments) ? inv.payments.filter(_paymentCounts).reduce((t, p) => t + cents(p.amount), 0) : 0);
+  return paid - Math.max(0, cents(inv.refundedTotal) - reopened);
 }
 
 /**

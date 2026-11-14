@@ -73,15 +73,16 @@ function matchPair(src, from, open, close) {
   }
   return -1;
 }
-function refundBranch() {
+function refundBranch(type) {
   const re = /\}\s*else\s+if\s*\(/g;
   const hits = [];
+  const typeRe = new RegExp('event\\.type\\s*===\\s*[\'"]' + (type || 'charge.refunded').replace(/\./g, '\\.') + '[\'"]');
   let m;
   while ((m = re.exec(STRIPE_SRC)) !== null) {
     const op = m.index + m[0].length - 1;
     const cp = matchPair(STRIPE_SRC, op, '(', ')');
     if (cp === -1) continue;
-    if (!/event\.type\s*===\s*['"]charge\.refunded['"]/.test(STRIPE_SRC.slice(op + 1, cp))) continue;
+    if (!typeRe.test(STRIPE_SRC.slice(op + 1, cp))) continue;
     const b = STRIPE_SRC.indexOf('{', cp);
     const e = matchPair(STRIPE_SRC, b, '{', '}');
     if (e > -1) hits.push(STRIPE_SRC.slice(b + 1, e));
@@ -109,11 +110,16 @@ for (const h of HELPERS) {
 }
 ok('functions/connect-refund-logic.js loads (the pure planner)', !!PLAN && typeof PLAN.planConnectRefund === 'function');
 
+const UPDATED = refundBranch('charge.refund.updated');
+ok('exactly one branch handles charge.refund.updated (a pending refund that later fails)', UPDATED.length === 1,
+  'found ' + UPDATED.length + ' — a failed refund would leave the invoice reopened and the homeowner billed again');
+
 let SCRIPT = null;
 let compileErr = '';
 if (BRANCHES.length === 1) {
   const boot = HELPERS.map((h) => SRC[h] || '').join('\n')
-    + '\nglobalThis.__run = async function () {' + BRANCHES[0] + '\n};';
+    + '\nglobalThis.__run = async function () {' + BRANCHES[0] + '\n};'
+    + (UPDATED.length === 1 ? '\nglobalThis.__runUpdated = async function () {' + UPDATED[0] + '\n};' : '');
   try { SCRIPT = new vm.Script(boot, { filename: 'extracted-charge-refunded.js' }); }
   catch (e) { compileErr = e.message; }
 }
@@ -129,7 +135,28 @@ function makeDb(w) {
       return { exists: !!d, data: () => (d ? JSON.parse(JSON.stringify(d)) : undefined) };
     },
     update: async (patch) => { w.writes.push([name, id, patch]); apply(name, id, patch); },
+    set: async (data) => { setDoc(name, id, data); },
+    collection: (sub) => colRef(name + '/' + id + '/' + sub),
   });
+  function setDoc(name, id, data) {
+    w.writes.push([name, id, data]);
+    (w.fs[name] = w.fs[name] || {})[id] = JSON.parse(JSON.stringify(data));
+  }
+  const colRef = (name) => ({
+    _isCol: true, _name: name,
+    add: async (doc) => {
+      if (name === 'email_queue') w.emails.push(doc);
+      else if (/\/activity$/.test(name)) w.activities.push(doc);
+      return { id: 'doc_' + (++w.seq) };
+    },
+    doc: (id) => docRef(name, String(id)),
+    get: async () => snapCol(name),
+  });
+  const snapCol = (name) => {
+    const m = w.fs[name] || {};
+    const docs = Object.keys(m).map((k) => ({ id: k, exists: true, data: () => JSON.parse(JSON.stringify(m[k])) }));
+    return { docs, empty: docs.length === 0, size: docs.length };
+  };
   function apply(name, id, patch) {
     const cur = (w.fs[name] || {})[id];
     if (!cur) throw new Error('update on missing doc ' + name + '/' + id);
@@ -139,19 +166,18 @@ function makeDb(w) {
     }
   }
   return {
-    collection: (name) => ({
-      add: async (doc) => {
-        if (name === 'email_queue') w.emails.push(doc);
-        else if (/\/activity$/.test(name)) w.activities.push(doc);
-        return { id: 'doc_' + (++w.seq) };
-      },
-      doc: (id) => docRef(name, String(id)),
-    }),
+    collection: (name) => colRef(name),
     doc: (p) => { const i = p.lastIndexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); },
     runTransaction: async (fn) => {
+      // Reads-before-writes, as Firestore enforces.
+      let wrote = false;
       const tx = {
-        get: (ref) => ref.get(),
-        update: (ref, patch) => { w.writes.push([ref._name, ref._id, patch]); apply(ref._name, ref._id, patch); },
+        get: async (ref) => {
+          if (wrote) throw new Error('Firestore transactions require all reads to be executed before all writes.');
+          return ref._isCol ? snapCol(ref._name) : ref.get();
+        },
+        update: (ref, patch) => { wrote = true; w.writes.push([ref._name, ref._id, patch]); apply(ref._name, ref._id, patch); },
+        set: (ref, data) => { wrote = true; setDoc(ref._name, ref._id, data); },
       };
       return fn(tx);
     },
@@ -165,6 +191,11 @@ function makeStripe(w) {
       return pi;
     } },
     refunds: { list: async (p) => ({ data: (w.refunds[p && p.charge] || []).slice() }) },
+    charges: { retrieve: async (id) => {
+      const c = (w.charges || {})[id];
+      if (!c) { const e = new Error('No such charge'); e.code = 'resource_missing'; throw e; }
+      return c;
+    } },
   };
 }
 
@@ -197,10 +228,13 @@ function charge(over) {
   }, over || {});
 }
 
-async function run(w, ch, evtId) {
+const OWNER = 'OWNER_UID_TEST';
+async function run(w, ch, evtId, type, eventExtra) {
   if (!SCRIPT) return new Error('no script');
+  const evType = type || 'charge.refunded';
   const ctx = vm.createContext({
-    event: { id: evtId || 'evt_1', type: 'charge.refunded', data: { object: ch } },
+    event: Object.assign({ id: evtId || 'evt_1', type: evType, data: { object: ch } }, eventExtra || {}),
+    NBD_OWNER_UID: OWNER,
     stripe: makeStripe(w),
     db: makeDb(w),
     logger: {
@@ -208,7 +242,11 @@ async function run(w, ch, evtId) {
       error: (n, p) => w.logs.push(['error', n, p]),
       info: (n, p) => w.logs.push(['info', n, p]),
     },
-    getAuth: () => ({ getUser: async () => ({ email: 'contractor@example.com' }) }),
+    getAuth: () => ({ getUser: async (uid) => {
+      w.userLookups = (w.userLookups || []).concat([uid]);
+      if (w.failUsers && w.failUsers.includes(uid)) throw new Error('no such user ' + uid);
+      return { email: uid === OWNER ? 'owner@example.com' : 'contractor@example.com' };
+    } }),
     FieldValue: { serverTimestamp: () => SERVER_TS },
     require: (p) => {
       if (/slack$/.test(p)) return { postSlack: async (x) => { w.slack.push(x); return { posted: true }; } };
@@ -218,8 +256,12 @@ async function run(w, ch, evtId) {
     console, Date, Math, JSON, Number, String, Array, Object, Promise, Error,
   });
   SCRIPT.runInContext(ctx);
-  try { await ctx.__run(); return null; } catch (e) { return e; }
+  const fn = evType === 'charge.refunded' ? ctx.__run : ctx.__runUpdated;
+  if (typeof fn !== 'function') return new Error('no branch handles ' + evType);
+  try { await fn(); return null; } catch (e) { return e; }
 }
+const errLogs = (w, name) => w.logs.filter((l) => l[0] === 'error' && (!name || l[1] === name));
+const ownerMails = (w) => w.emails.filter((m) => m.to === 'owner@example.com');
 
 const inv = (w, id) => w.fs.invoices[id || 'INV_T'];
 const told = (w) => JSON.stringify([w.emails[w.emails.length - 1] || {}, w.slack[w.slack.length - 1] || {}]);
@@ -321,10 +363,29 @@ async function main() {
     const wd = world();
     wd.fs.invoices.INV_T.paidIntentIds = ['pi_SOMETHING_ELSE'];
     const beforeD = JSON.stringify(inv(wd));
-    await run(wd, charge());
+    const errD = await run(wd, charge());
     ok('R5 this payment never credited the invoice: untouched', JSON.stringify(inv(wd)) === beforeD);
-    ok('R5 …and the alert still goes out, saying the invoice was not changed',
-      /not changed/i.test(told(wd)), told(wd));
+    ok('T4 …and the delivery FAILS (non-200) so Stripe retries once the payment credit lands',
+      !!errD && /not_credited_here|credited/i.test(errD.message), errD ? errD.message : 'returned normally (200, never retried)');
+    ok('T4 …with no alert sent on the failed try (the retry alerts once)', wd.emails.length === 0);
+    // …and when the credit lands, the retry applies it.
+    wd.fs.invoices.INV_T.paidIntentIds = ['pi_T'];
+    const errD2 = await run(wd, charge(), 'evt_1');
+    ok('T4 the retry after the credit applies the refund', !errD2 && inv(wd).balanceDue === 400, errD2 ? errD2.message : JSON.stringify(inv(wd).balanceDue));
+
+    const wf = world();
+    wf.fs.invoices.INV_T.companyId = OWNER;
+    wf.pis.pi_T.metadata.companyId = OWNER;
+    wf.fs.connectAccounts[OWNER] = { accountId: 'acct_ROOFCO' };
+    const beforeF = JSON.stringify(inv(wf));
+    await run(wf, charge());
+    ok('R5 the platform tenant\'s own company is never reopened here (platform_tenant)', JSON.stringify(inv(wf)) === beforeF);
+
+    const wg = world();
+    const beforeG = JSON.stringify(inv(wg));
+    const errG = await run(wg, charge(), 'evt_acct', 'charge.refunded', { account: 'acct_ROOFCO' });
+    ok('T5 an event carrying event.account (a connected account\'s own event) is skipped',
+      !errG && JSON.stringify(inv(wg)) === beforeG && wg.emails.length === 0, errG ? errG.message : JSON.stringify(inv(wg)).slice(0, 200));
 
     const we = world();
     we.pis.pi_T.metadata = { invoiceId: 'INV_T', userId: 'u_roofco' }; // no companyId
@@ -342,6 +403,8 @@ async function main() {
     await run(wo, charge({ destination: null, transfer_data: null, on_behalf_of: null }));
     ok('R6 a platform (non-Connect) charge: this branch does not touch the invoice',
       JSON.stringify(inv(wo)) === before, 'the ledger already records it; doing it here too would double it');
+    ok('R6 …and its alert does not falsely say the ledger was NOT changed (the Stripe ledger records it)',
+      !/NOT changed/.test(told(wo)) && /Stripe ledger/.test(told(wo)), told(wo).slice(0, 400));
   }
 
   console.log('\nR7 — the alert says what happened');
@@ -364,32 +427,216 @@ async function main() {
       JSON.stringify([i.status, i.balanceDue, i.amountPaid]));
   }
 
-  console.log('\nR9 — planner: status changes, failed refunds, nothing-to-do');
+  console.log('\nR9 — planner: status changes, failed refunds, nothing-to-do, clamps');
   if (PLAN) {
-    const base = JSON.parse(JSON.stringify(world().fs.invoices.INV_T));
-    const p1 = PLAN.planConnectRefund(base, [{ id: 're_1', amount: 40000, status: 'pending', created: T0 }]);
+    // step(): apply one plan to an invoice + its server-only records, like the txn does.
+    const step = (st, refunds, opts) => {
+      const p = PLAN.planConnectRefund(st.inv, refunds, st.rec, opts);
+      if (!p) return { st, p: null };
+      return { st: { inv: Object.assign({}, st.inv, p.patch), rec: Object.assign({}, st.rec, p.records) }, p };
+    };
+    const base = { inv: JSON.parse(JSON.stringify(world().fs.invoices.INV_T)), rec: {} };
+    const s1 = step(base, [{ id: 're_1', amount: 40000, status: 'pending', created: T0 }]);
     ok('R9 a pending refund already reopens (Stripe has taken it back from the balance)',
-      p1 && p1.patch.amountPaid === 600 && p1.patch.balanceDue === 400);
-    const after1 = Object.assign({}, base, p1.patch);
-    const p2 = PLAN.planConnectRefund(after1, [{ id: 're_1', amount: 40000, status: 'succeeded', created: T0 }]);
+      s1.p && s1.p.patch.amountPaid === 600 && s1.p.patch.balanceDue === 400 && s1.p.patch.refundReopenedTotal === 400);
+    const s2 = step(s1.st, [{ id: 're_1', amount: 40000, status: 'succeeded', created: T0 }]);
     ok('R9 pending → succeeded updates the entry, money unchanged',
-      p2 && p2.patch.refunds[0].status === 'succeeded' && !('amountPaid' in p2.patch));
-    const after2 = Object.assign({}, after1, p2.patch);
-    const p3 = PLAN.planConnectRefund(after2, [{ id: 're_1', amount: 40000, status: 'failed', created: T0 }]);
+      s2.p && s2.p.patch.refunds[0].status === 'succeeded' && !('amountPaid' in s2.p.patch));
+    const s3 = step(s2.st, [{ id: 're_1', amount: 40000, status: 'failed', created: T0 }]);
     ok('R9 a refund that FAILED gives the money back: paid in full again',
-      p3 && p3.patch.amountPaid === 1000 && p3.patch.balanceDue === 0 && p3.patch.status === 'paid'
-      && p3.patch.refundStatus === null && p3.patch.refundedTotal === 0, JSON.stringify(p3 && p3.patch));
+      s3.p && s3.p.patch.amountPaid === 1000 && s3.p.patch.balanceDue === 0 && s3.p.patch.status === 'paid'
+      && s3.p.patch.refundStatus === null && s3.p.patch.refundedTotal === 0 && s3.p.patch.refundReopenedTotal === 0,
+      JSON.stringify(s3.p && s3.p.patch));
     ok('R9 the same refunds again → null (nothing to write)',
-      PLAN.planConnectRefund(Object.assign({}, after2, p3.patch), [{ id: 're_1', amount: 40000, status: 'failed', created: T0 }]) === null);
-    ok('R9 a zero / id-less refund is ignored', PLAN.planConnectRefund(base, [{ id: '', amount: 500 }, { id: 're_z', amount: 0 }]) === null);
-    const odd = Object.assign({}, base, { total: 1234.56, amountPaid: 1234.56 });
-    const p4 = PLAN.planConnectRefund(odd, [{ id: 're_c', amount: 33, status: 'succeeded', created: T0 }]);
-    ok('R9 cents stay exact (1234.56 − 0.33)', p4 && p4.patch.amountPaid === 1234.23 && p4.patch.balanceDue === 0.33,
-      JSON.stringify(p4 && [p4.patch.amountPaid, p4.patch.balanceDue]));
+      step(s3.st, [{ id: 're_1', amount: 40000, status: 'failed', created: T0 }]).p === null);
+    ok('R9 a zero / id-less refund is ignored', step(base, [{ id: '', amount: 500 }, { id: 're_z', amount: 0 }]).p === null);
+    const odd = { inv: Object.assign({}, base.inv, { total: 1234.56, amountPaid: 1234.56 }), rec: {} };
+    const s4 = step(odd, [{ id: 're_c', amount: 33, status: 'succeeded', created: T0 }]);
+    ok('R9 cents stay exact (1234.56 − 0.33)', s4.p && s4.p.patch.amountPaid === 1234.23 && s4.p.patch.balanceDue === 0.33,
+      JSON.stringify(s4.p && [s4.p.patch.amountPaid, s4.p.patch.balanceDue]));
     ok('R9 the planner never names status words outside invoiceStatusWord',
-      ['paid', 'partial', 'sent'].includes(p1.patch.status) && ['paid', 'partial', 'sent'].includes(p3.patch.status));
+      ['paid', 'partial', 'sent'].includes(s1.p.patch.status) && ['paid', 'partial', 'sent'].includes(s3.p.patch.status));
+
+    // Clamp: amountPaid already below the refund (a rep took 300 off by hand).
+    const low = { inv: Object.assign({}, base.inv, { amountPaid: 300, balanceDue: 700, status: 'partial' }), rec: {} };
+    const c1 = step(low, [{ id: 're_L', amount: 40000, status: 'succeeded', created: T0 }]);
+    ok('R9 clamp: a $400 refund on $300 paid moves only $300 (amountPaid 0, balance 1000)',
+      c1.p && c1.p.patch.amountPaid === 0 && c1.p.patch.balanceDue === 1000 && c1.p.patch.refundReopenedTotal === 300,
+      JSON.stringify(c1.p && c1.p.patch));
+    const c2 = step(c1.st, [{ id: 're_L', amount: 40000, status: 'failed', created: T0 }]);
+    ok('R9 clamp: that refund failing gives back only the $300 it moved (not $400)',
+      c2.p && c2.p.patch.amountPaid === 3 * 100 && c2.p.patch.balanceDue === 700 && c2.p.patch.refundReopenedTotal === 0,
+      JSON.stringify(c2.p && c2.p.patch));
+
+    // Missing created → the delivery time, never 1970.
+    const nowMs = Date.UTC(2026, 10, 14, 12);
+    const d1 = step(base, [{ id: 're_nd', amount: 100, status: 'succeeded' }], { nowMs });
+    ok('R9 a refund with no created is dated at delivery, not 1970',
+      d1.p && new Date(d1.p.patch.refunds[0].at).getTime() === nowMs, d1.p && String(d1.p.patch.refunds[0].at));
+
+    // refundStatus on a void invoice.
+    const voidInv = { inv: Object.assign({}, base.inv, { status: 'void' }), rec: {} };
+    const v1 = step(voidInv, [{ id: 're_v', amount: 100000, status: 'succeeded', created: T0 }]);
+    ok('R9 a FULL refund on a void invoice reads refunded (not partly_refunded), nothing reopened',
+      v1.p && v1.p.patch.refundStatus === 'refunded' && !('amountPaid' in v1.p.patch) && v1.p.patch.refundReopenedTotal === 0,
+      JSON.stringify(v1.p && v1.p.patch));
+    const v2 = step(voidInv, [{ id: 're_v', amount: 40000, status: 'succeeded', created: T0 }]);
+    ok('R9 a partial refund on a void invoice reads partly_refunded', v2.p && v2.p.patch.refundStatus === 'partly_refunded');
   } else {
     ok('R9 planner present', false, 'functions/connect-refund-logic.js missing');
+  }
+
+  console.log('\nT2 — a rep editing refunds[] cannot steer the money (server-only record)');
+  {
+    // Tamper A: mark the applied refund 'failed' on the invoice, then a new refund lands.
+    const wt = world();
+    await run(wt, charge());
+    ok('T2 setup: first refund applied (balance 400)', inv(wt).balanceDue === 400);
+    inv(wt).refunds[0].status = 'failed';
+    inv(wt).refundedTotal = 0;
+    wt.refunds.ch_T.push({ id: 're_2', amount: 10000, status: 'succeeded', created: T0 + 2 * 86400, charge: 'ch_T' });
+    await run(wt, charge({ amount_refunded: 50000 }), 'evt_t2');
+    ok('T2 status tamper: the new $100 refund moves only $100 (amountPaid 500, balance 500)',
+      inv(wt).amountPaid === 500 && inv(wt).balanceDue === 500, JSON.stringify([inv(wt).amountPaid, inv(wt).balanceDue]));
+    ok('T2 …and the tampered entry is put back from Stripe (succeeded)',
+      inv(wt).refunds.find((r) => r.stripeRef === 're_1').status === 'succeeded');
+    ok('T2 the applied amounts are in invoices/{id}/connectRefunds/{refundId}',
+      !!(wt.fs['invoices/INV_T/connectRefunds'] || {}).re_1 && wt.fs['invoices/INV_T/connectRefunds'].re_1.movedCents === 40000);
+
+    // Tamper B: inflate the recorded amount, then a new refund lands.
+    const wb = world();
+    await run(wb, charge());
+    inv(wb).refunds[0].amount = 1400;
+    wb.refunds.ch_T.push({ id: 're_2', amount: 10000, status: 'succeeded', created: T0 + 2 * 86400, charge: 'ch_T' });
+    await run(wb, charge({ amount_refunded: 50000 }), 'evt_t2b');
+    ok('T2 amount tamper: amountPaid is 500 (not 1599) and the status is partial (not paid)',
+      inv(wb).amountPaid === 500 && inv(wb).status === 'partial', JSON.stringify([inv(wb).amountPaid, inv(wb).status]));
+    ok('T2 …and the entry amount is put back to 400', inv(wb).refunds.find((r) => r.stripeRef === 're_1').amount === 400);
+
+    // The server-only path is not matched by any rule: the default deny covers it.
+    const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
+    ok('T2 firestore.rules: no match names connectRefunds (client reads/writes fall to the default deny)',
+      !/connectRefunds/.test(RULES) && /match \/\{document=\*\*\} \{\s*allow read, write: if false;/.test(RULES));
+    ok('T2 firestore.rules: no recursive invoices/{id}/{sub=**} match opens subcollections',
+      !/match \/invoices\/\{[^}]+\}\/\{[^}]+=\*\*\}/.test(RULES));
+  }
+
+  console.log('\nT3 — charge.refund.updated: a pending refund that FAILS gives the money back');
+  {
+    const w3 = world();
+    w3.refunds.ch_T = [{ id: 're_1', amount: 40000, status: 'pending', created: T0 + 86400, charge: 'ch_T' }];
+    w3.charges = { ch_T: charge() };
+    await run(w3, charge());
+    ok('T3 setup: pending refund reopened $400', inv(w3).balanceDue === 400);
+    const failedRefund = { id: 're_1', object: 'refund', amount: 40000, status: 'failed', created: T0 + 86400, charge: 'ch_T', payment_intent: 'pi_T' };
+    w3.refunds.ch_T = [failedRefund];
+    const e3 = await run(w3, failedRefund, 'evt_ru', 'charge.refund.updated');
+    ok('T3 the branch runs', !e3, e3 && e3.message);
+    ok('T3 amountPaid back to 1000, balanceDue 0, status paid', inv(w3).amountPaid === 1000 && inv(w3).balanceDue === 0
+      && inv(w3).status === 'paid', JSON.stringify([inv(w3).amountPaid, inv(w3).balanceDue, inv(w3).status]));
+    ok('T3 revenue is back to 1000', lifetime(inv(w3)) === 1000, String(lifetime(inv(w3))));
+    ok('T3 the contractor is told the refund failed and the money is back', /failed/i.test(told(w3)), told(w3).slice(0, 300));
+    const before = JSON.stringify(inv(w3));
+    await run(w3, failedRefund, 'evt_ru2', 'charge.refund.updated');
+    ok('T3 a retry is a no-op', JSON.stringify(inv(w3)) === before);
+    const wp = world(); wp.charges = { ch_T: charge({ destination: null, transfer_data: null, on_behalf_of: null }) };
+    const beforeP = JSON.stringify(inv(wp));
+    await run(wp, failedRefund, 'evt_ru3', 'charge.refund.updated');
+    ok('T3 a platform (non-Connect) refund update is left to the Stripe ledger', JSON.stringify(inv(wp)) === beforeP);
+  }
+
+  console.log('\nT7 — a skipped refund reaches the platform owner, loudly');
+  {
+    const w7b = world();
+    w7b.fs.connectAccounts.C_ROOFCO.accountId = 'acct_SOMEONE_ELSE';
+    w7b.failUsers = ['u_roofco'];
+    await run(w7b, charge());
+    ok('T7 account_mismatch: the platform owner gets an email (ownerUid passed)', ownerMails(w7b).length === 1,
+      'owner emails: ' + ownerMails(w7b).length);
+    ok('T7 …and the failed contractor alert is logged as an ERROR, not a warn',
+      errLogs(w7b, 'payment_event_alert_failed').length === 1, JSON.stringify(w7b.logs.map((l) => l[0] + ':' + l[1])));
+    const ok7 = world();
+    await run(ok7, charge());
+    ok('T7 control: an applied refund does not page the owner', ownerMails(ok7).length === 0);
+  }
+
+  console.log('\nT6 — every revenue reader nets a Connect refund once (worked examples)');
+  {
+    const D = (s) => new Date(s);
+    // A: total 1000; $300 cash never put on payments[]; $700 card on it; $200 refunded.
+    const A = { total: 1000, status: 'partial', amountPaid: 800, balanceDue: 200, refundReopenedTotal: 200,
+      payments: [{ amount: 700, at: D('2026-11-02T16:00:00Z') }], lastPaymentAt: D('2026-11-02T16:00:00Z'),
+      refunds: [{ amount: 200, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+    // B: full ledger: $1000 card, $400 refunded.
+    const B = { total: 1000, status: 'partial', amountPaid: 600, balanceDue: 400, refundReopenedTotal: 400,
+      payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
+      refunds: [{ amount: 400, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+    // C (security T6): payments[] only the $1000 card; $500 cash unrecorded; total 1500; $1000 refunded.
+    const C = { total: 1500, status: 'partial', amountPaid: 500, balanceDue: 1000, refundReopenedTotal: 1000,
+      payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
+      refunds: [{ amount: 1000, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+    // L: no payments[] at all (lump), $1000 paid, $250 refunded.
+    const L = { total: 1000, status: 'partial', amountPaid: 750, balanceDue: 250, refundReopenedTotal: 250,
+      lastPaymentAt: D('2026-11-01T16:00:00Z'),
+      refunds: [{ amount: 250, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+    // O: owner-ledger shape (refund NOT reopened, no refundReopenedTotal) — unchanged behaviour.
+    const O = { total: 1000, status: 'paid', amountPaid: 1000, balanceDue: 0, refundedTotal: 250,
+      payments: [{ amount: 1000, at: D('2026-11-01T16:00:00Z') }],
+      refunds: [{ amount: 250, at: D('2026-11-05T16:00:00Z'), status: 'succeeded', kind: 'refund' }] };
+    const WANT = { A: 800, B: 600, C: 500, L: 750, O: 750 };
+    const FIX = { A, B, C, L, O };
+
+    const lift = (src, name) => {
+      const a = src.search(new RegExp('function ' + name + '\\('));
+      if (a < 0) return '';
+      let depth = 0, i = src.indexOf('{', a);
+      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+      return src.slice(a, i + 1);
+    };
+    const sumOf = (list) => Math.round(list.reduce((t, p) => t + Math.round(Number(p.amount) * 100), 0)) / 100;
+    const readers = {};
+    readers['collected-revenue.js'] = (i) => R.paymentsOf(i);
+    for (const [f, names] of [
+      ['docs/pro/js/money-dashboard.js', ['toJSDate', 'collectedCentsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['docs/pro/js/analytics-kpi.js', ['toJSDate', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['docs/pro/js/pages/leaderboard.js', ['toDate', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
+      ['functions/weekly-digest.js', ['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf']],
+    ]) {
+      const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      const body = names.map((n) => lift(src, n)).join('\n');
+      const c = { Date, Math, parseFloat, isNaN, Array, Number, Object, JSON };
+      vm.createContext(c);
+      try {
+        vm.runInContext(body + '\nglobalThis.__p = ' + names[names.length - 1] + ';', c);
+        readers[f] = c.__p;
+      } catch (e) { readers[f] = () => { throw e; }; }
+    }
+    const AM = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
+    readers['functions/agent-mcp-logic.js'] = (i) => AM.paymentsOf(i);
+    for (const [rname, fn] of Object.entries(readers)) {
+      for (const [k, i] of Object.entries(FIX)) {
+        let got;
+        try { got = sumOf(fn(JSON.parse(JSON.stringify(i), (kk, v) => (kk === 'at' || kk === 'lastPaymentAt') ? new Date(v) : v))); }
+        catch (e) { got = 'threw ' + e.message; }
+        ok('T6 ' + rname + ' ' + k + ' collects ' + WANT[k], got === WANT[k], 'got ' + got);
+      }
+    }
+  }
+
+  console.log('\nT8 — the homeowner portal does not read a refunded job as paid');
+  {
+    const PA = require(path.join(ROOT, 'functions', 'portal-after-signing.js'));
+    const full = { status: 'sent', total: 1000, amountPaid: 0, balanceDue: 1000, refundReopenedTotal: 1000, refundedTotal: 1000,
+      payments: [{ amount: 1000, at: '2026-11-01T16:00:00Z', method: 'stripe' }],
+      refunds: [{ amount: 1000, at: '2026-11-05T16:00:00Z', status: 'succeeded', kind: 'refund' }] };
+    ok('T8 anyPaid is false after a full Connect refund', PA.anyPaid([full]) === false);
+    const part = Object.assign({}, full, { status: 'partial', amountPaid: 600, balanceDue: 400, refundReopenedTotal: 400, refundedTotal: 400 });
+    ok('T8 anyPaid stays true after a partial refund', PA.anyPaid([part]) === true);
+    const ownerFull = { status: 'paid', total: 1000, amountPaid: 1000, balanceDue: 0, refundedTotal: 1000,
+      payments: [{ amount: 1000, at: '2026-11-01T16:00:00Z' }], refunds: [{ amount: 1000, at: '2026-11-05T16:00:00Z', status: 'succeeded' }] };
+    ok('T8 an owner-ledger full refund (not reopened) is not "paid" either', PA.anyPaid([ownerFull]) === false);
+    ok('T8 control: a plain paid invoice is paid', PA.anyPaid([{ status: 'partial', total: 1000, amountPaid: 300, payments: [{ amount: 300 }] }]) === true);
+    ok('T8 control: payments[] only (legacy, no amountPaid) still counts', PA.anyPaid([{ status: 'partial', total: 1000, payments: [{ amount: 300 }] }]) === true);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

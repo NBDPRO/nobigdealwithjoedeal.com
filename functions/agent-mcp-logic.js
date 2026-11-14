@@ -1124,7 +1124,8 @@ function personalReviews(reviews, limit) {
 function paymentsOf(inv) {
   const total = parseFloat(inv.total) || 0;
   const bal = inv.balanceDue != null ? (parseFloat(inv.balanceDue) || 0) : 0;
-  const collectedCents = Math.round(Math.max(0, total - bal) * 100);
+  // + refundReopenedTotal — same as collected-revenue.js collectedDollarsOf.
+  const collectedCents = Math.round(Math.max(0, total - bal + (parseFloat(inv.refundReopenedTotal) || 0)) * 100);
   let out = [];
   let done = false;
   if (Array.isArray(inv.payments) && inv.payments.length) {

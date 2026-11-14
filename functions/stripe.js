@@ -1782,7 +1782,9 @@ async function alertInvoicePaymentEvent(db, opts) {
       }
     }
   } catch (e) {
-    logger.warn('payment_event_alert_failed', { invoiceId: opts.invoiceId || null, err: e.message });
+    // opts.critical: the alert IS the only record that something needs a hand
+    // (e.g. a refund the CRM could not apply) — losing it is an error.
+    (opts.critical ? logger.error : logger.warn)('payment_event_alert_failed', { invoiceId: opts.invoiceId || null, err: e.message });
   }
 }
 
@@ -1824,31 +1826,53 @@ function connectDestinationOf(charge) {
 // companyId owns the invoice, that company's connected account
 // (connectAccounts/{companyId}.accountId, the doc the mint read) is the
 // charge's destination, and this PaymentIntent credited this invoice
-// (paidIntentIds). Idempotent per Stripe refund id (connect-refund-logic.js),
-// so a retried webhook is a no-op. Errors propagate: the outer catch releases
-// the event marker and Stripe retries.
-async function applyConnectRefund(db, stripe, charge, meta, destination) {
+// (paidIntentIds). What each refund has already moved is kept server-only in
+// invoices/{id}/connectRefunds/{refundId} (no rule matches it — the default
+// deny), never read back from the client-editable refunds[]; so a retried
+// webhook is a no-op and an edited invoice cannot steer the maths. The
+// platform tenant's own company never comes through here (its refunds are
+// the Stripe ledger's). Errors propagate: the outer catch releases the event
+// marker and Stripe retries — deliberately so when the refund beats the
+// payment credit (not_credited_here, thrown below).
+async function applyConnectRefund(db, stripe, charge, meta, destination, nowMs) {
   const companyId = meta && meta.companyId ? String(meta.companyId) : '';
   const invoiceId = meta && meta.invoiceId ? String(meta.invoiceId) : '';
   if (!companyId || !invoiceId) return { skipped: 'no_tenant_metadata' };
+  if (companyId === String(NBD_OWNER_UID)) return { skipped: 'platform_tenant' };
   const acctSnap = await db.collection('connectAccounts').doc(companyId).get();
   const acctId = acctSnap.exists ? String((acctSnap.data() || {}).accountId || '') : '';
   if (!acctId || acctId !== destination) return { skipped: 'account_mismatch' };
   const refunds = ((await stripe.refunds.list({ charge: String(charge.id), limit: 100 })) || {}).data || [];
   const { planConnectRefund } = require('./connect-refund-logic');
   const invRef = db.collection('invoices').doc(invoiceId);
-  return db.runTransaction(async (tx) => {
+  const recCol = invRef.collection('connectRefunds');
+  const out = await db.runTransaction(async (tx) => {
     const snap = await tx.get(invRef);
     if (!snap.exists) return { skipped: 'not_found' };
     const inv = snap.data();
     if (String(inv.companyId || '') !== companyId) return { skipped: 'owner_mismatch' };
     const credited = Array.isArray(inv.paidIntentIds) ? inv.paidIntentIds : [];
     if (!charge.payment_intent || !credited.includes(String(charge.payment_intent))) return { skipped: 'not_credited_here' };
-    const plan = planConnectRefund(inv, refunds, { chargeId: charge.id });
+    const recSnap = await tx.get(recCol);
+    const applied = {};
+    recSnap.docs.forEach((d) => { applied[d.id] = d.data(); });
+    const plan = planConnectRefund(inv, refunds, applied, { chargeId: charge.id, nowMs });
     if (!plan) return { skipped: 'already_applied', inv };
+    for (const id of Object.keys(plan.records)) {
+      tx.set(recCol.doc(id), Object.assign({}, plan.records[id], { updatedAt: FieldValue.serverTimestamp() }));
+    }
     tx.update(invRef, Object.assign({}, plan.patch, { updatedAt: FieldValue.serverTimestamp() }));
-    return { applied: true, inv: Object.assign({}, inv, plan.patch), reopened: plan.reopened };
+    return { applied: true, inv: Object.assign({}, inv, plan.patch), movedCents: plan.movedCents };
   });
+  if (out.skipped === 'not_credited_here') {
+    // The PI names this invoice but its credit has not landed yet (the
+    // payment_intent.succeeded delivery is behind, or failed and is retrying).
+    // Fail the delivery so Stripe retries this refund after the credit.
+    const e = new Error('connect refund before its payment credit (not_credited_here): invoice ' + invoiceId);
+    e.code = 'not_credited_here';
+    throw e;
+  }
+  return out;
 }
 
 exports.invoiceWebhook = onRequest(
@@ -2837,8 +2861,14 @@ exports.invoiceWebhook = onRequest(
         // charge is not (#3037), so its invoice is reopened here (Joe,
         // 2026-11-14: refunded / partly refunded, the amount owed again) —
         // applyConnectRefund. Anything it cannot tie to the tenant's invoice
-        // is left alone and the alert says so out loud.
+        // is left alone and the alert says so out loud — to the platform
+        // owner too, since that alert is then the only record.
         const charge = event.data.object;
+        if (event.account) {
+          // A connected account's OWN event (a direct charge on their
+          // account), not one of our destination charges: not ours to book.
+          logger.info('charge_refunded_connected_account_event_skipped', { chargeId: charge.id, account: String(event.account) });
+        } else {
         const { meta, invoice } = await resolveInvoiceContext(db, stripe, charge.payment_intent);
         const full = charge.refunded === true;
         const amount = ((charge.amount_refunded || 0) / 100).toFixed(2);
@@ -2846,9 +2876,10 @@ exports.invoiceWebhook = onRequest(
         const refundInvoiceId = meta.invoiceId ? String(meta.invoiceId) : null;
         const refundDest = connectDestinationOf(charge);
         const tenantRefund = refundDest && refundInvoiceId
-          ? await applyConnectRefund(db, stripe, charge, meta, refundDest) : null;
+          ? await applyConnectRefund(db, stripe, charge, meta, refundDest, (Number(event.created) || 0) * 1000 || Date.now()) : null;
         const tenantInv = tenantRefund && (tenantRefund.applied || tenantRefund.skipped === 'already_applied')
           ? tenantRefund.inv : null;
+        const tenantSkipped = !!(tenantRefund && tenantRefund.skipped && tenantRefund.skipped !== 'already_applied');
         const owedAgain = tenantInv && Number(tenantInv.balanceDue) > 0
           ? (Math.round(Number(tenantInv.balanceDue) * 100) / 100).toFixed(2) : null;
         const ledgerNote = tenantInv
@@ -2856,14 +2887,17 @@ exports.invoiceWebhook = onRequest(
             ? 'The CRM invoice is marked ' + (tenantInv.refundStatus === 'refunded' ? 'refunded' : 'partly refunded')
               + ' and $' + owedAgain + ' is owed again on it.'
             : 'The refund is recorded on the CRM invoice; nothing was reopened on it.')
-          : 'IMPORTANT: the CRM invoice ledger was NOT changed — amounts recorded as paid still include this money; adjust records manually if needed.';
+          : (refundDest
+            ? 'IMPORTANT: the CRM invoice ledger was NOT changed — amounts recorded as paid still include this money; adjust records manually if needed.'
+            // The platform's own charge: the Stripe ledger (stripe-ledger.js) books it.
+            : 'The Stripe ledger records this refund on the CRM invoice it booked the payment to; the balance due is not reopened.');
         logger.warn('charge_refunded', {
           chargeId: charge.id, invoiceId: refundInvoiceId,
           amountRefundedCents: charge.amount_refunded || 0, full,
           connect: !!refundDest,
           tenantInvoice: tenantRefund ? (tenantRefund.applied ? 'applied' : tenantRefund.skipped) : null,
         });
-        if (tenantRefund && tenantRefund.skipped && tenantRefund.skipped !== 'already_applied') {
+        if (tenantSkipped) {
           logger.error('connect_refund_not_applied', {
             chargeId: charge.id, invoiceId: refundInvoiceId, companyId: meta.companyId || null,
             reason: tenantRefund.skipped,
@@ -2874,6 +2908,15 @@ exports.invoiceWebhook = onRequest(
           leadId: (invoice && invoice.leadId) || null,
           invoiceId: refundInvoiceId,
           source: 'stripe_refund',
+          critical: tenantSkipped,
+          ...(tenantSkipped ? {
+            ownerUid: NBD_OWNER_UID,
+            ownerSubject: 'Connect refund NOT applied to the contractor\'s invoice — $' + amount + ' — NBD Pro',
+            ownerBody: 'A refund on a Connect contractor\'s card payment could not be tied to their CRM invoice, so the'
+              + ' invoice still reads as paid.\n\nReason: ' + tenantRefund.skipped + '\nInvoice: ' + (refundInvoiceId || 'n/a')
+              + '\nCompany: ' + (meta.companyId || 'n/a') + '\nCharge:  ' + charge.id + '\nRefunded: $' + amount
+              + '\n\nCheck the invoice and adjust it by hand if the refund belongs to it.',
+          } : {}),
           emailSubject: (full ? 'Refund' : 'Partial refund') + ' issued — $' + amount + ' — NBD Pro',
           emailBody:
             'A ' + (full ? 'full' : 'partial') + ' refund was issued on a card payment.\n\n' +
@@ -2906,6 +2949,78 @@ exports.invoiceWebhook = onRequest(
             amountRefundedCents: charge.amount_refunded || 0,
           },
         });
+        }
+
+      } else if (event.type === 'charge.refund.updated' || event.type === 'refund.updated'
+                 || event.type === 'refund.failed') {
+        // A refund's status changed after charge.refunded — the one that
+        // matters is a pending refund that FAILED (or was canceled): the
+        // money never left, so a Connect invoice reopened for it must be paid
+        // again, or the homeowner is billed twice. Same applyConnectRefund
+        // (it re-reads every refund on the charge and moves only the change
+        // against the server-only record). The owner's own charges are the
+        // Stripe ledger's (it handles charge.refund.updated itself).
+        // OPS: these event types must be enabled on the Stripe endpoint.
+        const refund = event.data.object;
+        const chargeId = refund && refund.charge ? String(refund.charge.id || refund.charge) : '';
+        if (event.account || !chargeId) {
+          logger.info('refund_updated_skipped', { refundId: refund && refund.id, account: event.account ? String(event.account) : null });
+        } else {
+          const charge = await stripe.charges.retrieve(chargeId);
+          const refundDest = connectDestinationOf(charge);
+          const { meta, invoice } = refundDest
+            ? await resolveInvoiceContext(db, stripe, charge.payment_intent) : { meta: {}, invoice: null };
+          const refundInvoiceId = meta.invoiceId ? String(meta.invoiceId) : null;
+          const tenantRefund = refundDest && refundInvoiceId
+            ? await applyConnectRefund(db, stripe, charge, meta, refundDest, (Number(event.created) || 0) * 1000 || Date.now()) : null;
+          logger.info('refund_updated', {
+            refundId: refund.id, status: refund.status || null, chargeId, invoiceId: refundInvoiceId,
+            connect: !!refundDest,
+            tenantInvoice: tenantRefund ? (tenantRefund.applied ? 'applied' : tenantRefund.skipped) : null,
+          });
+          const gaveBack = tenantRefund && tenantRefund.applied && tenantRefund.movedCents < 0;
+          const tenantSkipped = !!(tenantRefund && tenantRefund.skipped && tenantRefund.skipped !== 'already_applied');
+          if (tenantSkipped) {
+            logger.error('connect_refund_not_applied', {
+              chargeId, refundId: refund.id, invoiceId: refundInvoiceId, companyId: meta.companyId || null,
+              reason: tenantRefund.skipped,
+            });
+          }
+          if (gaveBack || (tenantSkipped && (refund.status === 'failed' || refund.status === 'canceled'))) {
+            const back = (Math.abs(gaveBack ? tenantRefund.movedCents : (refund.amount || 0)) / 100).toFixed(2);
+            const refundUid = meta.userId || (invoice && invoice.createdBy) || null;
+            await alertInvoicePaymentEvent(db, {
+              uid: refundUid,
+              leadId: (invoice && invoice.leadId) || null,
+              invoiceId: refundInvoiceId,
+              source: 'stripe_refund',
+              critical: tenantSkipped,
+              ...(tenantSkipped ? {
+                ownerUid: NBD_OWNER_UID,
+                ownerSubject: 'Connect refund FAILED but was NOT applied to the contractor\'s invoice — NBD Pro',
+                ownerBody: 'A refund on a Connect contractor\'s payment failed (the money stayed with them), and the'
+                  + ' CRM invoice could not be updated.\n\nReason: ' + tenantRefund.skipped + '\nInvoice: '
+                  + (refundInvoiceId || 'n/a') + '\nRefund:  ' + refund.id + '\n\nCheck the invoice by hand.',
+              } : {}),
+              emailSubject: 'Refund failed — $' + back + ' stays paid — NBD Pro',
+              emailBody: 'A refund on a card payment failed, so the money was not returned.\n\n'
+                + 'Invoice: ' + (refundInvoiceId || 'n/a') + '\nRefund:  ' + refund.id + '\n\n'
+                + (gaveBack ? 'The CRM invoice shows the $' + back + ' as paid again.'
+                  : 'IMPORTANT: the CRM invoice was NOT changed — check it by hand.'),
+              slackText: '↩️ Refund failed ($' + back + ')',
+              slackBlocks: [{ type: 'section', text: { type: 'mrkdwn', text:
+                '*↩️ Stripe refund failed*\nRefund: `' + refund.id + '`\nInvoice: `' + (refundInvoiceId || 'n/a') + '`\n'
+                + (gaveBack ? 'CRM invoice: $' + back + ' paid again.' : 'CRM invoice NOT changed — check by hand.') } }],
+              activity: {
+                userId: refundUid,
+                type: 'stripe_refund_failed',
+                label: 'Refund failed ($' + back + ')',
+                refundId: String(refund.id),
+                chargeId,
+              },
+            });
+          }
+        }
 
       } else if (event.type === 'payment_intent.payment_failed') {
         // D3: VISIBILITY ONLY, and only for OUR invoice mints. Once this type

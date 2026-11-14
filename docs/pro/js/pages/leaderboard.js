@@ -163,7 +163,8 @@ async function loadRaw() {
 function paymentsOnlyOf(inv) {
   const collected = Math.max(0,
     (parseFloat(inv.total) || 0)
-    - ((inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0));
+    - ((inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0)
+    + (parseFloat(inv.refundReopenedTotal) || 0)); // same as collected-revenue.js collectedDollarsOf
   if (Array.isArray(inv.payments) && inv.payments.length > 0) {
     const out = [];
     let ledgerCents = 0;
