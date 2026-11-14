@@ -196,7 +196,11 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
   ok('renderPage stamps the page on screen; renderDash clears it',
     /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\n(?:rememberScroll\(\);)?killCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
-  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', /const DS_OPEN_TO='dash';\r?\ninitTheme\(\);loadPages\(\);cur=-1;[\s\S]{0,200}renderTabs\(\);if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(app));
+  // 2026-11-14 (audit): the old regex pinned the exact minified boot line, so any statement added between them broke it. The boot
+  // itself is checked in a real browser: ds-flow-batch-3 "control: boots on the Dashboard" (cur === -1, the Dash on screen).
+  // Here: the default, and that boot sets cur=-1 and draws the view cur points at (tabs and screen agree).
+  const boot = (app.match(/const DS_OPEN_TO='dash';[\s\S]{0,600}/) || [''])[0];
+  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', !!boot && /\bcur=-1;/.test(boot) && /renderTabs\(\);/.test(boot) && /if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(boot) && boot.indexOf('cur=-1;') < boot.indexOf('if(cur===-1)renderDash()'));
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');
   ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));
