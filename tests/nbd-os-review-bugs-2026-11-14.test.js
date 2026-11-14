@@ -212,13 +212,13 @@ const LS = H.read('docs/pro/js/layout-system.js');
 ok('the live surface passes the screen\'s short side, not the viewport height',
   /R\.surfaceFor\(window\.innerWidth[^;]*screenShort\(\)/.test(LS) && /Math\.min\(s\.width, s\.height\)/.test(LS));
 {
-  // the two pre-paint copies of the rule agree with surfaceFor (else a landscape phone flashes the desktop first)
-  const I = require('../docs/pro/js/layouts/island-job.js');
-  const cache = { byDevice: { phone: 'island' } };
-  ok('island-job wantsIsland agrees: a landscape phone is a phone', I.wantsIsland && I.wantsIsland(cache, 844, true, 390) === true);
-  ok('control: …and an iPad landscape is not', I.wantsIsland && I.wantsIsland(cache, 1180, true, 820) === false);
+  // The rule lives in the deferred engine only. The two pre-paint copies (shape-preboot.js, blocking on
+  // the dashboard; island-job.js on the customer page) stay as they were: mirroring it there cost 110 and
+  // 144 shipped bytes, over the boot budget (tests/dashboard-boot-budget-2026-10-03.test.js), and a budget
+  // raise is Joe's call. Cost: a phone on its side may paint the desktop layout's first frame before the
+  // engine resolves it to the phone layout, as it does today.
   const PRE = H.read('docs/pro/js/shape-preboot.js');
-  ok('shape-preboot mirrors the landscape-phone rule', /coarse && hh > 0 && hh <= 500 && w <= 1000/.test(PRE));
+  ok('the blocking pre-paint script is unchanged (no boot-budget growth)', !/screen/.test(PRE), 'shape-preboot.js reads the screen');
 }
 ok('the taskbar clears the home indicator (safe-area inset)', /\.os-taskbar[^{]*\{[^}]*safe-area-inset-bottom/.test(CSS));
 

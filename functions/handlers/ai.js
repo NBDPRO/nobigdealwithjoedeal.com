@@ -633,6 +633,34 @@ exports.adminAI = onRequest(
       res.status(403).json({ error: 'Admin access required' });
       return;
     }
+    // Every self-serve signup is company_admin of its own company, so the
+    // role alone made this a free Anthropic proxy for any new account
+    // (2026-11-14). Same gates as claudeProxy: verified email + a paid plan on
+    // the company; the platform admin and the platform tenant (NBD's own
+    // uid/company, which may have no Stripe subscription) are exempt.
+    const PLATFORM_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+    const isPlatformTenant = decoded.uid === PLATFORM_UID || decoded.companyId === PLATFORM_UID;
+    if (role !== 'admin' && !isPlatformTenant) {
+      if (decoded.email_verified !== true) {
+        res.status(403).json({ error: 'Verify your email before using AI features.' });
+        return;
+      }
+      let subSnap;
+      try {
+        subSnap = await getFirestore().doc(`subscriptions/${decoded.companyId || decoded.uid}`).get();
+      } catch (e) {
+        // Fail closed with a clean answer, not an unhandled rejection.
+        logger.error('adminAI: subscription read failed', { err: e && e.message });
+        res.status(503).json({ error: 'Could not check your plan. Try again shortly.' });
+        return;
+      }
+      const sub = subSnap.exists ? subSnap.data() : null;
+      const paid = !!(sub && sub.plan && sub.plan !== 'free' && (sub.status === 'active' || sub.status === 'trialing'));
+      if (!paid) {
+        res.status(403).json({ error: 'AI features require an active paid subscription.' });
+        return;
+      }
+    }
 
     // Rate limiting (per-uid + per-IP) is enforced by the guardHttp('adminAI')
     // wrapper — limits in rate-limit-policy.js ROUTES. (The old inline call
