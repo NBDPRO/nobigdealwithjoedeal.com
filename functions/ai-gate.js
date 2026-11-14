@@ -70,7 +70,20 @@ async function aiEntitlementForUid(db, uid, opts) {
   }
   if (rec && rec.disabled === true) return { ok: false, reason: 'plan' }; // a deactivated account spends nothing
   const c = (rec && rec.customClaims) || {};
-  return aiEntitlement(db, { role: c.role, companyId: c.companyId, email_verified: !!(rec && rec.emailVerified) }, uid);
+  // A rep whose Auth record has no companyId claim (stale claims) still
+  // belongs to the company on users/{uid}.companyId, which only the server
+  // writes (firestore.rules users block): the same lookup the pipelines'
+  // budget uses, so a paying tenant's rep isn't told to upgrade.
+  let companyId = c.companyId;
+  if (!companyId) {
+    try {
+      const u = await db.doc('users/' + uid).get();
+      companyId = (u && u.exists && u.data() && u.data().companyId) || undefined;
+    } catch (_) {
+      return { ok: false, reason: 'plan_check_failed' };
+    }
+  }
+  return aiEntitlement(db, { role: c.role, companyId, email_verified: !!(rec && rec.emailVerified) }, uid);
 }
 
 async function assertAiEntitled(db, auth) {
