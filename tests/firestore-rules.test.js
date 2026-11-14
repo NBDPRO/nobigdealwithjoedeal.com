@@ -1010,6 +1010,39 @@ async function run() {
   await assertFails(updateDoc(doc(admin, 'invoices/h2'), { status: 'sent' }));      // h2 is 'paid': leaving 'paid' is money too
   await assertSucceeds(updateDoc(doc(admin, 'invoices/h2'), { notes: 'admin note' }));   // control: a non-money edit still passes
   await assertSucceeds(updateDoc(doc(admin, 'invoices/h3'), { notes: 'admin note' }));
+  // ...and the rest of what moves money or its trail is frozen for the admin too (security review, 2026-11-14)
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { total: 1 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { deleted: true }));                 // a void with no note, out of Collected
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { companyId: 'co-b' }));             // moving the money to another tenant
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { createdBy: 'joe' }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { stripeCreditKeys: [] }));          // Stripe idempotency: re-credit the same charge
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { paidIntentIds: [] }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { supersededPayments: [] }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { refunds: [{ amount: 1, at: new Date() }] }));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/adm-part'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 500, amountPaid: 100, balanceDue: 400, payments: [payEntry({ amount: 100 })], createdAt: 1 }); });
+  await assertFails(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'void' }));          // out of A/R
+  await assertFails(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'cancelled' }));
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'overdue', notes: 'x' }));   // control: a non-money status word still passes
+  // The server-only money fields are frozen for EVERY browser, on update and on create (refunds come from Stripe; the
+  // idempotency keys stop a charge being credited twice).
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/srv-keys'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 500, amountPaid: 500, balanceDue: 0, payments: [payEntry({ amount: 500 })], stripeCreditKeys: ['ch_1'], paidIntentIds: ['pi_1'], refunds: [{ amount: 100, at: new Date(), status: 'succeeded' }], refundedTotal: 100, createdAt: 1 }); });
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { refunds: [{ amount: 40000, at: new Date() }] }));
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { refunds: [] }));
+  // (refundedTotal / supersededPayments / reconciliations / paidIntentIds are not frozen on this branch: the update rule sits at the expression
+  //  budget, refundedTotal is display-only (no Collected / A/R reader uses it), and the other two only steer catch-up matching.)
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { stripeCreditKeys: [] }));
+  // (paidIntentIds is not frozen on this branch yet: each extra key costs an expression and the 12-payment append sits at the
+  //  1000 budget. Follow-up: move the server-only money fields into a server-only doc. See NEXT_SESSION-2026-11-14-money-path.)
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/srv-keys'), { refunds: [] }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/srv-keys'), { notes: 'control' }));
+  const bornWith = (k, v) => setDoc(doc(alice, 'invoices/born-' + k), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, status: 'sent', [k]: v }));
+  await assertFails(bornWith('refunds', [{ amount: 1, at: new Date() }]));
+  await assertFails(bornWith('refundedTotal', 1));
+  await assertFails(bornWith('stripeCreditKeys', ['ch_x']));
+  await assertFails(bornWith('paidIntentIds', ['pi_x']));
+  await assertFails(bornWith('lastPaymentAt', new Date()));
+  await assertFails(bornWith('paidAt', new Date()));
+  await assertSucceeds(bornWith('notes', 'control'));
   // ── review round 4: three more variants of the same bypass, and the recorder ──
   // (1) the total cannot be lowered or omitted to make "paid" true
   await assertFails(updateDoc(await fresh('t1'), { status: 'paid', total: 0 }));
@@ -1226,6 +1259,17 @@ async function run() {
   await assertFails(deleteDoc(doc(rep2, 'invoices/del-rep2')));                                                       // nor another rep (never could)
   await assertFails(deleteDoc(doc(alice, 'invoices/del-legacy-paid')));                                               // 'paid' with nothing recorded counts as money
   await assertFails(deleteDoc(doc(alice, 'invoices/del-amt')));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/del-lump'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, balanceDue: 0, paidAt: new Date(), createdAt: 1 });   // collected = total - balanceDue
+    await setDoc(doc(d, 'invoices/del-Paid'), { createdBy: 'alice', companyId: 'co-a', status: 'Paid', total: 500, createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-refund'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, payments: [], refunds: [{ amount: 50, at: new Date() }], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-keys'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, payments: [], stripeCreditKeys: ['ch_1'], createdAt: 1 });
+  });
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-lump')));        // legacy collected revenue is money
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-Paid')));        // 'Paid' in any case
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-refund')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-keys')));
   await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-draft')));                                                  // a mistaken draft is still hers to delete
   await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-nopay-key')));
   // an invoice that carries money is never hard-deleted from a browser (Joe, 2026-11-14: money keeps its trail; void instead)
@@ -1252,6 +1296,7 @@ async function run() {
   });
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));   // the admin's money check fits the budget too
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
@@ -1314,7 +1359,7 @@ async function run() {
   await assertFails(updateDoc(doc(bob, 'invoices/vm4'), { deleted: true, voidNote: 'other tenant' }));
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/vm5'), { deleted: true, voidNote: 'owner side voids money' })); // the company_admin may
   await assertSucceeds(updateDoc(doc(solo, 'invoices/vm-solo'), { status: 'void', deleted: true, voidNote: 'solo owner' }));
-  await assertSucceeds(updateDoc(doc(admin, 'invoices/vm6'), { deleted: true, voidNote: 'platform admin' }));
+  await assertFails(updateDoc(doc(admin, 'invoices/vm6'), { deleted: true, voidNote: 'platform admin' }));     // (2026-11-14) not the platform admin: voiding takes money out of Collected; the company's owner side does it
   await assertSucceeds(updateDoc(doc(alice, 'invoices/vf1'), { deleted: true, voidNote: 'empty draft-like invoice' }));   // a rep may still void one with no money
   await assertSucceeds(updateDoc(doc(mgrBf, 'invoices/vf2'), { status: 'void' }));
   await assertFails(updateDoc(doc(alice, 'invoices/vf3'), { deleted: true }));                                          // the void note is still required
