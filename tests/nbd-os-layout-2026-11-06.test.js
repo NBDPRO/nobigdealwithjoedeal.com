@@ -160,7 +160,7 @@ ok('the router watcher reacts only to a VIEW\'s class changing (never the layout
 ok('windows on another desk are not drawn', has(OS, "el.classList.toggle('is-offdesk', WM.deskIndex(rec.desk) !== S.desk);") && has(CSS, '.os-win.is-offdesk { display: none; }'));
 ok('opening a window that lives on another desk goes to that desk', has(OS, 'if (WM.deskIndex(rec.desk) !== S.desk) { S.desk = WM.deskIndex(rec.desk); paintDeskBtns(); }'));
 ok('focus fallbacks stay on the current desk', has(OS, 'var next = WM.nextFocus(here(), id);'));
-ok('moving the front window away routes the CRM to the window left in front', has(OS, 'if (S.focus) focusWin(S.focus); else save();'));
+ok('moving the front window away routes the CRM to the window left in front', has(OS, 'if (S.focus) focusWin(S.focus); else { dropActive(); save(); }'));   // 2026-11-14: + drop the stale active view
 ok('overview moves the real windows by transform only, and a press never drags there',
   has(CSS, 'transform: translate(var(--otx, 0px), var(--oty, 0px)) scale(var(--os, 1));') && has(OS, 'if (S.overview) return;   // in the overview'));
 ok('desk / overview keys never fire while typing', has(OS, 'if (ev.ctrlKey && ev.altKey && !ev.metaKey && !typing) {'));
