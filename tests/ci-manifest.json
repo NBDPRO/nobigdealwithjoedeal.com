@@ -281,6 +281,7 @@
     "estimate-pricing.test.js",
     "estimate-profit.test.js",
     "estimate-reopen-cost-basis.test.js",
+    "estimate-reopen-min-job-2026-11-14.test.js",
     "estimate-render.test.js",
     "estimate-scope-display.test.js",
     "estimate-v2-payload.test.js",

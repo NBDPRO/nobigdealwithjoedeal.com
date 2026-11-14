@@ -2053,7 +2053,9 @@
     const trimmed = String(input == null ? '' : input).trim();
     if (trimmed === '') delete scopeEntry.overrides.note;
     else scopeEntry.overrides.note = trimmed.slice(0, 500);
-    state._reopenedClean = false;   // 3B
+    // NOT an edit for 3B (finding 3, 2026-11-14): a note never touches the
+    // money, so a reopened estimate keeps replaying its saved numbers. The
+    // note is still saved — _savedRowsOf reads it from state.scope.
     return true;
   }
 
@@ -3184,7 +3186,8 @@
     if (idx >= 0) cur.splice(idx, 1);
     else cur.push({ id: photo.id, url: photo.url });
     state.photos = cur;
-    state._reopenedClean = false;
+    // Not a price edit (finding 3, 2026-11-14): leave _reopenedClean alone so a
+    // reopened estimate keeps its saved numbers. The save reads state.photos.
     renderPhotos();
     saveDraftDebounced();
   }
@@ -4523,7 +4526,13 @@
       // row (gated on this flag) silently disappeared, so the regenerated
       // scope's subtotal + tax no longer summed to the printed total.
       minJobApplied:    !!estimate.minJobApplied,
-      prices:           estimate.prices || null,            // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
+      // The estimate's own minimum job charge (state.minJobCharge: a preset /
+      // job template floor, null = none set), so a reopen re-prices with THIS
+      // floor, not whatever the last session left in memory (finding 2,
+      // 2026-11-14). null is written, not omitted: a missing key marks a doc
+      // saved before this field (see _savedMinJobCharge).
+      minJobCharge:     num(state.minJobCharge),
+      prices:           estimate.prices || null,           // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
       selectedTier:     estimate.tier || state.tier,
       priceMode:        estimate.priceMode || state.mode,   // 'per-sq' | 'line-item' — tells consumers which model set grandTotal
       // The other tiers' rows, so the deal room may offer them and "Use it"
@@ -4717,6 +4726,30 @@
       : {});
   }
 
+  // The minimum job charge a reopened estimate re-prices with (finding 2,
+  // 2026-11-14). A doc that carries minJobCharge (saved since this fix, or
+  // re-totalled by doc-preflight.js) gets it back, null included (= none set).
+  // An older doc never stored it, so infer the conservative value — the one
+  // that keeps the SAVED price from moving on an edit that changes nothing:
+  //   • floored (minJobApplied) → its floor, which is the saved total less the
+  //     pass-through fees that ride on top of the floor (doc-preflight.js
+  //     reads a floored doc's total as its floor the same way);
+  //   • not floored → null, a fresh builder's "none set" (its old floor, if
+  //     any, is unknowable). One edge stays: an old PER-SQ doc priced under
+  //     the shop's per-SQ roof minimum by a lower preset floor re-floors at
+  //     that roof minimum on its first edit — see the PR for Joe's call.
+  // Never left as is: that would keep the previous session's value.
+  function _savedMinJobCharge(doc, passThru) {
+    if (doc.minJobCharge !== undefined) {
+      const v = Number(doc.minJobCharge);
+      return (doc.minJobCharge !== null && Number.isFinite(v)) ? v : null;
+    }
+    if (!doc.minJobApplied) return null;
+    let cents = Math.round((Number(doc.grandTotal) || 0) * 100);
+    (passThru || []).forEach((p) => { cents -= Math.round((Number(p.amount) || 0) * 100); });
+    return cents > 0 ? cents / 100 : null;
+  }
+
   // Parse a saved pitch label ("8/12") back to the numeric rise (8).
   function _parsePitchRise(pl) {
     const m = /^(\d+(?:\.\d+)?)/.exec(String(pl || ''));
@@ -4855,6 +4888,10 @@
       .filter((r) => r && r.code && (/^SVC /.test(r.code) || r.source === 'passthru') && !_isUpgradeRow(r) && !_isMemberDiscountLine(r))
       .map((r) => ({ code: r.code, desc: r.desc,
         amount: Number(r.total) || Number(r.unitPrice) || 0, source: r.source || 'passthru' }));
+    // The doc's own minimum job charge — never the previous session's
+    // (finding 2, 2026-11-14). Read after state.passThru: an older doc infers
+    // its floor from the saved total less those fees.
+    state.minJobCharge = _savedMinJobCharge(doc, state.passThru);
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
     // scope, and re-added after the engine by _applyUpgradeLines — the same
     // "restore it or the first edit drops it" fix as the fees above, plus tax.
@@ -6425,6 +6462,7 @@
       reconstructEstimateFromSaved: _reconstructEstimateFromSaved,
       rehydrateFromSaved: rehydrateFromSaved,
       effectiveEstimate: effectiveEstimate,
+      applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
       collectDraft: collectDraft,
       getState: () => state,
       // Display helpers. Pure, and the two that decide whether the scope
