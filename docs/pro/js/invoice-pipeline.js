@@ -1758,7 +1758,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     + 'so the invoice could leave approved supplement money off. Check your connection and try again.';
   async function loadEstimateSupplements(db, estimateId, opts) {
     opts = opts || {};
-    const uid = window._auth && window._auth.currentUser && window._auth.currentUser.uid;
+    // Same signed-in user resolution as _loadLeadInvoices.
+    const uid = (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
+      || (window.auth && window.auth.currentUser && window.auth.currentUser.uid)
+      || (window._user && window._user.uid) || '';
     if (!estimateId) return [];
     if (!uid) throw _supplementsUnreadable('Invoice not made: you are signed out, so the insurance supplements for this job could not be read. Sign in and try again.');
     if (!window.query || !window.where || !window.getDocs || !window.collection || !window.getDoc || !window.doc) {
