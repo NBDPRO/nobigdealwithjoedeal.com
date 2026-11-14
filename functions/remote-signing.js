@@ -49,6 +49,10 @@ const CW = require('./cancel-window');
 const { uidInLeadTenant } = require('./lead-artifact-paths');
 const ESL = require('./esign-logic');
 const { awaitBriefly } = require('./await-briefly');
+const SP = require('./signed-price');
+
+/** Cents → "$14,500.00" for the rep's bell. */
+const usd = (cents) => '$' + (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -406,6 +410,23 @@ exports.createSignRequest = onCall(
       }
     }
 
+    // The price this contract is sent at (money review 2026-11-14, finding 8):
+    // a snapshot of the estimate the signature will bill (the lead's primary,
+    // signed-price.js), kept on the admin-only token. At signing the stamp
+    // bills THIS, even if the estimate is re-priced while the link is out —
+    // the way an e-sign envelope keeps its pricedSnapshot. Best-effort: with
+    // no snapshot the signing bills the estimate as it then stands (the old
+    // behaviour).
+    let priceSnapshot = null;
+    if (CW.isContractDocType(docMeta.type) && typeof lead.primaryEstimateId === 'string' && lead.primaryEstimateId) {
+      try {
+        const es = await db.doc(`estimates/${lead.primaryEstimateId}`).get();
+        priceSnapshot = SP.signRequestSnapshot(leadId, lead, es.exists ? es.data() : null, lead.primaryEstimateId);
+      } catch (e) {
+        logger.warn('[createSignRequest] price snapshot failed', { leadId, docId, err: e.message });
+      }
+    }
+
     const now = Date.now();
     const ttlDays = 7;
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
@@ -440,6 +461,7 @@ exports.createSignRequest = onCall(
       signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
+      priceSnapshot,
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
@@ -726,7 +748,8 @@ exports.submitSignature = onRequest(
           const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
-        return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '' };
+        return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
+          priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null };
       });
     } catch (err) {
       if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
@@ -819,14 +842,21 @@ exports.submitSignature = onRequest(
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
-    await spineAfterRemoteSign(db, info);
+    const spineOut = await spineAfterRemoteSign(db, info);
+    // The estimate was re-priced while the link was out: the bills use the
+    // price the homeowner signed — say so on the rep's bell (finding 8).
+    const sp = spineOut && spineOut.spine && spineOut.spine.signedPrice;
+    const moved = sp && sp.movedSinceSent
+      ? ' Signed at ' + usd(sp.totalCents) + '; the estimate now says ' + usd(sp.currentTotalCents)
+        + '. Bills use the signed ' + usd(sp.totalCents) + ' until the homeowner re-signs.'
+      : '';
     try {
       await db.collection('notifications').add({
         userId: info.ownerUid,
         type: 'remote_signature',
         leadId: info.leadId,
         title: 'Document signed',
-        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + 'signed a document remotely.',
+        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + 'signed a document remotely.' + moved,
         priority: 'high',
         read: false,
         createdAt: FieldValue.serverTimestamp(),

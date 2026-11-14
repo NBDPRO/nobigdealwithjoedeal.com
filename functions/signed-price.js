@@ -29,8 +29,13 @@
  *     acceptance was only RECORDED at another tier's price (review R6-2-3,
  *     not this lane) is not stamped: its bills keep following the estimate
  *     until the rep resolves the "use it?" chip;
- *   - any other contract (remote / in-person HTML contract, an uploaded PDF
- *     titled as a contract) → the lead's primary estimate as it stands.
+ *   - a remote HTML contract (remote-signing.js) → the snapshot of the
+ *     lead's primary estimate the sign request took when the link was SENT
+ *     (money review 2026-11-14, finding 8); if the estimate moved since, the
+ *     snapshot wins and the stamp carries movedSinceSent + currentTotalCents
+ *     for the rep. A link sent before this shipped has no snapshot → below;
+ *   - any other contract (in-person HTML contract, an uploaded PDF titled as
+ *     a contract) → the lead's primary estimate as it stands.
  *
  * R6-2-5. A deal-room link carries the version of the estimate it was issued
  * at (deal-acceptance.js createDealAcceptToken stores estimateFingerprint).
@@ -67,12 +72,14 @@ function _sameTenant(est, lead, leadId) {
 }
 
 /**
- * Which estimate a signature signed: the envelope's estimate, else the deal
- * room's, else the lead's primary. → id or null
+ * Which estimate a signature signed: the envelope's estimate, else the
+ * remote sign request's (its price snapshot), else the deal room's, else the
+ * lead's primary. → id or null
  */
-function signedEstimateIdFor(lead, deal, envelope) {
+function signedEstimateIdFor(lead, deal, envelope, signRequest) {
   const ok = (v) => (typeof v === 'string' && ID_RE.test(v) ? v : null);
   return ok(envelope && envelope.kind === 'estimate' && envelope.estimateId)
+    || ok(signRequest && signRequest.estimateId)
     || ok(deal && deal.estimateId)
     || ok(lead && lead.primaryEstimateId)
     || null;
@@ -111,22 +118,47 @@ function planSignedStamp(ctx) {
   const env = ctx.envelope;
   const fromEnvelope = !!(env && env.kind === 'estimate' && env.estimateId === ctx.estimateId
     && env.pricedSnapshot && typeof env.pricedSnapshot === 'object');
-  const fields = fromEnvelope ? env.pricedSnapshot : CER.signedPriceSnapshot(est);
+  // A remote (HTML) contract: the price snapshot createSignRequest took of
+  // this estimate when the link was sent (money review 2026-11-14, finding 8)
+  // — what the homeowner was shown, even if the estimate moved since.
+  const sr = ctx.signRequest;
+  const fromSignRequest = !fromEnvelope && !!(sr && sr.estimateId === ctx.estimateId
+    && sr.fields && typeof sr.fields === 'object');
+  const fields = fromEnvelope ? env.pricedSnapshot : fromSignRequest ? sr.fields : CER.signedPriceSnapshot(est);
   const totalCents = cents(CER.estimateValue(fields));
   if (!(totalCents > 0)) return { action: 'skip', reason: 'no_total' };
-  return {
-    action: 'stamp',
-    estimateId: ctx.estimateId,
-    signedPrice: {
-      fields,
-      fingerprint: CER.pricedFingerprint(fields),
-      totalCents,
-      source: event,
-      sourceId: sourceId || null,
-      from: fromEnvelope ? 'envelope' : 'estimate',
-      at: Number(ctx.nowMs) || Date.now(),
-    },
+  const fingerprint = CER.pricedFingerprint(fields);
+  const signedPrice = {
+    fields,
+    fingerprint,
+    totalCents,
+    source: event,
+    sourceId: sourceId || null,
+    from: fromEnvelope ? 'envelope' : fromSignRequest ? 'sign_request' : 'estimate',
+    at: Number(ctx.nowMs) || Date.now(),
   };
+  // The estimate was re-priced while the link was out: the snapshot (what
+  // was signed) wins; record the estimate's price now so the rep is told.
+  if (fromSignRequest && CER.pricedFingerprint(est) !== fingerprint) {
+    signedPrice.movedSinceSent = true;
+    signedPrice.currentTotalCents = cents(CER.estimateValue(est));
+  }
+  return { action: 'stamp', estimateId: ctx.estimateId, signedPrice };
+}
+
+/**
+ * The price snapshot a remote sign request carries (createSignRequest in
+ * remote-signing.js): the priced fields of the estimate the contract bills
+ * (the lead's primary), as the homeowner is shown them. Pure.
+ * → { estimateId, fields, fingerprint, totalCents } | null
+ */
+function signRequestSnapshot(leadId, lead, est, estimateId) {
+  if (!lead || !est || _isDeleted(est) || typeof estimateId !== 'string' || !ID_RE.test(estimateId)) return null;
+  if (!_sameTenant(est, lead, leadId)) return null;
+  const fields = CER.signedPriceSnapshot(est);
+  const totalCents = cents(CER.estimateValue(fields));
+  if (!(totalCents > 0)) return null;
+  return { estimateId, fields, fingerprint: CER.pricedFingerprint(fields), totalCents };
 }
 
 /**
@@ -151,6 +183,11 @@ async function stampSignedPrice(db, args, deps) {
   const dealId = event === 'deal_accepted'
     ? String(meta.dealId || (sourceId.startsWith('deal_') ? sourceId.slice(5) : '') || '') : '';
   const envelopeId = String(meta.envelopeId || (sourceId.startsWith('env_') ? sourceId.slice(4) : '') || '');
+  // A remote contract's price snapshot, handed over by the job spine from the
+  // admin-only sign token (never from a client): { estimateId, fields, ... }.
+  const sr = meta.signRequestPrice;
+  const signRequest = (sr && typeof sr === 'object' && sr.fields && typeof sr.fields === 'object'
+    && typeof sr.estimateId === 'string' && ID_RE.test(sr.estimateId)) ? sr : null;
   try {
     const out = await db.runTransaction(async (tx) => {
       const ls = await tx.get(db.collection('leads').doc(leadId));
@@ -168,17 +205,20 @@ async function stampSignedPrice(db, args, deps) {
         envelope = es.exists ? (es.data() || {}) : null;
         if (envelope && envelope.leadId && envelope.leadId !== leadId) envelope = null;
       }
-      const estimateId = signedEstimateIdFor(lead, deal, envelope);
+      const estimateId = signedEstimateIdFor(lead, deal, envelope, signRequest);
       if (!estimateId) return { stamped: false, reason: 'no_estimate' };
       const estRef = db.collection('estimates').doc(estimateId);
       const es = await tx.get(estRef);
       const est = es.exists ? (es.data() || {}) : null;
-      const plan = planSignedStamp({ leadId, lead, est, estimateId, event, sourceId, envelope, duplicate: !!args.duplicate, nowMs: now() });
+      const plan = planSignedStamp({ leadId, lead, est, estimateId, event, sourceId, envelope, signRequest, duplicate: !!args.duplicate, nowMs: now() });
       if (plan.action !== 'stamp') return { stamped: false, reason: plan.reason, estimateId };
       tx.update(estRef, { signedPrice: plan.signedPrice });
-      return { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from };
+      const res = { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from };
+      if (plan.signedPrice.movedSinceSent) Object.assign(res, { movedSinceSent: true, currentTotalCents: plan.signedPrice.currentTotalCents });
+      return res;
     });
     logger.info('[signedPrice] ' + (out.stamped ? 'stamped' : 'not stamped'), { leadId, event, sourceId, estimateId: out.estimateId || null, reason: out.reason || null, totalCents: out.totalCents || null });
+    if (out.movedSinceSent) logger.warn('[signedPrice] estimate re-priced while the sign link was out — billing the signed snapshot', { leadId, estimateId: out.estimateId, signedCents: out.totalCents, currentCents: out.currentTotalCents });
     return out;
   } catch (e) {
     logger.warn('[signedPrice] stamp failed', { leadId, event, sourceId, err: e && e.message });
@@ -255,6 +295,6 @@ function checkDealPrice(o) {
 }
 
 module.exports = {
-  SIGN_EVENTS, signedEstimateIdFor, planSignedStamp, stampSignedPrice,
+  SIGN_EVENTS, signedEstimateIdFor, planSignedStamp, stampSignedPrice, signRequestSnapshot,
   portalPriced, knownTierPrices, checkDealPrice,
 };
