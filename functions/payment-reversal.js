@@ -242,17 +242,22 @@ async function handleReversePayment(request, deps) {
 
 const { onCall } = require('firebase-functions/v2/https');
 
-module.exports = {
-  MANUAL_METHODS, REASON_MAX,
-  reversalPairs, reversalBlockedReason, planReversal, isCompanyOwner, handleReversePayment,
-  reversePayment: onCall(
-    {
-      region: 'us-central1',
-      cors: ['https://nobigdealwithjoedeal.com', 'https://nobigdeal-pro.web.app'],
-      enforceAppCheck: true,
-      timeoutSeconds: 15,
-      memory: '256MiB', // never below 256MiB: a 128MiB gen2 fails its startup healthcheck
-    },
-    require('./tenant-guard').wrapCallable((request) => handleReversePayment(request))
-  ),
-};
+exports.MANUAL_METHODS = MANUAL_METHODS;
+exports.REASON_MAX = REASON_MAX;
+exports.reversalPairs = reversalPairs;
+exports.reversalBlockedReason = reversalBlockedReason;
+exports.planReversal = planReversal;
+exports.isCompanyOwner = isCompanyOwner;
+exports.handleReversePayment = handleReversePayment;
+
+// The deploy workflow finds functions by grepping for this exact shape: keep it on one line.
+exports.reversePayment = onCall(
+  {
+    region: 'us-central1',
+    cors: ['https://nobigdealwithjoedeal.com', 'https://nobigdeal-pro.web.app'],
+    enforceAppCheck: true,
+    timeoutSeconds: 15,
+    memory: '256MiB', // never below 256MiB: a 128MiB gen2 fails its startup healthcheck
+  },
+  require('./tenant-guard').wrapCallable((request) => handleReversePayment(request))
+);
