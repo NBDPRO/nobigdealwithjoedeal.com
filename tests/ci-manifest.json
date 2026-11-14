@@ -1640,6 +1640,7 @@
     "firestore-rules.os-coach-ai.test.js",
     "firestore-rules.os-team.test.js",
     "firestore-rules.lead-soft-delete.test.js",
+    "firestore-rules.lead-archive.test.js",
     "firestore-rules.portal-note.test.js",
     "firestore-rules.job-conflict-notice.test.js",
     "firestore-rules.doc-drafts.test.js",

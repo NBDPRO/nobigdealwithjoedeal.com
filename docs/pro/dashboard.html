@@ -2090,6 +2090,7 @@
               🗑 <span class="crm-hdr-btn-label">Deleted leads</span>
               <span class="trash-count-badge" id="trashCountBadge"></span>
             </button>
+            <button class="btn btn-ghost crm-hdr-btn" data-action="call" data-fn="openArchivedDrawer" title="Archived leads">📦 <span class="crm-hdr-btn-label">Archived leads</span></button>
             <button class="btn btn-ghost crm-hdr-btn" data-action="call" data-fn="openDupReview" title="Find likely duplicate leads">🧬 <span class="crm-hdr-btn-label">Find duplicates</span></button>
             <button class="btn btn-ghost crm-hdr-btn" id="loadSampleDataBtn" data-action="call" data-fn="loadSampleData" style="display:none;" title="Add 5 sample leads">
               🎲 <span class="crm-hdr-btn-label">Sample data</span>
@@ -2260,6 +2261,20 @@
       <button class="deleted-drawer-close" data-action="closeModal" data-target="deletedDrawer">✕</button>
     </div>
     <div class="deleted-drawer-body" id="deletedDrawerBody">
+      <div class="deleted-empty">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ARCHIVED LEADS DRAWER (2026-11-14): same layout as the Deleted bin; crm-portal-bridge.js renderArchivedDrawer fills it. -->
+  <div class="deleted-drawer" id="archivedDrawer">
+    <div class="deleted-drawer-hdr">
+      <div>
+        <div class="deleted-drawer-title">📦 Archived Leads</div>
+        <div class="deleted-card-meta">Hidden from the board, map and search. Un-archive to bring one back.</div>
+      </div>
+      <button class="deleted-drawer-close" data-action="closeModal" data-target="archivedDrawer">✕</button>
+    </div>
+    <div class="deleted-drawer-body" id="archivedDrawerBody">
       <div class="deleted-empty">Loading...</div>
     </div>
   </div>

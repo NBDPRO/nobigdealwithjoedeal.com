@@ -734,6 +734,103 @@ async function confirmDeleteLead() {
   } catch(e) { showToast('Delete failed','error'); }
 }
 
+// ── ARCHIVE (2026-11-14) ─────────────────────
+// Jo: managers no longer delete leads, so they archive them. archived /
+// archivedAt / archivedBy on the lead (firestore.rules archiveWriteOk checks
+// the shape). The loader keeps archived leads out of window._leads (board,
+// map, search) and in window._archivedLeads, which the Archived drawer lists
+// with Un-archive. Who: the lead update rule's writers — the owner unless a
+// viewer, a manager / company_admin of the lead's company, a platform admin.
+const NO_LEAD_ARCHIVE = 'Only the lead’s owner, a manager or a company admin can archive this lead.';
+function _leadArchivePerm(idOrLead) {
+  const c = window._userClaims;
+  if (!c) return 'loading';
+  const find = (arr) => (arr || []).find(l => l && l.id === idOrLead);
+  const lead = (idOrLead && typeof idOrLead === 'object') ? idOrLead
+    : (find(window._leads) || find(window._archivedLeads));
+  if (!lead) return 'unknown';
+  const uid = window._user && window._user.uid;
+  if (c.role === 'viewer') return 'no';
+  return c.role === 'admin'
+    || (!!uid && lead.userId === uid)
+    || ((c.role === 'company_admin' || c.role === 'manager') && !!c.companyId && lead.companyId === c.companyId)
+    ? 'yes' : 'no';
+}
+async function _writeArchive(id, archived) {
+  const p = _leadArchivePerm(id);
+  if (p === 'no' || p === 'loading') { showToast(p === 'no' ? NO_LEAD_ARCHIVE : LEAD_ROLE_LOADING, 'error'); return false; }
+  const uid = window._user && window._user.uid;
+  const patch = archived
+    ? { archived: true, archivedAt: window.serverTimestamp(), archivedBy: uid }
+    : { archived: false, archivedAt: null, archivedBy: null };
+  patch.updatedAt = window.serverTimestamp();
+  try { await window.updateDoc(window.doc(window.db, 'leads', id), patch); }
+  catch (e) {
+    console.error('archive write:', e && e.code, e);
+    showToast('Could not ' + (archived ? 'archive' : 'un-archive') + ' this lead. Your role may not allow it.', 'error');
+    return false;
+  }
+  try { await window._loadLeads(); } catch (e) { console.warn('archive reload:', e); }
+  return true;
+}
+async function archiveLead(id) {
+  const ok = await _writeArchive(id, true);
+  if (ok) showToast('Lead archived. Find it under Archived leads.');
+  return ok;
+}
+async function unarchiveLead(id) {
+  const ok = await _writeArchive(id, false);
+  if (ok) { showToast('Lead un-archived'); renderArchivedDrawer(); }
+  return ok;
+}
+function renderArchivedDrawer() {
+  const body = document.getElementById('archivedDrawerBody');
+  if (!body) return;
+  const list = window._archivedLeads;
+  // undefined = the leads have not loaded yet: never "No archived leads".
+  if (!Array.isArray(list)) { body.innerHTML = '<div class="deleted-empty">Loading...</div>'; return; }
+  if (!list.length) {
+    body.innerHTML = '<div class="empty"><div class="empty-title">No archived leads</div><div class="empty-sub">Archive a lead from its card menu to put it away without deleting it.</div></div>';
+    return;
+  }
+  // Every field escaped; the button uses data-* plus a listener (strict CSP).
+  body.innerHTML = list.map(l => {
+    const name = escHtml(((l.firstName||'')+' '+(l.lastName||'')).trim() || l.address || 'Lead');
+    const addr = escHtml((l.address||'').split(',').slice(0,2).join(','));
+    const when = escHtml(l.archivedAt?.toDate ? l.archivedAt.toDate().toLocaleDateString() : 'Recently');
+    const safeId = escHtml(l.id);
+    const btn = _leadArchivePerm(l) === 'yes'
+      ? `<div class="deleted-card-btns"><button type="button" class="dc-restore nbd-ar-unarchive" data-id="${safeId}">Un-archive</button></div>` : '';
+    return `<div class="deleted-card" id="ar-${safeId}">
+      <div class="deleted-card-name">${name}</div>
+      <div class="deleted-card-addr">${addr}</div>
+      <div class="deleted-card-meta">Archived ${when}</div>
+      ${btn}
+    </div>`;
+  }).join('');
+  body.querySelectorAll('.nbd-ar-unarchive').forEach(b => {
+    b.addEventListener('click', () => unarchiveLead(b.dataset.id));
+  });
+}
+function openArchivedDrawer() {
+  const d = document.getElementById('archivedDrawer');
+  if (!d) return;
+  d.classList.add('open');
+  renderArchivedDrawer();
+}
+function closeArchivedDrawer() {
+  const d = document.getElementById('archivedDrawer');
+  if (d) d.classList.remove('open');
+}
+// The archived list comes with the leads: redraw an open drawer when they land.
+function _rerenderArchivedIfOpen(e) {
+  const src = e && e.detail && e.detail.source;
+  if (src && src !== 'leads') return;
+  const d = document.getElementById('archivedDrawer');
+  if (d && d.classList.contains('open')) renderArchivedDrawer();
+}
+window.addEventListener('nbd:data-refreshed', _rerenderArchivedIfOpen);
+
 // ── DELETED LEADS DRAWER ─────────────────────
 // The claims land just before the first leads load (nbd:data-refreshed,
 // source 'leads'): an open bin drawn before that showed no buttons, so draw it
@@ -1041,6 +1138,8 @@ window.sendFollowUpSMS = async function(leadId) {
 window.editLead = editLead;                        // crm-pipeline.js:351 (bare), dashboard-actions/bootstrap, kanban-context-menu
 window.deleteLead = deleteLead;                    // kanban-context-menu.js:273 (window.deleteLead)
 window.nbdMayDeleteLead = _mayDeleteLead;          // kanban-context-menu.js (hides Delete lead)
+window.nbdArchiveLead = archiveLead;               // kanban-context-menu.js (Archive lead)
+window.nbdMayArchiveLead = (l) => _leadArchivePerm(l) === 'yes';  // …and whether to offer it
 window.showDeleteConfirm = showDeleteConfirm;      // maps-overlays.js:358 (bare) — was only a classic auto-global before
 window.toggleCardSelection = toggleCardSelection;  // crm-pipeline.js:2007
 window.clearBulkSelection = clearBulkSelection;    // lead-snooze.js:773 (direct window.clearBulkSelection()) — stays allowlisted too
@@ -1073,6 +1172,8 @@ window.__NBD_CALL_REGISTRY = window.__NBD_CALL_REGISTRY || Object.create(null);
 Object.assign(window.__NBD_CALL_REGISTRY, {
   selectAllVisibleLeads: selectAllVisibleLeads,
   openDeletedDrawer: openDeletedDrawer,
+  openArchivedDrawer: openArchivedDrawer,
+  closeArchivedDrawer: closeArchivedDrawer,
   closeDeletedDrawer: closeDeletedDrawer,
   confirmDeleteLead: confirmDeleteLead,
   cancelDeleteConfirm: cancelDeleteConfirm,

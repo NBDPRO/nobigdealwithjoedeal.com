@@ -793,6 +793,25 @@ service cloud.firestore {
         || (ownerSideDeleter(resource.data.userId)
             && request.resource.data.get('deleted', false) is bool);
     }
+    // Lead archive (2026-11-14, Jo: managers archive instead of deleting).
+    // WHO is the leads update rule's own writer set (the owner unless a viewer,
+    // or a manager / company_admin of the lead's company); this checks the
+    // SHAPE whenever archived / archivedAt / archivedBy change: archived is a
+    // bool; archiving stamps archivedBy == the caller and archivedAt ==
+    // request.time; un-archiving clears both to null. The dashboard hides
+    // archived leads from the board, map and search and lists them in the
+    // Archived drawer (crm-portal-bridge.js), where Un-archive lives.
+    function archiveWriteOk() {
+      let d = request.resource.data;
+      return !d.diff(resource.data).affectedKeys().hasAny(['archived', 'archivedAt', 'archivedBy'])
+        || (d.get('archived', null) == true
+            && d.get('archivedBy', null) == request.auth.uid
+            && d.get('archivedAt', null) == request.time)
+        || (d.get('archived', null) == false
+            && d.get('archivedAt', null) == null
+            && d.get('archivedBy', null) == null);
+    }
+
     // leads/{id}/jobs/{jobId} (2026-11-14): a job's deleted / deletedAt /
     // isDeleted are held to the same writers (jobs readers skip deleted ==
     // true: invoices, today plan, agent tools, morning brief, owner digest,
@@ -913,6 +932,7 @@ service cloud.firestore {
           && openClaimIdOk()
           && projectConsentWriteOk()
           && softDeleteWriteOk()
+          && archiveWriteOk()
           && scheduleWindowOk()
           && portalNoteOk()
         );
