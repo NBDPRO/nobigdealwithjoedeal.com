@@ -918,6 +918,16 @@
       ]
     },
     {
+      "_comment": "Agent inbox 'They replied STOP' list (docs/pro/js/agent-inbox.js loadSentPhone, 2026-11-14): companyId == tenant, status == 'sent_by_owner', orderBy decidedAt desc, limit 50, so this week's texts are never cut off by older ones. Until it builds the client falls back to the unordered read.",
+      "collectionGroup": "agent_inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "decidedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19): where('companyId','==',tenant).where('date','>=',since).orderBy('date','desc') over the last 30 days of sms_log for the owner/admin overview. Without it the source answers FAILED_PRECONDITION and Coverage shows it unavailable.",
       "collectionGroup": "sms_log",
       "queryScope": "COLLECTION",

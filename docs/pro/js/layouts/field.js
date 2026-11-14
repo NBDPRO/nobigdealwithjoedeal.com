@@ -370,12 +370,27 @@
   }
   // S.queued is the durable queue's count, or null when it could not be read:
   // "All uploaded" only ever follows a real 0 (audit D30).
+  // Leads with this session's shot count: iOS Safari has no vibrate, so the
+  // count (and the shutter flash) is the only sign a shot was taken
+  // (wave-1 field #11).
   function queueLine() {
+    var line = queueState();
+    return S.shots > 0 ? S.shots + (S.shots === 1 ? ' photo' : ' photos') + (line ? ' · ' + line : '') : line;
+  }
+  function queueState() {
     if (S.queued == null) return S.shots > 0 ? 'Checking uploads... photos are saved on this phone' : '';
     if (!S.online && S.queued > 0) return 'No signal · ' + S.queued + ' queued';
     if (!S.online) return 'No signal · photos will wait on this phone';
     if (S.queued > 0) return S.queued + ' uploading';
     return S.shots > 0 ? 'All uploaded' : '';
+  }
+  function flashShutter() {
+    var cam = rootEl && rootEl.querySelector('.fa-cam');
+    if (!cam) return;
+    cam.classList.remove('fa-flash');
+    void cam.offsetWidth; // restart the animation on a quick second shot
+    cam.classList.add('fa-flash');
+    setTimeout(function () { cam.classList.remove('fa-flash'); }, 60); // the CSS fade runs on removal
   }
   function renderCapture() {
     var lead = S.leadId ? leadById(S.leadId) : null;
@@ -692,6 +707,7 @@
     c.width = Math.round(w * sc); c.height = Math.round(h * sc);
     c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
     haptic(25);
+    flashShutter();
     c.toBlob(function (b) { if (b) saveShot(b); }, 'image/jpeg', 0.86);
   }
 
@@ -896,5 +912,6 @@
   W.NBDFieldApp = {
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
+    _queueLine: queueLine, // tests/daily-polish-2026-11-14.test.js
   };
 })();

@@ -152,6 +152,9 @@
   // ─── Bell button ────────────────────────────────────────────
   function _attachBell() {
     if (document.getElementById('nbd-whats-new-bell')) return;
+    // Every item ages out after 30 days; with none left the bell opened an
+    // empty "0 items" panel (wave-1 daily #7). No bell until there is news.
+    if (!_activeItems().length) return;
     // Inject next to the user avatar/header. Try the most common ID
     // (#userName / #userAvatar in the topbar). Fallback: top-right
     // floating placement.

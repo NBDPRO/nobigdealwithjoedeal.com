@@ -331,7 +331,7 @@
       toast(clear ? 'Schedule cleared'
         : subOnly ? (subPatch.crew ? subPatch.crew + ' is on this job ✓' : 'Sub cleared')
         : out.fields.scheduledWeek ? 'Planned for the week of ' + weekLabel(out.fields.scheduledWeek) + ' ✓'
-        : 'Scheduled ✓ — on your Google Calendar in a few seconds', 'success');
+        : 'Scheduled ✓' + (gcalSyncing() ? ' — on your Google Calendar in a few seconds' : ''), 'success');
       render();
       // The row can leave both lists (a date past the next 30 days) — then
       // the offer rides on a toast action instead of the row chip.
@@ -383,6 +383,14 @@
   }
   document.addEventListener('input', keepDraft);
   document.addEventListener('change', keepDraft);
+
+  // The Google Calendar line only when the sync is known to be connected and
+  // on (wave-1 daily #11): it was promised to every account, connected or not.
+  function gcalSyncing() {
+    const G = window.NBDGoogleCalendarUI;
+    const s = G && typeof G.status === 'function' ? G.status() : null;
+    return !!(s && s.configured && !s.disabled && !s.error);
+  }
 
   // A day, start or length changed → ask Google (debounced per row).
   async function checkBusy(id) {
