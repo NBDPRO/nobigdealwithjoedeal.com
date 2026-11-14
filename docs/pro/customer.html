@@ -1589,15 +1589,18 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 @media (max-width:768px) and (pointer:coarse) {
   .jump-nav { padding-top:5px; padding-bottom:5px; }
   .jump-nav a { padding-top:11px; padding-bottom:11px; }
-  .tl-pill { display:inline-flex; align-items:center; min-height:36px; padding:0 14px; }
-  .photo-filter-btn, #nbdPhotoSelectToggle { min-height:36px; }
-  .panel-head-actions .btn, .panel-head > .btn, #quickNoteSend { min-height:40px; }
-  [data-action="openNotesModal"] { min-height:36px; }
-  .nbd-photo-bulk-bar select, .nbd-photo-bulk-bar button { min-height:36px; }
-  .doc-actions .doc-btn, .doc-actions .btn { min-height:36px; }
-  .nbd-est-primary { min-height:36px; }
-  #emailUnsubMarkBtn { min-height:32px; }
-  .modal-header > button[data-action^="close"] { min-width:40px; min-height:40px; }
+  /* 44px (Apple's minimum) since 2026-11-14 (wave-1 field #13, Joe's OK); they
+     were 32-40px. The jump-nav chips above stay as they are: taller chips
+     would grow the pinned 48px bar the scroll offsets are built around. */
+  .tl-pill { display:inline-flex; align-items:center; min-height:44px; padding:0 14px; }
+  .photo-filter-btn, #nbdPhotoSelectToggle { min-height:44px; }
+  .panel-head-actions .btn, .panel-head > .btn, #quickNoteSend { min-height:44px; }
+  [data-action="openNotesModal"] { min-height:44px; }
+  .nbd-photo-bulk-bar select, .nbd-photo-bulk-bar button { min-height:44px; }
+  .doc-actions .doc-btn, .doc-actions .btn { min-height:44px; }
+  .nbd-est-primary { min-height:44px; }
+  #emailUnsubMarkBtn { min-height:44px; }
+  .modal-header > button[data-action^="close"] { min-width:44px; min-height:44px; }
 }
 /* A tapped jump-nav chip keeps :hover on a touch screen until the next tap
    elsewhere, so after tapping Contact and scrolling back to Overview the
