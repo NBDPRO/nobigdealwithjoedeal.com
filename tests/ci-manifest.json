@@ -78,6 +78,7 @@
     "nbd-os-flags-2026-11-06.test.js",
     "nbd-os-killswitch-first-load-2026-11-08.test.js",
     "nbd-os-system-2026-11-06.test.js",
+    "ds-cloud-win-streak-2026-11-14.test.js",
     "nbd-os-tenant-mark-2026-11-08.test.js",
     "nbd-os-visits-2026-11-07.test.js",
     "nbd-os-review-fixes-2026-11-08.test.js",
