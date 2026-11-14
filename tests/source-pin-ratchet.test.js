@@ -32,6 +32,7 @@
  *   node tests/source-pin-ratchet.test.js --lower    write the lower counts
  *                                                    you earned + drop deleted suites
  *   node tests/source-pin-ratchet.test.js --report   per-suite counts, highest first
+ *   node tests/source-pin-ratchet.test.js --explain <suite>   what counts in one suite, and why
  *   node tests/source-pin-ratchet.test.js --rebaseline   rewrite ALL counts
  *                                                    (only with Joe's OK in the PR)
  *
@@ -54,7 +55,7 @@ const DECL = /(?:\b(?:const|let|var)\s+|^[ \t]*)([A-Za-z_$][\w$]*)\s*=(?![=>])\s
 const CHAIN = '(?:\\??\\.[\\w$]+|\\((?:[^()]|\\([^()]*\\))*\\)|\\[[^\\]]*\\])*';
 
 /** Source-text assertion count for one suite's text. */
-function countPins(text) {
+function countPins(text, explain) {
   // string contents are data, not code: a quoted example of a pin is not a pin
   const src = stripJsComments(text).replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g, (q) => q[0] + q[0]);
   const decls = [];
@@ -67,7 +68,7 @@ function countPins(text) {
     for (const [name, init] of decls) {
       if (tainted.has(name) || STRUCTURED.test(init)) continue;
       const mentions = READS.test(init) || [...tainted].some((t) => new RegExp('(?:^|[^\\w$.])' + t.replace(/\$/g, '\\$') + '(?![\\w$])').test(init));
-      if (mentions) { tainted.add(name); changed = true; }
+      if (mentions) { tainted.add(name); changed = true; if (explain) explain.tainted.push(name + ' = ' + init.slice(0, 70)); }
     }
   }
   const isSource = (expr) => {
@@ -77,17 +78,21 @@ function countPins(text) {
     return !!id && tainted.has(id);
   };
   let n = 0;
+  const hit = (i) => {
+    n++;
+    if (explain) explain.hits.push(src.slice(0, i).split('\n').length + ': ' + src.slice(src.lastIndexOf('\n', i) + 1, src.indexOf('\n', i)).trim().slice(0, 110));
+  };
   // RE.test(S) and /…/.test(S); assert.match(S, …) / assert.doesNotMatch(S, …)
   for (const re of [/\.test\(\s*/g, /\bassert\.(?:match|doesNotMatch)\(\s*/g]) {
     re.lastIndex = 0;
-    while ((m = re.exec(src))) if (isSource(src.slice(m.index + m[0].length, m.index + m[0].length + 80))) n++;
+    while ((m = re.exec(src))) if (isSource(src.slice(m.index + m[0].length, m.index + m[0].length + 80))) hit(m.index);
   }
   // S….includes( / .match( / .matchAll( / .search(
   const recv = new RegExp('([A-Za-z_$][\\w$]*)' + CHAIN + '\\.(?:includes|match|matchAll|search)\\(', 'g');
   while ((m = recv.exec(src))) {
     const before = src[m.index - 1];
     if (before && /[\w$.]/.test(before)) continue; // the receiver is a member of something else
-    if (tainted.has(m[1])) n++;
+    if (tainted.has(m[1])) hit(m.index);
   }
   return n;
 }
@@ -117,6 +122,13 @@ if (argv.includes('--report')) {
   const rows = Object.entries(now).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   rows.forEach(([f, v]) => console.log(String(v).padStart(5) + '  ' + f));
   console.log(rows.reduce((s, [, v]) => s + v, 0) + ' source-text assertions in ' + rows.length + ' of ' + Object.keys(now).length + ' suites');
+  return;
+}
+if (argv.includes('--explain')) {
+  const f = argv[argv.indexOf('--explain') + 1] || '';
+  const ex = { tainted: [], hits: [] };
+  const n = countPins(fs.readFileSync(path.join(TESTS, path.basename(f)), 'utf8'), ex);
+  console.log('file-text variables:\n  ' + ex.tainted.join('\n  ') + '\n\ncounted (' + n + '):\n  ' + ex.hits.join('\n  '));
   return;
 }
 if (argv.includes('--rebaseline')) { writeBaseline(now); console.log('wrote ' + path.relative(process.cwd(), BASELINE) + ' — every count re-measured; say so in the PR and get Joe\'s OK'); return; }

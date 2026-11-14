@@ -14,6 +14,7 @@
  *   sliceFn(src, name)        one function's source, by brace matching
  *   parseTags(html)           tolerant tag/attribute parser with a tiny selector engine
  *   cssRules(css) / cssRule(css, selector, { media })   declarations, not text
+ *   esmImports(src)           an ES module's static imports, as data
  *   loadInVm(files, globals, opts)   run browser scripts in a vm context
  *   fakeClock(now)            a frozen Date plus hand-fired timers
  *   spy(impl)                 a function that records its calls
@@ -445,6 +446,27 @@ function fakeClock(now) {
   };
 }
 
+/**
+ * The static imports of an ES module, comments ignored:
+ * [{ from, names: { local: imported }, default: local|null, namespace: local|null }].
+ * `import { a as b } from "./x.js"` → { from: './x.js', names: { b: 'a' } }.
+ */
+function esmImports(src) {
+  const s = stripJsComments(lf(src));
+  const out = [];
+  const re = /(?:^|[;\n])\s*import\s+(?:([\w$]+)\s*,?\s*)?(?:\*\s*as\s+([\w$]+)\s*)?(?:\{([^}]*)\}\s*)?from\s*(['"])([^'"]+)\4/g;
+  let m;
+  while ((m = re.exec(s))) {
+    const names = {};
+    for (const part of (m[3] || '').split(',')) {
+      const p = part.trim().split(/\s+as\s+/);
+      if (p[0]) names[(p[1] || p[0]).trim()] = p[0].trim();
+    }
+    out.push({ from: m[5], names, default: m[1] || null, namespace: m[2] || null });
+  }
+  return out;
+}
+
 /** A function that records each call's arguments in .calls (and returns impl's result). */
 function spy(impl) {
   const f = function (...args) { f.calls.push(args); return impl ? impl.apply(this, args) : undefined; };
@@ -476,6 +498,6 @@ function suite(title) {
 
 module.exports = {
   ROOT, read, exists, lf, stripJsComments, stripCssComments, sliceFn, matchBrace,
-  parseTags, cssRules, cssRule, loadInVm, fakeClock, spy, suite,
+  parseTags, cssRules, cssRule, esmImports, loadInVm, fakeClock, spy, suite,
   makeDom: osHarness.makeDom, fire: osHarness.fire, click: osHarness.click,
 };

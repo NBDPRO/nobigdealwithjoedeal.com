@@ -680,36 +680,111 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
   // ════════════════════════════════════════════════════════════════════
   section('E. boot, CSP, held files, the server log');
   // ════════════════════════════════════════════════════════════════════
+  // Converted 2026-11-14 (fragile-test plan, PR 0) from regex pins on the
+  // source text to checks on parsed tags, the loader's live bundle map, the
+  // CSS the code injects, and the code run in a vm (src-kit). Pins already
+  // executed elsewhere were dropped, not duplicated:
+  //   never assigns rawSqft / a price / the claim money / the scope → B,
+  //     "a hostile brief: rawSqft, every measurement, … untouched"
+  //   never writes Firestore → B, "no Firestore write of any kind"
+  //   templates only through insertIntoV2 → B, "a template tap goes through
+  //     JobTemplates.insertIntoV2" and "no template inserted by itself"
+  //   no inline handler → tests/csp-inline-lint-2026-11-14.test.js (every docs/ JS file)
+  //   the sheet's ?lead=&callBrief= link → D, "on the customer page it goes to the dashboard deep link"
+  //   callBriefDecide accepts draft:estimate → tests/call-brief-callable-2026-11-09.test.js
+  //     ("draft:estimate is accepted and logged")
   {
-    const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const K = require('./lib/src-kit');
+
+    // Wiring: no boot tag on either page; the same query finds a tag that IS there.
     for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
-      ok(page + ' has no <script> tag for estimate-call-prefill.js', !/estimate-call-prefill/.test(read(page)));
+      const scripts = K.parseTags(K.read(page)).$$('script[src]');
+      const srcOf = (name) => scripts.filter((s) => s.attrs.src.split('?')[0].split('/').pop() === name);
+      ok(page + ' has no <script> tag for estimate-call-prefill.js (and the query finds script-loader.js there)',
+        srcOf('estimate-call-prefill.js').length === 0 && srcOf('script-loader.js').length === 1, scripts.length);
     }
-    const loader = read('docs/pro/js/script-loader.js');
-    ok('not in any ScriptLoader bundle (loaded only on a call prefill)', !/estimate-call-prefill/.test(loader));
-    ok('the mapper has no DOM, no Firestore, no fetch', SRC_PREFILL && !/document\.|getDoc|setDoc|fetch\(|XMLHttpRequest/.test(strip(SRC_PREFILL)));
-    const v2 = read('docs/pro/js/estimate-v2-ui.js');
-    const callBlock = (v2.split('CALL TO CLOSE P1')[1] || '').split('KENTUCKY SIGNING GATE')[0] || '';
-    ok('the builder\'s call-prefill block exists', callBlock.length > 500);
-    ok('…never assigns rawSqft, a price, the claim money or the scope', !/rawSqft\s*=|\.rawSqft\]?\s*=|claim\.(deductible|acv)\s*=|\.total\s*=|minJobCharge\s*=|passThru\s*=|scope\.push|scope\s*=/.test(strip(callBlock)), (strip(callBlock).match(/rawSqft\s*=|claim\.(deductible|acv)\s*=|\.total\s*=|minJobCharge\s*=|scope\.push|scope\s*=/) || [])[0]);
-    ok('…never reads or writes Firestore itself (the brief comes from the callable, through the sheet)', !/getDoc|setDoc|updateDoc|addDoc|deleteDoc|pushDraftToFirestore|call_briefs/.test(strip(callBlock)));
-    ok('…inserts templates only through JobTemplates.insertIntoV2', /insertIntoV2\(/.test(callBlock));
-    ok('…escapes what it shows', /_callEsc\(/.test(callBlock) && !/innerHTML\s*=\s*[^;]*\+\s*(it|h|q)\.(quote|label|name)\b/.test(callBlock));
-    ok('no style= attribute and no inline handler added', !/\sstyle=/.test(callBlock) && !/\son[a-z]+=\\?["']/i.test(callBlock));
-    ok('the folded strip shows it can open (a chevron on the summary, which display:flex strips of its marker)', /\.v2-call summary::after\s*\{[^}]*content:/.test(v2) && /\.v2-call\[open\] summary::after\s*\{[^}]*content:/.test(v2));
+
+    // Wiring: the REAL loader's bundle map, as it would run on the page.
+    const SL = K.loadInVm('docs/pro/js/script-loader.js', {
+      document: { querySelector: () => null, querySelectorAll: () => [], createElement: () => ({}), head: { appendChild() {} } }, setTimeout,
+    }).ScriptLoader;
+    const bundled = Object.values(SL.bundles).flat().map((u) => String(u).split('?')[0].split('/').pop());
+    ok('not in any ScriptLoader bundle (loaded only on a call prefill); the map is the live one',
+      bundled.length > 50 && bundled.includes('script-loader.js') === false && bundled.includes('estimate-v2-ui.js') && !bundled.includes('estimate-call-prefill.js'), bundled.length);
+
+    // Absence, executed: the mapper run where every DOM / Firestore / network entry point is a trap.
+    const touched = [];
+    const trap = (name) => new Proxy(function () {}, { get(_t, k) { touched.push(name + '.' + String(k)); return trap(name); }, apply() { touched.push(name + '()'); return trap(name); } });
+    const mctx = K.loadInVm(PREFILL_FILE, { document: trap('document'), fetch: trap('fetch'), XMLHttpRequest: trap('XMLHttpRequest'),
+      getDoc: trap('getDoc'), setDoc: trap('setDoc'), db: trap('db'), localStorage: trap('localStorage'), module: { exports: {} } });
+    const PM = mctx.NBDEstimateCallPrefill || mctx.module.exports;
+    const st5 = { jobMode: 'insurance', tier: 'better', workKind: null, measurements: { stories: 1, tearOffLayers: 1 } };
+    for (const b of [BRIEF, REPLACE, HOSTILE, null]) {
+      const pre = PM.fromBrief(clone(b));
+      PM.plan(pre, { state: st5, leadJobType: '', tiers: ['good', 'better', 'best'] });
+      PM.templateMatches({ search: () => [] }, pre, 5);
+    }
+    ok('the mapper (run on a normal, a replacement, a hostile and no brief) touches no DOM, Firestore, storage or network', typeof PM.fromBrief === 'function' && touched.length === 0, touched.slice(0, 5));
+    trap('document').body;   // positive control: the trap does record a touch
+    ok('…and the trap would have seen one (control)', touched.length === 1 && touched[0] === 'document.body');
+
+    // Behaviour: the strip escapes the caller's words, and carries no style or handler attribute.
+    if (V2 && CP()) {
+      const evil = clone(BRIEF);
+      evil.scope.tierInterest = { value: 'best', quote: '<img src=x onerror=alert(1)>"><b>hi</b>' };
+      leads([{ id: 'L20', firstName: 'Eve', lastName: 'X', address: '9 Elm St', jobType: '' }]);
+      W.openEstimateV2Builder({ leadId: 'L20' });
+      await tick(450);
+      reads.length = 0; writes.length = 0;
+      W.openEstimateV2Builder({ leadId: 'L20', callPrefill: { callId: 'cube_EVIL', brief: evil } });
+      await tick(600);
+      const tree = K.parseTags(CP().panelHtml());
+      const tierChip = tree.all.find((e) => (e.attrs.title || '').includes('onerror'));
+      ok('…escapes what it shows: the hostile quote is text in a title, never an <img> or <b> element',
+        tree.$$('img, b').length === 0 && !!tierChip && tierChip.attrs.title.includes('<img src=x onerror=alert(1)>'), CP().panelHtml().slice(0, 300));
+      ok('…the parser would have found an injected element (control)', K.parseTags('<span title="x"><img src=x></span>').$$('img').length === 1);
+      const attrs = tree.all.flatMap((e) => Object.keys(e.attrs));
+      ok('…no style attribute and no on* handler in the strip it renders', tree.all.length > 5 && !attrs.includes('style') && !attrs.some((a) => /^on/.test(a)), attrs.filter((a) => a === 'style' || /^on/.test(a)));
+      ok('…the prefill reads no call brief from Firestore (it arrives with the open)', reads.filter((p) => /call_briefs/.test(p)).length === 0 && writes.length === 0, reads);
+    }
+
+    // CSS the builder and the wizard actually inject (their real functions, run in a vm).
+    const made = [];
+    const fakeDoc = { getElementById: () => null, head: { appendChild() {} }, body: { appendChild() {} },
+      createElement: (t) => { const e = { tag: t, innerHTML: '', textContent: '', style: {}, appendChild() {}, addEventListener() {}, setAttribute() {}, querySelector: () => null, querySelectorAll: () => [] }; made.push(e); return e; } };
+    K.loadInVm('ensureModal', { document: fakeDoc, _tenantCountyOptions: () => '' }, { src: { ensureModal: K.sliceFn(K.read('docs/pro/js/estimate-v2-ui.js'), 'ensureModal') + '\nensureModal();' } });
+    const v2css = K.cssRules(K.parseTags(made[0].innerHTML).$$('style').map((s) => s.text).join('\n'));
+    made.length = 0;
+    K.loadInVm('injectCss', { document: fakeDoc }, { src: { injectCss: K.sliceFn(K.read('docs/pro/js/estimate-v3-wizard.js'), 'injectCss') + '\ninjectCss();' } });
+    const v3css = K.cssRules(made[0].textContent);
+    const closed = K.cssRule(v2css, '.v2-call summary::after'), opened = K.cssRule(v2css, '.v2-call[open] summary::after');
+    ok('the folded strip shows it can open (a chevron on the summary, which display:flex strips of its marker), closed and open differ',
+      !!closed && !!opened && /\S/.test(closed.content || '') && /\S/.test(opened.content || '') && closed.content !== opened.content, { closed, opened });
     // Review 2026-11-09 (builder-2-strip-open-desktop): in the V3 wizard the
     // step body is a centred 560 px column, so a full-width strip sat apart
     // from the builder at desktop width. It takes the same column.
-    const v3 = read('docs/pro/js/estimate-v3-wizard.js');
-    const bodyW = (v3.match(/#estV2Modal\.v3-on \.v2-body \{[^}]*max-width:(\d+)px; margin:0 auto/) || [])[1];
-    const stripRule = (v2.match(/#estV2Modal\.v3-on \.v2-call-wrap \{([^}]*)\}/) || [])[1] || '';
-    ok('in the V3 wizard the strip takes the step body\'s centred column', !!bodyW && new RegExp('max-width:' + bodyW + 'px').test(stripRule) && /margin:0 auto/.test(stripRule) && /box-sizing:border-box/.test(stripRule), { bodyW, stripRule });
-    const ui = read('docs/pro/js/call-brief-ui.js');
-    ok('the sheet links to the dashboard\'s ?lead= branch (dashboard-bootstrap.module.js stays held)', /\/pro\/dashboard\.html\?lead=' \+ encodeURIComponent\(leadId\) \+ '&callBrief=' \+ encodeURIComponent\(callId\)/.test(ui));
-    const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
-    ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', /window\.openEstimateV2Builder\(leadParam \? \{ leadId: leadParam \} : \{\}\)/.test(boot));
-    const cb = read('functions/call-brief.js');
-    ok('callBriefDecide accepts the draft:estimate log item', /draft:proposal\|draft:estimate|draft:\((?:[A-Za-z]+\|)*estimate[|)]/.test(cb));
+    const body = K.cssRule(v3css, '#estV2Modal.v3-on .v2-body'), wrap = K.cssRule(v2css, '#estV2Modal.v3-on .v2-call-wrap');
+    ok('in the V3 wizard the strip takes the step body\'s centred column',
+      !!body && !!wrap && /^\d+px$/.test(body['max-width']) && wrap['max-width'] === body['max-width'] && wrap.margin === body.margin && /\bauto\b/.test(wrap.margin) && wrap['box-sizing'] === 'border-box', { body, wrap });
+
+    // The held bootstrap's deep-link branch, run as written with ?lead= set.
+    const boot = K.read('docs/pro/js/dashboard-bootstrap.module.js');
+    const at = boot.indexOf('if (estParam && !editId)');
+    const end1 = at === -1 ? -1 : K.matchBrace(boot, boot.indexOf('{', at));
+    const end2 = end1 === -1 ? -1 : K.matchBrace(boot, boot.indexOf('{', end1 + 1));
+    ok('the held bootstrap\'s ?lead= / ?est= branch was found', at !== -1 && end2 > end1 && /^\s*else\s*\{/.test(boot.slice(end1 + 1)));
+    const runBranch = async (leadParam, hasV2) => {
+      const opened = [], started = [];
+      const w = {};
+      if (hasV2) w.openEstimateV2Builder = (o) => opened.push(o);
+      const c = K.loadInVm('branch', { window: w, estParam: '', editId: '', leadParam, startNewEstimate: () => started.push(w._estLinkedLeadId), console: { error() {} } },
+        { src: { branch: 'this.__p = (async function () {\n' + boot.slice(at, end2 + 1) + '\n})();' } });
+      await c.__p;
+      return { opened, started };
+    };
+    const a = await runBranch('L7', true), b = await runBranch('', true), c = await runBranch('L8', false);
+    ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', JSON.stringify(a.opened) === '[{"leadId":"L7"}]' && a.started.length === 0, a);
+    ok('…no lead: the builder opens with nothing; no builder: the classic path keeps the lead', JSON.stringify(b.opened) === '[{}]' && JSON.stringify(c.started) === '["L8"]', { b, c });
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

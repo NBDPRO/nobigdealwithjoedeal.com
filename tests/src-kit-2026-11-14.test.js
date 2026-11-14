@@ -129,6 +129,22 @@ section('cssRules / cssRule');
   ok('no match is null (so .prop throws on a typo)', K.cssRule(css, '.zzz') === null);
 }
 
+section('esmImports');
+{
+  const im = K.esmImports([
+    '// import { fake } from "./nope.js";',
+    'import { commitStageChange as _commit, stageMoveNeedsConfirm } from "./stage-write.js";',
+    "import Def, * as NS from './a.js';",
+    'import {',
+    '  x,',
+    '  y as z',
+    '} from "./multi.js"',
+  ].join('\n'));
+  ok('named, renamed, default, namespace and multi-line imports; comments ignored',
+    im.length === 3 && im[0].from === './stage-write.js' && im[0].names._commit === 'commitStageChange' && im[0].names.stageMoveNeedsConfirm === 'stageMoveNeedsConfirm'
+      && im[1].default === 'Def' && im[1].namespace === 'NS' && im[2].names.x === 'x' && im[2].names.z === 'y', JSON.stringify(im));
+}
+
 section('loadInVm / fakeClock / spy');
 {
   const ctx = K.loadInVm('x.js', {}, { src: { 'x.js': 'function add(a,b){return a+b}\nconst K2 = 7;\nwindow.Y = add(K2, 1);' }, expose: ['K2'] });
