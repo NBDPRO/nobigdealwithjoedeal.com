@@ -172,6 +172,21 @@ const photoDocs = (E) => E.writes.filter((w) => w[0] === 'setDoc' && /^photos\//
     ok('a timed retry drains the queue without an `online` event', drained, 'rows left=' + E.store.rows.length);
   });
 
+  await guard(async () => {
+    // Review round: a retry tick that lands while navigator says offline must
+    // not end the chain (weak signal may never fire `online` afterwards).
+    const E = loadEngine();
+    E.net.weak = true;
+    await queue(E, [photo()]);
+    await E.PE.flushUploadQueue();             // fails: chain starts (40 ms)
+    E.net.online = false;                      // the next tick finds the phone offline
+    await tick(60);
+    E.net.online = true; E.net.weak = false;   // signal back, still no `online` event
+    let drained = false;
+    for (let i = 0; i < 60 && !drained; i++) { await tick(10); drained = E.store.rows.length === 0; }
+    ok('the timed retry survives a tick that found the phone offline', drained, 'rows left=' + E.store.rows.length);
+  });
+
   console.log('\n#8 a photo the browser cannot decode');
   await guard(async () => {
     const E = loadEngine();

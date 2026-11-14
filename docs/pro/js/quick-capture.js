@@ -279,6 +279,7 @@
     // only once the server has turned it into a transcript.
     let pendingId = null;
     _setStatus('Processing your capture…');
+    _isProcessing = true; // no Retry, record or review() in the gap before the call
     try { pendingId = await _savePending(blob); }
     catch (e) { console.warn('[NBDQuickCapture] could not keep the clip on this phone:', e); }
     await _processClip(blob, pendingId);
@@ -292,12 +293,15 @@
     _isProcessing = true;
     try {
       const result = await _summarize(blob);
-      await _forgetPending(pendingId);
       if (!result || !result.transcript) {
-        _setStatus('No speech detected — tap to try again.');
+        // An empty transcript can be a transcription hiccup, not silence: the
+        // clip is kept until the rep chooses Retry or Discard.
+        _setStatus('No speech detected. The recording is still on this phone: Retry, or Discard it.');
+        _showRetry(blob, pendingId);
         _resetRecordButton();
         return;
       }
+      await _forgetPending(pendingId);
       _currentResult = result;
       _renderResult(result);
     } catch (e) {

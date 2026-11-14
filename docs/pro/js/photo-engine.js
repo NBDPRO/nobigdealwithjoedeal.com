@@ -2098,7 +2098,10 @@
     // toast over the viewfinder after every shot.
     const quiet = !!(opts && opts.quiet);
     if (_draining) return 0;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      _scheduleRetry('offline'); // keep a running retry chain alive (no new chain)
+      return 0;
+    }
     _draining = true;
     _drainAgain = false;
     let sent = 0;
@@ -2169,6 +2172,11 @@
         showToast(sent === 1 ? '✓ 1 queued photo uploaded' : `✓ ${sent} queued photos uploaded`, 'success');
       }
       await _syncMarkerAfterDrain(removed);
+    } catch (e) {
+      // Reading the queue itself failed: photos may still be owed, so keep
+      // the timed retry running rather than cancelling it.
+      console.warn('[PhotoEngine] drain failed:', e && e.message);
+      stalled = true;
     } finally {
       _draining = false;
       // A burst shot landed mid-drain: one more pass for it — unless this
@@ -2196,7 +2204,10 @@
       return;
     }
     if (_retryTimer) return;
-    const base = (typeof window !== 'undefined' && window.__nbdPhotoRetryBaseMs) || 30000;
+    // Offline (navigator.onLine false): only keep an existing chain going;
+    // the `online` event starts a fresh drain, so there is no new chain here.
+    if (stalled === 'offline' && !_retryDelayMs) return;
+    const base =(typeof window !== 'undefined' && window.__nbdPhotoRetryBaseMs) || 30000;
     _retryDelayMs = _retryDelayMs ? Math.min(_retryDelayMs * 2, 10 * base) : base;
     _retryTimer = setTimeout(() => {
       _retryTimer = null;

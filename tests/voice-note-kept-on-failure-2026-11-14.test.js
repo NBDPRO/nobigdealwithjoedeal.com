@@ -149,6 +149,14 @@ const diskRows = (disk) => Object.values((disk['nbd-voice-pending'] || {}).clips
   await recordAndStop(p);
   ok('success first time: summary shown, nothing left on the phone', !!p.$('nbd-qc-act-save') && diskRows(disk2).length === 0);
 
+  // Review round: an EMPTY transcript (a transcription hiccup on a noisy roof)
+  // must not delete the only copy of the audio.
+  const disk4 = {};
+  p = page(disk4, { fn: () => Promise.resolve({ data: { transcript: '' } }) });
+  await recordAndStop(p);
+  ok('empty transcript: the clip is still on the phone', diskRows(disk4).length === 1, diskRows(disk4).length);
+  ok('...with Retry offered', !!p.$('nbd-qc-retry-btn') && /still on this phone/i.test(p.status()), p.status());
+
   // Discard needs a second tap.
   const disk3 = {};
   p = page(disk3, { fn: OFFLINE.fn });
