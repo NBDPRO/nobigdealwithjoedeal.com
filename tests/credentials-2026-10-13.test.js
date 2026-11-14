@@ -149,6 +149,17 @@ console.log('\ntraining rows');
   ok('its card never says "Certified"', cardHtml !== '' && !/Certified/i.test(cardHtml));
   ok('no JSON-LD node for a training row', !/credentials#zz-training"/.test(f.outPage));
 }
+// A supplier-material row is a brand NBD buys and installs: "Made by", never
+// "Issued by" (nothing was issued) and never "Certified".
+{
+  const f = mirror((d) => d.credentials.push(baseRow({
+    id: 'zz-material', type: 'supplier-material', name: 'ZZMATERIAL Products', order: 930,
+  })));
+  const cardHtml = (f.outPage.match(/<article class="cred-card" id="zz-material">[\s\S]*?<\/article>/) || [''])[0];
+  ok('POSITIVE CONTROL: the material row renders under "Materials we install"', /id="group-supplier-material">Materials we install</.test(f.outPage) && cardHtml !== '');
+  ok('a material row reads "Made by", not "Issued by"', /Made by ZZ Issuer/.test(cardHtml) && !/Issued by/.test(cardHtml), cardHtml.slice(0, 240));
+  ok('no JSON-LD node for a material row', !/credentials#zz-material"/.test(f.outPage));
+}
 
 // ── 4. real-tree rendered output ─────────────────────────────────────────
 console.log('\nrendered output (committed tree)');

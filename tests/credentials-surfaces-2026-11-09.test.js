@@ -90,6 +90,15 @@ console.log('B. docs/llms.txt credentials come from the generated region');
   });
   held.forEach((r) => ok('the region never names the ' + r.status + ' row ' + r.id, !region.includes(short(r))));
   ok('no honesty word in the region', !/master\s*elite|\blicensed\b|president['\u2019]?s\s*club/i.test(region));
+  // 2026-11-14 (Lomanco): a training row was completed, not certified or "active";
+  // a materials row is a brand NBD buys, so it was made, not issued.
+  active.filter((r) => r.type === 'training' || r.type === 'supplier-material').forEach((r) => {
+    const line = (region.split('\n').find((l) => l.includes('**' + r.name + '**')) || '');
+    const good = r.type === 'training'
+      ? /\bcompleted\b/.test(line) && !/certified|active from/i.test(line)
+      : /\bmade by\b/.test(line) && !/issued by|certified/i.test(line);
+    ok('the region words ' + r.id + ' as ' + (r.type === 'training' ? '"completed"' : '"made by"'), line !== '' && good, line.slice(0, 160));
+  });
   ok('outside the region, no hand-kept credential ID or certified-on date (they drift)',
     !active.some((r) => r.contractorId && outside.includes(r.contractorId)) && !/certified (January|February|March|April|May|June|July|August|September|October|November|December)/i.test(outside),
     (outside.match(/.{0,60}(181382|1162011|certified (July|August)).{0,40}/) || [])[0]);

@@ -16,7 +16,10 @@ credential that is not a row there. Guard test:
    (`manufacturer` | `insurance` | `membership` | `supplier-material` |
    `training`; `training` is for a course certificate of completion: it
    renders under "Training", its date reads "Completed <month year>", and it
-   has no JSON-LD node, because a completed course is not a certification),
+   has no JSON-LD node, because a completed course is not a certification;
+   `supplier-material` is a brand NBD buys and installs: it renders under
+   "Materials we install" as "Made by <brand>", never "Issued by", and claims
+   no partnership, dealership or preferred status),
    `status`, `summary` (one plain sentence on what it means for the customer,
    no outcome promises), `claimWording` (the exact approved phrase),
    `confirmedBy`, `confirmedAt` (YYYY-MM-DD), `order` (unique integer),

@@ -395,9 +395,12 @@ function renderCredentials() {
     if (CRED_FORBIDDEN.test(text)) throw new Error('credentials.json ' + c.id + ': forbidden claim word (Master Elite / President\'s Club / Licensed)');
     const short = c.issuerShort || c.issuer;
     // An insurance row is NBD's own statement, so it names no issuer.
-    const meta = c.type === 'insurance' ? [] : ['issued by ' + c.issuer];
+    // A materials row is a brand NBD buys (made by, not issued by); a training
+    // row was completed, never "certified" (2026-11-14, Lomanco).
+    const meta = c.type === 'insurance' ? [] : [(c.type === 'supplier-material' ? 'made by ' : 'issued by ') + c.issuer];
     if (c.contractorId) meta.push(short + ' contractor ID ' + c.contractorId);
-    if (c.since) meta.push((c.type === 'manufacturer' ? 'certified ' : 'active from ') + credSince(c.since));
+    const sinceWord = { manufacturer: 'certified ', training: 'completed ' }[c.type] || 'active from ';
+    if (c.since) meta.push(sinceWord + credSince(c.since));
     lines.push('  - **' + oneLine(c.name) + '**' + (meta.length ? ' (' + meta.join('; ') + ')' : '') + '. ' + oneLine(c.summary)
       + (c.verifyUrl ? ' Verify: ' + c.verifyUrl : ''));
   }

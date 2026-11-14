@@ -170,7 +170,7 @@ function stripBlock() {
 }
 
 function card(c) {
-  const meta = [`Issued by ${esc(c.issuer)}`];
+  const meta = [`${c.type === 'supplier-material' ? 'Made by' : 'Issued by'} ${esc(c.issuer)}`];
   const sinceWord = { manufacturer: 'Certified', training: 'Completed' }[c.type] || 'Active from';
   if (c.since) meta.push(`${sinceWord} ${esc(prettySince(c.since))}`);
   if (c.expires) meta.push(`Renews ${esc(prettySince(c.expires.slice(0, 7)))}`);
