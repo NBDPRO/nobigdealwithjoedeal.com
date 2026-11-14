@@ -798,9 +798,11 @@ function leads(list) { W._leads = list; W._leadDoc = null; }
       return { opened, started };
     };
     const none = { opened: [], started: [] };
-    const a = found ? await runBranch('L7', true) : none, b = found ? await runBranch('', true) : none, c = found ? await runBranch('L8', false) : none;
-    ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', JSON.stringify(a.opened) === '[{"leadId":"L7"}]' && a.started.length === 0, a);
-    ok('…no lead: the builder opens with nothing; no builder: the classic path keeps the lead', JSON.stringify(b.opened) === '[{}]' && JSON.stringify(c.started) === '["L8"]', { b, c });
+    const withLead = found ? await runBranch('L7', true) : none;
+    const noLead = found ? await runBranch('', true) : none;
+    const noBuilder = found ? await runBranch('L8', false) : none;
+    ok('the held bootstrap still opens the builder for ?lead= (the hook this relies on)', JSON.stringify(withLead.opened) === '[{"leadId":"L7"}]' && withLead.started.length === 0, withLead);
+    ok('…no lead: the builder opens with nothing; no builder: the classic path keeps the lead', JSON.stringify(noLead.opened) === '[{}]' && JSON.stringify(noBuilder.started) === '["L8"]', { noLead, noBuilder });
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
