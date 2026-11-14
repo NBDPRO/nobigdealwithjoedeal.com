@@ -1,5 +1,5 @@
 /**
- * tests/ds-wrong-day-2026-11-14.test.js
+ * tests/ds-day-rollover-2026-11-14.test.js
  *
  * Audit 2026-11-14 #8 and #10: data landing on the wrong day.
  *   #8  A workout opened at night (the coach builds it with that day's date) and lifted the next morning was filed
@@ -10,7 +10,7 @@
  *       yesterday. Now coming back to the app (visibilitychange / pageshow / focus) after the date changed
  *       moves TODAY to the new day.
  *
- * Run: cd tests && node ds-wrong-day-2026-11-14.test.js
+ * Run: cd tests && node ds-day-rollover-2026-11-14.test.js
  */
 'use strict';
 const path = require('path');
