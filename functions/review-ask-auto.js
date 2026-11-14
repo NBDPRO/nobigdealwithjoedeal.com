@@ -147,6 +147,7 @@ async function askOne(db, entry, uid, deps) {
       // send must not use up the job's single ask. Retried next run while in window.
       const sw = await MessagingControls.channelStatus(db, 'email');
       if (!sw.allowed) return { sent: false, reason: 'messaging_paused' };
+      if (sw.canary) return { sent: false, reason: 'canary' };   // no claim under the canary (2026-11-14)
       if (!(await claim(db, entry.id, entry.jobId, 'email', nowMs))) return { sent: false, reason: 'claimed' };
       const c = RA.emailContent(entry, reviewUrl, photo ? photo.content : null);
       const body = Suppression.applyFooter(gate, c.html, c.text);
@@ -159,11 +160,17 @@ async function askOne(db, entry, uid, deps) {
         if (photo) msg.attachments = photo.attachments;
         const gated = await MessagingControls.guardEmail(db, msg);
         if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+        if (gated.canary) throw new Error('canary_redirect');
         const r = await d.resend.emails.send(gated.msg);
         if (resendRejected(r)) throw new Error(resendErrorMessage(r));
         delivered = true;
       } catch (e) {
         log.warn('review_auto_email_failed', { leadId: entry.id, err: e && e.message });
+        // Canary switched on after the claim: nothing went out, so give the job its ask back.
+        if (e && e.message === 'canary_redirect') {
+          await db.collection('leads').doc(entry.id).update({ reviewAutoAsk: FV.delete() }).catch(() => {});
+          return { sent: false, reason: 'canary' };
+        }
         await settle(db, entry.id, entry.jobId, 'email', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
         return { sent: false, reason: 'send_failed' };
       }
@@ -190,6 +197,10 @@ async function askOne(db, entry, uid, deps) {
     if (!cd.allowed) return { sent: false, reason: cd.code };
     const status = await TextingGate.textingStatus(db, tenantKey);
     if (!status.allowed) return { sent: false, reason: 'texting_' + status.reason };
+    // Same pre-claim switch check as the email path: a pause or the canary must not use up the job's ask (2026-11-14).
+    const swText = await MessagingControls.channelStatus(db, 'sms');
+    if (!swText.allowed) return { sent: false, reason: 'messaging_paused' };
+    if (swText.canary) return { sent: false, reason: 'canary' };
     if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
     try {
       if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
@@ -247,8 +258,10 @@ exports.reviewAskAutoSweep = onSchedule(
     // pure planning code is unchanged. maxPerRun caps the whole sweep.
     const autoEmail = await MessagingControls.automationStatus(db, 'reviewAskAutoEmail', 'email', process.env.REVIEW_ASK_AUTO_EMAIL_ENABLED === 'true');
     const autoText = await MessagingControls.automationStatus(db, 'reviewAskAutoText', 'sms', process.env.REVIEW_ASK_AUTO_TEXT_ENABLED === 'true');
-    const emailOn = autoEmail.enabled;
-    const textOn = autoText.enabled;
+    // Canary (redirect-to-owner test mode): no claim and no ask, so the job's
+    // single ask is still owed once the canary is off (2026-11-14).
+    const emailOn = autoEmail.enabled && !autoEmail.canary;
+    const textOn = autoText.enabled && !autoText.canary;
     if (!emailOn && !textOn) { fnLogger.info('review_auto_disabled', { email: autoEmail.reason, text: autoText.reason }); return; }
     const runEnv = Object.assign({}, process.env, {
       REVIEW_ASK_AUTO_EMAIL_ENABLED: emailOn ? 'true' : 'false',
