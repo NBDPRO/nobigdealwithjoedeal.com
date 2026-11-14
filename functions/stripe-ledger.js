@@ -284,12 +284,29 @@ function summarize(row, match, booked) {
 }
 
 // ── ingest: one Stripe object each ───────────────────────────────────────
+/** A charge made for a Connect tenant (destination / on_behalf_of, or a PI
+ * stamped with another company) → that marker; the owner's own charge → ''. */
+function connectTenantOf(ch) {
+  const c = ch || {};
+  if (c.on_behalf_of) return String(c.on_behalf_of.id || c.on_behalf_of);
+  if (c.transfer_data && c.transfer_data.destination) return String(c.transfer_data.destination.id || c.transfer_data.destination);
+  const pi = c.payment_intent && typeof c.payment_intent === 'object' ? c.payment_intent : null;
+  const co = (pi && pi.metadata && pi.metadata.companyId) || (c.metadata && c.metadata.companyId) || '';
+  return co && String(co) !== String(OWNER) ? 'company:' + co : '';
+}
+
 async function ingestCharge(ctx, chargeOrId, opts) {
   const o = opts || {};
   const stripe = stripeClient();
   const ch = typeof chargeOrId === 'object' && chargeOrId.balance_transaction !== undefined && typeof chargeOrId.customer === 'object'
     ? chargeOrId
     : await stripe.charges.retrieve(typeof chargeOrId === 'string' ? chargeOrId : chargeOrId.id, { expand: CHARGE_EXPAND });
+  // A Connect tenant's payment-link charge is a destination charge, so it sits
+  // on this account, but it is another company's money and homeowner: never
+  // match it to the owner's leads, book it, or copy the payer into the owner's
+  // ledger (2026-11-14). The owner never mints Connect charges (stripe.js).
+  const tenantOf = connectTenantOf(ch);
+  if (tenantOf) return { id: ch.id, kind: 'connect_tenant_charge', status: ch.status, amount: 0, action: 'another company\'s Connect payment — not in this ledger' };
   const row = L.chargeEntry(ch, OWNER);
   row._id = ch.id;
   const sInv = ch.invoice && typeof ch.invoice === 'object' ? ch.invoice : null;
