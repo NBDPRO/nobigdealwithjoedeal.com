@@ -1,0 +1,14 @@
+Lomanco Vents logo (Lomanco, Inc., Jacksonville, AR).
+
+Source: Lomanco's Custom Logo Kit, a public download at
+https://www.online.lomanco.com/ ("No login or password is required to
+download the Lomanco Logo Kit"). Downloaded by Joe Deal 2026-11-14; kit
+kept in NBD INTERNAL > Partners & Affiliates > Lomanco > Media Kit.
+The kit's READ-THIS sheet recommends its raster files for websites and
+e-mail marketing and states no other usage terms.
+
+lomanco-logo-120.png/.webp  525x120, a resize of Lomanco_Logo.png (3205x733);
+                            not recolored, cropped or redrawn. Re-encode
+                            drops the source metadata.
+Used as the badge on the two Lomanco rows of credentials.json (training and
+Materials we install). Lomanco® is a registered trademark of Lomanco, Inc.
