@@ -132,6 +132,24 @@ refuses('a duplicate id is refused', (d) => d.credentials.push(baseRow({ id: 'ga
 refuses('a non-https verifyUrl is refused', (d) => d.credentials.push(baseRow({ verifyUrl: 'http://example.test/x' })), /verifyUrl must be an https URL/);
 refuses('a badge that does not exist is refused', (d) => d.credentials.push(baseRow({ badge: '/assets/gaf/nope.png', badgeAlt: 'x' })), /does not exist/);
 
+// ── 3b. training rows (2026-11-14, Lomanco attic-ventilation course) ─────
+// A certificate of completion is not a certification: it gets its own
+// "Training" group, its date reads "Completed", and it adds no
+// EducationalOccupationalCredential node (that type is labelled "certification").
+console.log('\ntraining rows');
+{
+  const f = mirror((d) => d.credentials.push(baseRow({
+    id: 'zz-training', type: 'training', name: 'ZZTRAINING Course', since: '2026-11', order: 920,
+  })));
+  ok('a training row is accepted by the validator', f.run.status === 0, (f.run.stdout + f.run.stderr).trim());
+  ok('POSITIVE CONTROL: the training row renders as a card', /ZZTRAINING Course/.test(f.outPage));
+  ok('training rows sit under a "Training" heading', /id="group-training">Training</.test(f.outPage));
+  const cardHtml = (f.outPage.match(/<article class="cred-card" id="zz-training">[\s\S]*?<\/article>/) || [''])[0];
+  ok('its date reads "Completed November 2026"', /Completed November 2026/.test(cardHtml), cardHtml.slice(0, 200));
+  ok('its card never says "Certified"', cardHtml !== '' && !/Certified/i.test(cardHtml));
+  ok('no JSON-LD node for a training row', !/credentials#zz-training"/.test(f.outPage));
+}
+
 // ── 4. real-tree rendered output ─────────────────────────────────────────
 console.log('\nrendered output (committed tree)');
 const page = read('docs/credentials.html');

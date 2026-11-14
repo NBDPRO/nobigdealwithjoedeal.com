@@ -13,7 +13,10 @@ credential that is not a row there. Guard test:
 2. **Check the manufacturer's public-representation rules before the row goes `active`.** Some programs bar a tier from advertising membership or using program-branded marketing (IKO's Advantage tier, held 2026-10-13; see the research note from PR #2439). If the rules are unclear, get it in writing from the territory rep, keep the row `pending`, and keep the program's branded name and logo out of the data file and `docs/` entirely.
 3. Append an object to `credentials[]`. Required for an `active` row:
    `id` (kebab-case, unique), `name`, `issuer`, `type`
-   (`manufacturer` | `insurance` | `membership` | `supplier-material`),
+   (`manufacturer` | `insurance` | `membership` | `supplier-material` |
+   `training`; `training` is for a course certificate of completion: it
+   renders under "Training", its date reads "Completed <month year>", and it
+   has no JSON-LD node, because a completed course is not a certification),
    `status`, `summary` (one plain sentence on what it means for the customer,
    no outcome promises), `claimWording` (the exact approved phrase),
    `confirmedBy`, `confirmedAt` (YYYY-MM-DD), `order` (unique integer),
