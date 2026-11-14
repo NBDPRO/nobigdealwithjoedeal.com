@@ -645,7 +645,15 @@ exports.adminAI = onRequest(
         res.status(403).json({ error: 'Verify your email before using AI features.' });
         return;
       }
-      const subSnap = await getFirestore().doc(`subscriptions/${decoded.companyId || decoded.uid}`).get();
+      let subSnap;
+      try {
+        subSnap = await getFirestore().doc(`subscriptions/${decoded.companyId || decoded.uid}`).get();
+      } catch (e) {
+        // Fail closed with a clean answer, not an unhandled rejection.
+        logger.error('adminAI: subscription read failed', { err: e && e.message });
+        res.status(503).json({ error: 'Could not check your plan. Try again shortly.' });
+        return;
+      }
       const sub = subSnap.exists ? subSnap.data() : null;
       const paid = !!(sub && sub.plan && sub.plan !== 'free' && (sub.status === 'active' || sub.status === 'trialing'));
       if (!paid) {

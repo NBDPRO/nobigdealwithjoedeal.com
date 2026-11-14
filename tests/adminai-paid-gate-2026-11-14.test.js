@@ -50,6 +50,7 @@ ok('the platform tenant is NBD\'s own uid / company only (never a role)',
   && /const PLATFORM_UID = process\.env\.NBD_OWNER_UID \|\| '[A-Za-z0-9]{20,}';/.test(exempt));
 // Each refusal returns before anything else runs.
 ok('an unverified email is refused with 403 and returns', /email_verified !== true\) \{\s*res\.status\(403\)[\s\S]{0,120}?return;/.test(body));
+ok('a failed plan read fails closed (503) and returns', /subscriptions\/\$\{decoded\.companyId \|\| decoded\.uid\}`\)\.get\(\);\s*\} catch \(e\) \{[\s\S]{0,200}?res\.status\(503\)[\s\S]{0,120}?return;/.test(body));
 ok('a free / lapsed plan is refused with 403 and returns', /if \(!paid\) \{\s*res\.status\(403\)[\s\S]{0,120}?return;/.test(body));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
