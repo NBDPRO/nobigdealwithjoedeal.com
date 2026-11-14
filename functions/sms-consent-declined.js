@@ -288,13 +288,32 @@ async function leadsForNumber(db, key, tenants, passed, passedId) {
  * latest word being no; an unstamped true (hand-typed, imported, spoofed on
  * a public form without a record) is not evidence.
  */
+// A decline dates from when it was SAID: a lead whose box was ticked and then
+// unticked (the /estimate funnel saves at step 1 and updates the same lead
+// later, 2026-11-14) carries tcpaConsentWithdrawnAt, which is newer than its
+// createdAt. Dating it by createdAt let a yes stamped in between override the
+// newer no.
+function declinedAtMs(l) {
+  const created = toMillis(l.createdAt);
+  const withdrawn = toMillis(l.tcpaConsentWithdrawnAt);
+  if (created == null) return null;
+  return withdrawn != null && withdrawn > created ? withdrawn : created;
+}
+// A yes dates from its newest server stamp: the original record, or a re-tick
+// on the same lead after a withdrawal (tcpaConsentRenewedAt).
+function consentAtMs(l) {
+  const at = toMillis(l.tcpaConsentAt);
+  const renewed = toMillis(l.tcpaConsentRenewedAt);
+  if (at == null) return renewed;
+  return renewed != null && renewed > at ? renewed : at;
+}
 function supersedingYes(leads, declined) {
-  const declineAt = declined.map((l) => toMillis(l.createdAt));
+  const declineAt = declined.map(declinedAtMs);
   if (declineAt.some((x) => x == null)) return false; // unknown decline time: never assume the yes is newer
   const newestDecline = Math.max.apply(null, declineAt);
   return leads.some((l) => {
     if (l.tcpaConsent !== true) return false;
-    const at = toMillis(l.tcpaConsentAt);
+    const at = consentAtMs(l);
     return at != null && at > newestDecline;
   });
 }
@@ -435,5 +454,6 @@ module.exports = {
   isDeclined,
   refusalMessage,
   countsAsConversation,
+  supersedingYes,
   decide,
 };

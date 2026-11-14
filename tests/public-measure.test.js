@@ -216,7 +216,8 @@ section('the wizard uses the measurement without letting a model do the money ma
   ok('it asks the read-only endpoint, keyed on the lead id it just created',
     /MEASURE_URL/.test(wiz) && /kind: 'estimate', leadId: publicLeadId/.test(wiz));
   ok('the lead id is captured (it used to be thrown away by a !! coercion)',
-    /_publicLeadId = await window\._saveLead\(leadData\)/.test(wiz) && !/_leadSaved = !!\(await window\._saveLead/.test(wiz));
+    // 2026-11-14: the save finishes the step-1 lead (_saveFinishedLead resolves its id).
+    /_publicLeadId = await _saveFinishedLead\(leadData\)/.test(wiz) && !/_leadSaved = !!\(await (window\._saveLead|_saveFinishedLead)/.test(wiz));
   ok('a missing measurement is a normal outcome — returns null, estimate falls back to the size tile',
     /if \(!m \|\| !m\.measured \|\| !\(Number\(m\.squares\) > 0\)\) return null;/.test(wiz));
   ok('tier pricing is computed from real squares, never taken from the model',

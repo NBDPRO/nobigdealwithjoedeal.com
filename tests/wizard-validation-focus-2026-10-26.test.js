@@ -480,7 +480,7 @@ function isFocusedHeading(d, el) { return !!el && d.activeElement === el && el.g
     const ver = (h, f) => +((h.match(new RegExp('/assets/js/' + f + '\\?v=(\\d+)"')) || [])[1] || 0);
     ok('the edited scripts are re-versioned on their pages: storm-check.js?v=6+, roof-score.js?v=5+, loader ?v=6 -> wizard ?v=7',
       ver(sc, 'storm-check\\.js') >= 6 && ver(rs, 'roof-score\\.js') >= 5
-      && est.includes('/assets/js/estimate-wizard-loader.js?v=6"') && read('docs/assets/js/estimate-wizard-loader.js').includes('/assets/js/inline/4053149b2f.js?v=7'));
+      && est.includes('/assets/js/estimate-wizard-loader.js?v=7"') && read('docs/assets/js/estimate-wizard-loader.js').includes('/assets/js/inline/4053149b2f.js?v=8'));
     ok('/estimate: twitter:title equals og:title (no truncated copy)', !!meta(est, 'property', 'og:title') && meta(est, 'name', 'twitter:title') === meta(est, 'property', 'og:title'), meta(est, 'name', 'twitter:title'));
     const pre = (f) => '<link rel="preload" href="/assets/fonts/' + f + '" as="font" type="font/woff2" crossorigin>';
     for (const [page, h] of [['/estimate', est], ['/storm-check', sc], ['/roof-score', rs]]) {

@@ -665,7 +665,10 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     </div>
   </div>
 
-  <button class="btn-primary" data-step="2" style="margin-top:20px;">Continue &#x2192;</button>
+  <!-- The lead saves on this Continue (2026-11-14, Joe), so say so before the
+       tap. Wording checked with the nbd-compliance-reference agent. -->
+  <p class="step1-save-note" id="step1SaveNote" style="margin:16px 0 0;font-size:.8rem;line-height:1.5;color:rgba(255,255,255,.75);text-align:center;">When you tap Continue, Joe gets your name, number and address right away, even if you don&rsquo;t finish. The texting box above is up to you.</p>
+  <button class="btn-primary" data-step="2" style="margin-top:12px;">Continue &#x2192;</button>
 </div>
 
 <!-- ═══════════════════════ STEP 2: CONFIRM ═══════════════════════ -->
@@ -1072,12 +1075,12 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
 <!-- Live Google rating for the trust line above Submit (data-nbd-gr-rating). -->
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
-<script type="module" src="/assets/js/inline/f95015cb84.module.js?v=2"></script>
+<script type="module" src="/assets/js/inline/f95015cb84.module.js?v=3"></script>
 
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=6"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=7"></script>
 
 <!-- Google Analytics -->
 <script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

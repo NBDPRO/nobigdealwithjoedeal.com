@@ -29,12 +29,14 @@ const _utms = (() => {
 })();
 
 // Expose to global scope for inline handlers
-window._saveLead = async (data) => {
+// opts is passed through to submitPublicLead (opts.silent: the step-1
+// background save shows no call/text fallback of its own, 2026-11-14).
+window._saveLead = async (data, opts) => {
   const res = await window.submitPublicLead('estimate', {
     ..._utms,
     ...data,
     source: 'estimate-funnel-v2'
-  });
+  }, opts);
   if (!res.ok) {
     console.warn('Lead save failed:', res.reason);
     return null;

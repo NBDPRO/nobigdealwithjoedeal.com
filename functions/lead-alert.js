@@ -179,6 +179,7 @@ const KIND_LABEL = {
   // this label, and the Thumbtack path passes opts.label instead.
   leads: 'Cal.com booking',
 };
+const STARTED_ESTIMATE_LABEL = 'Instant Estimate (started, not finished)';
 
 // Human labels for the storm form's "What are you most concerned about?" field.
 const CONCERN_LABEL = {
@@ -314,6 +315,10 @@ async function ackHomeowner(collection, d, leadId, target) {
   // the old seal check also matched an UNRESOLVED tenant's fallback target,
   // sending Joe-branded acks to another company's customer (audit 2026-07-29).
   if (!target || target.isNbd !== true) return;
+  // A started /estimate (Joe, 2026-11-14): never an automatic message, even
+  // with every switch on. alertPlan already passes ack:false for it; this is
+  // the backstop for any other caller.
+  if (L.isStartedEstimate(collection, d)) return;
   const email = String(d.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
   // Per-recipient cap (H1, 2026-10-15). The address was typed into a public
@@ -666,6 +671,8 @@ async function alertJoe(collection, d, leadId, opts = {}) {
 //
 // Delivery still requires the Twilio number's A2P 10DLC approval.
 async function ackHomeownerSms(collection, d, leadId, target) {
+  // Started /estimate: no automatic text, whatever the switches say (see ackHomeowner).
+  if (L.isStartedEstimate(collection, d)) return;
   // BOTH the env flag and an explicit messaging_controls/automations entry
   // (leadAckSms === true) and the global SMS switch; any one missing = no text.
   const ackAuto = await MessagingControls.automationStatus(
@@ -787,6 +794,12 @@ function alertPlanPublic(collection, data) {
   // path agrees with the bridge on what counts as a new lead.
   if (L.isFollowUpEvent(collection, data)) {
     return { alert: false, log: ['leadAlert: follow-up event doc — not a new lead, skipping', { collection, type: data.type }] };
+  }
+  // Saved at step 1 of /estimate (2026-11-14): Joe is alerted, labelled so he
+  // knows they have not finished; the homeowner gets nothing (Joe's decision).
+  // Finishing updates this lead and never creates a doc, so no second alert.
+  if (L.isStartedEstimate(collection, data)) {
+    return { alert: true, collection, data, opts: { ack: false, label: STARTED_ESTIMATE_LABEL } };
   }
   return { alert: true, collection, data, opts: {} };
 }

@@ -268,7 +268,11 @@
   const SUBMIT_TIMEOUT_MS = 20000;
   const FOLLOW_UP_TYPES = ['estimate_result', 'cta_click', 'email_estimate_request'];
 
-  async function submitPublicLead(kind, fields) {
+  // opts.silent (2026-11-14): a save the visitor did not press a button for
+  // (the /estimate step-1 save runs in the background while they carry on)
+  // shows no call/text fallback on failure: the page decides what to say.
+  async function submitPublicLead(kind, fields, opts) {
+    const silent = !!(opts && opts.silent);
     if (!kind || typeof kind !== 'string') {
       return { ok: false, reason: 'Missing kind' };
     }
@@ -301,7 +305,7 @@
       const data = await res.json().catch(() => ({}));
       if (abortTimer) clearTimeout(abortTimer);
       if (!res.ok) {
-        showLeadFallback();
+        if (!silent) showLeadFallback();
         const plain = plainReason(res.status);
         if (plain) {
           console.warn('[submitPublicLead] ' + res.status + ': ' + (data.error || 'no message'));
@@ -318,7 +322,10 @@
       // The server already treats those types as follow-ups of the lead
       // (functions/lead-bridge-logic.js ESTIMATE_EVENT_TYPES).
       try {
-        const followUp = FOLLOW_UP_TYPES.indexOf(String((fields && fields.type) || '')) !== -1;
+        // An update of a lead already counted (the /estimate leadToken path,
+        // 2026-11-14: finishing updates the step-1 lead) is not a new lead either.
+        const followUp = FOLLOW_UP_TYPES.indexOf(String((fields && fields.type) || '')) !== -1 ||
+          !!(fields && fields.leadToken) || !!(data && data.updated === true);
         if (!followUp && typeof window.gtag === 'function') {
           window.gtag('event', 'generate_lead', {
             lead_kind: kind,
@@ -331,7 +338,7 @@
       return { ok: true, id: data.id || null, photoToken: data.photoToken || null };
     } catch (e) {
       if (abortTimer) clearTimeout(abortTimer);
-      showLeadFallback();
+      if (!silent) showLeadFallback();
       if (e && e.name === 'AbortError') {
         return { ok: false, timedOut: true, friendly: true, reason: 'This is taking too long. Check your connection and try again' + orCallJoe() + '.' };
       }

@@ -31,6 +31,8 @@ const TCPA = require('../tcpa-consent');
 // One US-phone rule shared with the OTP sender (verify-functions.js).
 const { formatPhone } = require('../phone-utils');
 const LeadGuard = require('../public-lead-guard');
+// Updating a started /estimate lead instead of creating a second one (2026-11-14).
+const EstimateFunnel = require('../estimate-funnel');
 
 // ═══════════════════════════════════════════════════════════════
 // integrationStatus — client-facing readout of which adapters are
@@ -310,9 +312,9 @@ const PUBLIC_LEAD_KINDS = {
     maxLen:   {
       address: 500, source: 200, firstName: 200, lastName: 200, phone: 30,
       email: 200, service: 200, roofType: 50, timeline: 50, type: 50,
-      requestType: 50, estimateSummary: 2000
+      requestType: 50, estimateSummary: 2000, estimateStage: 20
     },
-    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'firstName', 'lastName', 'phone', 'email', 'service', 'roofType', 'timeline', 'type', 'requestType', 'estimateSummary'],
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'firstName', 'lastName', 'phone', 'email', 'service', 'roofType', 'timeline', 'type', 'requestType', 'estimateSummary', 'estimateStage'],
     // TCPA consent (2026-09-04). The funnel has always POSTED this — see the
     // comment at docs/assets/js/inline/4053149b2f.js:772 promising the record
     // is "audit-ready and the SMS-ack trigger can rely on it" — but it is a
@@ -651,6 +653,37 @@ exports.submitPublicLead = onRequest(
     if (data.phone != null && !formatPhone(data.phone)) {
       res.status(400).json({ error: 'Please enter a valid 10-digit US phone number.', field: 'phone' });
       return;
+    }
+
+    // /estimate step-1 save (2026-11-14, Joe). A create may say it is a
+    // STARTED estimate and nothing else: 'completed' is only ever reached by
+    // updating a started lead below, so a client cannot mint a "finished" lead.
+    const _stageIn = data.estimateStage;
+    delete data.estimateStage;
+    if (kind === 'estimate' && _stageIn === 'started') data.estimateStage = 'started';
+
+    // Updating that started lead (a step-1 change, or finishing at step 5):
+    // the request has passed every gate above (rate limit, Turnstile,
+    // honeypot, the same field validation as a create) and carries the
+    // one-time grant from the step-1 save. Refused (expired, already finished,
+    // not an estimate grant...) → fall through and create, as before: a lost
+    // token must never lose a lead. functions/estimate-funnel.js.
+    if (kind === 'estimate' && EstimateFunnel.isLeadToken(body.leadToken)) {
+      const up = await EstimateFunnel.applyEstimateUpdate(getFirestore(), {
+        token: body.leadToken,
+        stage: body.estimateStage === 'completed' ? 'completed' : 'started',
+        data,
+        ip: clientIp(req),
+        referer: req.headers && (req.headers.referer || req.headers.referrer),
+        FieldValue,
+        log: logger,
+      });
+      if (up.ok) {
+        logger.info('submitPublicLead: started estimate updated', { kind, id: up.id, stage: body.estimateStage === 'completed' ? 'completed' : 'started', crm: up.crm });
+        res.status(200).json({ success: true, id: up.id, updated: true });
+        return;
+      }
+      logger.warn('submitPublicLead: started estimate not updated — creating instead', { kind, reason: up.reason });
     }
 
     // Trust-but-tag: server-only fields the client can't spoof.

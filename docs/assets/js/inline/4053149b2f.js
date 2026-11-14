@@ -203,6 +203,8 @@ function goToStep(step) {
   // Validate before advancing
   if (step > currentStep) {
     if (!validateStep(currentStep)) return;
+    // Save (or retry, or update) the lead in the background — step 1 is done.
+    _saveStartedLead();
   }
   // A typed (unmatched) address has no map to confirm: forward skips the
   // satellite step, and Back from step 3 returns to the address.
@@ -1003,8 +1005,7 @@ async function skipOtpAndRequestCall(btn) {
   // Same awaited-with-one-retry contract as submitAndGetEstimate.
   var saved = false;
   try {
-    saved = !!(await window._saveLead(leadData));
-    if (!saved) saved = !!(await window._saveLead(leadData));
+    saved = !!(await _saveFinishedLead(leadData));
   } catch (e) { console.error('OTP-skip lead save threw:', e); }
 
   // Delivered = the lead SAVED. Joe's alert is the leadAlertEstimate trigger
@@ -1163,6 +1164,116 @@ document.getElementById('emailAddress').addEventListener('blur', function () {
   });
 });
 
+/* ── The lead is saved at step 1 (2026-11-14, Joe) ──
+   A homeowner gave name and phone at step 1, saw the ballpark at step 4, and
+   the lead only saved at step 5: anyone who left after the price was lost.
+   Now the first forward tap past step 1 saves it through the SAME
+   submitPublicLead('estimate') gateway as Submit (rate limit, Turnstile,
+   honeypot, field validation), marked estimateStage 'started'. Joe is alerted
+   and the CRM card says "started an estimate"; nothing is sent to the
+   homeowner (lead-alert / lead-followup skip a started estimate).
+   - It runs in the background: Continue never waits on it, and a failure shows
+     nothing here (silent) — the next forward tap retries, and Submit still
+     makes the full save with the call-Joe banner if that fails too.
+   - One lead per visit: saves run one at a time (_estLead.chain); an unchanged
+     step 1 sends nothing again; a CHANGED one (name, phone, address, the
+     texting box) updates the same lead with its one-time grant (leadToken).
+   - Submit waits for a save still in flight, then FINISHES that lead
+     (leadToken + estimateStage 'completed'). If that is refused or fails, it
+     falls back to the old full create (one retry), so nothing is lost.
+   - The id and grant survive a reload of this tab (sessionStorage, same phone
+     only) so a refresh does not mint a second lead; cleared once finished. */
+var EST_LEAD_KEY = 'nbdEstimateLead';
+var _estLead = { id: null, token: null, sentKey: '', phone: '', restored: false, finished: false, chain: Promise.resolve() };
+(function () {
+  try {
+    var raw = window.sessionStorage && window.sessionStorage.getItem(EST_LEAD_KEY);
+    var o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o.id === 'string' && o.id && /^[a-f0-9]{48}$/.test(String(o.token || ''))) {
+      _estLead.id = o.id; _estLead.token = o.token; _estLead.phone = String(o.phone || ''); _estLead.restored = true;
+    }
+  } catch (e) { /* no storage: one lead per page load instead */ }
+})();
+function _persistEstLead() {
+  try {
+    if (!window.sessionStorage) return;
+    if (_estLead.id && _estLead.token && !_estLead.finished) {
+      window.sessionStorage.setItem(EST_LEAD_KEY, JSON.stringify({ id: _estLead.id, token: _estLead.token, phone: _estLead.phone }));
+    } else {
+      window.sessionStorage.removeItem(EST_LEAD_KEY);
+    }
+  } catch (e) { /* storage full or blocked: in-memory only */ }
+}
+function _clearEstLead() {
+  _estLead.id = null; _estLead.token = null; _estLead.sentKey = ''; _estLead.phone = '';
+  _estLead.restored = false; _estLead.finished = false;
+  _persistEstLead();
+}
+function _step1Fields() {
+  return {
+    address: funnelData.address || '',
+    lat: funnelData.lat,
+    lon: funnelData.lon,
+    firstName: document.getElementById('firstName').value.trim(),
+    phone: document.getElementById('phoneNumber').value.trim(),
+    tcpaConsent: document.getElementById('tcpaConsent').checked === true
+  };
+}
+function _saveStartedLead() {
+  _estLead.chain = _estLead.chain.then(_doSaveStartedLead, _doSaveStartedLead);
+  return _estLead.chain;
+}
+async function _doSaveStartedLead() {
+  if (_estLead.finished || typeof window._saveLead !== 'function') return;
+  var f = _step1Fields();
+  var digits = f.phone.replace(/\D/g, '');
+  if (!f.firstName || digits.length !== 10 || !f.address) return;
+  // A lead restored from this tab belongs to that phone only.
+  if (_estLead.restored && _estLead.phone !== digits) _clearEstLead();
+  var key = JSON.stringify(f);
+  if (key === _estLead.sentKey) return;
+  // wantsFollowUp on every save: a create (first save, or an update the
+  // server refused and created instead) hands back the grant.
+  var payload = Object.assign({}, f, { estimateStage: 'started', wantsFollowUp: true });
+  if (_estLead.id && _estLead.token) payload.leadToken = _estLead.token;
+  var priorToken = window._lastPhotoToken || null;
+  var id = null;
+  try { id = await window._saveLead(payload, { silent: true }); } catch (e) { id = null; }
+  if (!id) { trackEvent('funnel_lead_save_failed', { at: 'step1' }); return; }
+  if (id !== _estLead.id) {
+    // A new lead: this visit's first save, or the server could not update the
+    // old one and created this instead. Its grant is the one just handed back.
+    var t = window._lastPhotoToken || null;
+    _estLead.id = id;
+    _estLead.token = (t && (t !== priorToken || !payload.leadToken)) ? t : null;
+  }
+  _estLead.sentKey = key;
+  _estLead.phone = digits;
+  _estLead.restored = false;
+  _persistEstLead();
+}
+// Submit (and the OTP-skip call request): finish the step-1 lead, or create
+// the lead as before when there is none to finish. Resolves the id or null.
+async function _saveFinishedLead(leadData) {
+  try { await _estLead.chain; } catch (e) { /* the chain never rejects */ }
+  var id = null;
+  if (_estLead.id && _estLead.token && !_estLead.finished) {
+    try {
+      id = await window._saveLead(Object.assign({}, leadData, { leadToken: _estLead.token, estimateStage: 'completed' }));
+    } catch (e) { id = null; }
+  }
+  if (!id) {
+    id = await window._saveLead(leadData);
+    if (!id) id = await window._saveLead(leadData);
+  }
+  if (id) {
+    _estLead.id = id;
+    _estLead.finished = true;
+    _persistEstLead();
+  }
+  return id;
+}
+
 /* ── Submit & Get Estimate ── */
 async function submitAndGetEstimate() {
   const btn = document.getElementById('btnSubmit');
@@ -1239,8 +1350,9 @@ async function submitAndGetEstimate() {
   var _publicLeadId = null;
   try {
     // Keep the id — it is how we ask for this lead's roof measurement below.
-    _publicLeadId = await window._saveLead(leadData);
-    if (!_publicLeadId) _publicLeadId = await window._saveLead(leadData);
+    // Finishes the step-1 lead when there is one (the same lead, no second
+    // card), else the full save with one retry, as before.
+    _publicLeadId = await _saveFinishedLead(leadData);
     _leadSaved = !!_publicLeadId;
   } catch (saveErr) {
     console.error('Lead save threw:', saveErr);
@@ -1767,6 +1879,8 @@ function resetFunnel() {
   _otpVerified = false;
   currentStep = 1;
   window._lastPhotoToken = null;
+  // A new estimate is a new request: the next step-1 tap saves a new lead.
+  _clearEstLead();
   var fu = document.getElementById('estFollowUp');
   if (fu) {
     fu.hidden = true;
