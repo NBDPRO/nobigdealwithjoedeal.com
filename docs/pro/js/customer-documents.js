@@ -93,9 +93,6 @@
       signed: status ? status === 'signed'
         : !!(d.signedRemotely || d.signedAt || /signed/i.test(String(d.source || ''))),
       signedAt: signedAt,
-      // submitSignature could not store the signed copy (2026-11-14): the
-      // stored file is still the unsigned original.
-      signedSaveFailed: d.signedSaveFailed === true,
       source: d.source || null,
       // A filed photo report can be handed over as a no-login link, not just a
       // download. createReportShareToken re-signs from `storagePath` rather than
@@ -216,9 +213,7 @@
     var bits = [];
     if (doc.date) bits.push(doc.date.toLocaleDateString());
     if (doc.size != null) bits.push((doc.size / 1024).toFixed(0) + ' KB');
-    if (doc.signedSaveFailed) {
-      bits.push('⚠ Signed remotely, but the signed copy was not saved — this file is the unsigned original. Send a new signing link.');
-    } else if (doc.signed) {
+    if (doc.signed) {
       bits.push('✓ Signed' + (doc.signedAt ? ' ' + doc.signedAt.toLocaleDateString() : ''));
     } else if (doc.status === 'sent') {
       bits.push('Awaiting signature');
