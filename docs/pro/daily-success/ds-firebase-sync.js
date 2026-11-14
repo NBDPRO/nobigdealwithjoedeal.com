@@ -396,6 +396,7 @@ async function onAuth(user) {
     try { restored = await syncSettings(); } catch (e) { settingsFailed = true; console.warn('[ds-sync] settings push failed', e && e.code); }
     const cloud = await pullFromFirestore();
     if (cloud === null) { showError('Sync error'); return; }
+    _lastPull = Date.now();
     _ledger.clear();
     for (const cp of cloud) if (!cp.deleted) _ledger.set(String(cp.id), L().mtOf(cp));
     const local = readJson(STORE, []);
@@ -429,4 +430,21 @@ async function onAuth(user) {
     else { _synced = true; showBadge(merged.pages.length + ' days loaded', '#2ECC8A'); chipOk(); }
   } catch(e) { showError('Sync error'); }
 }
+// Pull again when the app comes back (audit 2026-11-14 #5). The pull used to run only at sign-in, so a phone left open on
+// today's page kept its old copy while another device logged to the same day, and its next save (the whole page, newer mt)
+// threw those entries away. At most every 15 s; never offline, mid-sync, or while a field is being typed in (onAuth defers).
+let _lastPull = 0;
+const REPULL_MS = 15000;
+async function refreshOnReturn() {
+  if (!_uid || !_user || !_synced || _retrying) return;
+  if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (Date.now() - _lastPull < REPULL_MS) return;
+  _retrying = true; _quiet = true;
+  try { await onAuth(_user); } catch (e) { console.warn('[ds-sync] re-pull failed', e && e.code); }
+  finally { _quiet = false; _retrying = false; }
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', refreshOnReturn);
+if (typeof window.addEventListener === 'function') window.addEventListener('pageshow', refreshOnReturn);
+
 onAuthStateChanged(auth, onAuth);
