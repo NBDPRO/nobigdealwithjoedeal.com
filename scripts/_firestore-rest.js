@@ -13,6 +13,10 @@
  * .get() -> { empty, size, docs: [{ id, ref, data() }] } (documents:runQuery).
  * 2026-11-09: plus ref.create(data) (precondition exists: false) and the
  * document's updateTime on get(), for scripts/backfill-q11-call-text.js.
+ * 2026-11-09: plus a top-level collection query with equality filters, for
+ * scripts/match-job-photos.js (one tenant's leads, not every tenant's):
+ * db.collection(id).where(field, '==', v).orderBy('__name__').limit(n)
+ * .startAfter(snap).get(), the same snapshot shape.
  * The token is sent in a header only; it is never logged.
  */
 'use strict';
@@ -151,14 +155,26 @@ function restFirestore({ projectId, token, fetchImpl }) {
   // A collection-group query paged by document name, the one shape the
   // backfill scripts use. No filters: a collection-group filter needs an
   // index scope the project may not have; the caller filters what it reads.
-  function collectionGroup(collectionId) {
+  function collectionGroup(collectionId) { return query(collectionId, true); }
+  // A top-level collection, optionally with equality filters (each served by
+  // Firestore's automatic single-field index; several need a composite one).
+  function collection(collectionId) { return query(collectionId, false); }
+
+  function query(collectionId, allDescendants) {
     if (typeof collectionId !== 'string' || !collectionId || collectionId.includes('/')) throw new Error('bad collection id: ' + collectionId);
-    const make = (lim, afterPath) => ({
-      orderBy(field) { if (field !== '__name__') throw new Error('only orderBy(\'__name__\') is supported'); return make(lim, afterPath); },
-      limit(n) { if (!Number.isInteger(n) || n < 1) throw new Error('limit must be a positive integer'); return make(n, afterPath); },
-      startAfter(snap) { const p = snap && snap.ref ? snap.ref.path : snap; return make(lim, String(p)); },
+    const make = (lim, afterPath, filters) => ({
+      where(field, op, value) {
+        if (allDescendants) throw new Error('collectionGroup takes no filters here');
+        if (op !== '==') throw new Error('only == filters are supported');
+        return make(lim, afterPath, filters.concat([{ fieldFilter: { field: { fieldPath: new FieldPath(...String(field).split('.')).toString() }, op: 'EQUAL', value: encode(value) } }]));
+      },
+      orderBy(field) { if (field !== '__name__') throw new Error('only orderBy(\'__name__\') is supported'); return make(lim, afterPath, filters); },
+      limit(n) { if (!Number.isInteger(n) || n < 1) throw new Error('limit must be a positive integer'); return make(n, afterPath, filters); },
+      startAfter(snap) { const p = snap && snap.ref ? snap.ref.path : snap; return make(lim, String(p), filters); },
       async get() {
-        const sq = { from: [{ collectionId, allDescendants: true }], orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }] };
+        const sq = { from: [{ collectionId, allDescendants }], orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }] };
+        if (filters.length === 1) sq.where = filters[0];
+        else if (filters.length > 1) sq.where = { compositeFilter: { op: 'AND', filters } };
         if (lim) sq.limit = lim;
         if (afterPath) sq.startAt = { values: [{ referenceValue: root + '/' + afterPath }], before: false };
         const r = await call('POST', root + ':runQuery', { structuredQuery: sq });
@@ -171,9 +187,9 @@ function restFirestore({ projectId, token, fetchImpl }) {
         return { empty: !docs.length, size: docs.length, docs };
       },
     });
-    return make(0, null);
+    return make(0, null, []);
   }
-  return { doc, collectionGroup };
+  return { doc, collectionGroup, collection };
 }
 
 module.exports = { restFirestore, FieldPath, serverTimestamp: () => SERVER_TS, encode, decode, quoteSeg, SERVER_TS };

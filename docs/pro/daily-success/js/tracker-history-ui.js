@@ -24,6 +24,7 @@
   const SESS = 'nbd_ds_workouts';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
   const allPages = () => (typeof pages !== 'undefined' && Array.isArray(pages) ? pages : []);
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
@@ -103,14 +104,15 @@
       '<div class="wc-foot"><button class="btn wc-finish" data-th-action="import-go">Import ' + p.days + ' days</button>' +
       '<button class="btn btn-ghost" data-th-action="import-close">Not now</button></div></div>';
     el.classList.add('open'); document.body.classList.add('wc-lock');
+    if (window.NBDNav) window.NBDNav.opened('history', closeImport);
   }
-  function closeImport() { const el = document.getElementById('thOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
+  function closeImport() { if (window.NBDNav) window.NBDNav.closed('history'); const el = document.getElementById('thOverlay'); if (el) el.classList.remove('open'); document.body.classList.remove('wc-lock'); }
 
   async function doImport(btn) {
     if (!_plan || !_plan.sessions.length) { closeImport(); return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
     const merged = C().mergeSessions(readJson(SESS, []).concat(_plan.sessions), []);
-    try { localStorage.setItem(SESS, JSON.stringify(merged)); } catch (_) { toast('Could not save on this device'); return; }
+    try { localStorage.setItem(SESS, JSON.stringify(merged)); } catch (_) { toastErr('Could not save on this device'); return; }
     let pushed = 0;
     if (window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function') {
       for (const s of _plan.sessions) { if (await window.NBDDsCloud.pushWorkout(s)) pushed++; }

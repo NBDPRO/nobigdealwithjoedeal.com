@@ -82,6 +82,7 @@ async function run() {
     // §50 Reel Studio: an AI-graphic tip draft, a reel draft, a reel + its media.
     await setDoc(doc(db, 'companies/co-49/social_posts/p49-ai'), P49('draft', { aiGenerated: true, kind: 'tip', media: [{ key: 'd'.repeat(32), role: 'ai_image' }] }));
     await setDoc(doc(db, 'companies/co-49/social_posts/p49-reel'), P49('draft', { format: 'reel', reelId: 'r49', video: { key: 'a'.repeat(32) }, media: [{ key: 'a'.repeat(32), role: 'video' }], kind: 'job_showcase' }));
+    await setDoc(doc(db, 'companies/co-49/social_posts/p49-blog'), P49('draft', { kind: 'blog_post', format: 'text', blogUrl: 'https://nobigdealwithjoedeal.com/blog/ice-dams' }));
     await setDoc(doc(db, 'companies/co-49/reels/r49'), { companyId: 'co-49', status: 'rendered', privacy: { status: 'flagged' }, output: { key: 'a'.repeat(32) } });
     await setDoc(doc(db, 'companies/co-49/reel_media/m49'), { companyId: 'co-49', status: 'ready', kind: 'video' });
     await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
@@ -3172,6 +3173,11 @@ async function run() {
   await x50('a reel post cannot swap its video', 'deny', updateDoc(sp(own50, 'p49-reel'), { video: { key: 'b'.repeat(32) } }));
   await x50('a reel post cannot unlink its reel', 'deny', updateDoc(sp(own50, 'p49-reel'), { reelId: 'other' }));
   await x50('a reel draft cannot be approved from the client', 'deny', updateDoc(sp(own50, 'p49-reel'), { status: 'scheduled', scheduledAt: new Date('2026-11-04T14:00:00Z') }));
+  // Blog shares (2026-11-09): blogUrl is server-set (socialPlanWeeks) and frozen, so a client cannot re-point a share or forge one to block a post's share.
+  await x50('create a post carrying blogUrl is refused', 'deny', setDoc(sp(own50, 'n49z'), NEW50({ kind: 'blog_post', blogUrl: 'https://nobigdealwithjoedeal.com/blog/other' })));
+  await x50('a blog share cannot change its blogUrl', 'deny', updateDoc(sp(own50, 'p49-blog'), { blogUrl: 'https://nobigdealwithjoedeal.com/blog/other' }));
+  await x50('a draft cannot gain a blogUrl', 'deny', updateDoc(sp(own50, 'p49-draft'), { blogUrl: 'https://nobigdealwithjoedeal.com/blog/other' }));
+  await x50('a blog share draft caption can still be edited', 'allow', updateDoc(sp(own50, 'p49-blog'), { caption: 'New on the blog. Read it here: https://nobigdealwithjoedeal.com/blog/ice-dams' }));
   console.log('  50: ' + s50Pass + ' social studio checks passed, ' + s50Fail.length + ' failed');
   if (s50Fail.length) {
     throw new Error('50 social studio: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));

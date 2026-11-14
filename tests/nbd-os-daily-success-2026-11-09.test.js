@@ -142,7 +142,7 @@ G(() => {
   const l = mount({ store }, [{ id: 'daily', s: 'l' }]).card;
   ok('L: both halves, a row each', l.querySelectorAll('.os-hw-ds-row').length >= 5, l.innerHTML.slice(0, 300));
   const links = l.querySelectorAll('a');
-  ok('a tap opens Daily Success in the same tab (/pro/daily-success/, no target=_blank)', links.length > 0 && links.every((a) => a.getAttribute('href') === '/pro/daily-success/' && !a.getAttribute('target')));
+  ok('a tap opens Daily Success in the same tab, on a destination (/pro/daily-success/?go=floors or ?go=today, no target=_blank)', links.length > 0 && links.every((a) => /^\/pro\/daily-success\/\?go=(floors|today)$/.test(a.getAttribute('href')) && !a.getAttribute('target')));
   ok('…the way openDailyTracker does (window.open(\'/pro/daily-success/\', \'_self\'))', /openDailyTracker: \(\) => window\.open\('\/pro\/daily-success\/', '_self'\)/.test(read('docs/pro/js/widgets.js')));
   ok('hidden under the lock screen (html.os-locked)', /html\.os-locked \.os-hw-daily \{[^}]*visibility: hidden/.test(HOME_CSS));
   ok('the system layer (tray, lock screen) never reads the Daily Success snapshot', !/nbd_ds_snapshot|dsSnapshot|LayoutEngine\.ds\(|os-hw-daily/.test(noComments(SYSTEM_JS)));

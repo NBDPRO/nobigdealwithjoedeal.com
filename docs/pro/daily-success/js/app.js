@@ -157,21 +157,62 @@ function mkPage(dk){const suf=pages.filter(p=>p.dk===dk).length+1;return{id:Date
 const _dsSnap=new Map();
 const DS_TOMB='nbd_dsp_tomb';
 function loadPages(){try{pages=JSON.parse(localStorage.getItem(STORE))||[];}catch{pages=[];}if(window.NBDDsSync)window.NBDDsSync.seedSnapshots(pages,_dsSnap);if(!pages.length){pages=[mkPage(todayKey())];savePages();}}
-function savePages(){if(window.NBDDsSync)window.NBDDsSync.stampChanged(pages,_dsSnap,Date.now());localStorage.setItem(STORE,JSON.stringify(pages));}
+// Returns true when the phone took the write. A full or blocked storage (private mode, quota) used to throw out of every caller; now it
+// says so once in the red toast and returns false (audit M9).
+let _saveErrAt=0;
+function savePages(){try{if(window.NBDDsSync)window.NBDDsSync.stampChanged(pages,_dsSnap,Date.now());localStorage.setItem(STORE,JSON.stringify(pages));return true;}catch(e){if(Date.now()-_saveErrAt>5000){_saveErrAt=Date.now();toastErr('Could not save on this device. Free some space or leave private mode.');}return false;}}
 // A deleted page is remembered until the cloud has been told, or the next
 // sign-in's merge would bring it straight back.
-function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'[]');if(!t.includes(String(id)))t.push(String(id));localStorage.setItem(DS_TOMB,JSON.stringify(t));}catch(e){}}
+function dsTombstone(id){try{const t=JSON.parse(localStorage.getItem(DS_TOMB)||'[]');if(!t.includes(String(id)))t.push(String(id));localStorage.setItem(DS_TOMB,JSON.stringify(t));}catch(e){}dsRestoredMark(id,false);}
+// A page brought back from Undo / Recently deleted is listed here until a push has told the cloud (ds-firebase-sync.js clears it), so a pull
+// that still reads the cloud copy as deleted does not drop it again.
+const DS_RESTORED='nbd_dsp_restored';
+function dsRestoredMark(id,on){try{const r=JSON.parse(localStorage.getItem(DS_RESTORED)||'[]').map(String).filter(x=>x!==String(id));if(on)r.push(String(id));if(r.length)localStorage.setItem(DS_RESTORED,JSON.stringify(r));else localStorage.removeItem(DS_RESTORED);}catch(e){}}
 // Settings + goal targets sync to userSettings/{uid} (ds-firebase-sync.js);
 // the *_at stamp lets the newer copy win across devices.
 function dsSettingsChanged(key){try{localStorage.setItem(key+'_at',String(Date.now()));}catch(e){}if(window.NBDDsCloud&&typeof window.NBDDsCloud.pushSettings==='function')window.NBDDsCloud.pushSettings();}
-function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();toast('New page created');}
-function triggerDel(idx){idx=idx??cur;if(pages.length<=1){toast('Cannot delete the only page');return;}_di=idx;document.getElementById('mDelMsg').textContent=`Delete "${tlbl(pages[idx])}"? This cannot be undone.`;openM('mDel');}
-function doDelete(){closeM('mDel');const i=_di??cur;const gone=pages[i];if(gone)dsTombstone(gone.id);_dsSnap.delete(String(gone&&gone.id));pages.splice(i,1);savePages();cur=Math.min(i>0?i-1:0,pages.length-1);renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();toast('Page deleted');}
-function openRename(){if(cur<0)return;document.getElementById('renInp').value=pages[cur].name||'';openM('mRen');setTimeout(()=>document.getElementById('renInp').focus(),80);}
+function smartNewPage(){const tk=todayKey(),idx=pages.findIndex(p=>p.dk===tk&&!p.name);if(idx>=0){collectPage(true);cur=idx;renderTabs();renderPage();markSaved();toast('Jumped to today');return;}collectPage(true);pages.push(mkPage(todayKey()));savePages();cur=pages.length-1;renderTabs();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();toast('New page created');}
+// Delete with undo (flow batch 3, D6 / audit M10): a delete happens at once and an 8-second Undo toast restores the page (menu-ui.js shows it).
+// The page is also kept in "Recently deleted" (Notebook, this device, 30 days). Flip DS_CONFIRM_DELETE to true to ask "Delete page?" first.
+const DS_CONFIRM_DELETE=false;
+const DS_TRASH='nbd_ds_deleted';
+function trashLoad(){try{return NBDNotebook.trashPrune(JSON.parse(localStorage.getItem(DS_TRASH)||'[]'),Date.now());}catch(e){return [];}}
+function trashSave(l){try{localStorage.setItem(DS_TRASH,JSON.stringify(l));}catch(e){}}
+function triggerDel(idx){idx=idx??cur;if(!pages[idx]){toast('Open a day first');return;}if(pages.length<=1){toast('Cannot delete the only page');return;}if(!DS_CONFIRM_DELETE){deletePageAt(idx);return;}_di=idx;document.getElementById('mDelMsg').textContent=`Delete "${tlbl(pages[idx])}"? You can undo it for 8 seconds, or bring it back from the Notebook.`;openM('mDel');}
+function doDelete(){closeM('mDel');deletePageAt(_di??cur);}
+function deletePageAt(i){
+const gone=pages[i];if(!gone)return;
+// Collect whatever is on screen first, even when it is another page than the one being deleted (an edit not yet written would be lost).
+collectPage(true);const stay=cur>=0&&cur!==i?pages[cur]:null;
+const label=tlbl(gone);
+trashSave(NBDNotebook.trashAdd(trashLoad(),{page:gone,idx:i,label:label},Date.now()));
+dsTombstone(gone.id);_dsSnap.delete(String(gone.id));pages.splice(i,1);savePages();
+// Deleting a page other than the open one leaves you where you were; deleting the open page moves to the one before it.
+cur=stay?pages.indexOf(stay):(cur<0?-1:Math.min(i>0?i-1:0,pages.length-1));renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();
+const landed=pages[cur]?tlbl(pages[cur]):'';
+const msg='Deleted "'+label+'"'+(landed?'. Now showing "'+landed+'".':'.');
+if(window.NBDMenuUI&&window.NBDMenuUI.undoToast)window.NBDMenuUI.undoToast(msg,gone.id);else toast('Page deleted');
+}
+// Put a deleted page back where it was and clear its tombstone, so the cloud copy is not dropped again. Used by the Undo toast and the Notebook.
+function restoreDeleted(id){
+const t=NBDNotebook.trashTake(trashLoad(),id);if(!t.entry)return false;
+const pg=t.entry.page;
+try{const tb=JSON.parse(localStorage.getItem(DS_TOMB)||'[]').filter(x=>String(x)!==String(pg.id));localStorage.setItem(DS_TOMB,JSON.stringify(tb));}catch(e){}
+trashSave(t.list);dsRestoredMark(pg.id,true);
+if(!pages.some(p=>String(p.id)===String(pg.id))){collectPage(true);pages.splice(Math.min(Math.max(0,t.entry.idx),pages.length),0,pg);savePages();}
+cur=pages.findIndex(p=>String(p.id)===String(pg.id));
+renderTabs();killCharts();renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();
+return true;
+}
+function openRename(){if(cur<0||!pages[cur]){toast('Open a day first');return;}document.getElementById('renInp').value=pages[cur].name||'';openM('mRen');setTimeout(()=>document.getElementById('renInp').focus(),80);}
 function applyRen(){pages[cur].name=document.getElementById('renInp').value.trim();savePages();closeM('mRen');renderTabs();toast('Renamed');}
 
-function markDirty(){if(dirty)return;dirty=true;const e=document.getElementById('sdot');e.textContent='● UNSAVED';e.className='sdot dirty';}
-function markSaved(){dirty=false;const e=document.getElementById('sdot');e.textContent='● SAVED';e.className='sdot ok';}
+// Save on the way out (audit Q3): an edit is written to storage about 800 ms after the last change, and at once when the app goes to
+// the background or the page is hidden. The 30 s timer and the SAVE button stay as they were.
+let _saveT=null;
+function flushDirty(){clearTimeout(_saveT);_saveT=null;if(!dirty||cur<0)return;if(collectPage(true)){syncToWidgetKeys();markSaved();}}
+function markDirty(){clearTimeout(_saveT);_saveT=setTimeout(flushDirty,800);if(dirty)return;dirty=true;if(window.NBDSyncChip&&window.NBDSyncChip.setDirty)window.NBDSyncChip.setDirty(true);else{const e=document.getElementById('sdot');e.textContent='● UNSAVED';e.className='sdot dirty';}}
+function markSaved(){dirty=false;if(window.NBDSyncChip&&window.NBDSyncChip.setDirty)window.NBDSyncChip.setDirty(false);else{const e=document.getElementById('sdot');e.textContent='● SAVED';e.className='sdot ok';}}
 function collectPage(silent){
 // Only collect from the page that is ON SCREEN. After a cloud sync the
 // dashboard was shown while `cur` still pointed at a page, and the next tab
@@ -179,36 +220,54 @@ function collectPage(silent){
 if(cur<0)return;const p=pages[cur];if(!p)return;const _shown=document.getElementById('main');if(!_shown||_shown.dataset.dsPage!==String(p.id))return;
 document.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
 p.exercises=[];for(let i=0;i<exCount;i++){const r={};['name','sets','reps','weight','notes'].forEach(f=>{const el=document.querySelector(`[data-k="ex-${i}-${f}"]`);r[f]=el?el.value:'';});p.exercises.push(r);}
-savePages();if(!silent)markSaved();
+savePages();if(!silent)markSaved();return true;
 }
 function saveNow(){collectPage();toast('Saved ✓');}
 // Re-render whatever view is current (after the cloud merge replaced `pages`).
+// Scroll position per view (audit Q10): the Dashboard and every day keep their place across tab switches and a background refresh.
+const _scrollMemo={};let _shownKey='';
+function viewKey(){return cur<0?'dash':String(pages[cur]&&pages[cur].id);}
+function rememberScroll(){if(_shownKey)_scrollMemo[_shownKey]=window.scrollY||0;}
+// The cards other scripts add after a render (food, coach, review) make the page taller a beat later and the browser nudges the scroll
+// to keep its place, so the saved spot is applied again a moment later unless Jo has already moved the page himself.
+let _userMoved=false;
+['wheel','touchmove','keydown'].forEach(ev=>window.addEventListener(ev,()=>{_userMoved=true;},{passive:true}));
+function restoreScroll(){
+const key=_shownKey=viewKey(),top=_scrollMemo[key]||0;_userMoved=false;window.scrollTo({top:top,behavior:'auto'});
+[0,250].forEach(ms=>setTimeout(()=>{if(_shownKey===key&&!_userMoved&&Math.abs((window.scrollY||0)-top)>2)window.scrollTo({top:top,behavior:'auto'});},ms));
+}
 function dsRefreshView(){if(cur>=pages.length)cur=pages.length-1;renderTabs();if(cur===-1)renderDash();else renderPage();}
-function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();}
+function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();if(window.NBDNav)window.NBDNav.viewChanged();}
 
 function renderTabs(){
 // Notebook (2026-10-25): the row is Dash · Today · the open page · Notebook (n) · +, never one tab per page. Every page is filed
 // in the notebook drawer (notebook-logic.js / notebook-ui.js) by month, newest first.
 const w=document.getElementById('tabrow');w.innerHTML='';
 NBDNotebook.tabSet(pages,cur,todayKey()).forEach(tab=>{
-if(tab.kind==='new'){const plus=document.createElement('div');plus.className='tplus';plus.textContent='+';plus.title='New / jump to today';plus.dataset.action='smart-new-page';w.appendChild(plus);return;}
+// Open-to (flow batch 3, D1): the unlabeled "+" is a labelled TODAY tab. With a page for today it is the Today tab itself (below), so the
+// "+" tab only shows when there is none, and then it starts today's page when tapped (nothing is created at boot).
+if(tab.kind==='new'){if(NBDNotebook.tabSet(pages,cur,todayKey()).some(x=>x.kind==='today'))return;const nt=document.createElement('div');nt.className='tab tab-newtoday';nt.setAttribute('role','button');nt.tabIndex=0;nt.title="Start today's page";nt.dataset.action='smart-new-page';nt.innerHTML='<span class="tlbl">+ TODAY</span>';w.appendChild(nt);return;}
 const t=document.createElement('div');
 if(tab.kind==='dash'){t.className='tab dtab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx='-1';t.innerHTML='<span class="tlbl">📊 DASH</span>';w.appendChild(t);return;}
 if(tab.kind==='notebook'){t.className='tab ntab';t.dataset.action='notebook-open';t.setAttribute('role','button');t.tabIndex=0;t.title='All pages, filed by month';t.innerHTML=`<span class="tlbl">📓 NOTEBOOK</span><span class="ntab-n">${tab.count}</span>`;w.appendChild(t);return;}
 const p=pages[tab.idx];if(!p)return;
 t.className='tab'+(tab.active?' active':'');t.dataset.action='switch-to';t.dataset.pageIdx=tab.idx;
+// The today tab reads TODAY; no tab carries a × (Delete lives in the ⋯ menu and the Notebook, flow batch 3 D6).
 const td=tab.kind==='today'?'<span class="today-dot"></span>':'';
-t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}<button class="tx" data-action="trigger-del-tab" data-tab-idx="${tab.idx}">×</button>`;
+t.innerHTML=`<span class="tlbl">${E(tlbl(p))}</span>${td}`;
+if(tab.kind==='today'){t.querySelector('.tlbl').textContent='TODAY';t.title=tlbl(p);}
 w.appendChild(t);
 });
 setTimeout(()=>{const a=w.querySelector('.active');if(a)a.scrollIntoView({behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior(),block:'nearest',inline:'nearest'});},50);
 try{window.dispatchEvent(new CustomEvent('nbd-pages-changed'));}catch(e){}
 }
 
+// Flow batch 3, D2: the quote printed twice (the poster's italic line AND the orange Mindset card). Dropped. Flip to true to bring the card back.
+const DS_COVER_QCARD=false;
 function buildCover(p,qi){
 const ds=dkFull(p.dk)+(p.suf>1?` · ENTRY ${p.suf}`:'');
 const q=QUOTES[qi];
-return ` <div class="cover"> <div class="cover-eyebrow">No Big Deal with Joe Deal · Daily Success Program</div> <div class="cover-title">SHOW<br>UP.<span> WIN.</span></div> <div class="cover-date">📅 ${ds}</div> <div class="cover-quote">"${q}"</div> <div class="cover-corner">WIN</div> </div> <div class="qcard"><div class="ql">Today's Mindset</div><div class="qt">${q}</div></div>`;
+return ` <div class="cover"> <div class="cover-eyebrow">No Big Deal with Joe Deal · Daily Success Program</div> <div class="cover-title">SHOW<br>UP.<span> WIN.</span></div> <div class="cover-date">📅 ${ds}</div> <div class="cover-quote">"${q}"</div> <div class="cover-corner">WIN</div> </div>${DS_COVER_QCARD?` <div class="qcard"><div class="ql">Today's Mindset</div><div class="qt">${q}</div></div>`:''}`;
 }
 
 function buildDayScore(p){
@@ -240,6 +299,18 @@ p.data['floormet-'+floorId]=p.data['floormet-'+floorId]==='1'?'0':'1';
 markDirty();
 const wrap=document.getElementById('day-score-wrap');if(wrap)wrap.innerHTML=buildDayScore(p);
 updateTodayBar();
+}
+
+// Tick (or untick) a floor on the page for a DATE, whichever page is open (flow batch 3, D3 / D5; audit M3 says "by date key, not pages[cur]").
+// Writes the same floormet-<id> key the manual tap writes. Returns true when a page for that date took it.
+function setFloorByDk(dk,floorId,on){
+const p=pages.find(x=>x.dk===dk&&(Number(x.suf)||1)===1)||pages.find(x=>x.dk===dk);if(!p)return false;
+p.data=p.data||{};p.data['floormet-'+floorId]=on?'1':'0';
+savePages();syncToWidgetKeys();
+if(pages[cur]===p){const wrap=document.getElementById('day-score-wrap');if(wrap)wrap.innerHTML=buildDayScore(p);updateTodayBar();}
+else if(cur===-1)renderDash();
+try{window.dispatchEvent(new CustomEvent('nbd-floors-changed',{detail:{dk:dk,id:String(floorId),on:!!on}}));}catch(e){}
+return true;
 }
 
 function buildMindsetSection(p){
@@ -313,7 +384,7 @@ if(cockpit&&window.NBDCockpitUI){let tg2={};try{tg2=(window.NBDFoodLogUI&&window
 bar.innerHTML=NBDCockpitUI.html({summary:s,targets:tg2,sessions:sessions,today:todayKey(),coach:window.NBDCoach,xp:window.NBDXp});return;}
 if(rings){let tg={};try{tg=(window.NBDFoodLogUI&&window.NBDFoodLogUI.targets&&window.NBDFoodLogUI.targets())||{};}catch(e){}
 bar.innerHTML=NBDDayLayout.ringsHtml(NBDDayLayout.ringsFor({hit:hit,total:total,cal:txt('ms-cal'),protein:txt('ms-p'),calTarget:tg.calories,proteinTarget:tg.protein,workout:s.workout}));return;}
-bar.innerHTML='<span class="tb-i'+(s.allMet?' ok':'')+'">\u{1F525} <b>'+s.floors+'</b> floors</span><span class="tb-i">\u{1F37D} <b>'+s.cal+'</b> cal</span><span class="tb-i"><b>'+s.protein+'</b> g protein</span><span class="tb-i'+(s.workout?' ok':'')+'">\u{1F3CB} '+(s.workout?'done':'\u2014')+'</span>';
+bar.innerHTML='<button type="button" data-action="tb-go" data-go="floors" class="tb-i'+(s.allMet?' ok':'')+'">\u{1F525} <b>'+s.floors+'</b> floors</button><button type="button" data-action="tb-go" data-go="cal" class="tb-i">\u{1F37D} <b>'+s.cal+'</b> cal</button><button type="button" data-action="tb-go" data-go="protein" class="tb-i"><b>'+s.protein+'</b> g protein</button><button type="button" data-action="tb-go" data-go="workout" class="tb-i'+(s.workout?' ok':'')+'">\u{1F3CB} '+(s.workout?'done':'\u2014')+'</button>';
 }
 
 // A layout switch redraws the bar at once.
@@ -508,11 +579,11 @@ function buildIntelligenceBrief(p){
   // Coaching insight based on patterns
   let coaching = '';
   // Floors count Mon-Sat (review-logic.js): on a Monday the missed workday is Saturday.
-  if(streakWarned && new Date(p.dk + 'T12:00:00').getDay() === 1) coaching = "Missed Saturday. Don't miss twice — today keeps the streak alive.";
-  else if(streakWarned) coaching = "Missed yesterday. Don't miss twice — today keeps the streak alive.";
+  if(streakWarned && new Date(p.dk + 'T12:00:00').getDay() === 1) coaching = "Missed Saturday. Don't miss twice — today keeps the floor streak alive.";
+  else if(streakWarned) coaching = "Missed yesterday. Don't miss twice — today keeps the floor streak alive.";
   else if(streak >= 7) coaching = "You're on a 7+ day floor streak. This is elite consistency — protect it.";
-  else if(streak >= 3) coaching = "3+ day streak rolling. Momentum is building. Don't break the chain.";
-  else if(streakBroken || (streak === 0 && idx > 0)) coaching = "Two misses in a row ended the streak. Today is day one. One floor at a time.";
+  else if(streak >= 3) coaching = "3+ day floor streak rolling. Momentum is building. Don't break the chain.";
+  else if(streakBroken || (streak === 0 && idx > 0)) coaching = "Two misses in a row ended the floor streak. Today is day one. One floor at a time.";
   else coaching = "New page. Set your intention, hit your floors, earn the day.";
 
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
@@ -525,7 +596,7 @@ function buildIntelligenceBrief(p){
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${workoutStreak >= 3 ? 'var(--grn)' : 'var(--muted)'};line-height:1;">${workoutStreak}</div>
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">WORKOUT STREAK</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">TRAINING STREAK</div>
   </div>`;
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
@@ -588,7 +659,7 @@ function buildCRMContext(){
 }
 
 function renderPage(){
-killCharts();exCount=0;
+rememberScroll();killCharts();exCount=0;
 const main=document.getElementById('main');main.innerHTML='';
 const p=pages[cur];
 main.dataset.dsPage=String(p&&p.id);
@@ -627,7 +698,7 @@ document.querySelectorAll('.pc[data-sec]').forEach(card=>{let st={};try{st=JSON.
 
 calcMacros();
 updateTodayBar();
-window.scrollTo({top:0,behavior:window.NBDA11yLogic&&NBDA11yLogic.scrollBehavior()});
+restoreScroll();
 }
 
 function toggleSection(ph){
@@ -635,6 +706,33 @@ const card=ph.closest('.pc');if(!card)return;card.classList.toggle('collapsed');
 let st={};try{st=JSON.parse(localStorage.getItem('nbd_collapsed')||'{}')||{};}catch(e){}
 st[card.dataset.sec]=card.classList.contains('collapsed');
 try{localStorage.setItem('nbd_collapsed',JSON.stringify(st));}catch(e){}
+}
+// Open the section a field lives in (search hits, Today-bar taps). Same saved state as tapping its header; the notes boxes are
+// sized again, because a box measured while its section was closed has no height.
+function openSection(card){
+if(!card||!card.classList.contains('collapsed'))return;card.classList.remove('collapsed');
+let st={};try{st=JSON.parse(localStorage.getItem('nbd_collapsed')||'{}')||{};}catch(e){}
+st[card.dataset.sec]=false;
+try{localStorage.setItem('nbd_collapsed',JSON.stringify(st));}catch(e){}
+card.querySelectorAll('textarea.ed').forEach(ta=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';});
+}
+// A jump of more than a screen and a half is instant (a long smooth crawl past five screens of cards is slower than the jump is worth); a short one follows the reduced-motion setting.
+function scrollToEl(el){_userMoved=true;if(el){const far=Math.abs(el.getBoundingClientRect().top)>window.innerHeight*1.5;el.scrollIntoView({behavior:far?'auto':(window.NBDA11yLogic?NBDA11yLogic.scrollBehavior():'auto'),block:'center'});}}
+// A search hit lands on the match (audit Q10): open its section, bring it on screen, flash it.
+function jumpToField(key){
+if(!key)return;const el=document.querySelector('[data-k="'+String(key).replace(/["\\]/g,'\\$&')+'"]');if(!el)return;
+openSection(el.closest('.pc'));scrollToEl(el);
+el.classList.remove('srch-flash');void el.offsetWidth;el.classList.add('srch-flash');setTimeout(()=>el.classList.remove('srch-flash'),2200);
+}
+// The Today bar and the Rings / Cockpit numbers are buttons (audit Q9): each goes to the thing it shows.
+function tbGo(go){
+if(go==='floors'){scrollToEl(document.getElementById('day-score-wrap'));return;}
+if(go==='workout'){if(window.NBDCoachUI&&typeof window.NBDCoachUI.open==='function')window.NBDCoachUI.open();return;}
+if(go==='cal'||go==='protein'){
+const dietBody=document.getElementById('diet-pb'),card=dietBody&&dietBody.closest('.pc');openSection(card);
+const q=document.getElementById('fsQuery');
+if(q){scrollToEl(q);q.focus({preventScroll:true});}else scrollToEl(card);
+}
 }
 
 // Door-knocking stats on/off (Jo's explicit choice, stored locally; with no choice they appear once there is data).
@@ -650,7 +748,7 @@ function killCharts(){charts.forEach(c=>{try{c.destroy();}catch{}});charts=[];}
 function mkChart(id,labels,data,color){const ctx=document.getElementById(id);if(!ctx)return;const prev=(typeof Chart.getChart==='function')?Chart.getChart(ctx):null;if(prev){try{prev.destroy();}catch{}charts=charts.filter(c=>c!==prev);}const ch=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:2,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'#888',maxRotation:45},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'#888'},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}}});charts.push(ch);}
 
 function renderDash(){
-killCharts();const main=document.getElementById('main');main.innerHTML='';main.dataset.dsPage='';
+rememberScroll();killCharts();const main=document.getElementById('main');main.innerHTML='';main.dataset.dsPage='';
 let totD=0,totR=0,totC=0,totA=0,totCon=0,bDV=0,bRV=0,bDI=-1,bRI=-1;
 let runD=0,runW=0,runWin=0,maxD=0,maxW=0,maxWin=0,prevD=0,prevR=0,lastD=0,lastR=0;
 const habTot=HABITS.map(()=>0),cLbls=[],cDoors=[],cRev=[],cClose=[];
@@ -719,6 +817,7 @@ main.appendChild(wrap);
 let _gtWriteTimer=null;
 const _scheduleGtWrite=()=>{clearTimeout(_gtWriteTimer);_gtWriteTimer=setTimeout(()=>{try{localStorage.setItem(GT_KEY,JSON.stringify(gt));dsSettingsChanged(GT_KEY);}catch(e){console.warn('[daily-success] gt write failed',e);}},250);};
 ['d','r','c'].forEach(k=>{const el=document.getElementById('gpi-'+k);if(!el)return;el.addEventListener('input',()=>{const v=parseFloat(el.value)||0;gt[k]=v;_scheduleGtWrite();const actual=k==='d'?totD:k==='r'?totR:totC;const pct=v?Math.min(actual/v*100,100):0;const bar=document.getElementById('gpbar-'+k),num=document.getElementById('gpnum-'+k);if(bar)bar.style.width=pct+'%';if(num)num.textContent=v?`${Math.round(actual)} / ${v} (${Math.round(pct)}%)`:'Set target →';});el.addEventListener('blur',()=>{if(_gtWriteTimer){clearTimeout(_gtWriteTimer);try{localStorage.setItem(GT_KEY,JSON.stringify(gt));}catch(e){}}});});
+restoreScroll();
 setTimeout(()=>{mkChart('c-doors',cLbls,cDoors,'rgba(249,115,22,.65)');mkChart('c-rev',cLbls,cRev,'rgba(42,102,68,.65)');mkChart('c-close',cLbls,cClose,'rgba(26,58,110,.65)');},80);
 }
 
@@ -737,7 +836,7 @@ const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encode
 }
 
 function toggleSearch(){searchOpen=!searchOpen;document.getElementById('sbar').classList.toggle('open',searchOpen);document.getElementById('tabrow').classList.toggle('sp',searchOpen);document.getElementById('main').classList.toggle('sp',searchOpen);if(searchOpen)setTimeout(()=>document.getElementById('sinp').focus(),80);else{document.getElementById('sdrop').classList.remove('open');document.getElementById('sinp').value='';}}
-function doSearch(q){const drop=document.getElementById('sdrop');if(!q.trim()){drop.classList.remove('open');return;}const ql=q.toLowerCase(),hits=[];pages.forEach((p,pi)=>{const fields=Object.values(p.data||{}).join(' ').toLowerCase();if(fields.includes(ql)){const preview=Object.values(p.data||{}).find(v=>v.toLowerCase().includes(ql))||'';hits.push({pi,label:tlbl(p),preview});}});if(!hits.length){drop.innerHTML=`<div class="sr0">No results for "${E(q)}"</div>`;drop.classList.add('open');return;}const re=new RegExp(q.replace(/[.*+?^${}()|[]\]/g,'\$&'),'gi');drop.innerHTML=hits.map(h=>`<div class="sri" data-action="search-jump" data-page-idx="${h.pi}"><div class="srd">${E(h.label)}</div><div class="srt">${E(h.preview).replace(re,m=>`<mark>${m}</mark>`)}</div></div>`).join('');drop.classList.add('open');}
+function doSearch(q){const drop=document.getElementById('sdrop');if(!q.trim()){drop.classList.remove('open');return;}const ql=q.toLowerCase(),hits=[];pages.forEach((p,pi)=>{const fields=Object.values(p.data||{}).join(' ').toLowerCase();if(fields.includes(ql)){const preview=Object.values(p.data||{}).find(v=>v.toLowerCase().includes(ql))||'';const key=Object.keys(p.data||{}).find(k=>String(p.data[k]).toLowerCase().includes(ql))||'';hits.push({pi,label:tlbl(p),preview,key});}});if(!hits.length){drop.innerHTML=`<div class="sr0">No results for "${E(q)}"</div>`;drop.classList.add('open');return;}const re=new RegExp(q.replace(/[.*+?^${}()|[]\]/g,'\$&'),'gi');drop.innerHTML=hits.map(h=>`<div class="sri" data-action="search-jump" data-page-idx="${h.pi}" data-hit-key="${E(h.key)}"><div class="srd">${E(h.label)}</div><div class="srt">${E(h.preview).replace(re,m=>`<mark>${m}</mark>`)}</div></div>`).join('');drop.classList.add('open');}
 
 function doPrint(){if(cur<0){toast('Open a page first');return;}saveNow();window.print();}
 function openM(id){document.getElementById(id).classList.add('open');}
@@ -753,6 +852,8 @@ function openWelcomeGuide(){const m=document.getElementById('welcomeModal');m.st
 // (dashboard contract, loaded by index.html before this script). The old
 // #toast singleton here was always-green, so calls map to 'success'.
 function toast(msg){window.showToast(msg,'success');}
+// A failure is red (audit Q4): the same toast, the 'error' type (longer on screen, announced as an alert).
+function toastErr(msg){window.showToast(msg,'error');}
 
 // ═══════════════════════════════════════════
 // WIDGET BRIDGE — sync DS data → Home widget keys
@@ -948,8 +1049,10 @@ window.toggleFloor=toggleFloorPatched;
 // Patch collectPage to sync widget keys after save
 const _origCollectPage=collectPage;
 function collectPagePatched(silent){
-_origCollectPage(silent);
+// Return the original's result: flushDirty() and the 30 s timer mark the page saved only when a collect happened (the chip said UNSAVED forever without it).
+const r=_origCollectPage(silent);
 syncToWidgetKeys();
+return r;
 }
 window.collectPage=collectPagePatched;
 
@@ -1108,12 +1211,18 @@ if(cur===-1)renderDash();else renderPage();
 
 document.addEventListener('keydown',e=>{
 if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveNow();}
-if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();toggleSearch();}
+// Ctrl/Cmd+F is the browser's again (flow batch 3, D4): search is Ctrl/Cmd+K and the header icon, and both open the jump sheet (quickjump-ui.js).
 if(e.key==='Escape'){closeM('mDel');closeM('mRen');closeM('mPRH');closeM('mOnboard');if(searchOpen)toggleSearch();}
 });
 window.addEventListener('beforeunload',()=>{if(dirty)collectPage(true);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushDirty();});
+window.addEventListener('pagehide',flushDirty);
 
-initTheme();loadPages();cur=-1;renderTabs();renderDash();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
+// Open-to (flow batch 3, D1). 'dash' (the default, Jo's usual landing view) or 'today': open on today's page when one exists. Nothing is created at boot.
+const DS_OPEN_TO='dash';
+initTheme();loadPages();cur=-1;
+if(DS_OPEN_TO==='today'){const ti=pages.findIndex(p=>p.dk===todayKey()&&(Number(p.suf)||1)===1);if(ti>=0)cur=ti;}
+renderTabs();if(cur===-1)renderDash();else renderPage();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
 
 // ── DAILY SUCCESS THEME SYSTEM ──────────────────
 /* ═══════════════════════════════════════════════════════════════════
@@ -1450,7 +1559,8 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
     'nbd-howto-close':     () => nbdHowtoClose(),
     'nbd-set-cat':         (el) => nbdSetCat(el.dataset.cat, el),
     'switch-to':           (el) => switchTo(+el.dataset.pageIdx),
-    'search-jump':         (el) => { switchTo(+el.dataset.pageIdx); toggleSearch(); },
+    'search-jump':         (el) => { const k = el.dataset.hitKey; switchTo(+el.dataset.pageIdx); toggleSearch(); jumpToField(k); },
+    'tb-go':               (el) => tbGo(el.dataset.go),
     'toggle-floor':        (el) => toggleFloor(el.dataset.floorId),
     'toggle-mindset':      (el) => toggleMindset(el.dataset.mindsetId, el),
     'toggle-habit':        (el) => toggleHabit(el, el.dataset.habitKey, +el.dataset.habitRow),

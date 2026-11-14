@@ -116,7 +116,7 @@ G(() => {
   ok('action: several missed calls open the Call Center', calls.action.go === 'calls', J(calls.action));
   const stuck = C.evaluate({ nowMs: NOW, leads: [{ id: 'a', _stageRole: 'new', createdAt: NOW - 40 * DAY }, { id: 'b', _stageRole: 'new', createdAt: NOW - 40 * DAY }] })[0];
   ok('action: stuck leads open the pipeline', stuck.action.go === 'crm', J(stuck.action));
-  ok('action: missed yesterday opens Daily Success in the same tab (a plain link)', C.evaluate({ ds: ds() })[0].action.href === '/pro/daily-success/');
+  ok('action: missed yesterday opens Daily Success ON THE FLOORS, in the same tab (a plain link; ?go=floors, flow batch 3)', C.evaluate({ ds: ds() })[0].action.href === '/pro/daily-success/?go=floors');
   ok('every go target is a CRM view name', all.every((r) => !r.action.go || /^[a-z][a-z0-9-]{0,31}$/.test(r.action.go)));
 });
 

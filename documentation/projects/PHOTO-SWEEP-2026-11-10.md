@@ -3,7 +3,9 @@
 Counts only. No customer names or addresses are in this note.
 
 Plan: [CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09.md) section 1.
-Tool: `scripts/match-job-photos.js` (dry run only; scoring in `scripts/lib/photo-match.js`).
+Tool: `scripts/match-job-photos-sweep-2026-11-10.js` (dry run only; scoring in `scripts/lib/photo-match.js`).
+This is the build that produced the counts below. The reviewed matcher on main is `scripts/match-job-photos.js` (#3029);
+it is a separate implementation, so a rerun with it will not reproduce these exact numbers.
 
 ## What was done
 

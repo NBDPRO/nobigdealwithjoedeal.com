@@ -26,6 +26,7 @@
   const ROUTINES = 'nbd_ds_coach_routines';   // [{ id, name, split, lifts: [{ exId, name, slot, sets }] }] - this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
+  const REST = 'nbd_ds_coach_rest';   // { until, label } - the running rest timer, this device only (so a reload or a closed coach does not lose it)
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -34,6 +35,7 @@
   const writeJson = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
+  const toastErr = (m) => { if (typeof window.toastErr === 'function') window.toastErr(m); else toast(m); };
   const fmtDay = (ymd) => { const [y, m, d] = String(ymd).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
 
   function settings() {
@@ -255,9 +257,12 @@
     if (!was) opener = document.activeElement;
     el.classList.add('open'); document.body.classList.add('wc-lock'); render();
     if (!was) (el.querySelector(FOCUSABLE) || el).focus();
+    if (window.NBDNav) window.NBDNav.opened('coach', close);
+    updateRestBar();
   }
   function close() {
-    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard();
+    if (window.NBDNav) window.NBDNav.closed('coach');
+    overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard(); updateRestBar();
     const o = opener; opener = null;
     let back = o && document.contains(o) ? o : null;
     // The card is re-drawn on close, so the opener may be gone: use the new button with the same action.
@@ -513,7 +518,7 @@
     if (!r) { toast('Add a set first - there is nothing to save yet'); return; }
     const before = routines;
     routines = C().normRoutines(routines.concat([r]));
-    if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
+    if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
     toast('Saved as ' + name + ' - rename it under the gear');
     render();
   }
@@ -537,7 +542,7 @@
     if (custom.length >= 30) { toast('That is plenty - remove one first'); return; }
     const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
     if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
-    if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toast(SAVE_FAILED); return; }
+    if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toastErr(SAVE_FAILED); return; }
     custom = next;
     cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
     toast('Added ' + name);
@@ -547,7 +552,7 @@
     reloadLists();
     const before = custom;
     custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
-    if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toast(SAVE_FAILED); return; }
+    if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toastErr(SAVE_FAILED); return; }
     render();
   }
 
@@ -597,6 +602,9 @@
     return vs + lifts;
   }
   function summaryHtml(r) {
+    // Flow batch 3 (M2): the summary ends with a primary "Next: ..." hand-off (the next thing from Next-Up); Close is the secondary button.
+    let nextHtml = '';
+    try { nextHtml = window.NBDNextUp && window.NBDNextUp.buttonHtml ? window.NBDNextUp.buttonHtml({ exclude: ['workout'] }) : ''; } catch (_) { nextHtml = ''; }
     const prs = r.prs.length
       ? `<div class="wc-prs">${r.prs.map((p) => (p.kind === 'reps'
         ? `<div>🏆 ${esc(p.name)}: ${esc(p.reps)} reps${p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : ''} <small>(was ${esc(p.prev)})</small></div>`
@@ -609,7 +617,8 @@
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
       ${r.wrotePage ? '<div class="wc-hint">Logged to today\'s Exercise Log.</div>' : ''}
-      <div class="wc-foot"><button class="btn wc-finish" data-coach-action="close">Close</button></div></div>`;
+      ${nextHtml}
+      <div class="wc-foot"><button class="btn wc-finish${nextHtml ? ' wc-secondary' : ''}" data-coach-action="close">Close</button></div></div>`;
   }
 
   // ── rest timer ───────────────────────────────────────────────────────
@@ -637,11 +646,12 @@
     const t = document.getElementById('wcRestT'), b = document.getElementById('wcRestBtn');
     if (t) t.innerHTML = restLine();
     if (b) b.textContent = restLeft() > 0 ? 'Skip' : 'OK';
+    updateRestBar();
     const A = window.NBDA11yLogic;
     if (A) { const r = A.restSay(restLeft(), rest.said || ''); rest.said = r.said; say(r.say); }
   }
-  function startRest(seconds, label) {
-    rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
+  function persistRest() { if (rest) writeJson(REST, { until: rest.until, label: rest.label }); else try { localStorage.removeItem(REST); } catch (_) { /* nothing to clear */ } }
+  function runRest() {
     clearInterval(restTimer);
     restTick();
     restTimer = setInterval(() => {
@@ -650,7 +660,36 @@
       if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
     }, 1000);
   }
-  function stopRest() { rest = null; clearInterval(restTimer); }
+  function startRest(seconds, label) {
+    rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
+    persistRest();
+    runRest();
+  }
+  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); }
+  // A rest that was still running when the page was closed or reloaded. One that has already ended is dropped: its alert is long past,
+  // and a "Go" bar that comes back from nowhere would sit on the screen until someone found its OK.
+  function restoreRest() {
+    const r = readJson(REST, null);
+    if (!r || !(Number(r.until) > Date.now())) { if (r) persistRest(); return; }
+    rest = { until: Number(r.until), label: String(r.label || ''), buzzed: false, said: '' };
+    runRest();
+  }
+  // The slim "Rest m:ss - Skip" bar: whenever a rest is running and the coach is closed (the coach shows its own line while open),
+  // so the alert is never a mystery. One element, built once; only its two text nodes change.
+  function updateRestBar() {
+    let b = document.getElementById('dsRestBar');
+    if (!rest || isOpen()) { if (b) b.hidden = true; return; }
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'dsRestBar'; b.className = 'wc-restbar';
+      b.innerHTML = '<span class="wc-restbar-t" role="timer" aria-live="off"></span><button type="button" class="wc-restbar-b" data-coach-action="skip-rest"></button>';
+      document.body.appendChild(b);
+    }
+    const left = restLeft();
+    b.hidden = false;
+    b.firstChild.textContent = left > 0 ? 'Rest ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : 'Go \u2014 next set';
+    b.lastChild.textContent = left > 0 ? 'Skip' : 'OK';
+  }
 
   // Rest-over alert. iPhone Safari has no navigator.vibrate, so the default also beeps; WebAudio only plays after a tap,
   // so the audio context is unlocked inside the set's checkmark tap (unlockAudio) and reused when the timer ends.
@@ -718,7 +757,7 @@
     };
     const all = C().mergeSessions([session].concat(prior), []);
     // If the device will not store it (full / blocked storage) keep the workout open instead of showing "done" and losing it.
-    if (!writeJson(SESS, all)) { toast("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
+    if (!writeJson(SESS, all)) { toastErr("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
     try { const pushed = window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function' ? window.NBDDsCloud.pushWorkout(session) : null; if (pushed && typeof pushed.catch === 'function') pushed.catch(() => {}); } catch (_) { /* the cloud copy is best-effort; the device copy above is saved */ }
     const wrotePage = writeToPage(session);
     summary = {
@@ -727,6 +766,8 @@
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
+    // Flow batch 3 (D3): tell the page a workout is done, so it can ASK whether to tick the floor (floor-tick-ui.js; it never ticks by itself).
+    try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: session.date } })); } catch (_) { /* the summary still shows */ }
     render();
   }
 
@@ -777,7 +818,7 @@
         reloadLists();
         const before = routines;
         routines = routines.filter((r) => r.id !== String(t.dataset.id || ''));
-        if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
+        if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
         render(); return;
       }
       case 'custom-add': addCustom(); return;
@@ -954,12 +995,12 @@
     if (el && el.dataset && el.dataset.coachField === 'rt-name') {
       reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toast(SAVE_FAILED); }
+      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); }
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'exnote') {
       if (ev.type !== 'change' || !window.NBDExNotes) return;
-      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toast(SAVE_FAILED); return; }
+      if (!writeJson(NOTES, window.NBDExNotes.set(readJson(NOTES, {}), el.dataset.ex, today(), el.value))) { toastErr(SAVE_FAILED); return; }
       if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(NOTES);
       return;
     }
@@ -980,11 +1021,12 @@
 
   function boot() {
     if (!C()) return;
+    restoreRest();
     if (hookFitness() && typeof window.renderPage === 'function') {
       try { if (document.getElementById('fit-pb')) window.renderPage(); } catch (_) {}
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { refresh: refreshCard, open, start, _render: render };
+  window.NBDCoachUI = { refresh: refreshCard, open, close, start, _render: render };
 })();

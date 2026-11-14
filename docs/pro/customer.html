@@ -394,6 +394,7 @@ header {
   #qaMoreBtn { grid-column: 1 / -1; }
   /* Gallery share panel spans full width */
   .quick-actions #gallerySharePanel { grid-column: 1 / -1; }
+  .quick-actions #projectConsentPanel { grid-column: 1 / -1; }
   /* Stage progress button (orange, full-width) spans both columns */
   .quick-actions > .btn-orange { grid-column: 1 / -1; }
 }
@@ -1537,6 +1538,23 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   .share-panel-head > .btn { flex:0 0 auto; }
 }
 
+/* Project-page consent panel (#projectConsentPanel, js/project-consent.js).
+   It lives inside .quick-actions (a wrapping flex row; a 2-column grid at
+   ≤900px), so like #gallerySharePanel it takes the whole row: the checkbox
+   label and the command must not squeeze into one button-width cell. */
+.pc-panel {
+  flex:1 1 100%; width:100%; box-sizing:border-box; margin-top:10px; padding:14px;
+  background:var(--s2); border:1px solid var(--br); border-radius:8px;
+  font-size:13px; line-height:1.45;
+}
+.pc-panel[hidden] { display:none; }
+.pc-title { margin-bottom:8px; }
+.pc-tick { display:flex; align-items:flex-start; gap:8px; cursor:pointer; }
+.pc-tick > input { flex:0 0 auto; width:18px; height:18px; margin:2px 0 0; }
+.pc-meta { margin-top:6px; opacity:.8; }
+.pc-cmd { margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.pc-cmd > code { flex:1 1 100%; min-width:0; overflow-wrap:anywhere; padding:6px 8px; border-radius:6px; background:var(--s1, transparent); }
+
 /* Files rows (customer-documents.js rowHtml). An uploaded file's actions
    (View, Share with homeowner, ✕) are flex-shrink:0, so on a phone they
    took the whole row: the name column collapsed to 0px, the meta line
@@ -1892,6 +1910,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       <button class="btn" data-action="_sendReferralCodeAndSms" title="Generate and send referral code">
         🎁 Referral Code
       </button>
+      <!-- Project-page consent (2026-11-09, content plan §2): the owner's tick that the
+           homeowner agreed to a public project page. js/project-consent.js loads on the
+           first tap (no boot cost); rules let only the owner side write it. -->
+      <button class="btn" id="projectConsentBtn" data-action="ScriptLoader.load" data-arg="js/project-consent.js?v=1"
+        title="Homeowner consent to show this job as a project page on the website">
+        🏠 Project Page
+      </button>
+      <div id="projectConsentPanel" class="pc-panel" role="region" aria-label="Project page consent" hidden></div>
     </div>
   </div>
 

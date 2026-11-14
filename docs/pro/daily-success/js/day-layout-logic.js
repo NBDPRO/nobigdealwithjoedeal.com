@@ -62,10 +62,10 @@
     const frac = (v, t) => (t && v != null ? Math.max(0, Math.min(1, v / t)) : 0);
     const proDone = !!proT && pro != null && pro >= proT;
     const rings = [
-      { id: 'floors', label: 'Floors', value: s.floors, sub: '', pct: s.floorsPct / 100, done: s.allMet, over: false },
-      { id: 'cal', label: 'Calories', value: s.cal, sub: calT ? 'of ' + fmt(calT) : 'no target', pct: frac(cal, calT), done: false, over: !!calT && cal != null && cal > calT },
-      { id: 'protein', label: 'Protein', value: s.protein, sub: proT ? 'of ' + fmt(proT) + ' g' : 'no target', pct: frac(pro, proT), done: proDone, over: false },
-      { id: 'workout', label: 'Workout', value: s.workout ? 'Done' : '\u2014', sub: '', pct: s.workout ? 1 : 0, done: s.workout, over: false },
+      { id: 'floors', go: 'floors', label: 'Floors', value: s.floors, sub: '', pct: s.floorsPct / 100, done: s.allMet, over: false },
+      { id: 'cal', go: 'cal', label: 'Calories', value: s.cal, sub: calT ? 'of ' + fmt(calT) : 'no target', pct: frac(cal, calT), done: false, over: !!calT && cal != null && cal > calT },
+      { id: 'protein', go: 'protein', label: 'Protein', value: s.protein, sub: proT ? 'of ' + fmt(proT) + ' g' : 'no target', pct: frac(pro, proT), done: proDone, over: false },
+      { id: 'workout', go: 'workout', label: 'Workout', value: s.workout ? 'Done' : '\u2014', sub: '', pct: s.workout ? 1 : 0, done: s.workout, over: false },
     ];
     return { rings, closed: s.allMet && s.workout && (!proT || proDone) };
   }
@@ -77,12 +77,13 @@
     const one = (g) => {
       const pct = Math.round(Math.max(0, Math.min(1, g.pct)) * 1000) / 10;
       const say = g.label + ' ' + g.value + (g.sub ? ' ' + g.sub : '');
-      return '<div class="rg-r' + (g.done ? ' done' : '') + (g.over ? ' over' : '') + '" role="img" aria-label="' + escH(say) + '">'
+      // A ring is a button (audit Q9): the tap goes to the thing it shows (app.js tbGo).
+      return '<button type="button" data-action="tb-go" data-go="' + escH(g.go) + '" class="rg-r' + (g.done ? ' done' : '') + (g.over ? ' over' : '') + '" aria-label="' + escH(say) + '">'
         + '<div class="rg-c"><svg class="rg-svg" viewBox="0 0 36 36" aria-hidden="true">'
         + '<circle class="rg-t" cx="18" cy="18" r="15.9155" fill="none" stroke-width="3.2"/>'
         + (pct > 0 ? '<circle class="rg-p" cx="18" cy="18" r="15.9155" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="' + pct + ' 100" transform="rotate(-90 18 18)"/>' : '')
         + '</svg><span class="rg-v">' + escH(g.value) + '</span></div>'
-        + '<span class="rg-l">' + escH(g.label) + '</span></div>';
+        + '<span class="rg-l">' + escH(g.label) + '</span></button>';
     };
     return '<div class="rg-wrap' + (r && r.closed ? ' closed' : '') + '">' + rings.map(one).join('') + '</div>'
       + (r && r.closed ? '<div class="rg-note">All rings closed</div>' : '');

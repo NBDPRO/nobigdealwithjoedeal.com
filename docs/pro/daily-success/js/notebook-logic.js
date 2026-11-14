@@ -91,7 +91,29 @@
     }).filter(Boolean);
   }
 
-  const api = { groupByMonth, tabSet, filterEntries, weekday, monthLabel };
+  // ── Recently deleted (audit M10, 2026-11-09) ─────────────────────────────────────────────────────────────────────
+  // A deleted page is kept by value, newest first, for 30 days (at most ten), on this device only. { id, at, idx, dk, label, page }.
+  const TRASH_MAX = 10, TRASH_DAYS = 30;
+  function trashPrune(list, nowMs) {
+    const now = Number(nowMs) || 0;
+    return (Array.isArray(list) ? list : []).filter((e) => e && e.page && e.id != null && (!now || now - Number(e.at || 0) <= TRASH_DAYS * 86400000));
+  }
+  function trashAdd(list, entry, nowMs) {
+    const kept = trashPrune(list, nowMs);
+    if (!entry || !entry.page || entry.page.id == null) return kept.slice(0, TRASH_MAX);
+    const id = String(entry.page.id);
+    const copy = JSON.parse(JSON.stringify(entry.page));
+    const next = [{ id, at: Number(nowMs) || 0, idx: Number(entry.idx) >= 0 ? Number(entry.idx) : 0, dk: isDk(copy.dk) ? copy.dk : '', label: String(entry.label || copy.name || copy.dk || ''), page: copy }].concat(kept.filter((e) => String(e.id) !== id));
+    return next.slice(0, TRASH_MAX);
+  }
+  /** { entry, list }: the entry with that id (or null) and the list without it. */
+  function trashTake(list, id) {
+    const l = Array.isArray(list) ? list : [];
+    const hit = l.find((e) => e && String(e.id) === String(id)) || null;
+    return { entry: hit, list: hit ? l.filter((e) => e !== hit) : l.slice() };
+  }
+
+  const api = { groupByMonth, tabSet, filterEntries, weekday, monthLabel, trashAdd, trashTake, trashPrune };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDNotebook = Object.assign(root.NBDNotebook || {}, api);
 })(typeof window !== 'undefined' ? window : null);

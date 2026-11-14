@@ -25,6 +25,13 @@
 <script type="module" src="/pro/daily-success/js/auth-init.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* DESIGN.md foundation tokens (audit M15), mirrored from docs/pro/css/ui-primitives.css so new cards use the same space, type and radius
+   steps. Values only: nothing below reads them yet, so no layout changes. tests/ds-flow-batch-2-2026-11-09.test.js keeps them in step. */
+:root{
+  --ui-space-1:4px;--ui-space-2:8px;--ui-space-3:12px;--ui-space-4:16px;--ui-space-5:20px;--ui-space-6:24px;--ui-space-8:32px;--ui-space-10:40px;--ui-space-12:48px;
+  --ui-fs-display:28px;--ui-fs-title:20px;--ui-fs-heading:16px;--ui-fs-body:14px;--ui-fs-body-sm:13px;--ui-fs-caption:12px;--ui-fs-label:11px;
+  --ui-radius-xs:4px;--ui-radius-sm:6px;--ui-radius-md:8px;--ui-radius-lg:12px;--ui-radius-pill:999px;
+}
 [data-theme="dark"], [data-theme="nbd-original"], [data-theme="default"]{
   --bg:#0A0C0F;--bar:#111418;--tabbar:#181C22;--taboff:#1a2a45;
   --paper:#f5f3ef;--ink:#1a1a1a;--rule:#d4c9b0;--muted:#8a9ab0;
@@ -59,8 +66,10 @@
 }
 body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
 
+/* SAFE AREA (audit Q6): the notch / status bar height. Everything pinned under the header adds it, so nothing slides beneath. */
+:root{--sat:env(safe-area-inset-top,0px);}
 /* TOPBAR */
-.topbar{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--bar);border-bottom:3px solid var(--ac);display:flex;align-items:center;justify-content:space-between;padding:0 14px;min-height:52px;gap:6px;overflow:hidden;}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--bar);border-bottom:3px solid var(--ac);display:flex;align-items:center;justify-content:space-between;padding:var(--sat) max(14px,env(safe-area-inset-right,0px)) 0 max(14px,env(safe-area-inset-left,0px));min-height:calc(52px + var(--sat));gap:6px;overflow:hidden;}
 .tbl{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 /* ── NBD Brand-aligned UI (April 2026 audit) ──
    Switched from DM Mono to Barlow family to match the main
@@ -71,7 +80,9 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-h
 .tbtitle{font-family:'Barlow Condensed',sans-serif;font-size:20px;color:#f4efe6;letter-spacing:.06em;white-space:nowrap;font-weight:700;text-transform:uppercase;}
 .tbl-divider{width:1px;height:22px;background:rgba(189,87,40,.3);flex-shrink:0;}
 .sdot{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;transition:color .25s;white-space:nowrap;font-weight:600;}
-.sdot.ok{color:#4caf82;}.sdot.dirty{color:var(--gold);}.sdot.neu{color:#8fa1b8;}
+.sdot.ok{color:#4caf82;}.sdot.dirty{color:var(--gold);}.sdot.neu{color:#8fa1b8;}.sdot.err{color:#ff8a80;}
+.sdot[role=button]{cursor:pointer;text-decoration:underline;padding:8px 0;}
+.sdot{flex-shrink:0;}
 .tbr{display:flex;align-items:center;gap:4px;flex-shrink:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.tbr::-webkit-scrollbar{display:none;}
 .btn{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;line-height:1.2;height:32px;display:flex;align-items:center;gap:4px;}
 .btn-red{background:var(--ac);color:#fff;}.btn-red:hover{background:#a14a22;}
@@ -81,26 +92,26 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-h
 @media(max-width:520px){.btn-lbl{display:none;}.tbr{gap:2px;}.btn{padding:4px 7px;}.btn-ico{padding:3px 4px;}}
 
 /* ONBOARD BANNER */
-.onboard-banner{position:fixed;top:52px;left:0;right:0;z-index:270;background:#151e2b;border-bottom:2px solid var(--ac);border-top:1px solid rgba(249,115,22,.2);padding:9px 16px;display:none;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;min-height:44px;}
+.onboard-banner{position:fixed;top:calc(52px + var(--sat));left:0;right:0;z-index:270;background:#151e2b;border-bottom:2px solid var(--ac);border-top:1px solid rgba(249,115,22,.2);padding:9px 16px;display:none;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;min-height:44px;}
 .onboard-banner.visible{display:flex;}
 .ob-msg{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.04em;font-weight:600;color:#aab;white-space:nowrap;}
 .ob-msg span{color:var(--ac-text,var(--ac));font-weight:700;}
 .ob-btns{display:flex;gap:6px;align-items:center;}
 .ob-dismiss{background:transparent;border:none;cursor:pointer;color:#8fa1b8;font-size:16px;padding:0 4px;line-height:1;margin-left:6px;}
 .ob-dismiss:hover{color:#aaa;}
-body.has-banner .tabrow{top:96px;}
-body.has-banner .tabrow.sp{top:144px;}
-body.has-banner .main{margin-top:148px;}
-body.has-banner .main.sp{margin-top:196px;}
-body.has-banner .sbar{top:96px;}
-body.has-banner .sdrop{top:148px;}
+body.has-banner .tabrow{top:calc(96px + var(--sat));}
+body.has-banner .tabrow.sp{top:calc(144px + var(--sat));}
+body.has-banner .main{margin-top:calc(148px + var(--sat));}
+body.has-banner .main.sp{margin-top:calc(196px + var(--sat));}
+body.has-banner .sbar{top:calc(96px + var(--sat));}
+body.has-banner .sdrop{top:calc(148px + var(--sat));}
 
 /* SEARCH */
-.sbar{position:fixed;top:52px;left:0;right:0;z-index:290;background:var(--bar);border-bottom:1px solid #1e2d40;padding:7px 14px;display:none;gap:8px;align-items:center;}
+.sbar{position:fixed;top:calc(52px + var(--sat));left:0;right:0;z-index:290;background:var(--bar);border-bottom:1px solid #1e2d40;padding:7px 14px;display:none;gap:8px;align-items:center;}
 .sbar.open{display:flex;}
 .sinp{flex:1;background:var(--sbg);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 12px;font-family:'Barlow',sans-serif;font-size:12px;color:var(--stxt);outline:none;}
 .sinp:focus{border-color:var(--ac);}
-.sdrop{position:fixed;top:100px;left:14px;right:14px;z-index:280;background:var(--bar);border:1px solid #243447;border-radius:3px;max-height:260px;overflow-y:auto;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+.sdrop{position:fixed;top:calc(100px + var(--sat));left:14px;right:14px;z-index:280;background:var(--bar);border:1px solid #243447;border-radius:3px;max-height:260px;overflow-y:auto;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5);}
 .sdrop.open{display:block;}
 .sri{padding:9px 14px;cursor:pointer;border-bottom:1px solid #1b2535;}.sri:hover{background:#1b2535;}
 .srd{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gold);letter-spacing:.1em;margin-bottom:2px;}
@@ -112,8 +123,8 @@ body.has-banner .sdrop{top:148px;}
 button,input,select,textarea{font-family:inherit;}
 
 /* TABS */
-.tabrow{position:fixed;left:0;right:0;z-index:250;top:52px;background:var(--tabbar);border-bottom:2px solid var(--tb);display:flex;align-items:flex-end;overflow-x:auto;padding:0 10px;gap:2px;scrollbar-width:none;}
-.tabrow.sp{top:100px;}.tabrow::-webkit-scrollbar{display:none;}
+.tabrow{position:fixed;left:0;right:0;z-index:250;top:calc(52px + var(--sat));background:var(--tabbar);border-bottom:2px solid var(--tb);display:flex;align-items:flex-end;overflow-x:auto;padding:0 10px;gap:2px;scrollbar-width:none;}
+.tabrow.sp{top:calc(100px + var(--sat));}.tabrow::-webkit-scrollbar{display:none;}
 .tab{flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 13px 6px;border-radius:6px 6px 0 0;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.04em;font-weight:600;color:var(--tt);background:var(--taboff);border:1px solid var(--tb);border-bottom:none;transition:all .15s;max-width:160px;user-select:none;}
 .tab:hover{color:#ccd;}.tab.active{background:var(--paper);color:var(--ink);font-weight:600;}
 .tab.dtab{color:var(--ac-text,var(--ac));}.tab.dtab.active{background:var(--bar);color:var(--ac-text,var(--ac));border-color:var(--ac);}
@@ -125,8 +136,8 @@ button,input,select,textarea{font-family:inherit;}
 .today-dot{display:inline-block;width:6px;height:6px;background:var(--ac);border-radius:50%;margin-left:3px;flex-shrink:0;position:relative;top:-1px;}
 
 /* MAIN */
-.main{padding:20px 16px 80px;display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:102px;}
-.main.sp{margin-top:150px;}
+.main{padding:20px max(16px,env(safe-area-inset-right,0px)) calc(80px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:calc(102px + var(--sat));}
+.main.sp{margin-top:calc(150px + var(--sat));}
 
 /* COVER */
 .cover{background:linear-gradient(135deg, #0a1018 0%, #0d1928 100%);width:100%;max-width:760px;border-radius:8px;padding:42px 42px 34px;position:relative;overflow:hidden;border-top:4px solid var(--ac);}
@@ -169,9 +180,6 @@ button,input,select,textarea{font-family:inherit;}
 .dsc-bar-fill{height:100%;background:linear-gradient(90deg,var(--ac),var(--gold));border-radius:2px;transition:width .4s ease;}
 
 /* SECTION CARDS */
-.pc{background:var(--paper);width:100%;max-width:760px;border-radius:4px;overflow:hidden;box-shadow:var(--shad);}
-.ph{display:flex;align-items:center;gap:11px;padding:13px 26px;border-bottom:2px solid var(--ink);cursor:pointer;user-select:none;transition:background .15s;}
-.ph:hover{background:rgba(0,0,0,.03);}
 .collapse-ico{margin-left:auto;font-size:13px;color:var(--muted);opacity:.45;transition:transform .22s;flex-shrink:0;}
 .pc.collapsed .collapse-ico{transform:rotate(-90deg);}
 .pc{background:var(--paper);width:100%;max-width:760px;border-radius:8px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s;}
@@ -529,8 +537,8 @@ canvas{max-width:100%;display:block;}
 
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
-<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=22">
-<link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=11">
+<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=23">
+<link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=13">
 <link rel="stylesheet" href="/pro/daily-success/css/week-strip.css?v=2">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=2">
 <link rel="stylesheet" href="/pro/daily-success/css/stats.css?v=1">
@@ -543,6 +551,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/export.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/notebook.css?v=2">
+<link rel="stylesheet" href="/pro/daily-success/css/flow-batch-3.css?v=2">
 </head>
 <body>
 <!-- ═══════════════════════════════════════════════════════════════
@@ -782,10 +791,10 @@ canvas{max-width:100%;display:block;}
 .main > *{width:100%;max-width:760px;box-sizing:border-box;}
 
 /* STICKY TODAY BAR (2026-10-21): floors met / calories / protein / workout, pinned under the tab row on the day page. */
-.today-bar{position:sticky;top:106px;z-index:240;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:6px 14px;background:var(--bar);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shad);font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.04em;color:var(--on-dark,#c3cfdf);white-space:nowrap;}
+.today-bar{position:sticky;top:calc(106px + var(--sat));z-index:240;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:6px 14px;background:var(--bar);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shad);font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.04em;color:var(--on-dark,#c3cfdf);white-space:nowrap;}
 .today-bar b{color:#fff;font-weight:700;}
 .today-bar .tb-i.ok,.today-bar .tb-i.ok b{color:var(--ac-on-dark,#E4783F);}
-body.has-banner .today-bar{top:148px;}
+body.has-banner .today-bar{top:calc(148px + var(--sat));}
 
 /* PHONE TAP TARGETS (2026-10-21): the header buttons, tabs, habit dots and small chips were 15-36 px tall. Apple's
    floor is 44. Visual size stays small where it must (habit dots, tab close); the hit area grows with a pseudo-element. */
@@ -810,29 +819,22 @@ body.has-banner .today-bar{top:148px;}
    stacked cards (name, then sets / reps / weight, then notes) with 44 px inputs; the rest get room. */
 @media (max-width:560px){
   .pr-grid{grid-template-columns:1fr;}
-  /* two-row header: brand + status on row 1 (52px), a full-width scrolling button strip on row 2 (48px). The ten header
-     controls used to share ~50px beside the title, so 🎨 / ⚙️ / 📖 sat off-screen at x=419 on a 390px phone. Every fixed
-     bar below follows the 100px header: tab row 100, content 150, search bar 100, banner 100 (+96 tall). */
-  .topbar{flex-wrap:wrap;height:100px;align-content:flex-start;padding:0 12px;}
-  .tbl{width:100%;height:52px;}
-  .tbr{width:100%;height:48px;flex-shrink:0;gap:6px;}
-  .tbr > *{flex-shrink:0;}
-  /* the strip scrolls sideways (DELETE / CSV / PDF / SAVE live past the edge), and the scrollbar is hidden: fade the right edge so a
-     half-cut button reads as "more this way", and end the strip with a spacer so the last button is clear of the fade once scrolled */
-  .tbr{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);}
-  .tbr::after{content:"";flex:0 0 30px;}
-  .tabrow{top:100px;}
-  .tabrow.sp{top:148px;}
-  .main{margin-top:150px;}
-  .sbar{top:100px;}
-  .sdrop{top:148px;}
-  .onboard-banner{top:100px;height:96px;padding:6px 12px;gap:4px;align-content:center;}
+  /* one-row header (flow batch 3, D6): the old second row of ten controls is the menu (the ⋯ button) now, so the header is 52px like the
+     desktop one and the tab row, content, search bar and Today bar take their default offsets. Only the onboarding banner is taller here. */
+  .topbar{padding:var(--sat) max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px));gap:4px;}
+  .tbl{min-width:0;flex:1 1 auto;gap:6px;}
+  .tbl-divider{display:none;}   /* the logo stays: it is the way back to the CRM (the menu has it too) */
+  .sd-l{display:none;}   /* the sync chip's long-only words ("ON PHONE", "TAP TO") */
+  .tbtitle{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:17px;}
+  .tbr{flex:0 0 auto;gap:0;overflow:visible;}
+  .tbr .btn-ico{min-width:44px;min-height:44px;justify-content:center;}
+  .onboard-banner{top:calc(52px + var(--sat));height:96px;padding:6px 12px;gap:4px;align-content:center;}
   .ob-msg{white-space:normal;text-align:center;width:100%;line-height:1.25;}
-  .today-bar{top:150px;font-size:13px;gap:6px;padding:6px 10px;}
-  body.has-banner .today-bar{top:246px;}
-  body.has-banner .tabrow{top:196px;}
-  body.has-banner .main{margin-top:248px;}
-  body.has-banner .sbar{top:196px;}
+  .today-bar{top:calc(102px + var(--sat));font-size:13px;gap:6px;padding:6px 10px;}
+  body.has-banner .today-bar{top:calc(198px + var(--sat));}
+  body.has-banner .tabrow{top:calc(148px + var(--sat));}
+  body.has-banner .main{margin-top:calc(200px + var(--sat));}
+  body.has-banner .sbar{top:calc(148px + var(--sat));}
   .mbtns .btn{padding:10px 8px;letter-spacing:.02em;}
   #ob-next{white-space:nowrap;}
   .ob-btns{width:100%;justify-content:center;}
@@ -924,6 +926,19 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 .dt td input:focus-visible,#ex-tbody td input:focus-visible{outline-offset:-2px;}
 [role="dialog"]:focus{outline:none;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
+/* QUICK WINS (2026-11-09 audit, docs: documentation/qa/daily-success-ux-audit-2026-11-09.md) */
+/* Q2: every text field is 16 px on a phone, so iOS never zooms the page when one is tapped. !important, because several fields carry an inline size (the Diet totals row). */
+@media (max-width:768px){
+  :root:root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=color]):not([type=file]):not([type=hidden]):not([type=image]),:root:root textarea,:root:root select{font-size:16px!important;}
+}
+/* Q6: the sync pill ("Saving...", "Synced", "Sync failed"), positioned here by its class: just under the header, past the inset. */
+.ds-sync-badge{position:fixed;top:calc(var(--sat) + 60px);right:max(16px,env(safe-area-inset-right,0px));z-index:9999;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(189,87,40,.12);border:1px solid rgba(189,87,40,.3);color:var(--ac-text,#E4783F);transition:opacity .4s;opacity:0;pointer-events:none;}
+@media (max-width:560px){.ds-sync-badge{top:calc(var(--sat) + 104px);}}
+/* Q9: the Today bar numbers are buttons that look the same as before; 44 px tall. */
+.today-bar button.tb-i{background:transparent;border:0;margin:0;padding:0 6px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border-radius:8px;}
+/* Q10: the field a search hit landed on, ringed for a couple of seconds. */
+.srch-flash{outline:2px solid var(--ac-text,var(--ac,#BD5728));outline-offset:2px;animation:srchFlash 2s ease-out;}
+@keyframes srchFlash{0%{box-shadow:0 0 0 8px rgba(189,87,40,.5);}100%{box-shadow:0 0 0 8px rgba(189,87,40,0);}}
 </style>
 
 <!-- Global #nbd-pro-nav removed April 2026 to fix double-header bug. Navigation back to NBD Pro is via the NBD PRO logo in the .topbar below, which links to /pro/dashboard.html. -->
@@ -1056,17 +1071,22 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
     <span id="autosave-badge" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--grn);letter-spacing:.08em;opacity:0;transition:opacity .4s;margin-left:4px;"></span>
   </div>
   <div class="tbr">
-    <button class="btn-ico" data-action="toggle-search" title="Search (Ctrl+F)" aria-label="Search all pages">🔍</button>
-          <button class="btn-ico" id="themeBtn" data-action="nbd-picker-open" title="Appearance — Themes, Fonts, Custom" aria-label="Appearance: themes, fonts, custom">🎨</button>
-    <button class="btn-ico" data-action="open-onboard" title="Customize Your Daily OS" aria-label="Customize your Daily OS">⚙️</button>
-    <button class="btn-ico" data-action="open-welcome-guide" title="Welcome Guide &amp; Install" aria-label="Welcome guide and install">📖</button>
-    <button class="btn btn-ghost" data-action="smart-new-page">+ NEW</button>
-    <button class="btn btn-ghost" data-action="open-rename">RENAME</button>
-    <button class="btn btn-ghost" data-action="trigger-del">DELETE</button>
-    <button class="btn btn-ghost" data-action="export-csv">CSV</button>
-    <button class="btn btn-gold" data-action="do-print">PDF</button>
-    <button class="btn btn-red" data-action="save-now">SAVE</button>
+    <button class="btn-ico" data-action="qj-open" title="Search and jump (Ctrl+K)" aria-label="Search and jump to anything">🔍</button>
+    <button class="btn-ico" id="dsMenuBtn" data-action="menu-toggle" title="More" aria-label="More: save, new, rename, export, appearance, delete" aria-haspopup="menu" aria-expanded="false" aria-controls="dsMenu">⋯</button>
   </div>
+</div>
+<!-- HEADER MENU (flow batch 3, D6): everything that used to crowd the header, Delete last in danger styling. menu-ui.js opens and closes it. -->
+<div class="ds-menu" id="dsMenu" role="menu" aria-label="More" hidden>
+  <a class="ds-mi" role="menuitem" href="/pro/dashboard.html">Back to the CRM</a>
+  <button type="button" class="ds-mi" role="menuitem" data-action="save-now">Save now</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="smart-new-page">New (jump to today)</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-rename">Rename this page</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="export-csv">Export CSV</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="do-print">Print or PDF</button>
+  <button type="button" class="ds-mi" role="menuitem" id="themeBtn" data-action="nbd-picker-open">Appearance</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-onboard">Customize</button>
+  <button type="button" class="ds-mi" role="menuitem" data-action="open-welcome-guide">Guide</button>
+  <button type="button" class="ds-mi danger" role="menuitem" data-action="trigger-del">Delete this page</button>
 </div>
 
 <!-- ONBOARD BANNER -->
@@ -1173,29 +1193,32 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 </div>
 
 <script src="/pro/js/toast.js?v=1"></script>
-<script src="/pro/daily-success/js/ds-sync-logic.js?v=2"></script>
+<script src="/pro/daily-success/js/ds-sync-logic.js?v=3"></script>
 <script src="/pro/daily-success/js/weekly-targets-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/review-logic.js?v=5"></script>
-<script src="/pro/daily-success/js/day-layout-logic.js?v=3"></script>
+<script src="/pro/daily-success/js/day-layout-logic.js?v=4"></script>
 <script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/notebook-logic.js?v=1"></script>
+<script src="/pro/daily-success/js/notebook-logic.js?v=2"></script>
+<script src="/pro/daily-success/js/sync-chip-logic.js?v=1"></script>
+<script src="/pro/daily-success/js/sync-chip-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/nav-router.js?v=2"></script>
 <script src="/pro/daily-success/js/app.js"></script>
-<script src="/pro/daily-success/js/notebook-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/notebook-ui.js?v=2"></script>
 <script src="/pro/daily-success/js/exercise-notes-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=19"></script>
 <script src="/pro/daily-success/js/volume-range-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/workout-coach.js?v=24"></script>
+<script src="/pro/daily-success/js/workout-coach.js?v=28"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/tracker-history-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/tracker-history-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/business-tile-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/business-tile-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/checkin-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/checkin-ui.js?v=1" defer></script>
-<script src="/pro/daily-success/js/eod-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/eod-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/checkin-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/eod-logic.js?v=2" defer></script>
+<script src="/pro/daily-success/js/eod-ui.js?v=3" defer></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/measurements-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/measurements-ui.js?v=4" defer></script>
 <script src="/pro/daily-success/js/heatmap-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/heatmap-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/progress-charts-logic.js?v=2" defer></script>
@@ -1207,32 +1230,38 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/layout-ui.js?v=4" defer></script>
 <script src="/pro/daily-success/js/xp-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/cockpit-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/cockpit-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/cockpit-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/quest-logic.js?v=2" defer></script>
-<script src="/pro/daily-success/js/quest-ui.js?v=2" defer></script>
-<script src="/pro/daily-success/js/onething-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/quest-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/onething-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/onething-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/journal-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/weekstrip-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/arcade-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/arcade-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/food-log-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/food-log.js?v=2"></script>
+<script src="/pro/daily-success/js/food-log.js?v=3"></script>
 <script src="/pro/daily-success/js/food-search-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/food-search-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/adaptive-calories-ui.js?v=1" defer></script>
-<script src="/pro/daily-success/js/review-ui.js?v=7"></script>
+<script src="/pro/daily-success/js/adaptive-calories-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/review-ui.js?v=9"></script>
 <script src="/pro/daily-success/js/week-training-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/money-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/money-ui.js?v=1"></script>
+<script src="/pro/daily-success/js/money-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/export-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/export-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/export-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/accent-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/stats-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/stats-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/a11y-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/quickjump-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/floor-tick-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/menu-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/floor-tick-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/nextup-ui.js?v=1" defer></script>
+<script src="/pro/daily-success/js/quickjump-ui.js?v=1" defer></script>
 
 
 <!-- NBD UNIFIED APPEARANCE ENGINE MODALS -->
@@ -1327,5 +1356,5 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="nbd-toast" id="nbd-toast"></div>
 
 </body>
-  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=6"></script>
+  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=11"></script>
 </html>

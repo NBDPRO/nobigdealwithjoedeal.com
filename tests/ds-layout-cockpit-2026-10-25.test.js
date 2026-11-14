@@ -36,17 +36,17 @@ const hist = [sess('2026-10-24', [['bb_bench', 6], ['incline_db', 3]]), sess('20
 console.log('\n1. the HUD markup');
 {
   const h = html({ summary: { floors: '3/5', allMet: false, cal: '1,240', protein: '95', workout: true }, targets: { calories: 2400, protein: 150 }, sessions: hist, today: TODAY, coach: C, xp: X });
-  const tiles = h.match(/<div class="ck-t[^"]*">/g) || [];
+  const tiles = h.match(/<(?:div|button)[^>]* class="ck-t[^"]*">/g) || [];
   ok('eight tiles: four for today, four for the week', tiles.length === 8, String(tiles.length));
   ok('today: floors 3/5, calories of 2,400, protein 95 g of 150 g, workout Done', /Floors<\/span><b class="ck-v">3\/5/.test(h) && /of 2,400/.test(h) && /95 g<\/b>/.test(h) && /of 150 g/.test(h) && /Workout<\/span><b class="ck-v">Done/.test(h));
-  ok('the week: 1 workout, 9 hard sets +4 vs last week, a streak, a level', /Workouts<\/span><b class="ck-v">1/.test(h) && /Hard sets<\/span><b class="ck-v">9<\/b><small class="ck-s">\+4 vs last wk/.test(h) && /Streak<\/span>/.test(h) && !/Training streak/.test(h) && /Lv \d/.test(h));
-  ok('a done workout and a live streak are marked ok', /class="ck-t ok"><span class="ck-l">Workout/.test(h) && /class="ck-t ok"><span class="ck-l">Streak/.test(h));
+  ok('the week: 1 workout, 9 hard sets +4 vs last week, a streak, a level', /Workouts<\/span><b class="ck-v">1/.test(h) && /Hard sets<\/span><b class="ck-v">9<\/b><small class="ck-s">\+4 vs last wk/.test(h) && /Training streak<\/span>/.test(h) && /Lv \d/.test(h));
+  ok('a done workout and a live streak are marked ok', /class="ck-t ok"><span class="ck-l">Workout/.test(h) && /class="ck-t ok"><span class="ck-l">Training streak/.test(h));
   ok('the behind line names muscles with their labels, never ids', /Behind this week: /.test(h) && /Hams &amp; glutes|Shoulders/.test(h) && !/hams,|quads,/.test(h));
   ok('no inline style attribute anywhere', !/style="/.test(h));
   const none = html({ summary: {}, targets: {}, sessions: [], today: TODAY, coach: C, xp: X });
-  ok('no data: dashes and "no target", never NaN or undefined', /no target/.test(none) && !/NaN|undefined/.test(none) && (none.match(/<div class="ck-t/g) || []).length === 8);
+  ok('no data: dashes and "no target", never NaN or undefined', /no target/.test(none) && !/NaN|undefined/.test(none) && (none.match(/<(?:div|button)[^>]* class="ck-t/g) || []).length === 8);
   ok('all floors met flags the floors tile ok and says all met', /class="ck-t ok"><span class="ck-l">Floors<\/span><b class="ck-v">5\/5<\/b><small class="ck-s">all met/.test(html({ summary: { floors: '5/5', allMet: true }, sessions: [], today: TODAY, coach: C, xp: X })));
-  ok('without the coach or xp module the day tiles still render (four tiles, no behind line)', (() => { const h2 = html({ summary: { floors: '1/2' }, sessions: hist, today: TODAY }); return (h2.match(/<div class="ck-t/g) || []).length === 4 && !/Behind/.test(h2); })());
+  ok('without the coach or xp module the day tiles still render (four tiles, no behind line)', (() => { const h2 = html({ summary: { floors: '1/2' }, sessions: hist, today: TODAY }); return (h2.match(/<(?:div|button)[^>]* class="ck-t/g) || []).length === 4 && !/Behind/.test(h2); })());
   const evil = html({ summary: { floors: '<img src=x onerror=1>', cal: '"', protein: '' }, targets: {}, sessions: [], today: TODAY, coach: C, xp: X });
   ok('page text is escaped', !/<img src=x/.test(evil) && /&lt;img/.test(evil));
 }

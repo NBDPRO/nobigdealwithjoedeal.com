@@ -89,7 +89,7 @@ console.log('\n5. Daily Success page wiring');
   ok('a11y-logic.js loads before app.js (app.js reads it for scrolling)', iA > 0 && iA < iApp);
   ok('a11y-ui.js is an external deferred script (strict CSP)', iUi > 0 && /<script src="[^"]*a11y-ui\.js[^"]*" defer><\/script>/.test(HTML));
   const ico = HTML.match(/<button class="btn-ico"[^>]*>/g) || [];
-  ok('every icon-only topbar button carries an aria-label', ico.length >= 4 && ico.every((b) => /aria-label="[^"]{3,}"/.test(b)), ico.filter((b) => !/aria-label=/.test(b)).join(' '));
+  ok('every icon-only topbar button carries an aria-label (flow batch 3: the search icon and the menu button; the rest moved into the menu)', ico.length >= 2 && ico.every((b) => /aria-label="[^"]{3,}"/.test(b)), ico.filter((b) => !/aria-label=/.test(b)).join(' '));
   ok('the dismiss ✕ of the onboarding banner is named', /class="ob-dismiss"[^>]*aria-label="[^"]+"/.test(HTML));
   ok('the search box has a label of its own', /<input class="sinp" id="sinp"[^>]*aria-label="[^"]+"/.test(HTML));
   const styles = HTML.split('<style');

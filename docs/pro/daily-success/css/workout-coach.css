@@ -65,6 +65,13 @@ body.wc-lock { overflow: hidden; }
   z-index: 3; }
 .wc-rest small { font-size: 12px; font-weight: 400; color: #9fb4d6; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.wc-restbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: calc(100% - 32px); max-width: 608px; box-sizing: border-box; min-height: 44px; background: #13233f; border: 1px solid var(--blu, #4A9EFF);
+  color: #fff; border-radius: 12px; padding: 4px 6px 4px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 14px; font-weight: 700; z-index: 900; }
+.wc-restbar[hidden] { display: none; }
+.wc-restbar-b { min-width: 64px; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: #9fc3ff; font: inherit; font-weight: 700; cursor: pointer; }
+
 .wc-sum { display: flex; gap: 10px; margin: 12px 0; }
 .wc-sum > div { flex: 1; background: rgba(255, 255, 255, .05); border-radius: 10px; padding: 12px; text-align: center; font-size: 12px; color: #8b9bb4; }
 .wc-sum b { display: block; font-size: 22px; color: #fff; }
