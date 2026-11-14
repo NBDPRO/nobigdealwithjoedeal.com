@@ -66,6 +66,21 @@ const ready = { '2026-11-13': { sleep: 2, sore: 1, energy: 2 } };
     ok('a routine deleted here (newer stamp) stays deleted in the cloud', (h.cloud.get('userSettings/U1').dsCoachRoutines || []).map((x) => x.id).join(',') === 'rA', JSON.stringify(h.cloud.get('userSettings/U1').dsCoachRoutines));
   }
 
+  console.log('\n4b. a settings save that races the first cloud read does not upload never-synced lists as newest');
+  {
+    let release; const hold = new Promise((r) => { release = r; });
+    const cloud = { 'userSettings/U1': { dsMeasurements: meas, dsMeasurementsAt: 50 } };
+    const old = [{ date: '2026-10-01', site: 'waist', mm: 950 }];
+    const h = boot({ storage: { nbd_last_uid: 'U1', nbd_ds_measurements: old, nbd_ds_food: { favs: [] }, nbd_ds_food_at: '60' }, cloud, holdReads: hold });
+    await h.signIn('U1');                                   // onAuth is waiting on the cloud read
+    await h.window.NBDDsCloud.pushSettings();               // e.g. a food favourite saved meanwhile
+    const racedAt = (h.cloud.get('userSettings/U1') || {}).dsMeasurementsAt;
+    release(); await h.flush(); await h.advance(1000);
+    const us = h.cloud.get('userSettings/U1');
+    ok('the raced push did not stamp this phone\'s never-synced measurements as newest', racedAt === 50, String(racedAt));
+    ok('after the read, the two copies are merged (both entries kept)', (us.dsMeasurements || []).length === 2, JSON.stringify(us.dsMeasurements));
+  }
+
   console.log('\n5. every coach write is stamped so it syncs');
   {
     const h = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-11-14' });

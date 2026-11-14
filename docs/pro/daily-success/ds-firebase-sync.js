@@ -256,9 +256,11 @@ async function pushSettingsOrThrow() {
   const patch = {};
   for (const s of SETTINGS) {
     const loc = localSetting(s);
-    if (loc.value == null) continue;
+    // Never-stamped (written before it synced, or before 2026-11-14 for the device-only lists): wait for syncSettings to compare
+    // it with the cloud copy and stamp it. Sent with a fresh stamp here, it would beat another device's newer copy unseen.
+    if (loc.value == null || !loc.at) continue;
     patch[s.field] = loc.value;
-    patch[s.field + 'At'] = loc.at || Date.now();
+    patch[s.field + 'At'] = loc.at;
   }
   if (!Object.keys(patch).length) return;
   await setDoc(doc(db, 'userSettings', _uid), patch, { merge: true });
@@ -295,6 +297,8 @@ async function syncSettings() {
       }
       restored = true;
     } else if (which === 'local' && JSON.stringify(loc.value) !== JSON.stringify(cloud.value)) {
+      // Seen against the cloud now: a never-stamped local copy gets its stamp here, so the push below sends it.
+      if (!loc.at) localStorage.setItem(s.key + '_at', String(Date.now()));
       needPush = true;
     }
   }
