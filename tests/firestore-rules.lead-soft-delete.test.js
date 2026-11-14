@@ -66,7 +66,7 @@ async function run() {
   const platform = ctx('pat', { role: 'admin' });
   const otherAdmin = ctx('bob', { role: 'company_admin', companyId: 'co-b' });
   const otherMgr = ctx('mo', { role: 'manager', companyId: 'co-b' });
-  const { setDoc, updateDoc, doc, serverTimestamp, deleteField } = require('firebase/firestore');
+  const { setDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } = require('firebase/firestore');
 
   const lead = (userId, companyId, extra) => Object.assign({ userId, companyId, firstName: 'Pat', lastName: 'Home', stage: 'new' }, extra || {});
   const ids = {
@@ -85,6 +85,11 @@ async function run() {
     hide: lead('alice', 'co-a'),
     probe: lead('alice', 'co-a', { _test: true }),
     e2e: lead('alice', 'co-a', { e2eTestData: true }),
+    mgrOwn2: lead('eve', 'co-a'),            // a second lead the manager owns (hard delete)
+    repDel: lead('alice', 'co-a'),           // hard-delete targets
+    adminDel: lead('alice', 'co-a'),
+    jobLead: lead('alice', 'co-a'),          // parents for the jobs section
+    mgrJobLead: lead('eve', 'co-a'),
   };
   await env.withSecurityRulesDisabled(async (c) => {
     const d = c.firestore();
@@ -113,7 +118,9 @@ async function run() {
   // -- what owners keep (unchanged from before)
   await check('a rep still soft-deletes their own lead', 'allow', updateDoc(L(rep, 'repLead2'), binIt()));
   await check('another rep cannot soft-delete it (not theirs, not staff)', 'deny', updateDoc(L(rep2, 'repLead3'), binIt()));
-  await check('a manager still soft-deletes a lead they own', 'allow', updateDoc(L(mgr, 'mgrOwn'), binIt()));
+  // Jo (2026-11-14, decision a): managers do not delete leads at all, their own included.
+  await check('a manager cannot soft-delete even a lead they own', 'deny', updateDoc(L(mgr, 'mgrOwn'), binIt()));
+  await check('positive control: the manager still edits their own lead', 'allow', updateDoc(L(mgr, 'mgrOwn'), { notes: 'mine' }));
   await check('a solo owner (no claims) soft-deletes their own lead', 'allow', updateDoc(L(solo, 'soloLead'), binIt()));
   await check('a solo owner restores it', 'allow', updateDoc(L(solo, 'soloLead'), restore()));
   await check('a platform admin soft-deletes a tenant lead', 'allow', updateDoc(L(platform, 'repLead3'), binIt()));
@@ -142,12 +149,51 @@ async function run() {
   await check('a manager cannot set e2eTestData on a teammate\'s lead', 'deny', updateDoc(L(mgr, 'plain'), { e2eTestData: true }));
   await check('a manager cannot clear e2eTestData on a teammate\'s lead', 'deny', updateDoc(L(mgr, 'e2e'), { e2eTestData: false }));
   await check('another rep cannot set e2eTestData on alice\'s lead', 'deny', updateDoc(L(rep2, 'plain'), { e2eTestData: true }));
-  await check('positive control: a manager sets it on a lead they own', 'allow', updateDoc(L(mgr, 'mgrOwn'), { e2eTestData: true }));
+  await check('a manager cannot set it on a lead they own either (no deletes by managers)', 'deny', updateDoc(L(mgr, 'mgrOwn'), { e2eTestData: true }));
   await check('positive control: the lead\'s own rep tags it (the E2E post-hoc tag)', 'allow', updateDoc(L(rep, 'plain'), { e2eTestData: true }));
   await check('positive control: a company_admin clears it', 'allow', updateDoc(L(coAdmin, 'plain'), { e2eTestData: false }));
   await check('positive control: an ordinary edit of an e2e lead (flag untouched) is allowed', 'allow', updateDoc(L(rep, 'e2e'), { notes: 'still a test lead' }));
   await check('positive control: a create may still carry _test (the rules probe)', 'allow',
     setDoc(doc(rep, 'leads/newprobe'), { userId: 'alice', companyId: 'co-a', firstName: 'Test', stage: 'New', meter: 'sample', _test: true }));
+
+  // -- the hard delete (allow delete): the owner side only, no manager (Jo, decision a)
+  await check('a manager cannot hard-delete a lead they own', 'deny', deleteDoc(L(mgr, 'mgrOwn2')));
+  await check('a manager cannot hard-delete a teammate\'s lead', 'deny', deleteDoc(L(mgr, 'repDel')));
+  await check('positive control: the lead\'s own rep hard-deletes it', 'allow', deleteDoc(L(rep, 'repDel')));
+  await check('positive control: a company_admin hard-deletes a tenant lead', 'allow', deleteDoc(L(coAdmin, 'adminDel')));
+  await check('positive control: a company_admin hard-deletes the manager\'s own lead', 'allow', deleteDoc(L(coAdmin, 'mgrOwn2')));
+
+  // -- jobs (leads/{id}/jobs/{jobId}): the same owner-side-only soft delete
+  const job = (userId, extra) => Object.assign({ userId, companyId: 'co-a', stage: 'new', stageRole: 'new', title: 'Job' }, extra || {});
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    for (const id of ['j1', 'j2', 'j3', 'j4', 'j5', 'jdel1', 'jdel2']) await setDoc(doc(d, 'leads/jobLead/jobs/' + id), job('alice'));
+    await setDoc(doc(d, 'leads/jobLead/jobs/jbin'), job('alice', { deleted: true, deletedAt: new Date('2026-11-01') }));
+    await setDoc(doc(d, 'leads/jobLead/jobs/jbin2'), job('alice', { deleted: true, deletedAt: new Date('2026-11-01') }));
+    await setDoc(doc(d, 'leads/mgrJobLead/jobs/m1'), job('eve'));
+    await setDoc(doc(d, 'leads/mgrJobLead/jobs/mdel'), job('eve'));
+  });
+  const J = (db, lid, id) => doc(db, 'leads/' + lid + '/jobs/' + id);
+  await check('jobs: a manager cannot soft-delete a teammate\'s job', 'deny', updateDoc(J(mgr, 'jobLead', 'j1'), binIt()));
+  await check('jobs: a manager cannot set deleted alone', 'deny', updateDoc(J(mgr, 'jobLead', 'j1'), { deleted: true }));
+  await check('jobs: a manager cannot set deletedAt or isDeleted', 'deny', updateDoc(J(mgr, 'jobLead', 'j1'), { isDeleted: true, deletedAt: serverTimestamp() }));
+  await check('jobs: positive control: the manager still moves that job\'s stage', 'allow', updateDoc(J(mgr, 'jobLead', 'j1'), { stage: 'contacted', stageRole: 'active' }));
+  await check('jobs: a manager cannot restore a binned job', 'deny', updateDoc(J(mgr, 'jobLead', 'jbin'), restore()));
+  await check('jobs: a manager cannot soft-delete a job on a lead they own', 'deny', updateDoc(J(mgr, 'mgrJobLead', 'm1'), binIt()));
+  await check('jobs: a manager cannot create a job already deleted', 'deny', setDoc(J(mgr, 'jobLead', 'jnew'), job('alice', { deleted: true })));
+  await check('jobs: positive control: the manager creates the same job live', 'allow', setDoc(J(mgr, 'jobLead', 'jnew2'), job('alice')));
+  await check('jobs: positive control: the lead\'s own rep soft-deletes the job', 'allow', updateDoc(J(rep, 'jobLead', 'j2'), binIt()));
+  await check('jobs: positive control: a company_admin soft-deletes a tenant job', 'allow', updateDoc(J(coAdmin, 'jobLead', 'j3'), binIt()));
+  await check('jobs: positive control: a company_admin restores a binned job', 'allow', updateDoc(J(coAdmin, 'jobLead', 'jbin'), restore()));
+  await check('jobs: positive control: the lead\'s own rep restores theirs', 'allow', updateDoc(J(rep, 'jobLead', 'jbin2'), restore()));
+  await check('jobs: deleted must be a bool (owner writes \'yes\')', 'deny', updateDoc(J(rep, 'jobLead', 'j4'), { deleted: 'yes' }));
+  await check('jobs: another rep cannot soft-delete alice\'s job', 'deny', updateDoc(J(rep2, 'jobLead', 'j4'), binIt()));
+  await check('jobs: another tenant\'s company_admin cannot soft-delete it', 'deny', updateDoc(J(otherAdmin, 'jobLead', 'j4'), binIt()));
+  await check('jobs: a viewer cannot', 'deny', updateDoc(J(vic, 'jobLead', 'j5'), binIt()));
+  await check('jobs: a manager cannot hard-delete a teammate\'s job', 'deny', deleteDoc(J(mgr, 'jobLead', 'jdel1')));
+  await check('jobs: a manager cannot hard-delete a job on a lead they own', 'deny', deleteDoc(J(mgr, 'mgrJobLead', 'mdel')));
+  await check('jobs: positive control: the lead\'s own rep hard-deletes a job', 'allow', deleteDoc(J(rep, 'jobLead', 'jdel1')));
+  await check('jobs: positive control: a company_admin hard-deletes a job', 'allow', deleteDoc(J(coAdmin, 'jobLead', 'jdel2')));
 
   // -- tenant isolation (unchanged)
   await check('another tenant\'s company_admin cannot restore (clear the markers on) a co-a lead', 'deny', updateDoc(L(otherAdmin, 'repLead2'), restore()));

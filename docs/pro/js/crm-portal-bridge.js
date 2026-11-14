@@ -647,7 +647,8 @@ let _pendingDeleteId = null;
 // Who may soft-delete / restore a lead (2026-11-14, Jo: managers do not
 // delete leads): the client mirror of firestore.rules softDeleteWriteOk() —
 // a platform admin, a company_admin of the lead's tenant, or the lead's own
-// non-viewer owner. ONE predicate for Delete, bulk Delete, the Deleted bin's
+// owner unless a viewer or a manager (firestore.rules ownerSideDeleter; the
+// hard delete has the same writers). ONE predicate for Delete, bulk Delete, the Deleted bin's
 // buttons, Restore and the card menu (window.nbdMayDeleteLead). It never
 // fails open: 'loading' while the claims are unset, 'unknown' for an id it
 // can't find (in window._leads or the bin it last drew). Lives here, not in
@@ -663,7 +664,8 @@ function _leadDeletePerm(idOrLead) {
     : ((window._leads||[]).find(l => l && l.id === idOrLead) || _binLeads[idOrLead]);
   if (!lead) return 'unknown';
   const uid = window._user && window._user.uid;
-  return c.role !== 'viewer' && (c.role === 'admin'
+  // Jo (2026-11-14): a manager deletes no lead, not even one they own.
+  return c.role !== 'viewer' && c.role !== 'manager' && (c.role === 'admin'
     || (c.role === 'company_admin' && !!c.companyId && lead.companyId === c.companyId)
     || (!!uid && lead.userId === uid)) ? 'yes' : 'no';
 }

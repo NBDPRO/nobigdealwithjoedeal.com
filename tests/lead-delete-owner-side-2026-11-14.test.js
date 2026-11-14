@@ -100,7 +100,8 @@ function partA() {
   ok('crm-portal-bridge.js defines _mayDeleteLead', typeof may === 'function');
   const P = (lead, c, uid) => { win._userClaims = c; win._user = { uid }; return perm ? perm(lead) : '(none)'; };
   ok('a manager on a teammate\'s lead: no', P(teammateLead, C.manager, 'eve') === 'no');
-  ok('a manager on a lead they own: yes', P(managersOwn, C.manager, 'eve') === 'yes');
+  // Jo (2026-11-14, decision a): managers delete no lead, their own included.
+  ok('a manager on a lead they own: no (managers delete no lead)', P(managersOwn, C.manager, 'eve') === 'no');
   ok('a rep on their own lead: yes', P(teammateLead, C.rep, 'alice') === 'yes');
   ok('a rep on a teammate\'s lead: no', P(managersOwn, C.rep, 'alice') === 'no');
   ok('a company_admin on a lead in their tenant: yes', P(teammateLead, C.coAdmin, 'carol') === 'yes');
@@ -112,10 +113,10 @@ function partA() {
   win._leads = [teammateLead]; win._userClaims = C.manager; win._user = { uid: 'eve' };
   ok('looks a lead up by id in window._leads', !!perm && perm('L1') === 'no');
   ok('an id it cannot find: unknown (not a yes)', !!perm && perm('ghost') === 'unknown');
-  win._userClaims = undefined;
-  ok('_mayDeleteLead is false while claims load (the card menu hides Delete)', !!may && may(managersOwn) === false);
-  win._userClaims = C.manager;
-  ok('…and true once they say the manager owns it', !!may && may(managersOwn) === true);
+  win._userClaims = undefined; win._user = { uid: 'alice' };
+  ok('_mayDeleteLead is false while claims load (the card menu hides Delete)', !!may && may(teammateLead) === false);
+  win._userClaims = C.rep;
+  ok('…and true once they say the rep owns it', !!may && may(teammateLead) === true);
   const S = read(BRIDGE);
   ok('exported as window.nbdMayDeleteLead for the card menu', /\nwindow\.nbdMayDeleteLead = _mayDeleteLead;/.test(S));
 }
@@ -178,9 +179,10 @@ async function partB() {
 
   b = loadBridge(C.manager, 'eve', leads);
   b.api.deleteLead('L2');
-  ok('positive control: manager → Delete on their OWN lead opens the dialog', b.log.dialogs === 1 && b.api.pending() === 'L2');
+  ok('manager → Delete on their OWN lead is refused too (no dialog)', b.log.dialogs === 0);
+  ok('…and explains who can', toasted(b, /owner or a company admin/), JSON.stringify(b.log.toasts));
   await b.api.confirmDeleteLead();
-  ok('…and the confirm soft-deletes it', b.log.writes.length === 1 && b.log.writes[0][1] === 'L2', JSON.stringify(b.log.writes));
+  ok('…and writes nothing', b.log.writes.length === 0, JSON.stringify(b.log.writes));
 
   b = loadBridge(C.coAdmin, 'carol', leads);
   b.api.deleteLead('L1');
@@ -209,11 +211,11 @@ async function partB() {
   ok('positive control: an uncached lead still opens the dialog (one write, the rules decide)', b.log.dialogs === 1);
 
   // Bulk: anything not a clear yes is left out (one refused update fails the whole batch).
-  b = loadBridge(C.manager, 'eve', leads);
+  b = loadBridge(C.rep, 'alice', leads);
   b.selected.add('L1'); b.selected.add('L2');
   await b.api.bulkDelete();
-  ok('manager → bulk Delete over a teammate\'s lead + their own writes only their own',
-    b.log.writes.length === 1 && b.log.writes[0][1] === 'L2', JSON.stringify(b.log.writes));
+  ok('rep → bulk Delete over a teammate\'s lead + their own writes only their own',
+    b.log.writes.length === 1 && b.log.writes[0][1] === 'L1', JSON.stringify(b.log.writes));
   ok('…the confirm says one will stay', /Delete 1 lead[\s\S]*1 you can't delete will stay/.test(b.log.askText || ''), b.log.askText);
   ok('…and the success toast says 1 skipped', toasted(b, /^Deleted 1 lead[\s\S]*1 skipped/), JSON.stringify(b.log.toasts));
 
@@ -233,7 +235,12 @@ async function partB() {
   b = loadBridge(C.manager, 'eve', leads);
   b.selected.add('L2');
   await b.api.bulkDelete();
-  ok('positive control: manager → bulk Delete of only their own lead goes through', b.log.writes.length === 1 && b.log.writes[0][1] === 'L2', JSON.stringify(b.log));
+  ok('manager → bulk Delete of only their own lead writes nothing (managers delete no lead)', b.log.writes.length === 0 && b.log.asked === 0, JSON.stringify(b.log));
+
+  b = loadBridge(C.rep, 'alice', leads);
+  b.selected.add('L1');
+  await b.api.bulkDelete();
+  ok('positive control: rep → bulk Delete of only their own lead goes through', b.log.writes.length === 1 && b.log.writes[0][1] === 'L1', JSON.stringify(b.log));
   ok('…with no "skipped" in the toast', toasted(b, /^Deleted 1 lead/) && !toasted(b, /skipped/), JSON.stringify(b.log.toasts));
 
   b = loadBridge(C.coAdmin, 'carol', leads);
@@ -264,7 +271,7 @@ async function partC() {
   ok('positive control: the lead\'s own rep gets Restore', /nbd-dc-restore/.test(b.drawerBody.innerHTML));
   b = loadBridge(C.manager, 'eve', [managersOwn], { binOnly: true });
   await b.api.renderDeletedDrawer();
-  ok('positive control: a manager gets Restore on a lead they own', /nbd-dc-restore/.test(b.drawerBody.innerHTML));
+  ok('a manager gets no Restore / Remove even on a lead they own', /dc-L2/.test(b.drawerBody.innerHTML) && !/nbd-dc-restore|nbd-dc-perm/.test(b.drawerBody.innerHTML));
 
   // One predicate: claims not loaded → the bin offers nothing (the guard refuses too).
   b = loadBridge(undefined, 'carol', leads, { binOnly: true });
@@ -302,7 +309,7 @@ function partD() {
     return (got || []).some((it) => /^Delete (lead|customer)/.test(it.label || ''));
   };
   ok('no "Delete lead" for a manager on a teammate\'s lead', run(C.manager, 'eve', teammateLead) === false);
-  ok('positive control: "Delete lead" for the manager on their own lead', run(C.manager, 'eve', managersOwn) === true);
+  ok('no "Delete lead" for a manager even on their own lead', run(C.manager, 'eve', managersOwn) === false);
   ok('positive control: "Delete lead" for a company_admin', run(C.coAdmin, 'carol', teammateLead) === true);
   ok('positive control: "Delete lead" for the lead\'s own rep', run(C.rep, 'alice', teammateLead) === true);
 }

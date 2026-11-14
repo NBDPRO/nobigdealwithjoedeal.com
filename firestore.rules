@@ -780,10 +780,31 @@ service cloud.firestore {
     // the update rule's outer clause, which only lets a company_admin reach
     // this far on a lead whose companyId == myCompanyId() (or one they own).
     // Moving this helper anywhere without that pin would widen it.
+    // Jo (2026-11-14, decision a): managers do not delete leads AT ALL, not
+    // even ones they own, so the owner branch excludes the manager role as
+    // well as viewer. Shared by the lead's soft delete and hard delete, and by
+    // the jobs under a lead (ownerUid = the lead's userId).
+    function ownerSideDeleter(ownerUid) {
+      return request.auth.token.get('role', '') in ['admin', 'company_admin']
+        || (isOwner(ownerUid) && !(request.auth.token.get('role', '') in ['viewer', 'manager']));
+    }
     function softDeleteWriteOk() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted', 'e2eTestData'])
-        || ((request.auth.token.get('role', '') in ['admin', 'company_admin']
-             || (isOwner(resource.data.userId) && notViewer()))
+        || (ownerSideDeleter(resource.data.userId)
+            && request.resource.data.get('deleted', false) is bool);
+    }
+    // leads/{id}/jobs/{jobId} (2026-11-14): a job's deleted / deletedAt /
+    // isDeleted are held to the same writers (jobs readers skip deleted ==
+    // true: invoices, today plan, agent tools, morning brief, owner digest,
+    // production flow). On create, any marker counts; on update, a change.
+    // The company_admin branch relies on the job rule's parentLeadInMyCompany.
+    function jobSoftDeleteOk(leadId) {
+      let keys = ['deleted', 'deletedAt', 'isDeleted'];
+      let touched = resource == null
+        ? request.resource.data.keys().hasAny(keys)
+        : request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+      return !touched
+        || (ownerSideDeleter(get(/databases/$(database)/documents/leads/$(leadId)).data.get('userId', ''))
             && request.resource.data.get('deleted', false) is bool);
     }
 
@@ -895,7 +916,9 @@ service cloud.firestore {
           && scheduleWindowOk()
           && portalNoteOk()
         );
-      allow delete: if (isOwner(resource.data.userId) && notViewer())
+      // Jo (2026-11-14, decision a): a manager does not delete a lead, even one
+      // they own (ownerSideDeleter's owner branch excludes manager and viewer).
+      allow delete: if (isOwner(resource.data.userId) && ownerSideDeleter(resource.data.userId))
         || isAdmin()
         || (isCompanyAdmin()
             && resource.data.companyId != null
@@ -1328,9 +1351,14 @@ service cloud.firestore {
         allow create, update: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && jobWriteOk(leadId);
+          && jobWriteOk(leadId)
+          && jobSoftDeleteOk(leadId);
+        // Owner side only (2026-11-14): the lead's non-manager owner or a
+        // same-company company_admin; a manager deletes no job, even on a lead
+        // they own.
         allow delete: if isAuth() && notViewer()
-          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          && ((isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+               && request.auth.token.get('role', '') != 'manager')
               || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
 
         // ── MATERIAL ORDERS (production flow, 2026-10-04) ──

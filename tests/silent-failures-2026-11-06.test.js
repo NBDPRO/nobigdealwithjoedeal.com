@@ -88,7 +88,10 @@ function slice(src, start, endAt) {
     // markers, which firestore.rules softDeleteWriteOk now holds to the delete
     // rule's writers, so a manager gets neither on a teammate's lead.
     ok('a manager can neither Restore nor Remove a teammate\'s lead (rules: softDeleteWriteOk / delete)', !btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove && /teammate/.test(asMgr.html));
-    ok('…and keeps both on their own lead (positive control)', btns(asMgr.html, 'mine').restore && btns(asMgr.html, 'mine').remove);
+    // Jo (2026-11-14, decision a): a manager deletes no lead, their own included.
+    ok('…nor on their own lead (managers delete no lead)', !btns(asMgr.html, 'mine').restore && !btns(asMgr.html, 'mine').remove && /mine/.test(asMgr.html));
+    const asRep = await run({ uid: 'u1', claims: { role: 'sales_rep', companyId: 'co' }, docs: bin });
+    ok('a rep keeps both on their own lead (positive control)', btns(asRep.html, 'mine').restore && btns(asRep.html, 'mine').remove);
     const asAdmin = await run({ uid: 'u1', claims: { role: 'company_admin', companyId: 'co' }, docs: bin });
     ok('a company_admin keeps both on a teammate\'s lead', btns(asAdmin.html, 'teammate').restore && btns(asAdmin.html, 'teammate').remove);
     const mgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' },
