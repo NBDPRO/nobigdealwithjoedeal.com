@@ -1268,7 +1268,9 @@ exports.submitEsignEnvelope = onRequest(
       });
     }
 
-    res.status(200).json({ ok: true, complete: true, copyEmailed: copies.some((c) => c.emailed) });
+    // copyEmailed = THIS signer's copy went out, so their page only promises
+    // an email that was actually sent (2026-11-14).
+    res.status(200).json({ ok: true, complete: true, copyEmailed: copies.some((c) => c.emailed && c.signerId === signer.id) });
   }
 );
 

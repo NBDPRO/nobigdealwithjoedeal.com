@@ -467,6 +467,12 @@
       events.push({ kind: 'paid', msg: `🏦 Your bank payment is processing` });
     } else if (((prev.balance && prev.balance.stripePaymentLink) || '') !== ((next.balance && next.balance.stripePaymentLink) || '')) {
       events.push({ kind: 'paid', msg: `💳 Your payment details were updated` });
+    } else if (((prev.balance && prev.balance.amountCents) || 0) !== ((next.balance && next.balance.amountCents) || 0)
+      || pProc !== nProc || !prev.balance !== !next.balance) {
+      // Any other balance change (amount due with no pay link, a bank payment
+      // that stopped processing without posting, a balance that went away)
+      // repaints too, or the open page keeps showing the old figure (2026-11-14).
+      events.push({ kind: 'paid', msg: `💳 Your balance was updated` });
     }
     return events.length ? events : null;
   }

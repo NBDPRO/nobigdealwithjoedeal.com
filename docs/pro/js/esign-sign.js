@@ -810,9 +810,14 @@ el.submit.addEventListener('click', async () => {
       showMsg('✅', 'Thank you — your signature is recorded',
         (r.data.nextSigner ? r.data.nextSigner : 'The next signer') +
         ' will get their own link to sign next. Once everyone has signed, a copy comes to your email.');
-    } else {
+    } else if (r.data.copyEmailed === true) {
       showMsg('🎉', 'All done — thank you!',
         'Your signature has been recorded. A signed copy is on its way to your email, and your rep has been told. You can close this page.');
+    } else {
+      // No copy went to this signer (no address, or the send failed — the rep
+      // gets a "Signed copy NOT emailed" bell). Promise only what happened.
+      showMsg('🎉', 'All done — thank you!',
+        'Your signature has been recorded and your rep has been told. Your rep will get you a signed copy. You can close this page.');
     }
     return;
   }
