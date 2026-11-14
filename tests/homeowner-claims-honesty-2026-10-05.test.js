@@ -364,5 +364,32 @@ console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warrant
   ok('hail/storm town pages: meta description names the NBD Pledge (<= 160 chars)', noMeta.length === 0, noMeta.join(', '));
 }
 
+// ── 12. Crews are independent subcontractors (Joe, 2026-11-14) ─────────
+// "my crew"/"our crew" reads as Joe's own employees. The CRM's house rule:
+// crews are independent subcontractors; never "in-house crews".
+console.log('\n12. Crew wording fits independent subcontractors');
+{
+  const crew = hits(/\b(my|our) crews?\b|\bin-house crews?\b/i);
+  ok('no "my crew" / "our crew" / "in-house crew" on homeowner pages', crew.length === 0, show(crew));
+}
+
+// ── 13. Claim slips found in the 2026-11-14 review ─────────────────────
+console.log('\n13. Claim slips (2026-11-14 review)');
+{
+  const years = hits(/\b(1[0-9]|[2-9][0-9])\+? years (of )?roofing/i);
+  ok('no "20+ years roofing"-style claim (the rule is "7+ years")', years.length === 0, show(years));
+  const adjusters = hits(/meets adjusters on every claim/i);
+  ok('no "Meets adjusters on every claim"', adjusters.length === 0, show(adjusters));
+  const stars = hits(/5(-star|★)[\s\S]{0,60}?Google Rated/i);
+  ok('no hard-coded "5-star Google Rated"', stars.length === 0, show(stars));
+}
+
+// ── 14. Claim-outcome near-misses: describe what Joe documents ─────────
+console.log('\n14. No wording about what the insurer decides');
+{
+  const outcome = hits(/can change the outcome|how Joe accelerates|approved claim[^.<]{0,40}in about two weeks/i);
+  ok('no "change the outcome" / "accelerates" / "approved in two weeks" wording', outcome.length === 0, show(outcome));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('\nFailures:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }
