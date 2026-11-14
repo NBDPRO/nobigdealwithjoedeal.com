@@ -459,6 +459,95 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     ok('the job-value path is refused too when the supplements cannot be read', !!err && err.code === 'SUPPLEMENTS_UNREADABLE', err ? err.message : JSON.stringify(ctx && ctx.target));
   });
 
+  // ════════════════════════════════════════════════════════════════════
+  // Second security pass (2026-11-14)
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nK. Soft-deleted supplements are never billed and never block (M-B)');
+  await sec('K', async () => {
+    if (!IP) return;
+    let B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup({ deleted: true }) }, CAROL);
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('did not throw', false, e.message); }
+    let inv = invoicesOf(B.store)[0];
+    ok('an approved but soft-deleted supplement is not billed ($14,000)', inv && c(inv.total) === 1400000, inv && inv.total);
+    B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/sD': sup({ deleted: true, version: 2 }),
+      'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'rep1', supplementId: 'sD', parentEstimateId: 'estC', version: 2 } }, CAROL);
+    let err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    inv = invoicesOf(B.store)[0];
+    ok('a timeline entry naming a soft-deleted supplement does not block, and it is not billed ($14,000)', !err && inv && c(inv.total) === 1400000, err ? err.message : inv && inv.total);
+    B = browser({ 'leads/L1': lead(), 'estimates/estC': est(),
+      'leads/L1/activity/a1': { type: 'supplement_created', source: 'rep', userId: 'rep1', supplementId: 'gone', parentEstimateId: 'estC', version: 3 } }, CAROL);
+    err = null;
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    ok('a timeline entry naming a supplement that no longer exists does not block (rules now answer exists() == false)',
+      !err && invoicesOf(B.store).length === 1, err && err.message);
+    ok('selectBillableSupplements skips a deleted supplement', IP.selectBillableSupplements([sup({ id: 'x', deleted: true })]).length === 0);
+  });
+
+  console.log('\nL. The invoice\'s companyId comes from the live claims too (L-A), and a failed save says why (L-B)');
+  await sec('L1 createOrOpenJobInvoice', async () => {
+    if (!IP) return;
+    const B = browser({ 'leads/L1': lead(), 'estimates/estC': est(), 'supplements/s1': sup() },
+      { uid: 'carol', claims: {}, tokenClaims: { role: 'company_admin', companyId: 'co-a' } });
+    try { await IP.createOrOpenJobInvoice('estC'); } catch (e) { ok('did not throw', false, e.message); }
+    const inv = invoicesOf(B.store)[0];
+    ok('cached claims empty, token co-a → the invoice is stamped companyId co-a (was the uid)', inv && inv.companyId === 'co-a', inv && inv.companyId);
+  });
+  await sec('L2 recordPaymentCommit job-value invoice', async () => {
+    if (!IP) return;
+    const B = browser({ 'leads/L1': lead({ jobValue: 5000 }) },
+      { uid: 'carol', claims: {}, tokenClaims: { role: 'company_admin', companyId: 'co-a' } });
+    try {
+      await IP.recordPaymentCommit({ leadId: 'L1', lead: Object.assign({ id: 'L1' }, lead({ jobValue: 5000 })), target: { kind: 'jobValue', suggestedCents: 500000 },
+        totalCents: 500000, amount: '5000.00', method: 'check', at: new Date() });
+    } catch (e) { ok('did not throw', false, e.message); }
+    const inv = invoicesOf(B.store)[0];
+    ok('the job-value invoice carries companyId co-a from the token (was the uid)', inv && inv.companyId === 'co-a', inv && inv.companyId);
+  });
+  await sec('L3 saveToFirestore', async () => {
+    const run = async (o) => {
+      let added = 0;
+      global.window = {
+        db: {}, auth: { currentUser: { uid: 'rep1', getIdTokenResult: async () => { if (o.tokenThrows) throw new Error('offline'); return { claims: { role: 'sales_rep', companyId: 'co-a' } }; } } },
+        collection: (db, p) => ({ col: p }), serverTimestamp: () => '__TS__', showToast() {},
+        addDoc: async (col) => {
+          if (col.col === 'supplements' && o.denied) { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; }
+          added++; return { id: 'x1' };
+        },
+      };
+      delete require.cache[require.resolve(path.join(ROOT, 'docs/pro/js/estimate-supplement.js'))];
+      const ES = req('docs/pro/js/estimate-supplement.js');
+      let id = null, err = null;
+      try { id = await ES.saveToFirestore({ parentEstimateId: 'estC', version: 1, status: 'draft' }); } catch (e) { err = e; }
+      return { id, err, added };
+    };
+    const a = await run({ tokenThrows: true });
+    ok('the token read fails and no claims are cached → not saved, and the rep is told why (no uid-as-companyId guess)',
+      a.added === 0 && !!a.err && /not saved/i.test(a.err.message), JSON.stringify({ added: a.added, err: a.err && a.err.message, id: a.id }));
+    const b = await run({ denied: true });
+    ok('the rules refuse the save → the rep is told it was not saved and why', !!b.err && /not saved/i.test(b.err.message), JSON.stringify({ err: b.err && b.err.message, id: b.id }));
+  });
+
+  console.log('\nM. The backfill only stamps a supplement whose author belongs to the estimate\'s tenant (M-C, reviewer #7)');
+  await sec('M', async () => {
+    const BF = req('scripts/backfill-supplement-company-id.js');
+    if (!BF) return;
+    const L = (f) => sup(Object.assign({ companyId: undefined }, f));
+    const plan = BF.planBackfill([
+      { id: 'own', data: L({ userId: 'rep1' }) },                                   // the estimate's own author
+      { id: 'mate', data: L({ userId: 'rep2' }) },                                  // a co-a teammate
+      { id: 'evil', data: L({ userId: 'eve', supplementTotal: 25000 }) },           // co-b user on co-a's estimate (#7)
+      { id: 'nobody', data: L({ userId: 'ghost' }) },                               // author's tenant unknown
+      { id: 'lead', data: L({ userId: 'rep1', leadId: 'L9' }) },                    // lead does not match the estimate's
+    ], { estC: est() }, { rep2: 'co-a', eve: 'co-b' });
+    ok('stamps only the estimate author\'s and a same-tenant teammate\'s',
+      JSON.stringify(plan.updates) === JSON.stringify([{ id: 'own', companyId: 'co-a' }, { id: 'mate', companyId: 'co-a' }]), JSON.stringify(plan.updates));
+    ok('#7 reports (never stamps) a co-b author on a co-a estimate, an unknown author and a lead mismatch',
+      plan.problems.map((p) => p.id).join(',') === 'evil,nobody,lead', JSON.stringify(plan.problems));
+    const src = require('fs').readFileSync(path.join(ROOT, 'scripts/backfill-supplement-company-id.js'), 'utf8');
+    ok('the write is an update() (fails on a missing doc), not set(merge)', /\.update\(/.test(src) && !/merge:\s*true/.test(src));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })();

@@ -96,6 +96,12 @@ async function run() {
     await setDoc(doc(db, 'supplements/sOld'), legacy);
     await setDoc(doc(db, 'supplements/sStamped'), sup({ version: 4, invoicedInvoiceId: 'invOld', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sFree'), sup({ version: 5 }));
+    await setDoc(doc(db, 'supplements/sJ1'), sup({ version: 6 }));
+    await setDoc(doc(db, 'supplements/sJ2'), sup({ version: 7 }));
+    await setDoc(doc(db, 'supplements/sJGone'), sup({ version: 8, invoicedInvoiceId: 'invNever', invoicedAt: 1 }));
+    await setDoc(doc(db, 'supplements/sDel'), sup({ version: 9, deleted: true }));
+    await setDoc(doc(db, 'supplements/sH'), draft({ version: 10 }));
+    for (let i = 0; i < 10; i++) await setDoc(doc(db, 'supplements/sT' + i), sup({ version: 20 + i }));
     await setDoc(doc(db, 'invoices/invOld'), inv('carol', { supplementIds: ['sStamped'] }));
   });
 
@@ -177,10 +183,45 @@ async function run() {
   await check('same-company admin cannot stamp a LEGACY (no companyId) supplement', 'deny', billWith(carol, 'invW8', ['sOld'], { supplementIds: ['sOld'] }));
   await check('platform admin can still correct a stamp', 'allow', updateDoc(ref(joe, 'sStamped'), { invoicedInvoiceId: 'invFix' }));
 
-  // ── delete stays owner / platform admin ──
+  // ── second security pass (2026-11-14) ──
+  // M-A: a throwaway invoice must not strand a supplement as "billed" for good.
+  await check('#1 a rep bills their supplement on a $1 invoice (allowed — it is a real same-job invoice)', 'allow',
+    billWith(rep, 'invJ1', ['sJ1'], { createdBy: 'rep1', total: 1, items: [] }));
+  await check('#1 …but cannot then DELETE that invoice (it carries supplements)', 'deny', deleteDoc(doc(rep, 'invoices/invJ1')));
+  await check('#2 a manager bills a supplement on a $1 invoice', 'allow', billWith(mike, 'invJ2', ['sJ2'], { createdBy: 'mike', total: 1, items: [] }));
+  await check('#2 …but cannot VOID it (status void)', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { status: 'void' }));
+  await check('#2 …nor void it by the deleted flag', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { deleted: true, voidNote: 'oops' }));
+  await check('#2 …nor strip its supplementIds', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { supplementIds: [] }));
+  await check('a manager cannot clear the stamp while its invoice is live', 'deny', updateDoc(ref(mike, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('company_admin cannot clear a stamp whose invoice is still live', 'deny', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('company_admin voids the throwaway invoice (owner side)', 'allow', updateDoc(doc(carol, 'invoices/invJ2'), { status: 'void' }));
+  await check('a manager still cannot clear the stamp after the void', 'deny', updateDoc(ref(mike, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('another tenant\'s admin cannot clear it', 'deny', updateDoc(doc(eve, 'supplements/sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('company_admin cannot clear the stamp AND change the money', 'deny', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField(), supplementTotal: 1 }));
+  await check('company_admin clears a stranded stamp (invoice void) so the supplement bills again', 'allow', updateDoc(ref(carol, 'sJ2'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('company_admin clears a stranded stamp whose invoice no longer exists', 'allow', updateDoc(ref(carol, 'sJGone'), { invoicedInvoiceId: deleteField(), invoicedAt: deleteField() }));
+  await check('company_admin may delete an invoice that carries supplements (owner side)', 'allow', deleteDoc(doc(carol, 'invoices/invJ1')));
+  // M-B: soft delete only; staff can tell "deleted" from "forbidden".
+  await check('staff read of a supplement id that does not exist is allowed (exists() == false, not denied)', 'allow', getDoc(ref(carol, 'never-was')));
+  await check('a rep read of a nonexistent id is allowed too', 'allow', getDoc(ref(rep, 'never-was')));
+  await check('the owner cannot HARD-delete their supplement', 'deny', deleteDoc(ref(rep, 'n6b')));
+  await check('the owner soft-deletes it (deleted: true)', 'allow', updateDoc(ref(rep, 'n6b'), { deleted: true }));
+  await check('staff read the soft-deleted supplement (and so never bill it)', 'allow', getDoc(ref(carol, 'sDel')));
+  // #4, #6
+  await check('#4 a co-b company_admin cannot update a co-a supplement', 'deny', updateDoc(doc(eve, 'supplements/sFree'), { reason: 'x' }));
+  await check('#6 ten supplements stamped in ONE batch with their invoice fit the rules budget', 'allow',
+    billWith(carol, 'invTen', ['sT0', 'sT1', 'sT2', 'sT3', 'sT4', 'sT5', 'sT6', 'sT7', 'sT8', 'sT9']));
+  // #3 H-A (pre-existing, Joe decides): the owner may declare their own supplement approved, at any amount,
+  // before it is billed. Pinned so a change to it is deliberate.
+  await check('#3 KNOWN (Joe decides): the owner sets status approved + supplementTotal 50000 with no carrier evidence', 'allow',
+    updateDoc(ref(rep, 'sH'), { status: 'approved', supplementTotal: 50000, 'submission.responseStatus': 'approved' }));
+  await check('#3 KNOWN (Joe decides): …or partial with any approvedAmount', 'allow',
+    updateDoc(ref(rep, 'sH'), { status: 'partial', 'submission.approvedAmount': 49999 }));
+
+  // ── delete: platform admin only (soft delete for everyone else) ──
   await check('same-company admin cannot delete it', 'deny', deleteDoc(ref(carol, 'sFree')));
   await check('another tenant cannot delete co-b\'s doc from co-a', 'deny', deleteDoc(ref(carol, 'sB')));
-  await check('owner deletes their own', 'allow', deleteDoc(ref(rep, 'n6b')));
+  await check('platform admin can hard-delete', 'allow', deleteDoc(ref(joe, 'sFree')));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);
