@@ -28,6 +28,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { sliceFn, loadInVm, parseTags } = require('./lib/src-kit');
 
 const ROOT = process.env.NBD_ROOT || path.join(__dirname, '..');
 const readAny = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
@@ -38,18 +39,16 @@ function ok(name, cond, detail) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
   else { failed++; console.log('  ✗ ' + name + (detail ? ' — ' + detail : '')); }
 }
+// One function's source by name (src-kit sliceFn; '' when absent or defined twice).
 function extractFn(src, anchor) {
-  const at = src.indexOf(anchor);
-  if (at < 0 || src.indexOf(anchor, at + 1) >= 0) return '';
-  const kw = src.slice(at).search(/(async\s+)?function\b/);
-  const start = at + kw;
-  for (let i = src.indexOf('}', start); i >= 0; i = src.indexOf('}', i + 1)) {
-    const cand = src.slice(start, i + 1);
-    try { new Function('return (' + cand + ');'); return cand; } catch (_) { /* not yet */ }
-  }
-  return '';
+  const name = /function\s+([\w$]+)/.exec(anchor)[1];
+  return sliceFn(src, name, { unique: true }) || '';
 }
-const konst = (src, n) => (src.match(new RegExp('^const ' + n + ' = [^\\n]*;$', 'm')) || [''])[0];
+// One top-level `const NAME = …;` line, cut out by position ('' if absent).
+function konst(src, n) {
+  const i = src.indexOf('\nconst ' + n + ' = ');
+  return i < 0 ? '' : src.slice(i + 1, src.indexOf('\n', i + 1));
+}
 
 const CO = 'co-a';
 const C = {
@@ -77,10 +76,14 @@ function partA() {
     ok('live keeps everything not archived === true', r.live.map((l) => l.id).join() === 'a,c,d', JSON.stringify(r));
     ok('archived holds only archived === true', r.archived.map((l) => l.id).join() === 'b', JSON.stringify(r));
   }
-  ok('loadLeads assigns window._leads from the split (archived never reach the board, map or search)',
-    /const _split = _splitArchived\(/.test(BOOT) && /window\._leads = _split\.live/.test(BOOT));
-  ok('…and window._archivedLeads from it', /window\._archivedLeads = _split\.archived/.test(BOOT));
-  ok('sign-out resets the archived cache too', /function _resetLeadsCache\(\) \{[\s\S]{0,200}window\._archivedLeads = undefined/.test(BOOT));
+  // loadLeads sits deep in an ES module behind Firebase; these two are the
+  // only text pins left (the split itself runs above).
+  ok('loadLeads assigns window._leads and window._archivedLeads from the split (archived never reach the board, map or search)',
+    /window\._leads = _split\.live;\s*window\._archivedLeads = _split\.archived;/.test(BOOT));
+  const reset = extractFn(BOOT, 'function _resetLeadsCache(');
+  const rwin = { _archivedLeads: [archivedOne], _leads: [teammate] };
+  if (reset) { try { new Function('window', '_leadsCacheUid', 'return (' + reset + ');')(rwin, null)(); } catch (_) { /* reported below */ } }
+  ok('sign-out resets the archived cache too (_resetLeadsCache run)', rwin._archivedLeads === undefined && Array.isArray(rwin._leads) && rwin._leads.length === 0, JSON.stringify(rwin));
 }
 
 // ── B + C: crm-portal-bridge.js ──────────────────────────────────────────────
@@ -194,7 +197,7 @@ async function partC() {
   b = loadBridge(C.manager, 'eve', { drawerOpen: true, archived: [] });
   if (b.api._rerenderArchivedIfOpen) { b.win._archivedLeads = [archivedOne]; b.api._rerenderArchivedIfOpen({ detail: { source: 'leads' } }); }
   ok('an open Archived view is redrawn on nbd:data-refreshed (leads)', /ar-A1/.test(b.drawerBody.innerHTML));
-  ok('…the listener is registered', /window\.addEventListener\('nbd:data-refreshed', _rerenderArchivedIfOpen\)/.test(read(BRIDGE)));
+  // (That the bridge registers it on nbd:data-refreshed: part F fires the real listener.)
 }
 
 function partD() {
@@ -213,21 +216,73 @@ function partD() {
   ok('"Archive lead" offered where allowed', yes.shown);
   ok('…and it archives that lead', yes.archived === 'L1');
   ok('not offered where refused', run(false).shown === false);
-  const S = read(BRIDGE);
-  ok('the bridge exports the two the menu reads', /\nwindow\.nbdArchiveLead = archiveLead;/.test(S) && /\nwindow\.nbdMayArchiveLead = /.test(S));
+  // (The two window exports the menu reads: part F loads the whole bridge.)
 }
 
 function partE() {
   console.log('E. markup and wiring');
-  const html = readAny('docs/pro/dashboard.html');
-  const m = html.match(/<div class="deleted-drawer" id="archivedDrawer">[\s\S]*?id="archivedDrawerBody"[\s\S]*?<\/div>\s*<\/div>/);
-  ok('dashboard.html has the Archived drawer (Deleted bin layout)', !!m);
-  ok('…closed through the closeModal dispatcher', !!m && /data-action="closeModal" data-target="archivedDrawer"/.test(m[0]));
-  ok('…with no inline handler', !!m && !/\son[a-z]+=/i.test(m[0]));
-  ok('the tools menu opens it through the call dispatcher', /data-action="call" data-fn="openArchivedDrawer"/.test(html));
+  const doc = parseTags(readAny('docs/pro/dashboard.html'));
+  const drawer = doc.byId('archivedDrawer');
+  ok('dashboard.html has the Archived drawer, in the Deleted bin layout', !!drawer && drawer.attrs.class === 'deleted-drawer');
+  ok('…with its list body', !!drawer && !!drawer.$('#archivedDrawerBody'));
+  const close = drawer && drawer.$('button');
+  ok('…closed through the closeModal dispatcher', !!close && close.attrs['data-action'] === 'closeModal' && close.attrs['data-target'] === 'archivedDrawer');
+  // (No inline handler: the repo-wide tests/csp-inline-lint-2026-11-14.test.js covers dashboard.html.)
+  const opener = doc.$$('button').find((b) => b.attrs['data-fn'] === 'openArchivedDrawer');
+  ok('the tools menu opens it through the call dispatcher', !!opener && opener.attrs['data-action'] === 'call');
+  // dashboard-state.js needs the whole dashboard DOM to run, so this one stays a text pin.
   ok('dashboard-state.js maps archivedDrawer to its close handler', /archivedDrawer:\s*'closeArchivedDrawer'/.test(read('dashboard-state.js')));
-  const S = read(BRIDGE);
-  ok('the registry carries openArchivedDrawer / closeArchivedDrawer', /openArchivedDrawer: openArchivedDrawer/.test(S) && /closeArchivedDrawer: closeArchivedDrawer/.test(S));
+}
+
+// Just enough browser for crm-portal-bridge.js to run top to bottom.
+function browserStubs(extra) {
+  const noop = () => {};
+  const el = () => ({ classList: { add: noop, remove: noop, toggle: noop, contains: () => false }, style: {}, addEventListener: noop,
+    appendChild: noop, setAttribute: noop, querySelectorAll: () => [], querySelector: () => null, textContent: '', value: '' });
+  return Object.assign({
+    document: { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener: noop,
+      createElement: el, body: el(), documentElement: el(), readyState: 'complete' },
+    addEventListener: noop, removeEventListener: noop, setTimeout: () => 0, clearTimeout: noop, setInterval: () => 0, clearInterval: noop,
+    localStorage: { getItem: () => null, setItem: noop, removeItem: noop }, location: { hash: '', pathname: '/pro/dashboard.html', search: '' },
+    navigator: { userAgent: '' }, matchMedia: () => ({ matches: false, addEventListener: noop, addListener: noop }), requestAnimationFrame: noop,
+    showToast: noop, escHtml: (s) => String(s == null ? '' : s),
+  }, extra || {});
+}
+async function partF() {
+  console.log('F. the whole bridge, run');
+  const listeners = [];
+  const classes = new Set();
+  const drawer = { classList: { contains: (c) => classes.has(c), add: (c) => classes.add(c), remove: (c) => classes.delete(c) } };
+  const body = { innerHTML: '', querySelectorAll: () => [] };
+  const g = browserStubs({
+    addEventListener: (type, fn) => listeners.push({ type, fn }),
+    __NBD_CALL_REGISTRY: { _loadDeletedLeads: () => Promise.resolve([]) },
+  });
+  g.document.getElementById = (id) => (id === 'archivedDrawer' ? drawer : id === 'archivedDrawerBody' ? body : null);
+  let ctx = null;
+  try { ctx = loadInVm('docs/pro/js/crm-portal-bridge.js', g, { src: { 'docs/pro/js/crm-portal-bridge.js': read(BRIDGE) } }); }
+  catch (e) { ok('crm-portal-bridge.js runs top to bottom', false, e.message); }
+  if (!ctx) return;
+  ok('exports window.nbdArchiveLead and window.nbdMayArchiveLead for the card menu',
+    typeof ctx.nbdArchiveLead === 'function' && typeof ctx.nbdMayArchiveLead === 'function');
+  if (typeof ctx.nbdMayArchiveLead === 'function') {
+    ctx._userClaims = C.manager; ctx._user = { uid: 'eve' };
+    ok('…nbdMayArchiveLead lets a manager archive a teammate\'s lead', ctx.nbdMayArchiveLead(teammate) === true);
+    ctx._userClaims = C.viewer; ctx._user = { uid: 'vic' };
+    ok('…and refuses a viewer', ctx.nbdMayArchiveLead(teammate) === false);
+  }
+  const reg = ctx.__NBD_CALL_REGISTRY || {};
+  ok('the registry carries openArchivedDrawer / closeArchivedDrawer', typeof reg.openArchivedDrawer === 'function' && typeof reg.closeArchivedDrawer === 'function');
+  ctx._userClaims = C.manager; ctx._user = { uid: 'eve' }; ctx._archivedLeads = [archivedOne];
+  if (typeof reg.openArchivedDrawer === 'function') {
+    reg.openArchivedDrawer();
+    ok('openArchivedDrawer opens the drawer and lists the archived leads', classes.has('open') && /ar-A1/.test(body.innerHTML), body.innerHTML.slice(0, 80));
+    reg.closeArchivedDrawer();
+    ok('closeArchivedDrawer closes it', !classes.has('open'));
+  }
+  classes.add('open'); body.innerHTML = '';
+  for (const l of listeners.filter((x) => x.type === 'nbd:data-refreshed')) await l.fn({ detail: { source: 'leads' } });
+  ok('an open Archived drawer is redrawn by the real nbd:data-refreshed listener', /ar-A1/.test(body.innerHTML));
 }
 
 (async () => {
@@ -236,6 +291,7 @@ function partE() {
   await partC();
   partD();
   partE();
+  await partF();
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
