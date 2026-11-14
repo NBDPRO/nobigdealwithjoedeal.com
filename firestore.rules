@@ -247,7 +247,7 @@ service cloud.firestore {
         'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt',
         // The project-page consent tick (2026-11-09): set only by the owner, on an update.
         'projectConsent',
-        // Stripe customer link (2026-11-14): set only by the ledger (admin SDK), see the update rule.
+        // Stripe customer link (2026-11-14): server-only (admin SDK), see the update rule.
         'stripeCustomerId'
       ]);
     }
@@ -839,7 +839,7 @@ service cloud.firestore {
           && didNotChange(['carePlan'])
           // stripeCustomerId outranks email/phone/address in the Stripe ledger's match and is billed by
           // mintCrmStripeInvoice, so a rep setting it could pull another customer's payments onto their
-          // lead. Written only by the ledger (admin SDK, rememberCustomer) — 2026-11-14.
+          // lead. Server-only: the ledger and CRM Stripe invoices (admin SDK) — 2026-11-14.
           && didNotChange(['stripeCustomerId'])
           // Texting consent is evidence the SERVER captured from a website form (submitPublicLead / the
           // bridge, admin SDK). A rep must not be able to write it onto a lead to unlock texting a cold
