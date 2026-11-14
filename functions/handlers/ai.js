@@ -633,6 +633,23 @@ exports.adminAI = onRequest(
       res.status(403).json({ error: 'Admin access required' });
       return;
     }
+    // Every self-serve signup is company_admin of its own company, so the
+    // role alone made this a free Anthropic proxy for any new account
+    // (2026-11-14). Same gates as claudeProxy: verified email + a paid plan on
+    // the company; the platform admin is exempt for support.
+    if (role !== 'admin') {
+      if (decoded.email_verified !== true) {
+        res.status(403).json({ error: 'Verify your email before using AI features.' });
+        return;
+      }
+      const subSnap = await getFirestore().doc(`subscriptions/${decoded.companyId || decoded.uid}`).get();
+      const sub = subSnap.exists ? subSnap.data() : null;
+      const paid = !!(sub && sub.plan && sub.plan !== 'free' && (sub.status === 'active' || sub.status === 'trialing'));
+      if (!paid) {
+        res.status(403).json({ error: 'AI features require an active paid subscription.' });
+        return;
+      }
+    }
 
     // Rate limiting (per-uid + per-IP) is enforced by the guardHttp('adminAI')
     // wrapper — limits in rate-limit-policy.js ROUTES. (The old inline call
