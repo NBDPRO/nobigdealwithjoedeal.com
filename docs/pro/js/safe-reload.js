@@ -17,7 +17,12 @@
   'use strict';
   if (window.NBDSafeReload) return;
 
-  var MODAL_SEL = '.modal-bg, .modal-overlay, [role="dialog"], [aria-modal="true"], dialog[open]';
+  // Class conventions (.modal-bg, .modal-overlay), ARIA, <dialog>, and the id
+  // conventions the CRM's own overlays use (#leadModal, #jtModal,
+  // #inspectionBuilderOverlay, #deletedDrawer...). A match counts only while
+  // it is actually rendered (see visible()).
+  var MODAL_SEL = '.modal-bg, .modal-overlay, [role="dialog"], [aria-modal="true"], dialog[open], '
+    + '[id$="Modal"], [id$="modal"], [id$="Overlay"], [id$="overlay"], [id$="Drawer"], [id$="Sheet"]';
   var TEXT_TYPES = { text: 1, email: 1, tel: 1, url: 1, number: 1, password: 1, '': 1 };
   var holds = Object.create(null);
   var pending = null;
@@ -28,7 +33,12 @@
     try {
       if (!el || el.isConnected === false) return false;
       if (el.closest && el.closest('[hidden]')) return false;
-      return !!(el.getClientRects && el.getClientRects().length);
+      if (!(el.getClientRects && el.getClientRects().length)) return false;
+      // getClientRects still has boxes for visibility:hidden / opacity:0
+      // overlays, which some pages use to keep a closed modal mounted.
+      var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+      if (cs && (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0)) return false;
+      return true;
     } catch (_) { return false; }
   }
 
@@ -41,11 +51,25 @@
     return false;
   }
 
+  // A search or filter box is not work in progress: text left in the lead
+  // search must not hold an update back for the rest of the day.
+  var SEARCHY = /search|filter|find|query|lookup/i;
+  function searchLike(el) {
+    try {
+      if (String(el.type || '').toLowerCase() === 'search') return true;
+      var ga = function (k) { return (el.getAttribute && el.getAttribute(k)) || ''; };
+      var role = ga('role');
+      if (role === 'searchbox' || role === 'combobox') return true;
+      if (SEARCHY.test([el.id, el.name, el.className, ga('placeholder'), ga('aria-label')].join(' '))) return true;
+      return !!(el.closest && el.closest('[role="search"]'));
+    } catch (_) { return false; }
+  }
+
   function isTextField(el) {
     if (!el) return false;
     var tag = (el.tagName || '').toUpperCase();
     if (tag === 'TEXTAREA') return true;
-    if (tag === 'INPUT') return !!TEXT_TYPES[String(el.type || '').toLowerCase()];
+    if (tag === 'INPUT') return !!TEXT_TYPES[String(el.type || '').toLowerCase()] && !searchLike(el);
     return !!el.isContentEditable;
   }
 
@@ -63,6 +87,14 @@
   var touched = new Set();
   document.addEventListener('input', function (e) {
     if (isTextField(e.target)) touched.add(e.target);
+  }, true);
+  // A submitted form has been saved (or the page says it was not): its fields
+  // stop counting as unsaved even if the form keeps their values.
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    touched.forEach(function (el) {
+      if (el.form === form || (form && form.contains && form.contains(el))) touched.delete(el);
+    });
   }, true);
 
   function dirtyField() {
@@ -141,6 +173,18 @@
     (document.body || document.documentElement).appendChild(bar);
   }
 
+  // While an update waits, look again every few seconds: once the modal is
+  // closed, the note saved and the recording stopped, reload onto the new
+  // version (what used to happen at once). The bar stays tappable meanwhile.
+  var POLL_MS = 5000;
+  var pollTimer = null;
+  function poll() {
+    pollTimer = null;
+    if (!pending || reloaded) return;
+    if (!busyReasons().length) { doReload(pending + ':idle'); return; }
+    pollTimer = setTimeout(poll, POLL_MS);
+  }
+
   function request(reason) {
     if (reloaded) return 'reloading';
     var busy = busyReasons();
@@ -148,6 +192,7 @@
     pending = reason || 'update';
     try { console.log('[safe-reload] new version deferred: ' + busy.join(', ')); } catch (_) {}
     showBar();
+    if (!pollTimer) pollTimer = setTimeout(poll, POLL_MS);
     return 'deferred';
   }
 

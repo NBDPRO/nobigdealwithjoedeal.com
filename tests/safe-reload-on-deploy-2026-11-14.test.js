@@ -72,7 +72,16 @@ function makeEnv(pathname) {
     createElement: (t) => makeEl(t),
     getElementById: (id) => body.children.find((c) => c.id === id) || null,
     querySelector: () => null,
-    querySelectorAll: (sel) => (/modal-bg/.test(sel) ? modals.filter((m) => m.isConnected) : []),
+    // A small real matcher over the guard's selector list, so an overlay the
+    // selector misses (e.g. #jtModal: no class, no role) stays missed here.
+    querySelectorAll: (sel) => modals.filter((m) => m.isConnected && sel.split(',').some((part) => {
+      part = part.trim();
+      let mm;
+      if ((mm = /^\.([\w-]+)$/.exec(part))) return (' ' + m.className + ' ').includes(' ' + mm[1] + ' ');
+      if ((mm = /^\[id\$="(\w+)"\]$/.exec(part))) return String(m.id).endsWith(mm[1]);
+      if ((mm = /^\[role="(\w+)"\]$/.exec(part))) return m.attrs.role === mm[1];
+      return false;
+    })),
     addEventListener(t, fn) { (docListeners[t] = docListeners[t] || []).push(fn); },
     removeEventListener() {},
     head: makeEl('head'),
@@ -128,11 +137,17 @@ function makeEnv(pathname) {
   const env = {
     ctx, window, document, body, modals, reloads,
     run(src, name) { vm.runInContext(src, ctx, { filename: name }); },
-    flushTimers() { while (timers.length) timers.shift()(); },
+    // Runs the timers queued so far (one "tick"); a timer that re-arms itself
+    // (the guard's poll) lands in the next batch instead of looping forever.
+    flushTimers() { const batch = timers.splice(0, timers.length); batch.forEach((fn) => fn()); },
     fireSw(t, ev) { (swListeners[t] || []).forEach((fn) => fn(ev || {})); },
     fireWin(t, ev) { (winListeners[t] || []).forEach((fn) => fn(ev || {})); },
     fireDoc(t, ev) { (docListeners[t] || []).forEach((fn) => fn(ev || {})); },
-    addModal(open) { const m = makeEl('div', { visible: open }); body.appendChild(m); modals.push(m); return m; },
+    addModal(open, id) {
+      const m = makeEl('div', { visible: open });
+      if (id) m.id = id; else m.className = 'modal-bg';
+      body.appendChild(m); modals.push(m); return m;
+    },
     typeInto(el) { body.appendChild(el); env.fireDoc('input', { target: el }); },
     bar() { return body.children.find((c) => c.id === 'nbdUpdateBar'); },
   };
@@ -230,6 +245,38 @@ async function customerPage(setup) {
   ok('bar has a 44px Reload button', !!btn && /min-height:44px/.test(btn.style.cssText || ''));
   if (btn) { btn._fire('click'); env.flushTimers(); }
   ok('tapping Reload reloads', env.reloads.length === 1);
+
+  // Review round (2026-11-14): overlays named by id, search boxes, the update
+  // landing once the work is done, and a saved form.
+  env = await dashboard((e) => e.addModal(true, 'jtModal'));
+  env.fireSw('controllerchange');
+  env.flushTimers(); env.flushTimers();
+  ok('dashboard: an open #jtModal (id only, no class or role) → no reload', env.reloads.length === 0);
+
+  env = await dashboard((e) => e.typeInto(Object.assign(makeEl('input', { type: 'text', value: 'smith' }), { id: 'leadSearch' })));
+  env.fireSw('controllerchange');
+  env.flushTimers(); env.flushTimers();
+  ok('dashboard: text left in a search box does not hold the update', env.reloads.length === 1);
+
+  env = await dashboard((e) => { e.m = e.addModal(true); });
+  env.fireSw('controllerchange');
+  env.flushTimers(); env.flushTimers();
+  ok('(deferred while the modal is open)', env.reloads.length === 0);
+  env.m._visible = false;               // the rep saves and the modal closes; page stays visible
+  env.flushTimers(); env.flushTimers();
+  ok('dashboard: once the modal closes, the next check reloads (no tap, no hide needed)', env.reloads.length === 1);
+
+  env = await dashboard((e) => {
+    e.form = makeEl('form');
+    e.field = makeEl('textarea', { value: 'Saved note' });
+    e.form.appendChild(e.field); e.field.form = e.form;
+    e.body.appendChild(e.form);
+    e.fireDoc('input', { target: e.field });
+  });
+  env.fireDoc('submit', { target: env.form });
+  env.fireSw('controllerchange');
+  env.flushTimers(); env.flushTimers();
+  ok('dashboard: a submitted form no longer counts as unsaved', env.reloads.length === 1);
 
   // Customer page (offline-manager.js) — the page where notes are typed.
   env = await customerPage();
