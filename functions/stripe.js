@@ -1807,6 +1807,50 @@ async function resolveInvoiceContext(db, stripe, paymentIntentId) {
   return { meta, invoice };
 }
 
+// The connected account a destination charge settled to → 'acct_…', or ''
+// for the platform's own charge (createStripePaymentLink sets all three on a
+// Connect mint and none on the platform tenant's).
+function connectDestinationOf(charge) {
+  const c = charge || {};
+  const id = (v) => (v && typeof v === 'object' ? String(v.id || '') : String(v || ''));
+  return id(c.transfer_data && c.transfer_data.destination) || id(c.destination) || id(c.on_behalf_of);
+}
+
+// A refund on a Connect tenant's charge → that tenant's CRM invoice (Joe,
+// 2026-11-14: mark it refunded / partly refunded and put the amount back into
+// what's owed). The owner's Stripe ledger skips Connect charges (#3037), so
+// this is the only writer for them; the owner's own refunds stay the
+// ledger's. Touches the invoice ONLY when every link holds: the PI's
+// companyId owns the invoice, that company's connected account
+// (connectAccounts/{companyId}.accountId, the doc the mint read) is the
+// charge's destination, and this PaymentIntent credited this invoice
+// (paidIntentIds). Idempotent per Stripe refund id (connect-refund-logic.js),
+// so a retried webhook is a no-op. Errors propagate: the outer catch releases
+// the event marker and Stripe retries.
+async function applyConnectRefund(db, stripe, charge, meta, destination) {
+  const companyId = meta && meta.companyId ? String(meta.companyId) : '';
+  const invoiceId = meta && meta.invoiceId ? String(meta.invoiceId) : '';
+  if (!companyId || !invoiceId) return { skipped: 'no_tenant_metadata' };
+  const acctSnap = await db.collection('connectAccounts').doc(companyId).get();
+  const acctId = acctSnap.exists ? String((acctSnap.data() || {}).accountId || '') : '';
+  if (!acctId || acctId !== destination) return { skipped: 'account_mismatch' };
+  const refunds = ((await stripe.refunds.list({ charge: String(charge.id), limit: 100 })) || {}).data || [];
+  const { planConnectRefund } = require('./connect-refund-logic');
+  const invRef = db.collection('invoices').doc(invoiceId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(invRef);
+    if (!snap.exists) return { skipped: 'not_found' };
+    const inv = snap.data();
+    if (String(inv.companyId || '') !== companyId) return { skipped: 'owner_mismatch' };
+    const credited = Array.isArray(inv.paidIntentIds) ? inv.paidIntentIds : [];
+    if (!charge.payment_intent || !credited.includes(String(charge.payment_intent))) return { skipped: 'not_credited_here' };
+    const plan = planConnectRefund(inv, refunds, { chargeId: charge.id });
+    if (!plan) return { skipped: 'already_applied', inv };
+    tx.update(invRef, Object.assign({}, plan.patch, { updatedAt: FieldValue.serverTimestamp() }));
+    return { applied: true, inv: Object.assign({}, inv, plan.patch), reopened: plan.reopened };
+  });
+}
+
 exports.invoiceWebhook = onRequest(
   {
     cors: false, // Webhook should not use CORS
@@ -2787,21 +2831,44 @@ exports.invoiceWebhook = onRequest(
         });
 
       } else if (event.type === 'charge.refunded') {
-        // D3: VISIBILITY ONLY. Stripe fires this on PARTIAL refunds too —
-        // charge.refunded is true only once the charge is fully refunded. No
-        // invoice/payments[]/amountPaid mutation here: the refund ledger unwind
-        // is phase 4, so the alert says so out loud rather than leaving the
-        // owner to discover a silently-wrong balance.
+        // Stripe fires this on PARTIAL refunds too — charge.refunded is true
+        // only once the charge is fully refunded. The owner's own charges are
+        // booked by the Stripe ledger above (refunds[]); a Connect tenant's
+        // charge is not (#3037), so its invoice is reopened here (Joe,
+        // 2026-11-14: refunded / partly refunded, the amount owed again) —
+        // applyConnectRefund. Anything it cannot tie to the tenant's invoice
+        // is left alone and the alert says so out loud.
         const charge = event.data.object;
         const { meta, invoice } = await resolveInvoiceContext(db, stripe, charge.payment_intent);
         const full = charge.refunded === true;
         const amount = ((charge.amount_refunded || 0) / 100).toFixed(2);
         const refundUid = meta.userId || (invoice && invoice.createdBy) || null;
         const refundInvoiceId = meta.invoiceId ? String(meta.invoiceId) : null;
+        const refundDest = connectDestinationOf(charge);
+        const tenantRefund = refundDest && refundInvoiceId
+          ? await applyConnectRefund(db, stripe, charge, meta, refundDest) : null;
+        const tenantInv = tenantRefund && (tenantRefund.applied || tenantRefund.skipped === 'already_applied')
+          ? tenantRefund.inv : null;
+        const owedAgain = tenantInv && Number(tenantInv.balanceDue) > 0
+          ? (Math.round(Number(tenantInv.balanceDue) * 100) / 100).toFixed(2) : null;
+        const ledgerNote = tenantInv
+          ? (owedAgain
+            ? 'The CRM invoice is marked ' + (tenantInv.refundStatus === 'refunded' ? 'refunded' : 'partly refunded')
+              + ' and $' + owedAgain + ' is owed again on it.'
+            : 'The refund is recorded on the CRM invoice; nothing was reopened on it.')
+          : 'IMPORTANT: the CRM invoice ledger was NOT changed — amounts recorded as paid still include this money; adjust records manually if needed.';
         logger.warn('charge_refunded', {
           chargeId: charge.id, invoiceId: refundInvoiceId,
           amountRefundedCents: charge.amount_refunded || 0, full,
+          connect: !!refundDest,
+          tenantInvoice: tenantRefund ? (tenantRefund.applied ? 'applied' : tenantRefund.skipped) : null,
         });
+        if (tenantRefund && tenantRefund.skipped && tenantRefund.skipped !== 'already_applied') {
+          logger.error('connect_refund_not_applied', {
+            chargeId: charge.id, invoiceId: refundInvoiceId, companyId: meta.companyId || null,
+            reason: tenantRefund.skipped,
+          });
+        }
         await alertInvoicePaymentEvent(db, {
           uid: refundUid,
           leadId: (invoice && invoice.leadId) || null,
@@ -2813,7 +2880,7 @@ exports.invoiceWebhook = onRequest(
             'Invoice: ' + (refundInvoiceId || 'n/a') + '\n' +
             'Refunded: $' + amount + '\n' +
             'Charge:  ' + charge.id + '\n' +
-            '\nIMPORTANT: the CRM invoice ledger was NOT changed — amounts recorded as paid still include this money; adjust records manually if needed.',
+            '\n' + ledgerNote,
           slackText: '↩️ Refund issued ($' + amount + ')',
           slackBlocks: [{
             type: 'section',
@@ -2825,7 +2892,9 @@ exports.invoiceWebhook = onRequest(
                 'Charge: `' + charge.id + '`\n' +
                 'Invoice: `' + (refundInvoiceId || 'n/a') + '`\n' +
                 'Company: `' + (meta.companyId || 'n/a') + '`\n' +
-                'CRM ledger unchanged — adjust manually if needed.',
+                (tenantInv
+                  ? (owedAgain ? 'CRM invoice: $' + owedAgain + ' owed again.' : 'CRM invoice: refund recorded.')
+                  : 'CRM ledger unchanged — adjust manually if needed.'),
             },
           }],
           activity: {

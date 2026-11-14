@@ -754,6 +754,7 @@
     "storm-briefing-tenant-scope-2026-10-05.test.js",
     "storm-outlook.test.js",
     "stripe-dispute-branches.test.js",
+    "connect-refund-invoice-2026-11-14.test.js",
     "swdi-hail.test.js",
     "tcpa-consent.test.js",
     "sms-consent-a2p-2026-10-05.test.js",
