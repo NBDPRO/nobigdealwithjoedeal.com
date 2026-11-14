@@ -193,15 +193,20 @@ console.log('\n5. no "Licensed" claim (it is "Fully insured")');
   ok('the transparency-strip generator emits "Fully insured", not "Licensed"', /Fully insured/.test(read('scripts/add-transparency-strip-services.js')) && !/Licensed/.test(read('scripts/add-transparency-strip-services.js')));
 }
 
-// ── 6. The Pledge lasts as long as Joe is in business ──────────────────
+// ── 6. The Pledge lasts as long as the homeowner owns the home ─────────
+// 2026-11-14 (Joe, wave-3 review): "as long as you own the home" is the true
+// promise and replaces "as long as I'm in business" everywhere (the CRM's
+// rules carry the same wording). It is still a promise, never "forever".
 console.log('\n6. Pledge duration matches the Pledge page');
 {
   const pledge = stripComments(read('docs/the-pledge/index.html'), 'x.html');
-  ok('the Pledge page defines it: "as long as I\'m in business"', /as long as I'm in business and you own the home/.test(pledge));
+  ok('the Pledge page defines it: "as long as you own the home"', /as long as you own the home/.test(pledge));
+  const inBusiness = hits(/as long as (I['’]m|I am|he is|he&rsquo;s|I&rsquo;m) (still )?in business|while (I['’]m|I&rsquo;m) in business/i);
+  ok('no page ties the Pledge to "as long as I\'m in business"', inBusiness.length === 0, show(inBusiness));
   const forever = hits(/✓ Forever|reactive, forever|applies forever|free, forever|backed personally, forever|anytime, forever|Layer 2 · Forever|come back forever|honest answer forever/i);
   ok('no page says the Pledge lasts "forever"', forever.length === 0, show(forever));
   const g = stripComments(read('docs/services/the-nbd-guarantee/index.html'), 'x.html');
-  ok('the Guarantee table says "While I\'m in business" in all three tiers', (g.match(/✓ While I&rsquo;m in business/g) || []).length === 3);
+  ok('the Guarantee table says "While you own the home" in all three tiers', (g.match(/✓ While you own the home/g) || []).length === 3);
 }
 
 // ── 7. Pledge FAQ: JSON-LD questions = the visible questions ───────────
