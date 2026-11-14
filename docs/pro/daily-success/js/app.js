@@ -220,9 +220,10 @@ function collectPage(silent){
 if(cur<0)return;const p=pages[cur];if(!p)return;const _shown=document.getElementById('main');if(!_shown||_shown.dataset.dsPage!==String(p.id))return;
 document.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
 p.exercises=[];for(let i=0;i<exCount;i++){const r={};['name','sets','reps','weight','notes'].forEach(f=>{const el=document.querySelector(`[data-k="ex-${i}-${f}"]`);r[f]=el?el.value:'';});p.exercises.push(r);}
-savePages();if(!silent)markSaved();return true;
+// A save the phone refused (full / blocked storage) leaves the page UNSAVED: never SAVED or "Saved ✓" over a write that did not happen (audit 2026-11-14 #9).
+const wrote=savePages();if(!silent&&wrote)markSaved();return wrote;
 }
-function saveNow(){collectPage();toast('Saved ✓');}
+function saveNow(){const r=collectPage();if(r===false)return;toast('Saved ✓');}
 // Re-render whatever view is current (after the cloud merge replaced `pages`).
 // Scroll position per view (audit Q10): the Dashboard and every day keep their place across tab switches and a background refresh.
 const _scrollMemo={};let _shownKey='';
@@ -907,7 +908,7 @@ let _autoSaveInterval=null;
 function startAutoSave(){
 if(_autoSaveInterval)return;
 _autoSaveInterval=setInterval(()=>{
-if(dirty&&cur>=0){collectPage(true);syncToWidgetKeys();markSaved();showAutoSaveBadge();}
+if(dirty&&cur>=0&&collectPage(true)){syncToWidgetKeys();markSaved();showAutoSaveBadge();}
 },30000);
 }
 function showAutoSaveBadge(){
