@@ -18,9 +18,23 @@
  */
 'use strict';
 
-// Field values are homeowner form answers: short tokens (tile values such as
-// "15-20", "<5", "roof-replacement") or a first name / street address.
-const TOKEN_RE = /^[A-Za-z0-9 _<>+\-–—.,'/&()]*$/;
+// Tile answers must be one of the values the three pages actually offer
+// (docs/estimate.html, roof-score.html, storm-check.html); anything else is
+// refused, so these fields can't carry instructions to the model.
+const TIMELINES = new Set(['asap', 'few-weeks', '1-3-months', 'exploring']);
+const ROOF_AGES = new Set(['<5', '5-10', '10-15', '15-20', '20+', 'unsure']);
+const ROOF_TYPES = new Set(['asphalt', 'metal', 'flat', 'other']);
+const MOISTURE = new Set(['none', 'occasional', 'active', 'noaccess']);
+const SIGNS = new Set(['shingles', 'granules', 'dents', 'sagging', 'flashing', 'moss', 'none', 'missing', 'leak', 'neighbors']);
+// Roof Health Score band, worked out here from the score (roof-score.js bandFor).
+function bandFor(score) {
+  if (score >= 85) return 'Excellent shape';
+  if (score >= 70) return 'Good — minor watch items';
+  if (score >= 50) return 'Fair — showing wear';
+  if (score >= 30) return 'Poor — get it checked soon';
+  return 'Critical — likely end of life';
+}
+
 // Free-typed fields (first name, address) are CLEANED, not refused: a real
 // homeowner's "O’Brien" or a long map-search address must still get the AI
 // note. Anything outside these sets (newlines, quotes, braces, colons…) is
@@ -59,16 +73,12 @@ function own(map, key) { return typeof key === 'string' && Object.prototype.hasO
 
 function bad(error, status) { return { ok: false, status: status || 400, error }; }
 
-// Optional short string: absent/null → ''. Wrong type, too long or odd
-// characters → error (a real form never sends those).
-function field(body, key, max, re) {
+// Optional tile answer: absent/null/'' → ''; otherwise it must be in `allowed`.
+function pick(body, key, allowed) {
   const v = body[key];
-  if (v === undefined || v === null) return { v: '' };
-  if (typeof v !== 'string') return { err: key + ' must be text' };
-  const s = v.trim();
-  if (s.length > max) return { err: key + ' too long' };
-  if (!re.test(s)) return { err: key + ' has invalid characters' };
-  return { v: s };
+  if (v === undefined || v === null || v === '') return { v: '' };
+  if (typeof v !== 'string' || !allowed.has(v)) return { err: 'Unknown ' + key };
+  return { v };
 }
 
 // Free-typed text: wrong type or absurd length → error; otherwise curly
@@ -91,11 +101,9 @@ function num(v, lo, hi) {
 function signsList(body) {
   const s = body.signs;
   if (s === undefined || s === null) return { v: [] };
-  if (!Array.isArray(s) || s.length > 12) return { err: 'signs must be a short list' };
-  for (const x of s) {
-    if (typeof x !== 'string' || x.length > 40 || !TOKEN_RE.test(x)) return { err: 'signs has an invalid entry' };
-  }
-  return { v: s.map((x) => x.trim()).filter(Boolean) };
+  if (!Array.isArray(s) || s.length > SIGNS.size) return { err: 'signs must be a short list' };
+  for (const x of s) if (typeof x !== 'string' || !SIGNS.has(x)) return { err: 'Unknown sign' };
+  return { v: Array.from(new Set(s)) };
 }
 
 function pricingTriple(p) {
@@ -124,7 +132,7 @@ function buildFunnelRequest(body) {
   let prompt;
   if (kind === 'estimate' || kind === 'note') {
     const addr = cleaned(body, 'address', 160, ADDRESS_DROP);
-    const timeline = field(body, 'timeline', 40, TOKEN_RE);
+    const timeline = pick(body, 'timeline', TIMELINES);
     for (const f of [addr, timeline]) if (f.err) return bad(f.err);
     if (!addr.v) return bad('address required');
     if (!firstName) return bad('firstName required');
@@ -200,19 +208,18 @@ function buildFunnelRequest(body) {
         '{"roofSqft":number,"squares":number,"yearBuilt":number_or_null,"tiers":{"good":{"min":number,"max":number},"better":{"min":number,"max":number},"best":{"min":number,"max":number}},"joesTake":"string"}';
     }
   } else {
-    const roofAge = field(body, 'roofAge', 20, TOKEN_RE);
+    const roofAge = pick(body, 'roofAge', ROOF_AGES);
     const signs = signsList(body);
     for (const f of [roofAge, signs]) if (f.err) return bad(f.err);
     const who = firstName || 'a homeowner';
     if (kind === 'roofScore') {
       const score = num(body.score, 0, 100);
       if (score === null) return bad('score required');
-      const band = field(body, 'bandLabel', 40, TOKEN_RE);
-      const roofType = field(body, 'roofType', 20, TOKEN_RE);
-      const moisture = field(body, 'moisture', 20, TOKEN_RE);
-      for (const f of [band, roofType, moisture]) if (f.err) return bad(f.err);
+      const roofType = pick(body, 'roofType', ROOF_TYPES);
+      const moisture = pick(body, 'moisture', MOISTURE);
+      for (const f of [roofType, moisture]) if (f.err) return bad(f.err);
       prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a straight-talking Cincinnati roofer. Write a warm, 2-sentence, no-BS note to ' +
-        who + ' who just got a Roof Health Score of ' + Math.round(score) + '/100 (' + (band.v || 'no band') + '). Roof age: ' + (roofAge.v || 'unknown') +
+        who + ' who just got a Roof Health Score of ' + Math.round(score) + '/100 (' + bandFor(score) + '). Roof age: ' + (roofAge.v || 'unknown') +
         ', material: ' + (roofType.v || 'unknown') + ', signs: ' + (signs.v.join(', ') || 'none') + ', interior moisture: ' + (moisture.v || 'unknown') +
         '. Offer a free inspection. Do NOT guarantee any condition, claim approval, or mention any dollar amounts.';
     } else {

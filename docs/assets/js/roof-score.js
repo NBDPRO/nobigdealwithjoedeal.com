@@ -391,7 +391,7 @@
       // Structured answers only (2026-11-14, AI audit F5): the server builds
       // the prompt (functions/public-funnel-ai-logic.js) and refuses free text.
       var aiRequest = {
-        kind: 'roofScore', firstName: S.firstName || '', score: S.score, bandLabel: (S.band && S.band.label) || '',
+        kind: 'roofScore', firstName: S.firstName || '', score: S.score,
         roofAge: S.roofAge, roofType: S.roofType, signs: S.signs, moisture: S.moisture
       };
       // 30 s client timeout (2026-10-15, review M3): a slow or cold backend

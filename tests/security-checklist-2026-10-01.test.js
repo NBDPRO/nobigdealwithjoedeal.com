@@ -67,7 +67,7 @@ console.log('\n4. the public AI endpoints have a whole-endpoint daily cap');
   ok('publicFunnelAI and publicVisualizerAI both call publicAiDailyCap after their per-IP cap',
     // 2026-11-14 (AI audit F5): publicFunnelAI validates the body between the
     // two, so junk never counts against the shared daily cap.
-    /'publicFunnelAI:ip', 10, 3_600_000\)\)\) return;[\s\S]{0,200}?const built = buildFunnelRequest\(req\.body\);[\s\S]{0,200}?return;\s*\}\s*if \(!\(await publicAiDailyCap\(res, 'publicFunnelAI'\)\)\) return;/.test(src)
+    /'publicFunnelAI:ip', 10, 3_600_000\)\)\) return;[\s\S]{0,200}?const built = buildFunnelRequest\(req\.body\);\s*if \(!built\.ok\) \{[\s\S]{0,700}?return;\s*\}\s*if \(!\(await publicAiDailyCap\(res, 'publicFunnelAI'\)\)\) return;/.test(src)
     && /'publicVisualizerAI:ip', 5, 3_600_000\)\)\) return;\s*if \(!\(await publicAiDailyCap\(res, 'publicVisualizerAI'\)\)\) return;/.test(src));
   ok('one counter for everyone (fixed key), 300/day default, refuses when the store fails',
     /enforceRateLimit\(name \+ ':global', 'GLOBAL_DAILY', cap, 86_400_000\)/.test(src) && /envCap\(process\.env\.PUBLIC_AI_DAILY_CAP,\s*300\)/.test(src) && /res\.status\(503\)/.test(src));
