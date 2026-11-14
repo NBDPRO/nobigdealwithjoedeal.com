@@ -522,6 +522,18 @@ exports.visualizerImageGen = onRequest(
       const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp']);
       const mediaType = allowedMedia.has(body.mediaType) ? body.mediaType : 'image/jpeg';
 
+      // A real photo, not a few bytes (2026-11-14): only a plausible JPEG /
+      // PNG / WebP counts against the daily cap below, so a stranger can't
+      // use the day up with junk that Replicate would reject anyway.
+      const head = Buffer.from(imageBase64.slice(0, 24), 'base64');
+      const looksLikeImage = (head[0] === 0xFF && head[1] === 0xD8 && head[2] === 0xFF)
+        || (head[0] === 0x89 && head.toString('ascii', 1, 4) === 'PNG')
+        || (head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP');
+      if (imageBase64.length < 8000 || !looksLikeImage) {
+        res.status(400).json({ error: 'invalid_image' });
+        return;
+      }
+
       // Sanitize the structured `selections` block the new frontend sends.
       // Only the fields the prompt builder actually reads are kept. Hex
       // values are validated against #RRGGBB to keep us from injecting

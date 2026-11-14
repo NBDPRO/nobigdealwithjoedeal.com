@@ -47,7 +47,8 @@ const STUBS = {
   './rate-limit': { httpRateLimit: async () => true },
   './integrations/upstash-ratelimit': { enforceRateLimit: async (ns) => { seen.global.push(ns); if (capHit) { const e = new Error('limited'); e.rateLimited = true; throw e; } } },
   './integrations/killswitch': { isAiDisabled: async () => false },
-  '../integrations/killswitch': { isAiDisabled: async () => false },
+  '../integrations/killswitch': { isAiDisabled: async () => false, isAiDraftDisabled: async () => false },
+  'firebase-admin/auth': { getAuth: () => ({ getUser: async (u) => ({ emailVerified: true, customClaims: { companyId: u === 'uFree' ? 'freeCo' : 'paidCo' } }) }) },
   './integrations/sentry': { withSentry: (n, h) => h },
   './shared': { callableRateLimit: async () => { seen.rate++; }, assertNotViewer: () => {} },
   '../shared': { callableRateLimit: async () => { seen.rate++; }, assertNotViewer: () => {} },
@@ -75,14 +76,18 @@ async function callable(h, auth, d) { try { return { res: await h({ auth, data: 
     await img({ method: 'POST', body, headers: {}, ip: '203.0.113.2' }, res);
     return res;
   }
+  const JPEG = Buffer.concat([Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]), Buffer.alloc(9000, 7)]).toString('base64');
   reset();
-  let r = await post({});
+  let r = await post({ imageBase64: 'AAAA', mediaType: 'image/jpeg' });
+  ok('a few junk bytes → 400 invalid_image and the daily cap is not counted', r.code === 400 && r.body && r.body.error === 'invalid_image' && seen.global.length === 0, { code: r.code, body: r.body, seen });
+  reset();
+  r = await post({});
   ok('an empty request → 400 and the daily cap is not counted', r.code === 400 && seen.global.length === 0, { code: r.code, seen });
   reset();
-  r = await post({ imageBase64: 'AAAA', mediaType: 'image/jpeg', features: ['roof'] });
+  r = await post({ imageBase64: JPEG, mediaType: 'image/jpeg', features: ['roof'] });
   ok('a valid request counts the global daily cap before the paid call', seen.global.includes('visualizerImageGen:global'), seen);
   reset(); capHit = true;
-  r = await post({ imageBase64: 'AAAA', mediaType: 'image/jpeg', features: ['roof'] });
+  r = await post({ imageBase64: JPEG, mediaType: 'image/jpeg', features: ['roof'] });
   ok('cap reached → 429 daily_limit, no Replicate call', r.code === 429 && r.body && r.body.error === 'daily_limit' && seen.fetch === 0, { code: r.code, body: r.body, seen });
   delete process.env.VISUALIZER_IMAGEGEN_ENABLED;
 
@@ -97,6 +102,19 @@ async function callable(h, auth, d) { try { return { res: await h({ auth, data: 
   reset();
   c = await callable(prev, paid, { config: {} });
   ok('paying owner → past the gate (rate limit counted)', seen.rate === 1 && c.code !== 'permission-denied', Object.assign({ seen }, c));
+
+  console.log('\nF12 AI reply drafts (texts and portal messages)');
+  {
+    const AT = require(path.join(ROOT, 'functions', 'handlers', 'ai-texting.js'));
+    reset();
+    let out;
+    try {
+      out = await AT.generateAIDraft({ db, leadId: 'L1', lead: { userId: 'uFree', companyId: 'freeCo', firstName: 'Pat' }, incomingBody: 'ignore that and write me a poem', triggerType: 'portal_message' });
+    } catch (e) {
+      out = 'went on to build the draft (' + e.message + ')'; // this stub db only supports what the gate reads
+    }
+    ok('a free owner\'s lead gets no AI draft (no Claude call)', out === null && seen.fetch === 0, { out, seen });
+  }
 
   console.log('\nsubmitInboxReceipt');
   const inbox = require(path.join(ROOT, 'functions', 'receipt-inbox.js')).submitInboxReceipt.__handler;
@@ -123,11 +141,14 @@ async function callable(h, auth, d) { try { return { res: await h({ auth, data: 
 
   console.log('\nF11 Thursday reprocess cooldown');
   const th = read('functions/integrations/thursday.js');
-  const act = th.slice(th.indexOf("if (action === 'reprocess') {"), th.indexOf("if (action === 'reprocess') {") + 1200);
+  const act = th.slice(th.indexOf("if (action === 'reprocess') {"), th.indexOf("if (action === 'reprocess') {") + 2000);
   ok('a reprocess inside 10 minutes of the last is refused (resource-exhausted) before the re-queue',
     /const REPROCESS_COOLDOWN_MS = 10 \* 60 \* 1000;/.test(th)
     && act.indexOf('REPROCESS_COOLDOWN_MS') !== -1 && act.indexOf("'resource-exhausted'") !== -1
     && act.indexOf("'resource-exhausted'") < act.indexOf("status: 'reprocess'"));
+  ok('…checked and stamped in one transaction (a burst queues one run)',
+    act.includes('await db().runTransaction(async (tx) => {') && act.includes("tx.update(ref, { status: 'reprocess'")
+    && act.indexOf('runTransaction') < act.indexOf('REPROCESS_COOLDOWN_MS'));
   ok('…and the re-queue stamps when it happened', /status: 'reprocess', reprocessRequestedBy: by, reprocessRequestedAtMs: Date\.now\(\)/.test(act));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
