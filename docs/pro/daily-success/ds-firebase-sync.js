@@ -97,6 +97,7 @@ const showError = (text) => { showBadge(text, null, BADGE_ERR_MS); chipFailed();
 // ── the one sync chip (audit M9) ──────────────────────────────────────────
 // js/sync-chip-ui.js draws the persistent state into #sdot from these events: { cloud, signedIn, at }. The pill above stays as the
 // short confirmation. A failure is retried with backoff (sync-chip-logic.js), at once when the network comes back, or by a tap on the chip.
+let _pullOwed = false;   // a merge was deferred while a field had focus: the retry must pull again
 let _cloud = 'idle', _synced = false, _user = null, _attempt = 0, _retryT = null;
 const emit = (cloud, extra) => {
   _cloud = cloud;
@@ -121,7 +122,8 @@ async function retrySync() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) { emit('failed'); return; }
   _retrying = true;
   try {
-    if (!_synced) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
+    // Not synced yet, or a merge was put off while Jo typed (a re-pull on return): run the whole pull + merge again, not just a push.
+    if (!_synced || _pullOwed) { _pullOwed = false; _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
     emit('syncing');
     try {
       const sent = await pushToFirestore(readJson(STORE, []));
@@ -396,7 +398,6 @@ async function onAuth(user) {
     try { restored = await syncSettings(); } catch (e) { settingsFailed = true; console.warn('[ds-sync] settings push failed', e && e.code); }
     const cloud = await pullFromFirestore();
     if (cloud === null) { showError('Sync error'); return; }
-    _lastPull = Date.now();
     _ledger.clear();
     for (const cp of cloud) if (!cp.deleted) _ledger.set(String(cp.id), L().mtOf(cp));
     const local = readJson(STORE, []);
@@ -406,11 +407,13 @@ async function onAuth(user) {
     // Typing in a field (or an edit not yet collected) must not be redrawn away by a merge, least of all by a background retry:
     // leave the phone copy alone and try again in a few seconds.
     if (changedLocal && editingNow()) {
+      _pullOwed = true;
       emit('syncing');
       clearTimeout(_retryT);
       _retryT = setTimeout(retrySync, 3000);
       return;
     }
+    _lastPull = Date.now();
     if (changedLocal) {
       localStorage.setItem(STORE, JSON.stringify(merged.pages));
       if (typeof window.loadPages === 'function') window.loadPages();
@@ -433,13 +436,14 @@ async function onAuth(user) {
 // Pull again when the app comes back (audit 2026-11-14 #5). The pull used to run only at sign-in, so a phone left open on
 // today's page kept its old copy while another device logged to the same day, and its next save (the whole page, newer mt)
 // threw those entries away. At most every 15 s; never offline, mid-sync, or while a field is being typed in (onAuth defers).
-let _lastPull = 0;
+let _lastPull = 0, _lastTry = 0;
 const REPULL_MS = 15000;
 async function refreshOnReturn() {
   if (!_uid || !_user || !_synced || _retrying) return;
   if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-  if (Date.now() - _lastPull < REPULL_MS) return;
+  if (Date.now() - Math.max(_lastPull, _lastTry) < REPULL_MS) return;   // a failed pull is throttled too
+  _lastTry = Date.now();
   _retrying = true; _quiet = true;
   try { await onAuth(_user); } catch (e) { console.warn('[ds-sync] re-pull failed', e && e.code); }
   finally { _quiet = false; _retrying = false; }
