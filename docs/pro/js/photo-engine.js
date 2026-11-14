@@ -2991,8 +2991,9 @@
       let capReason = null;
       const onCapSkip = (e) => {
         capSkipped++;
-        if (!capReason && e && e.detail && e.detail.reason) capReason = e.detail.reason;
+        if (!capReason && e && e.detail && e.detail.reason) { capReason = e.detail.reason; capMessage = e.detail.message || ''; }
       };
+      let capMessage = '';
       window.addEventListener('nbd:ai-classify-skipped', onCapSkip);
       try {
         // Filter to roof + damage photos by default — those are what
@@ -3022,7 +3023,9 @@
         if (summarySlot && window.PhotoAI.renderSummaryBanner) {
           summarySlot.innerHTML = window.PhotoAI.renderSummaryBanner(summary);
         }
-        if (capSkipped > 0) {
+        if (capSkipped > 0 && capReason === 'not-entitled') {
+          showToast(capMessage || 'AI photo analysis is part of the paid plans.', 'info');
+        } else if (capSkipped > 0) {
           const reasonLabel = capReason === 'daily-cap' ? 'daily (100/day)'
                             : capReason === 'lead-cap'  ? 'per-lead ($10)'
                             : capReason === 'user-cap'  ? 'monthly ($50)'

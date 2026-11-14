@@ -272,7 +272,10 @@ async function classifyPhoto(args) {
     ]);
     const leadUsd = (leadMeterSnap.exists && leadMeterSnap.data().visionUsd) || 0;
     const companyUsd = (companyMeterSnap.exists && companyMeterSnap.data().visionUsd) || 0;
-    const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
+    // NBD's own company may have no subscription doc: it is exempt from the plan
+    // rule, so its budget is the top tier, never the 'lite' default (2026-11-14).
+    const plan = ((billingKey || uid) === require('./ai-gate').PLATFORM_UID && !(subSnap.exists && subSnap.data().plan && subSnap.data().plan !== 'free' && subSnap.data().plan !== 'lite'))
+      ? 'professional' : ((subSnap.exists && subSnap.data().plan) || 'lite');
     const companyMonthlyCap = Object.prototype.hasOwnProperty.call(PER_USER_MONTHLY_USD_CAP_BY_PLAN, plan)
       ? PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] : PER_USER_MONTHLY_USD_CAP;
 
@@ -523,7 +526,10 @@ async function handlePhotoCreated(photoId, photo, deps) {
     photoRef: db.doc(`photos/${photoId}`),
     photo,
     uid: photo.userId,
-    billingKey: photo.companyId || photo.userId,
+    // The company the entitlement resolved (claim, else users/{uid}.companyId),
+    // so the plan and the company meter match the gate even when the photo
+    // doc has no companyId (imports, older uploads).
+    billingKey: (ent && ent.companyId) || photo.companyId || photo.userId,
     apiKey: deps.apiKey || ANTHROPIC_API_KEY.value(),
     source: 'trigger',
     skipIfClassified: true,

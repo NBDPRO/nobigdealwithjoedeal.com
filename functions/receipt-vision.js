@@ -254,7 +254,10 @@ exports.extractReceiptData = onCall({
     db.doc(`subscriptions/${billingKey}`).get(),
   ]);
   const companyUsd = (companyMeterSnap.exists && companyMeterSnap.data().visionUsd) || 0;
-  const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
+  // NBD's own company may have no subscription doc: it is exempt from the plan
+  // rule, so its budget is the top tier, never the 'lite' default (2026-11-14).
+  const plan = (billingKey === require('./ai-gate').PLATFORM_UID && !(subSnap.exists && subSnap.data().plan && subSnap.data().plan !== 'free' && subSnap.data().plan !== 'lite'))
+    ? 'professional' : ((subSnap.exists && subSnap.data().plan) || 'lite');
   // Unmapped/legacy/free plans get the most CONSERVATIVE cap, not the $50
   // global mid-range (QA finding).
   var planCaps = Object.values(PER_USER_MONTHLY_USD_CAP_BY_PLAN);

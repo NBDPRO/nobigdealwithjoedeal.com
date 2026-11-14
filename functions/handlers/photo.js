@@ -363,10 +363,9 @@ exports.analyzeRoofPhoto = onRequest(
       return;
     }
 
-    // Per-uid and per-company daily caps
+    // Per-uid daily cap (the per-company one is counted once the photo checks out)
     try {
       await enforceRateLimit('analyzeRoofPhoto:uid', decoded.uid, PHOTO_AI_DAILY_CAP, 86_400_000);
-      await enforceRateLimit('analyzeRoofPhoto:co', decoded.companyId || decoded.uid, PHOTO_AI_COMPANY_DAILY_CAP, 86_400_000);
     } catch (e) {
       if (e.rateLimited) {
         res.status(429).json({ error: 'Daily photo analysis limit reached' });
@@ -398,6 +397,15 @@ exports.analyzeRoofPhoto = onRequest(
         });
         res.status(403).json({ error: 'Forbidden' });
         return;
+      }
+
+      // The per-company daily cap counts only a real, owned photo, so one
+      // member's junk requests can't use up the company's day.
+      try {
+        await enforceRateLimit('analyzeRoofPhoto:co', decoded.companyId || decoded.uid, PHOTO_AI_COMPANY_DAILY_CAP, 86_400_000);
+      } catch (e) {
+        if (e.rateLimited) { res.status(429).json({ error: 'Daily photo analysis limit reached for your company' }); return; }
+        throw e;
       }
 
       if (!photo.url || typeof photo.url !== 'string') {

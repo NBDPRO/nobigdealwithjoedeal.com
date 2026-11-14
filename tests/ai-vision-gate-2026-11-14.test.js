@@ -131,6 +131,9 @@ function world() {
   r = await postRoof('paid', 'pPaid');
   ok('paying rep → past the gate, counted per uid AND per company', seen.keys.includes('analyzeRoofPhoto:uid=uPaid') && seen.keys.includes('analyzeRoofPhoto:co=paidCo'), seen.keys);
   world();
+  r = await postRoof('paid', 'noSuchPhoto');
+  ok('a request for a photo that doesn\'t exist doesn\'t use up the company\'s daily cap', r.code === 404 && !seen.keys.some((k) => k.startsWith('analyzeRoofPhoto:co=')), Object.assign({ code: r.code }, { keys: seen.keys }));
+  world();
   r = await postRoof('nbd', 'pNbd');
   ok('NBD (no subscription doc) → past the gate', seen.keys.includes('analyzeRoofPhoto:co=' + NBD) && r.code !== 403, r);
 
@@ -177,6 +180,23 @@ function world() {
   t = await T.handlePhotoCreated('pRep2', data['photos/pRep2'], { db, killswitch: killOff, entitled, apiKey: 'k', fetchImpl });
   ok('a SECOND rep of a company at its $25 Starter cap is capped too (company-cap), no model call', t.skipped && t.reason === 'company-cap' && fetches === 0, t);
 
+  world();
+  data['photos/pNoCo'] = { userId: 'uPaid', leadId: 'L7', url: 'https://firebasestorage.googleapis.com/v0/b/x/o/e.jpg' };
+  data['companyCostMeter/paidCo__' + month] = { visionUsd: 25 };
+  fetches = 0;
+  t = await T.handlePhotoCreated('pNoCo', data['photos/pNoCo'], { db, killswitch: killOff, entitled: async () => ({ ok: true, companyId: 'paidCo' }), apiKey: 'k', fetchImpl });
+  ok('a photo doc with no companyId is metered on the company the gate resolved (here: at its cap)', t.skipped && t.reason === 'company-cap' && fetches === 0 && !data['companyCostMeter/uPaid__' + month], t);
+  world();
+  data['companyCostMeter/' + NBD + '__' + month] = { visionUsd: 30 };
+  fetches = 0;
+  t = await T.handlePhotoCreated('pNbd', data['photos/pNbd'], { db, killswitch: killOff, entitled: async () => ({ ok: true, companyId: NBD }), apiKey: 'k', fetchImpl });
+  ok('NBD\'s own company (no subscription doc) is not held to the $25 lite cap', !!t.suggestion && fetches === 1, t);
+  {
+    const G = require(path.join(ROOT, 'functions', 'ai-gate.js'));
+    const g = await G.aiEntitlement(db, tokens.paid, 'uPaid');
+    ok('the gate returns the company it billed against', g.ok && g.companyId === 'paidCo', g);
+  }
+
   console.log('\n3. extractReceiptData');
   const RV = require(path.join(ROOT, 'functions', 'receipt-vision.js'));
   const rvCall = RV.extractReceiptData.__handler || RV.extractReceiptData;
@@ -200,6 +220,42 @@ function world() {
   const fs = require('fs');
   ok('expenses.js shows the monthly-limit message for company-cap', /reason === 'company-cap'/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/js/expenses.js'), 'utf8')));
   ok('photo-engine.js names company-cap in its cap toast', /capReason === 'company-cap'/.test(fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-engine.js'), 'utf8')));
+  const vm = require('vm');
+  function sliceFn(src, sig) {
+    const at = src.indexOf(sig); let depth = 0, i = src.indexOf('{', at);
+    for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+    return at === -1 ? '' : src.slice(at, i + 1);
+  }
+  {
+    // photo-ai.js analyze(): a 403 plan refusal fires the skip event with the message and stops a batch.
+    const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-ai.js'), 'utf8');
+    const fn = sliceFn(src, 'async function analyze(');
+    const events = [];
+    const ctx = {
+      FUNCTIONS_BASE: 'https://x', CustomEvent: function (n, o) { this.type = n; this.detail = o.detail; },
+      window: { dispatchEvent: (e) => events.push(e) },
+      fetch: async () => ({ ok: false, status: 403, json: async () => ({ error: 'AI features are part of the paid plans. Upgrade to use them.' }) }),
+      getToken: async () => 't', firebase: null,
+    };
+    vm.createContext(ctx);
+    let err = null;
+    try {
+      vm.runInContext(fn.replace(/const token = [^\n]*\n/, "const token = 't';\n"), ctx);
+      await ctx.analyze('p1');
+    } catch (e) { err = e; }
+    ok('photo-ai analyze(): a 403 plan refusal fires nbd:ai-classify-skipped with the server\'s message', events.some((e) => e.detail && e.detail.reason === 'not-entitled' && /paid plans/.test(e.detail.message)), { events: events.map((e) => e.detail), err: err && err.message });
+    ok('…and marks the error so a batch stops', !!(err && err.stopBatch));
+  }
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-ai-classifier.js'), 'utf8');
+    ok('photo-ai-classifier: a permission-denied from the callable fires the skip event with the message',
+      /code === 'permission-denied' \|\| code === 'unavailable'\) \{\s*try \{\s*window\.dispatchEvent\(new CustomEvent\('nbd:ai-classify-skipped', \{\s*detail: \{ photoId, reason: 'not-entitled', message: e\.message \|\| '' \}/.test(src));
+    const ex = fs.readFileSync(path.join(ROOT, 'docs/pro/js/expenses.js'), 'utf8');
+    ok('expenses.js: a plan refusal on receipt scan shows the server\'s message, not "Scan failed"',
+      /if \(\(code === 'permission-denied' \|\| code === 'unavailable'\) && e\.message\) \{\s*setScanStatus\(e\.message \+/.test(ex));
+    const pe = fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-engine.js'), 'utf8');
+    ok('photo-engine.js: a not-entitled skip shows the plan message', /capReason === 'not-entitled'\) \{\s*showToast\(capMessage/.test(pe));
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -670,6 +670,12 @@
       applyExtraction(d);
     } catch (e) {
       console.warn('[expenses] scan failed', e);
+      // A plan / email refusal says what to do (2026-11-14, free accounts get no AI).
+      var code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+      if ((code === 'permission-denied' || code === 'unavailable') && e.message) {
+        setScanStatus(e.message + ' Enter the details manually (the receipt is still attached).', 'warn');
+        return;
+      }
       setScanStatus('Scan failed — enter the details manually (the receipt is still attached).', 'error');
     } finally { if (btn) btn.disabled = false; }
   }
