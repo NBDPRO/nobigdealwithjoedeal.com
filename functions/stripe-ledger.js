@@ -284,12 +284,14 @@ function summarize(row, match, booked) {
 }
 
 // ── ingest: one Stripe object each ───────────────────────────────────────
-/** A charge made for a Connect tenant (destination / on_behalf_of, or a PI
- * stamped with another company) → that marker; the owner's own charge → ''. */
+/** A charge made for a Connect tenant → a marker; the owner's own charge → ''.
+ * Reads the charge's `destination` (Stripe sets it on every destination
+ * charge) and the PI's companyId, which createStripePaymentLink stamps on
+ * every link it mints (the tenant's id, or OWNER for the platform's own).
+ * Money-routing fields stay named only in stripe.js (platform-only test). */
 function connectTenantOf(ch) {
   const c = ch || {};
-  if (c.on_behalf_of) return String(c.on_behalf_of.id || c.on_behalf_of);
-  if (c.transfer_data && c.transfer_data.destination) return String(c.transfer_data.destination.id || c.transfer_data.destination);
+  if (c.destination) return String(c.destination.id || c.destination);
   const pi = c.payment_intent && typeof c.payment_intent === 'object' ? c.payment_intent : null;
   const co = (pi && pi.metadata && pi.metadata.companyId) || (c.metadata && c.metadata.companyId) || '';
   return co && String(co) !== String(OWNER) ? 'company:' + co : '';

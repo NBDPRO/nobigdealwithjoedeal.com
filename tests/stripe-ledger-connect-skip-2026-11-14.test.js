@@ -3,7 +3,7 @@
  *
  * A Connect tenant's payment-link charge is a DESTINATION charge: the PI and
  * the charge live on the platform account (stripe.js createStripePaymentLink,
- * on_behalf_of + transfer_data), so the ledger's webhook and nightly sync see
+ * a destination charge), so the ledger's webhook and nightly sync see
  * them. They are another company's money and another company's homeowner:
  * the ledger must never match them to the platform owner's leads, never book
  * them onto the owner's invoices, never copy the payer's details into the
@@ -104,9 +104,9 @@ const payer = cust('cus_payer', 'ZZ_QA Shared', 'shared@example.com', '(513) 555
 
 (async () => {
   const cases = [
-    ['destination charge (transfer_data)', charge('ch_dest', 200000, payer, { transfer_data: { destination: 'acct_B' },
+    ['destination charge (destination + tenant metadata)', charge('ch_dest', 200000, payer, { destination: 'acct_B',
       payment_intent: { id: 'pi_dest', metadata: { invoiceId: 'TENANT_B_INV', companyId: 'tenantB' } } })],
-    ['on_behalf_of only', charge('ch_obo', 200000, payer, { on_behalf_of: 'acct_B' })],
+    ['destination only, no metadata', charge('ch_obo', 200000, payer, { destination: 'acct_B' })],
     ['another company in the PI metadata', charge('ch_meta', 200000, payer, { payment_intent: { id: 'pi_meta', metadata: { invoiceId: 'TENANT_B_INV2', companyId: 'tenantB' } } })],
   ];
   for (const [label, ch] of cases) {
@@ -152,7 +152,7 @@ const payer = cust('cus_payer', 'ZZ_QA Shared', 'shared@example.com', '(513) 555
   console.log('\na refund and a dispute on a Connect charge stay out of the owner\'s ledger');
   {
     const db = makeDb({ leads: seedLeads, invoices: seedInvoices });
-    const dest = charge('ch_cx', 200000, payer, { transfer_data: { destination: 'acct_B' }, payment_intent: { id: 'pi_cx', metadata: { companyId: 'tenantB' } } });
+    const dest = charge('ch_cx', 200000, payer, { destination: 'acct_B', payment_intent: { id: 'pi_cx', metadata: { companyId: 'tenantB' } } });
     const re = { id: 're_cx', object: 'refund', amount: 200000, created: T0 + 100, status: 'succeeded', charge: 'ch_cx', reason: 'requested_by_customer' };
     const dp = { id: 'dp_cx', object: 'dispute', amount: 200000, created: T0 + 200, status: 'needs_response', charge: 'ch_cx', reason: 'fraudulent' };
     X.setStripe(makeStripe({ charges: [dest], invoices: [], refunds: [re], disputes: [dp], payouts: [] }));
