@@ -48,6 +48,12 @@ const SETTINGS = [
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
   { key: 'nbd_ds_eod',      field: 'dsEod' },          // end-of-day review: one short note per date
   { key: 'nbd_ds_money',    field: 'dsMoney' },        // money tab: paycheck plan (nicknames + amounts only)
+  // Device-only until 2026-11-14 (audit #2): a lost phone, or another account signing in on it, took these with it.
+  // firstMerge: how to combine this device's never-synced copy with the cloud's on the first sync (ds-sync-logic mergeFirstSync).
+  { key: 'nbd_ds_measurements',   field: 'dsMeasurements',  firstMerge: 'dateSite' }, // body measurements (mm, one per site per day)
+  { key: 'nbd_ds_coach_routines', field: 'dsCoachRoutines', firstMerge: 'id' },       // Workout Coach saved routines
+  { key: 'nbd_ds_coach_custom',   field: 'dsCoachCustom',   firstMerge: 'id' },       // Workout Coach custom lifts
+  { key: 'nbd_ds_coach_ready',    field: 'dsCoachReady',    firstMerge: 'map' },      // morning check-ins (sleep / soreness / energy)
 ];
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 
@@ -274,7 +280,13 @@ async function syncSettings() {
     const loc = localSetting(s);
     const cv = cloudDoc[s.field];
     const cloud = { value: cv && typeof cv === 'object' ? cv : null, at: Number(cloudDoc[s.field + 'At']) || 0 };
-    const which = L().pickSettings(loc, cloud);
+    let which = L().pickSettings(loc, cloud);
+    // Never synced here and the cloud already has a copy: merge both instead of replacing this device's list.
+    if (which === 'cloud' && s.firstMerge && loc.value != null && !loc.at) {
+      localStorage.setItem(s.key, JSON.stringify(L().mergeFirstSync(s.firstMerge, loc.value, cloud.value)));
+      localStorage.setItem(s.key + '_at', String(Date.now()));
+      restored = true; needPush = true; continue;
+    }
     if (which === 'cloud') {
       localStorage.setItem(s.key, JSON.stringify(cloud.value));
       localStorage.setItem(s.key + '_at', String(cloud.at || Date.now()));
@@ -287,6 +299,8 @@ async function syncSettings() {
     }
   }
   if (needPush) await pushSettingsOrThrow();
+  // The coach keeps its routines and custom lifts in memory: reload them after a restore (custom lifts join the library).
+  if (restored && window.NBDCoachUI && typeof window.NBDCoachUI.reload === 'function') { try { window.NBDCoachUI.reload(); } catch (_) { /* the next coach action reloads them */ } }
   return restored;
 }
 
