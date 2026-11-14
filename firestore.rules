@@ -3289,7 +3289,8 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && (!('plan' in request.resource.data) || request.resource.data.plan == 'free')
         && !request.resource.data.keys().hasAny(['status', 'sitePublished', 'sitePublishedAt',
-                                                 'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy']);
+                                                 'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy',
+                                                 'siteSlug', 'siteSlugUpdatedAt']);
       allow update: if ((isAuth() && notViewer() && resource.data.ownerId == request.auth.uid)
             && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt',
                              'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy',
