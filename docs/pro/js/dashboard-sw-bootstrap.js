@@ -6,6 +6,14 @@
 //      unregister and refuse to register. Deploy that file to kill
 //      SW for every user in the next reload.
 let nbdDiag; // module-local (globals Tranche 1 — was window.*)
+// A new version used to reload unconditionally, wiping a half-typed lead or
+// cutting a voice note on a phone (wave-1 field finding #3, 2026-11-14).
+// safe-reload.js defers while a modal, typed text or a recording is live.
+function reloadForUpdate(reason) {
+  if (window.NBDSafeReload) { window.NBDSafeReload.request(reason); return; }
+  console.warn('[sw] safe-reload.js missing; reloading without the work-in-progress check');
+  window.location.reload();
+}
 (async function swBootstrap() {
   if (!('serviceWorker' in navigator)) return;
   const params = new URLSearchParams(location.search);
@@ -41,7 +49,8 @@ let nbdDiag; // module-local (globals Tranche 1 — was window.*)
   navigator.serviceWorker.addEventListener('message', e => {
     if (e.data?.type === 'SW_UPDATE_AVAILABLE') {
       console.log('🔄 New version available:', e.data.version);
-      setTimeout(() => window.location.reload(), 500);
+      // 2026-11-14: never reload over work in progress (safe-reload.js).
+      setTimeout(() => reloadForUpdate('sw-message'), 500);
     }
   });
   // Bug fix 2026-05-05: backup auto-reload path. iOS Safari sometimes
@@ -54,7 +63,7 @@ let nbdDiag; // module-local (globals Tranche 1 — was window.*)
     if (_swCtrlReloaded) return;
     _swCtrlReloaded = true;
     console.log('🔄 SW controller changed — reloading');
-    setTimeout(() => window.location.reload(), 0);
+    setTimeout(() => reloadForUpdate('controllerchange'), 0);
   });
 })();
 

@@ -554,7 +554,13 @@
     // Defer so the SW's activate event finishes claiming clients
     // before we navigate. iOS Safari is finicky about reload during
     // controllerchange; a 0ms task break avoids the freeze.
-    setTimeout(() => { window.location.reload(); }, 0);
+    // 2026-11-14: never reload over a half-typed note or a live recording
+    // (safe-reload.js shows a tap-to-reload bar instead).
+    setTimeout(() => {
+      if (window.NBDSafeReload) { window.NBDSafeReload.request(reason); return; }
+      console.warn('[offline-manager] safe-reload.js missing; reloading without the work-in-progress check');
+      window.location.reload();
+    }, 0);
   }
 
   function showUpdateNotification() {
