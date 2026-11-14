@@ -200,7 +200,7 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   // itself is checked in a real browser: ds-flow-batch-3 "control: boots on the Dashboard" (cur === -1, the Dash on screen).
   // Here: the default, and that boot sets cur=-1 and draws the view cur points at (tabs and screen agree).
   const boot = (app.match(/const DS_OPEN_TO='dash';[\s\S]{0,600}/) || [''])[0];
-  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', !!boot && /\bcur=-1;/.test(boot) && /renderTabs\(\);/.test(boot) && /if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(boot) && boot.indexOf('cur=-1;') < boot.indexOf('if(cur===-1)renderDash()'));
+  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', !!boot && /\bcur=-1;/.test(boot) && /renderTabs\(\);/.test(boot) && /if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(boot) && boot.indexOf('loadPages();') > -1 && boot.indexOf('loadPages();') < boot.indexOf('cur=-1;') && boot.indexOf('cur=-1;') < boot.indexOf('if(cur===-1)renderDash()'));
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');
   ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));
