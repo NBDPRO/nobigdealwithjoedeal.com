@@ -66,11 +66,24 @@ async function resolveCompanyByKey(db, key) {
   let companyId = key;
   let coSnap = await db.doc(`companies/${key}`).get();
   if (!coSnap.exists) {
-    const slugSnap = await db.collection('companies')
-      .where('siteSlug', '==', key).limit(1).get();
-    if (slugSnap.empty) return null;
-    coSnap = slugSnap.docs[0];
-    companyId = coSnap.id;
+    // The siteSlugs/{slug} claim (written only by setSiteSlug) is the owner of
+    // a slug. A company doc that merely carries the same siteSlug, e.g. one a
+    // client created with it, must never win: an unordered limit(1) returned
+    // the lowest doc id, so a squatter could take a tenant's site and leads
+    // (2026-11-14). No claim → accept the query only when exactly one doc has it.
+    const claim = await db.doc(`siteSlugs/${key}`).get();
+    const claimedBy = claim.exists ? String((claim.data() || {}).companyId || '') : '';
+    if (claimedBy) {
+      coSnap = await db.doc(`companies/${claimedBy}`).get();
+      if (!coSnap.exists || (coSnap.data() || {}).siteSlug !== key) return null;
+      companyId = claimedBy;
+    } else {
+      const slugSnap = await db.collection('companies')
+        .where('siteSlug', '==', key).limit(2).get();
+      if (slugSnap.size !== 1) return null;
+      coSnap = slugSnap.docs[0];
+      companyId = coSnap.id;
+    }
   }
   const co = coSnap.data() || {};
   if (co.status && co.status !== 'active') return null;

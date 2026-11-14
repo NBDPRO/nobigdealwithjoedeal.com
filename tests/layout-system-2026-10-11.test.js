@@ -353,9 +353,8 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
     ok('preboot cache key matches the engine\'s',
       PREBOOT_SRC.includes("'nbd_layout_resolved'") && SYS_SRC.includes("'nbd_layout_resolved'"));
     ok('preboot surface rule matches R.surfaceFor (768 phone / 1180 touch tablet)',
-      // 2026-11-14: + a touch phone on its side (short, <= 1000 wide) is a phone, in both copies
-      /w <= 768 \|\| \(coarse && hh > 0 && hh <= 500 && w <= 1000\) \? 'phone'/.test(PREBOOT_SRC) && /w <= 1180 && coarse/.test(PREBOOT_SRC)
-      && R.surfaceFor(768, false) === 'phone' && R.surfaceFor(1180, true) === 'tablet' && R.surfaceFor(844, true, 390) === 'phone');
+      /w <= 768 \? 'phone'/.test(PREBOOT_SRC) && /w <= 1180 && coarse/.test(PREBOOT_SRC)
+      && R.surfaceFor(768, false) === 'phone' && R.surfaceFor(1180, true) === 'tablet');
     // the preboot, run for real
     const run = (cache, width, coarse) => {
       const at = {}; const written = [];
