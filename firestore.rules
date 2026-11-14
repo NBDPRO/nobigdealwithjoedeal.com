@@ -1558,8 +1558,7 @@ service cloud.firestore {
     //   stay exactly as it is (nothing about the money moves: amountPaid, paidAt, lastPaymentAt unchanged; a list
     //   longer than 15 is only ever "unchanged" or voided);
     //   keep its length with the money fields of every entry untouched (a proof, a receipt state);
-    //   shrink by ONE (an Undo of the newest payment): only the writer who recorded it, or the owner side, and the
-    //   money must follow (amountPaid down by exactly that amount, never 'paid' unless the rest still covers the total);
+    //   never shrink (2026-11-14: the old Undo of the newest payment is gone; the server's reversePayment appends instead);
     //   grow by exactly ONE valid entry recorded by the caller: amountPaid up by exactly that amount, and paidAt /
     //   lastPaymentAt only ever set to THAT entry's date.
     // Existing entries are never rewritten.
@@ -1579,13 +1578,9 @@ service cloud.firestore {
             : (n.size() <= 15 && o.size() <= 15
                 && paymentsKept(n, o)
                 && (n.size() < o.size()
-                    ? (n.size() == o.size() - 1
-                        // a negative entry is a payment REVERSAL (functions/payment-reversal.js, owner only): never undone from a browser
-                        && o[o.size() - 1].get('amount', 0) > 0
-                        && (backfillWriterOk() || o[o.size() - 1].get('recordedBy', '') == request.auth.uid)
-                        && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) - o[o.size() - 1].get('amount', 0))) < 0.005
-                        && (d.get('status', '') != 'paid' || (n.size() > 0 && d.get('amountPaid', 0) >= r.get('total', 0) - 0.005))
-                        && payDatesOk(d, r, n))
+                    // no browser removes a payment (Joe, 2026-11-14): Undo is gone; a mistake is fixed with the
+                    // owner-only Reverse payment (functions/payment-reversal.js), which appends and keeps the history
+                    ? false
                     : (n.size() == o.size()
                         ? (d.get('amountPaid', 0) == r.get('amountPaid', 0)
                             && d.get('paidAt', null) == r.get('paidAt', null)
@@ -1673,6 +1668,13 @@ service cloud.firestore {
     }
     // A hard delete of an invoice that carries money is the owner side's (platform admin, company_admin, a solo owner).
     // A rep / manager who created it may delete only one with no payment on it (a mistaken draft).
+    // The money fields of an invoice, unchanged by this write (and no move into or out of 'paid'): the platform admin's bypass
+    // is limited to everything else.
+    function invoiceMoneyUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['payments', 'amountPaid', 'balanceDue', 'paidAt', 'lastPaymentAt', 'depositPaid', 'refunds', 'refundedTotal'])
+        && ((request.resource.data.get('status', '') == 'paid') == (resource.data.get('status', '') == 'paid'));
+    }
     function invoiceCarriesMoney(r) {
       return !(r.get('payments', []) is list) || r.get('payments', []).size() > 0
         || r.get('amountPaid', 0) != 0 || r.get('status', '') == 'paid';
@@ -3947,7 +3949,9 @@ service cloud.firestore {
       // have no role claim). Freeze owner/tenant/provenance and the lead/job
       // it bills (R3-6); money fields stay mutable (markPaid rewrites
       // balanceDue/amountPaid/status).
-      allow update: if isAdmin()
+      // The platform admin skips the invoice checks for everything EXCEPT money (Joe, 2026-11-14: even the top-level
+      // account leaves a trail on money; a payment is fixed through reversePayment).
+      allow update: if (isAdmin() && invoiceMoneyUntouched())
         || (
           (
             (isOwner(resource.data.createdBy) && notViewer())
@@ -3974,12 +3978,14 @@ service cloud.firestore {
           // A backfill invoice is the owner side's to edit or void (a manager cannot).
           && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
         );
-      allow delete: if isAdmin()
-        || (isOwner(resource.data.createdBy) && notViewer()
-            && (!invoiceCarriesMoney(resource.data) || backfillWriterOk()))
-        || (isCompanyAdmin()
-            && resource.data.companyId != null
-            && resource.data.companyId == myCompanyId());
+      // An invoice that carries money is never hard-deleted from a browser, by anyone (Joe, 2026-11-14: money keeps its
+      // trail). The owner side voids it instead (invoiceVoidOwnerOk), which keeps the record.
+      allow delete: if (resource == null || !invoiceCarriesMoney(resource.data))
+        && (isAdmin()
+            || (isOwner(resource.data.createdBy) && notViewer())
+            || (isCompanyAdmin()
+                && resource.data.companyId != null
+                && resource.data.companyId == myCompanyId()));
     }
 
     // ── EMAIL DRIP ───────────────────────────────────
