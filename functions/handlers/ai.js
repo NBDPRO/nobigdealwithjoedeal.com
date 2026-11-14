@@ -536,6 +536,12 @@ exports.publicFunnelAI = onRequest(
     // daily cap (AI audit F5, 2026-11-14).
     const built = buildFunnelRequest(req.body);
     if (!built.ok) {
+      // Logged (never the field values) so a validator rule that refuses
+      // real homeowners shows up; the pages fall back silently.
+      logger.warn('publicFunnelAI: refused', {
+        kind: req.body && typeof req.body.kind === 'string' ? req.body.kind.slice(0, 20) : null,
+        error: built.error,
+      });
       res.status(built.status).json({ error: built.error });
       return;
     }
@@ -575,9 +581,9 @@ exports.publicFunnelAI = onRequest(
       const joined = Array.isArray(data.content)
         ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
         : '';
-      const text = shapeFunnelOutput(built.kind, joined);
+      const text = shapeFunnelOutput(built.kind, joined, data.stop_reason);
       if (text === null) {
-        logger.warn('publicFunnelAI: unusable model reply', { kind: built.kind });
+        logger.warn('publicFunnelAI: unusable model reply', { kind: built.kind, stopReason: data.stop_reason || null });
         res.status(502).json({ error: 'Upstream AI error' });
         return;
       }

@@ -21,10 +21,13 @@
 // Field values are homeowner form answers: short tokens (tile values such as
 // "15-20", "<5", "roof-replacement") or a first name / street address.
 const TOKEN_RE = /^[A-Za-z0-9 _<>+\-–—.,'/&()]*$/;
-const NAME_RE = /^[\p{L}\p{M} .'\-]*$/u;
-// Addresses: letters, digits and common punctuation; no newlines, quotes or
-// braces that would help a prompt break out of its "Address:" line.
-const ADDRESS_RE = /^[\p{L}\p{M}0-9 #.,'\-–/&()]*$/u;
+// Free-typed fields (first name, address) are CLEANED, not refused: a real
+// homeowner's "O’Brien" or a long map-search address must still get the AI
+// note. Anything outside these sets (newlines, quotes, braces, colons…) is
+// dropped, so a field can't break out of its line in the prompt.
+const NAME_DROP = /[^\p{L}\p{M} .'\-]/gu;
+const ADDRESS_DROP = /[^\p{L}\p{M}0-9 #.,'\-–/&()]/gu;
+const FREE_TEXT_MAX_IN = 500; // longer than any real form value: refuse
 
 const SIZE_LABEL = { small: 'Small (~1,200 sq ft)', typical: 'Typical (~2,000 sq ft)', large: 'Large (~3,000 sq ft)', not_sure: 'Joe will measure' };
 const ESTIMATE_SERVICE_LABEL = {
@@ -68,6 +71,18 @@ function field(body, key, max, re) {
   return { v: s };
 }
 
+// Free-typed text: wrong type or absurd length → error; otherwise curly
+// apostrophes become straight, disallowed characters are dropped, whitespace
+// is collapsed and the result is cut to `max`.
+function cleaned(body, key, max, drop) {
+  const v = body[key];
+  if (v === undefined || v === null) return { v: '' };
+  if (typeof v !== 'string') return { err: key + ' must be text' };
+  if (v.length > FREE_TEXT_MAX_IN) return { err: key + ' too long' };
+  const s = v.replace(/[‘’]/g, "'").replace(drop, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
+  return { v: s };
+}
+
 function num(v, lo, hi) {
   const n = Number(v);
   return typeof v === 'number' && Number.isFinite(n) && n >= lo && n <= hi ? n : null;
@@ -102,13 +117,13 @@ function buildFunnelRequest(body) {
   const kind = body.kind;
   if (!own(MAX_TOKENS, kind)) return bad('Unknown kind');
 
-  const name = field(body, 'firstName', 40, NAME_RE);
+  const name = cleaned(body, 'firstName', 40, NAME_DROP);
   if (name.err) return bad(name.err);
   const firstName = name.v;
 
   let prompt;
   if (kind === 'estimate' || kind === 'note') {
-    const addr = field(body, 'address', 160, ADDRESS_RE);
+    const addr = cleaned(body, 'address', 160, ADDRESS_DROP);
     const timeline = field(body, 'timeline', 40, TOKEN_RE);
     for (const f of [addr, timeline]) if (f.err) return bad(f.err);
     if (!addr.v) return bad('address required');
@@ -138,23 +153,18 @@ function buildFunnelRequest(body) {
       if (!own(SIZE_LABEL, homeSize)) return bad('Unknown homeSize');
       const pricing = pricingTriple(body.pricing);
       if (!pricing) return bad('pricing required');
-      let coord = 'unknown';
-      if (body.lat !== undefined && body.lat !== null) {
-        const lat = num(body.lat, -90, 90), lon = num(body.lon, -180, 180);
-        if (lat === null || lon === null) return bad('Invalid coordinates');
-        coord = lat.toFixed(4) + ', ' + lon.toFixed(4);
-      }
+      // Coordinates and the aerial measurement are optional extras: an
+      // unusable value is dropped, never a reason to refuse the homeowner.
+      const lat = num(body.lat, -90, 90), lon = num(body.lon, -180, 180);
+      const coord = lat !== null && lon !== null ? lat.toFixed(4) + ', ' + lon.toFixed(4) : 'unknown';
       let measured = null;
-      if (body.measurement !== undefined && body.measurement !== null) {
-        const m = body.measurement;
-        if (typeof m !== 'object' || Array.isArray(m)) return bad('Invalid measurement');
+      const m = body.measurement;
+      if (m && typeof m === 'object' && !Array.isArray(m)) {
         const sqft = num(m.sqft, 100, 100000), squares = num(m.squares, 1, 1000);
-        if (sqft === null || squares === null) return bad('Invalid measurement');
-        const pitch = m.pitch === undefined || m.pitch === null ? '' : m.pitch;
-        if (typeof pitch !== 'string' || pitch.length > 12 || !TOKEN_RE.test(pitch)) return bad('Invalid measurement');
-        const stories = m.stories === undefined || m.stories === null ? null : num(m.stories, 1, 10);
-        if (m.stories !== undefined && m.stories !== null && stories === null) return bad('Invalid measurement');
-        measured = { sqft, squares, pitch, stories };
+        if (sqft !== null && squares !== null) {
+          const pitch = typeof m.pitch === 'string' && m.pitch.length <= 12 && /^[0-9 ./:-]+$/.test(m.pitch) ? m.pitch.trim() : '';
+          measured = { sqft, squares, pitch, stories: num(m.stories, 1, 10) };
+        }
       }
       const sizeHint = measured
         ? 'AERIALLY MEASURED — ' + Math.round(measured.sqft).toLocaleString('en-US') + ' sq ft (' + measured.squares + ' squares)' +
@@ -217,10 +227,21 @@ function buildFunnelRequest(body) {
 // The estimate reply must be the roof JSON; only its known fields go back,
 // re-serialized, so no other model text can reach the browser. Notes come
 // back as trimmed plain text, length-capped.
-function shapeFunnelOutput(kind, text) {
+function shapeFunnelOutput(kind, text, stopReason) {
   const raw = String(text || '').trim();
   if (!raw) return null;
-  if (kind !== 'estimate') return raw.slice(0, NOTE_MAX_CHARS);
+  if (kind !== 'estimate') {
+    let note = raw.slice(0, NOTE_MAX_CHARS);
+    // Cut off (max_tokens or our length cap): keep whole sentences only.
+    if (stopReason === 'max_tokens' || note.length < raw.length) {
+      const end = Math.max(note.lastIndexOf('. '), note.lastIndexOf('! '), note.lastIndexOf('? '),
+        /[.!?]$/.test(note) ? note.length - 1 : -1);
+      if (end < 0) return null;
+      note = note.slice(0, end + 1);
+    }
+    return note;
+  }
+  if (stopReason === 'max_tokens') return null; // truncated JSON
   let est;
   try { est = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch (_) { return null; }
   if (!est || typeof est !== 'object') return null;
