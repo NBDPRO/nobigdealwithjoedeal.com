@@ -275,10 +275,14 @@ window.saveEvent = async function() {
     }));
     window.closeEventModal();
     if (sync === 'queued') { showToast('📅 Event saved on this phone. It syncs when you have signal.', 'success'); return; }
-    const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
-    }
+    // Saved: a refresh that fails must not read as "could not save" (a retap
+    // would book the event twice).
+    try {
+      const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) { console.warn('[saveEvent] saved; the timeline refresh failed:', refreshErr); }
     showToast('📅 Event added to the timeline', 'success');
   } catch (error) {
     console.error('Error saving event:', error);
@@ -331,11 +335,14 @@ window.saveTask = async function() {
     closeTaskModal();
     if (sync === 'queued') { showToast('✓ Task saved on this phone. It syncs when you have signal.', 'success'); return; }
 
-    // Reload timeline to show new task
-    const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
-    }
+    // Reload timeline to show new task. Saved already: a failed refresh must
+    // not read as "Task not saved" (a retap would write it twice).
+    try {
+      const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) { console.warn('[saveTask] saved; the timeline refresh failed:', refreshErr); }
     
     // Show success feedback
     showToast('✓ Task added successfully', 'success');

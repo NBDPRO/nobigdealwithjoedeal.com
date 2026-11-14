@@ -366,12 +366,16 @@ window.saveNote = async function() {
       _nbdNotify('Note saved on this phone. It syncs when you have signal.', 'success');
       return;
     }
-    await loadNotes(window._customerId);
-
-    // Reload timeline to show new note
-    const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
+    // The note is saved. A refresh that fails now must not say "not saved"
+    // (the rep would tap again and write a duplicate).
+    try {
+      await loadNotes(window._customerId);
+      const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) {
+      console.warn('[saveNote] saved; the notes refresh failed:', refreshErr);
     }
 
   } catch (error) {

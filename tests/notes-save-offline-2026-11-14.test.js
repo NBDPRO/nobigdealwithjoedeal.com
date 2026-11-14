@@ -71,7 +71,7 @@ function page(online) {
     },
     _nbdNotify: (m, k) => rec.notify.push([k, m]),
     closeNotesModal: () => { rec.closed++; },
-    loadNotes: async () => { rec.loadNotes++; },
+    loadNotes: async () => { rec.loadNotes++; if (page.refreshThrows) throw new Error('read failed'); },
     getDoc: async () => ({ exists: () => false }), doc: () => ({}), db: {}, loadTimeline: async () => {},
   };
   vm.createContext(ctx);
@@ -104,6 +104,14 @@ function page(online) {
   await within(P.win.saveNote(), 1000);
   await within(P.win.quickAddNote(), 1000);
   ok('online: both savers write and reload the notes list', P.writes.length === 2 && P.rec.loadNotes === 2, JSON.stringify({ w: P.writes.length, l: P.rec.loadNotes }));
+
+  // Review round: saved, then the refresh fails — never "Note not saved".
+  page.refreshThrows = true;
+  P = page(true);
+  await within(P.win.saveNote(), 1000);
+  page.refreshThrows = false;
+  ok('a failed refresh after a saved note is not reported as "not saved"',
+    P.writes.length === 1 && !P.rec.notify.some(([k, m]) => k === 'error' && /not saved/i.test(m)), JSON.stringify(P.rec.notify));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
   process.exit(failed ? 1 : 0);

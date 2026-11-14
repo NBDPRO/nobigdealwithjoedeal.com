@@ -564,8 +564,8 @@
     var leadId = S.leadId;
     haptic(30);
     var at = Date.now();
-    setArrived(key, { at: at, acc: null, saved: null, locating: true });
-    render();
+    try { setArrived(key, { at: at, acc: null, saved: null, locating: true }); render(); }
+    catch (e) { console.warn('[field] could not show on site yet:', e && e.message); }
     getFix().then(function (fix) {
       var rec = { at: at, acc: fix ? fix.accuracy : null, saved: null };
       setArrived(key, rec);
@@ -586,6 +586,12 @@
     }).then(function (rec) {
       S.stamping = false;
       if (rec && rec.saved === false) toast('On site noted here, but it did not save to the timeline. Check your connection.', 'info');
+      render();
+    }, function (e) {
+      // e.g. localStorage full: never leave the slide locked.
+      S.stamping = false;
+      console.warn('[field] on-site stamp failed:', e && e.message);
+      toast('Could not record on site. Try the slide again.', 'error');
       render();
     });
   }

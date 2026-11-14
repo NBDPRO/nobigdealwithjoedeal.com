@@ -36,7 +36,7 @@ function ok(name, cond, detail) {
   else { failed++; console.log('  ✗ ' + name + (detail !== undefined ? ' — ' + detail : '')); }
 }
 const tick = (ms) => new Promise((r) => setTimeout(r, ms || 0));
-const within = (p, ms) => Promise.race([p.then((v) => ({ v })), tick(ms).then(() => null)]);
+const within = (p, ms) => Promise.race([p.then((v) => ({ v }), (err) => ({ err })), tick(ms).then(() => null)]);
 
 function slice(src, start, endRe) {
   const i = src.indexOf(start);
@@ -63,6 +63,7 @@ function run(opts) {
   let n = 0;
   const win = {
     _user: { uid: 'u1' }, _userClaims: { companyId: 'c1' }, _userPlan: 'pro', _leads: [],
+    auth: { currentUser: { uid: 'u1' } }, // repos.js stamps the owner from here
     _companyProfileLoaded: true,
     _custIdMint: () => ({ counterId: 'c1', prefix: 'NBX' }),
     _formatCustomerId: (p, num) => p + '-' + num,
@@ -93,7 +94,7 @@ function run(opts) {
     _stageRoleForWrite: () => 'active',
     _optimisticInsertLead: (id, data) => rec.inserted.push(id),
     _savePin: async () => (online ? 'pin1' : never()),
-    loadLeads: async () => { rec.loadLeads++; },
+    loadLeads: async () => { rec.loadLeads++; if (opts.loadLeadsThrows) throw new Error('re-read failed'); },
     loadPins: async () => { rec.loadPins++; },
     db: win.db,
   }, firestore);
@@ -121,6 +122,7 @@ function run(opts) {
     ok('...and the lead shows at once (optimistic insert)', R.rec.inserted.length === 1);
     ok('...no customer-ID transaction was waited on', R.rec.tx === 0, 'tx=' + R.rec.tx);
     ok('...no re-read (loadLeads/loadPins) from an offline cache', R.rec.loadLeads === 0 && R.rec.loadPins === 0);
+    ok('...and exactly one lead write (the path under test, not a fallback after a throw)', R.rec.setDoc === 1, 'lead writes=' + R.rec.setDoc);
   }
 
   // Positive control: online, the server steps still happen.
@@ -130,6 +132,15 @@ function run(opts) {
     ok('online, ' + c.label + ': saved, customer ID minted, leads reloaded',
       !!res && R.rec.tx === 1 && R.rec.loadLeads === 1 && R.rec.updates.some((u) => u[1] && u[1].customerId === 'NBX-1'),
       JSON.stringify({ res: !!res, tx: R.rec.tx, ll: R.rec.loadLeads }));
+  }
+
+  // Review round: a step after the geocoded create throws (the re-read) — the
+  // catch used to fall through to the fallback create: a second copy.
+  {
+    const R = run({ online: true, repos: true, geocode: true, loadLeadsThrows: true });
+    const res = await within(R.win._saveLead({ firstName: 'Cy', address: '3 Main St', stage: 'new' }), 1500);
+    ok('a failure after the create does not write the lead twice', R.rec.setDoc === 1, 'lead writes=' + R.rec.setDoc);
+    ok('...and Save still returns the lead id', !!res && typeof res.v === 'string', res && (res.v || (res.err && res.err.message)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

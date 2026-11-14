@@ -67,7 +67,7 @@ function page(online, withEvents) {
       querySelector: (s) => { const m = /data-action="(\w+)"/.exec(s); return m ? btns[m[1]] : null; },
     },
     showToast: win.showToast, closeTaskModal: () => { rec.closed++; },
-    loadTimeline: async () => { rec.timeline++; },
+    loadTimeline: async () => { rec.timeline++; if (page.refreshThrows) throw new Error('read failed'); },
   };
   vm.createContext(ctx);
   const helpers = [slice('function _taskNotify('), slice('function _taskSettle('),
@@ -101,6 +101,17 @@ function page(online, withEvents) {
   P = page(true);
   await P.win.saveTask();
   ok('online positive control: saved and the timeline reloads', P.writes.length === 1 && P.rec.timeline === 1);
+
+  // Review round: saved, then the timeline refresh fails — never "not saved".
+  page.refreshThrows = true;
+  P = page(true);
+  await P.win.saveTask();
+  const Q = page(true, true);
+  await Q.win.saveEvent();
+  page.refreshThrows = false;
+  ok('a failed refresh after a saved task/event is not reported as a failed save',
+    !P.rec.toasts.some(([t]) => t === 'error') && !Q.rec.toasts.some(([t]) => t === 'error'),
+    JSON.stringify(P.rec.toasts.concat(Q.rec.toasts)));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
   process.exit(failed ? 1 : 0);

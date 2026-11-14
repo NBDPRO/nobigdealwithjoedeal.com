@@ -3882,6 +3882,11 @@
 
       // NEW LEAD: Geocode address and create map pin
       if (!editId || editId.startsWith('d-')) {
+        // Set once the geocoded branch's create has landed (or is held on the
+        // phone). The catch below then returns it instead of falling through
+        // to the fallback create, which would write a SECOND copy of the lead
+        // when a later step (pin, re-read) throws.
+        let _geoCreatedId = null;
         if (data.address) {
           try {
             const geo = await geocode(data.address, { quiet: true });
@@ -3943,6 +3948,7 @@
                 });
                 _queued = _queuedCreates.has(leadRef);
               }
+              _geoCreatedId = leadRef.id;
 
               // Optimistic insert — show on kanban immediately, even
               // if loadLeads later fails on a flaky iOS connection.
@@ -4029,6 +4035,10 @@
               return leadRef.id;
             }
           } catch (geoError) {
+            if (_geoCreatedId) {
+              console.warn('[saveLead] a step after the create failed; the lead is saved, not creating it again:', geoError);
+              return _geoCreatedId;
+            }
             console.warn('Geocoding failed, creating lead without pin:', geoError);
             // Continue to create lead without pin
           }
