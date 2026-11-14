@@ -211,7 +211,7 @@
     // failed fetch is asked for again on the next tap (ScriptLoader drops the
     // dead tag), so the toast below says to tap again.
     if (!window.EstimateSupplement && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
-      try { await window.ScriptLoader.load('js/estimate-supplement.js?v=5'); }
+      try { await window.ScriptLoader.load('js/estimate-supplement.js?v=6'); }
       catch (e) { console.warn('[supplement-ui] estimate-supplement.js failed to load:', e && e.message); }
     }
     if (!window.EstimateSupplement) {
