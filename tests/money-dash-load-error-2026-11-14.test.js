@@ -52,7 +52,7 @@ function load(failing) {
   const ctx = vm.createContext({ window: win, document: doc, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Date, Math, JSON, Promise });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/ky-insurance-law.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/money-dashboard.js'), 'utf8'), ctx);
-  return { MD: win.MoneyDashboard, scrollEl };
+  return { MD: win.MoneyDashboard, scrollEl, win };
 }
 
 // The value shown on the stat-card whose label is `label` (first match).
@@ -109,6 +109,19 @@ function tileSub(html, label) {
     ok('expenses failed: Collected still shows the real payment ($500)', tileValue(h, 'Collected') === '$500');
     ok('expenses failed: Direct Costs / Overhead are not $0', tileValue(h, 'Direct Costs') !== '$0' && tileValue(h, 'Overhead') !== '$0');
     ok('expenses failed: Top Suppliers does not claim "No spend logged yet"', h.indexOf('No spend logged yet') < 0);
+  }
+
+  // No Firestore handle / no signed-in user yet (fetchData's early return):
+  // nothing was read, so nothing may read as $0 (review round 2, 2026-11-14).
+  {
+    const { MD, scrollEl, win } = load(new Set());
+    win.getDocs = undefined;
+    await MD.refresh();
+    const h = scrollEl.innerHTML;
+    ok('no Firestore yet: Collected is not $0', tileValue(h, 'Collected') !== '$0', tileValue(h, 'Collected'));
+    ok('no Firestore yet: Spent is not $0', tileValue(h, 'Spent') !== '$0');
+    ok('no Firestore yet: the page notice shows', /Some figures couldn/.test(h));
+    ok('no Firestore yet: month-close cannot be marked closed', h.indexOf('MoneyDashboard.markMonthClosed') < 0);
   }
 
   console.log('\n' + (failed === 0 ? '✓' : '✗') + ' money dashboard load errors: ' + passed + ' passed, ' + failed + ' failed');

@@ -468,7 +468,11 @@
     function failed(key) {
       return function (e) { out.loadErrors[key] = true; console.warn('[money] ' + key + ' read failed', e && (e.code || e.message)); };
     }
-    if (!db || !u || !window.getDocs) return out;
+    if (!db || !u || !window.getDocs) {
+      // Nothing could be read: every figure is unknown, not $0.
+      out.loadErrors = { expenses: true, suppliers: true, invoices: true, monthCloses: true };
+      return out;
+    }
     var col = window.collection, q = window.query, where = window.where, getDocs = window.getDocs;
     var staff = isStaff() && claims().companyId;
     var jobs = [
