@@ -363,6 +363,13 @@
     return h;
   }
 
+  // Camera mode (wave-1 field #10, Joe 2026-11-14): every Field shot used to be
+  // saved as a hail test square (tags hail + test_square + a slope, "Test
+  // square, S: 0 hits"), even a gutter or a siding shot. 'photo' (the default)
+  // is a plain job photo, tagged later in Photo Review like burst shots;
+  // 'square' is the hail test-square counter as before. Kept per device.
+  var CAM_MODE_KEY = 'nbd_field_cam_mode';
+  function camMode() { return ls(CAM_MODE_KEY) === 'square' ? 'square' : 'photo'; }
   function counterLine() {
     var n = S.hits[S.slope] || 0;
     return n + (n === 1 ? ' hit' : ' hits') + ' counted in this square · example guide: ' + EXAMPLE_THRESHOLD +
@@ -395,23 +402,28 @@
   function renderCapture() {
     var lead = S.leadId ? leadById(S.leadId) : null;
     var name = lead ? K.leadName(lead) : 'Customer';
-    var h = '<div class="fa-cam">' +
+    var sq = camMode() === 'square';
+    var h = '<div class="fa-cam' + (sq ? '' : ' fa-cam-photo') + '">' +
       '<video class="fa-video" data-fa-video playsinline muted autoplay></video>' +
-      '<svg class="fa-sq" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="10" width="80" height="80" class="fa-sq-box"/>' +
-      '<g class="fa-sq-grid">' + [28, 46, 64, 82].map(function (v) { return '<line x1="' + v + '" y1="10" x2="' + v + '" y2="90"/><line x1="10" y1="' + v + '" x2="90" y2="' + v + '"/>'; }).join('') + '</g></svg>' +
+      (sq ? '<svg class="fa-sq" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="10" width="80" height="80" class="fa-sq-box"/>' +
+      '<g class="fa-sq-grid">' + [28, 46, 64, 82].map(function (v) { return '<line x1="' + v + '" y1="10" x2="' + v + '" y2="90"/><line x1="10" y1="' + v + '" x2="90" y2="' + v + '"/>'; }).join('') + '</g></svg>' : '') +
       '<div class="fa-cam-top"><button type="button" class="fa-cam-btn" data-fa="back" aria-label="Close camera">&times;</button>' +
-      '<div class="fa-cam-title">' + esc(name) + '<small>10 ft × 10 ft test square</small></div>' +
+      '<div class="fa-cam-title">' + esc(name) + '<small>' + (sq ? '10 ft × 10 ft test square' : 'Job photo · tag it later in Photo Review') + '</small></div>' +
       '<div class="fa-cam-q" id="faQ">' + esc(queueLine()) + '</div></div>' +
       (S.camError ? '<div class="fa-cam-err" role="alert">' + esc(S.camError) +
         ' <button type="button" class="fa-big" data-fa="file">Use the phone camera</button></div>' : '') +
       '<div class="fa-cam-bottom">' +
-      '<div class="fa-chips" role="group" aria-label="Slope">' + SLOPES.map(function (s) {
+      '<div class="fa-chips fa-modes" role="group" aria-label="Camera mode">' +
+        '<button type="button" class="fa-chip' + (sq ? '' : ' fa-chip-on') + '" data-fa="cam-mode" data-id="photo" aria-pressed="' + !sq + '">Photo</button>' +
+        '<button type="button" class="fa-chip' + (sq ? ' fa-chip-on' : '') + '" data-fa="cam-mode" data-id="square" aria-pressed="' + sq + '">Test square</button>' +
+      '</div>' +
+      (sq ? '<div class="fa-chips" role="group" aria-label="Slope">' + SLOPES.map(function (s) {
         return '<button type="button" class="fa-chip' + (S.slope === s.id ? ' fa-chip-on' : '') + '" data-fa="slope" data-id="' + s.id + '" aria-pressed="' + (S.slope === s.id) + '">' + esc(s.label) + '</button>';
       }).join('') + '</div>' +
       '<div class="fa-count"><button type="button" class="fa-cnt" data-fa="minus" aria-label="One fewer hit">&minus;</button>' +
       '<div class="fa-count-n" id="faN" aria-live="polite">' + (S.hits[S.slope] || 0) + '</div>' +
       '<button type="button" class="fa-cnt" data-fa="plus" aria-label="One more hit">+</button></div>' +
-      '<div class="fa-count-line" id="faLine">' + esc(counterLine()) + '</div>' +
+      '<div class="fa-count-line" id="faLine">' + esc(counterLine()) + '</div>' : '') +
       '<button type="button" class="fa-shutter" data-fa="shutter" aria-label="Take photo"></button>' +
       '</div><input type="file" accept="image/*" capture="environment" class="fa-file" data-fa-file hidden></div>';
     return h;
@@ -664,16 +676,19 @@
     return Promise.resolve(null);
   }
   // One photo -> the existing durable queue (IndexedDB) -> the existing drain.
+  // The mode is read at the shutter, not when the save lands.
   function saveShot(blob) {
     var leadId = S.leadId;
-    return ensurePhotos().then(function (P) { return saveShotWith(P, blob, leadId); });
+    var mode = camMode();
+    return ensurePhotos().then(function (P) { return saveShotWith(P, blob, leadId, mode); });
   }
-  function saveShotWith(P, blob, leadId) {
+  function saveShotWith(P, blob, leadId, mode) {
     if (!P || typeof P.enqueueForRetry !== 'function' || !leadId) { toast('The photo tools are still loading. Try again in a moment.', 'error'); return Promise.resolve(); }
+    var sq = mode === 'square';
     var sl = slopeTag();
     var hits = S.hits[S.slope] || 0;
-    var tags = ['hail', 'test_square', sl.tag];
-    var description = 'Test square, ' + sl.label + ': ' + hits + (hits === 1 ? ' hit' : ' hits') + ' counted in 10 ft x 10 ft';
+    var tags = sq ? ['hail', 'test_square', sl.tag] : [];
+    var description = sq ? 'Test square, ' + sl.label + ': ' + hits + (hits === 1 ? ' hit' : ' hits') + ' counted in 10 ft x 10 ft' : '';
     var lead = leadById(leadId);
     return getFixQuick().then(function (fix) {
       var cap = P._capture && P._capture.captureContext
@@ -682,7 +697,7 @@
       var uid = (W._user && W._user.uid) || 'anon';
       var uploadId = 'fa_' + uid + '_' + at + '_' + Math.random().toString(36).slice(2, 8);
       return P.enqueueForRetry({
-        blob: blob, leadId: leadId, tags: tags, description: description, location: sl.label,
+        blob: blob, leadId: leadId, tags: tags, description: description, location: sq ? sl.label : '',
         timestamp: at, uploadId: uploadId, preset: 'standard', capture: cap,
       });
     }).then(function (out) {
@@ -745,6 +760,7 @@
       return;
     }
     if (a === 'slope') { S.slope = t.getAttribute('data-id') || 'S'; haptic(6); render(); return; }
+    if (a === 'cam-mode') { lsSet(CAM_MODE_KEY, t.getAttribute('data-id') === 'square' ? 'square' : 'photo'); haptic(6); render(); return; }
     if (a === 'plus') { setCount(1); return; }
     if (a === 'minus') { setCount(-1); return; }
     if (a === 'shutter') { shutter(); return; }
@@ -913,5 +929,6 @@
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
     _queueLine: queueLine, // tests/daily-polish-2026-11-14.test.js
+    _saveShotWith: saveShotWith, _renderCapture: renderCapture, _camMode: camMode, // tests/field-camera-modes-2026-11-14.test.js
   };
 })();

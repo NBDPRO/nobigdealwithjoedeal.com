@@ -170,3 +170,6 @@ html[data-layout="field"] .fa-wrap-lines { margin: 0 0 12px; padding-left: 20px;
 /* Shutter flash (wave-1 field #11): iOS has no vibrate, so a shot shows itself. */
 html[data-layout="field"] .fa-cam::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .18s ease-out; }
 html[data-layout="field"] .fa-cam.fa-flash::after { opacity: .7; transition: none; }
+
+/* Camera mode chips (wave-1 field #10): Photo | Test square. */
+html[data-layout="field"] .fa-modes { margin-bottom: 6px; }
