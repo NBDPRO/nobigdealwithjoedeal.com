@@ -62,11 +62,13 @@ function handler(startNeedle, writeNeedle) {
 const mp = handler("saveBtn.onclick = async () => {\n        const amount = $('#nbd-mp-amount').value;", 'await markPaid(invoiceId, amount');
 ok('invoice sheet: handler found', mp != null);
 ok('invoice sheet: asks overpaymentNotice before markPaid', !!mp && /overpaymentNotice\(/.test(mp));
-ok('invoice sheet: a "no" returns before writing', !!mp && /if \(!\(await _askOverpay\(/.test(mp));
+ok('invoice sheet: Save is held while asking (no double save on a second tap)', !!mp && /saveBtn\.disabled = true;[^\n]*\n\s*const yes = await _askOverpay\(/.test(mp));
+ok('invoice sheet: a "no" returns before writing', !!mp && /const yes = await _askOverpay\([\s\S]{0,80}if \(!yes\) return;/.test(mp));
 const rp = handler("const amount = $('#nbd-rp-amount').value;", 'await recordPaymentCommit(');
 ok('customer sheet: handler found', rp != null);
 ok('customer sheet: asks overpaymentNotice before recordPaymentCommit', !!rp && /overpaymentNotice\(/.test(rp));
-ok('customer sheet: a "no" returns before writing', !!rp && /if \(!\(await _askOverpay\(/.test(rp));
+ok('customer sheet: Save is held while asking', !!rp && /saveBtn\.disabled = true;[^\n]*\n\s*const yes = await _askOverpay\(/.test(rp));
+ok('customer sheet: a "no" returns before writing', !!rp && /const yes = await _askOverpay\([\s\S]{0,80}if \(!yes\) return;/.test(rp));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
