@@ -51,6 +51,9 @@ const SYSTEM_PROMPT = 'You write short notes for No Big Deal Home Solutions, a r
 const MAX_TOKENS = { estimate: 600, note: 180, roofScore: 180, stormCheck: 180 };
 const NOTE_MAX_CHARS = 900;
 
+// Own keys only: 'constructor' / '__proto__' must not resolve through the prototype.
+function own(map, key) { return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined; }
+
 function bad(error, status) { return { ok: false, status: status || 400, error }; }
 
 // Optional short string: absent/null → ''. Wrong type, too long or odd
@@ -97,7 +100,7 @@ function buildFunnelRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return bad('Request body required');
   if (body.prompt !== undefined) return bad('Free-text prompts are not accepted');
   const kind = body.kind;
-  if (!Object.prototype.hasOwnProperty.call(MAX_TOKENS, kind)) return bad('Unknown kind');
+  if (!own(MAX_TOKENS, kind)) return bad('Unknown kind');
 
   const name = field(body, 'firstName', 40, NAME_RE);
   if (name.err) return bad(name.err);
@@ -112,7 +115,7 @@ function buildFunnelRequest(body) {
     if (!firstName) return bad('firstName required');
 
     if (kind === 'note') {
-      const label = NOTE_SERVICE_LABEL[body.service];
+      const label = own(NOTE_SERVICE_LABEL, body.service);
       if (!label) return bad('Unknown service');
       const stormRule = body.service === 'storm-damage'
         ? 'This is a storm-damage situation. Do NOT say or imply what insurance will cover or pay, that the homeowner will only pay their deductible, that the claim will be approved, or that Joe takes the claim over in any way — the homeowner files it and it stays theirs. You may say: if they file and the claim is approved, the deductible is theirs to pay and what the claim covers is up to their insurer; Joe documents the damage in a free inspection and meets the adjuster; the claim stays theirs. '
@@ -126,13 +129,13 @@ function buildFunnelRequest(body) {
         'Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
         'Respond with the note text only — no JSON, no markdown, no surrounding quotes.';
     } else {
-      const serviceLabel = ESTIMATE_SERVICE_LABEL[body.service];
+      const serviceLabel = own(ESTIMATE_SERVICE_LABEL, body.service);
       if (!serviceLabel) return bad('Unknown service');
       const roofType = body.roofType === undefined || body.roofType === null || body.roofType === '' ? 'asphalt' : body.roofType;
-      const materialLabel = MATERIAL_LABEL[roofType];
+      const materialLabel = own(MATERIAL_LABEL, roofType);
       if (!materialLabel) return bad('Unknown roofType');
       const homeSize = body.homeSize === undefined || body.homeSize === null || body.homeSize === '' ? 'typical' : body.homeSize;
-      if (!Object.prototype.hasOwnProperty.call(SIZE_LABEL, homeSize)) return bad('Unknown homeSize');
+      if (!own(SIZE_LABEL, homeSize)) return bad('Unknown homeSize');
       const pricing = pricingTriple(body.pricing);
       if (!pricing) return bad('pricing required');
       let coord = 'unknown';
@@ -158,7 +161,7 @@ function buildFunnelRequest(body) {
           (measured.pitch ? ', predominant pitch ' + measured.pitch : '') +
           (measured.stories ? ', ' + measured.stories + ' storey' : '') +
           '. This is a real measurement, not the homeowner\'s estimate — use it EXACTLY and do not re-estimate the size.'
-        : SIZE_LABEL[homeSize];
+        : own(SIZE_LABEL, homeSize);
       prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions. NBD serves the Greater Cincinnati metro area — SW Ohio, Northern Kentucky, and SE Indiana. A verified homeowner wants a detailed roof estimate.\n\n' +
         'Address: ' + addr.v + '\n' +
         'Coordinates: ' + coord + '\n' +
