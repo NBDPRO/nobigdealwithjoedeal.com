@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "lead-archive-2026-11-14.test.js",
     "lead-delete-owner-side-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
     "draft-project-page-2026-11-09.test.js",
