@@ -223,7 +223,12 @@ test.describe('phone e-sign: Send for signature → homeowner signs → signed P
       await hp.locator('#esSignerName').fill(lead.name);
       await hp.locator('#esSubmit').click();
       await expect(hp.locator('#esMsgTitle')).toHaveText(/All done/, { timeout: 90_000 });
-      await expect(hp.locator('#esMsgBody')).toContainText('copy is on its way to your email');
+      // The emulator has no Resend key, so the signed copy is stubbed, not
+      // emailed (esign-io.js sendMail -> { stubbed: true }). Since #3056 the page
+      // promises an emailed copy only when copyEmailed is true, so here it must
+      // NOT promise one (2026-11-15; was 'copy is on its way to your email').
+      await expect(hp.locator('#esMsgBody')).toContainText('Your rep will get you a signed copy');
+      await expect(hp.locator('#esMsgBody')).not.toContainText('email');
       expect(errors, 'no page errors on the signing page').toEqual([]);
       if (SHOTS) await hp.screenshot({ path: path.join(SHOTS, 'esign-done-390.png') });
       await ho.close();

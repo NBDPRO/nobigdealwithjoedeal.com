@@ -4279,7 +4279,12 @@
           const tb = b.createdAt?.toDate?.()?.getTime() || 0;
           return tb - ta;
         });
-    } catch(e) { window._estimates = []; }
+    } catch(e) {
+      // Keep the last good list (2026-11-14): emptying it on a failed read
+      // made every estimate look deleted to the builder's Save again.
+      console.warn('[loadEstimates] read failed, keeping the last list:', e && (e.code || e.message));
+      if (!Array.isArray(window._estimates)) window._estimates = [];
+    }
     // dashboard-widgets.js (a deferred classic script below this module) may not have run yet.
     if (typeof window.renderEstimatesList === 'function') window.renderEstimatesList(window._estimates);
     // Wave 13: notify the bell so stale-estimate counts update.
@@ -4351,21 +4356,45 @@
     if (_estimatesUnsub) { try { _estimatesUnsub(); } catch(e) {} _estimatesUnsub = null; }
   };
 
+  // A lead stamp-back that failed (best-effort: the estimate itself saved).
+  // Set per save so the caller can say so in its status line; also toasted.
+  const _LEAD_STAMP_WARN = 'Estimate saved, but the customer\'s job value / primary estimate did not update. Open the customer and check it.';
+  function _leadStampFailed(where, err) {
+    console.warn('[_saveEstimate] ' + where + ' failed:', err);
+    window._saveEstimateWarning = _LEAD_STAMP_WARN;
+    try { if (typeof window.showToast === 'function') window.showToast(_LEAD_STAMP_WARN, 'warning'); } catch (_) {}
+  }
   window._saveEstimate = async (data) => {
+    window._saveEstimateWarning = null;
     try {
       const editId = window._editingEstimateId;
       if (editId) {
+        // The estimate as it was BEFORE this write (its lead, signed price):
+        // the page's list, else one read — an empty or stale list (a failed
+        // loadEstimates) must not lose the previous lead (2026-11-14).
+        let _prev = (window._estimates || []).find(e => e && e.id === editId) || null;
+        if (!_prev) {
+          try {
+            const ps = await getDoc(doc(db, 'estimates', editId));
+            if (ps.exists()) _prev = { id: editId, ...ps.data() };
+          } catch (_) { /* the stamp-back below degrades to data.leadId */ }
+        }
         // Update existing estimate
         await updateDoc(doc(db,'estimates',editId), {...data, updatedAt:serverTimestamp()});
         window._editingEstimateId = null;
         // Re-save of the lead's PRIMARY estimate (V2 reopen / re-send): the
         // pipeline, Home KPIs, Numbers and crm_summary read lead.jobValue, so
         // it follows the new total (review R2-2-3, 2026-10-06). Same rules as
-        // the create branch below: only the primary estimate's number, never a
-        // $0 (_canStampJobValue), best-effort — a lead-write failure must not
-        // fail the save. A non-primary estimate leaves the lead alone.
-        const _prev = (window._estimates || []).find(e => e && e.id === editId) || null;
-        const _editLeadId = data.leadId || (_prev && _prev.leadId) || null;
+        // the create branch below: never a $0 (_canStampJobValue), best-effort
+        // — a lead-write failure must not fail the save (it is reported:
+        // _leadStampFailed). 2026-11-14: a lead with NO primary takes this
+        // estimate as primary (the create-time stamp may have failed, or the
+        // estimate was re-pointed at this customer); a lead whose primary is
+        // ANOTHER estimate is left alone (a rep-confirmed number). Moved to a
+        // different customer: the old lead's pointer at it is broken, the
+        // same un-dangle _assignEstimateToLead does.
+        const _prevLeadId = (_prev && _prev.leadId) || null;
+        const _editLeadId = data.leadId || _prevLeadId || null;
         if (_editLeadId) {
           try {
             const leadRef = doc(db, 'leads', _editLeadId);
@@ -4375,9 +4404,24 @@
             if (lead && lead.primaryEstimateId === editId && _canStampJobValue(newVal)
                 && newVal !== Number(lead.jobValue)) {
               await updateDoc(leadRef, { jobValue: newVal, lastEstimateAt: serverTimestamp() });
+            } else if (lead && !lead.primaryEstimateId) {
+              const stampUpdate = { primaryEstimateId: editId, lastEstimateAt: serverTimestamp() };
+              if (_canStampJobValue(newVal)) stampUpdate.jobValue = newVal;
+              await updateDoc(leadRef, stampUpdate);
             }
           } catch (stampErr) {
-            console.warn('[_saveEstimate] lead jobValue re-stamp failed:', stampErr);
+            _leadStampFailed('lead jobValue re-stamp', stampErr);
+          }
+        }
+        if (_prevLeadId && data.leadId && _prevLeadId !== data.leadId) {
+          try {
+            const prevRef = doc(db, 'leads', _prevLeadId);
+            const prevSnap = await getDoc(prevRef);
+            if (prevSnap.exists() && prevSnap.data().primaryEstimateId === editId) {
+              await updateDoc(prevRef, { primaryEstimateId: null });
+            }
+          } catch (stampErr) {
+            _leadStampFailed('previous lead un-dangle', stampErr);
           }
         }
         // Signed, then re-priced (review R6-2-2, Jo 2026-10-07): the save
@@ -4483,7 +4527,7 @@
               if (Object.keys(claimBack).length) await updateDoc(leadRef, claimBack);
             }
           } catch (stampErr) {
-            console.warn('[_saveEstimate] lead stamp-back failed:', stampErr);
+            _leadStampFailed('lead stamp-back', stampErr);
           }
         }
         return ref2.id;

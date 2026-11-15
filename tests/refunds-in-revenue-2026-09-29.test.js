@@ -103,7 +103,7 @@ console.log('\n2b. the weekly digest (server) nets refunds the same way');
   };
   const ctx = { Date }; // timestampMillis tests `instanceof Date` — share the realm
   vm.createContext(ctx);
-  vm.runInContext(['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map(lift).join('\n') + '\nglobalThis.__p = _paymentsOf; globalThis.__ms = timestampMillis;', ctx);
+  vm.runInContext(['timestampMillis', '_reopenedOf', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map(lift).join('\n') + '\nglobalThis.__p = _paymentsOf; globalThis.__ms = timestampMillis;', ctx);
   const wdPaymentsOf = ctx.__p;
   const shape = (list) => JSON.stringify(list.map((p) => [p.amount, !!p.synthetic, !!p.refund, new Date(p.at).getTime()]));
   const FIX = {

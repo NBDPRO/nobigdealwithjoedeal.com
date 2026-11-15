@@ -487,6 +487,7 @@ const VERDICTS = {
   // estimate's author / same-company staff / platform admin only (billingTenant), proven in
   // tests/supplement-invoice-callable-2026-11-14.test.js section A.
   createSupplementInvoice: 'role-gated',
+  reversePayment: 'role-gated',   // the company owner only (payment-reversal.js isCompanyOwner), plus assertNotViewer
   // Away mode + backup person (2026-10-12, away-mode.js): the owner actions go through
   // requireTeamAdmin (owner / company_admin only); the backup's two actions refuse a
   // viewer / member and then require the caller to BE the verified backup. Proven in

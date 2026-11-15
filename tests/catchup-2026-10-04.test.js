@@ -53,6 +53,7 @@ const CL = req('docs/pro/js/catchup-logic.js');
 
 // ── A browser sandbox: Firestore v9 modular fakes + capturing send primitives ──
 function browser(seed, extra) {
+  const toasts = [];
   const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
   const emails = [], sms = [], writes = [], fetches = [];
   let seq = 0;
@@ -90,7 +91,7 @@ function browser(seed, extra) {
     _leads: [],
     _estimates: [],
     __nbdInvoiceLockTimeoutMs: 5,
-    showToast: () => {},
+    showToast: (m, t) => { toasts.push([m, t]); },
     NBDNumbersData: {
       isOwner: () => true,
       companyId: () => 'u1',
@@ -107,7 +108,7 @@ function browser(seed, extra) {
   W.NBDNumbers = NL;
   W.NBDCatchUpLogic = CL;
   W.InvoicePipeline = IP;
-  return { W, store, emails, sms, writes, fetches };
+  return { W, store, emails, sms, writes, fetches, toasts };
 }
 // Load the browser modules once, under a first sandbox.
 let IP = null, CU = null;
@@ -246,13 +247,16 @@ CU = req('docs/pro/js/catchup.js');
     await IP.sendReceipt('r1', IP.receiptKeyOf(cPays[0], 0));
     ok('positive control: the "Send receipt" tap through the same sandbox → one email captured', C.emails.length === 1);
 
-    // Undo the shortcut → the invoice it made is gone, the timeline note too.
+    // Undo of a payment is gone (Joe, 2026-11-14): it never deletes the invoice or rewrites the ledger. It says to use the
+    // owner-only Reverse payment on the invoice (which keeps the history) and drops the entry from the Undo list.
     const B2 = browser(Object.fromEntries(B.store));
     B2.W._leads = B.W._leads;
     const undone = await CU.undoLast();
-    ok('Undo: the invoice the shortcut made is deleted and its timeline note removed',
-      undone === true && ![...B2.store.keys()].some((k) => k.startsWith('invoices/')) && !B2.store.has('notes/' + e.noteId));
-    ok('…and the log entry is gone', (B2.store.get('companies/u1/owner_numbers/catchup').log || []).length === 0);
+    ok('Undo of a payment is refused: the invoice the shortcut made is still there, with its payment and its timeline note',
+      undone === false && [...B2.store.keys()].some((k) => k.startsWith('invoices/')) && B2.store.has('notes/' + e.noteId)
+      && !B2.writes.some((w) => /^invoices\//.test(w[1] || '') || /^notes\//.test(w[1] || '')), JSON.stringify(B2.writes));
+    ok('…it says to use Reverse payment on the invoice', B2.toasts.some((t) => /Reverse/.test(t[0] || t)), JSON.stringify(B2.toasts));
+    ok('…and the payment entry leaves the Undo list (so earlier actions can still be undone)', (B2.store.get('companies/u1/owner_numbers/catchup').log || []).length === 0);
   });
 
   await sec('3c existing invoice', async () => {
@@ -279,8 +283,8 @@ CU = req('docs/pro/js/catchup.js');
     const B2 = browser(Object.fromEntries(B.store));
     await CU.undoLast();
     const back = B2.store.get('invoices/inv1');
-    ok('Undo restores the invoice ledger: nothing paid, status sent, no payments',
-      back.amountPaid === 0 && back.balanceDue === 9000 && back.status === 'sent' && Array.isArray(back.payments) && back.payments.length === 0 && back.paidAt === null);
+    ok('Undo of a payment on an existing invoice is refused: the ledger is untouched (Reverse payment fixes it)',
+      back.amountPaid === 9000 && back.status === 'paid' && Array.isArray(back.payments) && back.payments.length === 1, JSON.stringify(back));
 
     // No total on file → no shortcut, nothing written.
     const B3 = browser({ 'leads/L3': { userId: 'u1', stage: 'closed', jobValue: 0 } });

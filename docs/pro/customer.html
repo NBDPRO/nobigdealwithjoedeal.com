@@ -67,7 +67,7 @@
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE customer-bootstrap.module.js: it installs the accessors the
      bootstrap then assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=8"></script>
+<script defer src="js/role-gate.js?v=9"></script>
 <script defer src="js/standalone-compat.js?v=2"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).
      Four surfaces wrote this field in four spellings until 2026-09-08, so
@@ -1618,7 +1618,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/customer-tasks.css?v=2">
 <link rel="stylesheet" href="css/lead-brief.css?v=1">
 <link rel="stylesheet" href="css/review-handoff.css?v=1">
-<link rel="stylesheet" href="css/estimate-send.css?v=2">
+<link rel="stylesheet" href="css/estimate-send.css?v=3">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
@@ -2882,7 +2882,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=222"></script>
+<script defer src="js/script-loader.js?v=223"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2927,7 +2927,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      loss or a storm lead; an open lead paints nothing from it). -->
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/customer-numbers.js?v=2"></script>
-<script defer src="js/customer-tasks-ui.js?v=43"></script>
+<script defer src="js/customer-tasks-ui.js?v=44"></script>
 <!-- Promise capture (2026-10-12): the Promise button below opens the sheet. -->
 <script defer src="js/promise-logic.js?v=2"></script>
 <script defer src="js/promise-ui.js?v=4"></script>
@@ -2946,7 +2946,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      load before the upload modules that call NBDCustomerDocs.refresh(). -->
 <script defer src="js/feature-flags.js?v=2"></script>
 <script defer src="js/doc-link-copy.js?v=1"></script>
-<script defer src="js/customer-documents.js?v=10"></script>
+<script defer src="js/customer-documents.js?v=11"></script>
 <!-- Send for review (2026-10-03): the share sheet + the message copy. -->
 <script defer src="js/phone-share.js?v=3"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
@@ -2991,7 +2991,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      paid-in-full gate on "Ask for review" (#2132) judges the invoices with its
      owed rule and invoice cache, and fails closed without it — which blocked
      every customer here until 2026-10-05. -->
-<script defer src="js/collected-revenue.js?v=4"></script>
+<script defer src="js/collected-revenue.js?v=5"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/lead-brief.js?v=2"></script>
 <!-- 2026-10-16: the "Job done" hand-off (QR drawn in the page by qr-code.js). Since 2026-11-08

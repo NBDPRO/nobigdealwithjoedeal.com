@@ -248,16 +248,15 @@
           const l = leadById(it.leadId); if (l) Object.assign(l, it.undo);
         }
       } else if (e.kind === 'payment') {
-        // Stripe money booked on this invoice since (R6-2-8) → undo would
-        // erase a real payment. Refuse, visibly.
-        const cur = await window.getDoc(window.doc(db(), 'invoices', e.invoiceId));
-        const why = L().paymentUndoBlocked(cur.exists() ? cur.data() : null, e);
-        if (why) throw new Error(why);
-        if (e.created) await window.deleteDoc(window.doc(db(), 'invoices', e.invoiceId));
-        else await window.updateDoc(window.doc(db(), 'invoices', e.invoiceId), Object.assign({}, e.restore, { updatedAt: new Date() }));
-        if (e.noteId && typeof window.deleteDoc === 'function') {
-          try { await window.deleteDoc(window.doc(db(), 'notes', e.noteId)); } catch (_) { /* the timeline line is best-effort */ }
-        }
+        // Undo of a payment is gone (Joe, 2026-11-14): it deleted the invoice or rewrote its ledger, which loses the
+        // history (and firestore.rules no longer lets any browser remove a payment). A mistaken payment is fixed with
+        // the owner-only Reverse payment on the invoice, which keeps it. Nothing is written here; the entry just leaves
+        // the Undo list so earlier actions can still be undone.
+        _progress.log = L().popLog(_progress.log);
+        await saveProgress();
+        toast('A payment can\'t be undone here. Open the invoice and use ↶ Reverse (company owner) — it keeps the history. '
+          + 'Removed "' + e.label + '" from the Undo list.', 'info');
+        return false;
       } else if (e.kind === 'spend') {
         const ok = await D().mergeSpendMonths(e.before, e.key);
         if (!ok) throw new Error('spend');

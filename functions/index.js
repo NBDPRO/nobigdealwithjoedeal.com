@@ -543,6 +543,9 @@ exports.manageMessagingControls = require('./messaging-controls-fns').manageMess
 // server in one transaction (Finding 5, Joe 2026-11-14): the browser may never stamp a
 // supplement or create an invoice that carries one. supplement-invoice.js.
 exports.createSupplementInvoice = require('./supplement-invoice').createSupplementInvoice;
+// Reverse a mistyped or bounced manual payment (wave-1 money review, 2026-11-14):
+// owner side only, appends a negative ledger entry, never deletes. payment-reversal.js.
+exports.reversePayment = require('./payment-reversal').reversePayment;
 
 // "Ok to text this customer from my phone?" (review R2-3-1 / R2-3-2,
 // 2026-10-06): the server check every phone send asks before Messages opens

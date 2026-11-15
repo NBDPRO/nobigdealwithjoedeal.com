@@ -259,6 +259,7 @@ const WOULD = {
   manageSmsCompliance: 'change your texting compliance settings',
   markEmailUnsubscribed: 'mark this email unsubscribed',
   createSupplementInvoice: 'make this invoice with its insurance supplements',
+  reversePayment: 'reverse this payment',
   messagingCenter: 'load your text threads',
   mintOwnerClaims: 'refresh your sign-in permissions',
   resolveAddress: 'look up this address',

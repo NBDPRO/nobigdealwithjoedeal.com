@@ -20,7 +20,10 @@
     try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch (_) { return {}; }
   }
   function store(map) {
-    try { localStorage.setItem(KEY, JSON.stringify(map)); return true; } catch (_) { toastErr('Could not save on this device'); return false; }
+    try { localStorage.setItem(KEY, JSON.stringify(map)); } catch (_) { toastErr('Could not save on this device'); return false; }
+    // Synced through userSettings since 2026-11-14 (audit #2): the stamp tells the sync this copy is the newer one.
+    if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY);
+    return true;
   }
   function pageDk() {
     try { const p = typeof pages !== 'undefined' && typeof cur === 'number' ? pages[cur] : null; return p && p.dk ? p.dk : null; } catch (_) { return null; }

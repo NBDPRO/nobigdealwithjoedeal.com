@@ -19,7 +19,6 @@
 <title>Daily Success — NBD Pro</title>
 <!-- Primary: Barlow family (matches NBD Pro dashboard). Secondary fonts kept for theme engine compatibility. -->
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
 <!-- Auth gate — free tier, no login required, just exposes NBDAuth for optional cloud sync -->
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
 <script type="module" src="/pro/daily-success/js/auth-init.js"></script>
@@ -67,7 +66,7 @@
 body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
 
 /* SAFE AREA (audit Q6): the notch / status bar height. Everything pinned under the header adds it, so nothing slides beneath. */
-:root{--sat:env(safe-area-inset-top,0px);}
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);}
 /* TOPBAR */
 .topbar{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--bar);border-bottom:3px solid var(--ac);display:flex;align-items:center;justify-content:space-between;padding:var(--sat) max(14px,env(safe-area-inset-right,0px)) 0 max(14px,env(safe-area-inset-left,0px));min-height:calc(52px + var(--sat));gap:6px;overflow:hidden;}
 .tbl{display:flex;align-items:center;gap:10px;flex-shrink:0;}
@@ -301,7 +300,6 @@ button,input,select,textarea{font-family:inherit;}
 .dc.wide{grid-column:1/-1;}
 .dct{font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.08em;color:var(--ink);margin-bottom:10px;display:flex;align-items:baseline;gap:7px;}
 .dct small{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);letter-spacing:.1em;}
-.srow2{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:7px;}
 .sb{flex:1;min-width:56px;background:rgba(0,0,0,.04);border-radius:2px;padding:8px 6px;text-align:center;border:1px solid var(--rule);}
 .sv{font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac-text,var(--ac));line-height:1;}
 .sl{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:2px;}
@@ -313,9 +311,7 @@ button,input,select,textarea{font-family:inherit;}
 .sk-icon{font-size:16px;margin-bottom:2px;}.sk-val{font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac-text,var(--ac));line-height:1;}
 .sk-lbl{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:var(--muted);margin-top:1px;}
 .best{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:3px;padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:opacity .15s;margin-bottom:7px;}
-.best:hover{opacity:.75;}.best-ico{font-size:18px;}.best-info{flex:1;min-width:0;}
-.best-lbl{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;}
-.best-val{font-size:12px;font-weight:600;color:var(--ink);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.best:hover{opacity:.75;}
 .funnel{display:flex;flex-direction:column;gap:7px;}
 .frow{display:flex;align-items:center;gap:8px;}
 .flbl{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);min-width:68px;flex-shrink:0;}
@@ -323,27 +319,9 @@ button,input,select,textarea{font-family:inherit;}
 .fb{height:100%;border-radius:2px;transition:width .55s ease;}
 .fval{font-family:'Barlow Condensed',sans-serif;font-size:15px;color:var(--ink);min-width:28px;text-align:right;}
 .fpct{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:32px;text-align:right;}
-.pace-wrap{display:flex;flex-direction:column;gap:7px;}
-.pace-row{display:flex;align-items:center;gap:8px;}
-.pace-lbl{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:70px;flex-shrink:0;letter-spacing:.08em;text-transform:uppercase;}
-.pace-bg{flex:1;height:10px;background:rgba(0,0,0,.06);border-radius:5px;overflow:hidden;}
-.pace-bar{height:100%;border-radius:5px;transition:width .5s ease;}
-.pace-stat{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:56px;text-align:right;}
-.pace-msg{font-family:'Barlow Condensed',sans-serif;font-size:12px;padding:7px 10px;border-radius:2px;margin-top:2px;letter-spacing:.05em;}
-.pace-msg.ahead{background:rgba(42,102,68,.1);color:var(--grn);}.pace-msg.behind{background:rgba(249,115,22,.08);color:var(--ac-text,var(--ac));}.pace-msg.none{background:rgba(0,0,0,.04);color:var(--muted);}
-.gpw{display:flex;flex-direction:column;gap:11px;}
-.gpr{display:flex;flex-direction:column;gap:4px;}
-.gph{display:flex;justify-content:space-between;align-items:baseline;}
-.gpn{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
-.gpnum{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);}
-.gpbg{width:100%;height:9px;background:rgba(0,0,0,.06);border-radius:5px;overflow:hidden;}
-.gpb{height:100%;border-radius:5px;transition:width .5s ease;}
-.gpi{width:100%;background:transparent;border:none;border-bottom:1px solid var(--rule);outline:none;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--ink);padding:3px 0;margin-top:4px;}
-.gpi::placeholder{color:var(--rule);}
 .prd{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--rule);cursor:pointer;transition:opacity .15s;}
 .prd:hover{opacity:.7;}.prd-l{display:flex;flex-direction:column;gap:2px;min-width:0;}
 .prd-d{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gold);letter-spacing:.07em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.prd-s{font-size:11px;color:var(--muted);}
 .de{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#8fa1b8;text-align:center;padding:18px;}
 canvas{max-width:100%;display:block;}
 
@@ -521,7 +499,7 @@ canvas{max-width:100%;display:block;}
 .nhm-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
 .nhm-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; letter-spacing: .1em; color: #e8eaf0; }
 .nhm-sub { font-size: 12px; color: #5a6478; letter-spacing: .12em; margin-top: 2px; }
-.nhm-close { background: rgba(255,255,255,.07); border: 1px solid #2a3040; border-radius: 6px; color: #8a93a8; font-size: 14px; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: .15s; }
+.nhm-close { background: rgba(255,255,255,.07); border: 1px solid #2a3040; border-radius: 6px; color: #8a93a8; font-size: 14px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: .15s; }
 .nhm-close:hover { color: #fff; }
 .nhm-section { margin-bottom: 14px; }
 .nhm-section-title { font-size: 12px; color: var(--orange, #BD5728); letter-spacing: .15em; text-transform: uppercase; margin-bottom: 8px; }
@@ -532,12 +510,12 @@ canvas{max-width:100%;display:block;}
 .nhm-tip { background: #0e1218; border: 1px solid #1e2530; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #8a93a8; line-height: 1.7; margin-top: 8px; }
 
 /* ── TOAST ─────────────────────────────────────────────────────────── */
-.nbd-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2530; border: 1px solid #2a3040; border-radius: 8px; padding: 9px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: #e8eaf0; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9999; }
+.nbd-toast { position: fixed; bottom: calc(24px + var(--sab, 0px)); left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2530; border: 1px solid #2a3040; border-radius: 8px; padding: 9px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: #e8eaf0; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9999; }
 .nbd-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
-<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=23">
+<link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=24">
 <link rel="stylesheet" href="/pro/daily-success/css/layouts.css?v=13">
 <link rel="stylesheet" href="/pro/daily-success/css/week-strip.css?v=2">
 <link rel="stylesheet" href="/pro/daily-success/css/review.css?v=2">
@@ -928,7 +906,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 /* QUICK WINS (2026-11-09 audit, docs: documentation/qa/daily-success-ux-audit-2026-11-09.md) */
 /* Q2: every text field is 16 px on a phone, so iOS never zooms the page when one is tapped. !important, because several fields carry an inline size (the Diet totals row). */
-@media (max-width:768px){
+/* 2026-11-14 (audit): also any touch screen, so a phone turned sideways (844 px) does not zoom into fields again. */
+@media (max-width:768px),(pointer:coarse){
   :root:root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=color]):not([type=file]):not([type=hidden]):not([type=image]),:root:root textarea,:root:root select{font-size:16px!important;}
 }
 /* Q6: the sync pill ("Saving...", "Synced", "Sync failed"), positioned here by its class: just under the header, past the inset. */
@@ -1193,10 +1172,10 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 </div>
 
 <script src="/pro/js/toast.js?v=1"></script>
-<script src="/pro/daily-success/js/ds-sync-logic.js?v=3"></script>
+<script src="/pro/daily-success/js/ds-sync-logic.js?v=4"></script>
 <script src="/pro/daily-success/js/weekly-targets-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/review-logic.js?v=5"></script>
-<script src="/pro/daily-success/js/day-layout-logic.js?v=4"></script>
+<script src="/pro/daily-success/js/review-logic.js?v=6"></script>
+<script src="/pro/daily-success/js/day-layout-logic.js?v=5"></script>
 <script src="/pro/daily-success/js/a11y-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/notebook-logic.js?v=2"></script>
 <script src="/pro/daily-success/js/sync-chip-logic.js?v=1"></script>
@@ -1207,18 +1186,18 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/exercise-notes-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=19"></script>
 <script src="/pro/daily-success/js/volume-range-logic.js?v=1"></script>
-<script src="/pro/daily-success/js/workout-coach.js?v=28"></script>
+<script src="/pro/daily-success/js/workout-coach.js?v=29"></script>
 <script src="/pro/daily-success/js/tracker-history-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/tracker-history-ui.js?v=3"></script>
 <script src="/pro/daily-success/js/business-tile-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/business-tile-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/checkin-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/checkin-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/checkin-ui.js?v=4" defer></script>
 <script src="/pro/daily-success/js/eod-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/eod-ui.js?v=3" defer></script>
 <script src="/pro/daily-success/js/measurements-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/photos-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/measurements-ui.js?v=4" defer></script>
+<script src="/pro/daily-success/js/measurements-ui.js?v=5" defer></script>
 <script src="/pro/daily-success/js/heatmap-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/heatmap-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/progress-charts-logic.js?v=2" defer></script>
@@ -1245,11 +1224,11 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/food-search-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/adaptive-calories-ui.js?v=2" defer></script>
-<script src="/pro/daily-success/js/review-ui.js?v=9"></script>
+<script src="/pro/daily-success/js/review-ui.js?v=10"></script>
 <script src="/pro/daily-success/js/week-training-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/money-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/money-ui.js?v=3"></script>
-<script src="/pro/daily-success/js/export-logic.js?v=1" defer></script>
+<script src="/pro/daily-success/js/export-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/export-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/accent-ui.js?v=1" defer></script>
@@ -1356,5 +1335,5 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="nbd-toast" id="nbd-toast"></div>
 
 </body>
-  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=11"></script>
+  <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=12"></script>
 </html>
