@@ -24,3 +24,9 @@ firebase functions:delete auditUsers auditCompanies auditAccessCodes auditSubscr
 ```
 
 Then confirm with `firebase functions:list --project nobigdeal-pro` that exactly those six are gone and nothing else changed. Never run step 2 before step 1 has deployed: the next deploy of the old code would recreate them.
+
+## The fleet check (added after the conductor asked)
+
+The deploy job's "Fleet must match the code" step (`scripts/check-function-orphans.js`) FAILS on any deployed function whose export is gone. Deploys name functions explicitly and never delete, so between this PR's deploy and the manual `functions:delete` the six would show as orphans and turn the deploy job red. This PR therefore lists the six in `ALLOW_ORPHANS` with dated reasons (and `tests/function-orphans.test.js` O14 allows exactly those six names).
+
+3. After `functions:delete` is confirmed, a small follow-up PR deletes those six allow-list lines and restores O14 to "empty". Until then do not add anything else to `ALLOW_ORPHANS`.
