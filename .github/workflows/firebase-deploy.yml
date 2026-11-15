@@ -28,6 +28,14 @@ name: Firebase deploy
 #   3. Storage rules
 #   4. Cloud Functions
 #
+# FUNCTIONS SKIP (2026-11-14): a PUSH skips the functions deploy steps (stub secrets, strict, tolerant) when no
+# function input changed since the last commit whose functions deploy SUCCEEDED. All functions or none, never
+# "only the changed ones". The `functions_plan` job decides (scripts/functions-deploy-decision.js, read-only token,
+# no secrets): the base is read from this workflow's run history, not github.event.before, because the concurrency
+# group replaces pending runs. Any doubt = deploy. A scope=all / scope=functions dispatch, or force_functions=true,
+# always deploys functions. The API check, the smoke gate and the fleet check still run on every push.
+# Runbook: documentation/runbooks/FUNCTIONS-DEPLOY-SKIP.md.
+#
 # ─────────────────────────────────────────────────────────────
 # REQUIRED GITHUB ACTIONS SECRET (one-time setup to enable deploys)
 # ─────────────────────────────────────────────────────────────
@@ -78,6 +86,13 @@ on:
           - hosting
           - functions
           - rules
+      # Deploy every Cloud Function in this run whatever the scope (scope=all and scope=functions already always
+      # do). Push runs can skip functions when nothing they depend on changed; this is the manual override.
+      force_functions:
+        description: 'Deploy all Cloud Functions in this run, whatever the scope'
+        required: false
+        default: false
+        type: boolean
       # Set ONLY by the verify-live job below when it re-dispatches after
       # finding the live site behind main. A reconcile run that still finds
       # drift fails loudly instead of dispatching again — never a loop.
@@ -136,6 +151,54 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────
+  # functions_plan (2026-11-14) — does this run deploy Cloud Functions?
+  # Outputs functions=true|false (+ base, reason) and writes the decision to the
+  # job summary. Only a push can come out 'false'; the deploy steps below skip
+  # only on an explicit 'false', so a failed or skipped plan job means deploy.
+  # No secrets. actions: read is for the run history (the last successful
+  # strict functions step), fetch-depth 0 for the ancestor check and the diff.
+  # Logic + tests: scripts/functions-deploy-decision.js,
+  # tests/functions-deploy-decision-2026-11-14.test.js.
+  # ─────────────────────────────────────────────────────────
+  functions_plan:
+    name: Decide whether Cloud Functions deploy
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      functions: ${{ steps.plan.outputs.functions }}
+      base: ${{ steps.plan.outputs.base }}
+      reason: ${{ steps.plan.outputs.reason }}
+    steps:
+      - name: Checkout (full history — the last functions deploy commit must be diffable)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Compare this commit with the last successful functions deploy
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCOPE: ${{ github.event.inputs.scope }}
+          FORCE_FUNCTIONS: ${{ github.event.inputs.force_functions }}
+          # OFF SWITCH: repository variable NBD_FUNCTIONS_SKIP=0 makes every push deploy functions again (no revert
+          # needed). Unset or anything else = the skip is on.
+          SKIP_SWITCH: ${{ vars.NBD_FUNCTIONS_SKIP }}
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: node scripts/functions-deploy-decision.js
+
+  # ─────────────────────────────────────────────────────────
   # due — scheduled runs only. Compares the LIVE site, not the committed files
   # (review 2026-11-09), via `node scripts/verify-live-deploy.js due`:
   #   - live /version.json behind main over the deploy paths (a push run this
@@ -184,11 +247,13 @@ jobs:
   # On the weekly schedule it runs only when `due` says so, and then only its
   # hosting steps (every step's if: below). !cancelled() is what lets it run
   # on push / dispatch, where `due` is skipped: without a status function a
-  # skipped dependency skips this job too.
+  # skipped dependency skips this job too. The same !cancelled() lets it run
+  # when functions_plan failed: the functions steps then read an empty output
+  # and deploy (they skip only on an explicit 'false').
   # ─────────────────────────────────────────────────────────
   deploy:
     name: Deploy to Firebase
-    needs: [check, due]
+    needs: [check, due, functions_plan]
     if: ${{ !cancelled() && needs.check.outputs.configured == 'true' && (github.event_name != 'schedule' || needs.due.outputs.due == 'true') }}
     runs-on: ubuntu-latest
     # Bumped 15 -> 30: the real (strict) functions deploy alone can run
@@ -600,7 +665,7 @@ jobs:
       # Idempotent — already-enabled APIs get a fast no-op.
       # ─────────────────────────────────────────────────────────
       - name: Enable required Google APIs
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
         run: |
@@ -702,7 +767,7 @@ jobs:
       # already exist.
       # ─────────────────────────────────────────────────────────
       - name: Ensure integration secrets exist (stub if missing)
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        if: ${{ (github.event_name == 'push' && needs.functions_plan.outputs.functions != 'false') || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
         run: |
@@ -992,11 +1057,17 @@ jobs:
       # test's require() resolves. A red suite blocks the deploy instead of
       # shipping a regression the suite would have caught.
       - name: Gate — function smoke suite must pass before deploy
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         run: node tests/smoke.test.js
 
+      # FUNCTIONS SKIP (2026-11-14): this step, the stub-secrets step above and the tolerant retry below are the
+      # ones a push can skip, and only on functions_plan's explicit 'false' (see the header and the runbook,
+      # documentation/runbooks/FUNCTIONS-DEPLOY-SKIP.md). The step NAME is read back from the run history by
+      # scripts/functions-deploy-decision.js as the record of the last functions deploy; renaming it makes every
+      # push deploy functions until STRICT_STEP_NAME there follows (the unit test pins both).
       - name: Deploy Cloud Functions (strict — retries CPU-quota stragglers)
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        id: functions_strict
+        if: ${{ (github.event_name == 'push' && needs.functions_plan.outputs.functions != 'false') || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
           # Functions that cannot deploy. NOT an IAM list — both roles
@@ -1484,7 +1555,7 @@ jobs:
         # this step's comment promises "the rest of the deploy (Hosting, etc.)
         # continues." continue-on-error + a step timeout make that promise real:
         # a slow/hung retry self-bounds and the job proceeds to Hosting.
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        if: ${{ (github.event_name == 'push' && needs.functions_plan.outputs.functions != 'false') || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         continue-on-error: true
         timeout-minutes: 8
         env:
@@ -1567,7 +1638,7 @@ jobs:
       # deploy job red AFTER a successful rollout: a signal to clean up, not a
       # rollback.
       - name: Fleet must match the code — no orphaned or missing functions
-        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'functions' || github.event.inputs.force_functions == 'true' }}
         env:
           NBD_PROJECT: ${{ env.PRO_PROJECT }}
         run: node scripts/check-function-orphans.js
@@ -1578,6 +1649,9 @@ jobs:
 
       - name: Deploy summary
         if: success()
+        env:
+          FUNCTIONS_OUTCOME: ${{ steps.functions_strict.outcome }}
+          FUNCTIONS_REASON: ${{ needs.functions_plan.outputs.reason }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
             {
@@ -1595,7 +1669,12 @@ jobs:
             echo "|---|---|---|"
             echo "| Firestore rules | $PRO_PROJECT | deployed |"
             echo "| Storage rules | $PRO_PROJECT | deployed |"
-            echo "| Cloud Functions | $PRO_PROJECT | deployed |"
+            if [ "$FUNCTIONS_OUTCOME" = "success" ]; then
+              echo "| Cloud Functions | $PRO_PROJECT | deployed |"
+            else
+              # Strip pipes and newlines: the reason is one line of plain text from functions_plan.
+              echo "| Cloud Functions | $PRO_PROJECT | skipped: $(printf '%s' "${FUNCTIONS_REASON:-no reason recorded}" | tr -d '|\r\n') |"
+            fi
             echo "| Hosting | $PRO_PROJECT | deployed |"
             echo ""
             echo "Next: run \`./scripts/verify-deploy.sh\` against the live URLs to confirm the smoke tests pass."
