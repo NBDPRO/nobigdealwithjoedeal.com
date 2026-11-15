@@ -91,7 +91,7 @@ function makeStorage(files, failSave) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', './signed-price', 'crypto'];
 const LOGS = [];
 const SPINE = [];
 function loadFn(db, storage) {
