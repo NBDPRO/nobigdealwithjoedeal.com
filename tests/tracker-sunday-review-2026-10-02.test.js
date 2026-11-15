@@ -52,7 +52,8 @@ const w = R.weekFloors(wkPages, F, d(0), 500);
 ok('window is the 7 finished days before today', w.from === d(7) && w.to === d(1), w.from + '..' + w.to);
 ok('hits per floor out of 7 (missing day d3 counts as missed)', w.rows[0].hit === 5 && w.rows[1].hit === 5 && w.rows[0].of === 7, JSON.stringify(w.rows));
 ok('misses, % and full days', w.misses === 4 && w.possible === 14 && w.pct === 71 && w.fullDays === 4, JSON.stringify([w.misses, w.pct, w.fullDays]));
-ok('miss tax is $5 per missed floor', w.missTaxCents === 2000);
+// 2026-11-14 (audit #12): Sunday is not a required day, so its misses are free. This week's Sunday (09-27) missed one floor: 4 misses, 3 taxed.
+ok('miss tax is $5 per missed floor, Sundays free', w.missTaxCents === 1500 && w.taxedMisses === 3 && w.misses === 4, JSON.stringify([w.misses, w.taxedMisses, w.missTaxCents]));
 ok('today never enters the week', !R.weekFloors([page(d(0), [])], F, d(0)).rows.some((r) => r.hit));
 
 console.log('\n── Sunday weigh-in rule');
@@ -73,7 +74,7 @@ const last = R.lastReview(reviews, '2026-10-04');
 ok('last week\'s review is found for the accountability step', last && last.dk === '2026-09-27' && /bank/.test(last.scary));
 const card = R.scorecardText({ from: w.from, to: w.to, floors: w, taxMoved: false, streak: { count: 3, warned: true }, weight: adj, goal: g,
   lastScary: { text: 'Call the bank about the house', done: false }, kept: 'Lifted 5 days', bailed: 'Skipped meal prep', scary: 'Cancel 2 subscriptions', scaryDue: '2026-10-10' });
-ok('scorecard: floors, per-floor lines, tax NOT moved', /Floors: 10\/14 \(71%\)/.test(card) && /Workout done: 5\/7/.test(card) && /Miss tax: \$20 — NOT moved yet/.test(card), card);
+ok('scorecard: floors, per-floor lines, tax NOT moved', /Floors: 10\/14 \(71%\)/.test(card) && /Workout done: 5\/7/.test(card) && /Miss tax: \$15 — NOT moved yet/.test(card), card);
 ok('scorecard: streak warning, weight, goal, last hard thing NOT DONE, audit, next hard thing', /Streak: 3 \(missed yesterday\)/.test(card) && /2400 → 2200/.test(card) && /17\.5 to go/.test(card) && /NOT DONE/.test(card) && /Bailed: Skipped meal prep/.test(card) && /by 2026-10-10/.test(card));
 
 console.log('\n── wiring');
@@ -87,7 +88,9 @@ ok('review-logic loads before app.js; review-ui after the food card; css linked'
 ok('reviews ride the userSettings sync (survive sign-out)', /\{ key: 'nbd_ds_reviews',\s+field: 'dsReviews' \}/.test(read('docs/pro/daily-success/ds-firebase-sync.js')));
 const ui = read('docs/pro/daily-success/js/review-ui.js');
 ok('every typed value reaching the sheet is escaped', /value="' \+ esc\(saved\.scary/.test(ui) && />' \+ esc\(saved\.kept/.test(ui) && /esc\(r\.label\)/.test(ui) && /esc\(x\.last\.scary\)/.test(ui) && !/innerHTML\s*=\s*[^;]*\+\s*saved\.(kept|bailed|scary)\b/.test(ui));
-ok('the calorie cut writes the Food card target and syncs it', /f\.targets = Object\.assign\(\{\}, f\.targets, \{ calories: x\.weight\.newCalories \}\)/.test(ui) && /dsSettingsChanged\(FOOD\)/.test(ui));
+// 2026-11-14 (audit #12): the unguarded one-tap cut is gone; the weekly-targets Accept (floor + food-days guards) writes the target.
+// That the one-tap button and doCut are gone is checked once, in ds-review-guards-2026-11-14 (not repeated here).
+ok('a calorie change goes through the guarded Accept, which writes the Food card target and syncs it', /id === 'calories' \? FOOD/.test(ui) && /dsSettingsChanged\(/.test(ui));
 ok('no money is moved by the app — Jo ticks that he moved the miss tax', /I moved it to savings/.test(ui) && !/stripe|transfer\(|fetch\(/i.test(ui));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

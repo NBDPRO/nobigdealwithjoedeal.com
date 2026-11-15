@@ -55,16 +55,8 @@ console.log('\n2. the Today bar numbers');
   ok('...and bad input is "no"', L.workoutDone(null, '2026-10-21') === false && L.workoutDone([null, 5], '2026-10-21') === false);
 }
 
-console.log('\n2b. door-knocking stats: hidden until used');
-{
-  ok('a brand-new user (nothing logged) does not see them', L.salesVisible(null, {}) === false && L.salesVisible(undefined, undefined) === false && L.salesVisible(null, { doors: 0, contacts: 0, appts: 0, closes: 0, revenue: 0, goals: { d: 0, r: 0, c: 0 } }) === false);
-  ['doors', 'contacts', 'appts', 'closes', 'revenue'].forEach((k) => ok('logging ' + k + ' reveals them on their own', L.salesVisible(null, { [k]: 1 }) === true));
-  ok('a monthly sales goal alone reveals them', L.salesVisible(null, { goals: { r: 5000 } }) === true && L.salesVisible(null, { goals: { d: 1 } }) === true && L.salesVisible(null, { goals: { c: 1 } }) === true);
-  ok("Jo's explicit ON always wins, even with nothing logged", L.salesVisible('1', {}) === true && L.salesVisible(true, {}) === true);
-  ok("Jo's explicit OFF always wins, even with lots of data", L.salesVisible('0', { doors: 500, revenue: 90000, goals: { r: 1 } }) === false && L.salesVisible(false, { doors: 5 }) === false);
-  ok('control: a garbage preference falls back to the data rule', L.salesVisible('maybe', {}) === false && L.salesVisible('maybe', { doors: 3 }) === true);
-  ok('strings and junk in the totals do not throw or count', L.salesVisible(null, { doors: 'x', revenue: '', goals: null }) === false && L.salesVisible(null, { doors: '12' }) === true);
-}
+// 2b (door-knocking stats hidden until used) is gone with the stats themselves: Joe removed the door / close / revenue tiles
+// on 2026-11-14 (the CRM tracks those). tests/ds-no-kpi-tiles-2026-11-14.test.js checks they stay gone and stored pages keep their fields.
 
 console.log('\n3. wiring');
 {
@@ -77,12 +69,6 @@ console.log('\n3. wiring');
   ok('the bar is sticky under the tab row, with banner and phone offsets (each plus the notch inset, audit Q6)', /\.today-bar\{position:sticky;top:calc\(106px \+ var\(--sat\)\);/.test(HTML) && /body\.has-banner \.today-bar\{top:calc\(148px \+ var\(--sat\)\);\}/.test(HTML) && /\.today-bar\{top:calc\(102px \+ var\(--sat\)\);/.test(HTML) && /body\.has-banner \.today-bar\{top:calc\(198px \+ var\(--sat\)\);\}/.test(HTML));
   ok('control: 52px one-row phone header + 46px tab row + 4px gap = 102px; with the 96px banner = 198px (flow batch 3: the second header row is the menu now)', 52 + 46 + 4 === 102 && 102 + 96 === 198);
   ok('the bar text is readable (>= 12px, light text on the dark bar)', /\.today-bar\{[^}]*font-size:14px;/.test(HTML) && /\.today-bar\{top:calc\(102px \+ var\(--sat\)\);font-size:13px;/.test(HTML));
-  ok('the dashboard decides once per render and reads Jo\'s switch from storage', /let salesPref=null;try\{salesPref=localStorage\.getItem\('nbd_ds_show_sales'\);\}catch\(e\)\{\}/.test(APP) && /const showSales=NBDDayLayout\.salesVisible\(salesPref,\{doors:totD,contacts:totCon,appts:totA,closes:totC,revenue:totR,goals:gt\}\);/.test(APP));
-  ok('Activity Totals, the Monthly Goals / Revenue Pace / charts group and the All Pages detail are all behind it', /\$\{showSales\?`<div class="dc"><div class="dct">Activity Totals/.test(APP) && /\$\{showSales\?`<div class="dc"><div class="dct">Monthly Goals/.test(APP) && /\$\{showSales\?`<span class="prd-s">Doors: /.test(APP));
-  ok('the door streak and best-door/best-revenue rows are behind it, the workout and win streaks are not', /\$\{showSales\?`<div class="sk \$\{runD>=3/.test(APP) && /showSales&&bDI>=0/.test(APP) && /showSales&&bRI>=0/.test(APP) && /<div class="sk-lbl">Workout Streak<\/div>/.test(APP) && !/showSales\?`<div class="sk \$\{runW/.test(APP));
-  ok('the contiguous group (Monthly Goals ... Closes chart) is closed right before Habit Compliance, which stays visible', /`:''\} <div class="dc wide"><div class="dct">Habit Compliance/.test(APP));
-  ok('the on/off button sits with the dashboard actions and reports its state', /data-action="toggle-sales" aria-pressed="\$\{showSales\?'true':'false'\}">\u{1F6AA} Door stats: \$\{showSales\?'on':'off'\}<\/button>/u.test(APP) && /'toggle-sales':\s+\(\) => toggleSales\(\)/.test(APP));
-  ok('toggling stores 1/0 and re-renders; it flips what is on screen, not just the stored value', /const nowOn=!!window\._dsShowSales;/.test(APP) && /localStorage\.setItem\('nbd_ds_show_sales',nowOn\?'0':'1'\)/.test(APP));
   ok('no inline handlers were added', !/\son[a-z]+=/i.test((APP.match(/bar\.innerHTML='[^']*'/g) || []).join('')));
 }
 

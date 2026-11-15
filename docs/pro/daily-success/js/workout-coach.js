@@ -27,6 +27,8 @@
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
   const REST = 'nbd_ds_coach_rest';   // { until, label } - the running rest timer, this device only (so a reload or a closed coach does not lose it)
+  // Joe's wording (2026-11-14): shown once at first use, always in the coach settings.
+  const SAFETY = 'Not medical advice. Stop if something hurts.';
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,6 +50,7 @@
       plates: C().normPlates(s.plates),
       warmups: s.warmups !== false,
       restAlert: C().normRestAlert(s.restAlert),
+      noteSeen: s.noteSeen === true,   // the safety line was dismissed (first use only; always in settings)
       workoutsPerWeek: window.NBDWeeklyTargets ? window.NBDWeeklyTargets.normWeekly(s.workoutsPerWeek) : (s.workoutsPerWeek == null ? null : s.workoutsPerWeek),
     };
   }
@@ -121,7 +124,18 @@
   let rest = null;             // { until, label }
   let restTimer = null;
 
-  function persistLive() { if (live) writeJson(LIVE, live); else try { localStorage.removeItem(LIVE); } catch (_) {} }
+  // The day lifting actually began (audit 2026-11-14 #8): a workout opened at night and lifted the next morning was filed under
+  // the night it was built. Finish files it under this day instead; one that runs past midnight stays on the day it began.
+  function markFirstSet() { if (live && !live.firstSetDay) { live.firstSetDay = today(); live.firstSetAt = Date.now(); } }
+  // A set that the phone will not store (full / blocked storage) stays in memory and Finish retries it, but Jo is told at once
+  // instead of finding out at Finish (audit 2026-11-14 #13); once per few seconds, since typing calls this on every keystroke.
+  let liveErrAt = 0;
+  function persistLive() {
+    if (!live) { try { localStorage.removeItem(LIVE); } catch (_) {} return true; }
+    if (writeJson(LIVE, live)) return true;
+    if (Date.now() - liveErrAt > 5000) { liveErrAt = Date.now(); toastErr("Couldn't save that set on this phone - storage is full or blocked. Keep this screen open and free some space."); }
+    return false;
+  }
 
   function newSession(split, opts) {
     const s = settings();
@@ -144,7 +158,7 @@
     const all = readJson(READY, {}) || {};
     all[today()] = { sleep: r.sleep, sore: r.sore, energy: r.energy };
     Object.keys(all).sort().slice(0, Math.max(0, Object.keys(all).length - 30)).forEach((k) => { delete all[k]; });
-    writeJson(READY, all);
+    if (writeJson(READY, all)) stamp(READY);
   }
   // Rough day -> trim a set / hold the load on lifts nothing has been logged on. Safe to call again.
   function applyReadyTo(sess) {
@@ -304,6 +318,7 @@
         <button class="wc-gear${showSettings ? ' on' : ''}" data-coach-action="settings" aria-label="Coach settings" aria-expanded="${showSettings ? 'true' : 'false'}">⚙</button>
       </div>
       ${showSettings ? settingsHtml(s) : ''}
+      ${s.noteSeen ? '' : `<div class="wc-safety-note" role="note">${SAFETY} <button class="wc-link" data-coach-action="note-ok">Got it</button></div>`}
       <div class="wc-chips">${chips}</div>
       <div class="wc-actions">
         <button class="btn btn-ghost" data-coach-action="reroll">🔀 Switch it up</button>
@@ -505,9 +520,14 @@
   }
   // The lists live on this device only; another tab or the installed app may have changed them since this page loaded, so every
   // mutator re-reads storage first (otherwise its save would silently overwrite the other copy's changes).
+  // Routines, custom lifts and check-ins sync through userSettings (ds-firebase-sync.js SETTINGS, audit 2026-11-14 #2):
+  // every successful write is stamped so the newer copy wins across devices.
+  function stamp(key) { if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(key); }
   function reloadLists() {
     try { routines = C().normRoutines(readJson(ROUTINES, [])); custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { /* keep what we have */ }
   }
+  // The sync restored routines / custom lifts from the cloud (ds-firebase-sync.js): reload them (custom lifts join the library).
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd-ds-settings-restored', () => { reloadLists(); refreshCard(); });
   const SAVE_FAILED = "Couldn't save that on this phone - storage is full or blocked";
   function saveRoutine() {
     if (!live) return;
@@ -519,6 +539,7 @@
     const before = routines;
     routines = C().normRoutines(routines.concat([r]));
     if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
+    stamp(ROUTINES);
     toast('Saved as ' + name + ' - rename it under the gear');
     render();
   }
@@ -543,6 +564,7 @@
     const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
     if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
     if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toastErr(SAVE_FAILED); return; }
+    stamp(CUSTOM);
     custom = next;
     cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
     toast('Added ' + name);
@@ -553,12 +575,14 @@
     const before = custom;
     custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
     if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toastErr(SAVE_FAILED); return; }
+    stamp(CUSTOM);
     render();
   }
 
   function settingsHtml(s) {
     const radio = (name, val, label, cur) => `<button class="wc-chip${cur === val ? ' on' : ''}" aria-pressed="${cur === val ? 'true' : 'false'}" data-coach-action="set-${name}" data-val="${val}">${label}</button>`;
     return `<div class="wc-settings">
+      <div class="wc-hint wc-safety">${SAFETY}</div>
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" aria-pressed="${s.equip.includes(e) ? 'true' : 'false'}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
@@ -612,7 +636,7 @@
       : '<div class="wc-hint">No new PRs this time — the targets are set for next time.</div>';
     return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
       <div class="wc-title">${esc(r.label)} day done ✓</div><span></span></div>
-      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div><div><b>${r.minutes}</b> min</div></div>
+      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div>${r.minutes ? `<div><b>${r.minutes}</b> min</div>` : ''}</div>
       ${recapHtml(r.recap)}
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
@@ -657,15 +681,32 @@
     restTimer = setInterval(() => {
       if (!rest) { clearInterval(restTimer); return; }
       restTick();
-      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
+      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); holdAwake(false); }
     }, 1000);
+  }
+  // Keep the screen on while a rest runs (audit 2026-11-14 #11): an auto-locked phone stops the page's timers, so the alert never
+  // came until Jo unlocked it. A web page cannot alarm through a locked phone; this stops it locking. No wake lock API: no change.
+  let wakeLock = null, wakeWant = false;
+  function holdAwake(on) {
+    wakeWant = !!on;
+    try {
+      if (!on) { const l = wakeLock; wakeLock = null; if (l && typeof l.release === 'function') Promise.resolve(l.release()).catch(() => {}); return; }
+      const W = typeof navigator !== 'undefined' && navigator.wakeLock;
+      if (wakeLock || !W || typeof W.request !== 'function') return;
+      Promise.resolve(W.request('screen')).then((l) => {
+        if (!wakeWant || wakeLock) { try { l.release(); } catch (_) { /* already gone */ } return; }
+        wakeLock = l;
+        if (l && typeof l.addEventListener === 'function') l.addEventListener('release', () => { if (wakeLock === l) wakeLock = null; });
+      }).catch(() => { /* refused (low battery, hidden page): the rest still runs */ });
+    } catch (_) { /* the rest still runs */ }
   }
   function startRest(seconds, label) {
     rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
     persistRest();
     runRest();
+    holdAwake(true);
   }
-  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); }
+  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); holdAwake(false); }
   // A rest that was still running when the page was closed or reloaded. One that has already ended is dropped: its alert is long past,
   // and a "Go" bar that comes back from nowhere would sit on the screen until someone found its OK.
   function restoreRest() {
@@ -673,6 +714,11 @@
     if (!r || !(Number(r.until) > Date.now())) { if (r) persistRest(); return; }
     rest = { until: Number(r.until), label: String(r.label || ''), buzzed: false, said: '' };
     runRest();
+    // The beep needs an audio context a tap unlocked; after a reload no set has been ticked yet, so a restored rest ended silent
+    // on iPhone (no vibration there). The first tap anywhere unlocks it (audit 2026-11-14 #11).
+    const unlockOnce = () => { ['pointerdown', 'keydown', 'click'].forEach((t) => document.removeEventListener && document.removeEventListener(t, unlockOnce, true)); unlockAudio(); };
+    ['pointerdown', 'keydown', 'click'].forEach((t) => document.addEventListener(t, unlockOnce, true));
+    holdAwake(true);
   }
   // The slim "Rest m:ss - Skip" bar: whenever a rest is running and the coach is closed (the coach shows its own line while open),
   // so the alert is never a mystery. One element, built once; only its two text nodes change.
@@ -741,6 +787,13 @@
     if (!live) { live = newSession(C().nextSplit(sessions(), settings().rotation)); persistLive(); }
     open();
   }
+  // Every "Workout" button outside the card (Today bar, Next Up, Jump, layouts) and a stale
+  // "Resume" tap land here: with no live workout, summary or history to show, open() would draw
+  // an empty (black) overlay, so start today's workout instead (audit 2026-11-14 #1).
+  function openOrStart() {
+    if (!live && !summary && !histView && C()) { start(); return; }
+    open();
+  }
 
   function finish() {
     const done = live.exercises.some((x) => (x.sets || []).some((st) => !st.warm && (st.done || parseFloat(st.reps) > 0)));
@@ -749,8 +802,14 @@
     // A set with reps typed counts even if ✓ was never tapped.
     live.exercises.forEach((x) => (x.sets || []).forEach((st) => { if (parseFloat(st.reps) > 0) st.done = true; }));
     const now = Date.now();
+    // No set was logged before Finish (reps pre-filled from the target, ticked by Finish): it was done today.
+    const day = live.firstSetDay || today();
+    // Filed under a later day than it was built for: time it from the first set, not from the night before.
+    // Moved to a later day with no logged set to time it from: the start is unknown (0), not the night before (an hours-long
+    // "workout"). History already shows no minutes for that; the summary and the day page's duration skip it too.
+    const startedAt = day === live.date ? live.startedAt : (live.firstSetAt || 0);
     const session = {
-      id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
+      id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
         sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {}, !st.warm && (st.kind === 'drop' || st.kind === 'fail') ? { kind: st.kind } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
@@ -762,7 +821,7 @@
     const wrotePage = writeToPage(session);
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
-      minutes: Math.max(1, Math.round((now - (live.startedAt || now)) / 60000)),
+      minutes: startedAt ? Math.max(1, Math.round((now - startedAt) / 60000)) : null,
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
@@ -790,10 +849,11 @@
       // Drop the page's ex-N-* mirror of the old list; the next collect rebuilds it.
       Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
       if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
-      if (!String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
-      window.savePages();
+      if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
+      // A refused save (full storage) must not show "Logged to today's Exercise Log" (the workout itself is saved above).
+      const saved = window.savePages() !== false;
       if (typeof window.renderPage === 'function') window.renderPage();
-      return true;
+      return saved;
     } catch (_) { return false; }
   }
 
@@ -807,11 +867,12 @@
       case 'start': start(); return;
       case 'vol-range': try { localStorage.setItem(VOL_RANGE, String(t.dataset.range || 'week')); } catch (_) { /* the choice just is not remembered */ } refreshCard(); return;
       case 'repeat': repeatLast(); return;
-      case 'open': histView = false; open(); return;
+      case 'open': histView = false; openOrStart(); return;
       case 'hist-open': histView = true; histId = null; summary = null; open(); return;
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'note-ok': { const so = settings(); so.noteSeen = true; saveSettings(so); render(); return; }
       case 'routine-save': saveRoutine(); return;
       case 'routine-start': startRoutine(String(t.dataset.id || '')); return;
       case 'routine-del': {
@@ -819,7 +880,7 @@
         const before = routines;
         routines = routines.filter((r) => r.id !== String(t.dataset.id || ''));
         if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
-        render(); return;
+        stamp(ROUTINES); render(); return;
       }
       case 'custom-add': addCustom(); return;
       case 'custom-del': removeCustom(String(t.dataset.id || '')); return;
@@ -962,6 +1023,7 @@
         const st = live.exercises[i] && live.exercises[i].sets[j];
         if (!st) return;
         st.done = !st.done;
+        if (st.done) markFirstSet();
         if (st.done && !(parseFloat(st.reps) > 0)) st.reps = st.warm ? (st.plan || '') : (live.exercises[i].target ? live.exercises[i].target.reps : '');
         persistLive();
         if (st.done) {
@@ -995,7 +1057,7 @@
     if (el && el.dataset && el.dataset.coachField === 'rt-name') {
       reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); }
+      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); else stamp(ROUTINES); }
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'exnote') {
@@ -1009,10 +1071,12 @@
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
     if (!st) return;
     st[el.dataset.coachField] = el.value;
+    if (el.dataset.coachField === 'reps' && parseFloat(el.value) > 0) markFirstSet();
     persistLive();
   }
 
   document.addEventListener('click', onClick);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && rest && restLeft() > 0) { wakeLock = null; holdAwake(true); } });
   document.addEventListener('keydown', onKey);
   document.addEventListener('input', onField);
   document.addEventListener('change', onField);
@@ -1028,5 +1092,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { refresh: refreshCard, open, close, start, _render: render };
+  window.NBDCoachUI = { refresh: refreshCard, open: openOrStart, close, start, _render: render };
 })();
