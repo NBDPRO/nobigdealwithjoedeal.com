@@ -216,7 +216,7 @@ function realGh(repo, api = (p) => JSON.parse(execFileSync('gh', ['api', p], { e
 
 /** Reads the run history lazily: jobs are fetched only for runs the walk actually reaches. */
 function nowMs() { return Date.now(); }
-function readLastAttempt(gh, currentRunId) {
+function fetchLastAttempt(gh, currentRunId) {
   const runs = [];
   const cutoff = (nowMs()) - HISTORY_DAYS * 86400000;
   try {
@@ -268,7 +268,7 @@ function main(env = process.env, deps = {}) {
     const event = env.EVENT_NAME;
     let attempt = null, ancestor = null, changed = null, firebaseJsonChanged = null;
     if (event === 'push') {
-      attempt = readLastAttempt(ghFactory(), env.RUN_ID);
+      attempt = fetchLastAttempt(ghFactory(), env.RUN_ID);
       if (attempt && !attempt.error && !attempt.unreadable && /^[0-9a-f]{40}$/.test(String(attempt.sha || ''))) {
         ancestor = git.isAncestor(attempt.sha, head);
         if (ancestor === true) {
@@ -295,6 +295,6 @@ function main(env = process.env, deps = {}) {
 if (require.main === module) main();
 
 module.exports = {
-  DEPLOY_JOB_NAME, STRICT_STEP_NAME, WORKFLOW_FILE, WORKFLOW_PATH, HISTORY_DAYS, readLastAttempt,
+  DEPLOY_JOB_NAME, STRICT_STEP_NAME, WORKFLOW_FILE, WORKFLOW_PATH, HISTORY_DAYS, fetchLastAttempt,
   isFunctionInput, firebaseJsonFunctionsChanged, findLastFunctionsAttempt, decide, summaryMarkdown, realGit, realGh, main,
 };

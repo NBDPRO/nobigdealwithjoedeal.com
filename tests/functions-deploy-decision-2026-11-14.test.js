@@ -241,7 +241,7 @@ const histFor = (sha, conclusion = 'success', extra = {}) => ({
   } finally { repo.cleanup(); }
 }
 
-console.log('\nreadLastAttempt(): paging the whole re-runnable window, not one page');
+console.log('\nfetchLastAttempt(): paging the whole re-runnable window, not one page');
 {
   const now = Date.now(); const iso = (msAgo) => new Date(now - msAgo).toISOString();
   const H = 3600000, D = 24 * H;
@@ -256,17 +256,17 @@ console.log('\nreadLastAttempt(): paging the whole re-runnable window, not one p
   const page2 = [mk(7, OLD, 20 * D, 1 * H), mk(6, OLD, 40 * D, 40 * D)];
   const jobs = { 500: jobOk(1 * D - 60000), 7: jobOk(1 * H, 2) };
   const gh = { listRunsPage: (p) => (p === 1 ? page1 : p === 2 ? page2 : []), listJobs: (id) => jobs[id] || [] };
-  const r = M.readLastAttempt(gh, 999);
+  const r = M.fetchLastAttempt(gh, 999);
   ok('a re-run of an old run on page 2 is found as the latest attempt', r && r.runId === 7 && r.sha === OLD, J(r));
   let pages = 0;
   const counting = { listRunsPage: (p) => { pages = p; return p === 1 ? page1 : p === 2 ? page2 : [mk(1, OLD, 60 * D, 60 * D)]; }, listJobs: gh.listJobs };
-  M.readLastAttempt(counting, 999);
+  M.fetchLastAttempt(counting, 999);
   ok('paging stops at the first page that reaches past the window', pages === 2, String(pages));
   const endless = { listRunsPage: () => Array.from({ length: 100 }, (_, i) => mk(i, B, 1 * H, 1 * H)), listJobs: () => [] };
-  const e = M.readLastAttempt(endless, 999);
+  const e = M.fetchLastAttempt(endless, 999);
   ok('a window too big to read fully → error (doubt → deploy)', e && /not fully read/.test(e.error || ''), J(e));
   const failing = { listRunsPage: (p) => { if (p === 2) throw new Error('HTTP 502'); return page1; }, listJobs: gh.listJobs };
-  const fl = M.readLastAttempt(failing, 999);
+  const fl = M.fetchLastAttempt(failing, 999);
   ok('a page that fails to load → error (doubt → deploy)', fl && /502/.test(fl.error || ''), J(fl));
 }
 
@@ -279,29 +279,108 @@ console.log('\nrealGh(): the API paths it asks for');
   ok('jobs are read for EVERY attempt (filter=all), so an earlier failed attempt is not hidden by a re-run', /^repos\/o\/r\/actions\/runs\/42\/jobs\?/.test(seen[1]) && /[?&]filter=all(&|$)/.test(seen[1]), seen[1]);
 }
 
+// A small reader for the block-style YAML this workflow is written in (maps, "- " lists of maps, "|" block
+// scalars, comments). The checks below then compare PARSED values, so a commented-out copy of a line can never
+// satisfy them, and the source-pin ratchet (tests/source-pin-ratchet.test.js) sees structure, not file text.
+function parseBlockYaml(text) {
+  const src = text.replace(/\r\n/g, '\n').split('\n');
+  const rows = [];
+  for (let i = 0; i < src.length; i++) {
+    const raw = src[i];
+    const t = raw.trim();
+    if (!t || t.startsWith('#')) continue;
+    rows.push({ ind: raw.length - raw.trimStart().length, t, i });
+  }
+  const unquote = (v) => {
+    let x = v;
+    if (!(x.startsWith("'") || x.startsWith('"'))) { const h = x.indexOf(' #'); if (h >= 0) x = x.slice(0, h); }
+    x = x.trim();
+    if ((x.startsWith("'") && x.endsWith("'")) || (x.startsWith('"') && x.endsWith('"'))) x = x.slice(1, -1);
+    return x;
+  };
+  let p = 0;
+  function blockScalar(parentInd, fromLine) {
+    const out = [];
+    let j = fromLine + 1, ind = null;
+    for (; j < src.length; j++) {
+      const raw = src[j];
+      if (!raw.trim()) { out.push(''); continue; }
+      const k = raw.length - raw.trimStart().length;
+      if (k <= parentInd) break;
+      if (ind === null) ind = k;
+      out.push(raw.slice(ind));
+    }
+    while (p < rows.length && rows[p].i < j) p++;
+    return out.join('\n').replace(/\n+$/, '');
+  }
+  function value(ind) {
+    if (p >= rows.length || rows[p].ind < ind) return null;
+    return rows[p].t.startsWith('- ') ? list(rows[p].ind) : map(rows[p].ind);
+  }
+  function entry(obj, t, ind, line) {
+    const c = t.indexOf(':');
+    const key = unquote(t.slice(0, c));
+    const rest = t.slice(c + 1).trim();
+    if (rest === '|' || rest === '>') obj[key] = blockScalar(ind, line);
+    else if (rest === '' || rest.startsWith('#')) obj[key] = value(ind + 1);
+    else obj[key] = unquote(rest);
+  }
+  function map(ind) {
+    const obj = {};
+    while (p < rows.length && rows[p].ind === ind && !rows[p].t.startsWith('- ')) {
+      const row = rows[p++];
+      entry(obj, row.t, ind, row.i);
+    }
+    return obj;
+  }
+  function list(ind) {
+    const arr = [];
+    while (p < rows.length && rows[p].ind === ind && rows[p].t.startsWith('- ')) {
+      const row = rows[p++];
+      const body = row.t.slice(2);
+      if (body.indexOf(':') < 0) { arr.push(unquote(body)); continue; }
+      const item = {};
+      entry(item, body, ind + 2, row.i);
+      if (p < rows.length && rows[p].ind === ind + 2) Object.assign(item, map(ind + 2));
+      arr.push(item);
+    }
+    return arr;
+  }
+  return map(0);
+}
+
+console.log('\nparseBlockYaml(): the reader the wiring checks rely on');
+{
+  const y = parseBlockYaml("a:\n  b: 1 # c\n  # gone: 1\n  l:\n    - name: x\n      run: |\n        echo 1\n        echo 2\n    - name: 'y'\n  n: [p, q]\nz: \"w\"\n");
+  ok('maps, lists of maps, block scalars, quotes and trailing comments parse as values',
+    y.a.b === '1' && y.a.l.length === 2 && y.a.l[0].run === 'echo 1\necho 2' && y.a.l[1].name === 'y' && y.a.n === '[p, q]' && y.z === 'w' && !('gone' in y.a), JSON.stringify(y));
+}
+
 console.log('\nthe workflow wires the script the way the script assumes');
 {
-  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'firebase-deploy.yml'), 'utf8').replace(/\r\n/g, '\n');
-  ok('the strict step is named exactly STRICT_STEP_NAME', yml.includes('      - name: ' + M.STRICT_STEP_NAME + '\n'));
-  ok('the deploy job is named exactly DEPLOY_JOB_NAME', yml.includes('    name: ' + M.DEPLOY_JOB_NAME + '\n'));
-  const strip = (t) => t.split('\n').filter((l) => !/^\s*#/.test(l)).map((l) => l.replace(/\s+#.*$/, '')).join('\n');
-  const jobBlockOf = (name) => strip((yml.match(new RegExp('\\n  ' + name + ':\\n([\\s\\S]*?)(?=\\n  [a-z_-]+:\\n|$)')) || [])[1] || '');
-  const plan = jobBlockOf('functions_plan');
-  ok('a functions_plan job exists', plan.length > 0);
-  ok('…reads no secret', !/secrets\./.test(plan));
-  ok('…token: contents read + actions read, nothing writable',
-    /permissions:\s*\n\s+contents: read\s*\n\s+actions: read\s*\n/.test(plan) && !/: write/.test(plan), plan.slice(0, 600));
-  ok('…checks out full history without persisted credentials', /fetch-depth:\s*0/.test(plan) && /persist-credentials:\s*false/.test(plan));
-  ok('…passes the trigger through env, never interpolated into the shell',
-    /SCOPE: \$\{\{ github\.event\.inputs\.scope \}\}/.test(plan) && !/run: .*\$\{\{/.test(plan));
-  ok('…passes the off switch from the NBD_FUNCTIONS_SKIP repository variable', /SKIP_SWITCH: \$\{\{ vars\.NBD_FUNCTIONS_SKIP \}\}/.test(plan));
-  ok('…publishes the functions output', /functions: \$\{\{ steps\.\w+\.outputs\.functions \}\}/.test(plan));
-  ok('the deploy job itself waits for functions_plan', /^    needs: \[[^\]]*\bfunctions_plan\b[^\]]*\]/m.test(jobBlockOf('deploy')), (jobBlockOf('deploy').match(/^    needs:.*$/m) || [''])[0]);
-  for (const k of ['GH_TOKEN: ${{ github.token }}', 'EVENT_NAME: ${{ github.event_name }}', 'FORCE_FUNCTIONS: ${{ github.event.inputs.force_functions }}',
-    'HEAD_SHA: ${{ github.sha }}', 'RUN_ID: ${{ github.run_id }}']) ok('…plan step env carries ' + k.split(':')[0], plan.includes('          ' + k));
-  ok('…the plan step id is the one the outputs read', /\n        id: plan\n/.test(plan) && /functions: \$\{\{ steps\.plan\.outputs\.functions \}\}/.test(plan));
-  ok('…runs as the step\'s only command', /\n        run: node scripts\/functions-deploy-decision\.js\n/.test(plan + '\n'));
-  ok('workflow_dispatch has a force_functions boolean input', /\n      force_functions:\n[\s\S]{0,400}?type: boolean/.test(yml));
+  const wfDoc = parseBlockYaml(fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'firebase-deploy.yml'), 'utf8'));
+  const wfJobs = wfDoc.jobs || {};
+  const deployJob = wfJobs.deploy || {}, planJob = wfJobs.functions_plan || {};
+  const stepNamed = (job, n) => (job.steps || []).find((st) => st.name === n);
+  const strictStep = stepNamed(deployJob, M.STRICT_STEP_NAME);
+  ok('the strict step is named exactly STRICT_STEP_NAME (the marker the script reads)', !!strictStep, (deployJob.steps || []).map((st) => st.name).join(' | '));
+  ok('…inside the job named exactly DEPLOY_JOB_NAME', deployJob.name === M.DEPLOY_JOB_NAME, deployJob.name);
+  ok('…and its id is the one the Deploy summary reads', !!strictStep && strictStep.id === 'functions_strict');
+  ok('a functions_plan job exists', Object.keys(planJob).length > 0);
+  ok('…token: exactly contents read + actions read', JSON.stringify(planJob.permissions) === JSON.stringify({ contents: 'read', actions: 'read' }), JSON.stringify(planJob.permissions));
+  ok('…skips only the schedule', planJob.if === "github.event_name != 'schedule'", planJob.if);
+  const co = (planJob.steps || [])[0] || {}, pl = (planJob.steps || [])[2] || {};
+  ok('…checks out full history without persisted credentials', !!co.with && co.with['fetch-depth'] === '0' && co.with['persist-credentials'] === 'false', JSON.stringify(co.with));
+  ok('…the plan step id is the one the job outputs read', pl.id === 'plan' && !!planJob.outputs && planJob.outputs.functions === '${{ steps.plan.outputs.functions }}'
+    && planJob.outputs.base === '${{ steps.plan.outputs.base }}' && planJob.outputs.reason === '${{ steps.plan.outputs.reason }}', JSON.stringify(planJob.outputs));
+  ok('…runs this script as its only command', pl.run === 'node scripts/functions-deploy-decision.js', pl.run);
+  const wantEnv = { GH_TOKEN: '${{ github.token }}', EVENT_NAME: '${{ github.event_name }}', SCOPE: '${{ github.event.inputs.scope }}',
+    FORCE_FUNCTIONS: '${{ github.event.inputs.force_functions }}', SKIP_SWITCH: '${{ vars.NBD_FUNCTIONS_SKIP }}', HEAD_SHA: '${{ github.sha }}', RUN_ID: '${{ github.run_id }}' };
+  ok('…every input reaches it through env, exactly (never interpolated into run:)', JSON.stringify(pl.env) === JSON.stringify(wantEnv), JSON.stringify(pl.env));
+  ok('…no step in the job takes a secret', JSON.stringify(planJob).split('secrets.').length === 1);
+  ok('the deploy job waits for check, due and functions_plan', deployJob.needs === '[check, due, functions_plan]', deployJob.needs);
+  const fin = (((wfDoc.on || {}).workflow_dispatch || {}).inputs || {}).force_functions || {};
+  ok('workflow_dispatch has a force_functions boolean input, default false', fin.type === 'boolean' && fin.default === 'false', JSON.stringify(fin));
 }
 
 console.log('\n──────────────────────');
