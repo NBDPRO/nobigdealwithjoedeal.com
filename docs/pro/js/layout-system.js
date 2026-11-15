@@ -225,8 +225,13 @@
 
   // phone is the app's own mobile breakpoint (768px — what #mobile-nav and the
   // pipeline already key on); tablet is a wider touch screen; the rest desktop.
-  function surfaceFor(width, coarsePointer) {
+  function surfaceFor(width, coarsePointer, screenShort) {
     if (width <= 768) return 'phone';
+    // a phone on its side (2026-11-14): a touch screen whose SHORT side is phone-sized
+    // (screenShort = min(screen.width, screen.height)). Windows on an 844x390 iPhone were
+    // unusable. The device's screen, not the viewport: a tablet's keyboard shrinks
+    // innerHeight but never its screen, so it can't flip a tablet to phone mid-typing.
+    if (coarsePointer && screenShort > 0 && screenShort <= 500 && width <= 1000) return 'phone';
     if (width <= 1180 && coarsePointer) return 'tablet';
     return 'desktop';
   }
@@ -403,7 +408,11 @@
   function coarse() {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   }
-  function surface() { return R.surfaceFor(window.innerWidth || 1024, coarse()); }
+  function screenShort() {
+    var s = window.screen;
+    return s && s.width > 0 && s.height > 0 ? Math.min(s.width, s.height) : 0;
+  }
+  function surface() { return R.surfaceFor(window.innerWidth || 1024, coarse(), screenShort()); }
 
   // ── tiny storage helpers (storage can throw: private mode, blocked) ──
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }

@@ -199,16 +199,21 @@
       var s = {};
       return (Array.isArray(arr) ? arr : []).filter(function (id) { if (!ok(id) || s[id]) return false; s[id] = true; return true; }).slice(0, max);
     };
-    return {
+    var hasFocus = ok(r.focus) && seen[r.focus];
+    // idle (2026-11-14): saved with no window in front on purpose; a reload keeps the desk empty
+    var idle = !hasFocus && r.idle === true;
+    var out = {
       v: 1,
       wins: wins,
-      focus: ok(r.focus) && seen[r.focus] ? r.focus : nextFocus(wins, null),
+      focus: hasFocus ? r.focus : (idle ? null : nextFocus(wins, null)),
       icons: ids(r.icons, 60),
       dock: ids(r.dock, 4),
       recent: ids(r.recent, MAX_RECENT),
       desk: deskIndex(r.desk),
       pins: ids(r.pins, MAX_PINS),
     };
+    if (idle) out.idle = true;   // only when set: a normal state keeps its shape
+    return out;
   }
 
   /** A desk number 0..DESKS-1; anything else is desk 0. */
