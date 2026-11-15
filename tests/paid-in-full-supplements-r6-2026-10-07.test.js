@@ -53,13 +53,13 @@ const NL = req('docs/pro/js/numbers-logic.js');
 const CER_CLIENT = req('docs/pro/js/customer-estimate-rows.js');
 // An invoice with supplements is made by the server since 2026-11-14 (functions/supplement-invoice.js):
 // the real handler runs over this sandbox's store.
-const { installSupplementCallable } = require('./lib/supplement-callable-fake');
+const { installSupplementCallable, cloneKeep, APPROVED_AT } = require('./lib/supplement-callable-fake');
 let IP = null, CU = null;
 function browser(seed, extra) {
-  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
+  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, cloneKeep(v)]));
   const emails = [], writes = [];
   let seq = 0;
-  const clone = (v) => JSON.parse(JSON.stringify(v));
+  const clone = (v) => cloneKeep(v);
   const W = {
     _db: { fake: true }, db: { fake: true },
     // doc(collectionRef) mints an auto id (the v9 SDK); writeBatch is all or
@@ -137,7 +137,7 @@ const insEst = (f) => Object.assign({
 }, f || {});
 // Saved with its company and approved by the owner side with the carrier's evidence (Joe, 2026-11-14).
 const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', companyId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield',
-  approvedBy: 'u1', approvedAt: 1, approvalEvidence: { note: 'Carrier letter: ice & water approved.' } }, f || {});
+  approvedBy: 'u1', approvedAt: APPROVED_AT, approvalEvidence: { note: 'Carrier letter: ice & water approved.' } }, f || {});
 
 (async () => {
   // ════════════════════════════════════════════════════════════════════

@@ -47,7 +47,7 @@ const c = (dollars) => Math.round(Number(dollars) * 100);
 const OH = '1 Main St, Cincinnati, OH 45202';
 
 const CER_CLIENT = req('docs/pro/js/customer-estimate-rows.js');
-const { installSupplementCallable } = require('./lib/supplement-callable-fake');
+const { installSupplementCallable, cloneKeep, APPROVED_AT } = require('./lib/supplement-callable-fake');
 let IP = null;
 
 /**
@@ -59,10 +59,10 @@ let IP = null;
  */
 function browser(seed, opts) {
   opts = opts || {};
-  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
+  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, cloneKeep(v)]));
   const writes = [];
   let seq = 0;
-  const clone = (v) => JSON.parse(JSON.stringify(v));
+  const clone = (v) => cloneKeep(v);
   const uid = opts.uid || 'u1';
   const W = {
     _db: { fake: true }, db: { fake: true },
@@ -152,7 +152,7 @@ const lead = (f) => Object.assign({ userId: 'rep1', companyId: 'co-a', firstName
   stage: 'closed', primaryEstimateId: 'estC', insCarrier: 'Carrier', claimNumber: 'C-1', createdAt: 1 }, f || {});
 // The rep's $2,000 supplement, saved with companyId, APPROVED by the company
 // owner side with the carrier's evidence (Joe, 2026-11-14).
-const EVID = { approvedBy: 'carol', approvedAt: 1, approvalEvidence: { note: 'Carrier letter 2026-11-10: ice & water approved.' } };
+const EVID = { approvedBy: 'carol', approvedAt: APPROVED_AT, approvalEvidence: { note: 'Carrier letter 2026-11-10: ice & water approved.' } };
 const sup = (f) => Object.assign({ parentEstimateId: 'estC', leadId: 'L1', userId: 'rep1', companyId: 'co-a', version: 1,
   status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, EVID, f || {});
 const CAROL = { uid: 'carol', claims: { role: 'company_admin', companyId: 'co-a' } };
@@ -606,6 +606,23 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
     ok('a denial needs no evidence and writes no approval record', d.okv === true && d.patch && d.patch.status === 'denied' && !('approvedBy' in d.patch), JSON.stringify(d.patch));
     const e = await run({ status: 'approved', evidenceNote: 'x'.repeat(1001) });
     ok('an evidence note over 1000 characters is refused', e.okv === false && e.patch === null);
+  });
+
+  console.log('\nO. M3 in the browser: a later supplement goes to the server even when an earlier supplement invoice exists');
+  await sec('O', async () => {
+    if (!IP) return;
+    const B = browser({ 'leads/L1': lead(), 'estimates/estC': est(),
+      'supplements/s1': sup({ invoicedInvoiceId: 'A', invoicedAt: APPROVED_AT }),
+      'supplements/s2': sup({ version: 2, supplementTotal: 300, reason: 'Drip edge' }),
+      'invoices/A': { leadId: 'L1', companyId: 'co-a', createdBy: 'carol', estimateId: 'estC', status: 'sent', total: 16000, amountPaid: 0, createdAt: 2,
+        supplementIds: ['s1'], supplementTotal: 2000, source: 'supplement_invoice' } }, CAROL);
+    let r = null, err = null;
+    try { r = await IP.createOrOpenJobInvoice('estC'); } catch (e) { err = e; }
+    const inv = invoicesOf(B.store).find((i) => i._id !== 'invoices/A');
+    ok('the browser asks the server (it does not stop at "invoice A covers the job"), which bills s2: a new $300 invoice, s2 stamped',
+      !err && r && r.reused === false && B.W.__calls.length === 1 && inv && c(inv.total) === 30000
+        && B.store.get('supplements/s2').invoicedInvoiceId === r.invoiceId,
+      err ? err.message : JSON.stringify({ r, calls: B.W.__calls.length, inv: inv && inv.total }));
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

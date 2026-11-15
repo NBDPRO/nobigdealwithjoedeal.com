@@ -41,12 +41,14 @@ function req(rel) {
 const c = (d) => Math.round(Number(d) * 100);
 
 const SI = req('functions/supplement-invoice.js');
+const { TS, cloneKeep, APPROVED_AT, DEFAULT_CLAIMS } = require('./lib/supplement-callable-fake');
+const NOW = Date.UTC(2026, 10, 16);
 
 // ── A fake Admin SDK Firestore with transactions ──
 function fakeDb(seed) {
-  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
+  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, cloneKeep(v)]));
   let seq = 0;
-  const snap = (p) => ({ id: p.split('/').pop(), exists: store.has(p), data: () => (store.has(p) ? JSON.parse(JSON.stringify(store.get(p))) : undefined) });
+  const snap = (p) => ({ id: p.split('/').pop(), exists: store.has(p), data: () => (store.has(p) ? cloneKeep(store.get(p)) : undefined) });
   function col(cpath) {
     const q = (ws) => ({
       _q: true, cpath, ws,
@@ -57,7 +59,7 @@ function fakeDb(seed) {
         for (const [k, v] of store) {
           const parts = k.split('/');
           if (parts.length !== depth || parts.slice(0, -1).join('/') !== cpath) continue;
-          if (ws.every(([f, val]) => v[f] === val)) docs.push({ id: parts[parts.length - 1], data: () => JSON.parse(JSON.stringify(v)) });
+          if (ws.every(([f, val]) => v[f] === val)) docs.push({ id: parts[parts.length - 1], data: () => cloneKeep(v) });
         }
         return { docs, empty: !docs.length };
       },
@@ -84,7 +86,7 @@ function fakeDb(seed) {
       for (const [k, p, d] of pending) {
         if (k === 'update' && !store.has(p)) throw new Error('NOT_FOUND ' + p);
         writes.push([k, p]);
-        store.set(p, k === 'create' ? JSON.parse(JSON.stringify(d)) : Object.assign({}, store.get(p), JSON.parse(JSON.stringify(d))));
+        store.set(p, k === 'create' ? cloneKeep(d) : Object.assign({}, store.get(p), cloneKeep(d)));
       }
       return out;
     },
@@ -96,14 +98,14 @@ const OH = '1 Main St, Cincinnati, OH 45202';
 const est = (f) => Object.assign({ userId: 'rep1', companyId: 'co-a', leadId: 'L1', grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0,
   mode: 'insurance', addr: OH, rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }] }, f || {});
 const lead = (f) => Object.assign({ userId: 'rep1', companyId: 'co-a', firstName: 'Syn', lastName: 'Thetic', address: OH, insCarrier: 'Carrier', claimNumber: 'C-1' }, f || {});
-const EVID = { approvedBy: 'carol', approvedAt: 1, approvalEvidence: { note: 'Carrier letter 2026-11-10, adjuster approved ice & water.' } };
+const EVID = { approvedBy: 'carol', approvedAt: APPROVED_AT, approvalEvidence: { note: 'Carrier letter 2026-11-10, adjuster approved ice & water.' } };
 const sup = (f) => Object.assign({ parentEstimateId: 'estC', leadId: 'L1', userId: 'rep1', companyId: 'co-a', version: 1,
   status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, EVID, f || {});
 const who = (uid, token) => ({ uid, token: token || {} });
 const CAROL = who('carol', { role: 'company_admin', companyId: 'co-a' });
 const REP = who('rep1', { role: 'sales_rep', companyId: 'co-a' });
 const call = async (db, auth, data) => {
-  try { return { r: await SI.handleCreateSupplementInvoice({ auth, data }, { db, nowMs: Date.UTC(2026, 10, 14) }) }; }
+  try { return { r: await SI.handleCreateSupplementInvoice({ auth, data }, { db, nowMs: NOW, getClaims: async (uid) => (DEFAULT_CLAIMS[uid] || ({ eve: { role: 'company_admin', companyId: 'co-b' } })[uid] || {}) }) }; }
   catch (e) { return { e }; }
 };
 const invoicesOf = (db) => [...db.store.entries()].filter(([k]) => k.startsWith('invoices/')).map(([k, v]) => Object.assign({ _id: k.slice(9) }, v));
@@ -230,6 +232,110 @@ const seedJob = (extra) => Object.assign({ 'estimates/estC': est(), 'leads/L1': 
     const fl = fakeDb(seedJob({ 'leads/L1': lead({ companyId: 'co-b', userId: 'eve' }) }));
     const rf = await call(fl, CAROL, { estimateId: 'estC' });
     ok('an estimate pointing at another company\'s lead is refused', !!rf.e && invoicesOf(fl).length === 0, rf.e && rf.e.message);
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // Security review of the server invoice (2026-11-15)
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nE. M2 — an approval record must be real (after the cutoff, by the owner side)');
+  await sec('E', async () => {
+    const before = new TS(SI.APPROVALS_SINCE_MS - 1000);
+    let db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedAt: before }) }));
+    let res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedAt before the approvals cutoff (forged under the old rules) → refused', !!res.e && /re-approve/.test(res.e.message) && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedAt: SI.APPROVALS_SINCE_MS + 5000 }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedAt a plain number (not a server Timestamp) → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedAt: { seconds: Math.floor(SI.APPROVALS_SINCE_MS / 1000) + 60 } }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedAt a plain map shaped like a Timestamp → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedAt: new TS(NOW + 86400000) }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedAt in the future → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedBy: 'rep1' }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedBy a sales_rep → refused', !!res.e && /re-approve/.test(res.e.message) && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedBy: 'eve' }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedBy another company\'s admin → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob({ 'companies/co-a': { ownerId: 'olga' }, 'supplements/s1': sup({ approvedBy: 'olga' }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedBy the company\'s owner (companies/{id}.ownerId) → billed', !!res.r && invoicesOf(db).length === 1, res.e && res.e.message);
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ approvedBy: 'joe' }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('approvedBy the platform admin → billed', !!res.r && invoicesOf(db).length === 1, res.e && res.e.message);
+  });
+
+  console.log('\nF. M1 — the lead the invoice bills is the job\'s, not one the rep picked');
+  await sec('F', async () => {
+    const seedL2 = { 'leads/L2': lead({ userId: 'rep2', firstName: 'Other' }) };
+    let db = fakeDb(seedJob(Object.assign({ 'estimates/estC': est({ leadId: 'L2' }) }, seedL2)));
+    let res = await call(db, REP, { estimateId: 'estC' });
+    ok('a rep repointed the estimate at a teammate\'s customer (L2) → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('…and the office is refused too: the supplements belong to L1', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(Object.assign({ 'estimates/estC': est({ leadId: null }), 'leads/L1': lead(), 'supplements/s1': sup({ leadId: null }) }, seedL2));
+    res = await call(db, REP, { estimateId: 'estC', leadId: 'L2' });
+    ok('a lead-less estimate + an asked lead that is a teammate\'s (L2) → refused', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(Object.assign({ 'estimates/estC': est({ leadId: null }), 'leads/L1': lead(), 'supplements/s1': sup({ leadId: null }) }, seedL2));
+    res = await call(db, REP, { estimateId: 'estC', leadId: 'L1' });
+    ok('…an asked lead that is the rep\'s own, but the supplements name no lead → refused (leads must match)', !!res.e && invoicesOf(db).length === 0, res.e ? res.e.message : 'made');
+    db = fakeDb(seedJob());
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('Carol on the job\'s own lead L1 → allowed', !!res.r && invoicesOf(db).length === 1, res.e && res.e.message);
+  });
+
+  console.log('\nG. M3 — a supplement approved after an earlier supplement invoice still bills');
+  await sec('G', async () => {
+    const A = { leadId: 'L1', companyId: 'co-a', createdBy: 'carol', estimateId: 'estC', status: 'sent', total: 16000, amountPaid: 0, createdAt: 2,
+      supplementIds: ['s1'], supplementTotal: 2000, source: 'supplement_invoice' };
+    let db = fakeDb(seedJob({ 'supplements/s1': sup({ invoicedInvoiceId: 'A', invoicedAt: 3 }), 'invoices/A': A,
+      'supplements/s2': sup({ version: 2, supplementTotal: 300, reason: 'Drip edge' }) }));
+    let res = await call(db, CAROL, { estimateId: 'estC' });
+    const inv = invoicesOf(db).find((i) => i._id !== 'A');
+    ok('s1 on invoice A ($16,000), s2 approved later ($300) → a new invoice for $300 (A credited), s2 stamped; never "reused" with s2 unbilled',
+      !!res.r && res.r.reused === false && inv && c(inv.total) === 30000 && db.store.get('supplements/s2').invoicedInvoiceId === res.r.invoiceId
+        && JSON.stringify(inv.supplementIds) === '["s2"]' && db.store.get('supplements/s1').invoicedInvoiceId === 'A',
+      res.e ? res.e.message : JSON.stringify({ r: res.r, inv: inv && { t: inv.total, ids: inv.supplementIds } }));
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ invoicedInvoiceId: 'A', invoicedAt: 3 }), 'invoices/A': Object.assign({}, A, { status: 'paid', amountPaid: 16000 }),
+      'supplements/s2': sup({ version: 2, supplementTotal: 300 }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    const inv2 = invoicesOf(db).find((i) => i._id !== 'A');
+    ok('…the same when invoice A is already paid: $300 owed, nothing billed twice', !!res.r && inv2 && c(inv2.total) === 30000, res.e ? res.e.message : JSON.stringify(inv2 && inv2.total));
+  });
+
+  console.log('\nH. Credits, retries and messages');
+  await sec('H', async () => {
+    let db = fakeDb(seedJob({ 'estimates/estC': est({ jobId: 'J1' }),
+      'invoices/legacy': { leadId: 'L1', createdBy: 'rep1', estimateId: 'estC', jobId: 'J1', status: 'paid', total: 5000, amountPaid: 5000, createdAt: 2 } }));
+    let res = await call(db, CAROL, { estimateId: 'estC' });
+    let inv = invoicesOf(db).find((i) => i.source === 'supplement_invoice');
+    ok('M4: a legacy deposit invoice with no companyId, made by the estimate\'s author, is credited ($11,000, not $16,000)',
+      inv && c(inv.total) === 1100000 && JSON.stringify(inv.creditedInvoiceIds) === '["legacy"]', res.e ? res.e.message : JSON.stringify(inv && inv.total));
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ invoicedInvoiceId: 'X', invoicedAt: 3 }), 'supplements/s2': sup({ version: 2, invoicedInvoiceId: 'X', invoicedAt: 3 }),
+      'invoices/X': { leadId: 'L1', companyId: 'co-a', createdBy: 'carol', estimateId: 'estC', status: 'draft', total: 18000, amountPaid: 0, createdAt: 2, supplementIds: ['s1', 's2'] } }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('L4: a retry after a lost response (every approved supplement on invoice X) → X, reused, nothing written',
+      !!res.r && res.r.reused === true && res.r.invoiceId === 'X' && invoicesOf(db).length === 1, res.e ? res.e.message : JSON.stringify(res.r));
+    const IFE = require(path.join(ROOT, 'functions/invoice-from-estimate.js'));
+    const orig = IFE.invoiceTotalsFromEstimate;
+    IFE.invoiceTotalsFromEstimate = () => { throw new Error('internal detail /secret/path'); };
+    try {
+      db = fakeDb(seedJob());
+      res = await call(db, CAROL, { estimateId: 'estC' });
+    } finally { IFE.invoiceTotalsFromEstimate = orig; }
+    ok('L1: an unexpected internal error returns generic text, not its details', !!res.e && !/secret/.test(res.e.message) && invoicesOf(db).length === 0, res.e && res.e.message);
+    db = fakeDb(seedJob({ 'estimates/estC': est({ deleted: true }) }));
+    const rTenant = await call(db, who('eve', { role: 'company_admin', companyId: 'co-b' }), { estimateId: 'estC' });
+    const rMissing = await call(fakeDb(seedJob()), CAROL, { estimateId: 'nope' });
+    ok('L2: another tenant learns nothing from a deleted estimate (the same refusal as a missing one)',
+      !!rTenant.e && !!rMissing.e && rTenant.e.message === rMissing.e.message, rTenant.e && rTenant.e.message);
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ version: 'abc', reason: '<img src=x onerror=alert(1)>\u0007 roof' }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    inv = invoicesOf(db)[0];
+    const line = inv && inv.items.find((it) => /Supplement/.test(it.description));
+    ok('L3: a non-number version reads #1, and the reason has no markup or control characters in the line',
+      !!line && /#1 /.test(line.description) && !/[<>\u0000-\u001f]/.test(line.description), res.e ? res.e.message : JSON.stringify(line));
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

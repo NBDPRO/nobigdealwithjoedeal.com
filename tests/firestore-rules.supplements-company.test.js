@@ -208,6 +208,16 @@ async function run() {
   await check('staff cannot change the money without approving', 'deny', updateDoc(ref(mike, 'sFree'), { supplementTotal: 99999 }));
   await check('platform admin can still correct a stamp', 'allow', updateDoc(ref(joe, 'sStamped'), { invoicedInvoiceId: 'invFix' }));
 
+  // ── H1 (security review 2026-11-15): a server-made supplement invoice's money is the owner side's ──
+  await check('H1 a rep cannot re-price the supplement invoice (total)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { total: 1, balanceDue: 1 }));
+  await check('H1 …nor its lines (items)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { items: [{ description: 'x', quantity: 1, unitPrice: 1, total: 1 }] }));
+  await check('H1 …nor its supplementTotal', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { supplementTotal: 99999 }));
+  await check('H1 …nor its subtotal / tax / deposit / credits / source', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { subtotal: 5, tax: 1, depositAmount: 0, creditTotal: 9, creditedInvoiceIds: ['z'], source: 'manual' }));
+  await check('H1 a manager cannot re-price it either', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { total: 50000, balanceDue: 50000 }));
+  await check('H1 the rep can still edit the notes on it', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { notes: 'call first' }));
+  await check('H1 the company_admin (owner side) may change its total', 'allow', updateDoc(doc(carol, 'invoices/invJ1'), { total: 2, balanceDue: 2 }));
+  await check('H1 an ordinary invoice (no supplements) is still re-priced by its maker as before', 'allow', updateDoc(doc(carol, 'invoices/invPlain'), { total: 15000, balanceDue: 15000 }));
+
   // ── interim protections kept: a SERVER-made invoice that billed supplements (seeded) ──
   await check('#1 a rep cannot DELETE an invoice that billed supplements', 'deny', deleteDoc(doc(rep, 'invoices/invJ1')));
   await check('#2 a manager cannot VOID it (status void)', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { status: 'void' }));
