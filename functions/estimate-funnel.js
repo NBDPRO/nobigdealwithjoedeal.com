@@ -216,13 +216,13 @@ function sameStamp(x, y) {
 /**
  * Patch the CRM card in a transaction (a rep's edit between the read and the
  * write is never lost). The bridge makes the card on the step-1 create,
- * normally long before anything changes; if it is not there yet, wait
- * briefly — never create it here (the bridge's create() would then fail and
- * lose the lead). → true when the card was found.
+ * normally long before anything changes; if it is not there yet, `tries` > 1
+ * waits briefly between reads — never create it here (the bridge's create()
+ * would then fail and lose the lead). → true when the card was found.
  */
-async function patchCard(db, publicId, build, wait) {
+async function patchCard(db, publicId, build, wait, tries) {
   const leadRef = db.collection('leads').doc(L.bridgeDocId(COLLECTION, publicId));
-  for (let i = 0; i < CRM_LEAD_TRIES; i++) {
+  for (let i = 0; i < tries; i++) {
     if (i) await wait(CRM_LEAD_WAIT_MS);
     const found = await db.runTransaction(async (tx) => {
       const snap = await tx.get(leadRef);
@@ -306,8 +306,12 @@ async function applyEstimateUpdate(db, a) {
   let crm = false;
   try {
     const merged = Object.assign({}, out.prev, o.data || {});
+    // ONE read, no waiting: this runs inside the homeowner's request
+    // (submitPublicLead, 15 s timeout). A card that is not there yet is the
+    // retried update trigger's job (leadBridgeEstimateUpdate), which fires on
+    // this same commit.
     crm = await patchCard(db, out.publicId,
-      (card) => buildCrmPatch(card, out.prev, merged, out.patch, Object.assign({ stage }, helpers)), wait);
+      (card) => buildCrmPatch(card, out.prev, merged, out.patch, Object.assign({ stage }, helpers)), wait, 1);
     if (!crm) log.warn('estimateFunnel: CRM card not found — public lead updated; the update trigger retries', { publicId: out.publicId, stage });
   } catch (e) {
     log.error('estimateFunnel: CRM card update failed — public lead updated; the update trigger retries', { publicId: out.publicId, stage, err: e && e.message });
@@ -338,7 +342,7 @@ async function syncCardFromUpdate(db, publicId, before, after, opts) {
   const FV = o.FieldValue;
   const helpers = { ts: FV.serverTimestamp(), del: FV.delete() };
   const wait = typeof o.wait === 'function' ? o.wait : (ms) => new Promise((r) => setTimeout(r, ms));
-  const found = await patchCard(db, String(publicId), (card) => buildCrmPatch(card, b, af, pub, Object.assign({ stage }, helpers)), wait);
+  const found = await patchCard(db, String(publicId), (card) => buildCrmPatch(card, b, af, pub, Object.assign({ stage }, helpers)), wait, CRM_LEAD_TRIES);
   return found ? 'synced' : 'no_card';
 }
 

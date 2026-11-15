@@ -332,6 +332,16 @@ function mkRes() {
     const grantPath = 'public_lead_photo_grants/' + require('crypto').createHash('sha256').update(token).digest('hex');
     const fin = Object.assign({}, step1, { estimateStage: 'completed', leadToken: token, service: 'roof-repair' });
 
+    // No CRM card yet (the bridge has not run): the homeowner's request must
+    // not sit waiting for it — the retried update trigger handles the card.
+    const dbW = makeDb();
+    const sW = gateway(dbW);
+    const w1 = await sW(step1);
+    const t0 = Date.now();
+    const w2 = await sW(Object.assign({}, step1, { firstName: 'Patty', leadToken: w1.body.photoToken }));
+    const took = Date.now() - t0;
+    ok('an update whose CRM card is not there yet answers at once (no waiting inside the request)', w2.body.updated === true && took < 1000, { took, body: w2.body });
+
     const n = pubDocs(db).length;
     const unknown = await submit(Object.assign({}, fin, { leadToken: 'f'.repeat(48) }));
     ok('an unknown token → a normal create (a lost link never loses the lead)', unknown.code === 200 && unknown.body.id !== r1.body.id && pubDocs(db).length === n + 1);
