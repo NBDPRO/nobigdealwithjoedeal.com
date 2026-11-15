@@ -103,8 +103,9 @@ console.log('\n5. inline colours that were fixed colours on theme surfaces');
   ok('the streak numbers fall back to muted ink, not #8fa1b8, on their light cards', /: 'var\(--muted\)'};line-height:1;">\$\{workoutStreak\}/.test(APP) && /: 'var\(--muted\)'};line-height:1;">\$\{habitPct\}%/.test(APP) && /streak >= 1 \? 'var\(--ac\)' : 'var\(--muted\)'/.test(APP));
   ok('the → on a day row is muted ink, not the hairline colour', /<span style="color:var\(--muted\);flex-shr/.test(APP));
   // 2026-11-14 (audit): each declaration is checked on its own, not in one fixed order (reordering the rule broke it).
-  const pill = (HTML.match(/\.ds-sync-badge\{([^}]*)\}/) || ['', ''])[1];
-  ok('the sync pill is 11 px (the type floor) and follows the skin\'s accent text', /(^|;)font-size:11px(;|$)/.test(pill) && /(^|;)font-weight:700(;|$)/.test(pill) && /(^|;)color:var\(--ac-text,#E4783F\)(;|$)/.test(pill) && /color \|\| 'var\(--ac-text,#E4783F\)'/.test(SYNC) && !/font-size:10px/.test(SYNC) && !/font-size:10px/.test(HTML.slice(HTML.indexOf('.ds-sync-badge{'), HTML.indexOf('.ds-sync-badge{') + 500)));
+  const K = require('./lib/src-kit.js');
+  const pill = K.cssRule(K.cssRules(K.parseTags(read('index.html')).$$('style').map((t) => t.text).join('\n')), '.ds-sync-badge') || {};   // structured, any declaration order
+  ok('the sync pill is 11 px (the type floor) and follows the skin\'s accent text', pill['font-size'] === '11px' && pill['font-weight'] === '700' && pill.color === 'var(--ac-text,#E4783F)' && /color \|\| 'var\(--ac-text,#E4783F\)'/.test(SYNC) && !/font-size:10px/.test(SYNC) && !/font-size:10px/.test(HTML.slice(HTML.indexOf('.ds-sync-badge{'), HTML.indexOf('.ds-sync-badge{') + 500)));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
