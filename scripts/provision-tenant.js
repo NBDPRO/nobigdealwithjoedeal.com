@@ -17,7 +17,11 @@
  *    wrong brand key, leads tagged with the uid instead of the slug).
  *  - PLAN GATE: the dashboard (NBDAuth) requires plan >= foundation; a fresh
  *    owner with no subscription doc lands behind the upgrade wall, so we seed
- *    subscriptions/{uid} = {plan, status:'active'} (admin-SDK write only).
+ *    subscriptions/{companyId} = {plan, status:'active'} (admin-SDK write
+ *    only). Keyed by the COMPANY, like every plan reader (dashboard,
+ *    billing-gate, claudeProxy, adminAI, Stripe, the lead-cap rule). Until
+ *    2026-11-15 this seeded subscriptions/{ownerUid}, which nothing reads for
+ *    a slug tenant; --check flags a tenant left that way (MISPLACED).
  *  - companyProfile/{id} blanks any identity field it doesn't set (no NBD
  *    bleed), so it must carry the tenant's full brand (backfill handles that).
  *
@@ -112,11 +116,19 @@ async function main() {
   console.log(`\n=== tenant: ${companyId} ===`);
   console.log(`companies/${companyId}:        ${companySnap.exists ? 'EXISTS (ownerId=' + (companySnap.data().ownerId || '(unset)') + ')' : 'ABSENT'}`);
   console.log(`companyProfile/${companyId}:   ${profSnap.exists ? 'EXISTS (brand.legalName=' + ((profSnap.data().brand || {}).legalName || '(none)') + ')' : 'ABSENT — run the brand backfill or the owner sees NBD-default branding'}`);
+  // Every plan reader (dashboard, billing-gate, claudeProxy, adminAI, Stripe,
+  // the lead-cap rule) keys the plan on subscriptions/{companyId}.
+  const coSub = await db.collection('subscriptions').doc(companyId).get();
+  console.log(`subscriptions/${companyId}: ${coSub.exists ? JSON.stringify({ plan: coSub.data().plan, status: coSub.data().status }) : 'ABSENT (dashboard upgrade wall will block, AI refused)'}`);
   if (owner) {
-    const sub = await db.collection('subscriptions').doc(owner.uid).get();
     console.log(`owner:                  ${owner.email} (${owner.uid})`);
     console.log(`  claims:               ${JSON.stringify(owner.customClaims || {})}`);
-    console.log(`  subscriptions/${owner.uid.slice(0, 6)}…: ${sub.exists ? JSON.stringify({ plan: sub.data().plan, status: sub.data().status }) : 'ABSENT (dashboard upgrade wall will block)'}`);
+    // Before 2026-11-15 this script seeded the plan under the owner uid, where
+    // nothing reads a slug tenant's plan. Flag a tenant left that way.
+    const ownerSub = await db.collection('subscriptions').doc(owner.uid).get();
+    if (ownerSub.exists && !coSub.exists) {
+      console.log(`  ⚠ MISPLACED: a plan sits at subscriptions/${owner.uid.slice(0, 6)}… (${JSON.stringify({ plan: ownerSub.data().plan, status: ownerSub.data().status })}) but nothing reads it for a slug tenant. Re-run without --check to seed subscriptions/${companyId}.`);
+    }
   } else {
     console.log(`owner:                  ${ownerUid || ownerEmail || '(none specified)'} — not found`);
   }
@@ -167,11 +179,13 @@ async function main() {
   console.log(`✅ companies/${companyId}.ownerId = ${ownerUid}`);
 
   // 4) subscription — clears the dashboard plan-gate (admin-SDK write only).
+  // Keyed by the COMPANY (subscriptions/{companyId}), the doc every plan
+  // reader uses; under the owner uid nothing reads a slug tenant's plan.
   if (seedSub) {
-    await db.collection('subscriptions').doc(ownerUid).set({
+    await db.collection('subscriptions').doc(companyId).set({
       plan, status: 'active', companyId, provisionedBy: 'provision-tenant.js', updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-    console.log(`✅ subscriptions/${ownerUid} = {plan:'${plan}', status:'active'}`);
+    console.log(`✅ subscriptions/${companyId} = {plan:'${plan}', status:'active'}`);
   } else {
     console.log('⏭  skipped subscription (--no-subscription) — owner will hit the dashboard upgrade wall');
   }
