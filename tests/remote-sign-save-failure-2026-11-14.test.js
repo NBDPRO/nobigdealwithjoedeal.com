@@ -24,6 +24,9 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const kit = require('./lib/src-kit');
+// Regex check on a value the code produced (not on file text).
+const matches = (re, v) => re.test(String(v == null ? '' : v));
 
 const ROOT = path.join(__dirname, '..');
 const FN = path.join(ROOT, 'functions');
@@ -282,8 +285,9 @@ async function docRow(row) {
     ok('…and the homeowner is still told the truth (saved:false)', r.body.saved === false);
   }
   {
-    const html = fs.readFileSync(path.join(ROOT, 'docs/pro/sign.html'), 'utf8');
-    ok('sign.html cache-busts the changed sign-page.js (v=5)', /js\/sign-page\.js\?v=5"/.test(html));
+    const signDoc = kit.parseTags(kit.read('docs/pro/sign.html'));
+    const sp = signDoc.$$('script').find((e) => /^js\/sign-page\.js/.test(e.attr('src') || ''));
+    ok('sign.html cache-busts the changed sign-page.js (v=5)', !!sp && sp.attr('src') === 'js/sign-page.js?v=5', sp && sp.attr('src'));
   }
 
   section('6. Joe\'s decisions (2026-11-14)');
@@ -298,7 +302,7 @@ async function docRow(row) {
 
     const okSave = await submit(null, { original: WITH_PACKET });
     ok('fixture check: a saved signing stamps the lead cancelBy and runs the job spine',
-      /^\d{4}-\d{2}-\d{2}$/.test(okSave.lead.cancelBy || '') && okSave.spine.length === 1, JSON.stringify({ cancelBy: okSave.lead.cancelBy, spine: okSave.spine, status: okSave.status, body: okSave.body }));
+      matches(/^\d{4}-\d{2}-\d{2}$/, okSave.lead.cancelBy) && okSave.spine.length === 1, JSON.stringify({ cancelBy: okSave.lead.cancelBy, spine: okSave.spine, status: okSave.status, body: okSave.body }));
 
     // 1. Save failed: the job does not advance and no screen reads "signed".
     const bad = await submit((p) => p === GOOD_PATH, { original: WITH_PACKET });
@@ -308,7 +312,7 @@ async function docRow(row) {
     ok('save failed: the document keeps its pre-signing status (not "signed")', bad.doc.status === 'sent', String(bad.doc.status));
     ok('save failed: no signedAt / signedRemotely (the CRM infers "signed" from either)', !('signedAt' in bad.doc) && !('signedRemotely' in bad.doc), JSON.stringify(bad.doc));
     ok('save failed: when the signature came in is still recorded (unsavedSignatureAt)', !!bad.doc.unsavedSignatureAt && bad.doc.signedSaveFailed === true);
-    ok('save failed: the rep is still alerted', bad.notes.length === 1 && /NOT saved/.test(bad.notes[0].title));
+    ok('save failed: the rep is still alerted', bad.notes.length === 1 && matches(/NOT saved/, bad.notes[0].title));
   }
   {
     // 2. No new link for a document that is already properly signed; a
@@ -338,23 +342,22 @@ async function docRow(row) {
 
   section('4. the homeowner and the rep see it');
   {
-    const page = fs.readFileSync(path.join(ROOT, 'docs/pro/js/sign-page.js'), 'utf8');
-    ok('sign page branches on saved === false', /r\.data\.saved === false/.test(page));
-    const branch = (page.split('r.data.saved === false')[1] || '').split('} else')[0];
-    ok('…and that branch does not say "All done" or "recorded", and names the contractor',
-      !!branch && !/All done|recorded/.test(branch) && /contractor/i.test(branch), branch.slice(0, 200));
+    // One pin: a saved === false branch whose message names the contractor and
+    // never says "All done" or "recorded", before the ordinary success branch.
+    ok('sign page has a saved === false branch: names the contractor, no "All done" / "recorded"',
+      /if \(r\.ok && r\.data\.ok && r\.data\.saved === false\) \{(?:(?!All done|recorded|\} else)[\s\S])*contractor(?:(?!All done|recorded|\} else)[\s\S])*\} else if \(r\.ok && r\.data\.ok\)/i.test(kit.read('docs/pro/js/sign-page.js')));
 
     // The CRM documents row warns (Joe 2026-11-14: put it back; the boot-budget
     // raise rides with it until the conductor's own raise lands).
     // The row as submitSignature now leaves it: status unchanged ('sent'), the flag set.
-    const bad = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'sent', signedSaveFailed: true, htmlPath: GOOD_PATH });
-    ok('CRM documents row warns the signed copy was not saved', /not saved/i.test(bad), bad.slice(0, 300));
-    ok('…and does not show "✓ Signed" or plain "Awaiting signature"', !/✓ Signed/.test(bad) && !/Awaiting signature/.test(bad));
+    const rowWarn = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'sent', signedSaveFailed: true, htmlPath: GOOD_PATH });
+    ok('CRM documents row warns the signed copy was not saved', matches(/not saved/i, rowWarn), rowWarn.slice(0, 300));
+    ok('…and does not show "✓ Signed" or plain "Awaiting signature"', !matches(/✓ Signed|Awaiting signature/, rowWarn));
     // A row flagged under the round-2 shape (status signed) warns too.
-    const bad2 = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, signedSaveFailed: true, htmlPath: GOOD_PATH });
-    ok('a flagged row stamped signed also warns, not "✓ Signed"', /not saved/i.test(bad2) && !/✓ Signed/.test(bad2));
-    const good = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, htmlPath: GOOD_PATH });
-    ok('a normally signed row still shows "✓ Signed"', /✓ Signed/.test(good) && !/not saved/i.test(good));
+    const rowWarn2 = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, signedSaveFailed: true, htmlPath: GOOD_PATH });
+    ok('a flagged row stamped signed also warns, not "✓ Signed"', matches(/not saved/i, rowWarn2) && !matches(/✓ Signed/, rowWarn2));
+    const rowOk = await docRow({ id: 'd1', name: 'Roofing Agreement', status: 'signed', signedRemotely: true, htmlPath: GOOD_PATH });
+    ok('a normally signed row still shows "✓ Signed"', matches(/✓ Signed/, rowOk) && !matches(/not saved/i, rowOk));
   }
 
   console.log('\n' + (failed === 0 ? '✓' : '✗') + ' remote-sign save failure: ' + passed + ' passed, ' + failed + ' failed');
