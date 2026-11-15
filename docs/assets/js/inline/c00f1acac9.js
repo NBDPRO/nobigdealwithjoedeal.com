@@ -140,7 +140,7 @@ const POSTS = [
     tag: "Insurance",
     title: "How Long Does a Roof Insurance Claim Take in Ohio?",
     meta: "By Joe Deal · June 2026 · 9 min read",
-    excerpt: "Most Ohio roof insurance claims take 2-6 weeks from filing to payment on straightforward claims, or 2-3 months with supplements. Here's the timeline broken down by phase — and how Joe accelerates the process.",
+    excerpt: "Most Ohio roof insurance claims take 2-6 weeks from filing to payment on straightforward claims, or 2-3 months with supplements. Here's the timeline broken down by phase — and what Joe does during your claim.",
     published: "2026-06-16",
   },
   {
