@@ -46,6 +46,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const K = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -395,12 +396,14 @@ console.log('\n14. No wording about what the insurer decides');
 // /storm-check and /roof-score print a model-written first-person note; like
 // /estimate, the box must say it is AI-drafted and Joe hasn't seen the roof.
 console.log('\n15. AI-written notes say they are AI-drafted');
+// (2026-11-15, source-pin ratchet) parsed: the note box is found by its class
+// and its own text is read, so a label moved outside the box does not pass.
 for (const page of ['storm-check.html', 'roof-score.html', 'estimate.html']) {
-  const src = stripComments(read('docs/' + page), 'x.html');
-  const at = src.search(/<div class="(sc-take|joes-take)"/);
-  const box = at === -1 ? '' : src.slice(at, at + 400);
+  const doc = K.parseTags(read('docs/' + page));
+  const box = doc.$('.sc-take') || doc.$('.joes-take');
+  const words = box ? box.text.replace(/&#8217;|&rsquo;/g, '’') : '';
   ok(page + ': the AI note box says "AI-drafted" and that Joe hasn\'t seen the roof',
-    /AI-drafted/.test(box) && /hasn(&#8217;|&rsquo;|'|’)t seen your roof/.test(box), box.slice(0, 160));
+    !!box && words.includes('AI-drafted') && /hasn['’]t seen your roof/.test(words), words.slice(0, 160));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
