@@ -43,8 +43,9 @@ function isPaidSubscription(s, nowMs) {
 async function aiEntitlement(db, claims, uid) {
   const t = claims || {};
   const id = uid || t.uid || t.user_id || '';
-  if (t.role === 'admin') return { ok: true, exempt: 'platform_admin' };
-  if (id === PLATFORM_UID || t.companyId === PLATFORM_UID) return { ok: true, exempt: 'platform_tenant' };
+  // companyId: the company this caller's AI is billed and metered to.
+  if (t.role === 'admin') return { ok: true, exempt: 'platform_admin', companyId: t.companyId || id };
+  if (id === PLATFORM_UID || t.companyId === PLATFORM_UID) return { ok: true, exempt: 'platform_tenant', companyId: t.companyId || id };
   if (t.email_verified !== true) return { ok: false, reason: 'unverified' };
   const billingId = t.companyId || id;
   if (!billingId) return { ok: false, reason: 'plan' };
@@ -54,7 +55,7 @@ async function aiEntitlement(db, claims, uid) {
   } catch (_) {
     return { ok: false, reason: 'plan_check_failed' };
   }
-  return isPaidSubscription(snap && snap.exists ? snap.data() : null) ? { ok: true } : { ok: false, reason: 'plan' };
+  return isPaidSubscription(snap && snap.exists ? snap.data() : null) ? { ok: true, companyId: billingId } : { ok: false, reason: 'plan' };
 }
 
 // Triggers (Storage / Firestore) have no ID token: read the uploader's Auth
