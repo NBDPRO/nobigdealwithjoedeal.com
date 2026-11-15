@@ -2981,6 +2981,13 @@
       var url = location.origin + '/pro/estimate-view.html?token=' +
         encodeURIComponent(token) + '&estimateId=' + encodeURIComponent(estId);
 
+      // The link opens only an estimate the rep SHARED (getEstimateForView,
+      // 2026-11-14 review M2) — mark it shared before handing the link out,
+      // or the customer would get "Estimate not available".
+      try {
+        await window.updateDoc(window.doc(window.db, 'estimates', estId), { sharedWithHomeowner: true, sharedAt: window.serverTimestamp() });
+      } catch (e) { toast('Could not share the estimate — try again', 'error'); return; }
+
       var shared = false;
       if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '')) {
         try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
