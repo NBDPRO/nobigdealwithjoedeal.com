@@ -630,7 +630,7 @@
     html += '<div class="mdx-mb18"><h2 class="mdx-title">💵 Money — ' + m.year + '</h2>' +
       '<div class="mdx-m12-mt">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div>' +
       (invErr || expErr || supErr || le.monthCloses
-        ? '<div class="mdx-m12-mt" role="alert" style="color:var(--ui-danger-text,var(--red));">' + esc('Some figures couldn\'t load. The ones marked "couldn\'t load" are not $0 — refresh to try again.') + '</div>'
+        ? '<div class="mdx-m12-mt mdx-load-err" role="alert">' + esc('Some figures couldn\'t load. The ones marked "couldn\'t load" are not $0 — refresh to try again.') + '</div>'
         : '') + '</div>';
 
     // Close last month (2026-10-01) — checklist card, near the top.

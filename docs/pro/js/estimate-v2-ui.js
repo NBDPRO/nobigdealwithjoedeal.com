@@ -1359,8 +1359,7 @@
             style="width:100%;justify-content:center;padding:14px;">
             💾 Save Estimate to Customer
           </button>
-          <button id="v2saveCopyBtn" type="button" class="btn btn-ghost" data-action="save-copy" hidden
-            style="width:100%;justify-content:center;padding:10px;margin-top:6px;">
+          <button id="v2saveCopyBtn" type="button" class="btn btn-ghost v2-save-copy" data-action="save-copy" hidden>
             📄 Save as copy
           </button>
           <div id="v2saveStatus" style="font-size:10px;color:var(--m,#888);margin-top:6px;text-align:center;"></div>
