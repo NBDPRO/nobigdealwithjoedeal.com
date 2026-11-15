@@ -692,7 +692,8 @@ const pageData = (page, dk) => page.evaluate((d) => { const p = JSON.parse(local
     {
       const css = read('css', 'flow-batch-3.css');
       ok('decision 2 (hide the cover on phones / leave it as it was): the phone rules are ONE @media block the note names', /@media \(max-width:768px\)\{\s*\.cover\{display:flex/.test(css) && (css.match(/@media \(max-width:768px\)/g) || []).length === 1);
-      ok('decision 6 (retire SAVE): the menu line the note names exists exactly once', (read('index.html').match(/<button type="button" class="ds-mi" role="menuitem" data-action="save-now">Save now<\/button>/g) || []).length === 1);
+      // 2026-11-14 (audit): matched on the save-now action, not the exact markup and attribute order.
+      ok('decision 6 (retire SAVE): the menu line the note names exists exactly once', (read('index.html').match(/<button\b[^>]*\bdata-action="save-now"[^>]*>\s*Save now\s*<\/button>/g) || []).length === 1 && /<button\b[^>]*\brole="menuitem"[^>]*\bdata-action="save-now"|<button\b[^>]*\bdata-action="save-now"[^>]*\brole="menuitem"/.test(read('index.html')));
     }
   }
 
@@ -806,9 +807,13 @@ const pageData = (page, dk) => page.evaluate((d) => { const p = JSON.parse(local
       ok(f + '.js is loaded by index.html with a version, and the file exists', new RegExp('js/' + f + '\\.js\\?v=\\d+').test(html) && has('js', f + '.js'));
     }
     ok('the new scripts are external and deferred or after app.js; no inline script or handler was added', !/<script(?![^>]*\bsrc=)[^>]*>[^<]/.test(html.replace(/<script type="application\/ld\+json"[\s\S]*?<\/script>/g, '')) && !/\son(click|input|change|load|error)=/.test(html.replace(/<!--[\s\S]*?-->/g, '')));
-    ok('onething-logic, eod-logic, notebook-logic, eod-ui, notebook-ui, checkin-ui and workout-coach got new ?v= numbers (cache)', ['onething-logic.js?v=2', 'eod-logic.js?v=2', 'notebook-logic.js?v=2', 'eod-ui.js?v=3', 'notebook-ui.js?v=2', 'checkin-ui.js?v=3'].every((s) => html.includes(s)), '');
+    // 2026-11-14 (audit): exact numbers (?v=2, ?v=3) broke on every later cache bump. What matters is that each is versioned.
+    ok('onething-logic, eod-logic, notebook-logic, eod-ui, notebook-ui and checkin-ui are loaded with a ?v= cache number', ['onething-logic', 'eod-logic', 'notebook-logic', 'eod-ui', 'notebook-ui', 'checkin-ui'].every((f) => new RegExp('js/' + f + '\\.js\\?v=\\d+"').test(html)), '');
     const nb = read('js', 'quickjump-ui.js') + read('js', 'nextup-ui.js') + read('js', 'floor-tick-ui.js') + read('js', 'menu-ui.js');
-    ok('none of the new UI uses innerHTML with an unescaped value (every dynamic string goes through esc)', !/innerHTML\s*=\s*[^;]*\+\s*(q|query|text|label)\b(?!\))/.test(nb) || /const esc/.test(nb));
+    // 2026-11-14 (audit): the old `|| /const esc/.test(nb)` made this always true (every file defines esc). The pattern alone, plus a control.
+    const RAW_HTML = /innerHTML\s*=\s*[^;]*\+\s*(q|query|text|label)\b(?!\))/;
+    ok('none of the new UI uses innerHTML with an unescaped value (every dynamic string goes through esc)', !RAW_HTML.test(nb));
+    ok('control: that pattern does catch a raw value', RAW_HTML.test("el.innerHTML = '<b>' + label;") && !RAW_HTML.test("el.innerHTML = '<b>' + esc(label);"));
     ok('no model id, key or cost figure in the new files', !/claude-|sk-ant|margin|markup|cost_?basis/i.test(nb + read('js', 'quickjump-logic.js') + read('js', 'floor-tick-logic.js')));
   }
 

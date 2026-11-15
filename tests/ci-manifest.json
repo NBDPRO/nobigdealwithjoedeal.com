@@ -1019,6 +1019,7 @@
     "merge-queue-ready-2026-10-04.test.js",
     "deploy-verify-2026-10-04.test.js",
     "scheduled-deploy-2026-11-09.test.js",
+    "functions-deploy-decision-2026-11-14.test.js",
     "functions-lazy-load-2026-10-04.test.js",
     "firestore-index-coverage-2026-10-04.test.js",
     "photo-cache-lazy-2026-10-04.test.js",
@@ -1075,7 +1076,8 @@
     "voicemail-viewer-hidden-2026-11-09.test.js",
     "voicemail-retag-backfill-2026-11-09.test.js",
     "plan-checkout-guard-2026-11-14.test.js",
-    "portal-signed-views-2026-11-14.test.js"
+    "portal-signed-views-2026-11-14.test.js",
+    "sign-price-snapshot-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
