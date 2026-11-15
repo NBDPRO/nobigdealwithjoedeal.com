@@ -814,6 +814,7 @@
     el.setAttribute('data-win', id);
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', appLabel(id) + ' window');
+    el.setAttribute('tabindex', '-1');
     var labelHtml = esc(appLabel(id));
     var a = appById(id);
     el.innerHTML = '<div class="os-win-bar" data-osw="bar">' +
@@ -862,13 +863,34 @@
   function minimiseWin(id) {
     var rec = winRec(id);
     if (!rec) return;
+    var had = hadFocus(id);
     rec.min = true;
     var next = WM.nextFocus(here(), id);
     S.focus = next;
-    if (next) focusWin(next); else { paintAllWins(); save(); }
+    if (next) focusWin(next); else { dropActive(); paintAllWins(); save(); }
+    if (had) refocus(next);
+  }
+  // No window shows the CRM's active view any more (the last one closed or
+  // minimised, an empty desk): drop .active, or the router observer reads the
+  // next view-class change as "routed here" and opens / restores / pulls the
+  // desk back to it (2026-11-14). goTo() sets .active afresh on every route.
+  function dropActive() {
+    var act = doc.querySelectorAll('.view.active');
+    for (var i = 0; i < act.length; i++) act[i].classList.remove('active');
+  }
+  // Was keyboard focus inside this window? (its buttons are about to vanish)
+  function hadFocus(id) {
+    var el = winEl(id), a = doc.activeElement;
+    return !!(el && a && el.contains(a));
+  }
+  // Focus goes to the window in front, else the Start button, never <body>.
+  function refocus(next) {
+    var t = (next && winEl(next)) || S.startBtn;
+    if (t && typeof t.focus === 'function') safe(function () { t.focus(); });
   }
   function closeWin(id) {
     var el = winEl(id);
+    var had = hadFocus(id);
     sound('close');
     release(id);
     if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -876,7 +898,17 @@
     S.order = S.order.filter(function (x) { return x !== id; });
     var next = WM.nextFocus(here(), id);
     S.focus = next;
-    if (next) focusWin(next); else { paintAllWins(); save(); }
+    if (next) focusWin(next);
+    else {
+      // No window takes over, so the CRM's router still has the closed view
+      // active. Left there, the router observer (release() just changed the
+      // view's class) read it as "routed here" and opened it again at the
+      // first cascade slot: close looked like re-centre (2026-11-14).
+      dropActive();
+      paintAllWins();
+      save();
+    }
+    if (had) refocus(next);
   }
   function toggleMax(id) {
     var rec = winRec(id);
@@ -901,7 +933,7 @@
     S.desk = d;
     closeDeskMenu();
     S.focus = WM.nextFocus(here(), null);
-    if (S.focus) focusWin(S.focus); else { paintAllWins(); save(); }
+    if (S.focus) focusWin(S.focus); else { dropActive(); paintAllWins(); save(); }
     paintDeskBtns();
     if (curAct()) afterAct();   // P2: with workspaces on, the desk showing is the workspace (its focus, widgets, wallpaper)
   }
@@ -914,7 +946,7 @@
     paintAllWins();
     paintDeskBtns();
     // the CRM's active view follows the window left in front on this desk
-    if (S.focus) focusWin(S.focus); else save();
+    if (S.focus) focusWin(S.focus); else { dropActive(); save(); }
   }
   function paintDeskBtns() {
     if (!S.desksEl) return;
@@ -955,7 +987,14 @@
   function togglePin(id) {
     S.pins = WM.togglePin(S.pins, id);
     paintTaskbar();
-    if (S.startOpen) S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(S.startEl.querySelector('input').value);
+    if (S.startOpen) {
+      var list = S.startEl.querySelector('.os-start-list');
+      var had = list.contains(doc.activeElement);
+      list.innerHTML = startListHtml(S.startEl.querySelector('input').value);
+      // the re-render dropped the pressed pin: keyboard focus goes to its replacement, not <body>
+      var again = had && list.querySelector(attrSel('data-ospin', id));
+      if (again) again.focus();
+    }
     save();
   }
   // ── overview (macOS Mission Control / GNOME Activities / ChromeOS overview) ──
@@ -1195,13 +1234,15 @@
     on(S.startEl.querySelector('input'), 'keydown', function (ev) {
       if (ev.key !== 'Enter') return;
       ev.preventDefault();
-      var first = S.startEl.querySelector('.os-start-app');
+      // a Visits row shares .os-start-app but is not an app (no data-osapp)
+      var first = S.startEl.querySelector('.os-start-app[data-osapp]');
       if (first) { setStart(false); openWin(first.getAttribute('data-osapp')); }
       else { setStart(false); openSearch(); }
     });
     on(doc, 'keydown', onDeskKey);
     on(doc, 'click', function (ev) {
-      if (S.startOpen && ev.target.closest && !ev.target.closest('.os-start, .os-start-btn')) setStart(false);
+      // a target no longer in the page was re-rendered by its own click (the pin), not an outside click
+      if (S.startOpen && ev.target.closest && ev.target.isConnected !== false && !ev.target.closest('.os-start, .os-start-btn')) setStart(false);
     });
     on(W, 'resize', function () { paintAllWins(); });
 

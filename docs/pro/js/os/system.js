@@ -83,6 +83,54 @@
     }
     return L.brandMark(typeof w._brandOverride === 'function' ? call(function () { return w._brandOverride(); }) : null);
   }
+  // The mark's logo, by the same identity rule as markText(): the platform
+  // tenant gets NBD's logo; any other company only the logoUrl it set itself
+  // (RAW override; the merged profile's blank is NBD's logo). '' = none.
+  var NBD_LOGO = '/assets/images/nbd-logo-150w.webp';
+  var APP_ICON = '/pro/img/nbd-icon-192.png';
+  // A logo that failed to load stays failed for this page: paintBoot re-reads
+  // the mark every 250 ms, and handing the bad src back made the fallback and
+  // the broken logo swap until the boot closed.
+  var badLogo = '';
+  function markFailed(src) { badLogo = String(src || ''); }
+  function logoSrc() {
+    var s = rawLogoSrc();
+    return s && s === badLogo ? '' : s;
+  }
+  function rawLogoSrc() {
+    if (typeof w._isNbdPlatformTenant === 'function' && call(function () { return w._isNbdPlatformTenant(); }) === true) return NBD_LOGO;
+    var raw = typeof w._brandOverride === 'function' ? call(function () { return w._brandOverride(); }) : null;
+    return raw && typeof raw.logoUrl === 'string' ? raw.logoUrl : '';
+  }
+  // Logo, else letters, else the NBD Pro app icon: never an empty orange tile
+  // (the boot screen paints before the profile has loaded).
+  function markSpec() { return L.bootMark({ logoSrc: logoSrc(), text: markText(), appIcon: APP_ICON }); }
+  function markKey(m) { return m.kind + ':' + (m.kind === 'text' ? m.text : m.src); }
+  function markHtml(cls, spec) {
+    var m = spec || markSpec();
+    var innerHtml = m.kind === 'text' ? esc(m.text) : '<img src="' + esc(m.src) + '" alt="" decoding="async">';
+    return '<div class="' + esc(cls) + ' is-' + esc(m.kind) + '" aria-hidden="true" data-mark="' + esc(markKey(m)) + '">' + innerHtml + '</div>';
+  }
+  // A logo that fails to load steps down to the letters, then the app icon.
+  function wireMark(root) {
+    var img = root && root.querySelector('.os-boot-mark img, .os-lock-mark img');
+    if (!img) return;
+    img.addEventListener('error', function () {
+      var box = img.parentNode;
+      if (!box || !box.parentNode) return;
+      // The app icon itself failing (same origin; offline cache miss) leaves a
+      // clear tile, never an orange one.
+      if (box.classList.contains('is-app')) { img.remove(); return; }
+      markFailed(img.getAttribute('src'));
+      var t = markText();
+      var next = t ? { kind: 'text', text: t } : { kind: 'app', src: APP_ICON };
+      var tmp = doc.createElement('div');
+      tmp.innerHTML = markHtml(box.classList.contains('os-lock-mark') ? 'os-lock-mark' : 'os-boot-mark', next);
+      var fresh = tmp.firstChild;
+      box.parentNode.replaceChild(fresh, box);
+      wireMark(fresh.parentNode);
+    });
+  }
   function motionReducedNow() {
     if (doc.documentElement.getAttribute('data-motion') === 'reduce') return true;
     try { return !!(w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
@@ -120,7 +168,7 @@
     var steps = bootStepsNow();
     var name = companyName();
     return '<div class="os-boot-card">' +
-      '<div class="os-boot-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+      markHtml('os-boot-mark') +
       '<div class="os-boot-title ui-title">' + esc(name ? 'Starting ' + name : 'Starting your workspace') + '</div>' +
       '<ol class="os-boot-steps">' + steps.map(function (s) {
         return '<li class="' + (s.done ? 'is-done' : '') + '"><span class="os-boot-tick" aria-hidden="true">' + (s.done ? '✓' : '') + '</span>' + esc(s.label) + '</li>';
@@ -130,6 +178,15 @@
   // aria-live region is built once, so a screen reader hears the status once,
   // not a fresh copy of it every 250 ms.
   function paintBoot(el) {
+    // The profile usually lands mid-boot: swap the app icon for the company's
+    // logo or letters then (only when it changed, so the image isn't reloaded).
+    var box = el.querySelector('.os-boot-mark'), spec = markSpec();
+    if (box && box.getAttribute('data-mark') !== markKey(spec)) {
+      var tmp = doc.createElement('div');
+      tmp.innerHTML = markHtml('os-boot-mark', spec);
+      box.parentNode.replaceChild(tmp.firstChild, box);
+      wireMark(el);
+    }
     var steps = bootStepsNow();
     var items = el.querySelectorAll('.os-boot-steps li');
     for (var i = 0; i < steps.length && i < items.length; i++) {
@@ -150,6 +207,7 @@
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
     el.innerHTML = bootHtml();
+    wireMark(el);
     doc.body.appendChild(el);
     var started = Date.now();
     var t = setInterval(function () {
@@ -257,11 +315,12 @@
     // changes (time, counts): the Unlock button node stays, so focus survives.
     if (!el.firstChild) {
       el.innerHTML = '<div class="os-lock-inner">' +
-        '<div class="os-lock-mark" aria-hidden="true">' + esc(markText()) + '</div>' +
+        markHtml('os-lock-mark') +
         '<div class="os-lock-time ui-num"></div>' +
         '<div class="os-lock-date"></div>' +
         '<ul class="os-lock-lines"></ul>' +
         '<button type="button" class="btn btn-orange os-lock-btn" data-os="unlock">Unlock</button></div>';
+      wireMark(el);
     }
     el.querySelector('.os-lock-time').textContent = c.time;
     el.querySelector('.os-lock-date').textContent = c.date;
