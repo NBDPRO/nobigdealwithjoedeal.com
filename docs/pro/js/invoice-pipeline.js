@@ -1892,10 +1892,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * companies/{companyId}/supplement-evidence/. Byte-for-byte the same test as
    * functions/supplement-invoice.js approvalEvidenceOk.
    */
+  // Approval records count from this moment (security review M2, 2026-11-15):
+  // the same constant as functions/supplement-invoice.js APPROVALS_SINCE_MS.
+  const SUPPLEMENT_APPROVALS_SINCE_MS = Date.UTC(2026, 10, 15, 0, 0, 0);
   function supplementApprovalOk(sup, companyId) {
     const s = sup || {};
     if (!(typeof s.approvedBy === 'string' && s.approvedBy)) return false;
-    if (s.approvedAt == null) return false;
+    const at = (s.approvedAt && typeof s.approvedAt.toMillis === 'function') ? Number(s.approvedAt.toMillis()) : NaN;
+    if (!(at >= SUPPLEMENT_APPROVALS_SINCE_MS && at <= Date.now() + 5 * 60 * 1000)) return false;
     const ev = s.approvalEvidence;
     if (!ev || typeof ev !== 'object') return false;
     const note = typeof ev.note === 'string' ? ev.note.trim() : '';
@@ -1995,6 +1999,37 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       tax = folded.tax;
       total = folded.total;
       const supplementTotal = folded.supplementTotal;
+
+      // An invoice that bills insurance supplements is made by the SERVER
+      // (functions/supplement-invoice.js createSupplementInvoice, Joe
+      // 2026-11-14): it re-reads the estimate, every supplement on it and the
+      // job's other invoices, computes the lines, credits and deposit itself,
+      // creates the invoice and marks each supplement billed in ONE
+      // transaction. The browser never writes the stamp (firestore.rules has
+      // no client branch for it) and cannot create an invoice that carries
+      // supplements. Any refusal or failure: no invoice, the server's words.
+      // It runs BEFORE the browser plans the job (security review M3,
+      // 2026-11-15): the browser's job total counts only unbilled
+      // supplements, so an earlier supplement invoice looked like it covered
+      // the job and a later approved supplement never billed. The server
+      // plans against the base plus every approved supplement.
+      const foldedIds = (folded && folded.supplementIds) || [];
+      if (foldedIds.length) {
+        let made;
+        try {
+          made = await _onCall('createSupplementInvoice', { estimateId: estimateId, leadId: est.leadId || opts.leadId || null });
+        } catch (e) {
+          console.warn('[invoice-pipeline] createSupplementInvoice refused:', e && (e.code || e.message));
+          const msg = String((e && e.message) || '').replace(/^FirebaseError:\s*/, '');
+          const err = new Error(/^Invoice not made/.test(msg) || /You cannot make an invoice/.test(msg) || /changed/.test(msg)
+            ? msg : 'Invoice not made: the server could not make the invoice with its insurance supplements. Check your connection and try again.');
+          err.code = 'SUPPLEMENTS_INVOICE_REFUSED';
+          err.cause = e;
+          throw err;
+        }
+        if (!made || !made.invoiceId) throw new Error('Invoice not made: the server returned no invoice. Reload and try again.');
+        return { invoiceId: made.invoiceId, reused: !!made.reused, reason: made.reason, creditCents: Number(made.creditCents) || 0 };
+      }
 
       // Deposit — deposit-rule.js (2026-09-25) on the INVOICE total (which
       // folds in approved supplements): cash under $2,000 none, cash $2,000+
@@ -2192,31 +2227,6 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         throw new Error('This estimate has no dollar total — open it and set a price before invoicing.');
       }
 
-      // An invoice that bills insurance supplements is made by the SERVER
-      // (functions/supplement-invoice.js createSupplementInvoice, Joe
-      // 2026-11-14): it re-reads the estimate, every supplement on it and the
-      // job's other invoices, computes the lines, credits and deposit itself,
-      // creates the invoice and marks each supplement billed in ONE
-      // transaction. The browser never writes the stamp (firestore.rules has
-      // no client branch for it) and cannot create an invoice that carries
-      // supplements. Any refusal or failure: no invoice, the server's words.
-      const foldedIds = (folded && folded.supplementIds) || [];
-      if (foldedIds.length) {
-        let made;
-        try {
-          made = await _onCall('createSupplementInvoice', { estimateId: estimateId, leadId: est.leadId || opts.leadId || null });
-        } catch (e) {
-          console.warn('[invoice-pipeline] createSupplementInvoice refused:', e && (e.code || e.message));
-          const msg = String((e && e.message) || '').replace(/^FirebaseError:\s*/, '');
-          const err = new Error(/^Invoice not made/.test(msg) || /You cannot make an invoice/.test(msg) || /changed/.test(msg)
-            ? msg : 'Invoice not made: the server could not make the invoice with its insurance supplements. Check your connection and try again.');
-          err.code = 'SUPPLEMENTS_INVOICE_REFUSED';
-          err.cause = e;
-          throw err;
-        }
-        if (!made || !made.invoiceId) throw new Error('Invoice not made: the server returned no invoice. Reload and try again.');
-        return { invoiceId: made.invoiceId, reused: !!made.reused, reason: made.reason, creditCents: Number(made.creditCents) || 0 };
-      }
       const invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
       return { invoiceId: invoiceRef.id, reused: false, creditCents: jobCredits.reduce((s, c) => s + c.cents, 0) };
 

@@ -107,8 +107,8 @@ async function run() {
     // Invoices the SERVER made (createSupplementInvoice), with the supplements it stamped.
     await setDoc(doc(db, 'supplements/sJ1'), sup({ version: 6, invoicedInvoiceId: 'invJ1', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sJ2'), sup({ version: 7, invoicedInvoiceId: 'invJ2', invoicedAt: 1 }));
-    await setDoc(doc(db, 'invoices/invJ1'), inv('rep1', { supplementIds: ['sJ1'], total: 1, items: [] }));
-    await setDoc(doc(db, 'invoices/invJ2'), inv('mike', { supplementIds: ['sJ2'], total: 1, items: [] }));
+    await setDoc(doc(db, 'invoices/invJ1'), inv('rep1', { supplementIds: ['sJ1'], total: 1, items: [], source: 'supplement_invoice' }));
+    await setDoc(doc(db, 'invoices/invJ2'), inv('mike', { supplementIds: ['sJ2'], total: 1, items: [], source: 'supplement_invoice' }));
     await setDoc(doc(db, 'supplements/sJGone'), sup({ version: 8, invoicedInvoiceId: 'invNever', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sDel'), sup({ version: 9, deleted: true }));
     await setDoc(doc(db, 'supplements/sH'), draft({ version: 10 }));
@@ -209,7 +209,7 @@ async function run() {
   await check('platform admin can still correct a stamp', 'allow', updateDoc(ref(joe, 'sStamped'), { invoicedInvoiceId: 'invFix' }));
 
   // ── H1 (security review 2026-11-15): a server-made supplement invoice's money is the owner side's ──
-  await check('H1 a rep cannot re-price the supplement invoice (total)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { total: 1, balanceDue: 1 }));
+  await check('H1 a rep cannot re-price the supplement invoice (total)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { total: 5000, balanceDue: 5000 }));
   await check('H1 …nor its lines (items)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { items: [{ description: 'x', quantity: 1, unitPrice: 1, total: 1 }] }));
   await check('H1 …nor its supplementTotal', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { supplementTotal: 99999 }));
   await check('H1 …nor its subtotal / tax / deposit / credits / source', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { subtotal: 5, tax: 1, depositAmount: 0, creditTotal: 9, creditedInvoiceIds: ['z'], source: 'manual' }));

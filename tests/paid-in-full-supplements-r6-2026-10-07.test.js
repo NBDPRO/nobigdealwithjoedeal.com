@@ -136,7 +136,7 @@ const insEst = (f) => Object.assign({
   rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }],
 }, f || {});
 // Saved with its company and approved by the owner side with the carrier's evidence (Joe, 2026-11-14).
-const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', companyId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield',
+const sup = (f) => Object.assign({ parentEstimateId: 'estC', leadId: 'C2', userId: 'u1', companyId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield',
   approvedBy: 'u1', approvedAt: APPROVED_AT, approvalEvidence: { note: 'Carrier letter: ice & water approved.' } }, f || {});
 
 (async () => {

@@ -47,13 +47,14 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   // The company owner side (Joe, 2026-11-14): company_admin, the platform
-  // admin, or a solo owner (no role, no company claim or the company is their
-  // own uid) — the same people firestore.rules supApproverOk lets approve.
+  // admin, or a solo owner (no role and no company claim) — the same people
+  // firestore.rules supApproverOk lets approve (a self-serve owner carries
+  // role company_admin).
   function _isApprover() {
     const c = window._userClaims || {};
     const uid = (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || '';
     const role = c.role || '';
-    return role === 'admin' || role === 'company_admin' || (!role && (!c.companyId || c.companyId === uid));
+    return role === 'admin' || role === 'company_admin' || (!role && !c.companyId && !!uid);
   }
 
   function _toast(msg, kind) {

@@ -159,13 +159,18 @@ const seedJob = (extra) => Object.assign({ 'estimates/estC': est(), 'leads/L1': 
     ok('a legacy (no companyId) approved supplement refuses the invoice (backfill review)', !!res.e && /#3/.test(res.e.message) && /backfill/.test(res.e.message), res.e ? res.e.message : '');
     db = fakeDb(seedJob({ 'supplements/sB': sup({ companyId: 'co-b', userId: 'eve', supplementTotal: 9999, version: 4 }),
       'supplements/sD': sup({ deleted: true, version: 5, supplementTotal: 700 }),
-      'supplements/sX': sup({ invoicedInvoiceId: 'old', version: 6, supplementTotal: 800 }),
       'supplements/sN': sup({ status: 'denied', version: 7, supplementTotal: 600, approvedBy: undefined, approvalEvidence: undefined }),
       'supplements/sDr': sup({ status: 'draft', version: 8, supplementTotal: 400, approvedBy: undefined, approvalEvidence: undefined }) }));
     res = await call(db, CAROL, { estimateId: 'estC' });
     const inv = invoicesOf(db)[0];
     ok('another company\'s, deleted, already-billed, denied and draft supplements are not billed; only s1 is ($16,000)',
       !!res.r && inv && c(inv.total) === 1600000 && JSON.stringify(inv.supplementIds) === '["s1"]', res.e ? res.e.message : JSON.stringify(inv && { t: inv.total, ids: inv.supplementIds }));
+    db = fakeDb(seedJob({ 'supplements/s1': sup({ invoicedInvoiceId: 'gone', invoicedAt: 3 }), 'invoices/voided': { leadId: 'L1', companyId: 'co-a', createdBy: 'carol', status: 'void', total: 16000, amountPaid: 0, createdAt: 2 },
+      'supplements/s2': sup({ version: 2, supplementTotal: 500, invoicedInvoiceId: 'voided', invoicedAt: 3 }) }));
+    res = await call(db, CAROL, { estimateId: 'estC' });
+    ok('supplements stamped to an invoice that is gone or void are billed again (their bill is gone): $16,500',
+      !!res.r && c(invoicesOf(db).find((i) => i.source === 'supplement_invoice').total) === 1650000 && db.store.get('supplements/s2').invoicedInvoiceId === res.r.invoiceId,
+      res.e ? res.e.message : JSON.stringify(invoicesOf(db).map((i) => i.total)));
     db = fakeDb(seedJob({ 'supplements/s1': sup({ status: 'partial', supplementTotal: 3000, submission: { approvedAmount: 1250.5 } }) }));
     res = await call(db, CAROL, { estimateId: 'estC' });
     ok('a partial approval bills the approved amount ($15,250.50)', !!res.r && c(invoicesOf(db)[0].total) === 1525050, res.e ? res.e.message : invoicesOf(db)[0].total);
