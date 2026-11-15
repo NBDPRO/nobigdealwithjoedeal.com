@@ -1903,13 +1903,13 @@ service cloud.firestore {
       return d.keys().hasAny(['backfilled', 'backfillKey', 'paymentBackfill'])
         || (d.get('source', '') is string && d.get('source', '').lower() == 'backfill');
     }
-    // On an update the markers are frozen: set at create, never added, changed or removed.
+    // On an update the markers are frozen: set at create, never added, changed or removed. backfilled, backfillKey and
+    // paymentBackfill are frozen in the invoice update rule's didNotChange list (one expression each, where three
+    // get() comparisons cost several: the rule runs at the 1000-expression budget, 2026-11-15); 'source' may change
+    // but never into or out of 'backfill', in any case.
     function backfillMarksFrozen() {
-      return request.resource.data.get('backfilled', null) == resource.data.get('backfilled', null)
-        && request.resource.data.get('backfillKey', null) == resource.data.get('backfillKey', null)
-        && request.resource.data.get('paymentBackfill', null) == resource.data.get('paymentBackfill', null)
-        && ((request.resource.data.get('source', '') is string && request.resource.data.get('source', '').lower() == 'backfill')
-            == (resource.data.get('source', '') is string && resource.data.get('source', '').lower() == 'backfill'));
+      return (request.resource.data.get('source', '') is string && request.resource.data.get('source', '').lower() == 'backfill')
+            == (resource.data.get('source', '') is string && resource.data.get('source', '').lower() == 'backfill');
     }
     // status is one of the words the app writes (the server's own writes skip rules). 'Paid' / 'PAID' / 'paid ' are not
     // words, so they cannot dodge the lowercase 'paid' gates above. An existing odd legacy value may stay as it is.
@@ -4252,7 +4252,7 @@ service cloud.firestore {
           // (leadIdStable, 2026-10-05).
           // supplementIds frozen (2026-11-14): the supplements this invoice
           // billed (their stamps point here) cannot be dropped off it.
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds', 'refunds', 'stripeCreditKeys'])
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds', 'backfilled', 'backfillKey', 'paymentBackfill', 'refunds', 'stripeCreditKeys'])
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
