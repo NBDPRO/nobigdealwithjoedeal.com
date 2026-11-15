@@ -47,7 +47,8 @@ const ORIGIN = 'https://nobigdealwithjoedeal.com';
 const CHECK = process.argv.includes('--check');
 const SKIP_TOP = new Set(['pro', 'admin', 'dev', 'sites']);
 
-const TYPES = ['manufacturer', 'insurance', 'membership', 'supplier-material'];
+// 'training' (2026-11-14): a course certificate of completion, never a certification.
+const TYPES = ['manufacturer', 'insurance', 'membership', 'supplier-material', 'training'];
 const STATUSES = ['active', 'pending', 'expired'];
 // Card groups, in page order. A group with no rendered rows is omitted.
 const GROUPS = [
@@ -55,6 +56,7 @@ const GROUPS = [
   { type: 'insurance', heading: 'Insured', blurb: null },
   { type: 'membership', heading: 'Memberships', blurb: null },
   { type: 'supplier-material', heading: 'Materials we install', blurb: null },
+  { type: 'training', heading: 'Training', blurb: 'Courses Joe has completed. These are certificates of completion, not certifications.' },
 ];
 const KNOWN = new Set([
   'id', 'name', 'issuer', 'issuerShort', 'issuerUrl', 'type', 'status',
@@ -168,8 +170,9 @@ function stripBlock() {
 }
 
 function card(c) {
-  const meta = [`Issued by ${esc(c.issuer)}`];
-  if (c.since) meta.push(`${c.type === 'manufacturer' ? 'Certified' : 'Active from'} ${esc(prettySince(c.since))}`);
+  const meta = [`${c.type === 'supplier-material' ? 'Made by' : 'Issued by'} ${esc(c.issuer)}`];
+  const sinceWord = { manufacturer: 'Certified', training: 'Completed' }[c.type] || 'Active from';
+  if (c.since) meta.push(`${sinceWord} ${esc(prettySince(c.since))}`);
   if (c.expires) meta.push(`Renews ${esc(prettySince(c.expires.slice(0, 7)))}`);
   const facts = c.contractorId
     ? `\n      <p class="cred-id">${esc(issuerShort(c))} contractor ID <b>${esc(c.contractorId)}</b></p>`
