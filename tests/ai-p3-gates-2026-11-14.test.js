@@ -133,23 +133,62 @@ async function callable(h, auth, d) { try { return { res: await h({ auth, data: 
   }
 
   console.log('\nF10 Reel Studio');
+  {
+    // Run the real requireReelsOn (sliced out with src-kit) over spies.
+    const K = require('./lib/src-kit');
+    const gateCalls = [];
+    const ctx = K.loadInVm(['reel'], {
+      HttpsError,
+      reelsBlocked: async () => null,
+      require: (m) => (m === './ai-gate'
+        ? { assertAiEntitled: async (d, a) => { gateCalls.push([d, a]); if (a && a.free) throw new HttpsError('permission-denied', 'AI features are part of the paid plans.'); } }
+        : { getFlags: async () => ({}) }),
+    }, { src: { reel: K.sliceFn(K.read('functions/reel-studio.js'), 'requireReelsOn') } });
+    const dbStub = {}, auth = { uid: 'u1', token: {} };
+    await ctx.requireReelsOn(dbStub, 'c1', auth);
+    ok('requireReelsOn applies the shared AI gate to the caller\'s auth', gateCalls.length === 1 && gateCalls[0][0] === dbStub && gateCalls[0][1] === auth, gateCalls.length);
+    let refused = null;
+    try { await ctx.requireReelsOn(dbStub, 'c1', { uid: 'u2', free: true }); } catch (e) { refused = e.code; }
+    ok('…and a gate refusal stops it (permission-denied)', refused === 'permission-denied', refused);
+  }
   const reel = read('functions/reel-studio.js');
-  const rq = reel.slice(reel.indexOf('async function requireReelsOn('), reel.indexOf('function randomKey()'));
-  ok('requireReelsOn applies the shared AI gate', /await require\('\.\/ai-gate'\)\.assertAiEntitled\(db, auth\);/.test(rq), rq);
   const callers = reel.match(/await requireReelsOn\([^)]*\)/g) || [];
   ok('every requireReelsOn caller passes request.auth (4 callers)', callers.length === 4 && callers.every((x) => /request\.auth\)$/.test(x)), callers);
 
   console.log('\nF11 Thursday reprocess cooldown');
-  const th = read('functions/integrations/thursday.js');
-  const act = th.slice(th.indexOf("if (action === 'reprocess') {"), th.indexOf("if (action === 'reprocess') {") + 2000);
-  ok('a reprocess inside 10 minutes of the last is refused (resource-exhausted) before the re-queue',
-    /const REPROCESS_COOLDOWN_MS = 10 \* 60 \* 1000;/.test(th)
-    && act.indexOf('REPROCESS_COOLDOWN_MS') !== -1 && act.indexOf("'resource-exhausted'") !== -1
-    && act.indexOf("'resource-exhausted'") < act.indexOf("status: 'reprocess'"));
-  ok('…checked and stamped in one transaction (a burst queues one run)',
-    act.includes('await db().runTransaction(async (tx) => {') && act.includes("tx.update(ref, { status: 'reprocess'")
-    && act.indexOf('runTransaction') < act.indexOf('REPROCESS_COOLDOWN_MS'));
-  ok('…and the re-queue stamps when it happened', /status: 'reprocess', reprocessRequestedBy: by, reprocessRequestedAtMs: Date\.now\(\)/.test(act));
+  {
+    // Run the real thursdayCallAction over an in-memory Firestore.
+    const store = new Map();
+    const fsDb = {
+      doc: (p) => ({
+        path: p,
+        get: async () => ({ exists: store.has(p), data: () => store.get(p) }),
+        update: async (v) => { store.set(p, Object.assign({}, store.get(p), v)); },
+      }),
+      runTransaction: async (fn) => fn({
+        get: (r) => r.get(),
+        update: (r, v) => { store.set(r.path, Object.assign({}, store.get(r.path), v)); },
+      }),
+    };
+    STUBS['firebase-admin/firestore'] = { getFirestore: () => fsDb, FieldValue: { serverTimestamp: () => 'TS', delete: () => null, increment: (n) => n } };
+    STUBS['firebase-functions/v2/firestore'] = { onDocumentWritten: (o, h) => ({ __opts: o, __handler: h }), onDocumentUpdated: (o, h) => ({ __opts: o, __handler: h }) };
+    STUBS['./upstash-ratelimit'] = { enforceRateLimit: async () => {}, clientIp: () => '203.0.113.1' };
+    const TL = require(path.join(ROOT, 'functions', 'integrations', 'thursday-logic.js'));
+    const act = require(path.join(ROOT, 'functions', 'integrations', 'thursday.js')).thursdayCallAction.__handler;
+    const docPath = 'thursday_calls/' + TL.callDocId('call123456');
+    store.set(docPath, { userId: 'uStaff', companyId: 'nbdCo', status: 'done' });
+    const req = { auth: { uid: 'uStaff', token: { role: 'company_admin', companyId: 'nbdCo' } }, data: { callId: 'call123456', action: 'reprocess' } };
+    let first = null, second = null;
+    try { first = await act(req); } catch (e) { first = e.code; }
+    const stamped = store.get(docPath);
+    try { second = await act(req); } catch (e) { second = e.code; }
+    ok('the first reprocess re-queues the call and stamps when', first && first.ok === true && stamped.status === 'reprocess' && typeof stamped.reprocessRequestedAtMs === 'number', { first, stamped });
+    ok('a second reprocess inside 10 minutes is refused (resource-exhausted)', second === 'resource-exhausted', second);
+    store.set(docPath, Object.assign({}, store.get(docPath), { status: 'done', reprocessRequestedAtMs: Date.now() - 11 * 60 * 1000 }));
+    let third = null;
+    try { third = await act(req); } catch (e) { third = e.code; }
+    ok('…and allowed again after the 10 minutes (control)', third && third.ok === true, third);
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
