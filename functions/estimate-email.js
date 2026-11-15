@@ -365,7 +365,12 @@ exports.estimateEmail = onDocumentCreated(
         logger.info('estimate_email_canary_redirected', { leadId });
         return;
       }
-      if (!(await spendCaps())) return;
+      if (!(await spendCaps())) {
+        // Throttled: nothing went out, so the doc must not look emailed (the claim
+        // stamped estimateEmailedAt). The marker tells whoever looks (2026-11-14).
+        await snap.ref.update({ estimateEmailStatus: 'throttled', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
+        return;
+      }
       const response = await resend.emails.send(gated.msg);
       // Resend resolves { data: null, error } on an API-level rejection
       // instead of throwing — without this check estimateEmailStatus gets
