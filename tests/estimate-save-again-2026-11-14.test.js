@@ -463,10 +463,14 @@ async function main() {
 
   await asection('G. Markup + wiring (CSP-safe, V3-placed)', async () => {
     const SRC = read('docs/pro/js/estimate-v2-ui.js');
-    const btn = /<button id="v2saveCopyBtn"[^>]*>/.exec(SRC);
-    ok('a "Save as copy" button exists', !!btn && /Save as copy/.test(SRC.slice(btn.index, btn.index + 400)));
-    ok('it uses data-action="save-copy" (no inline handler)', !!btn && /data-action="save-copy"/.test(btn[0]) && !/\son[a-z]+=/i.test(btn[0]), btn && btn[0]);
-    ok('it ships hidden', !!btn && /\shidden[\s>]/.test(btn[0]));
+    // The builder's markup (a template literal), parsed as tags, not matched as text.
+    const KIT = require(path.join(ROOT, 'tests/lib/src-kit.js'));
+    const btn = KIT.parseTags(SRC).byId('v2saveCopyBtn');
+    ok('a "Save as copy" button exists', !!btn && btn.tag === 'button' && btn.text.trim().endsWith('Save as copy'), btn && btn.text);
+    const attrNames = btn ? Object.keys(btn.attrs) : [];
+    ok('it uses data-action="save-copy" (no inline handler)', !!btn && btn.attr('data-action') === 'save-copy'
+      && !attrNames.some((k) => /^on/i.test(k)), JSON.stringify(btn && btn.attrs));
+    ok('it ships hidden', !!btn && btn.has('hidden'));
     ok('the delegate routes save-copy to saveAsCopy', /case 'save-copy':\s*saveAsCopy\(\)/.test(SRC));
     ok('the V3 wizard places it with Save', /\['#v2saveCopyBtn', 'finish', 'more'\]/.test(read('docs/pro/js/estimate-v3-wizard.js')));
     const V = loadV2();
