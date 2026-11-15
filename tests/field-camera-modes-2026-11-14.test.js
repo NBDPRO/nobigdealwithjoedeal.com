@@ -62,7 +62,7 @@ function engine() {
   let html = T.F._renderCapture();
   ok('default camera is Photo: no test-square overlay or hit counter', !/fa-sq-box/.test(html) && !/id="faN"/.test(html) && /aria-pressed="true">Photo</.test(html), html.slice(0, 200));
   let E = engine();
-  await T.F._saveShotWith(E.P, new Blob([Buffer.alloc(9)]), 'L1', T.F._camMode());
+  await T.F._saveShotWith(E.P, { blob: new Blob([Buffer.alloc(9)]), leadId: 'L1', mode: T.F._camMode(), slope: T.F._state.slope, hits: (T.F._state.hits || {})[T.F._state.slope] || 0 });
   await flush();
   const p = E.queued[0] || {};
   ok('a Photo-mode shot carries no hail / test-square / slope tags', Array.isArray(p.tags) && p.tags.length === 0, JSON.stringify(p.tags));
@@ -75,7 +75,7 @@ function engine() {
   html = T.F._renderCapture();
   ok('Test square mode keeps the overlay, slope chips and counter', /fa-sq-box/.test(html) && /id="faN"/.test(html) && /aria-label="Slope"/.test(html));
   E = engine();
-  await T.F._saveShotWith(E.P, new Blob([Buffer.alloc(9)]), 'L1', T.F._camMode());
+  await T.F._saveShotWith(E.P, { blob: new Blob([Buffer.alloc(9)]), leadId: 'L1', mode: T.F._camMode(), slope: T.F._state.slope, hits: (T.F._state.hits || {})[T.F._state.slope] || 0 });
   await flush();
   const q = E.queued[0] || {};
   ok('a Test-square shot is tagged hail + test_square + its slope with the hit count', JSON.stringify(q.tags) === JSON.stringify(['hail', 'test_square', 'west_slope']) && /: 7 hits counted/.test(q.description || ''), JSON.stringify(q));

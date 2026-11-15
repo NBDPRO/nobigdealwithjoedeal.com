@@ -1072,7 +1072,10 @@
     "plan-checkout-guard-2026-11-14.test.js",
     "daily-polish-2026-11-14.test.js",
     "field-camera-modes-2026-11-14.test.js",
-    "field-lead-stage-2026-11-14.test.js"
+    "field-lead-stage-2026-11-14.test.js",
+    "voice-note-kept-on-failure-2026-11-14.test.js",
+    "photo-queue-unblock-2026-11-14.test.js",
+    "field-shot-held-until-photos-load-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
