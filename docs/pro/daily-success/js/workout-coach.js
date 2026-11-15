@@ -121,6 +121,9 @@
   let rest = null;             // { until, label }
   let restTimer = null;
 
+  // The day lifting actually began (audit 2026-11-14 #8): a workout opened at night and lifted the next morning was filed under
+  // the night it was built. Finish files it under this day instead; one that runs past midnight stays on the day it began.
+  function markFirstSet() { if (live && !live.firstSetDay) { live.firstSetDay = today(); live.firstSetAt = Date.now(); } }
   // A set that the phone will not store (full / blocked storage) stays in memory and Finish retries it, but Jo is told at once
   // instead of finding out at Finish (audit 2026-11-14 #13); once per few seconds, since typing calls this on every keystroke.
   let liveErrAt = 0;
@@ -620,7 +623,7 @@
       : '<div class="wc-hint">No new PRs this time — the targets are set for next time.</div>';
     return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
       <div class="wc-title">${esc(r.label)} day done ✓</div><span></span></div>
-      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div><div><b>${r.minutes}</b> min</div></div>
+      <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div>${r.minutes ? `<div><b>${r.minutes}</b> min</div>` : ''}</div>
       ${recapHtml(r.recap)}
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
@@ -764,8 +767,14 @@
     // A set with reps typed counts even if ✓ was never tapped.
     live.exercises.forEach((x) => (x.sets || []).forEach((st) => { if (parseFloat(st.reps) > 0) st.done = true; }));
     const now = Date.now();
+    // No set was logged before Finish (reps pre-filled from the target, ticked by Finish): it was done today.
+    const day = live.firstSetDay || today();
+    // Filed under a later day than it was built for: time it from the first set, not from the night before.
+    // Moved to a later day with no logged set to time it from: the start is unknown (0), not the night before (an hours-long
+    // "workout"). History already shows no minutes for that; the summary and the day page's duration skip it too.
+    const startedAt = day === live.date ? live.startedAt : (live.firstSetAt || 0);
     const session = {
-      id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
+      id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
         sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {}, !st.warm && (st.kind === 'drop' || st.kind === 'fail') ? { kind: st.kind } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
@@ -777,7 +786,7 @@
     const wrotePage = writeToPage(session);
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
-      minutes: Math.max(1, Math.round((now - (live.startedAt || now)) / 60000)),
+      minutes: startedAt ? Math.max(1, Math.round((now - startedAt) / 60000)) : null,
       variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
@@ -805,7 +814,7 @@
       // Drop the page's ex-N-* mirror of the old list; the next collect rebuilds it.
       Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
       if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
-      if (!String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
+      if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
       // A refused save (full storage) must not show "Logged to today's Exercise Log" (the workout itself is saved above).
       const saved = window.savePages() !== false;
       if (typeof window.renderPage === 'function') window.renderPage();
@@ -978,6 +987,7 @@
         const st = live.exercises[i] && live.exercises[i].sets[j];
         if (!st) return;
         st.done = !st.done;
+        if (st.done) markFirstSet();
         if (st.done && !(parseFloat(st.reps) > 0)) st.reps = st.warm ? (st.plan || '') : (live.exercises[i].target ? live.exercises[i].target.reps : '');
         persistLive();
         if (st.done) {
@@ -1025,6 +1035,7 @@
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
     if (!st) return;
     st[el.dataset.coachField] = el.value;
+    if (el.dataset.coachField === 'reps' && parseFloat(el.value) > 0) markFirstSet();
     persistLive();
   }
 

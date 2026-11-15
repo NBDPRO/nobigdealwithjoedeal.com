@@ -38,7 +38,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Re-blessed 2026-10-23 for the a11y audit: the rest bar's text moved into a role=timer span next to a button that is no longer
 // rebuilt each second. Proven: with tags stripped from the hashed rest HTML, the run on origin/main and on this code both hash to
 // d476fa7d8bf5ffa4e83c05378a2e41deddc596f1, so only that markup moved.
-const GOLDEN_DIGEST = 'd5fb43905d78b6b00a307ccc54190a15a7ea40e6';
+// Re-blessed 2026-11-14 for audit #8 (a workout is filed under the day its first set was logged): the live session now
+// carries firstSetDay / firstSetAt. Proven: with those two fields deleted from each hashed live state, this run hashes to
+// the previous digest d5fb43905d78b6b00a307ccc54190a15a7ea40e6, so nothing else moved.
+const GOLDEN_DIGEST = '29d41e27a47327295fed1ed9e1ac606a3d8ca62e';
 
 console.log('\n1. the plain logger is unchanged (nothing paired)');
 {

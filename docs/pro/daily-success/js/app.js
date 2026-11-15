@@ -1216,7 +1216,17 @@ if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveNow();}
 if(e.key==='Escape'){closeM('mDel');closeM('mRen');closeM('mPRH');closeM('mOnboard');if(searchOpen)toggleSearch();}
 });
 window.addEventListener('beforeunload',()=>{if(dirty)collectPage(true);});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushDirty();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushDirty();else dsDayCheck();});
+// Midnight rollover (audit 2026-11-14 #10): left open overnight, the page kept yesterday as TODAY and the next ticks landed there.
+// Coming back after the date changed moves today's view to the new day: today's page if the phone has one, else the Dash and its
+// "Open today" card. No page is made here: the cloud pull on return may bring the one another device already started.
+// An older day Jo was reading is left where it is.
+let _dsDay=todayKey();
+function dsDayCheck(){const tk=todayKey();if(tk===_dsDay)return;const was=_dsDay;
+if(cur>=0&&pages[cur]&&pages[cur].dk===was){const ti=pages.findIndex(p=>p.dk===tk&&(Number(p.suf)||1)===1);switchTo(ti);}
+else{renderTabs();if(cur===-1)renderDash();else updateTodayBar();}
+_dsDay=tk;}
+window.addEventListener('pageshow',dsDayCheck);window.addEventListener('focus',dsDayCheck);
 window.addEventListener('pagehide',flushDirty);
 
 // Open-to (flow batch 3, D1). 'dash' (the default, Jo's usual landing view) or 'today': open on today's page when one exists. Nothing is created at boot.
