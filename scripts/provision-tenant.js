@@ -90,11 +90,17 @@ function genPassword() {
   return s + '!7';
 }
 
-async function resolveOwner(auth) {
+// fallbackUid: companies/{id}.ownerId, so --check without an owner flag still
+// inspects the owner. Only "no such user" means not found; a credentials or
+// network error throws, so a report never looks clean because a read failed.
+async function resolveOwner(auth, fallbackUid) {
   try {
     if (ownerUid) return await auth.getUser(ownerUid);
     if (ownerEmail) return await auth.getUserByEmail(ownerEmail);
-  } catch (_) { /* not found yet */ }
+    if (fallbackUid) return await auth.getUser(fallbackUid);
+  } catch (e) {
+    if (!(e && e.code === 'auth/user-not-found')) throw e;
+  }
   return null;
 }
 
@@ -111,7 +117,7 @@ async function main() {
   // ── State report (always) ──
   const companySnap = await db.collection('companies').doc(companyId).get();
   const profSnap = await db.collection('companyProfile').doc(companyId).get();
-  const owner = await resolveOwner(auth);
+  const owner = await resolveOwner(auth, companySnap.exists ? (companySnap.data().ownerId || null) : null);
 
   console.log(`\n=== tenant: ${companyId} ===`);
   console.log(`companies/${companyId}:        ${companySnap.exists ? 'EXISTS (ownerId=' + (companySnap.data().ownerId || '(unset)') + ')' : 'ABSENT'}`);
@@ -181,7 +187,12 @@ async function main() {
   // 4) subscription — clears the dashboard plan-gate (admin-SDK write only).
   // Keyed by the COMPANY (subscriptions/{companyId}), the doc every plan
   // reader uses; under the owner uid nothing reads a slug tenant's plan.
-  if (seedSub) {
+  // Stripe's webhook writes a real checkout to this same doc (client_reference_id
+  // = companyId), so never overwrite a Stripe-managed plan with the default.
+  const stripeManaged = coSub.exists && !!coSub.data().stripeSubscriptionId;
+  if (seedSub && stripeManaged && !has('--force')) {
+    console.log(`⏭  skipped subscription: subscriptions/${companyId} is Stripe-managed (${JSON.stringify({ plan: coSub.data().plan, status: coSub.data().status })}). Pass --force to overwrite it.`);
+  } else if (seedSub) {
     await db.collection('subscriptions').doc(companyId).set({
       plan, status: 'active', companyId, provisionedBy: 'provision-tenant.js', updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });

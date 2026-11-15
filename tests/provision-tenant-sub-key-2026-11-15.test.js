@@ -67,11 +67,18 @@ process.exit = (code) => {
   if (current && !current.done) { current.done = true; current.resolve({ code, out: current.out.join('\n') }); }
   throw new Error('__exit__');
 };
-process.on('unhandledRejection', () => {});
+// Only the stubbed exit's own rejection is expected; anything else fails the file.
+process.on('unhandledRejection', (e) => {
+  if (e && e.message === '__exit__') return;
+  origLog('UNEXPECTED rejection: ' + (e && (e.stack || e.message)));
+  realExit(1);
+});
 
 function run(argv, world) {
   return new Promise((resolve) => {
-    current = { world, out: [], done: false, resolve };
+    // A path that never calls process.exit would hang the run: fail it instead.
+    const timer = setTimeout(() => { if (!current.done) { current.done = true; resolve({ code: 'TIMEOUT', out: current.out.join('\n') }); } }, 5000);
+    current = { world, out: [], done: false, resolve: (r) => { clearTimeout(timer); resolve(r); } };
     const run_ = current;
     console.log = (...a) => { if (!run_.done) run_.out.push(a.join(' ')); };
     console.error = console.log;
@@ -97,7 +104,7 @@ function run(argv, world) {
     ok('writes subscriptions/oaks', w.writes.includes('subscriptions/oaks'));
     ok('subscriptions/oaks is professional/active', !!w.store['subscriptions/oaks'] && w.store['subscriptions/oaks'].plan === 'professional' && w.store['subscriptions/oaks'].status === 'active');
     ok('never writes subscriptions/{ownerUid}', !w.writes.includes('subscriptions/' + OWNER));
-    ok('reports the company-keyed doc', r.out.includes('subscriptions/oaks'));
+    ok('the success line names subscriptions/oaks', r.out.includes("✅ subscriptions/oaks = {plan:'professional'"));
   }
 
   console.log('--check: a plan stranded under the owner uid is flagged');
@@ -116,6 +123,44 @@ function run(argv, world) {
     const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--check'], w);
     ok('reports the company plan', /subscriptions\/oaks:\s+\{"plan":"professional","status":"active"\}/.test(r.out));
     ok('no MISPLACED flag', !/MISPLACED/.test(r.out));
+  }
+
+  console.log('--check: plans under BOTH keys is not flagged (the company doc wins)');
+  {
+    const w = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, 'subscriptions/oaks': { plan: 'team', status: 'active' }, ['subscriptions/' + OWNER]: { plan: 'professional', status: 'active' } });
+    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--check'], w);
+    ok('owner sub was probed (owner line printed)', r.out.includes('owner:') && r.out.includes(OWNER));
+    ok('no MISPLACED flag when the company doc exists', !/MISPLACED/.test(r.out));
+  }
+
+  console.log('--check without an owner flag uses companies/{id}.ownerId');
+  {
+    const w = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, ['subscriptions/' + OWNER]: { plan: 'professional', status: 'active' } });
+    const r = await run(['--company', 'oaks', '--check'], w);
+    ok('flags MISPLACED via the company owner', /MISPLACED/.test(r.out));
+  }
+
+  console.log('--check: an Auth error is not reported as "not found"');
+  {
+    const w = fakeWorld({ 'companies/oaks': { ownerId: OWNER } });
+    w.auth.getUser = async () => { const e = new Error('credentials'); e.code = 'app/invalid-credential'; throw e; };
+    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--check'], w);
+    ok('exits non-zero', r.code === 1);
+    ok('does not print "not found"', !/not found/.test(r.out));
+  }
+
+  console.log('provision: a Stripe-managed plan is never overwritten');
+  {
+    const live = { plan: 'growth', status: 'past_due', stripeSubscriptionId: 'sub_x' };
+    const w = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, 'subscriptions/oaks': live });
+    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks'], w);
+    ok('exits 0', r.code === 0);
+    ok('subscriptions/oaks not written', !w.writes.includes('subscriptions/oaks'));
+    ok('plan unchanged', w.store['subscriptions/oaks'].plan === 'growth' && w.store['subscriptions/oaks'].status === 'past_due');
+    ok('says it skipped', /Stripe-managed/.test(r.out));
+    const w2 = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, 'subscriptions/oaks': Object.assign({}, live) });
+    await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--force'], w2);
+    ok('--force overwrites', w2.writes.includes('subscriptions/oaks') && w2.store['subscriptions/oaks'].plan === 'professional');
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
