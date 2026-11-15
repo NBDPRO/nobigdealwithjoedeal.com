@@ -224,7 +224,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=10',
+      'js/customer-documents.js?v=11',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -313,7 +313,7 @@
       'js/job-templates-data.js?v=7',
       'js/job-templates.js?v=9',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=13',
+      'js/job-templates-ui.js?v=14',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle

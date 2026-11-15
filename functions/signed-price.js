@@ -29,8 +29,13 @@
  *     acceptance was only RECORDED at another tier's price (review R6-2-3,
  *     not this lane) is not stamped: its bills keep following the estimate
  *     until the rep resolves the "use it?" chip;
- *   - any other contract (remote / in-person HTML contract, an uploaded PDF
- *     titled as a contract) → the lead's primary estimate as it stands.
+ *   - a remote HTML contract (remote-signing.js) → the snapshot of the
+ *     lead's primary estimate the sign request took when the link was SENT
+ *     (money review 2026-11-14, finding 8); if the estimate moved since, the
+ *     snapshot wins and the stamp carries movedSinceSent + currentTotalCents
+ *     for the rep. A link sent before this shipped has no snapshot → below;
+ *   - any other contract (in-person HTML contract, an uploaded PDF titled as
+ *     a contract) → the lead's primary estimate as it stands.
  *
  * R6-2-5. A deal-room link carries the version of the estimate it was issued
  * at (deal-acceptance.js createDealAcceptToken stores estimateFingerprint).
@@ -67,12 +72,14 @@ function _sameTenant(est, lead, leadId) {
 }
 
 /**
- * Which estimate a signature signed: the envelope's estimate, else the deal
- * room's, else the lead's primary. → id or null
+ * Which estimate a signature signed: the envelope's estimate, else the
+ * remote sign request's (its price snapshot), else the deal room's, else the
+ * lead's primary. → id or null
  */
-function signedEstimateIdFor(lead, deal, envelope) {
+function signedEstimateIdFor(lead, deal, envelope, signRequest) {
   const ok = (v) => (typeof v === 'string' && ID_RE.test(v) ? v : null);
   return ok(envelope && envelope.kind === 'estimate' && envelope.estimateId)
+    || ok(signRequest && signRequest.estimateId)
     || ok(deal && deal.estimateId)
     || ok(lead && lead.primaryEstimateId)
     || null;
@@ -111,22 +118,136 @@ function planSignedStamp(ctx) {
   const env = ctx.envelope;
   const fromEnvelope = !!(env && env.kind === 'estimate' && env.estimateId === ctx.estimateId
     && env.pricedSnapshot && typeof env.pricedSnapshot === 'object');
-  const fields = fromEnvelope ? env.pricedSnapshot : CER.signedPriceSnapshot(est);
+  // A remote (HTML) contract: the price snapshot createSignRequest took of
+  // this estimate when the link was sent (money review 2026-11-14, finding 8)
+  // — what the homeowner was shown, even if the estimate moved since.
+  const sr = ctx.signRequest;
+  const fromSignRequest = !fromEnvelope && !!(sr && sr.estimateId === ctx.estimateId
+    && sr.fields && typeof sr.fields === 'object');
+  // Newest offer wins (review H1, 2026-11-14): a link minted before the
+  // current signed price was offered (its own mint, or its signing) never
+  // overwrites it — an older $10,000 link signed after a $12,000 one would
+  // otherwise lower the price under a $12,000 deposit draft. A snapshot with
+  // no mint time can't prove it is newer, so it does not overwrite either.
+  if (fromSignRequest && prev) {
+    const prevOffer = Number(prev.mintedAtMs) || Number(prev.at) || 0;
+    const mine = Number(sr.mintedAtMs) || 0;
+    if (prevOffer && (!mine || mine < prevOffer)) return { action: 'skip', reason: 'older_than_current' };
+  }
+  const fields = fromEnvelope ? env.pricedSnapshot : fromSignRequest ? sr.fields : CER.signedPriceSnapshot(est);
   const totalCents = cents(CER.estimateValue(fields));
   if (!(totalCents > 0)) return { action: 'skip', reason: 'no_total' };
-  return {
-    action: 'stamp',
-    estimateId: ctx.estimateId,
-    signedPrice: {
-      fields,
-      fingerprint: CER.pricedFingerprint(fields),
-      totalCents,
-      source: event,
-      sourceId: sourceId || null,
-      from: fromEnvelope ? 'envelope' : 'estimate',
-      at: Number(ctx.nowMs) || Date.now(),
-    },
+  const fingerprint = CER.pricedFingerprint(fields);
+  const signedPrice = {
+    fields,
+    fingerprint,
+    totalCents,
+    source: event,
+    sourceId: sourceId || null,
+    from: fromEnvelope ? 'envelope' : fromSignRequest ? 'sign_request' : 'estimate',
+    at: Number(ctx.nowMs) || Date.now(),
   };
+  if (fromSignRequest && Number(sr.mintedAtMs) > 0) signedPrice.mintedAtMs = Number(sr.mintedAtMs);
+  // The estimate was re-priced while the link was out: the snapshot (what
+  // was signed) wins; record the estimate's price now so the rep is told.
+  if (fromSignRequest && CER.pricedFingerprint(est) !== fingerprint) {
+    signedPrice.movedSinceSent = true;
+    signedPrice.currentTotalCents = cents(CER.estimateValue(est));
+  }
+  return { action: 'stamp', estimateId: ctx.estimateId, signedPrice };
+}
+
+/**
+ * The price snapshot a remote sign request carries (createSignRequest in
+ * remote-signing.js): the priced fields of the estimate the contract bills
+ * (the lead's primary), as it stands when the link is minted. Pure.
+ * → { snapshot: { estimateId, fields, fingerprint, totalCents, mintedAtMs }, reason: null }
+ *   | { snapshot: null, reason } — the link goes out with no locked price.
+ */
+function signRequestSnapshot(leadId, lead, est, estimateId, nowMs) {
+  const no = (reason) => ({ snapshot: null, reason });
+  if (!lead) return no('no_lead');
+  if (typeof estimateId !== 'string' || !ID_RE.test(estimateId)) return no('no_primary_estimate');
+  if (!est || _isDeleted(est)) return no('no_estimate');
+  if (!_sameTenant(est, lead, leadId)) return no('estimate_other_tenant');
+  const fields = CER.signedPriceSnapshot(est);
+  const totalCents = cents(CER.estimateValue(fields));
+  if (!(totalCents > 0)) return no('no_total');
+  return { snapshot: { estimateId, fields, fingerprint: CER.pricedFingerprint(fields), totalCents, mintedAtMs: Number(nowMs) || Date.now() }, reason: null };
+}
+
+// Why a price was not locked, in the rep's words.
+const NOT_LOCKED_WHY = {
+  no_primary_estimate: 'the customer has no primary estimate',
+  no_estimate: 'the contract\'s estimate could not be found on this customer',
+  estimate_other_tenant: 'the contract\'s estimate could not be found on this customer',
+  no_total: 'the estimate has no total',
+  acceptance_not_applied: 'the accepted package has not been applied to the estimate yet',
+  older_than_current: 'an older contract link was signed after a newer one, so the newer signed price was kept',
+  read_failed: 'the estimate could not be read',
+  error: 'a server error',
+};
+// Skips that are not a problem: a replay, or nothing to do.
+const QUIET_SKIPS = ['already_stamped', 'duplicate', 'not_a_signing_event', 'bad_lead_id', 'no_lead'];
+const usd = (c) => '$' + (Number(c) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Tell the rep (review, silent failures 2026-11-14): a bell, a line on the
+ * lead's activity feed and, for a lock that failed, a flag on the estimate.
+ * Two independent writes so one failing is not the only record. Never throws.
+ *   kind 'not_locked' { reason } | 'moved' { totalCents, currentTotalCents }
+ */
+async function _tellRep(db, a, deps) {
+  const logger = deps.logger;
+  const FV = deps.FieldValue || require('firebase-admin/firestore').FieldValue;
+  try {
+    let lead = a.lead;
+    if (!lead) { const ls = await db.collection('leads').doc(a.leadId).get(); lead = ls.exists ? (ls.data() || {}) : null; }
+    if (!lead || !lead.userId) return;
+    const estimateId = a.estimateId || (typeof lead.primaryEstimateId === 'string' && ID_RE.test(lead.primaryEstimateId) ? lead.primaryEstimateId : null);
+    let title, label, type;
+    if (a.kind === 'moved') {
+      type = 'signed_price_moved';
+      title = 'Signed price differs from the estimate';
+      label = 'Signed at ' + usd(a.totalCents) + '; the estimate now says ' + usd(a.currentTotalCents)
+        + '. Bills use the signed ' + usd(a.totalCents) + ' until the homeowner re-signs.';
+    } else if (a.reason === 'older_than_current') {
+      type = 'price_not_locked';
+      title = 'An older contract was signed — price kept';
+      label = 'The homeowner signed ' + NOT_LOCKED_WHY.older_than_current + '. Check which contract they meant to sign.';
+    } else {
+      type = 'price_not_locked';
+      title = 'Signed, but the price was not locked';
+      label = 'The contract is signed, but its price was not locked (' + (NOT_LOCKED_WHY[a.reason] || a.reason)
+        + '). Bills follow the estimate as saved — check it before you invoice.';
+    }
+    const writes = [
+      db.collection('leads').doc(a.leadId).collection('activity').add({
+        userId: lead.userId, type, label, estimateId: estimateId || null, reason: a.reason || null,
+        sourceId: a.sourceId || null, createdAt: FV.serverTimestamp(),
+      }),
+    ];
+    if (a.kind !== 'moved') {
+      writes.push(db.collection('notifications').add({
+        userId: lead.userId, type, leadId: a.leadId, title, message: label, priority: 'high', read: false, createdAt: FV.serverTimestamp(),
+      }));
+      // The flag goes only on THIS tenant's estimate (never on the other
+      // tenant's doc an estimate_other_tenant skip points at).
+      if (estimateId && a.reason !== 'older_than_current' && a.reason !== 'estimate_other_tenant') {
+        writes.push((async () => {
+          const ref = db.collection('estimates').doc(estimateId);
+          const es = await ref.get();
+          const est = es.exists ? (es.data() || {}) : null;
+          if (!est || _isDeleted(est) || !_sameTenant(est, lead, a.leadId)) return;
+          await ref.update({ priceLockIssue: { reason: a.reason, event: a.event || null, sourceId: a.sourceId || null, at: Number(a.nowMs) || Date.now() } });
+        })());
+      }
+    }
+    const res = await Promise.allSettled(writes);
+    res.forEach((r) => { if (r.status === 'rejected') logger.warn('[signedPrice] rep alert write failed', { leadId: a.leadId, type, err: r.reason && r.reason.message }); });
+  } catch (e) {
+    logger.warn('[signedPrice] rep alert failed', { leadId: a.leadId, err: e && e.message });
+  }
 }
 
 /**
@@ -151,6 +272,11 @@ async function stampSignedPrice(db, args, deps) {
   const dealId = event === 'deal_accepted'
     ? String(meta.dealId || (sourceId.startsWith('deal_') ? sourceId.slice(5) : '') || '') : '';
   const envelopeId = String(meta.envelopeId || (sourceId.startsWith('env_') ? sourceId.slice(4) : '') || '');
+  // A remote contract's price snapshot, handed over by the job spine from the
+  // admin-only sign token (never from a client): { estimateId, fields, ... }.
+  const sr = meta.signRequestPrice;
+  const signRequest = (sr && typeof sr === 'object' && sr.fields && typeof sr.fields === 'object'
+    && typeof sr.estimateId === 'string' && ID_RE.test(sr.estimateId)) ? sr : null;
   try {
     const out = await db.runTransaction(async (tx) => {
       const ls = await tx.get(db.collection('leads').doc(leadId));
@@ -168,20 +294,32 @@ async function stampSignedPrice(db, args, deps) {
         envelope = es.exists ? (es.data() || {}) : null;
         if (envelope && envelope.leadId && envelope.leadId !== leadId) envelope = null;
       }
-      const estimateId = signedEstimateIdFor(lead, deal, envelope);
+      const estimateId = signedEstimateIdFor(lead, deal, envelope, signRequest);
       if (!estimateId) return { stamped: false, reason: 'no_estimate' };
       const estRef = db.collection('estimates').doc(estimateId);
       const es = await tx.get(estRef);
       const est = es.exists ? (es.data() || {}) : null;
-      const plan = planSignedStamp({ leadId, lead, est, estimateId, event, sourceId, envelope, duplicate: !!args.duplicate, nowMs: now() });
-      if (plan.action !== 'stamp') return { stamped: false, reason: plan.reason, estimateId };
-      tx.update(estRef, { signedPrice: plan.signedPrice });
-      return { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from };
+      const plan = planSignedStamp({ leadId, lead, est, estimateId, event, sourceId, envelope, signRequest, duplicate: !!args.duplicate, nowMs: now() });
+      if (plan.action !== 'stamp') return { stamped: false, reason: plan.reason, estimateId, lead };
+      // A lock that lands clears an earlier "not locked" flag.
+      tx.update(estRef, Object.assign({ signedPrice: plan.signedPrice },
+        est && est.priceLockIssue ? { priceLockIssue: (deps.FieldValue || require('firebase-admin/firestore').FieldValue).delete() } : {}));
+      const res = { stamped: true, estimateId, totalCents: plan.signedPrice.totalCents, from: plan.signedPrice.from, lead };
+      if (plan.signedPrice.movedSinceSent) Object.assign(res, { movedSinceSent: true, currentTotalCents: plan.signedPrice.currentTotalCents });
+      return res;
     });
+    const lead = out.lead; delete out.lead;
     logger.info('[signedPrice] ' + (out.stamped ? 'stamped' : 'not stamped'), { leadId, event, sourceId, estimateId: out.estimateId || null, reason: out.reason || null, totalCents: out.totalCents || null });
+    if (out.movedSinceSent) {
+      logger.warn('[signedPrice] estimate re-priced while the sign link was out — billing the signed snapshot', { leadId, estimateId: out.estimateId, signedCents: out.totalCents, currentCents: out.currentTotalCents });
+      await _tellRep(db, { kind: 'moved', leadId, lead, estimateId: out.estimateId, sourceId, event, totalCents: out.totalCents, currentTotalCents: out.currentTotalCents, nowMs: now() }, Object.assign({}, deps, { logger }));
+    } else if (!out.stamped && QUIET_SKIPS.indexOf(out.reason) === -1) {
+      await _tellRep(db, { kind: 'not_locked', leadId, lead, estimateId: out.estimateId, sourceId, event, reason: out.reason, nowMs: now() }, Object.assign({}, deps, { logger }));
+    }
     return out;
   } catch (e) {
     logger.warn('[signedPrice] stamp failed', { leadId, event, sourceId, err: e && e.message });
+    await _tellRep(db, { kind: 'not_locked', leadId, sourceId, event, reason: 'error', nowMs: now() }, Object.assign({}, deps, { logger }));
     return { stamped: false, reason: 'error', error: String((e && e.message) || e) };
   }
 }
@@ -255,6 +393,6 @@ function checkDealPrice(o) {
 }
 
 module.exports = {
-  SIGN_EVENTS, signedEstimateIdFor, planSignedStamp, stampSignedPrice,
+  SIGN_EVENTS, signedEstimateIdFor, planSignedStamp, stampSignedPrice, signRequestSnapshot,
   portalPriced, knownTierPrices, checkDealPrice,
 };
