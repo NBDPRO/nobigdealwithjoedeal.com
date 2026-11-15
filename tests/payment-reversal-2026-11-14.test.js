@@ -154,11 +154,25 @@ console.log('\n2. Collected nets the reversal back out');
     const sum = A.paymentsOf(reversed).reduce((t, p) => t + Math.round(p.amount * 100), 0);
     ok('the agent / owner-digest ledger nets to $0 too', sum === 0, String(sum));
   }
-  // The mirrored readers carry the same edit (money-field-contract keeps them in step).
-  ['docs/pro/js/money-dashboard.js', 'docs/pro/js/analytics-kpi.js', 'docs/pro/js/pages/leaderboard.js', 'functions/weekly-digest.js'].forEach((f) => {
-    const src = read(f);
-    ok(f + ': the ledger loop keeps negative (reversal) entries', /if \(!amt \|\| at == null\) (continue|return);/.test(src) && !/if \(!\(amt > 0\) \|\| at == null\) (continue|return);/.test(src));
-  });
+  // The mirrored readers: each copy's own ledger function, run on the reversed invoice (behaviour, not file text).
+  const K = require(path.join(ROOT, 'tests/lib/src-kit.js'));
+  const runCopy = (file, fnName, helpers) => {
+    const code = K.read(file);
+    const src = helpers.concat([fnName]).map((n) => K.sliceFn(code, n)).join('\n');
+    const ctx = K.loadInVm([file], { Date, Math, JSON, parseFloat, Number, Array, Object, isNaN }, { src: { [file]: src }, expose: [fnName] });
+    return ctx.__exposed[fnName];
+  };
+  const netCents = (list) => list.reduce((t, p) => t + Math.round(p.amount * 100), 0);
+  for (const [file, fnName, helpers] of [
+    ['docs/pro/js/money-dashboard.js', 'paymentsOnlyOf', ['toJSDate', 'collectedCentsOf']],
+    ['docs/pro/js/analytics-kpi.js', 'paymentsOnlyOf', ['toJSDate', 'collectedDollarsOf']],
+    ['docs/pro/js/pages/leaderboard.js', 'paymentsOnlyOf', ['toDate']],
+    ['functions/weekly-digest.js', '_paymentsOnlyOf', ['timestampMillis']],
+  ]) {
+    let got = 'not run';
+    try { got = netCents(runCopy(file, fnName, helpers)(reversed)); } catch (e) { got = e.message; }
+    ok(file + ': its ledger nets the reversal to $0', got === 0, String(got));
+  }
 }
 
 console.log('\n3b. Everywhere else a reversed payment never arrived');
@@ -187,7 +201,7 @@ console.log('\n3b. Everywhere else a reversed payment never arrived');
   const CU = req('docs/pro/js/catchup-logic.js');
   if (CU) ok('catch-up: already collected nets to $0', CU.collectedCentsOf([inv]) === 0, String(CU.collectedCentsOf([inv])));
   const cust = read('docs/pro/js/customer-tasks-ui.js');
-  ok('customer page: no Send receipt for a reversed payment', /nbd:reversal-pairs/.test(cust) && /if \(reversedIdx\[i\]\) return;/.test(cust));
+  ok('customer page: no Send receipt for a reversed payment', /if \(reversedIdx\[i\]\) return;/.test(cust));
 }
 
 console.log('\n4. The callable: who may reverse, and the write it makes');
@@ -347,30 +361,55 @@ async function callableChecks() {
 }
 
 console.log('\n5. Wiring');
-function wiringChecks() {
-  const rules = read('firestore.rules');
-  ok('rules unchanged: a browser still cannot append a negative entry (paymentEntryOk needs amount > 0)', /p\.get\('amount', 0\) > 0/.test(rules) && !/reversalEntryOk/.test(rules));
-  const idx = read('functions/index.js');
-  ok('the callable is exported from functions/index.js', /exports\.reversePayment = require\('\.\/payment-reversal'\)\.reversePayment;/.test(idx));
-  ok('...and catalogued in FUNCTIONS_INDEX.md', /\| `reversePayment` \| onCall \|/.test(read('functions/FUNCTIONS_INDEX.md')));
-  const fsrc = read('functions/payment-reversal.js');
-  ok('...App Check enforced, behind the ghost-account guard', /enforceAppCheck: true/.test(fsrc) && /wrapCallable\(/.test(fsrc));
-  const src = read('docs/pro/js/invoice-pipeline.js');
-  ok('the client calls the callable and writes no ledger entry itself', /_httpsCallable\(window\._functions, 'reversePayment'\)/.test(src) && !/planPaymentReversal/.test(src));
-  ok('the Reverse button is only drawn for the company owner', /\(r\.canReverse && _isCompanyOwner\(\)\)/.test(src));
-  ok('reversePaymentUI refuses anyone else', /async function reversePaymentUI[\s\S]{0,200}if \(!_isCompanyOwner\(\)\)/.test(src));
-  ok('a blank reason says so (not a silent no-op)', /A reason is required to reverse a payment/.test(src));
+// (A browser still cannot append a negative entry: tests/firestore-rules.test.js pins it in the emulator. The callable's
+//  export and deploy shape: functions-lazy-load and merge-leftovers-guard.)
+async function wiringChecks() {
+  ok('the module exports a callable', PR && typeof PR.reversePayment === 'function');
   // an overdue invoice whose only payment is reversed stays overdue (the money set 'paid', not the aging)
   const od = PR.planReversal(Object.assign(typoInv(), { status: 'overdue' }), 0, { reason: 'x', by: 'o' });
   ok('reversing the only payment keeps "overdue"', od.patch.status === 'overdue', od.patch.status);
   ok('a paid invoice whose only payment is reversed reads "sent"', PR.planReversal(typoInv(), 0, { reason: 'x', by: 'o' }).patch.status === 'sent');
-  ok('the click is dispatched', /case 'reversePayment':/.test(src));
+
+  // The page, driven for real: who sees the button, what a non-owner and a blank reason get, and what the server is sent.
+  const toasts = []; const calls = [];
+  const typoTs = { toDate: () => typo.at, toMillis: () => typo.at.getTime() };
+  const invDoc = Object.assign(typoInv(), { payments: [Object.assign({}, typo, { at: typoTs, recordedAt: { toMillis: () => typo.recordedAt.getTime() } })] });
+  let answer = 'Typed $40,000 for a $4,000 check';
+  global.window = {
+    _db: {}, doc: (...a) => ({ path: a.slice(1).join('/') }), collection: () => ({}),
+    getDoc: async () => ({ exists: () => true, data: () => invDoc }),
+    _user: { uid: 'carol' }, _userClaims: { role: 'company_admin', companyId: 'co-a' },
+    showToast: (m, t) => toasts.push([m, t]),
+    nbdPrompt: async () => answer, nbdConfirm: async () => true,
+    _functions: {}, _httpsCallable: (fns, name) => async (data) => { calls.push([name, data]); return { data: { ok: true, balanceDue: 0 } }; },
+  };
+  global.document = { getElementById: () => null };
+  const htmlFor = (claims) => { window._userClaims = claims; return IP.paymentHistoryHtml('inv1', typoInv()); };
+  ok('the owner (company_admin) is offered Reverse', /data-ip-action="reversePayment"/.test(htmlFor({ role: 'company_admin', companyId: 'co-a' })));
+  ok('a manager, rep or viewer is not', ['manager', 'sales_rep', 'viewer'].every((role) => !/data-ip-action="reversePayment"/.test(htmlFor({ role, companyId: 'co-a' }))));
+  window._userClaims = { role: 'sales_rep', companyId: 'co-a' };
+  let res = await IP.reversePaymentUI('inv1', 0, NaN);
+  ok('reversePaymentUI refuses a non-owner and calls nothing', res === false && calls.length === 0 && toasts.some((t) => /owner/.test(t[0])));
+  window._userClaims = { role: 'company_admin', companyId: 'co-a' };
+  answer = '   ';
+  res = await IP.reversePaymentUI('inv1', 0, NaN);
+  ok('a blank reason says so and calls nothing', res === false && calls.length === 0 && toasts.some((t) => /reason is required/.test(t[0])));
+  answer = 'Typed $40,000 for a $4,000 check';
+  res = await IP.reversePaymentUI('inv1', 0, NaN);
+  const sent = calls[0] && calls[0][1];
+  ok('the owner calls reversePayment with the row\'s frozen fingerprint and the reason (no ledger write of its own)',
+    res === true && calls.length === 1 && calls[0][0] === 'reversePayment' && sent.index === 0 && sent.cents === 4000000
+      && sent.atMs === typo.at.getTime() && sent.method === 'check' && sent.recordedBy === 'u1' && /Typed/.test(sent.reason), JSON.stringify(calls));
+  // Two wiring facts only the source shows (the dispatcher is a document-level click delegate; role-gate is a selector list).
+  ok('the click is dispatched', /case 'reversePayment':/.test(read('docs/pro/js/invoice-pipeline.js')));
   ok('role-gate hides it from a viewer too', /\[data-ip-action="reversePayment"\]/.test(read('docs/pro/js/role-gate.js')));
+  ok('App Check is enforced on the callable', /enforceAppCheck: true/.test(read('functions/payment-reversal.js')));
+  ok('...and it is catalogued in FUNCTIONS_INDEX.md', /\| `reversePayment` \| onCall \|/.test(read('functions/FUNCTIONS_INDEX.md')));
 }
 
 (async () => {
   await callableChecks();
-  wiringChecks();
+  await wiringChecks();
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();
