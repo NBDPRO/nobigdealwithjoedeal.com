@@ -187,7 +187,7 @@
     catchup: [
       'js/catchup-logic.js?v=4',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=3'
+      'js/catchup.js?v=4'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
