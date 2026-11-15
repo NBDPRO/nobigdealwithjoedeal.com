@@ -1080,7 +1080,8 @@
     "new-lead-save-offline-2026-11-14.test.js",
     "notes-save-offline-2026-11-14.test.js",
     "field-onsite-offline-2026-11-14.test.js",
-    "customer-task-event-save-guard-2026-11-14.test.js"
+    "customer-task-event-save-guard-2026-11-14.test.js",
+    "tasks-stay-fresh-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

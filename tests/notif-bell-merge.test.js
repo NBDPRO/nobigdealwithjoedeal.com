@@ -143,7 +143,8 @@ ok('does NOT leak NotifBell onto window (Tranche-0 guard)', typeof win.NotifBell
 
 // ── Step 1: open the dropdown → render unions both sources ──
 win.__NBD_CALL_REGISTRY.toggleNotificationDropdown();
-const derivedTaskId = 'task:L1:t1';
+// 2026-11-14: the due date is part of a task alert's id (wave-1 daily #3).
+const derivedTaskId = 'task:L1:t1:2020-01-01';
 ok('list shows derived overdue task', els.notifList.innerHTML.includes('Overdue task'));
 ok('list shows server deal_accepted notif', els.notifList.innerHTML.includes('Deal accepted'));
 ok('list shows server referral notif', els.notifList.innerHTML.includes('New referral'));
