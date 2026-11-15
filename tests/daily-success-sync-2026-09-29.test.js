@@ -158,9 +158,10 @@ console.log('\n6. wiring');
   ok('savePages stamps changed pages', /function savePages\(\)\{[^}]*stampChanged\(pages,_dsSnap/.test(app));
   ok('loadPages seeds the snapshots', /function loadPages\(\)\{[\s\S]{0,120}seedSnapshots\(pages,_dsSnap\)/.test(app));
   ok('deleting a page tombstones it (deletePageAt, which doDelete and the immediate delete both use; flow batch 3)', /function deletePageAt\(i\)\{[\s\S]*?dsTombstone\(gone\.id\)/.test(app) && /function doDelete\(\)\{[^\n]*deletePageAt\(/.test(app));
-  ok('both config writers and the goal-target writer stamp + push',
-    (app.match(/setItem\(NBD_CFG,JSON\.stringify\(config\)\);dsSettingsChanged\(NBD_CFG\)/g) || []).length === 2
-    && /setItem\(GT_KEY,JSON\.stringify\(gt\)\);dsSettingsChanged\(GT_KEY\)/.test(app));
+  // 2026-11-14: the goal-target writer (the Dash's Monthly Goals inputs) went with the door / close / revenue tiles (Joe's
+  // decision). nbd_gt itself still syncs (ds-firebase-sync SETTINGS; the CRM widgets read it).
+  ok('both config writers stamp + push',
+    (app.match(/setItem\(NBD_CFG,JSON\.stringify\(config\)\);dsSettingsChanged\(NBD_CFG\)/g) || []).length === 2);
   ok('the push is chunked through ds-sync-logic', /L\(\)\.chunk\(writes/.test(sync) && /changedSince\(pages, _ledger\)/.test(sync));
   ok('the old single all-pages batch is gone', !/for \(const page of pages\)/.test(sync));
   ok('a delete is a soft delete, never deleteDoc', /deleted: true/.test(sync) && !/deleteDoc/.test(sync));

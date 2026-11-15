@@ -1,6 +1,5 @@
 let _di; // module-local (globals Tranche 1 — was window.*)
 const STORE='nbd_dsp_v1';
-const GT_KEY='nbd_gt';
 const NBD_CFG='nbd_user_config';
 // Every user-typed value that reaches innerHTML/an attribute goes through E().
 // The page data is the user's own, but it syncs from the cloud and a
@@ -11,7 +10,6 @@ const QUOTES=['The rep you don\'t want to do is the one that makes the differenc
 const HABITS=['Hit protein goal','Completed workout','Knocked doors (floor)','Journaled at night','In bed by 10 PM','Read / no screens PM','Drank 3L water','Took supplements'];
 const LIFTS=['Bench Press','Squat','Deadlift','OHP','Barbell Row','Pull-Ups','Hip Thrust'];
 const MEALS=['Breakfast','Lunch','Dinner','Snacks / Pre-WO'];
-const KPI_DEF=[{key:'doors',lbl:'Doors Knocked',target:null,sub:'Track daily'},{key:'contacts',lbl:'Contacts Made',target:null,sub:'Track daily'},{key:'appts',lbl:'Appointments Set',target:null,sub:'Track daily'},{key:'closes',lbl:'Closes',target:null,sub:'Track daily'},{key:'noshow',lbl:'No-Shows',target:null,sub:'Track honestly'}];
 const MINDSET_ITEMS=[
   {id:'ms1',title:'No phone for the first 15 minutes',sub:'Your mind belongs to you before it belongs to the feed.',time:'5:30 AM'},
   {id:'ms2',title:'Write your #1 non-negotiable for today',sub:'The one thing that must get done. Not 3. One.',time:'5:35 AM'},
@@ -432,60 +430,6 @@ openM('mPRH');
 }
 
 
-const KPI_FLOOR_KEYWORDS={
-doors:['door'],
-closes:['clos','close'],
-contacts:['contact'],
-appts:['appt','appointment'],
-noshow:[]
-};
-
-function autoCheckFloors(kpiKey,val,customKeywords){
-if(cur<0)return;
-const p=pages[cur];p.data=p.data||{};
-const keywords=customKeywords||(KPI_FLOOR_KEYWORDS[kpiKey]||[]);
-if(!keywords.length)return;
-const floors=getFloors();
-let changed=false;
-floors.forEach(f=>{
-const norm=normalizeLabel(f.label);
-const matches=keywords.some(kw=>norm.includes(kw));
-if(!matches)return;
-const target=parseFloat(f.targetValue)||1;
-const shouldMet=(parseFloat(val)||0)>=target;
-const key='floormet-'+f.id;
-const wasOff=p.data[key]!=='1';
-if(shouldMet&&wasOff){p.data[key]='1';changed=true;}
-});
-if(changed){
-markDirty();
-const wrap=document.getElementById('day-score-wrap');
-if(wrap)wrap.innerHTML=buildDayScore(p);
-}
-}
-
-function autoCheckRevenueFloor(val){
-if(cur<0)return;
-const p=pages[cur];p.data=p.data||{};
-const floors=getFloors();
-let changed=false;
-floors.forEach(f=>{
-const norm=normalizeLabel(f.label);
-if(!norm.includes('revenue')&&!norm.includes('rev')&&f.unit!=='$')return;
-const target=parseFloat(f.targetValue)||1;
-const shouldMet=(parseFloat(val)||0)>=target;
-const key='floormet-'+f.id;
-const wasOff=p.data[key]!=='1';
-if(shouldMet&&wasOff){p.data[key]='1';changed=true;}
-});
-if(changed){
-markDirty();
-const wrap=document.getElementById('day-score-wrap');
-if(wrap)wrap.innerHTML=buildDayScore(p);
-}
-}
-
-
 function buildLogSection(p){
 const d=p.data||{};
 return `<div class="g2"><div><div class="rl">Top 3 Priorities Today</div>${[1,2,3].map(n=>`<div class="rln"><span class="rn">${n}</span><textarea class="ed" data-k="l-p${n}" rows="1" placeholder="${n===1?'Most important task today…':''}">${E(d['l-p'+n])}</textarea></div>`).join('')}</div><div><div class="rl">Day Ratings (1–10)</div><div class="rln"><input class="ed" data-k="l-ov" placeholder="Overall: _/10" value="${E(d['l-ov'])}"></div><div class="rln"><input class="ed" data-k="l-en" placeholder="Energy: _/10" value="${E(d['l-en'])}"></div><div class="rln"><input class="ed" data-k="l-fo" placeholder="Focus: _/10" value="${E(d['l-fo'])}"></div></div></div> <div class="dv"><span class="dvt">End of Day Review</span></div> <div><div class="rl">One Win Today</div><div class="rln"><textarea class="ed" data-k="l-win" placeholder="What did you crush today?" rows="2">${E(d['l-win'])}</textarea></div></div> <div><div class="rl">One Lesson</div><div class="rln"><textarea class="ed" data-k="l-les" placeholder="What would you do differently?" rows="2">${E(d['l-les'])}</textarea></div></div> <div><div class="rl">Gratitude (3 things)</div>${[1,2,3].map(n=>`<div class="rln"><span class="rn">${n}</span><textarea class="ed" data-k="l-g${n}" rows="1">${E(d['l-g'+n])}</textarea></div>`).join('')}</div>`;
@@ -667,7 +611,7 @@ main.dataset.dsPage=String(p&&p.id);
 
 const wrap=document.createElement('div');
 wrap.style.cssText='width:100%;max-width:760px;display:flex;flex-direction:column;gap:18px;';
-wrap.innerHTML=`<div class="today-bar" id="today-bar"></div> ${buildCover(p,cur%QUOTES.length)} <div id="week-glance-wrap" style="background:#0a1018;width:100%;max-width:760px;border-radius:8px;padding:12px 18px;border:1px solid #1e2d40;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>${buildWeekGlance()}</div> <div id="day-score-wrap">${buildDayScore(p)}</div> <div id="comparison-wrap">${buildDailyComparison(p)}</div> <div class="pc" data-sec="intel"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#1A3057,#5a2a7e);">INTEL</span><div class="pt">Intelligence Brief</div><span class="collapse-ico">▾</span></div><div class="pb" id="intel-pb"></div></div> <div class="pc" data-sec="pipeline"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#0d4a3a,#1e6a4e);">PIPELINE</span><div class="pt">CRM Pipeline Snapshot</div><span class="collapse-ico">▾</span></div><div class="pb" id="pipeline-pb"></div></div> <div class="pc" data-sec="mindset"><div class="ph" data-action="toggle-section"><span class="badge b-mindset">01 · MINDSET</span><div class="pt">Morning Mindset & Non-Negotiables</div><span class="collapse-ico">▾</span></div><div class="pb" id="mindset-pb"></div></div> <div class="pc" data-sec="regiment"><div class="ph" data-action="toggle-section"><span class="badge b-daily">02 · REGIMENT</span><div class="pt">Optimal Daily Regiment</div><span class="collapse-ico">▾</span></div><div class="pb" id="regiment-pb"></div></div> <div class="pc" data-sec="diet"><div class="ph" data-action="toggle-section"><span class="badge b-diet">03 · DIET</span><div class="pt">Diet Protocol & Macro Tracker</div><span class="collapse-ico">▾</span></div><div class="pb" id="diet-pb"></div></div> <div class="pc" data-sec="fitness"><div class="ph" data-action="toggle-section"><span class="badge b-fitness">04 · FITNESS</span><div class="pt">Fitness Log</div><span class="collapse-ico">▾</span></div><div class="pb" id="fit-pb"></div></div> <div class="pc" data-sec="pr"><div class="ph" data-action="toggle-section"><span class="badge b-pr">05 · PR TRACKER</span><div class="pt">Personal Records & Body Metrics</div><span class="collapse-ico">▾</span></div><div class="pb" id="pr-pb"></div></div> <div class="pc" data-sec="log"><div class="ph" data-action="toggle-section"><span class="badge b-log">06 · LOG</span><div class="pt">Daily Log & Reflection</div><span class="collapse-ico">▾</span></div><div class="pb" id="log-pb"></div></div> <div class="pc" data-sec="goals"><div class="ph" data-action="toggle-section"><span class="badge b-goals">07 · GOALS</span><div class="pt">Goals & Vision</div><span class="collapse-ico">▾</span></div><div class="pb" id="goals-pb"></div></div> <div class="pc" data-sec="habits"><div class="ph" data-action="toggle-section"><span class="badge b-habits">08 · HABITS</span><div class="pt">Weekly Habit Tracker & Monthly Scorecard</div><span class="collapse-ico">▾</span></div><div class="pb"><div class="rl">Check each habit for each day of the week</div><div style="overflow-x:auto;" id="habits-table-wrap"></div><div class="dv"><span class="dvt">Monthly Scorecard</span></div><div class="rl">Rate each month 1–10 or log a key result</div><div id="scorecard-wrap"></div></div></div> <div class="footer">NO BIG DEAL WITH JOE DEAL · DAILY SUCCESS PROGRAM · ${p.dk}</div>`;
+wrap.innerHTML=`<div class="today-bar" id="today-bar"></div> ${buildCover(p,cur%QUOTES.length)} <div id="week-glance-wrap" style="background:#0a1018;width:100%;max-width:760px;border-radius:8px;padding:12px 18px;border:1px solid #1e2d40;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>${buildWeekGlance()}</div> <div id="day-score-wrap">${buildDayScore(p)}</div> <div class="pc" data-sec="intel"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#1A3057,#5a2a7e);">INTEL</span><div class="pt">Intelligence Brief</div><span class="collapse-ico">▾</span></div><div class="pb" id="intel-pb"></div></div> <div class="pc" data-sec="pipeline"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#0d4a3a,#1e6a4e);">PIPELINE</span><div class="pt">CRM Pipeline Snapshot</div><span class="collapse-ico">▾</span></div><div class="pb" id="pipeline-pb"></div></div> <div class="pc" data-sec="mindset"><div class="ph" data-action="toggle-section"><span class="badge b-mindset">01 · MINDSET</span><div class="pt">Morning Mindset & Non-Negotiables</div><span class="collapse-ico">▾</span></div><div class="pb" id="mindset-pb"></div></div> <div class="pc" data-sec="regiment"><div class="ph" data-action="toggle-section"><span class="badge b-daily">02 · REGIMENT</span><div class="pt">Optimal Daily Regiment</div><span class="collapse-ico">▾</span></div><div class="pb" id="regiment-pb"></div></div> <div class="pc" data-sec="diet"><div class="ph" data-action="toggle-section"><span class="badge b-diet">03 · DIET</span><div class="pt">Diet Protocol & Macro Tracker</div><span class="collapse-ico">▾</span></div><div class="pb" id="diet-pb"></div></div> <div class="pc" data-sec="fitness"><div class="ph" data-action="toggle-section"><span class="badge b-fitness">04 · FITNESS</span><div class="pt">Fitness Log</div><span class="collapse-ico">▾</span></div><div class="pb" id="fit-pb"></div></div> <div class="pc" data-sec="pr"><div class="ph" data-action="toggle-section"><span class="badge b-pr">05 · PR TRACKER</span><div class="pt">Personal Records & Body Metrics</div><span class="collapse-ico">▾</span></div><div class="pb" id="pr-pb"></div></div> <div class="pc" data-sec="log"><div class="ph" data-action="toggle-section"><span class="badge b-log">06 · LOG</span><div class="pt">Daily Log & Reflection</div><span class="collapse-ico">▾</span></div><div class="pb" id="log-pb"></div></div> <div class="pc" data-sec="goals"><div class="ph" data-action="toggle-section"><span class="badge b-goals">07 · GOALS</span><div class="pt">Goals & Vision</div><span class="collapse-ico">▾</span></div><div class="pb" id="goals-pb"></div></div> <div class="pc" data-sec="habits"><div class="ph" data-action="toggle-section"><span class="badge b-habits">08 · HABITS</span><div class="pt">Weekly Habit Tracker & Monthly Scorecard</div><span class="collapse-ico">▾</span></div><div class="pb"><div class="rl">Check each habit for each day of the week</div><div style="overflow-x:auto;" id="habits-table-wrap"></div><div class="dv"><span class="dvt">Monthly Scorecard</span></div><div class="rl">Rate each month 1–10 or log a key result</div><div id="scorecard-wrap"></div></div></div> <div class="footer">NO BIG DEAL WITH JOE DEAL · DAILY SUCCESS PROGRAM · ${p.dk}</div>`;
 
 main.appendChild(wrap);
 
@@ -736,46 +680,24 @@ if(q){scrollToEl(q);q.focus({preventScroll:true});}else scrollToEl(card);
 }
 }
 
-// Door-knocking stats on/off (Jo's explicit choice, stored locally; with no choice they appear once there is data).
-function toggleSales(){
-const nowOn=!!window._dsShowSales;
-try{localStorage.setItem('nbd_ds_show_sales',nowOn?'0':'1');}catch(e){}
-renderDash();
-}
 
 function killCharts(){charts.forEach(c=>{try{c.destroy();}catch{}});charts=[];}
-// Two renderDash() calls inside the 80ms defer both reach mkChart after
-// killCharts ran — the second hit a canvas still holding a chart and threw.
-function mkChart(id,labels,data,color){const ctx=document.getElementById(id);if(!ctx)return;const prev=(typeof Chart.getChart==='function')?Chart.getChart(ctx):null;if(prev){try{prev.destroy();}catch{}charts=charts.filter(c=>c!==prev);}const ch=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:2,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'#888',maxRotation:45},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'#888'},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}}});charts.push(ch);}
 
 function renderDash(){
 rememberScroll();killCharts();const main=document.getElementById('main');main.innerHTML='';main.dataset.dsPage='';
-let totD=0,totR=0,totC=0,totA=0,totCon=0,bDV=0,bRV=0,bDI=-1,bRI=-1;
-let runD=0,runW=0,runWin=0,maxD=0,maxW=0,maxWin=0,prevD=0,prevR=0,lastD=0,lastR=0;
-const habTot=HABITS.map(()=>0),cLbls=[],cDoors=[],cRev=[],cClose=[];
-pages.forEach((p,i)=>{
-const k=p.kpi||{},d=p.data||{},rev=parseFloat(d['s-revenue']||0)||0;
-totD+=k.doors||0;totC+=k.closes||0;totA+=k.appts||0;totCon+=k.contacts||0;totR+=rev;
-if((k.doors||0)>bDV){bDV=k.doors||0;bDI=i;}if(rev>bRV){bRV=rev;bRI=i;}
+// The door / close / revenue tiles are gone (Joe, 2026-11-14: the CRM tracks those; nothing here could enter them). Stored pages
+// keep their kpi / s-revenue fields and the CSV export still carries them.
+let runW=0,runWin=0;
+const habTot=HABITS.map(()=>0);
+pages.forEach((p)=>{
+const d=p.data||{};
 HABITS.forEach((_,hi)=>{for(let di=0;di<7;di++)if(d[`habit-${hi}-${di}`]==='1')habTot[hi]++;});
-cLbls.push(tlbl(p));cDoors.push(k.doors||0);cRev.push(rev);cClose.push(k.closes||0);
-const doorTarget=getDoorTarget();
-runD=(k.doors||0)>=(doorTarget||60)?runD+1:0;
 runW=d['habit-1-0']==='1'?runW+1:0;
 const floors=getFloors();const metCount=floors.filter(f=>d['floormet-'+f.id]==='1').length;
 const floorPct=floors.length?metCount/floors.length:0;
 runWin=floorPct>=0.67?runWin+1:0;
-if(runD>maxD)maxD=runD;if(runW>maxW)maxW=runW;if(runWin>maxWin)maxWin=runWin;
-if(i===pages.length-2){prevD=k.doors||0;prevR=rev;}if(i===pages.length-1){lastD=k.doors||0;lastR=rev;}
 });
-const pc=pages.length,avgD=pc?Math.round(totD/pc):0;
-let gt;try{gt=JSON.parse(localStorage.getItem(GT_KEY)||'{"d":0,"r":0,"c":0}');}catch(e){gt={d:0,r:0,c:0};try{localStorage.removeItem(GT_KEY);}catch(_){}}
-const fDC=totD?Math.round(totCon/totD*100):0,fCA=totCon?Math.round(totA/totCon*100):0,fACl=totA?Math.round(totC/totA*100):0;
-function dbadge(c,p){if(pc<2)return'';const d=c-p;return d===0?'':(d>0?`<span class="delta up">▲${d}</span>`:`<span class="delta dn">▼${Math.abs(d)}</span>`);}
-const now=new Date(),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),dom=now.getDate(),dl=dim-dom;
-const paceTarget=gt.r?(gt.r*(dom/dim)):0,isAhead=gt.r&&totR>=paceTarget;
-const paceMsg=!gt.r?'Set a monthly revenue goal below to track pace':dl===0?(totR>=gt.r?'🏆 Goal hit!':'Month ended.'):(isAhead?`▲ Ahead of pace — $${Math.round(totR-paceTarget).toLocaleString()} ahead`:`▼ Need $${Math.max(0,Math.round(gt.r-totR)).toLocaleString()} more in ${dl} days`);
-function gpRow(lbl,actual,target,key,color){const pct=target?Math.min(actual/target*100,100):0;const numTxt=target?`${Math.round(actual)} / ${target} (${Math.round(pct)}%)`:'Set target →';return `<div class="gpr"><div class="gph"><span class="gpn">${lbl}</span><span class="gpnum" id="gpnum-${key}">${numTxt}</span></div><div class="gpbg"><div class="gpb" id="gpbar-${key}" style="width:${pct}%;background:${color}"></div></div><input class="gpi" id="gpi-${key}" placeholder="Monthly target" type="number" min="0" value="${E(target||'')}"></div>`;}
+const pc=pages.length;
 
 const cfg=getUserConfig();
 const todayPage=pages.find(p=>isToday(p.dk));
@@ -784,15 +706,7 @@ const floors=getFloors();
 let northStarHtml='';
 if(cfg&&cfg.northStar){
 const ns=cfg.northStar;
-const isRevGoal=ns.category==='Make more money'||ns.category==='Grow my business';
-const nsPct=isRevGoal&&gt.r?Math.min(totR/gt.r*100,100):0;
-northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac-text,var(--ac));letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> ${isRevGoal?`<div class="pace-wrap" style="margin-top:8px;">
-<div class="pace-row"><span class="pace-lbl">Revenue</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div>
-<div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div>
-<div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div>
-<div class="pace-msg ${!gt.r?'none':isAhead?'ahead':'behind'}">${paceMsg}</div>
-${gt.r?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:3px;">Day ${dom} of ${dim} · ${dl} days remaining</div>`:''}
-</div>`:''} </div>`;
+northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac-text,var(--ac));letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> </div>`;
 }
 
 let floorsStatusHtml='';
@@ -806,27 +720,10 @@ const metToday=todayPage?floors.filter(f=>todayD['floormet-'+f.id]==='1').length
 floorsStatusHtml=`<div class="dc"><div class="dct">Daily Floors <small>TODAY'S STATUS</small></div> ${todayPage?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${metToday===floors.length?'#4caf82':'var(--ac-text,var(--gold))'};margin-bottom:8px;letter-spacing:.1em;">${metToday}/${floors.length} FLOORS MET</div>`:`<div class="de">No entry for today yet</div>`} ${floorRows} <button class="btn btn-ghost" style="margin-top:12px;width:100%;justify-content:center;font-size:12px;" data-action="quick-start-defaults">↺ Reset to Quick Start Defaults</button> </div>`;
 }
 
-let salesPref=null;try{salesPref=localStorage.getItem('nbd_ds_show_sales');}catch(e){}
-const showSales=NBDDayLayout.salesVisible(salesPref,{doors:totD,contacts:totCon,appts:totA,closes:totC,revenue:totR,goals:gt});
-window._dsShowSales=showSales;
 const wrap=document.createElement('div');wrap.className='dw';
-wrap.innerHTML=` <div class="dhero"><div><div class="dhero-t">Program Dashboard</div><div class="dhero-s">${pc} PAGE${pc!==1?'S':''} · ALL-TIME AGGREGATES</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-action="export-csv">CSV</button><button class="btn btn-gold" data-action="do-print">PDF</button><button class="btn btn-ghost" data-action="toggle-sales" aria-pressed="${showSales?'true':'false'}">🚪 Door stats: ${showSales?'on':'off'}</button><button class="btn btn-ghost" data-action="open-onboard">⚙️ CUSTOMIZE</button></div></div> <div class="dgrid"> ${northStarHtml} ${showSales?`<div class="dc"><div class="dct">Activity Totals <small>ALL PAGES</small></div><div class="srow2"><div class="sb"><div class="sv">${totD}${dbadge(lastD,prevD)}</div><div class="sl">Doors</div></div><div class="sb"><div class="sv">${avgD}</div><div class="sl">Avg/Day</div></div><div class="sb"><div class="sv">${totC}</div><div class="sl">Closes</div></div></div><div class="srow2"><div class="sb"><div class="sv">${totA}</div><div class="sl">Appts</div></div><div class="sb" style="flex:2"><div class="sv" style="font-size:22px">$${totR.toLocaleString()}${dbadge(lastR,prevR)}</div><div class="sl">Revenue</div></div></div></div>`:''} ${floorsStatusHtml} <div class="dc"><div class="dct">Streaks & Records</div>${showSales&&bDI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bDI}"><div class="best-ico">🚪</div><div class="best-info"><div class="best-lbl">Best Door Day</div><div class="best-val">${E(tlbl(pages[bDI]))} · ${bDV} doors</div></div></div>`:''} ${showSales&&bRI>=0?`<div class="best" data-action="switch-to" data-page-idx="${bRI}"><div class="best-ico">💰</div><div class="best-info"><div class="best-lbl">Best Revenue Day</div><div class="best-val">${E(tlbl(pages[bRI]))} · $${bRV.toLocaleString()}</div></div></div>`:''}<div class="sk-row">${showSales?`<div class="sk ${runD>=3?'gold':''}"><div class="sk-icon">🚪</div><div class="sk-val">${runD}</div><div class="sk-lbl">Door Streak</div></div>`:''}<div class="sk ${runW>=3?'gold':''}"><div class="sk-icon">💪</div><div class="sk-val">${runW}</div><div class="sk-lbl">Workout Streak</div></div><div class="sk ${runWin>=3?'gold':''}"><div class="sk-icon">⭐</div><div class="sk-val">${runWin}</div><div class="sk-lbl">Win Streak</div></div></div></div> ${showSales?`<div class="dc"><div class="dct">Monthly Goals <small>SET TARGETS</small></div><div class="gpw">${gpRow('Doors',totD,gt.d,'d','var(--blu)')}${gpRow('Revenue ($)',totR,gt.r,'r','var(--grn)')}${gpRow('Closes',totC,gt.c,'c','var(--ac)')}</div></div> <div class="dc wide"><div class="dct">Revenue Pace <small>VS MONTHLY GOAL</small></div><div class="pace-wrap"><div class="pace-row"><span class="pace-lbl">Actual</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div><div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div><div class="pace-msg ${!gt.r?'none':isAhead?'ahead':'behind'}">${paceMsg}</div>${gt.r?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:3px;">Day ${dom} of ${dim} · ${dl} days remaining</div>`:''}</div></div> <div class="dc wide"><div class="dct">Doors Knocked <small>PER PAGE</small></div><canvas id="c-doors" height="60"></canvas></div> <div class="dc"><div class="dct">Revenue <small>PER PAGE</small></div><canvas id="c-rev" height="100"></canvas></div> <div class="dc"><div class="dct">Closes <small>PER PAGE</small></div><canvas id="c-close" height="100"></canvas></div> `:''} <div class="dc wide"><div class="dct">Habit Compliance <small>CUMULATIVE</small></div>${HABITS.map((h,i)=>{const tot=habTot[i],max=pc*7,pct=max?Math.round(tot/max*100):0;return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule)"><span style="flex:1;font-size:12px;color:var(--ink)">${h}</span><div style="width:80px;height:5px;background:var(--rule);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${pct}%;background:var(--grn);border-radius:3px"></div></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:24px;text-align:right">${tot}</span></div>`;}).join('')}</div> <div class="dc wide"><div class="dct">All Pages <small>FILED BY MONTH · NEWEST FIRST</small><button class="btn btn-ghost dct-act" data-action="notebook-open">📓 Open notebook</button></div>${!pages.length?`<div class="de">No pages yet</div>`:NBDNotebook.groupByMonth(pages,todayKey()).map(sec=>`<div class="prd-month">${E(sec.label)} <small>${sec.count}</small></div>`+sec.entries.map(en=>{const i=en.idx,p=pages[i];const rev=parseFloat(p.data?.['s-revenue']||0)||0;const td=isToday(p.dk)?'<span class="today-dot" style="margin-left:4px"></span>':'';return `<div class="prd" data-action="switch-to" data-page-idx="${i}"><div class="prd-l"><span class="prd-d">${E(tlbl(p))}${td} · ${dkFull(p.dk).split(',')[0]}</span>${showSales?`<span class="prd-s">Doors: ${p.kpi?.doors||0} · Closes: ${p.kpi?.closes||0} · Rev: ${rev.toLocaleString()}${p.data?.['s-territory']?' · '+E(p.data['s-territory']):''}</span>`:''}</div><span style="color:var(--muted);flex-shrink:0">→</span></div>`;}).join('')).join('')}</div> </div>`;
+wrap.innerHTML=` <div class="dhero"><div><div class="dhero-t">Program Dashboard</div><div class="dhero-s">${pc} PAGE${pc!==1?'S':''} · ALL-TIME AGGREGATES</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-action="export-csv">CSV</button><button class="btn btn-gold" data-action="do-print">PDF</button><button class="btn btn-ghost" data-action="open-onboard">⚙️ CUSTOMIZE</button></div></div> <div class="dgrid"> ${northStarHtml} ${floorsStatusHtml} <div class="dc"><div class="dct">Streaks & Records</div><div class="sk-row"><div class="sk ${runW>=3?'gold':''}"><div class="sk-icon">💪</div><div class="sk-val">${runW}</div><div class="sk-lbl">Workout Streak</div></div><div class="sk ${runWin>=3?'gold':''}"><div class="sk-icon">⭐</div><div class="sk-val">${runWin}</div><div class="sk-lbl">Win Streak</div></div></div></div> <div class="dc wide"><div class="dct">Habit Compliance <small>CUMULATIVE</small></div>${HABITS.map((h,i)=>{const tot=habTot[i],max=pc*7,pct=max?Math.round(tot/max*100):0;return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule)"><span style="flex:1;font-size:12px;color:var(--ink)">${h}</span><div style="width:80px;height:5px;background:var(--rule);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${pct}%;background:var(--grn);border-radius:3px"></div></div><span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:24px;text-align:right">${tot}</span></div>`;}).join('')}</div> <div class="dc wide"><div class="dct">All Pages <small>FILED BY MONTH · NEWEST FIRST</small><button class="btn btn-ghost dct-act" data-action="notebook-open">📓 Open notebook</button></div>${!pages.length?`<div class="de">No pages yet</div>`:NBDNotebook.groupByMonth(pages,todayKey()).map(sec=>`<div class="prd-month">${E(sec.label)} <small>${sec.count}</small></div>`+sec.entries.map(en=>{const i=en.idx,p=pages[i];const td=isToday(p.dk)?'<span class="today-dot" style="margin-left:4px"></span>':'';return `<div class="prd" data-action="switch-to" data-page-idx="${i}"><div class="prd-l"><span class="prd-d">${E(tlbl(p))}${td} · ${dkFull(p.dk).split(',')[0]}</span></div><span style="color:var(--muted);flex-shrink:0">→</span></div>`;}).join('')).join('')}</div> </div>`;
 main.appendChild(wrap);
-// Debounce localStorage writes on goal-target keystrokes — one write per
-// 250ms idle beats one write per keystroke (the old behavior burned CPU
-// on every digit of "1234567" and triggered storage events across tabs).
-let _gtWriteTimer=null;
-const _scheduleGtWrite=()=>{clearTimeout(_gtWriteTimer);_gtWriteTimer=setTimeout(()=>{try{localStorage.setItem(GT_KEY,JSON.stringify(gt));dsSettingsChanged(GT_KEY);}catch(e){console.warn('[daily-success] gt write failed',e);}},250);};
-['d','r','c'].forEach(k=>{const el=document.getElementById('gpi-'+k);if(!el)return;el.addEventListener('input',()=>{const v=parseFloat(el.value)||0;gt[k]=v;_scheduleGtWrite();const actual=k==='d'?totD:k==='r'?totR:totC;const pct=v?Math.min(actual/v*100,100):0;const bar=document.getElementById('gpbar-'+k),num=document.getElementById('gpnum-'+k);if(bar)bar.style.width=pct+'%';if(num)num.textContent=v?`${Math.round(actual)} / ${v} (${Math.round(pct)}%)`:'Set target →';});el.addEventListener('blur',()=>{if(_gtWriteTimer){clearTimeout(_gtWriteTimer);try{localStorage.setItem(GT_KEY,JSON.stringify(gt));}catch(e){}}});});
 restoreScroll();
-setTimeout(()=>{mkChart('c-doors',cLbls,cDoors,'rgba(249,115,22,.65)');mkChart('c-rev',cLbls,cRev,'rgba(42,102,68,.65)');mkChart('c-close',cLbls,cClose,'rgba(26,58,110,.65)');},80);
-}
-
-function getDoorTarget(){
-const cfg=getUserConfig();
-if(!cfg||!cfg.floors)return null;
-const df=cfg.floors.find(f=>f.label.toLowerCase().includes('door'));
-return df?parseFloat(df.targetValue)||null:null;
 }
 
 function exportCSV(){
@@ -995,43 +892,6 @@ return html;
 // ═══════════════════════════════════════════
 // DAILY COMPARISON PANEL (vs yesterday / vs best)
 // ═══════════════════════════════════════════
-function buildDailyComparison(p){
-if(pages.length<2)return '';
-const sorted=[...pages].sort((a,b)=>a.dk>b.dk?1:-1);
-const idx=sorted.findIndex(x=>x.id===p.id);
-const prev=idx>0?sorted[idx-1]:null;
-const kpi=p.kpi||{},d=p.data||{};
-const doors=kpi.doors||0,rev=parseFloat(d['s-revenue']||0)||0,contacts=kpi.contacts||0,closes=kpi.closes||0;
-let bestDoors=0,bestRev=0,bestPage='';
-pages.forEach(pg=>{
-const k=pg.kpi||{},dd=pg.data||{};
-if((k.doors||0)>bestDoors){bestDoors=k.doors;bestPage=tlbl(pg);}
-const r=parseFloat(dd['s-revenue']||0)||0;if(r>bestRev)bestRev=r;
-});
-function delta(cur,prev,prefix){
-if(prev===null||prev===undefined)return'<span style="color:#8fa1b8;">—</span>';
-const d=cur-prev;
-if(d===0)return'<span style="color:#8fa1b8;">—</span>';
-return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac-text,var(--ac));">▼${prefix||''}${Math.abs(d)}</span>`;
-}
-const pD=prev?(prev.kpi?.doors||0):null;
-const pR=prev?parseFloat(prev.data?.['s-revenue']||0)||0:null;
-const pCon=prev?(prev.kpi?.contacts||0):null;
-const pCl=prev?(prev.kpi?.closes||0):null;
-return `<div style="background:#0a1018;width:100%;max-width:760px;border-radius:4px;padding:14px 22px;border:1px solid #1e2d40;border-left:4px solid var(--blu);">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;">TODAY VS YESTERDAY</span>
-<span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--ac-on-dark,var(--gold));letter-spacing:.08em;">${prev?'vs '+E(tlbl(prev)):'No previous day'}</span>
-</div>
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${doors}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#8fa1b8;letter-spacing:.1em;">DOORS</div><div style="font-size:12px;margin-top:2px;">${delta(doors,pD)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${contacts}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#8fa1b8;letter-spacing:.1em;">CONTACTS</div><div style="font-size:12px;margin-top:2px;">${delta(contacts,pCon)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${closes}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#8fa1b8;letter-spacing:.1em;">CLOSES</div><div style="font-size:12px;margin-top:2px;">${delta(closes,pCl)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">$${Math.round(rev).toLocaleString()}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#8fa1b8;letter-spacing:.1em;">REVENUE</div><div style="font-size:12px;margin-top:2px;">${delta(rev,pR,'$')}</div></div>
-</div>
-${bestDoors>0?`<div style="display:flex;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #1e2d40;"><span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#334455;">🏆 Best: ${bestDoors} doors · $${Math.round(bestRev).toLocaleString()} rev</span></div>`:''}
-</div>`;
-}
 
 // ═══════════════════════════════════════════
 // HOOK INTO EXISTING SYSTEMS
@@ -1576,7 +1436,6 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
     'toggle-mindset':      (el) => toggleMindset(el.dataset.mindsetId, el),
     'toggle-habit':        (el) => toggleHabit(el, el.dataset.habitKey, +el.dataset.habitRow),
     'toggle-section':      (el) => toggleSection(el),
-    'toggle-sales':        () => toggleSales(),
     'add-exercise':        () => addExercise({}, true),
     'delete-exercise':     (el) => { el.closest('tr').remove(); markDirty(); },
     'open-pr-history':     (el) => openPRHistory(el.dataset.lift, el.dataset.prKey),
