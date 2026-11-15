@@ -795,6 +795,7 @@ service cloud.firestore {
         || (ownerSideDeleter(resource.data.userId)
             && request.resource.data.get('deleted', false) is bool);
     }
+
     // Lead archive (2026-11-14, Jo: managers archive instead of deleting).
     // WHO is the leads update rule's own writer set (the owner unless a viewer,
     // or a manager / company_admin of the lead's company); this checks the
@@ -812,6 +813,18 @@ service cloud.firestore {
         || (d.get('archived', null) == false
             && d.get('archivedAt', null) == null
             && d.get('archivedBy', null) == null);
+    }
+
+    // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
+    // could not hide it by an update. Live markers (absent, or false / null)
+    // are fine for anyone who may create (the CSV import writes deleted:false);
+    // anything else needs ownerSideDeleter on the creator (who is the owner:
+    // the create rule pins userId == uid) and a bool `deleted`.
+    function leadCreateMarkersOk() {
+      let d = request.resource.data;
+      return (d.get('deleted', false) == false && d.get('deletedAt', null) == null
+              && d.get('isDeleted', false) == false && d.get('e2eTestData', false) == false)
+        || (ownerSideDeleter(request.auth.uid) && d.get('deleted', false) is bool);
     }
 
     // leads/{id}/jobs/{jobId} (2026-11-14): a job's deleted / deletedAt /
@@ -968,6 +981,8 @@ service cloud.firestore {
         // customerId (CSV import may carry one) cannot claim another
         // tenant's reserved prefix (security batch 2026-10-03).
         && leadCreateHasNoServerFields()
+        // Delete markers: the same writers as on update (leadCreateMarkersOk).
+        && leadCreateMarkersOk()
         // Server-minted doc ids (calcom__<booking>, <collection>__<id>) belong
         // to the webhook / bridge; a client may not squat one.
         && !leadId.matches('^(calcom|thumbtack_leads)__.*')

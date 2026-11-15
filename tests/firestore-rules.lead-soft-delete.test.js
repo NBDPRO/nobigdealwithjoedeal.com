@@ -66,7 +66,7 @@ async function run() {
   const platform = ctx('pat', { role: 'admin' });
   const otherAdmin = ctx('bob', { role: 'company_admin', companyId: 'co-b' });
   const otherMgr = ctx('mo', { role: 'manager', companyId: 'co-b' });
-  const { setDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField } = require('firebase/firestore');
+  const { setDoc, updateDoc, deleteDoc, doc, serverTimestamp, deleteField, writeBatch } = require('firebase/firestore');
 
   const lead = (userId, companyId, extra) => Object.assign({ userId, companyId, firstName: 'Pat', lastName: 'Home', stage: 'new' }, extra || {});
   const ids = {
@@ -194,6 +194,61 @@ async function run() {
   await check('jobs: a manager cannot hard-delete a job on a lead they own', 'deny', deleteDoc(J(mgr, 'mgrJobLead', 'mdel')));
   await check('jobs: positive control: the lead\'s own rep hard-deletes a job', 'allow', deleteDoc(J(rep, 'jobLead', 'jdel1')));
   await check('jobs: positive control: a company_admin hard-deletes a job', 'allow', deleteDoc(J(coAdmin, 'jobLead', 'jdel2')));
+
+  // -- CREATE: the same delete markers (2026-11-14 review). A lead cannot be
+  //    born hidden by someone who could not hide it by an update.
+  const fresh = (uid, co, extra) => Object.assign({ userId: uid, companyId: co, firstName: 'New', stage: 'new', meter: 'manual' }, extra || {});
+  await check('create: a manager cannot create their own lead already deleted', 'deny', setDoc(L(mgr, 'cMgrDel'), fresh('eve', 'co-a', { deleted: true, deletedAt: serverTimestamp() })));
+  await check('create: a manager cannot create a lead with e2eTestData', 'deny', setDoc(L(mgr, 'cMgrE2e'), fresh('eve', 'co-a', { e2eTestData: true })));
+  await check('create: a manager cannot create a lead with isDeleted', 'deny', setDoc(L(mgr, 'cMgrIsDel'), fresh('eve', 'co-a', { isDeleted: true })));
+  await check('create: positive control: the manager creates it live, deleted:false (the CSV import shape)', 'allow', setDoc(L(mgr, 'cMgrLive'), fresh('eve', 'co-a', { deleted: false })));
+  await check('create: positive control: the manager creates it with no markers', 'allow', setDoc(L(mgr, 'cMgrPlain'), fresh('eve', 'co-a')));
+  await check('create: a rep cannot create with deleted: \'yes\'', 'deny', setDoc(L(rep, 'cRepYes'), fresh('alice', 'co-a', { deleted: 'yes' })));
+  await check('create: positive control: the company_admin E2E seed shape (e2eTestData) is allowed', 'allow', setDoc(L(coAdmin, 'cAdmE2e'), fresh('carol', 'co-a', { e2eTestData: true, deleted: false })));
+  await check('create: a viewer still cannot create at all', 'deny', setDoc(L(vic, 'cVic'), fresh('vic', 'co-a')));
+
+  // -- jobs: the reviewer's three
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    await setDoc(doc(d, 'leads/soloJobLead'), lead('solo', 'solo'));
+    await setDoc(doc(d, 'leads/soloJobLead/jobs/s1'), Object.assign(job('solo'), { companyId: 'solo' }));
+    await setDoc(doc(d, 'leads/jobLead/jobs/jvic'), job('alice'));
+    await setDoc(doc(d, 'leads/vicJobLead'), lead('vic', 'co-a'));
+    await setDoc(doc(d, 'leads/vicJobLead/jobs/v1'), job('vic'));
+  });
+  await check('jobs: a solo owner soft-deletes a job on their own lead', 'allow', updateDoc(J(solo, 'soloJobLead', 's1'), binIt()));
+  await check('jobs: a viewer cannot hard-delete a job, even on a lead they own', 'deny', deleteDoc(J(vic, 'vicJobLead', 'v1')));
+  await check('jobs: another tenant\'s manager cannot soft-delete a co-a job', 'deny', updateDoc(J(otherMgr, 'jobLead', 'jvic'), binIt()));
+  await check('jobs: positive control: a co-a company_admin soft-deletes that job', 'allow', updateDoc(J(coAdmin, 'jobLead', 'jvic'), binIt()));
+
+  // -- the bulk path's batch size (crm-portal-bridge.js commitBulkLeadOp chunks at 450):
+  //    the rules allow a full chunk from the owner side and refuse it whole when one doc is a no.
+  const N = 450;
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    let b = writeBatch(d);
+    for (let i = 0; i < N; i++) b.set(doc(d, 'leads/bulk' + i), lead('alice', 'co-a'));
+    await b.commit();
+  });
+  {
+    const b = writeBatch(coAdmin);
+    for (let i = 0; i < N; i++) b.update(doc(coAdmin, 'leads/bulk' + i), binIt());
+    await check('batch: a company_admin soft-deletes a full 450-lead chunk', 'allow', b.commit());
+  }
+  {
+    // The refusal is shown on a small batch: the emulator never settles a
+    // REFUSED 450-write batch (it logs the per-request expression ceiling and
+    // the SDK promise hangs), while the two 450-write allows here prove the
+    // rules fit a full chunk. One refused doc refuses the batch either way.
+    const b = writeBatch(mgr);
+    for (let i = 0; i < 5; i++) b.update(doc(mgr, 'leads/bulk' + i), restore());
+    await check('batch: a manager\'s restore batch is refused whole', 'deny', b.commit());
+  }
+  {
+    const b = writeBatch(mgr);
+    for (let i = 0; i < N; i++) b.update(doc(mgr, 'leads/bulk' + i), { notes: 'bulk note' });
+    await check('batch: positive control: the manager\'s 450-lead ordinary edit is allowed', 'allow', b.commit());
+  }
 
   // -- tenant isolation (unchanged)
   await check('another tenant\'s company_admin cannot restore (clear the markers on) a co-a lead', 'deny', updateDoc(L(otherAdmin, 'repLead2'), restore()));
