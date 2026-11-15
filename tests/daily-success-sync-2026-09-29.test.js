@@ -197,7 +197,9 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
   ok('renderPage stamps the page on screen; renderDash clears it',
     /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\n(?:rememberScroll\(\);)?killCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
-  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', /const DS_OPEN_TO='dash';\r?\ninitTheme\(\);loadPages\(\);cur=-1;[\s\S]{0,200}renderTabs\(\);if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(app));
+  // 2026-11-14 (audit) / 2026-11-15 (source-pin ratchet): the boot used to be pinned by its exact minified text here. It is
+  // executed instead in a real browser: ds-flow-batch-3-2026-11-09 'control: boots on the Dashboard' (cur === -1, the Dash on
+  // screen) and ds-day-rollover / ds-no-kpi-tiles drive the same boot. No text pin left here.
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');
   ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));
