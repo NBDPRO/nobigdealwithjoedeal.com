@@ -337,8 +337,9 @@
     }).join('') + '</ul>';
     if (arrived) {
       h += '<div class="fa-onsite" role="status">On site ' + esc(timeOf(arrived.at || arrived)) +
-        (arrived.acc != null ? ' · GPS ±' + esc(Math.round(arrived.acc)) + ' m' : ' · no GPS fix') +
-        (arrived.saved === false ? ' · not saved to the timeline' : '') + '</div>';
+        (arrived.locating ? ' · finding GPS…' : (arrived.acc != null ? ' · GPS ±' + esc(Math.round(arrived.acc)) + ' m' : ' · no GPS fix')) +
+        (arrived.saved === false ? ' · not saved to the timeline' : '') +
+        (arrived.saved === 'queued' ? ' · saved on this phone, syncs with signal' : '') + '</div>';
     } else {
       h += '<div class="fa-slide" data-fa-slide tabindex="0" role="slider" aria-label="Slide to confirm you are on site" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">' +
         '<div class="fa-knob" data-fa-knob>&rsaquo;&rsaquo;</div><span class="fa-slide-lbl">Slide: I\'m on site</span></div>';
@@ -545,15 +546,27 @@
     });
   }
   function setArrived(key, rec) { var d = day(); d.arrived[key] = rec; saveDay(d); }
+  // 'synced' on the server's ack, 'queued' once the phone is offline or the
+  // ack is slow: the write is in Firestore's on-phone queue and syncs itself.
+  function settleWrite(p) {
+    var Sync = W.NBDOfflineSync;
+    if (Sync && typeof Sync.settle === 'function') return Sync.settle(p);
+    return Promise.resolve(p).then(function () { return 'synced'; });
+  }
   // The slide completed: stamp the arrival time + GPS on the timeline.
+  // Wave-1 field #6 (2026-11-14): the screen used to wait up to 8 s for GPS
+  // and then on an addDoc that never settles offline, so the slide froze and
+  // S.stamping stayed true. The time is shown at once; the write settles.
   function confirmOnSite() {
     if (S.stamping) return;
     S.stamping = true;
     var key = S.stopKey || ('lead:' + S.leadId);
     var leadId = S.leadId;
     haptic(30);
+    var at = Date.now();
+    try { setArrived(key, { at: at, acc: null, saved: null, locating: true }); render(); }
+    catch (e) { console.warn('[field] could not show on site yet:', e && e.message); }
     getFix().then(function (fix) {
-      var at = Date.now();
       var rec = { at: at, acc: fix ? fix.accuracy : null, saved: null };
       setArrived(key, rec);
       if (!leadId || !W.addDoc || !W.collection || !W.serverTimestamp || !W.db) { rec.saved = false; setArrived(key, rec); return rec; }
@@ -566,13 +579,19 @@
       };
       if (claims.companyId) data.companyId = claims.companyId;
       if (fix) { data.lat = fix.lat; data.lng = fix.lng; data.accuracyM = Math.round(fix.accuracy); }
-      return Promise.resolve(W.addDoc(W.collection(W.db, 'leads', leadId, 'activity'), data)).then(function () {
-        rec.saved = true; setArrived(key, rec);
+      return settleWrite(W.addDoc(W.collection(W.db, 'leads', leadId, 'activity'), data)).then(function (sync) {
+        rec.saved = sync === 'queued' ? 'queued' : true; setArrived(key, rec);
         return rec;
       }, function () { rec.saved = false; setArrived(key, rec); return rec; });
     }).then(function (rec) {
       S.stamping = false;
       if (rec && rec.saved === false) toast('On site noted here, but it did not save to the timeline. Check your connection.', 'info');
+      render();
+    }, function (e) {
+      // e.g. localStorage full: never leave the slide locked.
+      S.stamping = false;
+      console.warn('[field] on-site stamp failed:', e && e.message);
+      toast('Could not record on site. Try the slide again.', 'error');
       render();
     });
   }
@@ -934,5 +953,6 @@
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
     _saveShot: saveShot, _retryHeld: retryHeld, _heldCount: function () { return held.length; },
+    _confirmOnSite: confirmOnSite, // tests/field-onsite-offline-2026-11-14.test.js
   };
 })();

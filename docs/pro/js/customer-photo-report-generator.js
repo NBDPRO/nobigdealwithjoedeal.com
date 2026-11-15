@@ -321,9 +321,21 @@ window.closeNotesModal = function() {
   window.nbdModal.close('notesModal');
 };
 
+// Offline (wave-1 field #5, 2026-11-14): addDoc resolves only on the server's
+// ack, so with no signal both note savers sat at "Saving…" forever although the
+// note was already in Firestore's on-phone queue. 'synced' on the ack, 'queued'
+// once the phone is offline or the ack is slow; the write syncs by itself.
+function _noteSettle(p) {
+  const S = window.NBDOfflineSync;
+  if (S && typeof S.settle === 'function') return S.settle(p);
+  return Promise.resolve(p).then(() => 'synced');
+}
+let _noteSaving = false; // the modal's Save: a second tap must not write a second note
+
 window.saveNote = async function() {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  if (_noteSaving) return;
   const noteText = document.getElementById('noteText').value.trim();
 
   if (!noteText) {
@@ -336,27 +348,42 @@ window.saveNote = async function() {
     return;
   }
 
+  const btn = document.querySelector('[data-action="saveNote"]');
+  _noteSaving = true;
+  if (btn) btn.disabled = true;
   try {
-    await window.addDoc(window.collection(window.db, 'notes'), {
+    const sync = await _noteSettle(window.addDoc(window.collection(window.db, 'notes'), {
       leadId: window._customerId,
       userId: window.auth.currentUser.uid,
       text: noteText,
       createdAt: window.serverTimestamp(),
       createdBy: auth.currentUser?.email || 'Unknown'
-    });
+    }));
 
     closeNotesModal();
-    await loadNotes(window._customerId);
-
-    // Reload timeline to show new note
-    const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
+    if (sync === 'queued') {
+      // A re-read now could only come from the offline cache, or hang.
+      _nbdNotify('Note saved on this phone. It syncs when you have signal.', 'success');
+      return;
+    }
+    // The note is saved. A refresh that fails now must not say "not saved"
+    // (the rep would tap again and write a duplicate).
+    try {
+      await loadNotes(window._customerId);
+      const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) {
+      console.warn('[saveNote] saved; the notes refresh failed:', refreshErr);
     }
 
   } catch (error) {
     console.error('Error saving note:', error);
     _nbdNotify('Note not saved: ' + ((error && error.message) || 'unknown error'), 'error');
+  } finally {
+    _noteSaving = false;
+    if (btn) btn.disabled = false;
   }
 };
 
@@ -405,16 +432,26 @@ window.quickAddNote = async function () {
   }
 
   try {
-    await window.addDoc(window.collection(window.db, 'notes'), {
+    const sync = await _noteSettle(window.addDoc(window.collection(window.db, 'notes'), {
       leadId: window._customerId,
       userId: window.auth.currentUser.uid,
       text,
       createdAt: window.serverTimestamp(),
       createdBy: window.auth.currentUser?.email || 'Unknown'
-    });
+    }));
+
+    input.value = '';
+    if (sync === 'queued') {
+      // Held on the phone: keep the card, say where the note is, skip the
+      // re-reads (offline they come from the cache, or hang).
+      const tmp = document.getElementById(tmpId);
+      const lbl = tmp && tmp.querySelector('div:last-child');
+      if (lbl) lbl.textContent = 'Saved on this phone, syncs when you have signal';
+      if (status) { status.textContent = 'Saved on this phone ✓'; status.style.color = 'var(--green)'; }
+      return;
+    }
 
     // Success: clear the input, flash "Saved", reload from source.
-    input.value = '';
     if (status) {
       status.textContent = 'Saved ✓';
       status.style.color = 'var(--green)';
