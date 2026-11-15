@@ -109,6 +109,10 @@ async function run() {
     await setDoc(doc(db, 'supplements/sJ2'), sup({ version: 7, invoicedInvoiceId: 'invJ2', invoicedAt: 1 }));
     await setDoc(doc(db, 'invoices/invJ1'), inv('rep1', { supplementIds: ['sJ1'], total: 1, items: [], source: 'supplement_invoice' }));
     await setDoc(doc(db, 'invoices/invJ2'), inv('mike', { supplementIds: ['sJ2'], total: 1, items: [], source: 'supplement_invoice' }));
+    // Money B x Money C merge (2026-11-15): supplement invoices that carry money, and one with none.
+    await setDoc(doc(db, 'invoices/invMS'), inv('solo1', { companyId: 'solo1', leadId: null, estimateId: 'estS', supplementIds: ['sJ1'], total: 100, payments: [{ amount: 100, date: '2026-11-15', method: 'check', recordedBy: 'solo1' }], amountPaid: 100, source: 'supplement_invoice' }));
+    await setDoc(doc(db, 'invoices/invMA'), inv('carol', { supplementIds: ['sJ1'], total: 100, payments: [{ amount: 100, date: '2026-11-15', method: 'check', recordedBy: 'carol' }], amountPaid: 100, source: 'supplement_invoice' }));
+    await setDoc(doc(db, 'invoices/invM0'), inv('carol', { supplementIds: ['sJ1'], total: 100, items: [], source: 'supplement_invoice' }));
     await setDoc(doc(db, 'supplements/sJGone'), sup({ version: 8, invoicedInvoiceId: 'invNever', invoicedAt: 1 }));
     await setDoc(doc(db, 'supplements/sDel'), sup({ version: 9, deleted: true }));
     await setDoc(doc(db, 'supplements/sH'), draft({ version: 10 }));
@@ -221,6 +225,17 @@ async function run() {
   await check('H1 the rep can still edit the notes on it', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { notes: 'call first' }));
   await check('H1 the company_admin (owner side) may change its total', 'allow', updateDoc(doc(carol, 'invoices/invJ1'), { total: 2, balanceDue: 2 }));
   await check('H1 an ordinary invoice (no supplements) is still re-priced by its maker as before', 'allow', updateDoc(doc(carol, 'invoices/invPlain'), { total: 15000, balanceDue: 15000 }));
+
+  // ── Money B x Money C merge (2026-11-15): money is never hard-deleted, and supplement invoices stay the owner side's ──
+  // Before the merge, C let a creator who passes backfillWriterOk (a solo owner) and the platform admin delete a
+  // supplement invoice that carries money; B forbids hard-deleting any money invoice, by anyone. The merge keeps B's.
+  await check('merge: a solo owner cannot hard-delete their supplement invoice that carries money', 'deny', deleteDoc(doc(solo, 'invoices/invMS')));
+  await check('merge: company_admin cannot hard-delete a supplement invoice that carries money', 'deny', deleteDoc(doc(carol, 'invoices/invMA')));
+  await check('merge: the platform admin cannot hard-delete it either', 'deny', deleteDoc(doc(joe, 'invoices/invMA')));
+  await check('merge: another tenant admin cannot delete a co-a supplement invoice with no money', 'deny', deleteDoc(doc(eve, 'invoices/invM0')));
+  await check('merge: the rep cannot write refunds onto the supplement invoice', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { refunds: [{ amount: 1 }] }));
+  await check('merge: …nor stripeCreditKeys', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { stripeCreditKeys: ['k'] }));
+  await check('merge control: company_admin still deletes a co-a supplement invoice with no money', 'allow', deleteDoc(doc(carol, 'invoices/invM0')));
 
   // ── interim protections kept: a SERVER-made invoice that billed supplements (seeded) ──
   await check('#1 a rep cannot DELETE an invoice that billed supplements', 'deny', deleteDoc(doc(rep, 'invoices/invJ1')));
