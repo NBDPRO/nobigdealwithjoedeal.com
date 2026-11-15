@@ -1925,8 +1925,6 @@ service cloud.firestore {
                   && d.status.size() > 0 && d.status == resource.data.get('sendingPriorStatus', '') && d.status.lower() != 'paid'))
         &&('status' in d || !('status' in resource.data));
     }
-    // A hard delete of an invoice that carries money is the owner side's (platform admin, company_admin, a solo owner).
-    // A rep / manager who created it may delete only one with no payment on it (a mistaken draft).
     // The money fields of an invoice, unchanged by this write (and no move into or out of 'paid'): the platform admin's bypass
     // is limited to everything else.
     function invoiceMoneyUntouched() {
@@ -4252,7 +4250,10 @@ service cloud.firestore {
           // (leadIdStable, 2026-10-05).
           // supplementIds frozen (2026-11-14): the supplements this invoice
           // billed (their stamps point here) cannot be dropped off it.
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds', 'backfilled', 'backfillKey', 'paymentBackfill', 'refunds', 'stripeCreditKeys'])
+          // The server's money keys (invoiceServerOnlyKeys: refunds, refundedTotal, refundReopenedTotal, stripeCreditKeys,
+          // paidIntentIds, supersededPayments, reconciliations) are the Admin SDK's alone (Joe, 2026-11-15): no browser sets,
+          // changes or drops one. paidIntentIds is what stops a second credit for the same Stripe payment.
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds', 'backfilled', 'backfillKey', 'paymentBackfill'].concat(invoiceServerOnlyKeys()))
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
