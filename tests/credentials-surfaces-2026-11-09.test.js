@@ -22,6 +22,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const K = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
@@ -92,13 +93,26 @@ console.log('B. docs/llms.txt credentials come from the generated region');
   ok('no honesty word in the region', !/master\s*elite|\blicensed\b|president['\u2019]?s\s*club/i.test(region));
   // 2026-11-14 (Lomanco): a training row was completed, not certified or "active";
   // a materials row is a brand NBD buys, so it was made, not issued.
-  active.filter((r) => r.type === 'training' || r.type === 'supplier-material').forEach((r) => {
-    const line = (region.split('\n').find((l) => l.includes('**' + r.name + '**')) || '');
-    const good = r.type === 'training'
-      ? /\bcompleted\b/.test(line) && !/certified|active from/i.test(line)
-      : /\bmade by\b/.test(line) && !/issued by|certified/i.test(line);
-    ok('the region words ' + r.id + ' as ' + (r.type === 'training' ? '"completed"' : '"made by"'), line !== '' && good, line.slice(0, 160));
-  });
+  // (2026-11-15, source-pin ratchet) run the generator's own renderCredentials
+  // over fixture rows instead of reading llms.txt's text: the line for each
+  // row type is what build-llms writes, whatever the committed file says.
+  {
+    const rows = [
+      { id: 't', name: 'T Course', issuer: 'Lomanco', type: 'training', status: 'active', order: 1, since: '2026-11', summary: 's.', claimWording: 'c' },
+      { id: 'm', name: 'M Products', issuer: 'Lomanco', type: 'supplier-material', status: 'active', order: 2, summary: 's.', claimWording: 'c' },
+      { id: 'g', name: 'G Cert', issuer: 'GAF', type: 'manufacturer', status: 'active', order: 3, since: '2026', summary: 's.', claimWording: 'c' },
+    ];
+    const vm = K.loadInVm(['llms-render-credentials'], {
+      readFileSync: () => JSON.stringify({ credentials: rows }), CREDENTIALS: 'credentials.json', ORIGIN: 'https://o',
+      oneLine: (s) => String(s), credSince: (s) => s, CRED_FORBIDDEN: /master\s*elite|\blicensed\b/i,
+    }, { src: { 'llms-render-credentials': K.sliceFn(K.read('scripts/build-llms.mjs'), 'renderCredentials', { unique: true }) || '' } });
+    const out = typeof vm.renderCredentials === 'function' ? vm.renderCredentials() : [];
+    const lineFor = (name) => out.find((l) => l.startsWith('  - **' + name + '**')) || '';
+    const t = lineFor('T Course'), m = lineFor('M Products'), g = lineFor('G Cert');
+    ok('POSITIVE CONTROL: build-llms still writes "certified" for a manufacturer row', g.includes('(issued by GAF; certified 2026)'), g);
+    ok('build-llms words a training row "completed", never "certified" or "active from"', t.includes('completed 2026-11') && !/certified|active from/i.test(t), t);
+    ok('build-llms words a materials row "made by", never "issued by"', m.includes('(made by Lomanco)') && !/issued by|certified/i.test(m), m);
+  }
   ok('outside the region, no hand-kept credential ID or certified-on date (they drift)',
     !active.some((r) => r.contractorId && outside.includes(r.contractorId)) && !/certified (January|February|March|April|May|June|July|August|September|October|November|December)/i.test(outside),
     (outside.match(/.{0,60}(181382|1162011|certified (July|August)).{0,40}/) || [])[0]);

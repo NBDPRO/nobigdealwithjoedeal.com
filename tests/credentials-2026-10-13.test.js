@@ -29,6 +29,22 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const K = require('./lib/src-kit');
+
+// Structure helpers for generated pages (2026-11-15, source-pin ratchet):
+// the "Training" / "Materials we install" checks read the parsed cards and the
+// JSON-LD @ids, not the page text.
+function groupOf(doc, el) {
+  if (!el) return null;
+  const heads = doc.$$('h2.cred-group').filter((h) => h.start < el.start);
+  return heads.length ? heads[heads.length - 1].text.trim() : null;
+}
+function ldIds(doc) {
+  const out = [];
+  const walk = (v) => { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') { if (typeof v['@id'] === 'string') out.push(v['@id']); Object.values(v).forEach(walk); } };
+  for (const s of doc.$$('script[type="application/ld+json"]')) { try { walk(JSON.parse(s.html)); } catch (e) { /* a broken block adds nothing */ } }
+  return out;
+}
 
 const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -142,12 +158,15 @@ console.log('\ntraining rows');
     id: 'zz-training', type: 'training', name: 'ZZTRAINING Course', since: '2026-11', order: 920,
   })));
   ok('a training row is accepted by the validator', f.run.status === 0, (f.run.stdout + f.run.stderr).trim());
-  ok('POSITIVE CONTROL: the training row renders as a card', /ZZTRAINING Course/.test(f.outPage));
-  ok('training rows sit under a "Training" heading', /id="group-training">Training</.test(f.outPage));
-  const cardHtml = (f.outPage.match(/<article class="cred-card" id="zz-training">[\s\S]*?<\/article>/) || [''])[0];
-  ok('its date reads "Completed November 2026"', /Completed November 2026/.test(cardHtml), cardHtml.slice(0, 200));
-  ok('its card never says "Certified"', cardHtml !== '' && !/Certified/i.test(cardHtml));
-  ok('no JSON-LD node for a training row', !/credentials#zz-training"/.test(f.outPage));
+  const doc = K.parseTags(f.outPage);
+  const card = doc.byId('zz-training');
+  ok('POSITIVE CONTROL: the training row renders as a card', !!card && card.tag === 'article' && card.$('h3').text.trim() === 'ZZTRAINING Course');
+  ok('training rows sit under a "Training" heading', groupOf(doc, card) === 'Training');
+  const meta = card ? card.$('.cred-meta').text : '';
+  ok('its date reads "Completed November 2026"', meta.includes('Completed November 2026'), meta);
+  ok('its card never says "Certified"', !!card && !/Certified/i.test(card.text));
+  const ids = ldIds(doc);
+  ok('no JSON-LD node for a training row (control: the GAF node is there)', ids.some((i) => i.endsWith('#gaf-certified')) && !ids.some((i) => i.endsWith('#zz-training')));
 }
 // A supplier-material row is a brand NBD buys and installs: "Made by", never
 // "Issued by" (nothing was issued) and never "Certified".
@@ -155,10 +174,13 @@ console.log('\ntraining rows');
   const f = mirror((d) => d.credentials.push(baseRow({
     id: 'zz-material', type: 'supplier-material', name: 'ZZMATERIAL Products', order: 930,
   })));
-  const cardHtml = (f.outPage.match(/<article class="cred-card" id="zz-material">[\s\S]*?<\/article>/) || [''])[0];
-  ok('POSITIVE CONTROL: the material row renders under "Materials we install"', /id="group-supplier-material">Materials we install</.test(f.outPage) && cardHtml !== '');
-  ok('a material row reads "Made by", not "Issued by"', /Made by ZZ Issuer/.test(cardHtml) && !/Issued by/.test(cardHtml), cardHtml.slice(0, 240));
-  ok('no JSON-LD node for a material row', !/credentials#zz-material"/.test(f.outPage));
+  const doc = K.parseTags(f.outPage);
+  const card = doc.byId('zz-material');
+  ok('POSITIVE CONTROL: the material row renders under "Materials we install"', !!card && groupOf(doc, card) === 'Materials we install');
+  const meta = card ? card.$('.cred-meta').text : '';
+  ok('a material row reads "Made by", not "Issued by"', meta.startsWith('Made by ZZ Issuer') && !meta.includes('Issued by'), meta);
+  const ids = ldIds(doc);
+  ok('no JSON-LD node for a material row (control: the GAF node is there)', ids.some((i) => i.endsWith('#gaf-certified')) && !ids.some((i) => i.endsWith('#zz-material')));
 }
 
 // ── 4. real-tree rendered output ─────────────────────────────────────────
