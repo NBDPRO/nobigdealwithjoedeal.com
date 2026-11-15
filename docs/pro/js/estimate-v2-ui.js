@@ -1812,7 +1812,7 @@
     // integer, so the rise/run ratio is pitch/12. Without this, waste stayed stuck
     // at the initial default (1.17) regardless of the chosen pitch.
     if (key === 'pitch' || key === 'cutUpRoof') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
         let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
         if (state.measurements.cutUpRoof) w += 0.03;
@@ -4478,7 +4478,11 @@
       adj:              Math.round(ctx.adjustedSqft || 0),
       sq:               Number((ctx.sq || 0).toFixed(2)),
       wf:               ctx.waste || 1.17,
-      pl:               String(state.measurements.pitch || 8) + '/12',
+      // `|| 6`, the default buildPerSqInput PRICES a blank pitch at (finding 12,
+      // 2026-11-14). `|| 8` saved a blank as 8/12, and the reopen's first edit
+      // added the steep adder to a roof never priced steep. The line-item
+      // engine prices 0 and 6 alike (its only pitch rule is the >= 8 adder).
+      pl:               String(state.measurements.pitch || 6) + '/12',
       ridge:            ctx.ridgeLf || 0,
       eave:             ctx.eaveLf || 0,
       hip:              ctx.hipLf || 0,
@@ -5014,6 +5018,18 @@
         // Copy: `.recommended` is stamped below, and perSqTiers is the
         // estimate's cached object reused by later renders.
         meta.tiers = Object.assign({}, estimate.perSqTiers);
+      } else if (state._reopenedClean && estimate.prices
+                 && _v2Tiers().some(k => estimate.prices[k] != null && Number(estimate.prices[k]) > 0)) {
+        // A clean reopen replays the saved doc, which keeps prices{} but not
+        // perSqTiers. Rebuilding the cards live dropped the saved pass-through
+        // fees and today's settings moved them, so the cards disagreed with the
+        // saved headline (finding 11, 2026-11-14). The formatter reads only
+        // .total per card.
+        meta.tiers = {};
+        _v2Tiers().forEach(k => {
+          const v = Number(estimate.prices[k]);
+          if (estimate.prices[k] != null && v > 0) meta.tiers[k] = { total: v };
+        });
       } else if (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.calculateAllTiers === 'function') {
         meta.tiers = window.EstimateBuilderV2.calculateAllTiers(buildPerSqInput());
       } else {
@@ -5476,7 +5492,7 @@
     // Same pitch→waste rule as updateMeasurement so the imported pitch
     // doesn't leave a stale waste factor behind.
     if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
       if (state.measurements.cutUpRoof) w += 0.03;
       state.measurements.waste = w;
