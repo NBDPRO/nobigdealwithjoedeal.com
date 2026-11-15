@@ -1090,7 +1090,7 @@ async function run() {
   await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all
   await assertSucceeds(updateDoc(await fresh('r3'), paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
   await assertFails(updateDoc(doc(alice, 'invoices/r3'), { payments: [payEntry({ at: when, recordedBy: 'carol' })] }));       // same-size recorder rewrite
-  // (5) cents only, and the entry unroll covers every index (12 appends are guaranteed to fit the rules expression budget since the 2026-10-20 void rule; 16 entries are always refused)
+  // (5) cents only, and the entry unroll covers every index (12 appends are guaranteed to fit the rules expression budget since the 2026-10-20 void rule; a jump to 16 entries in one write is refused; pure appends go to 30, see "long payment lists" below)
   await assertFails(updateDoc(await fresh('c1'), paidPatch(payEntry({ amount: 5339.997 }), { amountPaid: 5339.997 })));
   await assertSucceeds(updateDoc(await fresh('k0'), { total: 100000 }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/k0'), { status: 'sent' }));
@@ -1338,6 +1338,27 @@ async function run() {
   // T1: the backfill markers are frozen by key (didNotChange), so a null value cannot be added, and a stored null cannot be dropped
   for (const k of ['backfilled', 'backfillKey', 'paymentBackfill']) await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: null }));
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-null'), { backfilled: deleteField() }));
+  // long payment lists (2026-11-15): a pure append (the old list an unchanged prefix, plus one valid entry) is one list
+  // comparison, so it fits the expression budget for every writer up to 30 entries, backfill invoices included
+  // (before, a company_admin went over at the 10th payment on a backfill invoice, and a solo owner at the 9th on any).
+  {
+    const longBase = Date.now();   // one base time, so the old entries in an append are byte-for-byte the seeded ones
+    const longList = (n, by) => Array.from({ length: n }, (_, i) => ({ amount: 10, at: new Date(longBase - (80 - i) * 3600000), method: 'cash', recordedBy: by, paymentId: 'L' + i }));
+    const seedLong = async (id, n, by, extra) => { await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/' + id), Object.assign({ createdBy: by, companyId: by === 'solo1' ? 'solo1' : 'co-a', status: 'partial', total: 100000, amountPaid: 10 * n, balanceDue: 100000 - 10 * n, payments: longList(n, by), createdAt: 1 }, extra || {})); }); };
+    const appendOne = (db, id, n, by, over) => { const at = new Date(); return updateDoc(doc(db, 'invoices/' + id), Object.assign({ payments: longList(n, by).concat([{ amount: 30, at, method: 'check', recordedBy: by, paymentId: 'L' + n }]), amountPaid: 10 * n + 30, balanceDue: 100000 - 10 * n - 30, lastPaymentAt: at }, over || {})); };
+    const bfMarks = { source: 'backfill', backfilled: true, backfillKey: 'kL' };
+    for (const n of [9, 10, 19, 29]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
+    await seedLong('long-rep', 29, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 29, 'alice'));      // a rep, 30th entry
+    await seedLong('long-solo', 8, 'solo1'); await assertSucceeds(appendOne(solo, 'long-solo', 8, 'solo1'));      // a solo owner, 9th entry
+    await seedLong('long-solo29', 29, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 29, 'solo1'));   // a solo owner, 30th, backfill
+    await seedLong('long-31', 30, 'alice'); await assertFails(appendOne(alice, 'long-31', 30, 'alice'));           // the 31st is refused
+    await assertFails(appendOne(alice, 'long-rep', 29, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
+    await seedLong('long-edit', 19, 'alice');
+    const edited = longList(19, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
+    const atE = new Date();
+    await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L19' }]), amountPaid: 220, balanceDue: 99780, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
+    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-29'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
+  }
   await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
