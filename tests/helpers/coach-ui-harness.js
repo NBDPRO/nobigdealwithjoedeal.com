@@ -47,6 +47,7 @@ function makeHarness(opts) {
     const cls = new Set();
     return {
       tag, id: '', className: '', innerHTML: '', _attrs: {}, tabIndex: 0,
+      firstChild: { textContent: '' }, lastChild: { textContent: '' },   // the rest bar's two text nodes (updateRestBar)
       classList: { add(c) { cls.add(c); }, remove(c) { cls.delete(c); }, toggle(c, on) { if (on === undefined ? !cls.has(c) : on) cls.add(c); else cls.delete(c); }, contains: (c) => cls.has(c) },
       setAttribute(k, v) { this._attrs[k] = v; },
       getAttribute(k) { return k in this._attrs ? this._attrs[k] : null; },

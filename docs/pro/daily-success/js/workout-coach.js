@@ -676,15 +676,32 @@
     restTimer = setInterval(() => {
       if (!rest) { clearInterval(restTimer); return; }
       restTick();
-      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
+      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); holdAwake(false); }
     }, 1000);
+  }
+  // Keep the screen on while a rest runs (audit 2026-11-14 #11): an auto-locked phone stops the page's timers, so the alert never
+  // came until Jo unlocked it. A web page cannot alarm through a locked phone; this stops it locking. No wake lock API: no change.
+  let wakeLock = null, wakeWant = false;
+  function holdAwake(on) {
+    wakeWant = !!on;
+    try {
+      if (!on) { const l = wakeLock; wakeLock = null; if (l && typeof l.release === 'function') Promise.resolve(l.release()).catch(() => {}); return; }
+      const W = typeof navigator !== 'undefined' && navigator.wakeLock;
+      if (wakeLock || !W || typeof W.request !== 'function') return;
+      Promise.resolve(W.request('screen')).then((l) => {
+        if (!wakeWant || wakeLock) { try { l.release(); } catch (_) { /* already gone */ } return; }
+        wakeLock = l;
+        if (l && typeof l.addEventListener === 'function') l.addEventListener('release', () => { if (wakeLock === l) wakeLock = null; });
+      }).catch(() => { /* refused (low battery, hidden page): the rest still runs */ });
+    } catch (_) { /* the rest still runs */ }
   }
   function startRest(seconds, label) {
     rest = { until: Date.now() + seconds * 1000, label, buzzed: false, said: '' };
     persistRest();
     runRest();
+    holdAwake(true);
   }
-  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); }
+  function stopRest() { rest = null; clearInterval(restTimer); persistRest(); updateRestBar(); holdAwake(false); }
   // A rest that was still running when the page was closed or reloaded. One that has already ended is dropped: its alert is long past,
   // and a "Go" bar that comes back from nowhere would sit on the screen until someone found its OK.
   function restoreRest() {
@@ -692,6 +709,11 @@
     if (!r || !(Number(r.until) > Date.now())) { if (r) persistRest(); return; }
     rest = { until: Number(r.until), label: String(r.label || ''), buzzed: false, said: '' };
     runRest();
+    // The beep needs an audio context a tap unlocked; after a reload no set has been ticked yet, so a restored rest ended silent
+    // on iPhone (no vibration there). The first tap anywhere unlocks it (audit 2026-11-14 #11).
+    const unlockOnce = () => { ['pointerdown', 'keydown', 'click'].forEach((t) => document.removeEventListener && document.removeEventListener(t, unlockOnce, true)); unlockAudio(); };
+    ['pointerdown', 'keydown', 'click'].forEach((t) => document.addEventListener(t, unlockOnce, true));
+    holdAwake(true);
   }
   // The slim "Rest m:ss - Skip" bar: whenever a rest is running and the coach is closed (the coach shows its own line while open),
   // so the alert is never a mystery. One element, built once; only its two text nodes change.
@@ -1048,6 +1070,7 @@
   }
 
   document.addEventListener('click', onClick);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && rest && restLeft() > 0) { wakeLock = null; holdAwake(true); } });
   document.addEventListener('keydown', onKey);
   document.addEventListener('input', onField);
   document.addEventListener('change', onField);
