@@ -229,3 +229,6 @@ button.wc-kind.k-fail { color: #fda4af; font-weight: 700; }
    announcer is visually hidden but read by screen readers. */
 .wc-rest-t { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
 .wc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* the one safety line (2026-11-14): first use, dismissible */
+.wc-safety-note { margin: 8px 0; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, .15); border-radius: 8px; font-size: 13px; color: #eef2f7; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wc-safety-note .wc-link { flex-shrink: 0; }

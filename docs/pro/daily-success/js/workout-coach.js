@@ -27,6 +27,8 @@
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const NOTES = 'nbd_ds_coach_notes';   // { exId: { 'YYYY-MM-DD': 'note' } } - synced like the other coach settings
   const REST = 'nbd_ds_coach_rest';   // { until, label } - the running rest timer, this device only (so a reload or a closed coach does not lose it)
+  // Joe's wording (2026-11-14): shown once at first use, always in the coach settings.
+  const SAFETY = 'Not medical advice. Stop if something hurts.';
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,6 +50,7 @@
       plates: C().normPlates(s.plates),
       warmups: s.warmups !== false,
       restAlert: C().normRestAlert(s.restAlert),
+      noteSeen: s.noteSeen === true,   // the safety line was dismissed (first use only; always in settings)
       workoutsPerWeek: window.NBDWeeklyTargets ? window.NBDWeeklyTargets.normWeekly(s.workoutsPerWeek) : (s.workoutsPerWeek == null ? null : s.workoutsPerWeek),
     };
   }
@@ -315,6 +318,7 @@
         <button class="wc-gear${showSettings ? ' on' : ''}" data-coach-action="settings" aria-label="Coach settings" aria-expanded="${showSettings ? 'true' : 'false'}">⚙</button>
       </div>
       ${showSettings ? settingsHtml(s) : ''}
+      ${s.noteSeen ? '' : `<div class="wc-safety-note" role="note">${SAFETY} <button class="wc-link" data-coach-action="note-ok">Got it</button></div>`}
       <div class="wc-chips">${chips}</div>
       <div class="wc-actions">
         <button class="btn btn-ghost" data-coach-action="reroll">🔀 Switch it up</button>
@@ -578,6 +582,7 @@
   function settingsHtml(s) {
     const radio = (name, val, label, cur) => `<button class="wc-chip${cur === val ? ' on' : ''}" aria-pressed="${cur === val ? 'true' : 'false'}" data-coach-action="set-${name}" data-val="${val}">${label}</button>`;
     return `<div class="wc-settings">
+      <div class="wc-hint wc-safety">${SAFETY}</div>
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" aria-pressed="${s.equip.includes(e) ? 'true' : 'false'}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
@@ -867,6 +872,7 @@
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'note-ok': { const so = settings(); so.noteSeen = true; saveSettings(so); render(); return; }
       case 'routine-save': saveRoutine(); return;
       case 'routine-start': startRoutine(String(t.dataset.id || '')); return;
       case 'routine-del': {
