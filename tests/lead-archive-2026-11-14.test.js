@@ -111,6 +111,8 @@ function loadBridge(claims, uid, opts) {
     serverTimestamp: () => 'ts',
     updateDoc: (ref, patch) => { log.writes.push({ id: ref.id, patch }); return o.writeFails ? Promise.reject(Object.assign(new Error('denied'), { code: 'permission-denied' })) : Promise.resolve(); },
     _loadLeads: () => { log.reloads++; return Promise.resolve(); },
+    // team-names.js: the roster name for a uid, null when not loaded / unknown.
+    NBDTeamNames: { nameFor: (u) => ({ eve: 'Eve <b>Manager</b>' })[u] || null },
   };
   const api = new Function('window', 'document', 'showToast', 'escHtml', body)(
     win, { getElementById: (id) => els[id] || null }, (m, k) => log.toasts.push({ m: String(m), k }),
@@ -184,6 +186,19 @@ async function partC() {
   b = loadBridge(C.manager, 'eve', { archived: [] });
   if (b.api.renderArchivedDrawer) b.api.renderArchivedDrawer();
   ok('none archived: an empty state, not a blank drawer', /No archived leads/.test(b.drawerBody.innerHTML), b.drawerBody.innerHTML);
+  // Who archived it (2026-11-15 review): archivedBy → the roster name, escaped.
+  b = loadBridge(C.coAdmin, 'carol', { archived: [archivedOne, Object.assign({}, archivedOne, { id: 'A2', archivedBy: 'stranger' }), Object.assign({}, archivedOne, { id: 'A3', archivedBy: undefined })] });
+  if (b.api.renderArchivedDrawer) b.api.renderArchivedDrawer();
+  const cardOf = (id) => {
+    const h = b.drawerBody.innerHTML; const i = h.indexOf('id="ar-' + id + '"');
+    if (i < 0) return '';
+    const next = h.indexOf('id="ar-', i + 1);
+    return h.slice(i, next < 0 ? undefined : next);
+  };
+  ok('the card says who archived it, by roster name', cardOf('A1').indexOf('by Eve &lt;b&gt;Manager&lt;/b&gt;') > 0, cardOf('A1'));
+  ok('…escaped (no live tag from a name)', cardOf('A1').indexOf('<b>Manager') < 0);
+  ok('an unknown archiver reads "by a teammate"', cardOf('A2').indexOf('by a teammate') > 0, cardOf('A2'));
+  ok('no archivedBy: no "by" at all', cardOf('A3') !== '' && cardOf('A3').indexOf(' by ') < 0, cardOf('A3'));
   b = loadBridge(C.manager, 'eve', { archived: undefined });
   if (b.api.renderArchivedDrawer) b.api.renderArchivedDrawer();
   ok('leads not loaded yet: Loading..., never "No archived leads"', /Loading/.test(b.drawerBody.innerHTML) && !/No archived/.test(b.drawerBody.innerHTML));

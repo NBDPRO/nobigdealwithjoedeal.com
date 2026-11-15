@@ -644,6 +644,25 @@ async function sendEmail(opts, body) {
     ok('...and counted: sweep done blockedNoAddress === 1', !!done && done[1].blockedNoAddress === 1, JSON.stringify(done));
   }
 
+  {
+    // Archived (2026-11-15): archiving a lead can mean "do not contact", so an
+    // archived — or deleted — CRM card gets no "we haven't connected" email.
+    const run = async (extra) => {
+      const { mod, w } = load('lead-followup.js', {
+        docs: withPostal(NBD_D),
+        queries: {
+          estimate_leads: [{ id: 'p-arch', data: { email: 'arch@example.com', firstName: 'A', companyId: NBD_D } }],
+          leads: () => [{ id: 'crm-3', data: Object.assign({ stage: 'new', status: 'new', companyId: NBD_D }, extra) }],
+        },
+      });
+      await mod.leadFollowUpSweep.__handler({});
+      return w;
+    };
+    ok('archived CRM card: no follow-up email', (await run({ archived: true })).sends.length === 0);
+    ok('deleted CRM card: no follow-up email', (await run({ deleted: true })).sends.length === 0);
+    ok('positive control: the same live card is emailed', (await run({})).sends.some((m) => m.to === 'arch@example.com'));
+  }
+
   // ═══ E. emailUnsubscribe ═══════════════════════════════════════════════
   console.log('E. emailUnsubscribe endpoint');
   const TOKEN = 'A'.repeat(20) + 'b_c-' + 'D'.repeat(19); // 43 chars

@@ -126,6 +126,18 @@ async function run() {
   await check('a manager can no longer delete, but archiving is not deleting: deleted stays put', 'deny', updateDoc(L(mgr, 'a7'), Object.assign(arch('eve'), { deleted: true })));
   await check('positive control: that archive without the delete', 'allow', updateDoc(L(mgr, 'a7'), arch('eve')));
 
+  // -- CREATE (2026-11-14 security review): a lead cannot be born archived, so
+  //    archivedBy / archivedAt can never be forged onto a new lead.
+  const fresh = (uid, extra) => Object.assign({ userId: uid, companyId: 'co-a', firstName: 'New', stage: 'new', meter: 'manual' }, extra || {});
+  await check('create: a rep cannot create a lead already archived by someone else', 'deny', setDoc(L(rep, 'cArch1'), fresh('alice', { archived: true, archivedBy: 'eve', archivedAt: serverTimestamp() })));
+  await check('create: a rep cannot create archived even stamped as themselves', 'deny', setDoc(L(rep, 'cArch2'), fresh('alice', { archived: true, archivedBy: 'alice', archivedAt: serverTimestamp() })));
+  await check('create: archived must not be a string', 'deny', setDoc(L(rep, 'cArch3'), fresh('alice', { archived: 'yes' })));
+  await check('create: archivedBy alone is refused', 'deny', setDoc(L(rep, 'cArch4'), fresh('alice', { archivedBy: 'eve' })));
+  await check('create: archivedAt alone is refused', 'deny', setDoc(L(rep, 'cArch5'), fresh('alice', { archivedAt: serverTimestamp() })));
+  await check('create: a manager cannot create one archived either', 'deny', setDoc(L(mgr, 'cArch6'), fresh('eve', { archived: true, archivedBy: 'eve', archivedAt: serverTimestamp() })));
+  await check('create: positive control: archived:false with no stamps', 'allow', setDoc(L(rep, 'cArch7'), fresh('alice', { archived: false })));
+  await check('create: positive control: no archive fields at all', 'allow', setDoc(L(rep, 'cArch8'), fresh('alice')));
+
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);
   results.forEach((r) => console.log((r.ok ? '  ✓ ' : '  ✗ ') + r.label + (r.ok ? '' : ' — ' + r.note)));

@@ -983,6 +983,11 @@ service cloud.firestore {
         && leadCreateHasNoServerFields()
         // Delete markers: the same writers as on update (leadCreateMarkersOk).
         && leadCreateMarkersOk()
+        // Archive (2026-11-14 review): a lead is never born archived, so
+        // archivedBy / archivedAt cannot be forged at create; archiving is
+        // an update, checked by archiveWriteOk.
+        && request.resource.data.get('archived', false) == false
+        && !request.resource.data.keys().hasAny(['archivedAt', 'archivedBy'])
         // Server-minted doc ids (calcom__<booking>, <collection>__<id>) belong
         // to the webhook / bridge; a client may not squat one.
         && !leadId.matches('^(calcom|thumbtack_leads)__.*')

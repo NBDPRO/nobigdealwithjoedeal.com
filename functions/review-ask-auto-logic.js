@@ -109,6 +109,8 @@ function baseEligibility({ lead, job, jobId, recvMs, nowMs }) {
   const l = lead || {};
   if (!isNbd(l)) return { ok: false, reason: 'not_nbd' };          // jd@ speaks for NBD only
   if (l.deleted === true || l.deletedAt) return { ok: false, reason: 'deleted' };
+  // Archived (2026-11-15): archiving a lead can mean "do not contact".
+  if (l.archived === true) return { ok: false, reason: 'archived' };
   if (roles.isLost(l) || (job && roles.isLost(job))) return { ok: false, reason: 'lost' };
   if (isQuietBackfill(l) || (job && isQuietBackfill(job))) return { ok: false, reason: 'quiet_backfill' };
   if (l.reviewRequested === true || (job && ms(job.reviewRequestedAt))) return { ok: false, reason: 'already_requested' };

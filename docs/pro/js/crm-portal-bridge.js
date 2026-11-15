@@ -798,13 +798,16 @@ function renderArchivedDrawer() {
     const name = escHtml(((l.firstName||'')+' '+(l.lastName||'')).trim() || l.address || 'Lead');
     const addr = escHtml((l.address||'').split(',').slice(0,2).join(','));
     const when = escHtml(l.archivedAt?.toDate ? l.archivedAt.toDate().toLocaleDateString() : 'Recently');
+    // Who archived it: the roster name (team-names.js), else "a teammate".
+    const T = window.NBDTeamNames;
+    const by = l.archivedBy ? ' by ' + escHtml((T && T.nameFor(l.archivedBy)) || 'a teammate') : '';
     const safeId = escHtml(l.id);
     const btn = _leadArchivePerm(l) === 'yes'
       ? `<div class="deleted-card-btns"><button type="button" class="dc-restore nbd-ar-unarchive" data-id="${safeId}">Un-archive</button></div>` : '';
     return `<div class="deleted-card" id="ar-${safeId}">
       <div class="deleted-card-name">${name}</div>
       <div class="deleted-card-addr">${addr}</div>
-      <div class="deleted-card-meta">Archived ${when}</div>
+      <div class="deleted-card-meta">Archived ${when}${by}</div>
       ${btn}
     </div>`;
   }).join('');
