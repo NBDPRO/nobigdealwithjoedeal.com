@@ -28,6 +28,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const Module = require('module');
+const { parseTags } = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const F = (rel) => path.join(ROOT, 'functions', rel);
@@ -568,9 +569,10 @@ function mkRes() {
     delete process.env.LEAD_ACK_SMS_ENABLED;
     ok('leadBridgeEstimateUpdate is a retried onDocumentUpdated trigger on estimate_leads', !!LA.leadBridgeEstimateUpdate && LA.leadBridgeEstimateUpdate.__opts.document === 'estimate_leads/{leadId}' && LA.leadBridgeEstimateUpdate.__opts.retry === true);
     ok('…the finish alert is NOT retried (a redelivery must not page Joe twice)', LA.leadAlertEstimateFinished.__opts.retry !== true);
-    const idx = fs.readFileSync(F('index.js'), 'utf8');
-    const trg = fs.readFileSync(F('estimate-funnel-triggers.js'), 'utf8');
-    ok('both triggers are exported from index.js and match the deploy allowlist shape (exports.X = onDocumentUpdated)', /exports\.leadAlertEstimateFinished = /.test(idx) && /exports\.leadBridgeEstimateUpdate = /.test(idx) && /^exports\.leadAlertEstimateFinished = onDocumentUpdated\(/m.test(trg) && /^exports\.leadBridgeEstimateUpdate = onDocumentUpdated\(/m.test(trg));
+    // Deployed: the generated function map routes both names to this module
+    // (tests/functions-lazy-load-2026-10-04.test.js re-proves the map against index.js).
+    const fmap = JSON.parse(fs.readFileSync(F('function-map.json'), 'utf8'));
+    ok('both triggers are in the deployed function map, pointing at estimate-funnel-triggers', fmap.leadAlertEstimateFinished === './estimate-funnel-triggers' && fmap.leadBridgeEstimateUpdate === './estimate-funnel-triggers', { a: fmap.leadAlertEstimateFinished, b: fmap.leadBridgeEstimateUpdate });
   } catch (e) { stubs = null; delete process.env.LEAD_ACK_SMS_ENABLED; ok('finish-alert trigger harness ran', false, String(e && e.stack || e)); }
 
   // ════════════════════════════════════════════════════════════════════
@@ -808,13 +810,15 @@ function mkRes() {
 
   try {
     // E9 — the page says so BEFORE the tap
-    const html = read('docs/estimate.html');
-    const s1 = html.slice(html.indexOf('id="step1"'), html.indexOf('id="step2"'));
-    const note = s1.indexOf('id="step1SaveNote"');
-    const btn = s1.indexOf('data-step="2"');
-    ok('step 1 says Joe gets the details on Continue, above the button', note > 0 && btn > note && /When you tap Continue, Joe gets your name, number and address right away, even if you don&rsquo;t finish\./.test(s1));
-    ok('…and that the texting box is optional', /The texting box above is up to you\./.test(s1));
-    ok('…the consent box is still on step 1, before the button, unchecked', s1.indexOf('id="tcpaConsent"') > 0 && s1.indexOf('id="tcpaConsent"') < btn && !/id="tcpaConsent"[^>]*checked/.test(s1));
+    const doc = parseTags(fs.readFileSync(path.join(ROOT, 'docs/estimate.html'), 'utf8'));
+    const step1El = doc.$('#step1');
+    const noteEl = step1El && step1El.$('#step1SaveNote');
+    const btnEl = step1El && step1El.$('button[data-step="2"]');
+    const boxEl = step1El && step1El.$('#tcpaConsent');
+    const noteText = noteEl ? noteEl.text.replace(/&rsquo;/g, '\u2019').replace(/\s+/g, ' ').trim() : '';
+    ok('step 1 says Joe gets the details on Continue, above the button', !!noteEl && !!btnEl && noteEl.start < btnEl.start && noteText.indexOf('When you tap Continue, Joe gets your name, number and address right away, even if you don\u2019t finish.') === 0, noteText);
+    ok('…and that the texting box is optional', noteText.slice(-'The texting box above is up to you.'.length) === 'The texting box above is up to you.', noteText);
+    ok('…the consent box is still on step 1, before the button, unchecked', !!boxEl && boxEl.start < btnEl.start && !boxEl.has('checked'));
   } catch (e) { ok('page E9 ran', false, String(e && e.stack || e)); }
 
   // ════════════════════════════════════════════════════════════════════
