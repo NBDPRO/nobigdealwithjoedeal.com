@@ -180,7 +180,13 @@
     try { r = await post('submitSignature', { token: token, signedHtml: stripPhoneLayout(fin.html) }); }
     catch (e) { submitBtn.disabled = false; submitBtn.textContent = orig; _spNotify('Connection problem — please try again.', 'error'); return; }
 
-    if (r.ok && r.data.ok) {
+    if (r.ok && r.data.ok && r.data.saved === false) {
+      // The server took the signature but could not store the signed copy
+      // (2026-11-14): the rep has been told. Don't promise a stored record.
+      frame.style.display = 'none';
+      foot.style.display = 'none';
+      msg('✍️', 'Thank you — we received your signature', 'We had trouble saving the signed copy, so your contractor will contact you to confirm. You can close this page.');
+    } else if (r.ok && r.data.ok) {
       frame.style.display = 'none';
       foot.style.display = 'none';
       msg('🎉', 'All done — thank you!', 'Your signature has been recorded and sent to your rep. You can close this page.');

@@ -112,6 +112,11 @@ function loadV2(opts) {
     win._editingEstimateId = null; // _saveEstimate clears it after an update
     return 'est_1';
   };
+  // 2026-11-14 (#3067): save() reads the saved estimate fresh before updating
+  // it again (a failed read refuses). The saved est_1, unchanged since.
+  win.db = {};
+  win.doc = (_db, col, id) => ({ col, id });
+  win.getDoc = async (ref) => ({ exists: () => saveN > 0 && ref.id === 'est_1', data: () => ({ userId: 'u1', updatedAt: { toMillis: () => 1 } }) });
   win.CloseBoard = opts.noCloseBoard ? undefined : {
     createFromEstimate: (est, lead) => { calls.push(['deal', { est, lead }]); return { id: 'dr_1' }; },
     getAcceptLink: async (deal) => { calls.push(['link', deal.id]); return 'https://example.test/deal/tok123'; },

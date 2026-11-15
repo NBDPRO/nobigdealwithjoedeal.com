@@ -144,7 +144,8 @@ const sum = (rows) => rows.reduce((s, r) => s + cents(Number(r.total)), 0) / 100
 
   // The consumers really use these rows (a private copy would drift again).
   ok('esign-envelope estimateLines and portal getEstimateForView read buildDisplayRows',
-    /CER\.buildDisplayRows\(est\)/.test(rd('functions/esign-envelope.js')) && /const displayRows = buildDisplayRows\(est\);/.test(rd('functions/portal.js')));
+    // portal.js: `priced` is the signed view of est (2026-11-14, finding 4).
+    /CER\.buildDisplayRows\(est\)/.test(rd('functions/esign-envelope.js')) && /const displayRows = buildDisplayRows\((est|priced)\);/.test(rd('functions/portal.js')));
   // The estimate link prints a negative Rounding as −$5, not $-5.
   {
     const src = rd('docs/pro/js/estimate-view.js');
@@ -185,7 +186,10 @@ const sum = (rows) => rows.reduce((s, r) => s + cents(Number(r.total)), 0) / 100
       console: { warn() {}, error() {}, log() {} },
     };
     const names = Object.keys(api);
-    const save = new Function(...names, 'return async (data) => ' + fnBody + ';')(...names.map((k) => api[k]));
+    // Module-scope helpers declared just above _saveEstimate (2026-11-14: _leadStampFailed).
+    const h = boot.lastIndexOf('const _LEAD_STAMP_WARN', at);
+    const helpers = (h !== -1 && at - h < 2000) ? boot.slice(h, at) : '';
+    const save = new Function(...names, helpers + '\nreturn async (data) => ' + fnBody + ';')(...names.map((k) => api[k]));
     const ret = await save(data);
     return { ret, writes, lead: store['leads/L1'], win };
   }
@@ -209,7 +213,11 @@ const sum = (rows) => rows.reduce((s, r) => s + cents(Number(r.total)), 0) / 100
     const f = await runSave({ lead: prim, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 }, failLeadWrite: true });
     ok('a lead-write failure does not fail the estimate save (best-effort, like create)', f.ret === 'E1' && f.writes.some((w) => w.path === 'estimates/E1'));
     const g = await runSave({ lead: { jobValue: 9000 }, editId: 'E1', data: { leadId: 'L1', grandTotal: 16200 } });
-    ok('a lead with no primaryEstimateId is left alone on an edit', g.lead.jobValue === 9000);
+    // Changed 2026-11-14 (Save Again PR #3067): a lead with NO primary now takes the edited estimate as
+    // primary, the same as the create branch (a failed create-time stamp, or a re-pointed estimate, no
+    // longer leaves it unstamped forever). Was: 'a lead with no primaryEstimateId is left alone on an edit'.
+    ok('a lead with no primaryEstimateId takes the edited estimate as primary (same rule as create)',
+      g.lead.primaryEstimateId === 'E1' && g.lead.jobValue === 16200, JSON.stringify(g.lead));
     ok('the edit branch clears _editingEstimateId', a.win._editingEstimateId === null);
   }
 

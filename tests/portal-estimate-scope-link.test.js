@@ -130,7 +130,8 @@ group('A rows-based estimate is untouched by the fallback', () => {
   // The fallback is gated on displayRows being empty, so this doc never
   // reaches buildDocLineItems at all.
   assert('the fallback is gated on BOTH an empty ladder and a present lineItems',
-    /if \(!displayRows\.length && Array\.isArray\(est\.lineItems\) && est\.lineItems\.length\)/.test(PORTAL_FN),
+    // (priced = the signed view of est, 2026-11-14 finding 4)
+    /if \(!displayRows\.length && Array\.isArray\((est|priced)\.lineItems\) && \1\.lineItems\.length\)/.test(PORTAL_FN),
     'ungated, a per-SQ doc would gain a synthetic summary line it does not need');
 });
 

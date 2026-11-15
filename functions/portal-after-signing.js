@@ -59,13 +59,41 @@ function signedVia(a) {
   const o = a || {};
   const est = o.estimate || null;
   if (est && est.signatureStatus === 'signed') return 'esign';
-  if ((Array.isArray(o.deals) ? o.deals : []).some(dealIsAccepted)) return 'deal-room';
+  // Job-level signals count only for THIS estimate (money review 2026-11-14,
+  // finding 6): a deal accepted for the roof never labels a later $2,300
+  // gutter add-on "Signed". A deal with no estimateId (legacy) still counts.
+  const estId = est && est.id;
+  const deals = (Array.isArray(o.deals) ? o.deals : []).filter(dealIsAccepted);
+  if (deals.some((d) => !d.estimateId || d.estimateId === estId)) return 'deal-room';
   if (estimateIsSigned(est)) return 'contract';
   // The job itself moved past Signed (an in-person / uploaded contract, or a
-  // stage a rep set) — the progress tracker already says "Signed".
+  // stage a rep set) — the progress tracker already says "Signed". Not when
+  // that signature is known to be on another estimate (an accepted deal or
+  // the lead's primary estimate names a different one, or another estimate
+  // carries the signature: o.signedElsewhere).
   const p = o.progress || null;
-  if (p && Number(p.currentIndex) >= 2) return 'contract';
+  const elsewhere = !!o.signedElsewhere
+    || deals.some((d) => d.estimateId && d.estimateId !== estId)
+    || (!!o.primaryEstimateId && o.primaryEstimateId !== estId);
+  if (p && Number(p.currentIndex) >= 2 && !elsewhere) return 'contract';
   return null;
+}
+
+/**
+ * Which estimate the portal card shows (finding 6): the newest shared one
+ * that carries a signature (signed by e-sign / stamped, or named by an
+ * accepted deal) or is out for one right now (sent / viewed — the
+ * homeowner's current ask); else the newest shared one.
+ * @param {object[]} estimates newest first, tenant-filtered, not deleted
+ * @param {function} isShared the portal's "the rep meant this to be seen" test
+ * @param {object[]} deals this lead's deal rooms, tenant-filtered
+ */
+function pickPortalEstimate(estimates, isShared, deals) {
+  const list = (Array.isArray(estimates) ? estimates : []).filter(isShared);
+  const acceptedFor = (Array.isArray(deals) ? deals : []).filter(dealIsAccepted).map((d) => d.estimateId).filter(Boolean);
+  const live = (e) => estimateIsSigned(e) || acceptedFor.indexOf(e.id) !== -1
+    || e.signatureStatus === 'sent' || e.signatureStatus === 'viewed';
+  return list.find(live) || list[0] || null;
 }
 
 /** A live (sent, not void/draft/deleted) invoice. */
@@ -77,10 +105,32 @@ function _paymentCounts(p) {
   return !!p && Number(p.amount) > 0 && p.reverted !== true && p.achStatus !== 'failed';
 }
 
+// The payments a homeowner sees on one invoice: real ones, less any the owner reversed (a typo,
+// a bounced check: a negative reversal entry naming the payment, functions/payment-reversal.js
+// planReversal). Neither the reversed payment nor its reversal is shown.
+function _countedPayments(inv) {
+  const pays = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
+  const reversed = require('./reversal-pairs').reversedIndexes(pays);
+  return pays.filter((p, i) => _paymentCounts(p) && !reversed.has(i));
+}
+
 /** Has any money landed on this job? (any live invoice with a payment) */
 function anyPaid(invoices) {
-  return (Array.isArray(invoices) ? invoices : []).some((inv) => _liveInvoice(inv)
-    && (cents(inv.amountPaid) > 0 || (Array.isArray(inv.payments) && inv.payments.some(_paymentCounts))));
+  return (Array.isArray(invoices) ? invoices : []).some((inv) => _liveInvoice(inv) && _netPaidCents(inv) > 0);
+}
+
+// Money still held on an invoice after refunds (#3077) and owner reversals (#3064). A Connect
+// refund (connect-refund-logic.js) lowers amountPaid itself and records what it moved in
+// refundReopenedTotal, so amountPaid is the truth there even at 0; an owner-ledger refund
+// (stripe-ledger.js) leaves amountPaid as it was, so the part of refundedTotal that was not
+// reopened comes off here. A reversal (functions/payment-reversal.js) lowers amountPaid too, and
+// the payments fallback counts only payments no reversal cancels (_countedPayments).
+function _netPaidCents(inv) {
+  const reopened = cents(inv.refundReopenedTotal);
+  const paid = (cents(inv.amountPaid) > 0 || reopened > 0)
+    ? cents(inv.amountPaid)
+    : _countedPayments(inv).reduce((t, p) => t + cents(p.amount), 0);
+  return paid - Math.max(0, cents(inv.refundedTotal) - reopened);
 }
 
 /**
@@ -147,8 +197,7 @@ function paymentsFor(invoices) {
   (Array.isArray(invoices) ? invoices : []).forEach((inv) => {
     if (!_liveInvoice(inv)) return;
     const num = String(inv.invoiceNumber || (inv.paper && inv.paper.invoice && inv.paper.invoice.instanceId) || '').trim().slice(0, 40);
-    (Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
-      if (!_paymentCounts(p)) return;
+    _countedPayments(inv).forEach((p) => {
       const m = String(p.method || '').toLowerCase();
       out.push({
         date: _isoOf(p.at != null ? p.at : p.date),
@@ -210,6 +259,7 @@ module.exports = {
   estimateIsSigned,
   dealIsAccepted,
   signedVia,
+  pickPortalEstimate,
   anyPaid,
   portalJobStatus,
   paymentsFor,

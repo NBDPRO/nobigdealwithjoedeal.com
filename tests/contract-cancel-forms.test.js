@@ -257,7 +257,7 @@ function packetComplete(html) {
       _files: m,
     };
   }
-  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', './await-briefly', './portal-after-signing', 'crypto'];
+  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', './await-briefly', './portal-after-signing', './signed-price', 'crypto'];
   function loadFn(rel, db, storage, extra) {
     const file = path.join(FN, rel);
     const dir = path.dirname(file);
@@ -269,7 +269,7 @@ function packetComplete(html) {
       'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
       'firebase-functions/v2': { logger },
       'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) },
-        FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), increment: () => ({ __fv: 'inc' }), arrayUnion: () => ({ __fv: 'union' }) } },
+        FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), increment: () => ({ __fv: 'inc' }), arrayUnion: () => ({ __fv: 'union' }), delete: () => ({ __fv: 'delete' }) } },
       'firebase-admin/storage': { getStorage: () => storage },
       './integrations/upstash-ratelimit': { httpRateLimit: async () => true, clientIp: () => '203.0.113.9' },
       './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
