@@ -78,7 +78,7 @@
     ['.v2-packet', 'finish'], ['#v2packetHint', 'finish'], ['#v2packetPhotos', 'finish'],
     ['[data-action="send-to-homeowner"]', 'finish'], ['#v2shareStatus', 'finish'], ['#v2shareBox', 'finish'],
     ['[data-action="present"]', 'finish', 'more'],
-    ['#v2saveBtn', 'finish', 'more'], ['#v2saveStatus', 'finish', 'more'],
+    ['#v2saveBtn', 'finish', 'more'], ['#v2saveCopyBtn', 'finish', 'more'], ['#v2saveStatus', 'finish', 'more'],
     ['#v2signPhoneBtn', 'finish', 'more'], ['#v2kyNote', 'finish', 'more'], ['#v2kyContractBtn', 'finish', 'more'],
     ['#v2signBtn', 'finish', 'more'], ['#v2signStatus', 'finish', 'more'],
     // In-house e-sign (2026-10-04): the optional co-owner rides with Send for Signature.
