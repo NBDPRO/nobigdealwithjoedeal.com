@@ -12,6 +12,7 @@
   "node": [
     "invoice-supplements-company-2026-11-14.test.js",
     "supplement-invoice-callable-2026-11-14.test.js",
+    "lead-delete-owner-side-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
     "draft-project-page-2026-11-09.test.js",
     "match-job-photos-2026-11-09.test.js",
@@ -1649,6 +1650,7 @@
     "firestore-rules.os-daily-goals.test.js",
     "firestore-rules.os-coach-ai.test.js",
     "firestore-rules.os-team.test.js",
+    "firestore-rules.lead-soft-delete.test.js",
     "firestore-rules.portal-note.test.js",
     "firestore-rules.job-conflict-notice.test.js",
     "firestore-rules.doc-drafts.test.js",

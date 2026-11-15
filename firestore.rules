@@ -764,6 +764,64 @@ service cloud.firestore {
              == request.auth.token.get('companyId', '');
     }
 
+    // 2026-11-14 (Jo's decision): managers do not delete leads. "Delete lead"
+    // is a SOFT delete (an update that sets deleted / deletedAt), so it rode
+    // the staff branch of the update rule below: a manager could bin any
+    // teammate's lead, which the hard-delete rule never allowed. Setting OR
+    // clearing a soft-delete marker (delete, restore from the Deleted bin;
+    // isDeleted is honoured by some readers too; e2eTestData hides a lead from
+    // the agent tools, Home strips, storm mode, mission/coach, closes-this-week
+    // and DOL fill, and the E2E suites tag their own leads with it after the
+    // fact, so it is the owner side's rather than frozen) is now held to the hard-delete
+    // rule's writers: the lead's own non-viewer owner, a company_admin, or a
+    // platform admin. A manager keeps every other edit. Unchanged markers
+    // never trigger the check. When they change, `deleted` must be a bool (or
+    // absent): a string or number hid the lead from the board without ever
+    // putting it in the Deleted bin (which queries deleted == true).
+    // The company_admin branch carries NO tenant check of its own: it relies on
+    // the update rule's outer clause, which only lets a company_admin reach
+    // this far on a lead whose companyId == myCompanyId() (or one they own).
+    // Moving this helper anywhere without that pin would widen it.
+    // Jo (2026-11-14, decision a): managers do not delete leads AT ALL, not
+    // even ones they own, so the owner branch excludes the manager role as
+    // well as viewer. Shared by the lead's soft delete and hard delete, and by
+    // the jobs under a lead (ownerUid = the lead's userId).
+    function ownerSideDeleter(ownerUid) {
+      return request.auth.token.get('role', '') in ['admin', 'company_admin']
+        || (isOwner(ownerUid) && !(request.auth.token.get('role', '') in ['viewer', 'manager']));
+    }
+    function softDeleteWriteOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted', 'e2eTestData'])
+        || (ownerSideDeleter(resource.data.userId)
+            && request.resource.data.get('deleted', false) is bool);
+    }
+    // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
+    // could not hide it by an update. Live markers (absent, or false / null)
+    // are fine for anyone who may create (the CSV import writes deleted:false);
+    // anything else needs ownerSideDeleter on the creator (who is the owner:
+    // the create rule pins userId == uid) and a bool `deleted`.
+    function leadCreateMarkersOk() {
+      let d = request.resource.data;
+      return (d.get('deleted', false) == false && d.get('deletedAt', null) == null
+              && d.get('isDeleted', false) == false && d.get('e2eTestData', false) == false)
+        || (ownerSideDeleter(request.auth.uid) && d.get('deleted', false) is bool);
+    }
+
+    // leads/{id}/jobs/{jobId} (2026-11-14): a job's deleted / deletedAt /
+    // isDeleted are held to the same writers (jobs readers skip deleted ==
+    // true: invoices, today plan, agent tools, morning brief, owner digest,
+    // production flow). On create, any marker counts; on update, a change.
+    // The company_admin branch relies on the job rule's parentLeadInMyCompany.
+    function jobSoftDeleteOk(leadId) {
+      let keys = ['deleted', 'deletedAt', 'isDeleted'];
+      let touched = resource == null
+        ? request.resource.data.keys().hasAny(keys)
+        : request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+      return !touched
+        || (ownerSideDeleter(get(/databases/$(database)/documents/leads/$(leadId)).data.get('userId', ''))
+            && request.resource.data.get('deleted', false) is bool);
+    }
+
     // ── LEADS ─────────────────────────────────────────
     // companyId is required on create. The Rock 3 backfill
     // (PR #56 audit/backfill callable) stamped companyId on every
@@ -810,11 +868,18 @@ service cloud.firestore {
       // shared kanban is fully workable — but provenance is frozen
       // (didNotChange userId/companyId: managers edit content, they don't
       // reassign ownership or re-tenant a lead; reassignment ships as its
-      // own feature). DELETE stays owner + same-company company_admin —
+      // own feature). The soft delete (deleted / deletedAt) is held to the
+      // same writers as DELETE (softDeleteWriteOk, 2026-11-14), so a manager
+      // cannot bin or restore a lead either. DELETE stays owner + same-company company_admin —
       // managers manage the board, only the lead owner or the tenant owner
       // destroys data. Legacy docs without companyId stay owner-only for
       // both (the company clause errors-to-deny on the absent key).
-      allow update: if isAdmin()
+      // _test hides a lead for everyone (the dashboard loader drops _test
+      // docs, the Deleted bin never lists them, nothing un-hides them), so no
+      // client may set, change or clear it on UPDATE, whatever the role
+      // (2026-11-14 review). Only a create carries it (the Settings rules
+      // probe); the admin SDK skips rules. e2eTestData: softDeleteWriteOk.
+      allow update: if (isAdmin() && didNotChange(['_test']))
         || (
           (
             (isOwner(resource.data.userId) && notViewer())
@@ -827,6 +892,8 @@ service cloud.firestore {
           // admin-SDK-only; the sole client write is the rep's Mark Paid / Mark
           // Unpaid toggle (owed<->paid), carved out below. See onReferralLeadWrite.
           && didNotChange(['userId', 'companyId'])
+          // The rules-probe flag (see above): frozen for owner and staff too.
+          && didNotChange(['_test'])
           // activeJobId names the job the lead's fields describe
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
@@ -863,10 +930,13 @@ service cloud.firestore {
           && confirmedSourceWriteOk()
           && openClaimIdOk()
           && projectConsentWriteOk()
+          && softDeleteWriteOk()
           && scheduleWindowOk()
           && portalNoteOk()
         );
-      allow delete: if (isOwner(resource.data.userId) && notViewer())
+      // Jo (2026-11-14, decision a): a manager does not delete a lead, even one
+      // they own (ownerSideDeleter's owner branch excludes manager and viewer).
+      allow delete: if (isOwner(resource.data.userId) && ownerSideDeleter(resource.data.userId))
         || isAdmin()
         || (isCompanyAdmin()
             && resource.data.companyId != null
@@ -890,6 +960,8 @@ service cloud.firestore {
         // customerId (CSV import may carry one) cannot claim another
         // tenant's reserved prefix (security batch 2026-10-03).
         && leadCreateHasNoServerFields()
+        // Delete markers: the same writers as on update (leadCreateMarkersOk).
+        && leadCreateMarkersOk()
         // Server-minted doc ids (calcom__<booking>, <collection>__<id>) belong
         // to the webhook / bridge; a client may not squat one.
         && !leadId.matches('^(calcom|thumbtack_leads)__.*')
@@ -1299,9 +1371,14 @@ service cloud.firestore {
         allow create, update: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && jobWriteOk(leadId);
+          && jobWriteOk(leadId)
+          && jobSoftDeleteOk(leadId);
+        // Owner side only (2026-11-14): the lead's non-manager owner or a
+        // same-company company_admin; a manager deletes no job, even on a lead
+        // they own.
         allow delete: if isAuth() && notViewer()
-          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          && ((isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+               && request.auth.token.get('role', '') != 'manager')
               || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
 
         // ── MATERIAL ORDERS (production flow, 2026-10-04) ──

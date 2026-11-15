@@ -43,7 +43,13 @@ function slice(src, start, endAt) {
     const fn = slice(BOOT, '  async function _loadDeletedLeads() {', eol + '  }' + eol);
     const BR = read('crm-portal-bridge.js');
     const beol = BR.includes('\r\n') ? '\r\n' : '\n';
-    const draw = slice(BR, 'async function renderDeletedDrawer() {', beol + '}' + beol);
+    // The bin's buttons use the delete guard's own predicate (2026-11-14):
+    // lift it, and the module-level state it reads, with the drawer.
+    const guard = ['const NO_LEAD_DELETE = ', 'const LEAD_ROLE_LOADING = ']
+      .map((p) => slice(BR, p, ';' + beol)).join(beol) + beol + 'let _binLeads = {};' + beol
+      + slice(BR, 'function _leadDeletePerm(idOrLead) {', beol + '}' + beol)
+      + slice(BR, 'function _mayDeleteLead(idOrLead) {', '}' + beol);
+    const draw = guard + slice(BR, 'async function renderDeletedDrawer() {', beol + '}' + beol);
     ok('both functions found (positive control)', fn.length > 100 && draw.length > 100);
     const run = async (opts) => {
       const queries = [];
@@ -78,8 +84,14 @@ function slice(src, start, endAt) {
     const asViewer = await run({ uid: 'u1', claims: { role: 'viewer', companyId: 'co' }, docs: bin });
     ok('a viewer sees the bin but no Restore / Remove at all', !/nbd-dc-restore|nbd-dc-perm/.test(asViewer.html) && /teammate|deleted-card/.test(asViewer.html));
     const asMgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' }, docs: bin });
-    ok('a manager can Restore a teammate\'s lead but not Remove it (rules: delete is company_admin)', btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove);
-    ok('…and keeps both on their own lead (positive control)', btns(asMgr.html, 'mine').restore && btns(asMgr.html, 'mine').remove);
+    // 2026-11-14 (Jo: managers do not delete leads): Restore clears the soft-delete
+    // markers, which firestore.rules softDeleteWriteOk now holds to the delete
+    // rule's writers, so a manager gets neither on a teammate's lead.
+    ok('a manager can neither Restore nor Remove a teammate\'s lead (rules: softDeleteWriteOk / delete)', !btns(asMgr.html, 'teammate').restore && !btns(asMgr.html, 'teammate').remove && /teammate/.test(asMgr.html));
+    // Jo (2026-11-14, decision a): a manager deletes no lead, their own included.
+    ok('…nor on their own lead (managers delete no lead)', !btns(asMgr.html, 'mine').restore && !btns(asMgr.html, 'mine').remove && /mine/.test(asMgr.html));
+    const asRep = await run({ uid: 'u1', claims: { role: 'sales_rep', companyId: 'co' }, docs: bin });
+    ok('a rep keeps both on their own lead (positive control)', btns(asRep.html, 'mine').restore && btns(asRep.html, 'mine').remove);
     const asAdmin = await run({ uid: 'u1', claims: { role: 'company_admin', companyId: 'co' }, docs: bin });
     ok('a company_admin keeps both on a teammate\'s lead', btns(asAdmin.html, 'teammate').restore && btns(asAdmin.html, 'teammate').remove);
     const mgr = await run({ uid: 'u1', claims: { role: 'manager', companyId: 'co' },

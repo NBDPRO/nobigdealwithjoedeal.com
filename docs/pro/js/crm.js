@@ -113,11 +113,12 @@ window.handleCardClick = handleCardClick;
 // (Globals Tranche 3). The
 // bare re-exports that used to live here would ReferenceError now that the
 // names are module-scoped.
-// restoreLead and permanentlyDelete are defined in dashboard.html as _restoreLead and _permanentDeleteLead
-window.restoreLead = (id) => window._restoreLead(id);
+// permanentlyDelete is defined in dashboard.html as _permanentDeleteLead.
+// (window.restoreLead / window.restoreDeletedLead were removed 2026-11-14:
+// nothing called them, and they skipped the bin's own role guard — Restore
+// goes through crm-portal-bridge.js restoreDeletedLead.)
 window.permanentlyDelete = (id) => window._permanentDeleteLead(id);
-// Aliases for dashboard.html references
-window.restoreDeletedLead = (id) => window._restoreLead(id);
+// Alias for dashboard.html references
 window.permanentDeleteLead = (id) => window._permanentDeleteLead(id);
 
 // Wave 93: sort kanban by engagement tier toggle. localStorage-
