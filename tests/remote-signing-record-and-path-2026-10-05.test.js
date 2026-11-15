@@ -82,7 +82,7 @@ function loadFn(db, storage) {
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
     'firebase-functions/v2': { logger },
     'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) },
-      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }) } },
+      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), delete: () => ({ __fv: 'delete' }) } },
     'firebase-admin/storage': { getStorage: () => storage },
     './integrations/upstash-ratelimit': { httpRateLimit: async () => true },
     './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
