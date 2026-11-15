@@ -625,6 +625,24 @@ const invoicesOf = (store) => [...store.entries()].filter(([k]) => k.startsWith(
       err ? err.message : JSON.stringify({ r, calls: B.W.__calls.length, inv: inv && inv.total }));
   });
 
+  console.log('\nP. The backfill dry run lists every supplement already carrying an approval record (expected none before deploy)');
+  await sec('P', async () => {
+    const BF = req('scripts/backfill-supplement-company-id.js');
+    if (!BF) return;
+    ok('approvalRecordsPresent exists', typeof BF.approvalRecordsPresent === 'function');
+    if (typeof BF.approvalRecordsPresent !== 'function') return;
+    const out = BF.approvalRecordsPresent([
+      { id: 'clean', data: { status: 'approved' } },
+      { id: 'by', data: { approvedBy: 'owner1' } },
+      { id: 'at', data: { approvedAt: 1 } },
+      { id: 'ev', data: { approvalEvidence: { note: 'x' } } },
+    ]);
+    ok('it lists each one with any of approvedBy / approvedAt / approvalEvidence, and nothing else',
+      JSON.stringify(out.map((r) => r.id)) === '["by","at","ev"]', JSON.stringify(out));
+    const src = require('fs').readFileSync(path.join(ROOT, 'scripts/backfill-supplement-company-id.js'), 'utf8');
+    ok('the dry run prints that list', /approvalRecordsPresent\(/.test(src.slice(src.indexOf('async function main'))));
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })();

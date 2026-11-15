@@ -208,12 +208,16 @@ async function run() {
   await check('staff cannot change the money without approving', 'deny', updateDoc(ref(mike, 'sFree'), { supplementTotal: 99999 }));
   await check('platform admin can still correct a stamp', 'allow', updateDoc(ref(joe, 'sStamped'), { invoicedInvoiceId: 'invFix' }));
 
-  // ── H1 (security review 2026-11-15): a server-made supplement invoice's money is the owner side's ──
-  await check('H1 a rep cannot re-price the supplement invoice (total)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { total: 5000, balanceDue: 5000 }));
-  await check('H1 …nor its lines (items)', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { items: [{ description: 'x', quantity: 1, unitPrice: 1, total: 1 }] }));
-  await check('H1 …nor its supplementTotal', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { supplementTotal: 99999 }));
-  await check('H1 …nor its subtotal / tax / deposit / credits / source', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { subtotal: 5, tax: 1, depositAmount: 0, creditTotal: 9, creditedInvoiceIds: ['z'], source: 'manual' }));
-  await check('H1 a manager cannot re-price it either', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { total: 50000, balanceDue: 50000 }));
+  // ── H1 (security review 2026-11-15; Joe's call: total-only) ──
+  // A rep or manager cannot change the TOTAL of a server-made supplement invoice; the owner side can.
+  // The other money fields stay editable for now (the invoice update rule is at the 1000-expression
+  // budget; a server-only money doc per invoice is the follow-up). These controls pin exactly that.
+  await check('H1 a rep cannot change the total of the supplement invoice', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { total: 5000, balanceDue: 5000 }));
+  await check('H1 a manager cannot change the total either', 'deny', updateDoc(doc(mike, 'invoices/invJ2'), { total: 50000, balanceDue: 50000 }));
+  await check('H1 control (follow-up, not frozen yet): the rep can still edit its lines', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { items: [{ description: 'x', quantity: 1, unitPrice: 1, total: 1 }] }));
+  await check('H1 control (follow-up): …its supplementTotal', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { supplementTotal: 99999 }));
+  await check('H1 control (follow-up): …its subtotal, tax, deposit and credit fields', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { subtotal: 5, tax: 1, depositAmount: 0, creditTotal: 9, creditedInvoiceIds: ['z'] }));
+  await check('H1 its supplementIds stay frozen', 'deny', updateDoc(doc(rep, 'invoices/invJ1'), { supplementIds: [] }));
   await check('H1 the rep can still edit the notes on it', 'allow', updateDoc(doc(rep, 'invoices/invJ1'), { notes: 'call first' }));
   await check('H1 the company_admin (owner side) may change its total', 'allow', updateDoc(doc(carol, 'invoices/invJ1'), { total: 2, balanceDue: 2 }));
   await check('H1 an ordinary invoice (no supplements) is still re-priced by its maker as before', 'allow', updateDoc(doc(carol, 'invoices/invPlain'), { total: 15000, balanceDue: 15000 }));

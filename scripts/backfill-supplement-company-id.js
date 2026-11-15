@@ -55,6 +55,23 @@
  * @param {Object<string, string>} [authorCompanyById]  uid → that user's companyId claim
  * @returns {{ updates: Array<{id, companyId}>, skipped: {already: number}, problems: Array<{id, reason}> }}
  */
+/**
+ * Every supplement that already carries an approval record (approvedBy,
+ * approvedAt or approvalEvidence). Pure. Before the approval rules deploy
+ * (security review M2, 2026-11-15) no app wrote these fields, so the list is
+ * expected to be EMPTY; anything on it was written by hand and a person
+ * decides what to do with it (the invoice refuses any approval older than the
+ * cutoff, but a planted future date with an owner's uid would pass).
+ * @param {Array<{id: string, data: object}>} supplements
+ * @returns {Array<{id, approvedBy, companyId, parentEstimateId}>}
+ */
+function approvalRecordsPresent(supplements) {
+  return (supplements || []).filter((s) => {
+    const d = (s && s.data) || {};
+    return d.approvedBy != null || d.approvedAt != null || d.approvalEvidence != null;
+  }).map((s) => ({ id: s.id, approvedBy: s.data.approvedBy || null, companyId: s.data.companyId || null, parentEstimateId: s.data.parentEstimateId || null }));
+}
+
 function planBackfill(supplements, estimatesById, authorCompanyById) {
   const authors = authorCompanyById || {};
   const updates = [];
@@ -105,6 +122,7 @@ async function main() {
 
   const PAGE = 500;
   const missing = [];
+  const all = [];
   let scanned = 0, last = null;
   while (true) {
     let q = db.collection('supplements').orderBy('__name__').limit(PAGE);
@@ -114,6 +132,7 @@ async function main() {
     for (const doc of snap.docs) {
       scanned++;
       const data = doc.data() || {};
+      all.push({ id: doc.id, data });
       if (!(typeof data.companyId === 'string' && data.companyId)) missing.push({ id: doc.id, data });
     }
     last = snap.docs[snap.docs.length - 1];
@@ -143,6 +162,10 @@ async function main() {
   console.log('  cannot place     : ' + plan.problems.length);
   plan.updates.slice(0, 50).forEach((u) => console.log('    ' + u.id + ' → companyId ' + u.companyId));
   plan.problems.forEach((p) => console.log('  ! ' + p.id + ': ' + p.reason));
+  // Approval records already present (expected NONE before the approval rules deploy).
+  const approvals = approvalRecordsPresent(all);
+  console.log('\n  approval records already present: ' + approvals.length + ' (expected 0)');
+  approvals.forEach((a) => console.log('  ? ' + a.id + ': approvedBy ' + (a.approvedBy || '(none)') + ', company ' + (a.companyId || '(none)') + ', estimate ' + (a.parentEstimateId || '(none)')));
 
   if (!APPLY) { console.log('\nDRY-RUN: nothing written. Re-run with --apply --yes to write.'); return; }
   let written = 0;
@@ -155,7 +178,7 @@ async function main() {
   console.log('\nWrote companyId on ' + written + ' supplement(s).');
 }
 
-module.exports = { planBackfill };
+module.exports = { planBackfill, approvalRecordsPresent };
 if (require.main === module) {
   main().catch((e) => { console.error(e); process.exit(1); });
 }

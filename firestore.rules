@@ -1774,11 +1774,16 @@ service cloud.firestore {
         || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'draft')
         || backfillWriterOk();
     }
-    // The total is the owner side's to change once an invoice has left draft or carries a payment.
+    // The total is the owner side's to change once an invoice has left draft or carries a payment,
+    // and ALWAYS on a server-made supplement invoice (security review H1, 2026-11-15; only
+    // functions/supplement-invoice.js writes supplementIds): a rep or manager cannot change what
+    // it bills. Checked only in this rarely-run branch: the invoice update rule sits at the
+    // 1000-expression budget (the 12-payment pins), so its other money fields are a follow-up.
     function invoiceTotalOk() {
       return request.resource.data.get('total', 0) == resource.data.get('total', 0)
         || backfillWriterOk()
-        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0);
+        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0
+            && !('supplementIds' in resource.data));
     }
     // Presence of the key is enough (any value, any type: 'true', 1, 'yes'), and 'source' is compared without case:
     // a rep cannot slip a near-miss marker past the owner-side check.
