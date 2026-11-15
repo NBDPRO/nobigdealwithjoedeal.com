@@ -166,7 +166,7 @@
     btn.className = 'nbd-update-bar-btn';
     btn.textContent = 'Reload';
     btn.style.cssText = 'min-height:44px;min-width:44px;padding:0 16px;border:0;border-radius:8px;'
-      + 'background:#BD5728;color:#fff;font:700 14px system-ui,sans-serif;';
+      + 'background:var(--orange,#BD5728);color:#fff;font:700 14px system-ui,sans-serif;';
     btn.addEventListener('click', function () { doReload('tapped'); });
     bar.appendChild(msg);
     bar.appendChild(btn);
