@@ -1439,6 +1439,11 @@ jobs:
         run: |
           cd tests
           node ds-quick-wins-2026-11-09.test.js
+      # Daily Success full storage (audit 2026-11-14 #9 #13): never SAVED / Saved / Logged over a write the phone refused. Same server, same Chromium.
+      - name: Run the Daily Success storage-full check
+        run: |
+          cd tests
+          node ds-storage-full-2026-11-14.test.js
       # The Daily Success flow batch (UX audit M8, M9, M14, M15): back button stays in the app, one honest sync chip, the rest-timer
       # bar that survives a closed coach and a reload, the foundation tokens. Same server, same Chromium.
       - name: Run the Daily Success flow batch check
