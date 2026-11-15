@@ -183,9 +183,9 @@ accident:
   to the client (stored-XSS vector, H-01). Replacement is
   `signImageUrl` + the `NBDSignedUrl` client helper — clients get
   a 15-minute v4-signed Storage URL and fetch bytes directly from
-  `storage.googleapis.com`. A 410 Gone stub remains at the
-  `imageProxy` endpoint for stale clients; deletable after 7+ days
-  of zero calls in Cloud Logging.
+  `storage.googleapis.com`. The 410 Gone stub was deleted
+  2026-11-15 after zero calls in the retained Cloud Run request logs
+  (60-day query) and the endpoint was undeployed.
 
 ## Version history
 

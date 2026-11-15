@@ -14,7 +14,7 @@
 #      indexes to exist first, and the rules update should land before new
 #      client code hits production.
 #   4. Post-flight: hits /integrationStatus, confirms App Check enforcement
-#      is ON for at least claudeProxy + imageProxy + submitPublicLead,
+#      is ON for at least claudeProxy + submitPublicLead,
 #      and reminds you to call rotateAccessCodes from an admin session.
 #
 # Usage:

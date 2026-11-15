@@ -2,12 +2,11 @@
  * functions/handlers/photo.js — photo / image-related HTTP handlers.
  *
  * Step 4c extraction. Moved verbatim from functions/index.js:
- *   - setStorageCors (admin-only one-shot bucket CORS update)
  *   - signImageUrl   (auth'd 15-min v4 signed-URL minter)
- *   - imageProxy     (retired stub returning 410 + RFC 8594 headers)
  *   - analyzeRoofPhoto (Sonnet vision analyzer, JSON result, photo doc stamp)
  *
- * No behavioral changes; pure structural move.
+ * No behavioral changes; pure structural move. (setStorageCors and the 410
+ * imageProxy stub were deleted 2026-11-15.)
  */
 
 'use strict';
@@ -28,44 +27,6 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const { recordAiSpend, rowFromAnthropic } = require('../ai-spend');
 // analyzeRoofPhoto's model (2026-10-04: claude-sonnet-4-6 → claude-sonnet-5-5).
 const ROOF_ANALYSIS_MODEL = 'claude-sonnet-5-5';
-
-/**
- * One-time function to set CORS on the Firebase Storage bucket.
- * Call once via: POST /setStorageCors with Authorization header
- */
-exports.setStorageCors = onRequest(
-  {
-    cors: CORS_ORIGINS,
-    maxInstances: 1,
-    timeoutSeconds: 30,
-    memory: '256MiB',
-  },
-  async (req, res) => {
-    // Admin-only — uses custom claims, not a self-owned Firestore role doc.
-    const authResult = await requireAuth(req, { adminOnly: true });
-    if (authResult.error) { res.status(authResult.error.status).json(authResult.error.body); return; }
-    try {
-      const bucket = getStorage().bucket();
-      await bucket.setCorsConfiguration([
-        {
-          origin: [
-            'https://nobigdealwithjoedeal.com',
-            'https://www.nobigdealwithjoedeal.com',
-            'https://nobigdeal-pro.web.app',
-          ],
-          method: ['GET', 'HEAD', 'OPTIONS'],
-          maxAgeSeconds: 3600,
-          responseHeader: ['Content-Type', 'Authorization', 'Content-Length', 'User-Agent'],
-        },
-      ]);
-      logger.info('storage_cors_updated');
-      res.json({ success: true, message: 'CORS configuration applied to storage bucket' });
-    } catch (e) {
-      logger.error('setStorageCors error', { err: e.message });
-      res.status(500).json({ error: e.message });
-    }
-  }
-);
 
 // ═══════════════════════════════════════════════════════════════
 // signImageUrl — serves Storage reads to authorized clients.
@@ -183,50 +144,6 @@ exports.signImageUrl = onRequest(
       logger.error('signImageUrl error', { err: e.message });
       res.status(500).json({ error: 'Signing failed' });
     }
-  }
-);
-
-// ═══════════════════════════════════════════════════════════════
-// R-03: imageProxy is RETIRED.
-//
-// The old handler streamed Storage bytes through the function, which
-// means every image egressed twice (Storage → Function → Client). At
-// 10k users × 20 photos × 500KB that's ~100GB/hr through 256Mi
-// function instances — the instance bandwidth ceiling (~1 Gbps per)
-// starves the pool before the workload ever reaches maxInstances.
-// It was also a stored-XSS vector (H-01) because it echoed whatever
-// Content-Type the Storage metadata carried.
-//
-// Every caller migrated to signImageUrl + the NBDSignedUrl helper
-// (docs/pro/js/signed-image-url.js). The stub below exists only to
-// fail loudly for any stale client (cached service worker, open tab,
-// third-party integration, uncached CDN edge) that still calls the
-// old URL. It holds NO auth, NO Firestore touches, NO Storage reads
-// — just a cheap 410 response that carries the RFC 8594 Deprecation
-// + Sunset headers pointing to the successor.
-//
-// Safe to delete outright after 7+ days of zero calls in Cloud Logs.
-// Retaining it short-term matches the pattern used for the retired
-// Cloudflare Worker at workers/nbd-ai-proxy.js.
-// ═══════════════════════════════════════════════════════════════
-exports.imageProxy = onRequest(
-  {
-    cors: CORS_ORIGINS,
-    maxInstances: 2,
-    concurrency: 20,
-    timeoutSeconds: 5,
-    memory: '256MiB', // was 128MiB — 128MiB intermittently misses the Gen2 startup healthcheck loading the full index.js graph (see cspReport in handlers/monitoring.js)
-  },
-  (req, res) => {
-    res.set('Deprecation', 'true');
-    res.set('Sunset', 'Wed, 01 Oct 2026 00:00:00 GMT');
-    res.set('Link', '</signImageUrl>; rel="successor-version"');
-    res.set('Cache-Control', 'public, max-age=3600');
-    res.status(410).json({
-      error: 'gone',
-      message: 'imageProxy has been retired. Use POST /signImageUrl { path } to obtain a 15-minute v4-signed Storage URL, then fetch it directly from storage.googleapis.com.',
-      successor: '/signImageUrl'
-    });
   }
 );
 

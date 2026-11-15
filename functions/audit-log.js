@@ -11,18 +11,11 @@
  * entries used `createdAt` (not `ts`), so they evaded retention and
  * accumulated forever with unredacted before/after PII.
  *
- * 2026-06-08 dedup: those four triggers are now no-ops. audit-triggers.js
- * already covers their collections (more completely + redacted), so no
+ * 2026-06-08 dedup: those four triggers became no-ops; 2026-11-15 they were
+ * deleted outright (exports removed, then undeployed with functions:delete).
+ * audit-triggers.js already covers their collections (more completely + redacted), so no
  * audit coverage is lost. The only live writer left here is auditInvoices,
  * because `invoices/*` is NOT covered by audit-triggers.js.
- *
- * The four no-op exports are RETAINED (not deleted) because the CI deploy
- * is name-scoped (`firebase deploy --only functions:<list>`) and cannot
- * prune orphaned functions — removing the exports would leave the old
- * revisions live in prod, still double-writing. To delete them for good
- * once convenient (one-time, needs prod access):
- *   firebase functions:delete auditUsers auditCompanies auditAccessCodes \
- *     auditSubscriptions --project <pro-project> --force
  */
 
 'use strict';
@@ -31,15 +24,6 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
-
-// ─── DEPRECATED no-ops — superseded by audit-triggers.js (see header) ──
-// Kept as registered no-ops ONLY so the name-scoped CI deploy doesn't
-// leave orphaned, still-double-writing revisions live in prod.
-const noop = async () => {};
-exports.auditSubscriptions = onDocumentWritten('subscriptions/{uid}', noop);
-exports.auditUsers         = onDocumentWritten('users/{uid}', noop);
-exports.auditAccessCodes   = onDocumentWritten('access_codes/{codeId}', noop);
-exports.auditCompanies     = onDocumentWritten('companies/{companyId}', noop);
 
 // ─── Invoices — the one sensitive collection audit-triggers.js omits ──
 async function writeAudit(entry) {

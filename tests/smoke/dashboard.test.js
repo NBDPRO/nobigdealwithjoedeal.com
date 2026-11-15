@@ -909,7 +909,7 @@ section('Audit batch 4 — admin function role-check drift guard');
       .map(f => 'functions/' + f);
     candidates.push(...subFiles);
     // Step 4c: inline handlers moved to functions/handlers/<area>.js.
-    // The definition site for setStorageCors, getAdminAnalytics,
+    // The definition site for getAdminAnalytics,
     // integrationStatus, etc. is now inside that subdirectory.
     const handlersDir = path.join(ROOT, 'functions/handlers');
     if (fs.existsSync(handlersDir)) {

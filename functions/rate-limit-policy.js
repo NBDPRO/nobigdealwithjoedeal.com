@@ -130,10 +130,9 @@ const ROUTES = {
   // (imageProxy entry deleted 2026-08-10: retired to a 410 stub in
   //  handlers/photo.js — no auth, no limiter, nothing to police.)
   // RECORD-ONLY, UNVERIFIED against handlers (no hand-rolled gate found for
-  // setStorageCors / integrationStatus; getAdminAnalytics's real gate is
+  // integrationStatus; getAdminAnalytics's real gate is
   // callableRateLimit 30/hr uid in handlers/admin.js). Wire these through
   // guardCallable/guardHttp or sync them in the next pilot increment.
-  setStorageCors:     { uidLimit:  10, uidWindow: HOUR,   ipLimit:  20, ipWindow: HOUR    },
   integrationStatus:  { uidLimit: 120, uidWindow: HOUR,   ipLimit: 300, ipWindow: HOUR    },
   getAdminAnalytics:  { uidLimit:  30, uidWindow: HOUR,   ipLimit: 120, ipWindow: HOUR    },
   // getGoogleReviews WIRED (2026-08-10): guardHttp in google-reviews.js —
