@@ -199,13 +199,14 @@ section('Audit 2026-08-02: shared-estimate whitelist emits retail rows, never ra
   const psrc = read(path.join(FUNCTIONS, 'portal.js'));
   assert('portal.js requires the customer-estimate-rows retail ladder',
     /require\(['"]\.\/customer-estimate-rows['"]\)/.test(psrc) &&
-    /buildDisplayRows\(est\)/.test(psrc));
+    // `priced` = the signed view of est (2026-11-14, finding 4)
+    /buildDisplayRows\((est|priced)\)/.test(psrc));
   assert('whitelist no longer emits est.lines raw (a field no writer persists)',
     !/lines:\s*Array\.isArray\(est\.lines\)/.test(psrc));
   assert('whitelist no longer emits est.tiers raw',
     !/tiers:\s*est\.tiers \|\| null/.test(psrc));
   assert('safe tiers synthesized from persisted per-SQ prices, grandTotal-only',
-    /est\.prices && typeof est\.prices === 'object'/.test(psrc) &&
+    /(est|priced)\.prices && typeof \1\.prices === 'object'/.test(psrc) &&
     /safeTiers\[k\] = \{ grandTotal: Number\(v\) \}/.test(psrc));
   assert('lines map to the estimate-view shape (name/quantity/unit/lineTotal)',
     /lineTotal: r\.total/.test(psrc));

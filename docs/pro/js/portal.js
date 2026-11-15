@@ -1227,9 +1227,13 @@
               // .big-num — a 36px orange "—" under the word TOTAL, which
               // reads as a broken page at the moment the customer is
               // deciding. Say the honest thing instead.
-              (hasTotal
-                ? '<div class="kv-key">Total</div><div class="big-num">' + esc(fmtMoney(e.grandTotal)) + '</div>'
-                : '<div class="kv-key">Total</div><div class="kv-val" style="color:var(--muted);">Your rep is still putting the numbers together.</div>') +
+              // Signed, but no signed price is on file (2026-11-14): no
+              // amount rather than one that may be a later edit.
+              (e.pricePending
+                ? '<div class="kv-key">Total</div><div class="kv-val" style="color:var(--muted);">Your rep is confirming the signed price.</div>'
+                : hasTotal
+                  ? '<div class="kv-key">Total</div><div class="big-num">' + esc(fmtMoney(e.grandTotal)) + '</div>'
+                  : '<div class="kv-key">Total</div><div class="kv-val" style="color:var(--muted);">Your rep is still putting the numbers together.</div>') +
               (e.tierName ? '<div class="kv-val" style="margin-top:6px;color:var(--muted);">' + esc(e.tierName) + '</div>' : '') +
               // Payment terms (2026-09-25): the deposit rule's own sentence,
               // stamped by the rep's builder and validated server-side
