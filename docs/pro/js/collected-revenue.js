@@ -77,9 +77,11 @@
         var p = inv.payments[i] || {};
         var amt = parseFloat(p.amount);
         var at = p.at != null ? p.at : p.date;
-        if (!(amt > 0) || at == null) continue;
-        out.push({ amount: amt, at: at });
+        // A reversal (negative entry, functions/payment-reversal.js planReversal) nets the money back out on the reversed payment's own date.
+        if (!amt || at == null) continue;
+        out.push(amt < 0 ? { amount: amt, at: at, reversal: true } : { amount: amt, at: at });
         ledgerCents += Math.round(amt * 100);
+        if (amt < 0) continue;
         var d = toJSDate(at);
         if (d && d.getTime() < earliestMs) { earliestMs = d.getTime(); earliestAt = at; }
       }
@@ -141,7 +143,7 @@
       paymentsOf(inv).forEach(function (p) {
         if (!inRange(toMs(p.at), startMs, endMs)) return;
         totalCents += Math.round((parseFloat(p.amount) || 0) * 100);
-        if (!p.refund) count++; // a refund is money back, not a payment
+        if (!p.refund && !p.reversal) count++; // a refund is money back, a reversal undoes one: neither is a payment
       });
     });
     return { total: totalCents / 100, count: count };

@@ -993,12 +993,56 @@ async function run() {
   await assertFails(updateDoc(await fresh('h0'), { status: 'sending', sendingPriorStatus: 'paid', sendingAt: new Date() }));   // a draft cannot claim a prior 'paid'
   await assertSucceeds(updateDoc(await fresh('h3'), { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));
   await assertFails(updateDoc(doc(alice, 'invoices/h3'), { status: 'paid' }));
-  // Undo: only the writer who recorded the newest payment, or the owner side, may remove it
+  // Undo is gone (Joe, 2026-11-14): no browser removes a payment, not its recorder and not the owner side. A mistake is
+  // fixed with the owner-only Reverse payment (functions/payment-reversal.js), which keeps the history.
   await assertSucceeds(updateDoc(await fresh('h1'), paidPatch(payEntry({ recordedBy: 'alice' }))));
   await assertFails(updateDoc(doc(mgrBf, 'invoices/h1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));   // a manager cannot remove someone else's payment
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/h1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 })); // alice undoes her own newest
+  await assertFails(updateDoc(doc(alice, 'invoices/h1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));    // alice cannot undo her own newest any more
   await assertSucceeds(updateDoc(await fresh('h2'), paidPatch(payEntry({ recordedBy: 'alice' }))));
-  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/h2'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 })); // the owner side may undo anyone's
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/h2'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));  // nor the owner side
+  await assertFails(updateDoc(doc(solo, 'invoices/h2'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));
+  // the platform admin keeps its bypass for everything EXCEPT money: payments, amountPaid, balanceDue, paidAt, lastPaymentAt,
+  // depositPaid and the move into / out of 'paid' (Joe, 2026-11-14: even the top-level account leaves a trail on money)
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { amountPaid: 99999 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { balanceDue: 1 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { payments: [payEntry({ recordedBy: 'alice' }), payEntry({ recordedBy: 'joe', paymentId: 'pz' })], amountPaid: 10680 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { status: 'sent' }));      // h2 is 'paid': leaving 'paid' is money too
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/h2'), { notes: 'admin note' }));   // control: a non-money edit still passes
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/h3'), { notes: 'admin note' }));
+  // ...and the rest of what moves money or its trail is frozen for the admin too (security review, 2026-11-14)
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { total: 1 }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { deleted: true }));                 // a void with no note, out of Collected
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { companyId: 'co-b' }));             // moving the money to another tenant
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { createdBy: 'joe' }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { stripeCreditKeys: [] }));          // Stripe idempotency: re-credit the same charge
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { paidIntentIds: [] }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { supersededPayments: [] }));
+  await assertFails(updateDoc(doc(admin, 'invoices/h2'), { refunds: [{ amount: 1, at: new Date() }] }));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/adm-part'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 500, amountPaid: 100, balanceDue: 400, payments: [payEntry({ amount: 100 })], createdAt: 1 }); });
+  await assertFails(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'void' }));          // out of A/R
+  await assertFails(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'cancelled' }));
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/adm-part'), { status: 'overdue', notes: 'x' }));   // control: a non-money status word still passes
+  // The server-only money fields are frozen for EVERY browser, on update and on create (refunds come from Stripe; the
+  // idempotency keys stop a charge being credited twice).
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/srv-keys'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 500, amountPaid: 500, balanceDue: 0, payments: [payEntry({ amount: 500 })], stripeCreditKeys: ['ch_1'], paidIntentIds: ['pi_1'], refunds: [{ amount: 100, at: new Date(), status: 'succeeded' }], refundedTotal: 100, createdAt: 1 }); });
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { refunds: [{ amount: 40000, at: new Date() }] }));
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { refunds: [] }));
+  // (refundedTotal / supersededPayments / reconciliations / paidIntentIds are not frozen on this branch: the update rule sits at the expression
+  //  budget, refundedTotal is display-only (no Collected / A/R reader uses it), and the other two only steer catch-up matching.)
+  await assertFails(updateDoc(doc(alice, 'invoices/srv-keys'), { stripeCreditKeys: [] }));
+  // (paidIntentIds is not frozen on this branch yet: each extra key costs an expression and the 12-payment append sits at the
+  //  1000 budget. Follow-up: move the server-only money fields into a server-only doc. See NEXT_SESSION-2026-11-14-money-path.)
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/srv-keys'), { refunds: [] }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/srv-keys'), { notes: 'control' }));
+  const bornWith = (k, v) => setDoc(doc(alice, 'invoices/born-' + k), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, status: 'sent', [k]: v }));
+  await assertFails(bornWith('refunds', [{ amount: 1, at: new Date() }]));
+  await assertFails(bornWith('refundedTotal', 1));
+  await assertFails(bornWith('stripeCreditKeys', ['ch_x']));
+  await assertFails(bornWith('paidIntentIds', ['pi_x']));
+  await assertFails(bornWith('lastPaymentAt', new Date()));
+  await assertFails(bornWith('paidAt', new Date()));
+  await assertSucceeds(bornWith('notes', 'control'));
   // ── review round 4: three more variants of the same bypass, and the recorder ──
   // (1) the total cannot be lowered or omitted to make "paid" true
   await assertFails(updateDoc(await fresh('t1'), { status: 'paid', total: 0 }));
@@ -1017,7 +1061,24 @@ async function run() {
   await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 5340, status: 'paid', balanceDue: 0, paidAt: daysAgo(5) }));   // remove the $1, claim paid
   await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'paid', balanceDue: 0 }));                         // 'paid' with nothing left
   await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 500, status: 'partial', balanceDue: 4840 }));                // amountPaid does not follow the removal
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));                  // a clean Undo
+  await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));                     // even a clean Undo (Joe, 2026-11-14)
+  // Payment reversal (2026-11-14, functions/payment-reversal.js): the server appends a NEGATIVE entry; no browser may Undo it
+  // (that would restore the reversed money to Collected and delete the record) — not the owner side, not the rep.
+  {
+    const typoAt = daysAgo(3);
+    const typoE = { paymentId: 'p_typo', amount: 40000, at: typoAt, method: 'check', recordedBy: 'alice' };
+    const revE = { paymentId: 'rev_p_typo', amount: -40000, at: typoAt, method: 'check', recordedBy: 'carol', reversal: true, reverses: 'p_typo', reason: 'typo' };
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'invoices/rev1'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined,
+        status: 'sent', total: 4000, amountPaid: 0, balanceDue: 4000, payments: [typoE, revE] }));
+    });
+    const undoRev = { payments: [typoE], amountPaid: 40000, balanceDue: 0, status: 'paid' };
+    await assertFails(updateDoc(doc(coAdmin, 'invoices/rev1'), undoRev));   // the owner side cannot delete a reversal
+    // (the platform admin is not covered: the invoice update rule lets isAdmin() skip every invoice check, as before)
+    await assertFails(updateDoc(doc(alice, 'invoices/rev1'), undoRev));     // nor the rep
+    await assertFails(updateDoc(doc(alice, 'invoices/rev1'), { payments: [typoE, Object.assign({}, revE, { amount: -1 })], amountPaid: 39999 }));   // its amount is frozen
+    await assertSucceeds(updateDoc(doc(alice, 'invoices/rev1'), { payments: [typoE, Object.assign({}, revE, { note: 'x' })] }));   // control: a non-money edit passes as before
+  }
   // (4) the recorder: set by the caller, never rewritten
   await assertFails(updateDoc(await fresh('r1'), paidPatch(payEntry({ recordedBy: 'bob' }))));                                  // recorded "by" someone else
   await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all
@@ -1041,7 +1102,7 @@ async function run() {
     const bad2 = cur.map((e, j) => (j === idx ? Object.assign({}, e, { at: daysAgo(40) }) : e));
     await assertFails(updateDoc(k0, { payments: bad2 }));                                                              // (date)
   }
-  await assertSucceeds(updateDoc(k0, { payments: cur.slice(0, cur.length - 1), amountPaid: 10 * (cur.length - 1), status: 'partial', balanceDue: 100000 - 10 * (cur.length - 1) }));   // undo of the newest entry passes
+  await assertFails(updateDoc(k0, { payments: cur.slice(0, cur.length - 1), amountPaid: 10 * (cur.length - 1), status: 'partial', balanceDue: 100000 - 10 * (cur.length - 1) }));   // no Undo of the newest entry either
   await assertFails(updateDoc(k0, { deleted: true, voidNote: 'void of a full invoice' }));                             // the rep who recorded it cannot void money (2026-10-20)
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/k0'), { deleted: true, voidNote: 'void of a full invoice' }));   // the owner side can: a full list can still be voided
   // a legacy list longer than 15 (written by the server) can still be voided / edited elsewhere
@@ -1066,7 +1127,9 @@ async function run() {
   await assertSucceeds(updateDoc(gS, paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
   await assertSucceeds(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'paid', sendingAt: new Date() }));
   await assertSucceeds(updateDoc(gS, { status: 'sent' }));                                            // the marker is left behind, stale
-  await assertSucceeds(updateDoc(gS, { payments: [], amountPaid: 0, balanceDue: 5340 }));              // an ordinary undo while not sending
+  await assertFails(updateDoc(gS, { payments: [], amountPaid: 0, balanceDue: 5340 }));                 // no browser Undo (Joe, 2026-11-14)
+  // the money leaves the server's way (as the reversePayment callable would), so the stale-marker checks below still apply
+  await env.withSecurityRulesDisabled(async (ctx) => { await updateDoc(doc(ctx.firestore(), 'invoices/x1'), { payments: [], amountPaid: 0, balanceDue: 5340 }); });
   await assertFails(updateDoc(gS, { status: 'sending' }));                                            // re-lock with the stale 'paid' marker: refused
   await assertFails(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'paid' }));
   await assertSucceeds(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));   // the honest lock is fine
@@ -1196,11 +1259,24 @@ async function run() {
   await assertFails(deleteDoc(doc(rep2, 'invoices/del-rep2')));                                                       // nor another rep (never could)
   await assertFails(deleteDoc(doc(alice, 'invoices/del-legacy-paid')));                                               // 'paid' with nothing recorded counts as money
   await assertFails(deleteDoc(doc(alice, 'invoices/del-amt')));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/del-lump'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, balanceDue: 0, paidAt: new Date(), createdAt: 1 });   // collected = total - balanceDue
+    await setDoc(doc(d, 'invoices/del-Paid'), { createdBy: 'alice', companyId: 'co-a', status: 'Paid', total: 500, createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-refund'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, payments: [], refunds: [{ amount: 50, at: new Date() }], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-keys'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, payments: [], stripeCreditKeys: ['ch_1'], createdAt: 1 });
+  });
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-lump')));        // legacy collected revenue is money
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-Paid')));        // 'Paid' in any case
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-refund')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-keys')));
   await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-draft')));                                                  // a mistaken draft is still hers to delete
   await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-nopay-key')));
-  await assertSucceeds(deleteDoc(doc(solo, 'invoices/del-solo')));                                                    // a solo operator is the owner side (the catch-up Undo)
-  await assertSucceeds(deleteDoc(doc(coAdmin, 'invoices/del-rep')));                                                  // the company_admin may
-  await assertSucceeds(deleteDoc(doc(admin, 'invoices/del-admin')));                                                  // and so may the platform admin
+  // an invoice that carries money is never hard-deleted from a browser (Joe, 2026-11-14: money keeps its trail; void instead)
+  await assertFails(deleteDoc(doc(solo, 'invoices/del-solo')));                                                       // not by a solo owner
+  await assertFails(deleteDoc(doc(coAdmin, 'invoices/del-rep')));                                                     // nor the company_admin
+  await assertFails(deleteDoc(doc(admin, 'invoices/del-admin')));                                                     // nor the platform admin
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/del-rep'), { deleted: true, voidNote: 'void keeps the record' }));   // the owner side voids it instead
   await assertFails(deleteDoc(doc(bob, 'invoices/del-mgr')));                                                         // another tenant cannot
   // each invoiceCarriesMoney clause on its own: a creator rep cannot delete these
   const entry1 = { amount: 10, at: new Date(), method: 'cash', recordedBy: 'alice' };
@@ -1220,6 +1296,7 @@ async function run() {
   });
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));   // the admin's money check fits the budget too
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
@@ -1282,7 +1359,7 @@ async function run() {
   await assertFails(updateDoc(doc(bob, 'invoices/vm4'), { deleted: true, voidNote: 'other tenant' }));
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/vm5'), { deleted: true, voidNote: 'owner side voids money' })); // the company_admin may
   await assertSucceeds(updateDoc(doc(solo, 'invoices/vm-solo'), { status: 'void', deleted: true, voidNote: 'solo owner' }));
-  await assertSucceeds(updateDoc(doc(admin, 'invoices/vm6'), { deleted: true, voidNote: 'platform admin' }));
+  await assertFails(updateDoc(doc(admin, 'invoices/vm6'), { deleted: true, voidNote: 'platform admin' }));     // (2026-11-14) not the platform admin: voiding takes money out of Collected; the company's owner side does it
   await assertSucceeds(updateDoc(doc(alice, 'invoices/vf1'), { deleted: true, voidNote: 'empty draft-like invoice' }));   // a rep may still void one with no money
   await assertSucceeds(updateDoc(doc(mgrBf, 'invoices/vf2'), { status: 'void' }));
   await assertFails(updateDoc(doc(alice, 'invoices/vf3'), { deleted: true }));                                          // the void note is still required
@@ -2066,9 +2143,12 @@ async function run() {
   //    co-a invoice — the company-scope check, not just the role check, is
   //    what's actually gating this
   await assertFails(updateDoc(doc(mgrB, 'invoices/inv-a'), { status: 'void' }));
-  // ✅ a company_admin (not the creator) can delete a teammate's invoice —
-  //    the tenant owner destroying a billing record, same as /leads
-  await assertSucceeds(deleteDoc(doc(coAdmin, 'invoices/inv-a')));
+  // ❌ (2026-11-14, Joe: money keeps its trail) not even the company_admin hard-deletes a teammate's invoice once it
+  //    carries a payment: inv-a was paid above. A billing record with money is voided instead, which keeps it.
+  await assertFails(deleteDoc(doc(coAdmin, 'invoices/inv-a')));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/inv-a0'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 0, payments: [], createdAt: 1 }); });
+  // ✅ a company_admin (not the creator) can still delete a teammate's invoice that carries no money
+  await assertSucceeds(deleteDoc(doc(coAdmin, 'invoices/inv-a0')));
   // ❌ but a manager — staff, just not the owner — still cannot delete;
   //    only UPDATE was widened to staff, DELETE deliberately was not
   await env.withSecurityRulesDisabled(async (ctx) => {

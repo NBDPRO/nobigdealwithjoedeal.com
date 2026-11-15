@@ -483,6 +483,7 @@ const VERDICTS = {
   // The customer kill switch (2026-10-19, messaging-controls-fns.js): Jo's own uid only
   // (uid === NBD_OWNER_UID), proven in tests/messaging-controls-2026-10-19.test.js section E.
   manageMessagingControls: 'role-gated',
+  reversePayment: 'role-gated',   // the company owner only (payment-reversal.js isCompanyOwner), plus assertNotViewer
   // Away mode + backup person (2026-10-12, away-mode.js): the owner actions go through
   // requireTeamAdmin (owner / company_admin only); the backup's two actions refuse a
   // viewer / member and then require the caller to BE the verified backup. Proven in
