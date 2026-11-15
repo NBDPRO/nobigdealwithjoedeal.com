@@ -117,6 +117,8 @@ let navCount = 0;
 for (const abs of walk(DOCS, [])) {
   const r = rel(abs);
   if (r.startsWith('docs/pro/') && r !== 'docs/pro/refer.html') continue;
+  // /estimate belongs to #3089 (lead intake); this bundle leaves that page as it is.
+  if (r === 'docs/estimate.html') continue;
   const doc = K.parseTags(fs.readFileSync(abs, 'utf8'));
   for (const a of doc.$$('a')) {
     const href = a.attr('href') || '';
