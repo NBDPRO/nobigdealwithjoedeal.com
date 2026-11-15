@@ -158,9 +158,10 @@ console.log('\n6. wiring');
   ok('savePages stamps changed pages', /function savePages\(\)\{[^}]*stampChanged\(pages,_dsSnap/.test(app));
   ok('loadPages seeds the snapshots', /function loadPages\(\)\{[\s\S]{0,120}seedSnapshots\(pages,_dsSnap\)/.test(app));
   ok('deleting a page tombstones it (deletePageAt, which doDelete and the immediate delete both use; flow batch 3)', /function deletePageAt\(i\)\{[\s\S]*?dsTombstone\(gone\.id\)/.test(app) && /function doDelete\(\)\{[^\n]*deletePageAt\(/.test(app));
-  ok('both config writers and the goal-target writer stamp + push',
-    (app.match(/setItem\(NBD_CFG,JSON\.stringify\(config\)\);dsSettingsChanged\(NBD_CFG\)/g) || []).length === 2
-    && /setItem\(GT_KEY,JSON\.stringify\(gt\)\);dsSettingsChanged\(GT_KEY\)/.test(app));
+  // 2026-11-14: the goal-target writer (the Dash's Monthly Goals inputs) went with the door / close / revenue tiles (Joe's
+  // decision). nbd_gt itself still syncs (ds-firebase-sync SETTINGS; the CRM widgets read it).
+  ok('both config writers stamp + push',
+    (app.match(/setItem\(NBD_CFG,JSON\.stringify\(config\)\);dsSettingsChanged\(NBD_CFG\)/g) || []).length === 2);
   ok('the push is chunked through ds-sync-logic', /L\(\)\.chunk\(writes/.test(sync) && /changedSince\(pages, _ledger\)/.test(sync));
   ok('the old single all-pages batch is gone', !/for \(const page of pages\)/.test(sync));
   ok('a delete is a soft delete, never deleteDoc', /deleted: true/.test(sync) && !/deleteDoc/.test(sync));
@@ -196,7 +197,9 @@ console.log('\n7. collectPage never reads a page that is not on screen');
   ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
   ok('renderPage stamps the page on screen; renderDash clears it',
     /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\n(?:rememberScroll\(\);)?killCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
-  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree); DS_OPEN_TO is \'dash\' by default (flow batch 3)', /const DS_OPEN_TO='dash';\r?\ninitTheme\(\);loadPages\(\);cur=-1;[\s\S]{0,200}renderTabs\(\);if\(cur===-1\)renderDash\(\);else renderPage\(\);/.test(app));
+  // 2026-11-14 (audit) / 2026-11-15 (source-pin ratchet): the boot used to be pinned by its exact minified text here. It is
+  // executed instead in a real browser: ds-flow-batch-3-2026-11-09 'control: boots on the Dashboard' (cur === -1, the Dash on
+  // screen) and ds-day-rollover / ds-no-kpi-tiles drive the same boot. No text pin left here.
   const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
   const code = sync.replace(/^\s*\/\/.*$/gm, '');
   ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));

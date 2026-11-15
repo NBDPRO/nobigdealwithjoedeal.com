@@ -225,7 +225,7 @@
     // _applyUpgradeLines. Each entry is the saved row itself.
     upgrades: [],
     // The saved offered / chosen / declined record, carried so a re-save
-    // (or a second "Save Again?" doc) keeps it. Never edited here.
+    // (or a "Save as copy" doc) keeps it. Never edited here.
     upgradeLog: null,
     // 3B — reopen: when a saved V2 estimate is reopened, the raw doc is
     // stashed here so doc regeneration can faithfully REPLAY the saved
@@ -1359,6 +1359,9 @@
             style="width:100%;justify-content:center;padding:14px;">
             💾 Save Estimate to Customer
           </button>
+          <button id="v2saveCopyBtn" type="button" class="btn btn-ghost v2-save-copy" data-action="save-copy" hidden>
+            📄 Save as copy
+          </button>
           <div id="v2saveStatus" style="font-size:10px;color:var(--m,#888);margin-top:6px;text-align:center;"></div>
 
           <div class="v2-section">E-Signature</div>
@@ -1598,6 +1601,9 @@
         case 'save':
           save();
           break;
+        case 'save-copy':
+          saveAsCopy();
+          break;
         case 'auto-measure':
           autoMeasure();
           break;
@@ -1812,7 +1818,7 @@
     // integer, so the rise/run ratio is pitch/12. Without this, waste stayed stuck
     // at the initial default (1.17) regardless of the chosen pitch.
     if (key === 'pitch' || key === 'cutUpRoof') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
         let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
         if (state.measurements.cutUpRoof) w += 0.03;
@@ -2053,7 +2059,9 @@
     const trimmed = String(input == null ? '' : input).trim();
     if (trimmed === '') delete scopeEntry.overrides.note;
     else scopeEntry.overrides.note = trimmed.slice(0, 500);
-    state._reopenedClean = false;   // 3B
+    // NOT an edit for 3B (finding 3, 2026-11-14): a note never touches the
+    // money, so a reopened estimate keeps replaying its saved numbers. The
+    // note is still saved — _savedRowsOf reads it from state.scope.
     return true;
   }
 
@@ -3184,7 +3192,8 @@
     if (idx >= 0) cur.splice(idx, 1);
     else cur.push({ id: photo.id, url: photo.url });
     state.photos = cur;
-    state._reopenedClean = false;
+    // Not a price edit (finding 3, 2026-11-14): leave _reopenedClean alone so a
+    // reopened estimate keeps its saved numbers. The save reads state.photos.
     renderPhotos();
     saveDraftDebounced();
   }
@@ -3741,6 +3750,7 @@
     renderPhotos();
     _paintModeHint();
     _applyKySigningGate();
+    _applySaveCopyGate();
     // F7: debounced autosave on every render. Cheap — just a JSON
     // write to localStorage. Firestore backup fires on a slower
     // cadence so network blips don't cost the rep their work.
@@ -4475,7 +4485,11 @@
       adj:              Math.round(ctx.adjustedSqft || 0),
       sq:               Number((ctx.sq || 0).toFixed(2)),
       wf:               ctx.waste || 1.17,
-      pl:               String(state.measurements.pitch || 8) + '/12',
+      // `|| 6`, the default buildPerSqInput PRICES a blank pitch at (finding 12,
+      // 2026-11-14). `|| 8` saved a blank as 8/12, and the reopen's first edit
+      // added the steep adder to a roof never priced steep. The line-item
+      // engine prices 0 and 6 alike (its only pitch rule is the >= 8 adder).
+      pl:               String(state.measurements.pitch || 6) + '/12',
       ridge:            ctx.ridgeLf || 0,
       eave:             ctx.eaveLf || 0,
       hip:              ctx.hipLf || 0,
@@ -4523,7 +4537,17 @@
       // row (gated on this flag) silently disappeared, so the regenerated
       // scope's subtotal + tax no longer summed to the printed total.
       minJobApplied:    !!estimate.minJobApplied,
-      prices:           estimate.prices || null,            // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
+      // The estimate's own minimum job charge (state.minJobCharge: a preset /
+      // job template floor, null = none set), so a reopen re-prices with THIS
+      // floor, not whatever the last session left in memory (finding 2,
+      // 2026-11-14). With none set but a floor APPLIED (the shop's Settings
+      // repair minimum, or the per-SQ roof minimum), the applied floor is
+      // saved, so a later Settings change can't move this price. null is
+      // written, not omitted: a missing key marks a doc saved before this
+      // field (see _savedMinJobCharge).
+      minJobCharge:     (state.minJobCharge != null) ? num(state.minJobCharge)
+        : ((estimate.minJobApplied && Number(estimate.minJobCharge) > 0) ? Number(estimate.minJobCharge) : null),
+      prices:           estimate.prices || null,           // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
       selectedTier:     estimate.tier || state.tier,
       priceMode:        estimate.priceMode || state.mode,   // 'per-sq' | 'line-item' — tells consumers which model set grandTotal
       // The other tiers' rows, so the deal room may offer them and "Use it"
@@ -4620,9 +4644,9 @@
   }
 
   // The job-type fields a Job Template estimate edited here must keep on
-  // re-save (2026-09-25). An update would merge-keep them anyway, but the
-  // second "Save Again?" of a session creates a NEW doc (_saveEstimate
-  // clears _editingEstimateId after the first), and that copy printed
+  // re-save (2026-09-25). An update would merge-keep them anyway, but
+  // "Save as copy" creates a NEW doc (until 2026-11-14 the second "Save
+  // Again?" of a session did too), and that copy printed
   // roofing's lifetime warranty on a gutter job. `builder` stays 'v2' — this
   // builder did write it; sourceTemplates is what marks it a template job.
   function _savedJobTypeFields(estimate) {
@@ -4715,6 +4739,37 @@
     doc.rows.some(_isUpgradeRow)
       ? { upgradeCents: n(doc.upgradeCents), upgradeTaxCents: n(doc.upgradeTaxCents) }
       : {});
+  }
+
+  // The minimum job charge a reopened estimate re-prices with (finding 2,
+  // 2026-11-14). A doc that carries minJobCharge (saved since this fix, or
+  // re-totalled by doc-preflight.js) gets it back, null included (= none set).
+  // An older doc never stored it, so infer the conservative value — the one
+  // that keeps the SAVED price from moving on an edit that changes nothing:
+  //   • floored (minJobApplied) → its floor, which is the saved total less the
+  //     pass-through fees that ride on top of the floor, plus a Roof Care Plan
+  //     member discount taken off after it (doc-preflight.js reads a floored
+  //     doc's total as its floor the same way). The floor is the all-in total
+  //     (tax included: resolveEstimate floors total = subtotal + tax). Upgrade
+  //     cents are NOT taken off: NBDUpgrades.totalsWithUpgrades re-applies
+  //     the minimum to the whole job, so a still-floored total holds them;
+  //   • not floored → null, a fresh builder's "none set" (its old floor, if
+  //     any, is unknowable). One edge stays: an old PER-SQ doc priced under
+  //     the shop's per-SQ roof minimum by a lower preset floor re-floors at
+  //     that roof minimum on its first edit (the conservative choice, decided
+  //     2026-11-14).
+  // Never left as is: that would keep the previous session's value.
+  function _savedMinJobCharge(doc, passThru) {
+    if (doc.minJobCharge !== undefined) {
+      const v = Number(doc.minJobCharge);
+      return (doc.minJobCharge !== null && Number.isFinite(v)) ? v : null;
+    }
+    if (!doc.minJobApplied) return null;
+    let cents = Math.round((Number(doc.grandTotal) || 0) * 100);
+    (passThru || []).forEach((p) => { cents -= Math.round((Number(p.amount) || 0) * 100); });
+    const off = doc.memberDiscount && Number(doc.memberDiscount.cents);
+    if (Number.isSafeInteger(off) && off > 0) cents += off;
+    return cents > 0 ? cents / 100 : null;
   }
 
   // Parse a saved pitch label ("8/12") back to the numeric rise (8).
@@ -4855,6 +4910,10 @@
       .filter((r) => r && r.code && (/^SVC /.test(r.code) || r.source === 'passthru') && !_isUpgradeRow(r) && !_isMemberDiscountLine(r))
       .map((r) => ({ code: r.code, desc: r.desc,
         amount: Number(r.total) || Number(r.unitPrice) || 0, source: r.source || 'passthru' }));
+    // The doc's own minimum job charge — never the previous session's
+    // (finding 2, 2026-11-14). Read after state.passThru: an older doc infers
+    // its floor from the saved total less those fees.
+    state.minJobCharge = _savedMinJobCharge(doc, state.passThru);
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
     // scope, and re-added after the engine by _applyUpgradeLines — the same
     // "restore it or the first edit drops it" fix as the fees above, plus tax.
@@ -4865,6 +4924,9 @@
     state._reopenedDoc = doc;
     state._reopenedClean = true;
     _stateFromSavedDoc = estimateId;           // next fresh open resets (see open())
+    // Baseline for save()'s checks: signed / sent / changed elsewhere SINCE
+    // this reopen (a reopen may re-price a signed estimate, R6-2-2).
+    _lastSavedStamp = { id: estimateId, ms: _estimateStampMs(doc), lock: _lockOf(doc) };
     window._editingEstimateId = estimateId;   // _saveEstimate updates this doc
     window._v2SavedEstimateId = estimateId;    // sendForSignature scopes to it
     if (typeof syncCustomerInputs === 'function') syncCustomerInputs();
@@ -4966,6 +5028,18 @@
         // Copy: `.recommended` is stamped below, and perSqTiers is the
         // estimate's cached object reused by later renders.
         meta.tiers = Object.assign({}, estimate.perSqTiers);
+      } else if (state._reopenedClean && estimate.prices
+                 && _v2Tiers().some(k => estimate.prices[k] != null && Number(estimate.prices[k]) > 0)) {
+        // A clean reopen replays the saved doc, which keeps prices{} but not
+        // perSqTiers. Rebuilding the cards live dropped the saved pass-through
+        // fees and today's settings moved them, so the cards disagreed with the
+        // saved headline (finding 11, 2026-11-14). The formatter reads only
+        // .total per card.
+        meta.tiers = {};
+        _v2Tiers().forEach(k => {
+          const v = Number(estimate.prices[k]);
+          if (estimate.prices[k] != null && v > 0) meta.tiers[k] = { total: v };
+        });
       } else if (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.calculateAllTiers === 'function') {
         meta.tiers = window.EstimateBuilderV2.calculateAllTiers(buildPerSqInput());
       } else {
@@ -5073,12 +5147,164 @@
   // Resolves to the saved estimate id, or null when nothing was saved
   // (Send to homeowner / Sign on this phone need the id; the Save button
   // ignores it).
-  async function save() {
+  //
+  // Save Again UPDATES (Jo, 2026-11-14). _saveEstimate clears
+  // _editingEstimateId after an update and a fresh estimate never had one, so
+  // every save after the first used to CREATE another estimate on the
+  // customer (and ask "Use this new estimate's $X instead?"). Now a save with
+  // no edit id pins the estimate this builder last saved, the way Send for
+  // Signature / Send to homeowner already did — unless it was signed or sent
+  // for signature since (refused: Save as copy is the way to a new version),
+  // changed on another device (asks first), or is gone (archived elsewhere:
+  // saved as a new estimate, never onto the archived one). The checks read the
+  // estimate FRESH (one getDoc), never the window._estimates cache, and a
+  // failed read refuses. opts.resend: Send for Signature, which replaces the
+  // envelope, may update an estimate that is out for signature.
+  async function save(opts) {
     _savedIdOut = null;
-    await _saveInner();
+    const pinned = await _pinSavedEstimate(opts || {});
+    if (pinned === false) return null;
+    try { await _saveInner(); }
+    finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
     return _savedIdOut;
   }
   let _savedIdOut = null;
+  let _saveAsCopyOn = false;
+  // { id, ms, lock }: the estimate this builder last saved, its updatedAt and
+  // signing state (_lockOf) then.
+  let _lastSavedStamp = null;
+
+  function _estimateStampMs(est) {
+    if (!est) return null;
+    // updatedAt present but null = a pending serverTimestamp: unknown, never
+    // the older createdAt (which would read as "unchanged").
+    const t = Object.prototype.hasOwnProperty.call(est, 'updatedAt') ? est.updatedAt : est.createdAt;
+    if (t && typeof t.toMillis === 'function') return t.toMillis();
+    if (t && Number.isFinite(Number(t.seconds))) return Number(t.seconds) * 1000;
+    return null;
+  }
+  // 'signed' | 'out' (out for signature) | null.
+  function _lockOf(est) {
+    if (!est) return null;
+    if (est.signatureStatus === 'signed' || (est.signedPrice && typeof est.signedPrice === 'object')) return 'signed';
+    if (est.signatureStatus === 'sent' || est.signatureStatus === 'viewed') return 'out';
+    return null;
+  }
+  // The estimate read fresh: { ok: true, est } (est null = no such estimate,
+  // or archived) or { ok: false } (the read failed / Firestore not loaded).
+  async function _readSavedEstimate(id) {
+    if (!window.db || typeof window.doc !== 'function' || typeof window.getDoc !== 'function') return { ok: false };
+    try {
+      const snap = await window.getDoc(window.doc(window.db, 'estimates', id));
+      if (!snap || !snap.exists()) return { ok: true, est: null };
+      const est = Object.assign({ id }, snap.data());
+      return { ok: true, est: est.deleted === true ? null : est };
+    } catch (e) {
+      console.warn('[EstimateV2UI] saved-estimate read failed:', e && (e.code || e.message));
+      return { ok: false };
+    }
+  }
+  async function _rememberSaved(id) {
+    const r = await _readSavedEstimate(id);
+    const est = (r.ok && r.est) || null;
+    // Unread: ms null, so the next Save again asks rather than assume unchanged.
+    _lastSavedStamp = { id, ms: est ? _estimateStampMs(est) : null, lock: _lockOf(est) };
+  }
+  const SAVE_AGAIN_SIGNED = 'The homeowner signed this estimate, so Save again won\'t change it. ' +
+    'Use Save as copy to keep these changes as a new estimate.';
+  const SAVE_AGAIN_OUT = 'This estimate is out for signature, so Save again won\'t change it: the homeowner is ' +
+    'signing the version you sent. Tap Send for Signature to send this version, or Save as copy to keep it separate.';
+
+  // → the pinned id (the caller clears it after the save), null (nothing to
+  // pin: save as before), or false (refused; nothing written).
+  const SAVE_AGAIN_UNREAD = 'Couldn\'t check the saved estimate just now (offline?), so nothing was saved. ' +
+    'Try again in a moment, or use Save as copy.';
+  async function _pinSavedEstimate(opts) {
+    const id = window._v2SavedEstimateId || null;
+    const editing = window._editingEstimateId || null;
+    // Nothing this builder saved or reopened, or another flow's edit id: as before.
+    if (!id || (editing && editing !== id)) return null;
+    const refuse = (msg) => {
+      const el = document.getElementById('v2saveStatus');
+      if (el) { el.textContent = msg; el.style.color = 'var(--red,#c53030)'; }
+      if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
+      return false;
+    };
+    const read = await _readSavedEstimate(id);
+    if (!read.ok) return refuse(SAVE_AGAIN_UNREAD);
+    const est = read.est;
+    if (!est) {
+      window._v2SavedEstimateId = null;
+      if (editing === id) window._editingEstimateId = null;
+      if (typeof window.showToast === 'function') {
+        window.showToast('The estimate you saved is no longer there (archived?), so this was saved as a new estimate.', 'warning');
+      }
+      return null;
+    }
+    // Signed / sent for signature SINCE this builder saved it. An estimate that
+    // already was when it was saved here came through a reopen, whose re-price
+    // of a signed estimate is allowed (bills keep the signed price, R6-2-2) —
+    // Save again keeps doing what that first save did.
+    const lock = _lockOf(est);
+    const mine = _lastSavedStamp && _lastSavedStamp.id === id ? _lastSavedStamp : null;
+    if (lock && !(mine && mine.lock === lock) && !(lock === 'out' && opts.resend)) {
+      return refuse(lock === 'signed' ? SAVE_AGAIN_SIGNED : SAVE_AGAIN_OUT);
+    }
+    const nowMs = _estimateStampMs(est);
+    const changed = !!(mine && mine.ms != null && nowMs != null && nowMs > mine.ms);
+    const unknown = !mine || mine.ms == null || nowMs == null;
+    if (changed || unknown) {
+      const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+      const go = await ask((changed
+        ? 'This estimate was changed on another device since you saved it here.'
+        : 'Couldn\'t confirm this estimate is unchanged since you saved it here.') +
+        '\n\nSave over it? (Cancel, then use Save as copy to keep both.)');
+      if (!go) {
+        return refuse(changed
+          ? 'Not saved: the estimate changed on another device. Use Save as copy to keep both.'
+          : 'Not saved. Use Save as copy to keep both versions.');
+      }
+    }
+    window._editingEstimateId = id;
+    return id;
+  }
+
+  // "Save as copy" (Jo, 2026-11-14): a NEW estimate from what is on screen,
+  // the original left as it is. After it, Save updates the copy.
+  let _copyBusy = false;
+  async function saveAsCopy() {
+    if (_copyBusy) return null; // a double tap makes ONE copy
+    _copyBusy = true;
+    const copyBtn = document.getElementById('v2saveCopyBtn');
+    if (copyBtn) copyBtn.disabled = true;
+    try { return await _saveAsCopyInner(); }
+    finally { _copyBusy = false; if (copyBtn) copyBtn.disabled = false; }
+  }
+  async function _saveAsCopyInner() {
+    const prevEdit = window._editingEstimateId || null;
+    const prevSaved = window._v2SavedEstimateId || null;
+    window._editingEstimateId = null;
+    window._v2SavedEstimateId = null;
+    _savedIdOut = null;
+    _saveAsCopyOn = true;
+    try { await _saveInner(); }
+    finally { _saveAsCopyOn = false; }
+    if (!_savedIdOut) {
+      // Nothing saved: Save still means the estimate it meant before.
+      window._editingEstimateId = prevEdit;
+      window._v2SavedEstimateId = prevSaved;
+      _applySaveCopyGate();
+      return null;
+    }
+    return _savedIdOut;
+  }
+
+  // The copy button shows once there is a saved estimate to copy.
+  function _applySaveCopyGate() {
+    if (typeof document === 'undefined' || !document.getElementById) return;
+    const b = document.getElementById('v2saveCopyBtn');
+    if (b) b.hidden = !(window._v2SavedEstimateId || window._editingEstimateId);
+  }
   async function _saveInner() {
     const statusEl = document.getElementById('v2saveStatus');
     const btn = document.getElementById('v2saveBtn');
@@ -5152,9 +5378,15 @@
         // server builds the contract from the saved doc).
         window._v2SavedEstimateId = savedId;
         _savedIdOut = savedId;
+        await _rememberSaved(savedId);
+        _applySaveCopyGate();
         // F7: saved estimate → draft is obsolete.
         clearDraft();
-        setStatus('✓ Saved — estimate #' + savedId.substring(0, 8) + '…', 'var(--green,#2ECC8A)');
+        setStatus((_saveAsCopyOn ? '✓ Saved as a new copy — estimate #' : '✓ Saved — estimate #')
+          + savedId.substring(0, 8) + '…'
+          // _saveEstimate's lead stamp-back failed (best-effort): say so here too.
+          + (window._saveEstimateWarning ? ' ' + window._saveEstimateWarning : ''),
+          window._saveEstimateWarning ? 'var(--orange,#BD5728)' : 'var(--green,#2ECC8A)');
         if (typeof window.showToast === 'function') {
           window.showToast('✓ Estimate saved to Firestore', 'success');
         }
@@ -5245,16 +5477,11 @@
     _signBusy = true;
     if (btn) btn.disabled = true;
     try {
-      // 1. Save — re-sending the same estimate updates it instead of adding a copy.
+      // 1. Save — re-sending the same estimate updates it instead of adding a
+      // copy. save() pins it and runs the signed / changed-elsewhere checks;
+      // re-sending replaces the envelope, so "out for signature" is allowed.
       say('Saving the estimate…');
-      let pinned = null;
-      if (window._v2SavedEstimateId && !window._editingEstimateId) {
-        pinned = window._v2SavedEstimateId;
-        window._editingEstimateId = pinned;
-      }
-      let estimateId = null;
-      try { estimateId = await save(); }
-      finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+      const estimateId = await save({ resend: true });
       if (!estimateId) { closeTab(w); say('The estimate did not save — nothing was sent.', 'error'); return 'failed'; }
 
       // 2. Send.
@@ -5428,7 +5655,7 @@
     // Same pitch→waste rule as updateMeasurement so the imported pitch
     // doesn't leave a stale waste factor behind.
     if (window.EstimateBuilderV2 && typeof EstimateBuilderV2.wasteFactorForPitch === 'function') {
-      const ratio = (Number(state.measurements.pitch) || 8) / 12;
+      const ratio = (Number(state.measurements.pitch) || 6) / 12;   // blank = 6/12, as priced and saved (2026-11-14)
       let w = EstimateBuilderV2.wasteFactorForPitch(ratio);
       if (state.measurements.cutUpRoof) w += 0.03;
       state.measurements.waste = w;
@@ -6139,17 +6366,10 @@
     if (!prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
 
     // 1. Save. Re-sending the same estimate updates it instead of adding a
-    //    copy; the edit id is cleared afterwards so it can't leak into the
-    //    next builder session.
+    //    copy; save() pins it, runs the signed / changed-elsewhere checks and
+    //    clears the edit id afterwards so it can't leak into the next session.
     say('Saving the estimate…');
-    let pinned = null;
-    if (window._v2SavedEstimateId && !window._editingEstimateId) {
-      pinned = window._v2SavedEstimateId;
-      window._editingEstimateId = pinned;
-    }
-    let estimateId = null;
-    try { estimateId = await save(); }
-    finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+    const estimateId = await save();
     if (!estimateId) { say('The estimate did not save — nothing was sent.', 'error'); return null; }
 
     // 2. The Close Board engine loads with its view; load it here if needed.
@@ -6397,6 +6617,7 @@
     setWorkKind,
     finalize,
     save,
+    saveAsCopy,
     // 2026-10-03: the one homeowner flow (V3's Finish primary calls it too).
     sendToHomeowner,
     signOnThisPhone,
@@ -6425,6 +6646,7 @@
       reconstructEstimateFromSaved: _reconstructEstimateFromSaved,
       rehydrateFromSaved: rehydrateFromSaved,
       effectiveEstimate: effectiveEstimate,
+      applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
       collectDraft: collectDraft,
       getState: () => state,
       // Display helpers. Pure, and the two that decide whether the scope
@@ -6437,6 +6659,8 @@
       // Close flow (2026-10-03) — tests/close-flow-2026-10-03.test.js.
       kySigningBlocked: _kySigningBlocked,
       applyKySigningGate: _applyKySigningGate,
+      // Save Again / Save as copy — tests/estimate-save-again-2026-11-14.test.js.
+      applySaveCopyGate: _applySaveCopyGate,
       dealPricesFor: _dealPricesFor,
       tierBuildsFor: _tierBuildsFor,
       sendForSignature: sendForSignature,

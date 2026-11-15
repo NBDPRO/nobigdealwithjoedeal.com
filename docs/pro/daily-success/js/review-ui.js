@@ -184,13 +184,12 @@
       '<div class="wc-hint">' + esc(w.from) + ' → ' + esc(w.to) + '</div>' +
       '<div class="wc-lbl">1 · Floors</div>' +
       (w.rows.length ? '<div class="wc-sum"><div><b>' + (w.pct != null ? w.pct : 0) + '%</b> hit</div><div><b>' + w.fullDays + '/7</b> full days</div><div><b>' + x.streak.count + '</b> floor streak</div></div>' + rows +
-        '<div class="rv-tax"><div><b>Miss tax: $' + (w.missTaxCents / 100).toFixed(0) + '</b> <small>(' + w.misses + ' missed × $5)</small></div>' +
+        '<div class="rv-tax"><div><b>Miss tax: $' + (w.missTaxCents / 100).toFixed(0) + '</b> <small>(' + (w.taxedMisses != null ? w.taxedMisses : w.misses) + ' missed × $5' + (w.taxedMisses != null && w.taxedMisses < w.misses ? '; Sunday misses are free' : '') + ')</small></div>' +
         (w.missTaxCents ? '<label class="rv-check"><input type="checkbox" id="rvTaxMoved"' + (saved.taxMoved ? ' checked' : '') + '> I moved it to savings</label>' : '<div class="wc-meta">Nothing owed. Clean week.</div>') + '</div>'
         : '<div class="wc-meta">No daily floors set yet — set them under ⚙️ Customize.</div>') +
       eodHtml() +
       trainingHtml(w) +
       '<div class="wc-lbl">2 · Weigh-in</div><div class="wc-meta rv-wt rv-wt-' + esc(wt.verdict) + '">' + esc(wt.text) + '</div>' +
-      (wt.verdict === 'adjust' && wt.newCalories ? '<button type="button" class="btn btn-ghost" data-rv-action="cut">Set calories to ' + esc(wt.newCalories) + '</button>' : '') +
       '<div class="rv-goalset"><label>Start <input class="wc-in" id="rvGoalStart" inputmode="decimal" value="' + esc(x.s.goal.start || '') + '" placeholder="375"></label>' +
       '<label>Goal <input class="wc-in" id="rvGoalGoal" inputmode="decimal" value="' + esc(x.s.goal.goal || '') + '" placeholder="220"></label></div>' +
       '<div id="rvActs">' + actsHtml() + '</div>' +
@@ -246,17 +245,8 @@
     toast('Review saved. ' + (s.weeks[today()].scary ? 'Hard thing locked in.' : ''));
     refresh();
   }
-  function doCut() {
-    const x = _x || snapshot();
-    if (!x.weight.newCalories) return;
-    const f = readJson(FOOD, {}) || {};
-    f.targets = Object.assign({}, f.targets, { calories: x.weight.newCalories });
-    if (!Array.isArray(f.favorites)) f.favorites = [];
-    try { localStorage.setItem(FOOD, JSON.stringify(f)); } catch (_) { toastErr('Could not save on this device'); return; }
-    if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(FOOD);
-    toast('Daily calories set to ' + x.weight.newCalories);
-    open();
-  }
+  // The old one-tap calorie-cut button (doCut) is gone (audit 2026-11-14 #12): it cut 200 with none of the weekly-targets
+  // guards and reopened the review on the new target, so each tap offered another -200. doAccept('calories') is the path.
   function doAccept(id) {
     const it = _acts && _acts.items.find((i) => i.id === id);
     const T = window.NBDWeeklyTargets;
@@ -311,7 +301,6 @@
     if (a === 'open') open();
     else if (a === 'close') close();
     else if (a === 'save') doSave();
-    else if (a === 'cut') doCut();
     else if (a === 'accept') doAccept(t.dataset.id);
     else if (a === 'copy') doCopy();
   });

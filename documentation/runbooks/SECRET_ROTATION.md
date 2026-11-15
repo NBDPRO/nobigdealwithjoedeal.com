@@ -137,5 +137,10 @@ paired site key lives in `docs/assets/js/inline/7cd8e505ab.js` and a mismatch
 ## After rotation
 
 - Run `firebase deploy --only functions,firestore:rules,storage,hosting`.
+- **Update 2026-11-14:** a merge to `main` no longer redeploys functions unless function code changed
+  ([FUNCTIONS-DEPLOY-SKIP](FUNCTIONS-DEPLOY-SKIP.md)), so a rotated secret does NOT reach the functions on the
+  next merge by itself. Every secret binds only at deploy time: after any rotation, dispatch
+  `gh workflow run firebase-deploy.yml --ref main -f scope=functions` (or the full deploy above) and check the
+  strict functions step went green.
 - Smoke test: login flow, Stripe checkout, `/claudeProxy` call from the dashboard, a lead submission, an OTP cycle.
 - Monitor billing for 24 hours — if you see any unusual Twilio or Anthropic spend, revoke keys again and investigate.

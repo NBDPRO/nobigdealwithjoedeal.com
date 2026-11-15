@@ -126,7 +126,7 @@
       // Month close (2026-10-19): inert until the monthClose flag is on.
       'css/month-close.css?v=1', 'js/month-close-logic.js?v=2', 'js/month-close.js?v=1',
       // Customer payment backfill (2026-10-19): inert until the paymentBackfill flag is on (owner only).
-      'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=1', 'js/payment-backfill.js?v=1',
+      'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=2', 'js/payment-backfill.js?v=1',
       // Sub paperwork tracker (2026-10-19): inert until the subPaperwork flag is on (owner / company_admin write).
       'css/sub-paperwork.css?v=1', 'js/sub-paperwork-logic.js?v=4', 'js/sub-paperwork.js?v=3',
       // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.
@@ -152,7 +152,7 @@
       'js/stripe-ledger-panel.js?v=5',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
-      'js/money-dashboard.js?v=13'
+      'js/money-dashboard.js?v=15'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -185,9 +185,9 @@
     // view. numbers-logic / numbers-data / the lost-reason picker and
     // invoice-pipeline.js (Record payment) are eager on the dashboard.
     catchup: [
-      'js/catchup-logic.js?v=3',
+      'js/catchup-logic.js?v=4',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=2'
+      'js/catchup.js?v=3'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -224,7 +224,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=10',
+      'js/customer-documents.js?v=11',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -295,10 +295,10 @@
       'js/estimate-finalization.js?v=11',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=38',
+      'js/estimate-v2-ui.js?v=42',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=5',
+      'js/estimate-v3-wizard.js?v=6',
       // KY claim wording (2026-10-18): the supplement letter runs its free text
       // through window.NBDClaimWording and refuses to build without it.
       'js/claim-wording-filter.js?v=1',
@@ -313,7 +313,7 @@
       'js/job-templates-data.js?v=7',
       'js/job-templates.js?v=9',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=13',
+      'js/job-templates-ui.js?v=14',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle

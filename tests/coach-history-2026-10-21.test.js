@@ -74,7 +74,7 @@ console.log('\n2. the real screen');
   h.click('hist-toggle', { id: firstId }); h.click('hist-toggle', { id: hist[0].id });
   ok('only one row is open at a time', (h.html().match(/wc-hist-detail/g) || []).length === 1);
   h.click('close'); h.click('open');
-  ok('close leaves the history view: opening the logger afterwards does not show it (no live workout -> empty)', h.html() === '', h.html().slice(0, 80));
+  ok('close leaves the history view: opening the logger afterwards shows the logger, not history (no live workout -> it starts one, never a blank screen; audit 2026-11-14 #1)', /class="wc-set/.test(h.html()) && !/Workout history/.test(h.html()), h.html().slice(0, 80));
   h.click('hist-open');
   ok('reopening starts collapsed (no stale expanded row)', !/wc-hist-detail/.test(h.html()));
   h.click('close'); h.click('start');
