@@ -152,9 +152,6 @@
   // ─── Bell button ────────────────────────────────────────────
   function _attachBell() {
     if (document.getElementById('nbd-whats-new-bell')) return;
-    // Every item ages out after 30 days; with none left the bell opened an
-    // empty "0 items" panel (wave-1 daily #7). No bell until there is news.
-    if (!_activeItems().length) return;
     // Inject next to the user avatar/header. Try the most common ID
     // (#userName / #userAvatar in the topbar). Fallback: top-right
     // floating placement.
@@ -269,6 +266,9 @@
             '</div>'
           );
         }).join('') +
+        // Every item ages out after 30 days; with none left the panel was an
+        // empty "0 items" box (wave-1 daily #7). Say so plainly instead.
+        (items.length ? '' : '<div class="nbd-wn-empty" style="padding:18px 4px;color:var(--m,#94a3b8);font-size:13px;line-height:1.5;">Nothing new right now. New features show up here for 30 days after they ship.</div>') +
         '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--br,#2a3344);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
           '<button type="button" id="nbd-wn-mark-all" style="background:transparent;color:var(--m,#94a3b8);border:none;font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;">Mark all as seen</button>' +
           '<div style="font-size:11px;color:var(--m,#64748b);">' + items.length + ' item' + (items.length === 1 ? '' : 's') + ' (last 30 days)</div>' +

@@ -103,8 +103,14 @@ function slice(text, start, endMarker) {
       for (let n = 0; n < 5 && q.length; n++) q.splice(0).forEach((fn) => fn());
       return dom;
     }
-    ok('What\'s new: no bell when every item has aged out (today)', !boot('2026-11-14T12:00:00Z').document.getElementById('nbd-whats-new-bell'));
-    ok('...positive control: the bell is there while items are fresh', !!boot('2026-05-10T12:00:00Z').document.getElementById('nbd-whats-new-bell'));
+    // Bundle Field 2 (2026-11-15): the bell stays (the overlay keyboard suite
+    // opens the panel from it); an empty panel now says there is nothing new.
+    const openPanel = (dom) => { const b = dom.document.getElementById('nbd-whats-new-bell'); if (b) H.click(dom, b); return dom.document.getElementById('nbd-whats-new-panel'); };
+    const today = boot('2026-11-14T12:00:00Z');
+    const empty = openPanel(today);
+    ok('What\'s new with every item aged out: the panel says "Nothing new right now" (not an empty 0-item box)', !!empty && /Nothing new right now/.test(H.text(empty)), empty ? H.text(empty).slice(0, 120) : 'no panel');
+    const fresh = openPanel(boot('2026-05-10T12:00:00Z'));
+    ok('...positive control: with fresh items they are listed and there is no empty note', !!fresh && !/Nothing new right now/.test(H.text(fresh)) && /Recently shipped/.test(H.text(fresh)));
   }
 
   // ── daily #9 ──
