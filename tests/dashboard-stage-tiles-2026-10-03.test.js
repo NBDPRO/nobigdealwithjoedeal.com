@@ -107,8 +107,7 @@ const crm = read('docs/pro/js/crm.js');
 // 2026-11-14 (wave-1 daily #9): the filter's matching lives in _stageFiltered
 // and it registers with NBDLeadFilters; with no registry (as here) it is the
 // one-shot render it always was. Lift the helpers with it.
-const fm = crm.match(/let _stageFilterKey = null;[\s\S]*?\nwindow\.filterByStage = function\(stageKey\) \{[\s\S]*?\n\};\n/)
-  || crm.match(/window\.filterByStage = function\(stageKey\) \{[\s\S]*?\n\};\n/);
+const fm = crm.match(/let _stageFilterKey = null;[\s\S]*?\nwindow\.filterByStage = function\(stageKey\) \{[\s\S]*?\n\};\n/);
 ok('crm.js filterByStage present', !!fm);
 if (fm) {
   let shown = null;

@@ -122,14 +122,26 @@ window.filterByStage = function(stageKey) {
   const countSpan = document.getElementById('crmSearchCount');
   if (countSpan) countSpan.textContent = filtered.length + ' in stage';
 };
+// Using the search box or the damage filter after picking a stage means the rep
+// moved on: the stage filter steps aside at once (kanbanFilter renders without
+// telling the registry, so a later refresh must not bring the stage back after
+// the search is cleared).
+function _stageStepAside(e) {
+  const id = e && e.target && e.target.id;
+  if (id !== 'crmSearch' && id !== 'crmDmgFilter') return;
+  const F = window.NBDLeadFilters;
+  if (F && F.isActive('stage')) F.deactivate('stage');
+}
+document.addEventListener('input', _stageStepAside, true);
+document.addEventListener('change', _stageStepAside, true);
 // A lead reload re-renders the whole book: put the stage filter back on it.
-// Typing a search after picking a stage means the rep moved on: drop it.
 window.addEventListener('nbd:data-refreshed', (e) => {
   if (!e || !e.detail || e.detail.source !== 'leads') return;
   const F = window.NBDLeadFilters;
   if (!F || !F.isActive('stage')) return;
   const s = document.getElementById('crmSearch');
-  if (s && String(s.value || '').trim()) { F.deactivate('stage'); return; }
+  const d = document.getElementById('crmDmgFilter');
+  if ((s && String(s.value || '').trim()) || (d && d.value)) { F.deactivate('stage'); return; }
   F.refresh();
 });
 window.handleCardClick = handleCardClick;

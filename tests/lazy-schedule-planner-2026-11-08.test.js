@@ -231,7 +231,7 @@ console.log('\nLAZY PLAN JOBS: registration on the real script-loader.js');
     ok('goTo stamps the template BEFORE it preloads the view, so the planner finds its panel', go.indexOf('_hydrateViewTemplate(name);') > 0 && go.indexOf('_hydrateViewTemplate(name);') < go.indexOf('preloadForView(name)'));
     const cust = read('docs/pro/customer.html');
     ok('the customer page loads only the rules, as before', !/<script\b[^>]*schedule-planner\.js/.test(cust) && /schedule-planner-logic\.js\?v=\d+/.test(cust));
-    ok('production.js cache-buster bumped on both pages (v=3)', /<script defer src="js\/production\.js\?v=3"><\/script>/.test(dash) && /<script defer src="js\/production\.js\?v=3"><\/script>/.test(cust));
+    ok('production.js cache-buster bumped on both pages (v=4)', /<script defer src="js\/production\.js\?v=4"><\/script>/.test(dash) && /<script defer src="js\/production\.js\?v=4"><\/script>/.test(cust));
     ok('script-loader.js is untouched by this lane', !/schedule-planner/.test(LOADER));
     ok('this suite is in the node bucket', read('tests/ci-manifest.json').indexOf('"lazy-schedule-planner-2026-11-08.test.js"') >= 0);
   }

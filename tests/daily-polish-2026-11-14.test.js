@@ -113,7 +113,8 @@ function slice(text, start, endMarker) {
     const REG = fs.readFileSync(path.join(H.ROOT, 'docs/pro/js/lead-filter-registry.js'), 'utf8');
     const renders = [];
     const listeners = {};
-    const search = { value: '' };
+    const search = { value: '', id: 'crmSearch' };
+    const docL = {};
     const count = { textContent: '' };
     const W = {
       _leads: [{ id: 'a', stage: 'new' }, { id: 'b', stage: 'won' }, { id: 'c', stage: 'new' }],
@@ -121,7 +122,8 @@ function slice(text, start, endMarker) {
       renderLeads: (all, subset) => renders.push(subset ? subset.map((l) => l.id).join(',') : 'ALL'),
     };
     const ctx = vm.createContext({ window: W, console: { log() {}, warn() {}, error() {} },
-      document: { getElementById: (id) => (id === 'crmSearch' ? search : id === 'crmSearchCount' ? count : null) },
+      document: { getElementById: (id) => (id === 'crmSearch' ? search : id === 'crmSearchCount' ? count : null),
+        addEventListener(t, fn) { (docL[t] = docL[t] || []).push(fn); } },
       renderLeads: W.renderLeads });
     vm.runInContext(REG, ctx);
     const block = slice(CRM, 'let _stageFilterKey', 'window.handleCardClick') || slice(CRM, 'window.filterByStage = function', 'window.handleCardClick');
@@ -137,6 +139,14 @@ function slice(text, start, endMarker) {
     W.renderLeads(W._leads);
     (listeners['nbd:data-refreshed'] || []).forEach((fn) => fn({ detail: { source: 'leads' } }));
     ok('...but a search typed since then wins (the stage filter steps aside)', renders[renders.length - 1] === 'ALL', renders.join(' | '));
+    // Review round: stage, then a search typed, then the search CLEARED, then a refresh.
+    W.filterByStage('new');
+    search.value = 'smith';
+    (docL.input || []).forEach((fn) => fn({ target: search }));
+    search.value = '';
+    W.renderLeads(W._leads);   // kanbanFilter shows every lead again
+    (listeners['nbd:data-refreshed'] || []).forEach((fn) => fn({ detail: { source: 'leads' } }));
+    ok('stage, then search typed and cleared: a refresh does not bring the stage back', renders[renders.length - 1] === 'ALL', renders.join(' | '));
   }
 
   // ── daily #11 ──

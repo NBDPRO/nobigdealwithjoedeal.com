@@ -553,7 +553,7 @@ const settle = () => new Promise((r) => setImmediate(r));
     ok('it says out loud that no final invoice was drafted', /No final invoice was drafted for this one/.test(ui));
     // 2026-11-08: schedule-planner.js is a lazy bundle registered in production.js, no longer a dashboard.html tag.
     ok('cache-busters were bumped for every changed served script', ['schedule-planner-logic.js?v=3', 'review-engine.js?v=11', 'review-deck.js?v=3', 'ask-joe-proactive.js?v=6']
-      .every((x) => read('docs/pro/dashboard.html').includes(x)) && read('docs/pro/js/production.js').includes('schedule-planner.js?v=6')
+      .every((x) => read('docs/pro/dashboard.html').includes(x)) && read('docs/pro/js/production.js').includes('schedule-planner.js?v=7')
       && read('docs/pro/customer.html').includes('review-engine.js?v=11') && read('docs/pro/customer.html').includes('schedule-planner-logic.js?v=3')
       && read('docs/pro/js/script-loader.js').includes('winback-logic.js?v=2'));
     ok('the toast says what Jo asked for and keeps a one-tap Undo', /'Marked completed ✓ - now '/.test(ui) && /undoText: snap \? 'Undo'/.test(ui) && /undoBackfillCompletion\(id, snap\)/.test(ui));
