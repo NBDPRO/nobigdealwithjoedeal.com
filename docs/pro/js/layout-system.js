@@ -868,9 +868,9 @@
   var systemLoading = null;
   function loadSystemLayer() {
     if (systemLoading) return systemLoading;
-    systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=1'] } })
+    systemLoading = loadNeedsCss({ needs: { css: ['css/os/system.css?v=2'] } })
       .then(function () { return loadScriptPath('js/os/system-logic.js'); })
-      .then(function () { return loadScriptPath('js/os/system.js?v=2'); });
+      .then(function () { return loadScriptPath('js/os/system.js?v=3'); });
     return systemLoading;
   }
 
