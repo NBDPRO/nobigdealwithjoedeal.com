@@ -48,6 +48,12 @@ const SETTINGS = [
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
   { key: 'nbd_ds_eod',      field: 'dsEod' },          // end-of-day review: one short note per date
   { key: 'nbd_ds_money',    field: 'dsMoney' },        // money tab: paycheck plan (nicknames + amounts only)
+  // Device-only until 2026-11-14 (audit #2): a lost phone, or another account signing in on it, took these with it.
+  // firstMerge: how to combine this device's never-synced copy with the cloud's on the first sync (ds-sync-logic mergeFirstSync).
+  { key: 'nbd_ds_measurements',   field: 'dsMeasurements',  firstMerge: 'dateSite' }, // body measurements (mm, one per site per day)
+  { key: 'nbd_ds_coach_routines', field: 'dsCoachRoutines', firstMerge: 'id' },       // Workout Coach saved routines
+  { key: 'nbd_ds_coach_custom',   field: 'dsCoachCustom',   firstMerge: 'id' },       // Workout Coach custom lifts
+  { key: 'nbd_ds_coach_ready',    field: 'dsCoachReady',    firstMerge: 'map' },      // morning check-ins (sleep / soreness / energy)
 ];
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 
@@ -250,9 +256,11 @@ async function pushSettingsOrThrow() {
   const patch = {};
   for (const s of SETTINGS) {
     const loc = localSetting(s);
-    if (loc.value == null) continue;
+    // Never-stamped (written before it synced, or before 2026-11-14 for the device-only lists): wait for syncSettings to compare
+    // it with the cloud copy and stamp it. Sent with a fresh stamp here, it would beat another device's newer copy unseen.
+    if (loc.value == null || !loc.at) continue;
     patch[s.field] = loc.value;
-    patch[s.field + 'At'] = loc.at || Date.now();
+    patch[s.field + 'At'] = loc.at;
   }
   if (!Object.keys(patch).length) return;
   await setDoc(doc(db, 'userSettings', _uid), patch, { merge: true });
@@ -274,7 +282,13 @@ async function syncSettings() {
     const loc = localSetting(s);
     const cv = cloudDoc[s.field];
     const cloud = { value: cv && typeof cv === 'object' ? cv : null, at: Number(cloudDoc[s.field + 'At']) || 0 };
-    const which = L().pickSettings(loc, cloud);
+    let which = L().pickSettings(loc, cloud);
+    // Never synced here and the cloud already has a copy: merge both instead of replacing this device's list.
+    if (which === 'cloud' && s.firstMerge && loc.value != null && !loc.at) {
+      localStorage.setItem(s.key, JSON.stringify(L().mergeFirstSync(s.firstMerge, loc.value, cloud.value)));
+      localStorage.setItem(s.key + '_at', String(Date.now()));
+      restored = true; needPush = true; continue;
+    }
     if (which === 'cloud') {
       localStorage.setItem(s.key, JSON.stringify(cloud.value));
       localStorage.setItem(s.key + '_at', String(cloud.at || Date.now()));
@@ -283,10 +297,14 @@ async function syncSettings() {
       }
       restored = true;
     } else if (which === 'local' && JSON.stringify(loc.value) !== JSON.stringify(cloud.value)) {
+      // Seen against the cloud now: a never-stamped local copy gets its stamp here, so the push below sends it.
+      if (!loc.at) localStorage.setItem(s.key + '_at', String(Date.now()));
       needPush = true;
     }
   }
   if (needPush) await pushSettingsOrThrow();
+  // The coach keeps its routines and custom lifts in memory: reload them after a restore (custom lifts join the library).
+  if (restored) { try { window.dispatchEvent(new CustomEvent('nbd-ds-settings-restored')); } catch (_) { /* the next coach action reloads them */ } }
   return restored;
 }
 

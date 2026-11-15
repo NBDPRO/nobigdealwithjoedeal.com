@@ -119,6 +119,7 @@ function makeHarness(opts) {
       fire('input', { target: { value: String(value), dataset: Object.assign({ coachField: name, i: String(i), s: String(s) }, extra || {}) } });
     },
     // a layout switch: set data-ui on <html> and tell the page, as layout-ui.js does
+    fireWindow(type, ev) { (listeners['w:' + type] || []).forEach((fn) => fn(ev || {})); },
     setUi(id) { docAttrs['data-ui'] = id; (listeners['w:nbd-layout'] || []).forEach((fn) => fn({})); },
     live() { return read('nbd_ds_coach_live'); },
     saved() { return read('nbd_ds_workouts') || []; },

@@ -158,6 +158,29 @@
    *   - both → the newer `at`; a tie (incl. both unknown) keeps local, because
    *     it is what this device is showing right now and pushing it is harmless
    */
+  /**
+   * First sync of a list that used to be device-only (audit 2026-11-14 #2): the local copy has never been stamped,
+   * so newest-wins would replace this device's routines / measurements / check-ins with another device's. Union them
+   * instead; on a clash the cloud copy wins. kind: 'id' (array keyed by .id), 'dateSite' (measurements: one value per
+   * site per day), 'map' (object keyed by date). Later syncs are newest-wins again, so deletes still travel.
+   */
+  function mergeFirstSync(kind, local, cloud) {
+    if (kind === 'map') {
+      const l = local && typeof local === 'object' && !Array.isArray(local) ? local : {};
+      const c = cloud && typeof cloud === 'object' && !Array.isArray(cloud) ? cloud : {};
+      return Object.assign({}, l, c);
+    }
+    const keyOf = kind === 'dateSite' ? (x) => (x && x.date) + '|' + (x && x.site) : (x) => String(x && x.id);
+    const out = [], seen = new Set();
+    for (const x of [].concat(Array.isArray(cloud) ? cloud : [], Array.isArray(local) ? local : [])) {
+      if (!x || typeof x !== 'object') continue;
+      const k = keyOf(x);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(x);
+    }
+    return out;
+  }
+
   function pickSettings(local, cloud) {
     const lv = local && local.value != null;
     const cv = cloud && cloud.value != null;
@@ -192,7 +215,7 @@
     return typeof lastUid === 'string' && lastUid !== '' && typeof uid === 'string' && uid !== '' && lastUid !== uid;
   }
 
-  const api = { accountSwitched, CHUNK, isBlankAutoPage, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, widgetCfgFrom, mtOf };
+  const api = { accountSwitched, CHUNK, isBlankAutoPage, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, mergeFirstSync, widgetCfgFrom, mtOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDsSync = api;
 })(typeof window !== 'undefined' ? window : null);

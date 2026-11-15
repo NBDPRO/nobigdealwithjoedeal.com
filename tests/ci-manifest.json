@@ -1688,6 +1688,7 @@
     "crm-layouts-render-2026-10-15.test.js",
     "ds-day-rollover-2026-11-14.test.js",
     "ds-layouts-phone-fit-2026-10-25.test.js",
+    "ds-sync-device-data-2026-11-14.test.js",
     "ds-quick-wins-2026-11-09.test.js",
     "ds-flow-batch-2-2026-11-09.test.js",
     "ds-flow-batch-3-2026-11-09.test.js",

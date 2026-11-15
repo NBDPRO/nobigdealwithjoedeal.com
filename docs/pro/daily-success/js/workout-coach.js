@@ -155,7 +155,7 @@
     const all = readJson(READY, {}) || {};
     all[today()] = { sleep: r.sleep, sore: r.sore, energy: r.energy };
     Object.keys(all).sort().slice(0, Math.max(0, Object.keys(all).length - 30)).forEach((k) => { delete all[k]; });
-    writeJson(READY, all);
+    if (writeJson(READY, all)) stamp(READY);
   }
   // Rough day -> trim a set / hold the load on lifts nothing has been logged on. Safe to call again.
   function applyReadyTo(sess) {
@@ -516,9 +516,14 @@
   }
   // The lists live on this device only; another tab or the installed app may have changed them since this page loaded, so every
   // mutator re-reads storage first (otherwise its save would silently overwrite the other copy's changes).
+  // Routines, custom lifts and check-ins sync through userSettings (ds-firebase-sync.js SETTINGS, audit 2026-11-14 #2):
+  // every successful write is stamped so the newer copy wins across devices.
+  function stamp(key) { if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(key); }
   function reloadLists() {
     try { routines = C().normRoutines(readJson(ROUTINES, [])); custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { /* keep what we have */ }
   }
+  // The sync restored routines / custom lifts from the cloud (ds-firebase-sync.js): reload them (custom lifts join the library).
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd-ds-settings-restored', () => { reloadLists(); refreshCard(); });
   const SAVE_FAILED = "Couldn't save that on this phone - storage is full or blocked";
   function saveRoutine() {
     if (!live) return;
@@ -530,6 +535,7 @@
     const before = routines;
     routines = C().normRoutines(routines.concat([r]));
     if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
+    stamp(ROUTINES);
     toast('Saved as ' + name + ' - rename it under the gear');
     render();
   }
@@ -554,6 +560,7 @@
     const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
     if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
     if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toastErr(SAVE_FAILED); return; }
+    stamp(CUSTOM);
     custom = next;
     cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
     toast('Added ' + name);
@@ -564,6 +571,7 @@
     const before = custom;
     custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
     if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toastErr(SAVE_FAILED); return; }
+    stamp(CUSTOM);
     render();
   }
 
@@ -844,7 +852,7 @@
         const before = routines;
         routines = routines.filter((r) => r.id !== String(t.dataset.id || ''));
         if (!writeJson(ROUTINES, routines)) { routines = before; toastErr(SAVE_FAILED); return; }
-        render(); return;
+        stamp(ROUTINES); render(); return;
       }
       case 'custom-add': addCustom(); return;
       case 'custom-del': removeCustom(String(t.dataset.id || '')); return;
@@ -1021,7 +1029,7 @@
     if (el && el.dataset && el.dataset.coachField === 'rt-name') {
       reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); }
+      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toastErr(SAVE_FAILED); else stamp(ROUTINES); }
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'exnote') {
