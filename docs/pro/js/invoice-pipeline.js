@@ -688,6 +688,31 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // RECORDED (the money came in) and simply leaves nothing due, exactly as
   // markPaid has always behaved. lastPaymentAt never moves backwards when a
   // rep logs an older check after a newer payment.
+  // Wave-1 money review (2026-11-14, finding 1): a payment bigger than what is
+  // still owed asks first. '' = nothing to ask. A real overpayment can happen
+  // (the customer paid ahead), so this asks rather than refuses; a typo
+  // ($40,000 for a $4,000 check) is caught before it lands in Collected.
+  // balanceCents null/undefined = we could not read the balance: ask anyway.
+  function overpaymentNotice(amount, balanceCents) {
+    const amtC = toCents(amount);
+    if (!(amtC > 0)) return '';
+    const fmt = (c) => formatCurrency(c / 100);
+    if (balanceCents == null || !Number.isFinite(Number(balanceCents))) {
+      return 'Couldn\'t check what is still owed on this invoice. Record ' + fmt(amtC) + ' anyway?';
+    }
+    const balC = Math.max(0, Math.round(Number(balanceCents)));
+    if (amtC <= balC) return '';
+    if (balC === 0) return 'Nothing is owed on this invoice. Record ' + fmt(amtC) + ' anyway? Check the amount first.';
+    return fmt(amtC) + ' is ' + fmt(amtC - balC) + ' more than the ' + fmt(balC)
+      + ' still owed on this invoice. Record ' + fmt(amtC) + ' anyway? Check the amount first.';
+  }
+  // The iOS-PWA-safe ask (tests/pwa-confirm-guard.test.js): the real modal when there is one, else the native confirm.
+  function _askOverpay(m) {
+    const ask = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
+      : (x) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(x) : false);
+    return ask(m);
+  }
+
   function applyPaymentToInvoice(invoice, entry) {
     invoice = invoice || {};
     const totalC = toCents(Math.max(0, Number(invoice.total) || 0));
@@ -3786,13 +3811,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   async function markPaidUI(invoiceId) {
     await ensureDepositedToFlag();
     let balanceDefault = '';
+    let balanceCents = null;   // null = unread: the overpayment check then asks anyway
     try {
       const snap = await window.getDoc(window.doc(getDb(), 'invoices', invoiceId));
       if (snap.exists()) {
         const d = snap.data();
         const bal = (d.balanceDue != null) ? d.balanceDue : d.total;
         const c = toCents(Math.max(0, Number(bal) || 0));
-        if (Number.isFinite(c)) balanceDefault = (c / 100).toFixed(2);
+        if (Number.isFinite(c)) { balanceDefault = (c / 100).toFixed(2); balanceCents = c; }
       }
     } catch (_) { /* default to blank */ }
 
@@ -3915,6 +3941,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           return;
         }
         if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
+        // More than is owed asks first (a "no" keeps the sheet open, nothing written).
+        const over = overpaymentNotice(amount, balanceCents);
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         const details = { at, reference: $('#nbd-mp-ref').value, note: $('#nbd-mp-note').value };
         const depSel = $('#nbd-mp-dep');
         if (depSel && depSel.value) details.depositedTo = depSel.value;
@@ -4294,6 +4328,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           if (!(totalCents > 0)) { _toast('Enter the job total', 'error'); return; }
           if (!$('#nbd-rp-confirm').checked) { _toast('Confirm the job total first', 'error'); return; }
         }
+        // More than is owed asks first (a "no" keeps the sheet open, nothing written).
+        let owedC = null;
+        if (target.kind === 'existing') {
+          const inv = target.invoices.find(x => x.id === (invSel ? invSel.value : target.invoices[0].id)) || null;
+          if (inv) {
+            const c = toCents(Math.max(0, Number(inv.balanceDue != null ? inv.balanceDue : inv.total) || 0));
+            owedC = Number.isFinite(c) ? c : null;
+          }
+        } else if (target.kind === 'estimate') {
+          owedC = Number(target.totalCents) > 0 ? Number(target.totalCents) : null;
+        } else {
+          owedC = totalCents > 0 ? totalCents : null;
+        }
+        const over = overpaymentNotice(amount, owedC);
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         try {
@@ -4389,6 +4443,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     buildManualPaymentEntry,
     PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
+    overpaymentNotice,
     paymentKey,
     findPaymentIndex,
     attachProofToPayments,
