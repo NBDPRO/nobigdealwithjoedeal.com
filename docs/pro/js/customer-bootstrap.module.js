@@ -2293,10 +2293,9 @@ window.shareEstimateViewLink = async function(estId) {
   // its estimate card on this flag (functions/portal.js), which is what
   // stops an unshared scratch tier reaching the homeowner's portal.
   //
-  // Best-effort: a stamp failure must never cost the rep the link they just
-  // asked for, so this runs after the URL is built and only warns. The
-  // consequence of a miss is the portal card staying hidden — the safe
-  // direction — and the estimate-view link itself still works.
+  // Since 2026-11-14 (review M2) the estimate-view link itself opens only a
+  // shared estimate (getEstimateForView), so a failed stamp would hand the
+  // rep a link the customer can't open: stop and say so instead.
   try {
     await updateDoc(doc(db, 'estimates', estId), {
       sharedWithHomeowner: true,
@@ -2304,6 +2303,8 @@ window.shareEstimateViewLink = async function(estId) {
     });
   } catch (e) {
     console.warn('[estimate-share] could not stamp sharedWithHomeowner:', e && e.message);
+    if (typeof showToast === 'function') showToast('Could not share the estimate — try again', 'error');
+    return;
   }
 
   // Try the modern Web Share API first (mobile, opens native share
