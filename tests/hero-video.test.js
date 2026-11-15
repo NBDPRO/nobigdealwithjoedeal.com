@@ -89,7 +89,7 @@ console.log('\nHERO VIDEO — mapped pages, muted/no-autoplay markup, reduced-mo
   ok('every clip in hero-video.json is shown on at least one page', unused.length === 0, unused.join(', '));
   ok('the homepage shows topdown-install-spin and keeps its crew photo + caption', (() => {
     const h = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
-    return /data-clip="topdown-install-spin"/.test(h) && /class="hx-hero-img"/.test(h) && /Our crew &middot; <b>real job<\/b>, not stock/.test(h);
+    return /data-clip="topdown-install-spin"/.test(h) && /class="hx-hero-img"/.test(h) && /The crew I bring in &middot; <b>real job<\/b>, not stock/.test(h);
   })());
 }
 

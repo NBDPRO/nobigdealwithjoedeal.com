@@ -33,3 +33,8 @@
 /* the calendar button / photo note that follows the confirmation (2026-10-26) */
 .qlf .nbd-intake-after{margin-bottom:14px}
 @media(max-width:560px){.qlf-row{flex-direction:column;gap:0}}
+/* optional "add details" toggle (wave-3 CRO #3, 2026-11-15) */
+.qlf-more{margin:0 0 12px;border:1px solid #d7dbe0;border-radius:8px;padding:0 12px}
+.qlf-more>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:.84rem;font-weight:700;color:#12223d}
+.qlf-more>summary em{font-style:normal;font-weight:600;color:#646c7a;margin-left:4px}
+.qlf-more[open]{padding-bottom:4px}

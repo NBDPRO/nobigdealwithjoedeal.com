@@ -200,11 +200,29 @@
 
   function val(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
 
+  // Tap-to-call in error and save messages (wave-3 CRO #10, 2026-11-15): the
+  // text is set with textContent, so the number is swapped for a tel: link
+  // here, built with DOM calls (no HTML strings).
+  function telify(el) {
+    // Plain text stays if the page can't build nodes (never in a real browser).
+    if (!el || typeof el.appendChild !== 'function' || typeof document.createElement !== 'function') return;
+    var t = el.textContent || '', n = '(859) 420-7382', i = t.indexOf(n);
+    if (i < 0) return;
+    el.textContent = t.slice(0, i);
+    var a = document.createElement('a');
+    a.href = 'tel:+18594207382';
+    a.textContent = n;
+    el.appendChild(a);
+    var rest = t.slice(i + n.length);
+    if (rest) { var s = document.createElement('span'); s.textContent = rest; el.appendChild(s); }
+  }
+
   function detailsStatus(msg, isError) {
     var st = document.getElementById('insDetailsStatus');
     if (!st) return;
     st.className = 'ins-details-status' + (isError ? ' error' : '');
     st.textContent = msg;
+    telify(st);
   }
 
   function saveDetails(btn) {
@@ -265,6 +283,7 @@
     p.setAttribute('role', 'alert');
     p.style.cssText = 'margin-top:12px;padding:12px 14px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:8px;color:#7f1d1d;font-size:.9rem;line-height:1.4';
     p.textContent = msg || 'Something went wrong. Please call or text Joe at (859) 420-7382.';
+    telify(p);
     if (anchor && anchor.parentNode) {
       anchor.parentNode.insertBefore(p, anchor.nextSibling);
       try { anchor.setAttribute('aria-describedby', 'inspectFormError'); } catch (e) {}

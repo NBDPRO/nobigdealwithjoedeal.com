@@ -37,6 +37,12 @@
       document.title = 'Send a referral · ' + _co;
       const _heroP = document.querySelector('.hero p');
       if (_heroP) _heroP.textContent = 'Quick form below — ' + _co + ' will be in touch about your roof. No pressure, no spam.';
+      // The NBD-only lines name Joe and his number (wave-3 CRO #8): another
+      // tenant's page gets a neutral line instead.
+      const _noLink = document.getElementById('referNoLinkNbd');
+      if (_noLink) _noLink.remove();
+      const _done = document.getElementById('referDoneText');
+      if (_done) _done.textContent = _co + ' will be in touch shortly. Tell your neighbor we said thanks!';
     }
   } catch (e) { /* branding is best-effort */ }
   const form = document.getElementById('referForm');
