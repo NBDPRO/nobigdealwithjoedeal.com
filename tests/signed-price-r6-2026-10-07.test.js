@@ -312,8 +312,10 @@ for (const m of ['log', 'info', 'warn', 'error']) {
     const src = code('functions/portal.js');
     ok('portal.js builds the card from portalPriced (total, tier name, deposit terms)',
       /const latestPriced = latest \? portalPriced\(latest\) : null;/.test(src)
-      && /grandTotal:\s+latestPriced\.grandTotal \|\| latestPriced\.total \|\| null/.test(src)
-      && /depositPlan: safeDepositPlan\(latestPriced\)/.test(src) && /tierName:\s+tierApplies\(latestPriced\)/.test(src));
+      // 2026-11-14: `??` (a $0 total is real) and no amount while the signed
+      // price is pending (no signedPrice on a signed estimate).
+      && /grandTotal:\s+_pricePending \? null : \(latestPriced\.grandTotal \?\? latestPriced\.total \?\? null\)/.test(src)
+      && /depositPlan: _pricePending \? null : safeDepositPlan\(latestPriced\)/.test(src) && /tierName:\s+tierApplies\(latestPriced\)/.test(src));
   }
 
   // ════════════════════════════════════════════════════════════════════
