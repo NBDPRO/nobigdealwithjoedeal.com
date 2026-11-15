@@ -126,7 +126,7 @@
       // Month close (2026-10-19): inert until the monthClose flag is on.
       'css/month-close.css?v=1', 'js/month-close-logic.js?v=2', 'js/month-close.js?v=1',
       // Customer payment backfill (2026-10-19): inert until the paymentBackfill flag is on (owner only).
-      'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=1', 'js/payment-backfill.js?v=1',
+      'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=2', 'js/payment-backfill.js?v=1',
       // Sub paperwork tracker (2026-10-19): inert until the subPaperwork flag is on (owner / company_admin write).
       'css/sub-paperwork.css?v=1', 'js/sub-paperwork-logic.js?v=4', 'js/sub-paperwork.js?v=3',
       // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.
@@ -185,9 +185,9 @@
     // view. numbers-logic / numbers-data / the lost-reason picker and
     // invoice-pipeline.js (Record payment) are eager on the dashboard.
     catchup: [
-      'js/catchup-logic.js?v=3',
+      'js/catchup-logic.js?v=4',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=2'
+      'js/catchup.js?v=3'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',

@@ -10,6 +10,8 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "payment-overpay-confirm-2026-11-14.test.js",
+    "payment-reversal-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
     "draft-project-page-2026-11-09.test.js",
     "match-job-photos-2026-11-09.test.js",
@@ -253,6 +255,7 @@
     "flags-registry-drift.test.js",
     "prod-flags-panel.test.js",
     "address-audit-script.test.js",
+    "provision-tenant-sub-key-2026-11-15.test.js",
     "zip-state-check-2026-10-07.test.js",
     "backup-freshness.test.js",
     "vendor-config-export.test.js",
@@ -772,6 +775,7 @@
     "storm-briefing-tenant-scope-2026-10-05.test.js",
     "storm-outlook.test.js",
     "stripe-dispute-branches.test.js",
+    "connect-refund-invoice-2026-11-14.test.js",
     "swdi-hail.test.js",
     "tcpa-consent.test.js",
     "sms-consent-a2p-2026-10-05.test.js",
