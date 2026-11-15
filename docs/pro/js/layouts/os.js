@@ -611,11 +611,12 @@
         safe(function () { O.registerControl({ id: 'os-privacy', label: 'Privacy lock', hint: privacyHint, run: openPrivacy }); });
         return;
       }
-      if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
     }
-    // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
-    // (capture, so the tiles are in before the sheet paints; a no-op once registered)
-    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    // the system layer loads lazily, often after the layout: it fires nbd:os-system-ready
+    // when window.NBDOS is up (no 1.5 s poll). The tap that opens its Control Center checks
+    // once more (capture, so the tiles are in before the sheet paints; a no-op once registered).
+    on(W, 'nbd:os-system-ready', reg);
+    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done) reg(); }, true);
     reg();
   }
   // ── the action runner (command-runner.js, the lazy `cmdrunner` bundle): type-anywhere + hot corner on the desk ──
@@ -932,6 +933,22 @@
     }
     if (had) refocus(next);
   }
+  // the visible windows on this desk, in the order they were opened, one step on from the front
+  function cycleWin(dir) {
+    var list = here().filter(function (w) { return !w.min; })
+      .sort(function (a, b) { return S.order.indexOf(a.id) - S.order.indexOf(b.id); });
+    if (list.length < 2) return;
+    var i = -1;
+    for (var k = 0; k < list.length; k++) if (list[k].id === S.focus) i = k;
+    // nothing visible in front yet: forward starts at the first, back at the last
+    var next = (i < 0 ? list[dir > 0 ? 0 : list.length - 1] : list[(i + dir + list.length) % list.length]).id;
+    focusWin(next);
+    var el = winEl(next);
+    if (el) safe(function () { el.focus(); });
+  }
+  function closeAll() {
+    here().slice().forEach(function (w) { closeWin(w.id); });
+  }
   function toggleMax(id) {
     var rec = winRec(id);
     if (!rec) return;
@@ -1161,7 +1178,6 @@
       d.zone = WM.snapZone({ x: ev.clientX - d.origin.left, y: ev.clientY - d.origin.top }, d.desk);
       paintSnapPreview(d.zone);
     } else {
-      // a size drag stops at the desk edge; past it clampFrac moved x / y instead
       // a size drag stops at the desk edge; past it clampFrac moved x / y instead.
       // It never goes under the pixel floor (WM.minFrac: 320 x 240, or the fraction on a big desk).
       // The edge wins over the floor, so the window never jumps sideways mid-resize.
@@ -1172,7 +1188,14 @@
     }
     var f = WM.toFrac(px, d.desk);
     rec.x = f.x; rec.y = f.y; rec.w = f.w; rec.h = f.h;
-    placeWin(rec);
+    // the record follows every move; the paint waits for the next frame (one layout
+    // write per frame, not per pointermove). endDrag paints whatever is still waiting.
+    if (typeof W.requestAnimationFrame !== 'function') { placeWin(rec); return; }
+    if (d.frame) return;
+    d.frame = W.requestAnimationFrame(function () {
+      d.frame = null;
+      if (S && S.drag === d) placeWin(rec);
+    });
   }
   function endDrag(ev) {
     var d = S && S.drag;
@@ -1326,6 +1349,14 @@
       if (bar && !(ev.target.closest('button'))) toggleMax(bar.parentNode.getAttribute('data-win'));
     });
     on(desk, 'pointerdown', onDeskPointerDown);
+    // middle-click a taskbar button closes that app's window (Windows / most Linux shells)
+    on(desk, 'auxclick', function (ev) {
+      if (ev.button !== 1) return;
+      var tk = ev.target.closest && ev.target.closest('[data-ostask]');
+      if (!tk || !winRec(tk.getAttribute('data-ostask'))) return;
+      ev.preventDefault();
+      closeWin(tk.getAttribute('data-ostask'));
+    });
     on(desk, 'contextmenu', function (ev) {
       var it = ev.target.closest && ev.target.closest('[data-ostask], .os-icon');
       if (!it || !appById(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'))) return;
@@ -1334,8 +1365,8 @@
       openCtxMenu(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'), it, ev.clientX, ev.clientY);
     });
     on(doc, 'pointermove', function (ev) { moveDrag(ev); moveIconDrag(ev); });
-    on(doc, 'pointerup', function (ev) { endDrag(ev); endIconDrag(ev); });
-    on(doc, 'pointercancel', function (ev) { endDrag(ev); endIconDrag(ev); });
+    on(doc, 'pointerup', function (ev) { endDrag(ev); endIconDrag(ev); routeAfterPress(); });
+    on(doc, 'pointercancel', function (ev) { endDrag(ev); endIconDrag(ev); routeAfterPress(); });
     on(desk, 'focusin', function (ev) {
       var w = ev.target.closest && ev.target.closest('.os-win');
       if (w && S.focus !== w.getAttribute('data-win')) focusWin(w.getAttribute('data-win'));
@@ -1408,7 +1439,8 @@
   function registerDeskSpotlight() {
     var C = W.NBDCommand;
     if (!C || typeof C.registerAction !== 'function') return;
-    var acts = [{ id: 'os:overview', label: 'Overview: every window', keywords: 'overview mission control activities expose windows', run: function () { setOverview(true); } }];
+    var acts = [{ id: 'os:overview', label: 'Overview: every window', keywords: 'overview mission control activities expose windows', run: function () { setOverview(true); } },
+      { id: 'os:closeall', label: 'Close all windows', keywords: 'close all windows clear desk tidy', run: closeAll }];
     for (var i = 0; i < WM.DESKS; i++) {
       (function (n) {
         acts.push({ id: 'os:desk:' + n, label: 'Go to desk ' + (n + 1), keywords: 'desk workspace space virtual desktop ' + (n + 1), run: function () { switchDesk(n); } });
@@ -1522,7 +1554,22 @@
     var icon = t.closest('.os-icon');
     if (icon && ev.button === 0) S.iconDrag = { id: icon.getAttribute('data-osapp'), sx: ev.clientX, sy: ev.clientY, pid: ev.pointerId, moved: false };
     var win = t.closest('.os-win');
-    if (win && S.focus !== win.getAttribute('data-win')) focusWin(win.getAttribute('data-win'));
+    if (win && S.focus !== win.getAttribute('data-win')) {
+      // raise it now; route once the press (and its click) is over: a view that re-renders
+      // on route would otherwise replace what is under the pointer and lose the click
+      S.pressRoute = win.getAttribute('data-win');
+      focusWin(S.pressRoute, { route: false });
+    }
+  }
+  function routeAfterPress() {
+    var id = S && S.pressRoute;
+    if (!id) return;
+    S.pressRoute = null;
+    setTimeout(function () {
+      if (!S || S.focus !== id) return;
+      var v = viewEl(id);
+      if (v && !v.classList.contains('active')) goToView(id);
+    }, 0);
   }
   // drag an icon onto another to swap their places
   function moveIconDrag(ev) {
@@ -1571,6 +1618,13 @@
         return;
       }
       if (!ev.shiftKey && ev.code === 'KeyO') { ev.preventDefault(); setOverview(!S.overview); return; }
+      // Ctrl+Alt+] next window, Ctrl+Alt+[ back, Ctrl+Alt+W close the one in front (2026-11-14).
+      // Alt+Tab and Ctrl+W belong to the OS and the browser; Alt+(backquote) is Pocket's.
+      // AltGr reports Ctrl+Alt on Windows: a character being typed is not a shortcut (as Ctrl+Alt+L does)
+      var altGr = !!(ev.getModifierState && safe(function () { return ev.getModifierState('AltGraph'); }) === true);
+      if ((ev.code === 'BracketRight' || ev.code === 'BracketLeft') && !ev.shiftKey && !altGr) { ev.preventDefault(); cycleWin(ev.code === 'BracketRight' ? 1 : -1); return; }
+      // never on key repeat: holding the chord would close window after window
+      if (!ev.shiftKey && ev.code === 'KeyW' && !altGr) { ev.preventDefault(); if (!ev.repeat && S.focus) closeWin(S.focus); return; }
     }
     // Ctrl+Alt+arrows snap the focused window; never while typing in a field
     if (!(ev.ctrlKey && ev.altKey) || ev.shiftKey || ev.metaKey) return;
@@ -1615,7 +1669,11 @@
       // goTo removes every .active then adds one: settle before reading
       setTimeout(function () { pending = false; onViewChange(); }, 0);
     });
-    S.mo.observe(S.contentEl || doc.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+    // each view's own class (they are all in the page from the start), not every class
+    // change inside every view's content; no views found = the old whole-subtree watch
+    var views = S.contentEl ? S.contentEl.querySelectorAll('.view') : [];
+    if (views.length) for (var vi = 0; vi < views.length; vi++) S.mo.observe(views[vi], { attributes: true, attributeFilter: ['class'] });
+    else S.mo.observe(S.contentEl || doc.body, { attributes: true, attributeFilter: ['class'], subtree: true });
   }
 
   // ═══ PHONE (phase 3) ═══════════════════════════════════════
