@@ -1320,12 +1320,13 @@ async function run() {
   const mkMgr = doc(env.authenticatedContext('mgr-mk', { role: 'manager', companyId: 'co-a' }).firestore(), 'invoices/mk-srv');
   const mkOther = doc(env.authenticatedContext('mgr-mkb', { role: 'manager', companyId: 'co-b' }).firestore(), 'invoices/mk-srv');
   const mkAdmin = doc(admin, 'invoices/mk-srv');
+  await assertSucceeds(updateDoc(mkMgr, { notes: 'manager can edit this invoice' }));            // control: the same-company manager reaches the key check
   for (const [k, v] of [['refundedTotal', 0], ['refundReopenedTotal', 0], ['paidIntentIds', []], ['supersededPayments', []], ['reconciliations', []]]) {
     await assertFails(updateDoc(mkSrv, { [k]: v }));                                                 // the maker cannot rewrite it
     await assertFails(updateDoc(mkSrv, { [k]: deleteField() }));                                     // …nor drop it
     await assertFails(updateDoc(mkMgr, { [k]: v }));                                                 // nor can same-company staff
     await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: v }));                         // and none is added to an invoice without it
-    await assertFails(updateDoc(mkOther, { [k]: v }));                                               // nor another tenant's manager
+    await assertFails(updateDoc(mkOther, { [k]: v }));                                               // tenant isolation (refused before the key check)
     await assertFails(updateDoc(mkAdmin, { [k]: v }));                                               // nor the platform admin (invoiceMoneyUntouched)
     await assertFails(updateDoc(mkAdmin, { [k]: deleteField() }));
   }
