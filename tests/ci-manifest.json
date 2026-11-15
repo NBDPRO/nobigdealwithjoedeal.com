@@ -337,6 +337,8 @@
     "solar-measure.test.js",
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
+    "match-job-photos-sweep-2026-11-10.test.js",
+    "upload-job-photos-2026-11-10.test.js",
     "sec-r3-e2e-flag-portal-path-2026-10-06.test.js",
     "lead-filter-registry.test.js",
     "legacy-documents-audit.test.js",
@@ -1070,7 +1072,8 @@
     "q11-thursday-lead-notes-2026-11-09.test.js",
     "voicemail-viewer-hidden-2026-11-09.test.js",
     "voicemail-retag-backfill-2026-11-09.test.js",
-    "plan-checkout-guard-2026-11-14.test.js"
+    "plan-checkout-guard-2026-11-14.test.js",
+    "portal-signed-views-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

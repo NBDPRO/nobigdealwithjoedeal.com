@@ -428,8 +428,11 @@ if (!SHIPPED_GATES) {
 // loads only for a card the Numbers panel shows; measured 128 local tags, 1340 KB shipped (2444 KB readable).
 // RAISED 2026-11-09 by 1 KB (Jo: "Raise 1 KB, merge both" for the parked boot PRs, "Ship it" for #2981): the
 // tenant stage emails (#2981) and the Q11 task call text put the page 222 B over 1346 KB; measured 1347 KB shipped.
+// RAISED 2026-11-14 by 1 KB (Jo, via the conductor): the signed-price review warnings — the customer page's
+// failed-share toast (#3052) and the unlocked-price viewer toast (#3055) — measured 1,379,547 B together. A
+// per-PR raise: drop it on rebase once the conductor's single raise lands.
 const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
-  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1347 * 1024, shippedBlockingBytes: 16 * 1024 };
+  localBytes: 2455 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1348 * 1024, shippedBlockingBytes: 16 * 1024 };
 console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
 const cm = measure(fs.readFileSync(path.join(PRO, 'customer.html'), 'utf8'), PRO);
 ok('customer: every local script tag resolves to a file', cm.missing.length === 0, cm.missing.join(', '));

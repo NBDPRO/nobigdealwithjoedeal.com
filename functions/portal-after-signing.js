@@ -59,13 +59,41 @@ function signedVia(a) {
   const o = a || {};
   const est = o.estimate || null;
   if (est && est.signatureStatus === 'signed') return 'esign';
-  if ((Array.isArray(o.deals) ? o.deals : []).some(dealIsAccepted)) return 'deal-room';
+  // Job-level signals count only for THIS estimate (money review 2026-11-14,
+  // finding 6): a deal accepted for the roof never labels a later $2,300
+  // gutter add-on "Signed". A deal with no estimateId (legacy) still counts.
+  const estId = est && est.id;
+  const deals = (Array.isArray(o.deals) ? o.deals : []).filter(dealIsAccepted);
+  if (deals.some((d) => !d.estimateId || d.estimateId === estId)) return 'deal-room';
   if (estimateIsSigned(est)) return 'contract';
   // The job itself moved past Signed (an in-person / uploaded contract, or a
-  // stage a rep set) — the progress tracker already says "Signed".
+  // stage a rep set) — the progress tracker already says "Signed". Not when
+  // that signature is known to be on another estimate (an accepted deal or
+  // the lead's primary estimate names a different one, or another estimate
+  // carries the signature: o.signedElsewhere).
   const p = o.progress || null;
-  if (p && Number(p.currentIndex) >= 2) return 'contract';
+  const elsewhere = !!o.signedElsewhere
+    || deals.some((d) => d.estimateId && d.estimateId !== estId)
+    || (!!o.primaryEstimateId && o.primaryEstimateId !== estId);
+  if (p && Number(p.currentIndex) >= 2 && !elsewhere) return 'contract';
   return null;
+}
+
+/**
+ * Which estimate the portal card shows (finding 6): the newest shared one
+ * that carries a signature (signed by e-sign / stamped, or named by an
+ * accepted deal) or is out for one right now (sent / viewed — the
+ * homeowner's current ask); else the newest shared one.
+ * @param {object[]} estimates newest first, tenant-filtered, not deleted
+ * @param {function} isShared the portal's "the rep meant this to be seen" test
+ * @param {object[]} deals this lead's deal rooms, tenant-filtered
+ */
+function pickPortalEstimate(estimates, isShared, deals) {
+  const list = (Array.isArray(estimates) ? estimates : []).filter(isShared);
+  const acceptedFor = (Array.isArray(deals) ? deals : []).filter(dealIsAccepted).map((d) => d.estimateId).filter(Boolean);
+  const live = (e) => estimateIsSigned(e) || acceptedFor.indexOf(e.id) !== -1
+    || e.signatureStatus === 'sent' || e.signatureStatus === 'viewed';
+  return list.find(live) || list[0] || null;
 }
 
 /** A live (sent, not void/draft/deleted) invoice. */
@@ -210,6 +238,7 @@ module.exports = {
   estimateIsSigned,
   dealIsAccepted,
   signedVia,
+  pickPortalEstimate,
   anyPaid,
   portalJobStatus,
   paymentsFor,
