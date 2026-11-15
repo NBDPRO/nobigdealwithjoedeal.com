@@ -97,7 +97,13 @@
   //           would refuse with the same message.
   // Deliberately no brand header here: company identity arrives with the
   // estimate payload, and a tenant's homeowner must never see NBD's.
-  function errorStateFor(status) {
+  function errorStateFor(status, code) {
+    // A link past its open cap (portal-authz.js: 429 too_many_opens) never
+    // clears on its own, unlike the per-IP limiter's 429 (2026-11-14).
+    if (code === 'too_many_opens') {
+      return { title: 'This link has reached its limit', retry: false, back: false,
+        body: 'Ask your rep for a fresh link — it only takes them a second.' };
+    }
     switch (status) {
       case 400:
         return { title: 'This link looks incomplete', retry: false, back: false,
@@ -163,7 +169,12 @@
       body: JSON.stringify({ token: token, estimateId: estimateId }),
     })
       .then(function (res) {
-        if (!res.ok) { showError(errorStateFor(res.status)); return; }
+        if (!res.ok) {
+          // Best-effort read of the machine-readable code (as portal.js does);
+          // a missing or non-JSON body falls back to the status alone.
+          return res.clone().json().then(function (b) { return (b && b.code) || null; }, function () { return null; })
+            .then(function (code) { showError(errorStateFor(res.status, code)); });
+        }
         return res.json().then(function (data) {
           renderEstimate(data.estimate || {}, data.company || null);
         });

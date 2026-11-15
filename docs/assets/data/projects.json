@@ -1908,6 +1908,123 @@
       "priceLow": 100,
       "priceHigh": 200,
       "year": 2026
+    },
+    {
+      "slug": "white-oak-oh-roof-replacement-2026",
+      "title": "Worn-Out Bungalow Roof, Done Over",
+      "services": [
+        "roof-replacement"
+      ],
+      "tag": "Roof Replacement",
+      "city": "White Oak, OH",
+      "priceLow": 14000,
+      "priceHigh": 15000,
+      "year": 2026,
+      "description": "A brick bungalow whose old shingles were faded, granule-worn and holding leaves in the valleys. We stripped it and put a new architectural shingle roof on it, with new box vents, new hip and ridge caps, and the edges and valleys finished clean.",
+      "scope": [
+        "Tore off the old shingles",
+        "Installed new architectural shingles",
+        "New box vents on the main slopes",
+        "New hip and ridge caps",
+        "Valleys and gutter edges finished and checked"
+      ],
+      "hero": "/assets/images/projects/white-oak-oh-roof-replacement-2026-4.jpg",
+      "photos": [
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-1.jpg",
+          "alt": "Old gray-brown shingles on a hip slope, faded and streaked, with leaves caught along the edge"
+        },
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-2.jpg",
+          "alt": "Old shingles partly stripped at the eave, bare spots and torn tabs above the gutter during tear-off"
+        },
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-3.jpg",
+          "alt": "Pallets of new shingle bundles and a roll of underlayment beside ladders at the side of a brick house"
+        },
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-4.jpg",
+          "alt": "Finished hip line with new brown architectural shingles and matching ridge caps"
+        },
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-5.jpg",
+          "alt": "New black box vent set into fresh architectural shingles on the upper slope"
+        },
+        {
+          "src": "/assets/images/projects/white-oak-oh-roof-replacement-2026-6.jpg",
+          "alt": "Where two new roof slopes meet above the gutter on a brick wall, shingles finished to the edge"
+        }
+      ],
+      "consentOnFile": true,
+      "published": "2026-11-14"
+    },
+    {
+      "slug": "cincinnati-oh-gutter-guard-replacement-2026",
+      "title": "Crushed Gutter Guards, Swapped for Micromesh",
+      "services": [
+        "gutter-replacement"
+      ],
+      "tag": "Gutter Guards",
+      "city": "Cincinnati, OH",
+      "priceLow": 3500,
+      "priceHigh": 4500,
+      "year": 2026,
+      "description": "The old snap-in screens on this two-story had buckled and pulled loose along the runs, so leaves and roof grit sat right on top of them. We pulled them and put black micromesh guards on the gutters.",
+      "hero": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-4.jpg",
+      "photos": [
+        {
+          "src": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-1.jpg",
+          "alt": "White gutter with an old plastic screen buckled and lifting out of the trough under dark shingles"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-2.jpg",
+          "alt": "Long gutter run where the old screen has twisted and pulled away from the roof edge"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-3.jpg",
+          "alt": "Old screen bent up at a corner where a roof valley drains into the gutter"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-4.jpg",
+          "alt": "New black micromesh gutter guard sitting flat along the gutter below the shingles"
+        }
+      ],
+      "consentOnFile": true,
+      "published": "2026-11-14"
+    },
+    {
+      "slug": "west-chester-oh-siding-repair-2026",
+      "title": "Holes and Rot Along the Overhang, Fixed",
+      "services": [
+        "siding-repair"
+      ],
+      "tag": "Siding Repair",
+      "city": "West Chester, OH",
+      "priceLow": 1500,
+      "priceHigh": 2500,
+      "year": 2026,
+      "description": "Lap siding on a second-story overhang had holes punched in it and soft, rotted boards along the bottom course. We opened it up, checked the wrap behind it, replaced the bad boards and painted them to match the wall.",
+      "hero": "/assets/images/projects/west-chester-oh-siding-repair-2026-4.jpg",
+      "photos": [
+        {
+          "src": "/assets/images/projects/west-chester-oh-siding-repair-2026-1.jpg",
+          "alt": "Cream lap siding with a small hole punched through one board"
+        },
+        {
+          "src": "/assets/images/projects/west-chester-oh-siding-repair-2026-2.jpg",
+          "alt": "Bottom siding course along an overhang with chipped paint, holes and soft wood"
+        },
+        {
+          "src": "/assets/images/projects/west-chester-oh-siding-repair-2026-3.jpg",
+          "alt": "Damaged boards removed, showing the house wrap behind the siding"
+        },
+        {
+          "src": "/assets/images/projects/west-chester-oh-siding-repair-2026-4.jpg",
+          "alt": "Back of a two-story home with the repaired overhang siding painted to match, ladders still set up"
+        }
+      ],
+      "consentOnFile": true,
+      "published": "2026-11-14"
     }
   ]
 }
