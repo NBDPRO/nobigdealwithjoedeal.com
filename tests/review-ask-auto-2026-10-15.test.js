@@ -146,6 +146,8 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     ok('already reviewRequested → skipped', plan(leadOf({ reviewRequested: true })).reason === 'already_requested');
     ok('this job already tried → skipped', plan(leadOf({ reviewAutoAsk: { jobKey: '_lead', status: 'failed' } })).reason === 'already_attempted');
     ok('deleted → skipped', plan(leadOf({ deleted: true })).reason === 'deleted');
+    // 2026-11-15: archiving a lead can mean "do not contact".
+    ok('archived → skipped', plan(leadOf({ archived: true })).reason === 'archived');
     ok('lost → skipped', plan(leadOf({ stage: 'lost', stageRole: 'lost' })).reason === 'lost');
     ok('quiet backfill ("already completed" after the fact) → skipped', plan(leadOf({ completedBackfill: true })).reason === 'quiet_backfill');
     ok('do-not-contact (either spelling, string or bool) → skipped', plan(leadOf({ doNotContact: true })).reason === 'do_not_contact' && plan(leadOf({ dnc: 'yes' })).reason === 'do_not_contact');

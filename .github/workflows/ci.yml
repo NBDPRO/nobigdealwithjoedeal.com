@@ -634,6 +634,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-leaddel-test 'node firestore-rules.lead-soft-delete.test.js'
+      # Lead archive (2026-11-14): archived / archivedAt / archivedBy shape (bool, stamped by the caller at request.time, cleared on un-archive); writers are the lead update rule's (owner, same-company manager / company_admin, never a viewer). Own file (positive controls inside).
+      - name: Run lead archive rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-leadarch-test 'node firestore-rules.lead-archive.test.js'
       # Calendar hub "Job overlaps a booking" bell row (2026-10-23): notifications create/read/dismiss for job_conflict. Own file (positive controls inside).
       - name: Run job-conflict notice rules tests under emulator
         run: |
