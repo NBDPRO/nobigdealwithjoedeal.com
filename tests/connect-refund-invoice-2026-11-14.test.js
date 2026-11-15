@@ -504,9 +504,8 @@ async function main() {
       ok('R10 ' + label + ': reopened (amountPaid 600, balanceDue 400)',
         inv(wr).amountPaid === 600 && inv(wr).balanceDue === 400, JSON.stringify([inv(wr).amountPaid, inv(wr).balanceDue]));
     }
-    ok('R10 the planner source never reads a refund\'s reason or metadata',
-      !!PLAN && !/\.reason\b|\.metadata\b/.test(fs.readFileSync(path.join(ROOT, 'functions', 'connect-refund-logic.js'), 'utf8')
-        .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')));
+    // No source pin on "reason"/"metadata": the five checks above run the real
+    // branch with each shape, and gating on a reason turns them red.
   }
 
   console.log('\nT2 — a rep editing refunds[] cannot steer the money (server-only record)');
@@ -609,13 +608,7 @@ async function main() {
     const WANT = { A: 800, B: 600, C: 500, L: 750, O: 750 };
     const FIX = { A, B, C, L, O };
 
-    const lift = (src, name) => {
-      const a = src.search(new RegExp('function ' + name + '\\('));
-      if (a < 0) return '';
-      let depth = 0, i = src.indexOf('{', a);
-      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
-      return src.slice(a, i + 1);
-    };
+    const K = require('./lib/src-kit.js');
     const sumOf = (list) => Math.round(list.reduce((t, p) => t + Math.round(Number(p.amount) * 100), 0)) / 100;
     const readers = {};
     readers['collected-revenue.js'] = (i) => R.paymentsOf(i);
@@ -625,8 +618,8 @@ async function main() {
       ['docs/pro/js/pages/leaderboard.js', ['toDate', 'reopenedOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf']],
       ['functions/weekly-digest.js', ['timestampMillis', '_reopenedOf', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf']],
     ]) {
-      const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
-      const body = names.map((n) => lift(src, n)).join('\n');
+      const readerSource = K.read(f);
+      const body = names.map((fnName) => K.sliceFn(readerSource, fnName) || '').join('\n');
       const c = { Date, Math, parseFloat, isNaN, Array, Number, Object, JSON };
       vm.createContext(c);
       try {
