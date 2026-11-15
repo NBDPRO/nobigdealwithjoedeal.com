@@ -121,10 +121,24 @@
   // deposit in May and a balance payoff in July land in different months.
   // Legacy docs without the array fall back to a single lump of
   // total−balanceDue dated by lastPaymentAt||paidAt.
+  // What a Connect refund moved back into balanceDue (connect-refund-logic.js),
+  // added back to total - balanceDue so the refund comes off once, via refunds[].
+  // refundReopenedTotal is client-writable, so it is capped at the server-tagged
+  // (reopens:true) refunds[] that returned money; #3064 freezes refunds[] for
+  // browsers. Same helper in all six revenue readers.
+  function reopenedOf(inv) {
+    var list = Array.isArray(inv.refunds) ? inv.refunds : [], cap = 0;
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i] || {}, a = parseFloat(r.amount);
+      if (r.reopens === true && a > 0 && r.status !== 'failed' && r.status !== 'canceled') cap += Math.round(a * 100);
+    }
+    var v = Math.round((parseFloat(inv.refundReopenedTotal) || 0) * 100);
+    return Math.min(Math.max(0, v), cap) / 100;
+  }
   function collectedDollarsOf(inv) {
     var total = parseFloat(inv.total) || 0;
     var bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0;
-    return Math.round(Math.max(0, total - bal) * 100) / 100;
+    return Math.round(Math.max(0, total - bal + reopenedOf(inv)) * 100) / 100;
   }
 
   // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept

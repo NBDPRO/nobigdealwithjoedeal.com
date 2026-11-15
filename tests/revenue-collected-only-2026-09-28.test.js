@@ -55,7 +55,7 @@ const AK = read('docs/pro/js/analytics-kpi.js');
 const akCtx = {};
 vm.createContext(akCtx);
 // paymentsOf = paymentsOnlyOf + refundsOf since 2026-09-29 (refunds come off revenue).
-vm.runInContext(['toJSDate', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf'].map((n) => extractFn(AK, n)).join('\n') + '\nglobalThis.__p = paymentsOf;', akCtx);
+vm.runInContext(['toJSDate', 'reopenedOf', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf'].map((n) => extractFn(AK, n)).join('\n') + '\nglobalThis.__p = paymentsOf;', akCtx);
 const akPaymentsOf = akCtx.__p;
 
 const T = (iso) => ({ toDate: () => new Date(iso), seconds: Date.parse(iso) / 1000 });
@@ -172,7 +172,7 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     const WD = read('functions/weekly-digest.js');
     const wdCtx = {};
     vm.createContext(wdCtx);
-    vm.runInContext(['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map((n) => extractFn(WD, n)).join('\n') + '\nglobalThis.__p = _paymentsOf;', wdCtx);
+    vm.runInContext(['timestampMillis', '_reopenedOf', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map((n) => extractFn(WD, n)).join('\n') + '\nglobalThis.__p = _paymentsOf;', wdCtx);
     const R = loadRevenue().NBDRevenue;
     const sameServer = INVOICES.every((inv) => JSON.stringify(wdCtx.__p(inv).map((p) => [p.amount, !!p.synthetic])) === JSON.stringify(R.paymentsOf(inv).map((p) => [p.amount, !!p.synthetic])));
     ok('digest _paymentsOf (server) matches the client definition on every shape', sameServer);
