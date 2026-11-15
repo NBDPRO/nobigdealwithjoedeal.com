@@ -378,6 +378,18 @@ async function generateAIDraft({ db, leadId, lead, incomingBody, incomingNoteId,
     return null;
   }
 
+  // Free accounts get no AI (Joe, 2026-11-14; AI audit F12): a draft is
+  // spent on behalf of the lead's OWNER, so the owner needs a confirmed
+  // email and a paid plan (NBD exempt). A free account could otherwise mint
+  // portal tokens for its own leads and get unlimited drafts on NBD's key.
+  // Checked here, like the kill switch, so all three callers are covered.
+  // Fails closed: no draft (the inbound message itself is unaffected).
+  const ent = await require('../ai-gate').aiEntitlementForUid(db, lead.userId);
+  if (!ent.ok) {
+    logger.info('[ai-texting] draft skipped — lead owner not entitled to AI', { leadId, triggerType, reason: ent.reason });
+    return null;
+  }
+
   const t0 = Date.now();
   // Build context + resolve the persona in parallel so persona lookup adds
   // no latency to the webhook's budget.
