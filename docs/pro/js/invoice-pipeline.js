@@ -1164,10 +1164,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           // createInvoiceFromEstimate when it folds the supplement. NOTE: a future
           // invoice-void feature MUST clear invoicedInvoiceId to allow re-billing.
           invoiced: !!(sup && sup.invoicedInvoiceId),
+          // Soft-deleted (the rep removed it; 2026-11-14): never billed.
+          deleted: !!(sup && sup.deleted === true),
           description: description
         };
       })
-      .filter(function (s) { return s.billable > 0 && !s.invoiced; });
+      .filter(function (s) { return s.billable > 0 && !s.invoiced && !s.deleted; });
   }
 
   /**
@@ -1716,38 +1718,209 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // nbd:payment-timeline:end
 
   /**
-   * Load this user's supplements for a parent estimate.
+   * The job's supplements for a parent estimate — EVERY one this account may
+   * bill, or an error. Never a silent [] (Finding 5, 2026-11-14).
    *
-   * Query: where('parentEstimateId','==',id) + where('userId','==',uid) on the
-   * `supplements` collection — backed by the composite index added in
-   * firestore.indexes.json. Per the index-build-race runbook the index ships
-   * (and finishes BUILDING) before this code relies on it; until then the query
-   * can throw FAILED_PRECONDITION. So this is deliberately fail-soft: on ANY
-   * error we log and return [], and the invoice is created from the base
-   * estimate only (the pre-existing behavior) — invoice creation never throws
-   * because of supplements. It self-heals the moment the index is live.
+   * Before: one query, where('parentEstimateId') + where('userId' == the person
+   * invoicing), and [] on ANY error. A rep enters the supplement, the office
+   * makes the invoice, the office's query matched nothing and the invoice
+   * under-billed by the approved supplement without a word.
+   *
+   * Now three reads, all required:
+   *   1. own: parentEstimateId + userId == me (a rep's own; a solo owner's, and
+   *      every supplement saved before supplements carried companyId);
+   *   2. team, for company staff (company_admin / manager, or platform admin
+   *      with a company claim): parentEstimateId + companyId == my claim. The
+   *      /supplements read rule allows exactly this for same-company staff;
+   *      saveToFirestore stamps companyId since this change;
+   *   3. the lead's timeline: every 'supplement_created' entry for this
+   *      estimate names a supplementId. One the two queries did not return is
+   *      read by id; if it cannot be read (an old supplement with no companyId
+   *      that a teammate saved), the invoice is REFUSED, because it would leave
+   *      that supplement off.
+   * Any failure throws an Error with code 'SUPPLEMENTS_UNREADABLE' and a plain
+   * message; the callers refuse to bill from the estimate on it.
    *
    * We re-implement the query here rather than reuse
    * EstimateSupplement.loadForEstimate because the supplement builder module is
    * NOT loaded on dashboard.html (where invoices are created) — only on
    * customer.html / legacy — so reusing it would silently yield zero supplements.
+   *
+   * @param {object} db
+   * @param {string} estimateId
+   * @param {{ leadId?: string }} [opts]  the estimate's lead, for check 3
    */
-  async function loadEstimateSupplements(db, estimateId) {
-    try {
-      const uid = window._auth && window._auth.currentUser && window._auth.currentUser.uid;
-      if (!uid || !estimateId) return [];
-      if (!window.query || !window.where || !window.getDocs || !window.collection) return [];
-      const q = window.query(
-        window.collection(db, 'supplements'),
-        window.where('parentEstimateId', '==', estimateId),
-        window.where('userId', '==', uid)
-      );
-      const snap = await window.getDocs(q);
-      return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-    } catch (err) {
-      console.warn('[invoice-pipeline] supplement load failed (index still building?); invoicing base estimate only:', err && err.message);
-      return [];
+  /**
+   * The signed-in user's claims from the live ID token (2026-11-14). The cached
+   * window._userClaims is used only when there is no token API (it may not
+   * have loaded yet, and an empty cache silently meant "no company"). Throws
+   * SUPPLEMENTS_UNREADABLE when neither is available or the token read fails.
+   */
+  async function _liveClaims() {
+    const user = (window._auth && window._auth.currentUser) || (window.auth && window.auth.currentUser) || window._user || null;
+    if (user && typeof user.getIdTokenResult === 'function') {
+      let claims = null;
+      try { claims = ((await user.getIdTokenResult()) || {}).claims || null; }
+      catch (err) { throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err); }
+      if (!claims) throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+      return claims;
     }
+    if (window._userClaims && typeof window._userClaims === 'object') return window._userClaims;
+    throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+  }
+  function _supplementsUnreadable(message, cause) {
+    const e = new Error(message);
+    e.code = 'SUPPLEMENTS_UNREADABLE';
+    if (cause) e.cause = cause;
+    return e;
+  }
+  const SUPPLEMENTS_UNREADABLE_MSG = 'Invoice not made: the insurance supplements for this job could not be read, '
+    + 'so the invoice could leave approved supplement money off. Check your connection and try again.';
+  async function loadEstimateSupplements(db, estimateId, opts) {
+    opts = opts || {};
+    // Same signed-in user resolution as _loadLeadInvoices.
+    const uid = (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
+      || (window.auth && window.auth.currentUser && window.auth.currentUser.uid)
+      || (window._user && window._user.uid) || '';
+    if (!estimateId) return [];
+    if (!uid) throw _supplementsUnreadable('Invoice not made: you are signed out, so the insurance supplements for this job could not be read. Sign in and try again.');
+    if (!window.query || !window.where || !window.getDocs || !window.collection || !window.getDoc || !window.doc) {
+      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG);
+    }
+    // Claims from the live ID token (review 2026-11-14): window._userClaims is
+    // a cache that may not have loaded yet, and an empty cache silently meant
+    // "own supplements only". No token API and no cache, or a failed token
+    // read → refuse.
+    const claims = await _liveClaims();
+    const role = claims.role || '';
+    const companyId = claims.companyId || '';
+    const teamScope = !!(companyId && (role === 'company_admin' || role === 'manager' || role === 'admin'));
+    // The tenant whose supplements this invoice may bill: the claim, or a solo
+    // owner's uid. Anything else found is another company's (review Low 1).
+    const tenant = companyId || uid;
+    const mine = function (sd) { return sd.companyId === tenant || sd.userId === uid; };
+    // No lead → no timeline to cross-check. Only the estimate's own author can
+    // then be sure every supplement on it is one they can read; anyone else
+    // (the office on a rep's estimate) is refused (review 2026-11-14).
+    if (!opts.leadId && opts.estimateOwnerId !== uid) {
+      throw _supplementsUnreadable('Invoice not made: this estimate is not linked to a customer, so its insurance supplements '
+        + 'cannot all be checked from your account. Link the estimate to its customer, or have the person who wrote it make the invoice.');
+    }
+    const byId = new Map();
+    const take = (snap) => snap.docs.forEach(function (d) { byId.set(d.id, Object.assign({ id: d.id }, d.data())); });
+    try {
+      const col = window.collection(db, 'supplements');
+      take(await window.getDocs(window.query(col,
+        window.where('parentEstimateId', '==', estimateId),
+        window.where('userId', '==', uid))));
+      if (teamScope) {
+        take(await window.getDocs(window.query(col,
+          window.where('parentEstimateId', '==', estimateId),
+          window.where('companyId', '==', companyId))));
+      }
+    } catch (err) {
+      console.warn('[invoice-pipeline] supplement load failed; refusing to bill from the estimate:', err && err.message);
+      throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err);
+    }
+    if (opts.leadId) {
+      let entries;
+      try {
+        const snap = await window.getDocs(window.query(
+          window.collection(db, 'leads', String(opts.leadId), 'activity'),
+          window.where('type', '==', 'supplement_created')));
+        entries = snap.docs.map(function (d) { return d.data() || {}; })
+          .filter(function (a) { return a.parentEstimateId === estimateId && a.supplementId; });
+      } catch (err) {
+        console.warn('[invoice-pipeline] supplement timeline check failed; refusing to bill from the estimate:', err && err.message);
+        throw _supplementsUnreadable(SUPPLEMENTS_UNREADABLE_MSG, err);
+      }
+      const unreadable = [];
+      for (const a of entries) {
+        const sid = String(a.supplementId);
+        if (byId.has(sid)) continue;
+        try {
+          const s = await window.getDoc(window.doc(db, 'supplements', sid));
+          // Gone (deleted by an admin): nothing left to bill.
+          if (s.exists()) {
+            const sd = s.data() || {};
+            if (mine(sd)) byId.set(sid, Object.assign({ id: sid }, sd));
+            // Readable (a platform admin) but with no company to place it in:
+            // it may be this job's money — refuse rather than guess.
+            else if (!sd.companyId) unreadable.push(a.version ? '#' + a.version : sid);
+            // Another company's supplement: never billed here.
+          }
+        } catch (err) {
+          unreadable.push(a.version ? '#' + a.version : sid);
+        }
+      }
+      if (unreadable.length) {
+        throw _supplementsUnreadable('Invoice not made: this job has insurance supplement '
+          + unreadable.join(', ') + ' that your account cannot read, so the invoice would leave it off. '
+          + 'Have the person who entered the supplement make the invoice, or contact support to share it with your company.');
+      }
+    }
+    // Soft-deleted supplements are returned too (selectBillableSupplements
+    // never bills them); they no longer look "unreadable" (2026-11-14).
+    const found = Array.from(byId.values()).filter(function (s) { return s.parentEstimateId === estimateId && mine(s); });
+    // Joe (2026-11-14): a supplement bills only with the company owner side's
+    // approval record. One that claims money without it (approved before the
+    // rule), or one saved before supplements carried companyId, is neither
+    // billed nor dropped: the invoice is refused and says what to do. The
+    // server (functions/supplement-invoice.js) applies the same test.
+    const claimsMoney = function (sd) {
+      return sd.deleted !== true && !sd.invoicedInvoiceId && (sd.status === 'approved' || sd.status === 'partial')
+        && supplementBillableAmount(sd) > 0;
+    };
+    const label = function (list) { return list.map(function (sd) { return '#' + (sd.version || 1); }).join(', '); };
+    const legacy = found.filter(function (sd) { return claimsMoney(sd) && !sd.companyId; });
+    if (legacy.length) {
+      throw _supplementsUnreadable('Invoice not made: insurance supplement ' + label(legacy) + ' was saved before supplements were tied '
+        + 'to a company, so it cannot be billed yet. Ask your NBD Pro admin to review it (supplement backfill).');
+    }
+    const unapproved = found.filter(function (sd) { return claimsMoney(sd) && !supplementApprovalOk(sd, sd.companyId); });
+    if (unapproved.length) {
+      throw _supplementsUnreadable('Invoice not made: insurance supplement ' + label(unapproved) + ' is marked approved, but the company '
+        + 'owner has not recorded the approval (with the carrier\'s approval note or letter). The owner or company admin must re-approve it, then make the invoice.');
+    }
+    return found;
+  }
+
+  /**
+   * The company owner side's approval record on a supplement (Joe,
+   * 2026-11-14): approvedBy, approvedAt and approvalEvidence with a note (not
+   * blank, at most 1000 characters) and/or a document under
+   * companies/{companyId}/supplement-evidence/. Byte-for-byte the same test as
+   * functions/supplement-invoice.js approvalEvidenceOk.
+   */
+  // Approval records count from this moment (security review M2, 2026-11-15):
+  // the same constant as functions/supplement-invoice.js APPROVALS_SINCE_MS.
+  const SUPPLEMENT_APPROVALS_SINCE_MS = Date.UTC(2026, 10, 15, 0, 0, 0);
+  function supplementApprovalOk(sup, companyId) {
+    const s = sup || {};
+    if (!(typeof s.approvedBy === 'string' && s.approvedBy)) return false;
+    const at = (s.approvedAt && typeof s.approvedAt.toMillis === 'function') ? Number(s.approvedAt.toMillis()) : NaN;
+    if (!(at >= SUPPLEMENT_APPROVALS_SINCE_MS && at <= Date.now() + 5 * 60 * 1000)) return false;
+    const ev = s.approvalEvidence;
+    if (!ev || typeof ev !== 'object') return false;
+    const note = typeof ev.note === 'string' ? ev.note.trim() : '';
+    const pth = typeof ev.path === 'string' ? ev.path : '';
+    const noteOk = note.length > 0 && note.length <= 1000;
+    const pathOk = !!companyId && pth.indexOf('companies/' + companyId + '/supplement-evidence/') === 0 && pth.length <= 400 && !/\.\./.test(pth);
+    return noteOk || pathOk;
+  }
+
+  // Callables (onCall, App Check) from this classic script: the Functions SDK
+  // is imported on first use, the same way accepted-tier-chip.js does it.
+  // window.__importFunctions is a test hook only.
+  const FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
+  async function _onCall(name, data) {
+    if (!(window._functions && window._httpsCallable)) {
+      const mod = await (typeof window.__importFunctions === 'function' ? window.__importFunctions() : import(FUNCTIONS_SDK));
+      window._functions = window._functions || mod.getFunctions();
+      window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+    }
+    const res = await window._httpsCallable(window._functions, name)(data || {});
+    return (res && res.data) || {};
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1771,7 +1944,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * same work.
    * @returns {Promise<{ invoiceId: string, reused: boolean, reason?: string, creditCents?: number }>}
    */
-  async function createOrOpenJobInvoice(estimateId) {
+  async function createOrOpenJobInvoice(estimateId, opts) {
+    opts = opts || {};
     const db = getDb();
 
     try {
@@ -1811,15 +1985,51 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // (Adversarial review 2026-06-27, confirmed HIGH; deferred from #793 for
       // the new composite index.) Insurance supplements are tax-exempt, so each
       // billable amount lands in subtotal + total as its own line, never taxed.
-      // loadEstimateSupplements is fail-soft (returns [] on any error / while
-      // the index is still building), so this can never break invoice create.
-      const supplements = await loadEstimateSupplements(db, estimateId);
+      // loadEstimateSupplements THROWS when it cannot read every supplement on
+      // the job (Finding 5, 2026-11-14): no invoice is better than one that
+      // silently leaves approved supplement money off.
+      // The lead: the estimate's, else the one the caller is billing for
+      // (Record payment passes it), so the timeline check is never skipped
+      // just because the estimate itself carries no leadId (review 2026-11-14).
+      const supplements = await loadEstimateSupplements(db, estimateId,
+        { leadId: est.leadId || opts.leadId || null, estimateOwnerId: est.userId || null });
       const folded = applySupplementsToTotals({ items, subtotal, tax, total }, supplements);
       items = folded.items;
       subtotal = folded.subtotal;
       tax = folded.tax;
       total = folded.total;
       const supplementTotal = folded.supplementTotal;
+
+      // An invoice that bills insurance supplements is made by the SERVER
+      // (functions/supplement-invoice.js createSupplementInvoice, Joe
+      // 2026-11-14): it re-reads the estimate, every supplement on it and the
+      // job's other invoices, computes the lines, credits and deposit itself,
+      // creates the invoice and marks each supplement billed in ONE
+      // transaction. The browser never writes the stamp (firestore.rules has
+      // no client branch for it) and cannot create an invoice that carries
+      // supplements. Any refusal or failure: no invoice, the server's words.
+      // It runs BEFORE the browser plans the job (security review M3,
+      // 2026-11-15): the browser's job total counts only unbilled
+      // supplements, so an earlier supplement invoice looked like it covered
+      // the job and a later approved supplement never billed. The server
+      // plans against the base plus every approved supplement.
+      const foldedIds = (folded && folded.supplementIds) || [];
+      if (foldedIds.length) {
+        let made;
+        try {
+          made = await _onCall('createSupplementInvoice', { estimateId: estimateId, leadId: est.leadId || opts.leadId || null });
+        } catch (e) {
+          console.warn('[invoice-pipeline] createSupplementInvoice refused:', e && (e.code || e.message));
+          const msg = String((e && e.message) || '').replace(/^FirebaseError:\s*/, '');
+          const err = new Error(/^Invoice not made/.test(msg) || /You cannot make an invoice/.test(msg) || /changed/.test(msg)
+            ? msg : 'Invoice not made: the server could not make the invoice with its insurance supplements. Check your connection and try again.');
+          err.code = 'SUPPLEMENTS_INVOICE_REFUSED';
+          err.cause = e;
+          throw err;
+        }
+        if (!made || !made.invoiceId) throw new Error('Invoice not made: the server returned no invoice. Reload and try again.');
+        return { invoiceId: made.invoiceId, reused: !!made.reused, reason: made.reason, creditCents: Number(made.creditCents) || 0 };
+      }
 
       // Deposit — deposit-rule.js (2026-09-25) on the INVOICE total (which
       // folds in approved supplements): cash under $2,000 none, cash $2,000+
@@ -1993,7 +2203,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // Tenant key (mirrors /expenses): lets same-company staff read team
         // invoices and is required by the hardened /invoices create rule. Solo
         // operators key by uid (companyId == uid convention).
-        companyId: window._userClaims?.companyId || window._auth?.currentUser?.uid || null,
+        companyId: (await _liveClaims()).companyId || window._auth?.currentUser?.uid || null,
         // Multi-job (2026-09-30): the job this invoice bills — the estimate's
         // own job if it names one, else the job on the customer's card right
         // now. money-paper.js marks exactly this job paid in full, and a later
@@ -2018,24 +2228,6 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       }
 
       const invoiceRef = await window.addDoc(window.collection(db, 'invoices'), invoiceData);
-
-      // Stamp each supplement folded into THIS invoice so it can't be re-billed on
-      // a later invoice for the same estimate. Progress billing intentionally
-      // allows multiple invoices per estimate (Jo's call 2026-07-08), so a
-      // supplement must land on exactly ONE. Best-effort — a stamp miss risks a
-      // manual double-check, never a create failure; the invoice already exists.
-      const foldedIds = (folded && folded.supplementIds) || [];
-      if (foldedIds.length && typeof window.updateDoc === 'function' && typeof window.doc === 'function') {
-        const stampTs = (typeof window.serverTimestamp === 'function') ? window.serverTimestamp() : new Date().toISOString();
-        await Promise.all(foldedIds.map(function (sid) {
-          return window.updateDoc(window.doc(db, 'supplements', sid), {
-            invoicedInvoiceId: invoiceRef.id,
-            invoicedAt: stampTs,
-          }).catch(function (e) {
-            console.warn('[invoice-pipeline] supplement invoiced-stamp failed:', sid, e && e.message);
-          });
-        }));
-      }
       return { invoiceId: invoiceRef.id, reused: false, creditCents: jobCredits.reduce((s, c) => s + c.cents, 0) };
 
     } catch (error) {
@@ -4110,7 +4302,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (target.kind === 'existing') {
       invoiceId = o.invoiceId || (target.invoices && target.invoices[0] && target.invoices[0].id);
     } else if (target.kind === 'estimate') {
-      invoiceId = (await createOrOpenJobInvoice(target.estimateId)).invoiceId;
+      invoiceId = (await createOrOpenJobInvoice(target.estimateId, { leadId: o.leadId || null })).invoiceId;
     } else {
       // Re-read the job's invoices right before writing: another device
       // may have made one since the sheet opened.
@@ -4122,7 +4314,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const uid = _currentUid();
         const doc = jobValueInvoiceDoc({
           lead: o.lead, leadId: o.leadId, totalCents: o.totalCents, jobId: target.jobId, credits: plan.credits, uid,
-          companyId: (window._userClaims && window._userClaims.companyId) || uid,
+          companyId: (await _liveClaims()).companyId || uid,
           depRule: window.NBDDepositRule || null, J: window.NBDJurisdiction || null, now: new Date(),
         });
         invoiceId = (await window.addDoc(window.collection(db, 'invoices'), doc)).id;
@@ -4161,10 +4353,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
     const estimate = estId ? await _readEstimate(db, estId) : null;
     // Approved supplements fold into the invoice made from the estimate, so
-    // they are part of the amount owed (R6-2-9). Fail-soft ([] on any error),
-    // the same query createOrOpenJobInvoice runs.
-    const supplements = (estimate && estimate.id) ? await loadEstimateSupplements(db, estimate.id) : [];
+    // they are part of the amount owed (R6-2-9) — the same read
+    // createOrOpenJobInvoice runs. When they cannot be read (Finding 5,
+    // 2026-11-14) a payment on an invoice that already exists still goes
+    // through (supplements play no part there), but making a new invoice from
+    // the estimate is refused rather than under-billed.
+    let supplements = [], supErr = null;
+    if (estimate && estimate.id) {
+      try { supplements = await loadEstimateSupplements(db, estimate.id, { leadId: estimate.leadId || leadId, estimateOwnerId: estimate.userId || null }); }
+      catch (e) { supErr = e; }
+    }
     const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts(), supplements });
+    // An existing invoice is paid as it stands. Anything that makes a NEW one
+    // (from the estimate, or from the job total when the estimate has none) is
+    // refused while the supplements cannot be read (review 2026-11-14).
+    if (supErr && target.kind !== 'existing') throw supErr;
     return { lead, invoices, estimate, target };
   }
 
@@ -4181,7 +4384,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     try {
       ({ lead, target } = await recordPaymentContext(leadId));
     } catch (e) {
-      _toast('Could not load the invoices for this customer — try again.', 'error');
+      _toast((e && e.code === 'SUPPLEMENTS_UNREADABLE') ? e.message : 'Could not load the invoices for this customer — try again.', 'error');
       return false;
     }
 
@@ -4413,6 +4616,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     isOwedInvoice,
     owedDollarsOf,
     supplementBillableAmount,
+    supplementApprovalOk,
     selectBillableSupplements,
     applySupplementsToTotals,
     buildRowItems,

@@ -70,6 +70,7 @@
   "createReportShareToken": "./report-sharing",
   "createSignRequest": "./remote-signing",
   "createStripePaymentLink": "./stripe",
+  "createSupplementInvoice": "./supplement-invoice",
   "createTeamInvite": "./handlers/invites",
   "createTeamMember": "./handlers/admin",
   "crmMcp": "./agent-mcp",

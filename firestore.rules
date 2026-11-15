@@ -1459,16 +1459,155 @@ service cloud.firestore {
     match /supplements/{supplementId} {
       // read and delete were one line; split 2026-09-25 so delete can carry
       // notViewer() (decision B) without touching read.
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      // Finding 5 (2026-11-14): the office invoices a job whose supplement a
+      // rep entered, so same-company STAFF (company_admin / manager, the
+      // /invoices + /expenses readers) read it too. Same shape as /invoices:
+      // companyId must be non-null AND equal the caller's claim, so a legacy
+      // supplement with no companyId stays owner-only (absent-key access errors
+      // to deny, never widens) and another tenant never matches. Query-safe for
+      // where('parentEstimateId','==') + where('companyId','==',claim).
+      // A read of an id that does not exist answers "does not exist" (second
+      // security pass M-B, 2026-11-14): the office's invoice cross-checks the
+      // lead timeline by supplement id, and a denied read of a deleted doc
+      // looked like "forbidden" and blocked the invoice for good. It reveals
+      // only that no supplement has that random id.
+      allow read: if (resource == null && isAuth())
+        || isOwner(resource.data.userId) || isAdmin()
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
+      // Soft delete only (M-B): the owner sets deleted: true (the owner update
+      // branch), which staff can still read and the invoice never bills. A hard
+      // delete is the platform admin's.
+      allow delete: if isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
-      // re-owned or re-pointed to a different parent estimate. Supplements are
-      // created append-only (addDoc, versioned), so a legit update keeps userId +
-      // parentEstimateId stable → passes; only tampering trips the guard.
+      // re-owned, re-tenanted, moved to another lead or re-pointed to another
+      // parent estimate. Supplements are created append-only (addDoc,
+      // versioned), so a legit update keeps all of that stable.
+      //
+      // The invoiced stamp is the SERVER's (functions/supplement-invoice.js
+      // createSupplementInvoice, Joe 2026-11-14): no client branch writes it.
+      // Only supStampClearOk (the company_admin, a stamp whose invoice is gone
+      // or void) and the platform admin touch it.
+      //
+      // Approval (Joe, 2026-11-14): the OWNER branch (the rep who wrote it) may
+      // record submitted / denied and edit notes, but never approve: it cannot
+      // move status into or out of approved / partial, change supplementTotal,
+      // submission.approvedAmount or the approval record, and once approved
+      // (or billed) it cannot change status, submission or the deleted flag.
+      // supApproveOk is the owner SIDE's branch (company_admin of the company,
+      // a solo owner, the platform admin) and requires the approval record.
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'parentEstimateId']))
+            && didNotChange(['userId', 'companyId', 'parentEstimateId', 'leadId', 'invoicedInvoiceId', 'invoicedAt',
+                             'supplementTotal', 'approvalEvidence', 'approvedBy', 'approvedAt'])
+            && supOwnerStatusOk())
+        || supApproveOk()
+        || supStampClearOk()
         || isAdmin();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      // Create (security review HIGH 2, 2026-11-14): companyId is required and
+      // pinned to the caller's tenant (the /expenses create shape), AND the
+      // supplement must name a parent estimate the caller may bill — their own,
+      // or (staff) one in their company — carrying that estimate's companyId
+      // and lead, born a 'draft' and unbilled. Without it a rep could add an
+      // "approved" supplement to a teammate's job and the office's team query
+      // would bill it; without the companyId pin a rep could aim one at a
+      // VICTIM tenant's estimate.
+      allow create: if isAuth() && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
+        && request.resource.data.get('status', '') == 'draft'
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && !request.resource.data.keys().hasAny(['approvedBy', 'approvedAt', 'approvalEvidence'])
+        && supParentOk(request.resource.data);
+    }
+
+    // The rep's own status changes (Joe, 2026-11-14): never into or out of
+    // approved / partial, never the approved amount, and an approved or billed
+    // supplement's status, carrier response and deleted flag stay as they are.
+    function supOwnerStatusOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let ap = ['approved', 'partial'];
+      return (n.get('status', '') == r.get('status', '') || (!(n.get('status', '') in ap) && !(r.get('status', '') in ap)))
+        && n.get('submission', {}).get('approvedAmount', null) == r.get('submission', {}).get('approvedAmount', null)
+        && ((!(r.get('status', '') in ap) && r.get('invoicedInvoiceId', null) == null)
+            || didNotChange(['status', 'submission', 'deleted']));
+    }
+
+    // The owner SIDE of the supplement's company (Joe, 2026-11-14): its
+    // company_admin, a solo owner (no role / company claim, the company keyed
+    // by their uid), or the platform admin (role 'admin', isAdmin()).
+    function supApproverOk(cid) {
+      return isAdmin()
+        || (cid != '' && request.auth.token.get('role', '') == 'company_admin'
+            && request.auth.token.get('companyId', '') == cid)
+        || (cid != '' && request.auth.token.get('role', '') == '' && request.auth.token.get('companyId', '') == ''
+            && ownsTenantByUid(cid));
+    }
+    // Approval evidence: a note (1..1000 characters, not blank) and/or a
+    // document under the company's own folder.
+    function supEvidenceOk(ev, cid) {
+      return ev is map
+        && ((ev.get('note', '') is string && ev.get('note', '').trim().size() > 0 && ev.get('note', '').size() <= 1000)
+            || (ev.get('path', '') is string
+                && ev.get('path', '').matches('^companies/' + cid + '/supplement-evidence/[A-Za-z0-9_. -]{1,200}$')
+                && !ev.get('path', '').matches('.*[.][.].*')));
+    }
+    // The owner side approves, re-prices or records a response on an
+    // UNBILLED supplement. Moving it to approved / partial (or keeping it
+    // there) carries the approval record: approvedBy == caller, approvedAt ==
+    // the server time, approvalEvidence.
+    function supApproveOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let cid = r.get('companyId', '');
+      return notViewer() && supApproverOk(cid)
+        && r.get('invoicedInvoiceId', null) == null
+        && n.diff(r).affectedKeys().hasOnly(['status', 'supplementTotal', 'submission', 'approvalEvidence',
+                                              'approvedBy', 'approvedAt', 'updatedAt', 'reason', 'deleted'])
+        && (!(n.get('status', '') in ['approved', 'partial'])
+            || (n.get('approvedBy', '') == request.auth.uid
+                && n.get('approvedAt', null) == request.time
+                && supEvidenceOk(n.get('approvalEvidence', null), cid)));
+    }
+
+    // The parent estimate a NEW supplement names (security review HIGH 2): the
+    // caller's own estimate, or one in their company for staff; the supplement
+    // carries that estimate's companyId (a legacy estimate with none: only its
+    // owner, under their own tenant) and, when the estimate has a lead, that
+    // lead. A missing estimate errors to deny. One get().
+    function supParentOk(d) {
+      let e = get(/databases/$(database)/documents/estimates/$(d.parentEstimateId)).data;
+      let ecid = e.get('companyId', '');
+      let staff = request.auth.token.get('role', '') in ['company_admin', 'manager'];
+      return d.parentEstimateId is string
+        && (e.get('userId', '') == request.auth.uid
+            || (staff && ecid != '' && ecid == request.auth.token.get('companyId', '')))
+        && (ecid == d.companyId || (ecid == '' && e.get('userId', '') == request.auth.uid))
+        && (e.get('leadId', null) == null || d.get('leadId', null) == e.get('leadId', null));
+    }
+
+    // Clearing a STRANDED stamp (second security pass M-A, 2026-11-14): the
+    // company_admin of the supplement's company (or a claimless solo owner of
+    // it) may remove invoicedInvoiceId + invoicedAt, and nothing else, once the
+    // invoice it names no longer exists or is void / cancelled / deleted, so
+    // the supplement bills again. Never while that invoice is live.
+    function supStampClearOk() {
+      let id = resource.data.get('invoicedInvoiceId', '');
+      let cid = resource.data.get('companyId', '');
+      let invPath = /databases/$(database)/documents/invoices/$(id);
+      return id is string && id.size() > 0 && cid != ''
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt'])
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && request.resource.data.get('invoicedAt', null) == null
+        && ((request.auth.token.get('role', '') == 'company_admin' && cid == request.auth.token.get('companyId', ''))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(cid)))
+        && (!exists(invPath)
+            || get(invPath).data.get('status', '') in ['void', 'cancelled']
+            || get(invPath).data.get('deleted', false) == true);
     }
 
     // ── EXPENSES (job costs / supplier spend) ─────────
@@ -1635,11 +1774,16 @@ service cloud.firestore {
         || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'draft')
         || backfillWriterOk();
     }
-    // The total is the owner side's to change once an invoice has left draft or carries a payment.
+    // The total is the owner side's to change once an invoice has left draft or carries a payment,
+    // and ALWAYS on a server-made supplement invoice (security review H1, 2026-11-15; only
+    // functions/supplement-invoice.js writes supplementIds): a rep or manager cannot change what
+    // it bills. Checked only in this rarely-run branch: the invoice update rule sits at the
+    // 1000-expression budget (the 12-payment pins), so its other money fields are a follow-up.
     function invoiceTotalOk() {
       return request.resource.data.get('total', 0) == resource.data.get('total', 0)
         || backfillWriterOk()
-        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0);
+        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0
+            && !('supplementIds' in resource.data));
     }
     // Presence of the key is enough (any value, any type: 'true', 1, 'yes'), and 'source' is compared without case:
     // a rep cannot slip a near-miss marker past the owner-side check.
@@ -1711,7 +1855,11 @@ service cloud.firestore {
       let enters = !(r.get('status', '') in ['void', 'cancelled']) && d.get('status', '') in ['void', 'cancelled'];
       let newlyDeleted = d.get('deleted', false) == true && r.get('deleted', false) != true;
       return backfillWriterOk()
+        // An invoice that billed supplements is voided by the owner side only
+        // (second security pass M-A, 2026-11-14), so a $1 throwaway invoice
+        // cannot strand them; the company_admin can then clear the stamps.
         || (!leaves
+            && r.get('supplementIds', []).size() == 0
             && ((!invoiceCarriesMoney(r) && !invoiceCarriesMoney(d))
                 || (invoiceCarriesMoney(r) && !enters && !newlyDeleted
                     && d.get('payments', []) == r.get('payments', [])
@@ -3935,6 +4083,10 @@ service cloud.firestore {
         // A new invoice carries no money: payments arrive one at a time through Record Payment (checked on update),
         // so nobody can create an invoice that is already "paid" with a back-dated payment.
         && request.resource.data.get('payments', []) is list && request.resource.data.get('payments', []).size() == 0
+        // An invoice that bills insurance supplements is made by the server
+        // (functions/supplement-invoice.js, Joe 2026-11-14), never a browser.
+        && request.resource.data.get('supplementIds', []) is list && request.resource.data.get('supplementIds', []).size() == 0
+        && request.resource.data.get('supplementTotal', 0) == 0
         && request.resource.data.get('status', '') != 'paid'
         && invoiceStatusWord(request.resource.data)
         // an invoice is never BORN locked: the send lock is taken on update, with a truthful marker (invoiceLockOk)
@@ -3956,7 +4108,9 @@ service cloud.firestore {
           // jobId frozen (R3-6); leadId frozen once set — a lead-less
           // invoice may be attached once, to a lead the writer can reach
           // (leadIdStable, 2026-10-05).
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'])
+          // supplementIds frozen (2026-11-14): the supplements this invoice
+          // billed (their stamps point here) cannot be dropped off it.
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds'])
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
@@ -3972,9 +4126,13 @@ service cloud.firestore {
           // A backfill invoice is the owner side's to edit or void (a manager cannot).
           && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
         );
+      // An invoice that billed supplements (supplementIds) is the owner side's
+      // to delete (second security pass M-A, 2026-11-14): deleting a throwaway
+      // invoice must not leave those supplements stamped "billed" with no bill.
       allow delete: if isAdmin()
         || (isOwner(resource.data.createdBy) && notViewer()
-            && (!invoiceCarriesMoney(resource.data) || backfillWriterOk()))
+            && (!invoiceCarriesMoney(resource.data) || backfillWriterOk())
+            && (resource.data.get('supplementIds', []).size() == 0 || backfillWriterOk()))
         || (isCompanyAdmin()
             && resource.data.companyId != null
             && resource.data.companyId == myCompanyId());

@@ -46,6 +46,17 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  // The company owner side (Joe, 2026-11-14): company_admin, the platform
+  // admin, or a solo owner (no role and no company claim) — the same people
+  // firestore.rules supApproverOk lets approve (a self-serve owner carries
+  // role company_admin).
+  function _isApprover() {
+    const c = window._userClaims || {};
+    const uid = (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || '';
+    const role = c.role || '';
+    return role === 'admin' || role === 'company_admin' || (!role && !c.companyId && !!uid);
+  }
+
   function _toast(msg, kind) {
     if (typeof window.showToast === 'function') window.showToast(msg, kind || 'info');
   }
@@ -132,6 +143,7 @@
 
   // Rows for each saved supplement + its "record carrier response" control.
   function _existingListHtml() {
+    const approver = _isApprover();
     return (_existingSupplements || []).map(function (s) {
       const total = Number(s.supplementTotal) || 0;
       const st = s.status || 'draft';
@@ -159,8 +171,12 @@
           '<div class="sx-wrap8 sx-wrap8-mt">' +
             '<select class="nbd-sup-resp-status sx-select">' +
               '<option value="">Record carrier response…</option>' +
-              '<option value="approved"' + (st === 'approved' ? ' selected' : '') + '>Approved — bill full ' + _money(total) + '</option>' +
-              '<option value="partial"' + (st === 'partial' ? ' selected' : '') + '>Partial — enter approved $</option>' +
+              // Only the company owner side records an approval (Joe, 2026-11-14;
+              // firestore.rules /supplements supApproveOk). A rep records a denial.
+              (approver
+                ? '<option value="approved"' + (st === 'approved' ? ' selected' : '') + '>Approved — bill full ' + _money(total) + '</option>' +
+                  '<option value="partial"' + (st === 'partial' ? ' selected' : '') + '>Partial — enter approved $</option>'
+                : '') +
               '<option value="denied"' + (st === 'denied' ? ' selected' : '') + '>Denied — bill $0</option>' +
             '</select>' +
             '<input type="number" class="nbd-sup-resp-amount" min="0" step="0.01" placeholder="Approved $" ' +
@@ -168,6 +184,11 @@
               'style="width:120px;padding:7px 9px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:13px;display:' + (st === 'partial' ? 'inline-block' : 'none') + ';">' +
             '<button type="button" class="nbd-sup-resp-save sx-btn-resp">Save response</button>' +
           '</div>' +
+          (approver
+            ? '<label class="sx-meta sx-mt6">Carrier approval (required to approve: letter date, adjuster, what was approved)' +
+                '<textarea class="nbd-sup-resp-evidence sx-select" rows="2" maxlength="1000" aria-label="Carrier approval evidence">' +
+                _esc((s.approvalEvidence && s.approvalEvidence.note) || '') + '</textarea></label>'
+            : '<div class="sx-meta sx-mt6">Only the company owner or admin can record an approval.</div>') +
         '</div>'
       );
     }).join('');
@@ -191,7 +212,7 @@
     // failed fetch is asked for again on the next tap (ScriptLoader drops the
     // dead tag), so the toast below says to tap again.
     if (!window.EstimateSupplement && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
-      try { await window.ScriptLoader.load('js/estimate-supplement.js?v=5'); }
+      try { await window.ScriptLoader.load('js/estimate-supplement.js?v=6'); }
       catch (e) { console.warn('[supplement-ui] estimate-supplement.js failed to load:', e && e.message); }
     }
     if (!window.EstimateSupplement) {
@@ -534,6 +555,17 @@
         return;
       }
     }
+    let evidenceNote = '';
+    if (status === 'approved' || status === 'partial') {
+      if (!_isApprover()) { _toast('Only the company owner or admin can record an approval.', 'error'); return; }
+      const evEl = rowEl.querySelector('.nbd-sup-resp-evidence');
+      evidenceNote = String((evEl && evEl.value) || '').trim();
+      if (!evidenceNote) {
+        _toast('Add the carrier\'s approval (letter date, adjuster, what was approved) before approving.', 'error');
+        if (evEl) evEl.focus();
+        return;
+      }
+    }
     if (!window.EstimateSupplement || typeof window.EstimateSupplement.updateResponse !== 'function') {
       _toast('Supplement engine not loaded.', 'error');
       return;
@@ -551,6 +583,7 @@
       status: status,
       approvedAmount: approvedAmount,
       itemDecisions: itemDecisions,
+      evidenceNote: evidenceNote,
     });
 
     if (!ok) {

@@ -68,8 +68,14 @@
         w.NBDCustomerInvoices && typeof w.NBDCustomerInvoices.recordPayment === 'function' && w._userClaims;
     }, 30000);
     if (!ready || isViewer()) return;
-    w.NBDCustomerInvoices.recordPayment(link.leadId);
-    var sheet = await wait(function () { return doc.querySelector('#nbd-recordpay-modal .modal'); }, 20000);
+    // Record payment can refuse before any sheet opens (it says why in a
+    // toast, e.g. the job's insurance supplements could not be read): stop
+    // waiting for a sheet the moment it settles without one (2026-11-14).
+    var settled = false;
+    Promise.resolve(w.NBDCustomerInvoices.recordPayment(link.leadId))
+      .then(function () { settled = true; }, function () { settled = true; });
+    var sheet = await wait(function () { return doc.querySelector('#nbd-recordpay-modal .modal') || settled; }, 20000);
+    if (sheet === true) sheet = doc.querySelector('#nbd-recordpay-modal .modal');
     if (!sheet || !link.invoiceId) return;
     var sel = sheet.querySelector('#nbd-rp-inv');
     if (sel) {
@@ -83,7 +89,8 @@
       // One open invoice (or none yet): confirm it is the one Home showed.
       var IP = w.InvoicePipeline;
       var ctx = null;
-      try { ctx = IP && typeof IP.recordPaymentContext === 'function' ? await IP.recordPaymentContext(link.leadId) : null; } catch (_) { ctx = null; }
+      try { ctx = IP && typeof IP.recordPaymentContext === 'function' ? await IP.recordPaymentContext(link.leadId) : null; }
+      catch (e) { if (e && e.code === 'SUPPLEMENTS_UNREADABLE') return; ctx = null; }
       var t = ctx && ctx.target;
       if (t && t.kind === 'existing' && t.invoices && t.invoices[0] && t.invoices[0].id === link.invoiceId) return;
       if (!t) return;   // could not check — the sheet itself shows what it applies to

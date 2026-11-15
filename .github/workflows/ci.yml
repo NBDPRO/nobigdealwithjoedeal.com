@@ -694,6 +694,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-mclose-test 'node firestore-rules.month-close.test.js'
+      # Supplements company read (Finding 5, 2026-11-14): same-company staff read a companyId-stamped supplement; create pins the tenant. Own file.
+      - name: Run supplements-company rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-supco-test 'node firestore-rules.supplements-company.test.js'
       # Reputation review log (2026-10-19): review_log/{leadId}, owner/company_admin only. Own file.
       - name: Run review-log rules tests under emulator
         run: |
