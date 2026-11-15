@@ -181,14 +181,14 @@ check('O13 the export probe runs in a CHILD process', () => {
 
 check('O14 allowlists exist, are documented, and are currently empty', () => {
   assert.ok(/ALLOW_ORPHANS/.test(SRC) && /ALLOW_MISSING/.test(SRC));
-  const orphanBlock = SRC.slice(SRC.indexOf('const ALLOW_ORPHANS'), SRC.indexOf('const ALLOW_MISSING'));
-  assert.ok(
-    // Only the six RETIRE-NOOP-FUNCTIONS-2026-11-15 entries (each dated) may be
-    // listed; delete them, and this exception, once functions:delete is confirmed.
-    (orphanBlock.replace(/\/\/.*$/gm, '').match(/^\s*'?[A-Za-z]\w*'?:/gm) || [])
-      .every((l) => /^\s*(auditUsers|auditCompanies|auditAccessCodes|auditSubscriptions|imageProxy|setStorageCors):/.test(l)),
-    'an entry was added to ALLOW_ORPHANS — it needs a dated reason, and this '
-      + 'assertion is the prompt to write one',
+  // Structural: ask the checker what it allows (running code, not file text).
+  // Only the six RETIRE-NOOP-FUNCTIONS-2026-11-15 entries may be listed; delete
+  // them, and this exception, once functions:delete is confirmed.
+  const allowed = run('deployed-clean.txt').report.allowedOrphans.slice().sort();
+  assert.deepStrictEqual(
+    allowed,
+    ['auditAccessCodes', 'auditCompanies', 'auditSubscriptions', 'auditUsers', 'imageProxy', 'setStorageCors'],
+    'ALLOW_ORPHANS changed — each entry needs a dated reason, and this assertion is the prompt to write one',
   );
 });
 
