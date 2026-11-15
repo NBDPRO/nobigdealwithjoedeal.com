@@ -105,7 +105,7 @@ function stub(over) {
       return JSON.parse(JSON.stringify(NOTES));
     },
     checkConsent: async (a) => { counts.consent++; return scripted.consent ? scripted.consent(a) : { consented: true, evidence: 'yes that is fine' }; },
-    checkBudget: async () => (scripted.budget ? scripted.budget() : { overBudget: flags.overBudget }),
+    checkBudget: async (db, companyId, plan) => { counts.budgetFor = { companyId, plan }; return scripted.budget ? scripted.budget() : { overBudget: flags.overBudget }; },
     // 2026-11-14: the uploader's AI entitlement (functions/ai-gate.js); a paying tenant here.
     entitled: async (db, uid) => { counts.entitledFor = uid; return scripted.entitled ? scripted.entitled() : { ok: true }; },
     recordUsage: async (db, a) => { counts.usage++; (counts.usageArgs = counts.usageArgs || []).push(a); },
@@ -1064,10 +1064,17 @@ async function channelRead(w, owner) {
   w = world({ v12early001: cap('v12early001') });
   await run(w, 'v12early001');
   ok('a refused walkthrough exits before the kill switch and the tenant reads (cheap exit)', D(w, 'v12early001').pipelineNote === 'needs_paid_plan', J(D(w, 'v12early001')));
-  {
-    const src = fs.readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8');
-    ok('the plan is read from the COMPANY\'s subscription doc', /db\.doc\('subscriptions\/' \+ companyId\)/.test(src) && !/db\.doc\('subscriptions\/' \+ uid\)/.test(src));
-  }
+  // The budget gets the COMPANY's plan, not the rep's own (a paying tenant's
+  // rep used to get the free tier). Run, not read: a rep whose users doc points
+  // at a paying company, with a free subscription doc of their own.
+  stub();
+  w = world({ v12plan0001: cap('v12plan0001') });
+  w.db.docs.set('users/' + OWNER, { companyId: 'coPaying' });
+  w.db.docs.set('subscriptions/coPaying', { plan: 'growth', status: 'active' });
+  w.db.docs.set('subscriptions/' + OWNER, { plan: 'free', status: 'none' });
+  await run(w, 'v12plan0001');
+  ok('the budget is checked against the COMPANY\'s plan (growth), not the rep\'s own (free)',
+    counts.budgetFor && counts.budgetFor.companyId === 'coPaying' && counts.budgetFor.plan === 'growth', J(counts.budgetFor));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.map((x) => ' - ' + x).join('\n')); process.exit(1); }
