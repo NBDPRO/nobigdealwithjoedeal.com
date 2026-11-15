@@ -461,24 +461,34 @@
     var _leadsNow = window._leads || [];
     var out = { leads: _leadsNow,
       jobRecs: (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(_leadsNow) : null,
-      expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
-    if (!db || !u || !window.getDocs) return out;
+      expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear(),
+      // A read that failed is recorded here so render() says "couldn't load"
+      // for the figures it feeds instead of showing $0 (2026-11-14).
+      loadErrors: {} };
+    function failed(key) {
+      return function (e) { out.loadErrors[key] = true; console.warn('[money] ' + key + ' read failed', e && (e.code || e.message)); };
+    }
+    if (!db || !u || !window.getDocs) {
+      // Nothing could be read: every figure is unknown, not $0.
+      out.loadErrors = { expenses: true, suppliers: true, invoices: true, monthCloses: true };
+      return out;
+    }
     var col = window.collection, q = window.query, where = window.where, getDocs = window.getDocs;
     var staff = isStaff() && claims().companyId;
     var jobs = [
       // expenses + suppliers: staff -> companyId, else userId (rule-safe)
       getDocs(staff ? q(col(db, 'expenses'), where('companyId', '==', companyId())) : q(col(db, 'expenses'), where('userId', '==', u)))
         // `id` kept so the month-close tidy-up lists can name each expense.
-        .then(function (s) { out.expenses = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(function () {}),
+        .then(function (s) { out.expenses = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(failed('expenses')),
       getDocs(staff ? q(col(db, 'suppliers'), where('companyId', '==', companyId())) : q(col(db, 'suppliers'), where('userId', '==', u)))
-        .then(function (s) { out.suppliers = s.docs.map(function (d) { return d.data(); }); }).catch(function () {}),
+        .then(function (s) { out.suppliers = s.docs.map(function (d) { return d.data(); }); }).catch(failed('suppliers')),
       // invoices: staff -> companyId (team-wide A/R, matches the invoice
       // rules' isCompanyStaff() read branch — Collections foundation,
       // 2026-09-15), else createdBy (their own historical ownership field).
       // `id` is kept on every doc (previously dropped) so the Collections
       // queue below can act on a specific invoice, not just sum them.
       getDocs(staff ? q(col(db, 'invoices'), where('companyId', '==', companyId())) : q(col(db, 'invoices'), where('createdBy', '==', u)))
-        .then(function (s) { out.invoices = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(function () {}),
+        .then(function (s) { out.invoices = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(failed('invoices')),
     ];
     // Month-close marks live on the user's own settings doc
     // (userSettings/{uid}: owner read/write in firestore.rules).
@@ -487,7 +497,7 @@
         .then(function (snap) {
           var d = snap && typeof snap.data === 'function' ? snap.data() : null;
           if (d && d.monthCloses && typeof d.monthCloses === 'object') out.monthCloses = d.monthCloses;
-        }).catch(function () {}));
+        }).catch(failed('monthCloses')));
     }
     await Promise.all(jobs);
     return out;
@@ -558,14 +568,17 @@
     var html = '<details id="nbd-month-close" data-month="' + esc(mc.monthKey) + '"' + (mc.prominent ? ' open' : '') +
       ' style="' + shell + (mc.prominent ? 'border-top:2px solid var(--orange);' : '') + '">' +
       '<summary style="' + summaryStyle + '">' + esc(summaryText) + '</summary>';
-    var big = function (label, cents, color) {
+    // A failed read shows "couldn't load", never $0 (2026-11-14).
+    var le = mc.loadErrors || {};
+    var invErr = !!le.invoices, expErr = !!le.expenses;
+    var big = function (label, cents, color, err) {
       return '<div class="mdx-grow90"><div class="mdx-caps10">' + esc(label) + '</div>' +
-        '<div style="font-size:20px;font-weight:800;color:' + color + ';white-space:nowrap;">' + esc(fmt(cents)) + '</div></div>';
+        '<div style="font-size:20px;font-weight:800;color:' + (err ? 'var(--m)' : color) + ';white-space:nowrap;">' + esc(err ? 'couldn\'t load' : fmt(cents)) + '</div></div>';
     };
     html += '<div class="mdx-meta-row">' +
-      big('Collected', mc.collectedCents, 'var(--ui-success-text,var(--green))') +
-      big('Expenses', mc.expensesCents, 'var(--ui-accent-text,var(--orange))') +
-      big('Net', mc.netCents, netColor) + '</div>' +
+      big('Collected', mc.collectedCents, 'var(--ui-success-text,var(--green))', invErr) +
+      big('Expenses', mc.expensesCents, 'var(--ui-accent-text,var(--orange))', expErr) +
+      big('Net', mc.netCents, netColor, invErr || expErr) + '</div>' +
       '<div class="mdx-m11-mb10">' + esc(mc.monthLabel + ' · collected money only (payments received, refunds taken off) · expenses incl. tax') + '</div>';
     if (mc.categories.length) {
       html += '<div class="mdx-caps11">Where it went</div><ul class="mdx-list-mb">';
@@ -574,14 +587,18 @@
       });
       html += '</ul>';
     } else {
-      html += '<div class="mdx-m12-mb">' + esc('No expenses logged for ' + mc.monthLabel + '.') + '</div>';
+      html += '<div class="mdx-m12-mb">' + esc(expErr ? 'Expenses couldn\'t load — refresh to try again.' : 'No expenses logged for ' + mc.monthLabel + '.') + '</div>';
     }
     var tidy = closeListHtml(mc.uncategorized, 'expense needs a category', 'expenses need a category', 'expense', 'Open Expenses and pick a category.') +
       closeListHtml(mc.untiedDirect, 'direct cost isn\'t tied to a job', 'direct costs aren\'t tied to a job', 'untied', 'Open Expenses and choose the customer this cost belongs to.') +
       closeListHtml(mc.missingReceipts, 'missing receipt', 'missing receipts', 'expense', 'Attach a photo or PDF in Expenses (recommended, never required).') +
       closeListHtml(mc.unpaidInvoices, 'invoice from last month still unpaid', 'invoices from last month still unpaid', 'invoice', 'Open the customer to chase it — nothing is sent from here.');
-    html += tidy || '<div class="mdx-ok-row">Nothing to tidy up.</div>';
-    if (mc.closed) {
+    var partial = invErr || expErr || !!le.monthCloses;
+    html += tidy || (partial ? '' : '<div class="mdx-ok-row">Nothing to tidy up.</div>');
+    if (partial) {
+      // Don't offer to close a month (and store its totals) from partial data.
+      html += '<div class="mdx-m12-mb">' + esc('Some of ' + mc.monthName + '\'s numbers couldn\'t load — refresh before closing the month.') + '</div>';
+    } else if (mc.closed) {
       html += '<div class="mdx-ok-note">' + esc(mc.monthName + ' closed ✓') + '</div>';
     } else {
       html += '<div class="mdx-pt12"><button type="button" class="btn btn-orange mdx-btn-wrap" data-action="module" data-target="MoneyDashboard.markMonthClosed" data-arg="' + esc(mc.monthKey) + '">' +
@@ -602,9 +619,19 @@
     _lastQueue = m.collectionsQueue || [];
     var netColor = m.netCashCents >= 0 ? 'var(--ui-success-text,var(--green))' : 'var(--ui-danger-text,var(--red))';
     var marginColor = m.grossMargin == null ? 'var(--t,#fff)' : m.grossMargin >= 40 ? 'var(--ui-success-text,var(--green))' : m.grossMargin >= 25 ? 'var(--ui-warn-text,var(--gold))' : 'var(--ui-danger-text,var(--red))';
+    // A failed read (fetchData's loadErrors) shows "couldn't load" on every
+    // figure it feeds, never $0 (2026-11-14).
+    var le = m.loadErrors || {};
+    var invErr = !!le.invoices, expErr = !!le.expenses, supErr = !!le.suppliers;
+    function tile(err, label, value, sub, color) {
+      return err ? card(label, '—', 'couldn\'t load', 'var(--m)') : card(label, value, sub, color);
+    }
     var html = '';
     html += '<div class="mdx-mb18"><h2 class="mdx-title">💵 Money — ' + m.year + '</h2>' +
-      '<div class="mdx-m12-mt">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div></div>';
+      '<div class="mdx-m12-mt">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div>' +
+      (invErr || expErr || supErr || le.monthCloses
+        ? '<div class="mdx-m12-mt" role="alert" style="color:var(--ui-danger-text,var(--red));">' + esc('Some figures couldn\'t load. The ones marked "couldn\'t load" are not $0 — refresh to try again.') + '</div>'
+        : '') + '</div>';
 
     // Close last month (2026-10-01) — checklist card, near the top.
     html += monthCloseHtml(m.monthClose);
@@ -616,10 +643,10 @@
     // "Collected" with nothing telling you what counts. Revenue = collected only.
     html += '<div class="mdx-m11-mb10">' + esc('Collected money only: payments received on the day they came in, refunds taken off. Signed, closed and pipeline work is not counted here.') + '</div>';
     html += grid([
-      card('Collected', fmt(m.collectedCents), 'paid invoices', 'var(--ui-success-text,var(--green))'),
-      card('Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--ui-accent-text,var(--orange))'),
-      card('Net Cash', fmt(m.netCashCents), m.netCashCents >= 0 ? 'in the black' : 'in the red', netColor),
-      card('Outstanding A/R', fmt(m.outstandingCents), 'unpaid invoices', 'var(--blue,#3b82f6)'),
+      tile(invErr, 'Collected', fmt(m.collectedCents), 'paid invoices', 'var(--ui-success-text,var(--green))'),
+      tile(expErr, 'Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--ui-accent-text,var(--orange))'),
+      tile(invErr || expErr, 'Net Cash', fmt(m.netCashCents), m.netCashCents >= 0 ? 'in the black' : 'in the red', netColor),
+      tile(invErr, 'Outstanding A/R', fmt(m.outstandingCents), 'unpaid invoices', 'var(--blue,#3b82f6)'),
     ]);
 
     // Stripe panel (2026-09-29): balance, payouts, this month's Stripe
@@ -635,13 +662,15 @@
     var overdue = (m.collectionsQueue || []).filter(function (q) { return q.daysPastDue > 0; });
     html += '<div class="mdx-caps12">Collections Queue</div>';
     html += grid([
-      card('Current', fmt(m.agingCents.current), 'not yet due', 'var(--blue,#3b82f6)'),
-      card('1–30 Days', fmt(m.agingCents.d1_30), 'past due', 'var(--ui-warn-text,var(--gold,#eab308))'),
-      card('31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--ui-accent-text,var(--orange,#BD5728))'),
-      card('60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--ui-danger-text,var(--red,#dc2626))'),
+      tile(invErr, 'Current', fmt(m.agingCents.current), 'not yet due', 'var(--blue,#3b82f6)'),
+      tile(invErr, '1–30 Days', fmt(m.agingCents.d1_30), 'past due', 'var(--ui-warn-text,var(--gold,#eab308))'),
+      tile(invErr, '31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--ui-accent-text,var(--orange,#BD5728))'),
+      tile(invErr, '60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--ui-danger-text,var(--red,#dc2626))'),
     ]);
     html += '<div class="ui-card mdx-mb20">';
-    if (!overdue.length) {
+    if (invErr) {
+      html += '<div class="nbd-empty mdx-pad14"><div class="ne-msg">Invoices couldn\'t load</div><div class="ne-sub">Refresh to try again — this is not "nothing overdue".</div></div>';
+    } else if (!overdue.length) {
       html += '<div class="nbd-empty mdx-pad14"><div class="ne-icon">✅</div><div class="ne-msg">Nothing overdue</div><div class="ne-sub">Every outstanding invoice is still inside its terms.</div></div>';
     } else {
       var shownQ = overdue.slice(0, 20);
@@ -681,17 +710,18 @@
     // Job profitability
     html += '<div class="mdx-caps12">Job profitability (won jobs)</div>';
     html += grid([
-      card('Contract Value', fmt(m.wonContractCents), m.costedJobs + ' of ' + m.wonJobs + ' won jobs costed', 'var(--blue,#3b82f6)'),
-      card('Direct Costs', fmt(m.wonDirectCents), 'materials, labor, subs', 'var(--ui-accent-text,var(--orange,#BD5728))'),
-      card('Gross Margin', m.grossMargin == null ? '—' : m.grossMargin + '%', 'before overhead & commission', marginColor),
-      card('Overhead', fmt(m.overheadCents), 'operating costs YTD', 'var(--purple,#8b5cf6)'),
+      tile(expErr, 'Contract Value', fmt(m.wonContractCents), m.costedJobs + ' of ' + m.wonJobs + ' won jobs costed', 'var(--blue,#3b82f6)'),
+      tile(expErr, 'Direct Costs', fmt(m.wonDirectCents), 'materials, labor, subs', 'var(--ui-accent-text,var(--orange,#BD5728))'),
+      tile(expErr, 'Gross Margin', m.grossMargin == null ? '—' : m.grossMargin + '%', 'before overhead & commission', marginColor),
+      tile(expErr, 'Overhead', fmt(m.overheadCents), 'operating costs YTD', 'var(--purple,#8b5cf6)'),
     ]);
 
     // Two-column: top suppliers + 1099
     html += '<div class="mdx-cols">';
     html += '<div class="ui-card">' +
       '<h3 class="mdx-h3">Top Suppliers — ' + m.year + '</h3>';
-    if (!m.topSuppliers.length) html += '<div class="nbd-empty mdx-pad14"><div class="ne-icon">🧾</div><div class="ne-msg">No spend logged yet</div><div class="ne-sub">Log expenses in the Expenses view and they roll up here.</div></div>';
+    if (expErr) html += '<div class="nbd-empty mdx-pad14"><div class="ne-msg">Expenses couldn\'t load</div><div class="ne-sub">Refresh to try again.</div></div>';
+    else if (!m.topSuppliers.length) html += '<div class="nbd-empty mdx-pad14"><div class="ne-icon">🧾</div><div class="ne-msg">No spend logged yet</div><div class="ne-sub">Log expenses in the Expenses view and they roll up here.</div></div>';
     else {
       var max = m.topSuppliers[0].cents || 1;
       m.topSuppliers.forEach(function (s) {
@@ -701,7 +731,10 @@
       });
     }
     html += '</div>';
-    html += '<div class="ui-card">' +
+    if (expErr || supErr) html += '<div class="ui-card">' +
+      '<h3 class="mdx-h3">1099 Worklist — ' + m.year + '</h3>' +
+      '<div class="mdx-m12">' + esc((supErr ? 'Suppliers' : 'Expenses') + ' couldn\'t load — refresh to try again.') + '</div></div>';
+    else html += '<div class="ui-card">' +
       '<h3 class="mdx-h3">1099 Worklist — ' + m.year + '</h3>' +
       '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:40px;font-weight:800;color:' + (m.due1099 ? 'var(--ui-accent-text,var(--orange,#BD5728))' : 'var(--t,#fff)') + ';">' + m.due1099 + '</div>' +
       '<div class="mdx-m12">supplier(s) need a 1099-NEC · ' + fmt(m.due1099Cents) + ' in service payments</div>' +
@@ -807,6 +840,8 @@
   function renderData(data) {
     var m = computePnL(data);
     m.monthClose = monthClose(data, new Date());
+    m.loadErrors = data.loadErrors || {};
+    m.monthClose.loadErrors = m.loadErrors;
     render(m);
   }
 
