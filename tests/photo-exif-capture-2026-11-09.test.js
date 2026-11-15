@@ -211,7 +211,7 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
   // the customer boot budget had 8 B of room). `engine`: the real PhotoEngine
   // from loadEngine(), or null for a page whose photos bundle did not load.
   async function runCustomerUpload(file, stall, engine) {
-    const fn = sliceFn('docs/pro/js/customer-bootstrap.module.js', 'async function uploadSinglePhoto(item, index) {', /\n\}\n/g);
+    const fn = sliceFn('docs/pro/js/customer-bootstrap.module.js', 'async function uploadSinglePhoto(item, index) {', /\r?\n\}\r?\n/g);
     const added = [];
     const win = {
       _customerId: 'L1', _currentLead: { id: 'L1', lat: 39.1, lng: -84.5 },
@@ -247,7 +247,7 @@ const DEVICE = new Date(2026, 10, 9, 15, 0, 0).getTime();   // "now" at upload
 
   console.log('\n4. dashboard-bootstrap.module.js _uploadPhoto (real function text in a vm)');
   async function runDashUpload(file, stall) {
-    let fn = sliceFn('docs/pro/js/dashboard-bootstrap.module.js', 'async function _uploadPhoto(leadId, file) {', /\n {2}\}\n/g);
+    let fn = sliceFn('docs/pro/js/dashboard-bootstrap.module.js', 'async function _uploadPhoto(leadId, file) {', /\r?\n {2}\}\r?\n/g);
     fn = fn.replace(/import\(\s*'\.\/photo-exif\.js(\?v=\d+)?'\s*\)/g, '__exif()');
     const added = [];
     const sb = {

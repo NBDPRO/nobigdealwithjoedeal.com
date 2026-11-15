@@ -73,9 +73,20 @@ group('Only a deliberately-shared estimate qualifies', () => {
 });
 
 group('The selection uses the predicate, not the newest doc', () => {
-  assert('picks with .find(isSharedEstimate)',
-    /const latest = estimates\.find\(isSharedEstimate\) \|\| null;/.test(PORTAL_FN),
+  // 2026-11-14 (finding 6): the pick moved into portal-after-signing.js
+  // pickPortalEstimate (prefer the signed estimate), still behind the predicate.
+  assert('picks through the share predicate (pickPortalEstimate(estimates, isSharedEstimate, …))',
+    /const latest = PAS\.pickPortalEstimate\(estimates, isSharedEstimate, _deals\);/.test(PORTAL_FN),
     'reverting to estimates[0] re-opens the leak');
+  {
+    const PAS = require(path.join(ROOT, 'functions', 'portal-after-signing.js'));
+    const shared = (e) => e.sharedWithHomeowner === true;
+    const signedUnshared = { id: 'a', signatureStatus: 'signed', signedPrice: { totalCents: 100 } };
+    assert('pickPortalEstimate never returns an unshared estimate, even a signed one',
+      PAS.pickPortalEstimate([signedUnshared], shared, []) === null);
+    assert('…and returns the newest shared one when none is signed',
+      (PAS.pickPortalEstimate([{ id: 'x' }, { id: 'y', sharedWithHomeowner: true }, { id: 'z', sharedWithHomeowner: true }], shared, []) || {}).id === 'y');
+  }
   assert('no bare estimates[0] selection remains',
     !/const latest = estimates\[0\]/.test(PORTAL_FN));
 
