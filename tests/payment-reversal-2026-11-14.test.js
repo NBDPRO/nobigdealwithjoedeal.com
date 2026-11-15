@@ -164,10 +164,10 @@ console.log('\n2. Collected nets the reversal back out');
   };
   const netCents = (list) => list.reduce((t, p) => t + Math.round(p.amount * 100), 0);
   for (const [file, fnName, helpers] of [
-    ['docs/pro/js/money-dashboard.js', 'paymentsOnlyOf', ['toJSDate', 'collectedCentsOf']],
-    ['docs/pro/js/analytics-kpi.js', 'paymentsOnlyOf', ['toJSDate', 'collectedDollarsOf']],
-    ['docs/pro/js/pages/leaderboard.js', 'paymentsOnlyOf', ['toDate']],
-    ['functions/weekly-digest.js', '_paymentsOnlyOf', ['timestampMillis']],
+    ['docs/pro/js/money-dashboard.js', 'paymentsOnlyOf', ['toJSDate', 'collectedCentsOf', 'reopenedOf']],
+    ['docs/pro/js/analytics-kpi.js', 'paymentsOnlyOf', ['toJSDate', 'collectedDollarsOf', 'reopenedOf']],
+    ['docs/pro/js/pages/leaderboard.js', 'paymentsOnlyOf', ['toDate', 'reopenedOf']],
+    ['functions/weekly-digest.js', '_paymentsOnlyOf', ['timestampMillis', '_reopenedOf']],
   ]) {
     let got = 'not run';
     try { got = netCents(runCopy(file, fnName, helpers)(reversed)); } catch (e) { got = e.message; }
