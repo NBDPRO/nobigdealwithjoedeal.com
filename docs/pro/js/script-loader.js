@@ -143,7 +143,7 @@
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
       'css/receipt-sorter.css?v=1', 'js/receipt-sorter-logic.js?v=1', 'js/receipt-sorter.js?v=1',
       // Receipt inbox (2026-11-04): inert until the receiptInbox flag is on. Loads after the sorter (it ranks jobs with it).
-      'css/receipt-inbox.css?v=1', 'js/receipt-inbox-logic.js?v=1', 'js/receipt-inbox.js?v=1'
+      'css/receipt-inbox.css?v=1', 'js/receipt-inbox-logic.js?v=1', 'js/receipt-inbox.js?v=2'
     ],
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
