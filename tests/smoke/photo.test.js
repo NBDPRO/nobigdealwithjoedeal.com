@@ -490,8 +490,17 @@ section('Photos §2.3: bulk-analyze surfaces a cap-aware finishing toast');
   assert('_bulkAnalyze attaches a nbd:ai-classify-skipped listener',
     /_bulkAnalyze[\s\S]{0,2000}addEventListener\(\s*['"]nbd:ai-classify-skipped['"]/.test(pe),
     'expected _bulkAnalyze to addEventListener on nbd:ai-classify-skipped');
+  // Bounded by the function itself (src-kit matchBrace), not a character
+  // window: the 3,500-char window broke on a harmless addition (2026-11-15).
+  const K = require('../lib/src-kit');
+  const bulkAt = pe.indexOf('_bulkAnalyze: async');
+  const bulkOpen = bulkAt === -1 ? -1 : pe.indexOf('{', bulkAt);
+  const bulkBody = bulkOpen === -1 ? '' : pe.slice(bulkOpen, K.matchBrace(pe, bulkOpen) + 1);
+  const finAt = bulkBody.lastIndexOf('finally');
+  const finOpen = finAt === -1 ? -1 : bulkBody.indexOf('{', finAt);
+  const finBody = finOpen === -1 ? '' : bulkBody.slice(finOpen, K.matchBrace(bulkBody, finOpen) + 1);
   assert('_bulkAnalyze detaches its listener in finally',
-    /_bulkAnalyze[\s\S]{0,3500}finally\s*\{[\s\S]{0,200}removeEventListener\(\s*['"]nbd:ai-classify-skipped['"]/.test(pe),
+    /removeEventListener\(\s*['"]nbd:ai-classify-skipped['"]/.test(finBody),
     'expected _bulkAnalyze finally{} block to removeEventListener');
   assert('_bulkAnalyze toast distinguishes daily / lead / user caps',
     /daily-cap[\s\S]{0,200}lead-cap[\s\S]{0,200}user-cap/.test(pe),
