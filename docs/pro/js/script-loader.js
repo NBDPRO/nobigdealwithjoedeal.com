@@ -115,7 +115,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=8',
-      'js/expenses.js?v=18',
+      'js/expenses.js?v=19',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',
       // Job cost auditor (2026-10-19): inert until the jobCostAuditor flag is on.
@@ -339,7 +339,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=10',
+      'js/photo-engine.js?v=11',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
