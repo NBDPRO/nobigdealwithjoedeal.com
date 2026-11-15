@@ -32,6 +32,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const L = require(path.join(ROOT, 'docs/pro/js/os/system-logic.js'));
 const DOM = read('docs/pro/js/os/system.js');
 const CSS = read('docs/pro/css/os/system.css');
+const K = require('./lib/src-kit.js');
 
 let passed = 0, failed = 0;
 function ok(name, cond, detail) {
@@ -65,7 +66,7 @@ console.log('markHtml (the real functions, lifted)');
 const i0 = DOM.indexOf('  function companyName() {');
 const i1 = DOM.indexOf('  function motionReducedNow() {', i0);
 const body = i0 >= 0 && i1 > i0 ? DOM.slice(i0, i1) : '';
-ok('control: found markHtml in system.js', /function markHtml\(/.test(body), body.slice(0, 120));
+// (no "found markHtml" text pin: html() below runs it, and returns 'THREW …' if it is gone)
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -118,23 +119,66 @@ console.log('a logo that failed stays failed (no flicker loop)');
   } catch (e) { h2 = 'THREW ' + e.message; }
   ok('control: the logo is drawn first', /src="https:\/\/x\.test\/missing\.png"/.test(h1), h1);
   ok('after it failed, the next paint draws the letters, not the bad logo again', /is-text/.test(h2) && />OR</.test(h2), h2);
-  ok('the error listener records the failure', /addEventListener\('error'[\s\S]{0,400}markFailed\(/.test(DOM));
 }
 
-console.log('broken logo falls back');
-ok('a load error on the mark image steps down (listener, not an inline handler)',
-  /addEventListener\('error'/.test(DOM) && /function wireMark\(/.test(DOM), 'wireMark not found');
-ok('no inline onerror', !/onerror=/.test(DOM));
+// The real system layer in the OS harness (tests/lib/nbd-os-home-harness.js): the boot screen
+// while the CRM is still loading (_leads unset, first boot this session) and the lock screen.
+// (Inline onerror= is covered repo-wide by tests/csp-inline-lint-2026-11-14.test.js.)
+const H = require('./lib/nbd-os-home-harness.js');
+function sys(override) {
+  const T = H.makeWin({ surface: 'desktop', home: { desk: [], phone: [] } });
+  const W = T.W;
+  W._leads = undefined;   // still loading: the boot screen shows
+  const ss = {};
+  W.sessionStorage = { getItem: (k) => (k in ss ? ss[k] : null), setItem: (k, v) => { ss[k] = String(v); } };
+  W._isNbdPlatformTenant = () => false;
+  W._brandOverride = () => override;
+  W._companyProfile = { businessName: '' };
+  vm.runInContext(read('docs/pro/js/os/system-logic.js'), W, { filename: 'system-logic.js' });
+  vm.runInContext(read('docs/pro/js/os/system.js'), W, { filename: 'system.js' });
+  return T;
+}
+const markOf = (T, cls) => T.document.querySelector('.' + cls);
+const imgSrc = (el) => { const i = el && el.querySelector('img'); return i ? i.getAttribute('src') : null; };
+
+console.log('the boot screen (real system.js)');
+{
+  const T = sys(null);
+  const m = markOf(T, 'os-boot-mark');
+  ok('THE BUG, end to end: nothing loaded yet -> the boot mark is the NBD Pro icon, not an empty tile', !!m && imgSrc(m) === APP && m.classList.contains('is-app'), m && m.className);
+}
+{
+  const T = sys({ logoUrl: 'https://x.test/missing.png', legalName: 'Oaks Roofing LLC' });
+  let m = markOf(T, 'os-boot-mark');
+  ok('control: a tenant logo is drawn first', imgSrc(m) === 'https://x.test/missing.png', m && m.className);
+  H.fire(T.dom, m.querySelector('img'), 'error');
+  m = markOf(T, 'os-boot-mark');
+  ok('a logo that fails to load steps down to the letters', !!m && m.classList.contains('is-text') && /OR/.test(m.textContent), m && m.className);
+  T.fire(250);   // paintBoot's tick re-reads the mark
+  m = markOf(T, 'os-boot-mark');
+  ok('…and the next boot repaint keeps the letters (no flicker back to the bad logo)', !!m && m.classList.contains('is-text') && !imgSrc(m), m && m.className);
+}
+{
+  const T = sys(null);
+  T.W._brandOverride = () => ({ legalName: 'Summit Ridge Roofing' });   // the profile lands mid-boot
+  T.fire(250);
+  const m = markOf(T, 'os-boot-mark');
+  ok('the boot mark repaints when the company lands mid-boot', !!m && m.classList.contains('is-text') && /SR/.test(m.textContent), m && m.className);
+}
+
+console.log('the lock screen (real system.js)');
+{
+  const T = sys({ legalName: 'Oaks Roofing LLC' });
+  T.W.NBDOS.lock();
+  const m = markOf(T, 'os-lock-mark');
+  ok('the lock screen wears the same mark (the company\'s letters)', !!m && m.classList.contains('is-text') && /OR/.test(m.textContent), m && m.className);
+}
 
 console.log('CSS');
-ok('an image mark drops the orange fill', /\.os-boot-mark\.is-(?:logo|app)[^{]*\{[^}]*background:\s*(?:transparent|none|var\(--s)/.test(CSS) ||
-  /\.os-(?:boot|lock)-mark:not\(\.is-text\)[^{]*\{[^}]*background:\s*(?:transparent|none|var\(--s)/.test(CSS), 'no rule');
-ok('the mark image is contained in the tile', /\.os-(?:boot|lock)-mark img[^{]*\{[^}]*object-fit:\s*contain/.test(CSS));
-
-console.log('wiring');
-ok('the boot screen draws markHtml()', /bootHtml[\s\S]{0,300}markHtml\('os-boot-mark'\)/.test(DOM));
-ok('the lock screen draws markHtml()', /markHtml\('os-lock-mark'\)/.test(DOM));
-ok('the boot screen repaints the mark when the profile lands', /function paintBoot[\s\S]{0,900}markKey\(/.test(DOM));
+const css = K.cssRules(CSS);
+ok('an image mark has no orange fill (boot and lock)', ['.os-boot-mark:not(.is-text)', '.os-lock-mark:not(.is-text)'].every((s) => (K.cssRule(css, s) || {}).background === 'transparent'));
+ok('the mark image is contained in the tile', (K.cssRule(css, '.os-boot-mark img') || {})['object-fit'] === 'contain' && (K.cssRule(css, '.os-lock-mark img') || {})['object-fit'] === 'contain');
+ok('control: the letters tile keeps the orange fill', /var\(--orange\)/.test((K.cssRule(css, '.os-boot-mark') || {}).background || ''));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);

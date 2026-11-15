@@ -69,6 +69,7 @@ function makeDom() {
     }
     get childNodes() { return this.children; }
     get firstElementChild() { return this.children.filter((c) => c.attrs)[0] || null; }
+    get firstChild() { return this.children[0] || null; }
     get childElementCount() { return this.children.filter((c) => c.attrs).length; }
     get textContent() { return this.children.map((c) => c.textContent).join(''); }
     set textContent(v) { this._clear(); this.appendChild(new Txt(v)); }
@@ -112,6 +113,8 @@ function makeDom() {
       return c;
     }
     removeChild(c) { c.remove(); return c; }
+    // like the DOM: `fresh` takes `old`'s place (and leaves wherever it was)
+    replaceChild(fresh, old) { this.insertBefore(fresh, old); old.remove(); return old; }
     remove() {
       if (this.parentNode) { const p = this.parentNode; p.children.splice(p.children.indexOf(this), 1); this.parentNode = null; }
       if (document.activeElement && this.contains(document.activeElement)) document.activeElement = null;
