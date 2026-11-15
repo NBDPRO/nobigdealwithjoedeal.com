@@ -89,7 +89,8 @@ ok('reviews ride the userSettings sync (survive sign-out)', /\{ key: 'nbd_ds_rev
 const ui = read('docs/pro/daily-success/js/review-ui.js');
 ok('every typed value reaching the sheet is escaped', /value="' \+ esc\(saved\.scary/.test(ui) && />' \+ esc\(saved\.kept/.test(ui) && /esc\(r\.label\)/.test(ui) && /esc\(x\.last\.scary\)/.test(ui) && !/innerHTML\s*=\s*[^;]*\+\s*saved\.(kept|bailed|scary)\b/.test(ui));
 // 2026-11-14 (audit #12): the unguarded one-tap cut is gone; the weekly-targets Accept (floor + food-days guards) writes the target.
-ok('a calorie change goes only through the guarded Accept, which writes the Food card target and syncs it', !/function doCut/.test(ui) && /id === 'calories' \? FOOD/.test(ui) && /dsSettingsChanged\(/.test(ui));
+// That the one-tap button and doCut are gone is checked once, in ds-review-guards-2026-11-14 (not repeated here).
+ok('a calorie change goes through the guarded Accept, which writes the Food card target and syncs it', /id === 'calories' \? FOOD/.test(ui) && /dsSettingsChanged\(/.test(ui));
 ok('no money is moved by the app — Jo ticks that he moved the miss tax', /I moved it to savings/.test(ui) && !/stripe|transfer\(|fetch\(/i.test(ui));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
