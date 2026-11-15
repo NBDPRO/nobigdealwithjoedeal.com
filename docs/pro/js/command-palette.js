@@ -274,8 +274,66 @@
     return arr;
   }
 
+  // Customer page (wave-1 daily #4, 2026-11-14): window._leads there is only
+  // [this customer], so Cmd+K or "/" for anyone else said "No results". The
+  // first open on that page reads the rep's lead book once, with the same
+  // scopes as the dashboard's lead load (team readers: the tenant AND their
+  // own; everyone else: their own), and searches that instead. Read only.
+  let _leadIndex = null;
+  let _leadIndexAt = 0;
+  let _leadIndexLoading = false;
+  // '' | 'failed' (the read failed: "No results" would be a lie) | 'partial'
+  // (a scope hit LEAD_INDEX_LIMIT, so some customers are not searchable here).
+  let _leadIndexNote = '';
+  const LEAD_INDEX_LIMIT = 1000;
+  const LEAD_INDEX_TTL_MS = 5 * 60 * 1000; // pick up leads added elsewhere
+  function _onCustomerPage() {
+    return /\/customer(\.html)?\/?$/.test((window.location && window.location.pathname) || '');
+  }
+  function _leadPool() {
+    return _leadIndex || (Array.isArray(window._leads) ? window._leads : []);
+  }
+  async function _ensureLeadIndex() {
+    if (_leadIndexLoading || !_onCustomerPage()) return;
+    if (_leadIndex && Date.now() - _leadIndexAt < LEAD_INDEX_TTL_MS) return;
+    const w = window;
+    if (!(w.db && w.getDocs && w.query && w.where && w.collection && w.limit)) return;
+    const uid = (w.auth && w.auth.currentUser && w.auth.currentUser.uid) || (w._user && w._user.uid) || null;
+    if (!uid) return;
+    // The scopes depend on the role claim: indexing before the claims land
+    // would read a manager's own leads only. Wait for the next open.
+    if (!w._userClaims) return;
+    _leadIndexLoading = true;
+    try {
+      const c = w._userClaims || {};
+      const team = ['company_admin', 'manager', 'viewer'].includes(c.role || '') && !!c.companyId;
+      const scopes = team && c.companyId !== uid
+        ? [w.where('companyId', '==', c.companyId), w.where('userId', '==', uid)]
+        : [team ? w.where('companyId', '==', c.companyId) : w.where('userId', '==', uid)];
+      const byId = new Map();
+      let partial = false;
+      for (const s of scopes) {
+        const snap = await w.getDocs(w.query(w.collection(w.db, 'leads'), s, w.limit(LEAD_INDEX_LIMIT)));
+        if (snap.docs.length >= LEAD_INDEX_LIMIT) partial = true;
+        snap.docs.forEach((d) => { const v = d.data() || {}; if (!v.deleted) byId.set(d.id, Object.assign({ id: d.id }, v)); });
+      }
+      // The customer on screen keeps its freshest copy.
+      (w._leads || []).forEach((l) => { if (l && l.id) byId.set(l.id, l); });
+      _leadIndex = Array.from(byId.values());
+      _leadIndexAt = Date.now();
+      _leadIndexNote = partial ? 'partial' : '';
+    } catch (e) {
+      console.warn('[NBDCommand] customer-page lead search could not load:', e && (e.code || e.message));
+      _leadIndexNote = 'failed';
+    } finally {
+      const i = document.getElementById('nbd-cmd-input');
+      if (i) _renderResults(i.value || '');
+      _leadIndexLoading = false;
+    }
+  }
+
   function _buildLeadResults(query, pool) {
-    const leads = Array.isArray(pool) ? pool : (Array.isArray(window._leads) ? window._leads : []);
+    const leads = Array.isArray(pool) ? pool : _leadPool();
     if (leads.length === 0) return [];
     const q = (query || '').trim();
     // W138: when NBDLeadScore is loaded, sort the empty-query lead
@@ -509,6 +567,7 @@
     const wrap = _buildModal();
     document.body.appendChild(wrap);
     _ensureLeadSearch();
+    _ensureLeadIndex();
     _selectedIndex = 0;
     if (_X()) { _X().onOpen(); _X().decorate(wrap); }
     _renderResults('');
@@ -616,9 +675,15 @@
     if (!list) return;
     _currentResults = _computeResults(query);
     if (_currentResults.length === 0) {
+      // On a customer page an empty list must say WHY when the lead book is
+      // not (fully) searchable, instead of a plain "No results".
+      let msg = 'No results. Try a different search.';
+      if (_onCustomerPage() && !_leadIndex && _leadIndexLoading) msg = 'Loading your customers…';
+      else if (_onCustomerPage() && _leadIndexNote === 'failed') msg = 'Could not load your other customers. Check your connection, then open search again.';
+      else if (_onCustomerPage() && _leadIndexNote === 'partial') msg = 'No match in the first 1,000 customers loaded here. Search from the dashboard to see them all.';
       list.innerHTML =
         '<div style="padding:40px 16px;text-align:center;color:var(--m,#94a3b8);font-size:13px;">' +
-        'No results. Try a different search.</div>';
+        escHtml(msg) + '</div>';
       return;
     }
 
