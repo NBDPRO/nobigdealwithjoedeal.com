@@ -1303,6 +1303,27 @@ async function run() {
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));   // the admin's money check fits the budget too
+  // the server's money keys (2026-11-15, Joe): refundedTotal, refundReopenedTotal, paidIntentIds, supersededPayments and
+  // reconciliations are written only by the server (Admin SDK); no browser sets, changes or drops them, like refunds and
+  // stripeCreditKeys. paidIntentIds is what stops a second credit for the same Stripe payment.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const list = Array.from({ length: 12 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'mk' + i }));
+    const srv = { refunds: [{ amount: 5 }], refundedTotal: 5, refundReopenedTotal: 5, stripeCreditKeys: ['ck1'], paidIntentIds: ['pi_x'], supersededPayments: [{ paymentId: 'old' }], reconciliations: [{ at: 1 }] };
+    await setDoc(doc(ctx.firestore(), 'invoices/mk-srv'), Object.assign({ createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 120, balanceDue: 880, payments: list, createdAt: 1 }, srv));
+    await setDoc(doc(ctx.firestore(), 'invoices/mk-new'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 1000, amountPaid: 0, balanceDue: 1000, payments: [], createdAt: 1 });
+  });
+  const mkSrv = doc(alice, 'invoices/mk-srv');
+  const mkMgr = doc(env.authenticatedContext('mgr-mk', { role: 'manager', companyId: 'co-a' }).firestore(), 'invoices/mk-srv');
+  for (const [k, v] of [['refundedTotal', 0], ['refundReopenedTotal', 0], ['paidIntentIds', []], ['supersededPayments', []], ['reconciliations', []]]) {
+    await assertFails(updateDoc(mkSrv, { [k]: v }));                                                 // the maker cannot rewrite it
+    await assertFails(updateDoc(mkSrv, { [k]: deleteField() }));                                     // …nor drop it
+    await assertFails(updateDoc(mkMgr, { [k]: v }));                                                 // nor can same-company staff
+    await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: v }));                         // and none is added to an invoice without it
+  }
+  await assertSucceeds(updateDoc(mkSrv, { notes: 'call first' }));                                   // an ordinary edit on that invoice still works
+  const mkList = (await getDoc(mkSrv)).data().payments; const mkWhen = new Date();
+  await assertSucceeds(updateDoc(mkSrv, { payments: mkList.concat([{ amount: 30, at: mkWhen, method: 'check', recordedBy: 'alice', paymentId: 'mk12' }]), amountPaid: 150, balanceDue: 850, lastPaymentAt: mkWhen }));   // Record Payment on a 12-payment invoice with all the server keys (expression budget)
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
