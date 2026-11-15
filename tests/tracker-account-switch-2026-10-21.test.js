@@ -75,6 +75,8 @@ function boot(opts) {
     getDocs: async (ref) => { events.push('read ' + ref.path); reads.push('getDocs ' + ref.path); return snap(o.cloud || []); },
     setDoc: async (ref, data) => { events.push('write ' + ref.path); writes.push({ kind: 'setDoc', path: ref.path, data }); },
     writeBatch: () => ({ set: (ref, data) => { events.push('write ' + ref.path); writes.push({ kind: 'batch', path: ref.path, data }); }, delete: () => {}, commit: async () => {} }),
+    // the sync reads from the server only (audit 2026-11-14 #4): same stubs under the names it now calls
+    get getDocFromServer() { return this.getDoc; }, get getDocsFromServer() { return this.getDocs; },
     serverTimestamp: () => 'ts', connectEmulatorsIfLocal: async () => {},
   };
   const body = SYNC_SRC.replace(/^import [\s\S]*?from '[^']+';\n/gm, '');
