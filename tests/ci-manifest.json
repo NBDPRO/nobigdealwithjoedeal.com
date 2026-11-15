@@ -1083,7 +1083,8 @@
     "customer-task-event-save-guard-2026-11-14.test.js",
     "tasks-stay-fresh-2026-11-14.test.js",
     "customer-page-search-all-2026-11-14.test.js",
-    "customer-open-tasks-2026-11-14.test.js"
+    "customer-open-tasks-2026-11-14.test.js",
+    "daily-polish-2026-11-14.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -166,3 +166,7 @@ html[data-layout="field"] .fa-top-end { display: inline-flex; align-items: cente
 html[data-layout="field"] .fa-wrap { margin: 12px 0 16px; padding: 16px; border: var(--fa-bw) solid var(--rule); border-radius: 18px; background: var(--s); }
 html[data-layout="field"] .fa-wrap .fa-h { margin-top: 0; }
 html[data-layout="field"] .fa-wrap-lines { margin: 0 0 12px; padding-left: 20px; font-size: 16px; line-height: 1.6; color: var(--t); }
+
+/* Shutter flash (wave-1 field #11): iOS has no vibrate, so a shot shows itself. */
+html[data-layout="field"] .fa-cam::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .18s ease-out; }
+html[data-layout="field"] .fa-cam.fa-flash::after { opacity: .7; transition: none; }

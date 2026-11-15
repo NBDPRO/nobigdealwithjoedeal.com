@@ -270,12 +270,27 @@
       && (nowMs - ms(i.decidedAt)) < 14 * 86400000)
       .sort((a, b) => ms(b.decidedAt) - ms(a.decidedAt)).slice(0, 20);
   }
+  // Newest first (wave-1 daily #5, 2026-11-14): the read was limit(50) with no
+  // order, so once a company had sent 50 drafts in its lifetime a text from
+  // this week could be missing here, and its STOP could not be recorded.
+  // decidedAt is stamped on every sent_by_owner write (functions/agent-mcp.js
+  // sent action), so ordering by it drops no row. Until the composite index
+  // (companyId, status, decidedAt desc) has built, the old read answers.
   async function loadSentPhone() {
     const key = companyKey();
     if (!key || !window.getDocs || !window.query || !window.where) return [];
-    const parts = [window.collection(window.db || window._db, COLL), window.where('companyId', '==', key), window.where('status', '==', 'sent_by_owner')];
-    if (window.limit) parts.push(window.limit(50));
-    const snap = await window.getDocs(window.query.apply(null, parts));
+    const base = [window.collection(window.db || window._db, COLL), window.where('companyId', '==', key), window.where('status', '==', 'sent_by_owner')];
+    const run = (extra) => window.getDocs(window.query.apply(null, base.concat(extra)));
+    const lim = window.limit ? [window.limit(50)] : [];
+    let snap;
+    if (window.orderBy) {
+      try { snap = await run([window.orderBy('decidedAt', 'desc')].concat(lim)); }
+      catch (e) {
+        if (!e || e.code !== 'failed-precondition') throw e;
+        console.warn('[agent-inbox] sent-texts index not built yet; using the unordered read');
+      }
+    }
+    if (!snap) snap = await run(lim);
     return recentPhoneSent(snap.docs.map((d) => Object.assign({ id: d.id }, d.data())), Date.now());
   }
   function sentRowHtml(it) {
