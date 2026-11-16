@@ -1587,7 +1587,16 @@ service cloud.firestore {
             ? (d.get('amountPaid', 0) == r.get('amountPaid', 0)
                 && d.get('paidAt', null) == r.get('paidAt', null)
                 && d.get('lastPaymentAt', null) == r.get('lastPaymentAt', null))
-            : (n.size() <= 15 && o.size() <= 15
+            // A pure append (Record Payment): the old list is an unchanged prefix of the new one, plus ONE valid entry.
+            // Decided with one list comparison instead of the 15 unrolled payKept() slots (2026-11-15 hotfix: after the
+            // money review the invoice update rule went over the 1000-expression budget on Record Payment for a
+            // platform-admin owner and a solo owner). Same 15-entry cap; it allows exactly what the full check allowed.
+            : ((n.size() == o.size() + 1 && n.size() <= 15 && (o.size() == 0 || n[0:o.size()] == o))
+              ? (paymentEntryOk(n[n.size() - 1])
+                  && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) + n[n.size() - 1].amount)) < 0.005
+                  && payDatesOk(d, r, n))
+              // anything else (an append that also edits an old entry, a same-length proof / deposit edit): the full check
+              : (n.size() <= 15 && o.size() <= 15
                 && paymentsKept(n, o)
                 && (n.size() < o.size()
                     // no browser removes a payment (Joe, 2026-11-14): Undo is gone; a mistake is fixed with the
@@ -1600,7 +1609,7 @@ service cloud.firestore {
                         : (n.size() == o.size() + 1
                             && paymentEntryOk(n[n.size() - 1])
                             && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) + n[n.size() - 1].amount)) < 0.005
-                            && payDatesOk(d, r, n))))));
+                            && payDatesOk(d, r, n)))))));
     }
     // sendingPriorStatus (the send lock's "put it back as") may only SAY 'paid' on an invoice that IS paid (or is
     // already 'sending' with that marker), and never at create: the restore path cannot be used to claim a paid status.
