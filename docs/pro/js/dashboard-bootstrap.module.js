@@ -3777,10 +3777,23 @@
   // that saved, and saving again made a duplicate (the same race reds the
   // authed E2E shards). The id is picked before the write, so after ANY error
   // the doc is read back: there, and this user's, means it saved.
+  // A Firestore write promise resolves only on the server's ack, so offline an
+  // awaited save never returns. 'synced' on the ack, 'queued' once the phone is
+  // offline or the ack is slow (the write is in the on-phone queue and syncs by
+  // itself). Same helper the edit path below already uses inline.
+  async function _settleWrite(p) {
+    const S = window.NBDOfflineSync;
+    if (S && typeof S.settle === 'function') return S.settle(p);
+    await p;
+    return 'synced';
+  }
+  // Creates that were held on the phone (wave-1 field #4, 2026-11-14).
+  const _queuedCreates = new WeakSet();
+
   async function _createLeadDoc(payload) {
     const ref = doc(collection(db, 'leads'));
     try {
-      await setDoc(ref, payload);
+      if ((await _settleWrite(setDoc(ref, payload))) === 'queued') _queuedCreates.add(ref);
     } catch (e) {
       let saved = false;
       try {
@@ -3881,6 +3894,11 @@
 
       // NEW LEAD: Geocode address and create map pin
       if (!editId || editId.startsWith('d-')) {
+        // Set once the geocoded branch's create has landed (or is held on the
+        // phone). The catch below then returns it instead of falling through
+        // to the fallback create, which would write a SECOND copy of the lead
+        // when a later step (pin, re-read) throws.
+        let _geoCreatedId = null;
         if (data.address) {
           try {
             const geo = await geocode(data.address, { quiet: true });
@@ -3923,12 +3941,14 @@
               // defer chain so this should always be available, but a
               // failed lazy-load shouldn't break lead creation).
               let leadRef;
+              let _queued = false;   // held on the phone: skip what needs the server
               if (window.NBDRepos && window.NBDRepos.leads && typeof window.NBDRepos.leads.create === 'function') {
-                const { id } = await window.NBDRepos.leads.create({
+                const { id, queued } = await window.NBDRepos.leads.create({
                   ...data,
                   stageStartedAt: serverTimestamp(),
                 });
                 leadRef = doc(db, 'leads', id);
+                _queued = queued === true;
               } else {
                 leadRef = await _createLeadDoc({
                   ...data,
@@ -3938,7 +3958,9 @@
                   userId: window._user?.uid,
                   companyId: window._userClaims?.companyId || window._user?.uid || null
                 });
+                _queued = _queuedCreates.has(leadRef);
               }
+              _geoCreatedId = leadRef.id;
 
               // Optimistic insert — show on kanban immediately, even
               // if loadLeads later fails on a flaky iOS connection.
@@ -3951,7 +3973,7 @@
 
               // Now save pin with leadId
               pinData.leadId = leadRef.id;
-              await _savePin(pinData);
+              await _settleWrite(_savePin(pinData));
 
               // Auto-assign customer ID (NBD-0001 format).
               // NBD-leak gate (2026-07-29, same as customer-bootstrap): never
@@ -3960,6 +3982,9 @@
               // stamps a tenant lead with the platform prefix + shared
               // counter. Skip instead; the customer-page mint backfills later.
               try {
+                // A counter transaction needs the server; offline it would
+                // hold Save open. The customer page mints the id once synced.
+                if (_queued) throw new Error('lead held on this phone — customer-ID mint deferred until it syncs');
                 if (window._companyProfileLoaded !== true && typeof window._loadCompanyProfile === 'function') {
                   await window._loadCompanyProfile();
                 }
@@ -3990,13 +4015,13 @@
               // If this came from a D2D knock, mark it as converted
               if (data.d2dKnockId) {
                 try {
-                  await updateDoc(doc(db, 'knocks', data.d2dKnockId), { convertedToLead: true, leadId: leadRef.id, updatedAt: serverTimestamp() });
+                  await _settleWrite(updateDoc(doc(db, 'knocks', data.d2dKnockId), { convertedToLead: true, leadId: leadRef.id, updatedAt: serverTimestamp() }));
                 } catch (d2dErr) { console.warn('Could not mark D2D knock as converted:', d2dErr); }
               }
               // If this came from a pin, link the pin to the lead
               if (window._pendingPinId) {
                 try {
-                  await _savePin({ id: window._pendingPinId, leadId: leadRef.id });
+                  await _settleWrite(_savePin({ id: window._pendingPinId, leadId: leadRef.id }));
                 } catch (pinErr) { console.warn('Could not link pin:', pinErr); }
                 window._pendingPinId = null;
               }
@@ -4010,14 +4035,22 @@
               // loadLeads failure can't leave it armed.
               window._pendingPinLatLng = null;
 
-              await loadPins(); // Refresh map pins
-              await loadLeads();
+              // Queued: a re-read could only answer from the on-phone cache; the
+              // optimistic insert already shows the lead.
+              if (!_queued) {
+                await loadPins(); // Refresh map pins
+                await loadLeads();
+              }
               // Return the new leadId so callers (e.g. Quick Add) can
               // chain follow-up writes — initial activity entry, first
               // task, etc. — without re-querying Firestore.
               return leadRef.id;
             }
           } catch (geoError) {
+            if (_geoCreatedId) {
+              console.warn('[saveLead] a step after the create failed; the lead is saved, not creating it again:', geoError);
+              return _geoCreatedId;
+            }
             console.warn('Geocoding failed, creating lead without pin:', geoError);
             // Continue to create lead without pin
           }
@@ -4041,6 +4074,7 @@
         // Optimistic insert — show on kanban immediately even if the
         // post-save loadLeads fails (iOS flaky connection scenario).
         _optimisticInsertLead(fallbackRef.id, data);
+        const _fbQueued = _queuedCreates.has(fallbackRef);
         // Meter the create (see geocoded branch).
         if (window.NBDBilling && typeof window.NBDBilling.trackUsage === 'function') {
           window.NBDBilling.trackUsage('leads');
@@ -4048,6 +4082,7 @@
         // Auto-assign customer ID.
         // NBD-leak gate (2026-07-29): see the geocoded branch above.
         try {
+          if (_fbQueued) throw new Error('lead held on this phone — customer-ID mint deferred until it syncs');
           if (window._companyProfileLoaded !== true && typeof window._loadCompanyProfile === 'function') {
             await window._loadCompanyProfile();
           }
@@ -4075,19 +4110,19 @@
         // Mark D2D knock as converted
         if (data.d2dKnockId) {
           try {
-            await updateDoc(doc(db, 'knocks', data.d2dKnockId), { convertedToLead: true, leadId: fallbackRef.id, updatedAt: serverTimestamp() });
+            await _settleWrite(updateDoc(doc(db, 'knocks', data.d2dKnockId), { convertedToLead: true, leadId: fallbackRef.id, updatedAt: serverTimestamp() }));
           } catch (d2dErr) { console.warn('Could not mark D2D knock as converted:', d2dErr); }
         }
         // Link pin if pending
         if (window._pendingPinId) {
-          try { await _savePin({ id: window._pendingPinId, leadId: fallbackRef.id }); } catch (pe) {}
+          try { await _settleWrite(_savePin({ id: window._pendingPinId, leadId: fallbackRef.id })); } catch (pe) {}
           window._pendingPinId = null;
         }
         // Consumed by this create — see the geocoded branch above. This is the
         // branch that READ the latch (line ~3305), so leaving it armed here is
         // what handed the next un-geocodable lead the wrong coordinates.
         window._pendingPinLatLng = null;
-        await loadLeads();
+        if (!_fbQueued) await loadLeads();
         // Return the newly-created lead's id (no-geocode fallback path).
         return fallbackRef.id;
       } else {

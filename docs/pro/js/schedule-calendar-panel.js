@@ -264,7 +264,16 @@
   document.addEventListener('click', function (ev) {
     var t = ev.target && ev.target.closest && ev.target.closest('[data-sc2-view],[data-sc2-refresh]');
     if (!t || !_ec) return;
-    if (t.hasAttribute('data-sc2-refresh')) { if (_range) loadRange(_range.from, _range.to); return; }
+    if (t.hasAttribute('data-sc2-refresh')) {
+      // CRM appointments come from the task cache: refresh re-reads it too, not
+      // only Cal.com (wave-1 daily #1). The cache's nbd:data-refreshed event
+      // repaints the calendar when it lands.
+      if (typeof W.loadAllTasks === 'function') {
+        Promise.resolve(W.loadAllTasks()).then(refreshEvents, function (e) { console.warn('[schedule] task refresh failed:', e && e.message); });
+      }
+      if (_range) loadRange(_range.from, _range.to);
+      return;
+    }
     var v = t.getAttribute('data-sc2-view');
     _ec.setOption('view', v);
     var bar = $('schedCalViews');
