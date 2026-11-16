@@ -1,6 +1,6 @@
 # Calendar engine trial — EventCalendar, 2026-11-04
 
-**Status:** trial only. Nothing in the CRM uses this yet. The trial page runs
+**Status (2026-11-14):** the trial page (`docs/pro/calendar-trial.html`, its JS and CSS) was removed as dead code; nothing referenced it. The vendored engine and `schedule-ec-events.js` stay. Original status: trial only. Nothing in the CRM uses this yet. The trial page runs
 on sample data and is not linked from anywhere.
 
 **Why:** the GitHub repo sweep (`documentation/audit/GITHUB-REPO-SWEEP-2026-11-04.md`, [PR #2832](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2832))

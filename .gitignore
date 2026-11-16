@@ -95,3 +95,6 @@ globals-xref.json
 # the deploy runner only, never committed.
 docs/version.json
 docs/pagefind/
+
+# Scratch logs written by local scripts, never committed
+scratch-*.log
