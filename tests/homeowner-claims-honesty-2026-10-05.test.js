@@ -46,6 +46,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const K = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -193,15 +194,20 @@ console.log('\n5. no "Licensed" claim (it is "Fully insured")');
   ok('the transparency-strip generator emits "Fully insured", not "Licensed"', /Fully insured/.test(read('scripts/add-transparency-strip-services.js')) && !/Licensed/.test(read('scripts/add-transparency-strip-services.js')));
 }
 
-// ── 6. The Pledge lasts as long as Joe is in business ──────────────────
+// ── 6. The Pledge lasts as long as the homeowner owns the home ─────────
+// 2026-11-14 (Joe, wave-3 review): "as long as you own the home" is the true
+// promise and replaces "as long as I'm in business" everywhere (the CRM's
+// rules carry the same wording). It is still a promise, never "forever".
 console.log('\n6. Pledge duration matches the Pledge page');
 {
   const pledge = stripComments(read('docs/the-pledge/index.html'), 'x.html');
-  ok('the Pledge page defines it: "as long as I\'m in business"', /as long as I'm in business and you own the home/.test(pledge));
+  ok('the Pledge page defines it: "as long as you own the home"', /as long as you own the home/.test(pledge));
+  const inBusiness = hits(/as long as (I['’]m|I am|he is|he&rsquo;s|I&rsquo;m) (still )?in business|while (I['’]m|I&rsquo;m) in business/i);
+  ok('no page ties the Pledge to "as long as I\'m in business"', inBusiness.length === 0, show(inBusiness));
   const forever = hits(/✓ Forever|reactive, forever|applies forever|free, forever|backed personally, forever|anytime, forever|Layer 2 · Forever|come back forever|honest answer forever/i);
   ok('no page says the Pledge lasts "forever"', forever.length === 0, show(forever));
   const g = stripComments(read('docs/services/the-nbd-guarantee/index.html'), 'x.html');
-  ok('the Guarantee table says "While I\'m in business" in all three tiers', (g.match(/✓ While I&rsquo;m in business/g) || []).length === 3);
+  ok('the Guarantee table says "While you own the home" in all three tiers', (g.match(/✓ While you own the home/g) || []).length === 3);
 }
 
 // ── 7. Pledge FAQ: JSON-LD questions = the visible questions ───────────
@@ -357,6 +363,47 @@ console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warrant
     'storm-damage-batavia', 'storm-damage-cincinnati', 'storm-damage-fayetteville', 'storm-damage-loveland', 'storm-damage-mason', 'storm-damage-west-chester'];
   const noMeta = TOWNS.filter((t) => { const m = /<meta name="description" content="([^"]*)"/.exec(read('docs/services/' + t + '-oh.html')); return !m || !/NBD Pledge/.test(m[1]) || m[1].length > 160; });
   ok('hail/storm town pages: meta description names the NBD Pledge (<= 160 chars)', noMeta.length === 0, noMeta.join(', '));
+}
+
+// ── 12. Crews are independent subcontractors (Joe, 2026-11-14) ─────────
+// "my crew"/"our crew" reads as Joe's own employees. The CRM's house rule:
+// crews are independent subcontractors; never "in-house crews".
+console.log('\n12. Crew wording fits independent subcontractors');
+{
+  const crew = hits(/\b(my|our) crews?\b|\bin-house crews?\b/i);
+  ok('no "my crew" / "our crew" / "in-house crew" on homeowner pages', crew.length === 0, show(crew));
+}
+
+// ── 13. Claim slips found in the 2026-11-14 review ─────────────────────
+console.log('\n13. Claim slips (2026-11-14 review)');
+{
+  const years = hits(/\b(1[0-9]|[2-9][0-9])\+? years (of )?roofing/i);
+  ok('no "20+ years roofing"-style claim (the rule is "7+ years")', years.length === 0, show(years));
+  const adjusters = hits(/meets adjusters on every claim/i);
+  ok('no "Meets adjusters on every claim"', adjusters.length === 0, show(adjusters));
+  const stars = hits(/5(-star|★)[\s\S]{0,60}?Google Rated/i);
+  ok('no hard-coded "5-star Google Rated"', stars.length === 0, show(stars));
+}
+
+// ── 14. Claim-outcome near-misses: describe what Joe documents ─────────
+console.log('\n14. No wording about what the insurer decides');
+{
+  const outcome = hits(/can change the outcome|how Joe accelerates|approved claim[^.<]{0,40}in about two weeks/i);
+  ok('no "change the outcome" / "accelerates" / "approved in two weeks" wording', outcome.length === 0, show(outcome));
+}
+
+// ── 15. AI-written notes are labelled (2026-11-14) ─────────────────────
+// /storm-check and /roof-score print a model-written first-person note; like
+// /estimate, the box must say it is AI-drafted and Joe hasn't seen the roof.
+console.log('\n15. AI-written notes say they are AI-drafted');
+// (2026-11-15, source-pin ratchet) parsed: the note box is found by its class
+// and its own text is read, so a label moved outside the box does not pass.
+for (const page of ['storm-check.html', 'roof-score.html', 'estimate.html']) {
+  const doc = K.parseTags(read('docs/' + page));
+  const box = doc.$('.sc-take') || doc.$('.joes-take');
+  const words = box ? box.text.replace(/&#8217;|&rsquo;/g, '’') : '';
+  ok(page + ': the AI note box says "AI-drafted" and that Joe hasn\'t seen the roof',
+    !!box && words.includes('AI-drafted') && /hasn['’]t seen your roof/.test(words), words.slice(0, 160));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
