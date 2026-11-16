@@ -1357,7 +1357,16 @@ async function run() {
     const edited = longList(12, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
     const atE = new Date();
     await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L12' }]), amountPaid: 151, balanceDue: 99849, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
-    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-13'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
+    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-13'), { notes: 'x' }));
+    // a FULL 15-line list (the 15th line is the server's: here a reversal): same-length edits still work, money does not move
+    const full15 = (by) => longList(14, by).concat([{ amount: -10, at: new Date(longBase - 60 * 3600000), method: 'cash', recordedBy: by, paymentId: 'R14', reversal: true, reverses: 'L13' }]);
+    await seedLong('full15-rep', 0, 'alice', { payments: full15('alice'), amountPaid: 130, balanceDue: 99870 });
+    const proofAt = (list, idxs) => list.map((e, j) => (idxs.includes(j) ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg' }) : e));
+    // (a solo or platform-admin owner's same-length edit on a long list is over the rules expression budget on main today too:
+    //  a follow-up of its own; the rep's path below fits)
+    await assertSucceeds(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: proofAt(full15('alice'), [0]) }));                         // a rep: a proof on one entry of a full list (one per write, as the app sends)
+    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').map((e, j) => (j === 14 ? Object.assign({}, e, { amount: -1 }) : e)) }));   // the reversal's amount is frozen
+    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').slice(0, 14), amountPaid: 140 }));          // no browser removes a line                                 // a rep still cannot edit a backfill invoice
   }
   await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));

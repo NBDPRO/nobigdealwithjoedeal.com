@@ -1831,9 +1831,9 @@ service cloud.firestore {
                 && d.get('lastPaymentAt', null) == r.get('lastPaymentAt', null))
             // A pure append (Record Payment): the old list is an unchanged prefix of the new one, plus ONE valid entry.
             // One list comparison instead of the 15 unrolled payKept() slots (2026-11-15 hotfix: the expression budget).
-            // A browser appends up to the 14th payment (Joe, 2026-11-15: "Yes, keep 15"): line 15 is always free for the
-            // owner's Reverse payment (functions/payment-reversal.js refuses at 15 lines), so every payment a browser
-            // records can be reversed.
+            // A browser appends up to the 14th payment (Joe, 2026-11-15: "Yes, keep 15"), leaving line 15 for the owner's
+            // Reverse payment (functions/payment-reversal.js refuses at 15 lines). A server line (an earlier reversal, a
+            // Stripe credit) can use that line up first; Reverse then says to ask for help.
             : ((n.size() == o.size() + 1 && n.size() <= 14 && (o.size() == 0 || n[0:o.size()] == o))
               ? (paymentEntryOk(n[n.size() - 1])
                   && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) + n[n.size() - 1].amount)) < 0.005
