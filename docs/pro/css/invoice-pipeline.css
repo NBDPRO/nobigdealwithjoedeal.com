@@ -123,6 +123,9 @@
 .tl-row-btn.tl-row-btn.tl-row-btn { min-height: 44px; margin-top: 6px; background: var(--s2); color: var(--t); border: 1px solid var(--br); }
 .tl-row-btn.tl-row-btn.tl-row-btn:hover { background: var(--s2); border-color: var(--orange); color: var(--orange); }
 .ipx-rp-note.ipx-rp-note.ipx-rp-note { margin: -4px 0 12px; line-height: 1.4; }
+/* A refused save, shown in the sheet itself (2026-11-16). */
+.ipx-rp-err.ipx-rp-err.ipx-rp-err { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--red, #E05252); color: var(--t, #e8eaf0); background: rgba(224, 82, 82, .12); font-size: 13px; line-height: 1.4; }
+.ipx-rp-err[hidden] { display: none; }
 /* Save payment is THE action (phone audit 2026-10-07 #2). On the customer
    page .btn-green has no rule (it lives in dashboard-app.css), so Save
    rendered navy, the same as Cancel. Solid green with dark text on both

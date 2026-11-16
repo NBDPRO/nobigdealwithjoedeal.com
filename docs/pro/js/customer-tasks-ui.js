@@ -804,7 +804,7 @@ async function _nbdInvoicePipeline(fnName) {
   if (!window._auth && window.auth) window._auth = window.auth;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=43');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -881,7 +881,7 @@ window.NBDCustomerInvoices = {
       if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=43');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -890,6 +890,26 @@ window.NBDCustomerInvoices = {
     } catch (err) {
       console.error('[invoices] review failed', err);
       if (typeof window.showToast === 'function') window.showToast('Could not open the invoice. Reload and try again.', 'error');
+    }
+  },
+  // Void (2026-11-16): the owner side voids an ordinary invoice that has no
+  // money on it (never paid, or every payment reversed). The checks, the
+  // reason prompt and the write live in invoice-void.js, loaded on first tap.
+  voidInvoice: async function (invoiceId) {
+    if (!invoiceId) return;
+    try {
+      if (!window._db && window.db) window._db = window.db;
+      if (!(window.NBDInvoiceVoid && typeof window.NBDInvoiceVoid.voidInvoiceUI === 'function')) {
+        if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
+        await window.ScriptLoader.load('js/invoice-void.js?v=1');
+      }
+      if (!(window.NBDInvoiceVoid && typeof window.NBDInvoiceVoid.voidInvoiceUI === 'function')) throw new Error('NBDInvoiceVoid missing after load');
+      const done = await window.NBDInvoiceVoid.voidInvoiceUI(invoiceId);
+      const reload = window.loadInvoices;
+      if (done && typeof reload === 'function' && window._customerId) await reload(window._customerId);
+    } catch (err) {
+      console.error('[invoices] voidInvoice failed', err);
+      if (typeof window.showToast === 'function') window.showToast('Could not void the invoice. Reload and try again.', 'error');
     }
   },
   markPaid: async function (invoiceId) {
@@ -909,7 +929,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=43');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -990,6 +1010,35 @@ window.loadInvoices = async function(leadId) {
       .sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
 
     const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    // Paid on one invoice, in cents (2026-11-16): the payment lines net of
+    // reversals (a reversal is a negative line) and of refunds, the same money
+    // Collected counts. total − balanceDue capped an overpayment at the total
+    // ($400 paid on a $40 invoice read $40). An invoice with no payment lines
+    // (older shapes) keeps total − balanceDue.
+    function paidCentsOf(inv) {
+      const c = (v) => Math.round((parseFloat(v) || 0) * 100);
+      const pays = Array.isArray(inv.payments) ? inv.payments : [];
+      let net = 0;
+      pays.forEach((p) => { if (p) net += c(p.amount); });
+      (Array.isArray(inv.refunds) ? inv.refunds : []).forEach((r) => {
+        if (r && c(r.amount) > 0 && r.status !== 'failed' && r.status !== 'canceled' && r.status !== 'won') net -= c(r.amount);
+      });
+      if (pays.length) return net;
+      const amount = c(inv.total != null ? inv.total : inv.amount);
+      const bal = (inv.balanceDue != null) ? c(inv.balanceDue) : (inv.status === 'paid' ? 0 : amount);
+      return Math.max(0, amount - bal) + net;
+    }
+    // The owner side (same set as invoice-pipeline.js _isCompanyOwner) may void.
+    const _cl = window._userClaims || {};
+    const _me = window.auth?.currentUser?.uid || window._user?.uid || null;
+    const canVoid = !!_me && _cl.role !== 'viewer'
+      && (_cl.owner === true || _cl.role === 'company_admin' || (!_cl.role && (!_cl.companyId || _cl.companyId === _me)));
+    // Offered on an ordinary invoice with no money on it; voidInvoiceUI re-checks everything.
+    const voidable = (inv) => canVoid && inv.deleted !== true && inv.source !== 'backfill' && inv.source !== 'stripe'
+      && !['paid', 'void', 'cancelled', 'sending'].includes(String(inv.status || ''))
+      && !inv.stripePaymentLink && !inv.stripeHostedUrl && !inv.achPending
+      && !(Array.isArray(inv.supplementIds) && inv.supplementIds.length)
+      && paidCentsOf(inv) === 0 && !(parseFloat(inv.amountPaid) > 0);
     // Record payment (2026-10-03): money in on this job, invoice or not —
     // the only way to log a check / Zelle / cash on a job with no invoice.
     const recordBtn = '<button type="button" class="btn btn-orange ipx-rp-open" data-rp-open'
@@ -1002,7 +1051,8 @@ window.loadInvoices = async function(leadId) {
 
     // 'partial' = part paid (Stripe ledger + Record Payment). It was missing,
     // so a part-paid invoice rendered as "draft".
-    const ALLOWED_STATUSES = new Set(['draft','sent','viewed','partial','paid','overdue','cancelled']);
+    // 'void' (2026-11-16): a voided invoice read "draft".
+    const ALLOWED_STATUSES = new Set(['draft','sent','viewed','partial','paid','overdue','cancelled','void']);
     // Invoices the Stripe ledger created (source:'stripe') get a "From Stripe"
     // chip + Open in Stripe / PDF links (stripe-ledger-ui-logic.js, escaped
     // and http(s)-only). '' when the rules module is absent.
@@ -1067,7 +1117,7 @@ window.loadInvoices = async function(leadId) {
       // dashboard, not show Total Paid $0.00 until full payoff.
       const amount = parseFloat(inv.total != null ? inv.total : inv.amount) || 0;
       const bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : (inv.status === 'paid' ? 0 : amount);
-      const paidCash = Math.max(0, amount - bal);
+      const paidCash = paidCentsOf(inv) / 100;
 
       totalAmount += amount;
       totalPaid += paidCash;
@@ -1112,9 +1162,13 @@ window.loadInvoices = async function(leadId) {
             ` : ''}
             ${achPendingHtml(inv)}
             ${receiptBtns(inv)}
-            ${safeStatus !== 'paid' ? `
+            ${safeStatus !== 'void' && safeStatus !== 'paid' ? `
               <button type="button" class="doc-btn" data-action="NBDCustomerInvoices.markPaid" data-arg="${esc(inv.id)}"
                       title="Record a check or cash payment">Mark Paid</button>
+            ` : ''}
+            ${voidable(inv) ? `
+              <button type="button" class="doc-btn" data-void-invoice data-action="NBDCustomerInvoices.voidInvoice" data-arg="${esc(inv.id)}"
+                      title="Nothing was paid on it: void it (kept with your reason)">Void</button>
             ` : ''}
             ${(safeStatus !== 'paid' && safeStatus !== 'draft' && safeStatus !== 'cancelled' && bal > 0 && bal < amount) ? `
               <button type="button" class="doc-btn ipx-send-balance" data-send-balance data-action="NBDCustomerInvoices.sendBalance" data-arg="${esc(inv.id)}"

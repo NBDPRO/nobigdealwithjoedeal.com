@@ -353,6 +353,72 @@ async function spineOnInvoice(deps, invoiceId, before, after) {
   return out;
 }
 
+/**
+ * A payment reversed (2026-11-16, owner report): reversePayment
+ * (payment-reversal.js) appends a negative payments[] entry and takes the
+ * invoice off 'paid', but the card stayed on Final Payment and the job kept
+ * "Done · paid in full". For each event the reversal undoes
+ * (job-spine-logic reversedInvoiceEvents), undoJobEvent walks the lead back
+ * — only when it still sits where the spine put it — and clears the marker,
+ * so a real re-payment moves the card forward again. The pay-off undone also
+ * clears the job's paidInFull (the invoice's jobId, else the lead's active
+ * job; same id rule as markJobPaid; any tenant, never another tenant's lead).
+ * Only on a real write; not affected by the money-paper kill switch. Never
+ * throws. → { unspine, jobUnpaid? } | null
+ */
+async function unspineOnInvoice(deps, invoiceId, before, after) {
+  if (before === undefined || !before || !after) return null;
+  const events = SPINE.reversedInvoiceEvents(before, after);
+  if (!events.length) return null;
+  const undo = deps.undoJobEvent || require('./job-spine').undoJobEvent;
+  const ATTEMPTS = 3;
+  const unspine = {};
+  for (const event of events) {
+    let r = null;
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      r = await undo(deps.db, {
+        leadId: String(after.leadId), companyId: after.companyId || null, event,
+        sourceId: String(invoiceId), actor: 'payment reversed', at: deps.now(),
+      });
+      if (!(r && r.reason === 'error')) break;
+      if (attempt < ATTEMPTS) await new Promise((ok) => setTimeout(ok, (deps.retryDelayMs != null ? deps.retryDelayMs : 250) * attempt));
+    }
+    if (r && r.reason === 'error') {
+      logger.error('[moneyPaper] job-spine walk-back FAILED after retries', { invoiceId, leadId: after.leadId, event, err: r.error });
+    }
+    unspine[event] = r;
+  }
+  const out = { unspine };
+  if (events.indexOf('paid_in_full') !== -1) {
+    out.jobUnpaid = await markJobUnpaid(deps, after).catch((e) => {
+      logger.error('[moneyPaper] job paid-in-full clear failed', { invoiceId, err: e && e.message });
+      return null;
+    });
+  }
+  return out;
+}
+
+/** Clear paidInFull on the job this invoice paid for. → the job id | null. */
+async function markJobUnpaid(deps, inv) {
+  const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
+  const ls = await leadRef.get();
+  const lead = ls.exists ? (ls.data() || {}) : null;
+  if (!lead || !PIF.invoiceInLeadTenant(inv, lead)) return null;
+  let jobId = typeof inv.jobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(inv.jobId) ? inv.jobId : null;
+  if (!jobId) {
+    const a = lead.activeJobId;
+    jobId = typeof a === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(a) ? a : null;
+  }
+  if (!jobId) return null;
+  const jobRef = leadRef.collection('jobs').doc(jobId);
+  const js = await jobRef.get();
+  if (!js.exists || js.data().paidInFull !== true) return null;
+  const fv = deps.FieldValue || FieldValue;
+  await jobRef.update({ paidInFull: false, paidInFullAt: fv.delete() });
+  logger.info('[moneyPaper] payment reversed — job no longer paid in full', { leadId: inv.leadId, jobId });
+  return jobId;
+}
+
 /** File the "paid in full — not closed" task on the invoice's lead. → task id | null. */
 async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
@@ -389,6 +455,8 @@ async function handle(invoiceId, after, deps, before) {
     return tl && (tl.written || tl.existing) ? { skipped: 'backfill', timeline: tl } : { skipped: 'backfill' };
   }
   const spine = await spineOnInvoice(deps, invoiceId, before, after);
+  // A reversed payment walks the spine back (2026-11-16). Every tenant, kill switch or not.
+  const unspine = await unspineOnInvoice(deps, invoiceId, before, after);
   // One timeline line per NEW payment, every tenant, every path (the Stripe
   // webhook, the ledger, Mark Paid, Record payment) — payment-timeline.js,
   // create-only per payment id. Only on a real write (never history), and
@@ -396,7 +464,7 @@ async function handle(invoiceId, after, deps, before) {
   const timeline = before !== undefined
     ? await (deps.writePaymentTimeline || require('./payment-timeline').writePaymentTimeline)(deps.db, invoiceId, before, after, { FieldValue: deps.FieldValue })
     : null;
-  if (process.env.NBD_MONEY_PAPER === 'off') return spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' };
+  if (process.env.NBD_MONEY_PAPER === 'off') return Object.assign(spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' }, unspine || {});
   const d = P.decide(after, { ownerUid: OWNER });
   // before === undefined → a caller that cannot tell (tests of the rules
   // alone); the trigger always passes the real before (null for a create).
@@ -406,6 +474,7 @@ async function handle(invoiceId, after, deps, before) {
     if (!t.becamePaid) { d.fileReceipt = false; d.markOob = false; }
   }
   const out = spine ? { spine } : {};
+  if (unspine) Object.assign(out, unspine);
   if (timeline && (timeline.written || timeline.existing)) out.timeline = timeline;
   // Multi-job stage 2b: an invoice paid in full ON THIS WRITE marks its job
   // paid (the invoice's own jobId, else the customer's active job). A job is
@@ -456,7 +525,9 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
 
 function spineFailures(out) {
   const s = out && out.spine;
-  return s ? Object.keys(s).filter((k) => s[k] && s[k].reason === 'error') : [];
+  const u = out && out.unspine;   // a walk-back that failed after retries (2026-11-16) alerts the same way
+  return (s ? Object.keys(s).filter((k) => s[k] && s[k].reason === 'error') : [])
+    .concat(u ? Object.keys(u).filter((k) => u[k] && u[k].reason === 'error').map((k) => k + ' (walk-back)') : []);
 }
 
-exports._internal = { handle, spineOnInvoice, spineFailures, payQr, plateFor, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, spineOnInvoice, unspineOnInvoice, markJobUnpaid, spineFailures, payQr, plateFor, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
