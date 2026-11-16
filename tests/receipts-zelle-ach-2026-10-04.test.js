@@ -198,6 +198,20 @@ function serverDb(seed) {
     const again = await IP.sendReceipt('inv_doc_9f3a', 'mp_z1');
     ok('a second tap sends nothing (already sent)', again.sent === false && again.reason === 'already_sent' && B.emails.length === 1);
 
+    // 2026-11-16: when marking the receipt sent is refused, the send still counts and the user is told, not left guessing.
+    const invM = JSON.parse(JSON.stringify(inv)); invM.payments[0].paymentId = 'mp_m1';
+    const BM = browser({ 'invoices/inv_m': invM }, {
+      updateDoc: async (r, patch) => { if (patch && patch.payments) { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; } },
+    });
+    const toasts = []; const prevToast = global.showToast; global.showToast = (m, k) => toasts.push([k, m]);
+    const resM = await IP.sendReceipt('inv_m', 'mp_m1');
+    ok('a refused mark-sent: the email still went once, and the result says markFailed', resM.sent === true && resM.markFailed === true && BM.emails.length === 1, JSON.stringify(resM));
+    const hadDoc = 'document' in global; const prevDoc = global.document; global.document = { getElementById: () => null };
+    const uiM = await IP.sendReceiptUI('inv_m', 'mp_m1');
+    if (hadDoc) global.document = prevDoc; else delete global.document;
+    ok('…and the Send receipt tap shows an error saying so (not silence)', uiM === true && toasts.some(([k, m]) => k === 'error' && /could not be marked sent/.test(m) && /send it again/i.test(m)), JSON.stringify(toasts));
+    global.showToast = prevToast;
+
     // No email on file → the share sheet, with the filed NBD-510 PDF.
     const paidInv = {
       leadId: 'L1', createdBy: 'u1', status: 'paid', total: 1000, amountPaid: 1000, balanceDue: 0,

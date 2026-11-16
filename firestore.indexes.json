@@ -1171,6 +1171,15 @@
       ]
     },
     {
+      "_comment": "Finding 5 2026-11-14: invoice-pipeline.loadEstimateSupplements team read - where('parentEstimateId','==') + where('companyId','==',claim) on supplements, so the office finds a rep's supplements when invoicing. Equality-only (zig-zag-servable); pinned per team convention like the userId composite above.",
+      "collectionGroup": "supplements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parentEstimateId", "order": "ASCENDING" },
+        { "fieldPath": "companyId",        "order": "ASCENDING" }
+      ]
+    },
+    {
       "_comment": "Alert-health banner 2026-07-07: tenant-scoped delivery-failure read - where(companyId ==) + orderBy(createdAt desc) on alert_outbox (docs/pro/js/alert-health-banner.js). Admin/global branch needs no composite.",
       "collectionGroup": "alert_outbox",
       "queryScope": "COLLECTION",

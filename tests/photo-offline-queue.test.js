@@ -86,8 +86,13 @@ ok('the drain does NOT splice the whole queue out up front',
   !/splice\(0,\s*state\.uploadQueue\.length\)/.test(src),
   'that pattern destroyed every not-yet-attempted item when one upload threw');
 
-ok('the drain stops on the first failure instead of spinning',
-  /catch \(e\) \{[\s\S]{0,300}?\n\s*break;/.test(src));
+// 2026-11-14 (wave-1 field #7): it used to stop on the FIRST failure, so one
+// photo that always fails held every photo behind it forever. It now skips a
+// single failure and stops on the second in a row (a dead connection, not a
+// bad photo). Behaviour is proven by cases 1, 1b and 5 below and by
+// tests/photo-queue-unblock-2026-11-14.test.js.
+ok('the drain stops after two failures in a row instead of spinning',
+  /consecutiveFails >= 2\)\s*\{\s*\n\s*stalled = true;\s*\n\s*break;/.test(src));
 
 // Shape only, and deliberately loose about what else happens on the line: the
 // exact-source version of this broke on an unrelated counter increment while
@@ -261,7 +266,10 @@ if (missing.length === 0) {
       }
     };
     vm.createContext(sandbox);
-    vm.runInContext('const _inFlight = new Set();\n'
+    // _scheduleRetry (the timed retry) is stubbed: its real timers are run by
+    // tests/photo-queue-unblock-2026-11-14.test.js, and a 30 s timer here would
+    // hold this suite open.
+    vm.runInContext('const _inFlight = new Set();\nfunction _scheduleRetry() {}\n'
       + [PARTS.blob, PARTS.store, PARTS.uid, PARTS.key, PARTS.legacyId, PARTS.enqueue, PARTS.pending, PARTS.drop, PARTS.syncAfter, PARTS.flush].join('\n')
       + '\nthis.__flush = flushUploadQueue;'
       + '\nthis.__enqueue = enqueueForRetry;'
@@ -276,18 +284,27 @@ if (missing.length === 0) {
 
   const results = [];
   const done = (async () => {
-    // 1. STORE-BACKED. Five in storage, the THIRD upload fails: 1 and 2 are
-    //    sent and gone from storage; 3, 4, 5 must all still be IN STORAGE, in
-    //    order, and 4 and 5 must never have been attempted.
+    // 1. STORE-BACKED. Five in storage, the connection dies at the THIRD
+    //    upload: 1 and 2 are sent and gone from storage; 3, 4, 5 must all
+    //    still be IN STORAGE, in order. (2026-11-14: #4 is now tried once —
+    //    one failure might be a bad photo — and the second failure in a row
+    //    stops the drain, so #5 is never attempted.)
     let n1 = 0;
     const s1 = fakeStore([row(1), row(2), row(3), row(4), row(5)]);
-    const sent1 = await run(s1, [], async () => { n1++; if (n1 === 3) throw new Error('offline again'); }).flush();
+    const sent1 = await run(s1, [], async () => { n1++; if (n1 >= 3) throw new Error('offline again'); }).flush();
     results.push(['store: two upload before the failure', sent1 === 2, 'sent=' + sent1]);
     results.push(['store: the failing photo AND the untried remainder stay in storage, in order',
       s1.leftIds() === '3,4,5', 'left=' + s1.leftIds()]);
     results.push(['store: the two that uploaded were removed from storage',
       !s1.map.has(1) && !s1.map.has(2)]);
-    results.push(['store: nothing behind the failure was attempted', n1 === 3, 'uploader calls=' + n1]);
+    results.push(['store: two failures in a row stop the drain (#5 never attempted)', n1 === 4, 'uploader calls=' + n1]);
+
+    // 1b. STORE-BACKED (2026-11-14). ONE photo that always fails no longer
+    //     blocks the healthy photos behind it, and it stays in storage.
+    const s1b = fakeStore([row(1), row(2), row(3), row(4)]);
+    const sent1b = await run(s1b, [], async (_b, leadId) => { if (leadId === 'lead-2') throw new Error('storage/unauthorized'); }).flush();
+    results.push(['store: one always-failing photo is skipped, the rest upload', sent1b === 3, 'sent=' + sent1b]);
+    results.push(['store: the failing photo stays in storage', s1b.leftIds() === '2', 'left=' + s1b.leftIds()]);
 
     // 2. STORE-BACKED. An unrecoverable row (no bytes) is dropped and does NOT
     //    block the healthy photo behind it.
@@ -319,7 +336,7 @@ if (missing.length === 0) {
     //    hold on the array: the failing item and the remainder survive in order.
     let n5 = 0;
     const r5 = run(null, [memItem(1), memItem(2), memItem(3), memItem(4), memItem(5)],
-      async () => { n5++; if (n5 === 3) throw new Error('offline again'); });
+      async () => { n5++; if (n5 >= 3) throw new Error('offline again'); });
     const sent5 = await r5.flush();
     const left5 = r5.sandbox.state.uploadQueue.map((i) => i.leadId).join(',');
     results.push(['memory: two upload before the failure', sent5 === 2, 'sent=' + sent5]);

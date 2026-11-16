@@ -284,12 +284,28 @@
     // card" (CRM audit 2026-11-06, PL-F12); say what it does.
     let _jobCount = 0;
     try { _jobCount = (window.NBDJobs && typeof window.NBDJobs.forLead === 'function') ? (window.NBDJobs.forLead(lead.id) || []).length : 0; } catch (e) { _jobCount = 0; }
-    items.push({
-      icon: '🗑',
-      label: _jobCount > 1 ? 'Delete customer (all ' + _jobCount + ' jobs)' : 'Delete lead',
-      danger: true,
-      onSelect: () => window.deleteLead && window.deleteLead(lead.id),
-    });
+    // Archive (2026-11-14): how a manager puts a lead away now that only the
+    // owner side deletes. Offered where crm-portal-bridge.js says the caller
+    // may (owner, same-company manager / company_admin; never a viewer).
+    if (typeof window.nbdMayArchiveLead === 'function' && window.nbdMayArchiveLead(lead)
+        && typeof window.nbdArchiveLead === 'function') {
+      items.push({
+        icon: '📦',
+        label: 'Archive lead',
+        onSelect: () => window.nbdArchiveLead(lead.id),
+      });
+    }
+    // Not offered to a role that may not delete THIS lead (a manager on a
+    // teammate's lead, 2026-11-14): crm-portal-bridge.js nbdMayDeleteLead
+    // mirrors the rules. Without it the item stays, and the rules decide.
+    if (typeof window.nbdMayDeleteLead !== 'function' || window.nbdMayDeleteLead(lead)) {
+      items.push({
+        icon: '🗑',
+        label: _jobCount > 1 ? 'Delete customer (all ' + _jobCount + ' jobs)' : 'Delete lead',
+        danger: true,
+        onSelect: () => window.deleteLead && window.deleteLead(lead.id),
+      });
+    }
     // A viewer is read-only (role-gate.js). Every write below was refused on
     // click — Delete even opened a dialog with only Cancel — so offer just the
     // read actions. Portal links mint tokens, which is a write.

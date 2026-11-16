@@ -37,7 +37,10 @@ function ok(name, cond, detail) {
 }
 
 function extractFn(src, name) {
-  const start = src.indexOf('async function ' + name + '(');
+  // 2026-11-14: loadAllTasks is now a plain single-flight wrapper around the
+  // async _loadAllTasksOnce, so a sync function is found too.
+  let start = src.indexOf('async function ' + name + '(');
+  if (start === -1) start = src.indexOf('function ' + name + '(');
   if (start === -1) return '';
   const open = src.indexOf('{', start);
   let depth = 0, i = open;
@@ -51,8 +54,8 @@ function extractFn(src, name) {
 // 2026-10-03: loadAllTasks is ONE collection-group query now
 // (tests/tasks-one-query-2026-10-03.test.js); with no NBDTodayPlan on the
 // page it falls back to this per-lead read, which is what this file pins.
-const decls = (SRC.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS|FS_SDK|taskLoadMode|tasksLoaded)\b[^\n]*$/gm) || []).join('\n');
-const code = decls + '\n' + extractFn(SRC, '_overlayCallText') + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, '_loadAllTasksGroup') + '\n' + extractFn(SRC, 'loadAllTasks')
+const decls = (SRC.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS|FS_SDK|taskLoadMode|tasksLoaded|tasksLoadedAt|taskEditGen|taskLoadP)\b[^\n]*$/gm) || []).join('\n');
+const code = decls + '\n' + extractFn(SRC, '_overlayCallText') + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, '_loadAllTasksGroup') + '\n' + extractFn(SRC, '_loadAllTasksOnce') + '\n' + extractFn(SRC, 'loadAllTasks')
   + '\nglobalThis.loadAllTasks = loadAllTasks;';
 ok('tasks.js declares the from-cache state', /_tasksFromCache/.test(decls), decls);
 

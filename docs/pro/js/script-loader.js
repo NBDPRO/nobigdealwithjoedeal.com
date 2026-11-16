@@ -187,7 +187,7 @@
     catchup: [
       'js/catchup-logic.js?v=4',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=3'
+      'js/catchup.js?v=4'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -302,8 +302,8 @@
       // KY claim wording (2026-10-18): the supplement letter runs its free text
       // through window.NBDClaimWording and refuses to build without it.
       'js/claim-wording-filter.js?v=1',
-      'js/estimate-supplement.js?v=5',
-      'js/supplement-ui.js?v=4',
+      'js/estimate-supplement.js?v=6',
+      'js/supplement-ui.js?v=5',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
       // EstimateBuilderV2.CATALOG (so it must load after both), and the UI
@@ -339,7 +339,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=11',
+      'js/photo-engine.js?v=12',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB

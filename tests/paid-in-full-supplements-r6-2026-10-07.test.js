@@ -51,15 +51,37 @@ const OH = '1 Main St, Cincinnati, OH 45202';
 const CL = req('docs/pro/js/catchup-logic.js');
 const NL = req('docs/pro/js/numbers-logic.js');
 const CER_CLIENT = req('docs/pro/js/customer-estimate-rows.js');
+// An invoice with supplements is made by the server since 2026-11-14 (functions/supplement-invoice.js):
+// the real handler runs over this sandbox's store.
+const { installSupplementCallable, cloneKeep, APPROVED_AT } = require('./lib/supplement-callable-fake');
 let IP = null, CU = null;
 function browser(seed, extra) {
-  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
+  const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, cloneKeep(v)]));
   const emails = [], writes = [];
   let seq = 0;
-  const clone = (v) => JSON.parse(JSON.stringify(v));
+  const clone = (v) => cloneKeep(v);
   const W = {
     _db: { fake: true }, db: { fake: true },
-    doc: (db, ...segs) => ({ path: segs.join('/'), id: segs[segs.length - 1] }),
+    // doc(collectionRef) mints an auto id (the v9 SDK); writeBatch is all or
+    // nothing — the invoice + supplement stamp land together (2026-11-14).
+    doc: (db, ...segs) => {
+      if (db && db.col && !segs.length) { const id = 'new' + (++seq); return { path: db.col + '/' + id, id }; }
+      return { path: segs.join('/'), id: segs[segs.length - 1] };
+    },
+    writeBatch: () => {
+      const ops = [];
+      return {
+        set: (r, data) => { ops.push(['set', r.path, data]); },
+        update: (r, patch) => { ops.push(['update', r.path, patch]); },
+        commit: async () => {
+          for (const [k, p, d] of ops) {
+            if (k === 'update' && !store.has(p)) throw new Error('NOT_FOUND ' + p);
+            writes.push([k, p]);
+            store.set(p, k === 'set' ? clone(d) : Object.assign({}, store.get(p), clone(d)));
+          }
+        },
+      };
+    },
     collection: (db, col) => ({ col }),
     where: (f, op, v) => ({ f, op, v }),
     query: (col, ...ws) => ({ col: col.col, ws }),
@@ -94,6 +116,7 @@ function browser(seed, extra) {
       loadSpend: async () => ({ months: {} }), saveSpendMonth: async () => true, mergeSpendMonths: async () => true,
     },
   };
+  installSupplementCallable(W, store, () => ({ uid: 'u1', token: {} }));
   Object.assign(W, extra || {});
   global.window = W;
   global.showToast = () => {};
@@ -112,7 +135,9 @@ const insEst = (f) => Object.assign({
   userId: 'u1', leadId: 'C2', grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0, mode: 'insurance', addr: OH,
   rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }],
 }, f || {});
-const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }, f || {});
+// Saved with its company and approved by the owner side with the carrier's evidence (Joe, 2026-11-14).
+const sup = (f) => Object.assign({ parentEstimateId: 'estC', leadId: 'C2', userId: 'u1', companyId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield',
+  approvedBy: 'u1', approvedAt: APPROVED_AT, approvalEvidence: { note: 'Carrier letter: ice & water approved.' } }, f || {});
 
 (async () => {
   // ════════════════════════════════════════════════════════════════════

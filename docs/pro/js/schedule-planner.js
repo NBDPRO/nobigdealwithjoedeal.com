@@ -432,7 +432,7 @@
   // It renders itself once loaded; ScriptLoader de-dupes repeat calls.
   function loadCalendarPanel() {
     if (window.NBDScheduleCalendar || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
-    window.ScriptLoader.load('/pro/js/schedule-calendar-panel.js?v=1');
+    window.ScriptLoader.load('/pro/js/schedule-calendar-panel.js?v=2');
   }
   function maybeRender() {
     if (!/schedule/.test(location.hash || '')) return;
