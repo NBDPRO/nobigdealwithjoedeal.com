@@ -49,6 +49,10 @@ const CW = require('./cancel-window');
 const { uidInLeadTenant } = require('./lead-artifact-paths');
 const ESL = require('./esign-logic');
 const { awaitBriefly } = require('./await-briefly');
+const SP = require('./signed-price');
+
+/** Cents → "$14,500.00" for the rep's bell. */
+const usd = (cents) => '$' + (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -212,6 +216,33 @@ function signablePathUid(htmlPath, leadId) {
 }
 
 /** Shape + tenant check. One users/{uid} read only for a teammate's path. */
+/**
+ * Mark this lead's other pending CONTRACT sign links superseded (review H1,
+ * 2026-11-14). A token minted before docType was stamped is judged by its
+ * document's type. Only the lead owner's tokens. Best-effort, never throws:
+ * the price guard in signed-price.js (older_than_current) still holds if
+ * this misses one.
+ */
+const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+  try {
+    const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+    for (const d of snap.docs) {
+      if (d.id === keepToken) continue;
+      const t = d.data() || {};
+      if (t.ownerUid !== ownerUid) continue;
+      let type = t.docType || null;
+      if (!type && typeof t.docId === 'string' && t.docId) {
+        try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
+      }
+      if (!CW.isContractDocType(type)) continue;
+      await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+    }
+  } catch (e) {
+    logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
+  }
+}
+
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
   const uid = signablePathUid(htmlPath, leadId);
   if (!uid || !lead) return false;
@@ -380,6 +411,13 @@ exports.createSignRequest = onCall(
     const docSnap = await db.doc(`leads/${leadId}/documents/${docId}`).get();
     if (!docSnap.exists) throw new HttpsError('not-found', 'Document not found');
     const docMeta = docSnap.data();
+    // Joe 2026-11-14: a document that is already signed never gets a new
+    // link (a second signing would overwrite the signed record). The one
+    // exception is a signature whose signed copy could not be saved
+    // (signedSaveFailed): re-sending it is the recovery path.
+    if ((docMeta.signedAt || docMeta.status === 'signed') && docMeta.signedSaveFailed !== true) {
+      throw new HttpsError('failed-precondition', 'This document is already signed. Open the signed copy from the Documents tab; to change it, generate a new document and send that one.');
+    }
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
     // htmlPath is client-written: confine it to THIS lead's own documents/
@@ -404,6 +442,35 @@ exports.createSignRequest = onCall(
         throw new HttpsError('failed-precondition',
           'This contract was made before the 3-day cancellation forms were added. Generate the contract again, then send that one.');
       }
+    }
+
+    // The price this contract is sent at (money review 2026-11-14, finding 8):
+    // a snapshot of the estimate the signature will bill (the lead's primary,
+    // signed-price.js), kept on the admin-only token. At signing the stamp
+    // bills THIS, even if the estimate is re-priced while the link is out —
+    // the way an e-sign envelope keeps its pricedSnapshot. Best-effort: with
+    // no snapshot the signing bills the estimate as it then stands (the old
+    // behaviour).
+    // A contract that goes out WITHOUT a locked price is never silent (review,
+    // 2026-11-14): the caller gets priceLocked:false + why, the token carries
+    // priceSnapshotMissing, and the rep's bell says so at signing.
+    // Note: the snapshot is the primary estimate as it stands at SEND, not a
+    // reading of the contract page (it may have been generated earlier).
+    const isContract = CW.isContractDocType(docMeta.type);
+    let priceSnapshot = null;
+    let priceLockReason = null;
+    if (isContract) {
+      const pid = typeof lead.primaryEstimateId === 'string' ? lead.primaryEstimateId : '';
+      try {
+        const es = pid && /^[A-Za-z0-9_-]{1,128}$/.test(pid) ? await db.doc(`estimates/${pid}`).get() : null;
+        const r = SP.signRequestSnapshot(leadId, lead, es && es.exists ? es.data() : null, pid, Date.now());
+        priceSnapshot = r.snapshot;
+        priceLockReason = r.reason;
+      } catch (e) {
+        priceLockReason = 'read_failed';
+        logger.warn('[createSignRequest] price snapshot failed', { leadId, docId, err: e.message });
+      }
+      if (!priceSnapshot) logger.warn('[createSignRequest] contract link sent WITHOUT a locked price', { leadId, docId, reason: priceLockReason });
     }
 
     const now = Date.now();
@@ -440,10 +507,18 @@ exports.createSignRequest = onCall(
       signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
+      docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
+      priceSnapshot,
+      ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
     });
+
+    // One live contract link per customer (review H1, 2026-11-14): a new
+    // contract link retires the older pending ones, so a homeowner can't sign
+    // yesterday's price after today's (the e-sign envelope does the same).
+    if (isContract) await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link');
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
@@ -496,7 +571,13 @@ exports.createSignRequest = onCall(
     }
 
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
-    return { token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token };
+    return {
+      token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
+      // null = not a contract (nothing to lock); false = sent without a
+      // locked price, with why (the viewer warns the rep).
+      priceLocked: isContract ? !!priceSnapshot : null,
+      priceLockReason: isContract && !priceSnapshot ? priceLockReason : null,
+    };
   }
 );
 
@@ -530,7 +611,12 @@ exports.getSignDocument = onRequest(
       res.status(410).json({ error: 'This signing link has expired. Contact your rep for a new one.' }); return;
     }
     if (tok.status !== 'pending') {
-      res.status(410).json({ error: 'This document has already been signed.' }); return;
+      // A superseded link says so (#3055); a signature whose signed copy could not be stored (#3053) says so on a
+      // reload too, not "nothing more to do".
+      res.status(410).json({ error: tok.status === 'superseded' ? SUPERSEDED_MSG
+        : tok.signedSaveFailed === true
+          ? 'We received your signature, but the signed copy could not be saved. Your contractor will contact you to confirm.'
+          : 'This document has already been signed.' }); return;
     }
 
     // Re-check the path on every use: a token minted before the 2026-10-05
@@ -719,6 +805,7 @@ exports.submitSignature = onRequest(
         if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) {
           const e = new Error('exp'); e._http = 410; e._msg = 'This signing link has expired.'; throw e;
         }
+        if (t.status === 'superseded') { const e = new Error('superseded'); e._http = 410; e._msg = SUPERSEDED_MSG; throw e; }
         if (t.status !== 'pending') {
           const e = new Error('done'); e._http = 409; e._msg = 'This document has already been signed.'; throw e;
         }
@@ -726,7 +813,10 @@ exports.submitSignature = onRequest(
           const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
-        return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '' };
+        return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
+          docType: t.docType || null,
+          priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
+          priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
     } catch (err) {
       if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
@@ -796,43 +886,126 @@ exports.submitSignature = onRequest(
     }
     // The stored copy still holds the contract as generated (its old date).
     if (cxl && !recordSaved) cxl.stale = true;
-    if (cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
-    try {
-      await db.doc(`leads/${info.leadId}/documents/${info.docId}`).set({
-        status: 'signed',
-        signedAt: FieldValue.serverTimestamp(),
-        signedRemotely: true,
-        remoteSignerName: info.signerName || null,
-        // htmlPath now holds the signed copy (unchanged behaviour for the
-        // documents tab); this is the untouched original we served.
-        originalHtmlPath: archivePath,
-        // Digest of the document we SERVED, so a later dispute can prove what
-        // was put in front of the signer without trusting either party's copy.
-        originalSha256: originalHtml
-          ? require('crypto').createHash('sha256').update(originalHtml, 'utf8').digest('hex')
-          : null,
-        signedSha256: require('crypto').createHash('sha256').update(recordHtml, 'utf8').digest('hex'),
-        ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
-      }, { merge: true });
-    } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
+    if (recordSaved && cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
+    // Both tries to store the signed copy failed (2026-11-14): htmlPath still
+    // holds the UNSIGNED original and the token is burned. Flag the document,
+    // tell the rep plainly (not "Document signed"), and tell the page so the
+    // homeowner is not promised a recorded signature.
+    const sha = (s) => require('crypto').createHash('sha256').update(s, 'utf8').digest('hex');
+    const ids = { docId: info.docId, leadId: info.leadId, ownerUid: info.ownerUid };
+    if (!recordSaved) logger.error('[submitSignature] signed copy NOT saved — document flagged signedSaveFailed', ids);
+    const docRef = db.doc(`leads/${info.leadId}/documents/${info.docId}`);
+    // Joe 2026-11-14: an unsaved signature does NOT mark the document signed.
+    // No status / signedAt / signedRemotely (customer-documents.js infers
+    // "signed" from any of them), so it keeps reading "sent" with the
+    // warning; unsavedSignatureAt records when the signature came in.
+    const docPatch = {
+      ...(recordSaved
+        ? { status: 'signed', signedAt: FieldValue.serverTimestamp(), signedRemotely: true }
+        : { unsavedSignatureAt: FieldValue.serverTimestamp() }),
+      remoteSignerName: info.signerName || null,
+      // htmlPath now holds the signed copy (unchanged behaviour for the
+      // documents tab); this is the untouched original we served.
+      originalHtmlPath: archivePath,
+      // Digest of the document we SERVED, so a later dispute can prove what
+      // was put in front of the signer without trusting either party's copy.
+      originalSha256: originalHtml ? sha(originalHtml) : null,
+      // Only a STORED signed copy gets signedSha256. An unsaved one is
+      // recorded as unsavedRecordSha256 so nobody mistakes it for the hash of
+      // what htmlPath holds; a successful save clears any stale flag (the
+      // signed-row lock means no client can).
+      ...(recordSaved
+        ? { signedSha256: sha(recordHtml), signedSaveFailed: FieldValue.delete() }
+        : { signedSha256: null, unsavedRecordSha256: sha(recordHtml), signedSaveFailed: true }),
+      ...(cancelBy && recordSaved ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+    };
+    const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
+    const note = {
+      userId: info.ownerUid,
+      type: 'remote_signature',
+      leadId: info.leadId,
+      title: recordSaved ? 'Document signed' : 'Signed copy NOT saved — action needed',
+      message: who + (recordSaved
+        ? 'signed a document remotely.'
+        : 'signed a document remotely, but the signed copy was not saved. The stored document is still the unsigned original. Contact them and send a new signing link.'),
+      priority: 'high',
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    let notified = false;
+    if (recordSaved) {
+      try { await docRef.set(docPatch, { merge: true }); } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+    } else {
+      // The flag and the bell are the rep's only signals: one batch (with the
+      // token, so a reload of the link says the same thing), tried twice, then
+      // a row on the lead's activity timeline as the second channel.
+      for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
+        try {
+          const b = db.batch();
+          b.set(docRef, docPatch, { merge: true });
+          b.set(db.collection('notifications').doc(), note);
+          b.update(tokRef, { signedSaveFailed: true });
+          await b.commit();
+          notified = true;
+        } catch (e) {
+          logger.error('[submitSignature] save-failure flag + rep alert write failed (attempt ' + attempt + ' of 2)', Object.assign({ msg: e.message }, ids));
+        }
+      }
+      if (!notified) {
+        // Second channel: the flag alone, and a row on the lead's activity
+        // timeline. The bell is tried once more on its own below.
+        try { await docRef.set(docPatch, { merge: true }); } catch (e) {
+          logger.error('[submitSignature] save-failure flag write failed', Object.assign({ msg: e.message }, ids));
+        }
+        try {
+          await db.collection(`leads/${info.leadId}/activity`).add({
+            userId: info.ownerUid,
+            type: 'remote_signature_unsaved',
+            label: 'Signed copy NOT saved',
+            message: note.message,
+            docId: info.docId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.error('[submitSignature] activity fallback failed too — the rep has NO signal of the unsaved signature', Object.assign({ msg: e.message }, ids));
+        }
+      }
+    }
+    // Joe 2026-11-14: with no stored signed copy the job does not advance and
+    // no cancel-by date is stamped; the rep re-sends (createSignRequest allows
+    // it for a signedSaveFailed document) and the good signing does both.
+    if (cancelBy && recordSaved) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
-    await spineAfterRemoteSign(db, info);
-    try {
-      await db.collection('notifications').add({
-        userId: info.ownerUid,
-        type: 'remote_signature',
-        leadId: info.leadId,
-        title: 'Document signed',
-        message: (info.signerName ? info.signerName + ' ' : 'A homeowner ') + 'signed a document remotely.',
-        priority: 'high',
-        read: false,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    } catch (e) { logger.warn('[submitSignature] notify failed', { msg: e.message }); }
+    // Only a STORED signed copy moves the job (Joe 2026-11-14, #3053) and retires the customer's other pending
+    // contract links (#3055 review H1); an unsaved one leaves both as they were, so the re-sent link can finish it.
+    if (recordSaved) {
+      const spineOut = await spineAfterRemoteSign(db, info);
+      if (CW.isContractDocType(info.docType) || (spineOut && spineOut.spine)) {
+        await supersedeContractTokens(db, info.leadId, info.ownerUid, token, 'contract_signed');
+      }
+      // The estimate was re-priced while the link was out: the bills use the price the homeowner signed. Say so on
+      // the rep's bell (finding 8); signed-price.js also writes it to the lead's activity feed.
+      const sp = spineOut && spineOut.spine && spineOut.spine.signedPrice;
+      let moved = sp && sp.movedSinceSent
+        ? ' Signed at ' + usd(sp.totalCents) + '; the estimate now says ' + usd(sp.currentTotalCents)
+          + '. Bills use the signed ' + usd(sp.totalCents) + ' until the homeowner re-signs.'
+        : '';
+      // The link went out without a locked price: never silent at signing.
+      if (info.priceSnapshotMissing) {
+        moved += ' The price was not locked when this link was sent (' + String(info.priceLockReason || 'unknown').replace(/_/g, ' ')
+          + '), so bills follow the estimate as it stood at signing — check it.';
+      }
+      note.message += moved;
+    }
+    if (!notified) {
+      try { await db.collection('notifications').add(note); } catch (e) {
+        if (recordSaved) logger.warn('[submitSignature] notify failed', { msg: e.message });
+        else logger.error('[submitSignature] save-failure rep alert failed', Object.assign({ msg: e.message }, ids));
+      }
+    }
 
-    res.status(200).json({ ok: true });
+    res.status(200).json(recordSaved ? { ok: true } : { ok: true, saved: false });
   }
 );

@@ -238,6 +238,11 @@
       // returned the unawaited promise, detaching its rejection from
       // the caller's catch — voice would silently hang with the
       // "Transcribing…" toast stuck and the FAB in idle state.
+      // A plan / email refusal (or the plan check being down) is an answer,
+      // not a missing deploy: show it instead of trying the fallback, which
+      // carries the same gate (2026-11-14, free accounts get no AI).
+      const code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+      if (code === 'permission-denied' || code === 'unavailable' || code === 'resource-exhausted') throw e;
       console.warn('[NBDWhisper] dictate callable failed, falling back:', e.message);
       return await _dictateFallback(blob, opts);
     }

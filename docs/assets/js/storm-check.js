@@ -349,16 +349,16 @@
   function joesTake() {
     var fb = S.firstName + ', I’ll get on your roof, document anything the storm did, and meet your adjuster on the roof if you file. No pressure either way.';
     try {
-      var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a Cincinnati roofer who documents storm damage, writes the estimate, and meets the adjuster on the roof — the homeowner owns and decides their own claim. Write a 2-sentence, warm, no-BS note to ' +
-        (S.firstName || 'a homeowner') + ' who just used your storm-damage self-check. Roof age: ' + S.roofAge +
-        '. Signs reported: ' + (S.signs.join(', ') || 'none') + '. Do NOT promise the claim will be approved or pay out; say you’ll inspect free, document the damage, and meet the adjuster on the roof — the claim stays theirs. No dollar amounts.';
+      // Structured answers only (2026-11-14, AI audit F5): the server builds
+      // the prompt (functions/public-funnel-ai-logic.js) and refuses free text.
+      var aiRequest = { kind: 'stormCheck', firstName: S.firstName || '', roofAge: S.roofAge, signs: S.signs };
       // 30 s client timeout (2026-10-15, review M3): a slow or cold backend
       // held the result (and the lead saved/failed notice) behind a spinner.
       var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
       var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, maxTokens: 180 }),
+        body: JSON.stringify(aiRequest),
         signal: ctrl ? ctrl.signal : undefined
       }).then(function (r) { return r.json(); }).then(function (d) {
         var txt = d && d.text;

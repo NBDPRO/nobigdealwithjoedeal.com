@@ -620,7 +620,7 @@ async function _nbdInvoicePipeline(fnName) {
   if (!window._auth && window.auth) window._auth = window.auth;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=39');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=41');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -697,7 +697,7 @@ window.NBDCustomerInvoices = {
       if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=39');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=41');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -725,7 +725,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=39');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=41');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -840,8 +840,20 @@ window.loadInvoices = async function(leadId) {
     const receiptBtns = (inv) => {
       const pays = Array.isArray(inv.payments) ? inv.payments : [];
       const drafts = [];
+      // A payment the owner reversed (a negative entry naming it) gets no receipt.
+      const reversedIdx = (function (list) {   // nbd:reversal-pairs (functions/reversal-pairs.js): frozen fields only
+        var ms = function (x) { return x == null ? NaN : typeof x.toMillis === 'function' ? x.toMillis() : x instanceof Date ? x.getTime() : typeof x.seconds === 'number' ? x.seconds * 1000 : new Date(x).getTime(); };
+        var c = function (x) { return Math.round((Number(x) || 0) * 100); };
+        var out = {};
+        list.forEach(function (n, j) {
+          if (!n || !(Number(n.amount) < 0)) return;
+          for (var i = 0; i < j; i++) { var p = list[i]; if (p && !out[i] && c(p.amount) === -c(n.amount) && ms(p.at) === ms(n.at) && p.method === n.method) { out[i] = 1; break; } }
+        });
+        return out;
+      })(pays);
       pays.forEach((p, i) => {
         if (!p || !(Number(p.amount) > 0) || p.achStatus === 'failed' || p.reverted === true) return;
+        if (reversedIdx[i]) return;
         if (p.receipt && p.receipt.status === 'sent') return;
         drafts.push({ key: _payIdOf(p) || ('idx:' + i), amount: Number(p.amount) });
       });
