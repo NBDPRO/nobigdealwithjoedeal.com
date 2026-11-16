@@ -12,7 +12,8 @@
  *    payoff period — disagreeing with Money/Analytics Collected.
  *
  * 2. customer-tasks-ui.js loadInvoices — pipeline invoices carry `total`
- *    (never `amount`), and paid cash = total − balanceDue. The old code read
+ *    (never `amount`), and paid cash = the payment lines net of reversals
+ *    (2026-11-16; it was total − balanceDue). The old code read
  *    inv.amount (always undefined → $0.00 rows) and counted cash only at
  *    status==='paid' (deposits invisible in Total Paid).
  *
@@ -57,8 +58,10 @@ ok('leaderboard has NO jobValue fallback when no invoice cash',
 ok('customer tab reads inv.total (amount only as legacy fallback)',
   /inv\.total != null \? inv\.total : inv\.amount/.test(CT));
 
-ok('customer tab paid cash = total − balanceDue (not status gate)',
-  /paidCash = Math\.max\(0, amount - bal\)/.test(CT)
+// Changed 2026-11-16: total − balanceDue capped an overpayment at the total and ignored reversals; paid cash is now the
+// payment lines net of reversals and refunds (paidCentsOf), behaviour-tested in invoice-card-void-2026-11-16.test.js.
+ok('customer tab paid cash = payment lines net of reversals (not status gate)',
+  /paidCash = paidCentsOf\(inv\) \/ 100/.test(CT)
   && /totalPaid \+= paidCash/.test(CT));
 
 ok('customer tab old inv.amount-only read is gone',
